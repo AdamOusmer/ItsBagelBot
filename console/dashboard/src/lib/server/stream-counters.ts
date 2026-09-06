@@ -5,7 +5,7 @@
 // actions taken during the CURRENT stream, not the channel's lifetime totals.
 //
 // The underlying counters are lifetime-monotonic (loyalty's counter store,
-// the same one public-stats.ts reads under the reserved bot-scope id — see
+// the same one public-stats.ts reads under the reserved bot-scope id, see
 // that file's header for the shape; this file uses the real broadcaster id
 // instead, since these are per-channel). A per-stream number is therefore
 // always `current - baseline`, where baseline is the lifetime value the Go
@@ -23,7 +23,7 @@
 //      worse than showing nothing.
 //   2. A counter can go backwards relative to its baseline (service redeploy,
 //      a manual counter.set). Clamp the delta at 0 rather than surface a
-//      negative count — same precedent as public-stats.ts's perSecond clamp.
+//      negative count (same precedent as public-stats.ts's perSecond clamp).
 import Redis from 'iovalkey';
 import { rpc } from '@bagel/shared/server/nats';
 import { getServerConfig, hasServerConfig } from '@bagel/shared/server/config';
@@ -46,7 +46,7 @@ const SETTINGS_PREFIX = 'settings:';
 
 // Field names must match internal/projection/valkey.go's
 // streamCtrMessagesField / streamCtrAnsweredField / streamCtrModActionField
-// exactly — this file and the Go projector read/write the same hash.
+// exactly: this file and the Go projector read/write the same hash.
 const FIELD_MESSAGES = 'streamctr:messages';
 const FIELD_ANSWERED = 'streamctr:answered';
 const FIELD_MOD_ACTIONS = 'streamctr:mod_actions';
@@ -66,7 +66,7 @@ const RPC_TIMEOUT_MS = 2000;
 const OP_TIMEOUT_MS = 200;
 
 // Own client + own breaker, deliberately not shared with valkey-master.ts's
-// session-revocation client or valkey-store.ts's node-local read pool — see
+// session-revocation client or valkey-store.ts's node-local read pool, see
 // valkey-master.ts's header for why each critical-path dependency gets its
 // own connection rather than a shared one.
 const breaker = new CircuitBreaker({ name: 'valkey-stream-counters', failureThreshold: 3, resetMs: 5_000 });
@@ -106,7 +106,7 @@ let disabled = false;
 
 // The baseline is written and read back close together (a dashboard opened
 // right as a stream starts can race the write against a lagging replica), so
-// this pins to the Sentinel-elected master — same reasoning as the Go store's
+// this pins to the Sentinel-elected master: same reasoning as the Go store's
 // GetStreamCounterBaseline (internal/projection/valkey.go), which pins to
 // pkg/valkey/routing.go's Primary() for the identical race. Construction
 // mirrors valkey-master.ts's masterClient() (sentinel vs. direct, same
@@ -129,7 +129,7 @@ function getMaster(): Redis | null {
 }
 
 interface Baseline {
-  /** False when streamctr:messages is absent — mirrors the Go store's known check. */
+  /** False when streamctr:messages is absent: mirrors the Go store's known check. */
   known: boolean;
   messages: number;
   answered: number;
@@ -141,7 +141,7 @@ const MISS_BASELINE: Baseline = { known: false, messages: 0, answered: 0, modAct
 /**
  * Read the go-live counter snapshot for one channel. known=false on a cold
  * key (channel has never gone live since this shipped) or any Valkey
- * failure — both degrade the same way, to "not measured yet."
+ * failure: both degrade the same way, to "not measured yet."
  */
 async function readBaseline(uid: string): Promise<Baseline> {
   const c = getMaster();
@@ -174,7 +174,7 @@ interface CounterWire {
 /**
  * Read one channel-scope counter's current lifetime value via loyalty's
  * counter.get, the same RPC shape public-stats.ts uses under the bot-scope
- * id. Returns null only on an RPC failure (timeout, no responders) — a
+ * id. Returns null only on an RPC failure (timeout, no responders); a
  * counter loyalty has never created answers found:false, which reads as an
  * honest 0 (see this file's header).
  */
@@ -190,13 +190,13 @@ async function counterValue(uid: string, name: string): Promise<number | null> {
 
 function clampDelta(current: number, baseline: number): number {
   // Counters are monotonic; clamp so a counter reset (service redeploy,
-  // manual counter.set) reads as 0 rather than a negative per-stream count —
-  // same precedent as public-stats.ts's perSecond clamp.
+  // manual counter.set) reads as 0 rather than a negative per-stream count
+  // (same precedent as public-stats.ts's perSecond clamp).
   return Math.max(current - baseline, 0);
 }
 
 /**
- * The Overview's three per-stream counters for one channel. Never rejects —
+ * The Overview's three per-stream counters for one channel. Never rejects:
  * any failure (no baseline yet, Valkey down, loyalty unreachable) resolves
  * to degradedStreamCounters() rather than inventing a number.
  */

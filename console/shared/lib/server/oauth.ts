@@ -2,10 +2,10 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 // Twitch OAuth2/OIDC client built on oauth4webapi (Panva's maintained protocol
-// library — the successor ecosystem to the deprecated `arctic` package this
+// library, the successor ecosystem to the deprecated `arctic` package this
 // used to be). This module is only arg-marshaling: every protocol-sensitive
-// step — client_secret_post encoding, the token request itself, and ID Token
-// claim validation (iss, aud, exp, nonce) — happens inside oauth4webapi.
+// step: client_secret_post encoding, the token request itself, and ID Token
+// claim validation (iss, aud, exp, nonce), happens inside oauth4webapi.
 //
 // Twitch metadata is pinned rather than discovered: discovery would add a
 // network round trip and failure mode to every cold login for three endpoints
@@ -19,7 +19,7 @@
 // Nonce policy (tightened vs arctic-era code): when a nonce value is supplied,
 // oauth4webapi asserts it matches the id_token nonce claim; when it is not,
 // expectNoNonce asserts the token carries none. Callers must therefore always
-// pass either the stored cookie nonce or expectNoNonce — a login whose
+// pass either the stored cookie nonce or expectNoNonce: a login whose
 // oauth_nonce cookie vanished fails closed instead of skipping the check.
 import {
   authorizationCodeGrantRequest,
@@ -47,7 +47,7 @@ export { ResponseBodyError, expectNoNonce };
 // no (invalid grant, revoked code); OperationProcessingError is the provider
 // answering something the strict parser refuses (the Twitch array-scope quirk
 // was one). Neither is OUR server failing, so neither deserves the framework
-// 500 — and a +server endpoint throw renders SvelteKit's bare fallback page,
+// 500, and a +server endpoint throw renders SvelteKit's bare fallback page,
 // never the app's +error.svelte, which is exactly how the array-scope bug
 // surfaced to users as an unstyled default 500.
 export function isOAuthProtocolError(e: unknown): boolean {
@@ -76,7 +76,7 @@ export class OAuth2Tokens {
 
   // refreshTokenOptional is for providers that may legitimately omit the
   // refresh token on a re-consent whose scopes are unchanged (Spotify does
-  // exactly this — consent is reused). Callers decide whether absence is
+  // exactly this: consent is reused). Callers decide whether absence is
   // acceptable (one already stored server-side) or fatal.
   refreshTokenOptional(): string | undefined {
     return typeof this.result.refresh_token === 'string' ? this.result.refresh_token : undefined;
@@ -95,7 +95,7 @@ export class OAuth2Tokens {
 // RFC 6749 before the strict library sees it: `scope` comes back as a JSON
 // array (["openid", ...]) where §5.1 requires a space-delimited string.
 // oauth4webapi rightly refuses it ('"response" body "scope" property must be
-// a string'), which made EVERY successful login 500 — the exchange succeeds,
+// a string'), which made EVERY successful login 500: the exchange succeeds,
 // then parsing throws OperationProcessingError, which is not the
 // ResponseBodyError the callback maps to /login?e=oauth. Reproduced against a
 // Twitch-shaped body and green with only this join applied.
@@ -103,7 +103,7 @@ export class OAuth2Tokens {
 // Only a 200 JSON body with an array scope is touched; error responses pass
 // through byte-identical so ResponseBodyError classification stays the
 // library's. This is vendor-quirk normalization at the boundary, not protocol
-// logic — everything else stays inside oauth4webapi.
+// logic. Everything else stays inside oauth4webapi.
 async function normalizeTwitchScope(response: Response): Promise<Response> {
   if (!response.ok) return response;
   const body: unknown = await response.clone().json().catch(() => null);
@@ -186,7 +186,7 @@ const SPOTIFY_AS: AuthorizationServer = {
   token_endpoint: 'https://accounts.spotify.com/api/token'
 };
 
-// Spotify OAuth2 client for the song-requests connect flow. Plain OAuth2 —
+// Spotify OAuth2 client for the song-requests connect flow. Plain OAuth2:
 // no ID Token (Spotify ships none), so requireIdToken stays off and there is
 // no nonce to bind. Spotify returns scope as an RFC-compliant space-delimited
 // string, so unlike Twitch no response normalization is needed.

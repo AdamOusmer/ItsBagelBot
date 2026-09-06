@@ -2,12 +2,12 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 /**
- * DomMotion — cursor-driven motion system.
+ * DomMotion: cursor-driven motion system.
  *
  * Composes two subsystems that share a single Pointer and a single
  * requestAnimationFrame loop:
  *
- *   Parallax — header/footer + ornaments drift against the cursor (header
+ *   Parallax: header/footer + ornaments drift against the cursor (header
  *              retains a soft 3D tilt, footer only drifts).
  *
  * Top-level <section> and <main> are deliberately excluded from the

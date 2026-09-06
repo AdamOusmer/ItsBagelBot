@@ -1,13 +1,13 @@
 /* Copyright (c) 2026 Adam Ousmer. All rights reserved.
    Proprietary. No license granted. See LICENSE.md. */
 
-/* ItsBagelBot — Colors & Type
+/* ItsBagelBot: Colors & Type
  * Source of truth: web/src/styles/style.css in itsmavey/itsbagelbot
  * Brand palette is a dark canvas with deep evergreen + warm tan accents,
  * tied together with a film-grain texture overlay.
  */
 
-/* Self-hosted fonts — no third-party origin, satisfies CSP font-src 'self'. */
+/* Self-hosted fonts: no third-party origin, satisfies CSP font-src 'self'. */
 @font-face { font-family: "Syne"; font-weight: 500 800; font-display: swap; src: url("./fonts/syne-latin.woff2") format("woff2"); }
 @font-face { font-family: "DM Sans"; font-weight: 400 700; font-display: swap; src: url("./fonts/dm-sans-latin.woff2") format("woff2"); }
 @font-face { font-family: "DM Mono"; font-weight: 400; font-display: swap; src: url("./fonts/dm-mono-400.woff2") format("woff2"); }
@@ -17,20 +17,20 @@
   /* ────────────────────────── core palette ─────────────────────── */
   --bb-black: #0a0a0a;          /* page canvas */
   --bb-card-bg: #111110;        /* surfaces, cards */
-  --bb-white: #f0ece4;          /* primary text — warm off-white, never pure */
+  --bb-white: #f0ece4;          /* primary text: warm off-white, never pure */
   --bb-muted: #888077;          /* secondary text, captions */
 
-  /* greens — the "always-on" brand accent */
+  /* greens: the "always-on" brand accent */
   --bb-green: #2d6a4f;          /* primary green */
   --bb-green-light: #40916c;    /* hover / active */
   --bb-green-glow: #52b788;     /* glows, focus, success */
 
-  /* tans — warmth, bagel, sesame */
+  /* tans: warmth, bagel, sesame */
   --bb-tan: #c9a87c;            /* secondary accent */
   --bb-tan-light: #e0c49a;      /* highlights */
   --bb-tan-pale: #f5e6cf;       /* cream / wash */
 
-  /* borders & strokes — tan at 15% on dark */
+  /* borders & strokes: tan at 15% on dark */
   --bb-border: rgba(201, 168, 124, 0.15);
   --bb-border-strong: rgba(201, 168, 124, 0.35);
 
@@ -56,7 +56,7 @@
        color:      var(--bb-status-X-fg);   (body text, >=4.5:1 on -bg)
        border:     var(--bb-status-X-border); (>=3:1 vs the dark canvas)
      and the base --bb-status-X is the icon/accent (>=3:1 on -bg). Ratios are
-     computed, not guessed — see the numbers beside each value.
+     computed, not guessed. See the numbers beside each value.
      green = success, warm amber = warning, muted red = error, cool = info. */
   --bb-status-success: #52b788;         /* icon 8.00:1 canvas / 6.78:1 on -bg */
   --bb-status-success-fg: #8fe0b4;      /* text 10.78:1 on -bg */

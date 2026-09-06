@@ -55,7 +55,7 @@
   let items = $state<CommandView[]>(data.commands ?? []);
 
   // Resync when a fresh SSR load delivers a different list (full reload), but
-  // not on optimistic edits — those mutate items without touching data.commands.
+  // not on optimistic edits. Those mutate items without touching data.commands.
   // svelte-ignore state_referenced_locally
   let seed = data.commands;
   $effect(() => {
@@ -67,7 +67,7 @@
 
   // Data sources for the {urlfetch:…} palette chip. Held locally so the builder
   // can hand back the server's refreshed list after a create or delete without
-  // invalidating the whole page — the command draft in the open editor would be
+  // invalidating the whole page. The command draft in the open editor would be
   // lost to a reload, and losing an unsaved reply to add a data source is
   // exactly the interruption this redesign removes.
   // Annotated rather than inferred: the load's degraded branch returns a bare
@@ -220,7 +220,7 @@
   // quiet corner of the deck still spreads that corner across the track.
   const usesMax = $derived(Math.max(1, ...rows.map(usesCount)));
 
-  // Head readouts. `fires` is the lifetime counter the backend keeps — there is
+  // Head readouts. `fires` is the lifetime counter the backend keeps: there is
   // no 24h window in the command payload, so the strip says "total" rather than
   // implying a rolling figure it cannot compute.
   const fires = $derived(items.reduce((n, c) => n + usesCount(c), 0));
@@ -384,7 +384,7 @@
   // --- Deep-link compose (marketing command builder) ---------------------------
   // The public command builder links here as /commands?compose=1&name=…&response=…
   // A valid draft opens a confirmation modal (summary + the same chat rehearsal
-  // as the editor) and one press creates the command — no inspector round-trip.
+  // as the editor) and one press creates the command: no inspector round-trip.
   // A draft the validator rejects falls back to the pre-filled editor so the
   // visitor can fix it. The path (with query) survives the login round-trip via
   // safeNextPath, same as /billing?subscribe=1. Runs once on mount; the params
@@ -450,8 +450,8 @@
     const d = composeDraft;
     if (!d || composeBusy) return;
     composeBusy = true;
-    // A replace edits content only (#221): keep the stored enabled state —
-    // composing over a disabled command must not resurrect it.
+    // A replace edits content only (#221): keep the stored enabled state.
+    // Composing over a disabled command must not resurrect it.
     const existing = matchingCustom(d.name);
     const view: CommandView = {
       name: d.name,
@@ -465,7 +465,7 @@
     };
     const body = formDataFor(view);
     if (existing) {
-      // The modal warned "replace" — save as an edit so the server reports
+      // The modal warned "replace": save as an edit so the server reports
       // (and audits) an update, not a create.
       body.set('edit', '1');
       body.set('original_name', d.name);
@@ -517,7 +517,7 @@
     const orig = d.edit ? normName(d.originalName) : undefined;
     // The selection at submit time. The row-keyed list reconciliation (applyResult)
     // is order-independent, but the editor re-seed and inline serverErrors target
-    // whatever is open — so a late response must only touch the editor if the user
+    // whatever is open, so a late response must only touch the editor if the user
     // is still on the command it was submitted for.
     const submittedExpanded = expanded;
 
@@ -561,7 +561,7 @@
         clearDraft(d.edit ? d.originalName : '', d.edit);
         ackSaved(key);
         // Save keeps the inspector open on the saved command (renamed or not),
-        // re-seeded so it reads clean — but only if it is still the open editor;
+        // re-seeded so it reads clean, but only if it is still the open editor;
         // otherwise the list is reconciled silently and the current selection is
         // left untouched.
         if (stillOpen) {
@@ -819,7 +819,7 @@
   </PageToolbar>
 
   <!-- The deck: ledger list left, docked inspector right. The list never
-       disappears — selecting a row (or "new") loads it into the inspector. -->
+       disappears: selecting a row (or "new") loads it into the inspector. -->
   {#if canCreateTyped}
     <button class="create-hint" type="button" onclick={createTyped} aria-label={t('commands.createHintAria', { name: typedName })}>
       <span class="ch-name">!{typedName}</span>
@@ -971,7 +971,7 @@
   }
 
   /* Head readout strip: a quiet ledger row (hairline top/bottom, thin dividers),
-     NOT the .stat card from app.css — that global class boxes and hover-lifts,
+     NOT the .stat card from app.css: that global class boxes and hover-lifts,
      which is why these classes deliberately avoid the .stat* names. */
   .deck-stats {
     display: flex;
@@ -1084,7 +1084,7 @@
   }
 
   /* Trim only the deck's very last hairline. Keyed off .row-wrap (the each-item
-     wrapper) — .row-shell is always the sole child of its wrapper, so a bare
+     wrapper). .row-shell is always the sole child of its wrapper, so a bare
      .row-shell:last-child matches EVERY row and erased the whole last group's
      separators. */
   .group:last-child :global(.row-wrap:last-child .row-shell) { border-bottom: none; }

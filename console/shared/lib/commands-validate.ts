@@ -14,7 +14,7 @@ export * from './fetch-validate';
 import { urlFetchNames, URLFETCH_TOKEN_CAP, type FetchDefErrors } from './fetch-validate';
 
 export const COMMAND_NAME_MAX = 64;
-/** Per line — each line is sent as its own chat message (Twitch limit). */
+/** Per line: each line is sent as its own chat message (Twitch limit). */
 export const RESPONSE_MAX = 500;
 /** A response is newline-delimited: the bot sends one message per line. */
 export const RESPONSE_MAX_LINES = 5;
@@ -24,8 +24,8 @@ export const COOLDOWN_MAX = 86400;
 //
 // The numbers below are the shared contract between this console (instant
 // client feedback AND the authoritative server re-check in the fetches page
-// actions) and the commands/gossip services' Go validators. They live here —
-// not inline in the UI — so client and server literally cannot drift.
+// actions) and the commands/gossip services' Go validators. They live here
+// (not inline in the UI), so client and server literally cannot drift.
 
 /** The bare command trigger: drop a leading "!" and lower-case. */
 export function normName(s: string): string {
@@ -87,7 +87,7 @@ function nameProblem({ value, what }: NameCheck): string | undefined {
   if (!value) return `${what} is required.`;
   if (value.length > COMMAND_NAME_MAX) return `${what} must be at most ${COMMAND_NAME_MAX} characters.`;
   if (/\s/.test(value)) return `${what} cannot contain spaces.`;
-  if (value.includes('!')) return `${what} only carries the "!" in chat — leave it out here.`;
+  if (value.includes('!')) return `${what} only carries the "!" in chat. Leave it out here.`;
   return undefined;
 }
 
@@ -110,7 +110,7 @@ function responseProblem(response: string): string | undefined {
   const lines = responseLines(response);
   if (lines.length === 0) return 'Response is required.';
   if (lines.length > RESPONSE_MAX_LINES) {
-    return `Response can be at most ${RESPONSE_MAX_LINES} lines — each line is sent as its own chat message.`;
+    return `Response can be at most ${RESPONSE_MAX_LINES} lines. Each line is sent as its own chat message.`;
   }
   if (lines.some((l) => l.length > RESPONSE_MAX)) return `Each line must be at most ${RESPONSE_MAX} characters.`;
   if (lines.some((l) => CONTROL_CHAR_RE.test(l))) return 'Response cannot contain control characters.';
@@ -147,7 +147,7 @@ export function validateCommand(f: CommandFields): CommandErrors {
 }
 
 // Plain character class: linear, no backtracking (the same rune set the
-// byte loop it replaced checked — C0 controls).
+// byte loop it replaced checked, C0 controls).
 const CONTROL_CHAR_RE = /[\u0000-\u001f]/;
 
 /** Convenience: the first message of an error map, for single-line surfaces. */

@@ -64,7 +64,7 @@ function ownerAction<R>(
 // Treated like notifications: a failed read shows an empty section instead of
 // flagging the whole page degraded, since every other section still works.
 //
-// fetchKeyRefs answers "what breaks if I delete this key" — the same read
+// fetchKeyRefs answers "what breaks if I delete this key": the same read
 // supplies it, so naming the affected data sources costs nothing extra.
 function readFetchKeys(result: PromiseSettledResult<{ defs: { name: string; key_label: string }[]; keys: FetchKeyView[] }>): {
   fetchKeys: FetchKeyView[];
@@ -185,7 +185,7 @@ async function demoKeyDelete(label: string) {
 
 export const actions: Actions = {
   // Seal (or rotate) an API key under a label. The value crosses here once and
-  // is never logged, cached, or echoed back — the reply carries last4 only, and
+  // is never logged, cached, or echoed back: the reply carries last4 only, and
   // the audit trail names the label alone.
   setfetchkey: async ({ request, locals }) => {
     const form = await request.formData();
@@ -211,7 +211,7 @@ export const actions: Actions = {
   },
 
   // Key delete. Always allowed server-side: data sources bound to a dangling
-  // label fail closed until relinked, which is the safe direction. No undo —
+  // label fail closed until relinked, which is the safe direction. No undo:
   // the sealed value is destroyed.
   delfetchkey: async ({ request, locals }) => {
     const label = slugifyName(String((await request.formData()).get('label') ?? ''));
@@ -274,7 +274,7 @@ export const actions: Actions = {
   },
 
   // markPeeked is the bell-dropdown-open path: soft-acknowledge everything the
-  // user can see. Best-effort — a failure just leaves the badge for next time,
+  // user can see. Best-effort: a failure just leaves the badge for next time,
   // so it never surfaces an error to the glance-only bell.
   markPeeked: async ({ locals }) => {
     const s = locals.session;
@@ -366,7 +366,7 @@ export const actions: Actions = {
 
   // Kills every session the owner holds (this browser included) rather than
   // just this one cookie. Owner-only, same guard as the rest of this file's
-  // actions — a delegate has no session of their own to sweep and must not
+  // actions: a delegate has no session of their own to sweep and must not
   // be able to sign the owner out from someone else's board. Not wrapped in
   // ownerAction: this action ends in a redirect + cookie wipe, not a form
   // result, so it needs cookies/url that helper doesn't hand back.

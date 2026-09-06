@@ -47,7 +47,7 @@
         live = true;
         sampleLoads(body.snapshot);
       } else {
-        live = false; // endpoint answered but had no live snapshot — say so
+        live = false; // endpoint answered but had no live snapshot: say so
       }
     } catch {
       live = false;
@@ -129,7 +129,7 @@
     return `${eps.toFixed(eps < 10 ? 1 : 0)} ev/s`;
   }
   function keepalive(ms?: number): string {
-    if (!ms || ms <= 0) return '—';
+    if (!ms || ms <= 0) return '-';
     return `${Math.round(ms / 1000)}s window`;
   }
   // derive_state/1 in ingress emits connecting | binding | migrating while a
@@ -200,7 +200,7 @@
         if (p.snapshot) snap = p.snapshot;
         toast('ok', p.action.notice);
       } else {
-        // Roll the flip back — the toggle must show what the fleet actually runs.
+        // Roll the flip back: the toggle must show what the fleet actually runs.
         if (before) snap = before;
         toast('err', p?.action?.notice ?? p?.error ?? 'autoscale change failed');
       }
@@ -248,8 +248,8 @@
           <div class="conduit-body">
             <div class="live-tag"><span class="dot"></span> {cm?.state ?? 'unknown'}</div>
             <div class="meta">
-              <span>node {cm?.node ?? '—'}</span><span class="mid">·</span>
-              <span>conduit {cm?.conduit_id ?? '—'}</span>
+              <span>node {cm?.node ?? '-'}</span><span class="mid">·</span>
+              <span>conduit {cm?.conduit_id ?? '-'}</span>
             </div>
           </div>
         </div>
@@ -291,9 +291,9 @@
       </div>
 
       <div class="ctrl-stats">
-        <div class="ctrl-stat"><span class="ctrl-label">desired</span><span class="ctrl-val">{snap.desired_count ?? '—'}</span></div>
-        <div class="ctrl-stat"><span class="ctrl-label">target</span><span class="ctrl-val">{snap.target ?? '—'}</span></div>
-        <div class="ctrl-stat"><span class="ctrl-label">min</span><span class="ctrl-val">{snap.min_shards ?? '—'}</span></div>
+        <div class="ctrl-stat"><span class="ctrl-label">desired</span><span class="ctrl-val">{snap.desired_count ?? '-'}</span></div>
+        <div class="ctrl-stat"><span class="ctrl-label">target</span><span class="ctrl-val">{snap.target ?? '-'}</span></div>
+        <div class="ctrl-stat"><span class="ctrl-label">min</span><span class="ctrl-val">{snap.min_shards ?? '-'}</span></div>
         <div class="ctrl-stat"><span class="ctrl-label">max</span><span class="ctrl-val">{maxShards}</span></div>
       </div>
 
@@ -378,7 +378,7 @@
               <span>rated {capacity.websocket_rated_eps.toLocaleString()} ev/s</span>
             </div>
           {/if}
-          <div class="shard-session">session {s.session_id ?? '—'}</div>
+          <div class="shard-session">session {s.session_id ?? '-'}</div>
         </div>
       {/each}
     </div>

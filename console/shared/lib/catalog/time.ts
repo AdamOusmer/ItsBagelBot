@@ -9,7 +9,7 @@ export const TIME_MODULE: ModuleDef =
   label: 'Local Time',
   tagline: 'Viewers ask what time it is for you with !time.',
   description:
-    'Viewers type !time and the bot answers with your current local time. Pick your timezone below — the page suggests the one your browser reports, computed on your device only (nothing is read or stored until you save it). Choose a 12- or 24-hour clock and customize the reply.',
+    'Viewers type !time and the bot answers with your current local time. Pick your timezone below. The page suggests the one your browser reports, computed on your device only (nothing is read or stored until you save it). Choose a 12- or 24-hour clock and customize the reply.',
   icon: 'globe',
   category: 'Chat',
   defaultEnabled: false,

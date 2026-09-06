@@ -4,7 +4,7 @@
 // Loyalty store: the points economy's two homes.
 //
 //   - The rates (points per sub/cheer/watch tick, the currency's name) live in
-//     the "loyalty" module blob — the same modules service every other feature
+//     the "loyalty" module blob, the same modules service every other feature
 //     uses; sesame re-reads it on every accrual.
 //   - Standings and counters live in the loyalty service, reached over NATS
 //     RPC (bagel.rpc.loyalty.*). Sesame is the writer (batched deltas); the
@@ -74,7 +74,7 @@ const RATE_KEYS = [
   'viewerTransfers'
 ] as const satisfies readonly (keyof LoyaltyConfig)[];
 
-// A missing, null or unparseable value is 0 — the config blob is broadcaster
+// A missing, null or unparseable value is 0: the config blob is broadcaster
 // data round-tripped through JSON, so any field can be absent or the wrong type.
 function rate(v: unknown): number {
   return Number(v ?? 0) || 0;
@@ -125,7 +125,7 @@ export interface CounterTarget {
 }
 
 // setCounter writes an absolute value. Untargeted it sets a channel counter's
-// value — and on entry-scoped counters a zero resets every stored bucket (the
+// value, and on entry-scoped counters a zero resets every stored bucket (the
 // service's reset semantics). With a target it upserts that one bucket.
 export async function setCounter(userId: string, name: string, value: number, target: CounterTarget = {}): Promise<boolean> {
   const reply = await callLoyalty('counter.set', {

@@ -73,7 +73,7 @@ function clampRate(raw: unknown): number {
 
 // permValue coerces a permission field into the blob's convention:
 // 0 (or any non-negative) = on, negative = off. Read from the posted JSON
-// draft, not from missing form checkboxes — the switches write into config
+// draft, not from missing form checkboxes: the switches write into config
 // and the hidden `config` field is the only thing that posts.
 function permValue(raw: unknown): number {
   const n = Math.trunc(Number(raw));

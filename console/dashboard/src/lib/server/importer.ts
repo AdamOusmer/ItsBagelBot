@@ -16,7 +16,7 @@
 //   commit : re-validates the posted manifest, skips items carrying an
 //          error-severity diagnostic or a collision (unless overwrite), then
 //          drives writes through the existing stores/RPCs: commands-store
-//          upsert (chunks of 25, sequential within a chunk — checkpointing,
+//          upsert (chunks of 25, sequential within a chunk, checkpointing,
 //          mirroring the old service's fan-out), one merge-patch per touched
 //          module blob (timers/triggers/automod), quote.add rows, and loyalty
 //          counter create/set pairs.
@@ -81,7 +81,7 @@ const MAX_TIMER_INTERVAL_SECONDS = 7 * 86400;
 
 export type ImportPreviewRequest = {
   // API-backed sources take a credential, file sources take file_b64 (base64
-  // of the export), and the browser-parsed Moobot flow takes manifest — the
+  // of the export), and the browser-parsed Moobot flow takes manifest: the
   // engine then skips fetch/parse and only re-validates + resolves collisions.
   source: ImportSource | '';
   credential?: string;
@@ -136,7 +136,7 @@ const SOURCE_LEGS: Partial<Record<ImportSource, (req: ImportPreviewRequest) => P
 
 // previewImport translates a source config into a reviewable manifest. A
 // failed preview (bad token, undecodable upload) comes back as
-// PreviewResponse.error — NOT as a thrown error — so the review step can render
+// PreviewResponse.error (NOT as a thrown error), so the review step can render
 // the reason next to any fatal diagnostics. Only a truly wedged environment
 // (NATS down) propagates as a throw, which the action reports as a 502.
 export async function previewImport(s: Session, req: ImportPreviewRequest): Promise<PreviewResponse> {
@@ -173,7 +173,7 @@ async function streamelementsLeg(req: ImportPreviewRequest): Promise<ParseOutcom
 }
 
 // nightbotLeg pulls the account's config over the Nightbot REST API with the
-// OAuth access token (req.credential — the form action reads it off the
+// OAuth access token (req.credential: the form action reads it off the
 // HttpOnly cookie the callback route set, never off user paste) and feeds the
 // stapled envelope through the shared parser.
 async function nightbotLeg(req: ImportPreviewRequest): Promise<ParseOutcome> {
@@ -279,11 +279,11 @@ interface CommitContext {
 }
 
 // commitImport applies a (client-filtered) manifest through the owning
-// services' existing write paths. The legs run in a fixed order — command
+// services' existing write paths. The legs run in a fixed order: command
 // upserts, module-blob timers/triggers, quote rows, automod terms, counter
-// create/set — mirroring the old service's fan-out sequence.
+// create/set, mirroring the old service's fan-out sequence.
 //
-// Decision record — audit trail (2026-08-23): the standalone service wrote an
+// Decision record (audit trail, 2026-08-23): the standalone service wrote an
 // import_audits row and returned its id; commit now emits ONE structured pino
 // line (user_id, source, applied counts, skipped names, diagnostic count)
 // instead. A DB table just for import history was never read by anything but
@@ -349,7 +349,7 @@ function collisionNames(collisions: CommitResponse['skipped'], kind: CollisionKi
 }
 
 // loadModules reads the channel's module blobs; a read failure blocks exactly
-// timers/triggers/automod — those collections still count as attempted
+// timers/triggers/automod: those collections still count as attempted
 // (partial/failed audit semantics) while quotes and counters stay alive.
 async function loadModules(ctx: CommitContext): Promise<Awaited<ReturnType<typeof listModules>> | null> {
   try {
@@ -491,7 +491,7 @@ function logCommit(ctx: CommitContext): void {
 type ManifestCollection = 'commands' | 'timers' | 'triggers' | 'quotes' | 'counters';
 
 // eligibleIndexes returns the valid indexes of one collection that carry no
-// error-severity diagnostic — the shared filter every collection's loop walks
+// error-severity diagnostic: the shared filter every collection's loop walks
 // so validation-doomed items never reach a write path.
 function eligibleIndexes(ctx: CommitContext, collection: ManifestCollection): number[] {
   const items = ctx.manifest[collection] ?? [];
@@ -593,7 +593,7 @@ function triggerLineProblem(tr: ManifestTrigger): string | null {
 // comma-joined textarea values (app/twitch/sesame/automod wireConfig). Only the two
 // term keys are patched, so the module's level/per-reply toggles survive. The
 // automod module has no bucket in ImportStats: its outcome shows through
-// diagnostics alone — silence means merged.
+// diagnostics alone: silence means merged.
 async function applyAutomodTerms(ctx: CommitContext, blob: Record<string, unknown>): Promise<void> {
   const terms = ctx.manifest.automod!;
   const partial: Record<string, string> = {};

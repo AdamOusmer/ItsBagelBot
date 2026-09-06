@@ -5,7 +5,7 @@
 // under ./locales, discovered from the filesystem at build time. English is the
 // source of truth (en.json); every other locale falls back to it per-key, so a
 // missing translation renders English, never a blank. A non-technical translator
-// adds a language by dropping in <code>.json</code> — no edits here. Astro's own
+// adds a language by dropping in <code>.json</code>, no edits here. Astro's own
 // i18n routing (astro.config) owns the /<locale>/ URL prefix; this module owns
 // the copy and the locale-aware link/switch helpers.
 

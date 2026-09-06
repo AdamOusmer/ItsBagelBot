@@ -13,15 +13,18 @@
   };
 </script>
 
-<span class="badge {perm}">{label[perm] ?? perm}</span>
+<span class="bb-tag t-{perm}">{label[perm] ?? perm}</span>
 
 <style>
-  .badge { font-family: var(--bb-font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; padding: 4px 10px; border-radius: var(--bb-radius-pill);
-    display: inline-flex; align-items: center; gap: 5px; border: 1px solid transparent; }
-  .badge.everyone { background: rgba(255,255,255,0.04); color: var(--bb-muted); border-color: var(--glass-border); }
-  .badge.sub { background: rgba(201,168,124,0.10); color: var(--bb-tan-light); border-color: rgba(201,168,124,0.28); }
-  .badge.vip { background: rgba(199,125,255,0.10); color: #d9aaff; border-color: rgba(199,125,255,0.30); }
-  .badge.mod { background: rgba(82,183,136,0.10); color: var(--bb-green-glow); border-color: rgba(82,183,136,0.28); }
-  .badge.lead_mod { background: rgba(82,183,136,0.14); color: var(--bb-green-glow); border-color: rgba(82,183,136,0.34); }
-  .badge.broadcaster { background: rgba(82,183,136,0.16); color: var(--bb-green-glow); border-color: rgba(82,183,136,0.4); }
+  /* Was a tinted pill per permission (a duplicate of the global .badge rules).
+     Now the global Tier-1 label (.bb-tag); the only thing left here is the
+     perm ladder's tone, which the shared vocabulary has no modifier for.
+     House palette: steel everyone, tan subs, SILVER VIP (it shipped purple
+     #d9aaff by mistake, VIP is never purple here), green by mod authority. */
+  .t-everyone { color: var(--bb-fg-2); border-bottom-color: rgba(201,168,124,0.20); }
+  .t-sub { color: var(--bb-tan-light); border-bottom-color: rgba(201,168,124,0.40); }
+  .t-vip { color: #dfe4e9; border-bottom-color: rgba(217,222,228,0.34); }
+  .t-mod { color: var(--bb-green-glow); border-bottom-color: rgba(82,183,136,0.30); }
+  .t-lead_mod { color: var(--bb-green-glow); border-bottom-style: dashed; border-bottom-color: rgba(82,183,136,0.45); }
+  .t-broadcaster { color: var(--bb-green-glow); border-bottom-color: rgba(82,183,136,0.60); }
 </style>

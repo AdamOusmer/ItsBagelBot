@@ -18,6 +18,15 @@
   const notifications = $derived((data.notifications ?? []) as NotificationWire[]);
   const savedLocale = $derived((data.savedLocale ?? 'en') as Locale);
   const levelLabel = (l: string) => l.charAt(0).toUpperCase() + l.slice(1);
+  // Severity -> shared .bb-tag variant. Same map as NotificationBell, so one
+  // level reads identically in both surfaces. No variant is red, so critical
+  // takes --alpha plus the danger colour in .level.critical below.
+  const LEVEL_TAG: Record<string, string> = {
+    info: 'bb-tag--quiet',
+    success: 'bb-tag--live',
+    warning: 'bb-tag--pre',
+    critical: 'bb-tag--alpha'
+  };
 
   const createdGrant = $derived(form?.createdGrant as DelegationGrant | undefined);
   const given = $derived.by<DelegationGrant[]>(() => {
@@ -25,8 +34,8 @@
     if (!createdGrant || grants.some((g) => g.token === createdGrant.token)) return grants;
     return [createdGrant, ...grants];
   });
-  // The two halves of a share link's life. They read as different objects — one
-  // names a person, the other is a URL still waiting for one — so they get their
+  // The two halves of a share link's life. They read as different objects (one
+  // names a person, the other is a URL still waiting for one), so they get their
   // own lists instead of a single list carrying a stage strip per row.
   const inUse = $derived(given.filter((g) => g.consumed));
   const pending = $derived(given.filter((g) => !g.consumed));
@@ -59,7 +68,7 @@
   const pickerOptions = (checkedFor: (sec: string) => boolean) =>
     grantable.map((sec) => ({ value: sec, label: sectionLabel(sec), checked: checkedFor(sec) }));
 
-  // The in-page section nav. Anchors, not ARIA tabs — each targets a
+  // The in-page section nav. Anchors, not ARIA tabs: each targets a
   // <section tabindex=-1> below.
   const navItems = $derived([
     { href: '#account', label: t('settings.account') },
@@ -73,7 +82,7 @@
 
   // API keys for data sources. They sit in Settings rather than beside the
   // commands that spend them because they are account-level secrets, and this
-  // page is already owner-only — a delegate with 'commands' access can use a
+  // page is already owner-only: a delegate with 'commands' access can use a
   // key through a data source but never read, rotate or destroy one.
   // Seeded once, then owned locally so a seal/rotate/delete can swap in the
   // server's refreshed list without a full page invalidation.
@@ -427,7 +436,7 @@
       <ul class="notif-list">
         {#each notifications as n (n.id)}
           <li class="notif-item" class:unread={!n.read}>
-            <span class="level {n.level}">{levelLabel(n.level)}</span>
+            <span class="bb-tag {LEVEL_TAG[n.level] ?? 'bb-tag--quiet'} level {n.level}">{levelLabel(n.level)}</span>
             <div class="notif-text">
               <b>{n.title}</b>
               <p>{n.body}</p>
@@ -784,17 +793,11 @@
   .notif-text b { font-size: 14px; color: var(--bb-white); }
   .notif-text p { margin: 4px 0; font-size: 13px; color: var(--bb-muted); }
   .notif-meta { font-family: var(--bb-font-body); font-size: 11px; color: var(--bb-muted); opacity: 0.8; }
-  /* Same pill language as the connected/waiting states above, so a page full of
-     status markers reads as one set rather than two. */
-  .level {
-    font-family: var(--bb-font-mono); font-size: 10px;
-    letter-spacing: 0.1em; text-transform: uppercase;
-    padding: 3px 10px; border-radius: var(--bb-radius-pill, 100px); border: 1px solid transparent; white-space: nowrap;
-  }
-  .level.info { background: rgba(255,255,255,0.04); color: var(--bb-muted); border-color: var(--bb-border); }
-  .level.success { background: rgba(82,183,136,0.12); color: var(--bb-green-glow); border-color: rgba(82,183,136,0.3); }
-  .level.warning { background: rgba(201,168,124,0.12); color: var(--bb-tan-light); border-color: rgba(201,168,124,0.3); }
-  .level.critical { background: rgba(176,90,70,0.15); color: #cf8a78; border-color: rgba(176,90,70,0.4); }
+  /* Pill triad retired for the shared .bb-tag variants (LEVEL_TAG above), so a
+     level reads the same here and in NotificationBell. Only the layout and
+     critical's red, which no variant carries, stay scoped. */
+  .level { font-size: 10px; letter-spacing: 0.1em; white-space: nowrap; align-self: flex-start; }
+  .level.critical { color: #d98a8a; border-bottom-color: rgba(217, 138, 138, 0.45); }
 
   /* --- danger zone --- */
   :global(.danger-section) {

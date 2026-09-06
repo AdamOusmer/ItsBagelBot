@@ -28,7 +28,7 @@ export interface Session {
   // everywhere" (session-revocation.ts) mark it dead in Valkey so a copy of
   // the cookie taken off a shared machine stops working immediately instead
   // of riding out the full 7-day TTL. Sessions sealed before this field
-  // existed decode with sid undefined despite the type saying `string` —
+  // existed decode with sid undefined despite the type saying `string`,
   // every revocation-check callsite treats a missing sid as "not revocable"
   // (see isSessionRevoked), never as automatically revoked.
   sid: string;

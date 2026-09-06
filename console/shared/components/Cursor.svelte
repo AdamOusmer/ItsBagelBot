@@ -3,8 +3,8 @@
 	// Proprietary. No license granted. See LICENSE.md.
   // Custom cursor: a tan dot tracking the pointer 1:1, plus a ring that lerps
   // behind it. On hover over an interactive element the ring MORPHS into that
-  // element's box (rounded rect matching its bounds) — the cursor becomes the
-  // button highlight — while the dot fades. Native pointer hidden (cursor:none)
+  // element's box (rounded rect matching its bounds), the cursor becomes the
+  // button highlight, while the dot fades. Native pointer hidden (cursor:none)
   // on fine pointers. Coarse/touch keep the native cursor.
   //
   // Gated by the `customCursor` preference store: when the user turns it off the

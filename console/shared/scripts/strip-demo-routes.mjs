@@ -12,7 +12,7 @@
 // branch inside a module, it IS the module: SvelteKit compiles it because the
 // file exists, and its markup lands in the client bundle even when the route's
 // server side 404s. The fake Tebex checkout screen was shipping to browsers on
-// exactly that path — unreachable, and still a fake payment page in production.
+// exactly that path: unreachable, and still a fake payment page in production.
 //
 // So the module is replaced with an empty component before the Svelte plugin
 // compiles it. The route keeps existing (its `+page.server.ts` still 404s

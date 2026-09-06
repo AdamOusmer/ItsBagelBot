@@ -62,7 +62,7 @@ async function loadAuthorizedDashboards(s: Session): Promise<{ href: string; nam
 // The gates already read account state once per request (hooks.server.ts ->
 // guardSession) and leave the result on locals, so the order here is: demo
 // fixture, then the gate's answer, then a retry. An authoritative ghost answer
-// returns null — the shell renders with no account data instead of re-asking a
+// returns null: the shell renders with no account data instead of re-asking a
 // service that already said the user is gone. Only an unset field (a blipped
 // gate read) reaches the RPC.
 async function loadAccountState(locals: App.Locals, s: Session): Promise<AccountState | null> {
@@ -73,7 +73,7 @@ async function loadAccountState(locals: App.Locals, s: Session): Promise<Account
 }
 
 // Account gates (ban / deleted account / delegation revoke / delegate scope)
-// run in hooks.server.ts for every request — including form actions and API
+// run in hooks.server.ts for every request, including form actions and API
 // endpoints, which this load never covers. This load only owns the
 // login-redirect UX and the shell data.
 export const load: LayoutServerLoad = async ({ locals, url }) => {

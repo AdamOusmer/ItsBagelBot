@@ -79,7 +79,7 @@ async function resolveChannel(segment: Segment): Promise<Channel> {
   return (await channelFromLogin(segment)) ?? channelFromID(segment);
 }
 
-// One channel, one URL — and one HOST.
+// One channel, one URL, and one HOST.
 //
 // The canonical-form redirects above settle which SEGMENT names a channel;
 // requireHost settles which ORIGIN serves it. traefik routes four hostnames to
@@ -87,7 +87,7 @@ async function resolveChannel(segment: Segment): Promise<Channel> {
 // on all of them, so /user/<login> answered 200 on every one. The leaderboard
 // board page linked here relatively, which is how
 // leaderboard.itsbagelbot.com/user/<login> came to serve the commands page
-// under the wrong origin — one document at four URLs, and a visitor who clicked
+// under the wrong origin: one document at four URLs, and a visitor who clicked
 // a channel name from a board landed on a page that looked like it had moved
 // hosts on them.
 //

@@ -10,7 +10,7 @@
     if (page.status === 404) return {
       eyebrow: 'Lost in the crumbs',
       title: 'This page wandered off.',
-      description: "We looked under every sesame seed, but the page you're after isn't here.",
+      description: "I looked under every sesame seed, but the page you're after isn't here.",
       action: 'home' as const
     };
     if (page.status === 401 || page.status === 403) return {
@@ -22,12 +22,12 @@
     if (page.status === 500 || page.status === 503) return {
       eyebrow: 'A little overbaked',
       title: 'Something went sideways.',
-      description: 'A tray tipped over behind the scenes. Give us a moment, then try the page again.',
+      description: 'A tray tipped over behind the scenes. Give it a moment, then try the page again.',
       action: 'retry' as const
     };
     return {
       eyebrow: 'An unexpected detour',
-      title: 'We hit a rough patch.',
+      title: 'I hit a rough patch.',
       description: page.error?.message ?? 'Something unexpected happened while loading this page.',
       action: 'retry' as const
     };
@@ -46,7 +46,7 @@
 </script>
 
 <svelte:head>
-  <title>{page.status} — ItsBagelBot {appName}</title>
+  <title>{page.status}: ItsBagelBot {appName}</title>
 </svelte:head>
 
 <main class="error-scene" aria-labelledby="error-title">

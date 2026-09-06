@@ -3,7 +3,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 /**
- * GuideShell — long-form visual guides that respect the reader. Same reading
+ * GuideShell: long-form visual guides that respect the reader. Same reading
  * contract as LegalShell (sticky scrollspy TOC) with a
  * guide-specific vocabulary: numbered sections, an optional "at a glance"
  * note per section, a breadcrumb back to the hub, and a prev/next pager so a
@@ -75,7 +75,7 @@ const hubHref = localizePath('/guides', lang);
                     <h2><i>{String(i + 1).padStart(2, '0')}</i>{section.heading}</h2>
                     {section.note && (
                         <p class="gshell__glance">
-                            <span class="gshell__glance-tag">{labels.glance}</span>
+                            <span class="gshell__glance-tag bb-tag bb-tag--bare">{labels.glance}</span>
                             {section.note}
                         </p>
                     )}
@@ -261,12 +261,8 @@ const hubHref = localizePath('/guides', lang);
         margin: 0 0 18px;
     }
 
+    /* .bb-tag--bare carries the mono/uppercase treatment now. */
     .gshell__glance-tag {
-        display: inline-block;
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.6rem;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
         color: var(--green-glow, #52b788);
         margin-right: 8px;
     }
@@ -302,7 +298,7 @@ const hubHref = localizePath('/guides', lang);
     }
 
     /* Prose links wrap mid-paragraph, so they can't glyph-roll like TextLink;
-       they share its ember rail instead — the same tan→green sweep, drawn
+       they share its ember rail instead, the same tan→green sweep, drawn
        with a background gradient so it follows line breaks. */
     .gshell__block :global(a) {
         color: var(--tan, #c9a87c);
@@ -470,7 +466,7 @@ const hubHref = localizePath('/guides', lang);
 </style>
 
 <script>
-    /* TOC scrollspy — same contract as LegalShell. */
+    /* TOC scrollspy: same contract as LegalShell. */
     function setupGuide(root: HTMLElement) {
         if (root.dataset.guideReady === 'true') return;
         root.dataset.guideReady = 'true';

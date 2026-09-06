@@ -19,7 +19,7 @@ const DEMO = dev && env.DEMO === '1';
 // Owners only. A delegate's pages already SSR fresh on every navigation (the
 // client never opens this stream for them), and the board they operate is not
 // theirs: streaming it would hand them a change signal for families their
-// grant does not cover — `ban:<owner>`, `billing-state:<owner>` — which is
+// grant does not cover (`ban:<owner>`, `billing-state:<owner>`), which is
 // exactly the inference the section scoping exists to prevent.
 export const GET: RequestHandler = ({ locals, request }) => {
   const s = locals.session;
@@ -51,7 +51,7 @@ export const GET: RequestHandler = ({ locals, request }) => {
 
       // The payload is a constant, not the scope name: the client refetches
       // everything on any invalidate (see (app)/+layout.svelte), so the scope
-      // is dead data on the wire — and dead data that names which family of
+      // is dead data on the wire, and dead data that names which family of
       // the owner's state changed.
       const unsubscribe = subscribe(boardId, () => {
         send('event: invalidate\ndata: 1\n\n');

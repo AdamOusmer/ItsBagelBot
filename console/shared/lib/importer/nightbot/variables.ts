@@ -4,7 +4,7 @@
 // Variable layer of the Nightbot parser: the token table and the translation
 // loop. Scanning lives in ./scan, definition synthesis in ./fetchdefs.
 //
-// Decision record — Nightbot variable table (https://docs.nightbot.tv/
+// Decision record: Nightbot variable table (https://docs.nightbot.tv/
 // commands/variables):
 //
 //	$(user) / $(touser) / $(channel) → {user} / {touser} / {channel}
@@ -19,7 +19,7 @@
 // its whole reason to exist is being pasted inside a URL, where handing over
 // raw args produces a different request rather than a lossy one. $(count)
 // mutates (increments, then returns) while {counter:*} only reads, so
-// translating it would silently drop the increment — a behavior change, not a
+// translating it would silently drop the increment, a behavior change, not a
 // translation.
 
 import { parseFetchArgs } from './fetchdefs';
@@ -73,8 +73,8 @@ function classify(token: Token, sink?: FetchSlotSink): TokenResult {
 
 // fetchToken extracts one urlfetch/customapi call into a synthesized
 // definition. Extraction is safe by construction: the URL is copied byte-exact
-// out of the response text — no fetch, no resolution, no key handling happens
-// here — and the response keeps working at runtime through the reviewed,
+// out of the response text (no fetch, no resolution, no key handling happens
+// here) and the response keeps working at runtime through the reviewed,
 // sandboxed definition instead of an unreviewed URL pasted into chat text.
 // Without a sink (timers carry no command name to build a slug from) or with
 // unusable arguments the token stays literal and warned.

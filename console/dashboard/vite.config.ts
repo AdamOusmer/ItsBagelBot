@@ -3,7 +3,7 @@
 
 // Side-effect import: sorts src/ directory reads so the native ARM/Intel image
 // builds assign identical SvelteKit node IDs and emit byte-identical client
-// bundles. Must live here (inside the build process) — bun ignores
+// bundles. Must live here (inside the build process): bun ignores
 // NODE_OPTIONS=--require, so a script-level shim never runs.
 import '../sorted-readdir.mjs';
 import { sveltekit } from '@sveltejs/kit/vite';
@@ -28,7 +28,7 @@ export default defineConfig({
   // /@fs/… absolute paths, and console/shared sits outside every directory
   // SvelteKit's plugin allows (its own src, .svelte-kit, and the two
   // node_modules dirs), so each font answered 403, `document.fonts` reported
-  // all four faces in `error`, and Syne 800 fell back to sans-serif — ~40%
+  // all four faces in `error`, and Syne 800 fell back to sans-serif, ~40%
   // narrower, which silently resized every width-sensitive layout in dev (the
   // /login hero grid measured a 547px title column against 902px in the Astro
   // original). Scoped to ../shared rather than .., which would also expose

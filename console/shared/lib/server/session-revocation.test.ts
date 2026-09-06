@@ -29,7 +29,7 @@ describe('isSessionRevoked', () => {
     expect(await isSessionRevoked({ sid: 's1', userId: 'u1', iat: 3000 })).toBe(false);
   });
 
-  // A session sealed before sids existed cannot be revoked individually — the
+  // A session sealed before sids existed cannot be revoked individually: the
   // read must be asked for the user's epoch only, never a sid key.
   test('a missing sid still consults the user epoch, with no sid key', async () => {
     let askedFor: string | undefined = 'unset';
@@ -52,7 +52,7 @@ describe('isSessionRevoked', () => {
 describe('revokeSession / revokeAllForUser', () => {
   // Writes must never throw into the logout / "sign out everywhere" flow
   // even when Valkey is configured but unreachable (a real dial attempt that
-  // fails under the breaker + timeout) — matching how rate-limit.test.ts
+  // fails under the breaker + timeout), matching how rate-limit.test.ts
   // drives its own write client without a live Valkey. Explicit config
   // registration keeps this deterministic regardless of what other test
   // files in the same `bun test` run already registered (config.ts's
@@ -67,7 +67,7 @@ describe('revokeSession / revokeAllForUser', () => {
   });
 
   // The bug this guards: a session sealed before sids existed has no sid, so
-  // logout cannot target it — but "sign out everywhere" must still kill it,
+  // logout cannot target it, but "sign out everywhere" must still kill it,
   // since those are the oldest cookies in the wild. Keying the epoch check on
   // the sid would have skipped exactly the sessions the control is for.
   test('a sid-less legacy session is still revoked by the user epoch', async () => {

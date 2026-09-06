@@ -6,8 +6,8 @@
 // Unlike timers (whose list lives inside the module blob), quotes are
 // DB-backed rows owned by the modules service and reached through its quote
 // verbs (bagel.rpc.modules.quote.*). The module blob still holds the
-// settings — the enable flag plus addPerm/editPerm (who may save or rewrite
-// from chat) — so this store reads/writes those through the same
+// settings (the enable flag plus addPerm/editPerm, who may save or rewrite
+// from chat), so this store reads/writes those through the same
 // listModules/upsertModule path every other module uses, and reads/mutates
 // the rows through the quote RPC.
 import { rpc } from '@bagel/shared/server/nats';

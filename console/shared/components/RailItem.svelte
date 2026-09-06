@@ -4,7 +4,7 @@
   // Quiet rail entry: icon + sentence-case label. Deliberately NOT the ledger
   // row (NavItem): no index column, no mono uppercase. The active state is
   // carried by the rail's single gliding highlight, so this row only changes
-  // colour — two competing active treatments read as a rendering bug.
+  // colour: two competing active treatments read as a rendering bug.
   import Icon from './Icon.svelte';
   import type { IconName } from '../lib/icons';
   import { getI18n } from '../lib/i18n/context';

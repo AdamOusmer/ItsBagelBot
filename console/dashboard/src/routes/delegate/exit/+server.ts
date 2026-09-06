@@ -10,7 +10,7 @@ import { COOKIE, seal } from '$lib/server/session';
 // logging out entirely. A non-delegate just goes home.
 //
 // The re-seal keeps the original iat/expires_at: leaving a board must never
-// extend a session's lifetime — only a fresh OAuth login does that.
+// extend a session's lifetime: only a fresh OAuth login does that.
 export const GET: RequestHandler = ({ url, locals, cookies }) => {
   const s = locals.session;
   if (s?.delegate_of) {

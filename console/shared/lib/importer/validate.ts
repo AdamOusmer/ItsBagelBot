@@ -4,7 +4,7 @@
 // Canonicalization + validation layer for config imports, ported one-for-one
 // from app/importer/mapping (mapping.go, response.go, permission.go,
 // validate.go) when the standalone importer service was folded into the
-// dashboard. Every function here is pure and deterministic — parsers run it at
+// dashboard. Every function here is pure and deterministic: parsers run it at
 // parse time and the commit path runs it again before writing, so its outputs
 // are wire-stable and pinned by tests (validate.test.ts replays the Go
 // package's committed golden fixture as a parity check).
@@ -32,7 +32,7 @@ import { IMPORT_ITEM_CAPS } from './types';
 import { slugifyName } from '../fetch-tokens';
 import { FETCH_NAME_MAX } from '../fetch-validate';
 
-// --- diagnostic codes (restated from internal/domain/rpc/importer — kept in
+// --- diagnostic codes (restated from internal/domain/rpc/importer, kept in
 // step; snake_case, item-kind-prefixed for item-level findings) ---------------
 export const CODE = {
   manifestEmpty: 'manifest_empty',
@@ -219,7 +219,7 @@ export function mapPermission(raw: string): { perm: Perm; recognized: boolean } 
 // --- stats + collisions ------------------------------------------------------
 
 // Stats tallies one manifest by collection. It counts what the manifest holds,
-// regardless of validity — preview renders this number, commit computes its own
+// regardless of validity: preview renders this number, commit computes its own
 // applied tally from what actually wrote.
 const STAT_KEYS: readonly (keyof ImportStats)[] = ['commands', 'timers', 'triggers', 'quotes', 'counters'];
 
@@ -302,16 +302,16 @@ export type FetchSlugSource = 'se' | 'moobot' | 'nightbot';
 // fetchDefSlug builds one legal definition name from a short source prefix and
 // a command name: `<source>_<slugified command>`.
 //
-// Decision record — why the fold is slugifyName and not a local one: the name
+// Decision record: why the fold is slugifyName and not a local one: the name
 // this returns becomes the Valkey hash field "fetch:<name>" and the
 // {urlfetch:<name>} token payload, and the commands service validates it as
 // ^[a-z0-9_]{1,32}$ (Go FetchDefName, internal/domain/validate/fetch.go). The
 // importers used to mint `se-<command>` / `moobot-<command>`: a HYPHEN IS NOT
 // IN THAT GRAMMAR, so every synthesized definition was refused at commit while
 // its tokens were already written into the response text. Routing through the
-// fetches editor's own slugifier is what makes the two agree — a broadcaster
+// fetches editor's own slugifier is what makes the two agree (a broadcaster
 // re-creating a URL-less shell by hand lands on the SAME name the imported
-// tokens reference — and it keeps the linear underscore trimming that fold
+// tokens reference), and it keeps the linear underscore trimming that fold
 // uses on purpose (anchored /^_+/ backtracks polynomially; see fetch-tokens).
 // Deterministic: same export in, same slugs out (re-import idempotence).
 export function fetchDefSlug(source: FetchSlugSource, commandName: string): string {
@@ -337,7 +337,7 @@ const MAX_COMMAND_NAME_LEN = 64;
 const MAX_COMMAND_ALIASES = 25;
 
 // Go strconv.Quote equivalent for diagnostic prose (ASCII corpus only; control
-// characters fall back to JSON escaping — no fixture relies on them).
+// characters fall back to JSON escaping; no fixture relies on them).
 function q(s: string): string {
   return JSON.stringify(s);
 }

@@ -157,7 +157,7 @@
   // Mounted ONCE and kept. `active` decides whether it moves, never whether it
   // exists: tearing the engine down and rebuilding it on every hover restarted
   // its clock at zero with no pose to blend out of, so each toggle was a cut
-  // rather than a morph. That is what read as "the morphing is not smooth" —
+  // rather than a morph. That is what read as "the morphing is not smooth":
   // the morphs were fine, they just never got to run.
   async function startEngine() {
     if (handle || mounting || !el || reducedMotion()) return;

@@ -3,7 +3,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
   // One ledger line in the counters deck, built on the shared ManagementRow so
   // the clickable primary is a real button and the delete quick-action is a
-  // SIBLING of it, never nested inside — the same structure every other
+  // SIBLING of it, never nested inside: the same structure every other
   // management deck (commands, timers, rewards) uses, which is what keeps the
   // columns aligned across decks instead of drifting in a bespoke grid.
   //
@@ -54,7 +54,7 @@
       {#if idx}<span class="idx" aria-hidden="true">{idx}</span>{/if}
       <span class="name">
         <span class="c-name">{c.name}</span>
-        <span class="c-tag">{scopeLabel}</span>
+        <span class="c-tag bb-tag bb-tag--bare">{scopeLabel}</span>
       </span>
       <span class="meta">
         {#if isChannel}
@@ -75,7 +75,7 @@
 </ManagementRow>
 
 <style>
-  /* idx | name (+ scope tag) | value/note — the TimerRow track shape, so the
+  /* idx | name (+ scope tag) | value/note: the TimerRow track shape, so the
      value column lands at the same right edge on every row regardless of scope. */
   .prow {
     display: grid;
@@ -96,16 +96,9 @@
     white-space: nowrap;
     min-width: 0;
   }
-  .c-tag {
-    flex: none;
-    font-family: var(--bb-font-body);
-    font-size: 11px;
-    color: var(--bb-muted);
-    border: 1px solid var(--bb-border);
-    border-radius: 999px;
-    padding: 2px 8px;
-    white-space: nowrap;
-  }
+  /* Was a 999px outlined pill; the scope label is now the global
+     .bb-tag--bare, frameless because ManagementRow already draws the row. */
+  .c-tag { flex: none; }
 
   /* Value / note: right-aligned, the value mono + tabular so digits column
      across rows, the note muted where a value would be. */

@@ -40,7 +40,7 @@ function settled<T>(r: PromiseSettledResult<T>): T | undefined {
 // One enable publish per user per window, per replica. The enable action and
 // the self-heal below both publish the same job, and right after a connect
 // click the registry still reads 'unenrolled' until the worker flips it to
-// 'pending' — without this guard every page load and substate poll in that
+// 'pending': without this guard every page load and substate poll in that
 // window fires another full enroll (each worth ~13-24 reserved Helix calls;
 // two back-to-back full enrolls observed 2026-07-10). Per-replica memory is
 // enough: the worker-side enroll cooldown is the fleet-wide guard, this only
@@ -58,7 +58,7 @@ function pruneEnableStamps(now: number): void {
 // enrollment for (fresh signup, or one predating auto-enroll) gets its
 // EventSub enable job published right here on page load. Safe to repeat:
 // outgress single-flights the enroll and creates are 409-idempotent. Only
-// 'unenrolled' triggers this — 'unknown' (outgress RPC down) must not spam
+// 'unenrolled' triggers this; 'unknown' (outgress RPC down) must not spam
 // enables. Reports 'pending' so the UI shows the enroll in flight; the
 // substate poll takes over with the real outcome.
 function healSubState(conn: {
@@ -237,7 +237,7 @@ export const load: PageServerLoad = ({ locals }) => {
     // one panel instead of failing the page; the panels then render an honest
     // "not measured" rather than a confident zero. The same lane set feeds the
     // /overview/stream SSE tick, which is what keeps these panels moving after
-    // this snapshot — no cache invalidation ever fires for them.
+    // this snapshot: no cache invalidation ever fires for them.
     ...overviewLanes(uid)
   };
 };

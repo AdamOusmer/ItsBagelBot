@@ -280,7 +280,7 @@
   }
 
   /* Login paints its own orbs; the shell's ambient pair would muddy them. The
-     orbs live in app.html, so hiding them takes a :global rule — but route CSS
+     orbs live in app.html, so hiding them takes a :global rule, but route CSS
      stays in the document after a client-side navigation, and an unqualified
      :global(.bg-orb) kept them hidden on every page visited afterwards (reach
      /login from the error page's sign-in link, then go Back). Gating on the
@@ -429,8 +429,8 @@
 
   /* margin-top:0 stands in for web's `* { margin: 0 }` reset (style.css), which
      console/shared/styles/app.css does not ship. Without it the UA's
-     `h1 { margin-block-start: 0.67em }` survives — 58.85px at the 87.84px
-     desktop size — and grew the grid row past the title, so `align-items: end`
+     `h1 { margin-block-start: 0.67em }` survives (58.85px at the 87.84px
+     desktop size) and grew the grid row past the title, so `align-items: end`
      bottom-aligned the title 59px below its eyebrow. Same reset gap as .lede
      and .consent below. */
   h1 {
@@ -461,7 +461,7 @@
   }
 
   /* Keep this selector statically matchable: an attribute the mount adds at
-     runtime (h1[data-hero-animate]) compiles away — Svelte prunes selectors it
+     runtime (h1[data-hero-animate]) compiles away: Svelte prunes selectors it
      cannot match in the markup and warns css_unused_selector, which left the
      glyphs visible and killed the roll-in. onMount reveals them instead. */
   @media (scripting: enabled) and (prefers-reduced-motion: no-preference) {
@@ -683,7 +683,7 @@
     .migrate { margin-top: 12px; font-size: 0.76rem; }
   }
 
-  /* ── Editorial left — desktop only. Keep this block last.
+  /* Editorial left, desktop only. Keep this block last.
      Copied from web/src/components/home/Header.astro: `auto 1fr` + 56px gap,
      no divider. A max-content/hairline grid was tried here and it is what
      painted the vertical rule the hero never has. */

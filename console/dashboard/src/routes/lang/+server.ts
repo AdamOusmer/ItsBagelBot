@@ -35,7 +35,7 @@ export const POST: RequestHandler = async ({ request, url, cookies, locals }) =>
     }
   }
 
-  // Same-origin relative paths only — never honour an absolute/protocol-relative
+  // Same-origin relative paths only: never honour an absolute/protocol-relative
   // `next`, which would turn this into an open redirect.
   const dest = next.startsWith('/') && !next.startsWith('//') ? next : '/';
   throw redirect(303, dest);

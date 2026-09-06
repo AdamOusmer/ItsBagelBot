@@ -39,7 +39,7 @@ export interface ParseResult {
 }
 
 // parseStreamLabsDesktop translates the Chatbot.db into a manifest plus
-// diagnostics. A broken database (wrong magic, unreadable pages) throws — the
+// diagnostics. A broken database (wrong magic, unreadable pages) throws: the
 // caller wraps that as parse_failed; anything less fatal becomes a diagnostic
 // so the healthy items still import. Items are sorted by normalized name
 // before indexing so both manifest order and diagnostic indexes stay stable

@@ -3,8 +3,8 @@
 
 // The dashboard nav registry: one declarative list owning every (app) section's
 // path, icon, label key, match prefixes and access shape. It exists because the
-// section ladder used to be hand-maintained in four places — layout breadcrumb,
-// layout nav items, guard delegate paths, settings grantable-sections — and a
+// section ladder used to be hand-maintained in four places: layout breadcrumb,
+// layout nav items, guard delegate paths, settings grantable-sections, and a
 // new bespoke page registered in one of them but not the others silently fell
 // back to the wrong breadcrumb or vanished from the dock. Adding a page now
 // means adding ONE entry here with its match prefixes; every consumer derives
@@ -29,12 +29,12 @@ const identity =
 /**
  * Sections an owner can delegate to another account, in offer order.
  *
- * Billing is view-only for a delegate (the money actions stay owner-only — see
+ * Billing is view-only for a delegate (the money actions stay owner-only; see
  * billing/+page.server.ts). Counters ride under 'modules'; timers also ride
  * under 'commands' (see the catalog's delegateSections and module-gate.ts).
  * Discord got its own grant when it got its own section (see DASHBOARD_SECTIONS
  * below): its catalog entry now declares delegateSections: ['discord'], so a
- * pre-existing 'modules' grant no longer opens /discord — a deliberate,
+ * pre-existing 'modules' grant no longer opens /discord, a deliberate,
  * visible narrowing, not a bug. An owner who wants a delegate back on Discord
  * re-shares with the new Discord checkbox.
  */
@@ -68,7 +68,7 @@ export interface DashboardSectionDef {
 }
 
 /**
- * Dock order IS display order — overview first, settings last — and doubles as
+ * Dock order IS display order (overview first, settings last) and doubles as
  * the breadcrumb tiebreak. A new page joins here, nowhere else.
  */
 export const DASHBOARD_SECTIONS: readonly DashboardSectionDef[] = [

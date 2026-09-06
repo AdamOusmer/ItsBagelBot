@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 // Shared token palette + preview samples for the Bedwars session commands
-// (!daily / !weekly / !monthly) — same template surface, one source of truth.
+// (!daily / !weekly / !monthly), same template surface, one source of truth.
 export const BW_SESSION_TOKENS = [
   'player',
   'wins',
@@ -27,7 +27,7 @@ export const BW_SESSION_SAMPLES: Record<string, string> = {
 };
 
 // Shared token palette + preview samples for the Fortnite stats commands
-// (!fnstats / !season) — same template surface, one source of truth.
+// (!fnstats / !season), same template surface, one source of truth.
 export const FN_STATS_TOKENS = [
   'player',
   'window',
@@ -66,7 +66,7 @@ export const FN_STATS_SAMPLES: Record<string, string> = {
 };
 
 // Token palette + preview samples for !fn session: deltas since the
-// stream-start snapshot (no per-mode breakdown, no window — always this
+// stream-start snapshot (no per-mode breakdown, no window, always this
 // stream, always the linked account).
 export const FN_SESSION_TOKENS = ['player', 'wins', 'matches', 'kills', 'kd', 'winrate'];
 export const FN_SESSION_SAMPLES: Record<string, string> = {

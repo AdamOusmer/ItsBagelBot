@@ -12,7 +12,7 @@
 // master-pinned write client, even though the construction is nearly
 // identical (same low-level helpers below). Each critical-path write
 // dependency gets its own client + circuit breaker, so a fault, reconnect
-// storm, or config change on one never perturbs the other — the same
+// storm, or config change on one never perturbs the other: the same
 // per-dependency isolation resilience.ts's CircuitBreaker doc argues for.
 import Redis from 'iovalkey';
 import {
@@ -45,7 +45,7 @@ function sentinelOptions(cfg: ValkeyConfig, tls: TLSOptions) {
     sentinels: [valkeyEndpoint(cfg.sentinelAddr as string, Boolean(tls), VALKEY_TLS_SENTINEL_PORT)],
     // `||` not `??`: an empty VALKEY_MASTER_SET (unset in Doppler comes
     // through as "") must fall back to the sentinel's monitored name, not be
-    // used verbatim — a blank master name never resolves, so every revocation
+    // used verbatim: a blank master name never resolves, so every revocation
     // write would silently time out.
     name: cfg.sentinelMaster || 'myprimary',
     password: cfg.password || undefined,
@@ -70,7 +70,7 @@ function directOptions(cfg: ValkeyConfig, tls: TLSOptions) {
 
 /**
  * Lazily build (or return the cached) Sentinel-pinned master client. Null
- * when Valkey is unconfigured (dev, unit tests, misordered boot) — callers
+ * when Valkey is unconfigured (dev, unit tests, misordered boot): callers
  * degrade rather than throw. Breaker + per-op timeout are the caller's job
  * (see session-revocation.ts), matching how valkey-store.ts and rate-limit.ts
  * each own their own resilience around their own client.

@@ -45,7 +45,7 @@ describe('golden replay', () => {
       const raw = readFileSync(join(here, `testdata/se-envelope-${want.file}.json`), 'utf8');
       const { manifest, diagnostics } = parseStreamElements(raw);
       // Key order differs (Go struct fields vs JS objects); content is the
-      // contract, so compare deep-equal — which bun's toEqual provides.
+      // contract, so compare deep-equal, which bun's toEqual provides.
       expect(manifest).toEqual(want.manifest as never);
       expect(diagnostics).toEqual(want.diags as never); // messages included
     });
@@ -206,7 +206,7 @@ describe('full-fixture parse assertions (from parse_test.go)', () => {
   test('death counter + touser translation', () => {
     const c = manifest.commands![2];
     expect(c.permission).toBe('mod');
-    expect(c.responses![0]).toBe('{counter:deaths} deaths so far — blame {touser} this time');
+    expect(c.responses![0]).toBe('{counter:deaths} deaths so far, blame {touser} this time');
   });
 
   test('roll keeps random/choice keys under sub permission', () => {
@@ -294,7 +294,7 @@ describe('urlfetch mapping', () => {
     );
 
   // Regression guard: the slug used to be `se-<command>`, which the commands
-  // service refuses (^[a-z0-9_]{1,32}$) — every synthesized definition failed
+  // service refuses (^[a-z0-9_]{1,32}$), every synthesized definition failed
   // at commit with its tokens already in the response text.
   test('every synthesized definition name is one the commands service accepts', () => {
     const { manifest } = parse(
@@ -428,7 +428,7 @@ const CHANNEL_ID = '5b2e2007760aeb7729487dab';
 const TEST_JWT = 'eyJhbGciOiJIUzI1NiJ9.eyJpYXQiOjF9.c2lnbmF0dXJl'; // shape-valid dummy
 
 // newTestServer stands in for the Go httptest.Server: records every request
-// (path + headers snapshotted eagerly — Bun recycles Request internals once
+// (path + headers snapshotted eagerly, Bun recycles Request internals once
 // the handler resolves) and answers via `handler`; failPath answers failStatus.
 interface Recorded {
   path: string;

@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 // The changelog page renders one entry per file in src/content/changelog,
 // newest version first. Deriving the expectation from those files (rather than
 // hard-coding the release list) keeps the ordering assertion honest without
-// making every release a test edit — the property under test is the ORDER, and
+// making every release a test edit: the property under test is the ORDER, and
 // the comparator here is written independently of the page's own.
 const CHANGELOG_DIR = fileURLToPath(new URL('../src/content/changelog', import.meta.url));
 const PRERELEASE_RANK = { alpha: 0, beta: 1, prerelease: 2 };
@@ -88,7 +88,7 @@ test.describe('ItsBagelBot site', () => {
 
         // Playground: chat window, command chips, spam button, live feed seed
         const play = page.locator('#playground');
-        await expect(play.locator('h2')).toContainText('Go on, poke it.');
+        await expect(play.locator('h2')).toContainText('Try it here.');
         await expect(play.locator('[data-play-cmd]')).toHaveCount(4);
         await expect(play.locator('[data-play-spam]')).toHaveCount(1);
         await expect(play.locator('[data-play-feed] .pmsg')).not.toHaveCount(0);
@@ -102,14 +102,14 @@ test.describe('ItsBagelBot site', () => {
         // Quiet work bento
         const quiet = page.locator('#quiet-work');
         await expect(quiet.locator('[data-card]')).toHaveCount(6);
-        await expect(quiet).toContainText('While you play, it sweeps the floor.');
+        await expect(quiet).toContainText('The things it handles while you stream.');
         // Song requests lead the bento: the full-width card is the first one.
         await expect(quiet.locator('[data-card]').first()).toContainText('Spotify song requests, run by chat.');
 
         // Four-layer safety pipeline
         const safety = page.locator('#safety-layers');
         await expect(safety.locator('[data-card]')).toHaveCount(3);
-        await expect(safety).toContainText('A classifier jury, not one guess.');
+        await expect(safety).toContainText('Several classifiers have to agree.');
         await expect(safety).toContainText('One raid warns every protected channel.');
 
         // Steps
@@ -120,9 +120,9 @@ test.describe('ItsBagelBot site', () => {
         }
 
         // Letter + finale
-        await expect(page.locator('#letter')).toContainText('no trackers, no data sold');
+        await expect(page.locator('#letter')).toContainText('Nothing here is sold to advertisers');
         await expect(page.locator('[data-letter-stamp]')).toHaveCount(1);
-        await expect(page.locator('.finale')).toContainText('Stream');
+        await expect(page.locator('.finale')).toContainText('tomorrow');
 
         // Ownership colophon names the account Hypixel verification looks for
         const about = page.locator('#about');
@@ -152,7 +152,7 @@ test.describe('ItsBagelBot site', () => {
     test('pricing renders free-first tiers, oath, and faq', async ({ page }) => {
         await page.goto('/pricing');
 
-        await expect(page.locator('.phero__title')).toContainText('Free is the whole product.');
+        await expect(page.locator('.phero__title')).toContainText('Everything is on the free plan.');
 
         const tiers = page.locator('.tiers [data-card]');
         await expect(tiers).toHaveCount(3);
@@ -163,13 +163,13 @@ test.describe('ItsBagelBot site', () => {
         // Premium framed as the tip jar, not the "recommended" upsell
         await expect(tiers.nth(1)).toContainText('The tip jar, with perks');
 
-        await expect(page.locator('.tiers__oath')).toContainText('no feature gates');
+        await expect(page.locator('.tiers__oath')).toContainText('no card needed');
 
         await expect(page.locator('details')).toHaveCount(5);
 
         // Source available, never positioned as "open source"
         // (FAQ answer lives in a collapsed <details>, so assert presence, not visibility)
-        await expect(page.getByText('source available, not open source')).toHaveCount(1);
+        await expect(page.getByText('not the same as open source')).toHaveCount(1);
     });
 
     test('static gates open in sync with the message', async ({ page }) => {
@@ -334,7 +334,7 @@ test.describe('ItsBagelBot site', () => {
             );
         });
 
-        await expect(page.locator('.phero__title')).toContainText('Free is the whole product.', { timeout: 3000 });
+        await expect(page.locator('.phero__title')).toContainText('Everything is on the free plan.', { timeout: 3000 });
     });
 
     test('encryption scene boots again when returning home', async ({ page }) => {

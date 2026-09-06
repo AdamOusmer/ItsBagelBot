@@ -51,7 +51,7 @@ export interface ChannelPointReward {
   // counterScope is the scope to CREATE the counter with when it doesn't exist
   // yet, so a broadcaster can make the counter straight from the reward editor
   // instead of the Counters page. Ignored when counter is empty, or when the
-  // counter already exists (create is idempotent — it never changes a stored
+  // counter already exists (create is idempotent, it never changes a stored
   // scope). Defaults to per user + reward, the scope a reward-linked counter
   // almost always wants.
   counterScope: CounterScope;

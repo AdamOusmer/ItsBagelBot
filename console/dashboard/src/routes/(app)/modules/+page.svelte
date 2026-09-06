@@ -267,7 +267,7 @@
     --section-nav-sticky-top: calc(58px + env(safe-area-inset-top, 0px) + 68px);
   }
   /* One column on a phone (chips above the list). Two columns when there is
-     room for a ~10rem rail — reflow, not display:none. The old sidebar hid
+     room for a ~10rem rail: reflow, not display:none. The old sidebar hid
      itself below 980px so only a wide desktop could jump. */
   @media (min-width: 761px) {
     .index {

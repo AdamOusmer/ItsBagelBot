@@ -3,7 +3,7 @@
 
 // Chat-rehearsal core: the dashboard-side mirror of how the bot expands and
 // routes a response template. Every rule here corresponds to one place in the
-// Go engine — keep them in lockstep:
+// Go engine, keep them in lockstep:
 //
 //   - token expansion:       app/twitch/sesame/module/vars.go (Expand, ParseDynamic)
 //   - command tokens:        app/twitch/sesame/engine/vars.go (expandCommand)
@@ -16,19 +16,19 @@
 // and no framework. Each surface renders the RehearsedLine[] its own way.
 //
 // The bot has exactly two expansion behaviors, so there are exactly two
-// rehearsals. Slash-verbs route on EVERY path — the pipeline's emit (and
+// rehearsals. Slash-verbs route on EVERY path: the pipeline's emit (and
 // outgress's sendBotLine for the clip reply) translates a leading /announce,
-// /shoutout, /pin after expansion — so both rehearsals render the native
+// /shoutout, /pin after expansion, so both rehearsals render the native
 // action; they differ only in tokens and fan-out:
 //
-//   rehearseCommand — custom "!command" responses. The engine expands the
+//   rehearseCommand: custom "!command" responses. The engine expands the
 //   whole template first, then splits it into lines (cap 5, one chat message
 //   each), then translates each line's leading slash-verb.
 //
-//   rehearseReply — module replies (alerts, trigger words, channel-point
+//   rehearseReply: module replies (alerts, trigger words, channel-point
 //   rewards, built-ins, gossip commands). Each module expands ONLY its own
-//   token map — most fall back to the shared dynamic tokens ({random},
-//   {choice:…}), a few (govee, clip) do not — and emits one message, whose
+//   token map: most fall back to the shared dynamic tokens ({random},
+//   {choice:…}), a few (govee, clip) do not, and emits one message, whose
 //   leading slash-verb routes the same way.
 
 import { RESPONSE_MAX_LINES, responseLines } from './commands-validate';
@@ -64,7 +64,7 @@ export type Samples = Readonly<Record<string, string>>;
  * lower-cased (token names are case-insensitive) while the payload after the
  * first ':' keeps its case, so {CHOICE:Hi,Yo} still offers "Hi".
  *
- * payload is null when the span carries no ':' at all — the engine draws a
+ * payload is null when the span carries no ':' at all; the engine draws a
  * real distinction there: {choice} is unknown and stays literal, while
  * {choice:} is an (empty) option list that resolves.
  */
@@ -73,14 +73,14 @@ export interface Token {
   span: string;
   name: string;
   payload: string | null;
-  /** "name", or "name:payload" — what a sample map is keyed by. */
+  /** "name", or "name:payload": what a sample map is keyed by. */
   key: string;
 }
 
 /** Resolve one token to its rehearsed value; null leaves it literal. */
 export type Resolve = (token: Token) => string | null;
 
-/** Sample values for the canonical tokens expandCommand resolves — nothing
+/** Sample values for the canonical tokens expandCommand resolves, nothing
  * more, so the rehearsal never substitutes a token the bot would leave
  * literal. {sender} and {target} are absent on purpose: they are aliases
  * (see COMMAND_ALIASES), so overriding the canonical token covers both. */
@@ -103,7 +103,7 @@ const RANDOM_SAMPLE = '57';
 const COUNTER_SAMPLE = '42';
 
 /** Rehearse a custom command response: expand, split into messages, then
- * route each line's leading slash-verb — the same order as emitResponse.
+ * route each line's leading slash-verb (the same order as emitResponse).
  * (Expansion per line equals whole-template expansion: no token value can
  * carry a newline, so line boundaries never move.) */
 export function rehearseCommand(response: string, overrides?: Samples): RehearsedLine[] {
@@ -114,7 +114,7 @@ export function rehearseCommand(response: string, overrides?: Samples): Rehearse
 }
 
 /** Rehearse a module reply: one message, the module's own tokens plus
- * (unless dynamic=false — govee and clip use a bare string replacer) the
+ * (unless dynamic=false, govee and clip use a bare string replacer) the
  * shared dynamic tokens. A leading slash-verb routes exactly like a command
  * line: the pipeline translates every emitted output. */
 export function rehearseReply(
@@ -128,7 +128,7 @@ export function rehearseReply(
 }
 
 /** One chat message: expand tokens, then route the leading slash-verb over
- * the EXPANDED text — the engine's order, so a verb minted by a token (e.g.
+ * the EXPANDED text (the engine's order), so a verb minted by a token (e.g.
  * {choice:/pin a,/pin b}) still routes. */
 function rehearseLine(line: string, resolve: Resolve): RehearsedLine {
   const segments = expandSegments(line, resolve);
@@ -252,8 +252,8 @@ interface SlashAction {
   verb?: string;
   color?: string;
   target?: string;
-  /** Index into the expanded text where the message body starts (the verb —
-   * and, for shoutout, the target — is consumed by the action). */
+  /** Index into the expanded text where the message body starts (the verb,
+   * and for shoutout the target, is consumed by the action). */
   bodyStart: number;
 }
 
@@ -276,8 +276,8 @@ const VERBS: readonly VerbSpec[] = [
   { verb: '/me', mode: 'me' }
 ];
 
-/** CutSlash mirror over the EXPANDED text — the engine expands first, so a
- * verb produced by a token still routes. /me is a wire passthrough (the verb
+/** CutSlash mirror over the EXPANDED text (the engine expands first, so a
+ * verb produced by a token still routes). /me is a wire passthrough (the verb
  * stays in the text), but Twitch renders it as an italic action, so it is
  * displayed that way with the verb stripped. */
 function parseSlash(text: string): SlashAction {
@@ -299,7 +299,7 @@ function verbEnd(text: string, spec: VerbSpec): number | null {
   return null;
 }
 
-/** /shoutout <target> — the first token (leading '@' dropped) becomes the
+/** /shoutout <target>: the first token (leading '@' dropped) becomes the
  * target; the body is what follows, left-trimmed, like the engine's Cut. */
 function parseShoutout(text: string, from: number): SlashAction {
   let i = from;

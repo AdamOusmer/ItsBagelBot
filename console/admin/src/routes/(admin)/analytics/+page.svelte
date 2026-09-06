@@ -187,7 +187,7 @@
 
     {#if enrollment}
       <div class="card">
-        <div class="card-head"><h3>Enrollment — last {enrollment.days.length} days</h3></div>
+        <div class="card-head"><h3>Enrollment - last {enrollment.days.length} days</h3></div>
         <EnrollmentChart {enrollment} />
       </div>
 
@@ -198,7 +198,7 @@
           {#if stats}
             <div class="comp">
               <div class="comp-block">
-                <span class="comp-label">Tier — {stats.total_users.toLocaleString()} users</span>
+                <span class="comp-label">Tier - {stats.total_users.toLocaleString()} users</span>
                 <div class="comp-bar" role="img" aria-label="Tier split">
                   {#each tiers as t (t.id)}
                     <div class="comp-seg seg-{t.id}" style="width:{pct(t.count, stats.total_users)}%"></div>

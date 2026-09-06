@@ -3,7 +3,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 /**
- * SafetyLayers — animated snapshots of the moderation pipeline.
+ * SafetyLayers: animated snapshots of the moderation pipeline.
  * The visual language follows QuietWork: tactile cards, small mono system
  * readouts, and motion that demonstrates the feature instead of decorating it.
  */
@@ -22,7 +22,7 @@ const t = useTranslations(lang);
     <SectionHeading eyebrow={t('safe.eyebrow')} title={t('safe.title')} />
 
     <div class="safe__grid">
-        <Card class="safe__card" label={t('safe.juryCh')} data-reveal>
+        <Card class="safe__card" data-reveal>
             <div class="safe__demo safe__demo--jury" slot="band" aria-hidden="true">
                 <span class="jury__case">{t('safe.spam')} / {t('safe.hate')}</span>
                 <div class="jury__table">
@@ -35,7 +35,7 @@ const t = useTranslations(lang);
                     <span class="jury__seat jury__seat--br" style="--jury-i: 5"><i></i><em>block</em></span>
                     <span class="jury__tally">
                         <small>{t('safe.juryVerdict')}</small>
-                        <b>5—1</b>
+                        <b>5-1</b>
                         <em>block</em>
                     </span>
                 </div>
@@ -47,7 +47,7 @@ const t = useTranslations(lang);
             <p class="safe__desc">{t('safe.juryDesc')}</p>
         </Card>
 
-        <Card class="safe__card" label={t('safe.gatesCh')} data-reveal style="--reveal-i: 1">
+        <Card class="safe__card" data-reveal style="--reveal-i: 1">
             <div class="safe__demo safe__demo--gates" slot="band" aria-hidden="true">
                 <div class="gates__lane">
                     <span class="gates__packet">MSG</span>
@@ -70,7 +70,7 @@ const t = useTranslations(lang);
             <p class="safe__desc">{t('safe.gatesDesc')}</p>
         </Card>
 
-        <Card class="safe__card safe__card--network" label={t('safe.networkCh')} data-reveal style="--reveal-i: 2">
+        <Card class="safe__card safe__card--network" data-reveal style="--reveal-i: 2">
             <div class="safe__demo safe__demo--network" slot="band" aria-hidden="true">
                 <svg class="network__map" viewBox="0 0 360 112" role="presentation">
                     <g class="network__links">

@@ -12,9 +12,9 @@
 // What it enforces:
 //   1. Every mention of DEMO is either the canonical gate
 //      (`const DEMO = dev && env.DEMO === '1'`) or a use of that local const.
-//      Any other shape — a bare `env.DEMO` read, a property read through an
+//      Any other shape (a bare `env.DEMO` read, a property read through an
 //      aliased env object, a computed/bracket key, a destructure, a bare
-//      'DEMO' string — is a runtime switch: a shipped-and-dormant code path an
+//      'DEMO' string) is a runtime switch: a shipped-and-dormant code path an
 //      env var can turn back on. Only the gated form folds away at build,
 //      because `dev` is a build-time constant.
 //   2. Fixture modules are discovered from the code (every dynamic import that
@@ -30,7 +30,7 @@
 //   5. No stray fixture-shaped module sits unimported under lib/server.
 //
 // Scanned roots include console/shared, which BOTH consoles bundle
-// (`ssr: { noExternal: ['@bagel/shared'] }`) — a fixture or ungated read added
+// (`ssr: { noExternal: ['@bagel/shared'] }`): a fixture or ungated read added
 // there would otherwise reach production through an app that never mentions
 // DEMO itself.
 //
@@ -127,7 +127,7 @@ for (const file of files) {
   const code = stripComments(raw);
   const gated = GATE.test(code);
 
-  // Rule 1 — every DEMO mention is the gate or a use of it.
+  // Rule 1: every DEMO mention is the gate or a use of it.
   if (file !== DEMO_GUARD) {
     const withoutGate = code.replace(new RegExp(GATE.source, 'g'), '');
     const collapsed = withoutGate.replace(/\s+/g, ' ');
@@ -145,7 +145,7 @@ for (const file of files) {
     }
   }
 
-  // Rules 2 and 4 — discover fixture modules from imports.
+  // Rules 2 and 4: discover fixture modules from imports.
   for (const [, specifier] of code.matchAll(DYNAMIC_IMPORT)) {
     if (!looksLikeFixture(specifier)) continue;
     const target = await resolveSpecifier(specifier, file);
@@ -164,7 +164,7 @@ for (const file of files) {
   });
 }
 
-// Rule 3 — every discovered fixture module fails loudly if it ever ships.
+// Rule 3: every discovered fixture module fails loudly if it ever ships.
 for (const [path, importer] of fixtureModules) {
   const body = await readFile(path, 'utf8').catch(() => null);
   if (body === null) {
@@ -176,14 +176,14 @@ for (const [path, importer] of fixtureModules) {
   }
 }
 
-// Rule 5 — no stray fixture-shaped module nobody imports.
+// Rule 5: no stray fixture-shaped module nobody imports.
 for (const file of files) {
   const name = relative(appRoot, file);
   if (!name.includes(`lib${sep}server`)) continue;
   const base = name.split(sep).pop();
   if (!looksLikeFixture(base) || base.startsWith('demo-guard')) continue;
   if (!importedPaths.has(file)) {
-    failures.push(`${name}: fixture-shaped module is not reached through a dev-gated dynamic import — delete it or route it through the demo fixture module`);
+    failures.push(`${name}: fixture-shaped module is not reached through a dev-gated dynamic import: delete it or route it through the demo fixture module`);
   }
 }
 

@@ -3,14 +3,14 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 /**
- * About — the ownership colophon, the last thing on the page before the
+ * About: the ownership colophon, the last thing on the page before the
  * footer's sign-off. Quiet by design: small mono type like the footer note,
  * no links row, no display type.
  *
  * Why this exists: Hypixel verifies that a product belongs to an account by
  * scanning the site for the username as visible text. Until now the only
  * mention of ItsMavey sat mid-sentence in 10px legal fine print under Game
- * Integrations — technically present, practically unfindable for a reviewer,
+ * Integrations, technically present, practically unfindable for a reviewer,
  * which is exactly why the verification kept bouncing.
  *
  * This section is deliberately NOT gated behind data-reveal: every other
@@ -18,7 +18,7 @@
  * once reveal.js runs and you scroll past it. A reviewer or headless checker
  * with JS disabled would see blank space where the proof should be, so this
  * one stays statically visible. The only links are the two inline NameMC
- * anchors — the public registry page is the ownership evidence itself.
+ * anchors: the public registry page is the ownership evidence itself.
  */
 import { OWNER_IGN, OWNER_PROFILE_URL } from '../../owner';
 import { getLangFromUrl, useTranslations } from '../../i18n/ui';

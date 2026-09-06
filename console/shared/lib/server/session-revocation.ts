@@ -5,11 +5,11 @@
 // cookie. The cookie alone cannot be revoked (it is self-verifying, not a
 // lookup key), so this gives the console a way to kill one session (logout)
 // or every session a user holds (sign out everywhere) before the cookie's
-// natural expiry — closing the "cookie copied off a shared laptop stays
+// natural expiry: closing the "cookie copied off a shared laptop stays
 // valid for up to 7 days" gap.
 //
 // Reads and writes deliberately use different Valkey connections:
-//   * isSessionRevoked reads through valkey-store.ts's node-local client —
+//   * isSessionRevoked reads through valkey-store.ts's node-local client,
 //     the same replica every other cached read in the console uses. A
 //     revocation can therefore still pass for the replication window
 //     (typically milliseconds) after it lands on the master. That is an
@@ -20,10 +20,10 @@
 //     would never make it to the master at all.
 //
 // Fail-open throughout: any read/write failure is swallowed and logged
-// rather than blocking the request or the sign-out flow — same outage
+// rather than blocking the request or the sign-out flow, same outage
 // posture as isBanned in services.ts (last-known state wins, nobody gets
 // locked out by an infrastructure blip). Only a sid, a user id, and unix
-// epochs are ever written to Valkey — never a client IP or any other PII.
+// epochs are ever written to Valkey: never a client IP or any other PII.
 import { logger } from './logger';
 import { getRevocation, sessionRevokedAllKey, sessionRevokedKey } from './valkey-store';
 import { masterClient, warmMasterClient } from './valkey-master';
@@ -32,7 +32,7 @@ import { CircuitBreaker, withTimeout } from './resilience';
 const OP_TIMEOUT_MS = 200;
 
 // One breaker for revocation writes, isolated from every other Valkey
-// consumer's breaker (rate-limit.ts, valkey-store.ts) — see valkey-master.ts.
+// consumer's breaker (rate-limit.ts, valkey-store.ts); see valkey-master.ts.
 const writeBreaker = new CircuitBreaker({ name: 'valkey-session-revocation', failureThreshold: 3, resetMs: 5_000 });
 
 /** Pre-connect the write client at boot. Best-effort, no-op when Valkey is unconfigured. */
@@ -65,7 +65,7 @@ export async function revokeSession(sid: string, ttlSeconds: number): Promise<vo
 
 /**
  * Revoke every session a user holds, issued before `atUnixSeconds` (sign out
- * everywhere). `ttlSeconds` bounds how long the epoch marker needs to live —
+ * everywhere). `ttlSeconds` bounds how long the epoch marker needs to live:
  * pass the account's normal session TTL, since no session can outlive that
  * anyway. Never throws (fail-open, see revokeSession).
  */
@@ -86,7 +86,7 @@ export async function revokeAllForUser(userId: string, atUnixSeconds: number, tt
 }
 
 export interface RevocationCheck {
-  /** Absent for a session sealed before this feature shipped — see below. */
+  /** Absent for a session sealed before this feature shipped (see below). */
   sid?: string;
   userId: string;
   /** The session's own iat, checked against the user's revoke-all epoch. */
@@ -108,7 +108,7 @@ export function setRevocationReadForTests(fn: ReadFn | undefined): void {
  * "sign out everywhere".
  *
  * A session sealed before sids existed has no sid, so logout cannot target it
- * individually — but "sign out everywhere" still must, since those are the
+ * individually, but "sign out everywhere" still must, since those are the
  * oldest cookies in the wild and the likeliest to have been copied off a
  * shared machine. The epoch check keys on user id and iat, not on the sid, so
  * it applies to them too. Nobody is signed out by this shipping: the epoch

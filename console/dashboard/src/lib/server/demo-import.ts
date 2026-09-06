@@ -6,8 +6,8 @@
 // A sibling of demo-data.ts rather than a section of it: that module's
 // production-graph guarantee rests on being pulled ONLY through dynamic
 // import() edges inside branches guarded by the build-time `dev` constant.
-// This module keeps the identical contract — same sentinel, same
-// dynamic-import-only rule — so the importer's demo plumbing never widens the
+// This module keeps the identical contract (same sentinel, same
+// dynamic-import-only rule), so the importer's demo plumbing never widens the
 // surface of the already load-bearing fixtures file.
 import { dev } from '$app/environment';
 import type {

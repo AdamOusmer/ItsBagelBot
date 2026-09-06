@@ -3,7 +3,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
   // One ledger line in the timers deck, built on the shared ManagementRow so the
   // clickable primary is a real button and the quick actions (pause/resume
-  // switch, delete) are siblings of it — never nested inside it. The page passes
+  // switch, delete) are siblings of it, never nested inside it. The page passes
   // the enhance handler so all optimistic state lives in one place.
   //
   // The row spells out both the schedule and the active/paused state as TEXT, so
@@ -68,7 +68,8 @@
           <span class="sr-only">{t('timers.fieldInterval')} </span>
           <span class="sched-val">{schedule}</span>
         </span>
-        <span class="m-state {r.enabled ? 'on' : 'off'}">
+        <span class="m-state bb-tag {r.enabled ? 'bb-tag--live' : 'bb-tag--quiet'}">
+          <i class="bb-mark {r.enabled ? '' : 'bb-mark--hollow'}" aria-hidden="true"></i>
           {r.enabled ? t('timers.active') : t('timers.hiddenTag')}
         </span>
       </span>
@@ -129,21 +130,10 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* State pill: TEXT is the primary cue, colour only tints. Uppercased so the
-     reused "Active" / "Paused" strings read as a consistent pair. */
-  .m-state {
-    flex: none;
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 9.5px;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    border-radius: var(--bb-radius-pill, 100px);
-    padding: 2px 9px;
-    white-space: nowrap;
-  }
-  .m-state.on { color: var(--bb-green-glow, #7fd4a3); border: 1px solid rgba(82, 183, 136, 0.4); }
-  .m-state.off { color: var(--bb-muted); border: 1px solid var(--rule, rgba(240, 236, 228, 0.12)); }
+  /* Was a tinted outlined pill. Still TEXT-first with colour only tinting;
+     the shape is now the global live/quiet label plus a solid/hollow mark, so
+     Active vs Paused survives without colour. */
+  .m-state { flex: none; }
 
   .mini {
     display: inline-flex;

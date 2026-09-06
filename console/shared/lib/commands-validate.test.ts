@@ -237,7 +237,7 @@ describe('picker path-building property', () => {
 // --- rehearsal limiter numbers -----------------------------------------------
 //
 // The fetches page wires ValkeyRateLimiter({ capacity: 6, refillPerSec: 0.1 })
-// keyed fetchtest:<uid> — one dry-run per 10s sustained, burst 6 — because
+// keyed fetchtest:<uid> (one dry-run per 10s sustained, burst 6) because
 // each run dials a third-party API. The Valkey limiter degrades to this exact
 // in-memory bucket semantics, so the numbers are pinned here against that
 // class: the 7th immediate call must reject with a ~10s retry horizon.

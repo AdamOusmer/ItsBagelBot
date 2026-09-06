@@ -83,7 +83,7 @@ const requestListener = (req, res) => {
 // Serve HTTPS when a cert is provided (TLS_CERT_FILE/TLS_KEY_FILE, mounted from the
 // cert-manager console-*-tls secret). Traefik re-encrypts to this backend via a
 // ServersTransport, so the traefik->console hop is TLS end-to-end and no longer
-// depends on the Linkerd mesh — the gate for de-meshing NATS. Plain HTTP fallback
+// depends on the Linkerd mesh, the gate for de-meshing NATS. Plain HTTP fallback
 // keeps local dev (no cert) unchanged.
 const tlsCert = process.env.TLS_CERT_FILE;
 const tlsKey = process.env.TLS_KEY_FILE;

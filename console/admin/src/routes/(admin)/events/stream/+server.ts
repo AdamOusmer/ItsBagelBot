@@ -16,7 +16,7 @@ function sse(event: string, data: unknown): Uint8Array {
 }
 
 // SSE bridge from the ingress shard-lifecycle status subjects. This is a live,
-// non-persistent wildcard subscription under `${prefix}.>` — not the Twitch
+// non-persistent wildcard subscription under `${prefix}.>`, not the Twitch
 // EventSub payload stream. Heartbeats keep proxies from idling it out. Under
 // DEMO=1 the broker may be absent, so it emits a synthetic feed instead.
 export const GET: RequestHandler = async ({ locals }) => {

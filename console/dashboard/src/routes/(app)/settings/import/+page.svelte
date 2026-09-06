@@ -11,13 +11,13 @@
   // `use:enhance`: enhance funnels results into whatever `form` prop the
   // CURRENT page load has, and keeping the posts manual means the step state
   // machine below fully owns when review/done render, with no reload wiping it.
-  // Wire shapes come from @bagel/shared — single source:
+  // Wire shapes come from @bagel/shared, single source:
   // console/shared/lib/importer/types.ts since the importer service folded
   // into the dashboard.
   //
   // Client-side parsing: the Moobot export is decoded and translated HERE
   // (lib/importer/moobot.ts, pinned against the Go parser it was ported from)
-  // and only the resulting manifest is POSTed — raw files no longer cross the
+  // and only the resulting manifest is POSTed: raw files no longer cross the
   // wire for that source. StreamLabs .db stays a server-side upload because
   // console CSP forbids WASM (no wasm-unsafe-eval in script-src), which rules
   // out an in-browser SQLite reader; see the decision record at runPreview.
@@ -105,7 +105,7 @@
       return q && (PICKABLE as readonly string[]).includes(q) ? (q as ImportSource) : '';
     })()
   );
-  // A ?source= deep link lands on that source's instructions directly — this
+  // A ?source= deep link lands on that source's instructions directly: this
   // is what brings the wizard back mid-flow after the Nightbot OAuth round
   // trip instead of dropping the user on the picker again.
   // svelte-ignore state_referenced_locally
@@ -293,7 +293,7 @@
     commitResult ? t('import.railDone') : ''
   ]);
 
-  // Count tiles on the done panel — only collections that actually landed.
+  // Count tiles on the done panel: only collections that actually landed.
   const appliedTiles = $derived.by(() => {
     const a = commitResult?.applied;
     if (!a) return [] as { n: number; label: string }[];
@@ -347,7 +347,7 @@
   // Client ceilings mirror/precede the server's (+page.server.ts): Moobot
   // JSON is parsed in the browser and capped at 10MB before it is even read;
   // StreamLabs .db still uploads whole (20MB) because console CSP forbids
-  // WASM — no 'wasm-unsafe-eval' in script-src (console/shared/svelte-
+  // WASM: no 'wasm-unsafe-eval' in script-src (console/shared/svelte-
   // config.js), so a browser-side SQLite reader is a no-go. Decision record:
   // adding the directive to loosen CSP was weighed and rejected; one source
   // keeping its server path costs less than widening script-src for every
@@ -450,7 +450,7 @@
       return;
     } else {
       // streamlabs_desktop: binary upload via the server path (CSP no-go for
-      // client WASM — see the decision record above).
+      // client WASM, see the decision record above).
       if (uploadFile.size > MAX_UPLOAD_BYTES) {
         previewError = t('import.errTooLarge', { limit: 20 });
         return;
@@ -528,7 +528,7 @@
 
   // Courtesy gate at drop time: fail fast on an obviously wrong file type so
   // the user gets a clear message instead of a parse failure after submit.
-  // NOT a security control — extensions are trivially spoofed either way; the
+  // NOT a security control: extensions are trivially spoofed either way; the
   // authoritative checks stay content-based (JSON envelope shape for Moobot,
   // SQLite magic bytes + feature-table probe for StreamLabs).
   const WANT_EXT: Partial<Record<ImportSource, string>> = {
@@ -596,7 +596,7 @@
       <div class="tiles">
         <!-- StreamElements: API-backed, needs the channel JWT. The input for
              it lives on the next (instructions) step, so tiles stay pure
-             selectors — picking one advances immediately. -->
+             selectors: picking one advances immediately. -->
         <label class="tile" class:picked={source === 'streamelements'} data-cursor>
           <input
             type="radio"
@@ -644,7 +644,7 @@
           <span class="tile-cta">{t('import.tileCta')}</span>
         </label>
 
-        <!-- Nightbot: OAuth connect — the account's commands/timers/spam
+        <!-- Nightbot: OAuth connect: the account's commands/timers/spam
              protection are fetched server-side with the granted token,
              the same way StreamElements' own Nightbot import works -->
         <label class="tile" class:picked={source === 'nightbot'} data-cursor>

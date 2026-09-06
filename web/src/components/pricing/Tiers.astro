@@ -3,7 +3,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 /**
- * Tiers — pricing with the convention flipped: Free is the hero card because
+ * Tiers, pricing with the convention flipped: Free is the hero card because
  * Free is the product. Premium is framed as the tip jar it actually is, and
  * Enterprise sits quietly beside it. Count-up price, stroke-drawn checks.
  */
@@ -33,7 +33,7 @@ const enterpriseFeatures = [
 
 <section class="tiers">
     <!-- Free: the whole product -->
-    <Card class="tier tier--free" label={t('tier.freeCh')} data-reveal>
+    <Card class="tier tier--free" data-reveal>
         <div class="tier-free__layout">
             <div class="tier-free__head">
                 <span class="tier__name">{t('tier.free')}</span>
@@ -68,7 +68,7 @@ const enterpriseFeatures = [
 
     <div class="tiers__pair">
         <!-- Premium: the tip jar -->
-        <Card class="tier tier--premium" label={t('tier.premiumCh')} data-reveal style="--reveal-i: 1">
+        <Card class="tier tier--premium" data-reveal style="--reveal-i: 1">
             <div class="tier__demo" slot="band" aria-hidden="true">
                 <Image src={premiumLogo} alt="Premium" class="tier__premium-logo" width={160} height={160} loading="lazy" />
             </div>
@@ -104,17 +104,17 @@ const enterpriseFeatures = [
         </Card>
 
         <!-- Enterprise -->
-        <Card class="tier tier--enterprise" label={t('tier.enterpriseCh')} data-reveal style="--reveal-i: 2">
+        <Card class="tier tier--enterprise" data-reveal style="--reveal-i: 2">
             <div class="tier__demo" slot="band" aria-hidden="true">
                 <div class="tier__demo-ent">
                     <div class="ent-server">
-                        <span class="ent-light"></span><span class="ent-line"></span>
+                        <i class="bb-mark" aria-hidden="true"></i><span class="ent-line"></span><i class="bb-sweep" aria-hidden="true"></i>
                     </div>
                     <div class="ent-server">
-                        <span class="ent-light" style="animation-delay: 0.5s"></span><span class="ent-line"></span>
+                        <i class="bb-mark" aria-hidden="true"></i><span class="ent-line"></span><i class="bb-sweep" aria-hidden="true" style="animation-delay: 0.5s"></i>
                     </div>
                     <div class="ent-server">
-                        <span class="ent-light" style="animation-delay: 1s"></span><span class="ent-line"></span>
+                        <i class="bb-mark" aria-hidden="true"></i><span class="ent-line"></span><i class="bb-sweep" aria-hidden="true" style="animation-delay: 1s"></i>
                     </div>
                 </div>
             </div>
@@ -242,7 +242,7 @@ const enterpriseFeatures = [
     /* The badge hangs on the seam between the housing and the plate: the body
        is its positioned ancestor, so `top: 0` centres it on that line. The
        body's own 24px of padding already clears it, which is why the extra
-       padding-top this card used to carry is gone — it was inert anyway,
+       padding-top this card used to carry is gone, it was inert anyway,
        outranked by Card's own band-body rule. */
 
     /* ── Demo stage (mirrors QuietWork and Games) ──
@@ -277,6 +277,7 @@ const enterpriseFeatures = [
     }
 
     .ent-server {
+        position: relative;
         display: flex;
         align-items: center;
         gap: 8px;
@@ -284,14 +285,14 @@ const enterpriseFeatures = [
         border: 1px solid rgba(224, 196, 154, 0.15);
         border-radius: 4px;
         background: rgba(0, 0, 0, 0.3);
+        overflow: hidden;
     }
 
-    .ent-light {
-        width: 4px;
-        height: 4px;
-        border-radius: 50%;
-        background: var(--green-glow, #52b788);
-        animation: entBlink 2.5s infinite;
+    /* Was .ent-light, a 4px circle blinking a box-shadow glow (entBlink). The
+       row is the bordered container, so the light is a bare .bb-mark and the
+       row itself carries the .bb-sweep, keeping the per-row stagger. */
+    .ent-server .bb-mark {
+        color: var(--green-glow, #52b788);
     }
 
     .ent-line {
@@ -301,15 +302,8 @@ const enterpriseFeatures = [
         border-radius: 1px;
     }
 
-    @keyframes entBlink {
-        0%, 40% { opacity: 1; box-shadow: 0 0 6px var(--green-glow, #52b788); }
-        50%, 90% { opacity: 0.2; box-shadow: none; }
-        100% { opacity: 1; }
-    }
-
     @media (prefers-reduced-motion: reduce) {
         .tier__premium-logo { animation: none; }
-        .ent-light { animation: none; opacity: 1; box-shadow: 0 0 4px var(--green-glow, #52b788); }
     }
 
     .tier__name {

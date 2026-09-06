@@ -27,7 +27,7 @@
 
 <style>
   /* Compact vs PageHead: smaller title clamp and tighter spacing, since the bot
-     status panel — not the greeting — is the visual anchor of this page. */
+     status panel (not the greeting) is the visual anchor of this page. */
   .ov-head {
     margin-bottom: calc(22px * var(--d));
   }

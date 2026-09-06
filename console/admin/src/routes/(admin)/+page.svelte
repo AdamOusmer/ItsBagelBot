@@ -69,9 +69,9 @@
 
   {#await data.overview}
     <div class="stat-grid">
-      <StatTile icon="users" label="Registered users" value="—" unit="total" delta="loading…" flat />
-      <StatTile icon="pulse" tan label="Premium users" value="—" unit="premium" delta="loading…" flat />
-      <StatTile icon="server" label="Shards" value="—" unit="up" delta="loading…" flat />
+      <StatTile icon="users" label="Registered users" value="-" unit="total" delta="loading…" flat />
+      <StatTile icon="pulse" tan label="Premium users" value="-" unit="premium" delta="loading…" flat />
+      <StatTile icon="server" label="Shards" value="-" unit="up" delta="loading…" flat />
       <StatTile icon="overview" tan label="Conduit" value="…" unit="" delta="loading…" flat />
     </div>
     <div class="growth-card card">
@@ -134,14 +134,14 @@
         label="Conduit"
         value={o.snapshot.conduit_manager?.state ?? 'unknown'}
         unit=""
-        delta={`node ${o.snapshot.conduit_manager?.node ?? '—'}`}
+        delta={`node ${o.snapshot.conduit_manager?.node ?? '-'}`}
         flat
       />
     </div>
 
     <div class="growth-card card">
       <div class="card-head">
-        <h3>Enrollment — last {o.enrollment.days.length} days</h3>
+        <h3>Enrollment: last {o.enrollment.days.length} days</h3>
         <a class="more" href="/users">All users →</a>
       </div>
       <EnrollmentChart enrollment={o.enrollment} />

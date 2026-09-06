@@ -11,8 +11,8 @@
   // validator rejects, which is the worst possible failure here: the author
   // clicks a value and is told the value is invalid.
   //
-  // The grammar enforced is the Go resolver's — segments [A-Za-z0-9_-]+ (array
-  // indices arrive as bare digits), depth <= JSON_PATH_MAX_DEPTH — so a path
+  // The grammar enforced is the Go resolver's: segments [A-Za-z0-9_-]+ (array
+  // indices arrive as bare digits), depth <= JSON_PATH_MAX_DEPTH, so a path
   // picked here always parses server-side.
   import { JSON_PATH_MAX_DEPTH, buildJsonPath, getI18n, parseJsonPath } from '@bagel/shared';
 
@@ -36,11 +36,11 @@
   // rendered tree inside the panel's interaction budget (measured jank-free to
   // ~200 KB on mid hardware; chosen at half that).
   //
-  // Deliberately equal to maxSampleBytes in gossip's custom provider — the
+  // Deliberately equal to maxSampleBytes in gossip's custom provider: the
   // server refuses to send more than this, so a smaller number here would
   // reject bodies it was willing to produce.
   //
-  // Rejected alternative: silently truncating — that would rehearse a document
+  // Rejected alternative: silently truncating. That would rehearse a document
   // the real fetch never returns, so leaves could resolve against phantom data.
   const SAMPLE_MAX_BYTES = 128 * 1024;
 
@@ -98,7 +98,7 @@
   });
 
   // A path is pickable only when it survives the shared grammar AND fits the
-  // depth budget — what the save validator would say later, said earlier.
+  // depth budget: what the save validator would say later, said earlier.
   function canPick(segs: string[]): boolean {
     return segs.length <= JSON_PATH_MAX_DEPTH && parseJsonPath(buildJsonPath(segs)) !== null;
   }

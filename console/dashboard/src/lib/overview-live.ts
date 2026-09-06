@@ -123,7 +123,7 @@ export function degradedAnsweredTonight(): AnsweredTonight {
 // Every panel here shares one shape: read several values that can each fail on
 // their own, then degrade if ANY of them did. Spelled out per call site that
 // becomes an N-clause boolean in four different files, which is both the thing
-// the health gate flags and a real reading cost — the reader has to check each
+// the health gate flags and a real reading cost: the reader has to check each
 // clause to learn it is just "did everything arrive". These two say it once.
 
 /**
@@ -131,7 +131,7 @@ export function degradedAnsweredTonight(): AnsweredTonight {
  *
  * Takes a mutable array on purpose: the callers build these with `Promise.all`
  * and `.map`, both of which yield `(T | null)[]`, and a `readonly` predicate
- * does not narrow a mutable argument — the destructure downstream still sees
+ * does not narrow a mutable argument: the destructure downstream still sees
  * `T | null` and the guard buys nothing.
  */
 export function allRead<T>(vals: (T | null)[]): vals is T[] {

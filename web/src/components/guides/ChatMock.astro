@@ -3,7 +3,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 /**
- * ChatMock — a static Twitch-chat vignette for the guides. Server-rendered
+ * ChatMock: a static Twitch-chat vignette for the guides. Server-rendered
  * from props (no client JS): a titled chat window with viewer / mod / bot /
  * system lines, so a guide can show exactly what a feature looks like in chat
  * without a screenshot. Colors follow the site palette; the bot always speaks
@@ -41,7 +41,7 @@ const { title = '#your_channel', lines, caption } = Astro.props;
                     <p class="cmock__msg">
                         {line.time && <time>{line.time}</time>}
                         <b class:list={['cmock__name', `cmock__name--${line.who}`]}>
-                            {line.who === 'mod' && <span class="cmock__badge" aria-hidden="true">⚔</span>}
+                            {line.who === 'mod' && <span class="cmock__badge bb-tag bb-tag--bare" aria-hidden="true">⚔</span>}
                             {line.who === 'bot' ? 'ItsBagelBot' : (line.name ?? 'viewer')}
                         </b>
                         <span class="cmock__text">{line.text}</span>
@@ -134,10 +134,9 @@ const { title = '#your_channel', lines, caption } = Astro.props;
     .cmock__name--mod { color: #7fb8e8; }
     .cmock__name--bot { color: var(--green-glow, #52b788); }
 
+    /* .bb-tag--bare handles the box; only the mod tint stays local. The
+       50% avatar above is an avatar, not a status dot, and keeps its circle. */
     .cmock__badge {
-        display: inline-grid;
-        place-items: center;
-        font-size: 0.55rem;
         margin-right: 4px;
         color: #7fb8e8;
     }

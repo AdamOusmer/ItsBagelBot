@@ -3,7 +3,7 @@
 
 // Stroke icons lifted from the design bundle (Dashboard.html). Values are the
 // inner markup of a `viewBox="0 0 24 24"` SVG; Icon.svelte wraps them. Static
-// constants only — never interpolate user input here.
+// constants only, never interpolate user input here.
 export const icons = {
   // Discord's official mark, from their brand assets. The only filled glyph in
   // a set of stroke icons, so it carries fill/stroke on the path itself:

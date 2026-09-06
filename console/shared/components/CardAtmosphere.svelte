@@ -1,17 +1,17 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // Card atmosphere — the instrument-panel light (QuietWork Cards, variant
+  // Card atmosphere: the instrument-panel light (QuietWork Cards, variant
   // 3a), ported from the marketing site's CardAtmosphere.astro so console
   // surfaces read as the same material as itsbagelbot.dev: the hero's
   // tan->green arc parked off the right edge plus a green sheen washing in
   // from the top-right corner. The blurred green/tan orbs the earlier
-  // atmosphere carried are gone — they were two 42px-blur bitmaps per card;
+  // atmosphere carried are gone: they were two 42px-blur bitmaps per card;
   // the sheen is one unblurred radial gradient. Character from structure,
   // not from more glow.
   //
   // Everything stays static: the arc never spins (rotating a masked layer on
-  // every tile re-rasters at 60fps — the original hitch) and hover only
+  // every tile re-rasters at 60fps, the original hitch) and hover only
   // nudges opacity, which stays on the compositor.
   //
   // Divergence from the .astro original: console cards put layout on the card
@@ -37,7 +37,7 @@
     pointer-events: none;
     border-radius: inherit;
     /* Rest/hover pair replaces the old orb bump (0.28->0.42): the sheen's
-       0.12 alpha is authored into the gradient, so the var scales it — 1.6
+       0.12 alpha is authored into the gradient, so the var scales it: 1.6
        lands the hover wash at ~0.19 against the card ink. */
     --card-atmo-glow: 1;
     --card-atmo-ring: 0.16;
@@ -57,7 +57,7 @@
   /* Mini of the header's ring: a 1.5px tan->green arc, not a filled disc.
      Masked conic so we never mint per-card SVG ids (g1/g2 would collide).
      Parked half off the right edge the way the hero ring sits off-canvas.
-     No spin — rotating a masked layer on every tile was the other hitch. */
+     No spin: rotating a masked layer on every tile was the other hitch. */
   .card-atmo__ring {
     position: absolute;
     top: 42%;

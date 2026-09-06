@@ -7,9 +7,9 @@ export const TRIGGERS_MODULE: ModuleDef =
 {
   id: 'triggers',
   label: 'Trigger Words',
-  tagline: 'Auto-reply when a word shows up in chat — no "!" needed.',
+  tagline: 'Auto-reply when a word shows up in chat, no "!" needed.',
   description:
-    'Give the bot a list of words or phrases and the line to post when it sees one in ordinary chat — no command prefix required. Each rule pairs a phrase with a response: pick how the phrase matches (whole word, contains, exact message or starts with — the default matches the whole word, so "hi" will not fire inside "this"), write the reply, and switch individual rules on or off without deleting them. Responses support {user}, {random} and {choice:a,b,c}. The first matching rule wins, so one message gets at most one reply.',
+    'Give the bot a list of words or phrases and the line to post when it sees one in ordinary chat, no command prefix required. Each rule pairs a phrase with a response: pick how the phrase matches (whole word, contains, exact message or starts with; the default matches the whole word, so "hi" will not fire inside "this"), write the reply, and switch individual rules on or off without deleting them. Responses support {user}, {random} and {choice:a,b,c}. The first matching rule wins, so one message gets at most one reply.',
   icon: 'chat',
   category: 'Chat',
   defaultEnabled: false,

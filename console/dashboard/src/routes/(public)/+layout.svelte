@@ -2,7 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   // Signed-out surface: the marketing site's chrome around a dashboard-rendered
-  // page. Deliberately NO robots noindex (unlike (app)) — these pages are meant
+  // page. Deliberately NO robots noindex (unlike (app)). These pages are meant
   // to be found. The nav's off-site links follow the visitor's locale; the one
   // local entry (/stats) lights up when you are on it.
   import { page } from '$app/state';

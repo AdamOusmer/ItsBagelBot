@@ -9,13 +9,13 @@
 </script>
 
 <label class="field">
-  <span>{label}{#if tag} <small class="tag">{tag}</small>{/if}</span>
+  <span>{label}{#if tag} <small class="bb-tag bb-tag--quiet">{tag}</small>{/if}</span>
   {@render children()}
 </label>
 
 <style>
   .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
   .field > span { font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted); }
-  .tag { opacity: 0.65; font-size: 11px; }
+  /* the local .tag (opacity 0.65 suffix) is now the global quiet label */
   .field :global(.search) { width: 100%; box-sizing: border-box; }
 </style>

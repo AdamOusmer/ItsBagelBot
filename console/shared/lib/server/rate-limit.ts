@@ -6,17 +6,17 @@
 // Two backends share the same bucket semantics (up to `capacity` tokens, a
 // continuous refill of `refillPerSec`, one token per request):
 //
-//   * RateLimiter        — in-memory, per-pod. Zero dependencies, used directly
+//   * RateLimiter:        in-memory, per-pod. Zero dependencies, used directly
 //                          in tests and as the fallback tier.
-//   * ValkeyRateLimiter  — fleet-wide. The bucket lives in Valkey and is
+//   * ValkeyRateLimiter:  fleet-wide. The bucket lives in Valkey and is
 //                          updated by one atomic Lua script, so every pod
 //                          enforces the same global budget. Connects through
 //                          Sentinel (when configured) so writes always reach
 //                          the elected master across failovers.
 //
 // Fail-safe posture: the Valkey path runs under a circuit breaker and a
-// per-op timeout, exactly like the valkey-store read tier. Any failure — no
-// config, connection down, slow op, open circuit — degrades to the embedded
+// per-op timeout, exactly like the valkey-store read tier. Any failure (no
+// config, connection down, slow op, open circuit) degrades to the embedded
 // per-pod limiter. Rate limiting must never take a page down; the worst
 // failure mode is a looser (per-pod) limit for a few seconds.
 
@@ -119,7 +119,7 @@ export class RateLimiter {
     this.buckets.clear();
   }
 
-  /** Remove buckets that have fully refilled — an idle key costs nothing to recreate. */
+  /** Remove buckets that have fully refilled: an idle key costs nothing to recreate. */
   private sweep(): void {
     const now = this.now();
     for (const [key, bucket] of this.buckets) {
@@ -130,8 +130,8 @@ export class RateLimiter {
 
   /**
    * Over the key ceiling: sweep idle buckets first; if that is not enough,
-   * evict the oldest entries (Map preserves insertion order) so hot keys —
-   * the ones being limited — survive.
+   * evict the oldest entries (Map preserves insertion order) so hot keys
+   * (the ones being limited) survive.
    */
   private evict(): void {
     this.sweep();
@@ -214,7 +214,7 @@ function getWriteClient(): RateLimitClient | null {
       sentinels: [endpoint],
       // `||` not `??`: an empty VALKEY_MASTER_SET (unset in Doppler comes
       // through as "") must fall back to the sentinel's monitored name, not be
-      // used verbatim — a blank master name never resolves, so every write
+      // used verbatim. A blank master name never resolves, so every write
       // (rate-limit AND single-use claimOnce) would silently time out.
       name: cfg.sentinelMaster || 'myprimary',
       password: cfg.password || undefined,
@@ -269,7 +269,7 @@ export function warmRateLimiter(): void {
 
 /**
  * Probe the write path (PING under the breaker + timeout), connecting it as a
- * side effect. Returns true when the backend is reachable OR unconfigured —
+ * side effect. Returns true when the backend is reachable OR unconfigured:
  * the fleet-wide tier is optional (per-pod fallback), never a readiness
  * blocker. Wire into /readyz next to the valkey-store probe so a rotated-in
  * pod's write client is hot within one probe interval.
@@ -291,10 +291,10 @@ export async function rateLimiterReady(): Promise<boolean> {
  * write path and a second connection buys nothing. Used to make signed
  * one-shot tokens (e.g. admin "view as" links) non-replayable.
  *
- *   'claimed'      — first redemption; proceed.
- *   'replayed'     — the id was redeemed before; reject.
- *   'unconfigured' — no Valkey configured (dev/tests); caller decides.
- *   'unavailable'  — backend configured but unreachable; caller decides.
+ *   'claimed':      first redemption; proceed.
+ *   'replayed':     the id was redeemed before; reject.
+ *   'unconfigured': no Valkey configured (dev/tests); caller decides.
+ *   'unavailable':  backend configured but unreachable; caller decides.
  */
 export type ClaimResult = 'claimed' | 'replayed' | 'unconfigured' | 'unavailable';
 
@@ -365,7 +365,7 @@ export class ValkeyRateLimiter {
           ? { allowed: true, retryAfterSec: 0 }
           : { allowed: false, retryAfterSec: retry };
       } catch {
-        // Open circuit, timeout, READONLY replica, connection down — fall
+        // Open circuit, timeout, READONLY replica, connection down: fall
         // through to the per-pod bucket below.
       }
     }

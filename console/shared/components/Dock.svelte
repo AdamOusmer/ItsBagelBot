@@ -4,7 +4,7 @@
   // The dock: navigation floats in a rounded bar at the bottom, the same
   // pattern at every breakpoint. It scales without bloating: when the app
   // declares more than one nav group (admin), each multi-item group collapses
-  // into ONE dock button that opens a small popover of its pages — the dock
+  // into ONE dock button that opens a small popover of its pages: the dock
   // stays at a handful of buttons no matter how many routes exist. Any item
   // routed at "/" is hoisted out of its group as a direct Home button.
   import Icon from './Icon.svelte';
@@ -273,7 +273,7 @@
   }
 
   /* Phones: icons-only, except the ACTIVE item which keeps its label (an
-     expanding pill, iOS-tab-bar style) — every destination stays one tap away
+     expanding pill, iOS-tab-bar style), every destination stays one tap away
      without crowding a 375px row. */
   @media (max-width: 760px) {
     .dock { padding: 0 8px calc(8px + env(safe-area-inset-bottom)); }

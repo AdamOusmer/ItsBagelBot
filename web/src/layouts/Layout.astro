@@ -130,7 +130,7 @@ const structuredData = {
             ],
             // Song requests are the highest-intent entry point into the
             // product ("twitch spotify song request bot"), so the terms people
-            // actually type sit in the graph as well as in the page copy —
+            // actually type sit in the graph as well as in the page copy:
             // answer engines quote the graph verbatim when they name features.
             keywords: [
                 'Twitch Spotify song requests',
@@ -218,7 +218,7 @@ const contentSecurityPolicy = [
     <meta property="og:image" content={ogImageURL} />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content={`${siteName} — ${description}`} />
+    <meta property="og:image:alt" content={`${siteName}: ${description}`} />
     <meta property="og:locale" content={ogLocale} />
     {altOgLocales.map((code) => (
         <meta property="og:locale:alternate" content={code} />
@@ -229,7 +229,7 @@ const contentSecurityPolicy = [
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={ogImageURL} />
-    <meta name="twitter:image:alt" content={`${siteName} — ${description}`} />
+    <meta name="twitter:image:alt" content={`${siteName}: ${description}`} />
 
     {hasAlternates && (
         <Fragment>

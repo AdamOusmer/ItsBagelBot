@@ -8,7 +8,7 @@
 // Fails the build (exit 1) ONLY on structural problems that would ship a broken
 // catalog: a missing en.json, unparseable JSON, or a leaf that is not a string
 // or an array of strings (with the offending file + JSON path). Key gaps between
-// locales are reported as warnings and NEVER fail the build — a missing key
+// locales are reported as warnings and NEVER fail the build: a missing key
 // falls back to English at runtime, so a partial translation can ship safely.
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -51,7 +51,7 @@ function parse(file) {
   try {
     return JSON.parse(readFileSync(join(DIR, file), 'utf8'));
   } catch (err) {
-    return fail(`${file}: invalid JSON — ${err.message}`);
+    return fail(`${file}: invalid JSON: ${err.message}`);
   }
 }
 

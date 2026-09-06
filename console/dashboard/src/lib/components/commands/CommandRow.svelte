@@ -65,7 +65,7 @@
               <span class="lock" title={t('commandRow.liveOnly')}><Icon name="pulse" size={11} /></span>
             {/if}
             {#if c.builtin}
-              <span class="builtin-tag" title={t('commandRow.builtinTitle')}>{t('commandRow.builtin')}</span>
+              <span class="builtin-tag bb-tag bb-tag--bare" title={t('commandRow.builtinTitle')}>{t('commandRow.builtin')}</span>
             {/if}
             {#if unsaved}
               <span class="unsaved" title={t('commandRow.unsavedTitle')}>{t('commandRow.unsaved')}</span>
@@ -73,7 +73,7 @@
           </span>
           {#if c.aliases?.length}
             <span class="aliases" title={t('commandRow.also', { aliases: c.aliases.join(', ') })}>
-              {#each c.aliases as a}<span class="alias-tag">{a}</span>{/each}
+              {#each c.aliases as a}<span class="bb-tag bb-tag--bare">{a}</span>{/each}
             </span>
           {/if}
         </span>
@@ -151,7 +151,7 @@
   .idx { font-family: var(--bb-font-mono); font-size: 10px; color: var(--bb-muted); opacity: 0.55; }
 
   /* Single-line cell: aliases ride inline after the name so every row is the
-     same height — a second stacked line made alias rows taller than the rest. */
+     same height. A second stacked line made alias rows taller than the rest. */
   .cmd { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; }
   .cmd-name {
     display: inline-flex; align-items: center; gap: 2px;
@@ -173,29 +173,15 @@
     border-radius: var(--bb-radius-pill, 100px);
     padding: 1px 8px;
   }
-  .builtin-tag {
-    margin-left: 8px;
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 9.5px;
-    letter-spacing: 0.03em;
-    text-transform: uppercase;
-    color: var(--bb-green-glow, #7fd4a3);
-    border: 1px solid rgba(82, 183, 136, 0.4);
-    border-radius: var(--bb-radius-pill, 100px);
-    padding: 1px 8px;
-  }
+  /* Was a green outlined pill; now the global .bb-tag--bare label. Only the
+     inline offset from the command name stays scoped here. */
+  .builtin-tag { margin-left: 8px; }
 
-  .aliases { display: flex; flex-wrap: nowrap; gap: 4px; min-width: 0; overflow: hidden; }
-  .alias-tag {
-    font-family: var(--bb-font-mono);
-    font-size: 10px;
-    color: var(--bb-muted);
-    border: 1px solid var(--rule, rgba(240, 236, 228, 0.1));
-    border-radius: 8px;
-    padding: 1px 6px;
-    white-space: nowrap;
-  }
+  /* Gap widened from 4px: bare labels have no frame to separate them. */
+  .aliases { display: flex; flex-wrap: nowrap; gap: 12px; min-width: 0; overflow: hidden; }
+  /* .bb-tag uppercases; an alias is a literal command name typed in chat, so
+     the casing the user saved has to survive. */
+  .aliases :global(.bb-tag) { text-transform: none; letter-spacing: 0.04em; }
 
   .resp {
     font-family: var(--bb-font-body);
@@ -264,7 +250,7 @@
   .mini:focus-visible { outline: 2px solid var(--bb-green-glow, #52b788); outline-offset: 2px; }
   .mini-spacer { width: 32px; height: 32px; flex: none; }
 
-  /* Mid width: the index and the cooldown are the first things to go — the
+  /* Mid width: the index and the cooldown are the first things to go, the
      row still ranks by use, and the cooldown lives in the inspector. */
   @media (max-width: 1080px) {
     .prow { grid-template-columns: 190px minmax(0, 1fr) 104px 92px auto; }

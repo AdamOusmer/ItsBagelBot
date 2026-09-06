@@ -2,7 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   // Needs-attention strip. Surfaces ONLY issues the status panel does not already
-  // own (the whole connection story lives there), and only when they are REAL —
+  // own (the whole connection story lives there), and only when they are REAL:
   // an empty issue set renders nothing at all. Each row names the problem in plain
   // words and carries its fix as a real link.
   //
@@ -35,7 +35,7 @@
 
   const issues = $derived.by<Issue[]>(() => {
     const out: Issue[] = [];
-    // Commands exist but every one is switched off — the bot stays silent.
+    // Commands exist but every one is switched off. The bot stays silent.
     if (commandsOk && total > 0 && active === 0) {
       out.push({
         id: 'all-disabled',

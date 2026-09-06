@@ -10,19 +10,19 @@
 // behavior consistent and greppable in one place.
 //
 // Why these windows:
-//   * live       — poll-driven snapshots (shard state). No bus scope covers
+//   * live       : poll-driven snapshots (shard state). No bus scope covers
 //     them; the clock IS the freshness mechanism, so it stays tight.
-//   * adminRead / adminPage — operator views. Bounded staleness (≤5s/≤3s
+//   * adminRead / adminPage : operator views. Bounded staleness (≤5s/≤3s
 //     fresh) with a short SWR tail so repeat navigation is instant while the
 //     background refresh keeps the view honest.
-//   * entity     — per-user dashboard state (tier, account, grant,
+//   * entity     : per-user dashboard state (tier, account, grant,
 //     delegations). Push-invalidated on the bus; the fresh window is only a
 //     missed-message safety net. Stale-if-error lets a users-service outage
 //     degrade to last-known state instead of erroring the page.
-//   * security   — the ban gate. Short fresh window, bounded stale-if-error:
+//   * security   : the ban gate. Short fresh window, bounded stale-if-error:
 //     during an outage the last KNOWN ban state keeps being enforced (an
 //     already-banned user stays banned) instead of failing open.
-//   * projected  — commands/modules lists. Fully event-invalidated
+//   * projected  : commands/modules lists. Fully event-invalidated
 //     (bagel.cache.invalidate.commands|modules) AND flushed wholesale after
 //     any bus connectivity gap, so long windows are safe and cut Valkey/RPC
 //     traffic; the bus, not the clock, is the freshness mechanism.
@@ -41,7 +41,7 @@ export const POLICY = {
   // board: the public per-channel leaderboards. The window that actually paces
   // the underlying reads is the shared Valkey snapshot behind them (see
   // public-boards.ts); this in-process layer only keeps a busy pod from asking
-  // Valkey once per request. Short, therefore — but with a long stale-if-error
+  // Valkey once per request. Short, therefore, but with a long stale-if-error
   // tail, so an anonymous page keeps showing the last ranking rather than an
   // empty board while a service is down.
   board: { freshMs: 1_000, swrMs: 2_000, staleIfErrorMs: 300_000 },

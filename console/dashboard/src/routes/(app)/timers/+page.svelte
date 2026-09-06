@@ -149,7 +149,7 @@
       const applied = requestId ? inspector.resolved(requestId, { type: ok ? 'success' : 'error' }) : false;
       if (ok) {
         toast('ok', t(wasCreating ? 'timers.toastCreated' : 'timers.toastSaved'));
-        // A create has no client-side id to keep editing, so it closes — but only
+        // A create has no client-side id to keep editing, so it closes, but only
         // if this response still owns the open editor. An update stays open and
         // clean (Save does not close the inspector).
         if (wasCreating && applied) {

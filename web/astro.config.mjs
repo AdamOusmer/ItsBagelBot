@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 // its own DOM, so the slash-verb grammar and token expansion can never drift
 // from the bot the way a hand-copied version would. The file is pure TS with
 // no runtime deps (it pulls only two helpers from commands-validate.ts), so
-// Vite bundles a few KB of logic into the client chunk — no server code, no
+// Vite bundles a few KB of logic into the client chunk, no server code, no
 // @bagel/shared install. The catalog (sample values, bilingual copy) stays
 // local in src/i18n/builder.ts; only the logic is shared.
 const rehearsalCore = fileURLToPath(new URL('../console/shared/lib/rehearsal.ts', import.meta.url));
@@ -46,7 +46,7 @@ export default defineConfig({
       // with `sitemap()` bare, the output is a flat list of locs and a crawler
       // reads /fr/pricing/ as a near-duplicate of /pricing/ rather than as its
       // French translation. Given this, each localized URL carries an
-      // <xhtml:link rel="alternate"> per locale plus x-default — the same pairing
+      // <xhtml:link rel="alternate"> per locale plus x-default, the same pairing
       // Layout.astro emits in <head>, so sitemap and markup agree instead of
       // contradicting one another (a contradiction Search Console reports and
       // then resolves by ignoring both).

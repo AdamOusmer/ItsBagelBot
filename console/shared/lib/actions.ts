@@ -79,7 +79,7 @@ export const countUp: Action<HTMLElement, { durationMs?: number } | undefined> =
 
   const raw = (node.textContent ?? '').trim();
   // Single bounded quantifier for the numeric prefix, then a plain slice for
-  // the suffix — avoids a regex whose two groups (`[\d,]+` and `.*`) both
+  // the suffix: avoids a regex whose two groups (`[\d,]+` and `.*`) both
   // match ',' and so overlap, which is what trips ReDoS scanners even though
   // the trailing `.*$` can't itself fail to match here.
   const m = raw.match(/^[\d,]+/);

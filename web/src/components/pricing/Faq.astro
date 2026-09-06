@@ -3,7 +3,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 /**
- * Faq — plain answers, no support-page voice. Native <details> with the
+ * Faq: plain answers, no support-page voice. Native <details> with the
  * grid-template-rows height trick; mono index numbers; hover nudge.
  */
 import SectionHeading from '../ui/SectionHeading.astro';
@@ -25,7 +25,7 @@ const faqs: FaqItem[] = [
     { question: t('faq.q5'), answer: t('faq.a5') },
 ];
 
-// FAQPage structured data — surfaces these Q&As as rich results in search and
+// FAQPage structured data: surfaces these Q&As as rich results in search and
 // gives LLM answer engines clean, quotable answers about pricing and licensing.
 const faqLd = {
     '@context': 'https://schema.org',

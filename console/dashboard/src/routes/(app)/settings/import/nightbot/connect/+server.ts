@@ -3,7 +3,7 @@
 
 // Starts the Nightbot OAuth connect flow for the config importer: mints the
 // CSRF state cookie and bounces to nightbot.tv's consent screen. Owner-only,
-// same policy as the import actions themselves — an import rewrites the
+// same policy as the import actions themselves: an import rewrites the
 // board wholesale and delegates are read-mostly by design.
 import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';

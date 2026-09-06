@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // Per-command answer counts for the CURRENT stream — deliberately not the
+  // Per-command answer counts for the CURRENT stream, deliberately not the
   // lifetime "top commands" strip, which lives lower on the page and answers a
   // different question ("what do people use") than this one ("what happened
   // tonight"). Same data source, different scope; keeping both is the point.

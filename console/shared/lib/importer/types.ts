@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Canonical config-import types — the single source of truth since the
+// Canonical config-import types: the single source of truth since the
 // standalone importer service was folded into the dashboard (2026-08-23).
 // Previously these mirrored internal/domain/rpc/importer/importer.go one-for-one
 // as a NATS wire contract; that Go file is gone, so this module now DEFINES the
@@ -81,8 +81,8 @@ export interface ManifestCounter {
 
 // ManifestFetch is one synthesized $(urlfetch) definition riding the manifest
 // as side-data (docs/urlfetch/IMPLEMENTATION.md, Phase 4 "Importer mapping").
-// Importers cannot create real definitions — the commands service owns those
-// (Phase 1) — so parsers emit this carrier and future ingestion turns each
+// Importers cannot create real definitions: the commands service owns those
+// (Phase 1), so parsers emit this carrier and future ingestion turns each
 // entry into a fetch_set_def upsert verbatim:
 //   - name is the reference slug embedded in translated responses as
 //     `{urlfetch:name}`: deterministic "<source>-<normalizeName(command.name)>"

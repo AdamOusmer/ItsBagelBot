@@ -52,7 +52,7 @@
 {#if aliases.length}
   <div class="pills">
     {#each aliases as a (a)}
-      <button type="button" class="pill" onclick={() => remove(a)} aria-label={t('commandEditor.removeAlias', { name: a })}>
+      <button type="button" class="pill bb-chip bb-chip--muted" onclick={() => remove(a)} aria-label={t('commandEditor.removeAlias', { name: a })}>
         <span>{a}</span>
         <Icon name="x" size={11} />
       </button>
@@ -62,20 +62,10 @@
 
 <style>
   .pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-  .pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-family: var(--bb-font-mono);
-    font-size: 12px;
-    color: var(--bb-tan-light);
-    background: rgba(201, 168, 124, 0.1);
-    border: 1px solid rgba(201, 168, 124, 0.28);
-    border-radius: 999px;
-    padding: 3px 10px;
-    cursor: pointer;
-    transition: all var(--bb-dur-fast, 140ms) var(--bb-ease-out-expo, ease);
-  }
+  /* Frame/typography now come from the global .bb-chip control. What stays
+     scoped is the removal affordance: the x is width:0 until hover so the
+     chip does not jump, and hover turns red because the click deletes. */
+  .pill { padding: 5px 10px; }
   .pill :global(svg) {
     width: 0;
     opacity: 0;

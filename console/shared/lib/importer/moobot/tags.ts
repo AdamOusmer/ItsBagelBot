@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Tag catalog + renderers for Moobot responses — the port of tags.go. The
+// Tag catalog + renderers for Moobot responses, the port of tags.go. The
 // parser core (./parse) hands each command's raw text here; everything
 // tag-shaped lives in this file so the catalog can be reviewed against
 // Moobot's insertable-tag list in one place.
@@ -64,7 +64,7 @@ const MOOBOT_JSON_SLOT = /^urlfetch\.json\.([1-9]|10)$/;
 // every definition exists only to serve a command in this same export, so the
 // commands cap bounds it by construction, and one fewer magic number cannot
 // drift from the mirrored server-side table. Past the cap the tag falls back
-// to the literal+warn path — fail visible, never a dangling {urlfetch:}
+// to the literal+warn path: fail visible, never a dangling {urlfetch:}
 // reference.
 const FETCH_DEF_CAP = IMPORT_ITEM_CAPS.commands;
 
@@ -79,7 +79,7 @@ function urlfetchSlot(tag: string): number | null | undefined {
 // urlfetchRef maps one Moobot urlfetch tag onto its `{urlfetch:<slug>}`
 // reference, synthesizing the definition shell on first sight. Slug rule:
 // `fetchDefSlug('moobot', command.name)`, with the tag's own N appended for
-// json.N — the TAG NAME is the slot id, so mapping is a pure function of the
+// json.N: the TAG NAME is the slot id, so mapping is a pure function of the
 // export and re-import lands on identical slugs (idempotent). Slots never
 // merge even though none of them carries a URL: equality is unknowable until
 // the broadcaster re-enters each URL, so plain and every json.N stay separate
@@ -88,7 +88,7 @@ function urlfetchSlot(tag: string): number | null | undefined {
 function urlfetchRef(ctx: TagContext, slotN: number | null): string | null {
   // Slug rule: fetchDefSlug keeps the name inside the commands service's
   // ^[a-z0-9_]{1,32}$ grammar (a hyphen is refused there), and the tag's own N
-  // is appended for json.N — the TAG NAME is the slot id, so mapping is a pure
+  // is appended for json.N: the TAG NAME is the slot id, so mapping is a pure
   // function of the export and re-import lands on identical slugs.
   const base = fetchDefSlug('moobot', ctx.name);
   const key = slotN === null ? base : `${base}_${slotN}`;
@@ -134,7 +134,7 @@ const TAG_RENDERERS: Record<string, (ctx: TagContext) => string> = {
   'twitch.mentioned': () => '{target}',
   args: () => '{args}',
   // Moobot's argument #1 falls back to the invoker's username when
-  // absent — exactly the duality of our {target}. Arguments #2..#5 have
+  // absent (exactly the duality of our {target}). Arguments #2..#5 have
   // no clean equivalent ({args} would repeat the whole tail), so only #1
   // maps (decision record kept from tags.go).
   '1': () => '{target}',
@@ -152,7 +152,7 @@ function replaceTag(tag: string, ctx: TagContext): string {
 }
 
 // FetchTagRef is one distinct urlfetch tag this response mapped, with the
-// definition slug it landed on — the warn loop emits one "re-enter the URL"
+// definition slug it landed on: the warn loop emits one "re-enter the URL"
 // finding per entry without recomputing the slug rule.
 export interface FetchTagRef {
   tag: string;
@@ -194,10 +194,10 @@ interface TagRender {
 
 // renderTag contributes one tag's output: its replacement when mapped,
 // otherwise the literal bracketed text plus a first-of-kind warning for
-// catalog entries we cannot express (unknown bracketed words stay silent —
+// catalog entries we cannot express (unknown bracketed words stay silent:
 // they are indistinguishable from prose until Moobot defines them).
-// The literal form is reconstructable from the name alone — TAG_PATTERN
-// captures exactly the text between one "<" and one ">" — so renderers take
+// The literal form is reconstructable from the name alone (TAG_PATTERN
+// captures exactly the text between one "<" and one ">") so renderers take
 // the tag and rebuild the bracketed literal on the degrade paths.
 function renderTag(render: TagRender, tag: string): string {
   const slot = urlfetchSlot(tag);
@@ -213,7 +213,7 @@ function renderTag(render: TagRender, tag: string): string {
 
 // renderUrlfetchTag maps one urlfetch tag onto its {urlfetch:<slug>}
 // reference. At the definition cap it takes the same literal+warn degrade as
-// an unmappable catalog tag — never a dangling {urlfetch:} reference.
+// an unmappable catalog tag, never a dangling {urlfetch:} reference.
 function renderUrlfetchTag(render: TagRender, tag: string, slot: number | null): string {
   const key = urlfetchRef(render.ctx, slot);
   if (key === null) {

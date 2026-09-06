@@ -12,7 +12,7 @@
  * up as a dropped-frame hitch. The arrays are cheap next to WebGLRenderer
  * setup; keep them on the same turn as init.
  *
- * The numbers here are intentionally exported — the Encryption update loop
+ * The numbers here are intentionally exported: the Encryption update loop
  * needs `FLOW_CURVE_SAMPLES` to interpret the sample arrays, and the
  * BufferAttribute count needs to match `N_NODES`.
  */

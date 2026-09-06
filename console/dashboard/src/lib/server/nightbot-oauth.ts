@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Nightbot OAuth for the config importer: plain authorization_code, no OIDC —
+// Nightbot OAuth for the config importer: plain authorization_code, no OIDC.
 // Nightbot issues opaque access tokens and no id_token, so the oauth4webapi
 // machinery the Twitch login uses would be dead weight here. The token is used
 // once (fetch commands/timers/spam protection during preview), rides a

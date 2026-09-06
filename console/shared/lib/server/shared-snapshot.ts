@@ -7,7 +7,7 @@
 // a value that is *computed* by the console (a ranking, an aggregate, anything
 // fanned out of several RPCs) has nowhere to be shared. Three pods then answer
 // three versions of it, and a reader whose requests land on different pods sees
-// the number jump back and forth — which reads as a bug, because from outside
+// the number jump back and forth, which reads as a bug, because from outside
 // it is one.
 //
 // This is the missing layer: a short-lived value in Valkey, written by whichever
@@ -53,7 +53,7 @@ export interface SharedSnapshotOptions<T> {
   ttlMs: number;
   /** The real read, run on a miss. */
   load: () => Promise<T>;
-  /** Publish gate. Return false to keep a value out of the shared key — a
+  /** Publish gate. Return false to keep a value out of the shared key: a
    *  degraded or partial answer is worth serving to one request and not worth
    *  pinning on every pod for a whole window. Defaults to always publishing. */
   publish?: (value: T) => boolean;

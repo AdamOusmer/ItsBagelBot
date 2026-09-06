@@ -16,7 +16,7 @@
 //
 // Transport is subscribeDurable: the subscription retries forever (a boot-time
 // NATS outage no longer kills invalidation for the process lifetime) and any
-// connectivity gap flushes the whole cache — long-TTL entries must never
+// connectivity gap flushes the whole cache: long-TTL entries must never
 // outlive missed invalidations.
 import { subscribeDurable } from './nats';
 import { getServerConfig } from './config';
@@ -60,7 +60,7 @@ export function startInvalidationBus(opts: InvalidationBusOptions): void {
         if (prefixes.length) opts.cache.invalidate(...prefixes);
         opts.onApplied?.(scope, id, prefixes);
       } catch {
-        // Malformed message — ignore.
+        // Malformed message, ignore.
       }
     },
     () => {

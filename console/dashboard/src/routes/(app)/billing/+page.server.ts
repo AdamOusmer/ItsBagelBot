@@ -208,7 +208,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   const s = locals.session;
   if (!s) throw redirect(302, '/login');
   // Billing is owner-only unless a delegate was explicitly granted the billing
-  // section (then they manage it on the owner's behalf — see billingActor).
+  // section (then they manage it on the owner's behalf, see billingActor).
   const isDelegate = !!s.delegate_of;
   if (isDelegate && !(s.sections ?? []).includes('billing')) throw redirect(302, '/');
 
@@ -217,8 +217,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
   // Returning from hosted checkout lands here (?checkout=complete). The
   // entitlement is applied by an async Tebex webhook, which publishes a `status`
-  // invalidation on the cache bus; that both drops the server cache and — via the
-  // live SSE stream — re-fetches this page, so the view flips to premium on its
+  // invalidation on the cache bus; that both drops the server cache and (via the
+  // live SSE stream) re-fetches this page, so the view flips to premium on its
   // own. No special-casing needed in the load.
   const accountResult = await billingState(uid).then(
     (value) => ({ status: 'fulfilled' as const, value }),
@@ -282,7 +282,7 @@ export const actions: Actions = {
     }
 
     // A gift is the buyer's own purchase (they pay, the recipient gets
-    // premium), so the buyer stays the acting session user — but access is
+    // premium), so the buyer stays the acting session user, but access is
     // still gated to owners + billing-granted delegates.
     const gate = billingGate(locals.session);
     if (!gate.ok) return fail(gate.status, { gift: true, error: gate.error });

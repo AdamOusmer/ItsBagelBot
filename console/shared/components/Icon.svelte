@@ -6,7 +6,7 @@
 </script>
 
 <!-- Self-sufficient rendering: stroke/width/caps live on the svg itself, so an
-     icon draws correctly wherever it's dropped — consumers may still override
+     icon draws correctly wherever it's dropped. Consumers may still override
      via CSS (their rules win over presentation attributes), but a spot without
      any svg styling no longer renders an invisible black-on-dark glyph. -->
 <svg

@@ -37,7 +37,7 @@ export interface SessionCodec<T extends SessionBase> {
  * `open()`'s `maxAgeSec` so a re-sealed cookie can never outlive its class.
  */
 export const SESSION_TTL_SECONDS = 7 * 24 * 3600;
-export const IMPERSONATION_TTL_SECONDS = 3600; // admin "view as" — deliberately short
+export const IMPERSONATION_TTL_SECONDS = 3600; // admin "view as", deliberately short
 
 /** Tolerated clock drift between replicas when validating `iat`. */
 const MAX_CLOCK_SKEW_SECONDS = 30;

@@ -7,13 +7,13 @@
 // the storage decision record; this file only mirrors its wire format, since
 // this TypeScript reader cannot import the Go package directly.
 //
-// Wire format — one HASH per channel, "chatvol:<uid>":
+// Wire format: one HASH per channel, "chatvol:<uid>":
 //   a          anchor epoch (unix-minutes) of the ring's first write.
 //   "0".."59"  ring slots, keyed by epoch%ringWidth: "<delta>:<count>:<handled>",
 //              where delta=epoch-anchor. A slot whose stored delta does not
 //              match the delta the reader expects for that exact minute
 //              belongs to a different lap around the ring (or was never
-//              written) and reads as zero — see parseSlot.
+//              written) and reads as zero. See parseSlot.
 //
 // Own dedicated Sentinel/master-pinned client, not a share of valkey-store.ts's
 // node-local pool or valkey-master.ts's session-revocation write client: the
@@ -57,7 +57,7 @@ function sentinelOptions(cfg: ValkeyConfig, tls: TLSOptions) {
     sentinels: [valkeyEndpoint(cfg.sentinelAddr as string, Boolean(tls), VALKEY_TLS_SENTINEL_PORT)],
     // `||` not `??`: an empty VALKEY_MASTER_SET (unset in Doppler comes
     // through as "") must fall back to the sentinel's monitored name, not be
-    // used verbatim — see valkey-master.ts's identical guard.
+    // used verbatim. See valkey-master.ts's identical guard.
     name: cfg.sentinelMaster || 'myprimary',
     password: cfg.password || undefined,
     sentinelPassword: cfg.password || undefined,
@@ -127,7 +127,7 @@ function slotName(epoch: number): string {
 /**
  * Reconstructs the last RING_WIDTH minutes oldest-first from the raw hash.
  * A missing/malformed anchor parses to NaN, which never equals any real
- * delta below — so an empty or cold ring comes back all-zero without a
+ * delta below, so an empty or cold ring comes back all-zero without a
  * separate branch for it.
  */
 function buildChatVolume(fields: Record<string, string>, nowEpochMin: number): ChatVolume {

@@ -4,7 +4,7 @@
 // Nightbot OAuth callback for the config importer: verifies the state cookie,
 // exchanges the code, and parks the access token in a short-lived HttpOnly
 // cookie the preview action reads. Every failure lands back on the wizard
-// with ?e=nb_oauth — the import page renders the retry prose, this route
+// with ?e=nb_oauth: the import page renders the retry prose, this route
 // never renders anything itself.
 import type { RequestHandler } from './$types';
 import type { Cookies } from '@sveltejs/kit';
@@ -22,7 +22,7 @@ import {
 const WIZARD = '/settings/import?source=nightbot';
 
 // consumeCallback validates the provider callback against the HttpOnly state
-// cookie (always deleting it — single use) and returns the code, or null:
+// cookie (always deleting it, single use) and returns the code, or null:
 // provider-reported errors, a missing code, and a state mismatch all collapse
 // to the same retry path so no detail leaks into the URL.
 function consumeCallback(cookies: Cookies, url: URL): string | null {
