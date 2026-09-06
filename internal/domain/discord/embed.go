@@ -137,7 +137,7 @@ func TicketPanelEmbed(spec TicketPanelSpec) Embed {
 	return Embed{
 		Title:       spec.Title,
 		Description: spec.Body,
-		Color:       spec.Color,
+		Color:       spec.ColorOr(LiveColor),
 		Footer:      &EmbedFooter{Text: "Bagel tickets"},
 	}
 }

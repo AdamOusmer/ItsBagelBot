@@ -95,9 +95,15 @@ type Broadcaster struct{ ID string }
 type Binding struct {
 	Guild       Guild
 	Broadcaster Broadcaster
-	// InstalledBy is the Discord user snowflake that ran the setup. Write
-	// only: discord-data records it so support can answer "who added this
-	// bot", and nothing on this side reads it back.
+	// InstalledBy is the acting console user's TWITCH user id -- the
+	// broadcaster (or staff account) whose dashboard ran the install, which
+	// is the id every dashboard-facing RPC already carries as user_id.
+	//
+	// Not the Discord snowflake, which this side never learns: the install
+	// leg exchanges a bot-authorization code, and its token response names
+	// the guild, not the human who approved it. Write only: discord-data
+	// records it so support can answer "who added this bot", and nothing on
+	// this side reads it back.
 	InstalledBy string
 	// BoundAtUnixMs is filled by GuildsOf and ignored on writes.
 	BoundAtUnixMs int64

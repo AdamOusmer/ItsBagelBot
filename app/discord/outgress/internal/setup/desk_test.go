@@ -98,8 +98,13 @@ func TestRepostDeskRefusesSomeoneElsesGuild(t *testing.T) {
 		GuildID: "guild-1", BroadcasterID: "someone-else", ChannelID: "support",
 	})
 
-	if !errors.Is(err, ErrGuildBoundElsewhere) {
-		t.Fatalf("err = %v, want ErrGuildBoundElsewhere", err)
+	// ErrNotBound, not ErrGuildBoundElsewhere: every dashboard-facing verb
+	// now takes the strict check, which collapses "no binding" and "somebody
+	// else's binding" into one refusal so a caller cannot map guild ids by
+	// probing. Only the setup verb, where the distinction is a real screen,
+	// still reports "bound elsewhere".
+	if !errors.Is(err, ErrNotBound) {
+		t.Fatalf("err = %v, want ErrNotBound", err)
 	}
 }
 

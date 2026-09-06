@@ -42,7 +42,7 @@ func (w *Worker) RepostDesk(ctx context.Context, req DeskRepostRequest) (string,
 		return "", ErrDiscordUnavailable
 	}
 	setupReq := GuildSetupRequest{GuildID: req.GuildID, BroadcasterID: req.BroadcasterID}
-	if err := w.requireBound(ctx, setupReq); err != nil {
+	if err := w.requireOwnerStrict(ctx, setupReq, ownerCheck{}); err != nil {
 		return "", err
 	}
 	previous := w.rememberedDesk(ctx, req.GuildID)

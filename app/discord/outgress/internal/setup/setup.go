@@ -174,7 +174,7 @@ func (w *Worker) GuildLayout(ctx context.Context, req GuildSetupRequest) (GuildL
 	if w.discord == nil {
 		return GuildLayout{}, ErrDiscordUnavailable
 	}
-	if err := w.requireBound(ctx, req); err != nil {
+	if err := w.requireOwnerStrict(ctx, req, ownerCheck{}); err != nil {
 		return GuildLayout{}, err
 	}
 	channels, err := w.discord.ListGuildChannels(ctx, req.guild())
@@ -195,7 +195,7 @@ func (w *Worker) GuildInfo(ctx context.Context, req GuildSetupRequest) (discapi.
 	if w.discord == nil {
 		return discapi.GuildInfo{}, ErrDiscordUnavailable
 	}
-	if err := w.requireBound(ctx, req); err != nil {
+	if err := w.requireOwnerStrict(ctx, req, ownerCheck{}); err != nil {
 		return discapi.GuildInfo{}, err
 	}
 	return w.discord.GetGuildWithCounts(ctx, req.guild())
@@ -212,7 +212,7 @@ type ownerCheck struct {
 // UnbindGuild drops the guild->broadcaster reverse index on disconnect. A
 // guild bound to someone else is left alone.
 func (w *Worker) UnbindGuild(ctx context.Context, req GuildSetupRequest) error {
-	if err := w.requireOwner(ctx, req, ownerCheck{MissingOK: true}); err != nil {
+	if err := w.requireOwnerStrict(ctx, req, ownerCheck{MissingOK: true}); err != nil {
 		return err
 	}
 	if w.store == nil {
@@ -249,10 +249,6 @@ func (w *Worker) bindGuild(ctx context.Context, req GuildSetupRequest) error {
 		Broadcaster: discordstore.Broadcaster{ID: req.BroadcasterID},
 		InstalledBy: req.InstalledBy,
 	})
-}
-
-func (w *Worker) requireBound(ctx context.Context, req GuildSetupRequest) error {
-	return w.requireOwner(ctx, req, ownerCheck{})
 }
 
 func (w *Worker) requireOwner(ctx context.Context, req GuildSetupRequest, check ownerCheck) error {

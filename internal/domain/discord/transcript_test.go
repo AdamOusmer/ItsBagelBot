@@ -152,8 +152,34 @@ func TestTicketPanelSpecOrDefaultsFillsBlanks(t *testing.T) {
 	if got.Title != "Kept" {
 		t.Fatalf("title = %q", got.Title)
 	}
-	if got.Body != TicketPanelBodyDefault || got.Button != TicketPanelButtonDefault || got.Color != LiveColor {
+	if got.Body != TicketPanelBodyDefault || got.Button != TicketPanelButtonDefault || got.ColorOr(0) != LiveColor {
 		t.Fatalf("spec = %+v", got)
+	}
+}
+
+// TestTicketPanelSpecKeepsABlackColour is the reason Color is a pointer. Black
+// is a colour a streamer can pick, and the old "zero means unset" rule
+// silently repainted the panel brand purple on every repost.
+func TestTicketPanelSpecKeepsABlackColour(t *testing.T) {
+	black := 0
+	got := TicketPanelSpec{Color: &black}.OrDefaults()
+	if got.ColorOr(LiveColor) != 0 {
+		t.Fatalf("color = %#x, want #000000 to survive OrDefaults", got.ColorOr(LiveColor))
+	}
+	if e := TicketPanelEmbed(got); e.Color != 0 {
+		t.Fatalf("embed color = %#x, want the black the streamer picked", e.Color)
+	}
+
+	// An absent colour is still the one case that defaults.
+	unset := TicketPanelSpec{}.OrDefaults()
+	if unset.Color == nil || *unset.Color != LiveColor {
+		t.Fatalf("unset color = %v, want the brand default", unset.Color)
+	}
+
+	// And a config that names black parses to black, not to "unset".
+	fromConfig := Config{TicketPanelColor: "#000000"}.TicketPanel()
+	if fromConfig.ColorOr(LiveColor) != 0 {
+		t.Fatalf("config color = %#x, want 0", fromConfig.ColorOr(LiveColor))
 	}
 }
 

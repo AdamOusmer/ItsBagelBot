@@ -83,10 +83,13 @@ func TestListGuildsListsEveryConnectedServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListGuilds: %v", err)
 	}
-	if len(got) != 2 {
+	if len(got.Guilds) != 2 {
 		t.Fatalf("want both servers, got %+v", got)
 	}
-	for _, g := range got {
+	if got.Truncated {
+		t.Fatal("two servers is not a truncated listing")
+	}
+	for _, g := range got.Guilds {
 		if !g.BotPresent || g.Name == "" {
 			t.Fatalf("want a present, named server, got %+v", g)
 		}
@@ -101,10 +104,10 @@ func TestListGuildsKeepsAGuildTheBotWasKickedFrom(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListGuilds: %v", err)
 	}
-	if len(got) != 1 {
+	if len(got.Guilds) != 1 {
 		t.Fatalf("a kicked bot must not hide the binding, got %+v", got)
 	}
-	if got[0].BotPresent {
+	if got.Guilds[0].BotPresent {
 		t.Fatal("want bot_present false for a 403")
 	}
 }
@@ -170,7 +173,7 @@ func TestListGuildsFailsWhenTheStoreCannotSay(t *testing.T) {
 	w := setupWorker(&guildRecorder{}, unavailableStore{Store: discordstore.NewMem()})
 
 	got, err := w.ListGuilds(context.Background(), "42")
-	if !errors.Is(err, discordstore.ErrStoreUnavailable) || got != nil {
+	if !errors.Is(err, discordstore.ErrStoreUnavailable) || got.Guilds != nil {
 		t.Fatalf("ListGuilds = %+v, %v; want nil, ErrStoreUnavailable", got, err)
 	}
 }
@@ -196,8 +199,13 @@ func TestListGuildsCapsAndCarriesTheBindTime(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListGuilds: %v", err)
 	}
-	if len(got) != MaxListedGuilds {
-		t.Fatalf("want the listing capped at %d, got %d", MaxListedGuilds, len(got))
+	if len(got.Guilds) != MaxListedGuilds {
+		t.Fatalf("want the listing capped at %d, got %d", MaxListedGuilds, len(got.Guilds))
+	}
+	// The flag is the only way the dashboard can tell "twenty-five servers"
+	// from "the first twenty-five of twenty-eight".
+	if !got.Truncated {
+		t.Fatal("a capped listing must say it is short")
 	}
 	if recorder.getGuildCalls > MaxListedGuilds {
 		t.Fatalf("the cap must bound the REST burst too, got %d calls", recorder.getGuildCalls)
@@ -216,7 +224,89 @@ func TestListGuildsReturnsWhatItHasOnATimeout(t *testing.T) {
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("want the deadline reported, got %v", err)
 	}
-	if got == nil {
+	if got.Guilds == nil {
 		t.Fatal("a partial listing must be a slice, not nil")
+	}
+}
+
+// TestExactlyMaxListedGuildsIsNotTruncated: the count that the caller cannot
+// tell apart by looking at the slice. Twenty-five bindings fit, so the picker
+// must not claim there are more.
+func TestExactlyMaxListedGuildsIsNotTruncated(t *testing.T) {
+	ids := make([]string, 0, MaxListedGuilds)
+	for i := range MaxListedGuilds {
+		ids = append(ids, "guild-"+strconv.Itoa(i))
+	}
+	w, _, _ := boundWorker(t, ids...)
+
+	got, err := w.ListGuilds(context.Background(), "42")
+	if err != nil {
+		t.Fatalf("ListGuilds: %v", err)
+	}
+	if len(got.Guilds) != MaxListedGuilds || got.Truncated {
+		t.Fatalf("listing = %d entries, truncated=%v; want the full set and no flag",
+			len(got.Guilds), got.Truncated)
+	}
+}
+
+// TestEveryDashboardVerbRefusesACacheOnlyBinding extends
+// TestOwnershipRefusesACacheOnlyBinding to the four verbs that used to take
+// the loose check. Each of them reads or changes one guild on the caller's
+// say-so, and a cached binding can outlive an unbind -- so each must answer
+// "try again" rather than serve another streamer's server.
+func TestEveryDashboardVerbRefusesACacheOnlyBinding(t *testing.T) {
+	store := discordstore.NewMem()
+	bind := discordstore.Binding{
+		Guild:       discordstore.Guild{ID: "guild-1"},
+		Broadcaster: discordstore.Broadcaster{ID: "42"},
+	}
+	if err := store.BindGuild(context.Background(), bind); err != nil {
+		t.Fatalf("BindGuild: %v", err)
+	}
+	w := setupWorker(&guildRecorder{}, cacheOnlyStore{Store: store})
+	ctx := context.Background()
+	req := GuildSetupRequest{GuildID: "guild-1", BroadcasterID: "42"}
+
+	cases := []struct {
+		name string
+		run  func() error
+	}{
+		{"layout", func() error { _, err := w.GuildLayout(ctx, req); return err }},
+		{"status", func() error { _, err := w.GuildInfo(ctx, req); return err }},
+		{"unbind", func() error { return w.UnbindGuild(ctx, req) }},
+		{"desk.repost", func() error {
+			_, err := w.RepostDesk(ctx, DeskRepostRequest{
+				GuildID: "guild-1", BroadcasterID: "42", ChannelID: "chan-1",
+			})
+			return err
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := tc.run(); !errors.Is(err, discordstore.ErrStoreUnavailable) {
+				t.Fatalf("want ErrStoreUnavailable, got %v", err)
+			}
+		})
+	}
+}
+
+// TestUnbindStaysIdempotent: strict ownership must not turn "disconnect a
+// server that is already disconnected" into an error the streamer has to
+// interpret. It is the one verb that passes MissingOK.
+func TestUnbindStaysIdempotent(t *testing.T) {
+	w, _, _ := boundWorker(t, "guild-1")
+	ctx := context.Background()
+	req := GuildSetupRequest{GuildID: "guild-1", BroadcasterID: "42"}
+
+	if err := w.UnbindGuild(ctx, req); err != nil {
+		t.Fatalf("first unbind: %v", err)
+	}
+	if err := w.UnbindGuild(ctx, req); err != nil {
+		t.Fatalf("second unbind: %v, want the same silence", err)
+	}
+	// Somebody else's guild is still refused, missing binding or not.
+	other := GuildSetupRequest{GuildID: "guild-9", BroadcasterID: "42"}
+	if err := w.UnbindGuild(ctx, other); err != nil {
+		t.Fatalf("unbinding an unknown guild: %v", err)
 	}
 }

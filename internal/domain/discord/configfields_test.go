@@ -27,7 +27,7 @@ import (
 // exactly the change it exists to catch.
 func TestConfigFieldsMatchTheSharedFixture(t *testing.T) {
 	want := readFieldFixture(t)
-	got := configJSONTags()
+	got := configJSONTags(t)
 	if !slices.Equal(got, want) {
 		t.Fatalf("Config json tags drifted from testdata/config_fields.json\n only in Go:      %v\n only in fixture: %v",
 			missing(got, want), missing(want, got))
@@ -35,13 +35,30 @@ func TestConfigFieldsMatchTheSharedFixture(t *testing.T) {
 }
 
 // configJSONTags is the sorted list of Config's JSON field names.
-func configJSONTags() []string {
+//
+// An exported field with no json tag FAILS here rather than being skipped.
+// Skipping was the original behaviour and it defeated the point of the
+// fixture: Go's encoder falls back to the Go field name, so an untagged
+// TicketPanelTitle ships as "TicketPanelTitle", the console writes
+// "ticketPanelTitle", and the setting silently stops saving -- with this file
+// green, because the field it should have compared was never in the list.
+// A deliberate `json:"-"` is still skipped: that is someone saying "not on the
+// wire", which is a decision, not an omission.
+func configJSONTags(t *testing.T) []string {
+	t.Helper()
 	rt := reflect.TypeOf(Config{})
 	out := make([]string, 0, rt.NumField())
 	for i := range rt.NumField() {
-		tag := rt.Field(i).Tag.Get("json")
-		name, _, _ := cutComma(tag)
-		if name == "" || name == "-" {
+		field := rt.Field(i)
+		if !field.IsExported() {
+			continue
+		}
+		name, _, _ := cutComma(field.Tag.Get("json"))
+		if name == "" {
+			t.Fatalf("Config.%s is exported with no json tag; it would ship as %q and the console would never see it",
+				field.Name, field.Name)
+		}
+		if name == "-" {
 			continue
 		}
 		out = append(out, name)

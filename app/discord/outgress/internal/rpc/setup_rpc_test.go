@@ -8,9 +8,11 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"testing"
 	"time"
 
+	"ItsBagelBot/app/discord/outgress/internal/kv"
 	"ItsBagelBot/app/discord/outgress/internal/setup"
 	discapi "ItsBagelBot/internal/discordapi"
 	"ItsBagelBot/internal/discordstore"
@@ -116,10 +118,11 @@ func TestHandleStatusUnboundGuildCarriesNotBoundCode(t *testing.T) {
 	if got.Code != outgressrpc.CodeNotBound {
 		t.Fatalf("code = %q, want %q", got.Code, outgressrpc.CodeNotBound)
 	}
-	// The message is the console's old substring contract and must not
-	// change in the release that introduces the code.
-	if got.Error != setup.ErrGuildBoundElsewhere.Error() {
-		t.Fatalf("error = %q, want the unchanged message text", got.Error)
+	// The message moved with the handler: status now takes the strict
+	// ownership check, which reports ErrNotBound for both "no binding" and
+	// "somebody else's". The console reads the code, not the text.
+	if got.Error != setup.ErrNotBound.Error() {
+		t.Fatalf("error = %q, want the not-bound message", got.Error)
 	}
 	if got.GuildPresent {
 		t.Fatal("an unbound guild must not report present")
@@ -355,7 +358,7 @@ func TestHandleDeskRepostAnswersWithTheNewMessageID(t *testing.T) {
 
 	got := d.handleDeskRepost(context.Background(), outgressrpc.DiscordDeskRepostRequest{
 		UserID: "b1", GuildID: "g1", ChannelID: "support",
-		Panel: outgressrpc.DiscordPanelSpec{Title: "Need a hand?", Color: 0x112233, Button: "Contact staff"},
+		Panel: outgressrpc.DiscordPanelSpec{Title: "Need a hand?", Color: intPtr(0x112233), Button: "Contact staff"},
 	})
 
 	if got.Error != "" || got.Code != outgressrpc.CodeOK {
@@ -511,6 +514,61 @@ func TestHandleGuildsListSaysTimeoutAndKeepsThePartial(t *testing.T) {
 	}
 }
 
+// flaggedReauth is the stale-grant bookkeeping, scripted per guild.
+type flaggedReauth map[string]bool
+
+func (f flaggedReauth) NeedsReauth(_ context.Context, g kv.GuildID) bool { return f[string(g)] }
+
+// TestGuildEntriesNeverGuessAReauthFlag is the fix for a listing that lies
+// reassuringly. The flag is one Valkey read, the listing hands it a context
+// that is already dead whenever the partial path was taken, and a failed read
+// is a plain false -- so the guild whose grant had died was drawn as healthy
+// on exactly the slow load where it matters. Unknown is a third state.
+func TestGuildEntriesNeverGuessAReauthFlag(t *testing.T) {
+	d := configRPCFor(t, "guild-1", "guild-2")
+	d.reauth = flaggedReauth{"guild-1": true}
+	guilds := []setup.GuildSummary{{GuildID: "guild-1"}, {GuildID: "guild-2"}}
+
+	live := d.guildEntries(context.Background(), guilds)
+	if !live[0].NeedsReauth || live[0].ReauthUnknown {
+		t.Fatalf("read entry = %+v, want a known, raised flag", live[0])
+	}
+	if live[1].NeedsReauth || live[1].ReauthUnknown {
+		t.Fatalf("read entry = %+v, want a known, clear flag", live[1])
+	}
+
+	dead, cancel := context.WithCancel(context.Background())
+	cancel()
+	for _, got := range d.guildEntries(dead, guilds) {
+		if got.NeedsReauth || !got.ReauthUnknown {
+			t.Fatalf("unread entry = %+v, want reauth_unknown rather than a false", got)
+		}
+	}
+}
+
+// TestHandleGuildsListFlagsATruncatedListing: the cap is silent on the wire
+// without this, so a streamer past it sees a page that quietly forgot a
+// server.
+func TestHandleGuildsListFlagsATruncatedListing(t *testing.T) {
+	ids := make([]string, 0, setup.MaxListedGuilds+1)
+	for i := range setup.MaxListedGuilds + 1 {
+		ids = append(ids, "guild-"+strconv.Itoa(i))
+	}
+	d := configRPCFor(t, ids...)
+
+	got := d.handleGuildsList(context.Background(), outgressrpc.DiscordGuildsListRequest{UserID: "42"})
+
+	if len(got.Guilds) != setup.MaxListedGuilds || !got.Truncated {
+		t.Fatalf("listing = %d entries, truncated=%v", len(got.Guilds), got.Truncated)
+	}
+	// And a listing that fits says nothing.
+	if short := configRPCFor(t, "guild-1").handleGuildsList(
+		context.Background(), outgressrpc.DiscordGuildsListRequest{UserID: "42"},
+	); short.Truncated {
+		t.Fatalf("listing = %+v, want no truncation flag", short)
+	}
+}
+
 func TestHandleDeskRepostOnAnUnboundGuildCarriesNotBound(t *testing.T) {
 	d := newDiscordRPC(t, &fakeSetupREST{}, fakeBotStatus{}, false)
 
@@ -523,10 +581,28 @@ func TestHandleDeskRepostOnAnUnboundGuildCarriesNotBound(t *testing.T) {
 	}
 }
 
-func TestPanelSpecCarriesEveryField(t *testing.T) {
-	got := panelSpec(outgressrpc.DiscordPanelSpec{Title: "t", Body: "b", Color: 7, Button: "go"})
+func intPtr(v int) *int { return &v }
 
-	if got.Title != "t" || got.Body != "b" || got.Color != 7 || got.Button != "go" {
+func TestPanelSpecCarriesEveryField(t *testing.T) {
+	got := panelSpec(outgressrpc.DiscordPanelSpec{Title: "t", Body: "b", Color: intPtr(7), Button: "go"})
+
+	if got.Title != "t" || got.Body != "b" || got.ColorOr(0) != 7 || got.Button != "go" {
 		t.Fatalf("spec = %+v", got)
+	}
+}
+
+// TestPanelSpecKeepsBlackAndUnsetApart is the wire half of the pointer colour:
+// a request that omits "color" must reach the renderer as unset (brand
+// default), and one that sends 0 must reach it as black.
+func TestPanelSpecKeepsBlackAndUnsetApart(t *testing.T) {
+	if got := panelSpec(outgressrpc.DiscordPanelSpec{Title: "t"}); got.Color != nil {
+		t.Fatalf("color = %v, want nil for an omitted key", got.Color)
+	}
+	got := panelSpec(outgressrpc.DiscordPanelSpec{Title: "t", Color: intPtr(0)})
+	if got.Color == nil || got.ColorOr(ddiscord.LiveColor) != 0 {
+		t.Fatalf("color = %v, want a set 0", got.Color)
+	}
+	if got.OrDefaults().ColorOr(ddiscord.LiveColor) != 0 {
+		t.Fatal("OrDefaults must not repaint a black panel")
 	}
 }

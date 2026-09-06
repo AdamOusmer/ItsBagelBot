@@ -130,12 +130,9 @@ func TestTicketOpenLimitNClamps(t *testing.T) {
 
 func TestTicketPanelFillsDefaults(t *testing.T) {
 	got := Config{}.TicketPanel()
-	want := TicketPanelSpec{
-		Title: TicketPanelTitleDefault, Body: TicketPanelBodyDefault,
-		Button: TicketPanelButtonDefault, Color: LiveColor,
-	}
-	if got != want {
-		t.Fatalf("panel = %+v, want %+v", got, want)
+	if got.Title != TicketPanelTitleDefault || got.Body != TicketPanelBodyDefault ||
+		got.Button != TicketPanelButtonDefault || got.ColorOr(0) != LiveColor {
+		t.Fatalf("panel = %+v, want the defaults", got)
 	}
 	custom := Config{
 		TicketPanelTitle: " Support ", TicketPanelBody: "Ask us.",
@@ -144,13 +141,13 @@ func TestTicketPanelFillsDefaults(t *testing.T) {
 	if custom.Title != "Support" || custom.Body != "Ask us." || custom.Button != "Ask" {
 		t.Fatalf("panel = %+v", custom)
 	}
-	if custom.Color != 0x00FF80 {
-		t.Fatalf("color = %#x, want 0x00ff80", custom.Color)
+	if custom.ColorOr(0) != 0x00FF80 {
+		t.Fatalf("color = %#x, want 0x00ff80", custom.ColorOr(0))
 	}
 	// An unparseable colour keeps the brand colour rather than rendering
 	// black, which is what a zero would look like in Discord.
-	if bad := (Config{TicketPanelColor: "nope"}).TicketPanel(); bad.Color != LiveColor {
-		t.Fatalf("color = %#x, want LiveColor", bad.Color)
+	if bad := (Config{TicketPanelColor: "nope"}).TicketPanel(); bad.ColorOr(0) != LiveColor {
+		t.Fatalf("color = %#x, want LiveColor", bad.ColorOr(0))
 	}
 }
 

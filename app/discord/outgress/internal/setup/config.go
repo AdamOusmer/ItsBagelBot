@@ -55,7 +55,7 @@ type GuildSummary struct {
 
 // GuildConfig reads one guild's settings for the dashboard.
 func (w *Worker) GuildConfig(ctx context.Context, req GuildSetupRequest) (ddiscord.Config, int, bool, error) {
-	if err := w.requireOwnerStrict(ctx, req); err != nil {
+	if err := w.requireOwnerStrict(ctx, req, ownerCheck{}); err != nil {
 		return ddiscord.Config{}, 0, false, err
 	}
 	cfg, version, found := w.store.GuildConfig(ctx, discordstore.Guild{ID: req.GuildID})
@@ -67,7 +67,7 @@ func (w *Worker) GuildConfig(ctx context.Context, req GuildSetupRequest) (ddisco
 // rather than at the end of the cache TTL.
 func (w *Worker) SetGuildConfig(ctx context.Context, write GuildConfigWrite) (int, error) {
 	req := GuildSetupRequest{GuildID: write.GuildID, BroadcasterID: write.BroadcasterID}
-	if err := w.requireOwnerStrict(ctx, req); err != nil {
+	if err := w.requireOwnerStrict(ctx, req, ownerCheck{}); err != nil {
 		return 0, err
 	}
 	version, err := w.store.SetGuildConfig(ctx, discordstore.SetConfig{
@@ -83,6 +83,20 @@ func (w *Worker) SetGuildConfig(ctx context.Context, write GuildConfigWrite) (in
 	return version, nil
 }
 
+// GuildListing is one server listing plus whether it says everything.
+//
+// Truncated is a field rather than something the caller infers from
+// len(Guilds) == MaxListedGuilds, because that guess is wrong for the
+// broadcaster who has exactly twenty-five servers -- and it is the caller
+// furthest from the count that has to make it.
+type GuildListing struct {
+	Guilds []GuildSummary
+	// Truncated is true when the broadcaster holds more bindings than
+	// MaxListedGuilds, so the dashboard can say the list is the first page
+	// rather than the whole set.
+	Truncated bool
+}
+
 // ListGuilds lists every server the broadcaster connected. A guild Discord
 // refuses to describe is still listed, with BotPresent false: dropping it
 // would hide a binding the streamer cannot then disconnect.
@@ -92,25 +106,26 @@ func (w *Worker) SetGuildConfig(ctx context.Context, write GuildConfigWrite) (in
 // against a slow Discord can outlive the RPC's own timeout; returning the
 // first twelve and saying the list is short beats returning nothing, and
 // beats a reply the caller has already given up on.
-func (w *Worker) ListGuilds(ctx context.Context, broadcasterID string) ([]GuildSummary, error) {
+func (w *Worker) ListGuilds(ctx context.Context, broadcasterID string) (GuildListing, error) {
 	if w.store == nil {
-		return nil, nil
+		return GuildListing{}, nil
 	}
 	guilds, err := w.store.GuildsOf(ctx, discordstore.Broadcaster{ID: broadcasterID})
 	if err != nil {
-		return nil, err
+		return GuildListing{}, err
 	}
-	if len(guilds) > MaxListedGuilds {
+	listing := GuildListing{Truncated: len(guilds) > MaxListedGuilds}
+	if listing.Truncated {
 		guilds = guilds[:MaxListedGuilds]
 	}
-	out := make([]GuildSummary, 0, len(guilds))
+	listing.Guilds = make([]GuildSummary, 0, len(guilds))
 	for _, bound := range guilds {
 		if err := ctx.Err(); err != nil {
-			return out, err
+			return listing, err
 		}
-		out = append(out, w.summarize(ctx, bound))
+		listing.Guilds = append(listing.Guilds, w.summarize(ctx, bound))
 	}
-	return out, nil
+	return listing, nil
 }
 
 // summarize asks Discord for one guild's name and member count.
@@ -158,7 +173,12 @@ func (w *Worker) logMissingGuild(guildID string, err error) {
 // because a cache entry can outlive an unbind and would then answer "yes, this
 // server is yours" for a server that no longer is. Reading someone else's
 // settings is a worse outcome than a dashboard that says "try again".
-func (w *Worker) requireOwnerStrict(ctx context.Context, req GuildSetupRequest) error {
+//
+// Every dashboard-facing verb goes through here, not only the settings pair:
+// a layout listing, a status card and a desk repost all read or touch one
+// guild on a caller's say-so, and a stale cache entry is exactly as wrong for
+// them. check.MissingOK is for unbind alone, which stays idempotent.
+func (w *Worker) requireOwnerStrict(ctx context.Context, req GuildSetupRequest, check ownerCheck) error {
 	if w.store == nil {
 		return nil
 	}
@@ -169,8 +189,22 @@ func (w *Worker) requireOwnerStrict(ctx context.Context, req GuildSetupRequest) 
 	if source == discordstore.BindingFromCache {
 		return discordstore.ErrStoreUnavailable
 	}
-	if !ok || owner.ID != req.BroadcasterID {
+	if !ok {
+		return missingStrictBinding(check)
+	}
+	if owner.ID != req.BroadcasterID {
 		return ErrNotBound
 	}
 	return nil
+}
+
+// missingStrictBinding decides what "no binding at all" means for the caller.
+// Unbind passes MissingOK: disconnecting a server that is already disconnected
+// is the outcome the caller asked for, and a dashboard that reports an error
+// for it teaches streamers to click again.
+func missingStrictBinding(check ownerCheck) error {
+	if check.MissingOK {
+		return nil
+	}
+	return ErrNotBound
 }

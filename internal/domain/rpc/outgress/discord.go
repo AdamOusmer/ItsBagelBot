@@ -299,8 +299,14 @@ type DiscordGuildsListRequest struct {
 // DiscordGuildsListReply carries the servers, oldest binding first.
 type DiscordGuildsListReply struct {
 	Guilds []DiscordGuildEntry `json:"guilds"`
-	Code   string              `json:"code"`
-	Error  string              `json:"error,omitempty"`
+	// Truncated is true when the broadcaster has more bindings than the
+	// listing describes (setup.MaxListedGuilds). Without it a streamer with
+	// twenty-six servers sees twenty-five and no sign the list is short,
+	// which reads as "Bagel lost my server" rather than "this page shows the
+	// first twenty-five".
+	Truncated bool   `json:"truncated,omitempty"`
+	Code      string `json:"code"`
+	Error     string `json:"error,omitempty"`
 }
 
 // DiscordGuildEntry is one connected server as the picker shows it.
@@ -331,6 +337,16 @@ type DiscordGuildEntry struct {
 	// showed as a plain "offline" and sent the streamer to wait for a
 	// reconnect that cannot happen without a new authorization.
 	NeedsReauth bool `json:"needs_reauth,omitempty"`
+	// ReauthUnknown says the flag above was never read, so false means "we
+	// do not know", not "the grant is fine".
+	//
+	// Integration fix (2026-09-05): the listing returns a partial list when
+	// the handler's deadline passes mid-way, and the reauth lookups happen
+	// after that -- every one of them then failed against the dead context
+	// and reported false. A guild whose grant had died was rendered as a
+	// healthy one on exactly the slow load where the streamer is already
+	// suspicious. The console shows a neutral pill on this rather than green.
+	ReauthUnknown bool `json:"reauth_unknown,omitempty"`
 }
 
 // DiscordPanelSpec is the ticket-desk embed's copy, as the dashboard just saved
@@ -339,9 +355,17 @@ type DiscordGuildEntry struct {
 type DiscordPanelSpec struct {
 	Title string `json:"title,omitempty"`
 	Body  string `json:"body,omitempty"`
-	// Color is the embed's left bar as a decimal Discord color. Zero means
-	// "not set" and takes the brand default, not black.
-	Color  int    `json:"color,omitempty"`
+	// Color is the embed's left bar as a decimal Discord color. Absent (null,
+	// or the key left out) means "not set" and takes the brand default; 0 is
+	// #000000 and is honoured.
+	//
+	// Integration fix (2026-09-05): this was a plain int with "zero means
+	// unset", which made black the one colour the picker could not save --
+	// every repost of a black panel came back brand purple. A pointer is what
+	// carries the difference across JSON. The console must therefore OMIT the
+	// key (or send null) for "unset" and send 0 only when the streamer really
+	// picked #000000.
+	Color  *int   `json:"color,omitempty"`
 	Button string `json:"button,omitempty"`
 }
 

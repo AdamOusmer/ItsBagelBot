@@ -290,8 +290,10 @@ func TestUnbindGuildOnlyForTheBoundBroadcaster(t *testing.T) {
 	store.PutGuild(discordstore.Guild{ID: "guild-1"}, discordstore.Broadcaster{ID: "42"})
 	w := setupWorker(&guildRecorder{}, store)
 
-	if err := w.UnbindGuild(context.Background(), GuildSetupRequest{GuildID: "guild-1", BroadcasterID: "7"}); err != ErrGuildBoundElsewhere {
-		t.Fatalf("err = %v, want ErrGuildBoundElsewhere", err)
+	// One refusal for both "not yours" and "not bound": see desk_test.go's
+	// note on the strict ownership check.
+	if err := w.UnbindGuild(context.Background(), GuildSetupRequest{GuildID: "guild-1", BroadcasterID: "7"}); err != ErrNotBound {
+		t.Fatalf("err = %v, want ErrNotBound", err)
 	}
 	if err := w.UnbindGuild(context.Background(), GuildSetupRequest{GuildID: "guild-1", BroadcasterID: "42"}); err != nil {
 		t.Fatalf("UnbindGuild: %v", err)
@@ -307,8 +309,8 @@ func TestGuildLayoutRequiresTheBinding(t *testing.T) {
 	store.PutGuild(discordstore.Guild{ID: "guild-1"}, discordstore.Broadcaster{ID: "42"})
 	w := setupWorker(guild, store)
 
-	if _, err := w.GuildLayout(context.Background(), GuildSetupRequest{GuildID: "guild-1", BroadcasterID: "7"}); err != ErrGuildBoundElsewhere {
-		t.Fatalf("err = %v, want ErrGuildBoundElsewhere", err)
+	if _, err := w.GuildLayout(context.Background(), GuildSetupRequest{GuildID: "guild-1", BroadcasterID: "7"}); err != ErrNotBound {
+		t.Fatalf("err = %v, want ErrNotBound", err)
 	}
 	layout, err := w.GuildLayout(context.Background(), GuildSetupRequest{GuildID: "guild-1", BroadcasterID: "42"})
 	if err != nil {

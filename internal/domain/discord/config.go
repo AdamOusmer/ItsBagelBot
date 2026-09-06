@@ -220,10 +220,27 @@ func (c Config) TicketLogChannel() string {
 // TicketPanelSpec is the resolved desk embed: never blank fields, so a
 // caller renders it without re-deciding defaults.
 type TicketPanelSpec struct {
-	Title  string
-	Body   string
-	Color  int
+	Title string
+	Body  string
+	// Color is the embed's left bar, nil when nobody picked one.
+	//
+	// A pointer rather than an int because 0 is #000000, a colour a streamer
+	// can legitimately choose. The earlier rule ("zero means unset") had no
+	// way to tell the two apart, so every black panel came out brand purple
+	// and no amount of re-saving fixed it. The alternative considered was a
+	// sentinel like -1, which survives JSON but leaks an impossible colour
+	// into every reader that forgets to check for it.
+	Color  *int
 	Button string
+}
+
+// ColorOr resolves the bar colour, falling back only when it was never set.
+// A set colour of 0 stays 0.
+func (s TicketPanelSpec) ColorOr(fallback int) int {
+	if s.Color == nil {
+		return fallback
+	}
+	return *s.Color
 }
 
 // Ticket panel defaults. Kept as constants so the dashboard preview and the
@@ -245,28 +262,32 @@ const (
 // TicketPanel resolves the desk embed copy, filling every empty field with
 // its default.
 func (c Config) TicketPanel() TicketPanelSpec {
-	spec := TicketPanelSpec{
+	color := LiveColor
+	if parsed, ok := ParseHexColor(c.TicketPanelColor); ok {
+		color = parsed
+	}
+	return TicketPanelSpec{
 		Title:  firstNonEmpty(c.TicketPanelTitle, TicketPanelTitleDefault),
 		Body:   firstNonEmpty(c.TicketPanelBody, TicketPanelBodyDefault),
 		Button: firstNonEmpty(c.TicketPanelButton, TicketPanelButtonDefault),
-		Color:  LiveColor,
+		Color:  &color,
 	}
-	if color, ok := ParseHexColor(c.TicketPanelColor); ok {
-		spec.Color = color
-	}
-	return spec
 }
 
 // OrDefaults fills a spec that crossed a process boundary. TicketPanel already
 // resolves every field, but a spec that arrived over RPC was assembled by the
 // caller and may carry blanks (a dashboard that sent only the fields it
-// changed, a zero Color meaning "unset" rather than black).
+// changed, or no colour at all).
+//
+// Only an absent colour is defaulted: a spec that carries 0 asked for black
+// and gets black. See TicketPanelSpec.Color.
 func (s TicketPanelSpec) OrDefaults() TicketPanelSpec {
 	s.Title = firstNonEmpty(s.Title, TicketPanelTitleDefault)
 	s.Body = firstNonEmpty(s.Body, TicketPanelBodyDefault)
 	s.Button = firstNonEmpty(s.Button, TicketPanelButtonDefault)
-	if s.Color == 0 {
-		s.Color = LiveColor
+	if s.Color == nil {
+		color := LiveColor
+		s.Color = &color
 	}
 	return s
 }

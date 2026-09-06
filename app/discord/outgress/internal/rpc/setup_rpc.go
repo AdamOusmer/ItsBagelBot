@@ -37,31 +37,51 @@ const setupHandleTimeout = 45 * time.Second
 // layoutHandleTimeout covers two listings.
 const layoutHandleTimeout = 10 * time.Second
 
+// Every dashboard-facing timeout below is deliberately SHORTER than the
+// console's own client deadline for the same call (see
+// console/dashboard/src/lib/server/discord-store.ts and the pairing table in
+// timeouts_test.go). Whoever gives up first decides what the streamer sees:
+// when it is the server, the reply carries a code the page can explain; when
+// it is the console, the page shows a generic network failure and the handler
+// keeps working on an answer nobody will read. The gap also keeps one NATS
+// request from being retried while its first attempt is still in flight.
+
 // statusHandleTimeout bounds the status handler: one Valkey read plus one
 // GetGuildWithCounts. Tight on purpose -- the dashboard polls it while a
 // page is open, and a status pill that hangs is worse than one that says
-// "unknown".
-const statusHandleTimeout = 3 * time.Second
+// "unknown". 2.5s sits under the console's 3s.
+const statusHandleTimeout = 2500 * time.Millisecond
 
 // deskRepostTimeout bounds the repost: one Valkey read, one message delete and
-// one panel post. Ten seconds rather than handleTimeout's 1.5s because two of
-// the three are REST calls that can each sit behind a Retry-After.
-const deskRepostTimeout = 10 * time.Second
+// one panel post. Eight seconds rather than handleTimeout's 1.5s because two
+// of the three are REST calls that can each sit behind a Retry-After, and
+// under the console's 10s.
+const deskRepostTimeout = 8 * time.Second
 
 // handleTimeout bounds the unbind and post handlers: one Valkey round trip
 // (unbind) or one REST call (post).
 const handleTimeout = 1500 * time.Millisecond
 
-// configHandleTimeout bounds a settings read or write: an ownership lookup
-// plus one discord-data round trip, each of which is a single indexed query.
+// configGetHandleTimeout bounds a settings read: an ownership lookup plus one
+// discord-data round trip, each a single indexed query. 1.5s is under the
+// console's 2s, which is the tightest client deadline the dashboard sets --
+// the settings page blocks on this one before it can render anything.
+const configGetHandleTimeout = 1500 * time.Millisecond
+
+// configHandleTimeout bounds a settings write: the same two queries plus the
+// version check and the cache invalidation. It keeps the read's older, looser
+// budget because the console allows a write 5s, and a save that misses its
+// deadline costs the streamer the form they just filled in.
 const configHandleTimeout = 3 * time.Second
 
 // guildsHandleTimeout bounds the server picker: one binding listing plus one
-// GetGuild per bound guild, serially. Ten seconds covers a streamer with a
-// dozen servers even with a Retry-After in the middle; the alternative,
-// fanning the lookups out concurrently, would multiply this bot's share of
-// Discord's global bucket by the number of open dashboards.
-const guildsHandleTimeout = 10 * time.Second
+// GetGuild per bound guild, serially. Seven seconds covers a streamer with a
+// dozen servers even with a Retry-After in the middle and stays under the
+// console's 8s; the alternative, fanning the lookups out concurrently, would
+// multiply this bot's share of Discord's global bucket by the number of open
+// dashboards. A listing that runs out of budget still answers: see
+// handleGuildsList's partial reply.
+const guildsHandleTimeout = 7 * time.Second
 
 // SetupWiring is what SubscribeSetup needs from main: the connection, the
 // subject prefix and queue group, and the observability handles.
@@ -462,10 +482,26 @@ func (d *discordRPC) handlePost(ctx context.Context, req outgressrpc.DiscordPost
 // prompt" rather than as an error: a missing flag must never block the
 // layout the dashboard actually asked for.
 func (d *discordRPC) needsReauth(ctx context.Context, guildID kv.GuildID) bool {
+	flag, _ := d.reauthFlag(ctx, guildID)
+	return flag
+}
+
+// reauthFlag is needsReauth plus whether the answer was actually looked up.
+//
+// The flag is one Valkey EXISTS whose failure mode is a plain false, and a
+// dead context fails it every time. On the guilds listing that context is
+// routinely dead: the listing returns what it has when the deadline passes,
+// and the flags are read afterwards. Reporting "unknown" there is the whole
+// point -- a guild whose grant has died must not be drawn as healthy because
+// the page was slow.
+func (d *discordRPC) reauthFlag(ctx context.Context, guildID kv.GuildID) (flag, known bool) {
 	if d.reauth == nil {
-		return false
+		return false, true
 	}
-	return d.reauth.NeedsReauth(ctx, guildID)
+	if ctx.Err() != nil {
+		return false, false
+	}
+	return d.reauth.NeedsReauth(ctx, guildID), true
 }
 
 // subscribeGuildConfig wires the multi-guild surface: the settings a page
@@ -473,7 +509,7 @@ func (d *discordRPC) needsReauth(ctx context.Context, guildID kv.GuildID) bool {
 // SubscribeSetup so neither function carries every verb.
 func subscribeGuildConfig(d *discordRPC, wire SetupWiring) error {
 	if err := bus.QueueSubscribeJSON[outgressrpc.DiscordConfigGetRequest, outgressrpc.DiscordConfigGetReply](
-		wire.NC, wire.Prefix+".discord.config.get", wire.Queue, configHandleTimeout, wire.App, wire.Log, d.handleConfigGet); err != nil {
+		wire.NC, wire.Prefix+".discord.config.get", wire.Queue, configGetHandleTimeout, wire.App, wire.Log, d.handleConfigGet); err != nil {
 		return err
 	}
 	if err := bus.QueueSubscribeJSON[outgressrpc.DiscordConfigSetRequest, outgressrpc.DiscordConfigSetReply](
@@ -520,13 +556,15 @@ func (d *discordRPC) handleGuildsList(ctx context.Context, req outgressrpc.Disco
 	// The listing is returned even alongside an error: a deadline reached
 	// part-way leaves a usable partial list, and the code tells the dashboard
 	// it is short rather than wrong.
-	guilds, err := d.w.ListGuilds(ctx, req.UserID)
-	out := d.guildEntries(ctx, guilds)
+	listing, err := d.w.ListGuilds(ctx, req.UserID)
+	out := d.guildEntries(ctx, listing.Guilds)
 	if err != nil {
 		message, code := discordFailure(err)
-		return outgressrpc.DiscordGuildsListReply{Guilds: out, Error: message, Code: code}
+		return outgressrpc.DiscordGuildsListReply{
+			Guilds: out, Truncated: listing.Truncated, Error: message, Code: code,
+		}
 	}
-	return outgressrpc.DiscordGuildsListReply{Guilds: out}
+	return outgressrpc.DiscordGuildsListReply{Guilds: out, Truncated: listing.Truncated}
 }
 
 // guildEntries renders the worker's summaries onto the wire type.
@@ -535,16 +573,22 @@ func (d *discordRPC) handleGuildsList(ctx context.Context, req outgressrpc.Disco
 // that dies is the bot's authorization in ONE server, so a broadcaster with
 // four guilds can have three healthy and one needing a re-invite, and a
 // single account-wide flag would either warn on all four or on none.
+//
+// An entry whose flag could not be read carries ReauthUnknown instead of a
+// false: this runs after ListGuilds, which on a slow page has already given
+// up on the context, and every lookup then fails the same way.
 func (d *discordRPC) guildEntries(ctx context.Context, guilds []setup.GuildSummary) []outgressrpc.DiscordGuildEntry {
 	out := make([]outgressrpc.DiscordGuildEntry, 0, len(guilds))
 	for _, g := range guilds {
+		flag, known := d.reauthFlag(ctx, kv.GuildID(g.GuildID))
 		out = append(out, outgressrpc.DiscordGuildEntry{
 			GuildID:       g.GuildID,
 			Name:          g.Name,
 			MemberCount:   g.MemberCount,
 			BotPresent:    g.BotPresent,
 			BoundAtUnixMs: g.BoundAtUnixMs,
-			NeedsReauth:   d.needsReauth(ctx, kv.GuildID(g.GuildID)),
+			NeedsReauth:   flag,
+			ReauthUnknown: !known,
 		})
 	}
 	return out
