@@ -9,10 +9,20 @@ interface Props {
 }
 
 const { eyebrow, title, align = "center" } = Astro.props;
+
+// The optional badge rides the eyebrow line rather than the title: a status
+// chip beside display type at clamp(1.6rem, 4.5vw, 2.5rem) either shrinks the
+// title or outgrows the chip, and it wraps under the first word on phones.
+const hasBadge = Astro.slots.has("badge");
 ---
 
 <div class:list={["section-heading", `section-heading--${align}`]}>
-    {eyebrow && <span class="section-heading__eyebrow" data-reveal>{eyebrow}</span>}
+    {(eyebrow || hasBadge) && (
+        <div class="section-heading__meta" data-reveal>
+            {eyebrow && <span class="section-heading__eyebrow">{eyebrow}</span>}
+            <slot name="badge" />
+        </div>
+    )}
     <h2 class="section-heading__title" data-reveal style="--reveal-i: 1">{title}</h2>
 </div>
 
@@ -33,13 +43,20 @@ const { eyebrow, title, align = "center" } = Astro.props;
         text-align: left;
     }
 
+    .section-heading__meta {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 14px;
+    }
+
     .section-heading__eyebrow {
         font-family: var(--font-mono, "DM Mono", monospace);
         font-size: 0.72rem;
         letter-spacing: 0.14em;
         text-transform: uppercase;
         color: var(--green-glow, #52b788);
-        margin-bottom: 14px;
     }
 
     .section-heading__title {

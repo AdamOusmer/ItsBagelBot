@@ -14,12 +14,10 @@ import { getLangFromUrl, useTranslations } from '../../i18n/ui';
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
 
-// The affiliation note names the Minecraft account the Hypixel API key belongs
-// to. `{ign}` marks where the linked handle sits so each locale keeps it in its
-// own prose order; the profile link is the public proof of that ownership.
-const IGN = 'ItsMavey';
-const IGN_PROFILE = `https://namemc.com/profile/${IGN}`;
-const [legalBefore, legalAfter = ''] = t('games.legal').split('{ign}');
+// The full trademark and affiliation notices (Mojang, Hypixel, Epic, Riot,
+// Supercell) live in the footer now, where every page carries them. This
+// section keeps a one-line pointer: five publishers' worth of legalese under a
+// bento grid buried the section it belonged to.
 ---
 
 <section class="games" id="integrations">
@@ -137,12 +135,7 @@ const [legalBefore, legalAfter = ''] = t('games.legal').split('{ign}');
         </Card>
     </div>
 
-    <p class="games__legal">{legalBefore}<a
-        class="games__legal-link"
-        href={IGN_PROFILE}
-        target="_blank"
-        rel="noopener noreferrer"
-    >{IGN}</a>{legalAfter}</p>
+    <p class="games__legal">{t('games.legalShort')}</p>
 </section>
 
 <style>
@@ -434,19 +427,6 @@ const [legalBefore, legalAfter = ''] = t('games.legal').split('{ign}');
         line-height: 1.7;
         color: var(--muted, #888077);
         opacity: 0.75;
-    }
-
-    .games__legal-link {
-        color: var(--tan-light, #e0c49a);
-        text-decoration: underline;
-        text-decoration-color: rgba(224, 196, 154, 0.4);
-        text-underline-offset: 2px;
-        transition: color 180ms ease, text-decoration-color 180ms ease;
-    }
-
-    .games__legal-link:is(:hover, :focus-visible) {
-        color: var(--white, #f0ece4);
-        text-decoration-color: rgba(240, 236, 228, 0.7);
     }
 
     @media (prefers-reduced-motion: reduce) {

@@ -19,7 +19,12 @@ const t = useTranslations(lang);
 
 <section class="safe" id="safety-layers">
     <HomeLightField />
-    <SectionHeading eyebrow={t('safe.eyebrow')} title={t('safe.title')} />
+    {/* One chip for the section, not one per card. Three identical BETA tags
+        down a row of three cards read as three separate disclaimers; the state
+        belongs to the layer stack as a whole. */}
+    <SectionHeading eyebrow={t('safe.eyebrow')} title={t('safe.title')}>
+        <IncomingBadge slot="badge" label={t('badge.beta')} />
+    </SectionHeading>
 
     <div class="safe__grid">
         <Card class="safe__card" data-reveal>
@@ -40,10 +45,7 @@ const t = useTranslations(lang);
                     </span>
                 </div>
             </div>
-            <h3 class="safe__card-title">
-                <span>{t('safe.juryTitle')}</span>
-                <IncomingBadge label={t('badge.beta')} />
-            </h3>
+            <h3 class="safe__card-title"><span>{t('safe.juryTitle')}</span></h3>
             <p class="safe__desc">{t('safe.juryDesc')}</p>
         </Card>
 
@@ -63,10 +65,7 @@ const t = useTranslations(lang);
                     <em>{t('safe.gatesPassed')}</em>
                 </div>
             </div>
-            <h3 class="safe__card-title">
-                <span>{t('safe.gatesTitle')}</span>
-                <IncomingBadge label={t('badge.beta')} />
-            </h3>
+            <h3 class="safe__card-title"><span>{t('safe.gatesTitle')}</span></h3>
             <p class="safe__desc">{t('safe.gatesDesc')}</p>
         </Card>
 
@@ -98,10 +97,7 @@ const t = useTranslations(lang);
                 <span class="network__alert">{t('safe.networkAlert')}</span>
                 <span class="network__status">{t('safe.networkStatus')}</span>
             </div>
-            <h3 class="safe__card-title">
-                <span>{t('safe.networkTitle')}</span>
-                <IncomingBadge label={t('badge.beta')} />
-            </h3>
+            <h3 class="safe__card-title"><span>{t('safe.networkTitle')}</span></h3>
             <p class="safe__desc">{t('safe.networkDesc')}</p>
         </Card>
     </div>

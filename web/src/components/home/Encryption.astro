@@ -29,11 +29,6 @@ const t = useTranslations(lang);
                 <span class="enc-node-line__segment enc-node-line__segment--diag"></span>
                 <span class="enc-node-line__segment enc-node-line__segment--flat"></span>
             </span>
-            <span class="enc-node-line" id="enc-line-3">
-                <span class="enc-node-line__node"></span>
-                <span class="enc-node-line__segment enc-node-line__segment--diag"></span>
-                <span class="enc-node-line__segment enc-node-line__segment--flat"></span>
-            </span>
         </div>
 
         <div class="enc-overlay" id="enc-ov-0">
@@ -54,19 +49,13 @@ const t = useTranslations(lang);
             <p class="enc-p">{t('enc.p3Desc')}</p>
         </div>
 
-        <div class="enc-overlay enc-overlay--right" id="enc-ov-3">
-            <span class="enc-eyebrow">{t('enc.p4Eyebrow')}</span>
-            <h2 class="enc-h2">{t('enc.p4Title')}</h2>
-            <p class="enc-p">{t('enc.p4Desc')}</p>
-        </div>
-
     </div>
 </section>
 
 <style>
     /* Override the global `section` constraints (max-width 1200px, padding) */
     .enc {
-        height: 850vh;
+        height: 520vh;
         width: 100%;
         max-width: none;
         padding: 0;
@@ -316,16 +305,24 @@ const t = useTranslations(lang);
     const pin = section.querySelector('.enc-pin') as HTMLElement | null;
     if (!pin) return;
 
-    const overlays = [0, 1, 2, 3].map(i => document.getElementById(`enc-ov-${i}`) as HTMLElement);
+    // One source of truth for the cinematic: every beat owns an overlay, a
+    // connector, a camera waypoint group and an equal slice of the scroll
+    // track. Change BEAT_COUNT and the markup, nothing else.
+    const BEAT_COUNT = 3;
+    const BEAT_SPAN = 1 / BEAT_COUNT;
+    const beatIndices = Array.from({length: BEAT_COUNT}, (_, i) => i);
+
+    const overlays = beatIndices.map(i => document.getElementById(`enc-ov-${i}`) as HTMLElement);
     const headings = overlays.map(el => el?.querySelector('.enc-h2') as HTMLElement | null);
     const paragraphs = overlays.map(el => el?.querySelector('.enc-p') as HTMLElement | null);
-    const connectors = [0, 1, 2, 3].map(i => document.getElementById(`enc-line-${i}`) as HTMLElement);
+    const connectors = beatIndices.map(i => document.getElementById(`enc-line-${i}`) as HTMLElement);
     const headingText = headings.map(el => el?.textContent ?? '');
     const SCRAMBLE_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#$%&*+-/<>[]{}';
     const TITLE_SCRAMBLE_SPAN = 0.115;
     const TEXT_ENTER_SPAN = 0.06;
     const TEXT_EXIT_SPAN = 0.045;
-    const SNAP_POINTS = [0.125, 0.375, 0.625, 0.875];
+    // Each beat snaps at the middle of its own slice of the track.
+    const SNAP_POINTS = beatIndices.map(i => (i + 0.5) * BEAT_SPAN);
     const SNAP_PROXIMITY = 0.09;
     const SNAP_ACTIVE_MIN = 0.045;
     const SNAP_ACTIVE_MAX = 0.94;
@@ -683,22 +680,54 @@ const t = useTranslations(lang);
             node?: number;
         };
 
-        const FEATURE_NODES = [1, 5, 9, 12];
+        const FEATURE_NODES = [1, 5, 12];
+
+        // Camera shape of one beat, as fractions of that beat's slice of the
+        // track. The wide shot opens the slice, then the two node-relative
+        // waypoints bracket the snap point at 0.5 so the camera is already
+        // settled on the node while the overlay is fully readable.
+        const BEAT_WIDE_AT = 0.10;
+        const BEAT_NODE_IN_AT = 0.42;
+        const BEAT_NODE_OUT_AT = 0.80;
+
+        type BeatCamera = {
+            wide: {pos: Vector3; fov: number};
+            nodeIn: {pos: Vector3; fov: number};
+            nodeOut: {pos: Vector3; fov: number};
+        };
+
+        // Offsets on the node waypoints are relative to the node itself, so
+        // they read as small orbits. The wide shots are absolute and are what
+        // gives each transition its own direction.
+        const BEAT_CAMERAS: BeatCamera[] = [
+            {
+                wide: {pos: new Vector3(2.5, 1.5, 6.0), fov: 52},
+                nodeIn: {pos: new Vector3(0.4, 0.5, 1.7), fov: 60},
+                nodeOut: {pos: new Vector3(-0.5, 0.7, 1.5), fov: 62},
+            },
+            {
+                wide: {pos: new Vector3(-3, 2.5, 6.5), fov: 50},
+                nodeIn: {pos: new Vector3(0.5, -0.4, 1.6), fov: 60},
+                nodeOut: {pos: new Vector3(0.7, 0.6, 1.7), fov: 62},
+            },
+            {
+                wide: {pos: new Vector3(5, 0, 8), fov: 48},
+                nodeIn: {pos: new Vector3(0.5, 0.4, 1.6), fov: 60},
+                nodeOut: {pos: new Vector3(-0.4, 0.5, 1.7), fov: 62},
+            },
+        ];
 
         const CAM: KF[] = [
             {p: 0.00, pos: new Vector3(0, 0, 8.5), fov: 50},
-            {p: 0.06, pos: new Vector3(2.5, 1.5, 6.0), fov: 52},
-            {p: 0.13, pos: new Vector3(0.4, 0.5, 1.7), fov: 60, node: FEATURE_NODES[0]},
-            {p: 0.20, pos: new Vector3(-0.5, 0.7, 1.5), fov: 62, node: FEATURE_NODES[0]},
-            {p: 0.27, pos: new Vector3(-3, 2.5, 6.5), fov: 50},
-            {p: 0.36, pos: new Vector3(0.5, -0.4, 1.6), fov: 60, node: FEATURE_NODES[1]},
-            {p: 0.45, pos: new Vector3(0.7, 0.6, 1.7), fov: 62, node: FEATURE_NODES[1]},
-            {p: 0.52, pos: new Vector3(0, 5, 8.5), fov: 44},
-            {p: 0.60, pos: new Vector3(-0.4, 0.6, 1.6), fov: 60, node: FEATURE_NODES[2]},
-            {p: 0.68, pos: new Vector3(0.6, -0.4, 1.5), fov: 62, node: FEATURE_NODES[2]},
-            {p: 0.74, pos: new Vector3(5, 0, 8), fov: 48},
-            {p: 0.83, pos: new Vector3(0.5, 0.4, 1.6), fov: 60, node: FEATURE_NODES[3]},
-            {p: 0.90, pos: new Vector3(-0.4, 0.5, 1.7), fov: 62, node: FEATURE_NODES[3]},
+            ...BEAT_CAMERAS.flatMap((beat, i): KF[] => {
+                const start = i * BEAT_SPAN;
+                const node = FEATURE_NODES[i];
+                return [
+                    {p: start + BEAT_WIDE_AT * BEAT_SPAN, pos: beat.wide.pos, fov: beat.wide.fov},
+                    {p: start + BEAT_NODE_IN_AT * BEAT_SPAN, pos: beat.nodeIn.pos, fov: beat.nodeIn.fov, node},
+                    {p: start + BEAT_NODE_OUT_AT * BEAT_SPAN, pos: beat.nodeOut.pos, fov: beat.nodeOut.fov, node},
+                ];
+            }),
             {p: 1.00, pos: new Vector3(0, 0.5, 9), fov: 50},
         ];
 
@@ -1106,10 +1135,12 @@ const t = useTranslations(lang);
             for (let i = 0; i < overlays.length; i++) {
                 const el = overlays[i];
                 if (!el) continue;
-                const start = i * 0.25;
-                const end = start + 0.25;
+                const start = i * BEAT_SPAN;
+                const end = start + BEAT_SPAN;
                 const fadeIn = ss(start, start + TEXT_ENTER_SPAN, p);
-                const exitProgress = i < 3 ? ss(end - TEXT_EXIT_SPAN, end + 0.012, p) : 0;
+                // The last beat never exits: it holds while the section unpins.
+                const isLastBeat = i === overlays.length - 1;
+                const exitProgress = isLastBeat ? 0 : ss(end - TEXT_EXIT_SPAN, end + 0.012, p);
                 const fadeOut = 1 - exitProgress;
                 const alpha = fadeIn * fadeOut;
                 const dy = (1 - fadeIn) * 18 - exitProgress * 26;
