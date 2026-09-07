@@ -1,0 +1,18 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+/**
+ * Prose: authored HTML straight through, no wrapper element. Paragraphs,
+ * lists, h3s and inline code/links are styled by GuideShell's own
+ * `.gshell__block :global(...)` rules, which match descendants, so this block
+ * deliberately renders nothing of its own around the copy.
+ */
+interface Props {
+    html: string;
+}
+
+const { html } = Astro.props;
+---
+
+<Fragment set:html={html} />

@@ -8,17 +8,23 @@
  * guide-specific vocabulary: numbered sections, an optional "at a glance"
  * note per section, a breadcrumb back to the hub, and a prev/next pager so a
  * reader can walk the whole handbook without returning to the hub.
- * Pages pass sections (id, heading, note) and provide each section's body
- * through a matching named slot.
+ * Sections arrive whole (id, heading, note, blocks) from a content file and
+ * GuideBody renders each body. They used to come in as named slots; a dynamic
+ * `slot={section.id}` inside a .map is not resolvable by the compiler and
+ * threw "section is not defined" at build time, so the body is a prop now.
  */
 import TextLink from '../ui/TextLink.astro';
+import GuideBody from './GuideBody.astro';
 import { getLangFromUrl, useTranslations, localizePath } from '../../i18n/ui';
+import type { Block } from '../../lib/guides/types';
 
 interface Section {
     id: string;
     heading: string;
     /** One-line takeaway shown in the tinted callout under the heading. */
     note?: string;
+    /** The section body, from the guide's content file. */
+    blocks: Block[];
 }
 
 interface Pager {
@@ -70,7 +76,7 @@ const hubHref = localizePath('/guides', lang);
                 {minutes && <span class="gshell__minutes">{minutes}</span>}
             </div>
 
-            {await Promise.all(sections.map(async (section, i) => (
+            {sections.map((section, i) => (
                 <section class="gshell__block" id={section.id} data-guide-section data-reveal style={`--reveal-i: ${Math.min(i + 1, 6)}`}>
                     <h2><i>{String(i + 1).padStart(2, '0')}</i>{section.heading}</h2>
                     {section.note && (
@@ -79,9 +85,9 @@ const hubHref = localizePath('/guides', lang);
                             {section.note}
                         </p>
                     )}
-                    <Fragment set:html={await Astro.slots.render(section.id)} />
+                    <GuideBody blocks={section.blocks} />
                 </section>
-            )))}
+            ))}
 
             {(prev || next) && (
                 <nav class="gshell__pager" aria-label={labels.next}>

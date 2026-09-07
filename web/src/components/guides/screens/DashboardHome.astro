@@ -1,0 +1,58 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+/**
+ * The dashboard Overview page, hand-built from the df-* class library (see
+ * src/styles/dashframe.css). English is the default; a locale overrides only
+ * the keys it needs, so a translator never touches this DOM. The numbered
+ * df-dot markers live here, next to what they point at; their explanations
+ * come from the content file's `notes`.
+ */
+interface Props {
+    labels?: Record<string, string>;
+}
+
+const { labels = {} } = Astro.props;
+const L = {
+    console: 'Console',
+    crumbPage: 'Overview',
+    account: 'streamer · Broadcaster',
+    eyebrow: 'Status',
+    titleHtml: 'Good evening, <i>streamer</i>',
+    statusState: 'Online · in chat',
+    statusNote: '· nothing needs you right now',
+    restart: 'Restart',
+    disconnect: 'Disconnect',
+    quickActions: 'Quick actions',
+    newCommand: '+ New command',
+    manageModules: 'Manage modules',
+    topCommands: 'Your top commands',
+    cmd1Name: '!bagel',
+    cmd1Response: '&#123;user&#125; tosses a warm bagel to &#123;target&#125;. Toasty.',
+    cmd1Count: '1.2k',
+    cmd2Name: '!lurk',
+    cmd2Response: '&#123;user&#125; fades into the shadows. Thanks for the lurk.',
+    cmd2Count: '521',
+    uses: 'uses',
+    dockOverview: 'Overview',
+    dockCommands: 'Commands',
+    dockModules: 'Modules',
+    dockBilling: 'Billing',
+    dockSettings: 'Settings',
+    ...labels,
+};
+---
+
+<div class="df-main">
+    <div class="df-topbar"><span class="df-brand">ItsBagelBot <small>{L.console}</small></span><span class="df-crumb">ItsBagelBot / <b>{L.crumbPage}</b></span><span class="df-account">{L.account}</span></div>
+    <span class="df-eyebrow">{L.eyebrow}</span>
+    <p class="df-title" set:html={L.titleHtml}></p>
+    <div class="df-row"><span class="df-grow"><b style="color:var(--white);">{L.statusState}</b> {L.statusNote}</span><span class="df-btn df-btn--ghost">{L.restart}</span><span class="df-btn df-btn--ghost">{L.disconnect}</span><i class="df-dot" style="position:static;">2</i></div>
+    <span class="df-cat">{L.quickActions}</span>
+    <div class="df-actions"><span class="df-btn df-btn--primary">{L.newCommand}</span><span class="df-btn df-btn--ghost">{L.manageModules}</span><i class="df-dot" style="position:static;">3</i></div>
+    <span class="df-cat">{L.topCommands} <i class="df-dot" style="position:static; width:16px; height:16px; font-size:0.55rem; margin-left:4px;">4</i></span>
+    <div class="df-row"><code>{L.cmd1Name}</code><span class="df-grow" set:html={L.cmd1Response}></span><span class="df-meta"><b>{L.cmd1Count}</b> {L.uses}</span></div>
+    <div class="df-row"><code>{L.cmd2Name}</code><span class="df-grow" set:html={L.cmd2Response}></span><span class="df-meta"><b>{L.cmd2Count}</b> {L.uses}</span></div>
+    <div class="df-dock"><span class="is-active">{L.dockOverview}</span><span>{L.dockCommands}</span><span>{L.dockModules}</span><span>{L.dockBilling}</span><span>{L.dockSettings}</span><i class="df-dot" style="position:static; align-self:center; margin-left:6px;">1</i></div>
+</div>

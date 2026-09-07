@@ -1,0 +1,48 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+/**
+ * GuideBody: turns one section's blocks into DOM. This is the only place that
+ * knows which component renders which block kind, so a new kind is added in
+ * three spots: the Block union in lib/guides/types.ts, a component under
+ * blocks/ (or screens/, widgets/), and one branch here.
+ */
+import type { Block } from '../../lib/guides/types';
+import Callout from './blocks/Callout.astro';
+import Cards from './blocks/Cards.astro';
+import Prose from './blocks/Prose.astro';
+import Steps from './blocks/Steps.astro';
+import Table from './blocks/Table.astro';
+import ChatMock from './ChatMock.astro';
+import DashFrame from './DashFrame.astro';
+import { screens } from './screens/index';
+import { widgets } from './widgets/index';
+
+interface Props {
+    blocks: Block[];
+}
+
+const { blocks } = Astro.props;
+---
+
+{blocks.map((block) => {
+    if (block.kind === 'prose') return <Prose html={block.html} />;
+    if (block.kind === 'callout') return <Callout tone={block.tone} html={block.html} />;
+    if (block.kind === 'table') return <Table head={block.head} rows={block.rows} caption={block.caption} id={block.id} />;
+    if (block.kind === 'chat') return <ChatMock title={block.title} caption={block.caption} lines={block.lines} />;
+    if (block.kind === 'steps') return <Steps items={block.items} />;
+    if (block.kind === 'cards') return <Cards columns={block.columns} items={block.items} />;
+    if (block.kind === 'dash') {
+        const Screen = screens[block.screen] as any;
+        if (!Screen) throw new Error(`guides: no screen component for "${block.screen}" (add screens/${block.screen}.astro)`);
+        return (
+            <DashFrame path={block.path} caption={block.caption} notes={block.notes}>
+                <Screen labels={block.labels} />
+            </DashFrame>
+        );
+    }
+    const Widget = widgets[block.name] as any;
+    if (!Widget) throw new Error(`guides: no widget component for "${block.name}" (add widgets/${block.name}.astro)`);
+    return <Widget labels={block.labels} props={block.props} />;
+})}

@@ -10,6 +10,10 @@
 // the copy and the locale-aware link/switch helpers.
 
 import en from './locales/en.json';
+// The guide URLs come from the slug list, not a second hand-kept copy. Imported
+// from lib/guides/slugs (which imports nothing) rather than from the registry,
+// which imports this file: the slugs module exists to break that cycle.
+import { guideLocalizedPaths } from '../lib/guides/slugs';
 
 // Eager glob: every locale catalog, bundled at build time. Keyed by module path
 // ('./locales/fr.json' → the parsed object).
@@ -55,8 +59,7 @@ function normalizePath(path: string): string {
  */
 export const LOCALIZED_PATHS: ReadonlySet<string> = new Set([
   '/', '/pricing', '/contact', '/privacy', '/terms', '/creator-terms',
-  '/guides', '/guides/getting-started', '/guides/commands', '/guides/modules',
-  '/guides/counters', '/command-builder', '/changelog',
+  ...guideLocalizedPaths, '/command-builder', '/changelog',
 ]);
 
 /** Locale from the URL: first path segment when it names a known locale, else default. */

@@ -1,0 +1,72 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+/**
+ * Cards: a short grid of side-by-side facts. One line, one fact per card;
+ * anything longer belongs in prose. Columns collapse to one on phones.
+ */
+interface Props {
+    columns?: 2 | 3;
+    items: { title: string; html: string; chips?: string[]; badge?: string }[];
+}
+
+const { columns = 2, items } = Astro.props;
+---
+
+<div class="gcards" style={`--gcards-cols: ${columns}`}>
+    {items.map((item) => (
+        <div class="gcards__item">
+            <div class="gcards__head">
+                <b>{item.title}</b>
+                {item.badge && <i class="bb-tag bb-tag--bare">{item.badge}</i>}
+            </div>
+            <div class="gcards__body" set:html={item.html}></div>
+            {item.chips && item.chips.length > 0 && (
+                <div class="gcards__chips">
+                    {item.chips.map((chip) => <i class="bb-tag bb-tag--bare">{chip}</i>)}
+                </div>
+            )}
+        </div>
+    ))}
+</div>
+
+<style>
+    .gcards {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 12px;
+        margin: 22px 0;
+    }
+
+    .gcards__item {
+        display: grid;
+        gap: 8px;
+        align-content: start;
+        padding: 15px 16px;
+        border: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+        border-radius: 12px;
+        background: rgba(17, 17, 16, 0.6);
+    }
+
+    .gcards__head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 10px;
+    }
+
+    .gcards__head b {
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-size: 0.95rem;
+        color: var(--white, #f0ece4);
+    }
+
+    .gcards__body :global(p) { margin: 0; }
+
+    .gcards__chips { display: flex; flex-wrap: wrap; gap: 6px; }
+
+    @media (min-width: 720px) {
+        .gcards { grid-template-columns: repeat(var(--gcards-cols, 2), minmax(0, 1fr)); }
+    }
+</style>

@@ -1,0 +1,68 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+/**
+ * Steps: a numbered walkthrough where each step carries a title and a body.
+ * Use it when the order matters and each step needs more than one sentence;
+ * a plain <ol> inside a prose block is enough for anything shorter.
+ */
+interface Props {
+    items: { title: string; html: string }[];
+}
+
+const { items } = Astro.props;
+---
+
+<ol class="gsteps">
+    {items.map((item) => (
+        <li class="gsteps__item">
+            <b class="gsteps__title">{item.title}</b>
+            <div class="gsteps__body" set:html={item.html}></div>
+        </li>
+    ))}
+</ol>
+
+<style>
+    .gsteps {
+        list-style: none;
+        display: grid;
+        gap: 14px;
+        counter-reset: gstep;
+        margin: 22px 0;
+        padding: 0;
+    }
+
+    .gsteps__item {
+        counter-increment: gstep;
+        position: relative;
+        padding: 14px 16px 14px 46px;
+        border: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+        border-radius: 12px;
+        background: rgba(17, 17, 16, 0.6);
+    }
+
+    .gsteps__item::before {
+        content: counter(gstep, decimal-leading-zero);
+        position: absolute;
+        top: 15px;
+        left: 16px;
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.7rem;
+        color: var(--tan, #c9a87c);
+    }
+
+    .gsteps__title {
+        display: block;
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-size: 0.95rem;
+        color: var(--white, #f0ece4);
+        margin-bottom: 4px;
+    }
+
+    .gsteps__body :global(p) { margin: 0; }
+
+    @media (max-width: 640px) {
+        .gsteps__item { padding: 12px 13px 13px 40px; }
+    }
+</style>

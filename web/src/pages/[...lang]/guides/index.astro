@@ -2,57 +2,31 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+// The guides hub, one file for every locale. Cards come from each guide's own
+// content file (meta.card), so the hub can never describe a guide that no
+// longer says that; order and numbering come from the slug list.
 import Layout from '../../../layouts/Layout.astro';
 import PageHero from '../../../components/ui/PageHero.astro';
 import GuideCard from '../../../components/guides/GuideCard.astro';
 import TextLink from '../../../components/ui/TextLink.astro';
+import { getLangFromUrl, locales, defaultLang } from '../../../i18n/ui';
+import { getGuide, getHub, guideIndex, guidePath, guideSlugs } from '../../../lib/guides/registry';
 
-const guides = [
-    {
-        index: '01',
-        href: '/fr/guides/getting-started',
-        title: 'Bien démarrer',
-        description: 'De «Ajouter à Twitch» à votre premier stream avec le bot: connectez la chaîne, repérez-vous dans le tableau de bord et activez vos premiers outils.',
-        meta: '6 min · 5 étapes',
-        chips: ['connexion', 'visite guidée', 'premier module'],
-    },
-    {
-        index: '02',
-        href: '/fr/guides/commands',
-        title: 'Commandes et variables',
-        description: 'Créez des commandes qui saluent les gens par leur nom, lancent des dés et comptent vos victoires. Toutes les variables du bot, expliquées avec des exemples de chat.',
-        meta: '9 min · 7 étapes',
-        chips: ['{user}', '{random}', '{counter:…}', '!cmd'],
-    },
-    {
-        index: '03',
-        href: '/fr/guides/modules',
-        title: 'Le manuel des modules',
-        description: "Chaque module, une seule page: alertes, minuteries, points de fidélité, récompenses de points de chaîne, mots déclencheurs, file d'attente, citations et stats de jeu.",
-        meta: '12 min · 6 étapes',
-        chips: ['alertes', 'minuteries', 'fidélité', 'stats de jeu'],
-    },
-    {
-        index: '04',
-        href: '/fr/guides/counters',
-        title: 'Compteurs',
-        description: 'Des nombres dont le bot se souvient pour toujours: le jeton {counter:name}, les quatre portées (chaîne, par spectateur, par commande, par spectateur + commande), et la liaison à une récompense de points de chaîne.',
-        meta: '8 min · 4 étapes',
-        chips: ['{counter:…}', 'portées', '!counter', 'points de chaîne'],
-    },
-];
+export function getStaticPaths() {
+    return locales.map((l) => ({ params: { lang: l === defaultLang ? undefined : l } }));
+}
+
+const lang = getLangFromUrl(Astro.url);
+const hub = getHub(lang);
+const guides = guideSlugs.map((slug) => ({
+    index: guideIndex(slug),
+    href: guidePath(slug, lang),
+    ...getGuide(slug, lang).meta.card,
+}));
 ---
 
-<Layout
-    title="Guides - ItsBagelBot"
-    description="Guides visuels pour ItsBagelBot: installez le bot, maîtrisez le tableau de bord et créez de puissantes commandes personnalisées avec variables, sans écrire de code."
-    ogType="article"
->
-    <PageHero
-        eyebrow="Guides"
-        title="Apprivoisez le bot."
-        description="Courts, visuels et écrits pour des humains. Tout ce qui suit fonctionne avec le forfait gratuit: pas de code, pas de jargon, pas de petites lignes."
-    />
+<Layout title={hub.meta.title} description={hub.meta.description} ogType="article">
+    <PageHero eyebrow={hub.meta.eyebrow} title={hub.meta.heading} description={hub.meta.lead} />
 
     <section class="ghub">
         <div class="ghub__list">
@@ -61,30 +35,27 @@ const guides = [
             ))}
         </div>
 
-        <a class="ghub__tool" href="/fr/command-builder" data-reveal style="--reveal-i: 4">
+        <!-- The tool: not a guide, a workbench. -->
+        <a class="ghub__tool" href={hub.tool.href} data-reveal style="--reveal-i: 4">
             <div class="ghub__tool-copy">
-                <span class="ghub__tool-eyebrow">Outil interactif</span>
-                <b>Constructeur de commandes</b>
-                <p>
-                    Écrivez le message comme une phrase, cliquez pour insérer les parties intelligentes,
-                    regardez la répétition en direct, puis envoyez la commande terminée directement dans
-                    votre tableau de bord.
-                </p>
-                <span class="ghub__tool-cta">Ouvrir le constructeur →</span>
+                <span class="ghub__tool-eyebrow">{hub.tool.eyebrow}</span>
+                <b>{hub.tool.name}</b>
+                <p>{hub.tool.description}</p>
+                <span class="ghub__tool-cta">{hub.tool.cta}</span>
             </div>
             <div class="ghub__tool-demo" aria-hidden="true">
-                <span class="ghub__tool-line">Bienvenue, <i>&#123;user&#125;</i>! Tu es le visiteur <i>&#123;counter:visites&#125;</i> 🥯</span>
+                <span class="ghub__tool-line" set:html={hub.tool.demoIn}></span>
                 <span class="ghub__tool-arrow">↓</span>
-                <span class="ghub__tool-line ghub__tool-line--out"><b>ItsBagelBot:</b> Bienvenue, maya_live! Tu es le visiteur 128 🥯</span>
+                <span class="ghub__tool-line ghub__tool-line--out" set:html={hub.tool.demoOut}></span>
             </div>
         </a>
 
         <div class="ghub__help" data-reveal style="--reveal-i: 5">
-            <p>Un guide ne couvre pas votre question?</p>
+            <p>{hub.help.prompt}</p>
             <div>
-                <TextLink href="https://discord.gg/SZ2remwSDv" label="Demandez sur Discord" external />
-                <TextLink href="/fr/contact" label="Contactez le support" />
-                <TextLink href="https://dashboard.itsbagelbot.com?lang=fr" label="Ouvrir le tableau de bord" external />
+                {hub.help.links.map((link) => (
+                    <TextLink href={link.href} label={link.label} external={link.external} />
+                ))}
             </div>
         </div>
     </section>
@@ -98,6 +69,8 @@ const guides = [
     }
 
     .ghub__list { display: grid; gap: 16px; }
+
+    /* ── Builder feature card ── */
 
     .ghub__tool {
         position: relative;
@@ -158,6 +131,8 @@ const guides = [
 
     .ghub__tool:hover .ghub__tool-cta { transform: translateX(4px); }
 
+    /* Mini before/after demo. */
+
     .ghub__tool-demo {
         display: grid;
         gap: 10px;
@@ -191,6 +166,8 @@ const guides = [
         color: var(--tan, #c9a87c);
         padding-left: 16px;
     }
+
+    /* ── Help strip ── */
 
     .ghub__help {
         display: flex;
