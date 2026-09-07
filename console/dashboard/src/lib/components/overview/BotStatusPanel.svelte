@@ -23,7 +23,6 @@
   import Button from '@bagel/shared/components/Button.svelte';
   import ButtonLink from '@bagel/shared/components/ButtonLink.svelte';
   import Card from '@bagel/shared/components/Card.svelte';
-  import Icon from '@bagel/shared/components/Icon.svelte';
   import Skeleton from '@bagel/shared/components/Skeleton.svelte';
   import { getI18n } from '@bagel/shared/i18n/context';
   import type { ConnUi } from '@bagel/shared/connection-state';
@@ -161,7 +160,7 @@
         {#if planLabel}
           <div class="ov-status__meta">
             {#if isPremium}
-              <span class="tag tag--premium"><Icon name="gem" size={12} /> {planLabel}</span>
+              <span class="tag tag--premium">{planLabel}</span>
             {:else}
               <span class="tag">{planLabel}</span>
             {/if}
@@ -179,24 +178,23 @@
                promotes reconnect to the primary action; a healthy one stays quiet. -->
           <Button
             variant={kind === 'degraded' ? 'primary' : 'ghost'}
-            icon="activity"
             type="button"
             class="ov-cta"
             disabled={busy}
             onclick={() => onRestart?.()}
           >{kind === 'degraded' ? t('common.reconnect') : t('overview.restart')}</Button>
-          <Button variant="ghost" icon="power" type="button" class="ov-cta" disabled={busy} onclick={() => onDisconnect?.()}>{t('overview.disconnect')}</Button>
+          <Button variant="ghost" type="button" class="ov-cta" disabled={busy} onclick={() => onDisconnect?.()}>{t('overview.disconnect')}</Button>
         {:else if ui.showEnable}
           <form method="POST" action="?/enable" use:enhance={enableSubmit}>
-            <Button variant="primary" icon="power" type="submit" class="ov-cta" loading={busy}>{t('overview.enable')}</Button>
+            <Button variant="primary" type="submit" class="ov-cta" loading={busy}>{t('overview.enable')}</Button>
           </form>
         {:else if ui.showConnect}
           <!-- reauth_required: the grant died server-side, only a fresh Twitch
                consent restores it, so the one action offered is the reconnect. -->
-          <ButtonLink href="/settings" variant="primary" icon="power" class="ov-cta"
+          <ButtonLink href="/settings" variant="primary" class="ov-cta"
             >{kind === 'reauth_required' ? t('common.reconnect') : t('overview.issueNoAuthCta')}</ButtonLink>
         {:else if ui.canRetry}
-          <ButtonLink href="/" variant="ghost" icon="activity" class="ov-cta">{t('overview.retry')}</ButtonLink>
+          <ButtonLink href="/" variant="ghost" class="ov-cta">{t('overview.retry')}</ButtonLink>
         {/if}
       </div>
     {/if}
@@ -367,12 +365,6 @@
     border-color: rgba(201, 168, 124, 0.35);
     color: var(--bb-tan-light);
   }
-  .tag--premium :global(svg) {
-    stroke: currentColor;
-    fill: none;
-    stroke-width: 1.7;
-  }
-
   .ov-status__actions {
     display: flex;
     gap: 10px;

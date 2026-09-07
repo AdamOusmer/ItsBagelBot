@@ -11,9 +11,7 @@
   // so a down read must never manufacture an "all disabled" / "invites pending"
   // row. Guard every issue on its read having actually landed.
   import ButtonLink from '@bagel/shared/components/ButtonLink.svelte';
-  import Icon from '@bagel/shared/components/Icon.svelte';
   import { getI18n } from '@bagel/shared/i18n/context';
-  import type { IconName } from '@bagel/shared/icons';
 
   const { t } = getI18n();
 
@@ -31,7 +29,7 @@
     sharesOk?: boolean;
   } = $props();
 
-  type Issue = { id: string; icon: IconName; text: string; cta: string; href: string };
+  type Issue = { id: string; text: string; cta: string; href: string };
 
   const issues = $derived.by<Issue[]>(() => {
     const out: Issue[] = [];
@@ -39,7 +37,6 @@
     if (commandsOk && total > 0 && active === 0) {
       out.push({
         id: 'all-disabled',
-        icon: 'edit',
         text: t('overview.issueAllDisabled'),
         cta: t('overview.issueAllDisabledCta'),
         href: '/commands'
@@ -49,7 +46,6 @@
     if (sharesOk && pendingShares > 0) {
       out.push({
         id: 'pending-invites',
-        icon: 'users',
         text: t('overview.invitesPending', { n: pendingShares }),
         cta: t('overview.manageInSettings'),
         href: '/settings'
@@ -65,7 +61,6 @@
     <ul class="ov-attention__list">
       {#each issues as issue (issue.id)}
         <li class="ov-attention__row">
-          <span class="ov-attention__ico" aria-hidden="true"><Icon name={issue.icon} size={15} /></span>
           <span class="ov-attention__text">{issue.text}</span>
           <ButtonLink href={issue.href} variant="ghost" class="ov-attention__cta">{issue.cta}</ButtonLink>
         </li>
@@ -103,22 +98,6 @@
     border: 1px solid var(--bb-status-warning-border);
     border-radius: 8px;
   }
-  .ov-attention__ico {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    flex: none;
-    border-radius: 8px;
-    background: rgba(201, 168, 124, 0.14);
-    color: var(--bb-status-warning);
-  }
-  .ov-attention__ico :global(svg) {
-    stroke: currentColor;
-    fill: none;
-    stroke-width: 1.7;
-  }
   .ov-attention__text {
     flex: 1;
     min-width: 0;
@@ -142,7 +121,6 @@
     }
     .ov-attention__row :global(.ov-attention__cta) {
       order: 3;
-      margin-left: 40px;
     }
   }
 </style>

@@ -504,7 +504,7 @@
     </div>
     <div class="filter-trail">
       <Button variant="ghost" onclick={exportCsv} disabled={visible.length === 0}>
-        <Icon name="audit" size={13} /> Export CSV
+        Export CSV
       </Button>
     </div>
   </div>
@@ -556,11 +556,11 @@
           {/each}
         </ul>
       {:else if rows.length}
-        <EmptyState icon="search" title="No users in this state on this page" />
+        <EmptyState title="No users in this state on this page" />
       {:else if data.search}
-        <EmptyState icon="search" title="No users match" body="Try the exact login or the numeric Twitch id." />
+        <EmptyState title="No users match" body="Try the exact login or the numeric Twitch id." />
       {:else}
-        <EmptyState icon="users" title="No users yet" />
+        <EmptyState title="No users yet" />
       {/if}
 
       {#if dir && (dir.page > 1 || dir.hasMore)}
@@ -718,11 +718,11 @@
                 <form method="POST" action="?/impersonate" use:enhance={impersonateSubmit}>
                   <input type="hidden" name="user_id" value={selected.id} />
                   <button class="btn ghost" type="submit" disabled={busyVerb !== null}>
-                    <Icon name="link" size={13} /> Mint view-as link
+                    Mint view-as link
                   </button>
                 </form>
                 <button class="btn ghost" type="button" disabled={busyVerb !== null} onclick={openMessage}>
-                  <Icon name="send" size={13} /> Message user
+                  Message user
                 </button>
               </div>
               {#if viewAsUrl}
@@ -785,7 +785,6 @@
         </Scroller>
       {:else}
         <div class="inspector-idle">
-          <span class="idle-glyph"><Icon name="users" size={18} /></span>
           <p>Select a user to inspect their account, bot health, and tier.</p>
         </div>
       {/if}
@@ -1032,11 +1031,6 @@
     padding: 34px 20px; text-align: center; color: var(--bb-muted);
     font-family: var(--bb-font-body); font-size: 13px;
     display: flex; flex-direction: column; align-items: center; gap: 12px;
-  }
-  .idle-glyph {
-    display: inline-flex; align-items: center; justify-content: center;
-    width: 40px; height: 40px; border: 1px solid var(--rule-tan); border-radius: 8px;
-    color: var(--bb-tan-light);
   }
   .inspector-idle p { margin: 0; max-width: 26ch; line-height: 1.5; }
 

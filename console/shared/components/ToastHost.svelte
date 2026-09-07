@@ -8,15 +8,12 @@
     t.onUndo?.();
     dismissToast(t.id);
   }
-
-  const icon = (kind: ToastItem['kind']) => (kind === 'ok' ? 'check' : kind === 'err' ? 'ban' : 'pulse');
 </script>
 
 {#if $toasts.length}
   <div class="toast-stack" aria-live="polite">
     {#each $toasts as t (t.id)}
       <div class="toast {t.kind}" role="status">
-        <span class="glyph"><Icon name={icon(t.kind)} size={15} /></span>
         <span class="text">{t.text}</span>
         {#if t.onUndo}
           <button class="undo" type="button" onclick={() => undo(t)}>{t.undoLabel ?? 'Undo'}</button>
@@ -95,16 +92,6 @@
   @keyframes toast-in {
     from { opacity: 0; transform: translateY(8px); }
     to { opacity: 1; transform: translateY(0); }
-  }
-
-  /* the icon lands a beat after the card: small pop, big read */
-  .glyph { display: inline-flex; animation: glyph-pop 320ms var(--bb-ease-out-back, ease-out) 80ms both; }
-  @keyframes glyph-pop {
-    from { transform: scale(0.4); opacity: 0; }
-    to { transform: scale(1); opacity: 1; }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .glyph { animation: none; }
   }
 
   @media (max-width: 480px) {

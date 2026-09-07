@@ -17,7 +17,7 @@
     index
   }: {
     href: string;
-    icon: IconName;
+    icon?: IconName;
     label: string;
     active?: boolean;
     locked?: boolean;
@@ -33,14 +33,14 @@
        carried by real .sr-only text, not a hover-only title tooltip. -->
   <span class="nav-item locked">
     {#if idx}<span class="idx">{idx}</span>{/if}
-    <Icon name={icon} /> {label}
+    {#if icon}<Icon name={icon} />{/if} {label}
     <Icon name="lock" size={13} />
     <span class="sr-only">{t('nav.lockedBroadcaster')}</span>
   </span>
 {:else}
   <a class="nav-item {active ? 'active' : ''}" {href} aria-current={active ? 'page' : undefined}>
     {#if idx}<span class="idx">{idx}</span>{/if}
-    <Icon name={icon} /> <span class="lbl">{label}</span>
+    {#if icon}<Icon name={icon} />{/if} <span class="lbl">{label}</span>
     {#if count !== undefined}<span class="count">{count}</span>{/if}
   </a>
 {/if}

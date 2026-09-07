@@ -1,8 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import type { IconName } from '../icons';
-
 // --- Module catalog -------------------------------------------------------
 // The user-facing modules the dashboard lets a broadcaster toggle/configure.
 // Core, hidden modules (the command processor, the live tracker, and the system
@@ -102,7 +100,6 @@ export interface ModuleDef {
   label: string;
   tagline: string; // one-liner for the tile
   description: string; // longer copy for the module page
-  icon: IconName;
   category: string;
   defaultEnabled: boolean;
   // False for catalog tools that live under Modules but are always available

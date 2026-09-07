@@ -42,7 +42,7 @@
         {#if idx}<span class="idx" aria-hidden="true">{idx}</span>{/if}
         <span class="reward">
           <span class="reward-name">
-            <span class="swatch" style="--sw: {r.backgroundColor || '#9147ff'}" aria-hidden="true"><Icon name="gem" size={11} /></span>
+            <span class="swatch" style="--sw: {r.backgroundColor || '#9147ff'}" aria-hidden="true"></span>
             <span class="title-text">{r.title}</span>
           </span>
           <!-- Binding summary: limits + loyalty hooks, so what the reward does
@@ -121,11 +121,9 @@
     height: 20px;
     flex: none;
     border-radius: 6px;
-    background: color-mix(in srgb, var(--sw) 24%, transparent);
+    background: var(--sw);
     border: 1px solid color-mix(in srgb, var(--sw) 55%, transparent);
-    color: color-mix(in srgb, var(--sw) 75%, white);
   }
-  .swatch :global(svg) { stroke-width: 1.8; }
 
   /* Was a row of bordered 8px-radius pills; the tags now use the global
      .bb-tag--bare labels, so the gap carries the separation, not a frame. */

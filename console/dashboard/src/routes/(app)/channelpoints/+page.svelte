@@ -201,7 +201,7 @@
   {/if}
 
   {#if missingScope}
-    <AlertBanner variant="warn" icon="power">
+    <AlertBanner variant="warn">
       {t('channelpoints.reconnect')}
       {#snippet action()}
         <ButtonLink variant="primary" href="/login?next=/channelpoints" data-sveltekit-reload>{t('channelpoints.reconnectCta')}</ButtonLink>
@@ -221,7 +221,7 @@
       />
     {/snippet}
     {#snippet trail()}
-      <Button variant="primary" icon="plus" onclick={openNew} disabled={expanded === NEW}>
+      <Button variant="primary" onclick={openNew} disabled={expanded === NEW}>
         {t('channelpoints.newReward')}
       </Button>
     {/snippet}
@@ -245,8 +245,8 @@
           {/each}
         </ul>
       {:else}
-        <EmptyState icon="gem" title={t('channelpoints.emptyTitle')} body={t('channelpoints.emptySub')}>
-          <Button variant="primary" icon="plus" onclick={openNew}>{t('channelpoints.newReward')}</Button>
+        <EmptyState title={t('channelpoints.emptyTitle')} body={t('channelpoints.emptySub')}>
+          <Button variant="primary" onclick={openNew}>{t('channelpoints.newReward')}</Button>
         </EmptyState>
       {/if}
     </DeckList>

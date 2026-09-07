@@ -89,7 +89,7 @@
 </script>
 
 {#if err}
-  <AlertBanner icon="ban">{err}</AlertBanner>
+  <AlertBanner>{err}</AlertBanner>
 {/if}
 
 {#if keys.length > 0}
@@ -168,7 +168,7 @@
     bind:value={newValue}
     required
   />
-  <Button type="submit" variant="secondary" icon="lock" disabled={busy}>{t('fetches.keyAdd')}</Button>
+  <Button type="submit" variant="secondary" disabled={busy}>{t('fetches.keyAdd')}</Button>
 </form>
 <small class="note">{t('fetches.keyNote')}</small>
 

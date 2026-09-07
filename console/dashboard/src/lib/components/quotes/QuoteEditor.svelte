@@ -58,7 +58,7 @@
 
   <div class="actions">
     <Button variant="ghost" onclick={onCancel} disabled={busy}>{t('common.cancel')}</Button>
-    <Button variant="primary" type="submit" icon="check" loading={busy} disabled={!valid}>
+    <Button variant="primary" type="submit" loading={busy} disabled={!valid}>
       {editing ? t('quotes.editBtn') : t('quotes.addBtn')}
     </Button>
   </div>

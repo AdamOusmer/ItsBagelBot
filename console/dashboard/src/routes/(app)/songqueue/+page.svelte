@@ -6,7 +6,6 @@
   import { onMount } from 'svelte';
   import type { SubmitFunction } from '@sveltejs/kit';
   import {
-    Icon,
     Card,
     PageHead,
     Scroller,
@@ -287,7 +286,7 @@
 </script>
 
 <section class="screen active">
-  <a class="back" href="/modules"><Icon name="x" size={13} /> {t('spotify.back')}</a>
+  <a class="back" href="/modules">{t('spotify.back')}</a>
   <PageHead eyebrow={t('spotify.eyebrow')} description={t('spotify.description')}>
     {t('spotify.titlePre')} <em>{t('spotify.titleEm')}</em>
   </PageHead>
@@ -297,11 +296,11 @@
   {/if}
 
   {#if data.errorSlug && ERROR_SLUG_KEYS[data.errorSlug]}
-    <AlertBanner variant="warn" icon="ban">{t(ERROR_SLUG_KEYS[data.errorSlug])}</AlertBanner>
+    <AlertBanner variant="warn">{t(ERROR_SLUG_KEYS[data.errorSlug])}</AlertBanner>
   {/if}
 
   {#if missingScope}
-    <AlertBanner variant="warn" icon="music">
+    <AlertBanner variant="warn">
       {t('spotify.reconnect')}
       {#snippet action()}
         <ButtonLink variant="primary" href="/login?next=/songqueue" data-sveltekit-reload>{t('spotify.reconnectCta')}</ButtonLink>
@@ -337,7 +336,7 @@
         <li>
           {t('spotify.appStepCreate')}
           <a class="ext" href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener noreferrer">
-            developer.spotify.com/dashboard <Icon name="link" size={12} />
+            developer.spotify.com/dashboard
           </a>
         </li>
         <li>
@@ -352,7 +351,7 @@
 
       {#if app.present && !editingApp}
         <div class="row">
-          <span class="ok-pill"><Icon name="check" size={13} /> {t('spotify.appPill')}</span>
+          <span class="ok-pill">{t('spotify.appPill')}</span>
           <code class="client-id">{app.clientId}</code>
           <Button variant="secondary" type="button" onclick={() => (editingApp = true)}>{t('spotify.appReplace')}</Button>
           <form method="POST" action="?/clearApp" use:enhance={formResult(t('spotify.appRemoved'), t('spotify.appRemoveFailed'), () => { app = { present: false, clientId: '' }; connected = false; })}>
@@ -387,19 +386,19 @@
       <p class="muted-text">{connected ? t('spotify.connectedHelp') : t('spotify.connectHelp')}</p>
       {#if connected}
         <div class="row">
-          <span class="ok-pill"><Icon name="check" size={13} /> {t('spotify.connectedPill')}</span>
+          <span class="ok-pill">{t('spotify.connectedPill')}</span>
           <!-- Reconnect is a plain re-run of the consent flow, NOT a disconnect
                first: the stored token stays usable until a new one replaces it,
                and a broadcaster who backs out of Spotify's screen keeps working.
                It has to be reachable while connected, because a grant that
                predates a scope the bot now needs looks perfectly connected. -->
-          <ButtonLink variant="secondary" icon="link" href="/spotify/connect" data-sveltekit-reload>{t('spotify.reconnectSpotify')}</ButtonLink>
+          <ButtonLink variant="secondary" href="/spotify/connect" data-sveltekit-reload>{t('spotify.reconnectSpotify')}</ButtonLink>
           <form method="POST" action="?/disconnect" use:enhance={formResult(t('spotify.disconnectedToast'), t('spotify.disconnectFailed'), () => (connected = false))}>
             <Button variant="destructive" type="submit">{t('spotify.disconnect')}</Button>
           </form>
         </div>
         {#if scopeGap.length}
-          <AlertBanner variant="warn" icon="music">
+          <AlertBanner variant="warn">
             {t('spotify.scopeGap')}
             {#snippet action()}
               <ButtonLink variant="primary" href="/spotify/connect" data-sveltekit-reload>{t('spotify.reconnectSpotify')}</ButtonLink>
@@ -407,7 +406,7 @@
           </AlertBanner>
         {/if}
       {:else if app.present}
-        <ButtonLink variant="primary" icon="link" href="/spotify/connect" data-sveltekit-reload>{t('spotify.connectCta')}</ButtonLink>
+        <ButtonLink variant="primary" href="/spotify/connect" data-sveltekit-reload>{t('spotify.connectCta')}</ButtonLink>
       {:else}
         <p class="muted-text">{t('spotify.connectNeedsApp')}</p>
         <Button variant="primary" disabled type="button">{t('spotify.connectCta')}</Button>

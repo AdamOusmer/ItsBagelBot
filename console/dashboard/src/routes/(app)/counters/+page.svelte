@@ -435,7 +435,7 @@
       <div class="toolbar-search">
         <SearchInput placeholder={t('counters.searchPlaceholder')} bind:value={search} debounceMs={200} />
       </div>
-      <Button variant="primary" icon="plus" onclick={openNew} disabled={expanded === NEW}>
+      <Button variant="primary" onclick={openNew} disabled={expanded === NEW}>
         {t('counters.create')}
       </Button>
     {/snippet}
@@ -458,11 +458,11 @@
           {/each}
         </div>
       {:else if items.length === 0}
-        <EmptyState icon="list" title={t('counters.emptyTitle')} body={t('counters.emptySub')}>
-          <Button variant="primary" icon="plus" onclick={openNew}>{t('counters.create')}</Button>
+        <EmptyState title={t('counters.emptyTitle')} body={t('counters.emptySub')}>
+          <Button variant="primary" onclick={openNew}>{t('counters.create')}</Button>
         </EmptyState>
       {:else}
-        <EmptyState icon="list" title={t('counters.noneMatch')} />
+        <EmptyState title={t('counters.noneMatch')} />
       {/if}
     </DeckList>
 
@@ -508,7 +508,7 @@
             </Scroller>
             <div class="ins-foot">
               <Button variant="ghost" onclick={closeEditor}>{t('common.cancel')}</Button>
-              <Button variant="primary" type="submit" icon="plus" loading={creating}>
+              <Button variant="primary" type="submit" loading={creating}>
                 {t('counters.create')}
               </Button>
             </div>
@@ -532,7 +532,7 @@
             </Scroller>
             <div class="ins-foot">
               <Button variant="ghost" onclick={closeEditor}>{t('common.cancel')}</Button>
-              <Button variant="primary" type="submit" icon="check" loading={setting}>
+              <Button variant="primary" type="submit" loading={setting}>
                 {t('counters.set')}
               </Button>
             </div>
@@ -657,7 +657,7 @@
                         <input class="search num" type="number" name="value" step="1" bind:value={addValue} />
                       </Field>
                     </div>
-                    <Button variant="secondary" type="submit" icon="plus" loading={adding}>
+                    <Button variant="secondary" type="submit" loading={adding}>
                       {t('counters.add')}
                     </Button>
                   </div>
@@ -672,7 +672,7 @@
             </Scroller>
             <div class="ins-foot">
               <Button variant="ghost" onclick={closeEditor}>{t('common.cancel')}</Button>
-              <Button variant="destructive" icon="trash" onclick={() => (resetTarget = selected)}>
+              <Button variant="destructive" onclick={() => (resetTarget = selected)}>
                 {t('counters.reset')}
               </Button>
             </div>

@@ -813,7 +813,7 @@
            the {urlfetch:…} chip inside the command editor, where they are used.
            Their API keys live in Settings. -->
       <button class="btn primary" onclick={openNew} disabled={expanded === NEW}>
-        <Icon name="plus" size={14} /> {t('commands.newCommand')}
+        {t('commands.newCommand')}
       </button>
     {/snippet}
   </PageToolbar>
@@ -858,11 +858,10 @@
         {#if rows.length === 0}
           {#if items.length === 0}
             <EmptyState
-              icon="commands"
               title={t('commands.noneYet')}
               body={`${t('commands.noneYetSub')} !name ${t('commands.inChat')}`}
             >
-              <button class="btn primary" onclick={openNew}><Icon name="plus" size={14} /> {t('commands.newCommand')}</button>
+              <button class="btn primary" onclick={openNew}>{t('commands.newCommand')}</button>
             </EmptyState>
           {:else}
             <EmptyState title={t('commands.noneMatch')} body={t('commands.noneMatchSub')} />

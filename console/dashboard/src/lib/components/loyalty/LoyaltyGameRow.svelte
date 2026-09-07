@@ -8,7 +8,6 @@
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import {
-    Icon,
     Switch,
     toast,
     getI18n,
@@ -62,7 +61,6 @@
        custom cursor morphs onto any <a>, and filling this whole card with a
        tan box covered the switch and read against the dock. -->
   <a class="main" {href} data-cursor="off">
-    <span class="icon" aria-hidden="true"><Icon name={def.icon} size={18} /></span>
     <span class="copy">
       <span class="name">{def.label}</span>
       <span class="tagline">{def.tagline}</span>
@@ -98,19 +96,11 @@
     isolation: isolate;
   }
   .game:last-child { border-bottom: none; }
-  .game.on .icon {
-    background: rgba(82, 183, 136, 0.12);
-    border-color: rgba(82, 183, 136, 0.3);
-    color: var(--bb-green-glow);
-  }
 
   .main {
     flex: 1 1 auto;
     min-width: 0;
-    display: grid;
-    grid-template-columns: 40px minmax(0, 1fr);
-    align-items: start;
-    gap: 14px;
+    display: block;
     padding: 12px 8px 12px 0;
     text-decoration: none;
     color: inherit;
@@ -120,19 +110,6 @@
   .main:focus-visible {
     outline: 2px solid var(--bb-tan);
     outline-offset: -2px;
-  }
-
-  .icon {
-    width: 40px;
-    height: 40px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 8px;
-    background: rgba(201, 168, 124, 0.1);
-    border: 1px solid var(--glass-border, var(--bb-border));
-    color: var(--bb-tan-light);
-    flex: none;
   }
 
   .copy { display: flex; flex-direction: column; gap: 2px; min-width: 0; }

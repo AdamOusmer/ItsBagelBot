@@ -13,7 +13,6 @@
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import {
-    Icon,
     Switch,
     getI18n,
     PERM_LABELS,
@@ -120,7 +119,6 @@
       />
       <div class="reply-actions">
         <button class="btn primary" type="submit" disabled={busy}>
-          <Icon name="check" size={14} />
           {t('builtinInspector.saveReply')}
         </button>
       </div>

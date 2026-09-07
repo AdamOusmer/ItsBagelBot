@@ -73,7 +73,7 @@
     {#if grouped}
       {#if home}
         <a href={home.href} class="dock-item {home.active ? 'active' : ''}" aria-current={home.active ? 'page' : undefined} onclick={closeOnNav}>
-          <Icon name={home.icon} size={18} />
+          {#if home.icon}<Icon name={home.icon} size={18} />{/if}
           <span class="lbl">{home.label}</span>
         </a>
       {/if}
@@ -81,7 +81,7 @@
         {#if g.items.length === 1}
           {@const it = g.items[0]}
           <a href={it.href} class="dock-item {it.active ? 'active' : ''}" aria-current={it.active ? 'page' : undefined} onclick={closeOnNav}>
-            <Icon name={it.icon} size={18} />
+            {#if it.icon}<Icon name={it.icon} size={18} />{/if}
             <span class="lbl">{it.label}</span>
             {#if it.count}<span class="dock-count" aria-hidden="true">{it.count}</span>{/if}
           </a>
@@ -108,7 +108,7 @@
                     aria-current={it.active ? 'page' : undefined}
                     onclick={closeOnNav}
                   >
-                    <Icon name={it.icon} size={16} />
+                    {#if it.icon}<Icon name={it.icon} size={16} />{/if}
                     <span>{it.label}</span>
                     {#if it.count}<span class="pop-count">{it.count}</span>{/if}
                   </a>
@@ -121,7 +121,7 @@
     {:else}
       {#each items as it (it.href)}
         <a href={it.href} class="dock-item {it.active ? 'active' : ''}" aria-current={it.active ? 'page' : undefined} onclick={closeOnNav}>
-          <Icon name={it.icon} size={18} />
+          {#if it.icon}<Icon name={it.icon} size={18} />{/if}
           <span class="lbl">{it.label}</span>
           {#if it.count}<span class="dock-count" aria-hidden="true">{it.count}</span>{/if}
         </a>

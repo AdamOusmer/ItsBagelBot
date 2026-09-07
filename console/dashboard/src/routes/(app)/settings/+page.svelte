@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Icon, Bolota, Button, ButtonLink, Card, PageHead, ConfirmDialog, EmptyState, toast, getI18n, type Locale } from '@bagel/shared';
+  import { Bolota, Button, ButtonLink, Card, PageHead, ConfirmDialog, EmptyState, toast, getI18n, type Locale } from '@bagel/shared';
   import { page } from '$app/state';
   import { enhance, deserialize } from '$app/forms';
   import FetchKeyManager from '$lib/components/commands/fetches/FetchKeyManager.svelte';
@@ -254,7 +254,7 @@
     />
     <div class="grant-edit-actions">
       <Button variant="ghost" class="sm" onclick={closeEdit}>{t('common.cancel')}</Button>
-      <Button type="submit" variant="primary" class="sm" icon="check">{t('common.save')}</Button>
+      <Button type="submit" variant="primary" class="sm">{t('common.save')}</Button>
     </div>
   </form>
 {/snippet}
@@ -286,11 +286,11 @@
       <div class="identity-main">
         <div class="identity-line">
           <b>{data.displayName || data.login}</b>
-          <span class="pill ok"><Icon name="check" size={12} /> {t('settings.connectedPill')}</span>
+          <span class="pill ok">{t('settings.connectedPill')}</span>
         </div>
         <span class="identity-meta">{t('settings.reconnectTwitchHint')}</span>
       </div>
-      <ButtonLink href="/auth/login?reauth=1" variant="ghost" icon="power">{t('common.reconnect')}</ButtonLink>
+      <ButtonLink href="/auth/login?reauth=1" variant="ghost">{t('common.reconnect')}</ButtonLink>
     </div>
   </Card>
 
@@ -301,7 +301,7 @@
         <h2 id="h-access">{t('settings.sharedAccess')}</h2>
         <p class="hint">{t('settings.sharedAccessHint')}</p>
       </div>
-      <Button variant="primary" icon="link" aria-expanded={creating} onclick={() => (creating = !creating)}>
+      <Button variant="primary" aria-expanded={creating} onclick={() => (creating = !creating)}>
         {t('settings.newShareLink')}
       </Button>
     </div>
@@ -333,13 +333,13 @@
         />
         <div class="create-actions">
           <Button variant="ghost" onclick={() => (creating = false)}>{t('common.cancel')}</Button>
-          <Button type="submit" variant="primary" icon="link">{t('common.generate')}</Button>
+          <Button type="submit" variant="primary">{t('common.generate')}</Button>
         </div>
       </form>
     {/if}
 
     {#if given.length === 0}
-      <EmptyState icon="link" title={t('settings.noShareLinks')} body={t('settings.noShareLinksBody')} />
+      <EmptyState title={t('settings.noShareLinks')} body={t('settings.noShareLinksBody')} />
     {/if}
 
     {#if inUse.length > 0}
@@ -373,7 +373,6 @@
               <Button
                 variant="ghost"
                 class="sm"
-                icon={copied[g.token] ? 'check' : 'link'}
                 onclick={() => copy(g.token)}
                 aria-label={t('settings.copyLinkAria')}
               >
@@ -392,7 +391,7 @@
     <div class="sub-block">
       <span class="group-label">{t('settings.sharedWithYou')}</span>
       {#if received.length === 0}
-        <EmptyState icon="overview" title={t('settings.nothingShared')} body={t('settings.nothingSharedBody')} />
+        <EmptyState title={t('settings.nothingShared')} body={t('settings.nothingSharedBody')} />
       {:else}
         <ul class="grants">
           {#each received as r (r.owner_user_id)}
@@ -426,7 +425,7 @@
       {#if unreadIds.length > 0}
         <form method="POST" action="?/markAllRead" use:enhance>
           <input type="hidden" name="ids" value={unreadIds.join(',')} />
-          <Button type="submit" variant="ghost" class="sm" icon="check">{t('settings.markAllRead')}</Button>
+          <Button type="submit" variant="ghost" class="sm">{t('settings.markAllRead')}</Button>
         </form>
       {/if}
     </div>
@@ -445,7 +444,7 @@
             {#if !n.read}
               <form method="POST" action="?/markRead" use:enhance>
                 <input type="hidden" name="id" value={n.id} />
-                <Button type="submit" variant="ghost" class="sm" icon="check">{t('common.read')}</Button>
+                <Button type="submit" variant="ghost" class="sm">{t('common.read')}</Button>
               </form>
             {/if}
           </li>
@@ -496,7 +495,7 @@
         <h2 id="h-import">{t('settings.importSetup')}</h2>
         <p class="hint">{t('settings.importSetupHint')}</p>
       </div>
-      <ButtonLink href="/settings/import" variant="secondary" icon="send">{t('settings.importSetupCta')}</ButtonLink>
+      <ButtonLink href="/settings/import" variant="secondary">{t('settings.importSetupCta')}</ButtonLink>
     </div>
   </Card>
 

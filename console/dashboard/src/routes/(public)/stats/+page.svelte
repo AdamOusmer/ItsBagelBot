@@ -2,7 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { onMount, untrack } from 'svelte';
-  import { AuroraBg, LightField, AlertBanner, Card, Icon, getI18n, type IconName } from '@bagel/shared';
+  import { AuroraBg, LightField, AlertBanner, Card, getI18n } from '@bagel/shared';
   import type { PageData } from './$types';
   import { commandsHref } from '$lib/components/public/links';
 
@@ -273,16 +273,12 @@
   // subline, so the page opens on the two numbers it is actually about.
   const tiles = $derived([
     {
-      icon: 'send' as IconName,
-      tan: false,
       label: t('stats.messagesLabel'),
       value: totalFmt.format(Math.round(display.messages)),
       rate: live.msg_rate === null ? null : rateFmt.format(display.msgRate),
       rateLabel: t('stats.messageRateLabel')
     },
     {
-      icon: 'pulse' as IconName,
-      tan: true,
       label: t('stats.eventsLabel'),
       value: totalFmt.format(Math.round(display.events)),
       rate: live.event_rate === null ? null : rateFmt.format(display.eventRate),
@@ -344,7 +340,7 @@
 
   {#if degraded}
     <div class="notice reveal" style="--i:4.5">
-      <AlertBanner variant="warn" icon="clock">{t('stats.degraded')}</AlertBanner>
+      <AlertBanner variant="warn">{t('stats.degraded')}</AlertBanner>
     </div>
   {/if}
 
@@ -359,7 +355,6 @@
         <Card atmosphere hover class="tile">
           {#snippet band()}
             <div class="tile-head">
-              <span class="ico" class:tan={tile.tan} aria-hidden="true"><Icon name={tile.icon} size={16} /></span>
               <span class="label">{tile.label}</span>
             </div>
           {/snippet}
@@ -384,7 +379,6 @@
       <Card atmosphere class="board" label={t('stats.trafficBoardCh')}>
         {#snippet band()}
           <header class="board-head">
-            <span class="ico" aria-hidden="true"><Icon name="activity" size={16} /></span>
             <div class="board-titles">
               <h2>{t('stats.trafficBoardTitle')}</h2>
               <p>{t('stats.trafficBoardNote')}</p>
@@ -432,7 +426,6 @@
       <Card atmosphere class="board" label={t('stats.feedBoardCh')}>
         {#snippet band()}
           <header class="board-head">
-            <span class="ico tan" aria-hidden="true"><Icon name="heart" size={16} /></span>
             <div class="board-titles">
               <h2>{t('stats.feedBoardTitle')}</h2>
               <p>{t('stats.feedBoardNote')}</p>
@@ -588,21 +581,6 @@
   }
 
   .tile-head { display: flex; align-items: center; gap: var(--bb-space-3); min-width: 0; }
-
-  .ico {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    flex: 0 0 auto;
-    border-radius: var(--bb-radius-sm);
-    border: 1px solid var(--bb-border);
-    background: rgba(82, 183, 136, 0.08);
-    color: var(--bb-green-glow);
-  }
-  .ico.tan { background: rgba(201, 168, 124, 0.08); color: var(--bb-tan-light); }
-  .ico :global(svg) { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 
   .label {
     font-family: var(--bb-font-mono);

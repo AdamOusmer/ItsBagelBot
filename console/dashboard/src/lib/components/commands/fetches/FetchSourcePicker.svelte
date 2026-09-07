@@ -31,7 +31,7 @@
   // in the tree means json + that path; skipping the tree means plain text. The
   // author answers "which value do you want?", not "what shape is your API?".
   import { deserialize } from '$app/forms';
-  import { Button, Icon, Modal, getI18n, slugifyName, buildJsonPath, DEFS_PER_BROADCASTER } from '@bagel/shared';
+  import { Button, Modal, getI18n, slugifyName, buildJsonPath, DEFS_PER_BROADCASTER } from '@bagel/shared';
   import PickerPanel from '$lib/components/PickerPanel.svelte';
   import JsonTree from './JsonTree.svelte';
 
@@ -247,7 +247,6 @@
     onclick={toggle}
     bind:this={btnEl}
   >
-    <Icon name="link" size={12} />
     {t('commandEditor.pickDataSource')}
     <span class="caret" aria-hidden="true">▾</span>
   </button>
@@ -337,7 +336,7 @@
     {/if}
 
     <div class="sample-row">
-      <Button variant="secondary" icon="pulse" loading={fetching} disabled={url.trim() === ''} onclick={fetchSample}>
+      <Button variant="secondary" loading={fetching} disabled={url.trim() === ''} onclick={fetchSample}>
         {fetching ? t('fetches.builderFetching') : t('fetches.builderFetch')}
       </Button>
       {#if !showPaste && sample === ''}
@@ -375,7 +374,7 @@
 
     <div class="foot">
       <Button variant="ghost" onclick={() => (building = false)}>{t('common.cancel')}</Button>
-      <Button variant="primary" icon="check" loading={creating} disabled={!canCreate} onclick={create}>
+      <Button variant="primary" loading={creating} disabled={!canCreate} onclick={create}>
         {creating ? t('fetches.builderCreating') : t('fetches.builderCreate')}
       </Button>
     </div>

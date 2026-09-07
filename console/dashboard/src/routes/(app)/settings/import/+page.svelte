@@ -723,11 +723,10 @@
         <div class="cred">
           {#if nightbotConnected}
             <p class="nb-connected" role="status">
-              <Icon name="check" size={12} />
               {t('import.nbConnected')}
             </p>
           {:else}
-            <ButtonLink href="/settings/import/nightbot/connect" variant="primary" icon="link">
+            <ButtonLink href="/settings/import/nightbot/connect" variant="primary">
               {t('import.nbConnectCta')}
             </ButtonLink>
           {/if}
@@ -763,7 +762,7 @@
         </span>
       {/if}
 
-      {#if previewError}<AlertBanner icon="ban">{previewError}</AlertBanner>{/if}
+      {#if previewError}<AlertBanner>{previewError}</AlertBanner>{/if}
 
       <form
         class="actions"
@@ -776,7 +775,7 @@
           <Button variant="ghost" type="button" onclick={() => (step = 'pick')} disabled={submitting}
             >{t('import.back')}</Button
           >
-          <Button type="submit" variant="primary" icon="send" loading={submitting}>
+          <Button type="submit" variant="primary" loading={submitting}>
             {t('import.continueCta')}
           </Button>
         </div>
@@ -965,7 +964,7 @@
         </Card>
       {/if}
 
-      {#if commitError}<AlertBanner icon="ban">{commitError}</AlertBanner>{/if}
+      {#if commitError}<AlertBanner>{commitError}</AlertBanner>{/if}
 
       <!-- Sticky commit bar: the selection count travels with the list so the
            import button is never scrolled off behind a long review. -->
@@ -981,7 +980,7 @@
           <Button variant="ghost" type="button" onclick={reset} disabled={submitting}
             >{t('import.startOver')}</Button
           >
-          <Button type="submit" variant="primary" icon="check" loading={submitting}>
+          <Button type="submit" variant="primary" loading={submitting}>
             {t('import.importNow')}
           </Button>
         </div>
@@ -1036,7 +1035,7 @@
         <p class="hint">{t('import.nothingApplied')}</p>
       {/if}
       <div class="actions">
-        <Button variant="primary" icon="check" onclick={reset}>{t('import.backToSources')}</Button>
+        <Button variant="primary" onclick={reset}>{t('import.backToSources')}</Button>
       </div>
       {#if commitResult?.audit_id}
         <p class="audit">{t('import.auditFoot', { n: commitResult.audit_id })}</p>

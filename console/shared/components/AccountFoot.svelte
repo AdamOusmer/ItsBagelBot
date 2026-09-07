@@ -124,7 +124,7 @@
     </div>
   {/if}
   <form method="POST" action="/auth/logout" onsubmit={() => localStorage.removeItem('bb-onboarded')}>
-    <Button variant="ghost" type="submit" icon="power" style="width:100%;justify-content:center;margin-top:10px">
+    <Button variant="ghost" type="submit" style="width:100%;justify-content:center;margin-top:10px">
       {t('topbar.logout')}
     </Button>
   </form>

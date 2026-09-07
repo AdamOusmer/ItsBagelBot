@@ -7,7 +7,7 @@
   // glance as the name rather than behind a "Configure" button.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Icon, SaveStatus, Switch, getI18n, moduleCommandChips, moduleHref, type ModuleState } from '@bagel/shared';
+  import { SaveStatus, Switch, getI18n, moduleCommandChips, moduleHref, type ModuleState } from '@bagel/shared';
   import type { SaveState } from '@bagel/shared/components/SaveStatus.svelte';
 
   const { t } = getI18n();
@@ -37,7 +37,6 @@
        custom cursor morphs onto any <a>, and filling this whole card with a
        tan box covered the switch and read against the dock. -->
   <a class="main" {href} data-cursor="off">
-    <span class="icon" aria-hidden="true"><Icon name={def.icon} size={18} /></span>
     <span class="copy">
       <span class="name">
         {def.label}
@@ -59,7 +58,7 @@
   <div class="side">
     <SaveStatus state={status} compact />
     {#if locked}
-      <a class="always lock" href="/billing" data-cursor="off"><Icon name="gem" size={12} /> {t('modules.betaPremium')}</a>
+      <a class="always lock" href="/billing" data-cursor="off">{t('modules.betaPremium')}</a>
     {:else if toggleable}
       {#if module.enabled}
         <span class="bb-tag bb-tag--live"><i class="bb-mark" aria-hidden="true"></i>{t('modules.statusOn')}</span>
@@ -93,10 +92,7 @@
   .main {
     flex: 1 1 auto;
     min-width: 0;
-    display: grid;
-    grid-template-columns: 40px minmax(0, 1fr);
-    align-items: start;
-    gap: 14px;
+    display: block;
     padding: 14px 12px 14px 16px;
     text-decoration: none;
     color: inherit;
@@ -120,24 +116,6 @@
   .main:focus-visible {
     outline: 2px solid var(--bb-tan);
     outline-offset: -2px;
-  }
-
-  .icon {
-    width: 40px;
-    height: 40px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 8px;
-    background: rgba(201, 168, 124, 0.1);
-    border: 1px solid var(--glass-border);
-    color: var(--bb-tan-light);
-    flex: none;
-  }
-  .on .icon {
-    background: rgba(82, 183, 136, 0.12);
-    border-color: rgba(82, 183, 136, 0.3);
-    color: var(--bb-green-glow);
   }
 
   .copy { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
@@ -192,8 +170,6 @@
     padding: 2px 7px;
     line-height: 1.35;
   }
-  .locked .icon { opacity: 0.6; }
-
   .side {
     display: inline-flex;
     align-items: center;
@@ -219,7 +195,6 @@
   .lock:hover { text-decoration: underline; }
 
   @media (max-width: 760px) {
-    .main { gap: 12px; }
     .side { padding-right: 10px; padding-left: 0; }
   }
 </style>

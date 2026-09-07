@@ -13,7 +13,6 @@ export const AUTOMOD_MODULE: ModuleDef =
   tagline: 'Catch scams, IP-grabbers and raid spam before your mods do.',
   description:
     'The bot screens every chat line for harmful content and coordinated raid floods, and warns, deletes, times out or bans the sender. Trusted chatters (VIPs, mods, the broadcaster) are always exempt, and anything borderline is left to your human mods. Pick a level from None to All, then fine-tune each check below. The safety floor (hate slurs and IP-grabber links) is always enforced, on every level and even with the module off: hosting those risks your channel and the bot account platform-wide. Everything else is your call.',
-  icon: 'moderation',
   category: 'Moderation',
   defaultEnabled: true,
   // AutoMod is pure configuration: no chat reply lines, only the settings strip.

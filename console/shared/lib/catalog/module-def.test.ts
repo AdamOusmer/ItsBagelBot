@@ -13,7 +13,6 @@ function def(partial: Partial<ModuleDef>): ModuleDef {
     label: 'X',
     tagline: '',
     description: '',
-    icon: 'gem',
     category: 'c',
     defaultEnabled: false,
     replies: [],

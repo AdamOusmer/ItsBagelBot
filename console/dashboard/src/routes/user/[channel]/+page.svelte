@@ -150,7 +150,7 @@
 
   {#if data.degraded}
     <div class="notice">
-      <AlertBanner variant="warn" icon="clock">Command data is temporarily unavailable.</AlertBanner>
+      <AlertBanner variant="warn">Command data is temporarily unavailable.</AlertBanner>
     </div>
   {/if}
 

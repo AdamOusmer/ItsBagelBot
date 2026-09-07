@@ -15,6 +15,7 @@
 import Card from '../ui/Card.astro';
 import SectionHeading from '../ui/SectionHeading.astro';
 import IncomingBadge from '../ui/IncomingBadge.astro';
+import Icon from '../ui/Icon.astro';
 import { getLangFromUrl, useTranslations } from '../../i18n/ui';
 
 const lang = getLangFromUrl(Astro.url);
@@ -50,14 +51,7 @@ const t = useTranslations(lang);
             <div class="qw__demo qw__demo--govee" slot="band" aria-hidden="true">
                 <span class="qw-govee__glow"></span>
                 <span class="qw-govee__bulb">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M15 14c.2-1 .7-1.7 1.5-2.5C17.5 10.6 18 9.3 18 8A6 6 0 0 0 6 8c0 1.3.5 2.6 1.5 3.5.8.8 1.3 1.5 1.5 2.5" />
-                        <path d="M9 18h6" />
-                        <path d="M10 22h4" />
-                        <path class="qw-govee__sprout" d="M12 15V9" />
-                        <path class="qw-govee__sprout" d="M12 11c1.6 0 2.8-1.2 2.8-2.9-1.7 0-2.8 1.2-2.8 2.9Z" />
-                        <path class="qw-govee__sprout" d="M12 12c-1.6 0-2.8-1.2-2.8-2.9 1.7 0 2.8 1.2 2.8 2.9Z" />
-                    </svg>
+                    <Icon name="bulb" size={44} strokeWidth={1.6} />
                 </span>
                 <span class="qw-govee__redeem">
                     <span class="qw-govee__dot"></span>
@@ -352,10 +346,8 @@ const t = useTranslations(lang);
         animation: qwGoveeLit 9s ease-in-out infinite;
     }
 
-    .qw-govee__bulb svg { width: 44px; height: 44px; }
-
-    /* the sprout stays green: efficient light, always alive */
-    .qw-govee__sprout { stroke: var(--green-glow, #52b788); }
+    /* :global: the bulb is Icon's root svg, outside this component's scope. */
+    .qw-govee__bulb :global(svg) { width: 44px; height: 44px; }
 
     .qw-govee__redeem {
         position: relative;

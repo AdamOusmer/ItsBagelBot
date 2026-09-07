@@ -9,7 +9,7 @@
 <nav class="mobile-nav" aria-label="Main navigation">
   {#each items as it}
     <a href={it.href} class={it.active ? 'active' : ''}>
-      <Icon name={it.icon} size={20} /><span>{it.label}</span>
+      {#if it.icon}<Icon name={it.icon} size={20} />{/if}<span>{it.label}</span>
     </a>
   {/each}
   {#if logout}

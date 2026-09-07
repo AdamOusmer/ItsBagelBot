@@ -5,19 +5,15 @@
   // native link semantics (open in new tab, right-click, screen-reader "link"
   // role). Never a <button> faking navigation. Visual variants mirror Button.
   import type { Snippet } from 'svelte';
-  import Icon from './Icon.svelte';
-  import type { IconName } from '../lib/icons';
   let {
     href,
     variant = 'ghost',
-    icon,
     class: cls = '',
     children,
     ...rest
   }: {
     href: string;
     variant?: 'primary' | 'secondary' | 'ghost' | 'destructive' | 'icon' | 'tan';
-    icon?: IconName;
     class?: string;
     children?: Snippet;
     [key: string]: unknown;
@@ -31,7 +27,6 @@
 </script>
 
 <a class="btn {variant} {cls}" {href} {...rest}>
-  {#if icon}<Icon name={icon} size={14} />{/if}
   {#if children}{@render children()}{/if}
 </a>
 

@@ -515,7 +515,7 @@
   {#if data.locked}
     <!-- Beta on a free channel: read-only preview with the upgrade path. The
          server refuses every write (resolveWrite), this only explains why. -->
-    <AlertBanner variant="warn" icon="gem">
+    <AlertBanner variant="warn">
       {t('modules.betaLockedBody')}
       {#snippet action()}
         <ButtonLink href="/billing" variant="ghost">{t('modules.betaUpgrade')}</ButtonLink>
@@ -524,7 +524,7 @@
   {/if}
 
   {#if parentDef}
-    <AlertBanner variant="warn" icon="coin">
+    <AlertBanner variant="warn">
       {t('modules.nestedUnder', { parent: parentDef.label })}
       {#snippet action()}
         <ButtonLink href={parentDef.href ?? `/modules/${parentDef.id}`} variant="ghost">{t('modules.nestedUnderLink', { parent: parentDef.label })}</ButtonLink>
@@ -669,7 +669,7 @@
               <h2 class="section-title">{t('modules.triggerRulesTitle')}</h2>
               <span class="rh-hint">{t('modules.triggerRulesHint')}</span>
             </div>
-            <Button variant="ghost" icon="plus" onclick={addRule}>{t('modules.addTrigger')}</Button>
+            <Button variant="ghost" onclick={addRule}>{t('modules.addTrigger')}</Button>
           </div>
           {#if ruleRows.length}
             <ul class="list" aria-label={t('modules.triggerRulesTitle')}>
@@ -689,7 +689,7 @@
               {/each}
             </ul>
           {:else}
-            <EmptyState icon="caps" title={t('modules.noTriggersTitle')} body={t('modules.noTriggersBody')} />
+            <EmptyState title={t('modules.noTriggersTitle')} body={t('modules.noTriggersBody')} />
           {/if}
         {:else if hasReplies}
           <ul class="list" aria-label={t('modules.repliesLabel')}>

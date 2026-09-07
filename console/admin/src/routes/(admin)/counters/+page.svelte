@@ -75,7 +75,7 @@
 
   <form method="POST" action="?/create" class="create-row" use:enhance={submitAs('create', 'Counter created.')}>
     <input class="search" name="name" placeholder="e.g. feeds" maxlength="64" bind:value={newName} required />
-    <Button variant="primary" icon="plus" type="submit" loading={busyKey === 'create'}>Create</Button>
+    <Button variant="primary" type="submit" loading={busyKey === 'create'}>Create</Button>
   </form>
 
   {#if bundle === null}
@@ -102,11 +102,11 @@
                 <form method="POST" action="?/set" class="set-row" use:enhance={submitAs(`set:${c.name}`, 'Counter updated.')}>
                   <input type="hidden" name="name" value={c.name} />
                   <input class="search num" type="number" name="value" step="1" bind:value={drafts[c.name]} />
-                  <Button variant="ghost" type="submit" icon="check" loading={busyKey === `set:${c.name}`}>Set</Button>
+                  <Button variant="ghost" type="submit" loading={busyKey === `set:${c.name}`}>Set</Button>
                 </form>
               </td>
               <td class="r">
-                <Button variant="destructive" icon="trash" onclick={() => (deleteTarget = c.name)}>Delete</Button>
+                <Button variant="destructive" onclick={() => (deleteTarget = c.name)}>Delete</Button>
               </td>
             </tr>
           {/each}
