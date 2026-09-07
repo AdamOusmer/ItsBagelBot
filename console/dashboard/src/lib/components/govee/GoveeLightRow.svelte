@@ -37,7 +37,7 @@
     {#snippet primary()}
       <span class="prow">
         <span class="light">
-          <span class="swatch" style="--sw: {reward?.color || '#6b7079'}" aria-hidden="true"><Icon name="power" size={12} /></span>
+          <span class="swatch" style="--sw: {reward?.color || '#6b7079'}" aria-hidden="true"></span>
           <span class="light-text">
             <span class="light-name">{lightName}</span>
             <span class="light-sku">{device.sku}</span>
@@ -52,7 +52,7 @@
             <span class="unset-tag bb-tag bb-tag--quiet"><i class="bb-mark bb-mark--hollow" aria-hidden="true"></i>{t('govee.notSetUp')}</span>
           {/if}
         </span>
-        <span class="chev" class:open={expanded} aria-hidden="true"><Icon name="settings" size={13} /></span>
+        <span class="chev" class:open={expanded} aria-hidden="true"><Icon name="chevron" size={13} /></span>
       </span>
     {/snippet}
     {#snippet actions()}
@@ -82,11 +82,9 @@
     height: 26px;
     flex: none;
     border-radius: 7px;
-    background: color-mix(in srgb, var(--sw) 22%, transparent);
+    background: var(--sw);
     border: 1px solid color-mix(in srgb, var(--sw) 55%, transparent);
-    color: color-mix(in srgb, var(--sw) 78%, white);
   }
-  .swatch :global(svg) { stroke-width: 1.8; }
   .light-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
   .light-name {
     font-family: var(--bb-font-display);
@@ -113,8 +111,13 @@
      state, so it takes the global quiet label + hollow mark instead. */
   .unset-tag { align-self: flex-start; }
 
-  .chev { display: inline-flex; color: var(--bb-muted); transition: color var(--bb-dur-fast, 140ms) ease; }
-  .chev.open { color: var(--bb-tan); }
+  .chev {
+    display: inline-flex;
+    color: var(--bb-muted);
+    transition: color var(--bb-dur-fast, 140ms) ease, transform var(--bb-dur-fast, 140ms) ease;
+  }
+  /* Now a chevron rather than a gear: point it up once the row is open. */
+  .chev.open { color: var(--bb-tan); transform: rotate(180deg); }
 
   /* Give the borderless mini delete a >=44px hit target (WCAG 2.2). */
   :global(.mini.row-del) { width: 44px; height: 44px; border-radius: 8px; }

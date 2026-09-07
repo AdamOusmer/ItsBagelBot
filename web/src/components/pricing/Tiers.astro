@@ -55,10 +55,6 @@ const enterpriseFeatures = [
             <ul class="tier__features tier-free__features">
                 {freeFeatures.map((feature, fi) => (
                     <li class="tier__feature" data-reveal style={`--reveal-i: ${fi + 1}`}>
-                        <svg class="tier__check" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                            <path class="tier__check-path" d="M3.5 8.5L6.5 11.5L12.5 4.5"
-                                  stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-                        </svg>
                         <span>{feature}</span>
                     </li>
                 ))}
@@ -84,10 +80,6 @@ const enterpriseFeatures = [
             <ul class="tier__features">
                 {premiumFeatures.map((feature, fi) => (
                     <li class="tier__feature" data-reveal style={`--reveal-i: ${fi + 1}`}>
-                        <svg class="tier__check" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                            <path class="tier__check-path" d="M3.5 8.5L6.5 11.5L12.5 4.5"
-                                  stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-                        </svg>
                         <span>{feature}</span>
                     </li>
                 ))}
@@ -128,10 +120,6 @@ const enterpriseFeatures = [
             <ul class="tier__features">
                 {enterpriseFeatures.map((feature, fi) => (
                     <li class="tier__feature" data-reveal style={`--reveal-i: ${fi + 1}`}>
-                        <svg class="tier__check" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                            <path class="tier__check-path" d="M3.5 8.5L6.5 11.5L12.5 4.5"
-                                  stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-                        </svg>
                         <span>{feature}</span>
                     </li>
                 ))}
@@ -389,9 +377,7 @@ const enterpriseFeatures = [
     }
 
     .tier__feature {
-        display: flex;
-        align-items: flex-start;
-        gap: 10px;
+        display: block;
         font-family: var(--font-body, "DM Sans", sans-serif);
         font-size: 0.87rem;
         line-height: 1.45;
@@ -399,25 +385,6 @@ const enterpriseFeatures = [
     }
 
     .tier--free .tier__feature { color: rgba(240, 236, 228, 0.75); }
-
-    .tier__check {
-        flex-shrink: 0;
-        color: var(--green-glow, #52b788);
-        margin-top: 1px;
-    }
-
-    .tier__check-path {
-        stroke-dasharray: 18;
-        stroke-dashoffset: 18;
-        transition: stroke-dashoffset 480ms var(--ease-out-expo);
-        transition-delay: calc(var(--reveal-i, 0) * 60ms + 200ms);
-    }
-
-    .tier__feature.is-revealed .tier__check-path { stroke-dashoffset: 0; }
-
-    @media (prefers-reduced-motion: reduce) {
-        .tier__check-path { stroke-dashoffset: 0; transition: none; }
-    }
 
     /* ── Buttons ── */
 

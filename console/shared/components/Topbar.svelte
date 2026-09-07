@@ -162,7 +162,6 @@
           {/if}
           <form method="POST" action="/auth/logout">
             <button type="submit" class="op-menu-item" role="menuitem">
-              <Icon name="power" size={15} />
               {t('topbar.logout')}
             </button>
           </form>

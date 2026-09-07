@@ -126,7 +126,7 @@ export interface NavChild {
 
 export interface NavLink {
   href: string;
-  icon: IconName;
+  icon?: IconName;
   label: string;
   active?: boolean;
   locked?: boolean;

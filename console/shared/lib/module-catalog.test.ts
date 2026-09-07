@@ -36,7 +36,6 @@ describe('module catalog', () => {
     expect(def?.toggleable).toBe(false);
     expect(def?.defaultEnabled).toBe(true);
     expect(def?.category).toBe('Channel');
-    expect(def?.icon).toBe('broadcast');
     expect(moduleDelegateSections(def!)).toEqual(['commands']);
   });
 
@@ -75,7 +74,6 @@ describe('module catalog', () => {
     expect(def?.toggleable).not.toBe(false);
     expect(def?.defaultEnabled).toBe(false);
     expect(def?.replies).toHaveLength(0);
-    expect(def?.icon).toBe('smile');
   });
 
   test('govee shares Gear with Song Requests and Discord', () => {
@@ -83,7 +81,6 @@ describe('module catalog', () => {
     expect(moduleDef('songqueue')?.category).toBe('Gear');
     expect(moduleDef('discord')?.category).toBe('Gear');
     expect(moduleDef('discord')?.href).toBe('/discord');
-    expect(moduleDef('discord')?.icon).toBe('discord');
   });
 
   // Discord owns a sidebar section, so it must not ALSO be a tile: it was
@@ -119,17 +116,10 @@ describe('module catalog', () => {
     expect(def?.category).toBe('Moderation');
   });
 
-  test('indexable modules have unique icons so the directory is scannable', () => {
-    const visible = MODULE_CATALOG.filter((def) => catalogIndexable(def));
-    const icons = visible.map((def) => def.icon);
-    expect(new Set(icons).size).toBe(icons.length);
-  });
-
   test('songqueue is a bespoke href module listing !sr, !remove, !skip, !clear, !srlist and !current', () => {
     const def = moduleDef('songqueue');
     expect(def).toBeDefined();
     expect(def?.href).toBe('/songqueue');
-    expect(def?.icon).toBe('music');
     expect(def?.commands?.map((c) => c.trigger)).toEqual([
       '!sr',
       '!remove',

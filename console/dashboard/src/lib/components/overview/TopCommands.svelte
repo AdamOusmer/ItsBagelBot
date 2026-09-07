@@ -5,7 +5,6 @@
   // section owns its <h2>; the card title role is folded into it so the heading
   // order stays h1 -> h2 with no decorative h3 in between.
   import Card from '@bagel/shared/components/Card.svelte';
-  import Icon from '@bagel/shared/components/Icon.svelte';
   import { getI18n } from '@bagel/shared/i18n/context';
   import type { CommandView } from '@bagel/shared/types';
 
@@ -23,7 +22,6 @@
     <ul class="feed ov-feed">
       {#each top as c (c.name)}
         <li class="feed-row">
-          <span class="fi green" aria-hidden="true"><Icon name="commands" size={15} /></span>
           <span class="ft">
             <b class="mono">!{c.name}</b>
             <span class="clip">{c.response}</span>
@@ -32,7 +30,6 @@
         </li>
       {/each}
       <li class="feed-row">
-        <span class="fi" aria-hidden="true"><Icon name="plus" size={15} /></span>
         <span class="ft">
           <b>{t('overview.addAnother')}</b>
           <span>{t('overview.addAnotherDesc')}</span>

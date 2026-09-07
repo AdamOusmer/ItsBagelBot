@@ -6,7 +6,7 @@
   // the page inspector) and a delete button. The disclosure's accessible name is
   // its visible content (number + full quote text + date), so the whole quote is
   // available to assistive tech even though the visible line is clamped.
-  import { Icon, MiniButton, getI18n } from '@bagel/shared';
+  import { MiniButton, getI18n } from '@bagel/shared';
   import type { QuoteView } from '$lib/server/quotes-store';
 
   let {
@@ -42,7 +42,6 @@
   >
     <span class="num">#{quote.number}</span>
     <span class="quote">
-      <span class="swatch" aria-hidden="true"><Icon name="quote" size={11} /></span>
       <span class="quote-text">{quote.text}</span>
     </span>
     <span class="date">{formatDate(quote.created_at)}</span>
@@ -102,19 +101,6 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .swatch {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 20px;
-    height: 20px;
-    flex: none;
-    border-radius: 6px;
-    background: color-mix(in srgb, var(--bb-tan, #c9a87c) 24%, transparent);
-    border: 1px solid color-mix(in srgb, var(--bb-tan, #c9a87c) 55%, transparent);
-    color: color-mix(in srgb, var(--bb-tan, #c9a87c) 75%, white);
-  }
-
   .date {
     font-family: var(--bb-font-mono);
     font-size: 12px;

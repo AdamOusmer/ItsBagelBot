@@ -3,7 +3,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { onMount } from 'svelte';
   import { page } from '$app/state';
-  import { LightField, Icon, getI18n } from '@bagel/shared';
+  import { LightField, getI18n } from '@bagel/shared';
   import PublicNav from '$lib/components/public/PublicNav.svelte';
   import { webHref } from '$lib/components/public/links';
 
@@ -189,7 +189,6 @@
   <div class="header-material">
     {#if notice}
       <div class="notice reveal" style="--d:0s" role="alert">
-        <Icon name="ban" size={14} />
         {notice}
       </div>
     {/if}
@@ -367,12 +366,6 @@
     font-size: 13.5px;
     max-width: 60ch;
     text-align: left;
-  }
-  .notice :global(svg) {
-    stroke: currentColor;
-    fill: none;
-    stroke-width: 1.8;
-    flex: none;
   }
 
   .eyebrow {

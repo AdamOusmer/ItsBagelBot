@@ -9,7 +9,6 @@ export const DISCORD_MODULE: ModuleDef = {
   tagline: 'One bot on Twitch and Discord. Go-live, clips, welcomes, tickets, and voice.',
   description:
     'Connect an existing Discord server or create one from Bagel’s template. Go-live and clips post from outgress directly. They never wait on sesame. Raids, gift bombs, and milestone subs copy into #announcements when you turn those on. The Discord gateway (dingress) handles welcomes, join-to-create voice, support tickets, staff logs, slash moderation, and crumb ranks.',
-  icon: 'discord',
   category: 'Gear',
   defaultEnabled: false,
   // Discord has its own sidebar entry, so it must not also be a tile in the

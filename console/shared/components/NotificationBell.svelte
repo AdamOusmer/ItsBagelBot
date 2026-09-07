@@ -114,7 +114,7 @@
               </div>
               {#if onMarkRead && !n.read}
                 <button type="button" class="btn ghost sm" onclick={() => onMarkRead?.(n.id)}>
-                  <Icon name="check" size={12} /> {readLabel}
+                  {readLabel}
                 </button>
               {/if}
             </div>

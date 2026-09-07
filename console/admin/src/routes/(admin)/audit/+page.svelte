@@ -165,11 +165,11 @@
         {/each}
       </ul>
     {:else if (entries ?? []).length > 0}
-      <EmptyState icon="search" title="No entries match the outcome filter" />
+      <EmptyState title="No entries match the outcome filter" />
     {:else if search}
-      <EmptyState icon="search" title="No entries match" body="Search covers actor, action, target, detail, and error text." />
+      <EmptyState title="No entries match" body="Search covers actor, action, target, detail, and error text." />
     {:else}
-      <EmptyState icon="audit" title="No actions recorded yet" />
+      <EmptyState title="No actions recorded yet" />
     {/if}
 
     {#if entries && (page > 1 || hasMore)}

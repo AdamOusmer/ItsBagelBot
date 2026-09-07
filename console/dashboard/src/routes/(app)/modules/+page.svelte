@@ -195,7 +195,7 @@
   <p class="sr-only" aria-live="polite">{t('modules.resultCount', { shown: filtered.length, total: items.length })}</p>
 
   {#if groups.length === 0}
-    <EmptyState icon="search" title={t('modules.noMatch')} body={t('modules.noMatchBody')}>
+    <EmptyState title={t('modules.noMatch')} body={t('modules.noMatchBody')}>
       <button type="button" class="btn" onclick={clearSearch}>{t('modules.searchClear')}</button>
     </EmptyState>
   {:else}

@@ -20,7 +20,7 @@
     count
   }: {
     href: string;
-    icon: IconName;
+    icon?: IconName;
     label: string;
     active?: boolean;
     locked?: boolean;
@@ -30,13 +30,13 @@
 
 {#if locked}
   <span class="rail-item locked">
-    <Icon name={icon} /> <span class="lbl">{label}</span>
+    {#if icon}<Icon name={icon} />{/if} <span class="lbl">{label}</span>
     <Icon name="lock" size={13} />
     <span class="sr-only">{t('nav.lockedBroadcaster')}</span>
   </span>
 {:else}
   <a class="rail-item {active ? 'active' : ''}" {href} aria-current={active ? 'page' : undefined}>
-    <Icon name={icon} /> <span class="lbl">{label}</span>
+    {#if icon}<Icon name={icon} />{/if} <span class="lbl">{label}</span>
     {#if count !== undefined}<span class="count">{count}</span>{/if}
   </a>
 {/if}

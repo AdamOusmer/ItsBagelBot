@@ -6,7 +6,7 @@
   // travels as one JSON field; the server validates and normalizes it.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Icon, RadioGroup, getI18n, type ChannelPointReward, type CounterScope } from '@bagel/shared';
+  import { RadioGroup, getI18n, type ChannelPointReward, type CounterScope } from '@bagel/shared';
   import CheckButton from '$lib/components/CheckButton.svelte';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
@@ -151,7 +151,6 @@
        editor never shows loyalty plumbing it isn't using. -->
   <section class="hooks">
     <header class="hooks-head">
-      <Icon name="gem" size={13} />
       <span>{t('channelpoints.loyaltyTitle')}</span>
     </header>
 
@@ -237,7 +236,6 @@
   <div class="actions">
     <button type="button" class="btn ghost" onclick={onCancel} disabled={busy}>{t('common.cancel')}</button>
     <button type="submit" class="btn primary" disabled={busy || !draft.title.trim()}>
-      <Icon name="check" size={14} />
       {busy ? t('channelpoints.saving') : isNew ? t('channelpoints.create') : t('channelpoints.saveChanges')}
     </button>
   </div>

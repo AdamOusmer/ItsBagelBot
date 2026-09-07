@@ -6,11 +6,8 @@
   // aria-busy loading with no width shift, and a hard guard against double
   // submits while a request is in flight.
   import type { Snippet } from 'svelte';
-  import Icon from './Icon.svelte';
-  import type { IconName } from '../lib/icons';
   let {
     variant = 'ghost',
-    icon,
     type = 'button',
     onclick,
     loading = false,
@@ -21,7 +18,6 @@
   }: {
     // `tan` is kept as an alias of `secondary` so existing callers don't break.
     variant?: 'primary' | 'secondary' | 'ghost' | 'destructive' | 'icon' | 'tan';
-    icon?: IconName;
     type?: 'button' | 'submit';
     onclick?: (e: MouseEvent) => void;
     loading?: boolean;
@@ -55,7 +51,6 @@
   {...rest}
 >
   <span class="btn-content">
-    {#if icon}<Icon name={icon} size={14} />{/if}
     {#if children}{@render children()}{/if}
   </span>
   {#if loading}<span class="spinner" aria-hidden="true"></span>{/if}

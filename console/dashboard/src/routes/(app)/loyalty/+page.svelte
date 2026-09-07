@@ -141,7 +141,7 @@
         ariaLabel={t('loyalty.botOn')}
         failMessage={t('loyalty.toastToggleFailed')}
       />
-      <ButtonLink href="/counters" variant="ghost" icon="modules">{t('loyalty.countersLink')}</ButtonLink>
+      <ButtonLink href="/counters" variant="ghost">{t('loyalty.countersLink')}</ButtonLink>
     </Card>
   </section>
 
@@ -202,7 +202,7 @@
 
         <div class="actions">
           <SaveStatus state={saveState} />
-          <Button variant="primary" type="submit" icon="check" loading={busy}>{t('loyalty.save')}</Button>
+          <Button variant="primary" type="submit" loading={busy}>{t('loyalty.save')}</Button>
         </div>
       </form>
     </Card>
@@ -214,7 +214,7 @@
     <h2 id="loy-top-h" class="block-title">{t('loyalty.topTitle')}</h2>
     <Card>
       {#if top.length === 0}
-        <EmptyState icon="coin" title={t('loyalty.topEmpty')} />
+        <EmptyState title={t('loyalty.topEmpty')} />
       {:else}
         <div class="tbl-wrap">
           <table class="tbl">

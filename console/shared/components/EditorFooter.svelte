@@ -6,7 +6,6 @@
   // sat below the fold). Meant to live as a sibling *after* the scroll area so it
   // never scrolls out of view. The consumer wraps its fields + this footer in a
   // <form use:enhance>; Save is the form's submit button.
-  import Icon from './Icon.svelte';
 
   let {
     status = 'idle',
@@ -40,7 +39,7 @@
     {:else if status === 'error' || status === 'conflict'}
       <span class="s error">{errorLabel}</span>
     {:else if status === 'saved'}
-      <span class="s saved"><Icon name="check" size={12} /> {savedLabel}</span>
+      <span class="s saved">{savedLabel}</span>
     {:else if dirty}
       <span class="s dirty">{dirtyLabel}</span>
     {/if}
@@ -48,7 +47,6 @@
   <span class="acts">
     <button type="button" class="btn ghost" onclick={onCancel}>{cancelLabel}</button>
     <button type="submit" class="btn primary" disabled={!canSave || status === 'saving'}>
-      <Icon name="check" size={14} />
       {status === 'saving' ? savingLabel : saveLabel}
     </button>
   </span>

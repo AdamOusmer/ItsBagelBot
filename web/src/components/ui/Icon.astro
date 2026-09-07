@@ -1,0 +1,37 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+/**
+ * Icon: the only way the site draws a glyph. Bodies come from
+ * src/lib/icons.ts, generated from Lucide and Simple Icons by
+ * console/shared/scripts/gen-icons.mjs; nothing here is hand-drawn. Inlined
+ * at build so the strict img-src CSP never sees an external asset, and the
+ * wrapper owns size, weight and colour so a glyph reads the same wherever it
+ * lands. Presentation attributes lose to CSS, so a caller may still override.
+ */
+import { icons, type IconName } from '../../lib/icons';
+
+interface Props {
+    name: IconName;
+    size?: number;
+    strokeWidth?: number;
+    class?: string;
+}
+
+const { name, size = 16, strokeWidth = 1.6, class: className } = Astro.props;
+---
+
+<svg
+    viewBox="0 0 24 24"
+    width={size}
+    height={size}
+    fill="none"
+    stroke="currentColor"
+    stroke-width={strokeWidth}
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+    class={className}
+    set:html={icons[name]}
+/>

@@ -284,14 +284,13 @@
       </ul>
     {:else if lanes.length === 0}
       <EmptyState
-        icon="lanes"
         title="No lanes visible"
         body={result.degraded
           ? 'The JetStream API is unreachable; this list is not the fleet.'
           : 'No streams or consumers were returned.'}
       />
     {:else}
-      <EmptyState icon="search" title="No lanes match" />
+      <EmptyState title="No lanes match" />
     {/if}
   </DeckList>
 </section>

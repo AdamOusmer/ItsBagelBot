@@ -3,6 +3,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import Card from '../ui/Card.astro';
+import Icon from '../ui/Icon.astro';
 import SectionHeading from '../ui/SectionHeading.astro';
 import { getLangFromUrl, useTranslations } from '../../i18n/ui';
 
@@ -16,20 +17,15 @@ const t = useTranslations(lang);
     <div class="eco__grid">
         <Card class="eco__card" label={t('eco.ch')} data-reveal>
             <div class="eco__demo" slot="band" aria-hidden="true">
-                <svg class="eco__leaf" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                    <path class="eco__leaf-path" d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1.5 2 2 4.4 2 8.6-2 5-6 10-10 9.4"></path>
-                    <path class="eco__leaf-stem" d="M2 22l9-9"></path>
-                </svg>
+                <Icon name="leaf" size={96} strokeWidth={1.5} class="eco__leaf" />
             </div>
             <h3 class="eco__title">{t('eco.title')}</h3>
             <p class="eco__desc">{t('eco.desc')}</p>
             <div class="eco__links">
                 <a href="https://www.websitecarbon.com/website/itsbagelbot-com/" target="_blank" rel="noopener noreferrer">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
                     Website Carbon: ItsBagelBot
                 </a>
                 <a href="https://www.websitecarbon.com/website/dashboard-itsbagelbot-com-login/" target="_blank" rel="noopener noreferrer">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
                     Website Carbon: Dashboard
                 </a>
             </div>
@@ -112,27 +108,24 @@ const t = useTranslations(lang);
         overflow: hidden;
     }
 
-    .eco__leaf {
+    /* :global because the glyph is Icon's root svg: Astro scopes this
+       component's rules to its own elements, and the child's root carries no
+       scope attribute of ours. Draw runs on that svg rather than its paths,
+       which come from the generated icon map via set:html and are scoped to
+       nothing at all; stroke-dasharray and stroke-dashoffset inherit, so the
+       svg hands both to blade and stem. The stem is the shorter of Lucide's
+       two paths, so it lands last and still reads as a leaf growing out of
+       its stalk. */
+    .eco__demo :global(.eco__leaf) {
         width: 96px;
         height: 96px;
         color: var(--green-glow, #52b788);
         filter: drop-shadow(0 0 16px rgba(82, 183, 136, 0.4));
-        animation: leafSway 4s ease-in-out infinite;
+        stroke-dasharray: 64;
+        stroke-dashoffset: 64;
+        animation: drawLeaf 3s ease-out forwards, leafSway 4s ease-in-out infinite;
         transform-origin: bottom left;
     }
-
-    .eco__leaf-path {
-        stroke-dasharray: 40;
-        stroke-dashoffset: 40;
-        animation: drawLeaf 3s ease-out forwards;
-    }
-    
-    .eco__leaf-stem {
-        stroke-dasharray: 15;
-        stroke-dashoffset: 15;
-        animation: drawStem 1s ease-out forwards 0.5s;
-    }
-
 
     @keyframes leafSway {
         0%, 100% { transform: rotate(0deg); }
@@ -143,13 +136,8 @@ const t = useTranslations(lang);
         to { stroke-dashoffset: 0; }
     }
 
-    @keyframes drawStem {
-        to { stroke-dashoffset: 0; }
-    }
-
     @media (prefers-reduced-motion: reduce) {
-        .eco__leaf { animation: none; transform: none; }
-        .eco__leaf-path, .eco__leaf-stem { animation: none; stroke-dashoffset: 0; }
+        .eco__demo :global(.eco__leaf) { animation: none; transform: none; stroke-dashoffset: 0; }
     }
     
     @media (max-width: 640px) {

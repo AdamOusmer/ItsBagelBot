@@ -16,7 +16,7 @@
   //
   // Save/Cancel are handled by the page so the whole-module config persists in
   // one place.
-  import { Icon, getI18n, type ModuleReply } from '@bagel/shared';
+  import { getI18n, type ModuleReply } from '@bagel/shared';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
 
@@ -85,7 +85,6 @@
   <div class="actions">
     <button type="button" class="btn ghost" onclick={onCancel} disabled={busy}>{t('common.cancel')}</button>
     <button type="button" class="btn primary" onclick={onSave} disabled={busy}>
-      <Icon name="check" size={14} />
       {busy ? t('modules.loading') : t('modules.saveChanges')}
     </button>
   </div>

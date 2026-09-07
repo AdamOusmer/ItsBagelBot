@@ -318,7 +318,7 @@
           </div>
         </div>
 
-        <Button variant="primary" icon="plus" onclick={openNew} disabled={expanded === NEW}>
+        <Button variant="primary" onclick={openNew} disabled={expanded === NEW}>
           {t('quotes.newQuote')}
         </Button>
       </div>
@@ -376,11 +376,11 @@
           {/each}
         </ul>
       {:else if quotes.length === 0}
-        <EmptyState icon="quote" title={t('quotes.emptyTitle')} body={t('quotes.emptySub')}>
-          <Button variant="primary" icon="plus" onclick={openNew}>{t('quotes.newQuote')}</Button>
+        <EmptyState title={t('quotes.emptyTitle')} body={t('quotes.emptySub')}>
+          <Button variant="primary" onclick={openNew}>{t('quotes.newQuote')}</Button>
         </EmptyState>
       {:else}
-        <EmptyState icon="search" title={t('quotes.noneMatch')} />
+        <EmptyState title={t('quotes.noneMatch')} />
       {/if}
     </DeckList>
 
@@ -440,10 +440,10 @@
               {/if}
             </dl>
             <div class="detail-actions">
-              <Button variant="primary" icon="edit" onclick={() => selectedQuote && openEdit(selectedQuote)}>
+              <Button variant="primary" onclick={() => selectedQuote && openEdit(selectedQuote)}>
                 {t('quotes.editBtnShort')}
               </Button>
-              <Button variant="destructive" icon="trash" onclick={() => (deleteTarget = selectedQuote)}>
+              <Button variant="destructive" onclick={() => (deleteTarget = selectedQuote)}>
                 {t('quotes.del')}
               </Button>
             </div>
@@ -451,9 +451,8 @@
         </Scroller>
       {:else}
         <div class="inspector-idle">
-          <span class="idle-glyph"><Icon name="quote" size={18} /></span>
           <p>{t('quotes.inspectorIdle')}</p>
-          <Button variant="ghost" icon="plus" onclick={openNew}>{t('quotes.newQuote')}</Button>
+          <Button variant="ghost" onclick={openNew}>{t('quotes.newQuote')}</Button>
         </div>
       {/if}
     </aside>
@@ -591,16 +590,6 @@
     flex-direction: column;
     align-items: center;
     gap: 12px;
-  }
-  .idle-glyph {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-    border: 1px solid var(--rule-tan);
-    border-radius: 8px;
-    color: var(--bb-tan-light);
   }
   .inspector-idle p { margin: 0; max-width: 26ch; line-height: 1.5; }
 

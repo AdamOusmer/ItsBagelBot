@@ -2,16 +2,12 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import type { Snippet } from 'svelte';
-  import Icon from './Icon.svelte';
-  import type { IconName } from '../lib/icons';
 
   let {
-    icon = undefined as IconName | undefined,
     title,
     body = undefined as string | undefined,
     children = undefined as Snippet | undefined
   }: {
-    icon?: IconName;
     title: string;
     body?: string;
     children?: Snippet;
@@ -19,7 +15,6 @@
 </script>
 
 <div class="empty">
-  {#if icon}<div class="glyph"><Icon name={icon} size={22} /></div>{/if}
   <p class="title">{title}</p>
   {#if body}<p class="body">{body}</p>{/if}
   {#if children}<div class="cta">{@render children()}</div>{/if}
@@ -31,18 +26,6 @@
     text-align: center;
     color: var(--bb-muted);
     font-family: var(--bb-font-body);
-  }
-  .glyph {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 46px;
-    height: 46px;
-    margin-bottom: 12px;
-    border-radius: 50%;
-    color: var(--bb-tan-light);
-    background: rgba(201, 168, 124, 0.08);
-    border: 1px solid rgba(201, 168, 124, 0.22);
   }
   .title {
     font-family: var(--bb-font-display);

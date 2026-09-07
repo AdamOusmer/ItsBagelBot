@@ -11,9 +11,7 @@
   // command" during an outage, a failed read falls back to a neutral "manage"
   // label that makes no count claim; the linked page shows the real state.
   import ButtonLink from '@bagel/shared/components/ButtonLink.svelte';
-  import Icon from '@bagel/shared/components/Icon.svelte';
   import { getI18n } from '@bagel/shared/i18n/context';
-  import type { IconName } from '@bagel/shared/icons';
 
   const { t } = getI18n();
 
@@ -35,13 +33,12 @@
     sharesOk?: boolean;
   } = $props();
 
-  type SummaryLink = { id: string; href: string; icon: IconName; label: string };
+  type SummaryLink = { id: string; href: string; label: string };
 
   const links = $derived.by<SummaryLink[]>(() => [
     {
       id: 'commands',
       href: '/commands',
-      icon: 'commands',
       label: !commandsOk
         ? t('overview.allCommands')
         : active > 0
@@ -51,7 +48,6 @@
     {
       id: 'modules',
       href: '/modules',
-      icon: 'modules',
       label: !modulesOk
         ? t('overview.quickModules')
         : modulesOn > 0
@@ -61,13 +57,11 @@
     {
       id: 'plan',
       href: '/billing',
-      icon: 'card',
       label: t('overview.summaryPlan', { plan: planLabel })
     },
     {
       id: 'shares',
       href: '/settings',
-      icon: 'users',
       label: !sharesOk
         ? t('overview.manageInSettings')
         : people > 1
@@ -85,7 +79,6 @@
     {#each links as link (link.id)}
       <li>
         <ButtonLink href={link.href} variant="ghost" class="ov-summary__link">
-          <span class="ov-summary__ico" aria-hidden="true"><Icon name={link.icon} size={16} /></span>
           <span class="ov-summary__label">{link.label}</span>
         </ButtonLink>
       </li>
@@ -128,16 +121,6 @@
     font-size: 13.5px;
     white-space: normal;
     text-align: left;
-  }
-  .ov-summary__ico {
-    display: inline-flex;
-    flex: none;
-    color: var(--bb-tan-light);
-  }
-  .ov-summary__ico :global(svg) {
-    stroke: currentColor;
-    fill: none;
-    stroke-width: 1.6;
   }
   .ov-summary__label {
     min-width: 0;

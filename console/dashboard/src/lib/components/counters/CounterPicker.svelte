@@ -6,7 +6,7 @@
   // it. The list lazy-loads from /counters/list on first open; create posts
   // through the counters page's own ?/create action.
   import { deserialize } from '$app/forms';
-  import { Icon, getI18n, type CounterScope } from '@bagel/shared';
+  import { getI18n, type CounterScope } from '@bagel/shared';
   import PickerPanel from '$lib/components/PickerPanel.svelte';
 
   const { t } = getI18n();
@@ -122,7 +122,6 @@
     onclick={toggle}
     bind:this={btnEl}
   >
-    <Icon name="pulse" size={12} />
     {t('commandEditor.pickCounter')}
     <span class="caret" aria-hidden="true">▾</span>
   </button>

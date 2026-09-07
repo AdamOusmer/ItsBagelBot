@@ -10,7 +10,6 @@ export const TIMERS_MODULE: ModuleDef =
   tagline: 'Post repeating chat messages on a schedule while you are live.',
   description:
     'Set messages the bot repeats on a schedule while you are live: announcements, socials, reminders. Each timer keeps its own interval and only fires during the stream. Add, edit and arm them on this page.',
-  icon: 'clock',
   category: 'Chat',
   defaultEnabled: false,
   href: '/timers',

@@ -10,7 +10,6 @@
   import ButtonLink from '@bagel/shared/components/ButtonLink.svelte';
   import Icon from '@bagel/shared/components/Icon.svelte';
   import { getI18n } from '@bagel/shared/i18n/context';
-  import type { IconName } from '@bagel/shared/icons';
 
   const { t } = getI18n();
 
@@ -24,12 +23,12 @@
     modulesOn: boolean;
   } = $props();
 
-  type Step = { id: string; icon: IconName; label: string; href: string; done: boolean };
+  type Step = { id: string; label: string; href: string; done: boolean };
 
   const steps = $derived.by<Step[]>(() => [
-    { id: 'connect', icon: 'power', label: t('overview.setupConnect'), href: '/settings', done: receiving },
-    { id: 'command', icon: 'commands', label: t('overview.setupCommand'), href: '/commands', done: hasCommands },
-    { id: 'module', icon: 'modules', label: t('overview.setupModule'), href: '/modules', done: modulesOn }
+    { id: 'connect', label: t('overview.setupConnect'), href: '/settings', done: receiving },
+    { id: 'command', label: t('overview.setupCommand'), href: '/commands', done: hasCommands },
+    { id: 'module', label: t('overview.setupModule'), href: '/modules', done: modulesOn }
   ]);
 
   const doneCount = $derived(steps.filter((s) => s.done).length);
@@ -42,10 +41,12 @@
   </div>
   <Card>
     <ol class="ov-setup__list">
-      {#each steps as step (step.id)}
+      {#each steps as step, i (step.id)}
         <li class="ov-setup__row" class:done={step.done}>
+          <!-- Done steps get the tick; the rest keep the same box with their
+               ordinal so the list does not shift as steps complete. -->
           <span class="ov-setup__ico" aria-hidden="true">
-            <Icon name={step.done ? 'check' : step.icon} size={15} />
+            {#if step.done}<Icon name="check" size={15} />{:else}{i + 1}{/if}
           </span>
           <span class="ov-setup__label">{step.label}</span>
           {#if step.done}
@@ -113,6 +114,8 @@
     background: rgba(201, 168, 124, 0.1);
     border: 1px solid rgba(201, 168, 124, 0.28);
     color: var(--bb-tan-light);
+    font-family: var(--bb-font-mono);
+    font-size: 12px;
   }
   .ov-setup__row.done .ov-setup__ico {
     background: var(--bb-status-success-bg);

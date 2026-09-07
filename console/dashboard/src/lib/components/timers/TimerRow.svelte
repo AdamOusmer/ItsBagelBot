@@ -58,7 +58,6 @@
     <span class="prow">
       {#if idx}<span class="idx" aria-hidden="true">{idx}</span>{/if}
       <span class="msg">
-        <span class="swatch" aria-hidden="true"><Icon name="clock" size={11} /></span>
         <span class="msg-text">{r.message}</span>
       </span>
       <!-- Metadata as labelled TEXT (no title tooltips): schedule value with an
@@ -106,19 +105,6 @@
     white-space: nowrap;
     min-width: 0;
   }
-  .swatch {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 20px;
-    height: 20px;
-    flex: none;
-    border-radius: 6px;
-    background: color-mix(in srgb, var(--bb-tan, #c9a87c) 24%, transparent);
-    border: 1px solid color-mix(in srgb, var(--bb-tan, #c9a87c) 55%, transparent);
-    color: color-mix(in srgb, var(--bb-tan, #c9a87c) 75%, white);
-  }
-  .swatch :global(svg) { stroke-width: 1.8; }
 
   /* Metadata block: schedule value + state pill, read as row text. */
   .meta { display: inline-flex; align-items: center; justify-content: flex-end; gap: 12px; }

@@ -144,11 +144,11 @@
   {/if}
 
   {#if data.errorSlug && ERROR_SLUG_KEYS[data.errorSlug]}
-    <AlertBanner variant="warn" icon="ban">{t(ERROR_SLUG_KEYS[data.errorSlug])}</AlertBanner>
+    <AlertBanner variant="warn">{t(ERROR_SLUG_KEYS[data.errorSlug])}</AlertBanner>
   {/if}
 
   {#if data.justConnected && data.refused}
-    <AlertBanner variant="warn" icon="server">{t('discord.connectedLivedIn')}</AlertBanner>
+    <AlertBanner variant="warn">{t('discord.connectedLivedIn')}</AlertBanner>
   {/if}
 
   <!--
@@ -160,7 +160,7 @@
     appears exactly where it is actionable and nowhere else.
   -->
   {#if data.layout?.needsReauth}
-    <AlertBanner variant="warn" icon="server">{t('discord.reauthNeeded')}</AlertBanner>
+    <AlertBanner variant="warn">{t('discord.reauthNeeded')}</AlertBanner>
     <div class="row">
       <ButtonLink variant="secondary" href="/discord/connect" data-sveltekit-reload>
         {t('discord.reauthCta')}
