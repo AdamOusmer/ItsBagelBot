@@ -209,7 +209,7 @@ describe('urlfetch mapping', () => {
     for (const w of warns) {
       expect(w.severity).toBe('warn');
       expect(w.item_index).toBe(0);
-      expect(w.message).toContain('re-enter the URL for');
+      expect(w.message).toContain('Re-enter the URL for');
     }
     expect(warns[0].message).toContain('{urlfetch:moobot_weather}');
     expect(warns[1].message).toContain('"moobot_weather_2"');
