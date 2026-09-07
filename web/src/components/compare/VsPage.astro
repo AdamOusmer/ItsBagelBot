@@ -1,0 +1,173 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+/**
+ * VsPage: honest comparison table against one competitor. English only for
+ * now; these pages target "X alternative" searches, which are overwhelmingly
+ * English. Every competitor cell must describe publicly documented behaviour,
+ * dated in the disclaimer, so a stale claim is a correction, not a lawsuit.
+ */
+import PageHero from '../ui/PageHero.astro';
+import MainButton from '../ui/Buttons/MainButton.astro';
+import SecondaryButton from '../ui/Buttons/SecondaryButton.astro';
+
+interface Row {
+    label: string;
+    us: string;
+    them: string;
+}
+
+interface Props {
+    competitor: string;
+    intro: string;
+    rows: Row[];
+    switchReasons: string[];
+    otherVs: { href: string; label: string };
+}
+
+const { competitor, intro, rows, switchReasons, otherVs } = Astro.props;
+const DASHBOARD_LOGIN = 'https://dashboard.itsbagelbot.com/auth/login';
+---
+
+<PageHero
+    eyebrow="Comparison"
+    title={`ItsBagelBot vs ${competitor}`}
+    description={intro}
+/>
+
+<section class="vs">
+    <div class="vs__tablewrap">
+        <table class="vs__table">
+            <thead>
+                <tr>
+                    <th scope="col"><span class="visually-hidden">Feature</span></th>
+                    <th scope="col">ItsBagelBot</th>
+                    <th scope="col">{competitor}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {rows.map((row, i) => (
+                    <tr data-reveal style={`--reveal-i: ${i}`}>
+                        <th scope="row">{row.label}</th>
+                        <td>{row.us}</td>
+                        <td>{row.them}</td>
+                    </tr>
+                ))}
+            </tbody>
+        </table>
+    </div>
+
+    <h2 class="vs__subtitle" data-reveal>Why streamers switch</h2>
+    <ul class="vs__reasons">
+        {switchReasons.map((reason, i) => (
+            <li data-reveal style={`--reveal-i: ${i}`}>{reason}</li>
+        ))}
+    </ul>
+
+    <div class="vs__actions" data-reveal>
+        <MainButton href={DASHBOARD_LOGIN} label="Add to Twitch" />
+        <SecondaryButton href="/import/" label="Import your setup" />
+        <SecondaryButton href={otherVs.href} label={otherVs.label} />
+    </div>
+
+    <p class="vs__disclaimer">
+        {competitor} is a well-made bot and this table plays fair: it reflects
+        publicly documented features as of September 2026. Spotted something
+        out of date? Tell us and we will fix it.
+    </p>
+</section>
+
+<style>
+    .vs {
+        padding: var(--space-section-sm, 88px) 48px calc(var(--space-section, 120px));
+        max-width: var(--content-max, 1200px);
+        margin: 0 auto;
+    }
+
+    .visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+    }
+
+    .vs__tablewrap { overflow-x: auto; }
+
+    .vs__table {
+        width: 100%;
+        max-width: 900px;
+        margin: 0 auto;
+        border-collapse: collapse;
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 0.9rem;
+    }
+
+    .vs__table th,
+    .vs__table td {
+        padding: 14px 16px;
+        text-align: left;
+        vertical-align: top;
+        border-bottom: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+    }
+
+    .vs__table thead th {
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-weight: 700;
+        color: var(--white, #f0ece4);
+    }
+
+    .vs__table tbody th {
+        font-weight: 600;
+        color: var(--white, #f0ece4);
+        white-space: nowrap;
+    }
+
+    .vs__table td { color: var(--muted, #888077); line-height: 1.5; }
+    .vs__table td:first-of-type { color: var(--tan-light, #e0c49a); }
+
+    .vs__subtitle {
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-size: 1.4rem;
+        font-weight: 800;
+        color: var(--white, #f0ece4);
+        text-align: center;
+        margin: 64px 0 20px;
+    }
+
+    .vs__reasons {
+        max-width: var(--content-narrow, 720px);
+        margin: 0 auto;
+        padding: 0 0 0 1.2em;
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 0.95rem;
+        line-height: 1.7;
+        color: var(--muted, #888077);
+    }
+
+    .vs__actions {
+        display: flex;
+        justify-content: center;
+        gap: 14px;
+        flex-wrap: wrap;
+        margin-top: 48px;
+    }
+
+    .vs__disclaimer {
+        max-width: var(--content-narrow, 720px);
+        margin: 40px auto 0;
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.68rem;
+        letter-spacing: 0.04em;
+        line-height: 1.7;
+        color: var(--muted, #888077);
+        opacity: 0.75;
+        text-align: center;
+    }
+
+    @media (max-width: 860px) {
+        .vs { padding-inline: 24px; }
+        .vs__table tbody th { white-space: normal; }
+    }
+</style>

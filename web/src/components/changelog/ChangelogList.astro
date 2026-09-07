@@ -11,7 +11,7 @@ import type { CollectionEntry } from 'astro:content';
 import CardAtmosphere from '../ui/CardAtmosphere.astro';
 import ReleaseTag from './ReleaseTag.astro';
 import TextLink from '../ui/TextLink.astro';
-import { getLangFromUrl, useTranslations } from '../../i18n/ui';
+import { getLangFromUrl, useTranslations, localizePath } from '../../i18n/ui';
 
 interface Props {
     entries: CollectionEntry<'changelog'>[];
@@ -65,7 +65,7 @@ const tagLabel: Record<CollectionEntry<'changelog'>['data']['tag'], string> = {
                             <CardAtmosphere />
                             <header class="clog__meta">
                                 <ReleaseTag tag={tag} label={tagLabel[tag]} />
-                                <span class="clog__ver">{version}</span>
+                                <a class="clog__ver" href={localizePath(`/changelog/${version}`, lang)}>{version}</a>
                             </header>
                             <h2 class="clog__title">{pick(title, lang)}</h2>
                             <ul class="clog__highlights">
@@ -204,6 +204,7 @@ const tagLabel: Record<CollectionEntry<'changelog'>['data']['tag'], string> = {
         font-size: 0.72rem;
         letter-spacing: 0.04em;
         color: var(--tan-light, #e0c49a);
+        text-decoration: none;
         background: rgba(201, 168, 124, 0.07);
         border: 1px solid rgba(201, 168, 124, 0.14);
         border-radius: var(--radius-sm);

@@ -52,6 +52,16 @@ function normalizePath(path: string): string {
   return path.replace(/\/+$/, '') || '/';
 }
 
+// Per-release changelog paths, discovered from the content files the same way
+// the pages are. Keyed on the version field, matching [version].astro's params.
+const changelogFiles = import.meta.glob<{ version: string }>(
+  '../content/changelog/*.json',
+  { eager: true, import: 'default' },
+);
+const changelogLocalizedPaths = Object.values(changelogFiles).map(
+  (entry) => `/changelog/${entry.version}`,
+);
+
 /**
  * EN paths that have a translated twin. Single source of truth for the hreflang
  * emitter (Layout.astro) and the language switcher, which would otherwise each
@@ -60,6 +70,7 @@ function normalizePath(path: string): string {
 export const LOCALIZED_PATHS: ReadonlySet<string> = new Set([
   '/', '/pricing', '/contact', '/privacy', '/terms', '/creator-terms',
   ...guideLocalizedPaths, '/command-builder', '/changelog', '/song-requests',
+  '/valorant-stats', '/import', ...changelogLocalizedPaths,
 ]);
 
 /** Locale from the URL: first path segment when it names a known locale, else default. */

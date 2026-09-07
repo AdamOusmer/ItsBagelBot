@@ -1,0 +1,35 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import Layout from '../../layouts/Layout.astro';
+import VsPage from '../../components/compare/VsPage.astro';
+---
+
+<Layout
+    title="ItsBagelBot vs StreamElements - Free Twitch Bot Comparison"
+    description="How ItsBagelBot compares to the StreamElements chat bot: real Spotify queue song requests, game stats in chat, privacy-first design, and an import wizard for your StreamElements export."
+>
+    <VsPage
+        competitor="StreamElements"
+        intro="StreamElements is a full production suite with overlays, tipping and a chat bot. This table compares the chat-bot side, plainly."
+        rows={[
+            { label: 'Price', us: 'Free forever, every feature. Premium only buys message priority.', them: 'Bot is free; the platform monetizes tipping and sponsorships.' },
+            { label: 'Song requests', us: 'Real Spotify queue: !sr adds the track to the Spotify player the streamer is actually running.', them: 'Media requests through the StreamElements player, built around YouTube; Spotify’s queue is not driven directly.' },
+            { label: 'Moderation', us: 'Multi-layer: static rule gates, a classifier jury, and a cross-channel raid-signature network.', them: 'Chat filters and spam protection modules.' },
+            { label: 'Custom commands & timers', us: 'Yes, with variables, cooldowns and a visual command builder.', them: 'Yes, with variables and timers.' },
+            { label: 'Game stats in chat', us: 'Built in: Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale.', them: 'Not built in; possible through custom API commands you wire yourself.' },
+            { label: 'Overlays & alerts', us: 'Not the focus; ItsBagelBot is the chat side and plays nicely next to any overlay tool.', them: 'Excellent, a core strength of the platform.' },
+            { label: 'Import from other bots', us: 'Wizard imports commands, timers, counters and quotes from StreamElements, Nightbot, Moobot and Streamlabs Chatbot.', them: 'No cross-bot import wizard.' },
+            { label: 'Source code', us: 'Source-available on GitHub, auditable line by line.', them: 'Closed source.' },
+            { label: 'Privacy', us: 'No third-party trackers, no data sold, chat not stored for resale.', them: 'See their privacy policy.' },
+        ]}
+        switchReasons={[
+            'Song requests drive the real Spotify queue instead of a separate media player.',
+            'A chat bot that is only a chat bot: no platform account, overlays or tipping stack required.',
+            'The import wizard reads your StreamElements export and moves commands, timers, counters and quotes in minutes.',
+            'Privacy-first and source-available, so you can read exactly what runs in your chat.',
+        ]}
+        otherVs={{ href: '/vs/nightbot/', label: 'vs Nightbot' }}
+    />
+</Layout>

@@ -1,0 +1,35 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import Layout from '../../layouts/Layout.astro';
+import VsPage from '../../components/compare/VsPage.astro';
+---
+
+<Layout
+    title="ItsBagelBot vs Nightbot - Free Twitch Bot Comparison"
+    description="How ItsBagelBot compares to Nightbot: real Spotify queue song requests, game stats in chat, multi-layer auto moderation, and an import wizard that brings your Nightbot setup over in minutes."
+>
+    <VsPage
+        competitor="Nightbot"
+        intro="Nightbot has moderated Twitch chat for over a decade and does it well. Here is where the two differ, plainly."
+        rows={[
+            { label: 'Price', us: 'Free forever, every feature. Premium only buys message priority.', them: 'Free.' },
+            { label: 'Song requests', us: 'Real Spotify queue: !sr adds the track to the Spotify player the streamer is actually running.', them: 'Playlist-based requests around YouTube and SoundCloud; Spotify’s queue is not driven directly.' },
+            { label: 'Moderation', us: 'Multi-layer: static rule gates, a classifier jury, and a cross-channel raid-signature network.', them: 'Spam protection with filters for links, caps, repetition and blacklisted terms.' },
+            { label: 'Custom commands & timers', us: 'Yes, with variables, cooldowns and a visual command builder.', them: 'Yes, with variables and timers.' },
+            { label: 'Game stats in chat', us: 'Built in: Valorant, Fortnite, Hypixel Bedwars, MCSR Ranked, Clash Royale.', them: 'Not built in; possible through custom API commands you wire yourself.' },
+            { label: 'Channel Points actions', us: 'Built-in reward actions, including smart-light control.', them: 'Not a core feature.' },
+            { label: 'Import from other bots', us: 'Wizard imports commands, timers, counters and quotes from Nightbot, StreamElements, Moobot and Streamlabs Chatbot.', them: 'No cross-bot import wizard.' },
+            { label: 'Source code', us: 'Source-available on GitHub, auditable line by line.', them: 'Closed source.' },
+            { label: 'Privacy', us: 'No third-party trackers, no data sold, chat not stored for resale.', them: 'See their privacy policy.' },
+        ]}
+        switchReasons={[
+            'Song requests drive the real Spotify queue instead of a separate playlist player.',
+            'Game stats answer in chat with zero custom API wiring.',
+            'The import wizard moves a Nightbot setup over in minutes, and Nightbot keeps working while you test.',
+            'Every current and future feature stays on the free tier.',
+        ]}
+        otherVs={{ href: '/vs/streamelements/', label: 'vs StreamElements' }}
+    />
+</Layout>
