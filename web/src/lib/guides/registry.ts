@@ -96,21 +96,29 @@ function parityFor(slug: string, lang: Lang): Parity {
   };
 }
 
-/** Walk every string in a value and report the first that carries an em dash. */
+/**
+ * The children of a value paired with the trail that names each one: array
+ * elements as `trail[i]`, object properties as `trail.key`, and nothing for a
+ * leaf. Splitting this out keeps the walk below to a single loop rather than
+ * one nested loop per container kind.
+ */
+function childEntries(value: unknown, trail: string): [unknown, string][] {
+  if (Array.isArray(value)) return value.map((child, i) => [child, `${trail}[${i}]`]);
+  if (value && typeof value === 'object') {
+    return Object.entries(value as Record<string, unknown>).map(([k, child]) => [
+      child,
+      trail ? `${trail}.${k}` : k,
+    ]);
+  }
+  return [];
+}
+
+/** Walk every string in a value and report the trail of the first em dash. */
 function findEmDash(value: unknown, trail: string): string | undefined {
   if (typeof value === 'string') return value.includes(EM_DASH) ? trail : undefined;
-  if (Array.isArray(value)) {
-    for (let i = 0; i < value.length; i += 1) {
-      const hit = findEmDash(value[i], `${trail}[${i}]`);
-      if (hit) return hit;
-    }
-    return undefined;
-  }
-  if (value && typeof value === 'object') {
-    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      const hit = findEmDash(v, trail ? `${trail}.${k}` : k);
-      if (hit) return hit;
-    }
+  for (const [child, childTrail] of childEntries(value, trail)) {
+    const hit = findEmDash(child, childTrail);
+    if (hit !== undefined) return hit;
   }
   return undefined;
 }
@@ -132,7 +140,7 @@ function countDrift(label: string, a: readonly unknown[], b: readonly unknown[])
   return a.length === b.length ? undefined : `has ${b.length} ${label}, English has ${a.length}`;
 }
 
-function firstDrift(drifts: readonly Drift[]): Drift {
+function firstDefined(drifts: readonly Drift[]): Drift {
   return drifts.find((drift) => drift !== undefined);
 }
 
@@ -140,13 +148,13 @@ const blockChecks: BlockChecks = {
   table: (a, b) =>
     countDrift('table columns', a.head, b.head) ??
     countDrift('table rows', a.rows, b.rows) ??
-    firstDrift(a.rows.map((row, r) => countDrift(`cells in table row ${r}`, row, b.rows[r]))),
+    firstDefined(a.rows.map((row, r) => countDrift(`cells in table row ${r}`, row, b.rows[r]))),
   dash: (a, b) =>
     (a.screen === b.screen ? undefined : `screen is "${b.screen}", English has "${a.screen}"`) ??
     countDrift('notes', a.notes ?? [], b.notes ?? []),
   chat: (a, b) =>
     countDrift('chat lines', a.lines, b.lines) ??
-    firstDrift(
+    firstDefined(
       a.lines.map((line, l) =>
         line.who === b.lines[l].who
           ? undefined
