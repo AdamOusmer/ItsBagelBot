@@ -37,17 +37,30 @@ func TestSanitizeChannelName(t *testing.T) {
 func TestSanitizeChannelNameOutputIsAlwaysAcceptable(t *testing.T) {
 	inputs := []string{"Ada Lovelace", "Ünïcödé Tïckét", "🍩 donut 🍩", "___", "A-B_C.D"}
 	for _, in := range inputs {
-		got := SanitizeChannelName(in)
-		if strings.Contains(got, "--") {
-			t.Fatalf("SanitizeChannelName(%q) = %q: repeated separator", in, got)
-		}
-		if strings.HasPrefix(got, "-") || strings.HasSuffix(got, "-") {
-			t.Fatalf("SanitizeChannelName(%q) = %q: edge separator", in, got)
-		}
-		for _, r := range got {
-			if !allowedNameRune(r) && r != '-' {
-				t.Fatalf("SanitizeChannelName(%q) = %q: rune %q is outside [a-z0-9-]", in, got, r)
-			}
+		wantAcceptableChannelName(t, in, SanitizeChannelName(in))
+	}
+}
+
+// wantAcceptableChannelName holds the whole output contract in one place:
+// Discord refuses a channel name outside [a-z0-9-], and a doubled or edge
+// separator renders as a typo the streamer cannot fix from the dashboard.
+func wantAcceptableChannelName(t *testing.T, in, got string) {
+	t.Helper()
+	if strings.Contains(got, "--") {
+		t.Fatalf("SanitizeChannelName(%q) = %q: repeated separator", in, got)
+	}
+	if strings.HasPrefix(got, "-") || strings.HasSuffix(got, "-") {
+		t.Fatalf("SanitizeChannelName(%q) = %q: edge separator", in, got)
+	}
+	wantChannelNameRunes(t, in, got)
+}
+
+// wantChannelNameRunes checks the alphabet, rune by rune.
+func wantChannelNameRunes(t *testing.T, in, got string) {
+	t.Helper()
+	for _, r := range got {
+		if !allowedNameRune(r) && r != '-' {
+			t.Fatalf("SanitizeChannelName(%q) = %q: rune %q is outside [a-z0-9-]", in, got, r)
 		}
 	}
 }

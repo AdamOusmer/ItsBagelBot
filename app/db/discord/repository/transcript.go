@@ -36,14 +36,28 @@ func (s *Store) TranscriptPut(ctx context.Context, ticketID int, body string, me
 	}
 	return db.WithExec(ctx, func(ctx context.Context) error {
 		return withTx(ctx, s.client, func(tx *ent.Tx) error {
-			return putTranscriptInTx(ctx, tx, ticketID, body, messageCount)
+			return putTranscriptInTx(ctx, tx, transcriptPut{
+				ticketID:     ticketID,
+				body:         body,
+				messageCount: messageCount,
+			})
 		})
 	})
 }
 
+// transcriptPut is one rendered transcript on its way to its row: the ticket
+// it belongs to, the render, and the number of messages the render covers.
+// The three never travel apart, so they cross the transaction boundary as one
+// value instead of as three positional arguments a caller can transpose.
+type transcriptPut struct {
+	ticketID     int
+	body         string
+	messageCount int
+}
+
 // putTranscriptInTx is TranscriptPut's body inside the transaction.
-func putTranscriptInTx(ctx context.Context, tx *ent.Tx, ticketID int, body string, messageCount int) error {
-	exists, err := tx.Ticket.Query().Where(ticket.IDEQ(ticketID)).Exist(ctx)
+func putTranscriptInTx(ctx context.Context, tx *ent.Tx, p transcriptPut) error {
+	exists, err := tx.Ticket.Query().Where(ticket.IDEQ(p.ticketID)).Exist(ctx)
 	if err != nil {
 		return err
 	}
@@ -52,21 +66,21 @@ func putTranscriptInTx(ctx context.Context, tx *ent.Tx, ticketID int, body strin
 	}
 
 	existing, err := tx.TicketTranscript.Query().
-		Where(tickettranscript.HasTicketWith(ticket.IDEQ(ticketID))).
+		Where(tickettranscript.HasTicketWith(ticket.IDEQ(p.ticketID))).
 		Only(ctx)
 	if err != nil && !ent.IsNotFound(err) {
 		return err
 	}
 	if existing != nil {
 		return tx.TicketTranscript.UpdateOne(existing).
-			SetBody(body).
-			SetMessageCount(messageCount).
+			SetBody(p.body).
+			SetMessageCount(p.messageCount).
 			Exec(ctx)
 	}
 	return tx.TicketTranscript.Create().
-		SetTicketID(ticketID).
-		SetBody(body).
-		SetMessageCount(messageCount).
+		SetTicketID(p.ticketID).
+		SetBody(p.body).
+		SetMessageCount(p.messageCount).
 		Exec(ctx)
 }
 

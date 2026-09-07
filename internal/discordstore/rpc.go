@@ -72,6 +72,54 @@ func newRPCStore(requester Requester, local localStore, prefix string, log *zap.
 
 func (s *rpcStore) subject(verb string) string { return s.prefix + "." + verb }
 
+// numericBroadcasterID converts a broadcaster id to the uint64 discord-data
+// keys its rows by. Four write verbs opened with this same parse-or-refuse
+// block; the refusal stays a plain error rather than a sentinel because a
+// non-numeric id is a caller bug, not an outcome anything branches on.
+func numericBroadcasterID(b Broadcaster) (uint64, error) {
+	id, err := strconv.ParseUint(b.ID, 10, 64)
+	if err != nil {
+		return 0, errors.New("discordstore: broadcaster id must be numeric")
+	}
+	return id, nil
+}
+
+// ackReply is the part of a write verb's reply this client actually reads.
+//
+// It decodes in place of the verb's own reply type on the ack path below.
+// The verbs answer with extra fields (ticket_id, opener_id) that path has no
+// reader for, and the codec drops what the target struct does not declare, so
+// one shape covers binding.set, binding.delete, ticket.claim, ticket.close and
+// transcript.put instead of five near-identical bodies. A verb whose extra
+// fields DO get read -- config.set's version, ticket.open's count -- keeps its
+// own reply type and its own body.
+type ackReply struct {
+	Error string `json:"error,omitempty"`
+	Code  string `json:"code,omitempty"`
+}
+
+// ack runs a verb whose only answer is whether it worked, and classifies the
+// reply through replyError so a coded refusal arrives as its sentinel.
+func (s *rpcStore) ack(ctx context.Context, verb string, req any) error {
+	reply, err := request[ackReply](ctx, s.rpc, s.subject(verb), req)
+	if err != nil {
+		return err
+	}
+	return replyError(reply.Error, reply.Code)
+}
+
+// memberCallFailed reports whether a member-scoped read failed, in transport
+// or in the reply, logging it once. The ticket-count and the three XP verbs
+// all answer a zero value on failure and had each spelled the same
+// err/reply.Error/log triple.
+func (s *rpcStore) memberCallFailed(verb string, m Member, err error, replyErr string) bool {
+	if err == nil && replyErr == "" {
+		return false
+	}
+	s.log.Error("discord-data "+verb+" failed", zap.String("guild_id", m.GuildID), zap.Error(err))
+	return true
+}
+
 // TicketsDurable shadows the embedded local store's answer. Tickets opened
 // through this store get a discord-data row: an id, an enforced open limit and
 // a transcript. A discord-data that is DOWN surfaces per call, as an error the
@@ -120,20 +168,16 @@ func (s *rpcStore) BindingOf(ctx context.Context, g Guild) (Broadcaster, Binding
 // BindGuild binds a guild to a broadcaster. It fails loudly: no cache write
 // happens unless discord-data confirmed the row.
 func (s *rpcStore) BindGuild(ctx context.Context, bind Binding) error {
-	broadcasterID, err := strconv.ParseUint(bind.Broadcaster.ID, 10, 64)
-	if err != nil {
-		return errors.New("discordstore: broadcaster id must be numeric")
-	}
-	reply, err := request[discorddata.BindingSetReply](ctx, s.rpc, s.subject(discorddata.VerbBindingSet),
-		discorddata.BindingSetRequest{
-			GuildID:       bind.Guild.ID,
-			BroadcasterID: broadcasterID,
-			InstalledBy:   bind.InstalledBy,
-		})
+	broadcasterID, err := numericBroadcasterID(bind.Broadcaster)
 	if err != nil {
 		return err
 	}
-	if err := replyError(reply.Error, reply.Code); err != nil {
+	err = s.ack(ctx, discorddata.VerbBindingSet, discorddata.BindingSetRequest{
+		GuildID:       bind.Guild.ID,
+		BroadcasterID: broadcasterID,
+		InstalledBy:   bind.InstalledBy,
+	})
+	if err != nil {
 		return err
 	}
 	s.cacheBroadcaster(ctx, bind.Guild, bind.Broadcaster)
@@ -147,16 +191,13 @@ func (s *rpcStore) BindGuild(ctx context.Context, bind Binding) error {
 // fire: without it a stale unbind for a guild that has since been re-bound to
 // somebody else drops the new owner's row.
 func (s *rpcStore) UnbindGuild(ctx context.Context, bind Binding) error {
-	broadcasterID, err := strconv.ParseUint(bind.Broadcaster.ID, 10, 64)
-	if err != nil {
-		return errors.New("discordstore: broadcaster id must be numeric")
-	}
-	reply, err := request[discorddata.BindingDeleteReply](ctx, s.rpc, s.subject(discorddata.VerbBindingDelete),
-		discorddata.BindingDeleteRequest{GuildID: bind.Guild.ID, BroadcasterID: broadcasterID})
+	broadcasterID, err := numericBroadcasterID(bind.Broadcaster)
 	if err != nil {
 		return err
 	}
-	if err := replyError(reply.Error, reply.Code); err != nil {
+	err = s.ack(ctx, discorddata.VerbBindingDelete,
+		discorddata.BindingDeleteRequest{GuildID: bind.Guild.ID, BroadcasterID: broadcasterID})
+	if err != nil {
 		return err
 	}
 	s.dropBroadcaster(ctx, bind.Guild)
@@ -174,9 +215,9 @@ func (s *rpcStore) UnbindGuild(ctx context.Context, bind Binding) error {
 // and shows an empty picker on the dashboard, both of which read as a
 // deliberate answer rather than as an outage.
 func (s *rpcStore) GuildsOf(ctx context.Context, b Broadcaster) ([]Binding, error) {
-	broadcasterID, err := strconv.ParseUint(b.ID, 10, 64)
+	broadcasterID, err := numericBroadcasterID(b)
 	if err != nil {
-		return nil, errors.New("discordstore: broadcaster id must be numeric")
+		return nil, err
 	}
 	if cached, ok := s.cachedGuilds(ctx, b); ok {
 		return cached, nil
@@ -232,9 +273,9 @@ func (s *rpcStore) GuildConfig(ctx context.Context, g Guild) (ddiscord.Config, i
 // the stored blob from the request would cache whatever the caller sent even
 // if discord-data normalized it.
 func (s *rpcStore) SetGuildConfig(ctx context.Context, set SetConfig) (int, error) {
-	broadcasterID, err := strconv.ParseUint(set.Broadcaster.ID, 10, 64)
+	broadcasterID, err := numericBroadcasterID(set.Broadcaster)
 	if err != nil {
-		return 0, errors.New("discordstore: broadcaster id must be numeric")
+		return 0, err
 	}
 	reply, err := request[discorddata.ConfigSetReply](ctx, s.rpc, s.subject(discorddata.VerbConfigSet),
 		discorddata.ConfigSetRequest{
@@ -309,8 +350,7 @@ func (s *rpcStore) Ticket(ctx context.Context, g Guild, ch Channel) (Ticket, boo
 func (s *rpcStore) OpenTicketCount(ctx context.Context, m Member) int {
 	reply, err := request[discorddata.TicketCountReply](ctx, s.rpc, s.subject(discorddata.VerbTicketCount),
 		discorddata.TicketCountRequest{GuildID: m.GuildID, OpenerID: m.UserID})
-	if err != nil || reply.Error != "" {
-		s.log.Error("discord-data ticket.count failed", zap.String("guild_id", m.GuildID), zap.Error(err))
+	if s.memberCallFailed(discorddata.VerbTicketCount, m, err, reply.Error) {
 		return 0
 	}
 	return reply.Count
@@ -318,27 +358,19 @@ func (s *rpcStore) OpenTicketCount(ctx context.Context, m Member) int {
 
 // ClaimTicket records who is handling the ticket.
 func (s *rpcStore) ClaimTicket(ctx context.Context, c TicketClaim) error {
-	reply, err := request[discorddata.TicketClaimReply](ctx, s.rpc, s.subject(discorddata.VerbTicketClaim),
+	return s.ack(ctx, discorddata.VerbTicketClaim,
 		discorddata.TicketClaimRequest{GuildID: c.GuildID, ChannelID: c.ChannelID, StaffID: c.StaffID})
-	if err != nil {
-		return err
-	}
-	return replyError(reply.Error, reply.Code)
 }
 
 // CloseTicket ends the ticket in c. The row survives: the desk, the transcript
 // and the audit trail all need the history the Valkey key it replaces used to
 // throw away.
 func (s *rpcStore) CloseTicket(ctx context.Context, c TicketClose) error {
-	reply, err := request[discorddata.TicketCloseReply](ctx, s.rpc, s.subject(discorddata.VerbTicketClose),
+	return s.ack(ctx, discorddata.VerbTicketClose,
 		discorddata.TicketCloseRequest{
 			GuildID: c.GuildID, ChannelID: c.ChannelID,
 			ClosedBy: c.ClosedBy, ArchivedChannelID: c.ArchivedChannelID,
 		})
-	if err != nil {
-		return err
-	}
-	return replyError(reply.Error, reply.Code)
 }
 
 // PutTranscript stores a closed ticket's rendered history. A zero TicketID
@@ -348,12 +380,8 @@ func (s *rpcStore) PutTranscript(ctx context.Context, t Transcript) error {
 	if t.TicketID == 0 {
 		return nil
 	}
-	reply, err := request[discorddata.TranscriptPutReply](ctx, s.rpc, s.subject(discorddata.VerbTranscriptPut),
+	return s.ack(ctx, discorddata.VerbTranscriptPut,
 		discorddata.TranscriptPutRequest{TicketID: t.TicketID, Body: t.Body, MessageCount: t.MessageCount})
-	if err != nil {
-		return err
-	}
-	return replyError(reply.Error, reply.Code)
 }
 
 // AddXP credits one message's XP, taking the node-local cooldown first. A
@@ -365,8 +393,7 @@ func (s *rpcStore) AddXP(ctx context.Context, m Member) (int, bool, int) {
 	}
 	reply, err := request[discorddata.XPAddReply](ctx, s.rpc, s.subject(discorddata.VerbXPAdd),
 		discorddata.XPAddRequest{GuildID: m.GuildID, UserID: m.UserID, Delta: xpPerMessage})
-	if err != nil || reply.Error != "" {
-		s.log.Error("discord-data xp.add failed", zap.String("guild_id", m.GuildID), zap.Error(err))
+	if s.memberCallFailed(discorddata.VerbXPAdd, m, err, reply.Error) {
 		return 0, false, 0
 	}
 	return int(reply.XPValue), reply.LeveledUp, reply.Level
@@ -377,8 +404,7 @@ func (s *rpcStore) AddXP(ctx context.Context, m Member) (int, bool, int) {
 func (s *rpcStore) ClaimDaily(ctx context.Context, m Member) (bool, int) {
 	reply, err := request[discorddata.XPDailyReply](ctx, s.rpc, s.subject(discorddata.VerbXPDaily),
 		discorddata.XPDailyRequest{GuildID: m.GuildID, UserID: m.UserID, Amount: dailyXP})
-	if err != nil || reply.Error != "" {
-		s.log.Error("discord-data xp.daily failed", zap.String("guild_id", m.GuildID), zap.Error(err))
+	if s.memberCallFailed(discorddata.VerbXPDaily, m, err, reply.Error) {
 		return false, 0
 	}
 	return reply.Granted, int(reply.XPValue)
@@ -389,8 +415,7 @@ func (s *rpcStore) ClaimDaily(ctx context.Context, m Member) (bool, int) {
 func (s *rpcStore) Rank(ctx context.Context, m Member) (int, int) {
 	reply, err := request[discorddata.XPGetReply](ctx, s.rpc, s.subject(discorddata.VerbXPGet),
 		discorddata.XPGetRequest{GuildID: m.GuildID, UserID: m.UserID})
-	if err != nil || reply.Error != "" {
-		s.log.Error("discord-data xp.get failed", zap.String("guild_id", m.GuildID), zap.Error(err))
+	if s.memberCallFailed(discorddata.VerbXPGet, m, err, reply.Error) {
 		return 0, 0
 	}
 	return int(reply.XPValue), reply.Level

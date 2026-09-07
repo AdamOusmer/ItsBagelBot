@@ -156,9 +156,23 @@ func TestFatalCloseStopsReconnecting(t *testing.T) {
 	if got := dials(); got != 1 {
 		t.Fatalf("dials = %d, want exactly 1 after a fatal close", got)
 	}
+	wantFatalDown(t, st, ddiscord.CloseDisallowedIntents)
+}
+
+// wantFatalDown asserts the session published exactly one Down, marked fatal
+// and carrying code. Exactly one is half the assertion: a fatal close parks,
+// so a second Down means the loop kept dialling something it cannot fix.
+func wantFatalDown(t *testing.T, st *recStatus, code int) {
+	t.Helper()
 	downs := st.downs()
-	if len(downs) != 1 || !downs[0].Fatal || downs[0].Code != ddiscord.CloseDisallowedIntents {
-		t.Fatalf("Down = %+v, want one fatal 4014", downs)
+	if len(downs) != 1 {
+		t.Fatalf("Down = %+v, want exactly one", downs)
+	}
+	if !downs[0].Fatal {
+		t.Fatalf("Down = %+v, want it marked fatal", downs[0])
+	}
+	if downs[0].Code != code {
+		t.Fatalf("Down code = %d, want %d", downs[0].Code, code)
 	}
 }
 

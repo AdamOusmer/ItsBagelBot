@@ -69,38 +69,77 @@ func TestRegisterStillReturnsTheIDOnACatalogFailure(t *testing.T) {
 // becomes unreachable with no error anywhere. Pinning the ticket group is what
 // makes that a failing test rather than a silent regression.
 func TestCatalogPinsTheTicketSubcommands(t *testing.T) {
-	var ticket *discordapi.AppCommand
-	for i, cmd := range Catalog() {
-		if cmd.Name == "ticket" {
-			ticket = &Catalog()[i]
-			break
+	ticket := catalogCommand(t, "ticket")
+
+	wantSubcommands(t, ticket, "open", "close", "claim", "add", "panel")
+	wantRequiredUserOption(t, subcommand(t, ticket, "add"))
+}
+
+// catalogCommand is the top-level command named name, or a failed test: every
+// assertion below is about a command the bulk overwrite still ships.
+func catalogCommand(t *testing.T, name string) discordapi.AppCommand {
+	t.Helper()
+	for _, cmd := range Catalog() {
+		if cmd.Name == name {
+			return cmd
 		}
 	}
-	if ticket == nil {
-		t.Fatal("no /ticket command in the catalog")
+	t.Fatalf("no /%s command in the catalog", name)
+	return discordapi.AppCommand{}
+}
+
+// wantSubcommands asserts cmd carries exactly names as its options, each a
+// SUB_COMMAND. Both directions matter: a missing one is deregistered at the
+// next boot, an extra one is a handler nobody wrote.
+func wantSubcommands(t *testing.T, cmd discordapi.AppCommand, names ...string) {
+	t.Helper()
+	want := make(map[string]bool, len(names))
+	for _, name := range names {
+		want[name] = false
 	}
-	want := map[string]bool{"open": false, "close": false, "claim": false, "add": false, "panel": false}
-	for _, sub := range ticket.Options {
-		if _, ok := want[sub.Name]; !ok {
-			t.Fatalf("unexpected /ticket subcommand %q", sub.Name)
-		}
-		want[sub.Name] = true
-		if sub.Type != 1 {
-			t.Fatalf("/ticket %s type = %d, want 1 (SUB_COMMAND)", sub.Name, sub.Type)
-		}
+	for _, sub := range cmd.Options {
+		markSubcommand(t, cmd.Name, sub, want)
 	}
 	for name, seen := range want {
 		if !seen {
-			t.Fatalf("/ticket %s is missing from the catalog", name)
+			t.Fatalf("/%s %s is missing from the catalog", cmd.Name, name)
 		}
-	}
-	add := subcommand(t, ticket, "add")
-	if len(add.Options) != 1 || add.Options[0].Name != "user" || add.Options[0].Type != 6 || !add.Options[0].Required {
-		t.Fatalf("/ticket add options = %+v, want one required USER option", add.Options)
 	}
 }
 
-func subcommand(t *testing.T, cmd *discordapi.AppCommand, name string) discordapi.AppCommandOption {
+// markSubcommand ticks sub off the wanted set, refusing anything unexpected or
+// registered as something other than a SUB_COMMAND (type 1).
+func markSubcommand(t *testing.T, group string, sub discordapi.AppCommandOption, want map[string]bool) {
+	t.Helper()
+	if _, ok := want[sub.Name]; !ok {
+		t.Fatalf("unexpected /%s subcommand %q", group, sub.Name)
+	}
+	want[sub.Name] = true
+	if sub.Type != 1 {
+		t.Fatalf("/%s %s type = %d, want 1 (SUB_COMMAND)", group, sub.Name, sub.Type)
+	}
+}
+
+// wantRequiredUserOption pins /ticket add's one argument: a required USER
+// (type 6). Without it Discord accepts the command with nobody to add.
+func wantRequiredUserOption(t *testing.T, sub discordapi.AppCommandOption) {
+	t.Helper()
+	if len(sub.Options) != 1 {
+		t.Fatalf("%s options = %+v, want exactly one", sub.Name, sub.Options)
+	}
+	opt := sub.Options[0]
+	if opt.Name != "user" {
+		t.Fatalf("%s option = %q, want user", sub.Name, opt.Name)
+	}
+	if opt.Type != 6 {
+		t.Fatalf("%s user option type = %d, want 6 (USER)", sub.Name, opt.Type)
+	}
+	if !opt.Required {
+		t.Fatalf("%s user option must be required", sub.Name)
+	}
+}
+
+func subcommand(t *testing.T, cmd discordapi.AppCommand, name string) discordapi.AppCommandOption {
 	t.Helper()
 	for _, sub := range cmd.Options {
 		if sub.Name == name {

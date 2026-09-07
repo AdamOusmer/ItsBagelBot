@@ -127,24 +127,48 @@ func Parse(raw []byte) Config {
 // Connected is a guild id we can actually post into.
 func (c Config) Connected() bool { return strings.TrimSpace(c.GuildID) != "" }
 
-func alertOn(v string) bool { return v != "off" }
+// Named views over the raw strings Config stores.
+//
+// The FIELDS stay `string` and keep their JSON tags: the blob is a wire
+// contract the console reads by tag and app/db writes back verbatim, so
+// retyping a field would be a migration, not a refactor. The helpers below
+// take these instead. Every one of them used to take a bare `string`, and
+// since almost every field on Config is a string of some other kind, a call
+// that handed a toggle to a list splitter -- alertOn(c.CategoryAllow),
+// splitCSV(c.LiveEnabled) -- compiled and answered plausibly wrong. Naming
+// the four kinds moves that into a compile error at no runtime cost.
+type (
+	// toggleText is one module toggle's stored text: "", "on" or "off".
+	toggleText string
+	// listText is a comma-separated stored list: role ids, "slot=roleId"
+	// pairs, or category names.
+	listText string
+	// nameText is one already-trimmed, already-lowercased name, compared
+	// against splitCSV output.
+	nameText string
+	// copyText is one piece of streamer-authored panel copy, which falls
+	// back to a default when blank.
+	copyText string
+)
 
-func (c Config) LiveOn() bool    { return alertOn(c.LiveEnabled) }
-func (c Config) ClipsOn() bool   { return alertOn(c.ClipsEnabled) }
-func (c Config) WelcomeOn() bool { return alertOn(c.WelcomeEnabled) }
+func alertOn(v toggleText) bool { return v != "off" }
+
+func (c Config) LiveOn() bool    { return alertOn(toggleText(c.LiveEnabled)) }
+func (c Config) ClipsOn() bool   { return alertOn(toggleText(c.ClipsEnabled)) }
+func (c Config) WelcomeOn() bool { return alertOn(toggleText(c.WelcomeEnabled)) }
 func (c Config) GoodbyeOn() bool { return c.GoodbyeEnabled == "on" }
-func (c Config) VoiceOn() bool   { return alertOn(c.VoiceEnabled) }
-func (c Config) TicketsOn() bool { return alertOn(c.TicketsEnabled) }
-func (c Config) LogsOn() bool    { return alertOn(c.LogsEnabled) }
-func (c Config) LevelsOn() bool  { return alertOn(c.LevelsEnabled) }
+func (c Config) VoiceOn() bool   { return alertOn(toggleText(c.VoiceEnabled)) }
+func (c Config) TicketsOn() bool { return alertOn(toggleText(c.TicketsEnabled)) }
+func (c Config) LogsOn() bool    { return alertOn(toggleText(c.LogsEnabled)) }
+func (c Config) LevelsOn() bool  { return alertOn(toggleText(c.LevelsEnabled)) }
 
 // TicketTranscriptOn reports whether a closing ticket is transcribed. See
 // the field for why this is default-ON.
-func (c Config) TicketTranscriptOn() bool { return alertOn(c.TicketTranscriptEnabled) }
+func (c Config) TicketTranscriptOn() bool { return alertOn(toggleText(c.TicketTranscriptEnabled)) }
 
 // AutoRoleOn reports whether Bagel grants the member role on join. Default
 // ON; see the field. Tier roles are never applied by the engine.
-func (c Config) AutoRoleOn() bool { return alertOn(c.AutoRoleEnabled) }
+func (c Config) AutoRoleOn() bool { return alertOn(toggleText(c.AutoRoleEnabled)) }
 
 // TierRooms is the gated subscriber/VIP furniture the fill created, in the
 // order the dashboard renders it. It exists so the four ids have exactly
@@ -177,7 +201,7 @@ func (c Config) TicketArchiveCategory() string { return strings.TrimSpace(c.Tick
 // to answer, and an empty overwrite list would make every ticket private to
 // its opener.
 func (c Config) TicketStaffRoleIDs() []string {
-	if ids := splitList(c.TicketStaffRoles); len(ids) > 0 {
+	if ids := splitList(listText(c.TicketStaffRoles)); len(ids) > 0 {
 		return ids
 	}
 	return c.StaffRoleIDs()
@@ -267,9 +291,9 @@ func (c Config) TicketPanel() TicketPanelSpec {
 		color = parsed
 	}
 	return TicketPanelSpec{
-		Title:  firstNonEmpty(c.TicketPanelTitle, TicketPanelTitleDefault),
-		Body:   firstNonEmpty(c.TicketPanelBody, TicketPanelBodyDefault),
-		Button: firstNonEmpty(c.TicketPanelButton, TicketPanelButtonDefault),
+		Title:  firstNonEmpty(copyText(c.TicketPanelTitle), TicketPanelTitleDefault),
+		Body:   firstNonEmpty(copyText(c.TicketPanelBody), TicketPanelBodyDefault),
+		Button: firstNonEmpty(copyText(c.TicketPanelButton), TicketPanelButtonDefault),
 		Color:  &color,
 	}
 }
@@ -282,9 +306,9 @@ func (c Config) TicketPanel() TicketPanelSpec {
 // Only an absent colour is defaulted: a spec that carries 0 asked for black
 // and gets black. See TicketPanelSpec.Color.
 func (s TicketPanelSpec) OrDefaults() TicketPanelSpec {
-	s.Title = firstNonEmpty(s.Title, TicketPanelTitleDefault)
-	s.Body = firstNonEmpty(s.Body, TicketPanelBodyDefault)
-	s.Button = firstNonEmpty(s.Button, TicketPanelButtonDefault)
+	s.Title = firstNonEmpty(copyText(s.Title), TicketPanelTitleDefault)
+	s.Body = firstNonEmpty(copyText(s.Body), TicketPanelBodyDefault)
+	s.Button = firstNonEmpty(copyText(s.Button), TicketPanelButtonDefault)
 	if s.Color == nil {
 		color := LiveColor
 		s.Color = &color
@@ -292,11 +316,11 @@ func (s TicketPanelSpec) OrDefaults() TicketPanelSpec {
 	return s
 }
 
-func firstNonEmpty(v, fallback string) string {
-	if t := strings.TrimSpace(v); t != "" {
+func firstNonEmpty(v, fallback copyText) string {
+	if t := strings.TrimSpace(string(v)); t != "" {
 		return t
 	}
-	return fallback
+	return string(fallback)
 }
 
 // ParseHexColor turns a dashboard "#rrggbb" string into Discord's RGB
@@ -321,11 +345,11 @@ func ParseHexColor(s string) (int, bool) {
 // substrings) case-insensitively, while this one carries snowflakes and
 // slot keys where case is either irrelevant or, for camelCase slots like
 // leadMod, load-bearing.
-func splitList(s string) []string {
-	if strings.TrimSpace(s) == "" {
+func splitList(s listText) []string {
+	if strings.TrimSpace(string(s)) == "" {
 		return nil
 	}
-	parts := strings.Split(s, ",")
+	parts := strings.Split(string(s), ",")
 	out := make([]string, 0, len(parts))
 	for _, p := range parts {
 		if t := strings.TrimSpace(p); t != "" {
@@ -351,17 +375,17 @@ func (c Config) SubscribersOn() bool { return c.SubscribersEnabled == "on" }
 // CategoryAllowed reports whether a Twitch category should produce a go-live
 // embed. Names compare case-insensitively, trimmed.
 func (c Config) CategoryAllowed(category string) bool {
-	cat := strings.TrimSpace(strings.ToLower(category))
-	if containsName(splitCSV(c.CategoryDeny), cat) {
+	cat := nameText(strings.TrimSpace(strings.ToLower(category)))
+	if containsName(splitCSV(listText(c.CategoryDeny)), cat) {
 		return false
 	}
-	allow := splitCSV(c.CategoryAllow)
+	allow := splitCSV(listText(c.CategoryAllow))
 	return len(allow) == 0 || containsName(allow, cat)
 }
 
 // HasCategoryAllow reports whether an allow-list is set, which is when an
 // unknown category cannot be decided and the caller must fetch it.
-func (c Config) HasCategoryAllow() bool { return len(splitCSV(c.CategoryAllow)) > 0 }
+func (c Config) HasCategoryAllow() bool { return len(splitCSV(listText(c.CategoryAllow))) > 0 }
 
 // LinkAllowed reports whether raw -- the untouched link text a message
 // contained, before linkguard's own NormalizeLink -- matches an entry on
@@ -379,7 +403,7 @@ func (c Config) LinkAllowed(raw string) bool {
 	if needle == "" {
 		return false
 	}
-	for _, entry := range splitCSV(c.LinkAllowList) {
+	for _, entry := range splitCSV(listText(c.LinkAllowList)) {
 		if strings.Contains(needle, entry) {
 			return true
 		}
@@ -389,23 +413,23 @@ func (c Config) LinkAllowed(raw string) bool {
 
 // containsName is a membership test on splitCSV output; an empty needle
 // never matches because splitCSV drops empty entries.
-func containsName(list []string, needle string) bool {
+func containsName(list []string, needle nameText) bool {
 	if needle == "" {
 		return false
 	}
 	for _, v := range list {
-		if v == needle {
+		if v == string(needle) {
 			return true
 		}
 	}
 	return false
 }
 
-func splitCSV(s string) []string {
-	if strings.TrimSpace(s) == "" {
+func splitCSV(s listText) []string {
+	if strings.TrimSpace(string(s)) == "" {
 		return nil
 	}
-	parts := strings.Split(s, ",")
+	parts := strings.Split(string(s), ",")
 	out := make([]string, 0, len(parts))
 	for _, p := range parts {
 		if t := strings.ToLower(strings.TrimSpace(p)); t != "" {

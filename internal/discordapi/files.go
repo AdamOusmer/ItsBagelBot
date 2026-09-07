@@ -35,14 +35,14 @@ type FileUpload struct {
 // answers 403, which classifies as ErrForbidden like any other missing
 // permission.
 func (c *Client) SendFile(ctx context.Context, up FileUpload) (Message, error) {
-	body, contentType, err := multipartBody(up)
+	form, err := multipartBody(up)
 	if err != nil {
 		return Message{}, err
 	}
 	var ref struct {
 		ID string `json:"id"`
 	}
-	if err := c.postMultipart(ctx, filePath(up.ChannelID), body, contentType, &ref); err != nil {
+	if err := c.postMultipart(ctx, filePath(up.ChannelID), form, &ref); err != nil {
 		return Message{}, err
 	}
 	if ref.ID == "" {
@@ -59,27 +59,37 @@ func filePath(channelID string) string {
 // ordinary message body) and files[0] (the attachment). The attachments array
 // in payload_json is what binds the two -- its id must match the files[N]
 // index, or Discord accepts the message and silently drops the file.
-func multipartBody(up FileUpload) (*bytes.Buffer, string, error) {
+func multipartBody(up FileUpload) (multipartForm, error) {
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
 	payload, err := codec.Marshal(filePayload(up))
 	if err != nil {
-		return nil, "", fmt.Errorf("discord: encode payload_json: %w", err)
+		return multipartForm{}, fmt.Errorf("discord: encode payload_json: %w", err)
 	}
 	if err := w.WriteField("payload_json", string(payload)); err != nil {
-		return nil, "", err
+		return multipartForm{}, err
 	}
 	part, err := w.CreateFormFile("files[0]", up.Filename)
 	if err != nil {
-		return nil, "", err
+		return multipartForm{}, err
 	}
 	if _, err := part.Write(up.Data); err != nil {
-		return nil, "", err
+		return multipartForm{}, err
 	}
 	if err := w.Close(); err != nil {
-		return nil, "", err
+		return multipartForm{}, err
 	}
-	return &buf, w.FormDataContentType(), nil
+	return multipartForm{body: &buf, contentType: w.FormDataContentType()}, nil
+}
+
+// multipartForm is a rendered body together with the Content-Type that
+// describes it. The two travel as one value because they are useless apart:
+// the boundary that delimits the parts is generated per writer and lives in
+// the header, so a body posted under any other Content-Type is unparseable at
+// the far end -- Discord answers 400 with no hint about which half was wrong.
+type multipartForm struct {
+	body        *bytes.Buffer
+	contentType string
 }
 
 func filePayload(up FileUpload) map[string]any {
@@ -98,13 +108,13 @@ func filePayload(up FileUpload) map[string]any {
 // postMultipart is doInto's multipart twin: same auth header, same error
 // classification, a body this client encodes itself rather than through
 // request.payload (which is JSON-only by construction).
-func (c *Client) postMultipart(ctx context.Context, path string, body *bytes.Buffer, contentType string, out any) error {
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+path, body)
+func (c *Client) postMultipart(ctx context.Context, path string, form multipartForm, out any) error {
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+path, form.body)
 	if err != nil {
 		return err
 	}
 	httpReq.Header.Set("Authorization", "Bot "+c.token)
-	httpReq.Header.Set("Content-Type", contentType)
+	httpReq.Header.Set("Content-Type", form.contentType)
 
 	res, err := c.http.Do(httpReq)
 	if err != nil {

@@ -130,9 +130,16 @@ func TestSanitizeConfigZeroesOnlyTheInvalidFields(t *testing.T) {
 	if len(bad) != 4 {
 		t.Fatalf("errors = %+v, want 4", bad)
 	}
-	if clean.ClipsChannelID != "" || clean.TicketPanelColor != "" ||
-		clean.TicketOpenLimit != "" || clean.LiveEnabled != "" {
-		t.Fatalf("clean = %+v, want every rejected field zeroed", clean)
+	zeroed := map[string]string{
+		"ClipsChannelID":   clean.ClipsChannelID,
+		"TicketPanelColor": clean.TicketPanelColor,
+		"TicketOpenLimit":  clean.TicketOpenLimit,
+		"LiveEnabled":      clean.LiveEnabled,
+	}
+	for field, got := range zeroed {
+		if got != "" {
+			t.Fatalf("%s = %q, want every rejected field zeroed (clean = %+v)", field, got, clean)
+		}
 	}
 	if clean.GuildID != cfg.GuildID || clean.LiveChannelID != cfg.LiveChannelID {
 		t.Fatalf("clean = %+v, want the valid fields untouched", clean)

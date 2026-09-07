@@ -105,12 +105,44 @@ func ticketOpenButtons() []ddiscord.ButtonSpec {
 	}
 }
 
-func (h ticketModule) slash(ctx context.Context, c *module.Context, emit module.Emit) error {
+// deskCall is one interaction a ticket verb is answering: the module context
+// it arrived on, the decoded interaction, and the emitter that carries the
+// answer back. The three are never useful apart -- every verb needs the guild
+// config from the context, the interaction's token to reply on, and the
+// emitter to reply with -- so they travel as one value rather than as three
+// parameters threaded through every path. Passing them separately is what put
+// five arguments on postPanel, recordTicket, recordClaim, finishClose and add
+// at once; grouping them fixes the shape rather than one signature.
+type deskCall struct {
+	mod  *module.Context
+	in   decode.InteractionEvent
+	emit module.Emit
+}
+
+// deskCallFrom decodes the interaction a slash command or button arrived on.
+// The decode failing is the one case a ticket verb reports as an error rather
+// than as a reply: there is no token to reply on.
+func deskCallFrom(c *module.Context, emit module.Emit) (deskCall, error) {
 	in, err := decode.Decode[decode.InteractionEvent](c.Event.Raw)
+	if err != nil {
+		return deskCall{}, err
+	}
+	return deskCall{mod: c, in: in, emit: emit}, nil
+}
+
+// reply is the one shape every desk outcome takes: an ephemeral followup on
+// the interaction that triggered it. Every path answers, including the
+// refusals -- a button that appears to do nothing is the worst outcome here.
+func (d deskCall) reply(text string) {
+	d.emit(cmd.Followup(cmd.GuildTarget(d.mod.Config.GuildID), cmd.Token(d.in.Token), text, true))
+}
+
+func (h ticketModule) slash(ctx context.Context, c *module.Context, emit module.Emit) error {
+	call, err := deskCallFrom(c, emit)
 	if err != nil {
 		return err
 	}
-	switch sub := decode.FirstSub(in.Data.Options); sub.Name {
+	switch sub := decode.FirstSub(call.in.Data.Options); sub.Name {
 	case "open":
 		return h.open(ctx, c, emit)
 	case "close":
@@ -118,40 +150,33 @@ func (h ticketModule) slash(ctx context.Context, c *module.Context, emit module.
 	case "claim":
 		return h.claim(ctx, c, emit)
 	case "add":
-		return h.add(ctx, c, in, sub, emit)
+		return h.add(ctx, call, sub)
 	case "panel":
-		return h.panel(ctx, c, in, emit)
+		return h.panel(ctx, call)
 	default:
-		h.reply(c, in, emit, "Use /ticket open, close, claim, add, or panel.")
+		call.reply("Use /ticket open, close, claim, add, or panel.")
 		return nil
 	}
 }
 
-// reply is the one shape every desk outcome takes: an ephemeral followup on
-// the interaction that triggered it. Every path answers, including the
-// refusals -- a button that appears to do nothing is the worst outcome here.
-func (h ticketModule) reply(c *module.Context, in decode.InteractionEvent, emit module.Emit, text string) {
-	emit(cmd.Followup(cmd.GuildTarget(c.Config.GuildID), cmd.Token(in.Token), text, true))
-}
-
-func (h ticketModule) panel(ctx context.Context, c *module.Context, in decode.InteractionEvent, emit module.Emit) error {
-	if !c.Config.TicketsOn() {
-		h.reply(c, in, emit, "Tickets are off.")
+func (h ticketModule) panel(ctx context.Context, call deskCall) error {
+	if !call.mod.Config.TicketsOn() {
+		call.reply("Tickets are off.")
 		return nil
 	}
 	// Posting the desk panel is a staff action, not a member one. It was
 	// ungated, which meant any member could paste a second "Open a ticket"
 	// panel into any channel they could run a slash command in -- and because
 	// the panel's button is the real one, the tickets it opened were real too.
-	if !isTicketStaffOrMod(c.Config, in) {
-		h.reply(c, in, emit, "Only ticket staff can post the panel.")
+	if !isTicketStaffOrMod(call.mod.Config, call.in) {
+		call.reply("Only ticket staff can post the panel.")
 		return nil
 	}
-	cfg := c.Config
+	cfg := call.mod.Config
 	if cfg.TicketChannelID == "" {
-		cfg.TicketChannelID = in.ChannelID
+		cfg.TicketChannelID = call.in.ChannelID
 	}
-	return h.postPanel(ctx, c, in, cfg, emit)
+	return h.postPanel(ctx, call, cfg)
 }
 
 // postPanel posts the panel through the RPC that returns its message id, and
@@ -162,7 +187,7 @@ func (h ticketModule) panel(ctx context.Context, c *module.Context, in decode.In
 // repost path reads it, finds nothing to delete, and stacks a second live
 // panel under the first -- and the write had already erased the id of the
 // panel that was actually posted.
-func (h ticketModule) postPanel(ctx context.Context, c *module.Context, in decode.InteractionEvent, cfg ddiscord.Config, emit module.Emit) error {
+func (h ticketModule) postPanel(ctx context.Context, call deskCall, cfg ddiscord.Config) error {
 	spec := cfg.TicketPanel()
 	reply, err := h.tickets.TicketPanel(ctx, discordoutgress.TicketPanelRequest{
 		GuildID: cfg.GuildID, ChannelID: cfg.TicketChannelID,
@@ -170,7 +195,7 @@ func (h ticketModule) postPanel(ctx context.Context, c *module.Context, in decod
 	})
 	if rpcFailed(err, reply.Error) || reply.MessageID == "" {
 		h.log.Warn("ticket panel post failed", zap.Error(err), zap.String("outgress_error", reply.Error))
-		h.reply(c, in, emit, "Could not post the ticket panel right now.")
+		call.reply("Could not post the ticket panel right now.")
 		return nil
 	}
 	remembered := discordstore.DeskPanel{
@@ -182,17 +207,17 @@ func (h ticketModule) postPanel(ctx context.Context, c *module.Context, in decod
 		h.log.Error("ticket desk pointer not stored",
 			zap.String("guild_id", cfg.GuildID), zap.String("message_id", reply.MessageID), zap.Error(err))
 	}
-	h.reply(c, in, emit, "Ticket panel posted.")
+	call.reply("Ticket panel posted.")
 	return nil
 }
 
 func (h ticketModule) open(ctx context.Context, c *module.Context, emit module.Emit) error {
-	in, err := decode.Decode[decode.InteractionEvent](c.Event.Raw)
+	call, err := deskCallFrom(c, emit)
 	if err != nil {
 		return err
 	}
-	if !c.Config.TicketsOn() {
-		h.reply(c, in, emit, "Tickets are off.")
+	if !call.mod.Config.TicketsOn() {
+		call.reply("Tickets are off.")
 		return nil
 	}
 	if !h.store.TicketsDurable(ctx) {
@@ -202,17 +227,17 @@ func (h ticketModule) open(ctx context.Context, c *module.Context, emit module.E
 		// number, cap or close cleanly. ERROR per attempt, not once at boot:
 		// the operator needs the volume to see it is not a one-off.
 		h.log.Error("ticket open refused: no durable ticket store",
-			zap.String("guild_id", in.GuildID), zap.String("user_id", in.Member.User.ID))
-		h.reply(c, in, emit, "The ticket desk is unavailable right now. Try again shortly.")
+			zap.String("guild_id", call.in.GuildID), zap.String("user_id", call.in.Member.User.ID))
+		call.reply("The ticket desk is unavailable right now. Try again shortly.")
 		return nil
 	}
-	limit := c.Config.TicketOpenLimitN()
-	held := h.store.OpenTicketCount(ctx, discordstore.Member{GuildID: in.GuildID, UserID: in.Member.User.ID})
+	limit := call.mod.Config.TicketOpenLimitN()
+	held := h.store.OpenTicketCount(ctx, discordstore.Member{GuildID: call.in.GuildID, UserID: call.in.Member.User.ID})
 	if held >= limit {
-		h.reply(c, in, emit, atLimitText(held))
+		call.reply(atLimitText(held))
 		return nil
 	}
-	return h.createTicket(ctx, c, in, emit)
+	return h.createTicket(ctx, call)
 }
 
 // atLimitText names the number back to the opener rather than saying "too
@@ -225,27 +250,29 @@ func atLimitText(held int) string {
 	return "You already have " + strconv.Itoa(held) + " open tickets."
 }
 
-func (h ticketModule) createTicket(ctx context.Context, c *module.Context, in decode.InteractionEvent, emit module.Emit) error {
+func (h ticketModule) createTicket(ctx context.Context, call deskCall) error {
+	in, cfg := call.in, call.mod.Config
 	opener := decode.DisplayName(decode.Display{User: in.Member.User, Nick: in.Member.Nick})
 	reply, err := h.tickets.TicketOpen(ctx, discordoutgress.TicketOpenRequest{
-		GuildID: in.GuildID, Name: ddiscord.TicketChannelName(ticketNameBase(in), 0), ParentID: c.Config.TicketCategoryID,
-		Overwrites: ticketOverwrites(c.Config, in), Content: decode.Mention(in.Member.User),
+		GuildID: in.GuildID, Name: ddiscord.TicketChannelName(ticketNameBase(in), 0), ParentID: cfg.TicketCategoryID,
+		Overwrites: ticketOverwrites(cfg, in), Content: decode.Mention(in.Member.User),
 		Embed:   ddiscord.TicketOpenedEmbed(ddiscord.TicketOpened{Opener: opener}),
 		Buttons: ticketOpenButtons(),
 	})
 	if rpcFailed(err, reply.Error) {
 		h.log.Warn("ticket open failed", zap.Error(err), zap.String("outgress_error", reply.Error))
 		h.rollback(ctx, reply.ChannelID)
-		h.reply(c, in, emit, "Could not open a ticket right now.")
+		call.reply("Could not open a ticket right now.")
 		return nil
 	}
-	return h.recordTicket(ctx, c, in, reply, emit)
+	return h.recordTicket(ctx, call, reply)
 }
 
-func (h ticketModule) recordTicket(ctx context.Context, c *module.Context, in decode.InteractionEvent, reply discordoutgress.TicketOpenReply, emit module.Emit) error {
+func (h ticketModule) recordTicket(ctx context.Context, call deskCall, reply discordoutgress.TicketOpenReply) error {
+	in := call.in
 	got, err := h.store.TrackTicket(ctx, discordstore.TicketOpen{
 		GuildID: in.GuildID, ChannelID: reply.ChannelID, OpenerID: in.Member.User.ID,
-		PanelMessageID: reply.MessageID, OpenLimit: c.Config.TicketOpenLimitN(),
+		PanelMessageID: reply.MessageID, OpenLimit: call.mod.Config.TicketOpenLimitN(),
 	})
 	if err != nil {
 		// The channel exists but no row points at it: delete it rather than
@@ -253,18 +280,18 @@ func (h ticketModule) recordTicket(ctx context.Context, c *module.Context, in de
 		h.log.Error("ticket row not recorded; rolling the channel back",
 			zap.String("channel_id", reply.ChannelID), zap.Error(err))
 		h.rollback(ctx, reply.ChannelID)
-		h.reply(c, in, emit, "Could not open a ticket right now.")
+		call.reply("Could not open a ticket right now.")
 		return nil
 	}
 	if got.AtLimit {
 		// The pre-check passed and the insert still refused: two presses
 		// raced. Same rollback, and the opener is told the real number.
 		h.rollback(ctx, reply.ChannelID)
-		h.reply(c, in, emit, atLimitText(got.OpenCount))
+		call.reply(atLimitText(got.OpenCount))
 		return nil
 	}
 	h.nameTicket(ctx, in, reply.ChannelID, got.TicketID)
-	h.reply(c, in, emit, "Ticket opened: <#"+reply.ChannelID+">")
+	call.reply("Ticket opened: <#" + reply.ChannelID + ">")
 	return nil
 }
 
@@ -347,12 +374,12 @@ func ticketOverwrites(cfg ddiscord.Config, in decode.InteractionEvent) []discord
 // recorded (see markPending): retrying here, on the next interaction that
 // touches the channel, is the whole recovery mechanism -- no sweeper, no
 // timer, and nothing to leak when the marker's day expires unused.
-func (h ticketModule) ticketFor(ctx context.Context, c *module.Context, in decode.InteractionEvent, emit module.Emit) (discordstore.Ticket, bool) {
-	ch := discordstore.Channel{ID: in.ChannelID}
+func (h ticketModule) ticketFor(ctx context.Context, call deskCall) (discordstore.Ticket, bool) {
+	ch := discordstore.Channel{ID: call.in.ChannelID}
 	h.retryPendingClose(ctx, ch)
-	t, ok := h.store.Ticket(ctx, discordstore.Guild{ID: in.GuildID}, ch)
+	t, ok := h.store.Ticket(ctx, discordstore.Guild{ID: call.in.GuildID}, ch)
 	if !ok {
-		h.reply(c, in, emit, "This is not a ticket.")
+		call.reply("This is not a ticket.")
 		return discordstore.Ticket{}, false
 	}
 	return t, true
@@ -375,30 +402,31 @@ func (h ticketModule) retryPendingClose(ctx context.Context, ch discordstore.Cha
 }
 
 func (h ticketModule) claim(ctx context.Context, c *module.Context, emit module.Emit) error {
-	in, err := decode.Decode[decode.InteractionEvent](c.Event.Raw)
+	call, err := deskCallFrom(c, emit)
 	if err != nil {
 		return err
 	}
-	t, ok := h.ticketFor(ctx, c, in, emit)
+	t, ok := h.ticketFor(ctx, call)
 	if !ok {
 		return nil
 	}
-	if !isTicketStaffOrMod(c.Config, in) {
-		h.reply(c, in, emit, "Only ticket staff can claim this.")
+	if !isTicketStaffOrMod(call.mod.Config, call.in) {
+		call.reply("Only ticket staff can claim this.")
 		return nil
 	}
 	if t.ClaimedBy != "" {
-		h.reply(c, in, emit, "This ticket is already claimed by <@"+t.ClaimedBy+">.")
+		call.reply("This ticket is already claimed by <@" + t.ClaimedBy + ">.")
 		return nil
 	}
-	return h.recordClaim(ctx, c, in, t, emit)
+	return h.recordClaim(ctx, call, t)
 }
 
-func (h ticketModule) recordClaim(ctx context.Context, c *module.Context, in decode.InteractionEvent, t discordstore.Ticket, emit module.Emit) error {
+func (h ticketModule) recordClaim(ctx context.Context, call deskCall, t discordstore.Ticket) error {
+	in := call.in
 	claim := discordstore.TicketClaim{GuildID: t.GuildID, ChannelID: t.ChannelID, StaffID: in.Member.User.ID}
 	if err := h.store.ClaimTicket(ctx, claim); err != nil {
 		h.log.Warn("ticket claim not recorded", zap.String("channel_id", t.ChannelID), zap.Error(err))
-		h.reply(c, in, emit, "Could not claim this ticket right now.")
+		call.reply("Could not claim this ticket right now.")
 		return nil
 	}
 	staff := decode.DisplayName(decode.Display{User: in.Member.User, Nick: in.Member.Nick})
@@ -414,16 +442,16 @@ func (h ticketModule) recordClaim(ctx context.Context, c *module.Context, in dec
 		// implying the claim failed.
 		h.log.Warn("ticket claim card not updated", zap.Error(err), zap.String("outgress_error", reply.Error))
 	}
-	h.reply(c, in, emit, "Claimed.")
+	call.reply("Claimed.")
 	return nil
 }
 
 func (h ticketModule) close(ctx context.Context, c *module.Context, emit module.Emit) error {
-	in, err := decode.Decode[decode.InteractionEvent](c.Event.Raw)
+	call, err := deskCallFrom(c, emit)
 	if err != nil {
 		return err
 	}
-	t, ok := h.ticketFor(ctx, c, in, emit)
+	t, ok := h.ticketFor(ctx, call)
 	if !ok {
 		return nil
 	}
@@ -432,25 +460,25 @@ func (h ticketModule) close(ctx context.Context, c *module.Context, emit module.
 		// channel keeps its buttons), so the close button is still pressable
 		// on a ticket that is already done. Running the sequence again would
 		// re-page a channel that may no longer exist and post a second summary.
-		h.reply(c, in, emit, "This ticket is already closed.")
+		call.reply("This ticket is already closed.")
 		return nil
 	}
-	if !canCloseTicket(t, in, c.Config) {
-		h.reply(c, in, emit, "Only the opener or ticket staff can close this.")
+	if !canCloseTicket(t, call.in, call.mod.Config) {
+		call.reply("Only the opener or ticket staff can close this.")
 		return nil
 	}
-	return h.finishClose(ctx, c, in, t, emit)
+	return h.finishClose(ctx, call, t)
 }
 
-func (h ticketModule) finishClose(ctx context.Context, c *module.Context, in decode.InteractionEvent, t discordstore.Ticket, emit module.Emit) error {
-	reply, err := h.tickets.TicketClose(ctx, h.closeRequest(c.Config, in, t))
+func (h ticketModule) finishClose(ctx context.Context, call deskCall, t discordstore.Ticket) error {
+	reply, err := h.tickets.TicketClose(ctx, h.closeRequest(call.mod.Config, call.in, t))
 	if rpcFailed(err, reply.Error) {
 		h.log.Warn("ticket close failed", zap.Error(err), zap.String("outgress_error", reply.Error))
-		h.reply(c, in, emit, "Could not close this ticket right now.")
+		call.reply("Could not close this ticket right now.")
 		return nil
 	}
-	h.storeClose(ctx, in, t, reply)
-	h.reply(c, in, emit, "Ticket closed.")
+	h.storeClose(ctx, call.in, t, reply)
+	call.reply("Ticket closed.")
 	return nil
 }
 
@@ -512,26 +540,26 @@ func canCloseTicket(t discordstore.Ticket, in decode.InteractionEvent, cfg ddisc
 }
 
 // add grants one member access to this ticket (/ticket add user:<@user>).
-func (h ticketModule) add(ctx context.Context, c *module.Context, in decode.InteractionEvent, sub decode.InteractionOption, emit module.Emit) error {
-	t, ok := h.ticketFor(ctx, c, in, emit)
+func (h ticketModule) add(ctx context.Context, call deskCall, sub decode.InteractionOption) error {
+	t, ok := h.ticketFor(ctx, call)
 	if !ok {
 		return nil
 	}
-	if !canCloseTicket(t, in, c.Config) {
-		h.reply(c, in, emit, "Only the opener or ticket staff can add someone.")
+	if !canCloseTicket(t, call.in, call.mod.Config) {
+		call.reply("Only the opener or ticket staff can add someone.")
 		return nil
 	}
 	userID := decode.OptionUser(sub.Options, "user")
 	if userID == "" {
-		h.reply(c, in, emit, "Name the member to add.")
+		call.reply("Name the member to add.")
 		return nil
 	}
 	reply, err := h.tickets.TicketAddMember(ctx, discordoutgress.TicketMemberAddRequest{ChannelID: t.ChannelID, UserID: userID})
 	if rpcFailed(err, reply.Error) {
 		h.log.Warn("ticket add failed", zap.Error(err), zap.String("outgress_error", reply.Error))
-		h.reply(c, in, emit, "Could not add them right now.")
+		call.reply("Could not add them right now.")
 		return nil
 	}
-	h.reply(c, in, emit, "Added <@"+userID+"> to this ticket.")
+	call.reply("Added <@" + userID + "> to this ticket.")
 	return nil
 }

@@ -17,6 +17,23 @@ import (
 // and the dashboard both page; nothing needs a guild's whole history at once.
 const ListPageSize = 50
 
+// anyEmpty reports whether any identifier a verb requires is missing.
+//
+// Every verb here refuses on the same shape, a chain of `id == ""` tests
+// joined by ||, and written out per verb that chain is five copies of one
+// rule that a reader has to re-derive each time. Named once it also says what
+// the rule is: these are required identifiers, not optional narrowings. The
+// guild is one of them on purpose -- see liveTicket for what addressing a
+// ticket by channel alone allowed.
+func anyEmpty(ids ...string) bool {
+	for _, id := range ids {
+		if id == "" {
+			return true
+		}
+	}
+	return false
+}
+
 // OpenParams describes one ticket channel the engine has just created.
 type OpenParams struct {
 	GuildID   string
@@ -51,7 +68,7 @@ type OpenParams struct {
 // that does matter, one ticket per channel, is the unique index and is
 // enforced by the database.
 func (s *Store) TicketOpen(ctx context.Context, p OpenParams) (int, int, error) {
-	if p.GuildID == "" || p.ChannelID == "" || p.OpenerID == "" {
+	if anyEmpty(p.GuildID, p.ChannelID, p.OpenerID) {
 		return 0, 0, ErrInvalidInput
 	}
 	var id, count int
@@ -134,7 +151,7 @@ func (s *Store) lockedOpenCount(ctx context.Context, tx *ent.Tx, guildID, opener
 // round trip and to number the channel it is about to create. The answer is
 // advisory for the same reason openInTx's check is (see TicketOpen).
 func (s *Store) TicketOpenCount(ctx context.Context, guildID, openerID string) (int, error) {
-	if guildID == "" || openerID == "" {
+	if anyEmpty(guildID, openerID) {
 		return 0, ErrInvalidInput
 	}
 	return db.WithQuery(ctx, func(ctx context.Context) (int, error) {
@@ -153,7 +170,7 @@ func (s *Store) TicketOpenCount(ctx context.Context, guildID, openerID string) (
 // claimed_at, so the desk's "claimed N minutes ago" stays honest. Claiming a
 // closed or archived ticket is ErrInvalidInput; there is no such transition.
 func (s *Store) TicketClaim(ctx context.Context, guildID, channelID, staffID string) (int, error) {
-	if guildID == "" || channelID == "" || staffID == "" {
+	if anyEmpty(guildID, channelID, staffID) {
 		return 0, ErrInvalidInput
 	}
 	var id int
@@ -193,7 +210,7 @@ type CloseParams struct {
 // retries a close whenever a button press and a slash command race, and a
 // second write would move closed_at and corrupt the recorded duration.
 func (s *Store) TicketClose(ctx context.Context, p CloseParams) (int, string, error) {
-	if p.GuildID == "" || p.ChannelID == "" {
+	if anyEmpty(p.GuildID, p.ChannelID) {
 		return 0, "", ErrInvalidInput
 	}
 	var id int
@@ -253,7 +270,7 @@ func liveTicket(ctx context.Context, tx *ent.Tx, guildID, channelID string) (*en
 // TicketGet resolves a ticket from the channel a button was pressed in. A
 // channel with no ticket is (nil, false, nil).
 func (s *Store) TicketGet(ctx context.Context, guildID, channelID string) (*ent.Ticket, bool, error) {
-	if guildID == "" || channelID == "" {
+	if anyEmpty(guildID, channelID) {
 		return nil, false, ErrInvalidInput
 	}
 	row, err := db.WithQuery(ctx, func(ctx context.Context) (*ent.Ticket, error) {

@@ -36,13 +36,25 @@ func TestSetGuildConfigRoundTrips(t *testing.T) {
 		GuildID: "guild-1", BroadcasterID: "42",
 		Config: ddiscord.Config{LiveChannelID: "123"},
 	})
-	if err != nil || version != 1 {
-		t.Fatalf("first save: version %d err %v", version, err)
+	if err != nil {
+		t.Fatalf("first save: %v", err)
+	}
+	if version != 1 {
+		t.Fatalf("first save version = %d, want 1", version)
 	}
 
 	cfg, version, found, err := w.GuildConfig(ctx, GuildSetupRequest{GuildID: "guild-1", BroadcasterID: "42"})
-	if err != nil || !found || version != 1 || cfg.LiveChannelID != "123" {
-		t.Fatalf("read back: %+v v%d found=%v err=%v", cfg, version, found, err)
+	if err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+	if !found {
+		t.Fatal("read back: the config just written is missing")
+	}
+	if version != 1 {
+		t.Fatalf("read back version = %d, want 1", version)
+	}
+	if cfg.LiveChannelID != "123" {
+		t.Fatalf("read back live channel = %q, want 123", cfg.LiveChannelID)
 	}
 }
 

@@ -128,22 +128,45 @@ func TestTicketOpenLimitNClamps(t *testing.T) {
 	}
 }
 
-func TestTicketPanelFillsDefaults(t *testing.T) {
-	got := Config{}.TicketPanel()
-	if got.Title != TicketPanelTitleDefault || got.Body != TicketPanelBodyDefault ||
-		got.Button != TicketPanelButtonDefault || got.ColorOr(0) != LiveColor {
-		t.Fatalf("panel = %+v, want the defaults", got)
+// panelWant is a resolved TicketPanelSpec written out field by field, so an
+// assertion says which of the four drifted instead of printing two structs
+// and leaving the reader to diff them.
+type panelWant struct {
+	title  string
+	body   string
+	button string
+	color  int
+}
+
+// wantPanel checks a resolved spec against panelWant. Shared with the embed
+// tests in transcript_test.go: the four fields were asserted as one
+// multi-clause condition in three places, which is the shape, not the test.
+func wantPanel(t *testing.T, got TicketPanelSpec, want panelWant) {
+	t.Helper()
+	if got.Title != want.title {
+		t.Fatalf("title = %q, want %q", got.Title, want.title)
 	}
+	if got.Body != want.body {
+		t.Fatalf("body = %q, want %q", got.Body, want.body)
+	}
+	if got.Button != want.button {
+		t.Fatalf("button = %q, want %q", got.Button, want.button)
+	}
+	if got.ColorOr(0) != want.color {
+		t.Fatalf("color = %#x, want %#x", got.ColorOr(0), want.color)
+	}
+}
+
+func TestTicketPanelFillsDefaults(t *testing.T) {
+	wantPanel(t, Config{}.TicketPanel(), panelWant{
+		title: TicketPanelTitleDefault, body: TicketPanelBodyDefault,
+		button: TicketPanelButtonDefault, color: LiveColor,
+	})
 	custom := Config{
 		TicketPanelTitle: " Support ", TicketPanelBody: "Ask us.",
 		TicketPanelButton: "Ask", TicketPanelColor: "#00FF80",
 	}.TicketPanel()
-	if custom.Title != "Support" || custom.Body != "Ask us." || custom.Button != "Ask" {
-		t.Fatalf("panel = %+v", custom)
-	}
-	if custom.ColorOr(0) != 0x00FF80 {
-		t.Fatalf("color = %#x, want 0x00ff80", custom.ColorOr(0))
-	}
+	wantPanel(t, custom, panelWant{title: "Support", body: "Ask us.", button: "Ask", color: 0x00FF80})
 	// An unparseable colour keeps the brand colour rather than rendering
 	// black, which is what a zero would look like in Discord.
 	if bad := (Config{TicketPanelColor: "nope"}).TicketPanel(); bad.ColorOr(0) != LiveColor {

@@ -21,23 +21,44 @@ func TestListMessagesFullDecodesAuthorsAndAttachments(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListMessagesFull: %v", err)
 	}
-	if got.method != http.MethodGet {
-		t.Fatalf("method = %s", got.method)
-	}
 	// The limit is clamped to Discord's own page maximum: a larger one is
 	// rejected outright, not clamped by Discord.
-	if got.path != "/channels/c1/messages" {
-		t.Fatalf("path = %s", got.path)
-	}
+	wantRequest(t, got, http.MethodGet, "/channels/c1/messages")
 	if len(page) != 2 {
 		t.Fatalf("page = %+v", page)
 	}
-	if page[0].Author.DisplayName() != "Ada L" || page[1].Author.DisplayName() != "bob" {
-		t.Fatalf("display names = %q, %q", page[0].Author.DisplayName(), page[1].Author.DisplayName())
+	wantDisplayNames(t, page, "Ada L", "bob")
+	wantAttachment(t, page[0], "https://cdn/x.png")
+	wantTimestamps(t, page)
+}
+
+// wantDisplayNames pins the author fallback: global_name when Discord sent
+// one, the username otherwise.
+func wantDisplayNames(t *testing.T, page []FullMessage, first, second string) {
+	t.Helper()
+	if page[0].Author.DisplayName() != first {
+		t.Fatalf("display name = %q, want %q", page[0].Author.DisplayName(), first)
 	}
-	if len(page[0].Attachments) != 1 || page[0].Attachments[0].URL != "https://cdn/x.png" {
-		t.Fatalf("attachments = %+v", page[0].Attachments)
+	if page[1].Author.DisplayName() != second {
+		t.Fatalf("display name = %q, want %q", page[1].Author.DisplayName(), second)
 	}
+}
+
+// wantAttachment pins the one attachment a message carried.
+func wantAttachment(t *testing.T, msg FullMessage, url string) {
+	t.Helper()
+	if len(msg.Attachments) != 1 {
+		t.Fatalf("attachments = %+v, want one", msg.Attachments)
+	}
+	if msg.Attachments[0].URL != url {
+		t.Fatalf("attachment url = %q, want %q", msg.Attachments[0].URL, url)
+	}
+}
+
+// wantTimestamps holds the degradation rule: a malformed timestamp costs that
+// message its time, not the whole page.
+func wantTimestamps(t *testing.T, page []FullMessage) {
+	t.Helper()
 	if page[0].At().IsZero() {
 		t.Fatal("a well-formed timestamp must parse")
 	}
@@ -68,13 +89,7 @@ func TestMessagePagePathClampsAndCarriesTheCursor(t *testing.T) {
 func TestModifyChannelParentIDDistinguishesUnsetFromNull(t *testing.T) {
 	empty := ""
 	target := "cat1"
-	cases := []struct {
-		name    string
-		parent  *string
-		want    string
-		absent  bool
-		wantNil bool
-	}{
+	cases := []parentCase{
 		{name: "nil leaves the category alone", parent: nil, absent: true},
 		{name: "empty moves out of every category", parent: &empty, want: `"parent_id":null`},
 		{name: "an id moves under it", parent: &target, want: `"parent_id":"cat1"`},
@@ -87,24 +102,42 @@ func TestModifyChannelParentIDDistinguishesUnsetFromNull(t *testing.T) {
 			if err != nil {
 				t.Fatalf("ModifyChannel: %v", err)
 			}
-			if got.method != http.MethodPatch || got.path != "/channels/c1" {
-				t.Fatalf("%s %s", got.method, got.path)
-			}
-			if tc.absent {
-				if contains(got.body, "parent_id") {
-					t.Fatalf("body %q must not mention parent_id", got.body)
-				}
-				return
-			}
-			if !contains(got.body, tc.want) {
-				t.Fatalf("body %q missing %q", got.body, tc.want)
-			}
+			wantRequest(t, got, http.MethodPatch, "/channels/c1")
+			wantParentID(t, got.body, tc)
 		})
 	}
 }
 
+// parentCase is one ParentID shape and what the encoded body must show for it.
+type parentCase struct {
+	name   string
+	parent *string
+	want   string
+	// absent is the nil case: parent_id must not appear in the body AT ALL.
+	// An explicit null is a different instruction to Discord (move the
+	// channel out of every category), so "unset" cannot be encoded as null.
+	absent bool
+}
+
+// wantParentID checks the body against one parentCase.
+func wantParentID(t *testing.T, body string, tc parentCase) {
+	t.Helper()
+	if tc.absent {
+		if contains(body, "parent_id") {
+			t.Fatalf("body %q must not mention parent_id", body)
+		}
+		return
+	}
+	if !contains(body, tc.want) {
+		t.Fatalf("body %q missing %q", body, tc.want)
+	}
+}
+
 func contains(haystack, needle string) bool {
-	return len(needle) > 0 && len(haystack) >= len(needle) && indexOf(haystack, needle) >= 0
+	if needle == "" || len(haystack) < len(needle) {
+		return false
+	}
+	return indexOf(haystack, needle) >= 0
 }
 
 func indexOf(haystack, needle string) int {

@@ -19,6 +19,30 @@ import { encodeIdList, parseIdList, parseUserGuilds, type DiscordUserGuild } fro
 
 export type { DiscordUserGuild };
 
+/**
+ * Names for the strings this flow shuffles between Discord and us.
+ *
+ * Every one of them is a bare string on the wire, and the mistakes this file
+ * exists to prevent are all one string standing in for another: echoing the
+ * state where the code belongs, binding the query `guild_id` instead of the
+ * one the token response names, letting a user access token escape into a
+ * return value. A signature that says `guildId: GuildId` says which string it
+ * wants; five parameters typed `string` say nothing.
+ *
+ * Aliases rather than branded types, deliberately: every caller lives in a
+ * `+server.ts` that reads these values off a URL or a cookie as plain strings,
+ * so a nominal brand would buy one cast per read and no extra safety at the
+ * boundary that actually matters -- which is this file refusing to trust the
+ * query string at all.
+ */
+export type OAuthState = string;
+export type OAuthCode = string;
+export type GuildId = string;
+export type UserId = string;
+/** A Discord user access token. It is never returned to a caller, never
+ *  persisted and never logged; see listUserGuilds. */
+type AccessToken = string;
+
 // process.env, not $env/dynamic/private, for the module-eval read: this
 // file imports module-gate, which sits in the boot import graph.
 const DEMO = dev && process.env.DEMO === '1';
@@ -46,8 +70,8 @@ export const DISCORD_STATE_TTL_SECONDS = 600;
  */
 const STATE_PATH = '/discord';
 
-function stateCookieName(base: string, secure: boolean): string {
-  return secure ? `__Secure-${base}` : base;
+function stateCookieName(leg: Leg, secure: boolean): string {
+  return secure ? `__Secure-${leg.cookie}` : leg.cookie;
 }
 
 /** The app's own SESSION_KEY. Read per call, never at module eval: this file
@@ -71,9 +95,15 @@ export const DISCORD_PICK_LEG = PICK_LEG;
  * plus an HMAC over (leg, uid, state), so a cookie planted by one account
  * cannot be redeemed by another. See @bagel/shared/server/oauth-state.
  */
-export function putDiscordState(cookies: Cookies, url: URL, leg: Leg, uid: string, state: string): void {
+export function putDiscordState(
+  cookies: Cookies,
+  url: URL,
+  leg: Leg,
+  uid: UserId,
+  state: OAuthState
+): void {
   const secure = url.protocol === 'https:';
-  cookies.set(stateCookieName(leg.cookie, secure), sealOAuthState(stateKey(), leg.label, uid, state), {
+  cookies.set(stateCookieName(leg, secure), sealOAuthState(stateKey(), leg.label, uid, state), {
     path: STATE_PATH,
     httpOnly: true,
     secure,
@@ -90,9 +120,9 @@ export function putDiscordState(cookies: Cookies, url: URL, leg: Leg, uid: strin
  * deleted because a deployment that changed protocol (or a developer moving
  * between the two) can leave the other one behind.
  */
-export function takeDiscordState(cookies: Cookies, url: URL, leg: Leg, uid: string): string {
+export function takeDiscordState(cookies: Cookies, url: URL, leg: Leg, uid: UserId): OAuthState {
   const secure = url.protocol === 'https:';
-  const name = stateCookieName(leg.cookie, secure);
+  const name = stateCookieName(leg, secure);
   const raw = cookies.get(name) ?? '';
   for (const n of [name, leg.cookie]) cookies.delete(n, { path: STATE_PATH, secure });
   if (!raw) return '';
@@ -103,7 +133,7 @@ export function takeDiscordState(cookies: Cookies, url: URL, leg: Leg, uid: stri
  * The whole state check for one callback: the cookie has to exist, be sealed
  * to this user, and match the state Discord echoed back.
  */
-export function discordStateOK(cookies: Cookies, url: URL, leg: Leg, uid: string): boolean {
+export function discordStateOK(cookies: Cookies, url: URL, leg: Leg, uid: UserId): boolean {
   const stored = takeDiscordState(cookies, url, leg, uid);
   const echoed = url.searchParams.get('state') ?? '';
   return stored !== '' && echoed !== '' && stored === echoed;
@@ -129,7 +159,7 @@ const BLOCKED_TTL_SECONDS = 1800;
  *  walks past a handful of refusals before asking why. */
 const BLOCKED_MAX = 8;
 
-export function rememberBoundElsewhere(cookies: Cookies, url: URL, guildId: string): void {
+export function rememberBoundElsewhere(cookies: Cookies, url: URL, guildId: GuildId): void {
   const next = encodeIdList([guildId, ...boundElsewhereIds(cookies)].slice(0, BLOCKED_MAX));
   if (!next) return;
   cookies.set(BLOCKED_COOKIE, next, {
@@ -141,7 +171,7 @@ export function rememberBoundElsewhere(cookies: Cookies, url: URL, guildId: stri
   });
 }
 
-export function boundElsewhereIds(cookies: Cookies): string[] {
+export function boundElsewhereIds(cookies: Cookies): GuildId[] {
   return parseIdList(cookies.get(BLOCKED_COOKIE) ?? '');
 }
 
@@ -165,7 +195,7 @@ const USER_GUILDS_URL = 'https://discord.com/api/v10/users/@me/guilds';
 const TOKEN_TIMEOUT_MS = 8000;
 const GUILDS_TIMEOUT_MS = 8000;
 
-export function requireDiscordActor(locals: App.Locals): string {
+export function requireDiscordActor(locals: App.Locals): UserId {
   gateModulePage(locals.session, 'discord');
   const uid = !DEMO && !locals.session ? null : effectiveId(locals.session);
   if (!uid) throw redirect(302, '/login?next=/discord');
@@ -223,7 +253,7 @@ export function discordConfigured(): boolean {
   return discordClientId() !== '' && discordClientSecret() !== '' && discordRedirectURI() !== '';
 }
 
-export function discordInviteURL(state: string): string {
+export function discordInviteURL(state: OAuthState): string {
   const clientId = discordClientId();
   const redirect = discordRedirectURI();
   if (!clientId || !redirect) return '';
@@ -263,7 +293,7 @@ export function discordPickRedirectURI(): string {
  * server names instead of dropping the streamer into Discord's own guild
  * dropdown, which lists servers Bagel can never be added to.
  */
-export function discordUserAuthURL(state: string): string {
+export function discordUserAuthURL(state: OAuthState): string {
   const clientId = discordClientId();
   const redirect = discordPickRedirectURI();
   if (!clientId || !redirect) return '';
@@ -284,7 +314,7 @@ export function discordUserAuthURL(state: string): string {
  * the bot. The id is still not trusted afterwards: the callback reads the
  * bound guild out of the token response (see exchangeInstallCode).
  */
-export function discordInstallURL(state: string, guildId: string): string {
+export function discordInstallURL(state: OAuthState, guildId: GuildId): string {
   const base = discordInviteURL(state);
   if (!base || !guildId) return base;
   const u = new URL(base);
@@ -329,7 +359,7 @@ export type UserGuildsResult =
  * The access token exists only inside this function: it is not returned, not
  * stored, and not logged, so a leak would need someone to change this file.
  */
-export async function listUserGuilds(code: string): Promise<UserGuildsResult> {
+export async function listUserGuilds(code: OAuthCode): Promise<UserGuildsResult> {
   const token = await exchangeUserCode(code);
   if (!token) return { ok: false, code: 'oauth' };
   const guilds: DiscordUserGuild[] = [];
@@ -347,7 +377,7 @@ export async function listUserGuilds(code: string): Promise<UserGuildsResult> {
   return { ok: true, guilds };
 }
 
-async function fetchGuildPage(token: string, after: string): Promise<UserGuildsResult> {
+async function fetchGuildPage(token: AccessToken, after: GuildId): Promise<UserGuildsResult> {
   const u = new URL(USER_GUILDS_URL);
   u.searchParams.set('limit', String(GUILDS_PAGE_LIMIT));
   if (after) u.searchParams.set('after', after);
@@ -367,7 +397,7 @@ async function fetchGuildPage(token: string, after: string): Promise<UserGuildsR
   return { ok: true, guilds };
 }
 
-async function exchangeUserCode(code: string): Promise<string> {
+async function exchangeUserCode(code: OAuthCode): Promise<AccessToken> {
   const res = await fetch(TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -394,7 +424,7 @@ export function discordTemplateURL(): string {
 // token response carries the guild the user authorised; that id is the only
 // one the callback may bind. Returns '' when Discord rejects the code or
 // the response names no guild.
-export async function exchangeInstallCode(code: string): Promise<string> {
+export async function exchangeInstallCode(code: OAuthCode): Promise<GuildId> {
   const body = new URLSearchParams({
     client_id: discordClientId(),
     client_secret: discordClientSecret(),

@@ -97,16 +97,33 @@ func heartbeatFailingConn(t *testing.T) *scriptedConn {
 	}
 }
 
+// oneSocketOver runs a single socket over conn under a bounded context and
+// reports what it ended with. Every socket-level case below shares this exact
+// wiring; the interesting difference between them is the connection, so it is
+// the only thing they say.
+func oneSocketOver(t *testing.T, conn Conn, timeout time.Duration) (int, error) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	sess := Session{Token: "t", Dial: func(context.Context, string) (Conn, error) { return conn, nil }}
+	return sess.oneSocket(ctx, "ws://x", &resumeState{})
+}
+
+// wantCloseFrame asserts the error that ended a socket is Discord's close
+// frame and not the pump's generic read error -- the close code only survives
+// on the frame, and a codeless error reconnects forever.
+func wantCloseFrame(t *testing.T, err error) {
+	t.Helper()
+	if !errors.As(err, &websocket.CloseError{}) {
+		t.Fatalf("err = %v, want the close frame, not the pump's generic read error", err)
+	}
+}
+
 // TestWriteCloseCodeReachesTheFatalPath is the regression test for the
 // token reset: the code must come back off a write error, not off the
 // generic "closed connection" the pump reads afterwards.
 func TestWriteCloseCodeReachesTheFatalPath(t *testing.T) {
-	conn := heartbeatFailingConn(t)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	sess := Session{Token: "t", Dial: func(context.Context, string) (Conn, error) { return conn, nil }}
-
-	code, err := sess.oneSocket(ctx, "ws://x", &resumeState{})
+	code, err := oneSocketOver(t, heartbeatFailingConn(t), time.Second)
 
 	if code != ddiscord.CloseAuthenticationFailed {
 		t.Fatalf("close code = %d, want %d off the write error", code, ddiscord.CloseAuthenticationFailed)
@@ -114,9 +131,7 @@ func TestWriteCloseCodeReachesTheFatalPath(t *testing.T) {
 	if !ddiscord.FatalCloseCode(code) {
 		t.Fatalf("code %d must be fatal", code)
 	}
-	if !errors.As(err, &websocket.CloseError{}) {
-		t.Fatalf("err = %v, want the close frame, not the pump's generic read error", err)
-	}
+	wantCloseFrame(t, err)
 }
 
 // And the loop above it must act on that: one dial, then park. Before the
@@ -138,10 +153,7 @@ func TestRunParksOnAWriteSideFatalClose(t *testing.T) {
 	if dials != 1 {
 		t.Fatalf("dials = %d, want exactly 1", dials)
 	}
-	downs := st.downs()
-	if len(downs) != 1 || !downs[0].Fatal || downs[0].Code != ddiscord.CloseAuthenticationFailed {
-		t.Fatalf("Down = %+v, want one fatal 4004", downs)
-	}
+	wantFatalDown(t, st, ddiscord.CloseAuthenticationFailed)
 }
 
 // fastHello is a HELLO with a heartbeat interval short enough that the
@@ -232,20 +244,13 @@ func (c *racingConn) CloseCode(err error) int {
 // channel that a socket died codeless. Without the grace this is a 4004
 // reported as close code 0, which reconnects forever.
 func TestCodelessReadWaitsForTheWritersCloseCode(t *testing.T) {
-	conn := newRacingConn(t, 50*time.Millisecond)
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	sess := Session{Token: "t", Dial: func(context.Context, string) (Conn, error) { return conn, nil }}
-
-	code, err := sess.oneSocket(ctx, "ws://x", &resumeState{})
+	code, err := oneSocketOver(t, newRacingConn(t, 50*time.Millisecond), 3*time.Second)
 
 	if code != ddiscord.CloseAuthenticationFailed {
 		t.Fatalf("close code = %d, want %d: the read won the race and the write carried the frame",
 			code, ddiscord.CloseAuthenticationFailed)
 	}
-	if !errors.As(err, &websocket.CloseError{}) {
-		t.Fatalf("err = %v, want the close frame, not the pump's codeless read error", err)
-	}
+	wantCloseFrame(t, err)
 }
 
 // And the wait is bounded. A writer stuck in a send on a connection nobody
@@ -253,12 +258,9 @@ func TestCodelessReadWaitsForTheWritersCloseCode(t *testing.T) {
 // reconnect behind it indefinitely trades one loop for a stall.
 func TestCodelessReadGivesUpAfterTheGrace(t *testing.T) {
 	conn := newRacingConn(t, writerGrace+time.Second)
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	sess := Session{Token: "t", Dial: func(context.Context, string) (Conn, error) { return conn, nil }}
 
 	start := time.Now()
-	code, _ := sess.oneSocket(ctx, "ws://x", &resumeState{})
+	code, _ := oneSocketOver(t, conn, 3*time.Second)
 
 	if code != 0 {
 		t.Fatalf("close code = %d, want 0: no writer reported inside the grace", code)

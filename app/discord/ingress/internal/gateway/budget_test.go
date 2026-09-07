@@ -173,27 +173,51 @@ func TestFlappingIsPublishedLoggedAndWaited(t *testing.T) {
 			sessionEnd{up: time.Second, code: 4000, err: errors.New("socket died")})
 	}
 
-	states := st.budgetStates()
+	wantFlapStates(t, st.budgetStates())
+	if wait != flapWait {
+		t.Fatalf("wait = %s, want the escalated %s (the budget must outrank backoff)", wait, flapWait)
+	}
+	wantFlapLog(t, logs, 4000, "socket died")
+}
+
+// wantFlapStates asserts the published run: one state per short session, with
+// the verdict landing only on the flapStreak-th. Publishing it earlier is what
+// would make an ordinary hourly reconnect read as a flap on the status key.
+func wantFlapStates(t *testing.T, states []Budget) {
+	t.Helper()
 	if len(states) != flapStreak {
 		t.Fatalf("budget states = %d, want %d", len(states), flapStreak)
 	}
 	if states[flapStreak-2].Flapping {
 		t.Fatalf("flapping after %d short sessions, want it to take %d", flapStreak-1, flapStreak)
 	}
-	if !states[flapStreak-1].Flapping || states[flapStreak-1].Connects != flapStreak {
-		t.Fatalf("final state = %+v, want flapping with %d connects", states[flapStreak-1], flapStreak)
+	last := states[flapStreak-1]
+	if !last.Flapping {
+		t.Fatalf("final state = %+v, want flapping", last)
 	}
-	if wait != flapWait {
-		t.Fatalf("wait = %s, want the escalated %s (the budget must outrank backoff)", wait, flapWait)
+	if last.Connects != flapStreak {
+		t.Fatalf("final state connects = %d, want %d", last.Connects, flapStreak)
 	}
+}
 
+// wantFlapLog asserts the one ERROR line the verdict owes an operator, and
+// that it names the close code and error of the session that tipped it: the
+// status key says "flapping", only the log says what kept killing the socket.
+func wantFlapLog(t *testing.T, logs *observer.ObservedLogs, code int64, cause string) {
+	t.Helper()
 	errs := logs.FilterLevelExact(zapcore.ErrorLevel).All()
-	if len(errs) != 1 || errs[0].Message != "gateway flapping" {
-		t.Fatalf("error logs = %v, want exactly one \"gateway flapping\"", errs)
+	if len(errs) != 1 {
+		t.Fatalf("error logs = %v, want exactly one", errs)
+	}
+	if errs[0].Message != "gateway flapping" {
+		t.Fatalf("error log = %q, want \"gateway flapping\"", errs[0].Message)
 	}
 	fields := errs[0].ContextMap()
-	if fields["close_code"] != int64(4000) || fields["error"] != "socket died" {
-		t.Fatalf("flap log fields = %v, want the last close code and error", fields)
+	if fields["close_code"] != code {
+		t.Fatalf("flap log close_code = %v, want %d", fields["close_code"], code)
+	}
+	if fields["error"] != cause {
+		t.Fatalf("flap log error = %v, want %q", fields["error"], cause)
 	}
 }
 

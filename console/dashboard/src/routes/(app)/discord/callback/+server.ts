@@ -29,7 +29,8 @@ import {
   setupGuild,
   type DiscordCode,
   type DiscordConfig,
-  type DiscordGuildTarget
+  type DiscordGuildTarget,
+  type DiscordSetup
 } from '$lib/server/discord-store';
 import { alertOff, legacyConfigFor } from '@bagel/shared';
 import { auditDashboardImpersonation } from '$lib/server/services';
@@ -85,29 +86,8 @@ async function connectGuild(
   url: URL,
   target: DiscordGuildTarget
 ): Promise<string> {
-  const view = await readDiscord({ userId: target.userId }).catch(() => null);
-  const login = locals.session?.login ? locals.session.login : (view?.twitchLogin ?? '');
-  // A failed config.get is NOT "this guild has no config". Seeding a blank one
-  // over a server that already had channels picked wipes every id the
-  // streamer chose, and re-installing the bot is exactly when that read is
-  // most likely to be slow. Refuse the whole callback instead: the binding is
-  // untouched and the streamer can try again.
-  const row = await readGuildConfig(target).catch((err) => {
-    logger.warn({ err }, '[discord-callback] guild config unreadable');
-    discordFail('discord_unavailable');
-  });
-  // A board that predates the multi-guild split still carries this guild's
-  // whole config in the per-user modules blob; it has to be copied onto the
-  // guild row BEFORE the blob is narrowed, or every id in it is lost.
-  const legacy = row.found
-    ? null
-    : legacyConfigFor(await readLegacyBlob({ userId: target.userId }).catch(() => null), target.guildId);
-  const seeded: DiscordConfig = {
-    ...row.config,
-    ...(legacy ?? {}),
-    guildId: target.guildId,
-    twitchLogin: login
-  };
+  const login = await connectLogin(locals, target);
+  const seeded = await seedConfig(target, login);
   const result = await setupGuild(
     {
       ...target,
@@ -119,15 +99,7 @@ async function connectGuild(
     },
     seeded
   );
-  // The refusal is named by its code now, not by matching outgress's English.
-  if (result.code === 'bound_elsewhere') {
-    rememberBoundElsewhere(cookies, url, target.guildId);
-    discordFail('bound_elsewhere');
-  }
-  // Any other refusal is reported with its own code too. Continuing past it
-  // used to redirect with connected=1 onto a page whose config had never been
-  // written, which read as a successful install that quietly did nothing.
-  if (result.error || result.code) failWithCode(result.code);
+  refuseSetup(result, cookies, url, target);
   const saved = await persistSetup(target, { ...result.config, twitchLogin: login });
   if (saved.error || saved.code) failWithCode(saved.code);
   // Only now is the blob safe to narrow: the guild row holds what it held.
@@ -135,4 +107,63 @@ async function connectGuild(
   auditDashboardImpersonation(locals.session, 'discord:connect', target.guildId);
   if (result.refused) return 'connected=1&refused=1';
   return 'connected=1';
+}
+
+/** The Twitch login this install is recorded under. The board read still runs
+ *  when the session carries a login, because a staff member installing on a
+ *  broadcaster's behalf holds their own login, not the broadcaster's. */
+async function connectLogin(locals: App.Locals, target: DiscordGuildTarget): Promise<string> {
+  const view = await readDiscord({ userId: target.userId }).catch(() => null);
+  return locals.session?.login ? locals.session.login : (view?.twitchLogin ?? '');
+}
+
+/**
+ * The config this install starts from.
+ *
+ * A failed config.get is NOT "this guild has no config". Seeding a blank one
+ * over a server that already had channels picked wipes every id the streamer
+ * chose, and re-installing the bot is exactly when that read is most likely to
+ * be slow. Refuse the whole callback instead: the binding is untouched and the
+ * streamer can try again.
+ *
+ * A board that predates the multi-guild split still carries this guild's whole
+ * config in the per-user modules blob; it has to be copied onto the guild row
+ * BEFORE the blob is narrowed, or every id in it is lost.
+ */
+async function seedConfig(target: DiscordGuildTarget, login: string): Promise<DiscordConfig> {
+  const row = await readGuildConfig(target).catch((err) => {
+    logger.warn({ err }, '[discord-callback] guild config unreadable');
+    discordFail('discord_unavailable');
+  });
+  const legacy = row.found
+    ? null
+    : legacyConfigFor(await readLegacyBlob({ userId: target.userId }).catch(() => null), target.guildId);
+  return {
+    ...row.config,
+    ...(legacy ?? {}),
+    guildId: target.guildId,
+    twitchLogin: login
+  };
+}
+
+/**
+ * Turns a refused setup into the redirect that names it.
+ *
+ * The refusal is named by its code, not by matching outgress's English.
+ * `bound_elsewhere` is also remembered in this browser so the picker can grey
+ * that server out. Continuing past any other refusal used to redirect with
+ * connected=1 onto a page whose config had never been written, which read as a
+ * successful install that quietly did nothing.
+ */
+function refuseSetup(
+  result: DiscordSetup,
+  cookies: Cookies,
+  url: URL,
+  target: DiscordGuildTarget
+): void {
+  if (result.code === 'bound_elsewhere') {
+    rememberBoundElsewhere(cookies, url, target.guildId);
+    discordFail('bound_elsewhere');
+  }
+  if (result.error || result.code) failWithCode(result.code);
 }

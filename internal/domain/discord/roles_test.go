@@ -25,16 +25,23 @@ func TestPinnedRoleMapParses(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := Config{PinnedRoles: tc.raw}.PinnedRoleMap()
-			if len(got) != len(tc.want) {
-				t.Fatalf("map = %v, want %v", got, tc.want)
-			}
-			for slot, id := range tc.want {
-				if got[slot] != id {
-					t.Fatalf("slot %q = %q, want %q", slot, got[slot], id)
-				}
-			}
+			wantPins(t, Config{PinnedRoles: tc.raw}.PinnedRoleMap(), tc.want)
 		})
+	}
+}
+
+// wantPins compares a parsed pin map against the expected one, pair by pair.
+// Size first: a map that gained a pin the case never listed is the failure
+// mode a per-key loop alone would walk straight past.
+func wantPins(t *testing.T, got, want map[string]string) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("map = %v, want %v", got, want)
+	}
+	for slot, id := range want {
+		if got[slot] != id {
+			t.Fatalf("slot %q = %q, want %q", slot, got[slot], id)
+		}
 	}
 }
 

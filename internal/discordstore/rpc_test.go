@@ -223,6 +223,23 @@ func scriptTicketVerbs(rpc *fakeRequester) *ticketRequests {
 	return sent
 }
 
+// wantTicket fails unless the store resolved the ticket AND it carries the
+// opener and guild the round trip put in. Split from the one three-clause
+// condition it replaced, which reported the whole struct and left the reader
+// working out which field moved.
+func wantTicket(t *testing.T, got Ticket, ok bool, want Ticket) {
+	t.Helper()
+	if !ok {
+		t.Fatalf("the ticket did not resolve: %+v", got)
+	}
+	if got.OpenerID != want.OpenerID {
+		t.Fatalf("opener = %q, want %q", got.OpenerID, want.OpenerID)
+	}
+	if got.GuildID != want.GuildID {
+		t.Fatalf("guild = %q, want %q", got.GuildID, want.GuildID)
+	}
+}
+
 func TestRPCStoreTicketRoundTrip(t *testing.T) {
 	store, rpc, _ := newTestRPCStore(t)
 	ctx := context.Background()
@@ -232,9 +249,7 @@ func TestRPCStoreTicketRoundTrip(t *testing.T) {
 		t.Fatalf("TrackTicket: %v", err)
 	}
 	got, ok := store.Ticket(ctx, Guild{ID: "g1"}, Channel{ID: "c1"})
-	if !ok || got.OpenerID != "u1" || got.GuildID != "g1" {
-		t.Fatalf("Ticket = %+v, %v", got, ok)
-	}
+	wantTicket(t, got, ok, Ticket{OpenerID: "u1", GuildID: "g1"})
 	if err := store.CloseTicket(ctx, TicketClose{ChannelID: "c1", GuildID: "g1"}); err != nil {
 		t.Fatalf("CloseTicket: %v", err)
 	}
@@ -273,6 +288,27 @@ func TestRPCStoreTicketReadsFalseWhenUnreachable(t *testing.T) {
 	}
 }
 
+// award is one AddXP answer, named so the two cases below compare like with
+// like instead of spelling the same three-clause condition twice.
+type award struct {
+	xp      int
+	leveled bool
+	level   int
+}
+
+func wantAward(t *testing.T, got, want award) {
+	t.Helper()
+	if got.xp != want.xp {
+		t.Fatalf("xp = %d, want %d", got.xp, want.xp)
+	}
+	if got.leveled != want.leveled {
+		t.Fatalf("leveled up = %v, want %v", got.leveled, want.leveled)
+	}
+	if got.level != want.level {
+		t.Fatalf("level = %d, want %d", got.level, want.level)
+	}
+}
+
 func TestRPCStoreAddXPTakesTheLocalCooldownFirst(t *testing.T) {
 	store, rpc, _ := newTestRPCStore(t)
 	ctx := context.Background()
@@ -282,16 +318,12 @@ func TestRPCStoreAddXPTakesTheLocalCooldownFirst(t *testing.T) {
 	rpc.reply(discorddata.VerbXPGet, discorddata.XPGetReply{XPValue: 100, Level: 1, Found: true})
 
 	xp, leveled, level := store.AddXP(ctx, member)
-	if xp != 100 || !leveled || level != 1 {
-		t.Fatalf("AddXP = %d, %v, %d; want 100, true, 1", xp, leveled, level)
-	}
+	wantAward(t, award{xp: xp, leveled: leveled, level: level}, award{xp: 100, leveled: true, level: 1})
 
 	// Second message inside the 60s window: no write, and the caller still gets
 	// the current standing.
 	xp, leveled, level = store.AddXP(ctx, member)
-	if xp != 100 || leveled || level != 1 {
-		t.Fatalf("cooled-down AddXP = %d, %v, %d; want 100, false, 1", xp, leveled, level)
-	}
+	wantAward(t, award{xp: xp, leveled: leveled, level: level}, award{xp: 100, leveled: false, level: 1})
 	if got := rpc.called(discorddata.VerbXPAdd); got != 1 {
 		t.Fatalf("xp.add called %d times; the cooldown must keep it at 1", got)
 	}
@@ -397,7 +429,10 @@ func TestRPCStoreGuildsOfListsEveryBoundGuild(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GuildsOf: %v", err)
 	}
-	if len(got) != 2 || got[0].Guild.ID != "g1" || got[1].Guild.ID != "g2" {
+	if len(got) != 2 {
+		t.Fatalf("want both guilds, got %v", got)
+	}
+	if got[0].Guild.ID != "g1" || got[1].Guild.ID != "g2" {
 		t.Fatalf("want both guilds in order, got %v", got)
 	}
 	// The bind timestamp has to survive the hop: it is what the dashboard's
@@ -454,6 +489,22 @@ func TestRPCStoreGuildsOfCachesAndInvalidates(t *testing.T) {
 	}
 }
 
+// wantStoredConfig pins the one fixture this file writes and reads back, so
+// the served-from-cache case asserts exactly what the served-from-store case
+// did rather than a differently-worded copy of it.
+func wantStoredConfig(t *testing.T, cfg ddiscord.Config, version int, ok bool) {
+	t.Helper()
+	if !ok {
+		t.Fatalf("no settings resolved: %+v v%d", cfg, version)
+	}
+	if version != 3 {
+		t.Fatalf("version = %d, want 3", version)
+	}
+	if cfg.LiveChannelID != "123" {
+		t.Fatalf("live channel = %q, want 123", cfg.LiveChannelID)
+	}
+}
+
 func TestRPCStoreGuildConfigCachesAndServesTheCacheOnFailure(t *testing.T) {
 	store, rpc, _ := newTestRPCStore(t)
 	rpc.reply(discorddata.VerbConfigGet, discorddata.ConfigGetReply{
@@ -461,16 +512,12 @@ func TestRPCStoreGuildConfigCachesAndServesTheCacheOnFailure(t *testing.T) {
 	})
 
 	cfg, version, ok := store.GuildConfig(context.Background(), Guild{ID: "g1"})
-	if !ok || version != 3 || cfg.LiveChannelID != "123" {
-		t.Fatalf("want the stored settings, got %+v v%d ok=%v", cfg, version, ok)
-	}
+	wantStoredConfig(t, cfg, version, ok)
 
 	// discord-data goes away: the cached settings keep the guild serving.
 	rpc.fail[discorddata.VerbConfigGet] = errors.New("no responders")
 	cfg, version, ok = store.GuildConfig(context.Background(), Guild{ID: "g1"})
-	if !ok || version != 3 || cfg.LiveChannelID != "123" {
-		t.Fatalf("want the cached settings, got %+v v%d ok=%v", cfg, version, ok)
-	}
+	wantStoredConfig(t, cfg, version, ok)
 }
 
 func TestRPCStoreGuildConfigDropsTheCacheWhenTheRowIsGone(t *testing.T) {

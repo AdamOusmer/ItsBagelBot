@@ -211,8 +211,14 @@ func TestResumedReconnectSpendsTheBudget(t *testing.T) {
 		t.Fatalf("dials = %d, want at least 2 (a READY socket then a RESUMED one)", got)
 	}
 	ups := st.upStates()
-	if len(ups) != 2 || ups[0].Resumed || !ups[1].Resumed {
-		t.Fatalf("ups = %+v, want a READY then a RESUMED", ups)
+	if len(ups) != 2 {
+		t.Fatalf("ups = %+v, want two sockets up", ups)
+	}
+	if ups[0].Resumed {
+		t.Fatalf("ups[0] = %+v, want the first socket to be a fresh READY", ups[0])
+	}
+	if !ups[1].Resumed {
+		t.Fatalf("ups[1] = %+v, want the second socket to have RESUMEd", ups[1])
 	}
 	states := st.budgetStates()
 	if len(states) < 2 || states[1].Connects != 2 {

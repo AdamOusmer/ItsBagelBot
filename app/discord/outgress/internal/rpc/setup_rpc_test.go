@@ -94,19 +94,32 @@ func TestHandleStatusReportsSessionAndGuildSeparately(t *testing.T) {
 
 	got := d.handleStatus(context.Background(), outgressrpc.DiscordStatusRequest{UserID: "b1", GuildID: "g1"})
 
-	if !got.Online || got.SinceUnixMS != 1700 || got.SessionResumes != 3 {
-		t.Fatalf("session fields = %+v", got)
-	}
-	if !got.GuildPresent || got.GuildName != "Bagel HQ" || got.MemberCount != 42 {
-		t.Fatalf("guild fields = %+v", got)
-	}
-	if got.IconURL != "https://cdn.discordapp.com/icons/g1/abc.png" {
-		t.Fatalf("icon_url = %q, want a CDN url the console never has to assemble", got.IconURL)
-	}
+	// The session half comes from the status key, the guild half from a REST
+	// lookup, and the reply carries both: asserted field by field so a
+	// failure names which of the two sources moved.
+	wantStatusField(t, "online", got.Online, true)
+	wantStatusField(t, "since", got.SinceUnixMS, int64(1700))
+	wantStatusField(t, "session resumes", got.SessionResumes, 3)
+	wantStatusField(t, "guild present", got.GuildPresent, true)
+	wantStatusField(t, "guild name", got.GuildName, "Bagel HQ")
+	wantStatusField(t, "member count", got.MemberCount, 42)
+	// A CDN url the console never has to assemble.
+	wantStatusField(t, "icon url", got.IconURL, "https://cdn.discordapp.com/icons/g1/abc.png")
 	// 4009 is history on a connected bot, not a fault, but it still ships:
 	// it is what explains the resume count.
-	if got.LastCloseCode != 4009 || got.Code != outgressrpc.CodeOK || got.Error != "" {
-		t.Fatalf("reply = %+v, want no error", got)
+	wantStatusField(t, "last close code", got.LastCloseCode, 4009)
+	wantStatusField(t, "code", got.Code, outgressrpc.CodeOK)
+	wantStatusField(t, "error", got.Error, "")
+}
+
+// wantStatusField compares one field of a status reply. One claim per call
+// rather than one "something about this reply is wrong" condition: the reply
+// is assembled from two independent sources, so a failure has to say which
+// field moved.
+func wantStatusField(t *testing.T, name string, got, want any) {
+	t.Helper()
+	if got != want {
+		t.Fatalf("%s = %v, want %v", name, got, want)
 	}
 }
 

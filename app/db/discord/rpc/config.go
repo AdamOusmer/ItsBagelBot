@@ -81,14 +81,18 @@ type field struct {
 // function becomes a call to it -- the shape here is deliberately the same
 // []string of json names.
 func validateConfig(c ddiscord.Config) []string {
+	bad := invalidNames(snowflakeFields(c), validSnowflake)
+	return append(bad, invalidNames(toggleFields(c), validToggle)...)
+}
+
+// invalidNames returns the json names of the fields ok rejects. The two kinds
+// of setting differ only in the predicate, so the walk is written once; the
+// caller keeps the order (ids, then toggles) the dashboard renders the
+// refusal in.
+func invalidNames(fields []field, ok func(string) bool) []string {
 	var bad []string
-	for _, f := range snowflakeFields(c) {
-		if !validSnowflake(f.value) {
-			bad = append(bad, f.name)
-		}
-	}
-	for _, f := range toggleFields(c) {
-		if !validToggle(f.value) {
+	for _, f := range fields {
+		if !ok(f.value) {
 			bad = append(bad, f.name)
 		}
 	}

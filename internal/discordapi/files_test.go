@@ -45,11 +45,22 @@ func TestSendFileSendsPayloadJSONAndFilesZero(t *testing.T) {
 	if msg.ID != "m1" || msg.ChannelID != "c1" {
 		t.Fatalf("message = %+v", msg)
 	}
-	if got.method != http.MethodPost || got.path != "/channels/c1/messages" {
-		t.Fatalf("%s %s", got.method, got.path)
-	}
+	wantRequest(t, got, http.MethodPost, "/channels/c1/messages")
 
 	parts := parseMultipart(t, *contentType, got.body)
+	wantPayloadJSON(t, parts)
+	// The attachments entry's id must match the files[N] index, or Discord
+	// accepts the message and silently drops the file.
+	if parts["files[0]"] != "[2026-01-01 00:00 UTC] ada: hi\n" {
+		t.Fatalf("files[0] = %q", parts["files[0]"])
+	}
+}
+
+// wantPayloadJSON checks the JSON part carries the message body Discord binds
+// the attachment to: the attachments entry, its index-matching id and
+// filename, plus the content and embed posted alongside it.
+func wantPayloadJSON(t *testing.T, parts map[string]string) {
+	t.Helper()
 	payload, ok := parts["payload_json"]
 	if !ok {
 		t.Fatalf("no payload_json part in %v", keys(parts))
@@ -58,11 +69,6 @@ func TestSendFileSendsPayloadJSONAndFilesZero(t *testing.T) {
 		if !strings.Contains(payload, want) {
 			t.Fatalf("payload_json %q missing %q", payload, want)
 		}
-	}
-	// The attachments entry's id must match the files[N] index, or Discord
-	// accepts the message and silently drops the file.
-	if parts["files[0]"] != "[2026-01-01 00:00 UTC] ada: hi\n" {
-		t.Fatalf("files[0] = %q", parts["files[0]"])
 	}
 }
 

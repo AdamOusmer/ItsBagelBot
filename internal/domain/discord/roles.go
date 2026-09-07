@@ -62,7 +62,7 @@ func ValidSlot(slot string) bool {
 // config path where a zero Config already means "do nothing", and
 // ValidateConfig is where a streamer is told about a bad pair.
 func (c Config) PinnedRoleMap() map[string]string {
-	entries := splitList(c.PinnedRoles)
+	entries := splitList(listText(c.PinnedRoles))
 	if len(entries) == 0 {
 		return nil
 	}
@@ -86,7 +86,10 @@ func cutPin(entry string) (slot, id string, ok bool) {
 	slot, id, found := strings.Cut(entry, "=")
 	slot = strings.TrimSpace(slot)
 	id = strings.TrimSpace(id)
-	if !found || slot == "" || id == "" {
+	if !found {
+		return "", "", false
+	}
+	if slot == "" || id == "" {
 		return "", "", false
 	}
 	return slot, id, true
@@ -143,12 +146,25 @@ func holdsAny(memberRoles, want []string) bool {
 	if len(memberRoles) == 0 || len(want) == 0 {
 		return false
 	}
+	return anyHeld(roleSet(memberRoles), want)
+}
+
+// roleSet indexes a member's role ids. The empty id is dropped on the way in:
+// an unconfigured guild stores "" in its role fields, and a set containing ""
+// makes every member staff.
+func roleSet(memberRoles []string) map[string]bool {
 	held := make(map[string]bool, len(memberRoles))
 	for _, r := range memberRoles {
 		if r != "" {
 			held[r] = true
 		}
 	}
+	return held
+}
+
+// anyHeld reports whether held carries any of want. Empty wanted ids never
+// match, for the same reason roleSet drops them.
+func anyHeld(held map[string]bool, want []string) bool {
 	for _, id := range want {
 		if id != "" && held[id] {
 			return true

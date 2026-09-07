@@ -61,7 +61,7 @@ func ValidateConfig(cfg Config) []FieldError {
 	var out []FieldError
 	out = append(out, validateIDs(cfg)...)
 	out = append(out, validateTicket(cfg)...)
-	out = append(out, validatePinnedRoles(cfg.PinnedRoles)...)
+	out = append(out, validatePinnedRoles(listText(cfg.PinnedRoles))...)
 	out = append(out, validateToggles(cfg)...)
 	return out
 }
@@ -94,20 +94,31 @@ func idFields(cfg Config) map[string]string {
 }
 
 func validateIDs(cfg Config) []FieldError {
+	out := invalidIDFields(idFields(cfg))
+	return append(out, validateStaffRoleIDs(listText(cfg.TicketStaffRoles))...)
+}
+
+// invalidIDFields reports one error per snowflake-shaped field that is not one.
+func invalidIDFields(fields map[string]string) []FieldError {
 	var out []FieldError
-	fields := idFields(cfg)
 	for _, field := range sortedKeys(fields) {
 		if !ValidSnowflake(fields[field]) {
 			out = append(out, FieldError{Field: field, Code: CodeInvalidID})
 		}
 	}
-	for _, id := range splitList(cfg.TicketStaffRoles) {
+	return out
+}
+
+// validateStaffRoleIDs reports at most ONE error for the whole list: the
+// dashboard renders it as a single control, so a second identical code on the
+// same field highlights nothing extra.
+func validateStaffRoleIDs(raw listText) []FieldError {
+	for _, id := range splitList(raw) {
 		if !ValidSnowflake(id) {
-			out = append(out, FieldError{Field: "ticketStaffRoleIds", Code: CodeInvalidID})
-			break
+			return []FieldError{{Field: "ticketStaffRoleIds", Code: CodeInvalidID}}
 		}
 	}
-	return out
+	return nil
 }
 
 func validateTicket(cfg Config) []FieldError {
@@ -131,7 +142,10 @@ func validLimit(raw string) bool {
 	if v == "" {
 		return true
 	}
-	return len(v) == 1 && v[0] >= '1' && v[0] <= byte('0'+TicketOpenLimitMax)
+	if len(v) != 1 {
+		return false
+	}
+	return v[0] >= '1' && v[0] <= byte('0'+TicketOpenLimitMax)
 }
 
 func tooLong(field, value string, max int) []FieldError {
@@ -141,7 +155,7 @@ func tooLong(field, value string, max int) []FieldError {
 	return []FieldError{{Field: field, Code: CodeTooLong}}
 }
 
-func validatePinnedRoles(raw string) []FieldError {
+func validatePinnedRoles(raw listText) []FieldError {
 	var out []FieldError
 	seen := make(map[string]bool)
 	for _, entry := range splitList(raw) {

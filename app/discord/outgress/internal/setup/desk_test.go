@@ -26,9 +26,7 @@ func TestRepostDeskDeletesThePreviousPanelAndRemembersTheNewOne(t *testing.T) {
 	rec := newGuildRecorder()
 	store := boundStore(t)
 	ctx := context.Background()
-	if err := store.RememberDesk(ctx, discordstore.DeskPanel{GuildID: "guild-1", ChannelID: "support", MessageID: "old"}); err != nil {
-		t.Fatal(err)
-	}
+	rememberDesk(t, store, "support", "old")
 	w := setupWorker(rec, store)
 
 	id, err := w.RepostDesk(ctx, DeskRepostRequest{
@@ -41,22 +39,68 @@ func TestRepostDeskDeletesThePreviousPanelAndRemembersTheNewOne(t *testing.T) {
 	if id == "" {
 		t.Fatal("the new panel's id is what the dashboard shows as confirmation")
 	}
-	if len(rec.deleted) != 1 || rec.deleted[0] != "old" {
-		t.Fatalf("deleted = %v, want the previous panel", rec.deleted)
-	}
+
+	wantDeletedPanel(t, rec, "old")
 	// The channel came from the remembered panel, not from the request.
-	if len(rec.panelPosts) != 1 || rec.panelPosts[0].ChannelID != "support" {
-		t.Fatalf("panel posts = %+v", rec.panelPosts)
+	wantSinglePanel(t, rec, "support", "Need a hand?", "Contact staff")
+	wantRememberedDesk(t, store, "support", id)
+}
+
+// rememberDesk seeds the panel a repost is expected to replace.
+func rememberDesk(t *testing.T, store *discordstore.Mem, channelID, messageID string) {
+	t.Helper()
+	panel := discordstore.DeskPanel{GuildID: "guild-1", ChannelID: channelID, MessageID: messageID}
+	if err := store.RememberDesk(context.Background(), panel); err != nil {
+		t.Fatal(err)
 	}
-	if rec.panelPosts[0].Embed.Title != "Need a hand?" {
-		t.Fatalf("panel embed = %+v", rec.panelPosts[0].Embed)
+}
+
+// wantDeletedPanel asserts the repost removed exactly the previous panel:
+// leaving it up gives a guild two live ticket buttons, one of them stale.
+func wantDeletedPanel(t *testing.T, rec *guildRecorder, messageID string) {
+	t.Helper()
+	if len(rec.deleted) != 1 {
+		t.Fatalf("deleted = %v, want exactly the previous panel", rec.deleted)
 	}
-	if len(rec.panelButtons) != 1 || rec.panelButtons[0].Label != "Contact staff" {
-		t.Fatalf("panel buttons = %+v", rec.panelButtons)
+	if rec.deleted[0] != messageID {
+		t.Fatalf("deleted = %q, want %q", rec.deleted[0], messageID)
 	}
-	got, ok := store.Desk(ctx, discordstore.Guild{ID: "guild-1"})
-	if !ok || got.MessageID != id || got.ChannelID != "support" {
-		t.Fatalf("remembered desk = %+v, %v", got, ok)
+}
+
+// wantSinglePanel asserts one panel was posted, in channelID, with the copy the
+// request asked for.
+func wantSinglePanel(t *testing.T, rec *guildRecorder, channelID, title, button string) {
+	t.Helper()
+	if len(rec.panelPosts) != 1 {
+		t.Fatalf("panel posts = %+v, want exactly one", rec.panelPosts)
+	}
+	if rec.panelPosts[0].ChannelID != channelID {
+		t.Fatalf("panel channel = %q, want %q", rec.panelPosts[0].ChannelID, channelID)
+	}
+	if rec.panelPosts[0].Embed.Title != title {
+		t.Fatalf("panel embed = %+v, want title %q", rec.panelPosts[0].Embed, title)
+	}
+	if len(rec.panelButtons) != 1 {
+		t.Fatalf("panel buttons = %+v, want exactly one", rec.panelButtons)
+	}
+	if rec.panelButtons[0].Label != button {
+		t.Fatalf("button label = %q, want %q", rec.panelButtons[0].Label, button)
+	}
+}
+
+// wantRememberedDesk asserts the store now points at the new panel: the next
+// repost deletes whatever this remembers, so a stale entry orphans a button.
+func wantRememberedDesk(t *testing.T, store *discordstore.Mem, channelID, messageID string) {
+	t.Helper()
+	got, ok := store.Desk(context.Background(), discordstore.Guild{ID: "guild-1"})
+	if !ok {
+		t.Fatal("no desk remembered after a repost")
+	}
+	if got.MessageID != messageID {
+		t.Fatalf("remembered message = %q, want %q", got.MessageID, messageID)
+	}
+	if got.ChannelID != channelID {
+		t.Fatalf("remembered channel = %q, want %q", got.ChannelID, channelID)
 	}
 }
 
@@ -125,7 +169,7 @@ func TestRepostDeskSurvivesAFailedDelete(t *testing.T) {
 	rec.deleteErr = errors.New("unknown message")
 	store := boundStore(t)
 	ctx := context.Background()
-	_ = store.RememberDesk(ctx, discordstore.DeskPanel{GuildID: "guild-1", ChannelID: "support", MessageID: "old"})
+	rememberDesk(t, store, "support", "old")
 	w := setupWorker(rec, store)
 
 	id, err := w.RepostDesk(ctx, DeskRepostRequest{GuildID: "guild-1", BroadcasterID: "b1"})

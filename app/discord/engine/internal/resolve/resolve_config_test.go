@@ -97,9 +97,19 @@ func TestResolveWarnsOncePerGuildPerField(t *testing.T) {
 func TestConfigWarningsAreKeyedPerField(t *testing.T) {
 	w := NewConfigWarnings()
 
-	if !w.first("g1", "clipsChannelId") || !w.first("g1", "liveChannelId") || !w.first("g2", "clipsChannelId") {
-		t.Fatal("a first sighting of a pair reported as already warned")
+	// Each pair is a first sighting: a new field in a known guild and a
+	// known field in a new guild both have to warn on their own.
+	firstSightings := []struct{ guild, field string }{
+		{"g1", "clipsChannelId"},
+		{"g1", "liveChannelId"},
+		{"g2", "clipsChannelId"},
 	}
+	for _, pair := range firstSightings {
+		if !w.first(pair.guild, pair.field) {
+			t.Fatalf("%s/%s reported as already warned on its first sighting", pair.guild, pair.field)
+		}
+	}
+
 	if w.first("g1", "clipsChannelId") {
 		t.Fatal("the same pair warned twice")
 	}

@@ -4,6 +4,7 @@
 package k8s
 
 import (
+	"errors"
 	"io"
 	"os"
 	"slices"
@@ -35,6 +36,18 @@ type envManifest struct {
 // deploymentEnvNames lists the env var names one Deployment's containers set.
 func deploymentEnvNames(t *testing.T, filename, name string) []string {
 	t.Helper()
+	manifest, found := findDeployment(t, filename, name)
+	if !found {
+		t.Fatalf("%s Deployment is missing from %s", name, filename)
+	}
+	return envNames(manifest)
+}
+
+// findDeployment walks one multi-document manifest file for the Deployment
+// named name. A file that never names it is (zero, false) rather than a
+// t.Fatal here, so the caller owns the message and this stays a plain search.
+func findDeployment(t *testing.T, filename, name string) (envManifest, bool) {
+	t.Helper()
 	f, err := os.Open(filename)
 	if err != nil {
 		t.Fatal(err)
@@ -44,25 +57,28 @@ func deploymentEnvNames(t *testing.T, filename, name string) []string {
 	decoder := yaml.NewDecoder(f)
 	for {
 		var manifest envManifest
-		if err := decoder.Decode(&manifest); err != nil {
-			if err == io.EOF {
-				break
-			}
+		err := decoder.Decode(&manifest)
+		if errors.Is(err, io.EOF) {
+			return envManifest{}, false
+		}
+		if err != nil {
 			t.Fatal(err)
 		}
-		if manifest.Kind != "Deployment" || manifest.Metadata.Name != name {
-			continue
+		if manifest.Kind == "Deployment" && manifest.Metadata.Name == name {
+			return manifest, true
 		}
-		out := []string{}
-		for _, c := range manifest.Spec.Template.Spec.Containers {
-			for _, e := range c.Env {
-				out = append(out, e.Name)
-			}
-		}
-		return out
 	}
-	t.Fatalf("%s Deployment is missing from %s", name, filename)
-	return nil
+}
+
+// envNames flattens every container's env var names, in manifest order.
+func envNames(manifest envManifest) []string {
+	out := []string{}
+	for _, c := range manifest.Spec.Template.Spec.Containers {
+		for _, e := range c.Env {
+			out = append(out, e.Name)
+		}
+	}
+	return out
 }
 
 // TestDiscordManifestsCarryNoDeadDataSwitch: DISCORD_DATA_ENABLED used to pick

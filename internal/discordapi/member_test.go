@@ -39,6 +39,20 @@ func recording(t *testing.T, status int, reply string) (*Client, *capture) {
 	return client, got
 }
 
+// wantRequest pins the method and the path of the one request a call made.
+// Every test in this package asserted the pair as a single two-clause
+// condition that printed "GET /guilds/g1/members/u1" on failure without
+// saying which half was wrong; this reports the halves separately.
+func wantRequest(t *testing.T, got *capture, method, path string) {
+	t.Helper()
+	if got.method != method {
+		t.Fatalf("method = %q, want %q", got.method, method)
+	}
+	if got.path != path {
+		t.Fatalf("path = %q, want %q", got.path, path)
+	}
+}
+
 func TestGetGuildMemberDecodesRolesAndUser(t *testing.T) {
 	client, got := recording(t, 200, `{"nick":"Bagelfan","roles":["r1","r2"],"user":{"id":"u1","username":"fan","global_name":"Fan"}}`)
 
@@ -46,9 +60,7 @@ func TestGetGuildMemberDecodesRolesAndUser(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetGuildMember: %v", err)
 	}
-	if got.method != http.MethodGet || got.path != "/guilds/g1/members/u1" {
-		t.Fatalf("request = %s %s", got.method, got.path)
-	}
+	wantRequest(t, got, http.MethodGet, "/guilds/g1/members/u1")
 	if len(member.Roles) != 2 || member.Roles[0] != "r1" {
 		t.Fatalf("roles = %v", member.Roles)
 	}
@@ -73,9 +85,7 @@ func TestListGuildChannelsFullKeepsParentAndOverwrites(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListGuildChannelsFull: %v", err)
 	}
-	if got.path != "/guilds/g1/channels" {
-		t.Fatalf("path = %s", got.path)
-	}
+	wantRequest(t, got, http.MethodGet, "/guilds/g1/channels")
 	if len(channels) != 1 || channels[0].ParentID != "cat1" {
 		t.Fatalf("channels = %+v", channels)
 	}
@@ -92,8 +102,14 @@ func TestListGuildRolesDecodesManaged(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListGuildRoles: %v", err)
 	}
-	if len(roles) != 2 || roles[0].Managed || !roles[1].Managed {
-		t.Fatalf("roles = %+v", roles)
+	if len(roles) != 2 {
+		t.Fatalf("roles = %+v, want two", roles)
+	}
+	if roles[0].Managed {
+		t.Fatalf("role %q decoded as managed", roles[0].Name)
+	}
+	if !roles[1].Managed {
+		t.Fatalf("role %q lost its managed flag, which is what StripRoles skips on", roles[1].Name)
 	}
 }
 
@@ -104,9 +120,7 @@ func TestModifyGuildSendsVerificationLevel(t *testing.T) {
 	if err := client.ModifyGuild(context.Background(), GuildPatch{Guild: Guild{ID: "g1"}, VerificationLevel: &level}); err != nil {
 		t.Fatalf("ModifyGuild: %v", err)
 	}
-	if got.method != http.MethodPatch || got.path != "/guilds/g1" {
-		t.Fatalf("request = %s %s", got.method, got.path)
-	}
+	wantRequest(t, got, http.MethodPatch, "/guilds/g1")
 	if !strings.Contains(got.body, `"verification_level":4`) {
 		t.Fatalf("body = %s", got.body)
 	}
@@ -134,9 +148,7 @@ func TestSetChannelOverwriteTargetsTheOverwriteEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SetChannelOverwrite: %v", err)
 	}
-	if got.method != http.MethodPut || got.path != "/channels/c1/permissions/g1" {
-		t.Fatalf("request = %s %s", got.method, got.path)
-	}
+	wantRequest(t, got, http.MethodPut, "/channels/c1/permissions/g1")
 	if !strings.Contains(got.body, `"deny":"2048"`) {
 		t.Fatalf("body = %s", got.body)
 	}

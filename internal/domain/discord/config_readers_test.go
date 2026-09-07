@@ -104,6 +104,18 @@ func TestConfigReadersHasNoStaleEntries(t *testing.T) {
 	}
 }
 
+// isCamelCaseTag is the shape the console's DiscordConfig keys are written
+// in: a non-empty name, no separator, first letter lowercase.
+func isCamelCaseTag(name string) bool {
+	if name == "" {
+		return false
+	}
+	if strings.ContainsAny(name, "_-") {
+		return false
+	}
+	return name[0] >= 'a' && name[0] <= 'z'
+}
+
 // Every field must also carry a camelCase json tag: the console's
 // DiscordConfig is keyed by these exact strings, and a missing or snake_case
 // tag silently drops the setting on the way to the dashboard.
@@ -116,7 +128,7 @@ func TestEveryConfigFieldHasACamelCaseJSONTag(t *testing.T) {
 			t.Fatalf("Config.%s has no json tag", f.Name)
 		}
 		name, _, _ := strings.Cut(tag, ",")
-		if name == "" || strings.ContainsAny(name, "_-") || name[0] < 'a' || name[0] > 'z' {
+		if !isCamelCaseTag(name) {
 			t.Fatalf("Config.%s json tag %q is not camelCase", f.Name, name)
 		}
 	}

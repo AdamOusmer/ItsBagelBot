@@ -26,38 +26,45 @@ func newTestReporter() (*Reporter, *clock) {
 	return r, c
 }
 
+// wantField compares one published status field. The transition test below is
+// a sequence of expectations rather than a chain of compound conditions, so a
+// failure names the field that moved instead of dumping the whole struct.
+func wantField(t *testing.T, name string, got, want any) {
+	t.Helper()
+	if got != want {
+		t.Fatalf("%s = %v, want %v", name, got, want)
+	}
+}
+
 func TestReporterRecordsTransitions(t *testing.T) {
 	r, c := newTestReporter()
 	ctx := context.Background()
 
 	r.Up(ctx, gateway.Up{SessionID: "sess-1", GuildCount: 7})
 	got := r.Snapshot()
-	if !got.Connected || got.SessionID != "sess-1" || got.GuildCount != 7 {
-		t.Fatalf("after Up: %+v", got)
-	}
-	if got.HeartbeatUnixMS != c.t.UnixMilli() || got.Pod != "pod-1" {
-		t.Fatalf("heartbeat/pod not stamped: %+v", got)
-	}
+	wantField(t, "connected after Up", got.Connected, true)
+	wantField(t, "session id", got.SessionID, "sess-1")
+	wantField(t, "guild count", got.GuildCount, 7)
+	wantField(t, "heartbeat", got.HeartbeatUnixMS, c.t.UnixMilli())
+	wantField(t, "pod", got.Pod, "pod-1")
 
 	c.t = c.t.Add(time.Minute)
 	r.Up(ctx, gateway.Up{SessionID: "sess-1", Resumed: true})
-	if got := r.Snapshot(); got.Resumes != 1 {
-		t.Fatalf("resumes = %d, want 1", got.Resumes)
-	}
+	wantField(t, "resumes", r.Snapshot().Resumes, 1)
 
 	c.t = c.t.Add(time.Minute)
 	r.Down(ctx, gateway.Down{Code: 4000, Reason: "unknown error"})
 	got = r.Snapshot()
-	if got.Connected || got.LastCloseCode != 4000 || got.LastCloseReason != "unknown error" {
-		t.Fatalf("after Down: %+v", got)
-	}
+	wantField(t, "connected after Down", got.Connected, false)
+	wantField(t, "last close code", got.LastCloseCode, 4000)
+	wantField(t, "last close reason", got.LastCloseReason, "unknown error")
 
 	// A fresh Identify, not a resume: the counter describes the session that
 	// ended, so it must not carry into the new one.
 	r.Up(ctx, gateway.Up{SessionID: "sess-2", GuildCount: 8})
-	if got := r.Snapshot(); got.Resumes != 0 || got.LastCloseCode != 4000 {
-		t.Fatalf("after reconnect: %+v", got)
-	}
+	got = r.Snapshot()
+	wantField(t, "resumes after a fresh Identify", got.Resumes, 0)
+	wantField(t, "last close code after a reconnect", got.LastCloseCode, 4000)
 }
 
 func TestFatalCloseFailsReadyThenLiveAfterGrace(t *testing.T) {

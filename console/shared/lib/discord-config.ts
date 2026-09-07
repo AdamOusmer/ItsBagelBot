@@ -602,12 +602,27 @@ export const DISCORD_CONFIG_VERSION_NEW = 0;
  * save a fresh write rather than an unexplained conflict.
  */
 export function parseConfigVersion(raw: unknown): number {
-  if (typeof raw === 'number' && Number.isSafeInteger(raw) && raw >= 0) return raw;
-  if (typeof raw === 'string' && /^\d+$/.test(raw.trim())) {
+  if (isUsableVersionNumber(raw)) return raw;
+  if (isDigitString(raw)) {
     const n = Number.parseInt(raw.trim(), 10);
     if (Number.isSafeInteger(n)) return n;
   }
   return DISCORD_CONFIG_VERSION_NEW;
+}
+
+/** A version that can be used as it arrived: a whole, non-negative count that
+ *  survived the JSON parse exactly. */
+function isUsableVersionNumber(raw: unknown): raw is number {
+  if (typeof raw !== 'number') return false;
+  if (!Number.isSafeInteger(raw)) return false;
+  return raw >= 0;
+}
+
+/** Digits and nothing else, so a quoted `"12"` is a version while `v12`, an
+ *  empty string, and a signed or fractional spelling are not. */
+function isDigitString(raw: unknown): raw is string {
+  if (typeof raw !== 'string') return false;
+  return /^\d+$/.test(raw.trim());
 }
 
 // ── guild permissions (the OAuth picker) ──────────────────────────────────

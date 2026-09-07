@@ -141,20 +141,30 @@ func TestTicketPanelEmbedUsesTheStreamersCopy(t *testing.T) {
 
 	e := TicketPanelEmbed(spec)
 
-	if e.Title != "Need a hand?" || e.Description != "Ping the mods." || e.Color != 0x112233 {
-		t.Fatalf("embed = %+v", e)
+	wantEmbedCopy(t, e, Embed{Title: "Need a hand?", Description: "Ping the mods.", Color: 0x112233})
+}
+
+// wantEmbedCopy compares the three fields the streamer's panel copy lands in.
+// It takes an Embed rather than three loose strings so the call site reads as
+// the embed it expects, and so the helper keeps one argument per concept.
+func wantEmbedCopy(t *testing.T, got, want Embed) {
+	t.Helper()
+	if got.Title != want.Title {
+		t.Fatalf("title = %q, want %q", got.Title, want.Title)
+	}
+	if got.Description != want.Description {
+		t.Fatalf("description = %q, want %q", got.Description, want.Description)
+	}
+	if got.Color != want.Color {
+		t.Fatalf("color = %#x, want %#x", got.Color, want.Color)
 	}
 }
 
 func TestTicketPanelSpecOrDefaultsFillsBlanks(t *testing.T) {
-	got := TicketPanelSpec{Title: "Kept"}.OrDefaults()
-
-	if got.Title != "Kept" {
-		t.Fatalf("title = %q", got.Title)
-	}
-	if got.Body != TicketPanelBodyDefault || got.Button != TicketPanelButtonDefault || got.ColorOr(0) != LiveColor {
-		t.Fatalf("spec = %+v", got)
-	}
+	wantPanel(t, TicketPanelSpec{Title: "Kept"}.OrDefaults(), panelWant{
+		title: "Kept", body: TicketPanelBodyDefault,
+		button: TicketPanelButtonDefault, color: LiveColor,
+	})
 }
 
 // TestTicketPanelSpecKeepsABlackColour is the reason Color is a pointer. Black

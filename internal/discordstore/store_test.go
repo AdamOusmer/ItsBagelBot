@@ -254,6 +254,25 @@ func TestTicketOverNamesTheTerminalStates(t *testing.T) {
 // cover the memory double's ticket bookkeeping and the two pipe-joined Valkey
 // values, neither of which anything else exercises.
 
+// wantOpened holds what an ACCEPTED open must answer with: no error, no
+// refusal, a row id (the desk names the channel after it) and the live count
+// including this one.
+func wantOpened(t *testing.T, got TicketOpenResult, err error, wantCount int) {
+	t.Helper()
+	if err != nil {
+		t.Fatalf("TrackTicket: %v", err)
+	}
+	if got.AtLimit {
+		t.Fatalf("open = %+v, want it accepted", got)
+	}
+	if got.TicketID == 0 {
+		t.Fatal("an accepted open must carry a row id")
+	}
+	if got.OpenCount != wantCount {
+		t.Fatalf("open count = %d, want %d", got.OpenCount, wantCount)
+	}
+}
+
 // TestMemEnforcesTheOpenLimitAndNumbersTickets: the double enforces the limit
 // the Valkey store deliberately does not, which is what the engine's refusal
 // path is tested against.
@@ -263,9 +282,7 @@ func TestMemEnforcesTheOpenLimitAndNumbersTickets(t *testing.T) {
 	opener := Member{GuildID: "g1", UserID: "u1"}
 
 	first, err := m.TrackTicket(ctx, TicketOpen{GuildID: "g1", ChannelID: "c1", OpenerID: "u1", OpenLimit: 2, PanelMessageID: "m1"})
-	if err != nil || first.AtLimit || first.TicketID == 0 || first.OpenCount != 1 {
-		t.Fatalf("first = %+v, err = %v", first, err)
-	}
+	wantOpened(t, first, err, 1)
 	if got := m.OpenTicketCount(ctx, opener); got != 1 {
 		t.Fatalf("count = %d", got)
 	}
@@ -284,6 +301,38 @@ func TestMemEnforcesTheOpenLimitAndNumbersTickets(t *testing.T) {
 	}
 }
 
+// wantClaimed holds what a claim must leave behind: the claimant, the status
+// move, and the panel message id -- which the close path needs to edit the
+// card back, and which a claim that rebuilt the record instead of updating it
+// would silently drop.
+func wantClaimed(t *testing.T, got Ticket) {
+	t.Helper()
+	if got.ClaimedBy != "mod1" {
+		t.Fatalf("claimed by %q, want mod1", got.ClaimedBy)
+	}
+	if got.Status != TicketStatusClaimed {
+		t.Fatalf("status = %q, want %q", got.Status, TicketStatusClaimed)
+	}
+	if got.PanelMessageID != "m1" {
+		t.Fatalf("panel message id = %q, want m1", got.PanelMessageID)
+	}
+}
+
+// wantStoredTranscript reads the transcript back out of the store.
+func wantStoredTranscript(t *testing.T, m *Mem, ticketID int) {
+	t.Helper()
+	stored, ok := m.Transcript(ticketID)
+	if !ok {
+		t.Fatalf("ticket %d has no transcript", ticketID)
+	}
+	if stored.Body != "body" {
+		t.Fatalf("body = %q, want %q", stored.Body, "body")
+	}
+	if stored.MessageCount != 2 {
+		t.Fatalf("message count = %d, want 2", stored.MessageCount)
+	}
+}
+
 func TestMemClaimAndCloseMoveTheTicketOn(t *testing.T) {
 	m := NewMem()
 	ctx := context.Background()
@@ -296,17 +345,12 @@ func TestMemClaimAndCloseMoveTheTicketOn(t *testing.T) {
 		t.Fatalf("ClaimTicket: %v", err)
 	}
 	got, _ := m.Ticket(ctx, guild, Channel{ID: "c1"})
-	if got.ClaimedBy != "mod1" || got.Status != TicketStatusClaimed || got.PanelMessageID != "m1" {
-		t.Fatalf("ticket = %+v", got)
-	}
+	wantClaimed(t, got)
 
 	if err := m.PutTranscript(ctx, Transcript{TicketID: got.ID, Body: "body", MessageCount: 2}); err != nil {
 		t.Fatalf("PutTranscript: %v", err)
 	}
-	stored, ok := m.Transcript(got.ID)
-	if !ok || stored.Body != "body" || stored.MessageCount != 2 {
-		t.Fatalf("transcript = %+v, %v", stored, ok)
-	}
+	wantStoredTranscript(t, m, got.ID)
 
 	if err := m.CloseTicket(ctx, TicketClose{GuildID: "g1", ChannelID: "c1", ClosedBy: "mod1"}); err != nil {
 		t.Fatalf("CloseTicket: %v", err)
@@ -327,22 +371,57 @@ func TestMemDeskRemembersThePanelMessage(t *testing.T) {
 		t.Fatalf("RememberDesk: %v", err)
 	}
 	got, ok := m.Desk(ctx, Guild{ID: "g1"})
-	if !ok || got.ChannelID != "c1" || got.MessageID != "m1" {
-		t.Fatalf("desk = %+v, %v", got, ok)
-	}
+	wantDesk(t, got, ok, DeskPanel{GuildID: "g1", ChannelID: "c1", MessageID: "m1"})
 	if m.ClaimDesk(ctx, Guild{ID: "g1"}) {
 		t.Fatal("a remembered desk is already claimed")
 	}
 }
 
+// wantDesk compares a parsed or stored desk panel field by field.
+func wantDesk(t *testing.T, got DeskPanel, ok bool, want DeskPanel) {
+	t.Helper()
+	if !ok {
+		t.Fatalf("the desk did not resolve: %+v", got)
+	}
+	if got.GuildID != want.GuildID {
+		t.Fatalf("guild = %q, want %q", got.GuildID, want.GuildID)
+	}
+	if got.ChannelID != want.ChannelID {
+		t.Fatalf("channel = %q, want %q", got.ChannelID, want.ChannelID)
+	}
+	if got.MessageID != want.MessageID {
+		t.Fatalf("message = %q, want %q", got.MessageID, want.MessageID)
+	}
+}
+
 func TestParseDeskValueReadsTheLegacyClaim(t *testing.T) {
 	got, ok := parseDeskValue("g1", deskClaimed)
-	if !ok || got.MessageID != "" || got.GuildID != "g1" {
-		t.Fatalf("legacy claim = %+v, %v", got, ok)
-	}
+	wantDesk(t, got, ok, DeskPanel{GuildID: "g1"})
 	got, ok = parseDeskValue("g1", "c1|m1")
-	if !ok || got.ChannelID != "c1" || got.MessageID != "m1" {
-		t.Fatalf("panel = %+v, %v", got, ok)
+	wantDesk(t, got, ok, DeskPanel{GuildID: "g1", ChannelID: "c1", MessageID: "m1"})
+}
+
+// wantParsedTicket compares a parsed ticket value against the record it must
+// decode to, field by field.
+func wantParsedTicket(t *testing.T, got Ticket, ok bool, want Ticket) {
+	t.Helper()
+	if !ok {
+		t.Fatalf("the value did not parse: %+v", got)
+	}
+	if got.GuildID != want.GuildID {
+		t.Fatalf("guild = %q, want %q", got.GuildID, want.GuildID)
+	}
+	if got.OpenerID != want.OpenerID {
+		t.Fatalf("opener = %q, want %q", got.OpenerID, want.OpenerID)
+	}
+	if got.ClaimedBy != want.ClaimedBy {
+		t.Fatalf("claimed by = %q, want %q", got.ClaimedBy, want.ClaimedBy)
+	}
+	if got.PanelMessageID != want.PanelMessageID {
+		t.Fatalf("panel message id = %q, want %q", got.PanelMessageID, want.PanelMessageID)
+	}
+	if got.Status != want.Status {
+		t.Fatalf("status = %q, want %q", got.Status, want.Status)
 	}
 }
 
@@ -350,13 +429,12 @@ func TestParseTicketValueReadsBothWidths(t *testing.T) {
 	// The pipe-joined value gained two fields; a value written by an older
 	// build must still parse, with the new halves empty.
 	old, ok := parseTicketValue("c1", "g1|u1")
-	if !ok || old.GuildID != "g1" || old.OpenerID != "u1" || old.ClaimedBy != "" || old.Status != TicketStatusOpen {
-		t.Fatalf("legacy value = %+v, %v", old, ok)
-	}
+	wantParsedTicket(t, old, ok, Ticket{GuildID: "g1", OpenerID: "u1", Status: TicketStatusOpen})
 	full, ok := parseTicketValue("c1", ticketValue(Ticket{GuildID: "g1", OpenerID: "u1", ClaimedBy: "mod1", PanelMessageID: "m1"}))
-	if !ok || full.ClaimedBy != "mod1" || full.PanelMessageID != "m1" || full.Status != TicketStatusClaimed {
-		t.Fatalf("value = %+v, %v", full, ok)
-	}
+	wantParsedTicket(t, full, ok, Ticket{
+		GuildID: "g1", OpenerID: "u1", ClaimedBy: "mod1",
+		PanelMessageID: "m1", Status: TicketStatusClaimed,
+	})
 	if _, ok := parseTicketValue("c1", "garbage"); ok {
 		t.Fatal("a value with no separator is not a ticket")
 	}

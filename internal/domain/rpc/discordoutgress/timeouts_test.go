@@ -30,6 +30,14 @@ func TestTicketTimeoutsCoverEverySubjectOnce(t *testing.T) {
 		"ticket.open": false, "ticket.claim": false, "ticket.add": false,
 		"ticket.panel": false, "ticket.close": false,
 	}
+	markTimeoutSubjects(t, want)
+	wantEverySubjectPaired(t, want)
+}
+
+// markTimeoutSubjects walks the table and ticks off each subject, failing on
+// one the list above does not know or that the table pairs twice.
+func markTimeoutSubjects(t *testing.T, want map[string]bool) {
+	t.Helper()
 	for _, pair := range TicketTimeouts {
 		seen, known := want[pair.Subject]
 		if !known {
@@ -40,6 +48,12 @@ func TestTicketTimeoutsCoverEverySubjectOnce(t *testing.T) {
 		}
 		want[pair.Subject] = true
 	}
+}
+
+// wantEverySubjectPaired is the other direction: a subject on the wire with no
+// row in the table would ship with no deadline pairing at all.
+func wantEverySubjectPaired(t *testing.T, want map[string]bool) {
+	t.Helper()
 	for subject, seen := range want {
 		if !seen {
 			t.Fatalf("%s has no deadline pairing", subject)
