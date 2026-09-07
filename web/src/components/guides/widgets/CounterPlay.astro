@@ -1,0 +1,195 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+/**
+ * CounterPlay: press the same three moves a mod types in chat and watch a
+ * counter answer for real. The mod line replays the bot's actual reply
+ * templates (loyalty.counter.set / loyalty.counter.show, see
+ * app/twitch/sesame/modules/loyalty.go and internal/domain/i18n/locales); the
+ * second line shows the same number through a {counter:deaths}-style command
+ * response, so a reader sees both the management command and the token
+ * update from one shared value. No JS: the window renders the starting value
+ * and the buttons are simply inert, so the page still reads fine.
+ */
+interface Props {
+    labels?: Record<string, string>;
+    props?: Record<string, unknown>;
+}
+
+const { labels = {}, props = {} } = Astro.props;
+const L = {
+    heading: 'Try it: bump the counter',
+    windowTitle: '#your_channel',
+    modName: 'mod_sam',
+    addOne: '!counter add deaths',
+    subOne: '!counter add deaths -1',
+    setTen: '!counter set deaths 10',
+    viewerName: 'crust',
+    viewerCommand: '!death',
+    viewerReplyTemplate: 'Oh no, {value} deaths so far.',
+    modReplyTemplate: 'Counter deaths is now {value}.',
+    ...labels,
+};
+const counterName = typeof props.counterName === 'string' ? props.counterName : 'deaths';
+const start = typeof props.start === 'number' ? props.start : 12;
+---
+
+<div class="gcplay" data-counter-play data-start={start} data-name={counterName}>
+    <p class="gcplay__heading">{L.heading}</p>
+    <div class="gcplay__win" role="img" aria-label={L.windowTitle}>
+        <div class="gcplay__bar"><i></i><span>{L.windowTitle}</span><b>chat</b></div>
+        <div class="gcplay__feed">
+            <p class="gcplay__msg">
+                <b class="gcplay__name gcplay__name--mod">{L.modName}</b>
+                <span class="gcplay__text" data-counter-play-mod-cmd>{L.addOne}</span>
+            </p>
+            <p class="gcplay__msg">
+                <b class="gcplay__name gcplay__name--bot">ItsBagelBot</b>
+                <span class="gcplay__text" data-counter-play-mod-reply data-template={L.modReplyTemplate}>{L.modReplyTemplate.replace('{value}', String(start))}</span>
+            </p>
+            <p class="gcplay__msg">
+                <b class="gcplay__name gcplay__name--viewer">{L.viewerName}</b>
+                <span class="gcplay__text">{L.viewerCommand}</span>
+            </p>
+            <p class="gcplay__msg">
+                <b class="gcplay__name gcplay__name--bot">ItsBagelBot</b>
+                <span class="gcplay__text" data-counter-play-token-reply data-template={L.viewerReplyTemplate}>{L.viewerReplyTemplate.replace('{value}', String(start))}</span>
+            </p>
+        </div>
+    </div>
+    <div class="gcplay__row">
+        <button type="button" class="gcplay__btn" data-counter-play-btn="add">{L.addOne}</button>
+        <button type="button" class="gcplay__btn" data-counter-play-btn="sub">{L.subOne}</button>
+        <button type="button" class="gcplay__btn" data-counter-play-btn="set10">{L.setTen}</button>
+    </div>
+</div>
+
+<style>
+    .gcplay { margin: 20px 0 26px; }
+
+    .gcplay__heading {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.68rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--muted, #888077);
+        margin: 0 0 10px;
+    }
+
+    .gcplay__win {
+        border: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+        border-radius: 12px;
+        background: #0b0b0a;
+        overflow: hidden;
+        box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+    }
+
+    .gcplay__bar {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 10px 14px;
+        border-bottom: 1px solid rgba(201, 168, 124, 0.1);
+        background: rgba(17, 17, 16, 0.9);
+    }
+
+    .gcplay__bar i { width: 7px; height: 7px; border-radius: 50%; background: #e06262; box-shadow: 0 0 8px rgba(224, 98, 98, 0.6); }
+    .gcplay__bar span { font-family: var(--font-mono, "DM Mono", monospace); font-size: 0.75rem; color: var(--white, #f0ece4); }
+    .gcplay__bar b { margin-left: auto; font-family: var(--font-mono, "DM Mono", monospace); font-weight: 400; font-size: 0.6rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted, #888077); }
+
+    .gcplay__feed { display: grid; gap: 10px; padding: 16px; }
+
+    .gcplay__msg {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 8px;
+        align-items: baseline;
+        font-size: 0.92rem;
+        line-height: 1.55;
+        margin: 0;
+    }
+
+    .gcplay__name { font-family: var(--font-body, "DM Sans", sans-serif); font-weight: 700; white-space: nowrap; }
+    .gcplay__name::after { content: ":"; color: var(--muted, #888077); font-weight: 400; }
+    .gcplay__name--mod { color: #7fb8e8; }
+    .gcplay__name--viewer { color: #bd8ff2; }
+    .gcplay__name--bot { color: var(--green-glow, #52b788); }
+
+    .gcplay__text { color: rgba(240, 236, 228, 0.85); overflow-wrap: anywhere; transition: transform 240ms var(--ease-out-expo, ease-out), opacity 240ms var(--ease-out-expo, ease-out); }
+
+    .gcplay__text.is-swapping { transform: translateX(12px); opacity: 0; }
+
+    .gcplay__row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+
+    .gcplay__btn {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.74rem;
+        color: var(--tan-light, #e0c49a);
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+        border-radius: 8px;
+        padding: 8px 12px;
+        cursor: pointer;
+        transition: border-color 200ms ease, color 200ms ease;
+    }
+
+    .gcplay__btn:hover, .gcplay__btn:focus-visible { border-color: var(--tan, #c9a87c); color: var(--tan, #c9a87c); }
+
+    @media (prefers-reduced-motion: reduce) {
+        .gcplay__text { transition: none; }
+    }
+</style>
+
+<script>
+    // Bundled by Astro, so it satisfies the site's script-src 'self' CSP.
+    function setupCounterPlay(root: HTMLElement) {
+        const start = Number(root.dataset.start ?? '0');
+        const name = root.dataset.name ?? 'deaths';
+        let value = Number.isFinite(start) ? start : 0;
+
+        const modCmd = root.querySelector<HTMLElement>('[data-counter-play-mod-cmd]');
+        const modReply = root.querySelector<HTMLElement>('[data-counter-play-mod-reply]');
+        const tokenReply = root.querySelector<HTMLElement>('[data-counter-play-token-reply]');
+        const buttons = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-counter-play-btn]'));
+
+        function swap(el: HTMLElement | null, text: string) {
+            if (!el) return;
+            el.classList.add('is-swapping');
+            window.setTimeout(() => {
+                el.textContent = text;
+                el.classList.remove('is-swapping');
+            }, 120);
+        }
+
+        const modReplyTemplate = modReply?.dataset.template ?? `Counter ${name} is now {value}.`;
+        const tokenReplyTemplate = tokenReply?.dataset.template ?? '{value}';
+
+        buttons.forEach((btn) => {
+            const kind = btn.dataset.counterPlayBtn;
+            const command = btn.textContent ?? '';
+            btn.addEventListener('click', () => {
+                if (kind === 'add') value += 1;
+                else if (kind === 'sub') value -= 1;
+                else if (kind === 'set10') value = 10;
+
+                swap(modCmd, command);
+                swap(modReply, modReplyTemplate.replace('{value}', String(value)));
+                swap(tokenReply, tokenReplyTemplate.replace('{value}', String(value)));
+            });
+        });
+    }
+
+    // Bound on astro:page-load as well as at load: the ClientRouter swaps the DOM
+    // on navigation, and the data-ready flag stops a second pass binding twice.
+    function setupAll() {
+        document.querySelectorAll<HTMLElement>('[data-counter-play]').forEach((root) => {
+            if (root.dataset.ready === '1') return;
+            root.dataset.ready = '1';
+            setupCounterPlay(root);
+        });
+    }
+
+    setupAll();
+    document.addEventListener('astro:page-load', setupAll);
+</script>

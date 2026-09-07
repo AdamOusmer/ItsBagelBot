@@ -368,12 +368,13 @@ test.describe('reduced motion', () => {
 });
 
 test.describe('guides & command builder', () => {
-    test('guides hub lists the four guides and the builder tool', async ({ page }) => {
+    test('guides hub lists the five guides and the builder tool', async ({ page }) => {
         await page.goto('/guides');
 
         await expect(page.locator('.phero__title')).toContainText('Learn the bot.');
-        await expect(page.locator('.gcard')).toHaveCount(4);
+        await expect(page.locator('.gcard')).toHaveCount(5);
         await expect(page.locator('.gcard').first()).toHaveAttribute('href', '/guides/getting-started');
+        await expect(page.locator('.gcard').nth(2)).toHaveAttribute('href', '/guides/data-sources');
         await expect(page.locator('.ghub__tool')).toHaveAttribute('href', '/command-builder');
 
         // The Guides nav entry is live and marked active.
@@ -391,9 +392,46 @@ test.describe('guides & command builder', () => {
         await expect(page.locator('.dframe__win')).toHaveCount(1);
         await expect(page.locator('#variables table td code').first()).toContainText('{user}');
 
-        // Pager walks the handbook in both directions.
+        // Pager walks the handbook in both directions; data sources sits after commands.
         await expect(page.locator('.gshell__pager-card')).toHaveCount(2);
-        await expect(page.locator('.gshell__pager-card--next')).toHaveAttribute('href', '/guides/modules');
+        await expect(page.locator('.gshell__pager-card--next')).toHaveAttribute('href', '/guides/data-sources');
+    });
+
+    test('the response rehearsal expands tokens as you type', async ({ page }) => {
+        await page.goto('/guides/commands');
+        const widget = page.locator('[data-rehearsal]');
+        await expect(widget).toBeVisible();
+
+        await widget.locator('[data-rh-who]').fill('maya_live');
+        await expect(widget.locator('[data-rh-output]')).toContainText('maya_live');
+    });
+
+    test('data sources guide teaches the path with a live picker', async ({ page }) => {
+        await page.goto('/guides/data-sources');
+
+        await expect(page.locator('[data-guide-section]')).toHaveCount(7);
+        await expect(page.locator('.dframe__win')).toHaveCount(2);
+
+        // Click a scalar leaf: the saved path and the token follow.
+        const picker = page.locator('[data-pathpicker]');
+        await picker.locator('[data-pp-tree] button:not([disabled])').first().click();
+        await expect(picker.locator('[data-pp-token]')).toContainText('{urlfetch:');
+
+        // The outcomes widget swaps the bot line to the exact fallback text.
+        const outcomes = page.locator('[data-fetchoutcomes]');
+        await outcomes.locator('[data-go-tab]').nth(2).click();
+        await expect(outcomes.locator('[data-go-line]')).toContainText('[source timed out]');
+    });
+
+    test('module catalog filters by category', async ({ page }) => {
+        await page.goto('/guides/modules');
+        const catalog = page.locator('[data-mcat]');
+
+        await expect(catalog.locator('.mcat__cell')).toHaveCount(24);
+        const stats = catalog.locator('[data-mcat-chip]', { hasText: 'Stats' });
+        await stats.click();
+        await expect(stats).toHaveAttribute('aria-pressed', 'true');
+        await expect(catalog.locator('.mcat__cell:visible')).toHaveCount(5);
     });
 
     test('french mirrors pair with english via the language switcher', async ({ page }) => {
@@ -401,6 +439,10 @@ test.describe('guides & command builder', () => {
 
         await expect(page.locator('.gshell__toc-label')).toHaveText('Dans ce guide');
         await expect(page.locator('.lang-switch a[hreflang="en"]').first()).toHaveAttribute('href', '/guides/commands');
+
+        await page.goto('/fr/guides/data-sources');
+        await expect(page.locator('[data-guide-section]')).toHaveCount(7);
+        await expect(page.locator('.lang-switch a[hreflang="en"]').first()).toHaveAttribute('href', '/guides/data-sources');
 
         await page.goto('/guides');
         await expect(page.locator('.lang-switch a[hreflang="fr"]').first()).toHaveAttribute('href', '/fr/guides');

@@ -240,21 +240,27 @@ kbd.hint {
 .status-hero .meta .mid { color: var(--rule-strong); }
 .status-hero .actions { display: flex; gap: 10px; }
 
-/* ── buttons: the marketing site's language, tan-filled Syne primary that
-   lifts with a warm shadow, quiet tan-outline secondary. Body case, rounded. ── */
-.btn { font-family: var(--bb-font-display); font-weight: 700; font-size: 13px; letter-spacing: -0.01em;
-  padding: 11px 20px; border-radius: 8px; cursor: pointer; white-space: nowrap; position: relative;
-  border: 1px solid transparent; transition: all var(--bb-dur-base) var(--bb-ease-out-expo); display: inline-flex; align-items: center; gap: 8px; }
+/* ── buttons: nothing is filled at rest. Every button is a 1px frame plus a
+   5px rotated-square mark that inherits currentColor, so it inverts with the
+   fill on hover. Components that render their own <i> mark opt out via
+   [data-mark]; raw call sites get the mark from ::before. ── */
+.btn { font-family: var(--bb-font-mono); font-size: 12.5px; letter-spacing: 0.04em; line-height: 1;
+  padding: 13px 20px 13px 16px; border-radius: var(--bb-radius-sm); cursor: pointer; white-space: nowrap; position: relative;
+  background: transparent; border: 1px solid transparent; transition: all var(--bb-dur-base) var(--bb-ease-out-expo);
+  display: inline-flex; align-items: center; gap: 12px; }
+.btn:not([data-mark])::before { content: ''; width: 5px; height: 5px; flex-shrink: 0; box-sizing: border-box;
+  border: 1px solid currentColor; background: transparent; transform: rotate(45deg); }
+.btn.ghost:not([data-mark])::before { width: 6px; height: 1px; border: 0; background: currentColor; transform: none; }
 .btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.8; }
-.btn.primary { background: var(--bb-tan); color: #0a0a0a; }
-.btn.primary:hover { background: var(--bb-tan-light); transform: translateY(-2px); box-shadow: 0 8px 32px rgba(201, 168, 124, 0.25); }
-.btn.ghost { background: transparent; color: var(--bb-tan-light); border-color: var(--bb-border-strong); font-family: var(--bb-font-body); font-weight: 600; }
-.btn.ghost:hover { background: rgba(201, 168, 124, 0.1); color: var(--bb-tan-pale); }
-.btn.tan { background: var(--bb-tan); color: #0a0a0a; }
-.btn.tan:hover { background: var(--bb-tan-light); transform: translateY(-2px); box-shadow: 0 8px 32px rgba(201, 168, 124, 0.25); }
-.btn.green { background: var(--bb-green); color: var(--bb-white); }
-.btn.green:hover { background: var(--bb-green-light); transform: translateY(-2px); box-shadow: 0 8px 32px rgba(82, 183, 136, 0.22); }
-.btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+.btn.primary { border-color: var(--bb-tan); color: var(--bb-tan-light); }
+.btn.primary:not(:disabled):hover { background: var(--bb-tan); color: var(--bb-black); }
+.btn.ghost { color: var(--bb-muted); }
+.btn.ghost:not(:disabled):hover { color: var(--bb-tan-light); border-color: rgba(201, 168, 124, 0.28); }
+.btn.tan { border-color: rgba(201, 168, 124, 0.28); color: var(--bb-tan-light); }
+.btn.tan:not(:disabled):hover { background: rgba(201, 168, 124, 0.08); border-color: rgba(201, 168, 124, 0.5); color: var(--bb-tan-pale); }
+.btn.green { border-color: var(--bb-green-light); color: var(--bb-green-glow); }
+.btn.green:not(:disabled):hover { background: var(--bb-green); color: var(--bb-white); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* ── stats: rounded surface cards with tinted accent chips, the marketing
    site's bento feel. The numeral still leads; color carries the meaning. ── */
@@ -355,12 +361,10 @@ kbd.hint {
 .toggle.on::after { left: 21px; background: var(--bb-green-glow); box-shadow: 0 0 8px var(--bb-green-glow); }
 .toggle.on:active::after { left: 17px; }
 
-/* button press: physical give */
-.btn:active { transform: translateY(1px); }
 .row-act { display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
-.mini { width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; background: none; border: 1px solid transparent; color: var(--bb-muted); cursor: pointer; transition: all var(--bb-dur-fast) ease; }
+.mini { width: 28px; height: 28px; border-radius: var(--bb-radius-sm); display: flex; align-items: center; justify-content: center; background: transparent; border: 1px solid transparent; color: var(--bb-muted); cursor: pointer; transition: all var(--bb-dur-base) var(--bb-ease-out-expo); }
 .mini svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.7; }
-.mini:hover { color: var(--bb-white); border-color: var(--rule); }
+.mini:hover { background: transparent; border-color: rgba(201,168,124,0.28); color: var(--bb-tan-light); }
 
 /* ── moderation ── */
 .mod-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: calc(16px * var(--d)); }

@@ -1,0 +1,158 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+/**
+ * Checklist: the reference widget. A guide passes items and a storage key;
+ * each tick is remembered in localStorage for that reader only, so someone can
+ * close the tab mid-setup and pick the list back up. Every visible string is a
+ * label, like the screens, so a locale never edits this file.
+ *
+ * Storage is wrapped in try/catch on purpose: a private window or a browser
+ * set to block site data throws on access, and a checklist that cannot
+ * remember is still a usable checklist.
+ */
+interface Props {
+    labels?: Record<string, string>;
+    props?: Record<string, unknown>;
+}
+
+const { labels = {}, props = {} } = Astro.props;
+const L = {
+    heading: 'Your checklist',
+    reset: 'Clear',
+    ...labels,
+};
+const items = Array.isArray(props.items) ? (props.items as string[]) : [];
+const storageKey = typeof props.storageKey === 'string' ? props.storageKey : 'guides.checklist';
+---
+
+<div class="gcheck" data-checklist data-key={storageKey}>
+    <div class="gcheck__head">
+        <b>{L.heading}</b>
+        <button type="button" class="gcheck__reset" data-checklist-reset>{L.reset}</button>
+    </div>
+    <ul class="gcheck__list">
+        {items.map((item, i) => (
+            <li>
+                <label>
+                    <input type="checkbox" data-checklist-item={String(i)} />
+                    <span set:html={item}></span>
+                </label>
+            </li>
+        ))}
+    </ul>
+</div>
+
+<style>
+    .gcheck {
+        display: grid;
+        gap: 10px;
+        margin: 22px 0;
+        padding: 15px 16px;
+        border: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+        border-radius: 12px;
+        background: rgba(17, 17, 16, 0.6);
+    }
+
+    .gcheck__head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 10px;
+    }
+
+    .gcheck__head b {
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-size: 0.95rem;
+        color: var(--white, #f0ece4);
+    }
+
+    .gcheck__reset {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.62rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--muted, #888077);
+        background: none;
+        border: 0;
+        padding: 0;
+        cursor: pointer;
+    }
+
+    .gcheck__reset:hover { color: var(--tan, #c9a87c); }
+
+    .gcheck__list { list-style: none; display: grid; gap: 8px; margin: 0; padding: 0; }
+
+    .gcheck__list label {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 0.92rem;
+        line-height: 1.6;
+        color: #a39c92;
+        cursor: pointer;
+    }
+
+    .gcheck__list input { margin-top: 5px; accent-color: var(--green-glow, #52b788); }
+
+    .gcheck__list input:checked + span { color: var(--muted, #888077); text-decoration: line-through; }
+</style>
+
+<script>
+    // Bundled by Astro, so it satisfies the site's script-src 'self' CSP.
+    function setupChecklist(root: HTMLElement) {
+        const key = root.dataset.key ?? 'guides.checklist';
+        const boxes = Array.from(root.querySelectorAll<HTMLInputElement>('[data-checklist-item]'));
+
+        function read(): string[] {
+            try {
+                const raw = window.localStorage.getItem(key);
+                const parsed = raw ? JSON.parse(raw) : [];
+                return Array.isArray(parsed) ? parsed.map(String) : [];
+            } catch {
+                return [];
+            }
+        }
+
+        function write(ticked: string[]) {
+            try {
+                window.localStorage.setItem(key, JSON.stringify(ticked));
+            } catch {
+                // No storage available (private window, blocked site data). The
+                // list still works for this visit; nothing else to do.
+            }
+        }
+
+        const ticked = new Set(read());
+        boxes.forEach((box) => {
+            box.checked = ticked.has(box.dataset.checklistItem ?? '');
+            box.addEventListener('change', () => {
+                const id = box.dataset.checklistItem ?? '';
+                if (box.checked) ticked.add(id);
+                else ticked.delete(id);
+                write(Array.from(ticked));
+            });
+        });
+
+        root.querySelector<HTMLButtonElement>('[data-checklist-reset]')?.addEventListener('click', () => {
+            ticked.clear();
+            boxes.forEach((box) => { box.checked = false; });
+            write([]);
+        });
+    }
+
+    // Bound on astro:page-load as well as at load: the ClientRouter swaps the DOM
+    // on navigation, and the data-ready flag stops a second pass binding twice.
+    function setupAll() {
+        document.querySelectorAll<HTMLElement>('[data-checklist]').forEach((root) => {
+            if (root.dataset.ready === '1') return;
+            root.dataset.ready = '1';
+            setupChecklist(root);
+        });
+    }
+
+    setupAll();
+    document.addEventListener('astro:page-load', setupAll);
+</script>

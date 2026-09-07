@@ -1,0 +1,621 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/*
+ * The df-* mock library: the class vocabulary every guides "screenshot" of the
+ * dashboard is built from (see src/components/guides/screens/). It lived in a
+ * <style is:global> inside DashFrame.astro; it is one file now so a screen
+ * author has one place to look up a class. DashFrame imports it, so it ships
+ * only on pages that render a mock.
+ */
+
+/* Annotation anchor. Invisible: the numbered badges that used to sit on the
+   mocks are gone, the legend under the frame carries the index and hovering
+   or focusing a legend line lights the element that holds the matching mark.
+   A hidden <i> keeps the mark a sibling of the field's own content, so the
+   screens need no wrapper elements. */
+.df-mark {
+    display: none;
+}
+
+.dframe__body .is-hot {
+    outline: 1px solid var(--tan, #c9a87c);
+    outline-offset: 3px;
+    border-radius: var(--radius-sm, 6px);
+    transition: outline-color 300ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+
+/* ── Console chrome ── */
+
+/* Topbar: brand + breadcrumb left, account right. */
+.df-topbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 12px;
+    margin: -18px -18px 4px;
+    padding: 10px 16px;
+    border-bottom: 1px solid rgba(201, 168, 124, 0.08);
+    background: rgba(0, 0, 0, 0.35);
+}
+
+.df-brand {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    font-family: var(--font-display, "Syne", sans-serif);
+    font-weight: 700;
+    font-size: 0.7rem;
+    color: var(--white, #f0ece4);
+}
+
+.df-brand::before {
+    content: "";
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    align-self: center;
+    background: radial-gradient(circle at 35% 35%, var(--tan-light, #e0c49a), #6b5535);
+}
+
+.df-brand small {
+    font-family: var(--font-mono, "DM Mono", monospace);
+    font-weight: 400;
+    font-size: 0.5rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted, #888077);
+}
+
+.df-crumb {
+    font-family: var(--font-body, "DM Sans", sans-serif);
+    font-size: 0.66rem;
+    color: var(--muted, #888077);
+}
+
+.df-crumb b { color: var(--white, #f0ece4); font-weight: 500; }
+
+/* The body padding drops to 12px on small screens (scoped rule above);
+   keep the full-bleed topbar aligned with it. */
+@media (max-width: 640px) {
+    .df-topbar { margin: -12px -12px 4px; }
+}
+
+.df-account {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    margin-left: auto;
+    font-family: var(--font-body, "DM Sans", sans-serif);
+    font-size: 0.62rem;
+    color: var(--muted, #888077);
+}
+
+.df-account::before {
+    content: "S";
+    display: grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: rgba(82, 183, 136, 0.2);
+    color: var(--green-glow, #52b788);
+    font-family: var(--font-mono, "DM Mono", monospace);
+    font-size: 0.52rem;
+}
+
+/* Floating bottom dock: the console's primary navigation. */
+.df-dock {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px;
+    justify-self: center;
+    margin-top: 14px;
+    padding: 6px;
+    border: 1px solid rgba(201, 168, 124, 0.12);
+    border-radius: 14px;
+    background: rgba(10, 10, 9, 0.92);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+}
+
+.df-dock span {
+    position: relative;
+    display: grid;
+    gap: 3px;
+    justify-items: center;
+    padding: 7px 12px 6px;
+    border-radius: 9px;
+    font-family: var(--font-body, "DM Sans", sans-serif);
+    font-size: 0.56rem;
+    color: var(--muted, #888077);
+}
+
+/* Each dock item's little glyph. */
+.df-dock span::before {
+    content: "";
+    width: 11px;
+    height: 11px;
+    border-radius: 3px;
+    border: 1px solid currentColor;
+    opacity: 0.75;
+}
+
+.df-dock span.is-active {
+    color: var(--white, #f0ece4);
+    background: rgba(240, 236, 228, 0.06);
+}
+
+.df-dock span.is-active::after {
+    content: "";
+    position: absolute;
+    top: 5px;
+    right: 7px;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--green-glow, #52b788);
+}
+
+/* ── Page chrome ── */
+
+.df-main { position: relative; display: grid; gap: 10px; align-content: start; min-width: 0; }
+
+.df-eyebrow {
+    font-family: var(--font-mono, "DM Mono", monospace);
+    font-size: 0.56rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--green-glow, #52b788);
+}
+
+.df-title {
+    font-family: var(--font-display, "Syne", sans-serif);
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--white, #f0ece4);
+    margin: 0 0 2px;
+}
+
+/* The console tints the second word of page titles tan. */
+.df-title i { font-style: normal; color: var(--tan-light, #e0c49a); }
+
+.df-sub {
+    font-family: var(--font-body, "DM Sans", sans-serif);
+    font-size: 0.72rem;
+    color: var(--muted, #888077);
+    margin: -6px 0 2px;
+}
+
+/* Category heading between tile groups (white, display face). */
+.df-cat {
+    font-family: var(--font-display, "Syne", sans-serif);
+    font-size: 0.84rem;
+    font-weight: 700;
+    color: var(--white, #f0ece4);
+    margin: 8px 0 -2px;
+}
+
+/* Left "Categories" rail on the modules page (not navigation). */
+.df-rail {
+    display: grid;
+    gap: 2px;
+    align-content: start;
+}
+
+.df-rail > b {
+    font-family: var(--font-mono, "DM Mono", monospace);
+    font-weight: 500;
+    font-size: 0.52rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted, #888077);
+    margin-bottom: 6px;
+}
+
+.df-rail span {
+    font-family: var(--font-body, "DM Sans", sans-serif);
+    font-size: 0.7rem;
+    color: var(--muted, #888077);
+    padding: 4px 0 4px 10px;
+    border-left: 2px solid transparent;
+}
+
+.df-rail span.is-active {
+    color: var(--white, #f0ece4);
+    border-left-color: var(--tan, #c9a87c);
+}
+
+/* Toolbar: filter chips + search + action, the commands page header row. */
+.df-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.df-toolbar .df-spacer { flex: 1; }
+
+.df-search {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 130px;
+    padding: 6px 10px;
+    border: 1px solid rgba(201, 168, 124, 0.14);
+    border-radius: 8px;
+    background: #0a0a09;
+    font-family: var(--font-body, "DM Sans", sans-serif);
+    font-size: 0.64rem;
+    color: var(--muted, #888077);
+}
+
+.df-search::before { content: "⌕"; font-size: 0.8rem; }
+
+/* Layout splits: list + docked inspector, or rail + tiles. */
+.df-cols { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 12px; align-items: start; }
+.df-cols--rail { grid-template-columns: 110px 1fr; }
+@media (max-width: 560px) { .df-cols, .df-cols--rail { grid-template-columns: 1fr; } }
+
+/* A list row (command, status, reward…). */
+.df-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 10px 12px;
+    border: 1px solid rgba(201, 168, 124, 0.1);
+    border-radius: 9px;
+    background: rgba(240, 236, 228, 0.025);
+    font-family: var(--font-body, "DM Sans", sans-serif);
+    font-size: 0.76rem;
+    color: #aaa299;
+}
+
+.df-row.is-open {
+    border-color: rgba(82, 183, 136, 0.4);
+    background: rgba(82, 183, 136, 0.05);
+}
+
+.df-row code {
+    font-family: var(--font-mono, "DM Mono", monospace);
+    font-size: 0.76rem;
+    color: var(--tan-light, #e0c49a);
+    white-space: nowrap;
+}
+
+.df-num {
+    font-family: var(--font-mono, "DM Mono", monospace);
+    font-size: 0.58rem;
+    color: rgba(136, 128, 119, 0.7);
+}
+
+.df-meta {
+    font-family: var(--font-mono, "DM Mono", monospace);
+    font-size: 0.56rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted, #888077);
+    white-space: nowrap;
+}
+
+.df-meta b { color: rgba(240, 236, 228, 0.8); font-weight: 500; }
+
+.df-row .df-grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Status pill. */
+.df-pill {
+    font-family: var(--font-mono, "DM Mono", monospace);
+    font-size: 0.56rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 99px;
+    white-space: nowrap;
+}
+
+.df-pill--on { color: var(--green-glow, #52b788); background: rgba(82, 183, 136, 0.1); }
+.df-pill--off { color: var(--muted, #888077); background: rgba(240, 236, 228, 0.05); }
+.df-pill--tan { color: var(--tan-light, #e0c49a); background: rgba(201, 168, 124, 0.1); }
+
+/* Toggle switch. */
+.df-toggle {
+    position: relative;
+    flex: none;
+    width: 26px;
+    height: 15px;
+    border-radius: 99px;
+    background: rgba(240, 236, 228, 0.1);
+}
+
+.df-toggle::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: var(--muted, #888077);
+}
+
+.df-toggle.is-on { background: rgba(82, 183, 136, 0.35); }
+.df-toggle.is-on::after { left: auto; right: 2px; background: var(--green-glow, #52b788); }
+
+/* Form field / input mock. */
+.df-field { display: grid; gap: 4px; }
+
+.df-field > span {
+    font-family: var(--font-body, "DM Sans", sans-serif);
+    font-size: 0.62rem;
+    color: rgba(240, 236, 228, 0.75);
+}
+
+.df-field > span small { color: var(--muted, #888077); font-size: 0.56rem; }
+
+.df-input {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 30px;
+    padding: 6px 10px;
+    border: 1px solid rgba(201, 168, 124, 0.16);
+    border-radius: 7px;
+    background: #0a0a09;
+    font-family: var(--font-mono, "DM Mono", monospace);
+    font-size: 0.72rem;
+    color: rgba(240, 236, 228, 0.85);
+    overflow-wrap: anywhere;
+}
+
+.df-input.is-focus {
+    border-color: rgba(82, 183, 136, 0.55);
+    box-shadow: 0 0 0 3px rgba(82, 183, 136, 0.1);
+}
+
+.df-input.is-placeholder { color: var(--muted, #888077); font-family: var(--font-body, "DM Sans", sans-serif); }
+
+.df-input .df-var { color: var(--green-glow, #52b788); }
+
+/* Token chips row (the editor's insert palette). */
+.df-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+
+.df-chips i {
+    font-family: var(--font-mono, "DM Mono", monospace);
+    font-style: normal;
+    font-size: 0.6rem;
+    color: var(--tan-light, #e0c49a);
+    border: 1px solid rgba(201, 168, 124, 0.22);
+    border-radius: 99px;
+    padding: 2px 8px;
+    background: rgba(201, 168, 124, 0.05);
+}
+
+/* Checkbox row. */
+.df-check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-body, "DM Sans", sans-serif);
+    font-size: 0.7rem;
+    color: rgba(240, 236, 228, 0.85);
+}
+
+.df-check::before {
+    content: "";
+    width: 13px;
+    height: 13px;
+    border-radius: 4px;
+    border: 1px solid rgba(201, 168, 124, 0.3);
+    background: rgba(240, 236, 228, 0.03);
+}
+
+.df-check.is-on::before {
+    /* Lucide "check" as a mask so the tick is the same stroke the console draws;
+       a text glyph here would be the one hand-drawn mark left in the mocks. */
+    content: "";
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%273%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%27M20 6 9 17l-5-5%27/%3E%3C/svg%3E") center / 9px 9px no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%273%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%27M20 6 9 17l-5-5%27/%3E%3C/svg%3E") center / 9px 9px no-repeat;
+    background: var(--tan, #c9a87c);
+    border-color: var(--tan, #c9a87c);
+}
+
+/* Buttons. Same "Mark" system as .bb-btn in style.css: 1px frame, nothing
+   filled at rest, a rotated-square mark carrying the state. The mocks keep
+   their own type scale (the frame is a reduced-size console screenshot, so
+   the 12.5px live size would read as oversized here); every other value is
+   the spec's. No hover states: these are <span> mockups, not controls. */
+.df-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    padding: 7px 12px 7px 10px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm, 6px);
+    background: transparent;
+    font-family: var(--font-mono, "DM Mono", monospace);
+    font-size: 0.7rem;
+    letter-spacing: 0.04em;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.df-btn::before {
+    content: "";
+    flex-shrink: 0;
+    box-sizing: border-box;
+    width: 4px;
+    height: 4px;
+    border: 1px solid currentColor;
+    background: transparent;
+    transform: rotate(45deg);
+}
+
+.df-btn--primary { border-color: var(--tan, #c9a87c); color: var(--tan-light, #e0c49a); }
+.df-btn--tan { border-color: rgba(201, 168, 124, 0.28); color: var(--tan-light, #e0c49a); }
+.df-btn--ghost { border-color: transparent; color: var(--muted, #888077); }
+.df-btn--ghost::before {
+    width: 6px;
+    height: 1px;
+    border: 0;
+    background: currentColor;
+    transform: none;
+}
+
+.df-btn--configure {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    padding: 5px 10px 5px 8px;
+    border: 1px solid rgba(201, 168, 124, 0.28);
+    border-radius: var(--radius-sm, 6px);
+    background: transparent;
+    font-family: var(--font-mono, "DM Mono", monospace);
+    font-size: 0.54rem;
+    letter-spacing: 0.1em;
+    line-height: 1;
+    text-transform: uppercase;
+    color: var(--tan-light, #e0c49a);
+    white-space: nowrap;
+}
+
+.df-btn--configure::before {
+    content: "";
+    flex-shrink: 0;
+    box-sizing: border-box;
+    width: 4px;
+    height: 4px;
+    border: 1px solid currentColor;
+    background: transparent;
+    transform: rotate(45deg);
+}
+
+.df-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+/* Docked inspector panel (InspectorSurface). */
+.df-panel {
+    position: relative;
+    display: grid;
+    gap: 9px;
+    align-content: start;
+    padding: 12px;
+    border: 1px solid rgba(201, 168, 124, 0.18);
+    border-radius: 11px;
+    background: rgba(17, 17, 16, 0.95);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+}
+
+.df-panel-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-family: var(--font-display, "Syne", sans-serif);
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: var(--white, #f0ece4);
+}
+
+.df-panel-head i { font-style: normal; color: var(--muted, #888077); }
+
+.df-panel-foot {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: flex-end;
+    margin-top: 3px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(201, 168, 124, 0.1);
+}
+
+/* Mini chat rehearsal strip, echoing the editor's ChatPreview. */
+.df-chat {
+    position: relative;
+    display: grid;
+    gap: 5px;
+    margin-top: 4px;
+    padding: 10px;
+    border: 1px solid rgba(240, 236, 228, 0.1);
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.3);
+}
+
+.df-chat-tag {
+    position: absolute;
+    top: -7px;
+    left: 8px;
+    padding: 0 5px;
+    font-family: var(--font-display, "Syne", sans-serif);
+    font-weight: 700;
+    font-size: 0.52rem;
+    letter-spacing: 0.02em;
+    color: var(--green-glow, #52b788);
+    background: rgba(17, 17, 16, 1);
+}
+
+.df-chat p {
+    display: flex;
+    gap: 6px;
+    align-items: baseline;
+    margin: 0;
+    font-family: var(--font-body, "DM Sans", sans-serif);
+    font-size: 0.7rem;
+    color: rgba(240, 236, 228, 0.87);
+}
+
+.df-chat p b { flex: none; font-weight: 700; }
+.df-chat p b::after { content: ':'; color: var(--muted, #888077); font-weight: 400; }
+.df-chat .df-viewer b { color: var(--tan-light, #e0c49a); }
+.df-chat .df-viewer span { font-family: var(--font-mono, "DM Mono", monospace); color: var(--tan-light, #e0c49a); font-size: 0.66rem; }
+.df-chat .df-bot b { color: var(--green-glow, #52b788); }
+.df-chat mark {
+    background: rgba(82, 183, 136, 0.14);
+    color: var(--green-glow, #52b788);
+    border-radius: 6px;
+    padding: 0 3px;
+}
+
+/* Module tile grid, real console anatomy: name over category tag, tagline,
+   then a Configure pill and the toggle in the footer. No icon column: see
+   .df-tile-head below. */
+.df-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+
+.df-tile {
+    position: relative;
+    display: grid;
+    gap: 8px;
+    align-content: start;
+    padding: 12px;
+    border: 1px solid rgba(201, 168, 124, 0.1);
+    border-radius: 10px;
+    background: rgba(240, 236, 228, 0.025);
+}
+
+.df-tile.is-open {
+    border-color: rgba(82, 183, 136, 0.4);
+    background: rgba(82, 183, 136, 0.05);
+}
+
+/* Name over category, no glyph column: the live modules page dropped its
+   tile icons, and the guide screenshots have to keep matching it. */
+.df-tile-head { display: block; }
+
+.df-tile-head b {
+    display: block;
+    font-family: var(--font-display, "Syne", sans-serif);
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: var(--white, #f0ece4);
+}
+
+.df-tile-head small {
+    display: block;
+    font-family: var(--font-mono, "DM Mono", monospace);
+    font-size: 0.5rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted, #888077);
+}
+
+.df-tile > small {
+    font-family: var(--font-body, "DM Sans", sans-serif);
+    font-size: 0.64rem;
+    line-height: 1.45;
+    color: var(--muted, #888077);
+}
+
+.df-tile-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 2px; }

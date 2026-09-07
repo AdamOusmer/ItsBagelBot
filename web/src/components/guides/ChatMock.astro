@@ -113,7 +113,7 @@ const { title = '#your_channel', lines, caption } = Astro.props;
         margin: 0;
     }
 
-    /* No timestamp → name starts the row. */
+    /* No timestamp: name starts the row. */
     .cmock__msg:not(:has(time)) { grid-template-columns: auto 1fr; }
 
     .cmock__msg time {

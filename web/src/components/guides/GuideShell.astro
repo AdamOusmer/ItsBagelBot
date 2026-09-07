@@ -8,17 +8,23 @@
  * guide-specific vocabulary: numbered sections, an optional "at a glance"
  * note per section, a breadcrumb back to the hub, and a prev/next pager so a
  * reader can walk the whole handbook without returning to the hub.
- * Pages pass sections (id, heading, note) and provide each section's body
- * through a matching named slot.
+ * Sections arrive whole (id, heading, note, blocks) from a content file and
+ * GuideBody renders each body. They used to come in as named slots; a dynamic
+ * `slot={section.id}` inside a .map is not resolvable by the compiler and
+ * threw "section is not defined" at build time, so the body is a prop now.
  */
 import TextLink from '../ui/TextLink.astro';
+import GuideBody from './GuideBody.astro';
 import { getLangFromUrl, useTranslations, localizePath } from '../../i18n/ui';
+import type { Block } from '../../lib/guides/types';
 
 interface Section {
     id: string;
     heading: string;
     /** One-line takeaway shown in the tinted callout under the heading. */
     note?: string;
+    /** The section body, from the guide's content file. */
+    blocks: Block[];
 }
 
 interface Pager {
@@ -50,7 +56,7 @@ const hubHref = localizePath('/guides', lang);
 <div class="gshell" data-guide>
     <div class="gshell__grid">
         <nav class="gshell__toc" aria-label={labels.toc}>
-            <TextLink class="gshell__hub" href={hubHref} label={`← ${labels.hub}`} size="0.7rem" />
+            <TextLink class="gshell__hub" href={hubHref} label={labels.hub} size="0.7rem" />
             <span class="gshell__toc-label">{labels.toc}</span>
             <ul>
                 {sections.map((section, i) => (
@@ -66,11 +72,11 @@ const hubHref = localizePath('/guides', lang);
 
         <article class="gshell__content">
             <div class="gshell__meta" data-reveal>
-                <TextLink class="gshell__hub gshell__hub--inline" href={hubHref} label={`← ${labels.hub}`} size="0.7rem" />
+                <TextLink class="gshell__hub gshell__hub--inline" href={hubHref} label={labels.hub} size="0.7rem" />
                 {minutes && <span class="gshell__minutes">{minutes}</span>}
             </div>
 
-            {await Promise.all(sections.map(async (section, i) => (
+            {sections.map((section, i) => (
                 <section class="gshell__block" id={section.id} data-guide-section data-reveal style={`--reveal-i: ${Math.min(i + 1, 6)}`}>
                     <h2><i>{String(i + 1).padStart(2, '0')}</i>{section.heading}</h2>
                     {section.note && (
@@ -79,21 +85,21 @@ const hubHref = localizePath('/guides', lang);
                             {section.note}
                         </p>
                     )}
-                    <Fragment set:html={await Astro.slots.render(section.id)} />
+                    <GuideBody blocks={section.blocks} />
                 </section>
-            )))}
+            ))}
 
             {(prev || next) && (
                 <nav class="gshell__pager" aria-label={labels.next}>
                     {prev ? (
                         <a class="gshell__pager-card" href={prev.href}>
-                            <span>← {labels.prev}</span>
+                            <span>{labels.prev}</span>
                             <b>{prev.label}</b>
                         </a>
                     ) : <span />}
                     {next && (
                         <a class="gshell__pager-card gshell__pager-card--next" href={next.href}>
-                            <span>{labels.next} →</span>
+                            <span>{labels.next}</span>
                             <b>{next.label}</b>
                         </a>
                     )}
@@ -298,7 +304,7 @@ const hubHref = localizePath('/guides', lang);
     }
 
     /* Prose links wrap mid-paragraph, so they can't glyph-roll like TextLink;
-       they share its ember rail instead, the same tan→green sweep, drawn
+       they share its ember rail instead, the same tan-to-green sweep, drawn
        with a background gradient so it follows line breaks. */
     .gshell__block :global(a) {
         color: var(--tan, #c9a87c);
@@ -389,10 +395,12 @@ const hubHref = localizePath('/guides', lang);
         border: 1px solid rgba(201, 168, 124, 0.18);
     }
 
+    /* Same muted red as .bb-chip--danger in style.css: the one danger tone
+       the site already has, reused instead of inventing a second red. */
     .gshell__block :global(.gwarn) {
         color: rgba(240, 236, 228, 0.78);
-        background: rgba(224, 98, 98, 0.06);
-        border: 1px solid rgba(224, 98, 98, 0.22);
+        background: rgba(217, 138, 138, 0.06);
+        border: 1px solid rgba(217, 138, 138, 0.24);
     }
 
     .gshell__block :global(.gtip b),
@@ -407,7 +415,7 @@ const hubHref = localizePath('/guides', lang);
     }
 
     .gshell__block :global(.gtip b) { color: var(--tan, #c9a87c); }
-    .gshell__block :global(.gwarn b) { color: #e08585; }
+    .gshell__block :global(.gwarn b) { color: #d98a8a; }
 
     /* ── Pager ── */
 

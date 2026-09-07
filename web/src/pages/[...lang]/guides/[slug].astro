@@ -1,0 +1,37 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// One file for every guide in every locale. The copy lives in
+// src/content/guides/<slug>.<lang>.ts; this page only decides which one to
+// render and wires the shell, the body and the pager around it.
+import Layout from '../../../layouts/Layout.astro';
+import PageHero from '../../../components/ui/PageHero.astro';
+import GuideShell from '../../../components/guides/GuideShell.astro';
+import { getLangFromUrl, locales, defaultLang } from '../../../i18n/ui';
+import { getGuide, guidePath, guideSlugs, nextSlug, prevSlug, guideIndex, toGuideSlug } from '../../../lib/guides/registry';
+
+export function getStaticPaths() {
+    return locales.flatMap((l) =>
+        guideSlugs.map((slug) => ({
+            params: { lang: l === defaultLang ? undefined : l, slug },
+        })),
+    );
+}
+
+const { slug } = Astro.params;
+const lang = getLangFromUrl(Astro.url);
+const guide = getGuide(toGuideSlug(slug as string), lang);
+// Pager labels are the neighbour's own hero heading, so a renamed guide renames
+// itself everywhere instead of leaving a stale label behind.
+const before = prevSlug(guide.slug);
+const after = nextSlug(guide.slug);
+const prev = before ? { href: guidePath(before, lang), label: getGuide(before, lang).meta.heading } : undefined;
+const next = after ? { href: guidePath(after, lang), label: getGuide(after, lang).meta.heading } : undefined;
+---
+
+<Layout title={guide.meta.title} description={guide.meta.description} ogType="article">
+    <PageHero eyebrow={`${guide.meta.eyebrow} ${guideIndex(guide.slug)}`} title={guide.meta.heading} description={guide.meta.lead} />
+
+    <GuideShell sections={guide.sections} minutes={guide.meta.minutes} prev={prev} next={next} />
+</Layout>

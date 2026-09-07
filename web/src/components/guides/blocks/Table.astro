@@ -1,0 +1,30 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+/**
+ * Table: a reference grid. The .gtable-wrap div is what makes a wide table
+ * scroll sideways instead of pushing the page, and GuideShell styles both it
+ * and the table through descendant rules, so the two class names stay.
+ */
+interface Props {
+    head: string[];
+    rows: string[][];
+    caption?: string;
+    id?: string;
+}
+
+const { head, rows, caption, id } = Astro.props;
+---
+
+<div class="gtable-wrap">
+    <table id={id}>
+        {caption && <caption>{caption}</caption>}
+        <thead><tr>{head.map((cell) => <th set:html={cell} />)}</tr></thead>
+        <tbody>
+            {rows.map((row) => (
+                <tr>{row.map((cell) => <td set:html={cell} />)}</tr>
+            ))}
+        </tbody>
+    </table>
+</div>

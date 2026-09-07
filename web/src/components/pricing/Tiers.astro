@@ -45,7 +45,7 @@ const enterpriseFeatures = [
                     {t('tier.freeDesc')}
                 </p>
                 <a
-                    class="tier__btn tier__btn--main"
+                    class="bb-btn bb-btn--primary tier__btn tier__btn--main"
                     href={dashLoginHref(lang)}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -87,7 +87,7 @@ const enterpriseFeatures = [
             <!-- Deep link: signs the visitor in (Twitch OAuth, path preserved)
                  and lands on billing with checkout auto-opened. -->
             <a
-                class="tier__btn tier__btn--outline"
+                class="bb-btn bb-btn--quiet tier__btn tier__btn--outline"
                 href={`https://dashboard.itsbagelbot.com/billing?subscribe=1${lang === defaultLang ? '' : `&lang=${lang}`}`}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -124,7 +124,7 @@ const enterpriseFeatures = [
                     </li>
                 ))}
             </ul>
-            <a class="tier__btn tier__btn--outline" href="mailto:enterprise@itsbagelbot.com">{t('tier.contactSales')}</a>
+            <a class="bb-btn bb-btn--quiet tier__btn tier__btn--outline" href="mailto:enterprise@itsbagelbot.com">{t('tier.contactSales')}</a>
         </Card>
     </div>
 
@@ -193,10 +193,6 @@ const enterpriseFeatures = [
             align-items: center;
             padding: 8px;
         }
-    }
-
-    .tier__btn:active {
-        transform: translateY(2px) scale(0.96);
     }
 
     .tier__tebex-note {
@@ -388,48 +384,16 @@ const enterpriseFeatures = [
 
     /* ── Buttons ── */
 
+    /* Layout hooks only: the look comes from .bb-btn in style.css. The
+       card is a column, so margin-top:auto pins the button to the foot. */
     .tier__btn {
-        display: inline-block;
-        text-align: center;
-        border-radius: var(--radius-sm, 6px);
-        font-weight: 700;
         margin-top: auto;
-        transition: background 220ms ease, color 220ms ease, box-shadow 220ms ease;
+        justify-content: center;
+        text-align: center;
     }
 
     .tier__btn--main {
-        font-family: var(--font-display, "Syne", sans-serif);
-        font-size: 0.95rem;
-        padding: 15px 28px;
-        background: var(--tan, #c9a87c);
-        color: var(--black, #0a0a0a);
-        letter-spacing: -0.01em;
         align-self: flex-start;
-    }
-
-    @media (hover: hover) and (pointer: fine) {
-        .tier__btn--main:hover {
-            background: var(--tan-light, #e0c49a);
-            box-shadow: 0 8px 32px rgba(201, 168, 124, 0.28);
-        }
-    }
-
-    .tier__btn--outline {
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.74rem;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        padding: 13px 24px;
-        border: 1px solid var(--tan, #c9a87c);
-        color: var(--tan-light, #e0c49a);
-        background: transparent;
-    }
-
-    @media (hover: hover) and (pointer: fine) {
-        .tier__btn--outline:hover {
-            background: var(--tan, #c9a87c);
-            color: var(--black, #0a0a0a);
-        }
     }
 
     /* ── Oath strip ── */

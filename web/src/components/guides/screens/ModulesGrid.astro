@@ -1,0 +1,129 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+/**
+ * The Modules page as the dashboard draws it: sticky topbar, one centered
+ * column, the search box, the Categories rail in its real order, and tiles
+ * from three categories. It shows the three tile shapes a newcomer trips on:
+ * an ordinary tile with a switch, a beta tile locked to Premium, and a tile
+ * that is always on and so carries no switch at all.
+ *
+ * Module names and their one-line descriptions stay English in every locale
+ * because that is what the dashboard itself shows. The six markers are
+ * labels: pass an empty string for one and it disappears, so a guide that
+ * annotates only two of them does not leave four numbers unexplained.
+ */
+interface Props {
+    labels?: Record<string, string>;
+}
+
+const { labels = {} } = Astro.props;
+const L = {
+    console: 'Console',
+    crumbPage: 'Modules',
+    account: 'streamer · Broadcaster',
+    eyebrow: 'Manage',
+    titleHtml: 'Channel <i>modules</i>',
+    sub: 'Find a feature by name, by what it does, or by a chat command. 3 of 24 on.',
+    searchPlaceholder: 'Search name, command, or what it does…',
+    railTitle: 'Categories',
+    rail1: 'Moderation',
+    rail2: 'Chat',
+    rail3: 'Channel',
+    rail4: 'Points',
+    rail5: 'Play',
+    rail6: 'Gear',
+    rail7: 'Stats',
+    cat1: 'Moderation',
+    cat2: 'Chat',
+    cat3: 'Points',
+    tile1Name: 'AutoMod',
+    tile1Cat: 'Moderation',
+    tile1Desc: 'Catch scams, IP-grabbers and raid spam before your mods do.',
+    tile1Beta: 'Beta · Premium',
+    tile2Name: 'Trigger Words',
+    tile2Cat: 'Chat',
+    tile2Desc: 'Auto-reply when a word shows up in chat, no "!" needed.',
+    tile3Name: 'Quotes',
+    tile3Cat: 'Chat',
+    tile3Desc: 'Save the best things said on stream and replay them in chat.',
+    tile4Name: 'Loyalty Points',
+    tile4Cat: 'Points',
+    tile4Desc: 'Viewers earn channel currency for subs, cheers and watch time.',
+    tile5Name: 'Counters',
+    tile5Cat: 'Points',
+    tile5Desc: 'Track wins, deaths, hugs, redeems, anything your chat can count.',
+    tile5State: 'Always on',
+    configure: 'Configure',
+    dot1: '1',
+    dot2: '2',
+    dot3: '3',
+    dot4: '4',
+    dot5: '5',
+    dot6: '6',
+    dockOverview: 'Overview',
+    dockCommands: 'Commands',
+    dockModules: 'Modules',
+    dockBilling: 'Billing',
+    dockSettings: 'Settings',
+    ...labels,
+};
+---
+
+<div class="df-main">
+    <div class="df-topbar"><span class="df-brand">ItsBagelBot <small>{L.console}</small></span><span class="df-crumb">ItsBagelBot / <b>{L.crumbPage}</b></span><span class="df-account">{L.account}</span></div>
+    <span class="df-eyebrow">{L.eyebrow}</span>
+    <p class="df-title" set:html={L.titleHtml}></p>
+    <p class="df-sub">{L.sub}</p>
+    <div class="df-search" style="max-width:260px;">{L.searchPlaceholder}</div>
+    <div class="df-cols df-cols--rail">
+        <div class="df-rail" style="position:relative;">
+            <b>{L.railTitle}</b>
+            <span class="is-active">{L.rail1}</span><span>{L.rail2}</span><span>{L.rail3}</span><span>{L.rail4}</span><span>{L.rail5}</span><span>{L.rail6}</span><span>{L.rail7}</span>
+            {L.dot1 && <i class="df-mark" data-note={L.dot1}></i>}
+        </div>
+        <div style="display:grid; gap:10px; align-content:start;">
+            <span class="df-cat">{L.cat1}</span>
+            <div class="df-grid">
+                <div class="df-tile">
+                    <div class="df-tile-head"><span><b>{L.tile1Name}</b><small>{L.tile1Cat}</small></span></div>
+                    <small>{L.tile1Desc}</small>
+                    <div class="df-tile-foot"><span class="df-btn--configure">{L.configure}</span><span class="df-pill df-pill--tan">{L.tile1Beta}</span></div>
+                    {L.dot5 && <i class="df-mark" data-note={L.dot5}></i>}
+                </div>
+            </div>
+            <span class="df-cat">{L.cat2}</span>
+            <div class="df-grid">
+                <div class="df-tile">
+                    <div class="df-tile-head"><span><b>{L.tile2Name}</b><small>{L.tile2Cat}</small></span></div>
+                    <small>{L.tile2Desc}</small>
+                    <div class="df-tile-foot"><span class="df-btn--configure">{L.configure}</span><span class="df-toggle"></span></div>
+                    {L.dot2 && <i class="df-mark" data-note={L.dot2}></i>}
+                </div>
+                <div class="df-tile">
+                    <div class="df-tile-head"><span><b>{L.tile3Name}</b><small>{L.tile3Cat}</small></span></div>
+                    <small>{L.tile3Desc}</small>
+                    <div class="df-tile-foot"><span class="df-btn--configure">{L.configure}</span><span class="df-toggle"></span></div>
+                </div>
+            </div>
+            <span class="df-cat">{L.cat3}</span>
+            <div class="df-grid">
+                <div class="df-tile">
+                    <div class="df-tile-head"><span><b>{L.tile4Name}</b><small>{L.tile4Cat}</small></span></div>
+                    <small>{L.tile4Desc}</small>
+                    <div class="df-tile-foot"><span class="df-btn--configure">{L.configure}</span><span class="df-toggle is-on"></span></div>
+                    {L.dot3 && <i class="df-mark" data-note={L.dot3}></i>}
+                    {L.dot4 && <i class="df-mark" data-note={L.dot4}></i>}
+                </div>
+                <div class="df-tile">
+                    <div class="df-tile-head"><span><b>{L.tile5Name}</b><small>{L.tile5Cat}</small></span></div>
+                    <small>{L.tile5Desc}</small>
+                    <div class="df-tile-foot"><span class="df-btn--configure">{L.configure}</span><span class="df-pill df-pill--on">{L.tile5State}</span></div>
+                    {L.dot6 && <i class="df-mark" data-note={L.dot6}></i>}
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="df-dock"><span>{L.dockOverview}</span><span>{L.dockCommands}</span><span class="is-active">{L.dockModules}</span><span>{L.dockBilling}</span><span>{L.dockSettings}</span></div>
+</div>

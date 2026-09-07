@@ -1,0 +1,86 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+/**
+ * The Commands page with the editor docked beside the list: filter pills, two
+ * command rows, and the "New command" panel open on the right.
+ */
+import Icon from '../../ui/Icon.astro';
+
+interface Props {
+    labels?: Record<string, string>;
+}
+
+const { labels = {} } = Astro.props;
+const L = {
+    console: 'Console',
+    crumbPage: 'Commands',
+    account: 'streamer · Broadcaster',
+    eyebrow: 'Manage',
+    titleHtml: 'Chat <i>commands</i>',
+    filterAll: 'All',
+    filterActive: 'Active',
+    filterCustom: 'Custom',
+    searchPlaceholder: 'Search name, alias, response…',
+    newCommand: 'New command',
+    row1Name: '!followage',
+    builtIn: 'built-in',
+    row1Meta: 'Everyone · 15s',
+    row2Name: '!discord',
+    row2Text: 'Come hang out between streams…',
+    row2Meta: 'Everyone · 0s',
+    panelHead: 'New command',
+    close: 'Close',
+    fieldName: 'Name',
+    nameValue: 'discord',
+    fieldResponse: 'Response',
+    responseValue: 'Come hang out between streams: discord.gg/your-invite',
+    chatTag: 'Chat rehearsal',
+    viewerName: 'sesame_sam',
+    viewerText: '!discord',
+    botName: 'ItsBagelBot',
+    cancel: 'Cancel',
+    create: 'Create',
+    dockOverview: 'Overview',
+    dockCommands: 'Commands',
+    dockModules: 'Modules',
+    dockDiscord: 'Discord',
+    dockBilling: 'Billing',
+    dockSettings: 'Settings',
+    ...labels,
+};
+---
+
+<div class="df-main">
+    <div class="df-topbar"><span class="df-brand">ItsBagelBot <small>{L.console}</small></span><span class="df-crumb">ItsBagelBot / <b>{L.crumbPage}</b></span><span class="df-account">{L.account}</span></div>
+    <span class="df-eyebrow">{L.eyebrow}</span>
+    <p class="df-title" set:html={L.titleHtml}></p>
+    <div class="df-toolbar">
+        <span class="df-pill df-pill--tan">{L.filterAll}</span>
+        <span class="df-pill df-pill--off">{L.filterActive}</span>
+        <span class="df-pill df-pill--off">{L.filterCustom}</span>
+        <span class="df-spacer"></span>
+        <span class="df-search">{L.searchPlaceholder}</span>
+        <span class="df-btn df-btn--tan">{L.newCommand}</span>
+        <i class="df-mark" data-note="1"></i>
+    </div>
+    <div class="df-cols">
+        <div style="display:grid; gap:8px; align-content:start;">
+            <div class="df-row"><span class="df-num">01</span><code>{L.row1Name}</code><span class="df-pill df-pill--on">{L.builtIn}</span><span class="df-grow"></span><span class="df-meta">{L.row1Meta}</span><span class="df-toggle is-on"></span></div>
+            <div class="df-row is-open"><span class="df-num">02</span><code>{L.row2Name}</code><span class="df-grow">{L.row2Text}</span><span class="df-meta">{L.row2Meta}</span><span class="df-toggle is-on"></span></div>
+        </div>
+        <div class="df-panel">
+            <div class="df-panel-head">{L.panelHead} <i aria-label={L.close} role="img"><Icon name="x" size={12} /></i></div>
+            <div class="df-field"><span>{L.fieldName}</span><div class="df-input is-focus">{L.nameValue}<i class="df-mark" data-note="2"></i></div></div>
+            <div class="df-field"><span>{L.fieldResponse}</span><div class="df-input">{L.responseValue}<i class="df-mark" data-note="3"></i></div></div>
+            <div class="df-chat">
+                <span class="df-chat-tag">{L.chatTag}</span>
+                <p class="df-viewer"><b>{L.viewerName}</b><span>{L.viewerText}</span></p>
+                <p class="df-bot"><b>{L.botName}</b><span>{L.responseValue}</span></p>
+            </div>
+            <div class="df-panel-foot"><span class="df-btn df-btn--ghost">{L.cancel}</span><span class="df-btn df-btn--tan">{L.create}</span><i class="df-mark" data-note="4"></i></div>
+        </div>
+    </div>
+    <div class="df-dock"><span>{L.dockOverview}</span><span class="is-active">{L.dockCommands}</span><span>{L.dockModules}</span><span>{L.dockDiscord}</span><span>{L.dockBilling}</span><span>{L.dockSettings}</span></div>
+</div>

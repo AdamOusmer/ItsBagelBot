@@ -1,0 +1,245 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+/**
+ * ModuleCatalog: the whole module list, filterable. Every module is a cell
+ * with its dashboard name, its dashboard one-liner, its category, whether it
+ * is free or premium beta, whether it starts on or off, what it needs, and
+ * its chat commands behind a <details> toggle.
+ *
+ * The data is content (props.modules from the guide's content file), never
+ * hardcoded here, so the French page ships the same 24 cells with French
+ * category names. With JavaScript off the filter bar stays hidden and the
+ * full list renders, which is the honest fallback for a catalogue.
+ *
+ * The cell surface is flat on purpose: two dozen dense cells are a table
+ * wrap, not two dozen marketing cards, so they carry the tokens and the
+ * border and none of the atmosphere (same call as Checklist's .gcheck).
+ */
+interface Module {
+    name: string;
+    tagline: string;
+    cat: string;
+    plan?: 'free' | 'premium';
+    start?: string;
+    needs?: string;
+    commands?: string;
+}
+
+interface Props {
+    labels?: Record<string, string>;
+    props?: Record<string, unknown>;
+}
+
+const { labels = {}, props = {} } = Astro.props;
+const L = {
+    all: 'All',
+    searchLabel: 'Filter modules',
+    searchPlaceholder: 'Name, command, or what it does',
+    countAll: '{n} modules',
+    countCat: '{n} in {cat}',
+    countMatch: '{shown} of {total}',
+    commands: 'Commands',
+    needs: 'Needs',
+    free: 'Free',
+    premium: 'Premium beta',
+    empty: 'Nothing matches that. Try a command like !sr, or a game name.',
+    ...labels,
+};
+
+const categories = Array.isArray(props.categories) ? (props.categories as string[]) : [];
+const modules = Array.isArray(props.modules) ? (props.modules as Module[]) : [];
+const total = String(modules.length);
+const haystack = (m: Module) => `${m.name} ${m.tagline} ${m.commands ?? ''}`.toLowerCase();
+---
+
+<div class="mcat" data-mcat data-count-all={L.countAll} data-count-cat={L.countCat} data-count-match={L.countMatch}>
+    <div class="mcat__bar" data-mcat-bar hidden>
+        <div class="mcat__chips" role="group" aria-label={L.searchLabel}>
+            <button type="button" class="bb-chip mcat__chip is-on" data-mcat-chip="" aria-pressed="true">{L.all}</button>
+            {categories.map((cat, i) => (
+                <button type="button" class="bb-chip mcat__chip" data-mcat-chip={String(i)} aria-pressed="false">{cat}</button>
+            ))}
+        </div>
+        <label class="mcat__search">
+            <span class="mcat__sr">{L.searchLabel}</span>
+            <input type="search" class="mcat__input" placeholder={L.searchPlaceholder} data-mcat-input />
+        </label>
+    </div>
+    <p class="mcat__count" data-mcat-count aria-live="polite">{L.countAll.replace('{n}', total)}</p>
+    <ul class="mcat__grid">
+        {modules.map((m) => (
+            <li class="mcat__cell" data-cat={String(categories.indexOf(m.cat))} data-hay={haystack(m)}>
+                <b class="mcat__name">{m.name}</b>
+                <span class="mcat__tags">
+                    <i>{m.cat}</i>
+                    <i>{m.plan === 'premium' ? L.premium : L.free}</i>
+                    {m.start && <i>{m.start}</i>}
+                </span>
+                <p class="mcat__line">{m.tagline}</p>
+                {m.needs && <p class="mcat__needs"><span>{L.needs}</span> {m.needs}</p>}
+                {m.commands && (
+                    <details class="mcat__cmds">
+                        <summary>{L.commands}</summary>
+                        <p>{m.commands}</p>
+                    </details>
+                )}
+            </li>
+        ))}
+    </ul>
+    <p class="mcat__empty" data-mcat-empty hidden>{L.empty}</p>
+</div>
+
+<style>
+    .mcat { margin: 24px 0; display: grid; gap: 14px; }
+
+    .mcat__bar { display: grid; gap: 12px; }
+
+    .mcat__chips { display: flex; flex-wrap: wrap; gap: 8px; }
+
+    .mcat__chip { cursor: pointer; font-size: 11.5px; padding: 7px 12px; }
+
+    .mcat__chip.is-on { color: var(--white); border-color: var(--tan); background: rgba(201, 168, 124, 0.1); }
+
+    .mcat__search { display: block; }
+
+    .mcat__sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+    .mcat__input {
+        width: 100%; max-width: 340px; padding: 9px 12px;
+        border: 1px solid var(--border); border-radius: var(--radius-sm);
+        background: rgba(240, 236, 228, 0.03);
+        color: var(--white); font-family: var(--font-body); font-size: 0.86rem;
+    }
+
+    .mcat__input:focus-visible { outline: 1px solid var(--tan); border-color: var(--tan); }
+
+    .mcat__count {
+        margin: 0; font-family: var(--font-mono); font-size: 0.68rem;
+        letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted);
+    }
+
+    .mcat__grid {
+        list-style: none; margin: 0; padding: 0; display: grid; gap: 10px;
+        grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+    }
+
+    .mcat__cell {
+        display: grid; gap: 7px; align-content: start; padding: 15px 16px;
+        border: 1px solid var(--border); border-radius: var(--radius-card);
+        background: rgba(17, 17, 16, 0.6);
+    }
+
+    .mcat__cell[hidden] { display: none; }
+
+    .mcat__name { font-family: var(--font-display); font-size: 0.98rem; color: var(--white); }
+
+    .mcat__tags { display: flex; flex-wrap: wrap; gap: 6px; }
+
+    .mcat__tags i {
+        font-family: var(--font-mono); font-size: 0.6rem; font-style: normal;
+        letter-spacing: 0.1em; text-transform: uppercase; color: var(--tan-light);
+        padding: 3px 7px; border: 1px solid var(--border); border-radius: var(--radius-pill);
+    }
+
+    .mcat__line, .mcat__needs { margin: 0; font-family: var(--font-body); font-size: 0.85rem; line-height: 1.6; color: #a39c92; }
+
+    .mcat__needs { color: var(--muted); font-size: 0.78rem; }
+
+    .mcat__needs span { color: var(--tan); }
+
+    .mcat__cmds summary {
+        cursor: pointer; font-family: var(--font-mono); font-size: 0.62rem;
+        letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted);
+    }
+
+    .mcat__cmds summary:hover { color: var(--tan); }
+
+    .mcat__cmds p {
+        margin: 7px 0 0; font-family: var(--font-mono); font-size: 0.72rem;
+        line-height: 1.8; color: var(--tan-light); word-break: break-word;
+    }
+
+    .mcat__empty { margin: 0; font-family: var(--font-body); font-size: 0.9rem; color: var(--muted); }
+
+    .mcat__cell.is-shown { animation: mcat-in 240ms var(--ease-out-expo) both; }
+
+    @keyframes mcat-in {
+        from { opacity: 0; transform: translateX(12px); }
+        to { opacity: 1; transform: none; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .mcat__cell.is-shown { animation: none; }
+    }
+</style>
+
+<script>
+    // Bundled by Astro, so it satisfies the site's script-src 'self' CSP.
+    function setupCatalog(root: HTMLElement) {
+        const bar = root.querySelector<HTMLElement>('[data-mcat-bar]');
+        const input = root.querySelector<HTMLInputElement>('[data-mcat-input]');
+        const countEl = root.querySelector<HTMLElement>('[data-mcat-count]');
+        const emptyEl = root.querySelector<HTMLElement>('[data-mcat-empty]');
+        const chips = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-mcat-chip]'));
+        const cells = Array.from(root.querySelectorAll<HTMLElement>('.mcat__cell'));
+        const total = cells.length;
+        let cat = '';
+
+        function fill(tpl: string, values: Record<string, string>): string {
+            return tpl.replace(/\{(\w+)\}/g, (_, key) => values[key] ?? '');
+        }
+
+        function apply() {
+            const query = (input?.value ?? '').trim().toLowerCase();
+            let shown = 0;
+            cells.forEach((cell) => {
+                const okCat = cat === '' || cell.dataset.cat === cat;
+                const okText = query === '' || (cell.dataset.hay ?? '').includes(query);
+                const visible = okCat && okText;
+                if (visible && cell.hidden) {
+                    cell.classList.remove('is-shown');
+                    void cell.offsetWidth;
+                    cell.classList.add('is-shown');
+                }
+                cell.hidden = !visible;
+                if (visible) shown += 1;
+            });
+            if (emptyEl) emptyEl.hidden = shown > 0;
+            if (!countEl) return;
+            const label = chips.find((c) => c.dataset.mcatChip === cat)?.textContent ?? '';
+            if (query !== '') countEl.textContent = fill(root.dataset.countMatch ?? '', { shown: String(shown), total: String(total) });
+            else if (cat !== '') countEl.textContent = fill(root.dataset.countCat ?? '', { n: String(shown), cat: label });
+            else countEl.textContent = fill(root.dataset.countAll ?? '', { n: String(total) });
+        }
+
+        chips.forEach((chip) => {
+            chip.addEventListener('click', () => {
+                cat = chip.dataset.mcatChip ?? '';
+                chips.forEach((other) => {
+                    const on = other === chip;
+                    other.classList.toggle('is-on', on);
+                    other.setAttribute('aria-pressed', on ? 'true' : 'false');
+                });
+                apply();
+            });
+        });
+
+        input?.addEventListener('input', apply);
+        if (bar) bar.hidden = false;
+    }
+
+    // Bound on astro:page-load as well as at load: the ClientRouter swaps the DOM
+    // on navigation, and the data-ready flag stops a second pass binding twice.
+    function setupAll() {
+        document.querySelectorAll<HTMLElement>('[data-mcat]').forEach((root) => {
+            if (root.dataset.ready === '1') return;
+            root.dataset.ready = '1';
+            setupCatalog(root);
+        });
+    }
+
+    setupAll();
+    document.addEventListener('astro:page-load', setupAll);
+</script>

@@ -1,0 +1,62 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+/**
+ * Cards: a short grid of side-by-side facts, on the shared flat Card (no
+ * band: there is no visual to house, just a fact). One line, one fact per
+ * card; anything longer belongs in prose. Columns collapse to one on phones.
+ */
+import Card from '../../ui/Card.astro';
+
+interface Props {
+    columns?: 2 | 3;
+    items: { title: string; html: string; chips?: string[]; badge?: string }[];
+}
+
+const { columns = 2, items } = Astro.props;
+---
+
+<div class="gcards" style={`--gcards-cols: ${columns}`}>
+    {items.map((item) => (
+        <Card class="gcards__item" label={item.badge}>
+            <b class="gcards__title">{item.title}</b>
+            <div class="gcards__body" set:html={item.html}></div>
+            {item.chips && item.chips.length > 0 && (
+                <div class="gcards__chips">
+                    {item.chips.map((chip) => <i class="bb-tag bb-tag--bare">{chip}</i>)}
+                </div>
+            )}
+        </Card>
+    ))}
+</div>
+
+<style>
+    .gcards {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 12px;
+        margin: 22px 0;
+    }
+
+    .gcards__title {
+        display: block;
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-size: 0.95rem;
+        color: var(--white, #f0ece4);
+        margin-bottom: 6px;
+    }
+
+    .gcards__body :global(p) { margin: 0; }
+
+    .gcards__chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+
+    .gcards__chips i {
+        font-style: normal;
+        color: var(--tan-light, #e0c49a);
+    }
+
+    @media (min-width: 640px) {
+        .gcards { grid-template-columns: repeat(var(--gcards-cols, 2), minmax(0, 1fr)); }
+    }
+</style>

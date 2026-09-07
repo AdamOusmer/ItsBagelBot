@@ -1,0 +1,30 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+/**
+ * Callout: the tinted aside a guide uses for a tip, a warning or a plain note.
+ * The class names gtip/gwarn are kept verbatim because GuideShell styles them
+ * from its own block and the pre-rebuild pages wrote them by hand.
+ */
+interface Props {
+    tone: 'tip' | 'warn' | 'note';
+    html: string;
+}
+
+const { tone, html } = Astro.props;
+const toneClass = { tip: 'gtip', warn: 'gwarn', note: 'gnote' }[tone] ?? 'gtip';
+---
+
+<p class={toneClass} set:html={html}></p>
+
+<style>
+    /* gtip and gwarn are styled by GuideShell. gnote is the neutral third tone,
+       styled here so a writer can reach for it without touching the shell. */
+    .gnote {
+        border-left: 2px solid var(--border, rgba(201, 168, 124, 0.15));
+        background: rgba(240, 236, 228, 0.03);
+    }
+
+    .gnote :global(b) { color: var(--white, #f0ece4); }
+</style>
