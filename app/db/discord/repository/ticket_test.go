@@ -42,15 +42,24 @@ func newConcurrentTicketFixture(t *testing.T, name string) ticketFixture {
 	return ticketFixture{t: t, repo: repo, ctx: ctx}
 }
 
+// tk and mk spell the two repository keys short, so a call under test still
+// reads as one line of intent rather than a struct literal wrapped over three.
+func tk(guildID, channelID string) repository.TicketKey {
+	return repository.TicketKey{GuildID: guildID, ChannelID: channelID}
+}
+
+func mk(guildID, memberID string) repository.MemberKey {
+	return repository.MemberKey{GuildID: guildID, MemberID: memberID}
+}
+
 // openOne is the common "member opens a ticket in a fresh channel" call.
 func (f ticketFixture) openOne(channelID string, limit int) (int, int, error) {
 	f.t.Helper()
 	return f.repo.TicketOpen(f.ctx, repository.OpenParams{
-		GuildID:   "g1",
-		ChannelID: channelID,
-		OpenerID:  "member1",
-		Subject:   "help me",
-		Limit:     limit,
+		Key:      tk("g1", channelID),
+		OpenerID: "member1",
+		Subject:  "help me",
+		Limit:    limit,
 	})
 }
 
@@ -62,7 +71,7 @@ func TestTicketOpenRecordsAndCounts(t *testing.T) {
 	assert.NotZero(t, id)
 	assert.Equal(t, 1, count)
 
-	row, found, err := f.repo.TicketGet(f.ctx, "g1", "c1")
+	row, found, err := f.repo.TicketGet(f.ctx, tk("g1", "c1"))
 	require.NoError(t, err)
 	require.True(t, found)
 	assert.Equal(t, ticket.StatusOpen, row.Status)
@@ -83,7 +92,7 @@ func TestTicketOpenRefusesPastTheLimit(t *testing.T) {
 	assert.ErrorIs(t, err, repository.ErrOpenLimit)
 	assert.Equal(t, 2, count, "the refusal carries the count the caller names back")
 
-	_, found, err := f.repo.TicketGet(f.ctx, "g1", "c3")
+	_, found, err := f.repo.TicketGet(f.ctx, tk("g1", "c3"))
 	require.NoError(t, err)
 	assert.False(t, found)
 }
@@ -118,7 +127,7 @@ func TestTicketOpenClosedTicketsDoNotCountAgainstTheLimit(t *testing.T) {
 
 	_, _, err := f.openOne("c1", 1)
 	require.NoError(t, err)
-	_, _, err = f.repo.TicketClose(f.ctx, repository.CloseParams{GuildID: "g1", ChannelID: "c1", ClosedBy: "staff1"})
+	_, _, err = f.repo.TicketClose(f.ctx, repository.CloseParams{Key: tk("g1", "c1"), ClosedBy: "staff1"})
 	require.NoError(t, err)
 
 	_, count, err := f.openOne("c2", 1)
@@ -132,11 +141,11 @@ func TestTicketClaimTransition(t *testing.T) {
 	id, _, err := f.openOne("c1", 1)
 	require.NoError(t, err)
 
-	claimed, err := f.repo.TicketClaim(f.ctx, "g1", "c1", "staff1")
+	claimed, err := f.repo.TicketClaim(f.ctx, repository.ClaimParams{Key: tk("g1", "c1"), StaffID: "staff1"})
 	require.NoError(t, err)
 	assert.Equal(t, id, claimed)
 
-	row, _, err := f.repo.TicketGet(f.ctx, "g1", "c1")
+	row, _, err := f.repo.TicketGet(f.ctx, tk("g1", "c1"))
 	require.NoError(t, err)
 	assert.Equal(t, ticket.StatusClaimed, row.Status)
 	assert.Equal(t, "staff1", row.ClaimedBy)
@@ -145,9 +154,9 @@ func TestTicketClaimTransition(t *testing.T) {
 
 	// A hand-off keeps the original claimed_at so the desk's elapsed time
 	// still measures from the first response.
-	_, err = f.repo.TicketClaim(f.ctx, "g1", "c1", "staff2")
+	_, err = f.repo.TicketClaim(f.ctx, repository.ClaimParams{Key: tk("g1", "c1"), StaffID: "staff2"})
 	require.NoError(t, err)
-	row, _, err = f.repo.TicketGet(f.ctx, "g1", "c1")
+	row, _, err = f.repo.TicketGet(f.ctx, tk("g1", "c1"))
 	require.NoError(t, err)
 	assert.Equal(t, "staff2", row.ClaimedBy)
 	assert.WithinDuration(t, firstClaim, *row.ClaimedAt, 0)
@@ -156,15 +165,15 @@ func TestTicketClaimTransition(t *testing.T) {
 func TestTicketClaimRefusesClosedAndMissing(t *testing.T) {
 	f := newTicketFixture(t, "ticketclaimrefuse")
 
-	_, err := f.repo.TicketClaim(f.ctx, "g1", "nope", "staff1")
+	_, err := f.repo.TicketClaim(f.ctx, repository.ClaimParams{Key: tk("g1", "nope"), StaffID: "staff1"})
 	assert.ErrorIs(t, err, repository.ErrNotFound)
 
 	_, _, err = f.openOne("c1", 1)
 	require.NoError(t, err)
-	_, _, err = f.repo.TicketClose(f.ctx, repository.CloseParams{GuildID: "g1", ChannelID: "c1", ClosedBy: "staff1"})
+	_, _, err = f.repo.TicketClose(f.ctx, repository.CloseParams{Key: tk("g1", "c1"), ClosedBy: "staff1"})
 	require.NoError(t, err)
 
-	_, err = f.repo.TicketClaim(f.ctx, "g1", "c1", "staff1")
+	_, err = f.repo.TicketClaim(f.ctx, repository.ClaimParams{Key: tk("g1", "c1"), StaffID: "staff1"})
 	assert.ErrorIs(t, err, repository.ErrInvalidInput)
 }
 
@@ -173,12 +182,12 @@ func TestTicketCloseAndArchiveTransitions(t *testing.T) {
 
 	deleted, _, err := f.openOne("c1", 0)
 	require.NoError(t, err)
-	id, opener, err := f.repo.TicketClose(f.ctx, repository.CloseParams{GuildID: "g1", ChannelID: "c1", ClosedBy: "staff1"})
+	id, opener, err := f.repo.TicketClose(f.ctx, repository.CloseParams{Key: tk("g1", "c1"), ClosedBy: "staff1"})
 	require.NoError(t, err)
 	assert.Equal(t, deleted, id)
 	assert.Equal(t, "member1", opener)
 
-	row, _, err := f.repo.TicketGet(f.ctx, "g1", "c1")
+	row, _, err := f.repo.TicketGet(f.ctx, tk("g1", "c1"))
 	require.NoError(t, err)
 	assert.Equal(t, ticket.StatusClosed, row.Status)
 	require.NotNil(t, row.ClosedAt)
@@ -186,10 +195,10 @@ func TestTicketCloseAndArchiveTransitions(t *testing.T) {
 	_, _, err = f.openOne("c2", 0)
 	require.NoError(t, err)
 	_, _, err = f.repo.TicketClose(f.ctx, repository.CloseParams{
-		GuildID: "g1", ChannelID: "c2", ClosedBy: "staff1", ArchivedChannelID: "c2",
+		Key: tk("g1", "c2"), ClosedBy: "staff1", ArchivedChannelID: "c2",
 	})
 	require.NoError(t, err)
-	row, _, err = f.repo.TicketGet(f.ctx, "g1", "c2")
+	row, _, err = f.repo.TicketGet(f.ctx, tk("g1", "c2"))
 	require.NoError(t, err)
 	assert.Equal(t, ticket.StatusArchived, row.Status)
 	assert.Equal(t, "c2", row.ArchivedChannelID)
@@ -200,18 +209,18 @@ func TestTicketCloseTwiceKeepsTheFirstTimestamp(t *testing.T) {
 
 	_, _, err := f.openOne("c1", 0)
 	require.NoError(t, err)
-	_, _, err = f.repo.TicketClose(f.ctx, repository.CloseParams{GuildID: "g1", ChannelID: "c1", ClosedBy: "staff1"})
+	_, _, err = f.repo.TicketClose(f.ctx, repository.CloseParams{Key: tk("g1", "c1"), ClosedBy: "staff1"})
 	require.NoError(t, err)
-	row, _, err := f.repo.TicketGet(f.ctx, "g1", "c1")
+	row, _, err := f.repo.TicketGet(f.ctx, tk("g1", "c1"))
 	require.NoError(t, err)
 	first := *row.ClosedAt
 
-	id, opener, err := f.repo.TicketClose(f.ctx, repository.CloseParams{GuildID: "g1", ChannelID: "c1", ClosedBy: "staff2"})
+	id, opener, err := f.repo.TicketClose(f.ctx, repository.CloseParams{Key: tk("g1", "c1"), ClosedBy: "staff2"})
 	require.NoError(t, err)
 	assert.Equal(t, row.ID, id)
 	assert.Equal(t, "member1", opener)
 
-	row, _, err = f.repo.TicketGet(f.ctx, "g1", "c1")
+	row, _, err = f.repo.TicketGet(f.ctx, tk("g1", "c1"))
 	require.NoError(t, err)
 	assert.Equal(t, "staff1", row.ClosedBy)
 	assert.WithinDuration(t, first, *row.ClosedAt, 0)
@@ -223,7 +232,7 @@ func TestTicketGetIsGuildScoped(t *testing.T) {
 	_, _, err := f.openOne("c1", 0)
 	require.NoError(t, err)
 
-	_, found, err := f.repo.TicketGet(f.ctx, "otherguild", "c1")
+	_, found, err := f.repo.TicketGet(f.ctx, tk("otherguild", "c1"))
 	require.NoError(t, err)
 	assert.False(t, found)
 }
@@ -235,7 +244,7 @@ func TestTicketListFiltersAndPages(t *testing.T) {
 		_, _, err := f.openOne("c"+strconv.Itoa(i), 0)
 		require.NoError(t, err)
 	}
-	_, _, err := f.repo.TicketClose(f.ctx, repository.CloseParams{GuildID: "g1", ChannelID: "c0", ClosedBy: "staff1"})
+	_, _, err := f.repo.TicketClose(f.ctx, repository.CloseParams{Key: tk("g1", "c0"), ClosedBy: "staff1"})
 	require.NoError(t, err)
 
 	open, next, err := f.repo.TicketList(f.ctx, repository.ListParams{GuildID: "g1", Status: discorddata.StatusOpen})
@@ -352,11 +361,11 @@ func TestTicketVerbsRequireTheGuild(t *testing.T) {
 	_, _, err := f.openOne("c1", 0)
 	require.NoError(t, err)
 
-	_, _, err = f.repo.TicketGet(f.ctx, "", "c1")
+	_, _, err = f.repo.TicketGet(f.ctx, tk("", "c1"))
 	assert.ErrorIs(t, err, repository.ErrInvalidInput)
-	_, err = f.repo.TicketClaim(f.ctx, "", "c1", "staff1")
+	_, err = f.repo.TicketClaim(f.ctx, repository.ClaimParams{Key: tk("", "c1"), StaffID: "staff1"})
 	assert.ErrorIs(t, err, repository.ErrInvalidInput)
-	_, _, err = f.repo.TicketClose(f.ctx, repository.CloseParams{ChannelID: "c1", ClosedBy: "staff1"})
+	_, _, err = f.repo.TicketClose(f.ctx, repository.CloseParams{Key: tk("", "c1"), ClosedBy: "staff1"})
 	assert.ErrorIs(t, err, repository.ErrInvalidInput)
 }
 
@@ -367,14 +376,14 @@ func TestTicketVerbsRefuseAnotherGuildsChannel(t *testing.T) {
 	_, _, err := f.openOne("c1", 0)
 	require.NoError(t, err)
 
-	_, err = f.repo.TicketClaim(f.ctx, "otherguild", "c1", "staff1")
+	_, err = f.repo.TicketClaim(f.ctx, repository.ClaimParams{Key: tk("otherguild", "c1"), StaffID: "staff1"})
 	assert.ErrorIs(t, err, repository.ErrNotFound)
 	_, _, err = f.repo.TicketClose(f.ctx, repository.CloseParams{
-		GuildID: "otherguild", ChannelID: "c1", ClosedBy: "staff1",
+		Key: tk("otherguild", "c1"), ClosedBy: "staff1",
 	})
 	assert.ErrorIs(t, err, repository.ErrNotFound)
 
-	row, found, err := f.repo.TicketGet(f.ctx, "g1", "c1")
+	row, found, err := f.repo.TicketGet(f.ctx, tk("g1", "c1"))
 	require.NoError(t, err)
 	require.True(t, found)
 	assert.Equal(t, ticket.StatusOpen, row.Status, "neither refused verb may have changed the row")
@@ -384,11 +393,11 @@ func TestTicketOpenStoresThePanelMessageID(t *testing.T) {
 	f := newTicketFixture(t, "ticketpanelmsg")
 
 	_, _, err := f.repo.TicketOpen(f.ctx, repository.OpenParams{
-		GuildID: "g1", ChannelID: "c1", OpenerID: "member1", PanelMessageID: "m1",
+		Key: tk("g1", "c1"), OpenerID: "member1", PanelMessageID: "m1",
 	})
 	require.NoError(t, err)
 
-	row, found, err := f.repo.TicketGet(f.ctx, "g1", "c1")
+	row, found, err := f.repo.TicketGet(f.ctx, tk("g1", "c1"))
 	require.NoError(t, err)
 	require.True(t, found)
 	assert.Equal(t, "m1", row.PanelMessageID, "the claim edit needs the card it must patch")
@@ -397,7 +406,7 @@ func TestTicketOpenStoresThePanelMessageID(t *testing.T) {
 func TestTicketOpenCountCountsLiveTicketsOnly(t *testing.T) {
 	f := newTicketFixture(t, "ticketcount")
 
-	n, err := f.repo.TicketOpenCount(f.ctx, "g1", "member1")
+	n, err := f.repo.TicketOpenCount(f.ctx, mk("g1", "member1"))
 	require.NoError(t, err)
 	assert.Equal(t, 0, n)
 
@@ -406,22 +415,22 @@ func TestTicketOpenCountCountsLiveTicketsOnly(t *testing.T) {
 	_, _, err = f.openOne("c2", 0)
 	require.NoError(t, err)
 
-	n, err = f.repo.TicketOpenCount(f.ctx, "g1", "member1")
+	n, err = f.repo.TicketOpenCount(f.ctx, mk("g1", "member1"))
 	require.NoError(t, err)
 	assert.Equal(t, 2, n)
 
 	// A claimed ticket is still one the opener holds; a closed one is not.
-	_, err = f.repo.TicketClaim(f.ctx, "g1", "c1", "mod1")
+	_, err = f.repo.TicketClaim(f.ctx, repository.ClaimParams{Key: tk("g1", "c1"), StaffID: "mod1"})
 	require.NoError(t, err)
-	_, _, err = f.repo.TicketClose(f.ctx, repository.CloseParams{GuildID: "g1", ChannelID: "c2", ClosedBy: "mod1"})
+	_, _, err = f.repo.TicketClose(f.ctx, repository.CloseParams{Key: tk("g1", "c2"), ClosedBy: "mod1"})
 	require.NoError(t, err)
 
-	n, err = f.repo.TicketOpenCount(f.ctx, "g1", "member1")
+	n, err = f.repo.TicketOpenCount(f.ctx, mk("g1", "member1"))
 	require.NoError(t, err)
 	assert.Equal(t, 1, n)
 
 	// Another member's tickets never count against this one.
-	n, err = f.repo.TicketOpenCount(f.ctx, "g1", "member2")
+	n, err = f.repo.TicketOpenCount(f.ctx, mk("g1", "member2"))
 	require.NoError(t, err)
 	assert.Equal(t, 0, n)
 }

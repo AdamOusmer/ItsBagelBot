@@ -157,7 +157,7 @@ func tooLong(field, value string, max int) []FieldError {
 
 func validatePinnedRoles(raw listText) []FieldError {
 	var out []FieldError
-	seen := make(map[string]bool)
+	seen := make(map[Slot]bool)
 	for _, entry := range splitList(raw) {
 		out = append(out, validatePin(entry, seen)...)
 	}
@@ -167,19 +167,19 @@ func validatePinnedRoles(raw listText) []FieldError {
 // validatePin reports the FIRST thing wrong with one pair and stops: an
 // entry that is not a pair has no slot to check for a duplicate, and piling
 // three codes onto the same field tells the streamer nothing extra.
-func validatePin(entry string, seen map[string]bool) []FieldError {
-	slot, id, ok := cutPin(entry)
+func validatePin(entry string, seen map[Slot]bool) []FieldError {
+	pin, ok := cutPin(entry)
 	if !ok {
 		return []FieldError{{Field: pinnedRolesField, Code: CodeMalformedPair}}
 	}
-	if !ValidSlot(slot) {
+	if !ValidSlot(pin.Slot) {
 		return []FieldError{{Field: pinnedRolesField, Code: CodeInvalidSlot}}
 	}
-	if seen[slot] {
+	if seen[pin.Slot] {
 		return []FieldError{{Field: pinnedRolesField, Code: CodeDuplicateSlot}}
 	}
-	seen[slot] = true
-	if !ValidSnowflake(id) {
+	seen[pin.Slot] = true
+	if !ValidSnowflake(pin.ID) {
 		return []FieldError{{Field: pinnedRolesField, Code: CodeInvalidID}}
 	}
 	return nil

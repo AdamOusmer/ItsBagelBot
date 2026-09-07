@@ -18,6 +18,28 @@
 // empty one, which is why the tri-state flags below are '' / 'on' / 'off'
 // rather than booleans.
 
+/**
+ * The kinds of value this file moves around.
+ *
+ * All of them are strings on the wire -- the blob is a flat
+ * map<string,string> that two Go services read (see the header) -- and that
+ * is exactly what these names are for: a snowflake, a stored field value, a
+ * field NAME and a hex colour were all spelled `string` in every signature,
+ * so no signature said which one it wanted and passing a field name where a
+ * field value was meant type-checked. They are aliases rather than branded or
+ * wrapped types on purpose: the wire shape must not change, and every
+ * existing caller holding a plain string has to keep compiling.
+ */
+export type Snowflake = string;
+/** One config field's stored or submitted value. */
+export type FieldText = string;
+/** A DiscordConfig key as it arrives from outgress: not yet known to be one. */
+export type FieldName = string;
+/** `#rrggbb`, the canonical colour shape (see normalizeHex). */
+export type HexColor = string;
+/** A Discord guild's display name. */
+export type GuildName = string;
+
 /** Discord snowflake: 17-20 digits. Discord's own docs cap ids at 20. */
 const SNOWFLAKE = /^\d{17,20}$/;
 
@@ -125,6 +147,21 @@ type FieldKind = 'snowflake' | 'snowflakeList' | 'flag' | 'limit' | 'color' | 'p
 
 type Rule = { kind: FieldKind; max?: number };
 
+/**
+ * One field's value together with the rule it has to satisfy.
+ *
+ * The two were a `(rule, value)` argument pair through every check, the
+ * validator and the merge, and the one check that needs the length cap took a
+ * third loose `max` that each caller unpacked from the rule first -- so a
+ * check got either its own cap or Number.MAX_SAFE_INTEGER depending on who
+ * called it. Kept together, the rule travels with the value it governs and a
+ * check reads whatever part of it that check actually needs.
+ */
+type RuledValue = { rule: Rule; value: FieldText };
+
+/** The inclusive bounds a numeric field is checked against. */
+type IntRange = { min: number; max: number };
+
 const SNOW: Rule = { kind: 'snowflake' };
 const FLAG: Rule = { kind: 'flag' };
 
@@ -191,34 +228,34 @@ export function blankDiscordConfig(): DiscordConfig {
   return out;
 }
 
-export function isSnowflake(v: string): boolean {
+export function isSnowflake(v: Snowflake): boolean {
   return SNOWFLAKE.test(v);
 }
 
 /** A flag that is ON unless it was explicitly turned off. */
-export function alertOn(v: string | undefined): boolean {
+export function alertOn(v: FieldText | undefined): boolean {
   return v !== 'off';
 }
 
 /** A flag that is OFF unless it was explicitly turned on. */
-export function alertOff(v: string | undefined): boolean {
+export function alertOff(v: FieldText | undefined): boolean {
   return v === 'on';
 }
 
-export function flagValue(on: boolean): string {
+export function flagValue(on: boolean): FieldText {
   return on ? 'on' : 'off';
 }
 
 // ── pinned roles ──────────────────────────────────────────────────────────
 
-export type PinnedRoles = Partial<Record<PinnedSlot, string>>;
+export type PinnedRoles = Partial<Record<PinnedSlot, Snowflake>>;
 
 const SLOT_SET: ReadonlySet<string> = new Set(PINNED_SLOTS);
 
 /** `owner=123,vip=456` → `{owner:'123', vip:'456'}`. Unknown slots and
  *  malformed pairs are dropped rather than throwing: this parses a value that
  *  may predate the current slot list. */
-export function parsePinnedRoles(raw: string): PinnedRoles {
+export function parsePinnedRoles(raw: FieldText): PinnedRoles {
   const out: PinnedRoles = {};
   for (const part of raw.split(',')) {
     const [slot, id] = part.split('=');
@@ -233,7 +270,7 @@ export function parsePinnedRoles(raw: string): PinnedRoles {
 
 /** Encodes in PINNED_SLOTS order so a save that changes nothing produces the
  *  same string and does not look like a change to the dirty guard. */
-export function encodePinnedRoles(pins: PinnedRoles): string {
+export function encodePinnedRoles(pins: PinnedRoles): FieldText {
   const parts: string[] = [];
   for (const slot of PINNED_SLOTS) {
     const id = (pins[slot] ?? '').trim();
@@ -242,7 +279,7 @@ export function encodePinnedRoles(pins: PinnedRoles): string {
   return parts.join(',');
 }
 
-export function pinnedRole(config: DiscordConfig, slot: PinnedSlot): string {
+export function pinnedRole(config: DiscordConfig, slot: PinnedSlot): Snowflake {
   return parsePinnedRoles(config.pinnedRoles)[slot] ?? '';
 }
 
@@ -282,8 +319,8 @@ export function droppedPinNotice(slots: readonly unknown[] | null | undefined): 
 
 // ── snowflake lists ───────────────────────────────────────────────────────
 
-export function parseIdList(raw: string): string[] {
-  const out: string[] = [];
+export function parseIdList(raw: FieldText): Snowflake[] {
+  const out: Snowflake[] = [];
   for (const part of raw.split(',')) {
     const v = part.trim();
     if (SNOWFLAKE.test(v) && !out.includes(v)) out.push(v);
@@ -291,7 +328,7 @@ export function parseIdList(raw: string): string[] {
   return out;
 }
 
-export function encodeIdList(ids: readonly string[]): string {
+export function encodeIdList(ids: readonly Snowflake[]): FieldText {
   return parseIdList(ids.join(',')).join(',');
 }
 
@@ -302,7 +339,7 @@ export function encodeIdList(ids: readonly string[]): string {
  *  visible refusal rather than a chip nobody can read. */
 export const CATEGORY_NAME_MAX = 40;
 
-export function parseNameList(raw: string): string[] {
+export function parseNameList(raw: FieldText): string[] {
   const out: string[] = [];
   for (const part of raw.split(',')) {
     const v = part.trim();
@@ -312,7 +349,7 @@ export function parseNameList(raw: string): string[] {
   return out;
 }
 
-export function encodeNameList(names: readonly string[]): string {
+export function encodeNameList(names: readonly string[]): FieldText {
   return parseNameList(names.join(',')).join(', ');
 }
 
@@ -321,14 +358,14 @@ export function encodeNameList(names: readonly string[]): string {
 /** Accepts `#rgb`, `#rrggbb` and the same two without the hash, in any case.
  *  Anything else falls back rather than painting an embed a colour the
  *  streamer did not choose. */
-export function normalizeHex(raw: string, fallback = LIVE_COLOR_HEX): string {
+export function normalizeHex(raw: FieldText, fallback: HexColor = LIVE_COLOR_HEX): HexColor {
   const v = raw.trim().toLowerCase().replace(/^#/, '');
   if (/^[0-9a-f]{3}$/.test(v)) return `#${v[0]}${v[0]}${v[1]}${v[1]}${v[2]}${v[2]}`;
   if (/^[0-9a-f]{6}$/.test(v)) return `#${v}`;
   return fallback;
 }
 
-export function isHexColor(raw: string): boolean {
+export function isHexColor(raw: FieldText): boolean {
   return HEX6.test(raw.trim().toLowerCase());
 }
 
@@ -352,7 +389,7 @@ export function isHexColor(raw: string): boolean {
  * or unparsable hex is null here and the caller OMITS the key; only a colour
  * the streamer actually chose travels, and 0 travels as 0.
  */
-export function hexToDiscordColor(raw: string): number | null {
+export function hexToDiscordColor(raw: FieldText): number | null {
   const v = raw.trim();
   if (v === '' || !HEX_INPUT.test(v)) return null;
   return Number.parseInt(normalizeHex(v).slice(1), 16);
@@ -360,7 +397,7 @@ export function hexToDiscordColor(raw: string): number | null {
 
 // ── ticket panel ──────────────────────────────────────────────────────────
 
-export type TicketPanelSpec = { title: string; body: string; button: string; color: string };
+export type TicketPanelSpec = { title: string; body: string; button: string; color: HexColor };
 
 export function ticketPanelSpec(config: DiscordConfig): TicketPanelSpec {
   return {
@@ -403,13 +440,13 @@ export function ticketOpenLimitN(config: DiscordConfig): number {
 
 /** Staff who see and claim tickets: the explicit list when set, otherwise the
  *  three staff role slots — the same fallback the Go accessor uses. */
-export function ticketStaffRoleIds(config: DiscordConfig): string[] {
+export function ticketStaffRoleIds(config: DiscordConfig): Snowflake[] {
   const explicit = parseIdList(config.ticketStaffRoleIds);
   if (explicit.length) return explicit;
   return parseIdList([config.ownerRoleId, config.leadModRoleId, config.modsRoleId].join(','));
 }
 
-export function ticketLogChannel(config: DiscordConfig): string {
+export function ticketLogChannel(config: DiscordConfig): Snowflake {
   return config.ticketLogChannelId || config.logChannelId;
 }
 
@@ -424,14 +461,22 @@ export type FieldError = { field: keyof DiscordConfig; code: 'snowflake' | 'list
  * shapes `normalizeHex` turns into a real colour; everything else it would
  * silently swap for the fallback, which is a refusal, not a normalisation.
  */
-const CHECKS: Record<FieldKind, (v: string, max: number) => boolean> = {
-  snowflake: (v) => SNOWFLAKE.test(v),
-  snowflakeList: (v) => v.split(',').every((p) => SNOWFLAKE.test(p.trim())),
-  flag: (v) => v === 'on' || v === 'off',
-  limit: (v) => integerInRange(v, TICKET_OPEN_LIMIT_MIN, TICKET_OPEN_LIMIT_MAX),
-  color: (v) => HEX_INPUT.test(v.trim()),
-  pinned: (v) => v.split(',').every(isPinnedPair),
-  text: (v, max) => v.length <= max
+const CHECKS: Record<FieldKind, (field: RuledValue) => boolean> = {
+  snowflake: ({ value }) => SNOWFLAKE.test(value),
+  snowflakeList: ({ value }) => value.split(',').every((p) => SNOWFLAKE.test(p.trim())),
+  flag: ({ value }) => value === 'on' || value === 'off',
+  limit: ({ value }) => integerInRange(value, TICKET_OPEN_LIMIT_RANGE),
+  color: ({ value }) => HEX_INPUT.test(value.trim()),
+  pinned: ({ value }) => value.split(',').every(isPinnedPair),
+  text: ({ value, rule }) => value.length <= (rule.max ?? Number.MAX_SAFE_INTEGER)
+};
+
+/** The cap a `limit` field is checked against, as the pair it is: the two
+ *  bounds were passed as loose numbers to a generic range check, which put
+ *  the ticket cap's definition at its one call site instead of next to it. */
+const TICKET_OPEN_LIMIT_RANGE: IntRange = {
+  min: TICKET_OPEN_LIMIT_MIN,
+  max: TICKET_OPEN_LIMIT_MAX
 };
 
 /** The colour shapes the editor may submit; `normalizeHex` maps all of them
@@ -448,29 +493,29 @@ const CODES: Record<FieldKind, FieldError['code']> = {
   text: 'length'
 };
 
-function integerInRange(v: string, min: number, max: number): boolean {
+function integerInRange(v: FieldText, range: IntRange): boolean {
   if (!/^\d+$/.test(v)) return false;
   const n = Number.parseInt(v, 10);
-  return n >= min && n <= max;
+  return n >= range.min && n <= range.max;
 }
 
-function isPinnedPair(part: string): boolean {
+function isPinnedPair(part: FieldText): boolean {
   const [slot, id] = part.split('=');
   return SLOT_SET.has((slot ?? '').trim()) && SNOWFLAKE.test((id ?? '').trim());
 }
 
 /** Empty always passes: it is the "unset" value for every field, and the Go
  *  accessors decide the default. */
-function accepts(rule: Rule, value: string): boolean {
-  if (value === '') return true;
-  return CHECKS[rule.kind](value, rule.max ?? Number.MAX_SAFE_INTEGER);
+function accepts(field: RuledValue): boolean {
+  if (field.value === '') return true;
+  return CHECKS[field.rule.kind](field);
 }
 
 export function validateDiscordConfig(config: DiscordConfig): FieldError[] {
   const out: FieldError[] = [];
   for (const key of DISCORD_CONFIG_KEYS) {
     const rule = FIELD_RULES[key];
-    if (accepts(rule, config[key])) continue;
+    if (accepts({ rule, value: config[key] })) continue;
     out.push({ field: key, code: CODES[rule.kind] });
   }
   return out;
@@ -514,7 +559,7 @@ export function fieldErrorsByField(fields: readonly unknown[] | null | undefined
 
 const FIELD_SET: ReadonlySet<string> = new Set<string>(DISCORD_CONFIG_KEYS);
 
-function rememberUnknown(out: RefusedFields, name: string): void {
+function rememberUnknown(out: RefusedFields, name: FieldName): void {
   if (name === '') return;
   if (out.unknown.includes(name)) return;
   out.unknown.push(name);
@@ -554,18 +599,17 @@ export function mergeDiscordConfig(current: DiscordConfig, patch: Record<string,
   for (const key of DISCORD_CONFIG_KEYS) {
     const raw = patch[key];
     if (typeof raw !== 'string') continue;
-    const rule = FIELD_RULES[key];
-    const trimmed = raw.trim();
+    const field: RuledValue = { rule: FIELD_RULES[key], value: raw.trim() };
     // Validate the value the form SENT, then normalise -- not the other way
     // round. Both list encoders drop an entry they cannot parse, so
     // normalising first turned `mods=notasnowflake` and `nosuchslot=123` into
     // an empty string that passed validation: the streamer's pick vanished and
     // nothing said so. Raw-first makes the same input a visible FieldError.
-    if (!accepts(rule, trimmed)) {
-      errors.push({ field: key, code: CODES[rule.kind] });
+    if (!accepts(field)) {
+      errors.push({ field: key, code: CODES[field.rule.kind] });
       continue;
     }
-    config[key] = normalizeField(rule, trimmed);
+    config[key] = normalizeField(field);
   }
   return { config, errors };
 }
@@ -573,11 +617,12 @@ export function mergeDiscordConfig(current: DiscordConfig, patch: Record<string,
 /** Re-encodes the two list shapes and the colour so the stored string is
  *  canonical whatever spacing or case the form sent. Takes an already-trimmed,
  *  already-validated value. */
-function normalizeField(rule: Rule, v: string): string {
-  if (rule.kind === 'snowflakeList') return encodeIdList(v.split(','));
-  if (rule.kind === 'pinned') return encodePinnedRoles(parsePinnedRoles(v));
-  if (rule.kind === 'color' && v !== '') return normalizeHex(v);
-  return v;
+function normalizeField(field: RuledValue): FieldText {
+  const { rule, value } = field;
+  if (rule.kind === 'snowflakeList') return encodeIdList(value.split(','));
+  if (rule.kind === 'pinned') return encodePinnedRoles(parsePinnedRoles(value));
+  if (rule.kind === 'color' && value !== '') return normalizeHex(value);
+  return value;
 }
 
 // ── per-guild config rows ─────────────────────────────────────────────────
@@ -650,7 +695,7 @@ export type GuildPermissionEntry = {
 
 /** Parses Discord's decimal permission string. Anything unparseable is zero:
  *  a guild whose bitfield we cannot read is one we do not offer. */
-export function guildPermissionBits(raw: string | number | undefined): bigint {
+export function guildPermissionBits(raw: GuildPermissionEntry['permissions']): bigint {
   if (typeof raw === 'number') {
     if (!Number.isSafeInteger(raw) || raw < 0) return 0n;
     return BigInt(raw);
@@ -685,7 +730,7 @@ export function canManageGuild(entry: GuildPermissionEntry): boolean {
  * two, otherwise the first two characters, so "Demo Bakery" reads DB and
  * "Bagels" reads BA.
  */
-export function guildMonogram(name: string): string {
+export function guildMonogram(name: GuildName): string {
   const words = name.trim().split(/\s+/).filter((w) => w !== '');
   if (words.length === 0) return '?';
   if (words.length === 1) return [...words[0]].slice(0, 2).join('').toUpperCase();
@@ -734,19 +779,25 @@ export function guildBotState(g: {
  */
 export type GuildPickerBadge = 'mine' | 'elsewhere' | 'addable';
 
-export function guildPickerBadge(
-  guildId: string,
-  boundIds: readonly string[],
-  elsewhereIds: readonly string[] = []
-): GuildPickerBadge {
-  if (boundIds.includes(guildId)) return 'mine';
-  if (elsewhereIds.includes(guildId)) return 'elsewhere';
+/** The two lists a badge is decided against. They are one input, not two: a
+ *  badge read against `bound` without `elsewhere` is a different answer, and
+ *  as adjacent same-typed arrays they were transposable at the call site. */
+export type GuildPickerLists = {
+  /** Guilds this broadcaster has already bound. */
+  bound: readonly Snowflake[];
+  /** Guilds a `bound_elsewhere` refusal was already collected for. */
+  elsewhere?: readonly Snowflake[];
+};
+
+export function guildPickerBadge(guildId: Snowflake, lists: GuildPickerLists): GuildPickerBadge {
+  if (lists.bound.includes(guildId)) return 'mine';
+  if ((lists.elsewhere ?? []).includes(guildId)) return 'elsewhere';
   return 'addable';
 }
 
 // ── the guild list Discord returns for a user token ───────────────────────
 
-export type DiscordUserGuild = { id: string; name: string; owner: boolean; permissions: string };
+export type DiscordUserGuild = { id: Snowflake; name: GuildName; owner: boolean; permissions: string };
 
 /**
  * One entry of `/users/@me/guilds`.
@@ -804,7 +855,7 @@ export function parseUserGuilds(raw: unknown): DiscordUserGuild[] | null {
  * binding this guild's row must not inherit, and one that names no server is
  * either already narrowed or was never set up.
  */
-export function legacyConfigFor(blob: unknown, guildId: string): DiscordConfig | null {
+export function legacyConfigFor(blob: unknown, guildId: Snowflake): DiscordConfig | null {
   if (!isSnowflake(guildId)) return null;
   const parsed = parseDiscordConfig(blob);
   if (parsed.guildId !== guildId) return null;

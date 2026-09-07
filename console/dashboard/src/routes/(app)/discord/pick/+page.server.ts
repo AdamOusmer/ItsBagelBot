@@ -56,7 +56,7 @@ export const load: PageServerLoad = async ({ locals, cookies, url }) => {
   // cookie per row and buy nothing -- the guild is read from the token
   // response, not from the link that was clicked.
   const state = generateState();
-  putDiscordState(cookies, url, DISCORD_INSTALL_LEG, uid, state);
+  putDiscordState({ cookies, url, leg: DISCORD_INSTALL_LEG, uid }, state);
 
   const bound = await listGuilds({ userId: uid })
     .then((rows) => rows.map((g) => g.guildId))
@@ -77,7 +77,7 @@ function choice(
   elsewhere: string[],
   state: string
 ): PickChoice {
-  const badge = guildPickerBadge(g.id, bound, elsewhere);
+  const badge = guildPickerBadge(g.id, { bound, elsewhere });
   return {
     guildId: g.id,
     name: g.name,
@@ -102,7 +102,7 @@ async function manageableGuilds(code: string): Promise<DiscordUserGuild[]> {
 }
 
 function takePickCode(cookies: Cookies, url: URL, uid: string): string {
-  if (!discordStateOK(cookies, url, DISCORD_PICK_LEG, uid)) discordFail('state');
+  if (!discordStateOK({ cookies, url, leg: DISCORD_PICK_LEG, uid })) discordFail('state');
   const code = (url.searchParams.get('code') ?? '').trim();
   if (!code) discordFail('oauth');
   return code;

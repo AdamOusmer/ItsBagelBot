@@ -18,10 +18,62 @@ import (
 	outgressrpc "ItsBagelBot/internal/domain/rpc/outgress"
 )
 
+// historyGet names the one branch every scripted transport in this file has to
+// answer differently: a page of channel history, as opposed to the writes the
+// close sequence makes around it.
+func historyGet(call recordedCall) bool {
+	return call.method == http.MethodGet && strings.HasSuffix(call.path, "/messages")
+}
+
+// closeReq is the request the close cases start from: ticket channel c1 in
+// guild g1, archived into cat1 with its summary posted in log1. Each case
+// overrides only the field it is about, so a literal that differs below is the
+// point of that case rather than fixture drift -- which is what made ten
+// near-identical request bodies here read as ten unrelated setups.
+func closeReq() discordoutgress.TicketCloseRequest {
+	return discordoutgress.TicketCloseRequest{
+		GuildID: "g1", ChannelID: "c1", ChannelName: "ticket-ada-1",
+		LogChannelID: "log1", ArchiveCategoryID: "cat1",
+	}
+}
+
+// wantLogPosts asserts how many messages reached the log channel and hands them
+// back: what is inside them is the next claim in most cases here.
+func wantLogPosts(t *testing.T, tr *scriptedTransport, want int) []recordedCall {
+	t.Helper()
+	posts := tr.find(http.MethodPost, "/channels/log1/messages")
+	if len(posts) != want {
+		t.Fatalf("log posts = %d, want %d", len(posts), want)
+	}
+	return posts
+}
+
+// wantChannelPatch asserts the ticket channel was modified exactly once and
+// hands the call back; every archive assertion below reads its body.
+func wantChannelPatch(t *testing.T, tr *scriptedTransport) recordedCall {
+	t.Helper()
+	patches := tr.find(http.MethodPatch, "/channels/c1")
+	if len(patches) != 1 {
+		t.Fatalf("channel patches = %d, want 1", len(patches))
+	}
+	return patches[0]
+}
+
+// wantContainsAll asserts every fragment is present, naming the one that is
+// missing rather than leaving a reader to diff two wire bodies by eye.
+func wantContainsAll(t *testing.T, body string, wants ...string) {
+	t.Helper()
+	for _, want := range wants {
+		if !strings.Contains(body, want) {
+			t.Fatalf("body %q missing %q", body, want)
+		}
+	}
+}
+
 // pagedHistory scripts a channel whose history is one full page followed by a
 // short one, which is what makes the transcript walk take two GETs and stop.
 func pagedHistory(call recordedCall) (int, string) {
-	if call.method != http.MethodGet || !strings.HasSuffix(call.path, "/messages") {
+	if !historyGet(call) {
 		return 200, `{"id":"m-new"}`
 	}
 	if strings.Contains(call.query, "before=") {
@@ -63,12 +115,15 @@ func assertTranscriptOrder(t *testing.T, body string) {
 func TestTicketClosePagesHistoryUploadsAndArchives(t *testing.T) {
 	h, tr := newTicketRPC(t, pagedHistory)
 
-	reply := h.close(context.Background(), discordoutgress.TicketCloseRequest{
-		GuildID: "g1", ChannelID: "c1", ChannelName: "ticket-ada-1", OpenerID: "u1",
-		Transcript: true, LogChannelID: "log1", ArchiveCategoryID: "cat1",
-		StaffRoleIDs: []string{"rmod", ""},
-		Summary:      discordoutgress.TicketCloseSummary{Opener: "<@u1>", Closer: "Mod"},
-	})
+	req := closeReq()
+	req.OpenerID = "u1"
+	req.Transcript = true
+	// The empty id is deliberate: the archive PATCH must not turn it into an
+	// overwrite on the everyone-shaped id "".
+	req.StaffRoleIDs = []string{"rmod", ""}
+	req.Summary = discordoutgress.TicketCloseSummary{Opener: "<@u1>", Closer: "Mod"}
+
+	reply := h.close(context.Background(), req)
 
 	if reply.Error != "" {
 		t.Fatalf("close reply = %+v", reply)
@@ -93,13 +148,13 @@ func TestTicketClosePagesHistoryUploadsAndArchives(t *testing.T) {
 
 func assertMultipartUpload(t *testing.T, tr *scriptedTransport) {
 	t.Helper()
-	uploads := tr.find(http.MethodPost, "/channels/log1/messages")
-	if len(uploads) != 1 {
-		t.Fatalf("log posts = %d, want 1", len(uploads))
-	}
+	uploads := wantLogPosts(t, tr, 1)
 	mediaType, params, err := mime.ParseMediaType(uploads[0].contentType)
-	if err != nil || mediaType != "multipart/form-data" {
-		t.Fatalf("content type = %q (%v)", uploads[0].contentType, err)
+	if err != nil {
+		t.Fatalf("content type %q: %v", uploads[0].contentType, err)
+	}
+	if mediaType != "multipart/form-data" {
+		t.Fatalf("content type = %q, want a multipart upload", uploads[0].contentType)
 	}
 	form, err := multipart.NewReader(strings.NewReader(uploads[0].body), params["boundary"]).ReadForm(1 << 20)
 	if err != nil {
@@ -108,12 +163,8 @@ func assertMultipartUpload(t *testing.T, tr *scriptedTransport) {
 	if len(form.Value["payload_json"]) != 1 {
 		t.Fatalf("payload_json parts = %v", form.Value)
 	}
-	payload := form.Value["payload_json"][0]
-	for _, want := range []string{`"filename":"ticket-ada-1.txt"`, "Ticket closed", `"id":0`} {
-		if !strings.Contains(payload, want) {
-			t.Fatalf("payload_json %q missing %q", payload, want)
-		}
-	}
+	wantContainsAll(t, form.Value["payload_json"][0],
+		`"filename":"ticket-ada-1.txt"`, "Ticket closed", `"id":0`)
 	if len(form.File["files[0]"]) != 1 {
 		t.Fatalf("file parts = %v", form.File)
 	}
@@ -121,16 +172,9 @@ func assertMultipartUpload(t *testing.T, tr *scriptedTransport) {
 
 func assertArchivePatch(t *testing.T, tr *scriptedTransport) {
 	t.Helper()
-	patches := tr.find(http.MethodPatch, "/channels/c1")
-	if len(patches) != 1 {
-		t.Fatalf("channel patches = %d, want 1", len(patches))
-	}
-	body := patches[0].body
-	for _, want := range []string{`"parent_id":"cat1"`, `"name":"closed-ticket-ada-1"`, `"id":"rmod"`, `"id":"u1"`} {
-		if !strings.Contains(body, want) {
-			t.Fatalf("patch body %q missing %q", body, want)
-		}
-	}
+	body := wantChannelPatch(t, tr).body
+	wantContainsAll(t, body,
+		`"parent_id":"cat1"`, `"name":"closed-ticket-ada-1"`, `"id":"rmod"`, `"id":"u1"`)
 	// The empty staff role id in the request must not become an overwrite on
 	// the everyone-shaped id "".
 	if strings.Contains(body, `"id":"","type":0,"allow"`) {
@@ -141,14 +185,15 @@ func assertArchivePatch(t *testing.T, tr *scriptedTransport) {
 func TestTicketCloseWithoutTranscriptOrArchiveDeletesTheChannel(t *testing.T) {
 	h, tr := newTicketRPC(t, nil)
 
-	reply := h.close(context.Background(), discordoutgress.TicketCloseRequest{
-		GuildID: "g1", ChannelID: "c1", ChannelName: "ticket-ada-1",
-		LogChannelID: "log1", Transcript: false,
-	})
+	req := closeReq()
+	req.ArchiveCategoryID = ""
+	req.Transcript = false
 
-	if reply.Error != "" || reply.MessageCount != 0 || reply.TranscriptBody != "" {
-		t.Fatalf("reply = %+v", reply)
-	}
+	reply := h.close(context.Background(), req)
+
+	wantReplyField(t, "error", reply.Error, "")
+	wantReplyField(t, "message count", reply.MessageCount, 0)
+	wantReplyField(t, "transcript body", reply.TranscriptBody, "")
 	if reply.ArchivedChannelID != "" {
 		t.Fatalf("archived = %q, want empty when the channel is deleted", reply.ArchivedChannelID)
 	}
@@ -156,9 +201,9 @@ func TestTicketCloseWithoutTranscriptOrArchiveDeletesTheChannel(t *testing.T) {
 		t.Fatal("transcript off must not page the channel")
 	}
 	// The summary still posts, as a plain embed rather than an upload.
-	posts := tr.find(http.MethodPost, "/channels/log1/messages")
-	if len(posts) != 1 || strings.HasPrefix(posts[0].contentType, "multipart/") {
-		t.Fatalf("log posts = %+v", posts)
+	posts := wantLogPosts(t, tr, 1)
+	if strings.HasPrefix(posts[0].contentType, "multipart/") {
+		t.Fatalf("log post = %+v, want a plain embed rather than an upload", posts[0])
 	}
 	if got := tr.find(http.MethodDelete, "/channels/c1"); len(got) != 1 {
 		t.Fatalf("deletes = %d, want 1", len(got))
@@ -271,26 +316,24 @@ func TestArchivedNameLeavesAnUnknownNameAlone(t *testing.T) {
 func TestArchiveOverwritesCarryBothHalves(t *testing.T) {
 	h, tr := newTicketRPC(t, nil)
 
-	h.close(context.Background(), discordoutgress.TicketCloseRequest{
-		GuildID: "g1", ChannelID: "c1", ChannelName: "ticket-ada-1", OpenerID: "u1",
-		ArchiveCategoryID: "cat1", StaffRoleIDs: []string{"rmod"},
-	})
+	req := closeReq()
+	req.LogChannelID = ""
+	req.OpenerID = "u1"
+	req.StaffRoleIDs = []string{"rmod"}
 
-	patches := tr.find(http.MethodPatch, "/channels/c1")
-	if len(patches) != 1 {
-		t.Fatalf("patches = %d", len(patches))
-	}
-	for _, want := range []string{
+	h.close(context.Background(), req)
+
+	body := wantChannelPatch(t, tr).body
+	wantContainsAll(t, body,
 		`{"id":"g1","type":0,"allow":"0","deny":"1024"}`,
 		`{"id":"u1","type":1,"allow":"0","deny":"1024"}`,
 		`{"id":"rmod","type":0,"allow":"66560","deny":"0"}`,
-	} {
-		if !strings.Contains(patches[0].body, want) {
-			t.Fatalf("patch body %q missing %q", patches[0].body, want)
-		}
+	)
+	if strings.Contains(body, `"allow":""`) {
+		t.Fatalf("patch body carries an empty allow: %q", body)
 	}
-	if strings.Contains(patches[0].body, `"allow":""`) || strings.Contains(patches[0].body, `"deny":""`) {
-		t.Fatalf("patch body carries an empty permission half: %q", patches[0].body)
+	if strings.Contains(body, `"deny":""`) {
+		t.Fatalf("patch body carries an empty deny: %q", body)
 	}
 }
 
@@ -301,15 +344,15 @@ func TestArchiveOverwritesCarryBothHalves(t *testing.T) {
 func TestTicketCloseDisposesBeforePostingTheSummary(t *testing.T) {
 	h, tr := newTicketRPC(t, nil)
 
-	h.close(context.Background(), discordoutgress.TicketCloseRequest{
-		GuildID: "g1", ChannelID: "c1", ChannelName: "ticket-ada-1",
-		LogChannelID: "log1", ArchiveCategoryID: "cat1",
-	})
+	h.close(context.Background(), closeReq())
 
 	dispose := tr.indexOf(http.MethodPatch, "/channels/c1")
 	summary := tr.indexOf(http.MethodPost, "/channels/log1/messages")
-	if dispose < 0 || summary < 0 {
-		t.Fatalf("calls = dispose %d, summary %d", dispose, summary)
+	if dispose < 0 {
+		t.Fatalf("the channel was never archived: %+v", tr.calls)
+	}
+	if summary < 0 {
+		t.Fatalf("the summary was never posted: %+v", tr.calls)
 	}
 	if dispose > summary {
 		t.Fatal("the channel must be archived before the summary posts")
@@ -321,17 +364,14 @@ func TestTicketCloseDisposesBeforePostingTheSummary(t *testing.T) {
 func TestTicketCloseSummaryPostsOncePerTicket(t *testing.T) {
 	h, tr := newTicketRPC(t, nil)
 	h.memo = newOnceMemo()
-	req := discordoutgress.TicketCloseRequest{
-		GuildID: "g1", ChannelID: "c1", ChannelName: "ticket-ada-1", TicketID: 42,
-		LogChannelID: "log1", ArchiveCategoryID: "cat1",
-	}
+	req := closeReq()
+	req.TicketID = 42
 
 	h.close(context.Background(), req)
 	h.close(context.Background(), req)
 
-	if posts := tr.find(http.MethodPost, "/channels/log1/messages"); len(posts) != 1 {
-		t.Fatalf("log posts = %d, want 1 across two closes", len(posts))
-	}
+	// One card and one upload across two closes: the memo is keyed on the row.
+	wantLogPosts(t, tr, 1)
 }
 
 // A ticket with no row id (the pure-Valkey fallback) has nothing to key the
@@ -339,16 +379,15 @@ func TestTicketCloseSummaryPostsOncePerTicket(t *testing.T) {
 func TestTicketCloseWithoutARowIDAlwaysPosts(t *testing.T) {
 	h, tr := newTicketRPC(t, nil)
 	h.memo = newOnceMemo()
-	req := discordoutgress.TicketCloseRequest{
-		GuildID: "g1", ChannelID: "c1", LogChannelID: "log1", ArchiveCategoryID: "cat1",
-	}
+	req := closeReq()
+	req.ChannelName = ""
+	req.TicketID = 0
 
 	h.close(context.Background(), req)
 	h.close(context.Background(), req)
 
-	if posts := tr.find(http.MethodPost, "/channels/log1/messages"); len(posts) != 2 {
-		t.Fatalf("log posts = %d, want one per close", len(posts))
-	}
+	// One per close, because there is no row id to key the memo on.
+	wantLogPosts(t, tr, 2)
 }
 
 // The upload is the half that fails on its own -- a payload too large, or a
@@ -357,7 +396,7 @@ func TestTicketCloseWithoutARowIDAlwaysPosts(t *testing.T) {
 func TestTicketCloseFallsBackToAnEmbedWhenTheUploadFails(t *testing.T) {
 	uploaded := false
 	h, tr := newTicketRPC(t, func(call recordedCall) (int, string) {
-		if call.method == http.MethodGet && strings.HasSuffix(call.path, "/messages") {
+		if historyGet(call) {
 			return 200, messagePage(1000, 2)
 		}
 		if strings.HasPrefix(call.contentType, "multipart/") {
@@ -367,19 +406,16 @@ func TestTicketCloseFallsBackToAnEmbedWhenTheUploadFails(t *testing.T) {
 		return 200, `{"id":"m-new"}`
 	})
 
-	h.close(context.Background(), discordoutgress.TicketCloseRequest{
-		GuildID: "g1", ChannelID: "c1", ChannelName: "ticket-ada-1",
-		Transcript: true, LogChannelID: "log1", ArchiveCategoryID: "cat1",
-	})
+	req := closeReq()
+	req.Transcript = true
+
+	h.close(context.Background(), req)
 
 	if !uploaded {
 		t.Fatal("the upload was never attempted")
 	}
-	posts := tr.find(http.MethodPost, "/channels/log1/messages")
-	if len(posts) != 2 {
-		t.Fatalf("log posts = %d, want the upload plus the fallback embed", len(posts))
-	}
-	fallback := posts[1]
+	// The upload plus the fallback embed.
+	fallback := wantLogPosts(t, tr, 2)[1]
 	if strings.HasPrefix(fallback.contentType, "multipart/") {
 		t.Fatalf("the fallback must be a plain embed: %q", fallback.contentType)
 	}
@@ -393,7 +429,7 @@ func TestTicketCloseFallsBackToAnEmbedWhenTheUploadFails(t *testing.T) {
 func TestTicketCloseMarksATruncatedTranscript(t *testing.T) {
 	pages := 0
 	h, _ := newTicketRPC(t, func(call recordedCall) (int, string) {
-		if call.method == http.MethodGet && strings.HasSuffix(call.path, "/messages") {
+		if historyGet(call) {
 			pages++
 			if pages == 1 {
 				return 200, messagePage(1000, discapi.MessagePageMax)
@@ -403,10 +439,10 @@ func TestTicketCloseMarksATruncatedTranscript(t *testing.T) {
 		return 200, `{"id":"m-new"}`
 	})
 
-	reply := h.close(context.Background(), discordoutgress.TicketCloseRequest{
-		GuildID: "g1", ChannelID: "c1", ChannelName: "ticket-ada-1",
-		Transcript: true, LogChannelID: "log1", ArchiveCategoryID: "cat1",
-	})
+	req := closeReq()
+	req.Transcript = true
+
+	reply := h.close(context.Background(), req)
 
 	if !reply.Truncated {
 		t.Fatalf("reply = %+v, want truncated", reply)

@@ -17,29 +17,47 @@ import (
 // and the dashboard both page; nothing needs a guild's whole history at once.
 const ListPageSize = 50
 
-// anyEmpty reports whether any identifier a verb requires is missing.
+// TicketKey addresses one ticket: the channel it lives in, inside the guild
+// that owns it.
 //
-// Every verb here refuses on the same shape, a chain of `id == ""` tests
-// joined by ||, and written out per verb that chain is five copies of one
-// rule that a reader has to re-derive each time. Named once it also says what
-// the rule is: these are required identifiers, not optional narrowings. The
-// guild is one of them on purpose -- see liveTicket for what addressing a
-// ticket by channel alone allowed.
-func anyEmpty(ids ...string) bool {
-	for _, id := range ids {
-		if id == "" {
-			return true
-		}
-	}
-	return false
+// The two travel as a pair rather than as two loose string arguments. They
+// were adjacent same-typed parameters at every call site, which a caller can
+// transpose silently, and the guild is mandatory rather than an optional
+// narrowing -- see liveTicket for what addressing a ticket by channel alone
+// allowed. Naming the pair is what makes both properties visible at the call
+// site instead of only in a comment here.
+type TicketKey struct {
+	GuildID   string
+	ChannelID string
+}
+
+// complete reports whether both identifiers are present.
+//
+// Every verb refuses on the same shape, and written out per verb that shape
+// is five copies of one rule a reader has to re-derive each time. Named once,
+// it also says what the rule is: these are required identifiers.
+func (k TicketKey) complete() bool {
+	return k.GuildID != "" && k.ChannelID != ""
+}
+
+// MemberKey addresses one member inside one guild. A Discord user snowflake
+// is global, so the guild is what scopes a member's open-ticket count to the
+// guild whose cap is being enforced.
+type MemberKey struct {
+	GuildID  string
+	MemberID string
+}
+
+// complete reports whether both identifiers are present.
+func (m MemberKey) complete() bool {
+	return m.GuildID != "" && m.MemberID != ""
 }
 
 // OpenParams describes one ticket channel the engine has just created.
 type OpenParams struct {
-	GuildID   string
-	ChannelID string
-	OpenerID  string
-	Subject   string
+	Key      TicketKey
+	OpenerID string
+	Subject  string
 	// PanelMessageID is the "Ticket" card the engine posted into the channel
 	// just before recording the row. It arrives at open time rather than in a
 	// later update because the engine has both ids by then (outgress creates
@@ -51,6 +69,11 @@ type OpenParams struct {
 	// the config lives in the modules blob, and this service deliberately owns
 	// no config of its own.
 	Limit int
+}
+
+// member is the opener's identity, the key the per-member cap is counted on.
+func (p OpenParams) member() MemberKey {
+	return MemberKey{GuildID: p.Key.GuildID, MemberID: p.OpenerID}
 }
 
 // TicketOpen records a new ticket and returns its id together with the
@@ -68,7 +91,7 @@ type OpenParams struct {
 // that does matter, one ticket per channel, is the unique index and is
 // enforced by the database.
 func (s *Store) TicketOpen(ctx context.Context, p OpenParams) (int, int, error) {
-	if anyEmpty(p.GuildID, p.ChannelID, p.OpenerID) {
+	if !p.Key.complete() || p.OpenerID == "" {
 		return 0, 0, ErrInvalidInput
 	}
 	var id, count int
@@ -87,12 +110,12 @@ func (s *Store) TicketOpen(ctx context.Context, p OpenParams) (int, int, error) 
 
 // openInTx is TicketOpen's body inside the transaction.
 func (s *Store) openInTx(ctx context.Context, tx *ent.Tx, p OpenParams) (int, int, error) {
-	count, err := s.lockedOpenCount(ctx, tx, p.GuildID, p.OpenerID)
+	count, err := s.lockedOpenCount(ctx, tx, p.member())
 	if err != nil {
 		return 0, 0, err
 	}
 
-	existing, err := tx.Ticket.Query().Where(ticket.ChannelIDEQ(p.ChannelID)).Only(ctx)
+	existing, err := tx.Ticket.Query().Where(ticket.ChannelIDEQ(p.Key.ChannelID)).Only(ctx)
 	if err != nil && !ent.IsNotFound(err) {
 		return 0, count, err
 	}
@@ -105,8 +128,8 @@ func (s *Store) openInTx(ctx context.Context, tx *ent.Tx, p OpenParams) (int, in
 	}
 
 	row, err := tx.Ticket.Create().
-		SetGuildID(p.GuildID).
-		SetChannelID(p.ChannelID).
+		SetGuildID(p.Key.GuildID).
+		SetChannelID(p.Key.ChannelID).
 		SetOpenerID(p.OpenerID).
 		SetSubject(p.Subject).
 		SetPanelMessageID(p.PanelMessageID).
@@ -129,11 +152,11 @@ func (s *Store) openInTx(ctx context.Context, tx *ent.Tx, p OpenParams) (int, in
 // the enttest dialect -- skips the clause: it rejects FOR UPDATE outright and
 // takes a file-wide write lock for the whole transaction instead, which is
 // strictly stronger. See Store.rowLocks.
-func (s *Store) lockedOpenCount(ctx context.Context, tx *ent.Tx, guildID, openerID string) (int, error) {
+func (s *Store) lockedOpenCount(ctx context.Context, tx *ent.Tx, m MemberKey) (int, error) {
 	query := tx.Ticket.Query().
 		Where(
-			ticket.GuildIDEQ(guildID),
-			ticket.OpenerIDEQ(openerID),
+			ticket.GuildIDEQ(m.GuildID),
+			ticket.OpenerIDEQ(m.MemberID),
 			ticket.StatusIn(ticket.StatusOpen, ticket.StatusClaimed),
 		)
 	if s.rowLocks {
@@ -150,33 +173,39 @@ func (s *Store) lockedOpenCount(ctx context.Context, tx *ent.Tx, guildID, opener
 // creates a channel, both to refuse an over-limit open without a wasted REST
 // round trip and to number the channel it is about to create. The answer is
 // advisory for the same reason openInTx's check is (see TicketOpen).
-func (s *Store) TicketOpenCount(ctx context.Context, guildID, openerID string) (int, error) {
-	if anyEmpty(guildID, openerID) {
+func (s *Store) TicketOpenCount(ctx context.Context, m MemberKey) (int, error) {
+	if !m.complete() {
 		return 0, ErrInvalidInput
 	}
 	return db.WithQuery(ctx, func(ctx context.Context) (int, error) {
 		return s.client.Ticket.Query().
 			Where(
-				ticket.GuildIDEQ(guildID),
-				ticket.OpenerIDEQ(openerID),
+				ticket.GuildIDEQ(m.GuildID),
+				ticket.OpenerIDEQ(m.MemberID),
 				ticket.StatusIn(ticket.StatusOpen, ticket.StatusClaimed),
 			).
 			Count(ctx)
 	})
 }
 
-// TicketClaim marks the ticket in channelID as claimed by staffID. A second
+// ClaimParams describes one ticket being claimed by a staff member.
+type ClaimParams struct {
+	Key     TicketKey
+	StaffID string
+}
+
+// TicketClaim marks the ticket at p.Key as claimed by p.StaffID. A second
 // claim by a different staff member moves the name over but keeps the original
 // claimed_at, so the desk's "claimed N minutes ago" stays honest. Claiming a
 // closed or archived ticket is ErrInvalidInput; there is no such transition.
-func (s *Store) TicketClaim(ctx context.Context, guildID, channelID, staffID string) (int, error) {
-	if anyEmpty(guildID, channelID, staffID) {
+func (s *Store) TicketClaim(ctx context.Context, p ClaimParams) (int, error) {
+	if !p.Key.complete() || p.StaffID == "" {
 		return 0, ErrInvalidInput
 	}
 	var id int
 	err := db.WithExec(ctx, func(ctx context.Context) error {
 		return withTx(ctx, s.client, func(tx *ent.Tx) error {
-			row, err := liveTicket(ctx, tx, guildID, channelID)
+			row, err := liveTicket(ctx, tx, p.Key)
 			if err != nil {
 				return err
 			}
@@ -184,7 +213,7 @@ func (s *Store) TicketClaim(ctx context.Context, guildID, channelID, staffID str
 				return ErrInvalidInput
 			}
 			id = row.ID
-			update := tx.Ticket.UpdateOne(row).SetStatus(ticket.StatusClaimed).SetClaimedBy(staffID)
+			update := tx.Ticket.UpdateOne(row).SetStatus(ticket.StatusClaimed).SetClaimedBy(p.StaffID)
 			if row.ClaimedAt == nil {
 				update = update.SetClaimedAt(time.Now())
 			}
@@ -198,8 +227,7 @@ func (s *Store) TicketClaim(ctx context.Context, guildID, channelID, staffID str
 // ArchivedChannelID means the channel was moved into the archive category
 // instead of being deleted, and the row lands in status archived.
 type CloseParams struct {
-	GuildID           string
-	ChannelID         string
+	Key               TicketKey
 	ClosedBy          string
 	ArchivedChannelID string
 }
@@ -210,14 +238,14 @@ type CloseParams struct {
 // retries a close whenever a button press and a slash command race, and a
 // second write would move closed_at and corrupt the recorded duration.
 func (s *Store) TicketClose(ctx context.Context, p CloseParams) (int, string, error) {
-	if anyEmpty(p.GuildID, p.ChannelID) {
+	if !p.Key.complete() {
 		return 0, "", ErrInvalidInput
 	}
 	var id int
 	var openerID string
 	err := db.WithExec(ctx, func(ctx context.Context) error {
 		return withTx(ctx, s.client, func(tx *ent.Tx) error {
-			row, err := liveTicket(ctx, tx, p.GuildID, p.ChannelID)
+			row, err := liveTicket(ctx, tx, p.Key)
 			if err != nil {
 				return err
 			}
@@ -226,7 +254,7 @@ func (s *Store) TicketClose(ctx context.Context, p CloseParams) (int, string, er
 				return nil
 			}
 			return tx.Ticket.UpdateOne(row).
-				SetStatus(closedStatus(p.ArchivedChannelID)).
+				SetStatus(closedStatus(p)).
 				SetClosedBy(p.ClosedBy).
 				SetArchivedChannelID(p.ArchivedChannelID).
 				SetClosedAt(time.Now()).
@@ -237,8 +265,8 @@ func (s *Store) TicketClose(ctx context.Context, p CloseParams) (int, string, er
 }
 
 // closedStatus picks the terminal status from whether the channel survived.
-func closedStatus(archivedChannelID string) ticket.Status {
-	if archivedChannelID != "" {
+func closedStatus(p CloseParams) ticket.Status {
+	if p.ArchivedChannelID != "" {
 		return ticket.StatusArchived
 	}
 	return ticket.StatusClosed
@@ -254,9 +282,9 @@ func closedStatus(archivedChannelID string) ticket.Status {
 // another guild from claiming or closing that guild's ticket. Every verb now
 // carries the guild (the engine has it on c.Config.GuildID at every call
 // site), so nothing is left needing the loose form.
-func liveTicket(ctx context.Context, tx *ent.Tx, guildID, channelID string) (*ent.Ticket, error) {
+func liveTicket(ctx context.Context, tx *ent.Tx, k TicketKey) (*ent.Ticket, error) {
 	row, err := tx.Ticket.Query().
-		Where(ticket.ChannelIDEQ(channelID), ticket.GuildIDEQ(guildID)).
+		Where(ticket.ChannelIDEQ(k.ChannelID), ticket.GuildIDEQ(k.GuildID)).
 		Only(ctx)
 	if ent.IsNotFound(err) {
 		return nil, ErrNotFound
@@ -269,13 +297,13 @@ func liveTicket(ctx context.Context, tx *ent.Tx, guildID, channelID string) (*en
 
 // TicketGet resolves a ticket from the channel a button was pressed in. A
 // channel with no ticket is (nil, false, nil).
-func (s *Store) TicketGet(ctx context.Context, guildID, channelID string) (*ent.Ticket, bool, error) {
-	if anyEmpty(guildID, channelID) {
+func (s *Store) TicketGet(ctx context.Context, k TicketKey) (*ent.Ticket, bool, error) {
+	if !k.complete() {
 		return nil, false, ErrInvalidInput
 	}
 	row, err := db.WithQuery(ctx, func(ctx context.Context) (*ent.Ticket, error) {
 		return s.client.Ticket.Query().
-			Where(ticket.ChannelIDEQ(channelID), ticket.GuildIDEQ(guildID)).
+			Where(ticket.ChannelIDEQ(k.ChannelID), ticket.GuildIDEQ(k.GuildID)).
 			Only(ctx)
 	})
 	if ent.IsNotFound(err) {

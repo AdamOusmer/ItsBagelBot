@@ -80,7 +80,27 @@ function stateKey(): Buffer {
   return decodeKey(process.env.SESSION_KEY);
 }
 
-type Leg = { cookie: string; label: string };
+export type Leg = { cookie: string; label: string };
+
+/**
+ * One state cookie's address: the jar it lives in, the request URL that
+ * decides whether it is a `__Secure-` cookie, which leg of the flow it
+ * belongs to, and the user it is sealed to.
+ *
+ * The four are one thing, not four arguments. Every function below needs all
+ * of them, three of the four are needed only to derive the cookie name and
+ * the seal, and as a positional list `(cookies, url, leg, uid)` put two
+ * opaque values (leg, uid) next to each other where a transposition still
+ * type-checks against nothing. Passing them named also leaves room for the
+ * one value that genuinely differs per call -- the state itself -- to stay a
+ * separate argument.
+ */
+export type DiscordStateRef = {
+  cookies: Cookies;
+  url: URL;
+  leg: Leg;
+  uid: UserId;
+};
 
 const INSTALL_LEG: Leg = { cookie: INSTALL_COOKIE, label: INSTALL_LABEL };
 const PICK_LEG: Leg = { cookie: PICK_COOKIE, label: PICK_LABEL };
@@ -95,13 +115,8 @@ export const DISCORD_PICK_LEG = PICK_LEG;
  * plus an HMAC over (leg, uid, state), so a cookie planted by one account
  * cannot be redeemed by another. See @bagel/shared/server/oauth-state.
  */
-export function putDiscordState(
-  cookies: Cookies,
-  url: URL,
-  leg: Leg,
-  uid: UserId,
-  state: OAuthState
-): void {
+export function putDiscordState(ref: DiscordStateRef, state: OAuthState): void {
+  const { cookies, url, leg, uid } = ref;
   const secure = url.protocol === 'https:';
   cookies.set(stateCookieName(leg, secure), sealOAuthState(stateKey(), leg.label, uid, state), {
     path: STATE_PATH,
@@ -120,7 +135,8 @@ export function putDiscordState(
  * deleted because a deployment that changed protocol (or a developer moving
  * between the two) can leave the other one behind.
  */
-export function takeDiscordState(cookies: Cookies, url: URL, leg: Leg, uid: UserId): OAuthState {
+export function takeDiscordState(ref: DiscordStateRef): OAuthState {
+  const { cookies, url, leg, uid } = ref;
   const secure = url.protocol === 'https:';
   const name = stateCookieName(leg, secure);
   const raw = cookies.get(name) ?? '';
@@ -133,9 +149,9 @@ export function takeDiscordState(cookies: Cookies, url: URL, leg: Leg, uid: User
  * The whole state check for one callback: the cookie has to exist, be sealed
  * to this user, and match the state Discord echoed back.
  */
-export function discordStateOK(cookies: Cookies, url: URL, leg: Leg, uid: UserId): boolean {
-  const stored = takeDiscordState(cookies, url, leg, uid);
-  const echoed = url.searchParams.get('state') ?? '';
+export function discordStateOK(ref: DiscordStateRef): boolean {
+  const stored = takeDiscordState(ref);
+  const echoed = ref.url.searchParams.get('state') ?? '';
   return stored !== '' && echoed !== '' && stored === echoed;
 }
 

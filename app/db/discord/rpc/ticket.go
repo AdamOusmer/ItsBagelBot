@@ -58,11 +58,10 @@ func subscribeTranscripts(w Wiring, h ticketRPC) error {
 
 func (h ticketRPC) open(ctx context.Context, req discorddata.TicketOpenRequest) discorddata.TicketOpenReply {
 	id, count, err := h.repo.TicketOpen(ctx, repository.OpenParams{
-		GuildID:   req.GuildID,
-		ChannelID: req.ChannelID,
-		OpenerID:  req.OpenerID,
-		Subject:   req.Subject,
-		Limit:     req.OpenLimit,
+		Key:      repository.TicketKey{GuildID: req.GuildID, ChannelID: req.ChannelID},
+		OpenerID: req.OpenerID,
+		Subject:  req.Subject,
+		Limit:    req.OpenLimit,
 
 		PanelMessageID: req.PanelMessageID,
 	})
@@ -77,7 +76,10 @@ func (h ticketRPC) open(ctx context.Context, req discorddata.TicketOpenRequest) 
 }
 
 func (h ticketRPC) claim(ctx context.Context, req discorddata.TicketClaimRequest) discorddata.TicketClaimReply {
-	id, err := h.repo.TicketClaim(ctx, req.GuildID, req.ChannelID, req.StaffID)
+	id, err := h.repo.TicketClaim(ctx, repository.ClaimParams{
+		Key:     repository.TicketKey{GuildID: req.GuildID, ChannelID: req.ChannelID},
+		StaffID: req.StaffID,
+	})
 	if err != nil {
 		message, code := failure(err)
 		return discorddata.TicketClaimReply{Error: message, Code: code}
@@ -87,8 +89,7 @@ func (h ticketRPC) claim(ctx context.Context, req discorddata.TicketClaimRequest
 
 func (h ticketRPC) close(ctx context.Context, req discorddata.TicketCloseRequest) discorddata.TicketCloseReply {
 	id, openerID, err := h.repo.TicketClose(ctx, repository.CloseParams{
-		GuildID:           req.GuildID,
-		ChannelID:         req.ChannelID,
+		Key:               repository.TicketKey{GuildID: req.GuildID, ChannelID: req.ChannelID},
 		ClosedBy:          req.ClosedBy,
 		ArchivedChannelID: req.ArchivedChannelID,
 	})
@@ -100,7 +101,7 @@ func (h ticketRPC) close(ctx context.Context, req discorddata.TicketCloseRequest
 }
 
 func (h ticketRPC) get(ctx context.Context, req discorddata.TicketGetRequest) discorddata.TicketGetReply {
-	row, found, err := h.repo.TicketGet(ctx, req.GuildID, req.ChannelID)
+	row, found, err := h.repo.TicketGet(ctx, repository.TicketKey{GuildID: req.GuildID, ChannelID: req.ChannelID})
 	if err != nil {
 		message, code := failure(err)
 		return discorddata.TicketGetReply{Error: message, Code: code}
@@ -112,7 +113,9 @@ func (h ticketRPC) get(ctx context.Context, req discorddata.TicketGetRequest) di
 }
 
 func (h ticketRPC) count(ctx context.Context, req discorddata.TicketCountRequest) discorddata.TicketCountReply {
-	n, err := h.repo.TicketOpenCount(ctx, req.GuildID, req.OpenerID)
+	n, err := h.repo.TicketOpenCount(ctx, repository.MemberKey{
+		GuildID: req.GuildID, MemberID: req.OpenerID,
+	})
 	if err != nil {
 		message, code := failure(err)
 		return discorddata.TicketCountReply{Error: message, Code: code}

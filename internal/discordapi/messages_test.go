@@ -6,6 +6,7 @@ package discordapi
 import (
 	"context"
 	"net/http"
+	"strings"
 	"testing"
 )
 
@@ -27,43 +28,68 @@ func TestListMessagesFullDecodesAuthorsAndAttachments(t *testing.T) {
 	if len(page) != 2 {
 		t.Fatalf("page = %+v", page)
 	}
-	wantDisplayNames(t, page, "Ada L", "bob")
-	wantAttachment(t, page[0], "https://cdn/x.png")
-	wantTimestamps(t, page)
+	wantMessages(t, page, []wantMessage{
+		{displayName: "Ada L", attachmentURL: "https://cdn/x.png", timeParses: true},
+		{displayName: "bob"},
+	})
 }
 
-// wantDisplayNames pins the author fallback: global_name when Discord sent
-// one, the username otherwise.
-func wantDisplayNames(t *testing.T, page []FullMessage, first, second string) {
+// wantMessage is everything one decoded message must show.
+//
+// The three checks travel as one case rather than as three helpers each
+// taking a loose string, because they are assertions about the SAME message:
+// split up, a reader has to re-pair "second" with page[1] by counting
+// arguments, and adding a fourth field to a message means adding a fourth
+// helper with its own indexing convention.
+type wantMessage struct {
+	// displayName pins the author fallback: global_name when Discord sent
+	// one, the username otherwise.
+	displayName string
+	// attachmentURL is the one attachment the message carried; empty means it
+	// carried none.
+	attachmentURL string
+	// timeParses holds the degradation rule: a malformed timestamp costs that
+	// message its own time, not the whole page.
+	timeParses bool
+}
+
+// wantMessages checks a decoded page against one case per message.
+func wantMessages(t *testing.T, page []FullMessage, want []wantMessage) {
 	t.Helper()
-	if page[0].Author.DisplayName() != first {
-		t.Fatalf("display name = %q, want %q", page[0].Author.DisplayName(), first)
+	if len(page) != len(want) {
+		t.Fatalf("page = %d messages, want %d", len(page), len(want))
 	}
-	if page[1].Author.DisplayName() != second {
-		t.Fatalf("display name = %q, want %q", page[1].Author.DisplayName(), second)
+	for i, w := range want {
+		wantMessageDecoded(t, page[i], w)
 	}
 }
 
-// wantAttachment pins the one attachment a message carried.
-func wantAttachment(t *testing.T, msg FullMessage, url string) {
+// wantMessageDecoded checks one message against its case.
+func wantMessageDecoded(t *testing.T, msg FullMessage, want wantMessage) {
 	t.Helper()
+	if msg.Author.DisplayName() != want.displayName {
+		t.Fatalf("display name = %q, want %q", msg.Author.DisplayName(), want.displayName)
+	}
+	wantAttachment(t, msg, want)
+	if parsed := !msg.At().IsZero(); parsed != want.timeParses {
+		t.Fatalf("timestamp parsed = %v, want %v", parsed, want.timeParses)
+	}
+}
+
+// wantAttachment pins the attachments one message carried.
+func wantAttachment(t *testing.T, msg FullMessage, want wantMessage) {
+	t.Helper()
+	if want.attachmentURL == "" {
+		if len(msg.Attachments) != 0 {
+			t.Fatalf("attachments = %+v, want none", msg.Attachments)
+		}
+		return
+	}
 	if len(msg.Attachments) != 1 {
 		t.Fatalf("attachments = %+v, want one", msg.Attachments)
 	}
-	if msg.Attachments[0].URL != url {
-		t.Fatalf("attachment url = %q, want %q", msg.Attachments[0].URL, url)
-	}
-}
-
-// wantTimestamps holds the degradation rule: a malformed timestamp costs that
-// message its time, not the whole page.
-func wantTimestamps(t *testing.T, page []FullMessage) {
-	t.Helper()
-	if page[0].At().IsZero() {
-		t.Fatal("a well-formed timestamp must parse")
-	}
-	if !page[1].At().IsZero() {
-		t.Fatal("an unparseable timestamp degrades to the zero time, it does not fail the page")
+	if msg.Attachments[0].URL != want.attachmentURL {
+		t.Fatalf("attachment url = %q, want %q", msg.Attachments[0].URL, want.attachmentURL)
 	}
 }
 
@@ -103,7 +129,7 @@ func TestModifyChannelParentIDDistinguishesUnsetFromNull(t *testing.T) {
 				t.Fatalf("ModifyChannel: %v", err)
 			}
 			wantRequest(t, got, http.MethodPatch, "/channels/c1")
-			wantParentID(t, got.body, tc)
+			wantParentID(t, got, tc)
 		})
 	}
 }
@@ -119,32 +145,16 @@ type parentCase struct {
 	absent bool
 }
 
-// wantParentID checks the body against one parentCase.
-func wantParentID(t *testing.T, body string, tc parentCase) {
+// wantParentID checks the recorded request body against one parentCase.
+func wantParentID(t *testing.T, got *capture, tc parentCase) {
 	t.Helper()
 	if tc.absent {
-		if contains(body, "parent_id") {
-			t.Fatalf("body %q must not mention parent_id", body)
+		if strings.Contains(got.body, "parent_id") {
+			t.Fatalf("body %q must not mention parent_id", got.body)
 		}
 		return
 	}
-	if !contains(body, tc.want) {
-		t.Fatalf("body %q missing %q", body, tc.want)
+	if !strings.Contains(got.body, tc.want) {
+		t.Fatalf("body %q missing %q", got.body, tc.want)
 	}
-}
-
-func contains(haystack, needle string) bool {
-	if needle == "" || len(haystack) < len(needle) {
-		return false
-	}
-	return indexOf(haystack, needle) >= 0
-}
-
-func indexOf(haystack, needle string) int {
-	for i := 0; i+len(needle) <= len(haystack); i++ {
-		if haystack[i:i+len(needle)] == needle {
-			return i
-		}
-	}
-	return -1
 }

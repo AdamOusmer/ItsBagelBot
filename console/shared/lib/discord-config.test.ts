@@ -408,12 +408,12 @@ describe('guild presentation', () => {
 
   test('the picker badge separates my servers from someone else\'s', () => {
     const bound = [ID_A, ID_B];
-    expect(guildPickerBadge(ID_A, bound)).toBe('mine');
-    expect(guildPickerBadge(ID_C, bound)).toBe('addable');
-    expect(guildPickerBadge(ID_A, [])).toBe('addable');
-    expect(guildPickerBadge(ID_C, bound, [ID_C])).toBe('elsewhere');
+    expect(guildPickerBadge(ID_A, { bound })).toBe('mine');
+    expect(guildPickerBadge(ID_C, { bound })).toBe('addable');
+    expect(guildPickerBadge(ID_A, { bound: [] })).toBe('addable');
+    expect(guildPickerBadge(ID_C, { bound, elsewhere: [ID_C] })).toBe('elsewhere');
     // A guild in both lists is mine: my own binding is the stronger fact.
-    expect(guildPickerBadge(ID_A, bound, [ID_A])).toBe('mine');
+    expect(guildPickerBadge(ID_A, { bound, elsewhere: [ID_A] })).toBe('mine');
   });
 });
 

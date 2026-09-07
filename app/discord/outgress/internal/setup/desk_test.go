@@ -42,7 +42,7 @@ func TestRepostDeskDeletesThePreviousPanelAndRemembersTheNewOne(t *testing.T) {
 
 	wantDeletedPanel(t, rec, "old")
 	// The channel came from the remembered panel, not from the request.
-	wantSinglePanel(t, rec, "support", "Need a hand?", "Contact staff")
+	wantSinglePanel(t, rec, panelWant{ChannelID: "support", Title: "Need a hand?", Button: "Contact staff"})
 	wantRememberedDesk(t, store, "support", id)
 }
 
@@ -67,24 +67,34 @@ func wantDeletedPanel(t *testing.T, rec *guildRecorder, messageID string) {
 	}
 }
 
-// wantSinglePanel asserts one panel was posted, in channelID, with the copy the
-// request asked for.
-func wantSinglePanel(t *testing.T, rec *guildRecorder, channelID, title, button string) {
+// panelWant is the whole expectation for one posted panel: where it landed and
+// the copy it carries. Grouped into a struct rather than passed as three loose
+// strings, which read positionally at the call site and made a channel id and a
+// button label interchangeable to the compiler.
+type panelWant struct {
+	ChannelID string
+	Title     string
+	Button    string
+}
+
+// wantSinglePanel asserts one panel was posted, in want.ChannelID, with the copy
+// the request asked for.
+func wantSinglePanel(t *testing.T, rec *guildRecorder, want panelWant) {
 	t.Helper()
 	if len(rec.panelPosts) != 1 {
 		t.Fatalf("panel posts = %+v, want exactly one", rec.panelPosts)
 	}
-	if rec.panelPosts[0].ChannelID != channelID {
-		t.Fatalf("panel channel = %q, want %q", rec.panelPosts[0].ChannelID, channelID)
+	if rec.panelPosts[0].ChannelID != want.ChannelID {
+		t.Fatalf("panel channel = %q, want %q", rec.panelPosts[0].ChannelID, want.ChannelID)
 	}
-	if rec.panelPosts[0].Embed.Title != title {
-		t.Fatalf("panel embed = %+v, want title %q", rec.panelPosts[0].Embed, title)
+	if rec.panelPosts[0].Embed.Title != want.Title {
+		t.Fatalf("panel embed = %+v, want title %q", rec.panelPosts[0].Embed, want.Title)
 	}
 	if len(rec.panelButtons) != 1 {
 		t.Fatalf("panel buttons = %+v, want exactly one", rec.panelButtons)
 	}
-	if rec.panelButtons[0].Label != button {
-		t.Fatalf("button label = %q, want %q", rec.panelButtons[0].Label, button)
+	if rec.panelButtons[0].Label != want.Button {
+		t.Fatalf("button label = %q, want %q", rec.panelButtons[0].Label, want.Button)
 	}
 }
 
@@ -174,7 +184,10 @@ func TestRepostDeskSurvivesAFailedDelete(t *testing.T) {
 
 	id, err := w.RepostDesk(ctx, DeskRepostRequest{GuildID: "guild-1", BroadcasterID: "b1"})
 
-	if err != nil || id == "" {
-		t.Fatalf("id = %q, err = %v", id, err)
+	if err != nil {
+		t.Fatalf("RepostDesk: %v", err)
+	}
+	if id == "" {
+		t.Fatal("the repost still has to answer with the new panel's id")
 	}
 }

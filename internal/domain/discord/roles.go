@@ -8,6 +8,31 @@ import (
 	"strings"
 )
 
+// Slot is a template role slot key. It is a defined type rather than a bare
+// string because a slot and a role id are both strings, they travel together
+// through every function here, and as two loose string arguments they were
+// transposable at each call site with nothing to catch it. The constants
+// below stay untyped so a slot still writes as a plain map key where the wire
+// shape (PinnedRoles, the setup RPC request) is map[string]string.
+type Slot string
+
+// RoleIDs is a list of Discord role snowflakes: the roles a member holds, or
+// the roles a config grants. []string is assignable to it, so a caller
+// holding discordgo's own []string passes it through unconverted while the
+// signature still says which of the two lists it wants.
+type RoleIDs []string
+
+// heldRoles indexes the role ids one member holds, for repeated lookup.
+type heldRoles map[string]bool
+
+// Pin is one parsed "slot=roleId" pair. The two halves are returned together
+// rather than as (slot, id string) for the same reason Slot exists: adjacent
+// same-typed results are transposable at the call site.
+type Pin struct {
+	Slot Slot
+	ID   string
+}
+
 // Role slots are the stable keys the dashboard, the setup fill and
 // Config.PinnedRoles all name a template role by. They are NOT the role's
 // display name: a streamer who renames "Mods" to "Staff" must keep the
@@ -26,7 +51,7 @@ const (
 // walks CommunityRoles (which carry names) and needs the slot to look a
 // pinned id up; keeping the mapping here means adding a role touches one
 // table, not one table per package.
-var slotByRoleName = map[string]string{
+var slotByRoleName = map[string]Slot{
 	RoleOwner:      SlotOwner,
 	RoleLeadMod:    SlotLeadMod,
 	RoleMods:       SlotMods,
@@ -37,16 +62,16 @@ var slotByRoleName = map[string]string{
 }
 
 // RoleSlots is every valid slot key, in template order.
-func RoleSlots() []string {
-	return []string{SlotOwner, SlotLeadMod, SlotMods, SlotVIP, SlotSubscriber, SlotRegulars, SlotMember}
+func RoleSlots() []Slot {
+	return []Slot{SlotOwner, SlotLeadMod, SlotMods, SlotVIP, SlotSubscriber, SlotRegulars, SlotMember}
 }
 
 // SlotForRoleName returns the slot a template role name belongs to, or ""
 // for a name that is not part of the template.
-func SlotForRoleName(name string) string { return slotByRoleName[name] }
+func SlotForRoleName(name string) Slot { return slotByRoleName[name] }
 
 // ValidSlot reports whether slot is one of the template slots.
-func ValidSlot(slot string) bool {
+func ValidSlot(slot Slot) bool {
 	for _, s := range slotByRoleName {
 		if s == slot {
 			return true
@@ -68,11 +93,11 @@ func (c Config) PinnedRoleMap() map[string]string {
 	}
 	out := make(map[string]string, len(entries))
 	for _, entry := range entries {
-		slot, id, ok := splitPin(entry)
+		pin, ok := splitPin(entry)
 		if !ok {
 			continue
 		}
-		out[slot] = id
+		out[string(pin.Slot)] = pin.ID
 	}
 	return out
 }
@@ -82,32 +107,32 @@ func (c Config) PinnedRoleMap() map[string]string {
 // which is a different mistake from naming a slot that does not exist, and
 // the validator reports the two under different codes so the dashboard can
 // say "write slot=roleId" rather than "unknown slot" for `owner`.
-func cutPin(entry string) (slot, id string, ok bool) {
+func cutPin(entry string) (Pin, bool) {
 	slot, id, found := strings.Cut(entry, "=")
 	slot = strings.TrimSpace(slot)
 	id = strings.TrimSpace(id)
 	if !found {
-		return "", "", false
+		return Pin{}, false
 	}
 	if slot == "" || id == "" {
-		return "", "", false
+		return Pin{}, false
 	}
-	return slot, id, true
+	return Pin{Slot: Slot(slot), ID: id}, true
 }
 
 // splitPin splits one "slot=roleId" pair. Both halves must be non-empty and
 // the slot must be a known one.
-func splitPin(entry string) (slot, id string, ok bool) {
-	slot, id, ok = cutPin(entry)
-	if !ok || !ValidSlot(slot) {
-		return "", "", false
+func splitPin(entry string) (Pin, bool) {
+	pin, ok := cutPin(entry)
+	if !ok || !ValidSlot(pin.Slot) {
+		return Pin{}, false
 	}
-	return slot, id, true
+	return pin, true
 }
 
 // PinnedRole returns the guild role id the streamer pinned to slot, or ""
 // when nothing is pinned there.
-func (c Config) PinnedRole(slot string) string { return c.PinnedRoleMap()[slot] }
+func (c Config) PinnedRole(slot Slot) string { return c.PinnedRoleMap()[string(slot)] }
 
 // IsModStaff reports whether a member holding memberRoles is MODERATION
 // staff for cfg: Owner, Lead Mod, or Mods.
@@ -125,14 +150,14 @@ func (c Config) PinnedRole(slot string) string { return c.PinnedRoleMap()[slot] 
 // is a moderator by permission but not staff by role, and a Lead Mod whose
 // role lost a permission bit is still staff. Callers that gate a Bagel
 // feature want either to be enough, so they check both.
-func IsModStaff(memberRoles []string, cfg Config) bool {
+func IsModStaff(memberRoles RoleIDs, cfg Config) bool {
 	return holdsAny(memberRoles, cfg.StaffRoleIDs())
 }
 
 // IsTicketStaff reports whether a member may act on the ticket desk: mod
 // staff (IsModStaff) plus every role on ticketStaffRoleIds. Strictly wider
 // than IsModStaff, and it grants nothing outside the desk.
-func IsTicketStaff(memberRoles []string, cfg Config) bool {
+func IsTicketStaff(memberRoles RoleIDs, cfg Config) bool {
 	if IsModStaff(memberRoles, cfg) {
 		return true
 	}
@@ -142,7 +167,7 @@ func IsTicketStaff(memberRoles []string, cfg Config) bool {
 // holdsAny reports whether memberRoles contains any of want. Empty ids on
 // either side never match: an unconfigured guild stores "" in its role
 // fields, and matching those would make every member staff.
-func holdsAny(memberRoles, want []string) bool {
+func holdsAny(memberRoles, want RoleIDs) bool {
 	if len(memberRoles) == 0 || len(want) == 0 {
 		return false
 	}
@@ -152,8 +177,8 @@ func holdsAny(memberRoles, want []string) bool {
 // roleSet indexes a member's role ids. The empty id is dropped on the way in:
 // an unconfigured guild stores "" in its role fields, and a set containing ""
 // makes every member staff.
-func roleSet(memberRoles []string) map[string]bool {
-	held := make(map[string]bool, len(memberRoles))
+func roleSet(memberRoles RoleIDs) heldRoles {
+	held := make(heldRoles, len(memberRoles))
 	for _, r := range memberRoles {
 		if r != "" {
 			held[r] = true
@@ -164,7 +189,7 @@ func roleSet(memberRoles []string) map[string]bool {
 
 // anyHeld reports whether held carries any of want. Empty wanted ids never
 // match, for the same reason roleSet drops them.
-func anyHeld(held map[string]bool, want []string) bool {
+func anyHeld(held heldRoles, want RoleIDs) bool {
 	for _, id := range want {
 		if id != "" && held[id] {
 			return true

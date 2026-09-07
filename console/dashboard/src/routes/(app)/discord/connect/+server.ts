@@ -24,6 +24,6 @@ export const GET: RequestHandler = async ({ cookies, url, locals }) => {
   const state = generateState();
   // Sealed to this signed-in user, so a state planted in the browser by
   // somebody else cannot be redeemed under this account.
-  putDiscordState(cookies, url, DISCORD_PICK_LEG, uid, state);
+  putDiscordState({ cookies, url, leg: DISCORD_PICK_LEG, uid }, state);
   throw redirect(302, discordUserAuthURL(state));
 };

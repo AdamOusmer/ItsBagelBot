@@ -60,7 +60,7 @@ async function exchangedGuild(cookies: Cookies, url: URL, uid: string): Promise<
 function takeInstallCode(cookies: Cookies, url: URL, uid: string): string {
   // The state cookie is sealed to this signed-in user, so a state planted in
   // the browser by somebody else cannot bind their server to this account.
-  if (!discordStateOK(cookies, url, DISCORD_INSTALL_LEG, uid)) discordFail('state');
+  if (!discordStateOK({ cookies, url, leg: DISCORD_INSTALL_LEG, uid })) discordFail('state');
   const code = (url.searchParams.get('code') ?? '').trim();
   if (!code) discordFail('oauth');
   return code;

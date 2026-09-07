@@ -47,10 +47,10 @@ type ConfigStore interface {
 // TicketStore is the ticket-desk half of the repository.
 type TicketStore interface {
 	TicketOpen(ctx context.Context, p repository.OpenParams) (int, int, error)
-	TicketClaim(ctx context.Context, guildID, channelID, staffID string) (int, error)
+	TicketClaim(ctx context.Context, p repository.ClaimParams) (int, error)
 	TicketClose(ctx context.Context, p repository.CloseParams) (int, string, error)
-	TicketGet(ctx context.Context, guildID, channelID string) (*ent.Ticket, bool, error)
-	TicketOpenCount(ctx context.Context, guildID, openerID string) (int, error)
+	TicketGet(ctx context.Context, k repository.TicketKey) (*ent.Ticket, bool, error)
+	TicketOpenCount(ctx context.Context, m repository.MemberKey) (int, error)
 	TicketList(ctx context.Context, p repository.ListParams) ([]*ent.Ticket, string, error)
 	TranscriptPut(ctx context.Context, ticketID int, body string, messageCount int) error
 	TranscriptGet(ctx context.Context, ticketID int) (*ent.TicketTranscript, bool, error)

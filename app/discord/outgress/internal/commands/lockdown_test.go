@@ -197,14 +197,20 @@ func TestLockdownRecordsTheStateItIsAboutToDisplace(t *testing.T) {
 	if len(state.Channels) != 3 {
 		t.Fatalf("stored channels = %d, want 3", len(state.Channels))
 	}
-	first := state.Channels[0]
-	if first.ChannelID != "c-text" || first.Allow != "1024" || first.Deny != "0" {
-		t.Fatalf("stored channel = %+v, want c-text with its prior 1024/0", first)
-	}
+	wantStoredChannel(t, state.Channels[0], kv.LockdownChannel{ChannelID: "c-text", Allow: "1024", Deny: "0"})
 	// A channel with no @everyone overwrite is remembered as an explicit
 	// zero pair, which restores permission-identically.
-	if state.Channels[1].Allow != "0" || state.Channels[1].Deny != "0" {
-		t.Fatalf("stored channel = %+v, want a zero pair", state.Channels[1])
+	wantStoredChannel(t, state.Channels[1], kv.LockdownChannel{ChannelID: "c-news", Allow: "0", Deny: "0"})
+}
+
+// wantStoredChannel compares one remembered overwrite whole. The three fields
+// only mean anything together -- an allow without the channel it belongs to
+// says nothing -- and asserting them one condition per field is what pushed
+// the recording test past the complexity the gate allows.
+func wantStoredChannel(t *testing.T, got, want kv.LockdownChannel) {
+	t.Helper()
+	if got != want {
+		t.Fatalf("stored channel = %+v, want %+v", got, want)
 	}
 }
 

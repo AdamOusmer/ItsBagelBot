@@ -200,10 +200,14 @@ func TestBudgetReachesTheKey(t *testing.T) {
 	park := c.t.Add(6 * time.Hour)
 	r.Budget(ctx, gateway.Budget{Flapping: true, Connects: 137, AtCeiling: true, ParkUntil: park})
 
+	// Field by field through the same helper the transition test uses: the
+	// three budget fields come off one struct but mean three different things
+	// to a reader of the key, so a failure has to name which one stopped
+	// riding out rather than dumping the whole snapshot.
 	got := r.Snapshot()
-	if !got.Flapping || got.ConnectsInWindow != 137 || !got.AtCeiling {
-		t.Fatalf("status = %+v, want the budget mirrored", got)
-	}
+	wantField(t, "flapping", got.Flapping, true)
+	wantField(t, "connects in window", got.ConnectsInWindow, 137)
+	wantField(t, "at ceiling", got.AtCeiling, true)
 	if got.ParkUntilUnixMS != park.UnixMilli() {
 		t.Fatalf("park_until = %d, want %d", got.ParkUntilUnixMS, park.UnixMilli())
 	}

@@ -16,9 +16,17 @@ import (
 	"ItsBagelBot/pkg/codec"
 )
 
+// channelCreate names the one branch a ticket-open script has to answer
+// differently: the POST that creates the ticket channel, as opposed to the POST
+// that puts the card inside it. Both are POSTs, so neither the method nor the
+// path alone tells them apart.
+func channelCreate(call recordedCall) bool {
+	return call.method == http.MethodPost && call.path == "/guilds/g1/channels"
+}
+
 func TestTicketOpenCreatesThenPostsTheCard(t *testing.T) {
 	h, tr := newTicketRPC(t, func(call recordedCall) (int, string) {
-		if call.method == http.MethodPost && call.path == "/guilds/g1/channels" {
+		if channelCreate(call) {
 			return 200, `{"id":"c-new","name":"ticket-ada-1"}`
 		}
 		return 200, `{"id":"m-new"}`
@@ -30,12 +38,15 @@ func TestTicketOpenCreatesThenPostsTheCard(t *testing.T) {
 		Buttons: []ddiscord.ButtonSpec{{Style: 2, Label: "Claim", CustomID: discapi.CustomTicketClaim}},
 	})
 
-	if reply.Error != "" || reply.ChannelID != "c-new" || reply.MessageID != "m-new" {
-		t.Fatalf("reply = %+v", reply)
-	}
+	wantReplyField(t, "error", reply.Error, "")
+	wantReplyField(t, "channel id", reply.ChannelID, "c-new")
+	wantReplyField(t, "message id", reply.MessageID, "m-new")
 	posts := tr.find(http.MethodPost, "/channels/c-new/messages")
-	if len(posts) != 1 || !strings.Contains(posts[0].body, discapi.CustomTicketClaim) {
-		t.Fatalf("card post = %+v", posts)
+	if len(posts) != 1 {
+		t.Fatalf("card posts = %+v, want exactly one", posts)
+	}
+	if !strings.Contains(posts[0].body, discapi.CustomTicketClaim) {
+		t.Fatalf("card post = %+v, want the claim button on it", posts[0])
 	}
 }
 

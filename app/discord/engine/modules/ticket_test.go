@@ -16,6 +16,50 @@ import (
 	"ItsBagelBot/pkg/codec"
 )
 
+// wantFollowup pins the exact line the presser is shown. Every desk action
+// answers with one ephemeral followup and nothing else, so this three-line
+// claim was repeated once per case below; the copies are what the duplication
+// gate was reading, and a shared helper also keeps the "want" half in the
+// failure message, which half the copies had dropped.
+func wantFollowup(t *testing.T, cmds []ddiscord.Command, want string) {
+	t.Helper()
+	if got := followupText(t, cmds); got != want {
+		t.Fatalf("followup = %q, want %q", got, want)
+	}
+}
+
+// wantFollowupContains is the same claim where only a fragment can be pinned:
+// an id the fixture chose, or a count the config chose.
+func wantFollowupContains(t *testing.T, cmds []ddiscord.Command, want string) {
+	t.Helper()
+	if got := followupText(t, cmds); !strings.Contains(got, want) {
+		t.Fatalf("followup = %q, want it to mention %q", got, want)
+	}
+}
+
+// wantTicketRow asserts whether the live ticket index still resolves c-new in
+// g1. Open and gone are the only two states these cases care about, and the
+// lookup is long enough that it was copied verbatim four times.
+func (f *deskFixture) wantTicketRow(t *testing.T, live bool, why string) {
+	t.Helper()
+	_, ok := f.store.Ticket(context.Background(), discordstore.Guild{ID: "g1"}, discordstore.Channel{ID: "c-new"})
+	if ok != live {
+		t.Fatal(why)
+	}
+}
+
+// addPress runs /ticket add u7 as in. Two cases below differ only by who
+// presses it, so the option tree is built once here.
+func (f *deskFixture) addPress(t *testing.T, in decode.InteractionEvent) []ddiscord.Command {
+	t.Helper()
+	sub := decode.InteractionOption{Name: "add", Options: []decode.InteractionOption{
+		{Name: "user", Type: 6, Value: codec.RawMessage(`"u7"`)},
+	}}
+	return f.deskPress(t, in, func(ctx context.Context, call deskCall) error {
+		return f.mod.add(ctx, call, sub)
+	})
+}
+
 func TestTicketOpenCreatesRecordsAndAnswers(t *testing.T) {
 	f := newDesk(t, baseConfig())
 
@@ -27,9 +71,7 @@ func TestTicketOpenCreatesRecordsAndAnswers(t *testing.T) {
 	wantOpenRequest(t, f.tickets.opened[0])
 	wantRenamedTo(t, f.tickets.renamed, "ticket-ada-1")
 	f.wantStoredTicket(t, "u1", "m-new")
-	if got := followupText(t, cmds); !strings.Contains(got, "<#c-new>") {
-		t.Fatalf("followup = %q, want the channel mention", got)
-	}
+	wantFollowupContains(t, cmds, "<#c-new>")
 }
 
 // A reopened ticket is numbered from the ROW id, not from how many the opener
@@ -64,9 +106,7 @@ func TestTicketOpenRefusesAtTheLimitWithoutTouchingDiscord(t *testing.T) {
 	if len(f.tickets.opened) != 1 {
 		t.Fatalf("a refused open must not create a channel: %+v", f.tickets.opened)
 	}
-	if got := followupText(t, cmds); got != "You already have 1 open ticket." {
-		t.Fatalf("followup = %q", got)
-	}
+	wantFollowup(t, cmds, "You already have 1 open ticket.")
 }
 func TestTicketOpenRollsTheChannelBackWhenTheRowLoses(t *testing.T) {
 	cfg := baseConfig()
@@ -83,9 +123,7 @@ func TestTicketOpenRollsTheChannelBackWhenTheRowLoses(t *testing.T) {
 	if len(f.tickets.deleted) != 1 || f.tickets.deleted[0] != "c-new" {
 		t.Fatalf("rollback deletes = %v", f.tickets.deleted)
 	}
-	if got := followupText(t, cmds); !strings.Contains(got, "already have 2") {
-		t.Fatalf("followup = %q", got)
-	}
+	wantFollowupContains(t, cmds, "already have 2")
 }
 func TestTicketOpenSaysSoWhenTicketsAreOff(t *testing.T) {
 	cfg := baseConfig()
@@ -94,9 +132,7 @@ func TestTicketOpenSaysSoWhenTicketsAreOff(t *testing.T) {
 
 	cmds := f.press(t, f.mod.open, opener("u1", "Ada"))
 
-	if got := followupText(t, cmds); got != "Tickets are off." {
-		t.Fatalf("followup = %q", got)
-	}
+	wantFollowup(t, cmds, "Tickets are off.")
 	if len(f.tickets.opened) != 0 {
 		t.Fatal("tickets off must not create a channel")
 	}
@@ -110,12 +146,8 @@ func TestTicketOpenRollsBackWhenTheCardFails(t *testing.T) {
 	if len(f.tickets.deleted) != 1 {
 		t.Fatalf("an orphan channel must be rolled back: %v", f.tickets.deleted)
 	}
-	if _, ok := f.store.Ticket(context.Background(), discordstore.Guild{ID: "g1"}, discordstore.Channel{ID: "c-new"}); ok {
-		t.Fatal("a failed open must not leave a row")
-	}
-	if got := followupText(t, cmds); got != "Could not open a ticket right now." {
-		t.Fatalf("followup = %q", got)
-	}
+	f.wantTicketRow(t, false, "a failed open must not leave a row")
+	wantFollowup(t, cmds, "Could not open a ticket right now.")
 }
 func TestTicketClaimRefusesNonStaff(t *testing.T) {
 	f := newDesk(t, baseConfig())
@@ -123,9 +155,7 @@ func TestTicketClaimRefusesNonStaff(t *testing.T) {
 
 	cmds := f.press(t, f.mod.claim, inTicket("u2", []string{"stranger"}))
 
-	if got := followupText(t, cmds); got != "Only ticket staff can claim this." {
-		t.Fatalf("followup = %q", got)
-	}
+	wantFollowup(t, cmds, "Only ticket staff can claim this.")
 	if len(f.tickets.claimed) != 0 {
 		t.Fatal("a refused claim must not edit the card")
 	}
@@ -137,9 +167,7 @@ func TestTicketClaimRecordsAndEditsTheCardOnce(t *testing.T) {
 
 	cmds := f.press(t, f.mod.claim, inTicket("mod1", []string{"helper"}))
 
-	if got := followupText(t, cmds); got != "Claimed." {
-		t.Fatalf("followup = %q", got)
-	}
+	wantFollowup(t, cmds, "Claimed.")
 	if len(f.tickets.claimed) != 1 || f.tickets.claimed[0].MessageID != "m-new" {
 		t.Fatalf("claim request = %+v", f.tickets.claimed)
 	}
@@ -153,9 +181,7 @@ func TestTicketClaimRecordsAndEditsTheCardOnce(t *testing.T) {
 
 	// A second claim is refused rather than silently moving the ticket over.
 	cmds = f.press(t, f.mod.claim, inTicket("mod2", []string{"helper"}))
-	if got := followupText(t, cmds); !strings.Contains(got, "already claimed by <@mod1>") {
-		t.Fatalf("second claim followup = %q", got)
-	}
+	wantFollowupContains(t, cmds, "already claimed by <@mod1>")
 	if len(f.tickets.claimed) != 1 {
 		t.Fatalf("claim requests = %d, want the first one only", len(f.tickets.claimed))
 	}
@@ -166,9 +192,7 @@ func TestTicketClaimOnANonTicketChannel(t *testing.T) {
 
 	cmds := f.press(t, f.mod.claim, inTicket("mod1", []string{"helper"}))
 
-	if got := followupText(t, cmds); got != "This is not a ticket." {
-		t.Fatalf("followup = %q", got)
-	}
+	wantFollowup(t, cmds, "This is not a ticket.")
 }
 func TestTicketCloseByOpenerAndByStaff(t *testing.T) {
 	cases := []struct {
@@ -188,23 +212,17 @@ func TestTicketCloseByOpenerAndByStaff(t *testing.T) {
 			cmds := f.press(t, f.mod.close, tc.by)
 
 			if !tc.allow {
-				if got := followupText(t, cmds); got != "Only the opener or ticket staff can close this." {
-					t.Fatalf("followup = %q", got)
-				}
+				wantFollowup(t, cmds, "Only the opener or ticket staff can close this.")
 				if len(f.tickets.closed) != 0 {
 					t.Fatal("a refused close must not reach outgress")
 				}
 				return
 			}
-			if got := followupText(t, cmds); got != "Ticket closed." {
-				t.Fatalf("followup = %q", got)
-			}
+			wantFollowup(t, cmds, "Ticket closed.")
 			if len(f.tickets.closed) != 1 {
 				t.Fatalf("close requests = %+v", f.tickets.closed)
 			}
-			if _, ok := f.store.Ticket(context.Background(), discordstore.Guild{ID: "g1"}, discordstore.Channel{ID: "c-new"}); ok {
-				t.Fatal("a closed ticket leaves the live index")
-			}
+			f.wantTicketRow(t, false, "a closed ticket leaves the live index")
 		})
 	}
 }
@@ -258,58 +276,42 @@ func TestTicketCloseKeepsTheRowWhenOutgressFails(t *testing.T) {
 
 	cmds := f.press(t, f.mod.close, inTicket("u1", nil))
 
-	if got := followupText(t, cmds); got != "Could not close this ticket right now." {
-		t.Fatalf("followup = %q", got)
-	}
-	if _, ok := f.store.Ticket(context.Background(), discordstore.Guild{ID: "g1"}, discordstore.Channel{ID: "c-new"}); !ok {
-		t.Fatal("a ticket Discord still shows must still be a ticket here")
-	}
+	wantFollowup(t, cmds, "Could not close this ticket right now.")
+	f.wantTicketRow(t, true, "a ticket Discord still shows must still be a ticket here")
 }
 func TestTicketAddGrantsAccess(t *testing.T) {
 	f := newDesk(t, baseConfig())
 	f.openOneTicket(t)
-	sub := decode.InteractionOption{Name: "add", Options: []decode.InteractionOption{
-		{Name: "user", Type: 6, Value: codec.RawMessage(`"u7"`)},
-	}}
-	in := inTicket("u1", nil)
+	cmds := f.addPress(t, inTicket("u1", nil))
 
-	cmds := f.deskPress(t, in, func(ctx context.Context, call deskCall) error {
-		return f.mod.add(ctx, call, sub)
-	})
-
-	if len(f.tickets.added) != 1 || f.tickets.added[0].UserID != "u7" {
-		t.Fatalf("add requests = %+v", f.tickets.added)
+	if len(f.tickets.added) != 1 {
+		t.Fatalf("add requests = %+v, want exactly one", f.tickets.added)
 	}
-	if got := followupText(t, cmds); !strings.Contains(got, "<@u7>") {
-		t.Fatalf("followup = %q", got)
+	if f.tickets.added[0].UserID != "u7" {
+		t.Fatalf("add request = %+v, want the user the option named", f.tickets.added[0])
 	}
+	wantFollowupContains(t, cmds, "<@u7>")
 }
 
 func TestTicketAddRefusesAStranger(t *testing.T) {
 	f := newDesk(t, baseConfig())
 	f.openOneTicket(t)
-	sub := decode.InteractionOption{Name: "add", Options: []decode.InteractionOption{
-		{Name: "user", Type: 6, Value: codec.RawMessage(`"u7"`)},
-	}}
-	in := inTicket("u9", []string{"nobody"})
-
-	cmds := f.deskPress(t, in, func(ctx context.Context, call deskCall) error {
-		return f.mod.add(ctx, call, sub)
-	})
+	cmds := f.addPress(t, inTicket("u9", []string{"nobody"}))
 
 	if len(f.tickets.added) != 0 {
 		t.Fatalf("add requests = %+v", f.tickets.added)
 	}
-	if got := followupText(t, cmds); got != "Only the opener or ticket staff can add someone." {
-		t.Fatalf("followup = %q", got)
-	}
+	wantFollowup(t, cmds, "Only the opener or ticket staff can add someone.")
 }
 
 // rpcFailed treats a transport error and an error string in the reply the
 // same way; the desk relies on that, so it is pinned here.
 func TestRPCFailedCoversBothShapes(t *testing.T) {
-	if !rpcFailed(errors.New("boom"), "") || !rpcFailed(nil, "missing permissions") {
-		t.Fatal("both failure shapes must count")
+	if !rpcFailed(errors.New("boom"), "") {
+		t.Fatal("a transport error must count as a failure")
+	}
+	if !rpcFailed(nil, "missing permissions") {
+		t.Fatal("an error string in the reply must count as a failure")
 	}
 	if rpcFailed(nil, "") {
 		t.Fatal("a clean reply is not a failure")
@@ -351,9 +353,7 @@ func TestTicketActionsRefuseAnotherGuildsTicket(t *testing.T) {
 			in := inTicket("u1", []string{"helper"}) // opener AND staff: only the guild refuses
 			cmds := tc.run(f, in)
 
-			if got := followupText(t, cmds); got != refusal {
-				t.Fatalf("followup = %q, want %q", got, refusal)
-			}
+			wantFollowup(t, cmds, refusal)
 			if len(f.tickets.claimed)+len(f.tickets.closed)+len(f.tickets.added) != 0 {
 				t.Fatal("a cross-guild action must not reach outgress")
 			}
@@ -375,9 +375,7 @@ func TestTicketCloseRefusesAnAlreadyClosedTicket(t *testing.T) {
 
 			cmds := f.press(t, f.mod.close, inTicket("u1", []string{"helper"}))
 
-			if got := followupText(t, cmds); got != "This ticket is already closed." {
-				t.Fatalf("followup = %q", got)
-			}
+			wantFollowup(t, cmds, "This ticket is already closed.")
 			if len(f.tickets.closed) != 0 {
 				t.Fatalf("a second close must not run the sequence: %+v", f.tickets.closed)
 			}
@@ -404,9 +402,7 @@ func TestTicketPendingCloseIsRetriedOnTheNextInteraction(t *testing.T) {
 	if _, ok := f.store.PendingClose(ctx, discordstore.Channel{ID: "c-new"}); ok {
 		t.Fatal("the marker must be cleared once the row takes the close")
 	}
-	if _, ok := f.store.Ticket(ctx, discordstore.Guild{ID: "g1"}, discordstore.Channel{ID: "c-new"}); ok {
-		t.Fatal("the retry must record the close")
-	}
+	f.wantTicketRow(t, false, "the retry must record the close")
 	if len(f.tickets.closed) != 0 {
 		t.Fatalf("the retry is a store write, not a second Discord close: %+v", f.tickets.closed)
 	}
@@ -420,9 +416,7 @@ func TestTicketOpenRefusesWithoutADurableStore(t *testing.T) {
 
 	cmds := f.press(t, f.mod.open, opener("u1", "Ada"))
 
-	if got := followupText(t, cmds); !strings.Contains(got, "unavailable") {
-		t.Fatalf("followup = %q, want the desk to say it is unavailable", got)
-	}
+	wantFollowupContains(t, cmds, "unavailable")
 	if len(f.tickets.opened) != 0 {
 		t.Fatal("a refused open must not create a channel")
 	}

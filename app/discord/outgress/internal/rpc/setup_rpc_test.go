@@ -97,26 +97,27 @@ func TestHandleStatusReportsSessionAndGuildSeparately(t *testing.T) {
 	// The session half comes from the status key, the guild half from a REST
 	// lookup, and the reply carries both: asserted field by field so a
 	// failure names which of the two sources moved.
-	wantStatusField(t, "online", got.Online, true)
-	wantStatusField(t, "since", got.SinceUnixMS, int64(1700))
-	wantStatusField(t, "session resumes", got.SessionResumes, 3)
-	wantStatusField(t, "guild present", got.GuildPresent, true)
-	wantStatusField(t, "guild name", got.GuildName, "Bagel HQ")
-	wantStatusField(t, "member count", got.MemberCount, 42)
+	wantReplyField(t, "online", got.Online, true)
+	wantReplyField(t, "since", got.SinceUnixMS, int64(1700))
+	wantReplyField(t, "session resumes", got.SessionResumes, 3)
+	wantReplyField(t, "guild present", got.GuildPresent, true)
+	wantReplyField(t, "guild name", got.GuildName, "Bagel HQ")
+	wantReplyField(t, "member count", got.MemberCount, 42)
 	// A CDN url the console never has to assemble.
-	wantStatusField(t, "icon url", got.IconURL, "https://cdn.discordapp.com/icons/g1/abc.png")
+	wantReplyField(t, "icon url", got.IconURL, "https://cdn.discordapp.com/icons/g1/abc.png")
 	// 4009 is history on a connected bot, not a fault, but it still ships:
 	// it is what explains the resume count.
-	wantStatusField(t, "last close code", got.LastCloseCode, 4009)
-	wantStatusField(t, "code", got.Code, outgressrpc.CodeOK)
-	wantStatusField(t, "error", got.Error, "")
+	wantReplyField(t, "last close code", got.LastCloseCode, 4009)
+	wantReplyField(t, "code", got.Code, outgressrpc.CodeOK)
+	wantReplyField(t, "error", got.Error, "")
 }
 
-// wantStatusField compares one field of a status reply. One claim per call
-// rather than one "something about this reply is wrong" condition: the reply
-// is assembled from two independent sources, so a failure has to say which
-// field moved.
-func wantStatusField(t *testing.T, name string, got, want any) {
+// wantReplyField compares one field of a dashboard reply. One claim per call
+// rather than one "something about this reply is wrong" condition: these
+// replies are assembled from two independent sources (the bot status key and a
+// REST lookup), so a failure has to say which field moved and therefore which
+// source moved.
+func wantReplyField(t *testing.T, name string, got, want any) {
 	t.Helper()
 	if got != want {
 		t.Fatalf("%s = %v, want %v", name, got, want)
@@ -155,9 +156,9 @@ func TestHandleStatusWithoutAStatusKeyReportsOffline(t *testing.T) {
 	// no close code" is the honest answer, not an error.
 	d := newDiscordRPC(t, &fakeSetupREST{guild: discapi.GuildInfo{ID: "g1", Name: "HQ"}}, nil, true)
 	got := d.handleStatus(context.Background(), outgressrpc.DiscordStatusRequest{UserID: "b1", GuildID: "g1"})
-	if got.Online || got.LastCloseCode != 0 || got.Error != "" {
-		t.Fatalf("reply = %+v", got)
-	}
+	wantReplyField(t, "online", got.Online, false)
+	wantReplyField(t, "last close code", got.LastCloseCode, 0)
+	wantReplyField(t, "error", got.Error, "")
 	if !got.GuildPresent {
 		t.Fatal("a missing status key must not cost the guild lookup")
 	}
@@ -177,19 +178,18 @@ func TestHandleLayoutSplitsCategoriesAndCarriesBotFields(t *testing.T) {
 
 	got := d.handleLayout(context.Background(), outgressrpc.DiscordLayoutRequest{UserID: "b1", GuildID: "g1"})
 
-	if len(got.Categories) != 1 || got.Categories[0].ID != "cat-1" {
-		t.Fatalf("categories = %+v", got.Categories)
-	}
+	wantReplyField(t, "categories", len(got.Categories), 1)
+	wantReplyField(t, "category id", got.Categories[0].ID, "cat-1")
 	// Text and voice both stay in Channels; only categories move out.
-	if len(got.Channels) != 2 {
-		t.Fatalf("channels = %+v, want the two non-category channels", got.Channels)
+	wantReplyField(t, "channels", len(got.Channels), 2)
+	wantReplyField(t, "bot online", got.BotOnline, true)
+	wantReplyField(t, "bot since", got.BotSinceUnixMS, int64(99))
+	wantReplyField(t, "last close code", got.LastCloseCode, 4000)
+	if got.Guild == nil {
+		t.Fatal("guild = nil, want the with-counts lookup carried alongside the pickers")
 	}
-	if !got.BotOnline || got.BotSinceUnixMS != 99 || got.LastCloseCode != 4000 {
-		t.Fatalf("bot fields = %+v", got)
-	}
-	if got.Guild == nil || got.Guild.Name != "Bagel HQ" || got.Guild.MemberCount != 9 {
-		t.Fatalf("guild = %+v", got.Guild)
-	}
+	wantReplyField(t, "guild name", got.Guild.Name, "Bagel HQ")
+	wantReplyField(t, "member count", got.Guild.MemberCount, 9)
 }
 
 func TestHandleLayoutSurvivesAFailedGuildLookup(t *testing.T) {
@@ -292,9 +292,9 @@ func TestHandleStatusCarriesTheConnectBudget(t *testing.T) {
 
 	got := d.handleStatus(context.Background(), outgressrpc.DiscordStatusRequest{UserID: "b1", GuildID: "g1"})
 
-	if !got.Flapping || got.ConnectsInWindow != 800 || !got.AtCeiling {
-		t.Fatalf("budget fields = %+v, want the key's own values", got)
-	}
+	wantReplyField(t, "flapping", got.Flapping, true)
+	wantReplyField(t, "connects in window", got.ConnectsInWindow, 800)
+	wantReplyField(t, "at ceiling", got.AtCeiling, true)
 	if got.ParkUntilUnixMS != 1_700_000_000_000 {
 		t.Fatalf("park_until_unix_ms = %d, want the key's deadline", got.ParkUntilUnixMS)
 	}
@@ -313,9 +313,9 @@ func TestHandleStatusOmitsAnUnpressuredBudget(t *testing.T) {
 
 	got := d.handleStatus(context.Background(), outgressrpc.DiscordStatusRequest{UserID: "b1", GuildID: "g1"})
 
-	if got.Flapping || got.AtCeiling || got.ParkUntilUnixMS != 0 {
-		t.Fatalf("budget fields = %+v, want nothing flagged", got)
-	}
+	wantReplyField(t, "flapping", got.Flapping, false)
+	wantReplyField(t, "at ceiling", got.AtCeiling, false)
+	wantReplyField(t, "park until", got.ParkUntilUnixMS, int64(0))
 	if got.ConnectsInWindow != 4 {
 		t.Fatalf("connects_in_window = %d, want 4 published even when healthy", got.ConnectsInWindow)
 	}
@@ -447,14 +447,13 @@ func TestHandleConfigSetAndGet(t *testing.T) {
 		UserID: "42", GuildID: "guild-1",
 		Config: ddiscord.Config{LiveChannelID: "123"},
 	})
-	if set.Code != outgressrpc.CodeOK || set.Version != 1 {
-		t.Fatalf("save: %+v", set)
-	}
+	wantReplyField(t, "save code", set.Code, outgressrpc.CodeOK)
+	wantReplyField(t, "save version", set.Version, 1)
 
 	got := d.handleConfigGet(ctx, outgressrpc.DiscordConfigGetRequest{UserID: "42", GuildID: "guild-1"})
-	if got.Code != outgressrpc.CodeOK || !got.Found || got.Config.LiveChannelID != "123" {
-		t.Fatalf("read back: %+v", got)
-	}
+	wantReplyField(t, "read code", got.Code, outgressrpc.CodeOK)
+	wantReplyField(t, "found", got.Found, true)
+	wantReplyField(t, "live channel", got.Config.LiveChannelID, "123")
 }
 
 func TestHandleConfigSetReportsConflict(t *testing.T) {
@@ -599,9 +598,10 @@ func intPtr(v int) *int { return &v }
 func TestPanelSpecCarriesEveryField(t *testing.T) {
 	got := panelSpec(outgressrpc.DiscordPanelSpec{Title: "t", Body: "b", Color: intPtr(7), Button: "go"})
 
-	if got.Title != "t" || got.Body != "b" || got.ColorOr(0) != 7 || got.Button != "go" {
-		t.Fatalf("spec = %+v", got)
-	}
+	wantReplyField(t, "title", got.Title, "t")
+	wantReplyField(t, "body", got.Body, "b")
+	wantReplyField(t, "color", got.ColorOr(0), 7)
+	wantReplyField(t, "button", got.Button, "go")
 }
 
 // TestPanelSpecKeepsBlackAndUnsetApart is the wire half of the pointer colour:

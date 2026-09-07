@@ -359,7 +359,7 @@ func (f *guildFill) pinnedRole(templateName string) string {
 	if slot == "" {
 		return ""
 	}
-	return f.pinned[slot]
+	return f.pinned[string(slot)]
 }
 
 // roleID resolves a template role name to a guild role id, pinned id first.
