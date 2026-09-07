@@ -22,7 +22,7 @@ const t = useTranslations(lang);
 <section class="eco" id="eco-friendly">
     <div class="eco__band" data-reveal>
         <span class="eco__glyph" aria-hidden="true">
-            <Icon name="leaf" size={40} strokeWidth={1.5} class="eco__leaf" />
+            <Icon name="leaf" size={96} strokeWidth={1.5} class="eco__leaf" />
         </span>
 
         <div class="eco__body">
@@ -125,21 +125,27 @@ const t = useTranslations(lang);
        paths, so it lands last and still reads as a leaf growing out of its
        stalk. */
     .eco__glyph :global(.eco__leaf) {
-        width: 40px;
-        height: 40px;
+        width: 96px;
+        height: 96px;
         color: var(--green-glow, #52b788);
-        filter: drop-shadow(0 0 12px rgba(82, 183, 136, 0.35));
+        filter: drop-shadow(0 0 16px rgba(82, 183, 136, 0.4));
         stroke-dasharray: 64;
         stroke-dashoffset: 64;
-        animation: drawLeaf 3s ease-out forwards;
+        animation: drawLeaf 3s ease-out forwards, leafSway 4s ease-in-out infinite;
+        transform-origin: bottom left;
     }
 
     @keyframes drawLeaf {
         to { stroke-dashoffset: 0; }
     }
 
+    @keyframes leafSway {
+        0%, 100% { transform: rotate(0deg); }
+        50% { transform: rotate(12deg); }
+    }
+
     @media (prefers-reduced-motion: reduce) {
-        .eco__glyph :global(.eco__leaf) { animation: none; stroke-dashoffset: 0; }
+        .eco__glyph :global(.eco__leaf) { animation: none; transform: none; stroke-dashoffset: 0; }
     }
 
     @media (max-width: 860px) {
