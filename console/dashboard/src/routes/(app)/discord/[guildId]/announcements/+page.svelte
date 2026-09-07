@@ -89,7 +89,7 @@
         bind:value={allowDraft}
         onkeydown={(e) => addOnEnter(e, commitAllow)}
       />
-      <Button variant="secondary" icon="plus" onclick={commitAllow}>{t('discord.chipAdd')}</Button>
+      <Button variant="secondary" onclick={commitAllow}>{t('discord.chipAdd')}</Button>
     </span>
     <FieldNote invalid={draft.invalid} field="categoryAllow" />
   </div>
@@ -110,7 +110,7 @@
         bind:value={denyDraft}
         onkeydown={(e) => addOnEnter(e, commitDeny)}
       />
-      <Button variant="secondary" icon="plus" onclick={commitDeny}>{t('discord.chipAdd')}</Button>
+      <Button variant="secondary" onclick={commitDeny}>{t('discord.chipAdd')}</Button>
     </span>
     <FieldNote invalid={draft.invalid} field="categoryDeny" />
   </div>

@@ -3,7 +3,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Icon, PageHead, Card, CardHead, Button, EmptyState, ConfirmDialog, RadioGroup, Skeleton, toast } from '@bagel/shared';
+  import { PageHead, Card, CardHead, Button, EmptyState, ConfirmDialog, RadioGroup, Skeleton, toast } from '@bagel/shared';
   import type { NotificationWire } from '$lib/server/services';
   let { data, form } = $props();
 
@@ -140,7 +140,7 @@
         </label>
       </div>
 
-      <Button type="submit" variant="primary" icon="send">Send notification</Button>
+      <Button type="submit" variant="primary">Send notification</Button>
     </form>
   </Card>
 
@@ -151,9 +151,9 @@
         {#each [0, 1, 2] as i (i)}<Skeleton variant="block" height="72px" />{/each}
       </div>
     {:else if degraded}
-      <EmptyState icon="bell" title="History unavailable" body="The notifications service is unreachable; sent messages are not shown." />
+      <EmptyState title="History unavailable" body="The notifications service is unreachable; sent messages are not shown." />
     {:else if notifications.length === 0}
-      <EmptyState icon="bell" title="No notifications yet" body="Notifications you send appear here." />
+      <EmptyState title="No notifications yet" body="Notifications you send appear here." />
     {:else}
       <div class="list">
         {#each notifications as n (n.id)}
@@ -171,7 +171,7 @@
               </div>
             </div>
             <button type="button" class="btn ghost sm danger" onclick={() => (retractTarget = n)}>
-              <Icon name="trash" size={12} /> Retract
+              Retract
             </button>
           </div>
         {/each}

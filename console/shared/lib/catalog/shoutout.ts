@@ -10,7 +10,6 @@ export const SHOUTOUT_MODULE: ModuleDef =
   tagline: 'Welcome incoming raids with an automatic shoutout.',
   description:
     'When another channel raids in, the bot posts a shoutout pointing your chat at the raider. Turn the module on and customize the shoutout line.',
-  icon: 'megaphone',
   category: 'Channel',
   defaultEnabled: false,
   replies: [

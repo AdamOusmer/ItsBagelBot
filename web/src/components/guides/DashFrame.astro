@@ -677,34 +677,9 @@ const { path = '/', notes = [], caption } = Astro.props;
         background: rgba(82, 183, 136, 0.05);
     }
 
-    .df-tile-head { display: flex; gap: 9px; align-items: center; }
-
-    .df-ico {
-        display: grid;
-        place-items: center;
-        width: 26px;
-        height: 26px;
-        flex: none;
-        border: 1px solid rgba(201, 168, 124, 0.18);
-        border-radius: 7px;
-        background: rgba(240, 236, 228, 0.03);
-        color: var(--tan-light, #e0c49a);
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-style: normal;
-        font-size: 0.66rem;
-    }
-
-    /* Real console icon strokes (console/shared/lib/icons.ts), inlined as
-       tiny SVGs so tiles carry the same glyphs as the live modules page. */
-    .df-ico svg {
-        width: 13px;
-        height: 13px;
-        fill: none;
-        stroke: currentColor;
-        stroke-width: 1.8;
-        stroke-linecap: round;
-        stroke-linejoin: round;
-    }
+    /* Name over category, no glyph column: the live modules page dropped its
+       tile icons, and the guide screenshots have to keep matching it. */
+    .df-tile-head { display: block; }
 
     .df-tile-head b {
         display: block;

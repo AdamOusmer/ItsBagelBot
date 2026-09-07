@@ -58,7 +58,7 @@
         <p class="lead"><Chip on>{t('modules.betaChip')}</Chip></p>
         <p class="hint">{t('modules.betaLockedBody')}</p>
         <div class="row">
-          <ButtonLink variant="primary" href="/billing" icon="gem">{t('modules.betaUpgrade')}</ButtonLink>
+          <ButtonLink variant="primary" href="/billing">{t('modules.betaUpgrade')}</ButtonLink>
         </div>
       </Card>
     </section>
@@ -68,7 +68,7 @@
     {/if}
 
     {#if data.justConnected && data.refused}
-      <AlertBanner variant="warn" icon="server">{t('discord.connectedLivedIn')}</AlertBanner>
+      <AlertBanner variant="warn">{t('discord.connectedLivedIn')}</AlertBanner>
     {/if}
 
     <!-- Setup could not adopt a pinned role because it is gone from the guild,
@@ -76,7 +76,7 @@
          one-shot cookie the load deletes as it reads it, and the dead pin is
          already off the row, so the Roles picker shows the new role. -->
     {#if droppedBanner}
-      <AlertBanner variant="warn" icon="server">{droppedBanner}</AlertBanner>
+      <AlertBanner variant="warn">{droppedBanner}</AlertBanner>
     {/if}
 
     <!--
@@ -87,7 +87,7 @@
       self-heals until the streamer re-authorizes.
     -->
     {#if needsReauth}
-      <AlertBanner variant="warn" icon="power">
+      <AlertBanner variant="warn">
         {t('discord.reauthNeeded')}
         {#snippet action()}
           <ButtonLink variant="secondary" href="/discord/connect" data-sveltekit-reload>

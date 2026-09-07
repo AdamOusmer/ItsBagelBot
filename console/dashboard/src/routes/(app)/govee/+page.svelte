@@ -5,7 +5,6 @@
   import { invalidateAll } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
   import {
-    Icon,
     Card,
     PageHead,
     Scroller,
@@ -138,7 +137,7 @@
 </script>
 
 <section class="screen active">
-  <a class="back" href="/modules"><Icon name="x" size={13} /> {t('govee.back')}</a>
+  <a class="back" href="/modules">{t('govee.back')}</a>
   <PageHead eyebrow={t('govee.eyebrow')} description={t('govee.description')}>
     {t('govee.titlePre')} <em>{t('govee.titleEm')}</em>
   </PageHead>
@@ -149,7 +148,7 @@
 
   {#if missingScope}
     <!-- Unavailable state explained in TEXT with the required Twitch action. -->
-    <AlertBanner variant="warn" icon="power">
+    <AlertBanner variant="warn">
       {t('govee.reconnect')}
       {#snippet action()}
         <ButtonLink variant="primary" href="/login?next=/govee" data-sveltekit-reload>{t('govee.reconnectCta')}</ButtonLink>
@@ -181,7 +180,7 @@
         </p>
         {#if keyPresent}
           <div class="row">
-            <span class="ok-pill"><Icon name="check" size={13} /> {t('govee.keyOnFile')}</span>
+            <span class="ok-pill">{t('govee.keyOnFile')}</span>
             <form method="POST" action="?/clearKey" use:enhance={formResult(t('govee.keyRemoved'), t('govee.keyRemoveFailed'), () => (keyPresent = false))}>
               <Button variant="destructive" type="submit">{t('govee.keyRemove')}</Button>
             </form>
@@ -217,9 +216,9 @@
           {#if dr.error}
             <!-- Never surface the raw provider error (it may carry the key);
                  show a safe, actionable localized message instead. -->
-            <p class="err-text" role="alert"><Icon name="ban" size={13} /> {t('govee.devicesError')}</p>
+            <p class="err-text" role="alert">{t('govee.devicesError')}</p>
           {:else if lights.length === 0}
-            <EmptyState icon="power" title={t('govee.noLights')} />
+            <EmptyState title={t('govee.noLights')} />
           {:else}
             <div class="list">
               {#each lights as d (d.device)}

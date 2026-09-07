@@ -17,10 +17,10 @@
 <section class="ov-quick" aria-labelledby="ov-quick-h">
   <h2 id="ov-quick-h" class="ov-section-h">{t('overview.quickHeading')}</h2>
   <div class="ov-quick__row">
-    <ButtonLink href="/commands" variant="primary" icon="plus" class="ov-quick__btn">{t('overview.quickNewCommand')}</ButtonLink>
-    <ButtonLink href="/modules" variant="ghost" icon="modules" class="ov-quick__btn">{t('overview.quickModules')}</ButtonLink>
+    <ButtonLink href="/commands" variant="primary" class="ov-quick__btn">{t('overview.quickNewCommand')}</ButtonLink>
+    <ButtonLink href="/modules" variant="ghost" class="ov-quick__btn">{t('overview.quickModules')}</ButtonLink>
     {#if needsAttention}
-      <ButtonLink href="/settings" variant="ghost" icon="settings" class="ov-quick__btn">{t('overview.quickSettings')}</ButtonLink>
+      <ButtonLink href="/settings" variant="ghost" class="ov-quick__btn">{t('overview.quickSettings')}</ButtonLink>
     {/if}
   </div>
 </section>

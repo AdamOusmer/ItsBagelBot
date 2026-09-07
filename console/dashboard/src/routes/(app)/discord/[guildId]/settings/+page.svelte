@@ -57,7 +57,7 @@
   <Card>
     <p class="hint">{t('discord.setupHelp')}</p>
     <form method="POST" action="?/setup" use:enhance={setupSubmit}>
-      <Button variant="secondary" type="submit" icon="server" loading={busy}>{t('discord.setupCta')}</Button>
+      <Button variant="secondary" type="submit" loading={busy}>{t('discord.setupCta')}</Button>
     </form>
 
     <!-- Never saved: the guild is bound but has no config row, so nothing Bagel
@@ -74,10 +74,10 @@
   <Card>
     <p class="hint">{t('discord.disconnectBody')}</p>
     <div class="row">
-      <ButtonLink variant="ghost" icon="power" href="/discord/connect" data-sveltekit-reload>
+      <ButtonLink variant="ghost" href="/discord/connect" data-sveltekit-reload>
         {t('discord.reconnectCta')}
       </ButtonLink>
-      <Button variant="destructive" icon="ban" onclick={() => (disconnectOpen = true)}>
+      <Button variant="destructive" onclick={() => (disconnectOpen = true)}>
         {t('discord.disconnectCta')}
       </Button>
     </div>

@@ -14,7 +14,6 @@ export const STREAM_MODULE: ModuleDef = {
   tagline: 'Set the live title, category and tags, run ads, and drop markers from chat.',
   description:
     'Lead moderators edit the live stream from chat the way Nightbot and StreamElements do: !title / !settitle, !game / !setgame, !tags, !commercial / !ad, and !marker. Each command can be toggled on this page. They ship on. Needs a Twitch re-consent for channel:manage:broadcast and channel:edit:commercial if you signed up before those grants existed.',
-  icon: 'broadcast',
   category: 'Channel',
   defaultEnabled: true,
   toggleable: false,

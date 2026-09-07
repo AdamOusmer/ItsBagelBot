@@ -2,7 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { onMount } from 'svelte';
-  import { Icon, StatTile, PageHead, CardHead, Card, Button, Skeleton, AlertBanner } from '@bagel/shared';
+  import { StatTile, PageHead, CardHead, Card, Button, Skeleton, AlertBanner } from '@bagel/shared';
   import type { ShardSnapshot } from '@bagel/shared';
   import EnrollmentChart from '$lib/components/EnrollmentChart.svelte';
   import type { AuditEntry } from '$lib/server/services';
@@ -69,10 +69,10 @@
 
   {#await data.overview}
     <div class="stat-grid">
-      <StatTile icon="users" label="Registered users" value="-" unit="total" delta="loading…" flat />
-      <StatTile icon="pulse" tan label="Premium users" value="-" unit="premium" delta="loading…" flat />
-      <StatTile icon="server" label="Shards" value="-" unit="up" delta="loading…" flat />
-      <StatTile icon="overview" tan label="Conduit" value="…" unit="" delta="loading…" flat />
+      <StatTile label="Registered users" value="-" unit="total" delta="loading…" flat />
+      <StatTile label="Premium users" value="-" unit="premium" delta="loading…" flat />
+      <StatTile label="Shards" value="-" unit="up" delta="loading…" flat />
+      <StatTile label="Conduit" value="…" unit="" delta="loading…" flat />
     </div>
     <div class="growth-card card">
       <div class="card-head"><h3>Enrollment</h3></div>
@@ -104,7 +104,6 @@
 
     <div class="stat-grid">
       <StatTile
-        icon="users"
         label="Registered users"
         value={stats.total_users.toLocaleString()}
         unit="total"
@@ -112,8 +111,6 @@
         flat={growth === null}
       />
       <StatTile
-        icon="pulse"
-        tan
         label="Premium users"
         value={stats.premium_users.toLocaleString()}
         unit="premium"
@@ -121,7 +118,6 @@
         flat
       />
       <StatTile
-        icon="server"
         label="Shards"
         value={`${sum.connected}/${sum.total}`}
         unit="up"
@@ -129,8 +125,6 @@
         flat={sum.healthy}
       />
       <StatTile
-        icon="overview"
-        tan
         label="Conduit"
         value={o.snapshot.conduit_manager?.state ?? 'unknown'}
         unit=""
@@ -179,7 +173,6 @@
               </div>
             </div>
             <a class="btn ghost" href="/auth/bot/login">
-              <Icon name="link" size={14} />
               {o.botPresent ? 'Re-authorize' : 'Authorize'}
             </a>
           </div>
@@ -190,7 +183,7 @@
               <div class="botlink-row">
                 <input class="botlink-url" type="text" readonly value={botLink} />
                 <Button variant="ghost" type="button" onclick={copyLink}>
-                  <Icon name="link" size={14} /> {copied ? 'Copied' : 'Copy'}
+                  {copied ? 'Copied' : 'Copy'}
                 </Button>
               </div>
             </div>

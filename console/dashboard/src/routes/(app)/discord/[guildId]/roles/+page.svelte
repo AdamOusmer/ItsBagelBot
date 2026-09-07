@@ -103,7 +103,7 @@
 {/snippet}
 
 {#if layoutDown}
-  <AlertBanner variant="warn" icon="server">{t('discord.layoutUnavailable')}</AlertBanner>
+  <AlertBanner variant="warn">{t('discord.layoutUnavailable')}</AlertBanner>
 {/if}
 
 <GuildForm {draft} id="dc-roles-h" title={t('discord.rolesTitle')} hint={t('discord.rolesHelp')}>

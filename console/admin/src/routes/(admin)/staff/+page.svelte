@@ -165,7 +165,7 @@
       {/if}
     {/snippet}
     {#snippet trail()}
-      <Button variant="primary" icon="plus" onclick={() => (addOpen = !addOpen)}>Add member</Button>
+      <Button variant="primary" onclick={() => (addOpen = !addOpen)}>Add member</Button>
     {/snippet}
   </PageToolbar>
 
@@ -272,7 +272,7 @@
           {/each}
         </ul>
       {:else}
-        <EmptyState icon="moderation" title="No staff yet" body="Add the first member with their Twitch user id." />
+        <EmptyState title="No staff yet" body="Add the first member with their Twitch user id." />
       {/if}
     </DeckList>
 
@@ -321,7 +321,6 @@
         </Scroller>
       {:else}
         <div class="inspector-idle">
-          <span class="idle-glyph"><Icon name="audit" size={18} /></span>
           <p>Open a member's history to see their recorded operator actions.</p>
         </div>
       {/if}
@@ -447,11 +446,6 @@
     padding: 34px 20px; text-align: center; color: var(--bb-muted);
     font-family: var(--bb-font-body); font-size: 13px;
     display: flex; flex-direction: column; align-items: center; gap: 12px;
-  }
-  .idle-glyph {
-    display: inline-flex; align-items: center; justify-content: center;
-    width: 40px; height: 40px; border: 1px solid var(--rule-tan); border-radius: 8px;
-    color: var(--bb-tan-light);
   }
   .inspector-idle p { margin: 0; max-width: 26ch; line-height: 1.5; }
 

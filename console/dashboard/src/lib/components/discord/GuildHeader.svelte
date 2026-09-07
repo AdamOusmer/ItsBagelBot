@@ -10,7 +10,6 @@
   import { goto } from '$app/navigation';
   import {
     ButtonLink,
-    Icon,
     SegmentedControl,
     getI18n,
     guildMonogram,
@@ -46,8 +45,6 @@
   // never 404s and cannot leak the visit to Discord.
   const monogram = $derived(guildMonogram(guildName));
   const members = $derived(memberCount > 0 ? memberCount.toLocaleString() : '');
-
-  const PILL_ICONS = { online: 'check', offline: 'ban', reauth: 'power', unknown: 'dots' } as const;
 
   // now stays 0 until the browser sets it, so the server and the first client
   // render agree: an uptime rendered during SSR is stale by the time it lands
@@ -112,7 +109,6 @@
     <h1 class="name">{guildName}</h1>
     <div class="facts">
       <span class="pill {pillState}">
-        <Icon name={PILL_ICONS[pillState]} size={13} />
         {t(DISCORD_PILL_KEYS[pillState])}
       </span>
       <span class="tr-help">
@@ -125,7 +121,7 @@
   </div>
 
   <div class="switcher">
-    <ButtonLink variant="ghost" icon="list" href="/discord">{t('discord.allServersCta')}</ButtonLink>
+    <ButtonLink variant="ghost" href="/discord">{t('discord.allServersCta')}</ButtonLink>
     {#if guilds.length > 1 && guilds.length <= SEGMENTED_MAX}
       <SegmentedControl
         options={switchLabels}

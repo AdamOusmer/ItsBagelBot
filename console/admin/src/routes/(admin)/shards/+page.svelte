@@ -4,7 +4,7 @@
   import { enhance } from '$app/forms';
   import { onMount, untrack } from 'svelte';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Icon, PageHead, AlertBanner, Skeleton, toast } from '@bagel/shared';
+  import { PageHead, AlertBanner, Skeleton, toast } from '@bagel/shared';
   import type { Shard, ShardSnapshot } from '@bagel/shared';
   import {
     barWidth,
@@ -244,7 +244,6 @@
           <span class="more">{snap.nodes.join(', ') || 'no nodes'}</span>
         </div>
         <div class="conduit-row">
-          <div class="fi {cm?.state === 'leader' ? 'green' : ''}"><Icon name="overview" size={18} /></div>
           <div class="conduit-body">
             <div class="live-tag"><span class="dot"></span> {cm?.state ?? 'unknown'}</div>
             <div class="meta">
@@ -415,15 +414,6 @@
   }
   .conduit-body .meta { font-family: var(--bb-font-mono); font-size: 12px; color: var(--bb-muted); display: flex; gap: 8px; }
   .conduit-body .meta .mid { color: var(--bb-border-strong); }
-
-  .fi {
-    width: 36px; height: 36px; border-radius: 8px; flex-shrink: 0;
-    display: flex; align-items: center; justify-content: center;
-    background: rgba(201, 168, 124, 0.1); border: 1px solid rgba(201, 168, 124, 0.26);
-  }
-  .fi :global(svg) { width: 18px; height: 18px; stroke: var(--bb-tan-light); fill: none; stroke-width: 1.6; }
-  .fi.green { background: rgba(82, 183, 136, 0.1); border-color: rgba(82, 183, 136, 0.28); }
-  .fi.green :global(svg) { stroke: var(--bb-green-glow); }
 
   .control-card { margin-top: 16px; }
   .badge {

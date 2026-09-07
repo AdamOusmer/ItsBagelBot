@@ -4,7 +4,7 @@
   // Fake Tebex-hosted checkout, DEMO=1 only. Real checkout redirects the
   // browser out to Tebex; this page is the demo's own stand-in for that trip,
   // styled to match the billing page it launches from and returns to.
-  import { AuroraBg, LightField, PageHead, Card, Button, Icon } from '@bagel/shared';
+  import { AuroraBg, LightField, PageHead, Card, Button } from '@bagel/shared';
 
   let { data } = $props();
 
@@ -23,7 +23,6 @@
   </PageHead>
 
   <div class="demo-banner" role="status">
-    <Icon name="ban" size={13} />
     <span>This is a demo checkout. No card is charged, no email goes out, and nothing leaves this dev server.</span>
   </div>
 
@@ -47,7 +46,7 @@
       <input type="hidden" name="plan" value={data.plan} />
       <input type="hidden" name="kind" value={data.kind} />
       {#if isGift}<input type="hidden" name="recipient" value={data.recipient} />{/if}
-      <Button type="submit" variant="primary" icon="heart">Pay ${PRICE}.00</Button>
+      <Button type="submit" variant="primary">Pay ${PRICE}.00</Button>
     </form>
     <a class="cancel-link" href="/billing">Cancel, go back to billing</a>
   </Card>
@@ -81,9 +80,6 @@
     font-family: var(--bb-font-mono);
     font-size: 12px;
     line-height: 1.5;
-  }
-  .demo-banner :global(svg) {
-    flex-shrink: 0;
   }
 
   :global(.checkout-card) {

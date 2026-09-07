@@ -61,7 +61,7 @@
 </script>
 
 {#if layoutDown}
-  <AlertBanner variant="warn" icon="server">{t('discord.layoutUnavailable')}</AlertBanner>
+  <AlertBanner variant="warn">{t('discord.layoutUnavailable')}</AlertBanner>
 {/if}
 
 <GuildForm {draft} id="dc-tickets-h" title={t('discord.ticketsTitle')} hint={t('discord.ticketsSectionHelp')}>
@@ -254,7 +254,7 @@
     <div class="repost">
       <p class="hint">{t('discord.repostHelp')}</p>
       <form method="POST" action="?/repost" use:enhance={repostSubmit}>
-        <Button variant="secondary" type="submit" icon="ticket" loading={draft.busy} disabled={!ticketsOn}>
+        <Button variant="secondary" type="submit" loading={draft.busy} disabled={!ticketsOn}>
           {t('discord.repostCta')}
         </Button>
       </form>

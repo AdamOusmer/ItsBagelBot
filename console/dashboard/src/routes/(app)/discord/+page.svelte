@@ -11,7 +11,6 @@
     Card,
     Chip,
     EmptyState,
-    Icon,
     PageHead,
     PageToolbar,
     MasterToggle,
@@ -43,7 +42,6 @@
   // Never colour alone: every pill carries its own icon and its own word, and
   // `unknown` gets a neutral one because the listing never read that guild's
   // reauth flag.
-  const PILL_ICONS = { online: 'check', offline: 'ban', reauth: 'power', unknown: 'dots' } as const;
 
   // "Online" here means the gateway is present AND the grant is still good: a
   // guild needing re-authorization is counted as not online, because that is
@@ -93,7 +91,7 @@
         <p class="lead"><Chip on>{t('modules.betaChip')}</Chip></p>
         <p class="hint">{t('modules.betaLockedBody')}</p>
         <div class="row">
-          <ButtonLink variant="primary" href="/billing" icon="gem">{t('modules.betaUpgrade')}</ButtonLink>
+          <ButtonLink variant="primary" href="/billing">{t('modules.betaUpgrade')}</ButtonLink>
         </div>
       </Card>
     </section>
@@ -105,7 +103,7 @@
     {/if}
 
     {#if data.errorSlug && DISCORD_SLUG_KEYS[data.errorSlug]}
-      <AlertBanner variant="warn" icon="ban">{t(DISCORD_SLUG_KEYS[data.errorSlug])}</AlertBanner>
+      <AlertBanner variant="warn">{t(DISCORD_SLUG_KEYS[data.errorSlug])}</AlertBanner>
     {/if}
 
     <PageToolbar>
@@ -121,12 +119,12 @@
       {/snippet}
       {#snippet trail()}
         {#if data.templateURL}
-          <ButtonLink variant="ghost" icon="plus" href={data.templateURL} target="_blank" rel="noopener noreferrer">
+          <ButtonLink variant="ghost" href={data.templateURL} target="_blank" rel="noopener noreferrer">
             {t('discord.createCta')}
           </ButtonLink>
         {/if}
         {#if data.configured}
-          <ButtonLink variant="primary" icon="discord" href="/discord/connect" data-sveltekit-reload>
+          <ButtonLink variant="primary" href="/discord/connect" data-sveltekit-reload>
             {t('discord.addCta')}
           </ButtonLink>
         {:else}
@@ -143,23 +141,18 @@
         <h2 id="dc-stats-h" class="sr-only">{t('discord.hub.statsTitle')}</h2>
         <div class="stat-grid three">
           <StatTile
-            icon="server"
-            tan
             label={t('discord.hub.statServers')}
             value={guilds.length.toLocaleString()}
             delta={t('discord.hub.statServersNote')}
             flat
           />
           <StatTile
-            icon="broadcast"
             label={t('discord.hub.statOnline')}
             value={online.toLocaleString()}
             delta={t('discord.hub.statOnlineNote')}
             flat
           />
           <StatTile
-            icon="users"
-            tan
             label={t('discord.hub.statMembers')}
             value={reach.toLocaleString()}
             delta={t('discord.hub.statMembersNote')}
@@ -174,9 +167,9 @@
 
       {#if guilds.length === 0}
         <Card>
-          <EmptyState icon="discord" title={t('discord.emptyTitle')} body={t('discord.emptyBody')}>
+          <EmptyState title={t('discord.emptyTitle')} body={t('discord.emptyBody')}>
             {#if data.configured}
-              <ButtonLink variant="primary" icon="discord" href="/discord/connect" data-sveltekit-reload>
+              <ButtonLink variant="primary" href="/discord/connect" data-sveltekit-reload>
                 {t('discord.addCta')}
               </ButtonLink>
             {:else}
@@ -190,7 +183,7 @@
              streamer over the cap sees a short list and no sign of it, which
              reads as Bagel having lost a server. -->
         {#if data.truncated}
-          <AlertBanner variant="warn" icon="list">
+          <AlertBanner variant="warn">
             {t('discord.serversTruncated', { n: guilds.length.toLocaleString() })}
           </AlertBanner>
         {/if}
@@ -209,7 +202,6 @@
                        box and leaks the visit to Discord besides. -->
                   <span class="crest" aria-hidden="true">{guildMonogram(g.name || t('discord.unknownServer'))}</span>
                   <span class="pill {state}">
-                    <Icon name={PILL_ICONS[state]} size={13} />
                     {t(DISCORD_PILL_KEYS[state])}
                   </span>
                 </span>

@@ -135,7 +135,7 @@
 
   {#if !isNew}
     <div class="del-row">
-      <Button variant="destructive" icon="trash" onclick={onRequestDelete} disabled={busy}>{t('spotify.deleteReward')}</Button>
+      <Button variant="destructive" onclick={onRequestDelete} disabled={busy}>{t('spotify.deleteReward')}</Button>
     </div>
   {/if}
 

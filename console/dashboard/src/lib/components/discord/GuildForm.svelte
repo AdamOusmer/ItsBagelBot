@@ -44,10 +44,10 @@
   old module-blob save silently reverted whichever mod saved first.
 -->
 {#if draft.conflicted}
-  <AlertBanner variant="warn" icon="ban">
+  <AlertBanner variant="warn">
     {t('discord.conflictBody')}
     {#snippet action()}
-      <Button variant="secondary" icon="power" onclick={draft.reload}>{t('discord.conflictCta')}</Button>
+      <Button variant="secondary" onclick={draft.reload}>{t('discord.conflictCta')}</Button>
     {/snippet}
   </AlertBanner>
 {/if}
@@ -56,7 +56,7 @@
      and each refused control carries its own note. Only this page's own slice
      is posted, so a refusal here is always about a control on this page. -->
 {#if draft.invalidBanner}
-  <AlertBanner variant="warn" icon="ban">{draft.invalidBanner}</AlertBanner>
+  <AlertBanner variant="warn">{draft.invalidBanner}</AlertBanner>
 {/if}
 
 <section class="block reveal" style="--i:{index}" aria-labelledby={id}>
@@ -77,7 +77,7 @@
 
       <div class="actions">
         <SaveStatus state={draft.saveState} />
-        <Button variant="primary" type="submit" icon="check" loading={draft.saving}>{t('discord.save')}</Button>
+        <Button variant="primary" type="submit" loading={draft.saving}>{t('discord.save')}</Button>
       </div>
     </form>
 

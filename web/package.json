@@ -2,7 +2,7 @@
   "name": "web",
   "type": "module",
   "version": "0.0.1",
-  "packageManager": "bun@1.3.10",
+  "packageManager": "bun@1.4.2",
   "scripts": {
     "dev": "bun ./node_modules/astro/bin/astro.mjs dev",
     "build": "bun ./node_modules/astro/bin/astro.mjs build",
@@ -24,6 +24,8 @@
     "typescript": "^7.0.0"
   },
   "devDependencies": {
+    "@iconify-json/lucide": "1.2.129",
+    "@iconify-json/simple-icons": "1.2.94",
     "@playwright/test": "^1.61.1"
   }
 }

@@ -11,7 +11,7 @@
   //
   // Save/Cancel/Delete are handled by the page so the whole rule list persists in
   // one place.
-  import { Icon, getI18n } from '@bagel/shared';
+  import { getI18n } from '@bagel/shared';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
 
@@ -108,13 +108,12 @@
     {#if !isNew}
       <!-- Only an existing rule can be deleted; a new one is cancelled, not deleted. -->
       <button type="button" class="btn danger" onclick={onDelete} disabled={busy}>
-        <Icon name="trash" size={14} /> Delete
+        Delete
       </button>
     {/if}
     <span class="spacer"></span>
     <button type="button" class="btn ghost" onclick={onCancel} disabled={busy}>{t('common.cancel')}</button>
     <button type="button" class="btn primary" onclick={onSave} disabled={busy || !canSave}>
-      <Icon name="check" size={14} />
       {busy ? t('modules.loading') : t('modules.saveChanges')}
     </button>
   </div>

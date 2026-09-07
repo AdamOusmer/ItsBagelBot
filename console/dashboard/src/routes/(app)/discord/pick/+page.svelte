@@ -19,7 +19,7 @@
     <h2 id="dc-pick-h" class="block-title">{t('discord.pickTitle')}</h2>
     <Card>
       {#if choices.length === 0}
-        <EmptyState icon="discord" title={t('discord.pickEmptyTitle')} body={t('discord.pickEmptyBody')}>
+        <EmptyState title={t('discord.pickEmptyTitle')} body={t('discord.pickEmptyBody')}>
           <ButtonLink variant="secondary" href="/discord">{t('discord.pickBack')}</ButtonLink>
         </EmptyState>
       {:else}
@@ -42,13 +42,13 @@
                    fresh one gets the invite. -->
               <span class="server-actions">
                 {#if c.badge === 'mine'}
-                  <ButtonLink variant="secondary" icon="check" href={c.openURL}>
+                  <ButtonLink variant="secondary" href={c.openURL}>
                     {t('discord.openCta')}
                   </ButtonLink>
                 {:else if c.badge === 'elsewhere'}
                   <Chip disabled aria-disabled="true">{t('discord.pickElsewhereChip')}</Chip>
                 {:else}
-                  <ButtonLink variant="primary" icon="discord" href={c.installURL} data-sveltekit-reload>
+                  <ButtonLink variant="primary" href={c.installURL} data-sveltekit-reload>
                     {t('discord.pickCta')}
                   </ButtonLink>
                 {/if}

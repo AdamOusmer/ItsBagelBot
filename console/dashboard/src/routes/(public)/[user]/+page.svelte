@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { AuroraBg, LightField, AlertBanner, Card, Icon, getI18n } from '@bagel/shared';
+  import { AuroraBg, LightField, AlertBanner, Card, getI18n } from '@bagel/shared';
   import type { PageData } from './$types';
   import { commandsHref } from '$lib/components/public/links';
 
@@ -70,12 +70,11 @@
 
   {#if data.degraded}
     <div class="notice reveal" style="--i:3">
-      <AlertBanner variant="warn" icon="clock">{t('leaderboard.degraded')}</AlertBanner>
+      <AlertBanner variant="warn">{t('leaderboard.degraded')}</AlertBanner>
     </div>
   {:else if data.top.length === 0}
     <div class="podium-wrap reveal" style="--i:3">
       <Card atmosphere class="empty-card">
-        <span class="ico gem" aria-hidden="true"><Icon name="gem" size={18} /></span>
         <h2>{t('leaderboard.emptyTitle')}</h2>
         <p>{t('leaderboard.emptyBody', { channel: data.channelName })}</p>
       </Card>
@@ -95,7 +94,6 @@
               <span class="currency">{data.currencyName}</span>
             </span>
             <span class="watched">
-              <Icon name="clock" size={12} />
               {hoursFmt(viewer.watchSeconds)}&nbsp;{t('leaderboard.watchUnit')}
             </span>
           </Card>
@@ -107,7 +105,6 @@
       <Card atmosphere class="board" label={t('leaderboard.boardCh')}>
         {#snippet band()}
           <header class="board-head">
-            <span class="ico" aria-hidden="true"><Icon name="users" size={16} /></span>
             <div class="board-titles">
               <h2>{t('leaderboard.boardTitle')}</h2>
               <p>{t('leaderboard.boardNote')}</p>
@@ -136,7 +133,6 @@
                       <span class="viewer-name">{rowName(viewer)}</span>
                     </td>
                     <td class="n muted">
-                      <Icon name="clock" size={11} />
                       {hoursFmt(viewer.watchSeconds)}&nbsp;{t('leaderboard.watchUnit')}
                     </td>
                     <td class="n points-cell">{totalFmt.format(viewer.points)}</td>
@@ -156,7 +152,6 @@
       <Card atmosphere class="cmds-card" label={t('leaderboard.commandsCh')}>
         {#snippet band()}
           <header class="cmds-head">
-            <span class="ico" aria-hidden="true"><Icon name="commands" size={16} /></span>
             <h2>{t('leaderboard.commandsTitle')}</h2>
           </header>
         {/snippet}
@@ -433,7 +428,6 @@
     color: var(--bb-muted);
     font-variant-numeric: tabular-nums;
   }
-  .watched :global(svg) { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 
   /* --- Board ------------------------------------------------------------- */
 
@@ -483,21 +477,6 @@
     color: var(--bb-muted);
     margin: 4px 0 0;
   }
-
-  .ico {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    flex: 0 0 auto;
-    border-radius: var(--bb-radius-sm);
-    border: 1px solid var(--bb-border);
-    background: rgba(82, 183, 136, 0.08);
-    color: var(--bb-green-glow);
-  }
-  .ico.gem { background: rgba(201, 168, 124, 0.08); color: var(--bb-tan-light); }
-  .ico :global(svg) { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 
   .empty-card {
     max-width: 640px;
@@ -598,7 +577,6 @@
     font-family: var(--bb-font-mono);
     font-size: 12px;
   }
-  .muted :global(svg) { vertical-align: -1px; margin-right: 5px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 
   .points-cell { font-weight: 600; }
 

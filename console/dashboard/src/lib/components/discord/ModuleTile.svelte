@@ -16,12 +16,10 @@
     ButtonLink,
     Card,
     Chip,
-    Icon,
     Switch,
     flagValue,
     getI18n,
     toast,
-    type IconName,
     type ModuleTile
   } from '@bagel/shared';
   import { payloadOf, refusalTextOf, succeeded } from '$lib/discord/guild-draft.svelte';
@@ -30,14 +28,12 @@
     tile,
     guildId,
     version,
-    icon,
     name,
     help
   }: {
     tile: ModuleTile;
     guildId: string;
     version: number;
-    icon: IconName;
     name: string;
     help: string;
   } = $props();
@@ -76,7 +72,6 @@
 
 <Card>
   <div class="tile">
-    <span class="ico" aria-hidden="true"><Icon name={icon} size={16} /></span>
     <div class="copy">
       <span class="name">{name}</span>
       <span class="help" id={helpId}>{help}</span>
@@ -107,17 +102,6 @@
     display: flex;
     align-items: flex-start;
     gap: 12px;
-  }
-  .ico {
-    flex: none;
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-    display: grid;
-    place-items: center;
-    background: rgba(201, 168, 124, 0.12);
-    border: 1px solid var(--glass-border);
-    color: var(--bb-tan-light);
   }
   .copy {
     display: flex;

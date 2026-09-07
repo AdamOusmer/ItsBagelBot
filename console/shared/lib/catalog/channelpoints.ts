@@ -10,7 +10,6 @@ export const CHANNELPOINTS_MODULE: ModuleDef =
   tagline: 'Turn channel-point redemptions into bot actions.',
   description:
     'Create the custom rewards viewers redeem with channel points (made under the bot on Twitch, styled natively) and bind each one to a bot action, like posting a chat line. Choose whether each redemption is fulfilled, refunded, or left for a mod. Manage the rewards on this page.',
-  icon: 'hex',
   category: 'Channel',
   defaultEnabled: false,
   href: '/channelpoints',

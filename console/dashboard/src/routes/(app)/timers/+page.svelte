@@ -238,7 +238,7 @@
       />
     {/snippet}
     {#snippet trail()}
-      <Button variant="primary" icon="plus" onclick={openNew} disabled={creating}>
+      <Button variant="primary" onclick={openNew} disabled={creating}>
         {t('timers.newTimer')}
       </Button>
     {/snippet}
@@ -260,8 +260,8 @@
           />
         {/each}
         {#if rows.length === 0}
-          <EmptyState icon="clock" title={t('timers.emptyTitle')} body={t('timers.emptySub')}>
-            <Button variant="primary" icon="plus" onclick={openNew}>{t('timers.newTimer')}</Button>
+          <EmptyState title={t('timers.emptyTitle')} body={t('timers.emptySub')}>
+            <Button variant="primary" onclick={openNew}>{t('timers.newTimer')}</Button>
           </EmptyState>
         {/if}
       </div>

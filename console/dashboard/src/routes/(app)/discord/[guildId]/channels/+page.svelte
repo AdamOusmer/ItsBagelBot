@@ -27,7 +27,7 @@
      ids are wire detail nobody should be asked to copy by hand, so a layout
      outage disables the controls and says why, once. -->
 {#if layoutDown}
-  <AlertBanner variant="warn" icon="server">{t('discord.layoutUnavailable')}</AlertBanner>
+  <AlertBanner variant="warn">{t('discord.layoutUnavailable')}</AlertBanner>
 {/if}
 
 <GuildForm {draft} id="dc-channels-h" title={t('discord.channelsTitle')} hint={t('discord.channelsHelp')}>

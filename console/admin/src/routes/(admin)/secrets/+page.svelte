@@ -187,7 +187,7 @@
   {:else}
     {#if scope}
       <p class="scope-ok">
-        <Icon name="check" size={13} /> Every service resolves a per-project scoped Doppler token.
+        Every service resolves a per-project scoped Doppler token.
       </p>
     {/if}
 

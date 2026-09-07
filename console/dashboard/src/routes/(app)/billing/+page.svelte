@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Icon, Bolota, PageHead, Card, Modal, AlertBanner, Button, ConfirmDialog, FieldError, AuroraBg, LightField, portal, toast, getI18n, containsLink } from '@bagel/shared';
+  import { Bolota, PageHead, Card, Modal, AlertBanner, Button, ConfirmDialog, FieldError, AuroraBg, LightField, portal, toast, getI18n, containsLink } from '@bagel/shared';
   import { page } from '$app/state';
   import { replaceState } from '$app/navigation';
   import { onMount } from 'svelte';
@@ -417,7 +417,7 @@
         <!-- 4. Features: semantic list. -->
         <ul class="plan-feats">
           {#each freeFeatures as feature}
-            <li><Icon name="check" size={15} />{feature}</li>
+            <li>{feature}</li>
           {/each}
         </ul>
         <p class="plan-current">{t('billing.onThisPlan')}</p>
@@ -436,7 +436,7 @@
         <!-- 4. Features: semantic list. -->
         <ul class="plan-feats">
           {#each premiumFeatures as feature}
-            <li><Icon name="check" size={15} />{feature}</li>
+            <li>{feature}</li>
           {/each}
         </ul>
         <!-- 2. Primary billing action: the ONE primary on the page. -->
@@ -446,7 +446,6 @@
             <Button
               type="submit"
               variant="primary"
-              icon="heart"
               loading={launching}
               aria-describedby="premium-fine"
             >
@@ -538,7 +537,7 @@
       <h3 class="includes-h">{t('billing.premiumIncludes')}</h3>
       <ul class="plan-feats plan-feats--flow">
         {#each premiumFeatures as feature}
-          <li><Icon name="check" size={15} />{feature}</li>
+          <li>{feature}</li>
         {/each}
       </ul>
     </section>
@@ -552,7 +551,7 @@
             {t('billing.giftCtaHint')}
           </p>
         </div>
-        <Button variant="secondary" icon="heart" onclick={openGift}>
+        <Button variant="secondary" onclick={openGift}>
           {t('billing.giftPremium')}
         </Button>
       </div>
@@ -629,7 +628,6 @@
       <Button
         type="submit"
         variant="primary"
-        icon="heart"
         loading={giftLaunching}
         disabled={giftNeedsRecipient || giftMessageHasLink}
         aria-describedby={giftNeedsRecipient ? 'gift-need-recipient' : undefined}
@@ -863,18 +861,10 @@
     border-top: 1px solid var(--bb-border);
   }
   .plan-feats li {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
     font-family: var(--bb-font-body);
     font-size: 0.87rem;
     line-height: 1.45;
     color: rgba(240, 236, 228, 0.82);
-  }
-  .plan-feats :global(svg) {
-    flex-shrink: 0;
-    color: var(--bb-green-glow, #52b788);
-    margin-top: 1px;
   }
   .plan-current {
     margin: auto 0 0;

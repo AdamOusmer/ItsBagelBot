@@ -3,7 +3,6 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { onMount } from 'svelte';
   import {
-    Icon,
     Card,
     CardHead,
     PageHead,
@@ -83,10 +82,6 @@
   const upCount = $derived(events.filter((f) => f.tone === 'up').length);
   const downCount = $derived(events.filter((f) => f.tone === 'down').length);
 
-  function icon(t: FeedEvent['tone']) {
-    return t === 'up' ? 'check' : t === 'down' ? 'ban' : 'pulse';
-  }
-
   const connLabel = $derived(
     conn === 'live' ? 'Streaming' : conn === 'connecting' ? 'Connecting…' : 'Reconnecting…'
   );
@@ -133,19 +128,16 @@
       {#if rows.length === 0}
         {#if events.length === 0}
           <EmptyState
-            icon="pulse"
             title={conn === 'live' ? 'No lifecycle changes yet' : connLabel}
             body="A healthy steady-state fleet is quiet. New shard up, bound, and down transitions appear here; this is not stored event history."
           />
         {:else}
-          <EmptyState icon="search" title="No events match the filter" />
+          <EmptyState title="No events match the filter" />
         {/if}
       {/if}
       {#each rows as f, i (f.time + f.subject + i)}
         <div class="feed-row">
-          <div class="fi {f.tone === 'up' ? 'green' : f.tone === 'down' ? 'red' : ''}">
-            <Icon name={icon(f.tone)} size={15} />
-          </div>
+          <div class="fi {f.tone === 'up' ? 'green' : f.tone === 'down' ? 'red' : ''}"></div>
           <div class="ft">
             <b>{f.label}</b>
             <span class="fp">{f.payload}</span>
@@ -173,8 +165,7 @@
   }
   .status-pill.dim .dot { background: var(--bb-muted); box-shadow: none; animation: none; }
 
-  .feed-row .fi.red { background: rgba(176, 90, 70, 0.1); border-color: rgba(176, 90, 70, 0.28); }
-  .feed-row .fi.red :global(svg) { stroke: #cf8a78; }
+  .feed-row .fi.red { background: #cf8a78; }
 
   .fp {
     display: block;

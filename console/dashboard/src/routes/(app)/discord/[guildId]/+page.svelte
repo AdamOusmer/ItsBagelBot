@@ -9,7 +9,7 @@
   // default and reports whether the channel or role it needs was ever picked,
   // which is the difference between "off" and "on but silently dropping every
   // post" -- a distinction the old page never made anywhere.
-  import { AlertBanner, ButtonLink, Card, Icon, getI18n, guildModuleTiles, tilesNeedingSetup, type IconName, type ModuleTileId } from '@bagel/shared';
+  import { AlertBanner, ButtonLink, Card, getI18n, guildModuleTiles, tilesNeedingSetup, type ModuleTileId } from '@bagel/shared';
   import ModuleTile from '$lib/components/discord/ModuleTile.svelte';
   import { CLOSE_KEYS, type I18nKey } from '$lib/discord/guild-fields';
   import { botOnlineOf, layoutDownOf } from '$lib/discord/guild-view';
@@ -26,24 +26,9 @@
   const layoutDown = $derived(layoutDownOf(data.layout));
   const closeKey = $derived(CLOSE_KEYS[data.status?.lastCloseCode ?? 0]);
 
-  const PILL_ICONS = { online: 'check', offline: 'ban', reauth: 'power', unknown: 'dots' } as const;
-
   // Typed literal maps rather than a built key: the i18n generator only sees
   // literals, so a tile added without copy fails the type check instead of
   // rendering its own key at a streamer.
-  const TILE_ICONS: Record<ModuleTileId, IconName> = {
-    announcementsLive: 'broadcast',
-    announcementsClips: 'megaphone',
-    welcome: 'smile',
-    goodbye: 'follower',
-    voiceHub: 'mic',
-    logs: 'audit',
-    levels: 'tally',
-    linkGuard: 'link',
-    subscribers: 'gem',
-    autoRole: 'users',
-    tickets: 'ticket'
-  };
 
   const TILE_NAME_KEYS: Record<ModuleTileId, I18nKey> = {
     announcementsLive: 'discord.overview.tiles.announcementsLive.name',
@@ -77,10 +62,10 @@
 <!-- Bound but never saved: nothing in this server has been set up yet, so the
      one useful action is the fill, not a settings page. -->
 {#if !data.found}
-  <AlertBanner variant="warn" icon="server">
+  <AlertBanner variant="warn">
     {t('discord.overview.notSetUp')}
     {#snippet action()}
-      <ButtonLink variant="secondary" icon="server" href="/discord/{data.guildId}/settings">
+      <ButtonLink variant="secondary" href="/discord/{data.guildId}/settings">
         {t('discord.setupCta')}
       </ButtonLink>
     {/snippet}
@@ -95,7 +80,6 @@
         <dt>{t('discord.overview.botState')}</dt>
         <dd>
           <span class="pill {pillState}">
-            <Icon name={PILL_ICONS[pillState]} size={13} />
             {t(DISCORD_PILL_KEYS[pillState])}
           </span>
         </dd>
@@ -140,7 +124,6 @@
         {tile}
         guildId={data.guildId}
         version={data.version}
-        icon={TILE_ICONS[tile.id]}
         name={t(TILE_NAME_KEYS[tile.id])}
         help={t(TILE_HELP_KEYS[tile.id])}
       />
