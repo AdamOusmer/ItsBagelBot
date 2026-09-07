@@ -292,8 +292,7 @@ test.describe('ItsBagelBot site', () => {
         await expect(page.locator('.phero__title')).toContainText('Terms of Service');
         await expect(page.locator('body')).toContainText('Acceptable Use');
         await expect(page.locator('body')).toContainText('Source Available License');
-        await expect(page.locator('body')).toContainText('Third-Party Games and Trademarks');
-        await expect(page.locator('[data-legal-link]')).toHaveCount(12);
+        await expect(page.locator('[data-legal-link]')).toHaveCount(11);
     });
 
     test('active nav route is marked', async ({ page }) => {

@@ -9,16 +9,15 @@
  */
 import Card from '../ui/Card.astro';
 import SectionHeading from '../ui/SectionHeading.astro';
-import { getLangFromUrl, useTranslations, localizePath } from '../../i18n/ui';
+import { getLangFromUrl, useTranslations } from '../../i18n/ui';
 
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
 
 // The full trademark and affiliation notices (Mojang, Hypixel, Epic, Riot,
-// Supercell) live in the Terms of Service (legal/terms 11-third-party). This
+// Supercell) live in the footer now, where every page carries them. This
 // section keeps a one-line pointer: five publishers' worth of legalese under a
 // bento grid buried the section it belonged to.
-const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{terms}');
 ---
 
 <section class="games" id="integrations">
@@ -131,9 +130,6 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
         <Card class="games__card games__card--req" label={t('games.reqCh')} data-reveal style="--reveal-i: 4">
             <div class="games__demo games__demo--req" slot="band" aria-hidden="true">
                 <a href="https://github.com/AdamOusmer/ItsBagelBot/issues/new" target="_blank" rel="noopener noreferrer" class="games-req__btn">
-                    <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path>
-                    </svg>
                     New Issue
                 </a>
             </div>
@@ -142,10 +138,7 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
         </Card>
     </div>
 
-    <p class="games__legal">{legalShortBefore}<a
-        class="games__legal-link"
-        href={localizePath('/terms', lang)}
-    >{t('games.legalTermsLabel')}</a>{legalShortAfter}</p>
+    <p class="games__legal">{t('games.legalShort')}</p>
 </section>
 
 <style>
@@ -439,17 +432,6 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
         line-height: 1.7;
         color: var(--muted, #888077);
         opacity: 0.75;
-    }
-
-    .games__legal-link {
-        color: inherit;
-        text-decoration: underline;
-        text-underline-offset: 3px;
-        transition: color 0.2s ease;
-    }
-
-    .games__legal-link:is(:hover, :focus-visible) {
-        color: var(--white, #f0ece4);
     }
 
     @media (prefers-reduced-motion: reduce) {
