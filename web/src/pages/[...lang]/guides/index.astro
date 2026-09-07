@@ -5,9 +5,11 @@
 // The guides hub, one file for every locale. Cards come from each guide's own
 // content file (meta.card), so the hub can never describe a guide that no
 // longer says that; order and numbering come from the slug list.
+//
+// Order on the page: the command builder first (the thing most people came
+// for), then the five guides as one calm list, then where to ask.
 import Layout from '../../../layouts/Layout.astro';
 import PageHero from '../../../components/ui/PageHero.astro';
-import Card from '../../../components/ui/Card.astro';
 import GuideCard from '../../../components/guides/GuideCard.astro';
 import TextLink from '../../../components/ui/TextLink.astro';
 import { getLangFromUrl, locales, defaultLang } from '../../../i18n/ui';
@@ -30,25 +32,30 @@ const guides = guideSlugs.map((slug) => ({
     <PageHero eyebrow={hub.meta.eyebrow} title={hub.meta.heading} description={hub.meta.lead} />
 
     <section class="ghub">
-        <div class="ghub__list">
-            {guides.map((guide, i) => (
-                <GuideCard {...guide} revealIndex={i + 1} />
-            ))}
-        </div>
-
-        <!-- The tool: not a guide, a workbench. Banded like every other Card;
-             distinct only through what sits in the band, no bespoke glow. -->
-        <Card as="a" href={hub.tool.href} label={hub.tool.eyebrow} class="ghub__tool" data-reveal style="--reveal-i: 4">
-            <div class="ghub__tool-demo" slot="band" aria-hidden="true">
+        <!-- The builder: a workbench, not a guide. One flat plate, copy and a
+             real button on the left, the rehearsal on the right. The whole
+             plate is the link; the cursor stays quiet on it and morphs on the
+             button only. -->
+        <a class="ghub__tool" href={hub.tool.href} data-cursor="quiet" data-reveal style="--reveal-i: 1">
+            <span class="ghub__tool-copy">
+                <span class="ghub__eyebrow">{hub.tool.eyebrow}</span>
+                <b class="ghub__tool-name">{hub.tool.name}</b>
+                <span class="ghub__tool-desc">{hub.tool.description}</span>
+                <span class="ghub__tool-btn" data-cursor>{hub.tool.cta}</span>
+            </span>
+            <span class="ghub__tool-demo" aria-hidden="true">
                 <span class="ghub__tool-line" set:html={hub.tool.demoIn}></span>
                 <span class="ghub__tool-line ghub__tool-line--out" set:html={hub.tool.demoOut}></span>
-            </div>
-            <b class="ghub__tool-name">{hub.tool.name}</b>
-            <p class="ghub__tool-desc">{hub.tool.description}</p>
-            <span class="ghub__tool-cta">{hub.tool.cta}</span>
-        </Card>
+            </span>
+        </a>
 
-        <div class="ghub__help" data-reveal style="--reveal-i: 5">
+        <ol class="ghub__list" aria-label={hub.meta.eyebrow}>
+            {guides.map((guide, i) => (
+                <li><GuideCard {...guide} cta={hub.readCta} revealIndex={Math.min(i + 2, 6)} /></li>
+            ))}
+        </ol>
+
+        <div class="ghub__help" data-reveal style="--reveal-i: 6">
             <p>{hub.help.prompt}</p>
             <div>
                 {hub.help.links.map((link) => (
@@ -66,22 +73,31 @@ const guides = guideSlugs.map((slug) => ({
         padding: 0 0 110px;
     }
 
-    .ghub__list {
-        display: grid;
-        gap: 16px;
-        /* One housing height for the row of guide cards so every seam lines
-           up (Card's band is a fixed height, not a min-height). */
-        --card-band-h: 84px;
+    .ghub__eyebrow {
+        display: block;
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.72rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--green-glow, #52b788);
+        margin-bottom: 12px;
     }
 
-    /* ── Builder feature card ──
-       Same banded Card as every guide card; the only thing that sets it
-       apart is what sits in the band (the rehearsal, not a green glow). */
-
+    /* ── Builder plate ── */
     .ghub__tool {
-        margin-top: 40px;
-        --card-band-h: 108px;
+        display: grid;
+        grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+        align-items: center;
+        gap: 32px;
+        padding: 30px 32px;
+        background: var(--card-bg, #111110);
+        border: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+        border-radius: var(--radius-card, 16px);
+        text-decoration: none;
+        transition: border-color 360ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
     }
+
+    .ghub__tool-copy { display: block; min-width: 0; }
 
     .ghub__tool-name {
         display: block;
@@ -90,45 +106,52 @@ const guides = guideSlugs.map((slug) => ({
         font-weight: 800;
         letter-spacing: -0.02em;
         color: var(--white, #f0ece4);
-        margin-bottom: 12px;
+        margin-bottom: 10px;
     }
 
     .ghub__tool-desc {
+        display: block;
         font-family: var(--font-body, "DM Sans", sans-serif);
-        font-size: 1rem;
-        line-height: 1.7;
+        font-size: 0.98rem;
+        line-height: 1.65;
         color: #a39c92;
-        margin: 0 0 4px;
+        max-width: 46ch;
+        margin-bottom: 20px;
     }
 
-    .ghub__tool-cta {
+    /* Same shape as ui/Buttons/MainButton, as a span (this sits inside a link). */
+    .ghub__tool-btn {
         display: inline-block;
         font-family: var(--font-display, "Syne", sans-serif);
-        font-size: 0.85rem;
         font-weight: 700;
-        color: var(--green-glow, #52b788);
-        margin-top: 4px;
+        font-size: 0.92rem;
+        padding: 13px 26px;
+        background: var(--tan, #c9a87c);
+        color: var(--black, #0a0a0a);
+        border-radius: 4px;
+        letter-spacing: -0.01em;
+        transition: background 240ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
     }
 
-    /* Mini before/after rehearsal, stacked with a thin tan rule standing in
-       for the arrow: request above, the bot's reply below. */
-
+    /* Rehearsal: the request, a thin tan rule, the bot's reply. Inset on the
+       page ink so it reads as a screen, not as more plate. */
     .ghub__tool-demo {
         display: flex;
         flex-direction: column;
         justify-content: center;
         gap: 10px;
-        width: 100%;
+        padding: 18px 20px;
+        background: var(--black, #0a0a0a);
+        border: 1px solid rgba(201, 168, 124, 0.12);
+        border-radius: var(--radius-sm, 6px);
         font-family: var(--font-mono, "DM Mono", monospace);
         font-size: 0.78rem;
         line-height: 1.6;
     }
 
-    .ghub__tool-line {
-        color: rgba(240, 236, 228, 0.85);
-    }
+    .ghub__tool-line { color: rgba(240, 236, 228, 0.85); }
 
-    .ghub__tool-line i {
+    .ghub__tool-line :global(i) {
         font-style: normal;
         color: var(--green-glow, #52b788);
         background: rgba(82, 183, 136, 0.09);
@@ -153,10 +176,28 @@ const guides = guideSlugs.map((slug) => ({
         opacity: 0.5;
     }
 
-    .ghub__tool-line--out b { font-weight: 700; }
+    .ghub__tool-line--out :global(b) { font-weight: 700; }
+
+    @media (hover: hover) and (pointer: fine) {
+        .ghub__tool:hover { border-color: rgba(201, 168, 124, 0.38); }
+        .ghub__tool:hover .ghub__tool-btn { background: var(--tan-light, #e0c49a); }
+    }
+
+    .ghub__tool:focus-visible {
+        outline: 2px solid var(--green-glow, #52b788);
+        outline-offset: 3px;
+    }
+
+    /* ── Guide list ── */
+    .ghub__list {
+        display: grid;
+        gap: 12px;
+        list-style: none;
+        margin: 36px 0 0;
+        padding: 0;
+    }
 
     /* ── Help strip ── */
-
     .ghub__help {
         display: flex;
         flex-wrap: wrap;
@@ -179,5 +220,14 @@ const guides = guideSlugs.map((slug) => ({
 
     @media (max-width: 760px) {
         .ghub { width: calc(100% - 32px); }
+        .ghub__tool {
+            grid-template-columns: 1fr;
+            gap: 20px;
+            padding: 24px 22px;
+        }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .ghub__tool, .ghub__tool-btn { transition: none; }
     }
 </style>

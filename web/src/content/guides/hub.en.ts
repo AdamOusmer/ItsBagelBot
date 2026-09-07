@@ -12,6 +12,7 @@ const hub: HubContent = {
     heading: 'Learn the bot.',
     lead: 'Every guide here works on the free plan, and each one runs ten minutes or less.',
   },
+  readCta: 'Read the guide',
   tool: {
     href: '/command-builder',
     eyebrow: 'Interactive tool',

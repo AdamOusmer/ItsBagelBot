@@ -12,6 +12,7 @@ const hub: HubContent = {
     heading: 'Apprivoisez le bot.',
     lead: 'Chaque guide fonctionne avec le forfait gratuit, et chacun se lit en dix minutes ou moins.',
   },
+  readCta: 'Lire le guide',
   tool: {
     href: '/fr/command-builder',
     eyebrow: 'Outil interactif',

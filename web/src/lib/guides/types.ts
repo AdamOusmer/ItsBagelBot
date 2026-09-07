@@ -103,6 +103,8 @@ export interface HubLink {
 
 export interface HubContent {
   meta: { title: string; description: string; eyebrow: string; heading: string; lead: string };
+  /** Label of the button on every guide row. */
+  readCta: string;
   tool: {
     href: string;
     eyebrow: string;

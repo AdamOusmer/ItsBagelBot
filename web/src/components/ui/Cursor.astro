@@ -155,7 +155,12 @@
 
         // ── pointer events ─────────────────────────────────────────────────────
         // Selector mirrors the dashboard: anchors, buttons, and opt-in elements.
+        // data-cursor="quiet" opts a large link area (a whole card) OUT of the
+        // morph: stamping the ring onto a 700px row read as a flash, so the
+        // ring stays idle there and only a nested data-cursor element (the
+        // card's own button) takes the morph. closest() finds the nearest one.
         const SEL = 'a, button, [data-cursor]';
+        const quiet = (el: HTMLElement) => el.dataset.cursor === 'quiet';
 
         const onMove = (e: PointerEvent) => {
             if (e.pointerType === 'touch') return;
@@ -168,7 +173,7 @@
         // Event delegation: catches dynamically added elements too.
         const onOver = (e: PointerEvent) => {
             const el = (e.target as Element | null)?.closest<HTMLElement>(SEL);
-            if (el) { target = el; start(); }
+            if (el) { target = quiet(el) ? null : el; start(); }
         };
 
         const onOut = (e: PointerEvent) => {
