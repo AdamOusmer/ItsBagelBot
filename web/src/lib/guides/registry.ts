@@ -78,8 +78,22 @@ export function guideIndex(slug: string): string {
 // literal em dash and this guard would be the one false positive.
 const EM_DASH = '\u2014';
 
-function fail(slug: string, lang: Lang, where: string, reason: string): never {
-  throw new Error(`guides parity: ${slug} ${lang} ${where} ${reason}`);
+/**
+ * The slug and locale under test, bound once. Every check below reports through
+ * this instead of threading the pair (and the section label) through each call:
+ * passing them as loose strings is what made the block checker a six-argument
+ * function that no caller could read.
+ */
+interface Parity {
+  fail(where: string, reason: string): never;
+}
+
+function parityFor(slug: string, lang: Lang): Parity {
+  return {
+    fail(where: string, reason: string): never {
+      throw new Error(`guides parity: ${slug} ${lang} ${where} ${reason}`);
+    },
+  };
 }
 
 /** Walk every string in a value and report the first that carries an em dash. */
@@ -101,46 +115,86 @@ function findEmDash(value: unknown, trail: string): string | undefined {
   return undefined;
 }
 
-function assertBlockParity(slug: string, lang: Lang, sectionId: string, i: number, a: Block, b: Block): void {
-  const where = `${sectionId} block ${i}`;
-  if (a.kind !== b.kind) fail(slug, lang, where, `kind is "${b.kind}", English has "${a.kind}"`);
-  if (a.kind === 'table' && b.kind === 'table') {
-    if (a.head.length !== b.head.length) fail(slug, lang, where, `table has ${b.head.length} columns, English has ${a.head.length}`);
-    if (a.rows.length !== b.rows.length) fail(slug, lang, where, `table has ${b.rows.length} rows, English has ${a.rows.length}`);
-    for (let r = 0; r < a.rows.length; r += 1) {
-      if (a.rows[r].length !== b.rows[r].length) fail(slug, lang, where, `table row ${r} has ${b.rows[r].length} cells, English has ${a.rows[r].length}`);
-    }
-  }
-  if (a.kind === 'dash' && b.kind === 'dash') {
-    if (a.screen !== b.screen) fail(slug, lang, where, `screen is "${b.screen}", English has "${a.screen}"`);
-    if ((a.notes?.length ?? 0) !== (b.notes?.length ?? 0)) fail(slug, lang, where, `has ${b.notes?.length ?? 0} notes, English has ${a.notes?.length ?? 0}`);
-  }
-  if (a.kind === 'chat' && b.kind === 'chat') {
-    if (a.lines.length !== b.lines.length) fail(slug, lang, where, `has ${b.lines.length} chat lines, English has ${a.lines.length}`);
-    for (let l = 0; l < a.lines.length; l += 1) {
-      if (a.lines[l].who !== b.lines[l].who) fail(slug, lang, where, `chat line ${l} is "${b.lines[l].who}", English has "${a.lines[l].who}"`);
-    }
-  }
-  if (a.kind === 'widget' && b.kind === 'widget' && a.name !== b.name) {
-    fail(slug, lang, where, `widget is "${b.name}", English has "${a.name}"`);
-  }
-  if (a.kind === 'cards' && b.kind === 'cards' && a.items.length !== b.items.length) {
-    fail(slug, lang, where, `has ${b.items.length} cards, English has ${a.items.length}`);
-  }
-  if (a.kind === 'steps' && b.kind === 'steps' && a.items.length !== b.items.length) {
-    fail(slug, lang, where, `has ${b.items.length} steps, English has ${a.items.length}`);
+/** A drift report, or undefined when the two sides agree. */
+type Drift = string | undefined;
+
+type BlockOf<K extends Block['kind']> = Extract<Block, { kind: K }>;
+
+/**
+ * One comparator per block kind, each returning what drifted rather than
+ * throwing. Written as a table because the alternative -- one `if (a.kind ===
+ * 'x' && b.kind === 'x')` arm per kind in a single function -- re-narrows both
+ * sides on every arm and grows a branch with every kind the content model gains.
+ */
+type BlockChecks = { [K in Block['kind']]?: (a: BlockOf<K>, b: BlockOf<K>) => Drift };
+
+function countDrift(label: string, a: readonly unknown[], b: readonly unknown[]): Drift {
+  return a.length === b.length ? undefined : `has ${b.length} ${label}, English has ${a.length}`;
+}
+
+function firstDrift(drifts: readonly Drift[]): Drift {
+  return drifts.find((drift) => drift !== undefined);
+}
+
+const blockChecks: BlockChecks = {
+  table: (a, b) =>
+    countDrift('table columns', a.head, b.head) ??
+    countDrift('table rows', a.rows, b.rows) ??
+    firstDrift(a.rows.map((row, r) => countDrift(`cells in table row ${r}`, row, b.rows[r]))),
+  dash: (a, b) =>
+    (a.screen === b.screen ? undefined : `screen is "${b.screen}", English has "${a.screen}"`) ??
+    countDrift('notes', a.notes ?? [], b.notes ?? []),
+  chat: (a, b) =>
+    countDrift('chat lines', a.lines, b.lines) ??
+    firstDrift(
+      a.lines.map((line, l) =>
+        line.who === b.lines[l].who
+          ? undefined
+          : `chat line ${l} is "${b.lines[l].who}", English has "${line.who}"`,
+      ),
+    ),
+  widget: (a, b) => (a.name === b.name ? undefined : `widget is "${b.name}", English has "${a.name}"`),
+  cards: (a, b) => countDrift('cards', a.items, b.items),
+  steps: (a, b) => countDrift('steps', a.items, b.items),
+};
+
+function blockDrift(a: Block, b: Block): Drift {
+  // The table keys off the kind the pair already share, so the two sides are the
+  // same variant by construction; the cast is what the index signature cannot say.
+  const check = blockChecks[a.kind] as ((x: Block, y: Block) => Drift) | undefined;
+  return check?.(a, b);
+}
+
+function assertBlockParity(p: Parity, where: string, a: Block, b: Block): void {
+  if (a.kind !== b.kind) p.fail(where, `kind is "${b.kind}", English has "${a.kind}"`);
+  const drift = blockDrift(a, b);
+  if (drift) p.fail(where, drift);
+}
+
+function assertSectionParity(p: Parity, a: Section[], b: Section[]): void {
+  const count = countDrift('sections', a, b);
+  if (count) p.fail('sections', count);
+  for (let s = 0; s < a.length; s += 1) assertOneSection(p, s, a[s], b[s]);
+}
+
+function assertOneSection(p: Parity, s: number, a: Section, b: Section): void {
+  if (a.id !== b.id) p.fail(`section ${s}`, `id is "${b.id}", English has "${a.id}"`);
+  const count = countDrift('blocks', a.blocks, b.blocks);
+  if (count) p.fail(a.id, count);
+  for (let i = 0; i < a.blocks.length; i += 1) {
+    assertBlockParity(p, `${a.id} block ${i}`, a.blocks[i], b.blocks[i]);
   }
 }
 
-function assertSectionParity(slug: string, lang: Lang, a: Section[], b: Section[]): void {
-  if (a.length !== b.length) fail(slug, lang, 'sections', `has ${b.length} sections, English has ${a.length}`);
-  for (let s = 0; s < a.length; s += 1) {
-    if (a[s].id !== b[s].id) fail(slug, lang, `section ${s}`, `id is "${b[s].id}", English has "${a[s].id}"`);
-    const blocksA = a[s].blocks;
-    const blocksB = b[s].blocks;
-    if (blocksA.length !== blocksB.length) fail(slug, lang, a[s].id, `has ${blocksB.length} blocks, English has ${blocksA.length}`);
-    for (let i = 0; i < blocksA.length; i += 1) assertBlockParity(slug, lang, a[s].id, i, blocksA[i], blocksB[i]);
-  }
+function assertLocaleParity(slug: string, lang: Lang, reference: GuideContent | HubContent): void {
+  const p = parityFor(slug, lang);
+  const candidate = lookup(`${slug}.${lang}`);
+  if (!candidate) p.fail('file', 'missing');
+  const emDash = findEmDash(candidate, '');
+  if (emDash !== undefined) p.fail(emDash || 'content', 'contains an em dash');
+  // The hub has no sections, and English is the reference it would be compared to.
+  if (lang === defaultLang || slug === 'hub') return;
+  assertSectionParity(p, (reference as GuideContent).sections, (candidate as GuideContent).sections);
 }
 
 /**
@@ -152,14 +206,7 @@ export function assertGuideParity(): void {
   for (const slug of ['hub', ...guideSlugs]) {
     const reference = lookup(`${slug}.${defaultLang}`);
     if (!reference) throw new Error(`guides parity: ${slug} ${defaultLang} file missing`);
-    for (const lang of locales) {
-      const candidate = lookup(`${slug}.${lang}`);
-      if (!candidate) fail(slug, lang, 'file', 'missing');
-      const emDash = findEmDash(candidate, '');
-      if (emDash) fail(slug, lang, emDash || 'content', 'contains an em dash');
-      if (lang === defaultLang || slug === 'hub') continue;
-      assertSectionParity(slug, lang, (reference as GuideContent).sections, (candidate as GuideContent).sections);
-    }
+    for (const lang of locales) assertLocaleParity(slug, lang, reference);
   }
 }
 
