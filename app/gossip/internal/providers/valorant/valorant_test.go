@@ -461,5 +461,5 @@ func TestEndpointSurface(t *testing.T) {
 	for _, ep := range p.Endpoints() {
 		names = append(names, ep.Name)
 	}
-	assert.ElementsMatch(t, []string{"rank", "matches", "account", "leaderboard", "shop"}, names)
+	assert.ElementsMatch(t, []string{"rank", "matches", "account", "leaderboard", "shop", "session_start", "session_end"}, names)
 }

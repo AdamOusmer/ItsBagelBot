@@ -888,6 +888,17 @@ type ValorantShopReply struct {
 	Error     string             `json:"error,omitempty"`
 }
 
+// ValorantSessionReply is the answer to valorant.session_start and
+// valorant.session_end: acknowledges the warm loop that keeps a live
+// broadcaster's rank and matches cache entries fresh for the stream's
+// length. Unlike fortnite/mcsr's session_start this carries no baseline —
+// Valorant has no session-delta command, only the cache the warm loop keeps
+// hot for !valrank/!valmatches.
+type ValorantSessionReply struct {
+	Player string `json:"player"`
+	Error  string `json:"error,omitempty"`
+}
+
 // --- custom (user-defined urlfetch definitions) ------------------------------
 
 // FetchDef is the projected view of one broadcaster-authored fetch definition,
