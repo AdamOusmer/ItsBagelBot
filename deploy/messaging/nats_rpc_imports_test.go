@@ -293,11 +293,11 @@ func TestRPCSubjectDefaultsAreGranted(t *testing.T) {
 		if _, skip := rpcServicesWithoutIdentity[service.name]; skip {
 			continue
 		}
-		requester, ok := catalog.accountForService(t, service.name)
+		requester, ok := catalog.accountForService(t, service)
 		if !ok {
 			continue
 		}
-		for _, literal := range sortedKeys(rpcSubjectDefaults(t, service.dir)) {
+		for _, literal := range sortedKeys(rpcSubjectDefaults(t, service)) {
 			checked++
 			catalog.assertDefaultGranted(t, subjectDefault{service: service.name, literal: literal, account: requester})
 		}
@@ -330,7 +330,7 @@ type subjectDefault struct {
 
 func loadRPCCatalog(t *testing.T) rpcCatalog {
 	t.Helper()
-	accounts := parseRPCAccounts(t, sourceFile{name: "nats-auth.conf"}.read(t))
+	accounts := authConfig{body: sourceFile{name: "nats-auth.conf"}.read(t)}.rpcAccounts(t)
 	byUser := make(map[string]rpcAccount)
 	for _, account := range accounts {
 		for _, user := range account.users {
@@ -352,16 +352,16 @@ func sortedManifestUsers() []string {
 // accountForService resolves a service directory to its RPC account through
 // rpcServiceUsers, reporting (rather than skipping) a directory the map does
 // not know: a new service is exactly the case this test is for.
-func (c rpcCatalog) accountForService(t *testing.T, service string) (rpcAccount, bool) {
+func (c rpcCatalog) accountForService(t *testing.T, service goService) (rpcAccount, bool) {
 	t.Helper()
-	user, ok := rpcServiceUsers[service]
+	user, ok := rpcServiceUsers[service.name]
 	if !ok {
-		t.Errorf("%s has a main.go but no entry in rpcServiceUsers — map it to its RPC user or list it in rpcServicesWithoutIdentity", service)
+		t.Errorf("%s has a main.go but no entry in rpcServiceUsers — map it to its RPC user or list it in rpcServicesWithoutIdentity", service.name)
 		return rpcAccount{}, false
 	}
 	account, ok := c.byUser[user]
 	if !ok {
-		t.Errorf("%s maps to user %s, which has no RPC account in nats-auth.conf", service, user)
+		t.Errorf("%s maps to user %s, which has no RPC account in nats-auth.conf", service.name, user)
 		return rpcAccount{}, false
 	}
 	return account, true
@@ -498,17 +498,21 @@ func TestSubjectMatches(t *testing.T) {
 		{"bagel.rpc.*.get", "bagel.rpc.thing.sub.get", false},
 	}
 	for _, c := range cases {
-		if got := subjectMatches(c.pattern, c.subject); got != c.want {
-			t.Errorf("subjectMatches(%q, %q) = %v, want %v", c.pattern, c.subject, got, c.want)
+		if got := (rpcGrant{kind: "service", subject: c.pattern}).covers(c.subject); got != c.want {
+			t.Errorf("(%q).covers(%q) = %v, want %v", c.pattern, c.subject, got, c.want)
 		}
 	}
 }
 
-// subjectMatches reports whether a NATS subject pattern covers a concrete
-// subject: tokens are dot-separated, '*' matches exactly one token and '>'
-// matches one or more remaining tokens.
-func subjectMatches(pattern, subject string) bool {
-	p := strings.Split(pattern, ".")
+// covers reports whether this service grant's subject pattern matches a
+// concrete subject under NATS rules: tokens are dot-separated, '*' matches
+// exactly one token and '>' matches one or more remaining tokens. Stream
+// grants never cover an RPC request.
+func (g rpcGrant) covers(subject string) bool {
+	if g.kind != "service" {
+		return false
+	}
+	p := strings.Split(g.subject, ".")
 	s := strings.Split(subject, ".")
 	for i, tok := range p {
 		if tok == ">" {
@@ -526,7 +530,7 @@ func subjectMatches(pattern, subject string) bool {
 
 func (a rpcAccount) importCovering(subject string) (rpcImport, bool) {
 	for _, imp := range a.imports {
-		if imp.kind == "service" && subjectMatches(imp.subject, subject) {
+		if imp.covers(subject) {
 			return imp, true
 		}
 	}
@@ -535,7 +539,7 @@ func (a rpcAccount) importCovering(subject string) (rpcImport, bool) {
 
 func (a rpcAccount) exportCovering(subject string) (rpcGrant, bool) {
 	for _, exp := range a.exports {
-		if exp.kind == "service" && subjectMatches(exp.subject, subject) {
+		if exp.covers(subject) {
 			return exp, true
 		}
 	}
@@ -567,27 +571,24 @@ func (a rpcAccount) importsDescend(literal string) bool {
 	return false
 }
 
-// parseRPCAccounts reads every top-level account block that carries a *_rpc
-// user and collects its exports and imports. BUS and SYS carry no such user
-// and fall out naturally.
-func parseRPCAccounts(t *testing.T, config string) map[string]rpcAccount {
+// rpcAccounts reads every top-level account block that carries a *_rpc user
+// and collects its exports and imports. BUS and SYS carry no such user and
+// fall out naturally.
+func (c authConfig) rpcAccounts(t *testing.T) map[string]rpcAccount {
 	t.Helper()
-	headers := rpcAccountHeaderPattern.FindAllStringSubmatchIndex(config, -1)
+	headers := rpcAccountHeaderPattern.FindAllStringSubmatchIndex(c.body, -1)
 	accounts := make(map[string]rpcAccount)
 	for i, header := range headers {
-		end := len(config)
+		end := len(c.body)
 		if i+1 < len(headers) {
 			end = headers[i+1][0]
 		}
-		body := config[header[0]:end]
-		account := rpcAccount{name: config[header[2]:header[3]]}
-		for _, match := range rpcUserPattern.FindAllStringSubmatch(body, -1) {
-			account.users = append(account.users, match[1])
-		}
+		block := accountBlock{body: c.body[header[0]:end]}
+		account := rpcAccount{name: c.body[header[2]:header[3]], users: block.rpcUsers()}
 		if len(account.users) == 0 {
 			continue
 		}
-		account.exports, account.imports = parseGrantArrays(body)
+		account.exports, account.imports = block.grants()
 		accounts[account.name] = account
 	}
 	if len(accounts) < 10 {
@@ -596,44 +597,68 @@ func parseRPCAccounts(t *testing.T, config string) map[string]rpcAccount {
 	return accounts
 }
 
-func parseGrantArrays(body string) (exports []rpcGrant, imports []rpcImport) {
-	section := ""
-	for _, line := range strings.Split(body, "\n") {
-		trimmed := strings.TrimSpace(line)
-		switch {
-		case strings.HasPrefix(trimmed, "#"), trimmed == "":
-			continue
-		case trimmed == "exports: [":
-			section = "exports"
-			continue
-		case trimmed == "imports: [":
-			section = "imports"
-			continue
-		case trimmed == "]":
-			section = ""
-			continue
+// accountBlock is one top-level account's text, header through the line
+// before the next header.
+type accountBlock struct {
+	body string
+}
+
+func (b accountBlock) rpcUsers() []string {
+	var users []string
+	for _, match := range rpcUserPattern.FindAllStringSubmatch(b.body, -1) {
+		users = append(users, match[1])
+	}
+	return users
+}
+
+func (b accountBlock) grants() ([]rpcGrant, []rpcImport) {
+	var p grantParser
+	for _, line := range strings.Split(b.body, "\n") {
+		p.consume(line)
+	}
+	return p.exports, p.imports
+}
+
+// grantParser walks an account block line by line. Only the exports and
+// imports arrays are read; a line that opens or closes one of them moves the
+// cursor, every other line is matched against the entry pattern for the
+// array it sits in (so comments and the users array match nothing).
+type grantParser struct {
+	section string
+	exports []rpcGrant
+	imports []rpcImport
+}
+
+var grantSectionMarkers = map[string]string{
+	"exports: [": "exports",
+	"imports: [": "imports",
+	"]":          "",
+}
+
+func (p *grantParser) consume(line string) {
+	if next, isMarker := grantSectionMarkers[strings.TrimSpace(line)]; isMarker {
+		p.section = next
+		return
+	}
+	switch p.section {
+	case "exports":
+		if m := exportEntryPattern.FindStringSubmatch(line); m != nil {
+			p.exports = append(p.exports, rpcGrant{kind: m[1], subject: m[2]})
 		}
-		switch section {
-		case "exports":
-			if m := exportEntryPattern.FindStringSubmatch(line); m != nil {
-				exports = append(exports, rpcGrant{kind: m[1], subject: m[2]})
-			}
-		case "imports":
-			if m := importEntryPattern.FindStringSubmatch(line); m != nil {
-				imports = append(imports, rpcImport{rpcGrant: rpcGrant{kind: m[1], subject: m[3]}, account: m[2]})
-			}
+	case "imports":
+		if m := importEntryPattern.FindStringSubmatch(line); m != nil {
+			p.imports = append(p.imports, rpcImport{rpcGrant: rpcGrant{kind: m[1], subject: m[3]}, account: m[2]})
 		}
 	}
-	return exports, imports
 }
 
 // rpcSubjectDefaults collects every bagel.rpc.* env-var default under a
 // service directory (non-test Go files, recursively), so internal/config
 // packages are covered along with main.go.
-func rpcSubjectDefaults(t *testing.T, dir string) map[string]struct{} {
+func rpcSubjectDefaults(t *testing.T, service goService) map[string]struct{} {
 	t.Helper()
 	literals := make(map[string]struct{})
-	err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+	err := filepath.WalkDir(service.dir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
