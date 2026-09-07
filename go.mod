@@ -9,17 +9,17 @@ require (
 	github.com/buger/jsonparser v1.6.1
 	github.com/bytedance/sonic v1.15.3
 	github.com/cespare/xxhash/v2 v2.3.0
-	github.com/coder/websocket v1.8.14
+	github.com/coder/websocket v1.8.15
 	github.com/go-chi/chi/v5 v5.3.2
-	github.com/go-sql-driver/mysql v1.10.0
+	github.com/go-sql-driver/mysql v1.10.1
 	github.com/google/uuid v1.6.0
-	github.com/mattn/go-sqlite3 v1.14.50
+	github.com/mattn/go-sqlite3 v1.14.52
 	github.com/nats-io/nats.go v1.53.1
 	github.com/nats-io/nuid v1.0.1
 	github.com/newrelic/go-agent/v3 v3.44.2
 	github.com/newrelic/go-agent/v3/integrations/nrmysql v1.2.2
 	github.com/puzpuzpuz/xsync/v4 v4.5.0
-	github.com/resend/resend-go/v4 v4.2.0
+	github.com/resend/resend-go/v4 v4.3.0
 	github.com/stretchr/testify v1.12.1
 	github.com/synadia-io/orbit.go/jetstreamext v0.3.2
 	github.com/tink-crypto/tink-go/v2 v2.8.0
