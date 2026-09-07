@@ -7,6 +7,7 @@
 // longer says that; order and numbering come from the slug list.
 import Layout from '../../../layouts/Layout.astro';
 import PageHero from '../../../components/ui/PageHero.astro';
+import Card from '../../../components/ui/Card.astro';
 import GuideCard from '../../../components/guides/GuideCard.astro';
 import TextLink from '../../../components/ui/TextLink.astro';
 import { getLangFromUrl, locales, defaultLang } from '../../../i18n/ui';
@@ -35,20 +36,17 @@ const guides = guideSlugs.map((slug) => ({
             ))}
         </div>
 
-        <!-- The tool: not a guide, a workbench. -->
-        <a class="ghub__tool" href={hub.tool.href} data-reveal style="--reveal-i: 4">
-            <div class="ghub__tool-copy">
-                <span class="ghub__tool-eyebrow">{hub.tool.eyebrow}</span>
-                <b>{hub.tool.name}</b>
-                <p>{hub.tool.description}</p>
-                <span class="ghub__tool-cta">{hub.tool.cta}</span>
-            </div>
-            <div class="ghub__tool-demo" aria-hidden="true">
+        <!-- The tool: not a guide, a workbench. Banded like every other Card;
+             distinct only through what sits in the band, no bespoke glow. -->
+        <Card as="a" href={hub.tool.href} label={hub.tool.eyebrow} class="ghub__tool" data-reveal style="--reveal-i: 4">
+            <div class="ghub__tool-demo" slot="band" aria-hidden="true">
                 <span class="ghub__tool-line" set:html={hub.tool.demoIn}></span>
-                <span class="ghub__tool-arrow">↓</span>
                 <span class="ghub__tool-line ghub__tool-line--out" set:html={hub.tool.demoOut}></span>
             </div>
-        </a>
+            <b class="ghub__tool-name">{hub.tool.name}</b>
+            <p class="ghub__tool-desc">{hub.tool.description}</p>
+            <span class="ghub__tool-cta">{hub.tool.cta}</span>
+        </Card>
 
         <div class="ghub__help" data-reveal style="--reveal-i: 5">
             <p>{hub.help.prompt}</p>
@@ -68,86 +66,66 @@ const guides = guideSlugs.map((slug) => ({
         padding: 0 0 110px;
     }
 
-    .ghub__list { display: grid; gap: 16px; }
+    .ghub__list {
+        display: grid;
+        gap: 16px;
+        /* One housing height for the row of guide cards so every seam lines
+           up (Card's band is a fixed height, not a min-height). */
+        --card-band-h: 84px;
+    }
 
-    /* ── Builder feature card ── */
+    /* ── Builder feature card ──
+       Same banded Card as every guide card; the only thing that sets it
+       apart is what sits in the band (the rehearsal, not a green glow). */
 
     .ghub__tool {
-        position: relative;
-        display: grid;
-        grid-template-columns: 1.1fr 1fr;
-        gap: 30px;
-        align-items: center;
         margin-top: 40px;
-        padding: clamp(26px, 4vw, 42px);
-        border: 1px solid rgba(82, 183, 136, 0.28);
-        border-radius: var(--radius-card, 16px);
-        background:
-            radial-gradient(500px 260px at 85% 10%, rgba(82, 183, 136, 0.09), transparent 70%),
-            rgba(17, 17, 16, 0.9);
-        overflow: hidden;
-        transition: border-color 220ms ease, transform 260ms var(--ease-out-expo);
+        --card-band-h: 108px;
     }
 
-    .ghub__tool:hover {
-        border-color: rgba(82, 183, 136, 0.55);
-        transform: translateY(-3px);
-    }
-
-    .ghub__tool-copy { display: grid; gap: 12px; }
-
-    .ghub__tool-eyebrow {
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.64rem;
-        letter-spacing: 0.18em;
-        text-transform: uppercase;
-        color: var(--green-glow, #52b788);
-    }
-
-    .ghub__tool-copy b {
+    .ghub__tool-name {
+        display: block;
         font-family: var(--font-display, "Syne", sans-serif);
         font-size: clamp(1.4rem, 3vw, 1.9rem);
         font-weight: 800;
         letter-spacing: -0.02em;
         color: var(--white, #f0ece4);
+        margin-bottom: 12px;
     }
 
-    .ghub__tool-copy p {
+    .ghub__tool-desc {
         font-family: var(--font-body, "DM Sans", sans-serif);
         font-size: 1rem;
         line-height: 1.7;
         color: #a39c92;
-        margin: 0;
+        margin: 0 0 4px;
     }
 
     .ghub__tool-cta {
+        display: inline-block;
         font-family: var(--font-display, "Syne", sans-serif);
         font-size: 0.85rem;
         font-weight: 700;
         color: var(--green-glow, #52b788);
         margin-top: 4px;
-        transition: transform 260ms var(--ease-out-expo);
     }
 
-    .ghub__tool:hover .ghub__tool-cta { transform: translateX(4px); }
-
-    /* Mini before/after demo. */
+    /* Mini before/after rehearsal, stacked with a thin tan rule standing in
+       for the arrow: request above, the bot's reply below. */
 
     .ghub__tool-demo {
-        display: grid;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
         gap: 10px;
-        justify-items: start;
-    }
-
-    .ghub__tool-line {
+        width: 100%;
         font-family: var(--font-mono, "DM Mono", monospace);
         font-size: 0.78rem;
         line-height: 1.6;
+    }
+
+    .ghub__tool-line {
         color: rgba(240, 236, 228, 0.85);
-        background: #0b0b0a;
-        border: 1px solid rgba(201, 168, 124, 0.16);
-        border-radius: 10px;
-        padding: 11px 14px;
     }
 
     .ghub__tool-line i {
@@ -158,14 +136,24 @@ const guides = guideSlugs.map((slug) => ({
         padding: 1px 4px;
     }
 
-    .ghub__tool-line--out { border-color: rgba(82, 183, 136, 0.3); }
-    .ghub__tool-line--out b { color: var(--green-glow, #52b788); font-weight: 700; }
-
-    .ghub__tool-arrow {
-        font-size: 0.8rem;
-        color: var(--tan, #c9a87c);
-        padding-left: 16px;
+    .ghub__tool-line--out {
+        position: relative;
+        padding-top: 10px;
+        color: var(--green-glow, #52b788);
     }
+
+    .ghub__tool-line--out::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 48px;
+        height: 1px;
+        background: var(--tan, #c9a87c);
+        opacity: 0.5;
+    }
+
+    .ghub__tool-line--out b { font-weight: 700; }
 
     /* ── Help strip ── */
 
@@ -189,12 +177,7 @@ const guides = guideSlugs.map((slug) => ({
 
     .ghub__help div { display: flex; flex-wrap: wrap; gap: 20px; }
 
-    @media (prefers-reduced-motion: reduce) {
-        .ghub__tool, .ghub__tool-cta { transition: none; }
-    }
-
     @media (max-width: 760px) {
         .ghub { width: calc(100% - 32px); }
-        .ghub__tool { grid-template-columns: 1fr; gap: 22px; }
     }
 </style>

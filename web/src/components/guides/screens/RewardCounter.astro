@@ -4,8 +4,12 @@
 
 /**
  * The counter block inside a channel-point reward editor: the switch, the
- * counter name, and the same four scopes worded for rewards.
+ * counter name, and the same four scopes worded for rewards. Labels are the
+ * console catalog's own strings (rewardCounter.* in
+ * console/shared/lib/i18n/locales).
  */
+import Icon from '../../ui/Icon.astro';
+
 interface Props {
     labels?: Record<string, string>;
 }
@@ -13,24 +17,25 @@ interface Props {
 const { labels = {} } = Astro.props;
 const L = {
     panelHead: 'Hydrate!',
+    close: 'Close',
     check: 'Keep a counter',
     fieldName: 'Counter name',
     nameValue: 'hydrations',
     fieldScope: 'What each redemption counts toward',
-    scopeValue: 'Per user, per reward',
+    scopeValue: 'Per viewer, per reward',
     chip1: 'whole channel',
-    chip2: 'per user',
+    chip2: 'per viewer',
     chip3: 'per reward',
-    chip4: 'per user + reward',
+    chip4: 'per viewer + reward',
     cancel: 'Cancel',
-    save: '✓ Save reward',
+    save: 'Save changes',
     ...labels,
 };
 ---
 
 <div class="df-main" style="max-width:420px; margin:0 auto;">
     <div class="df-panel">
-        <div class="df-panel-head">{L.panelHead} <i>✕</i></div>
+        <div class="df-panel-head">{L.panelHead} <i aria-label={L.close} role="img"><Icon name="x" size={12} /></i></div>
         <span class="df-check is-on">{L.check}<i class="df-dot" style="position:static; margin-left:auto;">1</i></span>
         <div class="df-field"><span>{L.fieldName}</span><div class="df-input">{L.nameValue}</div></div>
         <div class="df-field">

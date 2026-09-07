@@ -4,8 +4,11 @@
 
 /**
  * The Counters page "new counter" panel: a name, the scope picker, and the
- * plain-language reminder of where a counter gets bumped from.
+ * plain-language reminder of where a counter gets bumped from. Labels are the
+ * console catalog's own strings (counters.* in console/shared/lib/i18n/locales).
  */
+import Icon from '../../ui/Icon.astro';
+
 interface Props {
     labels?: Record<string, string>;
 }
@@ -13,24 +16,25 @@ interface Props {
 const { labels = {} } = Astro.props;
 const L = {
     panelHead: 'New counter',
+    close: 'Close',
     fieldName: 'Name',
     nameValue: 'deaths',
     fieldCounts: 'Counts',
     countsValue: 'One total for the channel',
-    chip1: 'whole channel',
+    chip1: 'channel total',
     chip2: 'per user',
     chip3: 'per command',
     chip4: 'per user + command',
-    hint: 'Bump it with &#123;counter:deaths&#125; in a command response, from a channel-point reward, or with !counter add.',
+    hint: 'Bump it from a command response with &#123;counter:deaths&#125;, from a reward on the Channel Points page, or with !counter add.',
     cancel: 'Cancel',
-    create: '✓ Create counter',
+    create: 'Create counter',
     ...labels,
 };
 ---
 
 <div class="df-main" style="max-width:420px; margin:0 auto;">
     <div class="df-panel">
-        <div class="df-panel-head">{L.panelHead} <i>✕</i></div>
+        <div class="df-panel-head">{L.panelHead} <i aria-label={L.close} role="img"><Icon name="x" size={12} /></i></div>
         <div class="df-field"><span>{L.fieldName}</span><div class="df-input">{L.nameValue}<i class="df-dot" style="position:static; margin-left:auto;">1</i></div></div>
         <div class="df-field">
             <span>{L.fieldCounts}</span>

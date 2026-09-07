@@ -143,5 +143,16 @@ const storageKey = typeof props.storageKey === 'string' ? props.storageKey : 'gu
         });
     }
 
-    document.querySelectorAll<HTMLElement>('[data-checklist]').forEach(setupChecklist);
+    // Bound on astro:page-load as well as at load: the ClientRouter swaps the DOM
+    // on navigation, and the data-ready flag stops a second pass binding twice.
+    function setupAll() {
+        document.querySelectorAll<HTMLElement>('[data-checklist]').forEach((root) => {
+            if (root.dataset.ready === '1') return;
+            root.dataset.ready = '1';
+            setupChecklist(root);
+        });
+    }
+
+    setupAll();
+    document.addEventListener('astro:page-load', setupAll);
 </script>

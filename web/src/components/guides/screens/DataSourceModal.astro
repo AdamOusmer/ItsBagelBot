@@ -1,0 +1,145 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+/**
+ * The "Add a data source" modal as the command editor opens it: the two names,
+ * the web address, the optional key, the sample button, and the JSON tree with
+ * one leaf already picked. Labels are the console catalog's own strings
+ * (fetches.* in console/shared/lib/i18n/locales), so a reader recognises the
+ * panel when they open it for real.
+ */
+import Icon from '../../ui/Icon.astro';
+
+interface Props {
+    labels?: Record<string, string>;
+}
+
+const { labels = {} } = Astro.props;
+const L = {
+    panelHead: 'Add a data source',
+    close: 'Close',
+    intro: 'Point it at any web API, fetch one real response, then click the value you want to show in chat.',
+    fieldDisplayName: 'Display name',
+    displayNameValue: 'Local weather',
+    fieldSlug: 'Definition name',
+    slugValue: 'weather',
+    slugHint: 'Lower-case letters, digits and underscores. Used inside &#123;urlfetch:name&#125;.',
+    fieldUrl: 'Web address',
+    urlValue: 'https://api.open-meteo.com/v1/forecast?latitude=45.5&longitude=-73.6&current=temperature_2m',
+    fieldAuth: 'API key',
+    authValue: 'No key needed',
+    fetchSample: 'Fetch a sample',
+    pasteInstead: 'or paste a response instead',
+    pickPrompt: 'Click the value you want to show in chat.',
+    treeRoot: '(response)',
+    treeBranch: 'current',
+    treeLeafKey: 'temperature_2m',
+    treeLeafValue: '21.4',
+    treeLeaf2Key: 'wind_speed_10m',
+    treeLeaf2Value: '9.2',
+    picked: 'Showing current.temperature_2m',
+    wholeResponse: 'Use the whole response instead',
+    cancel: 'Cancel',
+    create: 'Add source',
+    ...labels,
+};
+---
+
+<div class="df-main" style="max-width:460px; margin:0 auto;">
+    <div class="df-panel">
+        <div class="df-panel-head">
+            {L.panelHead}
+            <i aria-label={L.close} role="img"><Icon name="x" size={12} /></i>
+        </div>
+        <p class="df-sub">{L.intro}</p>
+        <div class="df-field">
+            <span>{L.fieldDisplayName}</span>
+            <div class="df-input">{L.displayNameValue}<i class="df-dot" style="position:static; margin-left:auto;">1</i></div>
+        </div>
+        <div class="df-field">
+            <span>{L.fieldSlug}</span>
+            <div class="df-input is-focus"><span class="df-var">{L.slugValue}</span><i class="df-dot" style="position:static; margin-left:auto;">2</i></div>
+        </div>
+        <p class="df-sub" style="margin:-4px 0 0;"><Fragment set:html={L.slugHint} /></p>
+        <div class="df-field">
+            <span>{L.fieldUrl}</span>
+            <div class="df-input dsm__url">{L.urlValue}<i class="df-dot" style="position:static; margin-left:auto;">3</i></div>
+        </div>
+        <div class="df-field">
+            <span>{L.fieldAuth}</span>
+            <div class="df-input is-placeholder">{L.authValue}</div>
+        </div>
+        <div class="df-toolbar" style="margin:0;">
+            <span class="df-btn df-btn--ghost">{L.fetchSample}</span>
+            <span class="dsm__link">{L.pasteInstead}</span>
+            <i class="df-dot" style="position:static;">4</i>
+        </div>
+        <p class="df-sub" style="margin:0;">{L.pickPrompt}</p>
+        <div class="dsm__tree">
+            <span class="dsm__key">{L.treeRoot}</span>
+            <div class="dsm__kids">
+                <span class="dsm__key">{L.treeBranch}</span>
+                <div class="dsm__kids">
+                    <span class="dsm__leaf is-picked"><b>{L.treeLeafKey}</b><em>{L.treeLeafValue}</em></span>
+                    <span class="dsm__leaf"><b>{L.treeLeaf2Key}</b><em>{L.treeLeaf2Value}</em></span>
+                </div>
+            </div>
+        </div>
+        <div class="df-toolbar" style="margin:0;">
+            <span class="df-pill df-pill--on">{L.picked}</span>
+            <span class="dsm__link">{L.wholeResponse}</span>
+            <i class="df-dot" style="position:static;">5</i>
+        </div>
+        <div class="df-panel-foot">
+            <span class="df-btn df-btn--ghost">{L.cancel}</span>
+            <span class="df-btn df-btn--tan">{L.create}</span>
+        </div>
+    </div>
+</div>
+
+<style>
+    .dsm__url { font-family: var(--font-mono, "DM Mono", monospace); font-size: 0.56rem; word-break: break-all; }
+
+    .dsm__link {
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 0.62rem;
+        color: var(--tan-light, #e0c49a);
+        text-decoration: underline;
+        text-underline-offset: 2px;
+    }
+
+    .dsm__tree {
+        display: grid;
+        gap: 3px;
+        padding: 8px 9px;
+        border: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+        border-radius: var(--radius-sm, 6px);
+        background: rgba(10, 10, 10, 0.6);
+    }
+
+    .dsm__kids {
+        display: grid;
+        gap: 3px;
+        margin-left: 8px;
+        padding-left: 8px;
+        border-left: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+    }
+
+    .dsm__key { font-family: var(--font-mono, "DM Mono", monospace); font-size: 0.58rem; color: var(--tan-light, #e0c49a); }
+
+    .dsm__leaf {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 3px 5px;
+        border-radius: var(--radius-sm, 6px);
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.58rem;
+    }
+
+    .dsm__leaf b { font-weight: 400; color: rgba(240, 236, 228, 0.8); }
+    .dsm__leaf em { font-style: normal; color: var(--muted, #888077); }
+    .dsm__leaf.is-picked { background: rgba(82, 183, 136, 0.12); }
+    .dsm__leaf.is-picked b { color: var(--green-glow, #52b788); }
+</style>

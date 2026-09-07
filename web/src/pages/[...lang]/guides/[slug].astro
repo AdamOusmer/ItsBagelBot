@@ -9,7 +9,7 @@ import Layout from '../../../layouts/Layout.astro';
 import PageHero from '../../../components/ui/PageHero.astro';
 import GuideShell from '../../../components/guides/GuideShell.astro';
 import { getLangFromUrl, locales, defaultLang } from '../../../i18n/ui';
-import { getGuide, guidePath, guideSlugs, nextSlug, prevSlug } from '../../../lib/guides/registry';
+import { getGuide, guidePath, guideSlugs, nextSlug, prevSlug, guideIndex } from '../../../lib/guides/registry';
 
 export function getStaticPaths() {
     return locales.flatMap((l) =>
@@ -31,7 +31,7 @@ const next = after ? { href: guidePath(after, lang), label: getGuide(after, lang
 ---
 
 <Layout title={guide.meta.title} description={guide.meta.description} ogType="article">
-    <PageHero eyebrow={guide.meta.eyebrow} title={guide.meta.heading} description={guide.meta.lead} />
+    <PageHero eyebrow={`${guide.meta.eyebrow} ${guideIndex(guide.slug)}`} title={guide.meta.heading} description={guide.meta.lead} />
 
     <GuideShell sections={guide.sections} minutes={guide.meta.minutes} prev={prev} next={next} />
 </Layout>

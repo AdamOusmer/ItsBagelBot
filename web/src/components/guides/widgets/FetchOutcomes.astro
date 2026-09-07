@@ -1,0 +1,146 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+/**
+ * FetchOutcomes: the six ways a data source can disappoint, acted out in one
+ * chat line. Every outcome ships in the markup and the first one is visible
+ * server-side, so the block still says something with scripting off; the
+ * buttons only swap which one is on screen.
+ *
+ * The bot lines are the literal strings the resolver emits and they stay
+ * English in every locale, because the bot does not translate them.
+ */
+interface Outcome {
+    id: string;
+    label: string;
+    bot: string;
+    why: string;
+}
+
+interface Props {
+    labels?: Record<string, string>;
+    props?: Record<string, unknown>;
+}
+
+const { labels = {}, props = {} } = Astro.props;
+const L = {
+    legend: 'Pick what went wrong',
+    title: '#your_channel',
+    viewer: 'sesame_sam',
+    viewerText: '!weather',
+    botName: 'ItsBagelBot',
+    ...labels,
+};
+const outcomes = (Array.isArray(props.outcomes) ? props.outcomes : []) as Outcome[];
+---
+
+<div class="gout" data-fetchoutcomes>
+    <div class="gout__tabs" role="tablist" aria-label={L.legend}>
+        {outcomes.map((outcome, i) => (
+            <button
+                type="button"
+                role="tab"
+                class="gout__tab"
+                id={`gout-tab-${outcome.id}`}
+                aria-controls={`gout-why-${outcome.id}`}
+                aria-selected={i === 0 ? 'true' : 'false'}
+                data-go-tab={outcome.id}
+                data-go-bot={outcome.bot}
+            >
+                {outcome.label}
+            </button>
+        ))}
+    </div>
+    <div class="gout__win">
+        <div class="gout__bar"><span>{L.title}</span></div>
+        <div class="gout__feed">
+            <p class="gout__msg"><b class="gout__viewer">{L.viewer}</b><span>{L.viewerText}</span></p>
+            <p class="gout__msg"><b class="gout__bot">{L.botName}</b><span data-go-line>{outcomes[0]?.bot}</span></p>
+        </div>
+    </div>
+    {outcomes.map((outcome, i) => (
+        <p
+            class="gout__why"
+            role="tabpanel"
+            id={`gout-why-${outcome.id}`}
+            aria-labelledby={`gout-tab-${outcome.id}`}
+            data-go-why={outcome.id}
+            hidden={i !== 0}
+        >
+            {outcome.why}
+        </p>
+    ))}
+</div>
+
+<style>
+    .gout { display: grid; gap: 12px; margin: 22px 0; padding: 15px 16px; border: 1px solid var(--border, rgba(201, 168, 124, 0.15)); border-radius: var(--radius-card, 16px); background: rgba(17, 17, 16, 0.6); }
+    .gout__tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+    .gout__tab { padding: 6px 12px; border: 1px solid var(--border, rgba(201, 168, 124, 0.15)); border-radius: var(--radius-pill, 999px); background: rgba(240, 236, 228, 0.03); color: var(--tan-light, #e0c49a); font-family: var(--font-body, "DM Sans", sans-serif); font-size: 0.78rem; cursor: pointer; transition: border-color 300ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)), background 300ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)); }
+    .gout__tab:hover { border-color: var(--tan, #c9a87c); }
+    .gout__tab:focus-visible { outline: 2px solid var(--green-glow, #52b788); outline-offset: 2px; }
+    .gout__tab[aria-selected="true"] { background: var(--tan, #c9a87c); border-color: var(--tan, #c9a87c); color: var(--black, #0a0a0a); }
+    .gout__win { border: 1px solid var(--border, rgba(201, 168, 124, 0.15)); border-radius: var(--radius-sm, 6px); background: rgba(10, 10, 10, 0.7); overflow: hidden; }
+    .gout__bar { padding: 7px 11px; border-bottom: 1px solid var(--border, rgba(201, 168, 124, 0.15)); font-family: var(--font-mono, "DM Mono", monospace); font-size: 0.62rem; color: var(--muted, #888077); }
+    .gout__feed { display: grid; gap: 7px; padding: 11px; }
+    .gout__msg { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; font-family: var(--font-body, "DM Sans", sans-serif); font-size: 0.86rem; line-height: 1.5; color: rgba(240, 236, 228, 0.85); }
+    .gout__msg b { font-weight: 600; }
+    .gout__viewer { color: var(--tan-light, #e0c49a); }
+    .gout__bot { color: var(--green-glow, #52b788); }
+    .gout__msg span { font-family: var(--font-mono, "DM Mono", monospace); font-size: 0.8rem; }
+    .gout__msg span.is-new { animation: gout-slide 240ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)); }
+    .gout__why { margin: 0; font-family: var(--font-body, "DM Sans", sans-serif); font-size: 0.88rem; line-height: 1.65; color: #a39c92; }
+
+    @keyframes gout-slide { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }
+
+    @media (prefers-reduced-motion: reduce) {
+        .gout__tab { transition: none; }
+        .gout__msg span.is-new { animation: none; }
+    }
+</style>
+
+<script>
+    // Bundled by Astro, so it satisfies the site's script-src 'self' CSP.
+    function setupFetchOutcomes(root: HTMLElement) {
+        const tabs = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-go-tab]'));
+        const line = root.querySelector<HTMLElement>('[data-go-line]')!;
+        const whys = Array.from(root.querySelectorAll<HTMLElement>('[data-go-why]'));
+
+        function select(id: string) {
+            tabs.forEach((tab) => tab.setAttribute('aria-selected', String(tab.dataset.goTab === id)));
+            whys.forEach((why) => { why.hidden = why.dataset.goWhy !== id; });
+            const chosen = tabs.find((tab) => tab.dataset.goTab === id);
+            line.textContent = chosen?.dataset.goBot ?? line.textContent;
+            line.classList.remove('is-new');
+            // Reading offsetWidth restarts the animation on a repeat click.
+            void line.offsetWidth;
+            line.classList.add('is-new');
+        }
+
+        tabs.forEach((tab, i) => {
+            tab.addEventListener('click', () => select(tab.dataset.goTab ?? ''));
+            tab.addEventListener('keydown', (event) => {
+                const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
+                if (step === 0) return;
+                event.preventDefault();
+                const next = tabs[(i + step + tabs.length) % tabs.length];
+                next.focus();
+                select(next.dataset.goTab ?? '');
+            });
+        });
+    }
+
+    // The site runs the ClientRouter, so a guide can arrive by DOM swap as
+    // well as by a full load. Wiring on astro:page-load covers both, and the
+    // data-ready flag keeps a second pass from binding the same widget twice.
+    function setupAll() {
+        document.querySelectorAll<HTMLElement>('[data-fetchoutcomes]').forEach((root) => {
+            if (root.dataset.ready === '1') return;
+            root.dataset.ready = '1';
+            setupFetchOutcomes(root);
+        });
+    }
+
+    setupAll();
+    document.addEventListener('astro:page-load', setupAll);
+</script>

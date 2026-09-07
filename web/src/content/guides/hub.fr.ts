@@ -7,20 +7,20 @@ const hub: HubContent = {
   meta: {
     title: 'Guides - ItsBagelBot',
     description:
-      "Guides visuels pour ItsBagelBot: installez le bot, maîtrisez le tableau de bord et créez de puissantes commandes personnalisées avec variables, sans écrire de code.",
+      "Guides visuels pour ItsBagelBot: installez le bot, apprenez le tableau de bord et écrivez des commandes personnalisées avec variables et données en direct.",
     eyebrow: 'Guides',
     heading: 'Apprivoisez le bot.',
-    lead: 'Courts, visuels et écrits pour des humains. Tout ce qui suit fonctionne avec le forfait gratuit: pas de code, pas de jargon, pas de petites lignes.',
+    lead: 'Chaque guide fonctionne avec le forfait gratuit, et chacun se lit en dix minutes ou moins.',
   },
   tool: {
     href: '/fr/command-builder',
     eyebrow: 'Outil interactif',
     name: 'Constructeur de commandes',
     description:
-      'Écrivez le message comme une phrase, cliquez pour insérer les parties intelligentes, regardez la répétition en direct, puis envoyez la commande terminée directement dans votre tableau de bord.',
-    cta: 'Ouvrir le constructeur →',
-    demoIn: 'Bienvenue, <i>&#123;user&#125;</i>! Tu es le visiteur <i>&#123;counter:visites&#125;</i> 🥯',
-    demoOut: '<b>ItsBagelBot:</b> Bienvenue, maya_live! Tu es le visiteur 128 🥯',
+      'Écrivez le message comme une phrase, cliquez pour insérer les parties intelligentes, regardez la répétition en direct, puis envoyez la commande terminée dans votre tableau de bord.',
+    cta: 'Ouvrir le constructeur',
+    demoIn: 'Bienvenue, <i>&#123;user&#125;</i>! Vous êtes le visiteur <i>&#123;counter:visites&#125;</i> 🥯',
+    demoOut: '<b>ItsBagelBot:</b> Bienvenue, maya_live! Vous êtes le visiteur 128 🥯',
   },
   help: {
     prompt: 'Un guide ne couvre pas votre question?',

@@ -9,7 +9,7 @@ const guide: GuideContent = {
     title: 'Commandes et variables - Guides ItsBagelBot',
     description:
       "Maîtrisez les commandes personnalisées d'ItsBagelBot: toutes les variables supportées ({user}, {random}, {counter} et plus), réponses multilignes, actions de chat, délais et niveaux d'accès.",
-    eyebrow: 'Guide 02',
+    eyebrow: 'Guide',
     heading: 'Commandes et variables',
     lead: 'Des commandes qui saluent les gens par leur nom, lancent des dés et comptent vos victoires. Pas de code: juste des accolades.',
     minutes: '9 min de lecture',
@@ -48,17 +48,22 @@ const guide: GuideContent = {
             { n: 4, text: 'La répétition du chat joue votre réponse avec des valeurs d’exemple avant d’enregistrer. Le constructeur de commandes a la même.' },
             { n: 5, text: 'Accès et délai: qui peut l’utiliser, et combien de secondes de silence suivent chaque utilisation.' },
             { n: 6, text: 'Uniquement pendant le direct met la commande en pause hors ligne; Active est l’interrupteur général.' },
+            { n: 7, text: 'Source de données: insère une valeur récupérée d’une définition API enregistrée, au lieu d’une variable.' },
           ],
           labels: {
             panelHead: 'Modifier la commande',
+            close: 'Fermer',
             fieldName: 'Nom',
             nameValue: 'calin',
             fieldAlts: 'Noms alternatifs',
             optional: '(optionnel)',
-            altChip: 'calins ✕',
+            altChipLabel: 'calins',
+            remove: 'Retirer',
             fieldResponse: 'Réponse',
             responseHtml:
               '<span class="df-var">&#123;user&#125;</span> donne à <span class="df-var">&#123;touser&#125;</span> un gros câlin bagel 🥯',
+            chip4: 'Source de données',
+            chip4Tooltip: 'Insérer une valeur récupérée d’une définition API enregistrée',
             chatTag: 'Répétition du chat',
             viewerText: '!calin ferret_king',
             botHtml: '<mark>sesame_sam</mark> donne à <mark>ferret_king</mark> un gros câlin bagel 🥯',
@@ -70,8 +75,18 @@ const guide: GuideContent = {
             checkActive: 'Active',
             checkLive: 'Uniquement pendant le direct',
             cancel: 'Annuler',
-            save: '✓ Enregistrer',
+            save: 'Enregistrer',
           },
+        },
+        {
+          kind: 'callout',
+          tone: 'tip',
+          html: `
+                <b>Astuce</b>
+                La puce Source de données insère <code>&#123;urlfetch:name&#125;</code>, une valeur
+                tirée d’une API que vous avez vous-même enregistrée. Le
+                <a href="/fr/guides/data-sources">guide des sources de données</a> explique comment en
+                enregistrer une première.`,
         },
       ],
     },
@@ -85,15 +100,16 @@ const guide: GuideContent = {
           html: `
             <h3>Depuis le tableau de bord</h3>
             <p>
-                <a href="https://dashboard.itsbagelbot.com/commands" target="_blank" rel="noopener noreferrer">Commandes</a>
-                → <strong>Nouvelle commande</strong> → remplissez nom et réponse →
+                <a href="https://dashboard.itsbagelbot.com/commands" target="_blank" rel="noopener noreferrer">Commandes</a>,
+                cliquez <strong>Nouvelle commande</strong>, remplissez le nom et la réponse, puis
                 <strong>Créer</strong>. Elle répond dans le chat généralement en quelques secondes. La modification
                 fonctionne pareil: cliquez une commande, changez-la, enregistrez.
             </p>
             <h3>Depuis le chat, avec !cmd</h3>
             <p>
                 Vous et vos modérateurs pouvez aussi gérer les commandes sans quitter le chat, en plein
-                stream:
+                stream. N'importe quel modérateur peut l'utiliser: <code>!cmd</code> ne demande pas la
+                promotion modérateur principal qu'exigent certains autres built-ins.
             </p>`,
         },
         {
@@ -149,6 +165,7 @@ const guide: GuideContent = {
             ['<code>&#123;touser&#125;</code>', "Le premier mot tapé après la commande, sans le «@». Si rien n'est tapé, le nom du spectateur lui-même. <code>&#123;target&#125;</code> est identique.", 'alex'],
             ['<code>&#123;args&#125;</code>', "Tout le texte tapé après la commande, en une seule chaîne. Vide si rien n'a été tapé.", 'bonne chance!'],
             ['<code>&#123;channel&#125;</code>', "Le nom d'affichage de votre chaîne.", 'votre_chaine'],
+            ['<code>&#123;urlfetch:name&#125;</code>', 'Une valeur récupérée d’une API web enregistrée comme source de données. Expliqué dans le <a href="/fr/guides/data-sources">guide des sources de données</a>.', '22'],
           ],
         },
         {
@@ -224,6 +241,23 @@ const guide: GuideContent = {
                 Vos modérateurs gèrent les comptes dans le chat avec <code>!counter set</code>,
                 <code>!counter reset</code> et compagnie.`,
         },
+        {
+          kind: 'widget',
+          name: 'Rehearsal',
+          labels: {
+            heading: 'Répétez une réponse',
+            responseLabel: 'Réponse',
+            whoLabel: 'Qui tape',
+            argsLabel: 'Args (tapé après la commande)',
+            outputLabel: 'Ce que le chat voit',
+            pillLabel: 'récupérée à l’envoi',
+            builderNote: 'Vous voulez la même répétition, avec création en un clic en plus ?',
+            builderLinkText: 'Ouvrir le constructeur de commandes',
+            builderHref: '/fr/command-builder',
+            responseDefault: '{user} donne à {touser} un gros câlin bagel 🥯',
+            outputDefault: 'sesame_sam donne à ferret_king un gros câlin bagel 🥯',
+          },
+        },
       ],
     },
     {
@@ -289,7 +323,7 @@ const guide: GuideContent = {
             ['Noms alternatifs', "Jusqu'à 25, chacun suivant les mêmes règles que le nom."],
             ['Réponse', "Jusqu'à 5 lignes de 500 caractères chacune (un message de chat par ligne)."],
             ['Délai', '0 à 86400 secondes. Il est partagé par tout le chat: après une utilisation, tout le monde attend.'],
-            ['Accès', "Rang minimal, dans l'ordre: tout le monde → abonnés → VIP → modérateurs → modérateurs principaux → diffuseur. Chaque niveau inclut ceux au-dessus."],
+            ['Accès', "Rang minimal, dans l'ordre: tout le monde, abonnés, VIP, modérateurs, modérateurs principaux, diffuseur. Chaque niveau inclut ceux au-dessus."],
             ['Restreindre à une personne', "Verrouillez une commande sur un seul compte Twitch; cela remplace entièrement le niveau d'accès. Parfait pour la commande personnelle d'un ami."],
           ],
         },
@@ -317,7 +351,7 @@ const guide: GuideContent = {
           tone: 'tip',
           html: `
                 <b>Essayez maintenant</b>
-                <a href="/fr/command-builder">Ouvrir le constructeur de commandes →</a>`,
+                <a href="/fr/command-builder">Ouvrir le constructeur de commandes</a>`,
         },
       ],
     },

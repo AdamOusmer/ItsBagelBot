@@ -7,10 +7,10 @@
  * locales/localizePath from i18n/ui.ts, so the slug list lives here where both
  * can read it without the two modules importing each other.
  *
- * Order is meaningful: it is the hub card order, the "01".."04" chapter
+ * Order is meaningful: it is the hub card order, the "01".."05" chapter
  * numbers, and the prev/next pager order.
  */
-export const guideSlugs = ['getting-started', 'commands', 'modules', 'counters'] as const;
+export const guideSlugs = ['getting-started', 'commands', 'data-sources', 'modules', 'counters'] as const;
 
 export type GuideSlug = (typeof guideSlugs)[number];
 

@@ -1,0 +1,241 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+/**
+ * PathPicker: the dashboard's JSON tree, rehearsed on the page. A reader edits
+ * a real API response and clicks a value; the widget answers with the path the
+ * definition saves, the token they type, the override form, and the line chat
+ * would print after the bot's own cleaning and 100-byte cap.
+ *
+ * The pick rules are the resolver's, not a friendly approximation: segments
+ * [A-Za-z0-9_-] up to 64 characters, depth 8, and a leaf that must be a scalar.
+ * A tree that offered a path the save validator rejects would teach the wrong
+ * thing, which is exactly the failure the dashboard's own JsonTree guards.
+ */
+interface Props {
+    labels?: Record<string, string>;
+    props?: Record<string, unknown>;
+}
+
+const { labels = {}, props = {} } = Astro.props;
+const L = {
+    sampleLabel: 'Sample response',
+    treeLabel: 'Click a value',
+    empty: 'The tree appears once the JSON parses.',
+    badJson: 'That is not valid JSON. Fix it and the tree appears here.',
+    tooDeep: 'Deeper than 8 levels. Pick something closer to the top.',
+    badSegment: 'That key has characters the path grammar refuses. Letters, digits, underscore and hyphen only, up to 64 characters.',
+    notUsable: 'Not usable. A path has to end on a value, and this one is empty.',
+    savedPathLabel: 'Saved path',
+    tokenLabel: 'Token you type',
+    overrideLabel: 'Or spell the path in the token',
+    chatLabel: 'Chat would show',
+    cutHere: 'cut here, 100 bytes',
+    wholeButton: 'Use the whole response',
+    wholeLabel: 'Plain text',
+    wholeNote: 'Plain text mode skips the path entirely. The bot trims the body and shows the first 100 bytes.',
+    defName: 'weather',
+    ...labels,
+};
+const sample =
+    typeof props.sample === 'string'
+        ? props.sample
+        : JSON.stringify(
+              {
+                  latitude: 45.5,
+                  longitude: -73.6,
+                  current: { time: '2026-09-07T14:00', temperature_2m: 21.4, wind_speed_10m: 9.2, rain: null },
+                  units: { temperature_2m: '°C', wind_speed_10m: 'km/h' },
+                  hourly: { temperature_2m: [20.1, 21.4, 22.8, 23.2] },
+              },
+              null,
+              2,
+          );
+---
+
+<div class="gpath" data-pathpicker data-name={L.defName}>
+    <div class="gpath__grid">
+        <label class="gpath__col">
+            <span class="gpath__label">{L.sampleLabel}</span>
+            <textarea class="gpath__ta" spellcheck="false" data-pp-input>{sample}</textarea>
+        </label>
+        <div class="gpath__col">
+            <span class="gpath__label">{L.treeLabel}</span>
+            <div class="gpath__tree" data-pp-tree><small class="gpath__hint">{L.empty}</small></div>
+        </div>
+    </div>
+    <div class="gpath__out" data-pp-out hidden>
+        <p><i>{L.savedPathLabel}</i><code data-pp-path></code></p>
+        <p><i>{L.tokenLabel}</i><code data-pp-token></code></p>
+        <p data-pp-override-row><i>{L.overrideLabel}</i><code data-pp-override></code></p>
+        <p><i>{L.chatLabel}</i><code data-pp-chat></code><em data-pp-cut hidden>{L.cutHere}</em></p>
+        <p class="gpath__note" data-pp-note hidden>{L.wholeNote}</p>
+    </div>
+    <button type="button" class="gpath__whole" data-pp-whole>{L.wholeButton}</button>
+    <p class="gpath__strings" hidden data-pp-strings
+        data-too-deep={L.tooDeep} data-bad-segment={L.badSegment} data-not-usable={L.notUsable}
+        data-bad-json={L.badJson} data-empty={L.empty} data-whole={L.wholeLabel}></p>
+</div>
+
+<style>
+    .gpath { display: grid; gap: 12px; margin: 22px 0; padding: 15px 16px; border: 1px solid var(--border, rgba(201, 168, 124, 0.15)); border-radius: var(--radius-card, 16px); background: rgba(17, 17, 16, 0.6); }
+    .gpath__grid { display: grid; gap: 12px; }
+    @media (min-width: 720px) { .gpath__grid { grid-template-columns: 1fr 1fr; } }
+    .gpath__col { display: grid; gap: 6px; align-content: start; }
+    .gpath__label { font-family: var(--font-mono, "DM Mono", monospace); font-size: 0.6rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted, #888077); }
+    .gpath__ta { min-height: 200px; resize: vertical; padding: 9px 10px; border: 1px solid var(--border, rgba(201, 168, 124, 0.15)); border-radius: var(--radius-sm, 6px); background: rgba(10, 10, 10, 0.7); color: rgba(240, 236, 228, 0.8); font-family: var(--font-mono, "DM Mono", monospace); font-size: 0.72rem; line-height: 1.5; }
+    .gpath__ta:focus-visible { outline: 2px solid var(--green-glow, #52b788); outline-offset: -2px; }
+    .gpath__tree { min-height: 200px; max-height: 260px; overflow: auto; display: grid; gap: 2px; align-content: start; padding: 9px 10px; border: 1px solid var(--border, rgba(201, 168, 124, 0.15)); border-radius: var(--radius-sm, 6px); background: rgba(10, 10, 10, 0.7); }
+    .gpath :global(.gpath__hint) { font-family: var(--font-body, "DM Sans", sans-serif); font-size: 0.78rem; color: var(--muted, #888077); }
+    .gpath__tree :global(.key) { font-family: var(--font-mono, "DM Mono", monospace); font-size: 0.68rem; color: var(--tan-light, #e0c49a); }
+    .gpath__tree :global(.kids) { display: grid; gap: 2px; margin-left: 9px; padding-left: 9px; border-left: 1px solid var(--border, rgba(201, 168, 124, 0.15)); }
+    .gpath__tree :global(.leaf) { display: flex; justify-content: space-between; gap: 10px; width: 100%; padding: 3px 6px; border: 0; border-radius: var(--radius-sm, 6px); background: none; text-align: left; cursor: pointer; font-family: var(--font-mono, "DM Mono", monospace); font-size: 0.68rem; color: rgba(240, 236, 228, 0.82); transition: background 300ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)); }
+    .gpath__tree :global(.leaf em) { font-style: normal; color: var(--muted, #888077); }
+    .gpath__tree :global(.leaf:hover:not(:disabled)) { background: rgba(201, 168, 124, 0.12); }
+    .gpath__tree :global(.leaf:focus-visible) { outline: 2px solid var(--green-glow, #52b788); outline-offset: -2px; }
+    .gpath__tree :global(.leaf:disabled) { cursor: not-allowed; color: var(--muted, #888077); }
+    .gpath__tree :global(.leaf.is-picked) { background: rgba(82, 183, 136, 0.14); color: var(--green-glow, #52b788); }
+    .gpath__out { display: grid; gap: 6px; padding: 11px 12px; border: 1px solid var(--border, rgba(201, 168, 124, 0.15)); border-radius: var(--radius-sm, 6px); background: rgba(10, 10, 10, 0.5); }
+    .gpath__out p { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin: 0; }
+    .gpath__out i { font-style: normal; min-width: 150px; font-family: var(--font-body, "DM Sans", sans-serif); font-size: 0.72rem; color: var(--muted, #888077); }
+    .gpath__out code { font-family: var(--font-mono, "DM Mono", monospace); font-size: 0.76rem; color: var(--tan-light, #e0c49a); word-break: break-all; }
+    .gpath__out em { font-style: normal; font-family: var(--font-mono, "DM Mono", monospace); font-size: 0.62rem; color: var(--green-glow, #52b788); }
+    .gpath__note { font-family: var(--font-body, "DM Sans", sans-serif); font-size: 0.8rem; color: var(--muted, #888077); }
+    .gpath__whole { justify-self: start; padding: 7px 13px; border: 1px solid var(--border, rgba(201, 168, 124, 0.15)); border-radius: var(--radius-pill, 999px); background: rgba(240, 236, 228, 0.03); color: var(--tan-light, #e0c49a); font-family: var(--font-body, "DM Sans", sans-serif); font-size: 0.78rem; cursor: pointer; transition: border-color 300ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)); }
+    .gpath__whole:hover { border-color: var(--tan, #c9a87c); }
+    @media (prefers-reduced-motion: reduce) { .gpath__tree :global(.leaf), .gpath__whole { transition: none; } }
+</style>
+
+<script>
+    // Bundled by Astro, so it satisfies the site's script-src 'self' CSP.
+    const SEGMENT = /^[A-Za-z0-9_-]{1,64}$/;
+    const MAX_DEPTH = 8;
+    const CAP = 100;
+
+    function capBytes(text: string): { out: string; cut: boolean } {
+        const enc = new TextEncoder();
+        if (enc.encode(text).length <= CAP) return { out: text, cut: false };
+        let used = 0;
+        let out = '';
+        for (const ch of text) {
+            const size = enc.encode(ch).length;
+            if (used + size > CAP) break;
+            used += size;
+            out += ch;
+        }
+        return { out, cut: true };
+    }
+
+    // The bot's own cleaning: control characters dropped, leading slashes and
+    // spaces trimmed, then the 100-byte cap.
+    function chatValue(raw: string): { out: string; cut: boolean } {
+        let text = '';
+        for (const ch of raw) {
+            const code = ch.codePointAt(0) ?? 0;
+            if (code >= 32 && code !== 127) text += ch;
+        }
+        return capBytes(text.replace(/^[/\s]+/, '').trimEnd());
+    }
+
+    function refusal(segs: string[], strings: DOMStringMap): string {
+        if (segs.length > MAX_DEPTH) return strings.tooDeep ?? '';
+        return strings.badSegment ?? '';
+    }
+
+    function setupPathPicker(root: HTMLElement) {
+        const input = root.querySelector<HTMLTextAreaElement>('[data-pp-input]')!;
+        const tree = root.querySelector<HTMLElement>('[data-pp-tree]')!;
+        const out = root.querySelector<HTMLElement>('[data-pp-out]')!;
+        const strings = root.querySelector<HTMLElement>('[data-pp-strings]')!.dataset;
+        const name = root.dataset.name ?? 'weather';
+        const field = (sel: string) => root.querySelector<HTMLElement>(sel)!;
+
+        function show(segs: string[] | null, value: string) {
+            const cleaned = chatValue(value);
+            const path = segs ? segs.join('.') : '';
+            field('[data-pp-path]').textContent = segs ? path : (strings.whole ?? '');
+            field('[data-pp-token]').textContent = `{urlfetch:${name}}`;
+            field('[data-pp-override]').textContent = segs ? `{urlfetch:${name}.${path}}` : '';
+            field('[data-pp-override-row]').hidden = !segs;
+            field('[data-pp-chat]').textContent = cleaned.out;
+            field('[data-pp-cut]').hidden = !cleaned.cut;
+            field('[data-pp-note]').hidden = Boolean(segs);
+            out.hidden = false;
+        }
+
+        function leafButton(label: string, value: unknown, segs: string[]): HTMLElement {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'leaf';
+            const usable = value !== null && value !== undefined;
+            const pickable = usable && segs.length <= MAX_DEPTH && segs.every((s) => SEGMENT.test(s));
+            button.disabled = !pickable;
+            if (!pickable) button.title = usable ? refusal(segs, strings) : (strings.notUsable ?? '');
+            button.innerHTML = '<span></span><em></em>';
+            button.querySelector('span')!.textContent = label;
+            button.querySelector('em')!.textContent = JSON.stringify(value) ?? '';
+            button.addEventListener('click', () => {
+                tree.querySelectorAll('.leaf').forEach((el) => el.classList.remove('is-picked'));
+                button.classList.add('is-picked');
+                show(segs, String(value));
+            });
+            return button;
+        }
+
+        function render(label: string, value: unknown, segs: string[], into: HTMLElement) {
+            if (value !== null && typeof value === 'object') {
+                const key = document.createElement('span');
+                key.className = 'key';
+                key.textContent = label;
+                const kids = document.createElement('div');
+                kids.className = 'kids';
+                const entries: [string, unknown][] = Array.isArray(value)
+                    ? value.map((v, i) => [String(i), v])
+                    : Object.entries(value as Record<string, unknown>);
+                for (const [k, v] of entries) render(k, v, [...segs, k], kids);
+                into.append(key, kids);
+                return;
+            }
+            into.append(leafButton(label, value, segs));
+        }
+
+        function rebuild() {
+            tree.replaceChildren();
+            out.hidden = true;
+            let doc: unknown;
+            try {
+                doc = JSON.parse(input.value);
+            } catch {
+                const bad = document.createElement('small');
+                bad.className = 'gpath__hint';
+                bad.setAttribute('role', 'alert');
+                bad.textContent = input.value.trim() === '' ? (strings.empty ?? '') : (strings.badJson ?? '');
+                tree.append(bad);
+                return;
+            }
+            render('(response)', doc, [], tree);
+        }
+
+        input.addEventListener('input', rebuild);
+        root.querySelector<HTMLButtonElement>('[data-pp-whole]')!.addEventListener('click', () => {
+            tree.querySelectorAll('.leaf').forEach((el) => el.classList.remove('is-picked'));
+            show(null, input.value);
+        });
+        rebuild();
+    }
+
+    // The site runs the ClientRouter, so a guide can arrive by DOM swap as
+    // well as by a full load. Wiring on astro:page-load covers both, and the
+    // data-ready flag keeps a second pass from binding the same widget twice.
+    function setupAll() {
+        document.querySelectorAll<HTMLElement>('[data-pathpicker]').forEach((root) => {
+            if (root.dataset.ready === '1') return;
+            root.dataset.ready = '1';
+            setupPathPicker(root);
+        });
+    }
+
+    setupAll();
+    document.addEventListener('astro:page-load', setupAll);
+</script>

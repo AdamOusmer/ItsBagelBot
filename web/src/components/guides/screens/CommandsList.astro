@@ -6,6 +6,8 @@
  * The Commands page with the editor docked beside the list: filter pills, two
  * command rows, and the "New command" panel open on the right.
  */
+import Icon from '../../ui/Icon.astro';
+
 interface Props {
     labels?: Record<string, string>;
 }
@@ -21,7 +23,7 @@ const L = {
     filterActive: 'Active',
     filterCustom: 'Custom',
     searchPlaceholder: 'Search name, alias, response…',
-    newCommand: '+ New command',
+    newCommand: 'New command',
     row1Name: '!followage',
     builtIn: 'built-in',
     row1Meta: 'Everyone · 15s',
@@ -29,19 +31,21 @@ const L = {
     row2Text: 'Come hang out between streams…',
     row2Meta: 'Everyone · 0s',
     panelHead: 'New command',
+    close: 'Close',
     fieldName: 'Name',
     nameValue: 'discord',
     fieldResponse: 'Response',
-    responseValue: 'Come hang out between streams → discord.gg/your-invite',
+    responseValue: 'Come hang out between streams: discord.gg/your-invite',
     chatTag: 'Chat rehearsal',
     viewerName: 'sesame_sam',
     viewerText: '!discord',
     botName: 'ItsBagelBot',
     cancel: 'Cancel',
-    create: '✓ Create',
+    create: 'Create',
     dockOverview: 'Overview',
     dockCommands: 'Commands',
     dockModules: 'Modules',
+    dockDiscord: 'Discord',
     dockBilling: 'Billing',
     dockSettings: 'Settings',
     ...labels,
@@ -67,7 +71,7 @@ const L = {
             <div class="df-row is-open"><span class="df-num">02</span><code>{L.row2Name}</code><span class="df-grow">{L.row2Text}</span><span class="df-meta">{L.row2Meta}</span><span class="df-toggle is-on"></span></div>
         </div>
         <div class="df-panel">
-            <div class="df-panel-head">{L.panelHead} <i>✕</i></div>
+            <div class="df-panel-head">{L.panelHead} <i aria-label={L.close} role="img"><Icon name="x" size={12} /></i></div>
             <div class="df-field"><span>{L.fieldName}</span><div class="df-input is-focus">{L.nameValue}<i class="df-dot" style="position:static; margin-left:auto;">2</i></div></div>
             <div class="df-field"><span>{L.fieldResponse}</span><div class="df-input">{L.responseValue}<i class="df-dot" style="position:static; margin-left:auto;">3</i></div></div>
             <div class="df-chat">
@@ -78,5 +82,5 @@ const L = {
             <div class="df-panel-foot"><span class="df-btn df-btn--ghost">{L.cancel}</span><span class="df-btn df-btn--tan">{L.create}</span><i class="df-dot" style="position:static;">4</i></div>
         </div>
     </div>
-    <div class="df-dock"><span>{L.dockOverview}</span><span class="is-active">{L.dockCommands}</span><span>{L.dockModules}</span><span>{L.dockBilling}</span><span>{L.dockSettings}</span></div>
+    <div class="df-dock"><span>{L.dockOverview}</span><span class="is-active">{L.dockCommands}</span><span>{L.dockModules}</span><span>{L.dockDiscord}</span><span>{L.dockBilling}</span><span>{L.dockSettings}</span></div>
 </div>

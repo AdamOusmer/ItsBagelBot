@@ -3,13 +3,14 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 /**
- * GuideCard: one entry on the guides hub. A numbered chapter card in the
- * site's warm-card language: mono index, display title, body teaser, and a
- * meta strip (reading time · section count) so readers can budget attention
- * before committing: the hub is a menu, not a maze. Atmosphere matches the
- * shared Card (header orbs, no pointer tracking).
+ * GuideCard: one entry on the guides hub. Built on the shared banded
+ * ui/Card: the index is the housing's mono channel label, the guide's own
+ * chips (the tokens and commands it teaches) are the band's visual, body
+ * copy is title, description and a meta strip (reading time · section
+ * count) so a reader can budget attention before committing: the hub is a
+ * menu, not a maze. Hover, lift and atmosphere all come from Card now.
  */
-import CardAtmosphere from '../ui/CardAtmosphere.astro';
+import Card from '../ui/Card.astro';
 
 interface Props {
     index: string;
@@ -25,72 +26,40 @@ interface Props {
 const { index, href, title, description, meta, chips = [], revealIndex = 0 } = Astro.props;
 ---
 
-<a class="gcard" href={href} data-reveal style={`--reveal-i: ${revealIndex}`}>
-    <CardAtmosphere />
-    <span class="gcard__index" aria-hidden="true">{index}</span>
-    <span class="gcard__body">
-        <b class="gcard__title">{title}</b>
-        <span class="gcard__desc">{description}</span>
-        {chips.length > 0 && (
-            <span class="gcard__chips">
-                {chips.map((chip) => <i class="bb-tag bb-tag--bare">{chip}</i>)}
-            </span>
-        )}
-    </span>
-    <span class="gcard__meta">
-        <span>{meta}</span>
-        <b aria-hidden="true">→</b>
-    </span>
-</a>
+<Card as="a" href={href} label={index} class="gcard" data-reveal style={`--reveal-i: ${revealIndex}`}>
+    {chips.length > 0 && (
+        <span class="gcard__chips" slot="band" aria-hidden="true">
+            {chips.map((chip) => <i class="bb-tag bb-tag--bare">{chip}</i>)}
+        </span>
+    )}
+    <b class="gcard__title">{title}</b>
+    <p class="gcard__desc">{description}</p>
+    <span class="gcard__meta">{meta}</span>
+</Card>
 
 <style>
-    .gcard {
-        position: relative;
-        display: grid;
-        grid-template-columns: auto 1fr auto;
-        gap: 22px;
-        align-items: center;
-        padding: clamp(20px, 3vw, 30px) clamp(20px, 3vw, 34px);
-        border: 1px solid var(--border, rgba(201, 168, 124, 0.15));
-        border-radius: var(--radius-card, 16px);
-        background: rgba(17, 17, 16, 0.85);
-        overflow: hidden;
-        transition: border-color 220ms ease, background 220ms ease, transform 260ms var(--ease-out-expo);
+    .gcard__chips {
+        display: flex;
+        flex-wrap: wrap;
+        align-content: center;
+        gap: 10px;
     }
 
-    .gcard:hover {
-        border-color: rgba(201, 168, 124, 0.4);
-        transform: translateY(-3px);
+    /* .bb-tag--bare handles the box; only the colour stays local, same
+       convention as ChatMock's badge and DashFrame's legend dots. */
+    .gcard__chips i {
+        font-style: normal;
+        color: var(--tan-light, #e0c49a);
     }
-
-    .gcard__index,
-    .gcard__body,
-    .gcard__meta {
-        position: relative;
-        z-index: 1;
-    }
-
-    .gcard__index {
-        display: grid;
-        place-items: center;
-        width: 44px;
-        height: 44px;
-        border: 1px solid rgba(82, 183, 136, 0.3);
-        border-radius: 12px;
-        background: rgba(82, 183, 136, 0.07);
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.72rem;
-        color: var(--green-glow, #52b788);
-    }
-
-    .gcard__body { display: grid; gap: 7px; min-width: 0; }
 
     .gcard__title {
+        display: block;
         font-family: var(--font-display, "Syne", sans-serif);
         font-size: clamp(1.05rem, 2vw, 1.3rem);
         font-weight: 700;
         letter-spacing: -0.015em;
         color: var(--white, #f0ece4);
+        margin-bottom: 8px;
     }
 
     .gcard__desc {
@@ -99,46 +68,15 @@ const { index, href, title, description, meta, chips = [], revealIndex = 0 } = A
         line-height: 1.65;
         color: #a39c92;
         max-width: 58ch;
-    }
-
-    .gcard__chips { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 3px; }
-
-    /* Were 99px tinted pills; .bb-tag--bare makes them labels inside the
-       card's own frame, so only the colour stays local. */
-    .gcard__chips i {
-        font-style: normal;
-        color: var(--tan-light, #e0c49a);
+        margin-bottom: 14px;
     }
 
     .gcard__meta {
-        display: grid;
-        gap: 8px;
-        justify-items: end;
-        align-self: start;
-    }
-
-    .gcard__meta span {
+        display: block;
         font-family: var(--font-mono, "DM Mono", monospace);
         font-size: 0.68rem;
         letter-spacing: 0.08em;
         color: var(--muted, #888077);
         white-space: nowrap;
-    }
-
-    .gcard__meta b {
-        color: var(--tan, #c9a87c);
-        font-size: 1rem;
-        transition: transform 260ms var(--ease-out-expo);
-    }
-
-    .gcard:hover .gcard__meta b { transform: translateX(4px); }
-
-    @media (prefers-reduced-motion: reduce) {
-        .gcard, .gcard__meta b { transition: none; }
-    }
-
-    @media (max-width: 640px) {
-        .gcard { grid-template-columns: auto 1fr; }
-        .gcard__meta { grid-column: 2; grid-row: 2; justify-items: start; grid-auto-flow: column; align-items: center; }
     }
 </style>

@@ -9,15 +9,15 @@ const guide: GuideContent = {
     title: 'Getting started - ItsBagelBot Guides',
     description:
       'Set up ItsBagelBot in minutes: connect your Twitch channel, tour the dashboard, create your first command, and switch on your first module.',
-    eyebrow: 'Guide 01',
+    eyebrow: 'Guide',
     heading: 'Getting started',
-    lead: 'From “Add to Twitch” to your first stream with the bot in chat. About six minutes, most of it reading.',
-    minutes: '6 min read',
+    lead: 'From “Add to Twitch” to your first stream with the bot in chat. About seven minutes, most of it reading.',
+    minutes: '7 min read',
     card: {
       title: 'Getting started',
       description:
         'From "Add to Twitch" to your first live stream with the bot: connect the channel, find your way around the dashboard, and switch on the first tools.',
-      meta: '6 min · 5 steps',
+      meta: '7 min · 5 steps',
       chips: ['connect', 'dashboard tour', 'first module'],
     },
   },
@@ -35,6 +35,16 @@ const guide: GuideContent = {
                 and sign in with your Twitch account. Twitch shows you exactly what the bot is allowed
                 to do before you approve anything, and that's the whole setup. The moment you're in,
                 ItsBagelBot joins your chat and sits quietly until it's spoken to.
+            </p>`,
+        },
+        {
+          kind: 'prose',
+          html: `
+            <p>
+                First time in, a short walkthrough greets you: accept the terms, pick your console
+                language, then mod the bot by typing <code>/mod ItsBagelBot</code> in your own chat.
+                That last one matters more than it looks: without mod status, Twitch silences the bot
+                the moment your chat goes follower-only or sub-only, and it just looks broken.
             </p>`,
         },
         {
@@ -59,7 +69,7 @@ const guide: GuideContent = {
     {
       id: 'tour',
       heading: 'Find your way around',
-      note: 'Five stops in the floating dock. You will spend most of your time in two of them.',
+      note: 'Six stops in the floating dock. You will spend most of your time in two of them.',
       blocks: [
         {
           kind: 'prose',
@@ -68,7 +78,8 @@ const guide: GuideContent = {
                 The dashboard is one page at a time, and its whole navigation is the floating dock
                 at the bottom of the screen, the same on desktop and phone. <strong>Overview</strong>
                 is your landing page, <strong>Commands</strong> is where custom chat commands live, and
-                <strong>Modules</strong> holds every bigger feature. Billing and Settings do what they
+                <strong>Modules</strong> holds every bigger feature. <strong>Discord</strong> is its own
+                page for connecting a Discord server (premium beta). Billing and Settings do what they
                 say on the tin.
             </p>`,
         },
@@ -78,7 +89,7 @@ const guide: GuideContent = {
           path: '/',
           caption: 'The Overview page. Navigation lives in the floating dock at the bottom.',
           notes: [
-            { n: 1, text: 'The dock is the whole navigation, on every screen size: Overview, Commands, Modules, Billing, Settings.' },
+            { n: 1, text: 'The dock is the whole navigation, on every screen size: Overview, Commands, Modules, Discord, Billing, Settings.' },
             { n: 2, text: 'Bot status: whether ItsBagelBot is sitting in your chat right now, and the one button to fix it if not.' },
             { n: 3, text: 'Quick actions: the two things you will do most, one tap away.' },
             { n: 4, text: 'Your most-used commands live here too, one click from editing.' },
@@ -134,7 +145,7 @@ const guide: GuideContent = {
           kind: 'prose',
           html: `
             <p>
-                The editor also offers access levels (everyone → broadcaster), a cooldown, and a
+                The editor also offers access levels (everyone up to broadcaster), a cooldown, and a
                 "only while live" switch, all optional, all explained in the
                 <a href="/guides/commands">commands guide</a>.
             </p>`,
@@ -154,7 +165,9 @@ const guide: GuideContent = {
                 clicking a tile opens its settings. Two are already working for you out of the box:
                 <strong>Chat Alerts</strong> (follows, subs, cheers, raids) and <strong>AutoMod</strong>
                 (the layered moderation you read about on the homepage; it runs quietly without a
-                tile on this grid).
+                tile on this grid). Two more never show a switch at all: <strong>Counters</strong> and
+                <strong>Stream Management</strong> (the commands behind <code>!title</code>,
+                <code>!game</code> and <code>!marker</code>) are always on.
             </p>`,
         },
         {
@@ -162,9 +175,10 @@ const guide: GuideContent = {
           screen: 'ModulesGrid',
           path: '/modules',
           caption: 'The Modules page: a category rail on the left, tiles with a Configure button and a switch.',
+          labels: { dot3: '', dot4: '', dot5: '', dot6: '' },
           notes: [
-            { n: 1, text: 'Already on: alerts thank followers and subs with a message you can rewrite.' },
-            { n: 2, text: "Opt-in: timers post a message on a schedule while you're live. Great for the Discord plug." },
+            { n: 1, text: 'The Categories rail. Click a group and the grid scrolls to it.' },
+            { n: 2, text: 'A tile is one module: its name, its category, one line about it, Configure, and the switch. Chat Alerts starts on; most others wait for you.' },
           ],
         },
         {
@@ -204,6 +218,26 @@ const guide: GuideContent = {
                 <b>Next up</b>
                 Make your commands smart: <a href="/guides/commands">Commands &amp; variables</a> shows
                 how one line like <code>Welcome, &lbrace;user&rbrace;!</code> greets every viewer by name.`,
+        },
+        {
+          kind: 'widget',
+          name: 'Checklist',
+          labels: {
+            heading: 'Your first-hour checklist',
+            reset: 'Clear',
+          },
+          props: {
+            storageKey: 'guides.getting-started.checklist',
+            items: [
+              'Sign in at <a href="https://dashboard.itsbagelbot.com/auth/login" target="_blank" rel="noopener noreferrer">dashboard.itsbagelbot.com</a> and mod the bot with <code>/mod ItsBagelBot</code>.',
+              'Create one command, like <code>!discord</code> or <code>!socials</code>.',
+              'Open <strong>Modules</strong> and rewrite the <strong>Chat Alerts</strong> messages so they sound like you.',
+              'Switch on <strong>Local Time</strong> and set your timezone, so <code>!time</code> answers correctly.',
+              'Add a mod on <strong>Settings</strong>, so someone else can help run the bot.',
+              'Type your new command in chat yourself and check the reply.',
+              'Try <code>!uptime</code> once you go live.',
+            ],
+          },
         },
       ],
     },

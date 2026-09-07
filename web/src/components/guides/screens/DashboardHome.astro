@@ -25,7 +25,7 @@ const L = {
     restart: 'Restart',
     disconnect: 'Disconnect',
     quickActions: 'Quick actions',
-    newCommand: '+ New command',
+    newCommand: 'New command',
     manageModules: 'Manage modules',
     topCommands: 'Your top commands',
     cmd1Name: '!bagel',
@@ -38,6 +38,7 @@ const L = {
     dockOverview: 'Overview',
     dockCommands: 'Commands',
     dockModules: 'Modules',
+    dockDiscord: 'Discord',
     dockBilling: 'Billing',
     dockSettings: 'Settings',
     ...labels,
@@ -54,5 +55,5 @@ const L = {
     <span class="df-cat">{L.topCommands} <i class="df-dot" style="position:static; width:16px; height:16px; font-size:0.55rem; margin-left:4px;">4</i></span>
     <div class="df-row"><code>{L.cmd1Name}</code><span class="df-grow" set:html={L.cmd1Response}></span><span class="df-meta"><b>{L.cmd1Count}</b> {L.uses}</span></div>
     <div class="df-row"><code>{L.cmd2Name}</code><span class="df-grow" set:html={L.cmd2Response}></span><span class="df-meta"><b>{L.cmd2Count}</b> {L.uses}</span></div>
-    <div class="df-dock"><span class="is-active">{L.dockOverview}</span><span>{L.dockCommands}</span><span>{L.dockModules}</span><span>{L.dockBilling}</span><span>{L.dockSettings}</span><i class="df-dot" style="position:static; align-self:center; margin-left:6px;">1</i></div>
+    <div class="df-dock"><span class="is-active">{L.dockOverview}</span><span>{L.dockCommands}</span><span>{L.dockModules}</span><span>{L.dockDiscord}</span><span>{L.dockBilling}</span><span>{L.dockSettings}</span><i class="df-dot" style="position:static; align-self:center; margin-left:6px;">1</i></div>
 </div>

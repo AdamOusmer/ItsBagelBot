@@ -9,7 +9,7 @@ const guide: GuideContent = {
     title: 'Commands & variables - ItsBagelBot Guides',
     description:
       'Master ItsBagelBot custom commands: every supported variable ({user}, {random}, {counter} and more), multi-line replies, chat actions, cooldowns and access levels.',
-    eyebrow: 'Guide 02',
+    eyebrow: 'Guide',
     heading: 'Commands & variables',
     lead: 'Commands that greet people by name, roll dice, and count your wins. No code: just braces.',
     minutes: '9 min read',
@@ -47,7 +47,17 @@ const guide: GuideContent = {
             { n: 4, text: 'The chat rehearsal acts your response out with sample values before you save. The command builder has the same one.' },
             { n: 5, text: 'Access and cooldown: who can use it, and how many quiet seconds follow each use.' },
             { n: 6, text: 'Only while live parks the command when the stream is offline; Active is the on/off switch.' },
+            { n: 7, text: 'Data source: inserts a value fetched from a saved API definition instead of a variable.' },
           ],
+        },
+        {
+          kind: 'callout',
+          tone: 'tip',
+          html: `
+                <b>Tip</b>
+                The Data source chip inserts <code>&#123;urlfetch:name&#125;</code>, a value pulled from
+                an API you saved yourself. The <a href="/guides/data-sources">Data sources guide</a>
+                walks through saving your first one.`,
         },
       ],
     },
@@ -61,14 +71,16 @@ const guide: GuideContent = {
           html: `
             <h3>From the dashboard</h3>
             <p>
-                <a href="https://dashboard.itsbagelbot.com/commands" target="_blank" rel="noopener noreferrer">Commands</a>
-                → <strong>New command</strong> → fill in name and response → <strong>Create</strong>.
+                <a href="https://dashboard.itsbagelbot.com/commands" target="_blank" rel="noopener noreferrer">Commands</a>,
+                click <strong>New command</strong>, fill in the name and the response, then <strong>Create</strong>.
                 It usually answers in chat within seconds. Edits work the same way: click any command row,
                 change it, save.
             </p>
             <h3>From chat, with !cmd</h3>
             <p>
-                You and your moderators can also manage commands without leaving chat, mid-stream:
+                You and your moderators can also manage commands without leaving chat, mid-stream.
+                Any moderator can run it: <code>!cmd</code> doesn't need the lead moderator promotion
+                that some other built-ins ask for.
             </p>`,
         },
         {
@@ -123,6 +135,7 @@ const guide: GuideContent = {
             ['<code>&#123;touser&#125;</code>', "The first word typed after the command, with any “@” removed. When nothing is typed, it falls back to the viewer's own name. <code>&#123;target&#125;</code> is the same thing.", 'alex'],
             ['<code>&#123;args&#125;</code>', 'Everything typed after the command, as one string. Empty when nothing was typed.', 'good luck on the exam'],
             ['<code>&#123;channel&#125;</code>', "Your channel's display name.", 'your_channel'],
+            ['<code>&#123;urlfetch:name&#125;</code>', 'A value fetched from a web API you saved as a data source. Covered in the <a href="/guides/data-sources">Data sources guide</a>.', '22'],
           ],
         },
         {
@@ -197,6 +210,10 @@ const guide: GuideContent = {
                 can manage counts in chat with <code>!counter set</code>, <code>!counter reset</code>
                 and friends.`,
         },
+        {
+          kind: 'widget',
+          name: 'Rehearsal',
+        },
       ],
     },
     {
@@ -261,7 +278,7 @@ const guide: GuideContent = {
             ['Alternate names', 'Up to 25, each following the same rules as the name.'],
             ['Response', 'Up to 5 lines, each up to 500 characters (one chat message per line).'],
             ['Cooldown', '0 to 86400 seconds. It is shared by the whole chat: after anyone uses the command, everyone waits.'],
-            ['Access', 'Minimum rank, in order: everyone → subscribers → VIPs → moderators → lead moderators → broadcaster. Each level includes everyone above it.'],
+            ['Access', 'Minimum rank, in order: everyone, subscribers, VIPs, moderators, lead moderators, broadcaster. Each level includes everyone above it.'],
             ['Restrict to one user', "Optionally lock a command to a single Twitch account; that overrides the access level entirely. Perfect for one friend's personal command."],
           ],
         },
@@ -288,7 +305,7 @@ const guide: GuideContent = {
           tone: 'tip',
           html: `
                 <b>Try it now</b>
-                <a href="/command-builder">Open the command builder →</a>`,
+                <a href="/command-builder">Open the command builder</a>`,
         },
       ],
     },

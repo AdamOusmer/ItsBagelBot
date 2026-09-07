@@ -5,8 +5,12 @@
 /**
  * The command editor panel on its own, every field annotated: name, alternate
  * names, response, chat rehearsal, access, cooldown, the user restriction and
- * the two switches.
+ * the two switches. The palette row also carries the Data source chip: it
+ * inserts a {urlfetch:name} token from a saved API definition (see the Data
+ * sources guide), same as the real editor.
  */
+import Icon from '../../ui/Icon.astro';
+
 interface Props {
     labels?: Record<string, string>;
 }
@@ -14,16 +18,20 @@ interface Props {
 const { labels = {} } = Astro.props;
 const L = {
     panelHead: 'Edit command',
+    close: 'Close',
     fieldName: 'Name',
     nameValue: 'hug',
     fieldAlts: 'Alternate names',
     optional: '(optional)',
-    altChip: 'cuddle ✕',
+    altChipLabel: 'cuddle',
+    remove: 'Remove',
     fieldResponse: 'Response',
     responseHtml: '<span class="df-var">&#123;user&#125;</span> gives <span class="df-var">&#123;touser&#125;</span> a warm bagel hug 🥯',
     chip1: '&#123;user&#125;',
     chip2: '&#123;target&#125;',
     chip3: '&#123;random&#125;',
+    chip4: 'Data source',
+    chip4Tooltip: 'Insert a fetched value from a saved API definition',
     chatTag: 'Chat rehearsal',
     viewerName: 'sesame_sam',
     viewerText: '!hug ferret_king',
@@ -38,18 +46,18 @@ const L = {
     checkActive: 'Active',
     checkLive: 'Only while live',
     cancel: 'Cancel',
-    save: '✓ Save changes',
+    save: 'Save changes',
     ...labels,
 };
 ---
 
 <div class="df-main" style="max-width:420px; margin:0 auto;">
     <div class="df-panel">
-        <div class="df-panel-head">{L.panelHead} <i>✕</i></div>
+        <div class="df-panel-head">{L.panelHead} <i aria-label={L.close} role="img"><Icon name="x" size={12} /></i></div>
         <div class="df-field"><span>{L.fieldName}</span><div class="df-input">{L.nameValue}<i class="df-dot" style="position:static; margin-left:auto;">1</i></div></div>
-        <div class="df-field"><span>{L.fieldAlts} <small>{L.optional}</small></span><div class="df-input"><span class="df-pill df-pill--tan">{L.altChip}</span><i class="df-dot" style="position:static; margin-left:auto;">2</i></div></div>
+        <div class="df-field"><span>{L.fieldAlts} <small>{L.optional}</small></span><div class="df-input"><span class="df-pill df-pill--tan">{L.altChipLabel} <i aria-label={L.remove} role="img"><Icon name="x" size={10} /></i></span><i class="df-dot" style="position:static; margin-left:auto;">2</i></div></div>
         <div class="df-field"><span>{L.fieldResponse}</span><div class="df-input"><span set:html={L.responseHtml}></span><i class="df-dot" style="position:static; margin-left:auto;">3</i></div></div>
-        <div class="df-chips"><i set:html={L.chip1}></i><i set:html={L.chip2}></i><i set:html={L.chip3}></i></div>
+        <div class="df-chips"><i set:html={L.chip1}></i><i set:html={L.chip2}></i><i set:html={L.chip3}></i><i title={L.chip4Tooltip}>{L.chip4}</i><i class="df-dot" style="position:static;">7</i></div>
         <div class="df-chat">
             <span class="df-chat-tag">{L.chatTag}</span>
             <p class="df-viewer"><b>{L.viewerName}</b><span>{L.viewerText}</span></p>

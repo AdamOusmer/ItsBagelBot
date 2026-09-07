@@ -1,0 +1,290 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+/**
+ * Rehearsal: a light response rehearsal, the same idea as the command
+ * builder's live preview but scoped to one response line. Edit the response,
+ * who is typing, and the args, and the chat line below updates.
+ *
+ * The script's expand() mirrors the bot's own token grammar (engine/vars.go,
+ * module/vars.go): user/sender, touser/target, args, channel, counter:<name>,
+ * urlfetch:<name[.path]>, random, random:a-b, choice:a,b,c. An unrecognized
+ * token is left exactly as typed, braces included, same as the live bot. A
+ * counter always shows a fixed sample (128) since there is no real store
+ * here; {urlfetch:...} cannot run in a browser (it needs a saved API
+ * definition and a server round trip), so it renders as a pill instead of a
+ * value, same as the dashboard's own builder does for that token.
+ *
+ * outputDefault is the server-rendered result for the default fields, so the
+ * page reads fine with JS off. The script recomputes it once on load and on
+ * every input, so a JS reader never sees a stale line.
+ */
+interface Props {
+    labels?: Record<string, string>;
+}
+
+const { labels = {} } = Astro.props;
+const L = {
+    heading: 'Rehearse a response',
+    responseLabel: 'Response',
+    whoLabel: "Who's typing",
+    argsLabel: 'Args (typed after the command)',
+    outputLabel: 'What chat sees',
+    pillLabel: 'fetched at send time',
+    builderNote: 'Want the same rehearsal, plus one-click creation?',
+    builderLinkText: 'Open the command builder',
+    builderHref: '/command-builder',
+    responseDefault: '{user} gives {touser} a warm bagel hug 🥯',
+    whoDefault: 'sesame_sam',
+    argsDefault: 'ferret_king',
+    outputDefault: 'sesame_sam gives ferret_king a warm bagel hug 🥯',
+    botName: 'ItsBagelBot',
+    ...labels,
+};
+---
+
+<div class="rh" data-rehearsal data-pill-label={L.pillLabel} data-counter-sample="128">
+    <div class="rh__head"><b>{L.heading}</b></div>
+    <div class="rh__grid">
+        <label class="rh__field rh__field--wide">
+            <span>{L.responseLabel}</span>
+            <textarea data-rh-response rows="2" maxlength="500">{L.responseDefault}</textarea>
+        </label>
+        <label class="rh__field">
+            <span>{L.whoLabel}</span>
+            <input type="text" data-rh-who value={L.whoDefault} maxlength="25" />
+        </label>
+        <label class="rh__field">
+            <span>{L.argsLabel}</span>
+            <input type="text" data-rh-args value={L.argsDefault} maxlength="80" />
+        </label>
+    </div>
+    <div class="rh__out">
+        <span class="rh__out-tag">{L.outputLabel}</span>
+        <p class="rh__line" data-rh-output aria-live="polite">
+            <b class="rh__bot">{L.botName}</b>
+            <span data-rh-content>{L.outputDefault}</span>
+        </p>
+    </div>
+    <p class="rh__note">{L.builderNote} <a href={L.builderHref}>{L.builderLinkText}</a></p>
+</div>
+
+<style>
+    .rh {
+        display: grid;
+        gap: 14px;
+        margin: 22px 0;
+        padding: 16px 18px;
+        border: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+        border-radius: var(--radius-card, 16px);
+        background: rgba(17, 17, 16, 0.6);
+    }
+
+    .rh__head b {
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-size: 0.95rem;
+        color: var(--white, #f0ece4);
+    }
+
+    .rh__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .rh__field--wide { grid-column: 1 / -1; }
+
+    .rh__field {
+        display: grid;
+        gap: 5px;
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.68rem;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--muted, #888077);
+    }
+
+    .rh__field textarea,
+    .rh__field input {
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 0.85rem;
+        text-transform: none;
+        letter-spacing: normal;
+        color: var(--white, #f0ece4);
+        background: rgba(240, 236, 228, 0.04);
+        border: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+        border-radius: var(--radius-sm, 6px);
+        padding: 8px 10px;
+        resize: vertical;
+    }
+
+    .rh__field textarea:focus,
+    .rh__field input:focus {
+        outline: 2px solid var(--green-glow, #52b788);
+        outline-offset: 1px;
+    }
+
+    .rh__out {
+        display: grid;
+        gap: 8px;
+        padding-top: 4px;
+        border-top: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+    }
+
+    .rh__out-tag {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.62rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--muted, #888077);
+    }
+
+    .rh__line {
+        margin: 0;
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 0.92rem;
+        line-height: 1.6;
+        color: rgba(240, 236, 228, 0.9);
+        transition: opacity 240ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)),
+            transform 240ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+    }
+
+    .rh__line.is-updating { opacity: 0; transform: translateX(12px); }
+    .rh__bot { color: var(--green-glow, #52b788); margin-right: 6px; }
+
+.rh :global(.rh__pill) {
+        display: inline-block;
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-style: normal;
+        font-size: 0.68rem;
+        color: var(--tan-light, #e0c49a);
+        background: var(--glow-tan, rgba(201, 168, 124, 0.18));
+        border: 1px solid rgba(201, 168, 124, 0.28);
+        border-radius: var(--radius-pill, 100px);
+        padding: 1px 9px;
+        white-space: nowrap;
+    }
+
+    .rh__note {
+        margin: 0;
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 0.78rem;
+        color: var(--muted, #888077);
+    }
+
+    .rh__note a { color: var(--tan-light, #e0c49a); }
+
+    @media (prefers-reduced-motion: reduce) {
+        .rh__line { transition: none; }
+        .rh__line.is-updating { opacity: 1; transform: none; }
+    }
+
+    @media (max-width: 520px) {
+        .rh__grid { grid-template-columns: 1fr; }
+    }
+</style>
+
+<script>
+    // Bundled by Astro, so it satisfies the site's script-src 'self' CSP.
+    // Token grammar mirrored from engine/vars.go + module/vars.go: see the
+    // frontmatter comment above for the full list and the rationale.
+    type Segment = { pill: false; text: string } | { pill: true };
+
+    function parseKey(raw: string) {
+        const i = raw.indexOf(':');
+        return i === -1
+            ? { name: raw.toLowerCase(), payload: '', hasPayload: false }
+            : { name: raw.slice(0, i).toLowerCase(), payload: raw.slice(i + 1), hasPayload: true };
+    }
+
+    function expand(template: string, who: string, args: string, counterSample: string): Segment[] {
+        const cleanWho = (who.trim() || 'sesame_sam').replace(/^@/, '');
+        const firstArg = args.trim().split(/\s+/)[0] ?? '';
+        const touser = firstArg ? firstArg.replace(/^@/, '') : cleanWho;
+        const segments: Segment[] = [];
+        let buf = '';
+        let i = 0;
+        while (i < template.length) {
+            if (template[i] !== '{') { buf += template[i]; i += 1; continue; }
+            const end = template.indexOf('}', i + 1);
+            if (end === -1) { buf += template.slice(i); break; }
+            const raw = template.slice(i + 1, end);
+            const { name, payload, hasPayload } = parseKey(raw);
+            let resolved: string | null = null;
+            let pill = false;
+            if (name === 'user' || name === 'sender') resolved = cleanWho;
+            else if (name === 'touser' || name === 'target') resolved = touser;
+            else if (name === 'args') resolved = args;
+            else if (name === 'channel') resolved = 'your_channel';
+            else if (name === 'counter' && hasPayload) resolved = counterSample;
+            else if (name === 'urlfetch' && hasPayload) pill = true;
+            else if (name === 'random') {
+                if (!hasPayload) resolved = String(1 + Math.floor(Math.random() * 100));
+                else {
+                    const m = /^(\d+)-(\d+)$/.exec(payload);
+                    if (m && Number(m[1]) <= Number(m[2])) {
+                        const lo = Number(m[1]);
+                        const hi = Number(m[2]);
+                        resolved = String(lo + Math.floor(Math.random() * (hi - lo + 1)));
+                    }
+                }
+            } else if (name === 'choice' && hasPayload) {
+                const opts = payload.split(',').map((s) => s.trim()).filter(Boolean);
+                if (opts.length > 0) resolved = opts[Math.floor(Math.random() * opts.length)];
+            }
+            if (pill) {
+                if (buf) { segments.push({ pill: false, text: buf }); buf = ''; }
+                segments.push({ pill: true });
+            } else if (resolved !== null) {
+                buf += resolved;
+            } else {
+                buf += `{${raw}}`;
+            }
+            i = end + 1;
+        }
+        if (buf) segments.push({ pill: false, text: buf });
+        return segments;
+    }
+
+    function setupRehearsal(root: HTMLElement) {
+        const pillLabel = root.dataset.pillLabel ?? 'fetched at send time';
+        const counterSample = root.dataset.counterSample ?? '128';
+        const response = root.querySelector<HTMLTextAreaElement>('[data-rh-response]');
+        const who = root.querySelector<HTMLInputElement>('[data-rh-who]');
+        const args = root.querySelector<HTMLInputElement>('[data-rh-args]');
+        const line = root.querySelector<HTMLElement>('[data-rh-output]');
+        const content = root.querySelector<HTMLElement>('[data-rh-content]');
+        if (!response || !who || !args || !line || !content) return;
+
+        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        function render(animate: boolean) {
+            const segments = expand(response!.value, who!.value, args!.value, counterSample);
+            content!.replaceChildren(
+                ...segments.map((seg) => {
+                    if (!seg.pill) return document.createTextNode(seg.text);
+                    const el = document.createElement('i');
+                    el.className = 'rh__pill';
+                    el.textContent = pillLabel;
+                    return el;
+                }),
+            );
+            if (animate && !reduceMotion) {
+                line!.classList.add('is-updating');
+                requestAnimationFrame(() => line!.classList.remove('is-updating'));
+            }
+        }
+
+        [response, who, args].forEach((el) => el.addEventListener('input', () => render(true)));
+        render(false);
+    }
+
+    // Bound on astro:page-load as well as at load: the ClientRouter swaps the DOM
+    // on navigation, and the data-ready flag stops a second pass binding twice.
+    function setupAll() {
+        document.querySelectorAll<HTMLElement>('[data-rehearsal]').forEach((root) => {
+            if (root.dataset.ready === '1') return;
+            root.dataset.ready = '1';
+            setupRehearsal(root);
+        });
+    }
+
+    setupAll();
+    document.addEventListener('astro:page-load', setupAll);
+</script>

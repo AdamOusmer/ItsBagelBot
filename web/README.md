@@ -71,5 +71,19 @@ Two conventions inside a section:
   `labels` key with the English text as the default, so a locale passes only
   what differs and never edits the markup.
 - **Widgets** (`src/components/guides/widgets/`) are blocks that do something in
-  the browser. `Checklist` is the worked example: items with checkboxes
-  remembered in `localStorage`. Same `labels` rule.
+  the browser: `Checklist` (first-hour tasks kept in `localStorage`),
+  `Rehearsal` (expands the response tokens as you type), `PathPicker`,
+  `FetchBudget` and `FetchOutcomes` (data sources), `ModuleCatalog` (filterable
+  module grid) and `CounterPlay` (replays `!counter`). Same `labels` rule. Client
+  code is an Astro `<script>` (the CSP has no inline allowance) that binds on
+  `astro:page-load` behind a `data-ready` guard, so the page transition router
+  re-wires a widget after a navigation without binding it twice.
+
+Screens and widgets register by file name: the basename must equal a member of
+`ScreenName` or `WidgetName` in `src/lib/guides/types.ts`, and the dispatch maps
+in `screens/index.ts` and `widgets/index.ts` glob the directory. A name with no
+file fails the build in `GuideBody.astro`.
+
+Glyphs go through `src/components/ui/Icon.astro` (Lucide, generated into
+`src/lib/icons.ts`); the mocks draw no text arrows or ticks. The "Guide 0N"
+eyebrow is computed from the slug order, so content files carry only the word.

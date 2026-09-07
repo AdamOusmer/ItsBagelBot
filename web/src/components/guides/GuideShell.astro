@@ -56,7 +56,7 @@ const hubHref = localizePath('/guides', lang);
 <div class="gshell" data-guide>
     <div class="gshell__grid">
         <nav class="gshell__toc" aria-label={labels.toc}>
-            <TextLink class="gshell__hub" href={hubHref} label={`← ${labels.hub}`} size="0.7rem" />
+            <TextLink class="gshell__hub" href={hubHref} label={labels.hub} size="0.7rem" />
             <span class="gshell__toc-label">{labels.toc}</span>
             <ul>
                 {sections.map((section, i) => (
@@ -72,7 +72,7 @@ const hubHref = localizePath('/guides', lang);
 
         <article class="gshell__content">
             <div class="gshell__meta" data-reveal>
-                <TextLink class="gshell__hub gshell__hub--inline" href={hubHref} label={`← ${labels.hub}`} size="0.7rem" />
+                <TextLink class="gshell__hub gshell__hub--inline" href={hubHref} label={labels.hub} size="0.7rem" />
                 {minutes && <span class="gshell__minutes">{minutes}</span>}
             </div>
 
@@ -93,13 +93,13 @@ const hubHref = localizePath('/guides', lang);
                 <nav class="gshell__pager" aria-label={labels.next}>
                     {prev ? (
                         <a class="gshell__pager-card" href={prev.href}>
-                            <span>← {labels.prev}</span>
+                            <span>{labels.prev}</span>
                             <b>{prev.label}</b>
                         </a>
                     ) : <span />}
                     {next && (
                         <a class="gshell__pager-card gshell__pager-card--next" href={next.href}>
-                            <span>{labels.next} →</span>
+                            <span>{labels.next}</span>
                             <b>{next.label}</b>
                         </a>
                     )}
@@ -304,7 +304,7 @@ const hubHref = localizePath('/guides', lang);
     }
 
     /* Prose links wrap mid-paragraph, so they can't glyph-roll like TextLink;
-       they share its ember rail instead, the same tan→green sweep, drawn
+       they share its ember rail instead, the same tan-to-green sweep, drawn
        with a background gradient so it follows line breaks. */
     .gshell__block :global(a) {
         color: var(--tan, #c9a87c);
@@ -395,10 +395,12 @@ const hubHref = localizePath('/guides', lang);
         border: 1px solid rgba(201, 168, 124, 0.18);
     }
 
+    /* Same muted red as .bb-chip--danger in style.css: the one danger tone
+       the site already has, reused instead of inventing a second red. */
     .gshell__block :global(.gwarn) {
         color: rgba(240, 236, 228, 0.78);
-        background: rgba(224, 98, 98, 0.06);
-        border: 1px solid rgba(224, 98, 98, 0.22);
+        background: rgba(217, 138, 138, 0.06);
+        border: 1px solid rgba(217, 138, 138, 0.24);
     }
 
     .gshell__block :global(.gtip b),
@@ -413,7 +415,7 @@ const hubHref = localizePath('/guides', lang);
     }
 
     .gshell__block :global(.gtip b) { color: var(--tan, #c9a87c); }
-    .gshell__block :global(.gwarn b) { color: #e08585; }
+    .gshell__block :global(.gwarn b) { color: #d98a8a; }
 
     /* ── Pager ── */
 

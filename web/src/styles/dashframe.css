@@ -411,11 +411,11 @@
 }
 
 .df-check.is-on::before {
-    content: "✓";
-    display: grid;
-    place-items: center;
-    font-size: 0.55rem;
-    color: #131210;
+    /* Lucide "check" as a mask so the tick is the same stroke the console draws;
+       a text glyph here would be the one hand-drawn mark left in the mocks. */
+    content: "";
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%273%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%27M20 6 9 17l-5-5%27/%3E%3C/svg%3E") center / 9px 9px no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%273%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%27M20 6 9 17l-5-5%27/%3E%3C/svg%3E") center / 9px 9px no-repeat;
     background: var(--tan, #c9a87c);
     border-color: var(--tan, #c9a87c);
 }
@@ -535,8 +535,9 @@
     padding: 0 3px;
 }
 
-/* Module tile grid, real console anatomy: icon + name + category tag,
-   tagline, then a Configure pill and the toggle in the footer. */
+/* Module tile grid, real console anatomy: name over category tag, tagline,
+   then a Configure pill and the toggle in the footer. No icon column: see
+   .df-tile-head below. */
 .df-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
 
 .df-tile {

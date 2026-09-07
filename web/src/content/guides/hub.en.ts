@@ -7,18 +7,18 @@ const hub: HubContent = {
   meta: {
     title: 'Guides - ItsBagelBot',
     description:
-      'Visual guides for ItsBagelBot: set up the bot, master the dashboard, and build powerful custom commands with variables, no code required.',
+      'Visual guides for ItsBagelBot: set up the bot, learn the dashboard, and write custom commands with variables and live data.',
     eyebrow: 'Guides',
     heading: 'Learn the bot.',
-    lead: 'Short, visual, and written for humans. Everything here works on the free plan: no code, no jargon, no fine print.',
+    lead: 'Every guide here works on the free plan, and each one runs ten minutes or less.',
   },
   tool: {
     href: '/command-builder',
     eyebrow: 'Interactive tool',
     name: 'Command builder',
     description:
-      'Write the message like a sentence, click to drop in the smart parts, watch a live chat rehearsal, then send the finished command straight to your dashboard.',
-    cta: 'Open the builder →',
+      'Write the message like a sentence, click to drop in the smart parts, watch a live chat rehearsal, then send the finished command to your dashboard.',
+    cta: 'Open the builder',
     demoIn: 'Welcome in, <i>&lbrace;user&rbrace;</i>! You are visitor <i>&lbrace;counter:visits&rbrace;</i> 🥯',
     demoOut: '<b>ItsBagelBot:</b> Welcome in, maya_live! You are visitor 128 🥯',
   },

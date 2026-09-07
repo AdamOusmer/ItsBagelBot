@@ -9,7 +9,7 @@ const guide: GuideContent = {
     title: 'Counters - ItsBagelBot Guides',
     description:
       'How ItsBagelBot counters work: the {counter:name} token, the four scopes (whole channel, per user, per command, per user + command), managing them with !counter, and binding one to a channel-point reward.',
-    eyebrow: 'Guide 04',
+    eyebrow: 'Guide',
     heading: 'Counters',
     lead: "Track anything that happens more than once: deaths, hugs, redemptions. Choose how it's counted once, and the bot remembers forever.",
     minutes: '8 min read',
@@ -208,9 +208,9 @@ const guide: GuideContent = {
           caption: 'Creating and bumping a counter, start to finish, without touching the dashboard.',
           lines: [
             { who: 'mod', name: 'mod_sam', text: '!counter create deaths' },
-            { who: 'bot', text: '@mod_sam counter deaths created (whole channel).' },
+            { who: 'bot', text: 'Counter deaths created (channel).' },
             { who: 'mod', name: 'mod_sam', text: '!counter add deaths 5' },
-            { who: 'bot', text: '@mod_sam deaths is now 5.' },
+            { who: 'bot', text: 'Counter deaths is now 5.' },
           ],
         },
         {
@@ -221,6 +221,23 @@ const guide: GuideContent = {
                 <code>!counter create hydrations command</code> makes a pooled per-command counter in
                 one line, ready to drop into a command's response, or bind to a channel-point reward,
                 as <code>&#123;counter:hydrations&#125;</code>.`,
+        },
+        {
+          kind: 'widget',
+          name: 'CounterPlay',
+          labels: {
+            heading: 'Try it: bump the counter',
+            windowTitle: '#your_channel',
+            modName: 'mod_sam',
+            addOne: '!counter add deaths',
+            subOne: '!counter add deaths -1',
+            setTen: '!counter set deaths 10',
+            viewerName: 'crust',
+            viewerCommand: '!death',
+            viewerReplyTemplate: 'Oh no, {value} deaths so far.',
+            modReplyTemplate: 'Counter deaths is now {value}.',
+          },
+          props: { counterName: 'deaths', start: 12 },
         },
       ],
     },
@@ -278,7 +295,7 @@ const guide: GuideContent = {
                 The <a href="/command-builder">command builder</a> can walk you through naming a
                 counter and picking its scope, then hands you the finished
                 <code>&#123;counter:…&#125;</code> token.
-                <a href="/command-builder">Open the command builder →</a>`,
+                <a href="/command-builder">Open the command builder</a>`,
         },
       ],
     },

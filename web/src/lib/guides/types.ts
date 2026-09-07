@@ -34,7 +34,7 @@ export type ScreenName =
   | 'CommandsList'
   | 'CommandEditor'
   | 'ModulesGrid'
-  | 'ModulesCategories'
+  | 'ModuleConfigure'
   | 'NewCounter'
   | 'RewardCounter'
   | 'DataSourceModal'
