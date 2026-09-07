@@ -81,7 +81,7 @@ const L = {
         <div class="df-rail" style="position:relative;">
             <b>{L.railTitle}</b>
             <span class="is-active">{L.rail1}</span><span>{L.rail2}</span><span>{L.rail3}</span><span>{L.rail4}</span><span>{L.rail5}</span><span>{L.rail6}</span><span>{L.rail7}</span>
-            {L.dot1 && <i class="df-dot" style="top:0; right:2px;">{L.dot1}</i>}
+            {L.dot1 && <i class="df-mark" data-note={L.dot1}></i>}
         </div>
         <div style="display:grid; gap:10px; align-content:start;">
             <span class="df-cat">{L.cat1}</span>
@@ -90,7 +90,7 @@ const L = {
                     <div class="df-tile-head"><span><b>{L.tile1Name}</b><small>{L.tile1Cat}</small></span></div>
                     <small>{L.tile1Desc}</small>
                     <div class="df-tile-foot"><span class="df-btn--configure">{L.configure}</span><span class="df-pill df-pill--tan">{L.tile1Beta}</span></div>
-                    {L.dot5 && <i class="df-dot" style="bottom:8px; right:10px;">{L.dot5}</i>}
+                    {L.dot5 && <i class="df-mark" data-note={L.dot5}></i>}
                 </div>
             </div>
             <span class="df-cat">{L.cat2}</span>
@@ -99,7 +99,7 @@ const L = {
                     <div class="df-tile-head"><span><b>{L.tile2Name}</b><small>{L.tile2Cat}</small></span></div>
                     <small>{L.tile2Desc}</small>
                     <div class="df-tile-foot"><span class="df-btn--configure">{L.configure}</span><span class="df-toggle"></span></div>
-                    {L.dot2 && <i class="df-dot" style="top:10px; right:10px;">{L.dot2}</i>}
+                    {L.dot2 && <i class="df-mark" data-note={L.dot2}></i>}
                 </div>
                 <div class="df-tile">
                     <div class="df-tile-head"><span><b>{L.tile3Name}</b><small>{L.tile3Cat}</small></span></div>
@@ -113,14 +113,14 @@ const L = {
                     <div class="df-tile-head"><span><b>{L.tile4Name}</b><small>{L.tile4Cat}</small></span></div>
                     <small>{L.tile4Desc}</small>
                     <div class="df-tile-foot"><span class="df-btn--configure">{L.configure}</span><span class="df-toggle is-on"></span></div>
-                    {L.dot3 && <i class="df-dot" style="bottom:8px; left:10px;">{L.dot3}</i>}
-                    {L.dot4 && <i class="df-dot" style="bottom:8px; right:10px;">{L.dot4}</i>}
+                    {L.dot3 && <i class="df-mark" data-note={L.dot3}></i>}
+                    {L.dot4 && <i class="df-mark" data-note={L.dot4}></i>}
                 </div>
                 <div class="df-tile">
                     <div class="df-tile-head"><span><b>{L.tile5Name}</b><small>{L.tile5Cat}</small></span></div>
                     <small>{L.tile5Desc}</small>
                     <div class="df-tile-foot"><span class="df-btn--configure">{L.configure}</span><span class="df-pill df-pill--on">{L.tile5State}</span></div>
-                    {L.dot6 && <i class="df-dot" style="top:10px; right:10px;">{L.dot6}</i>}
+                    {L.dot6 && <i class="df-mark" data-note={L.dot6}></i>}
                 </div>
             </div>
         </div>

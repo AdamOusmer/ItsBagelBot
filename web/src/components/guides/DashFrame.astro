@@ -4,9 +4,9 @@
 
 /**
  * DashFrame: an annotated, hand-built "screenshot" of the dashboard for the
- * guides. Pure CSS, no images: a browser window (traffic lights + address bar)
+ * guides. Pure CSS, no images: a browser window (address bar only)
  * wraps a mock UI the page composes in the slot from the df-* helper classes
- * below. Numbered tan dots (`<i class="df-dot">1</i>`) placed inside the mock
+ * below. Invisible anchors (`<i class="df-mark" data-note="1">`) placed inside the mock
  * pair with the `notes` legend rendered underneath, so every visual carries
  * its own explanation, no "see figure 3" indirection.
  */
@@ -34,7 +34,6 @@ const { path = '/', notes = [], caption } = Astro.props;
 <figure class="dframe" data-reveal>
     <div class="dframe__win" role="img" aria-label={caption ?? `dashboard.itsbagelbot.com${path}`}>
         <div class="dframe__bar">
-            <span class="dframe__lights" aria-hidden="true"><i></i><i></i><i></i></span>
             <span class="dframe__url">dashboard.itsbagelbot.com<b>{path}</b></span>
         </div>
         <div class="dframe__body">
@@ -44,7 +43,10 @@ const { path = '/', notes = [], caption } = Astro.props;
     {notes.length > 0 && (
         <ul class="dframe__legend">
             {notes.map((note) => (
-                <li><i class="df-dot" aria-hidden="true">{note.n}</i><span>{note.text}</span></li>
+                <li data-note-for={note.n} tabindex="0">
+                    <i class="dframe__idx" aria-hidden="true">{String(note.n).padStart(2, '0')}</i>
+                    <span>{note.text}</span>
+                </li>
             ))}
         </ul>
     )}
@@ -71,16 +73,8 @@ const { path = '/', notes = [], caption } = Astro.props;
         background: rgba(17, 17, 16, 0.92);
     }
 
-    .dframe__lights { display: flex; gap: 6px; }
 
-    .dframe__lights i {
-        width: 9px;
-        height: 9px;
-        border-radius: 50%;
-        background: rgba(240, 236, 228, 0.12);
-    }
 
-    .dframe__lights i:first-child { background: rgba(224, 98, 98, 0.55); }
 
     .dframe__url {
         flex: 1;
@@ -108,14 +102,41 @@ const { path = '/', notes = [], caption } = Astro.props;
         padding-left: 2px;
     }
 
+    /* The legend is the annotation: a mono index per line, and hovering or
+       focusing a line lights the matching element inside the frame. No badges
+       on the mock itself. */
     .dframe__legend li {
         display: flex;
-        gap: 10px;
+        gap: 12px;
         align-items: baseline;
+        padding: 2px 6px;
+        margin: 0 -6px;
+        border-radius: var(--radius-sm, 6px);
         font-family: var(--font-body, "DM Sans", sans-serif);
         font-size: 0.92rem;
         line-height: 1.6;
         color: #b6afa5;
+        cursor: default;
+        transition: background 300ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+    }
+
+    .dframe__legend li:hover,
+    .dframe__legend li:focus-visible {
+        background: rgba(201, 168, 124, 0.06);
+        outline: none;
+    }
+
+    .dframe__idx {
+        flex: none;
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-style: normal;
+        font-size: 0.62rem;
+        letter-spacing: 0.12em;
+        color: var(--tan, #c9a87c);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .dframe__legend li { transition: none; }
     }
 
     figcaption {
@@ -131,3 +152,36 @@ const { path = '/', notes = [], caption } = Astro.props;
         .dframe__body { padding: 12px; }
     }
 </style>
+
+<script>
+    // Legend line -> element in the frame. Each screen leaves an invisible
+    // <i class="df-mark" data-note="N"> inside the element it describes; the
+    // matching legend line lights that element's parent while hovered or
+    // focused. Bound on astro:page-load as well as at load for the ClientRouter,
+    // with data-ready so a second pass never binds twice.
+    function setupFrame(frame: HTMLElement) {
+        const lines = frame.querySelectorAll<HTMLElement>('[data-note-for]');
+        lines.forEach((line) => {
+            const n = line.dataset.noteFor;
+            const target = frame.querySelector<HTMLElement>(`.df-mark[data-note="${n}"]`)?.parentElement;
+            if (!target) return;
+            const on = () => target.classList.add('is-hot');
+            const off = () => target.classList.remove('is-hot');
+            line.addEventListener('mouseenter', on);
+            line.addEventListener('mouseleave', off);
+            line.addEventListener('focus', on);
+            line.addEventListener('blur', off);
+        });
+    }
+
+    function setupAll() {
+        document.querySelectorAll<HTMLElement>('.dframe').forEach((frame) => {
+            if (frame.dataset.ready === '1') return;
+            frame.dataset.ready = '1';
+            setupFrame(frame);
+        });
+    }
+
+    setupAll();
+    document.addEventListener('astro:page-load', setupAll);
+</script>

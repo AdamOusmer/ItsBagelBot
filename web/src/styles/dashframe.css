@@ -9,25 +9,20 @@
  * only on pages that render a mock.
  */
 
-.df-dot {
-    display: inline-grid;
-    place-items: center;
-    width: 20px;
-    height: 20px;
-    flex: none;
-    border-radius: 50%;
-    background: var(--tan, #c9a87c);
-    color: #131210;
-    font-family: var(--font-mono, "DM Mono", monospace);
-    font-style: normal;
-    font-size: 0.62rem;
-    font-weight: 500;
-    box-shadow: 0 0 0 3px rgba(201, 168, 124, 0.2);
+/* Annotation anchor. Invisible: the numbered badges that used to sit on the
+   mocks are gone, the legend under the frame carries the index and hovering
+   or focusing a legend line lights the element that holds the matching mark.
+   A hidden <i> keeps the mark a sibling of the field's own content, so the
+   screens need no wrapper elements. */
+.df-mark {
+    display: none;
 }
 
-.dframe__body .df-dot {
-    position: absolute;
-    z-index: 2;
+.dframe__body .is-hot {
+    outline: 1px solid var(--tan, #c9a87c);
+    outline-offset: 3px;
+    border-radius: var(--radius-sm, 6px);
+    transition: outline-color 300ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
 }
 
 /* ── Console chrome ── */

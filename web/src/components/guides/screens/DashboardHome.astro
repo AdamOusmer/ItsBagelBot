@@ -6,7 +6,7 @@
  * The dashboard Overview page, hand-built from the df-* class library (see
  * src/styles/dashframe.css). English is the default; a locale overrides only
  * the keys it needs, so a translator never touches this DOM. The numbered
- * df-dot markers live here, next to what they point at; their explanations
+ * df-mark anchors live here, on the element they describe; their explanations
  * come from the content file's `notes`.
  */
 interface Props {
@@ -49,11 +49,11 @@ const L = {
     <div class="df-topbar"><span class="df-brand">ItsBagelBot <small>{L.console}</small></span><span class="df-crumb">ItsBagelBot / <b>{L.crumbPage}</b></span><span class="df-account">{L.account}</span></div>
     <span class="df-eyebrow">{L.eyebrow}</span>
     <p class="df-title" set:html={L.titleHtml}></p>
-    <div class="df-row"><span class="df-grow"><b style="color:var(--white);">{L.statusState}</b> {L.statusNote}</span><span class="df-btn df-btn--ghost">{L.restart}</span><span class="df-btn df-btn--ghost">{L.disconnect}</span><i class="df-dot" style="position:static;">2</i></div>
+    <div class="df-row"><span class="df-grow"><b style="color:var(--white);">{L.statusState}</b> {L.statusNote}</span><span class="df-btn df-btn--ghost">{L.restart}</span><span class="df-btn df-btn--ghost">{L.disconnect}</span><i class="df-mark" data-note="2"></i></div>
     <span class="df-cat">{L.quickActions}</span>
-    <div class="df-actions"><span class="df-btn df-btn--primary">{L.newCommand}</span><span class="df-btn df-btn--ghost">{L.manageModules}</span><i class="df-dot" style="position:static;">3</i></div>
-    <span class="df-cat">{L.topCommands} <i class="df-dot" style="position:static; width:16px; height:16px; font-size:0.55rem; margin-left:4px;">4</i></span>
+    <div class="df-actions"><span class="df-btn df-btn--primary">{L.newCommand}</span><span class="df-btn df-btn--ghost">{L.manageModules}</span><i class="df-mark" data-note="3"></i></div>
+    <span class="df-cat">{L.topCommands} <i class="df-mark" data-note="4"></i></span>
     <div class="df-row"><code>{L.cmd1Name}</code><span class="df-grow" set:html={L.cmd1Response}></span><span class="df-meta"><b>{L.cmd1Count}</b> {L.uses}</span></div>
     <div class="df-row"><code>{L.cmd2Name}</code><span class="df-grow" set:html={L.cmd2Response}></span><span class="df-meta"><b>{L.cmd2Count}</b> {L.uses}</span></div>
-    <div class="df-dock"><span class="is-active">{L.dockOverview}</span><span>{L.dockCommands}</span><span>{L.dockModules}</span><span>{L.dockDiscord}</span><span>{L.dockBilling}</span><span>{L.dockSettings}</span><i class="df-dot" style="position:static; align-self:center; margin-left:6px;">1</i></div>
+    <div class="df-dock"><span class="is-active">{L.dockOverview}</span><span>{L.dockCommands}</span><span>{L.dockModules}</span><span>{L.dockDiscord}</span><span>{L.dockBilling}</span><span>{L.dockSettings}</span><i class="df-mark" data-note="1"></i></div>
 </div>

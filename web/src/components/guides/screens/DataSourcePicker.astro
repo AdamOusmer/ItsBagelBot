@@ -42,16 +42,16 @@ const L = {
             <i><Fragment set:html={L.chipUser} /></i>
             <i><Fragment set:html={L.chipArgs} /></i>
             <i>{L.chipCounter}</i>
-            <i class="dsp__chip is-open">{L.chipDataSource}<b class="df-dot" style="position:static;">1</b></i>
+            <i class="dsp__chip is-open">{L.chipDataSource}<i class="df-mark" data-note="1"></i></i>
         </div>
         <div class="dsp__pop">
             <span class="dsp__title">{L.popoverTitle}</span>
             <span class="dsp__row is-active">
                 <b>{L.row1Name}</b><em>{L.row1Path}</em>
-                <i class="df-dot" style="position:static; margin-left:auto;">2</i>
+                <i class="df-mark" data-note="2"></i>
             </span>
             <span class="dsp__row"><b>{L.row2Name}</b><em>{L.row2Path}</em></span>
-            <span class="dsp__new">{L.newSource}<i class="df-dot" style="position:static; margin-left:auto;">3</i></span>
+            <span class="dsp__new">{L.newSource}<i class="df-mark" data-note="3"></i></span>
         </div>
     </div>
 </div>

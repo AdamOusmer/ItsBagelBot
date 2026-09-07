@@ -54,23 +54,23 @@ const L = {
 <div class="df-main" style="max-width:420px; margin:0 auto;">
     <div class="df-panel">
         <div class="df-panel-head">{L.panelHead} <i aria-label={L.close} role="img"><Icon name="x" size={12} /></i></div>
-        <div class="df-field"><span>{L.fieldName}</span><div class="df-input">{L.nameValue}<i class="df-dot" style="position:static; margin-left:auto;">1</i></div></div>
-        <div class="df-field"><span>{L.fieldAlts} <small>{L.optional}</small></span><div class="df-input"><span class="df-pill df-pill--tan">{L.altChipLabel} <i aria-label={L.remove} role="img"><Icon name="x" size={10} /></i></span><i class="df-dot" style="position:static; margin-left:auto;">2</i></div></div>
-        <div class="df-field"><span>{L.fieldResponse}</span><div class="df-input"><span set:html={L.responseHtml}></span><i class="df-dot" style="position:static; margin-left:auto;">3</i></div></div>
-        <div class="df-chips"><i set:html={L.chip1}></i><i set:html={L.chip2}></i><i set:html={L.chip3}></i><i title={L.chip4Tooltip}>{L.chip4}</i><i class="df-dot" style="position:static;">7</i></div>
+        <div class="df-field"><span>{L.fieldName}</span><div class="df-input">{L.nameValue}<i class="df-mark" data-note="1"></i></div></div>
+        <div class="df-field"><span>{L.fieldAlts} <small>{L.optional}</small></span><div class="df-input"><span class="df-pill df-pill--tan">{L.altChipLabel} <i aria-label={L.remove} role="img"><Icon name="x" size={10} /></i></span><i class="df-mark" data-note="2"></i></div></div>
+        <div class="df-field"><span>{L.fieldResponse}</span><div class="df-input"><span set:html={L.responseHtml}></span><i class="df-mark" data-note="3"></i></div></div>
+        <div class="df-chips"><i set:html={L.chip1}></i><i set:html={L.chip2}></i><i set:html={L.chip3}></i><i title={L.chip4Tooltip}>{L.chip4}</i><i class="df-mark" data-note="7"></i></div>
         <div class="df-chat">
             <span class="df-chat-tag">{L.chatTag}</span>
             <p class="df-viewer"><b>{L.viewerName}</b><span>{L.viewerText}</span></p>
             <p class="df-bot"><b>{L.botName}</b><span set:html={L.botHtml}></span></p>
-            <i class="df-dot" style="top:-10px; right:8px;">4</i>
+            <i class="df-mark" data-note="4"></i>
         </div>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
             <div class="df-field"><span>{L.fieldAccess}</span><div class="df-input">{L.accessValue}</div></div>
-            <div class="df-field"><span>{L.fieldCooldown}</span><div class="df-input">{L.cooldownValue}<i class="df-dot" style="position:static; margin-left:auto;">5</i></div></div>
+            <div class="df-field"><span>{L.fieldCooldown}</span><div class="df-input">{L.cooldownValue}<i class="df-mark" data-note="5"></i></div></div>
         </div>
         <div class="df-field"><span>{L.fieldRestrict} <small>{L.optional}</small></span><div class="df-input is-placeholder">{L.restrictPlaceholder}</div></div>
         <span class="df-check is-on">{L.checkActive}</span>
-        <span class="df-check">{L.checkLive} <i class="df-dot" style="position:static; margin-left:auto;">6</i></span>
+        <span class="df-check">{L.checkLive} <i class="df-mark" data-note="6"></i></span>
         <div class="df-panel-foot"><span class="df-btn df-btn--ghost">{L.cancel}</span><span class="df-btn df-btn--tan">{L.save}</span></div>
     </div>
 </div>

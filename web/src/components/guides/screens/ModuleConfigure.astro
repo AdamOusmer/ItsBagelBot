@@ -71,27 +71,27 @@ const L = {
         <span class="df-grow"><b>{L.statusLabel}</b><br /><small style="color:var(--muted, #888077);">{L.statusHelp}</small></span>
         <span class="df-pill df-pill--on">{L.statusOn}</span>
         <span class="df-toggle is-on"></span>
-        <i class="df-dot" style="top:-8px; right:-8px;">1</i>
+        <i class="df-mark" data-note="1"></i>
     </div>
     <div class="df-cols">
         <div style="display:grid; gap:8px; align-content:start;">
             <span class="df-meta">{L.repliesLabel}</span>
-            <div class="df-row is-open"><span class="df-num">01</span><span class="df-grow"><b>{L.row1Name}</b> {L.row1Text}</span><span class="df-toggle is-on"></span><i class="df-dot" style="top:-8px; left:-8px;">2</i></div>
+            <div class="df-row is-open"><span class="df-num">01</span><span class="df-grow"><b>{L.row1Name}</b> {L.row1Text}</span><span class="df-toggle is-on"></span><i class="df-mark" data-note="2"></i></div>
             <div class="df-row"><span class="df-num">02</span><span class="df-grow"><b>{L.row2Name}</b> {L.row2Text}</span><span class="df-toggle is-on"></span></div>
             <div class="df-row"><span class="df-num">03</span><span class="df-grow"><b>{L.row3Name}</b> {L.row3Text}</span><span class="df-toggle is-on"></span></div>
             <div class="df-row"><span class="df-num">04</span><span class="df-grow"><b>{L.row4Name}</b> {L.row4Text}</span><span class="df-toggle is-on"></span></div>
             <div class="df-row"><span class="df-num">05</span><span class="df-grow"><b>{L.row5Name}</b> {L.row5Text}</span><span class="df-toggle is-on"></span></div>
-            <div class="df-row"><span class="df-num">06</span><span class="df-grow"><b>{L.row6Name}</b> {L.row6Text}</span><span class="df-toggle"></span><i class="df-dot" style="bottom:-8px; right:-8px;">3</i></div>
+            <div class="df-row"><span class="df-num">06</span><span class="df-grow"><b>{L.row6Name}</b> {L.row6Text}</span><span class="df-toggle"></span><i class="df-mark" data-note="3"></i></div>
         </div>
         <div class="df-panel">
             <div class="df-panel-head">{L.panelHead} <Icon name="x" size={12} /></div>
-            <div class="df-field"><span>{L.fieldMessage}</span><div class="df-input is-focus"><span set:html={L.messageHtml}></span><i class="df-dot" style="position:static; margin-left:auto;">4</i></div></div>
+            <div class="df-field"><span>{L.fieldMessage}</span><div class="df-input is-focus"><span set:html={L.messageHtml}></span><i class="df-mark" data-note="4"></i></div></div>
             <div class="df-field"><span><small>{L.blankHint}</small></span></div>
             <div class="df-chat">
                 <span class="df-chat-tag">{L.chatTag}</span>
                 <p class="df-viewer"><span>{L.systemText}</span></p>
                 <p class="df-bot"><b>{L.botName}</b><span set:html={L.botHtml}></span></p>
-                <i class="df-dot" style="top:-10px; right:8px;">5</i>
+                <i class="df-mark" data-note="5"></i>
             </div>
             <div class="df-panel-foot"><span class="df-btn df-btn--ghost">{L.cancel}</span><span class="df-btn df-btn--tan">{L.save}</span></div>
         </div>

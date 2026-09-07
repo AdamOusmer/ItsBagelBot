@@ -55,16 +55,16 @@ const L = {
         <p class="df-sub">{L.intro}</p>
         <div class="df-field">
             <span>{L.fieldDisplayName}</span>
-            <div class="df-input">{L.displayNameValue}<i class="df-dot" style="position:static; margin-left:auto;">1</i></div>
+            <div class="df-input">{L.displayNameValue}<i class="df-mark" data-note="1"></i></div>
         </div>
         <div class="df-field">
             <span>{L.fieldSlug}</span>
-            <div class="df-input is-focus"><span class="df-var">{L.slugValue}</span><i class="df-dot" style="position:static; margin-left:auto;">2</i></div>
+            <div class="df-input is-focus"><span class="df-var">{L.slugValue}</span><i class="df-mark" data-note="2"></i></div>
         </div>
         <p class="df-sub" style="margin:-4px 0 0;"><Fragment set:html={L.slugHint} /></p>
         <div class="df-field">
             <span>{L.fieldUrl}</span>
-            <div class="df-input dsm__url">{L.urlValue}<i class="df-dot" style="position:static; margin-left:auto;">3</i></div>
+            <div class="df-input dsm__url">{L.urlValue}<i class="df-mark" data-note="3"></i></div>
         </div>
         <div class="df-field">
             <span>{L.fieldAuth}</span>
@@ -73,7 +73,7 @@ const L = {
         <div class="df-toolbar" style="margin:0;">
             <span class="df-btn df-btn--ghost">{L.fetchSample}</span>
             <span class="dsm__link">{L.pasteInstead}</span>
-            <i class="df-dot" style="position:static;">4</i>
+            <i class="df-mark" data-note="4"></i>
         </div>
         <p class="df-sub" style="margin:0;">{L.pickPrompt}</p>
         <div class="dsm__tree">
@@ -89,7 +89,7 @@ const L = {
         <div class="df-toolbar" style="margin:0;">
             <span class="df-pill df-pill--on">{L.picked}</span>
             <span class="dsm__link">{L.wholeResponse}</span>
-            <i class="df-dot" style="position:static;">5</i>
+            <i class="df-mark" data-note="5"></i>
         </div>
         <div class="df-panel-foot">
             <span class="df-btn df-btn--ghost">{L.cancel}</span>

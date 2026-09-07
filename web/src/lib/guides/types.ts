@@ -19,7 +19,7 @@ export interface ChatLine {
   time?: string;
 }
 
-/** A numbered annotation under a dashboard mock, paired with a df-dot marker. */
+/** A numbered annotation under a dashboard mock, paired with a df-mark anchor in the screen; the legend line lights that element on hover. */
 export interface Note {
   n: number;
   text: string;
