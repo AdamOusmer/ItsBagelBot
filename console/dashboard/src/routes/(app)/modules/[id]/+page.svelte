@@ -572,7 +572,7 @@
       <div class="section-head">
         <h2 class="section-title">{t('modules.settingsTitle')}</h2>
       </div>
-      {#each def.settings ?? [] as field (field.key)}
+      {#each (def.settings ?? []).filter((s) => !s.hidden) as field (field.key)}
         {#if field.type === 'toggle'}
           <div class="setting-row">
             <div class="tr-text">

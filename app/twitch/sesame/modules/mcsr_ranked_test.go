@@ -45,6 +45,21 @@ func TestMcsrEloUnrated(t *testing.T) {
 	assert.Contains(t, col.out[0].Text, "#—")
 }
 
+func TestMcsrEloErrorChatsLinkedNameNotUUID(t *testing.T) {
+	gw := &fakeGossip{err: bus.RPCReplyError{Message: "player not found"}}
+	col := runMcsrCmd(t, gw, mcsrCmdCall{"elo", `{"account":"Feinberg","accountUuid":"deadbeefdeadbeefdeadbeefdeadbeef"}`, ""})
+	require.Len(t, col.out, 1)
+	assert.Equal(t, "Feinberg: player not found", col.out[0].Text, "error prefix must chat the username, not the stored uuid")
+}
+
+func TestMcsrEloUsesLinkedUUID(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{
+		"mcsr.user": gossiprpc.McsrUserReply{Nickname: "Feinberg", Elo: 1650},
+	}}
+	runMcsrCmd(t, gw, mcsrCmdCall{"elo", `{"account":"Feinberg","accountUuid":"deadbeefdeadbeefdeadbeefdeadbeef"}`, ""})
+	assert.Equal(t, "deadbeefdeadbeefdeadbeefdeadbeef", gw.lastCall(t).req.Account)
+}
+
 // TestMcsrSessionDrawsFillTheGap pins the derived {draws} token: MCSR counts
 // matches that ended with no winner in playedMatches but in neither wins nor
 // loses, so 3W 4L in 8 matches is upstream-correct and needs the 1D to read
@@ -201,6 +216,16 @@ func TestMcsrRecordSingleArgUsesLinkedAccount(t *testing.T) {
 	runMcsrCmd(t, gw, mcsrCmdCall{"record", `{"account":"Feinberg"}`, "lowk3y_"})
 	call := gw.lastCall(t)
 	assert.Equal(t, "Feinberg", call.req.Account)
+	assert.Equal(t, "lowk3y_", call.req.AccountB)
+}
+
+func TestMcsrRecordSingleArgUsesLinkedUUID(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{
+		"mcsr.versus": gossiprpc.McsrRecordReply{PlayerA: "Feinberg", PlayerB: "lowk3y_"},
+	}}
+	runMcsrCmd(t, gw, mcsrCmdCall{"record", `{"account":"Feinberg","accountUuid":"deadbeefdeadbeefdeadbeefdeadbeef"}`, "lowk3y_"})
+	call := gw.lastCall(t)
+	assert.Equal(t, "deadbeefdeadbeefdeadbeefdeadbeef", call.req.Account)
 	assert.Equal(t, "lowk3y_", call.req.AccountB)
 }
 
@@ -399,6 +424,22 @@ func TestMcsrPbRanked(t *testing.T) {
 	call := gw.lastCall(t)
 	assert.Equal(t, "mcsr", call.provider)
 	assert.Equal(t, "user", call.endpoint)
+}
+
+func TestMcsrPbRankedUsesLinkedUUID(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{
+		"mcsr.user": gossiprpc.McsrUserReply{Nickname: "Feinberg", BestTimeMS: 595036},
+	}}
+	runMcsrCmd(t, gw, mcsrCmdCall{"pb", `{"account":"Feinberg","accountUuid":"deadbeefdeadbeefdeadbeefdeadbeef"}`, "ranked"})
+	assert.Equal(t, "deadbeefdeadbeefdeadbeefdeadbeef", gw.lastCall(t).req.Account)
+}
+
+func TestMcsrPbDailyKeepsUsername(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{
+		"paceman.personal_best": gossiprpc.PacemanPersonalBestReply{Player: "Feinberg", Window: "daily", Time: "6:40.123"},
+	}}
+	runMcsrCmd(t, gw, mcsrCmdCall{"pb", `{"account":"Feinberg","accountUuid":"deadbeefdeadbeefdeadbeefdeadbeef"}`, "daily"})
+	assert.Equal(t, "Feinberg", gw.lastCall(t).req.Account, "PaceMan is name-keyed")
 }
 
 // An unrated player never got a season best recorded upstream (BestTimeMS

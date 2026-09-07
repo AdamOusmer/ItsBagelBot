@@ -126,6 +126,21 @@ func TestUrchinAccountResolution(t *testing.T) {
 	// An explicit argument wins over the linked account.
 	require.NoError(t, cmd.Run(context.Background(), urchinCtx(`{"account":"LinkedAcc"}`), "@SomePlayer extra words", col.emit))
 	assert.Equal(t, "SomePlayer", gw.lastCall(t).req.Account)
+
+	// A stored uuid is used for the linked-account path (Hypixel/Coral accept
+	// or require it) so a rename does not force a Mojang hop on every command.
+	require.NoError(t, cmd.Run(context.Background(), urchinCtx(`{"account":"LinkedAcc","accountUuid":"deadbeefdeadbeefdeadbeefdeadbeef"}`), "", col.emit))
+	assert.Equal(t, "deadbeefdeadbeefdeadbeefdeadbeef", gw.lastCall(t).req.Account)
+}
+
+func TestUrchinErrorChatsLinkedNameNotUUID(t *testing.T) {
+	gw := &fakeGossip{err: bus.RPCReplyError{Message: "player not found"}}
+	cmd := urchinCmd(t, gw, "daily")
+
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), urchinCtx(`{"account":"LinkedAcc","accountUuid":"deadbeefdeadbeefdeadbeefdeadbeef"}`), "", col.emit))
+	require.Len(t, col.out, 1)
+	assert.Equal(t, "LinkedAcc: player not found", col.out[0].Text, "error prefix must chat the username, not the stored uuid")
 }
 
 func TestUrchinPerCommandToggleOff(t *testing.T) {

@@ -218,6 +218,16 @@ type HypixelStatsReply struct {
 	Error       string `json:"error,omitempty"`
 }
 
+// HypixelUUIDReply is the answer to hypixel.uuid: the Mojang name→uuid
+// binding the dashboard stores on a linked Minecraft account. Hypixel's
+// player endpoint requires a uuid, and Urchin/MCSR accept one, so persisting
+// it skips the resolve hop on later chat lookups and survives a rename.
+type HypixelUUIDReply struct {
+	Player string `json:"player"`
+	UUID   string `json:"uuid"`
+	Error  string `json:"error,omitempty"`
+}
+
 // UrchinSniperReply is the answer to urchin.sniper: the player's Urchin
 // (Cubelify overlay) sniper score.
 type UrchinSniperReply struct {

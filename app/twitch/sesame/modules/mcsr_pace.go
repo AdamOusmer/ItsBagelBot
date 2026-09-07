@@ -38,10 +38,11 @@ type mcsrPaceSpec[R any] struct {
 // command.
 func mcsrPaceCommand[R any](d engine.Deps, spec mcsrPaceSpec[R]) mcsrHandler[R] {
 	return mcsrHandler[R]{
-		d:       d,
-		enabled: spec.enabled,
-		route:   engine.GossipRoute{Provider: "paceman", Endpoint: spec.endpoint},
-		request: mcsrSimpleRequest,
+		d:          d,
+		enabled:    spec.enabled,
+		route:      engine.GossipRoute{Provider: "paceman", Endpoint: spec.endpoint},
+		preferName: true,
+		request:    mcsrSimpleRequest,
 		reply: func(c *module.Context, cfg mcsrConfig, reply R) string {
 			if player, key, empty := spec.isEmpty(reply); empty {
 				return mcsrEmptyText(c, player, key)

@@ -77,26 +77,28 @@ func newTestProvider(t *testing.T, mojang, hypixel http.Handler) provider.Provid
 		provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop()})
 }
 
-func statsHandle(t *testing.T, p provider.Provider) func(context.Context, gossiprpc.Request) any {
+func endpoint(t *testing.T, p provider.Provider, name string) func(context.Context, gossiprpc.Request) any {
 	t.Helper()
 	for _, ep := range p.Endpoints() {
-		if ep.Name == "stats" {
+		if ep.Name == name {
 			return ep.Handle
 		}
 	}
-	t.Fatal("stats endpoint not declared")
+	t.Fatalf("endpoint %q not declared", name)
 	return nil
 }
 
-// asReply decodes one handler result (raw wire bytes or typed guard reply).
-func asReply(t *testing.T, res any) gossiprpc.HypixelStatsReply {
+// asReply decodes one handler result into T. Byte-flow endpoints answer
+// pre-marshaled wire bytes (codec.RawMessage); guard-path failures answer the
+// typed reply directly. Both decode the same on the wire.
+func asReply[T any](t *testing.T, res any) T {
 	t.Helper()
-	if v, ok := res.(gossiprpc.HypixelStatsReply); ok {
+	if v, ok := res.(T); ok {
 		return v
 	}
 	raw, ok := res.(codec.RawMessage)
 	require.True(t, ok, "unexpected handler result type %T", res)
-	var v gossiprpc.HypixelStatsReply
+	var v T
 	require.NoError(t, codec.Unmarshal(raw, &v))
 	return v
 }
@@ -128,7 +130,7 @@ func TestStatsResolvesViaMojangThenHypixel(t *testing.T) {
 			_, _ = w.Write([]byte(playerBody))
 		}))
 
-	reply := asReply(t, statsHandle(t, p)(context.Background(), gossiprpc.Request{Account: "Techno"}))
+	reply := asReply[gossiprpc.HypixelStatsReply](t, endpoint(t, p, "stats")(context.Background(), gossiprpc.Request{Account: "Techno"}))
 	require.Empty(t, reply.Error)
 	assert.Equal(t, "hypixel-key", gotKey)
 	assert.Equal(t, "deadbeefdeadbeefdeadbeefdeadbeef", gotUUID)
@@ -149,7 +151,7 @@ func TestStatsUUIDSkipsMojang(t *testing.T) {
 			_, _ = w.Write([]byte(playerBody))
 		}))
 
-	reply := asReply(t, statsHandle(t, p)(context.Background(),
+	reply := asReply[gossiprpc.HypixelStatsReply](t, endpoint(t, p, "stats")(context.Background(),
 		gossiprpc.Request{Account: "deadbeef-dead-beef-dead-beefdeadbeef"}))
 	require.Empty(t, reply.Error)
 	assert.Equal(t, int64(402), reply.Stars)
@@ -167,12 +169,12 @@ func TestStatsUnknownPlayerNegativeCached(t *testing.T) {
 			hypixelHits++
 			_, _ = w.Write([]byte(`{"success": true, "player": null}`))
 		}))
-	h := statsHandle(t, p)
+	h := endpoint(t, p, "stats")
 
-	reply := asReply(t, h(context.Background(), gossiprpc.Request{Account: "Ghosty"}))
+	reply := asReply[gossiprpc.HypixelStatsReply](t, h(context.Background(), gossiprpc.Request{Account: "Ghosty"}))
 	assert.Equal(t, "player not found", reply.Error)
 
-	reply = asReply(t, h(context.Background(), gossiprpc.Request{Account: "Ghosty"}))
+	reply = asReply[gossiprpc.HypixelStatsReply](t, h(context.Background(), gossiprpc.Request{Account: "Ghosty"}))
 	assert.Equal(t, "player not found", reply.Error)
 	assert.Equal(t, 1, hypixelHits, "unknown player must be served from the negative cache")
 }
@@ -189,7 +191,7 @@ func TestStatsUnknownNameStopsAtMojang(t *testing.T) {
 			t.Error("hypixel must not be called when the name does not resolve")
 		}))
 
-	reply := asReply(t, statsHandle(t, p)(context.Background(), gossiprpc.Request{Account: "NoSuchName123"}))
+	reply := asReply[gossiprpc.HypixelStatsReply](t, endpoint(t, p, "stats")(context.Background(), gossiprpc.Request{Account: "NoSuchName123"}))
 	assert.Equal(t, "player not found", reply.Error)
 }
 
@@ -210,14 +212,14 @@ func TestStatsForbiddenFriendlyNotCached(t *testing.T) {
 			}
 			_, _ = w.Write([]byte(playerBody))
 		}))
-	h := statsHandle(t, p)
+	h := endpoint(t, p, "stats")
 
-	reply := asReply(t, h(context.Background(), gossiprpc.Request{Account: "Techno"}))
+	reply := asReply[gossiprpc.HypixelStatsReply](t, h(context.Background(), gossiprpc.Request{Account: "Techno"}))
 	assert.Equal(t, "stats lookup not permitted right now", reply.Error)
 
 	// Key fixed: the very next request retries upstream instead of serving a
 	// cached denial.
-	reply = asReply(t, h(context.Background(), gossiprpc.Request{Account: "Techno"}))
+	reply = asReply[gossiprpc.HypixelStatsReply](t, h(context.Background(), gossiprpc.Request{Account: "Techno"}))
 	assert.Empty(t, reply.Error)
 	assert.Equal(t, int64(402), reply.Stars)
 }
@@ -226,7 +228,7 @@ func TestMissingAccount(t *testing.T) {
 	p := newTestProvider(t,
 		http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Error("no upstream call expected") }),
 		http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Error("no upstream call expected") }))
-	reply := asReply(t, statsHandle(t, p)(context.Background(), gossiprpc.Request{}))
+	reply := asReply[gossiprpc.HypixelStatsReply](t, endpoint(t, p, "stats")(context.Background(), gossiprpc.Request{}))
 	assert.Equal(t, "missing account", reply.Error)
 }
 
@@ -269,12 +271,12 @@ func TestStatsMojangRateLimitedPinsBriefly(t *testing.T) {
 		http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			_, _ = w.Write([]byte(playerBody))
 		}))
-	h := statsHandle(t, p)
+	h := endpoint(t, p, "stats")
 
-	reply := asReply(t, h(context.Background(), gossiprpc.Request{Account: "Techno"}))
+	reply := asReply[gossiprpc.HypixelStatsReply](t, h(context.Background(), gossiprpc.Request{Account: "Techno"}))
 	assert.Equal(t, "stats provider is rate limiting us, try again in a minute", reply.Error)
 
-	reply = asReply(t, h(context.Background(), gossiprpc.Request{Account: "Techno"}))
+	reply = asReply[gossiprpc.HypixelStatsReply](t, h(context.Background(), gossiprpc.Request{Account: "Techno"}))
 	assert.Equal(t, "stats provider is rate limiting us, try again in a minute", reply.Error)
 	assert.Equal(t, 1, mojangHits, "a burst during an upstream throttle must answer from the pinned reply, not re-hit the upstream")
 }
@@ -284,4 +286,45 @@ func TestLooksLikeUUID(t *testing.T) {
 	assert.True(t, looksLikeUUID("deadbeef-dead-beef-dead-beefdeadbeef"))
 	assert.False(t, looksLikeUUID("Technoblade"))
 	assert.False(t, looksLikeUUID("deadbeef"))
+}
+
+func TestUUIDResolvesViaMojang(t *testing.T) {
+	p := newTestProvider(t,
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			require.Equal(t, "/users/profiles/minecraft/Techno", r.URL.Path)
+			_, _ = w.Write([]byte(`{"id":"deadbeefdeadbeefdeadbeefdeadbeef","name":"Techno"}`))
+		}),
+		http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+			t.Error("hypixel must not be called for a uuid resolve")
+		}))
+
+	reply := asReply[gossiprpc.HypixelUUIDReply](t, endpoint(t, p, "uuid")(context.Background(), gossiprpc.Request{Account: "Techno"}))
+	require.Empty(t, reply.Error)
+	assert.Equal(t, "deadbeefdeadbeefdeadbeefdeadbeef", reply.UUID)
+	assert.Equal(t, "Techno", reply.Player)
+}
+
+func TestUUIDSkipsMojangWhenAlreadyUUID(t *testing.T) {
+	p := newTestProvider(t,
+		http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+			t.Error("mojang must not be called for a uuid account")
+		}),
+		http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+			t.Error("hypixel must not be called for a uuid resolve")
+		}))
+
+	reply := asReply[gossiprpc.HypixelUUIDReply](t, endpoint(t, p, "uuid")(context.Background(),
+		gossiprpc.Request{Account: "deadbeef-dead-beef-dead-beefdeadbeef"}))
+	require.Empty(t, reply.Error)
+	assert.Equal(t, "deadbeefdeadbeefdeadbeefdeadbeef", reply.UUID)
+}
+
+func TestUUIDOnlyWithoutAPIKey(t *testing.T) {
+	p := New(Config{}, provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop()})
+	var names []string
+	for _, ep := range p.Endpoints() {
+		names = append(names, ep.Name)
+	}
+	assert.Contains(t, names, "uuid")
+	assert.NotContains(t, names, "stats")
 }

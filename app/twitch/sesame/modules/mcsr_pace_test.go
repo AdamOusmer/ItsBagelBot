@@ -28,6 +28,14 @@ func TestMcsrPaceDefaultTemplate(t *testing.T) {
 	assert.Equal(t, "Feinberg this session: 3 nethers (avg 1:42) · bastion 3:55 · fortress 7:12 · fp 9:20 · 21.4 nph", col.out[0].Text)
 }
 
+func TestMcsrPaceKeepsUsernameWhenUUIDStored(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{
+		"paceman.session": gossiprpc.PacemanSessionReply{Player: "Feinberg"},
+	}}
+	runMcsrCmd(t, gw, mcsrCmdCall{"pace", `{"account":"Feinberg","accountUuid":"deadbeefdeadbeefdeadbeefdeadbeef"}`, ""})
+	assert.Equal(t, "Feinberg", gw.lastCall(t).req.Account, "PaceMan is name-keyed")
+}
+
 func TestMcsrPaceEmptySession(t *testing.T) {
 	gw := &fakeGossip{replies: map[string]any{
 		"paceman.session": gossiprpc.PacemanSessionReply{Player: "Newbie", Empty: true},

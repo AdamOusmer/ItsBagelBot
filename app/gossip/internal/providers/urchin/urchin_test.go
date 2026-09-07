@@ -219,6 +219,7 @@ func TestSniperResolvesUUIDThenScores(t *testing.T) {
 
 	reply := asReply[gossiprpc.UrchinSniperReply](t, endpoint(t, p, "sniper")(context.Background(), gossiprpc.Request{Account: "Aim"}))
 	require.Empty(t, reply.Error)
+	assert.Equal(t, "Aim", reply.Player)
 	assert.Equal(t, 7.5, reply.Score)
 	assert.Equal(t, "warn", reply.Mode)
 	assert.Equal(t, 1, reply.TagCount)

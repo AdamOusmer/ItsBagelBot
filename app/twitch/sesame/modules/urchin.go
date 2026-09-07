@@ -39,12 +39,15 @@ const (
 )
 
 // urchinConfig is the module's dashboard configuration. Account is the linked
-// default account (blank = the broadcaster's own Twitch login). Each *Enabled
-// is a per-command toggle stored "on"/"off" — empty means on, matching the
-// alerts module's semantics — and each *Message is a customized template
-// (blank = default).
+// default account (blank = the broadcaster's own Twitch login). AccountUUID is
+// the Mojang uuid stored next to it when the resolve succeeds, so Hypixel and
+// Coral lookups skip the name hop and survive a rename. Each *Enabled is a
+// per-command toggle stored "on"/"off" — empty means on, matching the alerts
+// module's semantics — and each *Message is a customized template (blank =
+// default).
 type urchinConfig struct {
-	Account string `json:"account"`
+	Account     string `json:"account"`
+	AccountUUID string `json:"accountUuid"`
 
 	DailyEnabled          string `json:"dailyEnabled"`
 	DailyMessage          string `json:"dailyMessage"`
@@ -141,10 +144,12 @@ func runUrchinCommand[R any](d engine.Deps, cmd gatewayCommand, tokens map[strin
 			return nil
 		}
 
-		account := resolveAccount(accountSources{Arg: args, Linked: cfg.Account, BroadcasterLogin: c.Env.BroadcasterUserLogin})
+		account, display := resolveLinked(c, accountSources{
+			Arg: args, Linked: cfg.Account, LinkedUUID: cfg.AccountUUID, PreferUUID: true,
+		})
 		var reply R
 		if err := d.Gossip.Call(ctx, engine.GossipRoute{Provider: cmd.provider, Endpoint: cmd.endpoint}, gossiprpc.Request{Account: account, IsPremium: c.Regress.IsPremium()}, &reply); err != nil {
-			if chatReplyError(c, emit, account, err) {
+			if chatReplyError(c, emit, display, err) {
 				return nil
 			}
 			return err

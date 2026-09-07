@@ -188,7 +188,7 @@ func mcsrRecordRun(d engine.Deps) module.RunFunc {
 		}
 
 		rest, season := parseMcsrSeason(args)
-		accountA, accountB := mcsrRecordAccounts(rest, cfg, c)
+		accountA, accountB, displayA := mcsrRecordAccounts(rest, cfg, c)
 		if accountA == "" || accountB == "" {
 			mcsrEmit(c, emit, i18n.T(c.Locale, "mcsr.record.usage"))
 			return nil
@@ -197,7 +197,7 @@ func mcsrRecordRun(d engine.Deps) module.RunFunc {
 		var reply gossiprpc.McsrRecordReply
 		req := gossiprpc.Request{Account: accountA, AccountB: accountB, Season: season, IsPremium: c.Regress.IsPremium()}
 		if err := d.Gossip.Call(ctx, engine.GossipRoute{Provider: "mcsr", Endpoint: "versus"}, req, &reply); err != nil {
-			if chatReplyError(c, emit, accountA, err) {
+			if chatReplyError(c, emit, displayA, err) {
 				return nil
 			}
 			return err
@@ -214,17 +214,21 @@ func mcsrRecordRun(d engine.Deps) module.RunFunc {
 // module's linked account, the "how do I stack up against them" shorthand
 // the command promises. Zero typed usernames has nothing to compare, so both
 // come back empty and the caller sends the usage line instead of a call.
-func mcsrRecordAccounts(args string, cfg mcsrConfig, c *module.Context) (a, b string) {
+// displayA is side A's chat name for error lines: the typed name, or the
+// linked username when side A is the stored uuid.
+func mcsrRecordAccounts(args string, cfg mcsrConfig, c *module.Context) (a, b, displayA string) {
 	fields := strings.Fields(args)
 	if len(fields) == 0 {
-		return "", ""
+		return "", "", ""
 	}
 	first := strings.TrimPrefix(fields[0], "@")
 	if len(fields) == 1 {
-		self := resolveAccount(accountSources{Linked: cfg.Account, BroadcasterLogin: c.Env.BroadcasterUserLogin})
-		return self, first
+		self, selfDisplay := resolveLinked(c, accountSources{
+			Linked: cfg.Account, LinkedUUID: cfg.AccountUUID, PreferUUID: true,
+		})
+		return self, first, selfDisplay
 	}
-	return first, strings.TrimPrefix(fields[1], "@")
+	return first, strings.TrimPrefix(fields[1], "@"), first
 }
 
 // mcsrRecordTokens resolves !record's template tokens: {playera} {playerb}
@@ -440,9 +444,10 @@ func mcsrPbRun(d engine.Deps) module.RunFunc {
 		}
 
 		h := mcsrHandler[gossiprpc.PacemanPersonalBestReply]{
-			d:       d,
-			enabled: func(cfg mcsrConfig) string { return cfg.PbEnabled },
-			route:   engine.GossipRoute{Provider: "paceman", Endpoint: "personal_best"},
+			d:          d,
+			enabled:    func(cfg mcsrConfig) string { return cfg.PbEnabled },
+			route:      engine.GossipRoute{Provider: "paceman", Endpoint: "personal_best"},
+			preferName: true,
 			request: func(c *module.Context, account string, cfg mcsrConfig) gossiprpc.Request {
 				return gossiprpc.Request{Account: account, TimeWindow: window, IsPremium: c.Regress.IsPremium()}
 			},

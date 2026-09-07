@@ -8,6 +8,7 @@ import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
 import { assertModuleWritable, moduleLocked } from '$lib/server/module-gate';
 import { parentIsEnabled } from '$lib/server/module-parent';
+import { attachLinkedUUID } from '$lib/server/minecraft-uuid';
 import type { Session } from '$lib/server/session';
 import { effectiveId } from '$lib/server/board';
 import { dev } from '$app/environment';
@@ -156,7 +157,7 @@ export const actions: Actions = {
 
     const f = await request.formData();
     const enabled = DEMO ? f.get('is_enabled') === 'on' : await gatedEnabled(uid, def, f.get('is_enabled') === 'on');
-    const config = buildConfig(def, f);
+    const config = DEMO ? buildConfig(def, f) : await attachLinkedUUID(def, buildConfig(def, f), locals);
 
     if (DEMO) return { ok: true, enabled };
 
@@ -190,7 +191,7 @@ export const actions: Actions = {
     if (DEMO) return { ok: true, rev: expectedRev + 1, conflict: false };
 
     const enabled = await gatedEnabled(uid, def, requested);
-    return applyPatch(def, uid, { enabled, expectedRev, partial }, locals.session);
+    return applyPatch(def, uid, { enabled, expectedRev, partial: await attachLinkedUUID(def, partial, locals) }, locals.session);
   }
 };
 

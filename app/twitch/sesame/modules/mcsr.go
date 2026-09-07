@@ -66,9 +66,12 @@ const (
 
 // mcsrConfig is the module's dashboard configuration. Account is the linked
 // default MCSR Ranked account (blank = the broadcaster's own Twitch login).
+// AccountUUID is the Mojang uuid stored next to it when the resolve succeeds,
+// so Ranked/Hypixel-style lookups skip the name hop and survive a rename.
 // Toggle/message semantics match the urchin module.
 type mcsrConfig struct {
-	Account string `json:"account"`
+	Account     string `json:"account"`
+	AccountUUID string `json:"accountUuid"`
 
 	EloEnabled     string `json:"eloEnabled"`
 	EloMessage     string `json:"eloMessage"`
@@ -169,7 +172,9 @@ func Mcsr(d engine.Deps) module.Module {
 		}
 		var cfg mcsrConfig
 		_ = c.Decode(&cfg)
-		account := resolveAccount(accountSources{Linked: cfg.Account, BroadcasterLogin: c.Env.BroadcasterUserLogin})
+		account, _ := resolveLinked(c, accountSources{
+			Linked: cfg.Account, LinkedUUID: cfg.AccountUUID, PreferUUID: true,
+		})
 		channelID := strconv.FormatUint(c.BroadcasterID, 10)
 		seqOrGo(d.Seq, c.BroadcasterID, log, func() {
 			wctx, cancel := context.WithTimeout(context.Background(), mcsrSnapshotTimeout)
@@ -226,6 +231,10 @@ type mcsrHandler[R any] struct {
 	route engine.GossipRoute
 	// request builds the gossip request once the account is resolved.
 	request func(c *module.Context, account string, cfg mcsrConfig) gossiprpc.Request
+	// preferName keeps the linked Minecraft username even when a uuid is
+	// stored. PaceMan's API is name-keyed and does not accept uuids; MCSR
+	// Ranked and Hypixel prefer the stored uuid.
+	preferName bool
 	// reply turns a successful gossip reply into the chat line to send.
 	reply func(c *module.Context, cfg mcsrConfig, reply R) string
 }
@@ -241,10 +250,12 @@ func (h mcsrHandler[R]) run(ctx context.Context, c *module.Context, args string,
 		return nil
 	}
 
-	account := resolveAccount(accountSources{Arg: args, Linked: cfg.Account, BroadcasterLogin: c.Env.BroadcasterUserLogin})
+	account, display := resolveLinked(c, accountSources{
+		Arg: args, Linked: cfg.Account, LinkedUUID: cfg.AccountUUID, PreferUUID: !h.preferName,
+	})
 	var reply R
 	if err := h.d.Gossip.Call(ctx, h.route, h.request(c, account, cfg), &reply); err != nil {
-		if chatReplyError(c, emit, account, err) {
+		if chatReplyError(c, emit, display, err) {
 			return nil
 		}
 		return err
