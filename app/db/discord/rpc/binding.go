@@ -5,10 +5,10 @@ package rpc
 
 import (
 	"context"
+	"errors"
 
 	"ItsBagelBot/app/db/discord/repository"
 	"ItsBagelBot/internal/domain/rpc/discorddata"
-	"ItsBagelBot/pkg/bus"
 )
 
 type bindingRPC struct{ repo BindingStore }
@@ -16,20 +16,12 @@ type bindingRPC struct{ repo BindingStore }
 // subscribeBindings registers the four guild-binding verbs.
 func subscribeBindings(w Wiring) error {
 	h := bindingRPC{repo: w.Repo}
-	if err := bus.QueueSubscribeJSON[discorddata.BindingGetRequest, discorddata.BindingGetReply](
-		w.NC, w.subject(discorddata.VerbBindingGet), w.QueueGroup, requestTimeout, w.App, w.Log, h.get); err != nil {
-		return err
-	}
-	if err := bus.QueueSubscribeJSON[discorddata.BindingSetRequest, discorddata.BindingSetReply](
-		w.NC, w.subject(discorddata.VerbBindingSet), w.QueueGroup, requestTimeout, w.App, w.Log, h.set); err != nil {
-		return err
-	}
-	if err := bus.QueueSubscribeJSON[discorddata.BindingDeleteRequest, discorddata.BindingDeleteReply](
-		w.NC, w.subject(discorddata.VerbBindingDelete), w.QueueGroup, requestTimeout, w.App, w.Log, h.remove); err != nil {
-		return err
-	}
-	return bus.QueueSubscribeJSON[discorddata.BindingListByBroadcasterRequest, discorddata.BindingListByBroadcasterReply](
-		w.NC, w.subject(discorddata.VerbBindingListByBroadcaster), w.QueueGroup, requestTimeout, w.App, w.Log, h.listByBroadcaster)
+	return errors.Join(
+		serve(w, discorddata.VerbBindingGet, h.get),
+		serve(w, discorddata.VerbBindingSet, h.set),
+		serve(w, discorddata.VerbBindingDelete, h.remove),
+		serve(w, discorddata.VerbBindingListByBroadcaster, h.listByBroadcaster),
+	)
 }
 
 func (h bindingRPC) get(ctx context.Context, req discorddata.BindingGetRequest) discorddata.BindingGetReply {

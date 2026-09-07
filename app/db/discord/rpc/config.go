@@ -5,11 +5,11 @@ package rpc
 
 import (
 	"context"
+	"errors"
 
 	"ItsBagelBot/app/db/discord/repository"
 	ddiscord "ItsBagelBot/internal/domain/discord"
 	"ItsBagelBot/internal/domain/rpc/discorddata"
-	"ItsBagelBot/pkg/bus"
 )
 
 type configRPC struct{ repo ConfigStore }
@@ -17,12 +17,10 @@ type configRPC struct{ repo ConfigStore }
 // subscribeConfigs registers the per-guild settings verbs.
 func subscribeConfigs(w Wiring) error {
 	h := configRPC{repo: w.Repo}
-	if err := bus.QueueSubscribeJSON[discorddata.ConfigGetRequest, discorddata.ConfigGetReply](
-		w.NC, w.subject(discorddata.VerbConfigGet), w.QueueGroup, requestTimeout, w.App, w.Log, h.get); err != nil {
-		return err
-	}
-	return bus.QueueSubscribeJSON[discorddata.ConfigSetRequest, discorddata.ConfigSetReply](
-		w.NC, w.subject(discorddata.VerbConfigSet), w.QueueGroup, requestTimeout, w.App, w.Log, h.set)
+	return errors.Join(
+		serve(w, discorddata.VerbConfigGet, h.get),
+		serve(w, discorddata.VerbConfigSet, h.set),
+	)
 }
 
 func (h configRPC) get(ctx context.Context, req discorddata.ConfigGetRequest) discorddata.ConfigGetReply {

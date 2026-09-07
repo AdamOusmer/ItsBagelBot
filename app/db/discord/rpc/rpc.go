@@ -20,6 +20,7 @@ import (
 	"ItsBagelBot/app/db/discord/repository"
 	ddiscord "ItsBagelBot/internal/domain/discord"
 	"ItsBagelBot/internal/domain/rpc/discorddata"
+	"ItsBagelBot/pkg/bus"
 )
 
 // requestTimeout bounds one handler. Three seconds matches the other data
@@ -101,6 +102,14 @@ func Subscribe(w Wiring) error {
 
 // subject builds one verb's full subject.
 func (w Wiring) subject(verb string) string { return w.Prefix + "." + verb }
+
+// serve registers one verb with the wiring every verb shares. The subscribe
+// functions used to spell the seven-argument QueueSubscribeJSON call out per
+// verb, eight times in a row for the ticket desk alone; a generic wrapper
+// keeps the queue group, timeout and logger in one place.
+func serve[Req, Rep any](w Wiring, verb string, h func(context.Context, Req) Rep) error {
+	return bus.QueueSubscribeJSON[Req, Rep](w.NC, w.subject(verb), w.QueueGroup, requestTimeout, w.App, w.Log, h)
+}
 
 // failure maps a repository error onto the reply's (error, code) pair. The
 // code is what callers switch on; the message is for logs and for the one

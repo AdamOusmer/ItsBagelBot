@@ -5,11 +5,11 @@ package rpc
 
 import (
 	"context"
+	"errors"
 
 	"ItsBagelBot/app/db/discord/ent"
 	"ItsBagelBot/app/db/discord/repository"
 	"ItsBagelBot/internal/domain/rpc/discorddata"
-	"ItsBagelBot/pkg/bus"
 )
 
 type ticketRPC struct{ repo TicketStore }
@@ -17,43 +17,23 @@ type ticketRPC struct{ repo TicketStore }
 // subscribeTickets registers the ticket-desk and transcript verbs.
 func subscribeTickets(w Wiring) error {
 	h := ticketRPC{repo: w.Repo}
-	if err := bus.QueueSubscribeJSON[discorddata.TicketOpenRequest, discorddata.TicketOpenReply](
-		w.NC, w.subject(discorddata.VerbTicketOpen), w.QueueGroup, requestTimeout, w.App, w.Log, h.open); err != nil {
-		return err
-	}
-	if err := bus.QueueSubscribeJSON[discorddata.TicketClaimRequest, discorddata.TicketClaimReply](
-		w.NC, w.subject(discorddata.VerbTicketClaim), w.QueueGroup, requestTimeout, w.App, w.Log, h.claim); err != nil {
-		return err
-	}
-	if err := bus.QueueSubscribeJSON[discorddata.TicketCloseRequest, discorddata.TicketCloseReply](
-		w.NC, w.subject(discorddata.VerbTicketClose), w.QueueGroup, requestTimeout, w.App, w.Log, h.close); err != nil {
-		return err
-	}
-	if err := bus.QueueSubscribeJSON[discorddata.TicketGetRequest, discorddata.TicketGetReply](
-		w.NC, w.subject(discorddata.VerbTicketGet), w.QueueGroup, requestTimeout, w.App, w.Log, h.get); err != nil {
-		return err
-	}
-	if err := bus.QueueSubscribeJSON[discorddata.TicketCountRequest, discorddata.TicketCountReply](
-		w.NC, w.subject(discorddata.VerbTicketCount), w.QueueGroup, requestTimeout, w.App, w.Log, h.count); err != nil {
-		return err
-	}
-	if err := bus.QueueSubscribeJSON[discorddata.TicketListRequest, discorddata.TicketListReply](
-		w.NC, w.subject(discorddata.VerbTicketList), w.QueueGroup, requestTimeout, w.App, w.Log, h.list); err != nil {
-		return err
-	}
-	return subscribeTranscripts(w, h)
+	return errors.Join(
+		serve(w, discorddata.VerbTicketOpen, h.open),
+		serve(w, discorddata.VerbTicketClaim, h.claim),
+		serve(w, discorddata.VerbTicketClose, h.close),
+		serve(w, discorddata.VerbTicketGet, h.get),
+		serve(w, discorddata.VerbTicketCount, h.count),
+		serve(w, discorddata.VerbTicketList, h.list),
+		subscribeTranscripts(w, h),
+	)
 }
 
-// subscribeTranscripts registers the two transcript verbs. Split from
-// subscribeTickets so neither function is a wall of near-identical
-// registrations.
+// subscribeTranscripts registers the two transcript verbs.
 func subscribeTranscripts(w Wiring, h ticketRPC) error {
-	if err := bus.QueueSubscribeJSON[discorddata.TranscriptPutRequest, discorddata.TranscriptPutReply](
-		w.NC, w.subject(discorddata.VerbTranscriptPut), w.QueueGroup, requestTimeout, w.App, w.Log, h.transcriptPut); err != nil {
-		return err
-	}
-	return bus.QueueSubscribeJSON[discorddata.TranscriptGetRequest, discorddata.TranscriptGetReply](
-		w.NC, w.subject(discorddata.VerbTranscriptGet), w.QueueGroup, requestTimeout, w.App, w.Log, h.transcriptGet)
+	return errors.Join(
+		serve(w, discorddata.VerbTranscriptPut, h.transcriptPut),
+		serve(w, discorddata.VerbTranscriptGet, h.transcriptGet),
+	)
 }
 
 func (h ticketRPC) open(ctx context.Context, req discorddata.TicketOpenRequest) discorddata.TicketOpenReply {

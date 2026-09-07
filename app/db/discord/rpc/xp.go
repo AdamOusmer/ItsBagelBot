@@ -5,9 +5,9 @@ package rpc
 
 import (
 	"context"
+	"errors"
 
 	"ItsBagelBot/internal/domain/rpc/discorddata"
-	"ItsBagelBot/pkg/bus"
 )
 
 type xpRPC struct{ repo XPStore }
@@ -15,20 +15,12 @@ type xpRPC struct{ repo XPStore }
 // subscribeXP registers the four member-XP verbs.
 func subscribeXP(w Wiring) error {
 	h := xpRPC{repo: w.Repo}
-	if err := bus.QueueSubscribeJSON[discorddata.XPGetRequest, discorddata.XPGetReply](
-		w.NC, w.subject(discorddata.VerbXPGet), w.QueueGroup, requestTimeout, w.App, w.Log, h.get); err != nil {
-		return err
-	}
-	if err := bus.QueueSubscribeJSON[discorddata.XPAddRequest, discorddata.XPAddReply](
-		w.NC, w.subject(discorddata.VerbXPAdd), w.QueueGroup, requestTimeout, w.App, w.Log, h.add); err != nil {
-		return err
-	}
-	if err := bus.QueueSubscribeJSON[discorddata.XPDailyRequest, discorddata.XPDailyReply](
-		w.NC, w.subject(discorddata.VerbXPDaily), w.QueueGroup, requestTimeout, w.App, w.Log, h.daily); err != nil {
-		return err
-	}
-	return bus.QueueSubscribeJSON[discorddata.XPTopRequest, discorddata.XPTopReply](
-		w.NC, w.subject(discorddata.VerbXPTop), w.QueueGroup, requestTimeout, w.App, w.Log, h.top)
+	return errors.Join(
+		serve(w, discorddata.VerbXPGet, h.get),
+		serve(w, discorddata.VerbXPAdd, h.add),
+		serve(w, discorddata.VerbXPDaily, h.daily),
+		serve(w, discorddata.VerbXPTop, h.top),
+	)
 }
 
 func (h xpRPC) get(ctx context.Context, req discorddata.XPGetRequest) discorddata.XPGetReply {
