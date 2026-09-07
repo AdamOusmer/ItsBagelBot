@@ -2,9 +2,17 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import Card from '../ui/Card.astro';
+/**
+ * EcoFriendly: one slim band, not a section.
+ *
+ * It used to be a full section heading over a single 560px card, which said
+ * "Powered by Sustainable Energy" three times over (section title, card title,
+ * body) and spent a 96px band and a 160px card housing to carry two sentences
+ * and two links. The facts are worth stating; they are not worth a full
+ * chapter between Game Integrations and the letter. Stated once now, in a
+ * band roughly half the old height.
+ */
 import Icon from '../ui/Icon.astro';
-import SectionHeading from '../ui/SectionHeading.astro';
 import { getLangFromUrl, useTranslations } from '../../i18n/ui';
 
 const lang = getLangFromUrl(Astro.url);
@@ -12,84 +20,95 @@ const t = useTranslations(lang);
 ---
 
 <section class="eco" id="eco-friendly">
-    <SectionHeading eyebrow={t('eco.eyebrow')} title={t('eco.title')} />
+    <div class="eco__band" data-reveal>
+        <span class="eco__glyph" aria-hidden="true">
+            <Icon name="leaf" size={40} strokeWidth={1.5} class="eco__leaf" />
+        </span>
 
-    <div class="eco__grid">
-        <Card class="eco__card" label={t('eco.ch')} data-reveal>
-            <div class="eco__demo" slot="band" aria-hidden="true">
-                <Icon name="leaf" size={96} strokeWidth={1.5} class="eco__leaf" />
-            </div>
-            <h3 class="eco__title">{t('eco.title')}</h3>
+        <div class="eco__body">
+            <span class="eco__eyebrow">{t('eco.eyebrow')}</span>
+            <h2 class="eco__title">{t('eco.title')}</h2>
             <p class="eco__desc">{t('eco.desc')}</p>
-            <div class="eco__links">
-                <a href="https://www.websitecarbon.com/website/itsbagelbot-com/" target="_blank" rel="noopener noreferrer">
-                    Website Carbon: ItsBagelBot
-                </a>
-                <a href="https://www.websitecarbon.com/website/dashboard-itsbagelbot-com-login/" target="_blank" rel="noopener noreferrer">
-                    Website Carbon: Dashboard
-                </a>
-            </div>
-        </Card>
+        </div>
+
+        <div class="eco__links">
+            <a href="https://www.websitecarbon.com/website/itsbagelbot-com/" target="_blank" rel="noopener noreferrer">
+                Website Carbon: ItsBagelBot
+            </a>
+            <a href="https://www.websitecarbon.com/website/dashboard-itsbagelbot-com-login/" target="_blank" rel="noopener noreferrer">
+                Website Carbon: Dashboard
+            </a>
+        </div>
     </div>
 </section>
 
 <style>
     .eco {
         position: relative;
-        padding: var(--space-section, 96px) 24px;
+        padding: 40px 24px;
         max-width: var(--content-max, 1200px);
         margin: 0 auto;
         z-index: 3;
     }
 
-    .eco__grid {
+    .eco__band {
         display: grid;
-        grid-template-columns: 1fr;
-        gap: 20px;
-        --card-band-h: 160px;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 24px;
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 22px 26px;
+        border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+        border-radius: var(--radius-md);
     }
 
-    @media (min-width: 720px) {
-        .eco__grid { grid-template-columns: minmax(0, 560px); justify-content: center; }
+    .eco__glyph {
+        display: inline-flex;
+        line-height: 0;
+    }
+
+    .eco__eyebrow {
+        display: block;
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.68rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--green-glow, #52b788);
+        margin-bottom: 8px;
     }
 
     .eco__title {
-        display: flex;
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 8px;
         font-family: var(--font-display, "Syne", sans-serif);
-        font-size: 1.06rem;
+        font-size: 1.15rem;
         font-weight: 700;
         letter-spacing: -0.01em;
+        line-height: 1.2;
         color: var(--white, #f0ece4);
-        margin: 0 0 8px;
+        margin: 0 0 6px;
     }
 
     .eco__desc {
         font-family: var(--font-body, "DM Sans", sans-serif);
-        font-size: 0.95rem;
+        font-size: 0.92rem;
         line-height: 1.6;
         color: var(--muted, #888077);
-        margin: 0 0 20px;
+        margin: 0;
     }
 
     .eco__links {
         display: flex;
-        flex-direction: row;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 16px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
         font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.8rem;
+        font-size: 0.78rem;
+        white-space: nowrap;
     }
 
     .eco__links a {
         color: var(--green-glow, #52b788);
         text-decoration: none;
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
         transition: color 0.2s ease;
     }
 
@@ -97,39 +116,22 @@ const t = useTranslations(lang);
         color: var(--white, #f0ece4);
     }
 
-    /* Demo lives in the Card's housing band (slot="band"); the band owns the
-       chrome and outer padding, the demo keeps only its stage height. */
-    .eco__demo {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        height: 100%;
-        overflow: hidden;
-    }
-
     /* :global because the glyph is Icon's root svg: Astro scopes this
        component's rules to its own elements, and the child's root carries no
-       scope attribute of ours. Draw runs on that svg rather than its paths,
+       scope attribute of ours. The draw runs on that svg rather than its paths,
        which come from the generated icon map via set:html and are scoped to
        nothing at all; stroke-dasharray and stroke-dashoffset inherit, so the
-       svg hands both to blade and stem. The stem is the shorter of Lucide's
-       two paths, so it lands last and still reads as a leaf growing out of
-       its stalk. */
-    .eco__demo :global(.eco__leaf) {
-        width: 96px;
-        height: 96px;
+       svg hands both to blade and stem. The stem is the shorter of Lucide's two
+       paths, so it lands last and still reads as a leaf growing out of its
+       stalk. */
+    .eco__glyph :global(.eco__leaf) {
+        width: 40px;
+        height: 40px;
         color: var(--green-glow, #52b788);
-        filter: drop-shadow(0 0 16px rgba(82, 183, 136, 0.4));
+        filter: drop-shadow(0 0 12px rgba(82, 183, 136, 0.35));
         stroke-dasharray: 64;
         stroke-dashoffset: 64;
-        animation: drawLeaf 3s ease-out forwards, leafSway 4s ease-in-out infinite;
-        transform-origin: bottom left;
-    }
-
-    @keyframes leafSway {
-        0%, 100% { transform: rotate(0deg); }
-        50% { transform: rotate(12deg); }
+        animation: drawLeaf 3s ease-out forwards;
     }
 
     @keyframes drawLeaf {
@@ -137,11 +139,37 @@ const t = useTranslations(lang);
     }
 
     @media (prefers-reduced-motion: reduce) {
-        .eco__demo :global(.eco__leaf) { animation: none; transform: none; stroke-dashoffset: 0; }
+        .eco__glyph :global(.eco__leaf) { animation: none; stroke-dashoffset: 0; }
     }
-    
-    @media (max-width: 640px) {
-        .eco__grid { --card-band-h: 120px; }
-        .eco__links { flex-direction: column; align-items: flex-start; gap: 10px; }
+
+    @media (max-width: 860px) {
+        .eco__band {
+            grid-template-columns: auto minmax(0, 1fr);
+            gap: 18px;
+        }
+
+        .eco__links {
+            grid-column: 1 / -1;
+            flex-direction: row;
+            flex-wrap: wrap;
+            gap: 16px;
+            white-space: normal;
+        }
+    }
+
+    @media (max-width: 520px) {
+        .eco {
+            padding: 32px 18px;
+        }
+
+        .eco__band {
+            grid-template-columns: minmax(0, 1fr);
+            padding: 20px;
+        }
+
+        .eco__links {
+            flex-direction: column;
+            gap: 10px;
+        }
     }
 </style>
