@@ -58,7 +58,7 @@ func subscribeTranscripts(w Wiring, h ticketRPC) error {
 
 func (h ticketRPC) open(ctx context.Context, req discorddata.TicketOpenRequest) discorddata.TicketOpenReply {
 	id, count, err := h.repo.TicketOpen(ctx, repository.OpenParams{
-		Key:      repository.TicketKey{GuildID: req.GuildID, ChannelID: req.ChannelID},
+		Key:      ticketKey(req.GuildID, req.ChannelID),
 		OpenerID: req.OpenerID,
 		Subject:  req.Subject,
 		Limit:    req.OpenLimit,
@@ -66,45 +66,41 @@ func (h ticketRPC) open(ctx context.Context, req discorddata.TicketOpenRequest) 
 		PanelMessageID: req.PanelMessageID,
 	})
 	if err != nil {
-		message, code := failure(err)
 		// The count travels even on a refusal: at CodeLimit it is how many
 		// tickets the opener already holds, which is what the ephemeral reply
 		// names back to them.
-		return discorddata.TicketOpenReply{OpenCount: count, Error: message, Code: code}
+		return discorddata.TicketOpenReply{OpenCount: count, Refusal: refusal(err)}
 	}
 	return discorddata.TicketOpenReply{TicketID: id, OpenCount: count}
 }
 
 func (h ticketRPC) claim(ctx context.Context, req discorddata.TicketClaimRequest) discorddata.TicketClaimReply {
 	id, err := h.repo.TicketClaim(ctx, repository.ClaimParams{
-		Key:     repository.TicketKey{GuildID: req.GuildID, ChannelID: req.ChannelID},
+		Key:     ticketKey(req.GuildID, req.ChannelID),
 		StaffID: req.StaffID,
 	})
 	if err != nil {
-		message, code := failure(err)
-		return discorddata.TicketClaimReply{Error: message, Code: code}
+		return discorddata.TicketClaimReply{Refusal: refusal(err)}
 	}
 	return discorddata.TicketClaimReply{TicketID: id}
 }
 
 func (h ticketRPC) close(ctx context.Context, req discorddata.TicketCloseRequest) discorddata.TicketCloseReply {
 	id, openerID, err := h.repo.TicketClose(ctx, repository.CloseParams{
-		Key:               repository.TicketKey{GuildID: req.GuildID, ChannelID: req.ChannelID},
+		Key:               ticketKey(req.GuildID, req.ChannelID),
 		ClosedBy:          req.ClosedBy,
 		ArchivedChannelID: req.ArchivedChannelID,
 	})
 	if err != nil {
-		message, code := failure(err)
-		return discorddata.TicketCloseReply{Error: message, Code: code}
+		return discorddata.TicketCloseReply{Refusal: refusal(err)}
 	}
 	return discorddata.TicketCloseReply{TicketID: id, OpenerID: openerID}
 }
 
 func (h ticketRPC) get(ctx context.Context, req discorddata.TicketGetRequest) discorddata.TicketGetReply {
-	row, found, err := h.repo.TicketGet(ctx, repository.TicketKey{GuildID: req.GuildID, ChannelID: req.ChannelID})
+	row, found, err := h.repo.TicketGet(ctx, ticketKey(req.GuildID, req.ChannelID))
 	if err != nil {
-		message, code := failure(err)
-		return discorddata.TicketGetReply{Error: message, Code: code}
+		return discorddata.TicketGetReply{Refusal: refusal(err)}
 	}
 	if !found {
 		return discorddata.TicketGetReply{}
@@ -117,8 +113,7 @@ func (h ticketRPC) count(ctx context.Context, req discorddata.TicketCountRequest
 		GuildID: req.GuildID, MemberID: req.OpenerID,
 	})
 	if err != nil {
-		message, code := failure(err)
-		return discorddata.TicketCountReply{Error: message, Code: code}
+		return discorddata.TicketCountReply{Refusal: refusal(err)}
 	}
 	return discorddata.TicketCountReply{Count: n}
 }
@@ -131,8 +126,7 @@ func (h ticketRPC) list(ctx context.Context, req discorddata.TicketListRequest) 
 		Cursor:  req.Cursor,
 	})
 	if err != nil {
-		message, code := failure(err)
-		return discorddata.TicketListReply{Error: message, Code: code}
+		return discorddata.TicketListReply{Refusal: refusal(err)}
 	}
 	views := make([]discorddata.Ticket, 0, len(rows))
 	for _, row := range rows {
@@ -143,15 +137,13 @@ func (h ticketRPC) list(ctx context.Context, req discorddata.TicketListRequest) 
 
 func (h ticketRPC) transcriptPut(ctx context.Context, req discorddata.TranscriptPutRequest) discorddata.TranscriptPutReply {
 	err := h.repo.TranscriptPut(ctx, req.TicketID, req.Body, req.MessageCount)
-	message, code := failure(err)
-	return discorddata.TranscriptPutReply{Error: message, Code: code}
+	return discorddata.TranscriptPutReply{Refusal: refusal(err)}
 }
 
 func (h ticketRPC) transcriptGet(ctx context.Context, req discorddata.TranscriptGetRequest) discorddata.TranscriptGetReply {
 	row, found, err := h.repo.TranscriptGet(ctx, req.TicketID)
 	if err != nil {
-		message, code := failure(err)
-		return discorddata.TranscriptGetReply{Error: message, Code: code}
+		return discorddata.TranscriptGetReply{Refusal: refusal(err)}
 	}
 	if !found {
 		return discorddata.TranscriptGetReply{}
@@ -181,4 +173,8 @@ func ticketView(row *ent.Ticket) discorddata.Ticket {
 		ClaimedAtUnixMs:   unixMsPtr(row.ClaimedAt),
 		ClosedAtUnixMs:    unixMsPtr(row.ClosedAt),
 	}
+}
+
+func ticketKey(guildID, channelID string) repository.TicketKey {
+	return repository.TicketKey{GuildID: guildID, ChannelID: channelID}
 }

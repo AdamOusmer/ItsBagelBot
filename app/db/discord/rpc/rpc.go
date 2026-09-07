@@ -105,6 +105,12 @@ func (w Wiring) subject(verb string) string { return w.Prefix + "." + verb }
 // failure maps a repository error onto the reply's (error, code) pair. The
 // code is what callers switch on; the message is for logs and for the one
 // release during which the console still reads text.
+// refusal is failure() shaped for the reply types that embed Refusal.
+func refusal(err error) discorddata.Refusal {
+	message, code := failure(err)
+	return discorddata.Refusal{Error: message, Code: code}
+}
+
 func failure(err error) (string, string) {
 	switch {
 	case err == nil:

@@ -249,24 +249,38 @@ func TestTicketCloseCarriesTheGuildsTranscriptAndArchiveSettings(t *testing.T) {
 
 			f.press(t, f.mod.close, inTicket("u1", nil))
 
-			req := f.tickets.closed[0]
-			if req.Transcript != tc.wantTranscript {
-				t.Fatalf("transcript flag = %v", req.Transcript)
-			}
-			if req.ArchiveCategoryID != tc.wantArchive {
-				t.Fatalf("archive category = %q", req.ArchiveCategoryID)
-			}
-			if req.LogChannelID != "log1" || req.ChannelName != "ticket-ada-1" {
-				t.Fatalf("close request = %+v", req)
-			}
-			stored, ok := f.store.Transcript(ticket.ID)
-			if tc.wantTranscript != ok {
-				t.Fatalf("transcript stored = %v, want %v", ok, tc.wantTranscript)
-			}
-			if ok && stored.Body != "rendered" {
-				t.Fatalf("transcript = %+v", stored)
-			}
+			wantCloseRequest(t, f.tickets.closed[0], tc.wantTranscript, tc.wantArchive)
+			f.wantTranscriptStored(t, ticket.ID, tc.wantTranscript)
 		})
+	}
+}
+
+func wantCloseRequest(t *testing.T, req discordoutgress.TicketCloseRequest, transcript bool, archive string) {
+	t.Helper()
+	if req.Transcript != transcript {
+		t.Fatalf("transcript flag = %v", req.Transcript)
+	}
+	if req.ArchiveCategoryID != archive {
+		t.Fatalf("archive category = %q", req.ArchiveCategoryID)
+	}
+	if req.LogChannelID != "log1" {
+		t.Fatalf("close request = %+v, want log channel log1", req)
+	}
+	if req.ChannelName != "ticket-ada-1" {
+		t.Fatalf("close request = %+v, want channel name ticket-ada-1", req)
+	}
+}
+
+// wantTranscriptStored pins that a transcript exists exactly when the close
+// asked for one, and that what was stored is the rendered body.
+func (f *deskFixture) wantTranscriptStored(t *testing.T, ticketID int, want bool) {
+	t.Helper()
+	stored, ok := f.store.Transcript(ticketID)
+	if want != ok {
+		t.Fatalf("transcript stored = %v, want %v", ok, want)
+	}
+	if ok && stored.Body != "rendered" {
+		t.Fatalf("transcript = %+v", stored)
 	}
 }
 func TestTicketCloseKeepsTheRowWhenOutgressFails(t *testing.T) {

@@ -200,11 +200,18 @@ type TicketOpenRequest struct {
 // TicketOpenReply carries the new row's id and the opener's resulting open
 // count. On CodeLimit the count is the opener's current (unchanged) total, so
 // the caller can name the number in its refusal.
+// Refusal is the error half every ticket and transcript reply carries. It is
+// embedded so the JSON stays flat (`error`, `code` at the top level, exactly
+// as before) while the handlers build it in one place instead of eight.
+type Refusal struct {
+	Error string `json:"error,omitempty"`
+	Code  string `json:"code,omitempty"`
+}
+
 type TicketOpenReply struct {
-	TicketID  int    `json:"ticket_id"`
-	OpenCount int    `json:"open_count"`
-	Error     string `json:"error,omitempty"`
-	Code      string `json:"code,omitempty"`
+	TicketID  int `json:"ticket_id"`
+	OpenCount int `json:"open_count"`
+	Refusal
 }
 
 // TicketClaimRequest marks the ticket in ChannelID as claimed by StaffID.
@@ -216,9 +223,8 @@ type TicketClaimRequest struct {
 
 // TicketClaimReply carries the claimed ticket's id.
 type TicketClaimReply struct {
-	TicketID int    `json:"ticket_id"`
-	Error    string `json:"error,omitempty"`
-	Code     string `json:"code,omitempty"`
+	TicketID int `json:"ticket_id"`
+	Refusal
 }
 
 // TicketCloseRequest closes the ticket in ChannelID. A non-empty
@@ -236,8 +242,7 @@ type TicketCloseRequest struct {
 type TicketCloseReply struct {
 	TicketID int    `json:"ticket_id"`
 	OpenerID string `json:"opener_id"`
-	Error    string `json:"error,omitempty"`
-	Code     string `json:"code,omitempty"`
+	Refusal
 }
 
 // TicketGetRequest resolves a ticket from the channel a button was pressed in.
@@ -251,8 +256,7 @@ type TicketGetRequest struct {
 type TicketGetReply struct {
 	Ticket Ticket `json:"ticket"`
 	Found  bool   `json:"found"`
-	Error  string `json:"error,omitempty"`
-	Code   string `json:"code,omitempty"`
+	Refusal
 }
 
 // TicketCountRequest asks how many live (open or claimed) tickets one member
@@ -271,9 +275,8 @@ type TicketCountRequest struct {
 
 // TicketCountReply carries the member's live-ticket count.
 type TicketCountReply struct {
-	Count int    `json:"count"`
-	Error string `json:"error,omitempty"`
-	Code  string `json:"code,omitempty"`
+	Count int `json:"count"`
+	Refusal
 }
 
 // TicketListRequest pages one guild's tickets. Status is empty for every
@@ -290,8 +293,7 @@ type TicketListRequest struct {
 type TicketListReply struct {
 	Tickets    []Ticket `json:"tickets"`
 	NextCursor string   `json:"next_cursor,omitempty"`
-	Error      string   `json:"error,omitempty"`
-	Code       string   `json:"code,omitempty"`
+	Refusal
 }
 
 // Ticket is one support channel's stored row. Timestamps are unix
@@ -322,8 +324,7 @@ type TranscriptPutRequest struct {
 
 // TranscriptPutReply reports whether the transcript was stored.
 type TranscriptPutReply struct {
-	Error string `json:"error,omitempty"`
-	Code  string `json:"code,omitempty"`
+	Refusal
 }
 
 // TranscriptGetRequest reads one ticket's transcript back.
@@ -337,8 +338,7 @@ type TranscriptGetReply struct {
 	MessageCount   int    `json:"message_count"`
 	StoredAtUnixMs int64  `json:"stored_at_unix_ms"`
 	Found          bool   `json:"found"`
-	Error          string `json:"error,omitempty"`
-	Code           string `json:"code,omitempty"`
+	Refusal
 }
 
 // XPGetRequest reads one member's standing.
