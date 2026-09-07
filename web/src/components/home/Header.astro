@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { getLangFromUrl, useTranslations, defaultLang, dashLoginHref } from '../../i18n/ui';
+import { getLangFromUrl, useTranslations, defaultLang, dashLoginHref, localizePath } from '../../i18n/ui';
 import ScrollCue from './ScrollCue.astro';
 import HomeLightField from './HomeLightField.astro';
 
@@ -97,7 +97,7 @@ const t = useTranslations(lang);
                 <div class="hero-actions">
                     <a class="bb-btn bb-btn--go-solid hero-cta" href={dashLoginHref(lang)}>{t('nav.cta')}</a>
 
-                    <a class="bb-rail bb-rail--prose bb-rail--go migrate" href={`https://dashboard.itsbagelbot.com/settings/import${lang === defaultLang ? '' : `?lang=${lang}`}`}>
+                    <a class="bb-rail bb-rail--prose bb-rail--go migrate" href={localizePath('/import', lang)}>
                         {t('hero.migrateText')}<span class="bb-rail__arrow" aria-hidden="true">→</span>
                     </a>
                 </div>

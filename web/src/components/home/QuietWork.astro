@@ -16,7 +16,7 @@ import Card from '../ui/Card.astro';
 import SectionHeading from '../ui/SectionHeading.astro';
 import IncomingBadge from '../ui/IncomingBadge.astro';
 import Icon from '../ui/Icon.astro';
-import { getLangFromUrl, useTranslations } from '../../i18n/ui';
+import { getLangFromUrl, useTranslations, localizePath } from '../../i18n/ui';
 
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
@@ -44,6 +44,9 @@ const t = useTranslations(lang);
             </div>
             <h3 class="qw__title">{t('qw.songTitle')}</h3>
             <p class="qw__desc">{t('qw.songDesc')}</p>
+            <a class="bb-rail bb-rail--go qw__more" href={localizePath('/song-requests', lang)}>
+                {t('rail.learnMore')}<span class="bb-rail__arrow" aria-hidden="true">→</span>
+            </a>
         </Card>
 
         <!-- Govee: bulb lights up and washes the stage in chat's colour -->
@@ -154,6 +157,8 @@ const t = useTranslations(lang);
         color: var(--white, #f0ece4);
         margin: 0 0 8px;
     }
+
+    .qw__more { margin-top: 14px; align-self: flex-start; }
 
     .qw__desc {
         font-family: var(--font-body, "DM Sans", sans-serif);
