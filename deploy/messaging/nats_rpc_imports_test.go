@@ -265,47 +265,18 @@ var rpcUnusedDefaults = map[string]map[string]string{
 // back on ErrNoResponders, so an import that covers the plain subject but not
 // the .node.* half makes the answer depend on pod placement.
 func TestRPCRequestsAreImportedAndExported(t *testing.T) {
-	accounts := parseRPCAccounts(t, sourceFile{name: "nats-auth.conf"}.read(t))
-	byUser := rpcAccountsByUser(accounts)
-
-	users := make([]string, 0, len(rpcRequests))
-	for user := range rpcRequests {
-		users = append(users, user)
-	}
-	sort.Strings(users)
-
-	for _, user := range users {
-		account, ok := byUser[user]
+	catalog := loadRPCCatalog(t)
+	for _, user := range sortedManifestUsers() {
+		requester, ok := catalog.byUser[user]
 		if !ok {
 			t.Errorf("manifest names %s but nats-auth.conf has no RPC account with that user", user)
 			continue
 		}
 		for _, req := range rpcRequests[user] {
 			t.Run(user+"/"+req.subject, func(t *testing.T) {
-				for _, subject := range []string{req.subject, req.subject + ".node.n1"} {
-					assertCrossAccountRequestGranted(t, accounts, account, subject, req.source)
-				}
+				catalog.assertRequestGranted(t, requester, req)
 			})
 		}
-	}
-}
-
-func assertCrossAccountRequestGranted(t *testing.T, accounts map[string]rpcAccount, requester rpcAccount, subject, source string) {
-	t.Helper()
-	imp, ok := requester.importCovering(subject)
-	if !ok {
-		t.Errorf("%s requests %s (%s) but %s imports nothing covering it — the broker drops the request silently",
-			requester.users[0], subject, source, requester.name)
-		return
-	}
-	exporter, ok := accounts[imp.account]
-	if !ok {
-		t.Errorf("%s imports %s from %s, which is not an account in nats-auth.conf", requester.name, imp.subject, imp.account)
-		return
-	}
-	if _, ok := exporter.exportCovering(subject); !ok {
-		t.Errorf("%s imports %s from %s, but %s exports nothing covering %s — the import is dead",
-			requester.name, imp.subject, imp.account, imp.account, subject)
 	}
 }
 
@@ -316,47 +287,19 @@ func assertCrossAccountRequestGranted(t *testing.T, accounts map[string]rpcAccou
 // is only a prefix of narrower imports is accepted only when the manifest pins
 // a verb under it, so the verbs the code actually appends are on record.
 func TestRPCSubjectDefaultsAreGranted(t *testing.T) {
-	accounts := parseRPCAccounts(t, sourceFile{name: "nats-auth.conf"}.read(t))
-	byUser := rpcAccountsByUser(accounts)
-
-	root := filepath.Join("..", "..")
-	mainFiles, err := filepath.Glob(filepath.Join(root, "app", "*", "main.go"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	nested, err := filepath.Glob(filepath.Join(root, "app", "*", "*", "main.go"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	mainFiles = append(mainFiles, nested...)
-	if len(mainFiles) < 10 {
-		t.Fatalf("found only %d app/*/main.go files; the glob no longer matches the service layout", len(mainFiles))
-	}
-
+	catalog := loadRPCCatalog(t)
 	checked := 0
-	for _, mainFile := range mainFiles {
-		dir := filepath.Dir(mainFile)
-		service, err := filepath.Rel(root, dir)
-		if err != nil {
-			t.Fatal(err)
-		}
-		service = filepath.ToSlash(service)
-		if _, skip := rpcServicesWithoutIdentity[service]; skip {
+	for _, service := range goServiceDirs(t) {
+		if _, skip := rpcServicesWithoutIdentity[service.name]; skip {
 			continue
 		}
-		user, ok := rpcServiceUsers[service]
+		requester, ok := catalog.accountForService(t, service.name)
 		if !ok {
-			t.Errorf("%s has a main.go but no entry in rpcServiceUsers — map it to its RPC user or list it in rpcServicesWithoutIdentity", service)
 			continue
 		}
-		account, ok := byUser[user]
-		if !ok {
-			t.Errorf("%s maps to user %s, which has no RPC account in nats-auth.conf", service, user)
-			continue
-		}
-		for _, literal := range sortedKeys(rpcSubjectDefaults(t, dir)) {
+		for _, literal := range sortedKeys(rpcSubjectDefaults(t, service.dir)) {
 			checked++
-			assertSubjectDefaultGranted(t, account, service, literal)
+			catalog.assertDefaultGranted(t, subjectDefault{service: service.name, literal: literal, account: requester})
 		}
 	}
 	if checked < 40 {
@@ -364,38 +307,176 @@ func TestRPCSubjectDefaultsAreGranted(t *testing.T) {
 	}
 }
 
-func assertSubjectDefaultGranted(t *testing.T, account rpcAccount, service, literal string) {
+// rpcCatalog is the parsed RPC-plane account model: every account with a
+// *_rpc user, indexed by account name and by user.
+type rpcCatalog struct {
+	accounts map[string]rpcAccount
+	byUser   map[string]rpcAccount
+}
+
+type goService struct {
+	name string // repo-relative, slash-separated: "app/twitch/sesame"
+	dir  string // filesystem path of the same directory
+}
+
+// subjectDefault is one bagel.rpc.* literal a service loads, with the account
+// it connects under, bundled so the assertion reads one value rather than a
+// row of strings.
+type subjectDefault struct {
+	service string
+	literal string
+	account rpcAccount
+}
+
+func loadRPCCatalog(t *testing.T) rpcCatalog {
 	t.Helper()
-	user := account.users[0]
-	if why, ok := rpcIntraAccountSubjects[user][literal]; ok {
-		t.Logf("%s: %s is intra-account (%s)", service, literal, why)
-		return
-	}
-	if why, ok := rpcUnusedDefaults[user][literal]; ok {
-		t.Logf("%s: %s is an unused default (%s)", service, literal, why)
-		return
-	}
-	if account.exportsCoverOrDescend(literal) {
-		return // served by this account
-	}
-	if _, ok := account.importCovering(literal); ok {
-		return // requested as a full subject
-	}
-	if account.importsDescend(literal) {
-		// Narrower imports live under this prefix; the manifest has to say which
-		// verbs the service actually sends so the imports can be checked at
-		// verb level by TestRPCRequestsAreImportedAndExported.
-		for _, req := range rpcRequests[user] {
-			if strings.HasPrefix(req.subject, literal+".") {
-				return
-			}
+	accounts := parseRPCAccounts(t, sourceFile{name: "nats-auth.conf"}.read(t))
+	byUser := make(map[string]rpcAccount)
+	for _, account := range accounts {
+		for _, user := range account.users {
+			byUser[user] = account
 		}
-		t.Errorf("%s loads prefix %q and %s imports subjects under it, but rpcRequests[%q] pins no verb under that prefix — add the verbs the code appends",
-			service, literal, account.name, user)
+	}
+	return rpcCatalog{accounts: accounts, byUser: byUser}
+}
+
+func sortedManifestUsers() []string {
+	users := make([]string, 0, len(rpcRequests))
+	for user := range rpcRequests {
+		users = append(users, user)
+	}
+	sort.Strings(users)
+	return users
+}
+
+// accountForService resolves a service directory to its RPC account through
+// rpcServiceUsers, reporting (rather than skipping) a directory the map does
+// not know: a new service is exactly the case this test is for.
+func (c rpcCatalog) accountForService(t *testing.T, service string) (rpcAccount, bool) {
+	t.Helper()
+	user, ok := rpcServiceUsers[service]
+	if !ok {
+		t.Errorf("%s has a main.go but no entry in rpcServiceUsers — map it to its RPC user or list it in rpcServicesWithoutIdentity", service)
+		return rpcAccount{}, false
+	}
+	account, ok := c.byUser[user]
+	if !ok {
+		t.Errorf("%s maps to user %s, which has no RPC account in nats-auth.conf", service, user)
+		return rpcAccount{}, false
+	}
+	return account, true
+}
+
+// assertRequestGranted checks one manifest entry, plain and node-qualified.
+func (c rpcCatalog) assertRequestGranted(t *testing.T, requester rpcAccount, req rpcRequest) {
+	t.Helper()
+	for _, subject := range []string{req.subject, req.subject + ".node.n1"} {
+		if problem := c.crossAccountProblem(requester, subject); problem != "" {
+			t.Errorf("%s requests %s (%s): %s", requester.users[0], subject, req.source, problem)
+		}
+	}
+}
+
+// crossAccountProblem describes why a request from requester on subject would
+// not reach a responder, or returns "" when the import/export chain is whole.
+func (c rpcCatalog) crossAccountProblem(requester rpcAccount, subject string) string {
+	imp, ok := requester.importCovering(subject)
+	if !ok {
+		return requester.name + " imports nothing covering it — the broker drops the request silently"
+	}
+	exporter, ok := c.accounts[imp.account]
+	if !ok {
+		return "import " + imp.subject + " names account " + imp.account + ", which is not in nats-auth.conf"
+	}
+	if _, ok := exporter.exportCovering(subject); !ok {
+		return "import " + imp.subject + " from " + imp.account + " is dead — that account exports nothing covering it"
+	}
+	return ""
+}
+
+// assertDefaultGranted classifies one subject default. Allowlisted literals are
+// logged with their reason so the run shows they were looked at, not skipped.
+func (c rpcCatalog) assertDefaultGranted(t *testing.T, d subjectDefault) {
+	t.Helper()
+	if why, ok := d.allowlisted(); ok {
+		t.Logf("%s: %s — %s", d.service, d.literal, why)
 		return
 	}
-	t.Errorf("%s loads subject default %q but %s neither exports nor imports anything covering it — a request or a subscription on it is unreachable across accounts",
-		service, literal, account.name)
+	if problem := d.problem(); problem != "" {
+		t.Errorf("%s loads %q: %s", d.service, d.literal, problem)
+	}
+}
+
+func (d subjectDefault) allowlisted() (string, bool) {
+	user := d.account.users[0]
+	if why, ok := rpcIntraAccountSubjects[user][d.literal]; ok {
+		return "intra-account (" + why + ")", true
+	}
+	if why, ok := rpcUnusedDefaults[user][d.literal]; ok {
+		return "unused default (" + why + ")", true
+	}
+	return "", false
+}
+
+// problem returns "" when the literal is served or requested under a grant,
+// otherwise the reason it is unreachable across accounts.
+func (d subjectDefault) problem() string {
+	if d.account.exportsCoverOrDescend(d.literal) {
+		return "" // served by this account
+	}
+	if _, ok := d.account.importCovering(d.literal); ok {
+		return "" // requested as a full subject
+	}
+	if !d.account.importsDescend(d.literal) {
+		return d.account.name + " neither exports nor imports anything covering it — a request or a subscription on it is unreachable across accounts"
+	}
+	// Narrower imports live under this prefix; the manifest has to say which
+	// verbs the service actually sends so they are checked at verb level by
+	// TestRPCRequestsAreImportedAndExported.
+	if d.manifestPinsVerbUnderPrefix() {
+		return ""
+	}
+	return d.account.name + " imports subjects under this prefix, but rpcRequests[\"" + d.account.users[0] + "\"] pins no verb under it — add the verbs the code appends"
+}
+
+func (d subjectDefault) manifestPinsVerbUnderPrefix() bool {
+	for _, req := range rpcRequests[d.account.users[0]] {
+		if strings.HasPrefix(req.subject, d.literal+".") {
+			return true
+		}
+	}
+	return false
+}
+
+// goServiceDirs lists every directory under app/ that holds a main.go, one or
+// two levels deep (app/projector, app/twitch/sesame), as repo-relative names.
+func goServiceDirs(t *testing.T) []goService {
+	t.Helper()
+	root := filepath.Join("..", "..")
+	var mainFiles []string
+	for _, pattern := range []string{
+		filepath.Join(root, "app", "*", "main.go"),
+		filepath.Join(root, "app", "*", "*", "main.go"),
+	} {
+		matches, err := filepath.Glob(pattern)
+		if err != nil {
+			t.Fatal(err)
+		}
+		mainFiles = append(mainFiles, matches...)
+	}
+	if len(mainFiles) < 10 {
+		t.Fatalf("found only %d app/**/main.go files; the glob no longer matches the service layout", len(mainFiles))
+	}
+	services := make([]goService, 0, len(mainFiles))
+	for _, mainFile := range mainFiles {
+		dir := filepath.Dir(mainFile)
+		name, err := filepath.Rel(root, dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		services = append(services, goService{name: filepath.ToSlash(name), dir: dir})
+	}
+	return services
 }
 
 // TestSubjectMatches pins the NATS wildcard semantics the two tests above rely
@@ -484,16 +565,6 @@ func (a rpcAccount) importsDescend(literal string) bool {
 		}
 	}
 	return false
-}
-
-func rpcAccountsByUser(accounts map[string]rpcAccount) map[string]rpcAccount {
-	byUser := make(map[string]rpcAccount)
-	for _, account := range accounts {
-		for _, user := range account.users {
-			byUser[user] = account
-		}
-	}
-	return byUser
 }
 
 // parseRPCAccounts reads every top-level account block that carries a *_rpc
