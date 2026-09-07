@@ -1012,7 +1012,7 @@
     top: 62px;
     border: 1px solid var(--rule);
     border-top-color: var(--rule-strong);
-    border-radius: 8px;
+    border-radius: var(--bb-radius-md);
     background: linear-gradient(180deg, rgba(240, 236, 228, 0.03), rgba(240, 236, 228, 0.012));
     display: flex;
     flex-direction: column;
@@ -1098,7 +1098,7 @@
   .text-input {
     flex: 1; min-width: 0; padding: 8px 11px;
     font-family: var(--bb-font-mono); font-size: 12.5px;
-    border: 1px solid var(--rule); border-radius: 8px;
+    border: 1px solid var(--rule); border-radius: var(--bb-radius-sm);
     background: var(--bb-bg-1, #16130f); color: var(--bb-white);
   }
   .text-input:focus { outline: none; border-color: var(--bb-border-strong); }
@@ -1121,7 +1121,7 @@
       left: 0; right: 0; bottom: 0; top: auto;
       z-index: 220;
       max-height: 88vh;
-      border-radius: 8px 8px 0 0;
+      border-radius: var(--bb-radius-md) var(--bb-radius-md) 0 0;
       background: var(--bb-bg-1, #111);
       animation: sheet-in var(--bb-dur-base, 320ms) var(--bb-ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)) both;
     }

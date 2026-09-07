@@ -393,7 +393,7 @@
     width: min(380px, 82vw);
     background: var(--bb-surface, #17140f);
     border: 1px solid var(--bb-border-strong);
-    border-radius: 14px 14px;
+    border-radius: var(--bb-radius-md);
     padding: 18px;
     box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
     animation: bubble-in 260ms var(--bb-ease-out-expo, ease) both;
@@ -447,7 +447,7 @@
     width: 100%; margin-top: 12px; padding: 10px 12px;
     background: rgba(0, 0, 0, 0.35);
     border: 1px dashed var(--bb-border-strong);
-    border-radius: 8px 8px;
+    border-radius: var(--bb-radius-sm);
     cursor: pointer;
     transition: border-color 0.2s, background 0.2s;
   }

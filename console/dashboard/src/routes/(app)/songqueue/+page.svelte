@@ -646,7 +646,7 @@
     margin-bottom: 10px;
   }
   .back:hover { color: var(--bb-white); }
-  .back:focus-visible { outline: 2px solid var(--bb-focus, var(--bb-tan)); outline-offset: 2px; border-radius: 4px; }
+  .back:focus-visible { outline: 2px solid var(--bb-focus, var(--bb-tan)); outline-offset: 2px; border-radius: var(--bb-radius-xs); }
 
   .toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; }
 
@@ -670,7 +670,7 @@
   .steps a.ext { color: var(--bb-green-glow); text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
   .steps a.ext:hover { text-decoration: underline; }
   .redirect { display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
-  .redirect code, .client-id { background: var(--bb-surface-2); border: 1px solid var(--bb-border); border-radius: 6px; padding: 4px 8px; font-family: var(--bb-font-mono, monospace); font-size: 12px; color: var(--bb-white); word-break: break-all; }
+  .redirect code, .client-id { background: var(--bb-surface-2); border: 1px solid var(--bb-border); border-radius: var(--bb-radius-sm); padding: 4px 8px; font-family: var(--bb-font-mono, monospace); font-size: 12px; color: var(--bb-white); word-break: break-all; }
   .muted-text.small { font-size: 12px; margin: 10px 0 0; }
   /* Field wraps its control in a <label>, so a sentence-long hint sits after
      the field rather than inside it (a paragraph inside a label reads oddly to
@@ -688,7 +688,7 @@
 
   .input {
     padding: 8px 12px;
-    border-radius: 6px;
+    border-radius: var(--bb-radius-sm);
     border: 1px solid var(--rule);
     background: rgba(240, 236, 228, 0.04);
     color: var(--bb-white);

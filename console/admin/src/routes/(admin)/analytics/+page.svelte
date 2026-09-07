@@ -290,7 +290,7 @@
   .health-cell {
     display: flex; align-items: center; gap: 10px;
     padding: 12px 14px;
-    border: 1px solid var(--rule); border-radius: 8px;
+    border: 1px solid var(--rule); border-radius: var(--bb-radius-sm);
     background: rgba(240, 236, 228, 0.02);
   }
   .health-cell.slow { border-color: rgba(202, 167, 106, 0.35); background: rgba(202, 167, 106, 0.05); }
@@ -327,9 +327,9 @@
 
   /* Stacked composition bar: thin marks, 2px surface gaps between segments. */
   .comp-bar {
-    display: flex; gap: 2px; height: 14px; border-radius: 7px; overflow: hidden;
+    display: flex; gap: 2px; height: 14px; border-radius: var(--bb-radius-pill); overflow: hidden;
   }
-  .comp-seg { min-width: 3px; border-radius: 3px; }
+  .comp-seg { min-width: 3px; border-radius: var(--bb-radius-xs); }
   .seg-vip { background: #d9dee4; }
   .seg-paid { background: var(--bb-tan-light); }
   .seg-free { background: var(--bb-green-glow); }
@@ -343,17 +343,17 @@
   }
   .leg b { color: var(--bb-white); font-weight: 600; }
   .leg em { font-style: normal; font-family: var(--bb-font-mono); font-size: 11px; }
-  .sw { width: 9px; height: 9px; border-radius: 3px; align-self: center; flex: none; }
+  .sw { width: 9px; height: 9px; border-radius: var(--bb-radius-xs); align-self: center; flex: none; }
 
   .wk-row { display: flex; gap: 10px; align-items: flex-end; }
   .wk-col { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; }
   .wk-val { font-family: var(--bb-font-mono); font-size: 10px; color: var(--bb-muted); }
   .wk-track {
-    width: 100%; max-width: 34px; height: 64px; border-radius: 4px;
+    width: 100%; max-width: 34px; height: 64px; border-radius: var(--bb-radius-xs);
     background: rgba(240, 236, 228, 0.05);
     display: flex; align-items: flex-end; overflow: hidden;
   }
-  .wk-fill { width: 100%; background: var(--bb-green-glow); border-radius: 3px 3px 0 0; min-height: 2px; }
+  .wk-fill { width: 100%; background: var(--bb-green-glow); border-radius: var(--bb-radius-xs) var(--bb-radius-xs) 0 0; min-height: 2px; }
   .wk-label {
     font-family: var(--bb-font-mono); font-size: 10px; letter-spacing: 0.06em;
     text-transform: uppercase; color: var(--bb-muted);

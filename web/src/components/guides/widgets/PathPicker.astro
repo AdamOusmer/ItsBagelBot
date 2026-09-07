@@ -79,30 +79,30 @@ const sample =
 </div>
 
 <style>
-    .gpath { display: grid; gap: 12px; margin: 22px 0; padding: 15px 16px; border: 1px solid var(--border, rgba(201, 168, 124, 0.15)); border-radius: var(--radius-card, 16px); background: rgba(17, 17, 16, 0.6); }
+    .gpath { display: grid; gap: 12px; margin: 22px 0; padding: 15px 16px; border: 1px solid var(--border, rgba(201, 168, 124, 0.15)); border-radius: var(--radius-lg); background: rgba(17, 17, 16, 0.6); }
     .gpath__grid { display: grid; gap: 12px; }
     @media (min-width: 720px) { .gpath__grid { grid-template-columns: 1fr 1fr; } }
     .gpath__col { display: grid; gap: 6px; align-content: start; }
     .gpath__label { font-family: var(--font-mono, "DM Mono", monospace); font-size: 0.6rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted, #888077); }
-    .gpath__ta { min-height: 200px; resize: vertical; padding: 9px 10px; border: 1px solid var(--border, rgba(201, 168, 124, 0.15)); border-radius: var(--radius-sm, 6px); background: rgba(10, 10, 10, 0.7); color: rgba(240, 236, 228, 0.8); font-family: var(--font-mono, "DM Mono", monospace); font-size: 0.72rem; line-height: 1.5; }
+    .gpath__ta { min-height: 200px; resize: vertical; padding: 9px 10px; border: 1px solid var(--border, rgba(201, 168, 124, 0.15)); border-radius: var(--radius-sm); background: rgba(10, 10, 10, 0.7); color: rgba(240, 236, 228, 0.8); font-family: var(--font-mono, "DM Mono", monospace); font-size: 0.72rem; line-height: 1.5; }
     .gpath__ta:focus-visible { outline: 2px solid var(--green-glow, #52b788); outline-offset: -2px; }
-    .gpath__tree { min-height: 200px; max-height: 260px; overflow: auto; display: grid; gap: 2px; align-content: start; padding: 9px 10px; border: 1px solid var(--border, rgba(201, 168, 124, 0.15)); border-radius: var(--radius-sm, 6px); background: rgba(10, 10, 10, 0.7); }
+    .gpath__tree { min-height: 200px; max-height: 260px; overflow: auto; display: grid; gap: 2px; align-content: start; padding: 9px 10px; border: 1px solid var(--border, rgba(201, 168, 124, 0.15)); border-radius: var(--radius-sm); background: rgba(10, 10, 10, 0.7); }
     .gpath :global(.gpath__hint) { font-family: var(--font-body, "DM Sans", sans-serif); font-size: 0.78rem; color: var(--muted, #888077); }
     .gpath__tree :global(.key) { font-family: var(--font-mono, "DM Mono", monospace); font-size: 0.68rem; color: var(--tan-light, #e0c49a); }
     .gpath__tree :global(.kids) { display: grid; gap: 2px; margin-left: 9px; padding-left: 9px; border-left: 1px solid var(--border, rgba(201, 168, 124, 0.15)); }
-    .gpath__tree :global(.leaf) { display: flex; justify-content: space-between; gap: 10px; width: 100%; padding: 3px 6px; border: 0; border-radius: var(--radius-sm, 6px); background: none; text-align: left; cursor: pointer; font-family: var(--font-mono, "DM Mono", monospace); font-size: 0.68rem; color: rgba(240, 236, 228, 0.82); transition: background 300ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)); }
+    .gpath__tree :global(.leaf) { display: flex; justify-content: space-between; gap: 10px; width: 100%; padding: 3px 6px; border: 0; border-radius: var(--radius-sm); background: none; text-align: left; cursor: pointer; font-family: var(--font-mono, "DM Mono", monospace); font-size: 0.68rem; color: rgba(240, 236, 228, 0.82); transition: background 300ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)); }
     .gpath__tree :global(.leaf em) { font-style: normal; color: var(--muted, #888077); }
     .gpath__tree :global(.leaf:hover:not(:disabled)) { background: rgba(201, 168, 124, 0.12); }
     .gpath__tree :global(.leaf:focus-visible) { outline: 2px solid var(--green-glow, #52b788); outline-offset: -2px; }
     .gpath__tree :global(.leaf:disabled) { cursor: not-allowed; color: var(--muted, #888077); }
     .gpath__tree :global(.leaf.is-picked) { background: rgba(82, 183, 136, 0.14); color: var(--green-glow, #52b788); }
-    .gpath__out { display: grid; gap: 6px; padding: 11px 12px; border: 1px solid var(--border, rgba(201, 168, 124, 0.15)); border-radius: var(--radius-sm, 6px); background: rgba(10, 10, 10, 0.5); }
+    .gpath__out { display: grid; gap: 6px; padding: 11px 12px; border: 1px solid var(--border, rgba(201, 168, 124, 0.15)); border-radius: var(--radius-sm); background: rgba(10, 10, 10, 0.5); }
     .gpath__out p { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin: 0; }
     .gpath__out i { font-style: normal; min-width: 150px; font-family: var(--font-body, "DM Sans", sans-serif); font-size: 0.72rem; color: var(--muted, #888077); }
     .gpath__out code { font-family: var(--font-mono, "DM Mono", monospace); font-size: 0.76rem; color: var(--tan-light, #e0c49a); word-break: break-all; }
     .gpath__out em { font-style: normal; font-family: var(--font-mono, "DM Mono", monospace); font-size: 0.62rem; color: var(--green-glow, #52b788); }
     .gpath__note { font-family: var(--font-body, "DM Sans", sans-serif); font-size: 0.8rem; color: var(--muted, #888077); }
-    .gpath__whole { justify-self: start; padding: 7px 13px; border: 1px solid var(--border, rgba(201, 168, 124, 0.15)); border-radius: var(--radius-pill, 999px); background: rgba(240, 236, 228, 0.03); color: var(--tan-light, #e0c49a); font-family: var(--font-body, "DM Sans", sans-serif); font-size: 0.78rem; cursor: pointer; transition: border-color 300ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)); }
+    .gpath__whole { justify-self: start; padding: 7px 13px; border: 1px solid var(--border, rgba(201, 168, 124, 0.15)); border-radius: var(--radius-pill); background: rgba(240, 236, 228, 0.03); color: var(--tan-light, #e0c49a); font-family: var(--font-body, "DM Sans", sans-serif); font-size: 0.78rem; cursor: pointer; transition: border-color 300ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)); }
     .gpath__whole:hover { border-color: var(--tan, #c9a87c); }
     @media (prefers-reduced-motion: reduce) { .gpath__tree :global(.leaf), .gpath__whole { transition: none; } }
 </style>

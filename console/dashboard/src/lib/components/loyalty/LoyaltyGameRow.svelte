@@ -104,7 +104,7 @@
     padding: 12px 8px 12px 0;
     text-decoration: none;
     color: inherit;
-    border-radius: 8px;
+    border-radius: var(--bb-radius-sm);
   }
   .main:hover { background: rgba(201, 168, 124, 0.05); }
   .main:focus-visible {

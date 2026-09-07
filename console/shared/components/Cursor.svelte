@@ -158,7 +158,7 @@
     width: 36px;
     height: 36px;
     border: 2px solid var(--bb-tan, #c9a87c);
-    border-radius: 8px;
+    border-radius: var(--bb-radius-sm);
     pointer-events: none;
     z-index: 9998;
     opacity: 0.5;

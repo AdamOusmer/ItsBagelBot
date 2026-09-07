@@ -120,7 +120,7 @@
     width: 20px;
     height: 20px;
     flex: none;
-    border-radius: 6px;
+    border-radius: var(--bb-radius-sm);
     background: var(--sw);
     border: 1px solid color-mix(in srgb, var(--sw) 55%, transparent);
   }
@@ -155,7 +155,7 @@
     width: 32px;
     height: 32px;
     border: 1px solid transparent;
-    border-radius: 8px;
+    border-radius: var(--bb-radius-sm);
     background: none;
     color: var(--bb-muted);
     cursor: pointer;

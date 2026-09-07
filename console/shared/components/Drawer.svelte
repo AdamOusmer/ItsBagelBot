@@ -124,7 +124,7 @@
   .drawer-sub { font-family: var(--bb-font-mono); font-size: 12px; color: var(--bb-muted); }
   .drawer-close {
     background: none; border: 1px solid transparent; color: var(--bb-muted);
-    cursor: pointer; padding: 6px; border-radius: 8px;
+    cursor: pointer; padding: 6px; border-radius: var(--bb-radius-sm);
     display: flex; align-items: center; justify-content: center;
     transition: all var(--bb-dur-fast, 160ms) ease;
   }

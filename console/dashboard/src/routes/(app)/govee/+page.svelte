@@ -289,7 +289,7 @@
     margin-bottom: 10px;
   }
   .back:hover { color: var(--bb-white); }
-  .back:focus-visible { outline: 2px solid var(--bb-focus, var(--bb-tan)); outline-offset: 2px; border-radius: 4px; }
+  .back:focus-visible { outline: 2px solid var(--bb-focus, var(--bb-tan)); outline-offset: 2px; border-radius: var(--bb-radius-xs); }
 
   .toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; }
 
@@ -298,7 +298,7 @@
     flex: none;
     width: 34px;
     height: 34px;
-    border-radius: 8px;
+    border-radius: var(--bb-radius-sm);
     display: grid;
     place-items: center;
     background: rgba(201, 168, 124, 0.12);
@@ -308,7 +308,7 @@
     font-weight: 600;
     font-size: 14px;
   }
-  .step-index.sm { width: 26px; height: 26px; font-size: 12px; border-radius: 6px; }
+  .step-index.sm { width: 26px; height: 26px; font-size: 12px; border-radius: var(--bb-radius-xs); }
   .step-body { flex: 1; min-width: 0; }
   .step-body h2 { margin: 0 0 6px; font-family: var(--bb-font-display); font-weight: 700; font-size: 15px; color: var(--bb-white); }
   .muted-text { color: var(--bb-muted); font-family: var(--bb-font-body); font-size: 13px; line-height: 1.55; margin: 0 0 14px; }
@@ -317,7 +317,7 @@
   .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   .input {
     padding: 8px 12px;
-    border-radius: 6px;
+    border-radius: var(--bb-radius-sm);
     border: 1px solid var(--rule);
     background: rgba(240, 236, 228, 0.04);
     color: var(--bb-white);

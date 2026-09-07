@@ -218,7 +218,7 @@
     padding: 8px 12px;
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid var(--glass-border);
-    border-radius: 8px;
+    border-radius: var(--bb-radius-sm);
     color: var(--bb-white);
     font-family: var(--bb-font-mono);
     font-size: 12px;
@@ -239,7 +239,7 @@
     font-size: 11.5px;
     color: #cf8a78;
     background: rgba(176, 90, 70, 0.12);
-    border-radius: 999px;
+    border-radius: var(--bb-radius-pill);
     padding: 2px 9px;
   }
   .ref-note { margin: 0; font-family: var(--bb-font-body); font-size: 13px; color: var(--bb-muted); }

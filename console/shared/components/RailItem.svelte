@@ -46,7 +46,7 @@
     position: relative; z-index: 1;
     display: flex; align-items: center; gap: 12px;
     height: 40px; box-sizing: border-box; padding: 0 12px;
-    border-radius: 10px; text-decoration: none;
+    border-radius: var(--bb-radius-sm); text-decoration: none;
     font-family: var(--bb-font-sans); font-weight: 500; font-size: 13.5px;
     color: var(--bb-muted);
     transition: color var(--bb-dur-fast) var(--bb-ease-out-expo);

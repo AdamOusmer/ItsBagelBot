@@ -77,7 +77,7 @@
     width: 26px;
     height: 26px;
     flex: none;
-    border-radius: 7px;
+    border-radius: var(--bb-radius-sm);
     background: var(--sw);
     border: 1px solid color-mix(in srgb, var(--sw) 55%, transparent);
   }
@@ -115,7 +115,7 @@
   /* Now a chevron rather than a gear: point it up once the row is open. */
   .chev.open { color: var(--bb-tan); transform: rotate(180deg); }
 
-  :global(.mini.row-del) { width: 44px; height: 44px; border-radius: 8px; }
+  :global(.mini.row-del) { width: 44px; height: 44px; border-radius: var(--bb-radius-sm); }
   :global(.mini.row-del:hover) { color: #cf8a78; }
   :global(.mini.row-del:focus-visible) { outline: 2px solid var(--bb-green-glow, #52b788); outline-offset: 2px; }
 

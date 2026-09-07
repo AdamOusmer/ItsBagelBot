@@ -78,7 +78,7 @@
   .ov-log {
     background: var(--bb-card-bg);
     border: 1px solid var(--bb-border);
-    border-radius: 8px;
+    border-radius: var(--bb-radius-md);
     overflow: hidden;
   }
   .ov-log__head {

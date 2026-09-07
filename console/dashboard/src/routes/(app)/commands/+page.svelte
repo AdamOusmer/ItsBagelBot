@@ -1013,7 +1013,7 @@
     padding: 14px 16px;
     margin-bottom: 14px;
     border: 1px dashed rgba(82, 183, 136, 0.4);
-    border-radius: 8px;
+    border-radius: var(--bb-radius-sm);
     background: rgba(82, 183, 136, 0.06);
     cursor: pointer;
     text-align: left;

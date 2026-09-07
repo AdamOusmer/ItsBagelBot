@@ -155,7 +155,7 @@
     width: 32px;
     height: 32px;
     border: 1px solid transparent;
-    border-radius: 8px;
+    border-radius: var(--bb-radius-sm);
     background: none;
     color: var(--bb-muted);
     cursor: pointer;
@@ -181,7 +181,7 @@
     max-height: 88dvh;
     border: 1px solid var(--rule);
     border-top-color: var(--rule-strong);
-    border-radius: 8px 8px 0 0;
+    border-radius: var(--bb-radius-md) var(--bb-radius-md) 0 0;
     overflow: hidden;
     background: var(--bb-bg-1, #111);
     padding-bottom: env(safe-area-inset-bottom, 0);

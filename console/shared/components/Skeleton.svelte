@@ -35,11 +35,11 @@
     );
     background-size: 200% 100%;
     animation: shimmer 1.4s ease-in-out infinite;
-    border-radius: 8px 8px;
+    border-radius: var(--bb-radius-sm);
   }
   .text { height: 0.9em; width: 8ch; vertical-align: middle; }
-  .pill { height: 22px; width: 72px; border-radius: 999px; }
-  .block { display: block; width: 100%; height: 64px; border-radius: 8px 8px; }
+  .pill { height: 22px; width: 72px; border-radius: var(--bb-radius-pill); }
+  .block { display: block; width: 100%; height: 64px; border-radius: var(--bb-radius-md); }
 
   .skel-lines { display: flex; flex-direction: column; gap: 8px; }
 

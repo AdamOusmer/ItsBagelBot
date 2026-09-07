@@ -131,7 +131,7 @@
     padding: 12px 14px;
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid var(--glass-border);
-    border-radius: 8px 8px;
+    border-radius: var(--bb-radius-sm);
     color: var(--bb-white);
     font-family: var(--bb-font-body);
     font-size: 13.5px;
@@ -152,7 +152,7 @@
     align-items: center;
     gap: 6px;
     padding: 8px 14px;
-    border-radius: 8px 8px;
+    border-radius: var(--bb-radius-sm);
     font-family: var(--bb-font-body);
     font-size: 13px;
     cursor: pointer;

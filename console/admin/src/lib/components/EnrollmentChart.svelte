@@ -238,7 +238,7 @@
     position: absolute; top: 4px; transform: translateX(10px);
     display: flex; flex-direction: column; gap: 3px;
     background: var(--bb-bg-1, #111110); border: 1px solid var(--bb-border-strong);
-    border-radius: 8px; padding: 8px 11px; pointer-events: none; z-index: 5;
+    border-radius: var(--bb-radius-md); padding: 8px 11px; pointer-events: none; z-index: 5;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
   }
   .tooltip.flip { transform: translateX(calc(-100% - 10px)); }
@@ -247,7 +247,7 @@
     display: inline-flex; align-items: center; gap: 7px;
     font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-white); white-space: nowrap;
   }
-  .sw { width: 9px; height: 9px; border-radius: 3px; flex: none; }
+  .sw { width: 9px; height: 9px; border-radius: var(--bb-radius-xs); flex: none; }
   .bar-sw { background: var(--bb-green-glow); }
   .line-sw { background: var(--bb-tan-light); }
 </style>

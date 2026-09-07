@@ -1193,7 +1193,7 @@
     flex-direction: column;
     gap: 8px;
     border: 1px solid var(--glass-border);
-    border-radius: 10px;
+    border-radius: var(--bb-radius-md);
     padding: 16px 18px;
     background: var(--glass-fill);
     cursor: pointer;
@@ -1233,7 +1233,7 @@
     flex: none;
     width: 34px;
     height: 34px;
-    border-radius: 10px;
+    border-radius: var(--bb-radius-sm);
     border: 1px solid var(--glass-border);
     background: rgba(255, 255, 255, 0.04);
     display: inline-flex;
@@ -1328,7 +1328,7 @@
     width: 100%;
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid var(--glass-border);
-    border-radius: 6px;
+    border-radius: var(--bb-radius-sm);
     color: var(--bb-white);
     padding: 8px 10px;
     font-size: 13px;
@@ -1343,7 +1343,7 @@
     min-height: 64px;
     padding: 10px 34px;
     border: 1px dashed var(--glass-border);
-    border-radius: 8px;
+    border-radius: var(--bb-radius-md);
     background: rgba(255, 255, 255, 0.03);
     color: var(--bb-muted);
     font-family: var(--bb-font-mono);
@@ -1428,7 +1428,7 @@
     align-items: baseline;
     gap: 14px;
     border: 1px solid var(--glass-border);
-    border-radius: 8px;
+    border-radius: var(--bb-radius-sm);
     padding: 12px 14px;
     background: var(--glass-fill);
   }
@@ -1509,7 +1509,7 @@
   .collision-note {
     border: 1px solid rgba(229, 72, 77, 0.35);
     background: rgba(229, 72, 77, 0.06);
-    border-radius: 8px;
+    border-radius: var(--bb-radius-md);
     padding: 12px 14px;
     font-size: 13px;
     line-height: 1.5;
@@ -1580,7 +1580,7 @@
     color: var(--bb-muted);
     background: transparent;
     border: 1px solid var(--bb-border);
-    border-radius: 999px;
+    border-radius: var(--bb-radius-pill);
     padding: 6px 13px;
     transition:
       color var(--bb-dur-fast, 140ms) ease,
@@ -1636,7 +1636,7 @@
     align-items: center;
     justify-content: space-between;
     border: 1px solid var(--bb-border-strong);
-    border-radius: 999px;
+    border-radius: var(--bb-radius-pill);
     background: rgba(17, 17, 16, 0.92);
     backdrop-filter: blur(18px);
     padding: 14px 16px 14px 24px;
@@ -1656,7 +1656,7 @@
     justify-content: center;
     width: 76px;
     height: 76px;
-    border-radius: 16px;
+    border-radius: var(--bb-radius-lg);
     background: rgba(82, 183, 136, 0.12);
     border: 1px solid var(--bb-border-strong);
     margin-bottom: 14px;
@@ -1669,7 +1669,7 @@
   }
   .applied-tile {
     border: 1px solid var(--bb-border);
-    border-radius: 8px;
+    border-radius: var(--bb-radius-md);
     padding: 16px 18px;
     background: var(--glass-fill);
   }
@@ -1699,7 +1699,7 @@
 
   @media (max-width: 560px) {
     .commit-bar {
-      border-radius: 8px;
+      border-radius: var(--bb-radius-sm);
       padding: 14px 16px;
     }
   }

@@ -128,7 +128,7 @@
     width: 32px;
     height: 32px;
     border: 1px solid transparent;
-    border-radius: 8px;
+    border-radius: var(--bb-radius-sm);
     background: none;
     color: var(--bb-muted);
     cursor: pointer;

@@ -187,7 +187,7 @@
     margin: calc(10px + env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) 0 max(12px, env(safe-area-inset-left, 0px));
     padding: 7px 12px 7px 8px;
     border: 1px solid var(--bb-border, rgba(201, 168, 124, 0.15));
-    border-radius: 999px;
+    border-radius: var(--bb-radius-pill);
     background: rgba(10, 10, 10, 0.55);
     backdrop-filter: blur(18px);
   }
@@ -195,8 +195,8 @@
     .topbar { gap: 20px; margin-inline: var(--gutter); padding: 8px 14px 8px 10px; }
   }
 
-  .station { display: flex; align-items: center; gap: 9px; text-decoration: none; flex: none; padding: 4px 12px 4px 4px; border-radius: var(--bb-radius-pill, 100px); border: none; background: transparent; transition: all var(--bb-dur-base) ease; }
-  .station img { width: 26px; height: 26px; border-radius: 8px 8px; }
+  .station { display: flex; align-items: center; gap: 9px; text-decoration: none; flex: none; padding: 4px 12px 4px 4px; border-radius: var(--bb-radius-pill); border: none; background: transparent; transition: all var(--bb-dur-base) ease; }
+  .station img { width: 26px; height: 26px; border-radius: var(--bb-radius-sm); }
   .station--premium img { border-radius: 50%; }
   .station-id { display: flex; flex-direction: column; line-height: 1; }
   .station-id b { font-family: var(--bb-font-display); font-weight: 800; font-size: 13.5px; letter-spacing: -0.01em; color: var(--bb-white); }
@@ -226,7 +226,7 @@
   .operator-wrap { position: relative; display: flex; flex: none; }
   .operator {
     display: flex; align-items: center; gap: 9px;
-    background: none; border: none; padding: 3px; border-radius: var(--bb-radius-pill, 100px);
+    background: none; border: none; padding: 3px; border-radius: var(--bb-radius-pill);
     cursor: pointer;
     transition: background var(--bb-dur-fast, 180ms) ease;
   }
@@ -250,7 +250,7 @@
     padding: 8px;
     background: var(--bb-card-bg, #111110);
     border: 1px solid var(--bb-border-strong, rgba(201, 168, 124, 0.35));
-    border-radius: 8px 8px;
+    border-radius: var(--bb-radius-md);
     box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
     transform-origin: top right;
     animation: menu-in 240ms var(--bb-ease-out-back, ease-out) both;
@@ -285,7 +285,7 @@
   .op-dash-list { display: flex; flex-direction: column; gap: 2px; }
   .op-dash {
     display: flex; align-items: center; gap: 10px; width: 100%;
-    padding: 7px 10px; border-radius: 8px 8px;
+    padding: 7px 10px; border-radius: var(--bb-radius-sm);
     text-decoration: none; cursor: pointer;
     transition: background var(--bb-dur-fast, 180ms) ease;
   }
@@ -305,7 +305,7 @@
   .op-menu form { display: flex; }
   .op-menu-item {
     display: flex; align-items: center; gap: 10px; width: 100%;
-    padding: 10px 10px; border-radius: 8px 8px;
+    padding: 10px 10px; border-radius: var(--bb-radius-sm);
     background: none; border: none; cursor: pointer; text-decoration: none;
     font-family: var(--bb-font-body); font-weight: 600; font-size: 13px; color: var(--bb-muted);
     transition: color var(--bb-dur-fast, 180ms) ease, background var(--bb-dur-fast, 180ms) ease;
@@ -331,7 +331,7 @@
     .crumb { display: none; }
   }
 
-  .icon-btn { width: 34px; height: 34px; border-radius: 8px 8px; display: flex; align-items: center; justify-content: center;
+  .icon-btn { width: 34px; height: 34px; border-radius: var(--bb-radius-sm); display: flex; align-items: center; justify-content: center;
     background: none; border: 1px solid var(--rule, rgba(240, 236, 228, 0.1)); color: var(--bb-tan-light); cursor: pointer;
     transition: all var(--bb-dur-base) var(--bb-ease-out-expo); flex: none; }
   .icon-btn :global(svg) { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.7; }

@@ -230,7 +230,7 @@
     color: var(--bb-tan-light);
     background: rgba(201, 168, 124, 0.08);
     border: 1px solid var(--glass-border);
-    border-radius: 8px;
+    border-radius: var(--bb-radius-sm);
     padding: 4px 8px;
   }
 
@@ -241,7 +241,7 @@
     width: 100%;
     padding: 9px 12px;
     border: 1px solid var(--glass-border);
-    border-radius: 8px 8px;
+    border-radius: var(--bb-radius-sm);
     background: rgba(255, 255, 255, 0.02);
     color: var(--bb-white);
     font-family: var(--bb-font-mono);

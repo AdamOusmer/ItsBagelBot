@@ -75,7 +75,7 @@
     font-size: 13.5px;
     padding: 9px 11px;
     border: 1px solid var(--bb-border);
-    border-radius: 8px;
+    border-radius: var(--bb-radius-sm);
     background: rgba(0, 0, 0, 0.35);
     color: var(--bb-white);
   }

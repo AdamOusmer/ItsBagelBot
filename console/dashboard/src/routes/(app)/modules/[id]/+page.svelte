@@ -785,7 +785,7 @@
     text-decoration: none;
   }
   .crumb-back:hover { color: var(--bb-white); }
-  .crumb-back:focus-visible { outline: 1px solid var(--bb-tan, #c9a87c); outline-offset: 2px; border-radius: 4px; }
+  .crumb-back:focus-visible { outline: 1px solid var(--bb-tan, #c9a87c); outline-offset: 2px; border-radius: var(--bb-radius-xs); }
   .crumb-arrow { flex: none; }
   .crumb-sep { opacity: 0.5; }
   .crumbs [aria-current='page'] { color: var(--bb-tan-light); }
@@ -843,7 +843,7 @@
     width: min(260px, 44vw);
     padding: 8px 12px;
     border: 1px solid var(--rule);
-    border-radius: 6px;
+    border-radius: var(--bb-radius-sm);
     background: rgba(240, 236, 228, 0.04);
     color: var(--bb-white);
     font-family: var(--bb-font-body);

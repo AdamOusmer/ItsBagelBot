@@ -70,7 +70,7 @@
   .card {
     background: var(--bb-card-bg);
     border: 1px solid var(--bb-border);
-    border-radius: 8px;
+    border-radius: var(--bb-radius-md);
     padding: var(--card-pad);
     position: relative;
     overflow: hidden;

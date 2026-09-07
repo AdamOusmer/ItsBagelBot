@@ -628,7 +628,7 @@
     color: var(--bb-green);
     background: rgba(0, 0, 0, 0.35);
     border: 1px solid var(--bb-border);
-    border-radius: 6px;
+    border-radius: var(--bb-radius-sm);
     padding: 2px 7px;
     white-space: nowrap;
   }
@@ -642,7 +642,7 @@
     color: var(--bb-tan);
     background: rgba(0, 0, 0, 0.25);
     border: 1px solid var(--bb-border);
-    border-radius: 999px;
+    border-radius: var(--bb-radius-pill);
     padding: 2px 10px;
   }
 

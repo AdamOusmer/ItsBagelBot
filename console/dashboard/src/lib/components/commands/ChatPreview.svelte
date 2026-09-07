@@ -225,7 +225,7 @@
     margin-top: 10px;
     padding: 14px 14px 12px;
     border: 1px solid var(--rule, rgba(240, 236, 228, 0.1));
-    border-radius: 8px 8px;
+    border-radius: var(--bb-radius-md);
     background: rgba(0, 0, 0, 0.3);
     display: flex;
     flex-direction: column;
@@ -286,7 +286,7 @@
   .msg mark {
     background: rgba(82, 183, 136, 0.14);
     color: var(--bb-green-glow, #52b788);
-    border-radius: 8px;
+    border-radius: var(--bb-radius-xs);
     padding: 0 3px;
   }
   .msg mark.unknown {
@@ -306,7 +306,7 @@
     color: var(--acc, var(--bb-green-glow));
     background: color-mix(in srgb, var(--acc, var(--bb-green-glow)) 14%, transparent);
     border: 1px solid color-mix(in srgb, var(--acc, var(--bb-green-glow)) 40%, transparent);
-    border-radius: 999px;
+    border-radius: var(--bb-radius-pill);
     padding: 1px 7px;
     white-space: nowrap;
   }
@@ -320,7 +320,7 @@
     flex-direction: column;
     gap: 5px;
     padding: 9px 11px;
-    border-radius: 8px 8px;
+    border-radius: var(--bb-radius-md);
     background: color-mix(in srgb, var(--acc) 10%, rgba(0, 0, 0, 0.25));
     animation: reply-in 240ms var(--bb-ease-out-back, ease-out) both;
     animation-delay: var(--reply-delay, 0ms);
@@ -345,7 +345,7 @@
     gap: 8px;
     flex-wrap: wrap;
     padding: 7px 11px;
-    border-radius: 8px 8px;
+    border-radius: var(--bb-radius-md);
     border: 1px dashed rgba(82, 183, 136, 0.4);
     background: rgba(82, 183, 136, 0.06);
     animation: reply-in 240ms var(--bb-ease-out-back, ease-out) both;
@@ -361,7 +361,7 @@
     flex-direction: column;
     gap: 6px;
     padding: 8px 10px;
-    border-radius: 8px;
+    border-radius: var(--bb-radius-sm);
     border: 1px solid rgba(199, 125, 255, 0.35);
     background: rgba(199, 125, 255, 0.07);
     animation: reply-in 240ms var(--bb-ease-out-back, ease-out) both;

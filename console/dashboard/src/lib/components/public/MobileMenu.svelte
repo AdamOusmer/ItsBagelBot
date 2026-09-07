@@ -173,7 +173,7 @@
     background: transparent;
     border: 1px solid var(--bb-tan);
     color: var(--bb-tan-light);
-    border-radius: 6px;
+    border-radius: var(--bb-radius-sm);
     text-transform: uppercase;
     text-decoration: none;
     transition: background 200ms ease, color 200ms ease;

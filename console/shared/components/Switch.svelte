@@ -60,7 +60,7 @@
   .switch {
     width: 38px; height: 22px; flex-shrink: 0;
     display: inline-block; position: relative;
-    border-radius: 999px;
+    border-radius: var(--bb-radius-pill);
     background: rgba(255, 255, 255, 0.06);
     border: 1px solid var(--glass-border);
     cursor: pointer;

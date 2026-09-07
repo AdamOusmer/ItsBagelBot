@@ -193,7 +193,7 @@
     color: var(--bb-muted);
     background: transparent;
     border: 1px solid var(--rule, var(--bb-border));
-    border-radius: 999px;
+    border-radius: var(--bb-radius-pill);
     padding: 3px 10px;
     cursor: pointer;
     transition: all var(--bb-dur-fast, 140ms) var(--bb-ease-out-expo, ease);
@@ -229,7 +229,7 @@
     padding: 5px 8px;
     background: transparent;
     border: none;
-    border-radius: 6px;
+    border-radius: var(--bb-radius-sm);
     cursor: pointer;
     text-align: left;
   }
@@ -257,7 +257,7 @@
     color: var(--bb-green-glow, #52b788);
     background: rgba(82, 183, 136, 0.06);
     border: 1px dashed rgba(82, 183, 136, 0.4);
-    border-radius: 999px;
+    border-radius: var(--bb-radius-pill);
     padding: 5px 12px;
     cursor: pointer;
     transition: all var(--bb-dur-fast, 140ms) ease;

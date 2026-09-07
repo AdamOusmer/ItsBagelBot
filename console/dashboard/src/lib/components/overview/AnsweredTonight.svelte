@@ -63,7 +63,7 @@
   .ov-ans {
     background: var(--bb-card-bg);
     border: 1px solid var(--bb-border);
-    border-radius: 8px;
+    border-radius: var(--bb-radius-md);
     overflow: hidden;
   }
   .ov-ans__head {
@@ -126,7 +126,7 @@
   }
   .ov-ans__track {
     height: 5px;
-    border-radius: 999px;
+    border-radius: var(--bb-radius-pill);
     background: rgba(201, 168, 124, 0.1);
     display: block;
     overflow: hidden;
@@ -134,7 +134,7 @@
   .ov-ans__fill {
     display: block;
     height: 5px;
-    border-radius: 999px;
+    border-radius: var(--bb-radius-pill);
     background: var(--bb-green-glow);
   }
   .ov-ans__fill--b {

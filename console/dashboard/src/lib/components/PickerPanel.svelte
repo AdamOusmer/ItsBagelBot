@@ -161,7 +161,7 @@
     position: fixed;
     z-index: 300;
     overflow-y: auto;
-    border-radius: 10px;
+    border-radius: var(--bb-radius-md);
     box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
   }
   :global(:root[data-theme='light']) .drop { box-shadow: 0 12px 32px rgba(20, 17, 12, 0.15); }
@@ -184,7 +184,7 @@
        page rather than being the whole page. */
     max-height: 82dvh;
     overflow-y: auto;
-    border-radius: 12px 12px 0 0;
+    border-radius: var(--bb-radius-md) var(--bb-radius-md) 0 0;
     padding: 8px 16px calc(16px + env(safe-area-inset-bottom, 0px));
     /* No fill mode on purpose: the element's resting state is then the visible
        one, and the slide-in is decoration layered over it. With `both` the
@@ -205,7 +205,7 @@
     height: 4px;
     flex: none;
     margin-bottom: 4px;
-    border-radius: 999px;
+    border-radius: var(--bb-radius-pill);
     background: var(--rule, rgba(255, 255, 255, 0.18));
   }
   @keyframes sheet-in {

@@ -358,7 +358,7 @@
     gap: 9px;
     padding: 11px 18px;
     margin-bottom: 20px;
-    border-radius: 8px;
+    border-radius: var(--bb-radius-md);
     background: rgba(176, 90, 70, 0.1);
     border: 1px solid rgba(176, 90, 70, 0.4);
     color: #cf8a78;
@@ -384,7 +384,7 @@
     gap: 7px;
     flex-shrink: 0;
     padding: 4px 11px;
-    border-radius: 20px;
+    border-radius: var(--bb-radius-pill);
     background: rgba(45, 106, 79, 0.15);
     border: 1px solid rgba(64, 145, 108, 0.3);
     font-family: var(--bb-font-mono);
@@ -513,7 +513,7 @@
     color: #0a0a0a;
     background: var(--bb-tan);
     padding: 16px 36px;
-    border-radius: 4px;
+    border-radius: var(--bb-radius-sm);
     text-decoration: none;
     opacity: 0;
     animation: fadeUp 0.9s 0.8s var(--bb-ease-out-expo) forwards;

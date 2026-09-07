@@ -121,7 +121,7 @@
     line-height: 0;
     transition: rotate 500ms cubic-bezier(0.34, 1.56, 0.64, 1);
   }
-  .foot-brand__logo img { width: 55px; height: 55px; border-radius: 10px; }
+  .foot-brand__logo img { width: 55px; height: 55px; border-radius: var(--bb-radius-sm); }
   @media (hover: hover) and (pointer: fine) {
     .foot-brand:hover .foot-brand__logo { rotate: 14deg; }
   }

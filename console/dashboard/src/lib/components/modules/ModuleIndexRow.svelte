@@ -105,7 +105,7 @@
     top: 10px;
     bottom: 10px;
     width: 3px;
-    border-radius: 2px;
+    border-radius: var(--bb-radius-xs);
     background: var(--rule);
   }
   .on .main::before {
@@ -166,7 +166,7 @@
     color: var(--bb-ink, #1b1409);
     background: var(--bb-tan-light);
     border: 1px solid var(--bb-tan-light);
-    border-radius: 5px;
+    border-radius: var(--bb-radius-xs);
     padding: 2px 7px;
     line-height: 1.35;
   }

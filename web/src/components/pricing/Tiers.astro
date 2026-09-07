@@ -217,7 +217,7 @@ const enterpriseFeatures = [
         background: var(--tan, #c9a87c);
         color: var(--black, #0a0a0a);
         padding: 4px 14px;
-        border-radius: var(--radius-pill, 100px);
+        border-radius: var(--radius-pill);
         white-space: nowrap;
         font-weight: 600;
         z-index: 1;
@@ -267,7 +267,7 @@ const enterpriseFeatures = [
         gap: 8px;
         padding: 4px 8px;
         border: 1px solid rgba(224, 196, 154, 0.15);
-        border-radius: 4px;
+        border-radius: var(--radius-xs);
         background: rgba(0, 0, 0, 0.3);
         overflow: hidden;
     }
@@ -283,7 +283,7 @@ const enterpriseFeatures = [
         flex: 1;
         height: 2px;
         background: rgba(224, 196, 154, 0.2);
-        border-radius: 1px;
+        border-radius: var(--radius-pill);
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -405,7 +405,7 @@ const enterpriseFeatures = [
         color: var(--muted, #888077);
         text-align: center;
         border: 1px dashed rgba(201, 168, 124, 0.22);
-        border-radius: var(--radius-pill, 100px);
+        border-radius: var(--radius-pill);
         padding: 12px 24px;
         margin: 12px auto 0;
         max-width: fit-content;

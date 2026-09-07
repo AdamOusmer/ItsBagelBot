@@ -752,7 +752,7 @@
     margin: 0 0 4px;
     padding: 8px 16px;
     border: 1px solid var(--bb-border);
-    border-radius: var(--bb-radius-pill, 100px);
+    border-radius: var(--bb-radius-pill);
     font-family: var(--bb-font-mono);
     font-size: 11px;
   }
@@ -803,7 +803,7 @@
     background: var(--bb-tan);
     color: #0a0a0a;
     padding: 4px 12px;
-    border-radius: var(--bb-radius-pill, 100px);
+    border-radius: var(--bb-radius-pill);
     font-weight: 600;
   }
   .plan-eyebrow {
@@ -874,7 +874,7 @@
     text-transform: uppercase;
     color: var(--bb-green-light, #74c69d);
     border: 1px solid rgba(82, 183, 136, 0.3);
-    border-radius: var(--bb-radius-pill, 100px);
+    border-radius: var(--bb-radius-pill);
     padding: 9px 16px;
     text-align: center;
   }
@@ -905,7 +905,7 @@
     color: var(--bb-muted);
     text-align: center;
     border: 1px dashed rgba(201, 168, 124, 0.22);
-    border-radius: var(--bb-radius-pill, 100px);
+    border-radius: var(--bb-radius-pill);
     padding: 11px 22px;
     margin: 18px auto 0;
     max-width: fit-content;
@@ -940,7 +940,7 @@
   .premium-dashboard-hero {
     margin-top: 24px;
     padding: 32px;
-    border-radius: 8px 8px;
+    border-radius: var(--bb-radius-lg);
     border: 1px solid rgba(201, 168, 124, 0.4);
     background: radial-gradient(circle at 10% 0%, rgba(201, 168, 124, 0.12) 0%, rgba(10, 10, 10, 0) 60%),
                 linear-gradient(180deg, rgba(201, 168, 124, 0.05) 0%, rgba(10, 10, 10, 0) 100%),
@@ -1130,7 +1130,7 @@
   .fld-input {
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid var(--bb-border, rgba(255, 255, 255, 0.1));
-    border-radius: 8px 8px;
+    border-radius: var(--bb-radius-sm);
     color: var(--bb-white, #f0ece4);
     font-family: var(--bb-font-body);
     font-size: 13.5px;
@@ -1259,7 +1259,7 @@
     position: absolute;
     top: var(--oy, 50%);
     left: var(--ox, 50%);
-    border-radius: 8px;
+    border-radius: var(--bb-radius-xs);
     opacity: 0;
     /* `linear` on the animation itself: the arc's two halves need OPPOSITE
        curves (decelerating on the way up, accelerating on the way down), and

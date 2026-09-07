@@ -73,7 +73,7 @@
   @keyframes pop { from { opacity: 0; transform: scale(0.6); filter: blur(12px); } to { opacity: 1; transform: none; filter: none; } }
 
   .logo { position: relative; width: 84px; height: 84px; display: grid; place-items: center; margin-bottom: 6px; }
-  .logo img { width: 72px; height: 72px; border-radius: 8px; animation: float 6s ease-in-out infinite; }
+  .logo img { width: 72px; height: 72px; border-radius: var(--bb-radius-sm); animation: float 6s ease-in-out infinite; }
   .logo .halo { position: absolute; inset: -22px; border-radius: 50%; background: radial-gradient(circle, rgba(82, 183, 136, 0.35), transparent 68%); filter: blur(8px); animation: pulse 3.2s ease-in-out infinite; }
 
   .eyebrow { font-family: var(--bb-font-mono); font-size: 12px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--bb-green-glow); }
@@ -85,7 +85,7 @@
   .cta { display: inline-flex; align-items: center; gap: 10px; font-family: var(--bb-font-mono); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--bb-white); background: var(--bb-green); border: 1px solid var(--bb-green-light); padding: 15px 26px; border-radius: var(--bb-radius-pill); text-decoration: none; transition: background 0.3s, transform 0.3s; }
   .cta:hover { background: var(--bb-green-light); transform: translateY(-2px); box-shadow: 0 0 36px rgba(82, 183, 136, 0.4); }
 
-  .bar { margin-top: 8px; width: 180px; height: 3px; border-radius: 999px; background: rgba(255, 255, 255, 0.06); border: 1px solid var(--bb-border); overflow: hidden; }
+  .bar { margin-top: 8px; width: 180px; height: 3px; border-radius: var(--bb-radius-pill); background: rgba(255, 255, 255, 0.06); border: 1px solid var(--bb-border); overflow: hidden; }
   .bar i { display: block; height: 100%; width: 100%; background: var(--bb-green); transform-origin: left; animation: drain 5s linear forwards; }
 
   @keyframes float { 0%, 100% { transform: translateY(0) rotate(-1deg); } 50% { transform: translateY(-10px) rotate(1deg); } }

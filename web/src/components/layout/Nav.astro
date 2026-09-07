@@ -320,7 +320,7 @@ const isActive = (href: string) =>
         width: min(100%, 1000px);
         padding: 9px 12px 9px 18px;
         border: 1px solid var(--border);
-        border-radius: 999px;
+        border-radius: var(--radius-pill);
         background: rgba(10, 10, 10, 0.55);
         /* Standard property only, never hand-write -webkit-backdrop-filter:
            Chrome 151 dropped the alias, and the minifier dedupes the pair to
@@ -357,7 +357,7 @@ const isActive = (href: string) =>
     .cta {
         gap: 9px;
         padding: 9px 16px 9px 13px;
-        border-radius: 999px;
+        border-radius: var(--radius-pill);
         font-size: 0.7rem;
         letter-spacing: 0.14em;
         text-transform: uppercase;

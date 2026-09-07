@@ -43,7 +43,7 @@
     align-items: center;
     gap: 9px;
     padding: 12px 14px;
-    border-radius: 8px 8px;
+    border-radius: var(--bb-radius-md);
     background: var(--bb-card-bg);
     border: 1px solid var(--bb-border-strong);
     box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
@@ -67,7 +67,7 @@
     color: var(--bb-tan-light);
     background: rgba(201, 168, 124, 0.1);
     border: 1px solid rgba(201, 168, 124, 0.28);
-    border-radius: 999px;
+    border-radius: var(--bb-radius-pill);
     padding: 4px 12px;
     cursor: pointer;
     transition: all var(--bb-dur-fast, 140ms) var(--bb-ease-out-expo, ease);
@@ -85,7 +85,7 @@
     background: transparent;
     color: var(--bb-muted);
     cursor: pointer;
-    border-radius: 8px;
+    border-radius: var(--bb-radius-sm);
   }
   .close:hover { color: var(--bb-white); background: rgba(255, 255, 255, 0.06); }
 
