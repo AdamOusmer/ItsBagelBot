@@ -93,7 +93,7 @@ func uuidErrReply(log *zap.Logger, account string, err error) gossiprpc.HypixelU
 // already a uuid (no Mojang call). Shared by statsBudget and the uuid Handle
 // so a stored linked-account uuid never taxes Mojang's per-IP allowance.
 func (p *api) debitMojangUnlessUUID(ctx context.Context, account string, isPremium bool) error {
-	if looksLikeUUID(account) {
+	if looksLikeUUID(strings.TrimSpace(account)) {
 		return nil
 	}
 	return p.mojangBuckets.Enforce(ctx, p.limiter, isPremium)

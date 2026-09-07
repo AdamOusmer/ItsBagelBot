@@ -59,12 +59,18 @@ func linkedAccount(s accountSources) string {
 	return strings.TrimSpace(s.Linked)
 }
 
-// resolveLinked fills BroadcasterLogin from the chat context and runs
-// resolveAccount. Every urchin/mcsr linked-account path goes through here so
-// the uuid-vs-name choice lives in one literal rather than five copies.
-func resolveLinked(c *module.Context, s accountSources) string {
+// resolveLinked fills BroadcasterLogin from the chat context and resolves
+// both the lookup account and the chat-facing display name. Every urchin/mcsr
+// linked-account path goes through here so the uuid-vs-name choice lives in
+// one literal rather than five copies. account may be a stored uuid
+// (PreferUUID); display walks the same fallback chain with the uuid ignored,
+// so an error line chats the username the broadcaster typed rather than 32
+// hex characters.
+func resolveLinked(c *module.Context, s accountSources) (account, display string) {
 	s.BroadcasterLogin = c.Env.BroadcasterUserLogin
-	return resolveAccount(s)
+	account = resolveAccount(s)
+	s.PreferUUID = false
+	return account, resolveAccount(s)
 }
 
 // chatReplyError turns a gossip failure into a chat line so the viewer gets an

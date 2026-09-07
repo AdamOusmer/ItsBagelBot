@@ -45,6 +45,13 @@ func TestMcsrEloUnrated(t *testing.T) {
 	assert.Contains(t, col.out[0].Text, "#—")
 }
 
+func TestMcsrEloErrorChatsLinkedNameNotUUID(t *testing.T) {
+	gw := &fakeGossip{err: bus.RPCReplyError{Message: "player not found"}}
+	col := runMcsrCmd(t, gw, mcsrCmdCall{"elo", `{"account":"Feinberg","accountUuid":"deadbeefdeadbeefdeadbeefdeadbeef"}`, ""})
+	require.Len(t, col.out, 1)
+	assert.Equal(t, "Feinberg: player not found", col.out[0].Text, "error prefix must chat the username, not the stored uuid")
+}
+
 func TestMcsrEloUsesLinkedUUID(t *testing.T) {
 	gw := &fakeGossip{replies: map[string]any{
 		"mcsr.user": gossiprpc.McsrUserReply{Nickname: "Feinberg", Elo: 1650},

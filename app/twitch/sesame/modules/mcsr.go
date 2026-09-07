@@ -172,7 +172,7 @@ func Mcsr(d engine.Deps) module.Module {
 		}
 		var cfg mcsrConfig
 		_ = c.Decode(&cfg)
-		account := resolveLinked(c, accountSources{
+		account, _ := resolveLinked(c, accountSources{
 			Linked: cfg.Account, LinkedUUID: cfg.AccountUUID, PreferUUID: true,
 		})
 		channelID := strconv.FormatUint(c.BroadcasterID, 10)
@@ -250,12 +250,12 @@ func (h mcsrHandler[R]) run(ctx context.Context, c *module.Context, args string,
 		return nil
 	}
 
-	account := resolveLinked(c, accountSources{
+	account, display := resolveLinked(c, accountSources{
 		Arg: args, Linked: cfg.Account, LinkedUUID: cfg.AccountUUID, PreferUUID: !h.preferName,
 	})
 	var reply R
 	if err := h.d.Gossip.Call(ctx, h.route, h.request(c, account, cfg), &reply); err != nil {
-		if chatReplyError(c, emit, account, err) {
+		if chatReplyError(c, emit, display, err) {
 			return nil
 		}
 		return err

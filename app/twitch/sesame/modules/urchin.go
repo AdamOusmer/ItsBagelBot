@@ -144,12 +144,12 @@ func runUrchinCommand[R any](d engine.Deps, cmd gatewayCommand, tokens map[strin
 			return nil
 		}
 
-		account := resolveLinked(c, accountSources{
+		account, display := resolveLinked(c, accountSources{
 			Arg: args, Linked: cfg.Account, LinkedUUID: cfg.AccountUUID, PreferUUID: true,
 		})
 		var reply R
 		if err := d.Gossip.Call(ctx, engine.GossipRoute{Provider: cmd.provider, Endpoint: cmd.endpoint}, gossiprpc.Request{Account: account, IsPremium: c.Regress.IsPremium()}, &reply); err != nil {
-			if chatReplyError(c, emit, account, err) {
+			if chatReplyError(c, emit, display, err) {
 				return nil
 			}
 			return err
