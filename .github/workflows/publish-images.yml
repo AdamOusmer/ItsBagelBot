@@ -98,6 +98,12 @@ jobs:
               "description": "ItsBagelBot notifications data service"
             },
             {
+              "image": "discord-data",
+              "context": ".",
+              "containerfile": "app/db/discord/Containerfile",
+              "description": "ItsBagelBot Discord data service"
+            },
+            {
               "image": "discord-ingress",
               "context": ".",
               "containerfile": "app/discord/ingress/Containerfile",
@@ -195,6 +201,7 @@ jobs:
             add "loyalty"
             add "modules"
             add "notifications"
+            add "discord-data"
             add "discord-ingress"
             add "discord-engine"
             add "discord-outgress"
@@ -211,6 +218,7 @@ jobs:
             add "loyalty"
             add "modules"
             add "notifications"
+            add "discord-data"
             add "discord-ingress"
             add "discord-engine"
             add "discord-outgress"
@@ -257,6 +265,9 @@ jobs:
                 ;;
               app/db/notifications/*)
                 add "notifications"
+                ;;
+              app/db/discord/*)
+                add "discord-data"
                 ;;
               app/discord/ingress/*)
                 add "discord-ingress"

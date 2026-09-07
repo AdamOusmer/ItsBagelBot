@@ -91,6 +91,10 @@ func (f *fakeRest) GetGuild(context.Context, discordapi.Guild) (discordapi.Snowf
 	f.sends++
 	return discordapi.Snowflake{ID: "g1"}, nil
 }
+func (f *fakeRest) GetGuildWithCounts(context.Context, discordapi.Guild) (discordapi.GuildInfo, error) {
+	f.sends++
+	return discordapi.GuildInfo{ID: "g1"}, nil
+}
 func (f *fakeRest) InteractionCallback(context.Context, discordapi.Callback) error {
 	f.sends++
 	return nil
@@ -145,7 +149,7 @@ func TestLimitedClientRefusesWithoutCallingRest(t *testing.T) {
 }
 
 // TestLimitedClientGatesEveryMethod is a table test rather than one function
-// per method: 21 near-identical "call X, assert the gate paid" cases would
+// per method: 30 near-identical "call X, assert the gate paid" cases would
 // otherwise be 21 near-identical test functions.
 func TestLimitedClientGatesEveryMethod(t *testing.T) {
 	ctx := context.Background()
@@ -175,11 +179,27 @@ func TestLimitedClientGatesEveryMethod(t *testing.T) {
 		{"ListGuildChannels", func(c *LimitedClient) error { _, err := c.ListGuildChannels(ctx, discordapi.Guild{}); return err }},
 		{"ListGuildRoles", func(c *LimitedClient) error { _, err := c.ListGuildRoles(ctx, discordapi.Guild{}); return err }},
 		{"GetGuild", func(c *LimitedClient) error { _, err := c.GetGuild(ctx, discordapi.Guild{}); return err }},
+		{"GetGuildWithCounts", func(c *LimitedClient) error { _, err := c.GetGuildWithCounts(ctx, discordapi.Guild{}); return err }},
 		{"InteractionCallback", func(c *LimitedClient) error { return c.InteractionCallback(ctx, discordapi.Callback{}) }},
 		{"BulkOverwriteCommands", func(c *LimitedClient) error { return c.BulkOverwriteCommands(ctx, discordapi.CommandCatalog{}) }},
 		{"InteractionFollowup", func(c *LimitedClient) error { return c.InteractionFollowup(ctx, discordapi.Followup{}) }},
 		{"GetCurrentApplication", func(c *LimitedClient) error { _, err := c.GetCurrentApplication(ctx); return err }},
 		{"GetInvite", func(c *LimitedClient) error { _, err := c.GetInvite(ctx, "code"); return err }},
+		{"GetGuildMember", func(c *LimitedClient) error {
+			_, err := c.GetGuildMember(ctx, discordapi.GuildMember{})
+			return err
+		}},
+		{"ListGuildChannelsFull", func(c *LimitedClient) error {
+			_, err := c.ListGuildChannelsFull(ctx, discordapi.Guild{})
+			return err
+		}},
+		{"ModifyGuild", func(c *LimitedClient) error { return c.ModifyGuild(ctx, discordapi.GuildPatch{}) }},
+		{"SetChannelOverwrite", func(c *LimitedClient) error {
+			return c.SetChannelOverwrite(ctx, discordapi.ChannelOverwrite{})
+		}},
+		{"RemoveMemberRoleWithReason", func(c *LimitedClient) error {
+			return c.RemoveMemberRoleWithReason(ctx, discordapi.MemberRole{}, "raid")
+		}},
 	}
 
 	for _, tc := range cases {
@@ -194,4 +214,32 @@ func TestLimitedClientGatesEveryMethod(t *testing.T) {
 			}
 		})
 	}
+}
+
+func (f *fakeRest) GetGuildMember(context.Context, discordapi.GuildMember) (discordapi.GuildMemberInfo, error) {
+	f.sends++
+	return discordapi.GuildMemberInfo{}, nil
+}
+func (f *fakeRest) ListGuildChannelsFull(context.Context, discordapi.Guild) ([]discordapi.ChannelInfo, error) {
+	f.sends++
+	return nil, nil
+}
+func (f *fakeRest) ModifyGuild(context.Context, discordapi.GuildPatch) error { f.sends++; return nil }
+func (f *fakeRest) RemoveMemberRoleWithReason(context.Context, discordapi.MemberRole, string) error {
+	f.sends++
+	return nil
+}
+func (f *fakeRest) SetChannelOverwrite(context.Context, discordapi.ChannelOverwrite) error {
+	f.sends++
+	return nil
+}
+
+func (f *fakeRest) ListMessagesFull(context.Context, discordapi.MessagePage) ([]discordapi.FullMessage, error) {
+	f.sends++
+	return nil, nil
+}
+
+func (f *fakeRest) SendFile(context.Context, discordapi.FileUpload) (discordapi.Message, error) {
+	f.sends++
+	return discordapi.Message{}, nil
 }

@@ -19,6 +19,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -272,5 +273,36 @@ func TestServeRejectsHalfSetTLSPair(t *testing.T) {
 		}
 	default:
 		t.Fatal("want immediate error for half-set pair")
+	}
+}
+
+// TestLivenessGate pins the one exception to "liveness never fails": a check
+// registered with Live fails /healthz, and nothing else does. A regression
+// here either crash-loops every service that has no gate, or silently stops
+// restarting the one that needs it.
+func TestLivenessGate(t *testing.T) {
+	gated := NewSet("svc", failing("nats"))
+	if rec := get(t, gated, "/healthz"); rec.Code != http.StatusOK {
+		t.Fatalf("healthz with a failing ordinary check = %d, want 200", rec.Code)
+	}
+
+	gated.Live(passing("gateway"))
+	if rec := get(t, gated, "/healthz"); rec.Code != http.StatusOK {
+		t.Fatalf("healthz with a passing gate = %d, want 200", rec.Code)
+	}
+
+	gated.Live(failing("gateway"))
+	rec := get(t, gated, "/healthz")
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("healthz with a failing gate = %d, want 503", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "gateway") {
+		t.Fatalf("healthz body = %q, want the failing gate named", rec.Body.String())
+	}
+
+	// The gate is liveness-only: readiness still answers off the ordinary
+	// checks, and a gate failure must not double-count there.
+	if rec := get(t, NewSet("svc"), "/readyz"); rec.Code != http.StatusOK {
+		t.Fatalf("readyz = %d, want 200", rec.Code)
 	}
 }

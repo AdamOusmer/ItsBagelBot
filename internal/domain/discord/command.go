@@ -72,6 +72,12 @@ const (
 	// where available). One call that blunts an entire raid, versus one ban per
 	// attacker against a 50/s budget -- always prefer it at scale.
 	TypeLockdown = "lockdown"
+	// TypeUnlock reverses a lockdown: the verification level and the muted
+	// channels' @everyone overwrites go back to what they were. It rides
+	// the MOD lane despite not stopping anything, because it competes for
+	// the same budget as the raid that is still finishing: a community left
+	// silenced behind a drained default lane is the raid still winning.
+	TypeUnlock = "unlock"
 
 	// TypePostChat, TypePostEmbed and TypePostPanel write to a channel.
 	TypePostChat  = "post_chat"
@@ -102,7 +108,7 @@ const (
 func ModType(commandType string) bool {
 	switch commandType {
 	case TypeDeleteMessage, TypeBanMember, TypeKickMember,
-		TypeTimeoutMember, TypeStripRoles, TypeLockdown:
+		TypeTimeoutMember, TypeStripRoles, TypeLockdown, TypeUnlock:
 		return true
 	default:
 		return false

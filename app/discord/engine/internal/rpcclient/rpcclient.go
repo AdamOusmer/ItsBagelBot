@@ -25,6 +25,15 @@ import (
 // is a handful of REST calls at most, so this is generous rather than tight.
 const timeout = 8 * time.Second
 
+// The desk's client deadlines come from the shared table in
+// internal/domain/rpc/discordoutgress/timeouts.go, which pairs each with the
+// deadline outgress's handler runs under. Every one of these is LONGER than
+// its server side; see that file for the outage that happens when it is not.
+const (
+	ticketOpenTimeout  = discordoutgress.TicketOpenClientTimeout
+	ticketCloseTimeout = discordoutgress.TicketCloseClientTimeout
+)
+
 // Client calls app/discord/outgress's internal channel-management and
 // go-live RPC surface.
 type Client struct {
@@ -93,4 +102,46 @@ func (c *Client) ResolveInvite(ctx context.Context, req discordoutgress.InviteRe
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	return bus.RequestJSON[discordoutgress.InviteResolveReply](ctx, c.nc, c.subject("invite.resolve"), req)
+}
+
+// TicketOpen creates the ticket channel and posts the opening card. See
+// internal/domain/rpc/discordoutgress/ticket.go for why the desk's three
+// steps are RPCs rather than Commands.
+func (c *Client) TicketOpen(ctx context.Context, req discordoutgress.TicketOpenRequest) (discordoutgress.TicketOpenReply, error) {
+	ctx, cancel := context.WithTimeout(ctx, ticketOpenTimeout)
+	defer cancel()
+	return bus.RequestJSON[discordoutgress.TicketOpenReply](ctx, c.nc, c.subject("ticket.open"), req)
+}
+
+func (c *Client) TicketClaim(ctx context.Context, req discordoutgress.TicketClaimRequest) (discordoutgress.TicketClaimReply, error) {
+	ctx, cancel := context.WithTimeout(ctx, ticketOpenTimeout)
+	defer cancel()
+	return bus.RequestJSON[discordoutgress.TicketClaimReply](ctx, c.nc, c.subject("ticket.claim"), req)
+}
+
+func (c *Client) TicketAddMember(ctx context.Context, req discordoutgress.TicketMemberAddRequest) (discordoutgress.TicketMemberAddReply, error) {
+	ctx, cancel := context.WithTimeout(ctx, ticketOpenTimeout)
+	defer cancel()
+	return bus.RequestJSON[discordoutgress.TicketMemberAddReply](ctx, c.nc, c.subject("ticket.add"), req)
+}
+
+// TicketClose runs the whole close sequence on outgress. It gets its own,
+// longer deadline: the transcript pages a channel up to twenty times behind a
+// shared rate-limit bucket, which the 8s every other call here uses cannot
+// cover. The interaction has already been deferred by ingress, so the user is
+// looking at a "thinking" state, not a dropped command.
+func (c *Client) TicketClose(ctx context.Context, req discordoutgress.TicketCloseRequest) (discordoutgress.TicketCloseReply, error) {
+	ctx, cancel := context.WithTimeout(ctx, ticketCloseTimeout)
+	defer cancel()
+	return bus.RequestJSON[discordoutgress.TicketCloseReply](ctx, c.nc, c.subject("ticket.close"), req)
+}
+
+// TicketPanel posts the persistent desk panel and returns its message id. It
+// is an RPC rather than the PostPanel Command the desk used to emit because
+// the id is the whole point: without it the desk pointer has nothing a repost
+// can delete. See discordoutgress.TicketPanelRequest.
+func (c *Client) TicketPanel(ctx context.Context, req discordoutgress.TicketPanelRequest) (discordoutgress.TicketPanelReply, error) {
+	ctx, cancel := context.WithTimeout(ctx, ticketOpenTimeout)
+	defer cancel()
+	return bus.RequestJSON[discordoutgress.TicketPanelReply](ctx, c.nc, c.subject("ticket.panel"), req)
 }

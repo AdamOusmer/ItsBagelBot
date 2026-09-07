@@ -30,6 +30,7 @@ import (
 	"ItsBagelBot/internal/domain/discord/linkguard"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/health"
 	"ItsBagelBot/pkg/logger"
@@ -37,6 +38,7 @@ import (
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nuid"
 	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 )
@@ -95,7 +97,6 @@ func main() {
 		log.Fatal("failed to connect to valkey", zap.Error(err))
 	}
 	defer valkeyClient.Close()
-	store := discordstore.New(valkeyClient)
 	projStore := projection.NewStore(valkeyClient)
 	// linkguard.New panics on a nil client (deliberately -- see its own
 	// doc), which is why it is built here, right next to the Fatal above
@@ -109,17 +110,22 @@ func main() {
 	}
 	defer nc.Close()
 
+	// The store is discord-data-backed, not pure Valkey: bindings, per-guild
+	// settings, tickets and XP live in MySQL now, and Valkey keeps only the
+	// caches and the ephemeral voice/desk keyspaces. Built here rather than
+	// beside the Valkey client above because it needs the NATS connection.
+	store := discordstore.NewRPC(nc, cfg.DiscordDataRPCPrefix, valkeyClient, log)
+
 	pub, err := bus.NewPublisher(cfg.NATSURL, log)
 	if err != nil {
 		log.Fatal("failed to connect publisher", zap.Error(err))
 	}
 	defer func() { _ = pub.Close() }()
-	publish := func(ctx context.Context, c ddiscord.Command) error {
-		return bus.PublishJSON(ctx, pub, ddiscord.Lane(c.Type), c)
-	}
+	publish := confirmedPublisher(pub)
 
 	rpc := rpcclient.New(nc, cfg.DiscordOutgressRPCPrefix)
-	resolver := resolve.Resolver{Store: store, Modules: projStore, Tier: resolve.Status(statusReader(projStore)), Log: log}
+	resolver := resolve.Resolver{Store: store, Modules: projStore, Tier: resolve.Status(statusReader(projStore)),
+		Warned: resolve.NewConfigWarnings(), Log: log}
 	// ownInvite shares valkeyClient with guard and store above -- it is
 	// just another Valkey-backed cache, not a second connection -- and
 	// shares rpc (rpcclient.Client) with Channels/Purge below, since
@@ -135,7 +141,7 @@ func main() {
 		Log:     log,
 	}
 	reg := registry.New(modules.All(modules.Deps{
-		Store: store, Channels: rpc, Purge: rpc, Guard: guard, OwnInvite: ownInvite,
+		Store: store, Channels: rpc, Tickets: rpc, Purge: rpc, Guard: guard, OwnInvite: ownInvite,
 		Identity: identity, Log: log,
 	})...)
 	d := &dispatch.Dispatcher{Registry: reg, Resolver: resolver, Store: store, Publish: publish, Log: log}
@@ -171,6 +177,40 @@ func main() {
 // The RPC responder is registered onto this same Set rather than a freshly
 // built one, so /status and the health RPC cannot disagree about this pod at
 // the same instant.
+// confirmedPublisher emits one Command and waits for the broker's own
+// verdict on it.
+//
+// It is deliberately not bus.PublishJSON. That path admits the payload to
+// the background batch publisher and returns as soon as a worker takes it,
+// so the only errors it can ever produce are "bus: publisher is closed" and
+// the caller's own context error (pkg/bus/batch_publisher.go, admit and
+// admitLocked). The cohort's real outcome -- a refused send, a rejected
+// PubAck, a PubAck timeout -- is recorded on the connection for a later
+// Flush instead (complete, takeWindowErrLocked), and nothing in this
+// process calls Flush. dispatch classifies publish failures to decide
+// whether a republish is safe, and classifying an error the broker never
+// produced classifies nothing.
+//
+// bus.PublishConfirmed goes through PublishOwnedWithID, which parks on the
+// cohort's verdict channel (awaitPublishConfirmation) and hands back the
+// error the batch worker resolved the cohort with. The ID is required by
+// that call and is not a deduplication key -- see Publisher's own doc for
+// why fleet publishing has none -- so a fresh NUID per attempt is honest
+// about what it is.
+func confirmedPublisher(pub bus.Publisher) modules.Publish {
+	return func(ctx context.Context, c ddiscord.Command) error {
+		body, err := codec.Marshal(c)
+		if err != nil {
+			return err
+		}
+		return bus.PublishConfirmed(ctx, pub, bus.Publication{
+			Subject: ddiscord.Lane(c.Type),
+			ID:      nuid.Next(),
+			Payload: body,
+		})
+	}
+}
+
 func healthSet(nc *nats.Conn, ingressSub, twitchSub bus.Subscriber, log *zap.Logger) *health.Set {
 	set := health.NewSet(serviceName,
 		health.NATS("nats", nc),

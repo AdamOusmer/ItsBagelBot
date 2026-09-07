@@ -28,6 +28,7 @@ type rest interface {
 	AddMemberRole(ctx context.Context, r discordapi.MemberRole) error
 	ModifyCurrentMember(ctx context.Context, m discordapi.CurrentMember) error
 	RemoveMemberRole(ctx context.Context, r discordapi.MemberRole) error
+	RemoveMemberRoleWithReason(ctx context.Context, r discordapi.MemberRole, reason string) error
 	MoveMember(ctx context.Context, move discordapi.VoiceMove) error
 	ModifyChannel(ctx context.Context, patch discordapi.ChannelPatch) error
 	TimeoutMember(ctx context.Context, t discordapi.MemberTimeout) error
@@ -38,11 +39,18 @@ type rest interface {
 	ListGuildChannels(ctx context.Context, guild discordapi.Guild) ([]discordapi.Snowflake, error)
 	ListGuildRoles(ctx context.Context, guild discordapi.Guild) ([]discordapi.Snowflake, error)
 	GetGuild(ctx context.Context, guild discordapi.Guild) (discordapi.Snowflake, error)
+	GetGuildWithCounts(ctx context.Context, guild discordapi.Guild) (discordapi.GuildInfo, error)
 	InteractionCallback(ctx context.Context, cb discordapi.Callback) error
 	InteractionFollowup(ctx context.Context, f discordapi.Followup) error
 	BulkOverwriteCommands(ctx context.Context, cat discordapi.CommandCatalog) error
 	GetCurrentApplication(ctx context.Context) (discordapi.Snowflake, error)
 	GetInvite(ctx context.Context, code string) (discordapi.Invite, error)
+	GetGuildMember(ctx context.Context, m discordapi.GuildMember) (discordapi.GuildMemberInfo, error)
+	ListGuildChannelsFull(ctx context.Context, guild discordapi.Guild) ([]discordapi.ChannelInfo, error)
+	ModifyGuild(ctx context.Context, patch discordapi.GuildPatch) error
+	SetChannelOverwrite(ctx context.Context, o discordapi.ChannelOverwrite) error
+	ListMessagesFull(ctx context.Context, page discordapi.MessagePage) ([]discordapi.FullMessage, error)
+	SendFile(ctx context.Context, up discordapi.FileUpload) (discordapi.Message, error)
 }
 
 // LimitedClient decorates a Discord REST client with the shared global
@@ -201,6 +209,13 @@ func (c *LimitedClient) GetGuild(ctx context.Context, guild discordapi.Guild) (d
 	return c.rest.GetGuild(ctx, guild)
 }
 
+func (c *LimitedClient) GetGuildWithCounts(ctx context.Context, guild discordapi.Guild) (discordapi.GuildInfo, error) {
+	if err := c.gate.Take(ctx); err != nil {
+		return discordapi.GuildInfo{}, err
+	}
+	return c.rest.GetGuildWithCounts(ctx, guild)
+}
+
 func (c *LimitedClient) InteractionCallback(ctx context.Context, cb discordapi.Callback) error {
 	if err := c.gate.Take(ctx); err != nil {
 		return err
@@ -245,4 +260,59 @@ func (c *LimitedClient) ModifyCurrentMember(ctx context.Context, m discordapi.Cu
 		return err
 	}
 	return c.rest.ModifyCurrentMember(ctx, m)
+}
+
+func (c *LimitedClient) GetGuildMember(ctx context.Context, m discordapi.GuildMember) (discordapi.GuildMemberInfo, error) {
+	if err := c.gate.Take(ctx); err != nil {
+		return discordapi.GuildMemberInfo{}, err
+	}
+	return c.rest.GetGuildMember(ctx, m)
+}
+
+func (c *LimitedClient) ListGuildChannelsFull(ctx context.Context, guild discordapi.Guild) ([]discordapi.ChannelInfo, error) {
+	if err := c.gate.Take(ctx); err != nil {
+		return nil, err
+	}
+	return c.rest.ListGuildChannelsFull(ctx, guild)
+}
+
+func (c *LimitedClient) ModifyGuild(ctx context.Context, patch discordapi.GuildPatch) error {
+	if err := c.gate.Take(ctx); err != nil {
+		return err
+	}
+	return c.rest.ModifyGuild(ctx, patch)
+}
+
+func (c *LimitedClient) SetChannelOverwrite(ctx context.Context, o discordapi.ChannelOverwrite) error {
+	if err := c.gate.Take(ctx); err != nil {
+		return err
+	}
+	return c.rest.SetChannelOverwrite(ctx, o)
+}
+
+// RemoveMemberRoleWithReason pays the bucket like its reasonless twin. A raid
+// strip is a burst of these, which is exactly what the shared token exists to
+// pace.
+func (c *LimitedClient) RemoveMemberRoleWithReason(ctx context.Context, r discordapi.MemberRole, reason string) error {
+	if err := c.gate.Take(ctx); err != nil {
+		return err
+	}
+	return c.rest.RemoveMemberRoleWithReason(ctx, r, reason)
+}
+
+// ListMessagesFull pays one token per PAGE, not per message: the transcript
+// path calls this up to twenty times for one closing ticket, and each call is
+// one request against Discord's bucket.
+func (c *LimitedClient) ListMessagesFull(ctx context.Context, page discordapi.MessagePage) ([]discordapi.FullMessage, error) {
+	if err := c.gate.Take(ctx); err != nil {
+		return nil, err
+	}
+	return c.rest.ListMessagesFull(ctx, page)
+}
+
+func (c *LimitedClient) SendFile(ctx context.Context, up discordapi.FileUpload) (discordapi.Message, error) {
+	if err := c.gate.Take(ctx); err != nil {
+		return discordapi.Message{}, err
+	}
+	return c.rest.SendFile(ctx, up)
 }

@@ -81,6 +81,8 @@ export * from './connection-state';
 export * from './overlay-stack';
 export * from './inspector-machine';
 export * from './command-active';
+export * from './discord-config';
+export * from './discord-overview';
 export * from './commands-validate';
 export * from './uses';
 export * from './rehearsal';

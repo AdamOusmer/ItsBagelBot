@@ -11,7 +11,7 @@ func TestCommunityEmbedsHaveTitles(t *testing.T) {
 		embed Embed
 		title string
 	}{
-		{"panel", TicketPanelEmbed(), "Need help?"},
+		{"panel", TicketPanelEmbed(Config{}.TicketPanel()), "Need help?"},
 		{"opened", TicketOpenedEmbed(TicketOpened{Opener: "Ada"}), "Ticket"},
 		{"voice", VoiceRoomEmbed(VoiceRoom{Owner: "Ada"}), "Ada's room"},
 		{"rank", RankEmbed(RankCard{Who: "Ada", Level: 2, XP: 400}), "Rank"},

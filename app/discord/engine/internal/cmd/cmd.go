@@ -173,3 +173,33 @@ func SetGuildIdentity(t Target, id ddiscord.GuildIdentity) ddiscord.Command {
 		Payload: marshal(ddiscord.IdentityPayload{Identity: id}),
 	}
 }
+
+// StripRoles disarms a member by removing every role Bagel can remove. It
+// carries no payload: outgress reads the member's current roles itself,
+// because the engine's copy of them (from whatever event triggered this) is
+// already stale by the time the command is drained, and stripping a stale
+// list is exactly the half-measure a compromised account needs.
+func StripRoles(t Target, reason Reason) ddiscord.Command {
+	return ddiscord.Command{
+		Type: ddiscord.TypeStripRoles, GuildID: t.GuildID, UserID: t.UserID, Reason: string(reason),
+	}
+}
+
+// Lockdown raises the guild's verification level and mutes @everyone in the
+// text channels under categoryIDs.
+func Lockdown(t Target, everyoneRoleID string, categoryIDs []string, reason Reason) ddiscord.Command {
+	return ddiscord.Command{
+		Type: ddiscord.TypeLockdown, GuildID: t.GuildID, Reason: string(reason),
+		Payload: marshal(ddiscord.LockdownPayload{EveryoneRoleID: everyoneRoleID, CategoryIDs: categoryIDs}),
+	}
+}
+
+// Unlock reverses a Lockdown. It carries no payload: what to restore was
+// recorded by the lockdown itself (outgress's kv.LockdownStore), because the
+// mute DESTROYS the information -- once @everyone is denied SEND, nothing on
+// Discord's side still says whether that deny was the streamer's or ours.
+func Unlock(t Target, reason Reason) ddiscord.Command {
+	return ddiscord.Command{
+		Type: ddiscord.TypeUnlock, GuildID: t.GuildID, Reason: string(reason),
+	}
+}

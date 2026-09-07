@@ -17,7 +17,13 @@ import { env } from '$env/dynamic/private';
 import { nanoid } from 'nanoid';
 import mysql from 'mysql2/promise';
 
-export type SecretServiceId = 'users' | 'commands' | 'modules' | 'transactions' | 'notifications';
+export type SecretServiceId =
+  | 'users'
+  | 'commands'
+  | 'modules'
+  | 'transactions'
+  | 'notifications'
+  | 'discord-data';
 
 interface ServiceDef {
   id: SecretServiceId;
@@ -33,7 +39,12 @@ const services: Record<SecretServiceId, ServiceDef> = {
   commands: { id: 'commands', label: 'Commands', project: 'commands', config: 'prd', schema: 'bagel_commands', expectedUserPrefix: 'commands_svc' },
   modules: { id: 'modules', label: 'Modules', project: 'modules', config: 'prd', schema: 'bagel_modules', expectedUserPrefix: 'modules_svc' },
   transactions: { id: 'transactions', label: 'Transactions', project: 'transactions', config: 'prd', schema: 'bagel_transactions', expectedUserPrefix: 'transactions_svc' },
-  notifications: { id: 'notifications', label: 'Notifications', project: 'notifications', config: 'prd', schema: 'bagel_notifications', expectedUserPrefix: 'notifications_svc' }
+  notifications: { id: 'notifications', label: 'Notifications', project: 'notifications', config: 'prd', schema: 'bagel_notifications', expectedUserPrefix: 'notifications_svc' },
+  // discord-data owns bagel_discord: Discord guild bindings, the ticket desk
+  // and member XP. Its Doppler project is named after the deployment
+  // (discord-data), not after the schema, because the `discord` project
+  // already holds the Discord application's own credentials.
+  'discord-data': { id: 'discord-data', label: 'Discord data', project: 'discord-data', config: 'prd', schema: 'bagel_discord', expectedUserPrefix: 'discord_svc' }
 };
 
 export function serviceIds(): SecretServiceId[] {
@@ -488,7 +499,11 @@ function accountSql(cred: Pick<DbCredentialInput, 'dbUser'>): string {
 }
 
 function schemaSql(svc: ServiceDef): string {
-  if (!/^bagel_(users|commands|modules|transactions|notifications)$/.test(svc.schema)) {
+  // Allowlist, not an escape: the schema name is interpolated into DDL, so it
+  // must be one of the names this console is allowed to manage. Widened for
+  // bagel_discord (discord-data) 2026-09-04; every addition to `services` above
+  // needs a matching arm here or rotation fails at the GRANT.
+  if (!/^bagel_(users|commands|modules|transactions|notifications|discord)$/.test(svc.schema)) {
     throw new Error('invalid database schema');
   }
   return `\`${svc.schema}\``;

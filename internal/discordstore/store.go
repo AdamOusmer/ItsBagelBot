@@ -25,24 +25,50 @@
 //     keys; they live here anyway because engine's own package already
 //     imports this one for the guild index, and one Valkey-backed package is
 //     simpler than two.
+//
+// The package is laid out by KEYSPACE, not by implementation: this file holds
+// the guild binding and settings keys, store_voice.go the clone and seat keys,
+// store_ticket.go the ticket/desk/transcript keys and store_xp.go the XP ones.
+// Each file carries both implementations of its family (valkeyStore and Mem)
+// because those two are what must stay in step -- a change to how a key is
+// shaped has to land in the memory double in the same edit, or the tests stop
+// describing the real store.
 package discordstore
 
 import (
 	"context"
-	"math"
-	"strconv"
-	"strings"
+	"errors"
+	"sort"
 	"sync"
 
+	ddiscord "ItsBagelBot/internal/domain/discord"
+
 	"github.com/valkey-io/valkey-go"
+	"go.uber.org/zap"
 )
 
-const (
-	xpPerMessage = 15
-	xpCooldown   = 60
-	dailyXP      = 50
-	dailyTTL     = 24 * 60 * 60
-)
+// ErrConfigUnavailable is what the pure-Valkey store answers on the settings
+// write path. Guild settings have no Valkey store of record -- they live in
+// discord-data -- so a process holding this store can only refuse, loudly,
+// rather than accept a write nothing will ever read back.
+var ErrConfigUnavailable = errors.New("discordstore: guild settings need the discord-data-backed store")
+
+// ErrConfigConflict is a settings write whose expected version no longer
+// matches: another tab (or another replica) saved first. The caller must
+// re-read and re-apply rather than retry.
+var ErrConfigConflict = errors.New("discordstore: guild settings changed since they were read")
+
+// ErrStoreUnavailable is a read that could not reach discord-data and had no
+// authoritative answer to give. It is distinct from "nothing found" on
+// purpose: a caller that turns an unreachable store into an empty list posts
+// nothing, disconnects nothing and shows the streamer an empty server picker,
+// all of which look like a deliberate answer.
+var ErrStoreUnavailable = errors.New("discordstore: discord-data is unreachable")
+
+// ErrNotBound is a settings write into a guild the caller does not own, or
+// that nothing owns. The two are one error on purpose: distinguishing them
+// would tell an unbound caller that a guild id it guessed is in use.
+var ErrNotBound = errors.New("discordstore: guild is not bound to this broadcaster")
 
 // Guild is a Discord guild snowflake.
 type Guild struct{ ID string }
@@ -61,26 +87,58 @@ func (m Member) key() string { return m.GuildID + ":" + m.UserID }
 // Broadcaster is the Twitch user id the guild reverse-index points at.
 type Broadcaster struct{ ID string }
 
-// Clone is one join-to-create voice channel.
-type Clone struct {
-	ChannelID string
-	GuildID   string
-	OwnerID   string
+// Binding is one guild-to-broadcaster link. It is the argument of both write
+// verbs and the element GuildsOf returns: bind needs the installer, unbind
+// needs the broadcaster for the owner guard, and the listing needs the
+// timestamp, so one struct beats three argument lists that drift apart.
+type Binding struct {
+	Guild       Guild
+	Broadcaster Broadcaster
+	// InstalledBy is the acting console user's TWITCH user id -- the
+	// broadcaster (or staff account) whose dashboard ran the install, which
+	// is the id every dashboard-facing RPC already carries as user_id.
+	//
+	// Not the Discord snowflake, which this side never learns: the install
+	// leg exchanges a bot-authorization code, and its token response names
+	// the guild, not the human who approved it. Write only: discord-data
+	// records it so support can answer "who added this bot", and nothing on
+	// this side reads it back.
+	InstalledBy string
+	// BoundAtUnixMs is filled by GuildsOf and ignored on writes.
+	BoundAtUnixMs int64
 }
 
-// Ticket is one private support channel.
-type Ticket struct {
-	ChannelID string
-	GuildID   string
-	OpenerID  string
+// BindingSource says where a resolved binding came from.
+type BindingSource int
+
+const (
+	// BindingFromStore: discord-data answered. The only provenance an
+	// ownership decision may be made on.
+	BindingFromStore BindingSource = iota
+	// BindingFromCache: discord-data was unreachable and the cached binding
+	// was served instead. Good enough to keep routing gateway events, NOT good
+	// enough to decide whether a dashboard caller owns a guild: the cache
+	// entry may predate an unbind, and the answer to "is this yours" would
+	// then be yes for a server that is no longer theirs.
+	BindingFromCache
+)
+
+// SetConfig is one guild's settings write. ExpectedVersion is the version the
+// caller read (zero when it read nothing); discord-data refuses a mismatch
+// rather than letting two dashboard tabs overwrite each other.
+type SetConfig struct {
+	Guild           Guild
+	Broadcaster     Broadcaster
+	Config          ddiscord.Config
+	ExpectedVersion int
 }
 
-// VoiceSeat is one user's voice-channel membership at a point in time; the
-// zero ChannelID means "not in a voice channel".
-type VoiceSeat struct {
-	GuildID   string
-	UserID    string
-	ChannelID string
+// GuildConfigOf pairs a guild with the settings that guild carries. It is what
+// a broadcaster-driven producer (go-live, clips) iterates: one Twitch event
+// fans out to every guild the broadcaster installed the bot into.
+type GuildConfigOf struct {
+	Guild  Guild
+	Config ddiscord.Config
 }
 
 // Store is the Valkey-backed (or in-memory) state engine and outgress share.
@@ -88,20 +146,81 @@ type Store interface {
 	// Broadcaster resolves a Discord guild to the Twitch broadcaster it is
 	// bound to. Written by BindGuild (outgress, on guild setup).
 	Broadcaster(ctx context.Context, g Guild) (Broadcaster, bool)
-	BindGuild(ctx context.Context, g Guild, b Broadcaster) error
-	UnbindGuild(ctx context.Context, g Guild) error
+	// BindingOf is Broadcaster with the answer's provenance attached. An
+	// ownership check must use this one and refuse BindingFromCache; the
+	// event path uses Broadcaster, where a cached answer is the point.
+	BindingOf(ctx context.Context, g Guild) (Broadcaster, BindingSource, bool)
+	BindGuild(ctx context.Context, bind Binding) error
+	UnbindGuild(ctx context.Context, bind Binding) error
+
+	// GuildsOf lists every guild a broadcaster installed the bot into. One
+	// broadcaster owns many guilds, so a Twitch-driven producer fans out over
+	// this rather than resolving "the" guild. An unreachable store is
+	// ErrStoreUnavailable, never an empty slice.
+	GuildsOf(ctx context.Context, b Broadcaster) ([]Binding, error)
+	// GuildConfig reads one guild's settings and the version to echo back on
+	// the next write. Found is false for a guild that was bound but never
+	// saved, which reads the same as a guild with everything switched off.
+	GuildConfig(ctx context.Context, g Guild) (ddiscord.Config, int, bool)
+	// SetGuildConfig writes one guild's settings and returns the version the
+	// row now holds.
+	SetGuildConfig(ctx context.Context, set SetConfig) (int, error)
+	// Invalidate drops one guild's cached settings. Outgress calls it after
+	// every successful write so the engine picks the change up on its next
+	// event instead of at the end of the cache TTL.
+	Invalidate(ctx context.Context, g Guild)
 
 	TrackClone(ctx context.Context, c Clone) error
 	Clone(ctx context.Context, ch Channel) (Clone, bool)
 	CloneCount(ctx context.Context, g Guild) int
 	ForgetClone(ctx context.Context, c Clone) error
 
-	TrackTicket(ctx context.Context, t Ticket) error
-	Ticket(ctx context.Context, ch Channel) (Ticket, bool)
-	ForgetTicket(ctx context.Context, ch Channel) error
+	TrackTicket(ctx context.Context, t TicketOpen) (TicketOpenResult, error)
+	// Ticket takes the guild the channel belongs to. It used to address a
+	// ticket by channel alone -- a Discord channel snowflake is globally
+	// unique, so the guild looked redundant -- but that made the guild filter
+	// optional all the way down into discord-data, where it is what stops a
+	// caller holding a channel id from another guild from reading that
+	// guild's ticket. Merge note (2026-09-05): the ticket-desk branch shipped
+	// the unguilded form and re-checked the guild in the engine module
+	// instead; the scoped read is the same check one layer lower, where every
+	// caller gets it rather than only the ones that remember.
+	Ticket(ctx context.Context, g Guild, ch Channel) (Ticket, bool)
+	// OpenTicketCount is how many live tickets one member holds in one guild.
+	// Read before the channel is created: it both refuses an over-limit open
+	// without a wasted Discord round trip and numbers the new channel.
+	OpenTicketCount(ctx context.Context, m Member) int
+	ClaimTicket(ctx context.Context, c TicketClaim) error
+	CloseTicket(ctx context.Context, c TicketClose) error
+	// PutTranscript stores a closed ticket's rendered history against its row.
+	// A zero TicketID is a no-op: the pure-Valkey fallback has no ticket rows
+	// to hang a transcript on.
+	PutTranscript(ctx context.Context, t Transcript) error
+
+	// TicketsDurable reports whether an opened ticket gets a row that
+	// outlives the channel. False is the pure-Valkey fallback, which has no
+	// row ids, no per-member open limit and no transcripts; the desk REFUSES
+	// to open in that mode rather than handing a member a channel it can
+	// neither number, limit nor transcribe.
+	TicketsDurable(ctx context.Context) bool
+
+	// MarkPendingClose remembers a close Discord already performed but the
+	// ticket row never recorded, so the next interaction on that channel can
+	// finish the write instead of leaving a row that says "open" forever.
+	MarkPendingClose(ctx context.Context, c TicketClose) error
+	PendingClose(ctx context.Context, ch Channel) (TicketClose, bool)
+	ClearPendingClose(ctx context.Context, ch Channel) error
+
+	// ClaimSummary reports whether THIS caller is the one that gets to post
+	// the close summary for a ticket. It is a set-if-absent with a day's TTL,
+	// so a retried close does not stack a second card and a second transcript
+	// in the log channel. A zero ticketID (the fallback, which has no row ids)
+	// always claims.
+	ClaimSummary(ctx context.Context, ticketID int) bool
 
 	ClaimDesk(ctx context.Context, g Guild) bool
-	RememberDesk(ctx context.Context, g Guild) error
+	RememberDesk(ctx context.Context, p DeskPanel) error
+	Desk(ctx context.Context, g Guild) (DeskPanel, bool)
 
 	AddXP(ctx context.Context, m Member) (xp int, leveled bool, level int)
 	ClaimDaily(ctx context.Context, m Member) (ok bool, xp int)
@@ -118,36 +237,30 @@ type valkeyStore struct {
 	client valkey.Client
 }
 
-// New builds the production store.
-func New(client valkey.Client) Store {
-	if client == nil {
-		return NewMem()
-	}
-	return valkeyStore{client: client}
-}
+// New builds the node-local store: Valkey-backed, or the in-memory double when
+// no client is configured. It is the whole store for a process that keeps its
+// Discord state in Valkey; NewRPC wraps one of these to move bindings, tickets
+// and XP onto discord-data while keeping the local keyspaces here.
+func New(client valkey.Client) Store { return newLocal(client) }
 
 func guildKey(g Guild) string { return "discord:guild:" + g.ID }
 
-func cloneKey(ch Channel) string { return "discord:voice:" + ch.ID }
+// guildsKey caches one broadcaster's whole guild list. Written on every
+// listing, dropped by both write verbs, and short-lived: see guildsCacheTTL.
+func guildsKey(b Broadcaster) string { return "discord:guilds:" + b.ID }
 
-func cloneSet(g Guild) string { return "discord:voices:" + g.ID }
+// cfgKey caches one guild's settings. Read on every gateway event, written
+// only from the dashboard, and invalidated directly by outgress on save -- so
+// the TTL is only the backstop for an invalidation this process never saw.
+func cfgKey(g Guild) string { return "discord:cfg:" + g.ID }
 
-func ticketKey(ch Channel) string { return "discord:ticket:" + ch.ID }
-
-func deskKey(g Guild) string { return "discord:ticketdesk:" + g.ID }
-
-func xpKey(m Member) string { return "discord:xp:" + m.key() }
-
-func xpCDKey(m Member) string { return "discord:xpcd:" + m.key() }
-
-func dailyKey(m Member) string { return "discord:daily:" + m.key() }
-
-// occupantsKey is the set of user ids currently seated in one channel.
-func occupantsKey(ch Channel) string { return "discord:voiceoccupants:" + ch.ID }
-
-// seatKey is the channel one user is currently seated in, keyed by
-// guild+user so a user in no guild's voice channel simply has no key.
-func seatKey(m Member) string { return "discord:voiceseat:" + m.key() }
+// BindingOf answers from the store of record: a process wired to New holds no
+// cache in front of anything, so its binding reads are authoritative by
+// construction.
+func (s valkeyStore) BindingOf(ctx context.Context, g Guild) (Broadcaster, BindingSource, bool) {
+	b, ok := s.Broadcaster(ctx, g)
+	return b, BindingFromStore, ok
+}
 
 func (s valkeyStore) Broadcaster(ctx context.Context, g Guild) (Broadcaster, bool) {
 	raw, err := s.client.Do(ctx, s.client.B().Get().Key(guildKey(g)).Build()).ToString()
@@ -160,214 +273,105 @@ func (s valkeyStore) Broadcaster(ctx context.Context, g Guild) (Broadcaster, boo
 	return Broadcaster{ID: raw}, true
 }
 
-func (s valkeyStore) BindGuild(ctx context.Context, g Guild, b Broadcaster) error {
-	if g.ID == "" {
+func (s valkeyStore) BindGuild(ctx context.Context, bind Binding) error {
+	if bind.Guild.ID == "" || bind.Broadcaster.ID == "" {
 		return nil
 	}
-	if b.ID == "" {
-		return nil
-	}
-	return s.client.Do(ctx, s.client.B().Set().Key(guildKey(g)).Value(b.ID).Build()).Error()
+	s.dropGuilds(ctx, bind.Broadcaster)
+	return s.client.Do(ctx, s.client.B().Set().Key(guildKey(bind.Guild)).Value(bind.Broadcaster.ID).Build()).Error()
 }
 
-func (s valkeyStore) UnbindGuild(ctx context.Context, g Guild) error {
-	return s.client.Do(ctx, s.client.B().Del().Key(guildKey(g)).Build()).Error()
+func (s valkeyStore) UnbindGuild(ctx context.Context, bind Binding) error {
+	s.dropGuilds(ctx, bind.Broadcaster)
+	return s.client.Do(ctx, s.client.B().Del().Key(guildKey(bind.Guild)).Build()).Error()
 }
 
-func (s valkeyStore) TrackClone(ctx context.Context, c Clone) error {
-	ch := Channel{ID: c.ChannelID}
-	g := Guild{ID: c.GuildID}
-	if err := s.client.Do(ctx, s.client.B().Set().Key(cloneKey(ch)).Value(c.GuildID+"|"+c.OwnerID).Build()).Error(); err != nil {
-		return err
-	}
-	return s.client.Do(ctx, s.client.B().Sadd().Key(cloneSet(g)).Member(c.ChannelID).Build()).Error()
+// GuildsOf has no Valkey answer. The reverse index this store keeps is
+// guild->broadcaster, one key per guild; listing a broadcaster's guilds from
+// it would mean a KEYS scan of the whole keyspace on every dashboard load.
+// discord-data indexes the column instead, so this direction exists only on
+// the RPC-backed store.
+func (s valkeyStore) GuildsOf(_ context.Context, b Broadcaster) ([]Binding, error) {
+	zap.L().Warn("discord guild list needs the discord-data-backed store; refusing",
+		zap.String("broadcaster_id", b.ID))
+	return nil, ErrStoreUnavailable
 }
 
-func (s valkeyStore) Clone(ctx context.Context, ch Channel) (Clone, bool) {
-	raw, err := s.client.Do(ctx, s.client.B().Get().Key(cloneKey(ch)).Build()).ToString()
-	if err != nil {
-		return Clone{}, false
-	}
-	if raw == "" {
-		return Clone{}, false
-	}
-	guildID, ownerID, ok := strings.Cut(raw, "|")
-	if !ok {
-		return Clone{}, false
-	}
-	return Clone{ChannelID: ch.ID, GuildID: guildID, OwnerID: ownerID}, true
+// GuildConfig is not served here. Guild settings have no Valkey store of
+// record -- discord-data holds them and this store has only the cache in front
+// of it -- so answering from the cache would mean serving settings that may
+// have been deleted, with no way to ever notice. A process that reaches this
+// method is wired to New instead of NewRPC, which is a deployment mistake, so
+// it warns rather than failing silently.
+func (s valkeyStore) GuildConfig(_ context.Context, g Guild) (ddiscord.Config, int, bool) {
+	zap.L().Warn("discord guild settings need the discord-data-backed store; answering not-found",
+		zap.String("guild_id", g.ID))
+	return ddiscord.Config{}, 0, false
 }
 
-func (s valkeyStore) CloneCount(ctx context.Context, g Guild) int {
-	n, err := s.client.Do(ctx, s.client.B().Scard().Key(cloneSet(g)).Build()).AsInt64()
-	if err != nil {
-		return 0
-	}
-	return int(n)
+// SetGuildConfig refuses for the same reason, loudly: a write accepted here
+// would be acknowledged to the dashboard and then read back by nobody.
+func (s valkeyStore) SetGuildConfig(_ context.Context, set SetConfig) (int, error) {
+	zap.L().Warn("discord guild settings need the discord-data-backed store; refusing the write",
+		zap.String("guild_id", set.Guild.ID))
+	return 0, ErrConfigUnavailable
 }
 
-func (s valkeyStore) ForgetClone(ctx context.Context, c Clone) error {
-	ch := Channel{ID: c.ChannelID}
-	g := Guild{ID: c.GuildID}
-	_ = s.client.Do(ctx, s.client.B().Del().Key(cloneKey(ch)).Build()).Error()
-	return s.client.Do(ctx, s.client.B().Srem().Key(cloneSet(g)).Member(c.ChannelID).Build()).Error()
-}
-
-func (s valkeyStore) TrackTicket(ctx context.Context, t Ticket) error {
-	ch := Channel{ID: t.ChannelID}
-	return s.client.Do(ctx, s.client.B().Set().Key(ticketKey(ch)).Value(t.GuildID+"|"+t.OpenerID).Build()).Error()
-}
-
-func (s valkeyStore) Ticket(ctx context.Context, ch Channel) (Ticket, bool) {
-	raw, err := s.client.Do(ctx, s.client.B().Get().Key(ticketKey(ch)).Build()).ToString()
-	if err != nil {
-		return Ticket{}, false
-	}
-	if raw == "" {
-		return Ticket{}, false
-	}
-	guildID, openerID, ok := strings.Cut(raw, "|")
-	if !ok {
-		return Ticket{}, false
-	}
-	return Ticket{ChannelID: ch.ID, GuildID: guildID, OpenerID: openerID}, true
-}
-
-func (s valkeyStore) ForgetTicket(ctx context.Context, ch Channel) error {
-	return s.client.Do(ctx, s.client.B().Del().Key(ticketKey(ch)).Build()).Error()
-}
-
-func (s valkeyStore) ClaimDesk(ctx context.Context, g Guild) bool {
-	err := s.client.Do(ctx, s.client.B().Set().Key(deskKey(g)).Value("1").Nx().Build()).Error()
-	return err == nil
-}
-
-func (s valkeyStore) RememberDesk(ctx context.Context, g Guild) error {
-	return s.client.Do(ctx, s.client.B().Set().Key(deskKey(g)).Value("1").Build()).Error()
-}
-
-func (s valkeyStore) AddXP(ctx context.Context, m Member) (int, bool, int) {
-	err := s.client.Do(ctx, s.client.B().Set().Key(xpCDKey(m)).Value("1").Nx().ExSeconds(xpCooldown).Build()).Error()
-	if err != nil {
-		xp, level := s.Rank(ctx, m)
-		return xp, false, level
-	}
-	before, _ := s.Rank(ctx, m)
-	n, err := s.client.Do(ctx, s.client.B().Incrby().Key(xpKey(m)).Increment(xpPerMessage).Build()).AsInt64()
-	if err != nil {
-		return before, false, levelOf(before)
-	}
-	xp := int(n)
-	return xp, levelOf(xp) > levelOf(before), levelOf(xp)
-}
-
-func (s valkeyStore) ClaimDaily(ctx context.Context, m Member) (bool, int) {
-	err := s.client.Do(ctx, s.client.B().Set().Key(dailyKey(m)).Value("1").Nx().ExSeconds(dailyTTL).Build()).Error()
-	if valkey.IsValkeyNil(err) {
-		xp, _ := s.Rank(ctx, m)
-		return false, xp
-	}
-	if err != nil {
-		return false, 0
-	}
-	n, err := s.client.Do(ctx, s.client.B().Incrby().Key(xpKey(m)).Increment(dailyXP).Build()).AsInt64()
-	if err != nil {
-		return true, dailyXP
-	}
-	return true, int(n)
-}
-
-func (s valkeyStore) Rank(ctx context.Context, m Member) (int, int) {
-	raw, err := s.client.Do(ctx, s.client.B().Get().Key(xpKey(m)).Build()).ToString()
-	if err != nil {
-		return 0, 0
-	}
-	if raw == "" {
-		return 0, 0
-	}
-	xp, _ := strconv.Atoi(raw)
-	return xp, levelOf(xp)
-}
-
-// UpdateVoiceOccupancy ports app/dingress/internal/community's in-memory
-// occupancy.update onto Valkey, key for key: two round trips (leave the old
-// seat, take the new one) rather than one atomic script. That is a
-// deliberate simplification, not an oversight -- the two operations it
-// races against itself are "the same user's own next VOICE_STATE_UPDATE"
-// (Discord delivers one user's voice events to one guild in order, so there
-// is nothing to race) and "another replica handling a DIFFERENT user's
-// event for the same channel" (which only contends on the occupants set's
-// membership count, and a stale read there costs at worst one clone deleted
-// a beat late or kept a beat past truly empty -- never a wrong owner, never
-// a double-delete). A Lua script would make that count linearizable for no
-// behavior the cleanup this feeds actually needs.
-func (s valkeyStore) UpdateVoiceOccupancy(ctx context.Context, seat VoiceSeat) (string, bool) {
-	m := Member{GuildID: seat.GuildID, UserID: seat.UserID}
-	prev, _ := s.client.Do(ctx, s.client.B().Get().Key(seatKey(m)).Build()).ToString()
-
-	var left string
-	var leftEmpty bool
-	if prev != "" {
-		left = prev
-		leftEmpty = s.leaveVoice(ctx, Channel{ID: prev}, seat.UserID)
-	}
-
-	if seat.ChannelID == "" {
-		_ = s.client.Do(ctx, s.client.B().Del().Key(seatKey(m)).Build()).Error()
-		return left, leftEmpty
-	}
-
-	_ = s.client.Do(ctx, s.client.B().Sadd().Key(occupantsKey(Channel{ID: seat.ChannelID})).Member(seat.UserID).Build()).Error()
-	_ = s.client.Do(ctx, s.client.B().Set().Key(seatKey(m)).Value(seat.ChannelID).Build()).Error()
-	return left, leftEmpty && prev != seat.ChannelID
-}
-
-// leaveVoice removes userID from ch's occupant set and reports whether that
-// leaves it empty.
-func (s valkeyStore) leaveVoice(ctx context.Context, ch Channel, userID string) bool {
-	_ = s.client.Do(ctx, s.client.B().Srem().Key(occupantsKey(ch)).Member(userID).Build()).Error()
-	n, err := s.client.Do(ctx, s.client.B().Scard().Key(occupantsKey(ch)).Build()).AsInt64()
-	if err != nil {
-		return false
-	}
-	return n == 0
-}
-
-func levelOf(xp int) int {
-	if xp <= 0 {
-		return 0
-	}
-	return int(math.Sqrt(float64(xp) / 100))
+// Invalidate drops the cached settings. This one IS the Valkey store's job
+// even here: the cache is the only part of the settings path that lives in
+// Valkey, and outgress runs in a process that may hold either store.
+func (s valkeyStore) Invalidate(ctx context.Context, g Guild) {
+	s.dropConfig(ctx, g)
 }
 
 // Mem is an in-process Store for tests.
 type Mem struct {
-	mu         sync.Mutex
-	guild      map[string]string
-	clones     map[string]Clone
-	cloneCount map[string]int
-	tickets    map[string]Ticket
-	desk       map[string]bool
-	xp         map[string]int
-	xpCD       map[string]bool
-	daily      map[string]bool
-	occupants  map[string]map[string]struct{}
-	seats      map[string]string
+	mu          sync.Mutex
+	guild       map[string]string
+	clones      map[string]Clone
+	cloneCount  map[string]int
+	tickets     map[string]Ticket
+	pending     map[string]TicketClose
+	summaries   map[int]bool
+	transcripts map[int]Transcript
+	ticketSeq   int
+	desk        map[string]DeskPanel
+	xp          map[string]int
+	xpCD        map[string]bool
+	daily       map[string]bool
+	occupants   map[string]map[string]struct{}
+	seats       map[string]string
+	configs     map[string]memConfig
+	// guildsCache backs the localStore guild-list cache the RPC store
+	// composes. It is deliberately separate from guild: GuildsOf reads live
+	// state, this is the cache in front of discord-data.
+	guildsCache map[string][]Binding
+}
+
+// memConfig is one guild's stored settings in the memory double.
+type memConfig struct {
+	Config  ddiscord.Config
+	Version int
 }
 
 // NewMem builds an empty memory store.
 func NewMem() *Mem {
 	return &Mem{
-		guild:      map[string]string{},
-		clones:     map[string]Clone{},
-		cloneCount: map[string]int{},
-		tickets:    map[string]Ticket{},
-		desk:       map[string]bool{},
-		xp:         map[string]int{},
-		xpCD:       map[string]bool{},
-		daily:      map[string]bool{},
-		occupants:  map[string]map[string]struct{}{},
-		seats:      map[string]string{},
+		guild:       map[string]string{},
+		clones:      map[string]Clone{},
+		cloneCount:  map[string]int{},
+		tickets:     map[string]Ticket{},
+		pending:     map[string]TicketClose{},
+		summaries:   map[int]bool{},
+		transcripts: map[int]Transcript{},
+		desk:        map[string]DeskPanel{},
+		xp:          map[string]int{},
+		xpCD:        map[string]bool{},
+		daily:       map[string]bool{},
+		occupants:   map[string]map[string]struct{}{},
+		seats:       map[string]string{},
+		configs:     map[string]memConfig{},
+		guildsCache: map[string][]Binding{},
 	}
 }
 
@@ -378,6 +382,12 @@ func (m *Mem) PutGuild(g Guild, b Broadcaster) {
 	m.guild[g.ID] = b.ID
 }
 
+// BindingOf answers from the memory store of record.
+func (m *Mem) BindingOf(ctx context.Context, g Guild) (Broadcaster, BindingSource, bool) {
+	b, ok := m.Broadcaster(ctx, g)
+	return b, BindingFromStore, ok
+}
+
 func (m *Mem) Broadcaster(_ context.Context, g Guild) (Broadcaster, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -385,165 +395,75 @@ func (m *Mem) Broadcaster(_ context.Context, g Guild) (Broadcaster, bool) {
 	return Broadcaster{ID: v}, ok
 }
 
-func (m *Mem) BindGuild(_ context.Context, g Guild, b Broadcaster) error {
+func (m *Mem) BindGuild(_ context.Context, bind Binding) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if g.ID == "" || b.ID == "" {
+	if bind.Guild.ID == "" || bind.Broadcaster.ID == "" {
 		return nil
 	}
-	m.guild[g.ID] = b.ID
+	m.guild[bind.Guild.ID] = bind.Broadcaster.ID
 	return nil
 }
 
-func (m *Mem) UnbindGuild(_ context.Context, g Guild) error {
+func (m *Mem) UnbindGuild(_ context.Context, bind Binding) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	delete(m.guild, g.ID)
+	delete(m.guild, bind.Guild.ID)
 	return nil
 }
 
-func (m *Mem) TrackClone(_ context.Context, c Clone) error {
+// GuildsOf lists the guilds bound to b, in guild-id order so a test asserting
+// on the slice does not depend on map iteration.
+func (m *Mem) GuildsOf(_ context.Context, b Broadcaster) ([]Binding, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.clones[c.ChannelID] = c
-	m.cloneCount[c.GuildID]++
-	return nil
-}
-
-func (m *Mem) Clone(_ context.Context, ch Channel) (Clone, bool) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	c, ok := m.clones[ch.ID]
-	return c, ok
-}
-
-func (m *Mem) CloneCount(_ context.Context, g Guild) int {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.cloneCount[g.ID]
-}
-
-func (m *Mem) ForgetClone(_ context.Context, c Clone) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	delete(m.clones, c.ChannelID)
-	if m.cloneCount[c.GuildID] > 0 {
-		m.cloneCount[c.GuildID]--
+	ids := make([]string, 0, len(m.guild))
+	for guildID, broadcasterID := range m.guild {
+		if broadcasterID == b.ID {
+			ids = append(ids, guildID)
+		}
 	}
-	return nil
-}
-
-func (m *Mem) TrackTicket(_ context.Context, t Ticket) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.tickets[t.ChannelID] = t
-	return nil
-}
-
-func (m *Mem) Ticket(_ context.Context, ch Channel) (Ticket, bool) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	t, ok := m.tickets[ch.ID]
-	return t, ok
-}
-
-func (m *Mem) ForgetTicket(_ context.Context, ch Channel) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	delete(m.tickets, ch.ID)
-	return nil
-}
-
-func (m *Mem) ClaimDesk(_ context.Context, g Guild) bool {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.desk[g.ID] {
-		return false
+	sort.Strings(ids)
+	out := make([]Binding, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, Binding{Guild: Guild{ID: id}, Broadcaster: b})
 	}
-	m.desk[g.ID] = true
-	return true
+	return out, nil
 }
 
-func (m *Mem) RememberDesk(_ context.Context, g Guild) error {
+func (m *Mem) GuildConfig(_ context.Context, g Guild) (ddiscord.Config, int, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.desk[g.ID] = true
-	return nil
+	got, ok := m.configs[g.ID]
+	if !ok {
+		return ddiscord.Config{}, 0, false
+	}
+	return got.Config, got.Version, true
 }
 
-func (m *Mem) AddXP(_ context.Context, mem Member) (int, bool, int) {
+// SetGuildConfig applies the same two checks the real store does: the caller
+// must own the guild, and must hold the current version.
+func (m *Mem) SetGuildConfig(_ context.Context, set SetConfig) (int, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	k := mem.key()
-	if m.xpCD[k] {
-		xp := m.xp[k]
-		return xp, false, levelOf(xp)
+	if m.guild[set.Guild.ID] != set.Broadcaster.ID || set.Broadcaster.ID == "" {
+		return 0, ErrNotBound
 	}
-	m.xpCD[k] = true
-	before := m.xp[k]
-	m.xp[k] = before + xpPerMessage
-	return m.xp[k], levelOf(m.xp[k]) > levelOf(before), levelOf(m.xp[k])
+	if m.configs[set.Guild.ID].Version != set.ExpectedVersion {
+		return 0, ErrConfigConflict
+	}
+	version := set.ExpectedVersion + 1
+	m.configs[set.Guild.ID] = memConfig{Config: set.Config, Version: version}
+	return version, nil
 }
 
-func (m *Mem) ClaimDaily(_ context.Context, mem Member) (bool, int) {
+// Invalidate is a no-op: the memory store has no cache in front of itself.
+func (m *Mem) Invalidate(_ context.Context, _ Guild) {}
+
+// PutGuildConfig seeds settings without going through the ownership and
+// version checks, for tests that are about something else.
+func (m *Mem) PutGuildConfig(g Guild, cfg ddiscord.Config) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	k := mem.key()
-	if m.daily[k] {
-		return false, m.xp[k]
-	}
-	m.daily[k] = true
-	m.xp[k] += dailyXP
-	return true, m.xp[k]
-}
-
-func (m *Mem) Rank(_ context.Context, mem Member) (int, int) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	xp := m.xp[mem.key()]
-	return xp, levelOf(xp)
-}
-
-func (m *Mem) UpdateVoiceOccupancy(_ context.Context, seat VoiceSeat) (left string, leftEmpty bool) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	mem := Member{GuildID: seat.GuildID, UserID: seat.UserID}
-	key := mem.key()
-	prev := m.seats[key]
-	if prev != "" {
-		left = prev
-		leftEmpty = m.leaveVoiceLocked(prev, seat.UserID)
-	}
-	if seat.ChannelID == "" {
-		delete(m.seats, key)
-		return left, leftEmpty
-	}
-	if m.occupants[seat.ChannelID] == nil {
-		m.occupants[seat.ChannelID] = map[string]struct{}{}
-	}
-	m.occupants[seat.ChannelID][seat.UserID] = struct{}{}
-	m.seats[key] = seat.ChannelID
-	return left, leftEmpty && prev != seat.ChannelID
-}
-
-// leaveVoiceLocked assumes m.mu is already held.
-func (m *Mem) leaveVoiceLocked(channelID, userID string) bool {
-	delete(m.occupants[channelID], userID)
-	if len(m.occupants[channelID]) != 0 {
-		return false
-	}
-	delete(m.occupants, channelID)
-	return true
-}
-
-type XPSeed struct {
-	Member Member
-	Amount int
-}
-
-// SeedXP is a test helper that sets crumbs without touching the cooldown.
-func (m *Mem) SeedXP(s XPSeed) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.xp[s.Member.key()] = s.Amount
+	m.configs[g.ID] = memConfig{Config: cfg, Version: m.configs[g.ID].Version + 1}
 }

@@ -5,6 +5,7 @@ package dispatch
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"testing"
 
@@ -19,7 +20,10 @@ import (
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
 
+	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 // This file replays app/dingress/internal/community/bot_test.go's scenarios
@@ -32,9 +36,55 @@ import (
 type fakeChannels struct {
 	mu       sync.Mutex
 	created  []string
+	panels   []discordoutgress.TicketPanelRequest
 	deleted  []string
 	moved    []string
 	modified []string
+	// opened/claimed/closed/added record the ticket-desk orchestrations, which
+	// outgress performs on the engine's behalf (see
+	// internal/domain/rpc/discordoutgress/ticket.go).
+	opened  []discordoutgress.TicketOpenRequest
+	claimed []discordoutgress.TicketClaimRequest
+	closed  []discordoutgress.TicketCloseRequest
+	added   []discordoutgress.TicketMemberAddRequest
+}
+
+func (f *fakeChannels) TicketOpen(_ context.Context, req discordoutgress.TicketOpenRequest) (discordoutgress.TicketOpenReply, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	id := "ch-" + req.Name
+	f.created = append(f.created, id)
+	f.opened = append(f.opened, req)
+	return discordoutgress.TicketOpenReply{ChannelID: id, MessageID: "msg-" + id}, nil
+}
+
+func (f *fakeChannels) TicketClaim(_ context.Context, req discordoutgress.TicketClaimRequest) (discordoutgress.TicketClaimReply, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.claimed = append(f.claimed, req)
+	return discordoutgress.TicketClaimReply{}, nil
+}
+
+func (f *fakeChannels) TicketClose(_ context.Context, req discordoutgress.TicketCloseRequest) (discordoutgress.TicketCloseReply, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.closed = append(f.closed, req)
+	f.deleted = append(f.deleted, req.ChannelID)
+	return discordoutgress.TicketCloseReply{}, nil
+}
+
+func (f *fakeChannels) TicketAddMember(_ context.Context, req discordoutgress.TicketMemberAddRequest) (discordoutgress.TicketMemberAddReply, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.added = append(f.added, req)
+	return discordoutgress.TicketMemberAddReply{}, nil
+}
+
+func (f *fakeChannels) TicketPanel(_ context.Context, req discordoutgress.TicketPanelRequest) (discordoutgress.TicketPanelReply, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.panels = append(f.panels, req)
+	return discordoutgress.TicketPanelReply{MessageID: "m-panel"}, nil
 }
 
 func (f *fakeChannels) CreateChannel(_ context.Context, req discordoutgress.ChannelCreateRequest) (discordoutgress.ChannelCreateReply, error) {
@@ -106,10 +156,27 @@ func (l *commandLog) byType(t string) []ddiscord.Command {
 	return out
 }
 
+// Fixture ids are snowflake-SHAPED on purpose: resolve zeroes config fields
+// that cannot be a Discord id (ddiscord.SanitizeConfig), so a fixture using
+// "g1" would resolve as an unconnected guild and every assertion below
+// would pass for the wrong reason.
+const (
+	testGuild      = "100000000000000001"
+	testWelcomeCh  = "100000000000000002"
+	testMemberRole = "100000000000000003"
+	testLogsCh     = "100000000000000004"
+	testVoiceHub   = "100000000000000005"
+	testTicketCat  = "100000000000000006"
+	testSupportCh  = "100000000000000007"
+)
+
 func testDispatcher(cfg ddiscord.Config) (*Dispatcher, *fakeChannels, *discordstore.Mem, *commandLog) {
 	channels := &fakeChannels{}
 	store := discordstore.NewMem()
 	store.PutGuild(discordstore.Guild{ID: cfg.GuildID}, discordstore.Broadcaster{ID: "42"})
+	// Per-guild settings live in the store now, not in the module blob: the
+	// blob keeps only the master switch fakeModules reports.
+	store.PutGuildConfig(discordstore.Guild{ID: cfg.GuildID}, cfg)
 	log := &commandLog{}
 
 	// Tier reports premium: Discord is premium-only while it is in beta
@@ -121,7 +188,7 @@ func testDispatcher(cfg ddiscord.Config) (*Dispatcher, *fakeChannels, *discordst
 		Tier: func(context.Context, uint64) (string, bool) { return "paid", true },
 		Log:  zap.NewNop(),
 	}
-	reg := registry.New(modules.All(modules.Deps{Store: store, Channels: channels, Purge: channels, Log: zap.NewNop()})...)
+	reg := registry.New(modules.All(modules.Deps{Store: store, Channels: channels, Tickets: channels, Purge: channels, Log: zap.NewNop()})...)
 	d := &Dispatcher{Registry: reg, Resolver: resolver, Store: store, Publish: log.publish, Log: zap.NewNop()}
 	return d, channels, store, log
 }
@@ -160,8 +227,8 @@ func memberPayload(guildID string) map[string]any {
 }
 
 func TestWelcomeAndAutorole(t *testing.T) {
-	d, _, _, log := testDispatcher(ddiscord.Config{GuildID: "g1", WelcomeChannelID: "welcome", MemberRoleID: "member"})
-	dispatch(t, d, event(t, "GUILD_MEMBER_ADD", "g1", memberPayload("g1")))
+	d, _, _, log := testDispatcher(ddiscord.Config{GuildID: testGuild, WelcomeChannelID: testWelcomeCh, MemberRoleID: testMemberRole})
+	dispatch(t, d, event(t, "GUILD_MEMBER_ADD", testGuild, memberPayload(testGuild)))
 
 	if got := log.byType(ddiscord.TypePostEmbed); len(got) != 1 {
 		t.Fatalf("welcome embeds = %d", len(got))
@@ -179,9 +246,9 @@ func TestMemberDispatchGuards(t *testing.T) {
 		guildID string
 		wantLog int
 	}{
-		{name: "goodbye off by default", cfg: ddiscord.Config{GuildID: "g1", WelcomeChannelID: "welcome"}, event: "GUILD_MEMBER_REMOVE", guildID: "g1", wantLog: 0},
-		{name: "join logs when welcome off", cfg: ddiscord.Config{GuildID: "g1", WelcomeEnabled: "off", LogChannelID: "logs"}, event: "GUILD_MEMBER_ADD", guildID: "g1", wantLog: 1},
-		{name: "unbound guild ignored", cfg: ddiscord.Config{GuildID: "g1", WelcomeChannelID: "welcome"}, event: "GUILD_MEMBER_ADD", guildID: "other", wantLog: 0},
+		{name: "goodbye off by default", cfg: ddiscord.Config{GuildID: testGuild, WelcomeChannelID: testWelcomeCh}, event: "GUILD_MEMBER_REMOVE", guildID: testGuild, wantLog: 0},
+		{name: "join logs when welcome off", cfg: ddiscord.Config{GuildID: testGuild, WelcomeEnabled: "off", LogChannelID: testLogsCh}, event: "GUILD_MEMBER_ADD", guildID: testGuild, wantLog: 1},
+		{name: "unbound guild ignored", cfg: ddiscord.Config{GuildID: testGuild, WelcomeChannelID: testWelcomeCh}, event: "GUILD_MEMBER_ADD", guildID: "other", wantLog: 0},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -202,8 +269,8 @@ func voicePayload(guildID, channelID string) map[string]any {
 }
 
 func TestJoinToCreateVoice(t *testing.T) {
-	d, channels, _, log := testDispatcher(ddiscord.Config{GuildID: "g1", VoiceHubID: "hub"})
-	dispatch(t, d, event(t, "VOICE_STATE_UPDATE", "g1", voicePayload("g1", "hub")))
+	d, channels, _, log := testDispatcher(ddiscord.Config{GuildID: testGuild, VoiceHubID: testVoiceHub})
+	dispatch(t, d, event(t, "VOICE_STATE_UPDATE", testGuild, voicePayload(testGuild, testVoiceHub)))
 
 	if len(channels.created) != 1 {
 		t.Fatalf("created = %v", channels.created)
@@ -217,11 +284,11 @@ func TestJoinToCreateVoice(t *testing.T) {
 }
 
 func TestEmptyCloneIsDeleted(t *testing.T) {
-	d, channels, _, _ := testDispatcher(ddiscord.Config{GuildID: "g1", VoiceHubID: "hub"})
-	dispatch(t, d, event(t, "VOICE_STATE_UPDATE", "g1", voicePayload("g1", "hub")))
+	d, channels, _, _ := testDispatcher(ddiscord.Config{GuildID: testGuild, VoiceHubID: testVoiceHub})
+	dispatch(t, d, event(t, "VOICE_STATE_UPDATE", testGuild, voicePayload(testGuild, testVoiceHub)))
 	cloneID := channels.created[0]
-	dispatch(t, d, event(t, "VOICE_STATE_UPDATE", "g1", voicePayload("g1", cloneID)))
-	dispatch(t, d, event(t, "VOICE_STATE_UPDATE", "g1", voicePayload("g1", "")))
+	dispatch(t, d, event(t, "VOICE_STATE_UPDATE", testGuild, voicePayload(testGuild, cloneID)))
+	dispatch(t, d, event(t, "VOICE_STATE_UPDATE", testGuild, voicePayload(testGuild, "")))
 
 	if len(channels.deleted) != 1 || channels.deleted[0] != cloneID {
 		t.Fatalf("deleted = %v, want [%s]", channels.deleted, cloneID)
@@ -236,19 +303,19 @@ func interactionPayload(guildID, channelID string, data map[string]any, member m
 }
 
 func TestTicketOpenAndClose(t *testing.T) {
-	d, channels, _, log := testDispatcher(ddiscord.Config{GuildID: "g1", TicketCategoryID: "cat"})
+	d, channels, _, _ := testDispatcher(ddiscord.Config{GuildID: testGuild, TicketCategoryID: testTicketCat})
 	member := map[string]any{"user": map[string]any{"id": "u1", "username": "Ada"}, "permissions": "8"}
 
-	dispatch(t, d, event(t, "INTERACTION_CREATE", "g1", interactionPayload("g1", "support",
+	dispatch(t, d, event(t, "INTERACTION_CREATE", testGuild, interactionPayload(testGuild, testSupportCh,
 		map[string]any{"custom_id": discordapi.CustomTicketOpen}, member)))
 	if len(channels.created) != 1 {
 		t.Fatalf("ticket channel = %v", channels.created)
 	}
-	if len(log.byType(ddiscord.TypePostPanel)) != 1 {
-		t.Fatal("expected a panel posted into the new ticket channel")
+	if len(channels.opened) != 1 || len(channels.opened[0].Buttons) != 2 {
+		t.Fatalf("ticket open request = %+v", channels.opened)
 	}
 
-	dispatch(t, d, event(t, "INTERACTION_CREATE", "g1", interactionPayload("g1", channels.created[0],
+	dispatch(t, d, event(t, "INTERACTION_CREATE", testGuild, interactionPayload(testGuild, channels.created[0],
 		map[string]any{"custom_id": discordapi.CustomTicketClose}, member)))
 	if len(channels.deleted) != 1 {
 		t.Fatalf("deleted = %v", channels.deleted)
@@ -256,17 +323,17 @@ func TestTicketOpenAndClose(t *testing.T) {
 }
 
 func TestDailyAndRank(t *testing.T) {
-	d, _, _, log := testDispatcher(ddiscord.Config{GuildID: "g1"})
+	d, _, _, log := testDispatcher(ddiscord.Config{GuildID: testGuild})
 	member := map[string]any{"user": map[string]any{"id": "u1"}}
 
-	dispatch(t, d, event(t, "INTERACTION_CREATE", "g1", interactionPayload("g1", "",
+	dispatch(t, d, event(t, "INTERACTION_CREATE", testGuild, interactionPayload(testGuild, "",
 		map[string]any{"name": "daily"}, member)))
 	first := log.byType(ddiscord.TypeInteractionFollowup)
 	if len(first) != 1 {
 		t.Fatalf("daily reply = %d", len(first))
 	}
 
-	dispatch(t, d, event(t, "INTERACTION_CREATE", "g1", interactionPayload("g1", "",
+	dispatch(t, d, event(t, "INTERACTION_CREATE", testGuild, interactionPayload(testGuild, "",
 		map[string]any{"name": "daily"}, member)))
 	second := log.byType(ddiscord.TypeInteractionFollowup)
 	if len(second) != 2 {
@@ -282,18 +349,18 @@ func TestDailyAndRank(t *testing.T) {
 }
 
 func TestModerationRequiresPerms(t *testing.T) {
-	d, _, _, log := testDispatcher(ddiscord.Config{GuildID: "g1"})
+	d, _, _, log := testDispatcher(ddiscord.Config{GuildID: testGuild})
 	kickData := map[string]any{"name": "kick", "options": []any{
 		map[string]any{"name": "user", "type": 6, "value": "u2"},
 	}}
 
-	dispatch(t, d, event(t, "INTERACTION_CREATE", "g1", interactionPayload("g1", "",
+	dispatch(t, d, event(t, "INTERACTION_CREATE", testGuild, interactionPayload(testGuild, "",
 		kickData, map[string]any{"user": map[string]any{"id": "u1"}, "permissions": "0"})))
 	if len(log.byType(ddiscord.TypeKickMember)) != 0 {
 		t.Fatal("kick without perms must not fire")
 	}
 
-	dispatch(t, d, event(t, "INTERACTION_CREATE", "g1", interactionPayload("g1", "",
+	dispatch(t, d, event(t, "INTERACTION_CREATE", testGuild, interactionPayload(testGuild, "",
 		kickData, map[string]any{"user": map[string]any{"id": "u1"}, "permissions": "8"})))
 	if len(log.byType(ddiscord.TypeKickMember)) != 1 {
 		t.Fatal("admin kick must fire")
@@ -301,11 +368,11 @@ func TestModerationRequiresPerms(t *testing.T) {
 }
 
 func TestLevelUpOnChat(t *testing.T) {
-	d, _, store, log := testDispatcher(ddiscord.Config{GuildID: "g1"})
-	store.SeedXP(discordstore.XPSeed{Member: discordstore.Member{GuildID: "g1", UserID: "u1"}, Amount: 90})
+	d, _, store, log := testDispatcher(ddiscord.Config{GuildID: testGuild})
+	store.SeedXP(discordstore.XPSeed{Member: discordstore.Member{GuildID: testGuild, UserID: "u1"}, Amount: 90})
 
-	dispatch(t, d, event(t, "MESSAGE_CREATE", "g1", map[string]any{
-		"id": "m1", "guild_id": "g1", "channel_id": "chat", "content": "hi",
+	dispatch(t, d, event(t, "MESSAGE_CREATE", testGuild, map[string]any{
+		"id": "m1", "guild_id": testGuild, "channel_id": "chat", "content": "hi",
 		"author": map[string]any{"id": "u1", "username": "Ada"},
 	}))
 	if got := log.byType(ddiscord.TypePostEmbed); len(got) != 1 {
@@ -314,9 +381,9 @@ func TestLevelUpOnChat(t *testing.T) {
 }
 
 func TestTicketDeskPostedOnce(t *testing.T) {
-	d, _, _, log := testDispatcher(ddiscord.Config{GuildID: "g1", TicketChannelID: "support", WelcomeEnabled: "off"})
-	dispatch(t, d, event(t, "GUILD_MEMBER_ADD", "g1", memberPayload("g1")))
-	dispatch(t, d, event(t, "GUILD_MEMBER_ADD", "g1", memberPayload("g1")))
+	d, _, _, log := testDispatcher(ddiscord.Config{GuildID: testGuild, TicketChannelID: testSupportCh, WelcomeEnabled: "off"})
+	dispatch(t, d, event(t, "GUILD_MEMBER_ADD", testGuild, memberPayload(testGuild)))
+	dispatch(t, d, event(t, "GUILD_MEMBER_ADD", testGuild, memberPayload(testGuild)))
 
 	panels := log.byType(ddiscord.TypePostPanel)
 	if len(panels) != 1 {
@@ -325,10 +392,10 @@ func TestTicketDeskPostedOnce(t *testing.T) {
 }
 
 func TestVoiceLockButton(t *testing.T) {
-	d, channels, _, log := testDispatcher(ddiscord.Config{GuildID: "g1", VoiceHubID: "hub"})
-	dispatch(t, d, event(t, "VOICE_STATE_UPDATE", "g1", voicePayload("g1", "hub")))
+	d, channels, _, log := testDispatcher(ddiscord.Config{GuildID: testGuild, VoiceHubID: testVoiceHub})
+	dispatch(t, d, event(t, "VOICE_STATE_UPDATE", testGuild, voicePayload(testGuild, testVoiceHub)))
 
-	dispatch(t, d, event(t, "INTERACTION_CREATE", "g1", interactionPayload("g1", channels.created[0],
+	dispatch(t, d, event(t, "INTERACTION_CREATE", testGuild, interactionPayload(testGuild, channels.created[0],
 		map[string]any{"custom_id": discordapi.CustomVoiceLock},
 		map[string]any{"user": map[string]any{"id": "u1", "username": "Ada"}, "permissions": "0"})))
 
@@ -342,5 +409,143 @@ func TestVoiceLockButton(t *testing.T) {
 	}
 	if payload.Content != "Locked." {
 		t.Fatalf("lock reply content = %q", payload.Content)
+	}
+}
+
+// flakyPublish fails the first failFor calls with failWith (defaulting to a
+// proven pre-admission error) and succeeds after, counting every attempt.
+type flakyPublish struct {
+	attempts int
+	failFor  int
+	// failWith is the error the failing attempts return. Zero means
+	// nats.ErrNoResponders: the broker never saw the bytes, which is the
+	// only condition under which republishing is a first delivery rather
+	// than a duplicate.
+	failWith error
+}
+
+func (f *flakyPublish) publish(context.Context, ddiscord.Command) error {
+	f.attempts++
+	if f.attempts > f.failFor {
+		return nil
+	}
+	if f.failWith != nil {
+		return f.failWith
+	}
+	return nats.ErrNoResponders
+}
+
+func observedDispatcher(pub func(context.Context, ddiscord.Command) error) (*Dispatcher, *observer.ObservedLogs) {
+	core, logs := observer.New(zapcore.DebugLevel)
+	return &Dispatcher{Publish: pub, Log: zap.New(core)}, logs
+}
+
+// TestPublishRetriesBeforeGivingUp pins the retry budget. A lost publish is
+// a command the user asked for that nothing will ever run: the ingress
+// message is ACKed either way, so nothing redelivers it.
+func TestPublishRetriesBeforeGivingUp(t *testing.T) {
+	pub := &flakyPublish{failFor: 99}
+	d, logs := observedDispatcher(pub.publish)
+
+	d.publishAll(context.Background(), []ddiscord.Command{{Type: "post"}})
+
+	if pub.attempts != publishAttempts {
+		t.Fatalf("attempts = %d, want %d", pub.attempts, publishAttempts)
+	}
+	lost := logs.FilterLevelExact(zapcore.ErrorLevel).All()
+	if len(lost) != 1 {
+		t.Fatalf("error logs = %d, want exactly one naming the lost command", len(lost))
+	}
+	if lost[0].ContextMap()["type"] != "post" {
+		t.Fatalf("error log fields = %v, want the command type", lost[0].ContextMap())
+	}
+}
+
+func TestPublishStopsRetryingOnceItSucceeds(t *testing.T) {
+	pub := &flakyPublish{failFor: 1}
+	d, logs := observedDispatcher(pub.publish)
+
+	d.publishAll(context.Background(), []ddiscord.Command{{Type: "post"}})
+
+	if pub.attempts != 2 {
+		t.Fatalf("attempts = %d, want 2 (one failure, one success)", pub.attempts)
+	}
+	if n := logs.FilterLevelExact(zapcore.ErrorLevel).Len(); n != 0 {
+		t.Fatalf("error logs = %d, want none: the command was published", n)
+	}
+}
+
+func TestPublishGivesUpImmediatelyOnShutdown(t *testing.T) {
+	pub := &flakyPublish{failFor: 99}
+	d, _ := observedDispatcher(pub.publish)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	d.publishAll(ctx, []ddiscord.Command{{Type: "post"}})
+
+	// One attempt, then the cancelled context ends it: a shutting-down pod
+	// must not spend its grace period retrying.
+	if pub.attempts != 1 {
+		t.Fatalf("attempts = %d, want 1 on a cancelled context", pub.attempts)
+	}
+}
+
+// TestUndecodableInteractionIsLogged pins the other silent drop: ingress has
+// already deferred the interaction, so a decode failure leaves the user
+// staring at "thinking..." with nothing logged anywhere.
+func TestUndecodableInteractionIsLogged(t *testing.T) {
+	d, logs := observedDispatcher(nil)
+
+	got := d.handlersFor(ddiscord.Event{Type: "INTERACTION_CREATE", GuildID: "g1", Raw: []byte("{not json")})
+
+	if got != nil {
+		t.Fatalf("handlers = %v, want none", got)
+	}
+	warns := logs.FilterLevelExact(zapcore.WarnLevel).All()
+	if len(warns) != 1 {
+		t.Fatalf("warn logs = %d, want one", len(warns))
+	}
+	fields := warns[0].ContextMap()
+	if fields["guild_id"] != "g1" || fields["event_type"] != "INTERACTION_CREATE" {
+		t.Fatalf("warn fields = %v, want the type and guild", fields)
+	}
+}
+
+// A PubAck timeout is NOT proof the publish failed: JetStream may have
+// stored the message and lost only the acknowledgement. Republishing there
+// posts the streamer's message into their guild twice, which is worse than
+// the miss, so an ambiguous outcome is logged once and dropped.
+func TestPublishDoesNotRetryAnAmbiguousTimeout(t *testing.T) {
+	pub := &flakyPublish{failFor: 99, failWith: nats.ErrTimeout}
+	d, logs := observedDispatcher(pub.publish)
+
+	d.publishAll(context.Background(), []ddiscord.Command{{Type: "post"}})
+
+	if pub.attempts != 1 {
+		t.Fatalf("attempts = %d, want 1: a timeout may already have been stored", pub.attempts)
+	}
+	errs := logs.FilterLevelExact(zapcore.ErrorLevel).All()
+	if len(errs) != 1 {
+		t.Fatalf("error logs = %d, want exactly one", len(errs))
+	}
+	fields := errs[0].ContextMap()
+	if fields["retried"] != false {
+		t.Fatalf("log fields = %v, want retried=false so an operator knows to go look on the stream", fields)
+	}
+	if fields["subject"] == "" || fields["type"] != "post" {
+		t.Fatalf("log fields = %v, want the subject and type to find the message with", fields)
+	}
+}
+
+// A wrapped pre-admission error still retries: the classification is
+// errors.Is, not string matching, so pkg/bus is free to annotate.
+func TestPublishRetriesWrappedPreAdmissionErrors(t *testing.T) {
+	pub := &flakyPublish{failFor: 1, failWith: fmt.Errorf("publish %q: %w", "bagel.discord.cmd", nats.ErrNoResponders)}
+	d, _ := observedDispatcher(pub.publish)
+
+	d.publishAll(context.Background(), []ddiscord.Command{{Type: "post"}})
+
+	if pub.attempts != 2 {
+		t.Fatalf("attempts = %d, want 2 (one wrapped failure, one success)", pub.attempts)
 	}
 }

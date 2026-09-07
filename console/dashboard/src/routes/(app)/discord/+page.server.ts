@@ -1,41 +1,21 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+// The server list. One broadcaster owns many guilds, so this route holds
+// everything that is true of the account -- the master switch, the list, the
+// invite path -- and /discord/[guildId] holds everything that is true of one
+// server.
 import type { Actions, PageServerLoad, RequestEvent } from './$types';
-import {
-  blankDiscordConfig,
-  guildLayout,
-  readDiscord,
-  saveDiscord,
-  setupGuild,
-  unbindGuild,
-  type DiscordConfig,
-  type DiscordGuildTarget,
-  type DiscordLayout
-} from '$lib/server/discord-store';
-import {
-  discordConfigured,
-  discordTemplateURL,
-  requireDiscordActor
-} from '$lib/server/discord-oauth';
+import { readDiscord, saveDiscordModule, type DiscordGuildSummary } from '$lib/server/discord-store';
+import { DISCORD_ERROR_SLUGS, discordConfigured, discordTemplateURL } from '$lib/server/discord-oauth';
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
 import { assertModuleUnlocked, gateModulePage, moduleLocked } from '$lib/server/module-gate';
-import type { ModuleDef } from '@bagel/shared';
-import { moduleDef } from '@bagel/shared';
-
-// Resolved once. moduleDef returns undefined for an unknown id, and a silent
-// undefined here would disable the beta gate rather than fail, so this throws
-// at import time if the catalog ever drops the entry.
-const DISCORD_DEF: ModuleDef = (() => {
-  const def = moduleDef('discord');
-  if (!def) throw new Error('discord module missing from MODULE_CATALOG');
-  return def;
-})();
+import { DISCORD_DEF } from '$lib/server/discord-def';
 import type { Session } from '$lib/server/session';
 import { effectiveId } from '$lib/server/board';
 import { dev } from '$app/environment';
-import { fail, isRedirect } from '@sveltejs/kit';
+import { fail } from '@sveltejs/kit';
 
 // process.env, not $env/dynamic/private: this route sits behind guard.ts on
 // the boot import graph (see module-gate.ts).
@@ -45,217 +25,80 @@ function gate(session: Session | null | undefined): void {
   gateModulePage(session, 'discord');
 }
 
-const ERROR_SLUGS = ['oauth', 'unconfigured', 'setup', 'state', 'bound'] as const;
+type DiscordListPage = {
+  locked: boolean;
+  enabled: boolean;
+  guilds: DiscordGuildSummary[];
+  truncated: boolean;
+  templateURL: string;
+  configured: boolean;
+  errorSlug: string;
+  degraded: boolean;
+};
 
-const NO_LAYOUT: DiscordLayout = { channels: [], roles: [], needsReauth: false };
+function blankPage(errorSlug: string, locked: boolean): DiscordListPage {
+  return {
+    locked,
+    enabled: false,
+    guilds: [],
+    truncated: false,
+    templateURL: discordTemplateURL(),
+    configured: discordConfigured(),
+    errorSlug,
+    degraded: false
+  };
+}
 
 export const load: PageServerLoad = async ({ locals, url }) => {
   gate(locals.session);
   const uid = effectiveId(locals.session);
   const rawSlug = url.searchParams.get('e') ?? '';
-  const errorSlug = (ERROR_SLUGS as readonly string[]).includes(rawSlug) ? rawSlug : '';
-  const justConnected = url.searchParams.get('connected') === '1';
-  const refused = url.searchParams.get('refused') === '1';
+  const errorSlug = (DISCORD_ERROR_SLUGS as readonly string[]).includes(rawSlug) ? rawSlug : '';
 
   // Discord is premium-only while it is in beta. The route guard lets a
   // sectioned module through so the page can explain that rather than
   // bouncing the visitor to a grid Discord is no longer in; the page renders
-  // a locked panel and every action refuses (see discordAction).
+  // a locked panel and every action refuses (see listAction).
   const locked = await moduleLocked(locals, DISCORD_DEF);
 
-  if (DEMO) {
-    const { demoDiscordView, demoDiscordLayout } = await import('$lib/server/demo-data');
-    return {
-      locked: false,
-      ...demoDiscordView(),
-      layout: demoDiscordLayout(),
-      templateURL: 'https://discord.new/demo',
-      configured: true,
-      justConnected: false,
-      refused: false,
-      errorSlug: ''
-    };
-  }
+  if (DEMO) return demoPage();
 
   try {
     const view = await readDiscord({ userId: uid });
-    return {
-      locked,
-      ...view,
-      layout: view.connected ? await loadLayout({ userId: uid, guildId: view.config.guildId }) : NO_LAYOUT,
-      templateURL: discordTemplateURL(),
-      configured: discordConfigured(),
-      justConnected,
-      refused,
-      errorSlug
-    };
-  } catch {
-    return {
-      enabled: false,
-      connected: false,
-      config: blankDiscordConfig(),
-      layout: NO_LAYOUT,
-      templateURL: discordTemplateURL(),
-      configured: discordConfigured(),
-      justConnected: false,
-      refused: false,
-      errorSlug,
-      degraded: true
-    };
+    return { ...blankPage(errorSlug, locked), ...view };
+  } catch (e) {
+    logger.warn({ err: e }, '[discord] server list unavailable');
+    return { ...blankPage(errorSlug, locked), degraded: true };
   }
 };
 
-// loadLayout is best-effort: without it the page falls back to raw id inputs.
-async function loadLayout(target: DiscordGuildTarget): Promise<DiscordLayout> {
-  try {
-    return await guildLayout(target);
-  } catch (e) {
-    logger.warn({ err: e }, '[discord] layout unavailable');
-    return NO_LAYOUT;
-  }
-}
-
-type ActionCtx = { uid: string; session: Session | null | undefined; locals: App.Locals; form: FormData };
-
-async function actionContext({ request, locals }: RequestEvent): Promise<ActionCtx | null> {
-  gate(locals.session);
-  if (DEMO) {
-    return { uid: effectiveId(locals.session), session: locals.session, locals, form: await request.formData() };
-  }
-  if (!locals.session) return null;
-  return { uid: effectiveId(locals.session), session: locals.session, locals, form: await request.formData() };
-}
-
-type Outcome<T> = { ok: true; data: T } | { ok: false; error: string };
-
-type ActionWork = { label: string; failMsg: string };
-
-async function attempt<T>(work: ActionWork, run: () => Promise<T>): Promise<Outcome<T>> {
-  try {
-    return { ok: true, data: await run() };
-  } catch (e) {
-    if (isRedirect(e)) throw e;
-    logger.error({ err: e }, `[discord] ${work.label} failed`);
-    return { ok: false, error: work.failMsg };
-  }
-}
-
-type Refusal = { error: string };
-
-function refusalOf(data: Record<string, unknown>): string {
-  if (!('error' in data)) return '';
-  if (typeof data.error !== 'string') return '';
-  return data.error;
-}
-
-function discordAction<T extends Record<string, unknown>>(
-  work: ActionWork,
-  run: (ctx: ActionCtx) => Promise<T | Refusal>
-) {
-  return async (event: RequestEvent) => {
-    const ctx = await actionContext(event);
-    if (!ctx) return fail(401, { ok: false, error: 'Not signed in.' });
-    // The page is reachable while locked so it can explain itself; its writes
-    // are not. Without this, a stale form on a downgraded board would still
-    // save.
-    if (!(await assertModuleUnlocked(event.locals, DISCORD_DEF))) {
-      return fail(403, { ok: false, error: 'Discord is in beta and open to Premium channels only.' });
-    }
-    if (DEMO) return { ok: true, enabled: ctx.form.get('is_enabled') === 'on' };
-    const r = await attempt(work, () => run(ctx));
-    if (!r.ok) return fail(400, { ok: false, error: r.error });
-    const refusal = refusalOf(r.data);
-    if (refusal) return fail(400, { ok: false, error: refusal });
-    return { ok: true, ...r.data };
-  };
-}
-
-type FormField = { form: FormData; name: string; current: string };
-
-function flag(field: FormField): string {
-  return field.form.get(field.name) === 'on' ? 'on' : 'off';
-}
-
-const SNOWFLAKE = /^\d{17,20}$/;
-
-function snowflake(field: FormField): string {
-  const raw = field.form.get(field.name);
-  if (raw === null) return field.current;
-  const v = String(raw).trim();
-  if (v === '') return v;
-  if (SNOWFLAKE.test(v)) return v;
-  return field.current;
-}
-
-function mergeSettings(current: DiscordConfig, form: FormData): DiscordConfig {
-  return {
-    ...current,
-    liveEnabled: flag({ form, name: 'liveEnabled', current: current.liveEnabled }),
-    clipsEnabled: flag({ form, name: 'clipsEnabled', current: current.clipsEnabled }),
-    welcomeEnabled: flag({ form, name: 'welcomeEnabled', current: current.welcomeEnabled }),
-    goodbyeEnabled: flag({ form, name: 'goodbyeEnabled', current: current.goodbyeEnabled }),
-    voiceEnabled: flag({ form, name: 'voiceEnabled', current: current.voiceEnabled }),
-    ticketsEnabled: flag({ form, name: 'ticketsEnabled', current: current.ticketsEnabled }),
-    logsEnabled: flag({ form, name: 'logsEnabled', current: current.logsEnabled }),
-    subscribersEnabled: flag({ form, name: 'subscribersEnabled', current: current.subscribersEnabled }),
-    levelsEnabled: flag({ form, name: 'levelsEnabled', current: current.levelsEnabled }),
-    categoryAllow: String(form.get('categoryAllow') ?? current.categoryAllow),
-    categoryDeny: String(form.get('categoryDeny') ?? current.categoryDeny),
-    liveChannelId: snowflake({ form, name: 'liveChannelId', current: current.liveChannelId }),
-    clipsChannelId: snowflake({ form, name: 'clipsChannelId', current: current.clipsChannelId }),
-    welcomeChannelId: snowflake({ form, name: 'welcomeChannelId', current: current.welcomeChannelId }),
-    voiceHubId: snowflake({ form, name: 'voiceHubId', current: current.voiceHubId }),
-    logChannelId: snowflake({ form, name: 'logChannelId', current: current.logChannelId }),
-    ticketChannelId: snowflake({ form, name: 'ticketChannelId', current: current.ticketChannelId }),
-    ticketCategoryId: snowflake({ form, name: 'ticketCategoryId', current: current.ticketCategoryId }),
-    ownerRoleId: snowflake({ form, name: 'ownerRoleId', current: current.ownerRoleId }),
-    vipRoleId: snowflake({ form, name: 'vipRoleId', current: current.vipRoleId }),
-    subscriberRoleId: snowflake({ form, name: 'subscriberRoleId', current: current.subscriberRoleId }),
-    leadModRoleId: snowflake({ form, name: 'leadModRoleId', current: current.leadModRoleId }),
-    memberRoleId: snowflake({ form, name: 'memberRoleId', current: current.memberRoleId })
-  };
+async function demoPage(): Promise<DiscordListPage> {
+  const { demoDiscordView } = await import('$lib/server/demo-data');
+  return { ...blankPage('', false), ...demoDiscordView(), templateURL: 'https://discord.new/demo', configured: true };
 }
 
 export const actions: Actions = {
-  toggle: discordAction({ label: 'toggle', failMsg: 'Could not toggle Discord.' }, async (ctx) => {
-    const enabled = ctx.form.get('is_enabled') === 'on';
-    const view = await readDiscord({ userId: ctx.uid });
-    await saveDiscord({ userId: ctx.uid, enabled, config: view.config });
-    auditDashboardImpersonation(ctx.session, 'discord:toggle', String(enabled));
-    return { enabled };
-  }),
-
-  save: discordAction({ label: 'save', failMsg: 'Could not save Discord settings.' }, async (ctx) => {
-    const view = await readDiscord({ userId: ctx.uid });
-    const config = mergeSettings(view.config, ctx.form);
-    await saveDiscord({ userId: ctx.uid, enabled: view.enabled, config });
-    auditDashboardImpersonation(ctx.session, 'discord:save', config.guildId);
-    return {};
-  }),
-
-  setup: discordAction({ label: 'setup', failMsg: 'Could not set up this server.' }, async (ctx) => {
-    requireDiscordActor(ctx.locals);
-    const view = await readDiscord({ userId: ctx.uid });
-    if (!view.config.guildId) return { error: 'Connect a server first.' };
-    const login = ctx.session?.login ?? view.config.twitchLogin;
-    const result = await setupGuild(
-      // The saved toggle decides whether the fill creates the subscriber
-      // tier, so setup reflects what the streamer chose rather than always
-      // building a locked category they may never use.
-      { userId: ctx.uid, guildId: view.config.guildId, subscribers: view.config.subscribersEnabled === 'on' },
-      { ...view.config, twitchLogin: login }
-    );
-    if (result.error) return { error: result.error };
-    await saveDiscord({ userId: ctx.uid, enabled: view.enabled, config: { ...result.config, twitchLogin: login } });
-    auditDashboardImpersonation(ctx.session, 'discord:setup', view.config.guildId);
-    return { refused: result.refused };
-  }),
-
-  disconnect: discordAction({ label: 'disconnect', failMsg: 'Could not disconnect Discord.' }, async (ctx) => {
-    const view = await readDiscord({ userId: ctx.uid });
-    if (view.config.guildId) await unbindGuild({ userId: ctx.uid, guildId: view.config.guildId });
-    await saveDiscord({ userId: ctx.uid, enabled: false, config: blankDiscordConfig() });
-    auditDashboardImpersonation(ctx.session, 'discord:disconnect', view.config.guildId);
-    return {};
-  })
+  // The master switch is per broadcaster, not per guild: turning Discord off
+  // stops Bagel posting in every server at once, which is what a streamer who
+  // reaches for this control means.
+  toggle: async (event: RequestEvent) => {
+    gate(event.locals.session);
+    if (!DEMO && !event.locals.session) return fail(401, { ok: false, error: 'Not signed in.' });
+    if (!(await assertModuleUnlocked(event.locals, DISCORD_DEF))) {
+      return fail(403, { ok: false, error: 'Discord is in beta and open to Premium channels only.' });
+    }
+    const form = await event.request.formData();
+    const enabled = form.get('is_enabled') === 'on';
+    if (DEMO) return { ok: true, enabled };
+    const uid = effectiveId(event.locals.session);
+    try {
+      const view = await readDiscord({ userId: uid });
+      await saveDiscordModule({ userId: uid, enabled, twitchLogin: view.twitchLogin });
+    } catch (e) {
+      logger.error({ err: e }, '[discord] toggle failed');
+      return fail(400, { ok: false, error: 'Could not toggle Discord.' });
+    }
+    auditDashboardImpersonation(event.locals.session, 'discord:toggle', String(enabled));
+    return { ok: true, enabled };
+  }
 };

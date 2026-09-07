@@ -1,0 +1,225 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+package discord
+
+import (
+	"sort"
+	"strings"
+)
+
+// Slot is a template role slot key. It is a defined type rather than a bare
+// string because a slot and a role id are both strings, they travel together
+// through every function here, and as two loose string arguments they were
+// transposable at each call site with nothing to catch it. The constants
+// below stay untyped so a slot still writes as a plain map key where the wire
+// shape (PinnedRoles, the setup RPC request) is map[string]string.
+type Slot string
+
+// RoleIDs is a list of Discord role snowflakes: the roles a member holds, or
+// the roles a config grants. []string is assignable to it, so a caller
+// holding discordgo's own []string passes it through unconverted while the
+// signature still says which of the two lists it wants.
+type RoleIDs []string
+
+// heldRoles indexes the role ids one member holds, for repeated lookup.
+type heldRoles map[string]bool
+
+// Pin is one parsed "slot=roleId" pair. The two halves are returned together
+// rather than as (slot, id string) for the same reason Slot exists: adjacent
+// same-typed results are transposable at the call site.
+type Pin struct {
+	Slot Slot
+	ID   string
+}
+
+// Role slots are the stable keys the dashboard, the setup fill and
+// Config.PinnedRoles all name a template role by. They are NOT the role's
+// display name: a streamer who renames "Mods" to "Staff" must keep the
+// slot, and a slot travelling through JSON must not carry a space.
+const (
+	SlotOwner      = "owner"
+	SlotLeadMod    = "leadMod"
+	SlotMods       = "mods"
+	SlotVIP        = "vip"
+	SlotSubscriber = "subscriber"
+	SlotRegulars   = "regulars"
+	SlotMember     = "member"
+)
+
+// slotByRoleName maps a template role's display name to its slot. Setup
+// walks CommunityRoles (which carry names) and needs the slot to look a
+// pinned id up; keeping the mapping here means adding a role touches one
+// table, not one table per package.
+var slotByRoleName = map[string]Slot{
+	RoleOwner:      SlotOwner,
+	RoleLeadMod:    SlotLeadMod,
+	RoleMods:       SlotMods,
+	RoleVIP:        SlotVIP,
+	RoleSubscriber: SlotSubscriber,
+	RoleRegulars:   SlotRegulars,
+	RoleMember:     SlotMember,
+}
+
+// RoleSlots is every valid slot key, in template order.
+func RoleSlots() []Slot {
+	return []Slot{SlotOwner, SlotLeadMod, SlotMods, SlotVIP, SlotSubscriber, SlotRegulars, SlotMember}
+}
+
+// SlotForRoleName returns the slot a template role name belongs to, or ""
+// for a name that is not part of the template.
+func SlotForRoleName(name string) Slot { return slotByRoleName[name] }
+
+// ValidSlot reports whether slot is one of the template slots.
+func ValidSlot(slot Slot) bool {
+	for _, s := range slotByRoleName {
+		if s == slot {
+			return true
+		}
+	}
+	return false
+}
+
+// PinnedRoleMap parses PinnedRoles into slot -> role id. A slot pinned twice
+// keeps the LAST pair (the map write order), which ValidateConfig reports as
+// duplicate_slot rather than silently picking for the streamer. Malformed
+// entries are dropped rather than failing the whole parse: this runs on the hot
+// config path where a zero Config already means "do nothing", and
+// ValidateConfig is where a streamer is told about a bad pair.
+func (c Config) PinnedRoleMap() map[string]string {
+	entries := splitList(listText(c.PinnedRoles))
+	if len(entries) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(entries))
+	for _, entry := range entries {
+		pin, ok := splitPin(entry)
+		if !ok {
+			continue
+		}
+		out[string(pin.Slot)] = pin.ID
+	}
+	return out
+}
+
+// cutPin splits one "slot=roleId" pair into its trimmed halves. ok is false
+// when the entry is not a PAIR at all -- no "=", or a half left empty --
+// which is a different mistake from naming a slot that does not exist, and
+// the validator reports the two under different codes so the dashboard can
+// say "write slot=roleId" rather than "unknown slot" for `owner`.
+func cutPin(entry string) (Pin, bool) {
+	slot, id, found := strings.Cut(entry, "=")
+	slot = strings.TrimSpace(slot)
+	id = strings.TrimSpace(id)
+	if !found {
+		return Pin{}, false
+	}
+	if slot == "" || id == "" {
+		return Pin{}, false
+	}
+	return Pin{Slot: Slot(slot), ID: id}, true
+}
+
+// splitPin splits one "slot=roleId" pair. Both halves must be non-empty and
+// the slot must be a known one.
+func splitPin(entry string) (Pin, bool) {
+	pin, ok := cutPin(entry)
+	if !ok || !ValidSlot(pin.Slot) {
+		return Pin{}, false
+	}
+	return pin, true
+}
+
+// PinnedRole returns the guild role id the streamer pinned to slot, or ""
+// when nothing is pinned there.
+func (c Config) PinnedRole(slot Slot) string { return c.PinnedRoleMap()[string(slot)] }
+
+// IsModStaff reports whether a member holding memberRoles is MODERATION
+// staff for cfg: Owner, Lead Mod, or Mods.
+//
+// The ticket desk's staff list is deliberately NOT consulted here. That list
+// is a VISIBILITY grant -- a streamer adds "Support" to it so those people
+// can read and answer ticket channels -- and the single IsStaff this replaced
+// silently turned every such grant into ban/kick/timeout/purge rights on the
+// whole guild. A helper role must be addable to the desk without becoming a
+// moderator; see IsTicketStaff for the desk half.
+//
+// This is the ROLE half of the staff question. The permission half
+// (decode.CanMod, which reads Discord's own computed bitfield on an
+// interaction) answers a different one: a server admin with no Bagel role
+// is a moderator by permission but not staff by role, and a Lead Mod whose
+// role lost a permission bit is still staff. Callers that gate a Bagel
+// feature want either to be enough, so they check both.
+func IsModStaff(memberRoles RoleIDs, cfg Config) bool {
+	return holdsAny(memberRoles, cfg.StaffRoleIDs())
+}
+
+// IsTicketStaff reports whether a member may act on the ticket desk: mod
+// staff (IsModStaff) plus every role on ticketStaffRoleIds. Strictly wider
+// than IsModStaff, and it grants nothing outside the desk.
+func IsTicketStaff(memberRoles RoleIDs, cfg Config) bool {
+	if IsModStaff(memberRoles, cfg) {
+		return true
+	}
+	return holdsAny(memberRoles, cfg.TicketStaffRoleIDs())
+}
+
+// holdsAny reports whether memberRoles contains any of want. Empty ids on
+// either side never match: an unconfigured guild stores "" in its role
+// fields, and matching those would make every member staff.
+func holdsAny(memberRoles, want RoleIDs) bool {
+	if len(memberRoles) == 0 || len(want) == 0 {
+		return false
+	}
+	return anyHeld(roleSet(memberRoles), want)
+}
+
+// roleSet indexes a member's role ids. The empty id is dropped on the way in:
+// an unconfigured guild stores "" in its role fields, and a set containing ""
+// makes every member staff.
+func roleSet(memberRoles RoleIDs) heldRoles {
+	held := make(heldRoles, len(memberRoles))
+	for _, r := range memberRoles {
+		if r != "" {
+			held[r] = true
+		}
+	}
+	return held
+}
+
+// anyHeld reports whether held carries any of want. Empty wanted ids never
+// match, for the same reason roleSet drops them.
+func anyHeld(held heldRoles, want RoleIDs) bool {
+	for _, id := range want {
+		if id != "" && held[id] {
+			return true
+		}
+	}
+	return false
+}
+
+// FormatPinnedRoles renders a slot -> role id map back into the PinnedRoles
+// field's wire form ("slot=roleId,slot=roleId"). It is the inverse of
+// PinnedRoleMap and exists so a caller holding the MAP shape -- the setup
+// RPC, whose request carries pinned_roles as an object -- can validate it
+// with the same ValidateConfig the stored string goes through, instead of
+// growing a second validator that drifts from the first.
+//
+// Slots are emitted in sorted order: Go randomizes map iteration, and a
+// validator whose input reorders itself between two identical calls reports
+// its errors in a different order each time.
+func FormatPinnedRoles(pins map[string]string) string {
+	if len(pins) == 0 {
+		return ""
+	}
+	slots := make([]string, 0, len(pins))
+	for slot := range pins {
+		slots = append(slots, slot)
+	}
+	sort.Strings(slots)
+	pairs := make([]string, 0, len(slots))
+	for _, slot := range slots {
+		pairs = append(pairs, slot+"="+pins[slot])
+	}
+	return strings.Join(pairs, ",")
+}

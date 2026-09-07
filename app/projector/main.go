@@ -40,7 +40,7 @@ const serviceName = "projector"
 // transactions is deliberately absent. Billing answers on its own endpoint
 // (health.itsbagelbot.com/billing) and checks itself, because a payment
 // processor outage is not a data-tier outage and must not page as one.
-var dataTierServices = []string{"users", "commands", "modules", "loyalty", "notifications"}
+var dataTierServices = []string{"users", "commands", "modules", "loyalty", "notifications", "discord-data"}
 
 // fatalIf aborts startup on err: the projector cannot run degraded without any
 // of its core dependencies, so a failed step must crash the pod.

@@ -222,6 +222,7 @@ var rpcServiceUsers = map[string]string{
 	"app/db/commands":      "commands_rpc",
 	"app/db/modules":       "modules_rpc",
 	"app/db/loyalty":       "loyalty_rpc",
+	"app/db/discord":       "discord_data_rpc",
 	"app/db/notifications": "notifications_rpc",
 	"app/db/transactions":  "transactions_rpc",
 	"app/projector":        "projector_rpc",

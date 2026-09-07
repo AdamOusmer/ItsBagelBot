@@ -156,6 +156,22 @@ describe('pathnameAllowed', () => {
     expect(pathnameAllowed(path, delegateAllowedPaths(['commands']), ['commands'])).toBe(want);
   });
 
+  // Discord is seven routes now, not one page: the guild shell and every
+  // sub-page hang off /discord/<guildId>. The 'discord' grant admits them
+  // through the section's own `match: ['/discord']` prefix, so a delegate who
+  // can open the server list can open the pages that server list links to. A
+  // narrower match here would 403 a delegate mid-navigation with no nav entry
+  // to explain it.
+  test.each([
+    ['/discord', true],
+    ['/discord/123456789012345678', true],
+    ['/discord/123456789012345678/channels', true],
+    ['/discord/123456789012345678/tickets', true],
+    ['/commands', false]
+  ] as [string, boolean][])('a discord delegate on %s -> %p', (path, want) => {
+    expect(pathnameAllowed(path, delegateAllowedPaths(['discord']), ['discord'])).toBe(want);
+  });
+
   // The '/modules' prefix covers every catalog module's generic page, so a
   // module with its own narrower delegateSections must be rechecked by id
   // rather than admitted on the bare 'modules' grant.

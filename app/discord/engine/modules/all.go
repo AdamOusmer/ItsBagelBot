@@ -15,8 +15,13 @@ import (
 // they are driven off Twitch subjects, not a Discord gateway dispatch type,
 // so they never go through the module.Builder/Registry at all.
 type Deps struct {
-	Store     discordstore.Store
-	Channels  voiceClient
+	Store    discordstore.Store
+	Channels voiceClient
+	// Tickets is the desk's own outgress surface. Separate from Channels
+	// because the two overlap only on channel.delete: the voice modules have
+	// no use for the ticket orchestrations, and one wide interface would make
+	// every voice test stub four methods it never calls.
+	Tickets   ticketClient
 	Purge     purgeClient
 	Guard     Guarder
 	OwnInvite OwnInviteChecker
@@ -32,7 +37,7 @@ func All(d Deps) []module.Module {
 		Message(d.Store),
 		Rank(d.Store),
 		Moderation(d.Purge, d.Log),
-		Ticket(d.Store, d.Channels, d.Log),
+		Ticket(d.Store, d.Tickets, d.Log),
 		Voice(d.Store, d.Channels, d.Log),
 		LinkGuard(d.Guard, d.OwnInvite, d.Log),
 		IdentityModule(d.Identity),

@@ -66,22 +66,30 @@ func main() {
 	defer valkeyClient.Close()
 
 	rest := discordrate.NewLimitedClient(discordapi.NewClient(cfg.DiscordBotToken), discordrate.New(valkeyClient))
-	store := discordstore.New(valkeyClient)
 	liveStore := kv.New(valkeyClient)
 	reauth := kv.NewReauthStore(valkeyClient)
+	botStatus := kv.NewBotStatusReader(valkeyClient)
+	lockdowns := kv.NewLockdownStore(valkeyClient)
 
 	applicationID := registerSlashCommands(ctx, rest, log)
 
 	nc := connectNATS(cfg, log)
 	defer nc.Close()
 
+	// discord-data-backed, same as engine's: the dashboard's setup, unbind
+	// and settings writes must land in MySQL, not in a Valkey key the engine
+	// no longer treats as the truth. Unconditional -- see the note on
+	// discordstore.DefaultRPCPrefix for why the Valkey-only mode is gone.
+	store := discordstore.NewRPC(nc, cfg.DiscordDataRPCPrefix, valkeyClient, log)
+
 	subscribeRPCs(rpcDeps{
-		NC: nc, Cfg: cfg, Rest: rest, Store: store,
-		LiveStore: liveStore, Reauth: reauth, NRApp: nrApp, Log: log,
+		NC: nc, Cfg: cfg, Rest: rest, Store: store, ApplicationID: applicationID,
+		LiveStore: liveStore, Reauth: reauth, BotStatus: botStatus, NRApp: nrApp, Log: log,
 	})
 
 	lanes := startCommandConsumer(consumerDeps{
-		Ctx: ctx, Cfg: cfg, Rest: rest, ApplicationID: applicationID, Reauth: reauth, Log: log,
+		Ctx: ctx, Cfg: cfg, Rest: rest, ApplicationID: applicationID,
+		Reauth: reauth, Lockdowns: lockdowns, Log: log,
 	})
 	defer lanes.Close()
 
@@ -145,14 +153,16 @@ func connectNATS(cfg config.Config, log *zap.Logger) *nats.Conn {
 // parameters into one struct (CodeScene: Excess Number of Function
 // Arguments, over its 4-parameter limit).
 type rpcDeps struct {
-	NC        *nats.Conn
-	Cfg       config.Config
-	Rest      *discordrate.LimitedClient
-	Store     discordstore.Store
-	LiveStore kv.LiveStore
-	Reauth    kv.ReauthStore
-	NRApp     *newrelic.Application
-	Log       *zap.Logger
+	NC            *nats.Conn
+	Cfg           config.Config
+	Rest          *discordrate.LimitedClient
+	Store         discordstore.Store
+	ApplicationID string
+	LiveStore     kv.LiveStore
+	Reauth        kv.ReauthStore
+	BotStatus     kv.BotStatusReader
+	NRApp         *newrelic.Application
+	Log           *zap.Logger
 }
 
 // subscribeRPCs wires the dashboard-facing guild setup RPC and the
@@ -161,14 +171,20 @@ func subscribeRPCs(deps rpcDeps) {
 	setupWorker := setup.New(setup.Config{Discord: deps.Rest, Store: deps.Store, Log: deps.Log.Named("setup")})
 	if err := rpc.SubscribeSetup(setupWorker, rpc.SetupWiring{
 		NC: deps.NC, Prefix: deps.Cfg.RPCPrefix, Queue: deps.Cfg.RPCQueue, App: deps.NRApp,
-		Reauth: deps.Reauth, Log: deps.Log.Named("rpc"),
+		Reauth: deps.Reauth, Status: deps.BotStatus, Log: deps.Log.Named("rpc"),
 	}); err != nil {
 		deps.Log.Fatal("failed to subscribe discord guild setup rpc", zap.Error(err))
 	}
-	if err := rpc.SubscribeEngine(deps.Rest, deps.LiveStore, rpc.EngineWiring{
-		NC: deps.NC, Prefix: deps.Cfg.DiscordEngineRPCPrefix, Queue: deps.Cfg.DiscordEngineRPCQueue, App: deps.NRApp, Log: deps.Log.Named("engine-rpc"),
-	}); err != nil {
+	engineWiring := rpc.EngineWiring{
+		NC: deps.NC, Prefix: deps.Cfg.DiscordEngineRPCPrefix, Queue: deps.Cfg.DiscordEngineRPCQueue,
+		App: deps.NRApp, Log: deps.Log.Named("engine-rpc"),
+	}
+	if err := rpc.SubscribeEngine(deps.Rest, deps.LiveStore, engineWiring); err != nil {
 		deps.Log.Fatal("failed to subscribe discord engine rpc", zap.Error(err))
+	}
+	ticketDeps := rpc.TicketDeps{Memo: deps.Store, BotID: deps.ApplicationID}
+	if err := rpc.SubscribeTickets(deps.Rest, ticketDeps, engineWiring); err != nil {
+		deps.Log.Fatal("failed to subscribe discord ticket rpc", zap.Error(err))
 	}
 }
 
@@ -182,6 +198,7 @@ type consumerDeps struct {
 	Rest          *discordrate.LimitedClient
 	ApplicationID string
 	Reauth        kv.ReauthStore
+	Lockdowns     kv.LockdownStore
 	Log           *zap.Logger
 }
 
@@ -190,7 +207,8 @@ type consumerDeps struct {
 func startCommandConsumer(deps consumerDeps) commands.Lanes {
 	log := deps.Log.Named("commands")
 	handlers := &commands.Handlers{
-		Rest: deps.Rest, ApplicationID: deps.ApplicationID, Reauth: deps.Reauth, Log: log,
+		Rest: deps.Rest, ApplicationID: deps.ApplicationID,
+		Reauth: deps.Reauth, Lockdown: deps.Lockdowns, Log: log,
 	}
 	consumer := &commands.Consumer{NATSURL: deps.Cfg.NATSURL, Log: log, Handle: handlers.Dispatch}
 	lanes, err := consumer.Run(deps.Ctx)

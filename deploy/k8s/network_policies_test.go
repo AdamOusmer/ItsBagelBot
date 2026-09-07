@@ -12,6 +12,13 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// The two manifest files this package asserts on: the app namespace's own, and
+// the db namespace's copy one directory over.
+const (
+	appPolicies = "network-policies.yaml"
+	dbPolicies  = "../db/network-policies.yaml"
+)
+
 type networkPolicyManifest struct {
 	Kind     string `yaml:"kind"`
 	Metadata struct {
@@ -41,9 +48,12 @@ type networkPolicyManifest struct {
 	} `yaml:"spec"`
 }
 
-func loadNetworkPolicies(t *testing.T) map[string]networkPolicyManifest {
+// loadNetworkPolicies decodes one manifest file. It takes the path because the
+// db namespace ships its own copy next door (deploy/db/network-policies.yaml)
+// and a second loader would be a second thing to keep in step.
+func loadNetworkPolicies(t *testing.T, path string) map[string]networkPolicyManifest {
 	t.Helper()
-	f, err := os.Open("network-policies.yaml")
+	f, err := os.Open(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +115,7 @@ func policyHasPort(policy networkPolicyManifest, target int) bool {
 }
 
 func TestDefaultPolicyHasNoBlanketExternalEgress(t *testing.T) {
-	base := requirePolicy(t, loadNetworkPolicies(t), "default-deny-apps")
+	base := requirePolicy(t, loadNetworkPolicies(t, appPolicies), "default-deny-apps")
 	if !slices.Contains(selectedApps(t, base), "notifications-cleanup") {
 		t.Fatal("notifications cleanup job escaped the default-deny policy")
 	}
@@ -118,7 +128,7 @@ func TestDefaultPolicyHasNoBlanketExternalEgress(t *testing.T) {
 }
 
 func TestPublicHTTPSEgressAllowlist(t *testing.T) {
-	publicHTTPS := requirePolicy(t, loadNetworkPolicies(t), "allow-public-https")
+	publicHTTPS := requirePolicy(t, loadNetworkPolicies(t, appPolicies), "allow-public-https")
 	wantHTTPS := sorted("commands", "console-admin", "console-dashboard", "discord-ingress", "discord-outgress", "gossip", "loyalty", "modules", "notifications", "outgress", "projector", "sesame", "transactions", "twitch-ingress", "users")
 	if got := selectedApps(t, publicHTTPS); !slices.Equal(got, wantHTTPS) {
 		t.Fatalf("public HTTPS allowlist = %v, want %v", got, wantHTTPS)
@@ -126,7 +136,7 @@ func TestPublicHTTPSEgressAllowlist(t *testing.T) {
 }
 
 func TestHeatWaveEgressAllowlist(t *testing.T) {
-	heatwave := requirePolicy(t, loadNetworkPolicies(t), "allow-heatwave")
+	heatwave := requirePolicy(t, loadNetworkPolicies(t, appPolicies), "allow-heatwave")
 	wantHeatWave := sorted("commands", "console-admin", "loyalty", "modules", "notifications", "transactions", "users")
 	if got := selectedApps(t, heatwave); !slices.Equal(got, wantHeatWave) {
 		t.Fatalf("HeatWave allowlist = %v, want %v", got, wantHeatWave)
@@ -148,5 +158,54 @@ func TestHeatWaveEgressAllowlist(t *testing.T) {
 	want := sorted("10.0.0.0/16", "204.216.107.73/32")
 	if !slices.Equal(sorted(got...), want) {
 		t.Fatalf("HeatWave egress CIDRs = %v, want %v", got, want)
+	}
+}
+
+// TestDBNamespaceCoversEveryDataService is the check that catches a service
+// onboarded into the db namespace and left out of its policies. A pod missing
+// from default-deny-db is not firewalled at all -- the failure is silent and
+// permissive, which is the direction that never shows up in testing. The three
+// lists are asserted exactly, not as a minimum, for the same reason.
+func TestDBNamespaceCoversEveryDataService(t *testing.T) {
+	policies := loadNetworkPolicies(t, dbPolicies)
+	// backup-k3s takes no probe port: it is a CronJob with no health listener.
+	want := map[string][]string{
+		"default-deny-db": sorted("backup-k3s", "backup-mysql", "commands", "discord-data", "loyalty",
+			"modules", "notifications", "notifications-cleanup", "projector", "transactions", "users"),
+		"allow-probe-ports": sorted("commands", "discord-data", "loyalty", "modules", "notifications",
+			"notifications-cleanup", "projector", "transactions", "users"),
+		"allow-public-https": sorted("backup-k3s", "backup-mysql", "commands", "discord-data", "loyalty",
+			"modules", "notifications", "projector", "transactions", "users"),
+		"allow-heatwave": sorted("backup-mysql", "commands", "discord-data", "loyalty", "modules",
+			"notifications", "transactions", "users"),
+	}
+	for name, apps := range want {
+		if got := selectedApps(t, requirePolicy(t, policies, name)); !slices.Equal(got, apps) {
+			t.Fatalf("%s selector = %v, want %v", name, got, apps)
+		}
+	}
+}
+
+// TestDBDefaultDenyGrantsTheSharedPlanes: every data service needs DNS, the
+// NATS planes and Valkey, and they are granted once on default-deny-db rather
+// than per service. discord-data joining that selector is what gives it all
+// four, so the grants are pinned here.
+func TestDBDefaultDenyGrantsTheSharedPlanes(t *testing.T) {
+	base := requirePolicy(t, loadNetworkPolicies(t, dbPolicies), "default-deny-db")
+	var namespaces []string
+	for _, rule := range base.Spec.Egress {
+		for _, to := range rule.To {
+			if to.NamespaceSelector != nil {
+				namespaces = append(namespaces, to.NamespaceSelector.MatchLabels["kubernetes.io/metadata.name"])
+			}
+		}
+	}
+	for _, want := range []string{"kube-system", "db", "messaging", "cache"} {
+		if !slices.Contains(namespaces, want) {
+			t.Fatalf("default-deny-db has no egress to %s, got %v", want, namespaces)
+		}
+	}
+	if policyHasPort(base, 443) || policyHasPort(base, 3306) {
+		t.Fatal("default-deny-db must grant neither blanket 443 nor blanket 3306")
 	}
 }

@@ -6,6 +6,7 @@ package setup
 import (
 	"context"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 
@@ -19,12 +20,30 @@ import (
 // guildRecorder is a map-backed discordGuildAPI, mirroring the pre-split
 // egress test's fake of the same name.
 type guildRecorder struct {
-	mu        sync.Mutex
-	channels  []discapi.Snowflake
+	mu       sync.Mutex
+	channels []discapi.Snowflake
+	// roles are the guild's EXISTING roles, on top of @everyone. A pin is
+	// only adopted when its id is in here, so a test that pins a role must
+	// say the guild has it.
+	roles     []discapi.Snowflake
 	createdCh []string
 	createdRo []string
 	panels    []string
-	nextID    int
+	deleted   []string
+	deleteErr error
+	// panelPosts/panelButtons keep the whole post, not just the button ids, so
+	// the desk-repost tests can assert the copy that was rendered.
+	panelPosts   []discapi.EmbedPost
+	panelButtons []discapi.Button
+	nextID       int
+	// specs keeps each created channel's full spec (by lowercased name) so a
+	// test can assert the permission overwrites a gate actually sent.
+	specs map[string]discapi.ChannelCreate
+
+	getGuildErr error
+	// getGuildCalls counts the REST lookups one listing costs: the picker's
+	// cap exists to bound this burst, not just the slice it returns.
+	getGuildCalls int
 }
 
 func (r *guildRecorder) nextSnowflake(prefix string) string {
@@ -34,12 +53,25 @@ func (r *guildRecorder) nextSnowflake(prefix string) string {
 
 func (r *guildRecorder) SendChat(context.Context, discapi.ChatPost) error { return nil }
 
+func (r *guildRecorder) DeleteMessage(_ context.Context, m discapi.Message) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.deleted = append(r.deleted, m.ID)
+	return r.deleteErr
+}
+
+// newGuildRecorder is the zero recorder, named so a test reads as "a guild
+// with nothing in it yet" rather than as a struct literal.
+func newGuildRecorder() *guildRecorder { return &guildRecorder{} }
+
 func (r *guildRecorder) SendPanel(_ context.Context, post discapi.EmbedPost, buttons []discapi.Button) (discapi.Message, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for _, btn := range buttons {
 		r.panels = append(r.panels, btn.CustomID)
 	}
+	r.panelPosts = append(r.panelPosts, post)
+	r.panelButtons = append(r.panelButtons, buttons...)
 	return discapi.Message{ChannelID: post.ChannelID, ID: r.nextSnowflake("panel-")}, nil
 }
 
@@ -47,6 +79,10 @@ func (r *guildRecorder) CreateChannel(_ context.Context, ch discapi.GuildChannel
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	out := discapi.Snowflake{ID: r.nextSnowflake("ch-"), Name: ch.Spec.Name, Type: ch.Spec.Type}
+	if r.specs == nil {
+		r.specs = map[string]discapi.ChannelCreate{}
+	}
+	r.specs[strings.ToLower(ch.Spec.Name)] = ch.Spec
 	r.channels = append(r.channels, out)
 	r.createdCh = append(r.createdCh, ch.Spec.Name)
 	return out, nil
@@ -68,7 +104,19 @@ func (r *guildRecorder) ListGuildChannels(context.Context, discapi.Guild) ([]dis
 }
 
 func (r *guildRecorder) ListGuildRoles(context.Context, discapi.Guild) ([]discapi.Snowflake, error) {
-	return []discapi.Snowflake{{ID: "guild-1", Name: "@everyone"}}, nil
+	return append([]discapi.Snowflake{{ID: "guild-1", Name: "@everyone"}}, r.roles...), nil
+}
+
+// getGuildErr, when set, is what the guild lookup answers: the picker's "the
+// bot was kicked" path is a 403 from this call and nothing else.
+func (r *guildRecorder) GetGuildWithCounts(_ context.Context, g discapi.Guild) (discapi.GuildInfo, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.getGuildCalls++
+	if r.getGuildErr != nil {
+		return discapi.GuildInfo{}, r.getGuildErr
+	}
+	return discapi.GuildInfo{ID: g.ID, Name: "server " + g.ID, Icon: "abc", ApproximateMemberCount: 42}, nil
 }
 
 var _ discordGuildAPI = (*guildRecorder)(nil)
@@ -242,8 +290,10 @@ func TestUnbindGuildOnlyForTheBoundBroadcaster(t *testing.T) {
 	store.PutGuild(discordstore.Guild{ID: "guild-1"}, discordstore.Broadcaster{ID: "42"})
 	w := setupWorker(&guildRecorder{}, store)
 
-	if err := w.UnbindGuild(context.Background(), GuildSetupRequest{GuildID: "guild-1", BroadcasterID: "7"}); err != ErrGuildBoundElsewhere {
-		t.Fatalf("err = %v, want ErrGuildBoundElsewhere", err)
+	// One refusal for both "not yours" and "not bound": see desk_test.go's
+	// note on the strict ownership check.
+	if err := w.UnbindGuild(context.Background(), GuildSetupRequest{GuildID: "guild-1", BroadcasterID: "7"}); err != ErrNotBound {
+		t.Fatalf("err = %v, want ErrNotBound", err)
 	}
 	if err := w.UnbindGuild(context.Background(), GuildSetupRequest{GuildID: "guild-1", BroadcasterID: "42"}); err != nil {
 		t.Fatalf("UnbindGuild: %v", err)
@@ -259,8 +309,8 @@ func TestGuildLayoutRequiresTheBinding(t *testing.T) {
 	store.PutGuild(discordstore.Guild{ID: "guild-1"}, discordstore.Broadcaster{ID: "42"})
 	w := setupWorker(guild, store)
 
-	if _, err := w.GuildLayout(context.Background(), GuildSetupRequest{GuildID: "guild-1", BroadcasterID: "7"}); err != ErrGuildBoundElsewhere {
-		t.Fatalf("err = %v, want ErrGuildBoundElsewhere", err)
+	if _, err := w.GuildLayout(context.Background(), GuildSetupRequest{GuildID: "guild-1", BroadcasterID: "7"}); err != ErrNotBound {
+		t.Fatalf("err = %v, want ErrNotBound", err)
 	}
 	layout, err := w.GuildLayout(context.Background(), GuildSetupRequest{GuildID: "guild-1", BroadcasterID: "42"})
 	if err != nil {

@@ -53,6 +53,12 @@ type helloData struct {
 
 type readyData struct {
 	SessionID string `json:"session_id"`
+	// Guilds is READY's unavailable-guild list. Only its length is used
+	// (the bot status key's guild_count), so the element is trimmed to the
+	// one field that proves an entry is a guild at all.
+	Guilds []struct {
+		ID string `json:"id"`
+	} `json:"guilds,omitempty"`
 	// ResumeGatewayURL is the socket a resume MUST be sent to. Discord
 	// documents that resuming against the ordinary gateway URL is not
 	// guaranteed to work, so this is not interchangeable with it.

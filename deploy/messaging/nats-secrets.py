@@ -46,6 +46,7 @@ SERVICES = {
     "transactions": "transactions",
     "notifications": "notifications",
     "gossip": "gossip",
+    "discord_data": "discord-data",
 }
 # Discord is three runtimes sharing one Doppler project (discord-svc), unlike
 # every service above which owns its project. A shared project cannot hold three
@@ -60,9 +61,10 @@ SHARED_PROJECTS: dict[str, list[str]] = {
 }
 
 NO_RPC: set[str] = set()
-# gossip, notifications and transactions are RPC-only (no JetStream/event
-# plane): none of the three ever dial the hub, so none gets a BUS user.
-NO_BUS: set[str] = {"gossip", "notifications", "transactions"}
+# gossip, notifications, transactions and discord_data are RPC-only (no
+# JetStream/event plane): none of the four ever dial the hub, so none gets a
+# BUS user.
+NO_BUS: set[str] = {"gossip", "notifications", "transactions", "discord_data"}
 
 def gen() -> str:
     # URL-safe (hex) so the plaintext is valid inside the leaf nats-leaf:// URLs.

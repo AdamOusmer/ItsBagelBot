@@ -17,11 +17,12 @@
 // generated artifact is one more thing that can go stale between them.
 
 import { describe, expect, test } from 'bun:test';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { DISCORD_MODULE } from './catalog/discord';
 
 const GO_BETA = join(import.meta.dir, '../../../internal/domain/discord/beta.go');
+const GUILD_ROUTE = join(import.meta.dir, '../../dashboard/src/routes/(app)/discord/[guildId]');
 
 function goBetaPremiumOnly(): boolean {
   const src = readFileSync(GO_BETA, 'utf8');
@@ -39,5 +40,28 @@ describe('discord beta gate', () => {
     // betaRouteDef matches on href, so this is what makes the route guard
     // cover /discord and every form action under it.
     expect(DISCORD_MODULE.href).toBe('/discord');
+  });
+
+  // The guild section is seven routes, and each one exposes the SAME action
+  // table by re-exporting guildActions. A child that declares its own actions
+  // instead would get its own gate story: `save` there would skip the
+  // assertModuleUnlocked check every guildActions entry runs, and a downgraded
+  // board's stale form would write. This asserts the shape rather than the
+  // behaviour because the behaviour lives behind a SvelteKit request event.
+  test('every guild sub-page re-exports the one gated action table', () => {
+    const files = readdirSync(GUILD_ROUTE, { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      .map((e) => join(GUILD_ROUTE, e.name, '+page.server.ts'))
+      .filter((f) => existsSync(f));
+
+    // The overview's own +page.server.ts, plus one per sub-page.
+    files.push(join(GUILD_ROUTE, '+page.server.ts'));
+    expect(files.length).toBeGreaterThanOrEqual(7);
+
+    for (const file of files) {
+      const src = readFileSync(file, 'utf8');
+      expect(src).toContain("import { guildActions } from '$lib/server/discord-guild'");
+      expect(src).toMatch(/export const actions(: Actions)? = guildActions;/);
+    }
   });
 });

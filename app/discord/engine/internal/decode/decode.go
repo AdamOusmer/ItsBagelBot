@@ -26,6 +26,14 @@ const (
 	PermConnect  int64  = 1048576
 	PermView     int64  = 1024
 	PermSend     int64  = 2048
+	// PermReadHistory (1<<16) is READ_MESSAGE_HISTORY. A ticket overwrite
+	// without it lets the opener see the channel and its new messages but not
+	// the card the desk posted before they were granted access, which reads as
+	// an empty ticket.
+	PermReadHistory int64 = 65536
+	// PermManageMessages (1<<13) is what lets desk staff pin and delete inside
+	// a ticket. Granted to the staff roles only.
+	PermManageMessages int64 = 8192
 )
 
 // UserRef is one Discord user as it appears embedded in a gateway payload.
@@ -88,10 +96,22 @@ type InteractionEvent struct {
 	} `json:"data"`
 	GuildID   string `json:"guild_id"`
 	ChannelID string `json:"channel_id"`
-	Member    struct {
+	// Channel is the partial channel object Discord attaches to every
+	// interaction. Only the name is decoded, and only the ticket desk reads
+	// it: renaming a closing ticket to closed-<orig> needs the original name,
+	// and this is the one place it arrives without a REST call of its own.
+	Channel struct {
+		Name string `json:"name"`
+	} `json:"channel"`
+	Member struct {
 		User        UserRef `json:"user"`
 		Permissions string  `json:"permissions"`
 		Nick        string  `json:"nick"`
+		// Roles is the interacting member's role ids. Discord sends both
+		// this and the computed Permissions bitfield on an interaction; the
+		// two answer different questions (see domain discord.IsModStaff), so
+		// staff gates read the roles and moderation gates read the bits.
+		Roles []string `json:"roles"`
 	} `json:"member"`
 }
 

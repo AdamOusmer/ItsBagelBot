@@ -1,0 +1,266 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved. */
+/* Proprietary. No license granted. See LICENSE.md. */
+
+/*
+ * The setting-row recipes the six guild sub-pages share.
+ *
+ * A plain stylesheet, imported once by the guild +layout.svelte, rather than a
+ * <style> block per page: splitting the old single page into seven routes would
+ * otherwise have copied ~120 lines of identical CSS into each of them, and a
+ * Svelte scoped block in the layout cannot reach markup rendered by a child
+ * anyway (scoping is per component, and {@render children()} is not).
+ *
+ * Everything is scoped under `.dc`, which the guild layout puts on its one
+ * .screen. That is deliberate: `.hint`, `.actions` and `.setting-row` are
+ * generic enough that a genuinely global rule would restyle unrelated routes
+ * that happen to use the same class names in their own scoped blocks.
+ */
+
+.dc .block {
+  margin: 0;
+}
+
+.dc .block-title {
+  font-family: var(--bb-font-display);
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: -0.01em;
+  color: var(--bb-white);
+  margin: 0 0 12px;
+}
+
+.dc .group {
+  font-family: var(--bb-font-body);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--bb-white);
+  margin: 20px 0 2px;
+}
+
+.dc .hint {
+  margin: 0 0 14px;
+  font-family: var(--bb-font-body);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--bb-muted);
+}
+
+.dc .lead {
+  margin: 0 0 12px;
+}
+
+.dc .row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* -- setting rows -- */
+.dc .setting-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 0;
+  border-top: 1px solid var(--glass-border);
+}
+.dc .setting-row.stacked {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+}
+.dc .setting-row.staff {
+  border: none;
+  border-top: 1px solid var(--glass-border);
+  margin: 0;
+}
+.dc .setting-row.staff legend {
+  padding: 0;
+}
+.dc .tr-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.dc .tr-label {
+  font-family: var(--bb-font-body);
+  font-size: 13.5px;
+  color: var(--bb-white);
+}
+.dc .tr-help {
+  font-family: var(--bb-font-body);
+  font-size: 12.5px;
+  color: var(--bb-muted);
+  line-height: 1.45;
+}
+
+.dc .setting-input {
+  width: min(280px, 52vw);
+  padding: 8px 12px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: rgba(240, 236, 228, 0.04);
+  color: var(--bb-white);
+  font-family: var(--bb-font-body);
+  font-size: 13px;
+  transition: border-color var(--bb-dur-fast) ease;
+}
+.dc .setting-input:focus {
+  outline: none;
+  border-color: var(--bb-tan);
+}
+.dc .setting-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.dc .setting-input::placeholder {
+  color: var(--bb-muted);
+  opacity: 0.7;
+}
+.dc select.setting-input {
+  appearance: auto;
+}
+.dc select.setting-input option {
+  color: #1a1814;
+}
+.dc .setting-row.stacked .setting-input {
+  width: 100%;
+  box-sizing: border-box;
+}
+.dc .setting-textarea {
+  min-height: 96px;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+.dc .role-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-self: end;
+  flex-wrap: wrap;
+}
+
+/* The note sits under the whole row, not beside the control: the second column
+   is sized to the control and a message wrapped inside it would be one word
+   wide. */
+.dc .field-note {
+  grid-column: 1 / -1;
+}
+
+.dc .chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0;
+  align-items: center;
+}
+.dc .chip-x {
+  margin-left: 6px;
+  opacity: 0.7;
+}
+.dc .adder {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.dc .adder .setting-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.dc .checks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 8px 14px;
+  margin-top: 10px;
+}
+.dc .check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--bb-font-body);
+  font-size: 13px;
+  color: var(--bb-white);
+  min-width: 0;
+}
+.dc .check span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dc .check input {
+  accent-color: var(--bb-tan);
+  width: 15px;
+  height: 15px;
+}
+
+.dc .colors {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-self: end;
+}
+.dc .swatch {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid var(--glass-border);
+  cursor: pointer;
+  padding: 0;
+  transition:
+    transform var(--bb-dur-fast) var(--bb-ease-out-expo),
+    border-color var(--bb-dur-fast) ease;
+}
+.dc .swatch:hover {
+  transform: translateX(2px);
+}
+.dc .swatch.on {
+  border-color: var(--bb-white);
+}
+.dc .color-input {
+  width: 40px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.dc .repost {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--glass-border);
+}
+.dc .repost .hint {
+  margin-bottom: 10px;
+}
+
+.dc .actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+@media (max-width: 560px) {
+  .dc .setting-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .dc .setting-input {
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .dc .role-controls,
+  .dc .colors {
+    justify-self: start;
+  }
+  .dc .actions {
+    flex-wrap: wrap;
+  }
+}

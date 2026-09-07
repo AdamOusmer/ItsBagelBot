@@ -20,6 +20,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"ItsBagelBot/app/discord/ingress/internal/botstatus"
 	"ItsBagelBot/app/discord/ingress/internal/config"
 	"ItsBagelBot/app/discord/ingress/internal/gateway"
 	"ItsBagelBot/app/discord/ingress/internal/presence"
@@ -93,13 +94,26 @@ func main() {
 	}
 	defer rpcConn.Close()
 
-	health.ServeSet(cfg.ListenAddr, healthSet(rpcConn, log))
+	// HOSTNAME is the pod name the kubelet injects; it is the only field of
+	// the status key that says WHICH ingress wrote it, which matters the one
+	// time two replicas exist by accident (two Identify sessions on one bot
+	// token fight, see this file's package doc).
+	pod := env.Get("HOSTNAME", "")
+	status := botstatus.New(valkeyClient, pod, log)
+	go status.Run(ctx)
+
+	health.ServeSet(cfg.ListenAddr, healthSet(rpcConn, status, log))
 
 	sess := gateway.Session{
 		Token:  cfg.DiscordBotToken,
 		Dial:   gateway.DialWS,
 		Handle: r,
 		Log:    log,
+		Status: status,
+		// The connect window survives a restart deliberately: the loop that
+		// got this bot's token reset was a crash-loop, and a per-process
+		// count of 800 is 800 per crash (see gateway/budget.go).
+		Connects: botstatus.NewConnectLog(valkeyClient, pod),
 		Presence: &presence.Source{
 			Fetch: presence.NewFetch(rpcConn, cfg.UsersCountsSubject),
 			Log:   log,
@@ -127,8 +141,13 @@ func main() {
 // The idle path above (no DISCORD_BOT_TOKEN) deliberately does not come
 // through here: it has no NATS connection to register a responder on, and
 // staying Ready with nothing to check is the behaviour it is there for.
-func healthSet(nc *nats.Conn, log *zap.Logger) *health.Set {
-	set := health.NewSet(serviceName, health.NATS("nats", nc))
+func healthSet(nc *nats.Conn, status *botstatus.Reporter, log *zap.Logger) *health.Set {
+	set := health.NewSet(serviceName, health.NATS("nats", nc), status.ReadyCheck())
+	// The gateway is the one dependency whose failure a restart can actually
+	// fix, so it is also the one liveness gate in the fleet: a fatal close
+	// code means this process will never hold the bot's Identify session
+	// again, and a stalled heartbeat means the loop that owns it is gone.
+	set.Live(status.LiveCheck())
 	rpcCheck, err := bus.SubscribeRPCHealth(nc, serviceName, serviceName+"-rpc", set)
 	if err != nil {
 		log.Fatal("failed to subscribe rpc health", zap.Error(err))

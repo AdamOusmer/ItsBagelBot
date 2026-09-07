@@ -21,6 +21,25 @@ type Snowflake struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 	Type int    `json:"type,omitempty"`
+	// Managed is set on a role Discord itself owns: a bot's own role, a
+	// Nitro booster role, an integration's role. None of them can be
+	// removed from a member through the roles API (Discord answers 403), so
+	// StripRoles has to skip them rather than pointlessly burning a call and
+	// a retry on each.
+	Managed bool `json:"managed,omitempty"`
+	// Position is a role's rank in the guild's hierarchy (0 is @everyone,
+	// higher is stronger). Discord refuses -- 403, permanently -- to let a
+	// bot touch a role at or above its OWN highest role, so a strip that
+	// does not read positions burns a call and a retry on every admin role
+	// it can never remove. Zero on channels, which have their own ordering
+	// this client does not use.
+	Position int `json:"position,omitempty"`
+	// VerificationLevel is only set on a guild (GetGuild). It rides
+	// Snowflake rather than a second guild type because the one caller that
+	// needs it -- the lockdown, which must remember the level it is about
+	// to raise -- already reads GetGuild's answer, and a parallel GuildInfo
+	// type would double every interface this client is reached through.
+	VerificationLevel int `json:"verification_level,omitempty"`
 }
 
 // PermissionOverwrite is a Discord channel overwrite.
@@ -214,6 +233,15 @@ func (c *Client) RemoveMemberRole(ctx context.Context, r MemberRole) error {
 	return c.do(ctx, request{method: http.MethodDelete, path: r.path()})
 }
 
+// RemoveMemberRoleWithReason revokes one role and records why in the guild's
+// audit log. Separate from RemoveMemberRole rather than a widened signature:
+// every other caller (the @Live role, autorole) revokes for a reason the
+// audit log cannot express better than the bot's own name, and a mass strip
+// during a raid is precisely the case a moderator later reads the log for.
+func (c *Client) RemoveMemberRoleWithReason(ctx context.Context, r MemberRole, reason string) error {
+	return c.do(ctx, request{method: http.MethodDelete, path: r.path(), reason: reason})
+}
+
 // ListGuildChannels returns the guild's channels (for matching names on fill).
 func (c *Client) ListGuildChannels(ctx context.Context, guild Guild) ([]Snowflake, error) {
 	var out []Snowflake
@@ -232,6 +260,43 @@ func (c *Client) ListGuildRoles(ctx context.Context, guild Guild) ([]Snowflake, 
 func (c *Client) GetGuild(ctx context.Context, guild Guild) (Snowflake, error) {
 	var out Snowflake
 	err := c.doInto(ctx, request{method: http.MethodGet, path: guild.path() + "?with_counts=false"}, &out)
+	return out, err
+}
+
+// GuildInfo is GET /guilds/{id}?with_counts=true, trimmed to what the
+// dashboard's server card shows. Separate from Snowflake (what GetGuild
+// returns) rather than fields bolted onto it: with_counts costs Discord an
+// extra approximation pass and is only paid for by the one caller that
+// renders a member count.
+type GuildInfo struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	// Icon is the hash, not a URL -- Discord returns null for a guild with
+	// no icon set, which decodes to "".
+	Icon string `json:"icon"`
+	// ApproximateMemberCount is Discord's own word for it: the value is a
+	// cached estimate, not a live count, and the dashboard says "members"
+	// without implying otherwise.
+	ApproximateMemberCount   int `json:"approximate_member_count"`
+	ApproximatePresenceCount int `json:"approximate_presence_count"`
+}
+
+// IconURL is the CDN URL for the guild icon, or "" when the guild has none
+// (the caller renders its own placeholder rather than a broken image).
+// Animated icons are hash-prefixed "a_" and are served as .gif; .png is
+// requested for both because a still frame is what a 40px avatar needs.
+func (g GuildInfo) IconURL() string {
+	if g.Icon == "" || g.ID == "" {
+		return ""
+	}
+	return "https://cdn.discordapp.com/icons/" + g.ID + "/" + g.Icon + ".png"
+}
+
+// GetGuildWithCounts is GetGuild plus Discord's approximate member count,
+// for the dashboard's server card.
+func (c *Client) GetGuildWithCounts(ctx context.Context, guild Guild) (GuildInfo, error) {
+	var out GuildInfo
+	err := c.doInto(ctx, request{method: http.MethodGet, path: guild.path() + "?with_counts=true"}, &out)
 	return out, err
 }
 
@@ -352,9 +417,17 @@ type ChannelPatch struct {
 	Name                 string
 	UserLimit            int
 	PermissionOverwrites []PermissionOverwrite
+	// ParentID moves the channel between categories. A pointer, unlike the
+	// other fields, because all three states are meaningful and only a pointer
+	// tells them apart: nil leaves the category alone, a pointer to "" sends
+	// JSON null and moves the channel OUT of every category, and a pointer to
+	// an id moves it under that category. The archive step needs the third and
+	// every other caller needs the first.
+	ParentID *string
 }
 
-// ModifyChannel updates a channel's name, user limit, or overwrites.
+// ModifyChannel updates a channel's name, user limit, overwrites, or parent
+// category.
 func (c *Client) ModifyChannel(ctx context.Context, patch ChannelPatch) error {
 	body := map[string]any{}
 	if patch.Name != "" {
@@ -366,7 +439,22 @@ func (c *Client) ModifyChannel(ctx context.Context, patch ChannelPatch) error {
 	if patch.PermissionOverwrites != nil {
 		body["permission_overwrites"] = patch.PermissionOverwrites
 	}
+	addParent(body, patch.ParentID)
 	return c.do(ctx, request{method: http.MethodPatch, path: "/channels/" + url.PathEscape(patch.ID), body: body})
+}
+
+// addParent writes the parent_id field, mapping an empty target onto JSON
+// null (Discord's "no category") rather than the empty string, which it
+// rejects as a malformed snowflake.
+func addParent(body map[string]any, parentID *string) {
+	if parentID == nil {
+		return
+	}
+	if *parentID == "" {
+		body["parent_id"] = nil
+		return
+	}
+	body["parent_id"] = *parentID
 }
 
 // MemberTimeout is PATCH /guilds/{guild}/members/{user} communication_disabled_until.

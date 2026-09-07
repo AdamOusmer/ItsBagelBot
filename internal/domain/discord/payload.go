@@ -72,3 +72,19 @@ type FollowupPayload struct {
 type IdentityPayload struct {
 	Identity GuildIdentity `json:"identity"`
 }
+
+// LockdownPayload is Command.Payload's shape for TypeLockdown.
+//
+// The category ids ride the command rather than being read from Config by
+// outgress because outgress never reads the module blob (see the setup
+// package's doc): engine decides WHAT to lock, outgress only performs it.
+// An empty CategoryIDs raises the guild's verification level and nothing
+// else, which is still the bulk of a lockdown's effect.
+type LockdownPayload struct {
+	// EveryoneRoleID is the role the SEND denial is written onto. Empty
+	// falls back to the guild id, which is what Discord's @everyone role id
+	// always equals.
+	EveryoneRoleID string `json:"everyone_role_id,omitempty"`
+	// CategoryIDs are the categories whose text channels get muted.
+	CategoryIDs []string `json:"category_ids,omitempty"`
+}
