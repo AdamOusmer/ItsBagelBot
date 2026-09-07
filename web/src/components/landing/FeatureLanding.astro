@@ -1,0 +1,205 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+/**
+ * FeatureLanding: the shared body of the SEO landing pages (song requests,
+ * Valorant stats, import). Hero + numbered how-it-works cards + a mono
+ * name/description list + FAQ + CTA. Pages own the copy and the schema; this
+ * owns the shape so the three pages cannot drift apart visually.
+ */
+import PageHero from '../ui/PageHero.astro';
+import SectionHeading from '../ui/SectionHeading.astro';
+import Card from '../ui/Card.astro';
+import Faq from '../pricing/Faq.astro';
+import MainButton from '../ui/Buttons/MainButton.astro';
+import SecondaryButton from '../ui/Buttons/SecondaryButton.astro';
+
+interface Item {
+    name?: string;
+    title?: string;
+    desc: string;
+}
+
+interface Props {
+    eyebrow: string;
+    title: string;
+    lead: string;
+    howEyebrow: string;
+    howTitle: string;
+    steps: Item[];
+    listEyebrow: string;
+    listTitle: string;
+    listItems: Item[];
+    listNote?: string;
+    faqEyebrow: string;
+    faqTitle: string;
+    faqItems: { question: string; answer: string }[];
+    ctaTitle: string;
+    ctaPrimary: { href: string; label: string };
+    ctaSecondary?: { href: string; label: string };
+    legal?: string;
+}
+
+const {
+    eyebrow, title, lead, howEyebrow, howTitle, steps,
+    listEyebrow, listTitle, listItems, listNote,
+    faqEyebrow, faqTitle, faqItems,
+    ctaTitle, ctaPrimary, ctaSecondary, legal,
+} = Astro.props;
+---
+
+<PageHero eyebrow={eyebrow} title={title} description={lead} />
+
+<section class="flhow">
+    <SectionHeading eyebrow={howEyebrow} title={howTitle} />
+    <ol class="flhow__steps">
+        {steps.map((step, i) => (
+            <li>
+                <Card class="flhow__card" data-reveal style={`--reveal-i: ${i}`}>
+                    <span class="flhow__num" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
+                    <h3 class="flhow__title">{step.title}</h3>
+                    <p class="flhow__desc">{step.desc}</p>
+                </Card>
+            </li>
+        ))}
+    </ol>
+</section>
+
+<section class="fllist">
+    <SectionHeading eyebrow={listEyebrow} title={listTitle} />
+    <dl class="fllist__list">
+        {listItems.map((item, i) => (
+            <div class="fllist__row" data-reveal style={`--reveal-i: ${i}`}>
+                <dt class="fllist__name">{item.name}</dt>
+                <dd class="fllist__desc">{item.desc}</dd>
+            </div>
+        ))}
+    </dl>
+    {listNote && <p class="fllist__note" data-reveal>{listNote}</p>}
+</section>
+
+<Faq eyebrow={faqEyebrow} title={faqTitle} items={faqItems} />
+
+<section class="flcta">
+    <h2 class="flcta__title" data-reveal>{ctaTitle}</h2>
+    <div class="flcta__actions" data-reveal style="--reveal-i: 1">
+        <MainButton href={ctaPrimary.href} label={ctaPrimary.label} />
+        {ctaSecondary && <SecondaryButton href={ctaSecondary.href} label={ctaSecondary.label} />}
+    </div>
+    {legal && <p class="flcta__legal">{legal}</p>}
+</section>
+
+<style>
+    .flhow,
+    .fllist {
+        padding: var(--space-section-sm, 88px) 48px;
+        max-width: var(--content-max, 1200px);
+        margin: 0 auto;
+    }
+
+    .flhow__steps {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 20px;
+        list-style: none;
+        margin: 0;
+        padding: 0;
+    }
+
+    .flhow__card { height: 100%; padding: 28px; }
+
+    .flhow__num {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.68rem;
+        color: var(--tan, #c9a87c);
+    }
+
+    .flhow__title {
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: var(--white, #f0ece4);
+        margin: 10px 0 8px;
+    }
+
+    .flhow__desc {
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 0.9rem;
+        line-height: 1.6;
+        color: var(--muted, #888077);
+        margin: 0;
+    }
+
+    .fllist__list {
+        max-width: var(--content-narrow, 720px);
+        margin: 0 auto;
+    }
+
+    .fllist__row {
+        display: flex;
+        align-items: baseline;
+        gap: 20px;
+        padding: 16px 4px;
+        border-bottom: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+    }
+
+    .fllist__name {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.85rem;
+        color: var(--tan-light, #e0c49a);
+        flex-shrink: 0;
+        min-width: 13ch;
+    }
+
+    .fllist__desc {
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 0.9rem;
+        color: var(--muted, #888077);
+        margin: 0;
+    }
+
+    .fllist__note {
+        max-width: var(--content-narrow, 720px);
+        margin: 20px auto 0;
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 0.85rem;
+        color: var(--muted, #888077);
+        text-align: center;
+    }
+
+    .flcta {
+        padding: var(--space-section-sm, 88px) 48px calc(var(--space-section, 120px));
+        text-align: center;
+    }
+
+    .flcta__title {
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-size: clamp(1.6rem, 3.6vw, 2.4rem);
+        font-weight: 800;
+        color: var(--white, #f0ece4);
+        margin: 0 0 24px;
+    }
+
+    .flcta__actions {
+        display: flex;
+        justify-content: center;
+        gap: 14px;
+        flex-wrap: wrap;
+    }
+
+    .flcta__legal {
+        margin: 32px auto 0;
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.68rem;
+        letter-spacing: 0.04em;
+        color: var(--muted, #888077);
+        opacity: 0.75;
+    }
+
+    @media (max-width: 860px) {
+        .flhow,
+        .fllist { padding-inline: 24px; }
+        .flhow__steps { grid-template-columns: 1fr; }
+    }
+</style>

@@ -1,0 +1,59 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// One page per release. Gives every version its own URL (rankable, linkable
+// from release notes and Discord) while /changelog stays the full timeline.
+// The param is entry.data.version, not the collection id: the loader strips
+// dots from ids, and the version string is the stable public name.
+import Layout from '../../../layouts/Layout.astro';
+import PageHero from '../../../components/ui/PageHero.astro';
+import ChangelogList from '../../../components/changelog/ChangelogList.astro';
+import TextLink from '../../../components/ui/TextLink.astro';
+import { getCollection } from 'astro:content';
+import { getLangFromUrl, useTranslations, locales, defaultLang, localizePath } from '../../../i18n/ui';
+
+export async function getStaticPaths() {
+  const entries = await getCollection('changelog');
+  return locales.flatMap((l) =>
+    entries.map((entry) => ({
+      params: { lang: l === defaultLang ? undefined : l, version: entry.data.version },
+      props: { entry },
+    })),
+  );
+}
+
+const { entry } = Astro.props;
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+
+const title = entry.data.title;
+const localizedTitle = typeof title === 'string' ? title : (title[lang] ?? title.en);
+---
+
+<Layout
+    title={`${entry.data.version} - ${t('changelog.metaTitle')}`}
+    description={`${localizedTitle}. ${t('changelog.metaDesc')}`}
+    ogType="article"
+>
+    <PageHero
+        eyebrow={t('changelog.eyebrow')}
+        title={entry.data.version}
+        description={localizedTitle}
+    />
+
+    <div class="clogv">
+        <ChangelogList entries={[entry]} />
+        <p class="clogv__back">
+            <TextLink href={localizePath('/changelog', lang)} label={t('changelog.backToAll')} />
+        </p>
+    </div>
+</Layout>
+
+<style>
+    .clogv { padding-bottom: var(--space-section, 96px); }
+    .clogv__back {
+        text-align: center;
+        margin: 32px 0 0;
+    }
+</style>

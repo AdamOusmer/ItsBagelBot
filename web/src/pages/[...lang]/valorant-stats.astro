@@ -1,0 +1,56 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Landing page for the "valorant rank command twitch" long tail. The command
+// names come from the sesame valorant module; renaming a command there means
+// updating the vp.cmd* locale keys too.
+import Layout from '../../layouts/Layout.astro';
+import FeatureLanding from '../../components/landing/FeatureLanding.astro';
+import { getLangFromUrl, useTranslations, locales, defaultLang, dashLoginHref, localizePath } from '../../i18n/ui';
+
+export function getStaticPaths() {
+  return locales.map((l) => ({ params: { lang: l === defaultLang ? undefined : l } }));
+}
+
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+---
+
+<Layout title={t('vp.metaTitle')} description={t('vp.metaDesc')}>
+    <FeatureLanding
+        eyebrow={t('vp.eyebrow')}
+        title={t('vp.title')}
+        lead={t('vp.lead')}
+        howEyebrow={t('vp.howEyebrow')}
+        howTitle={t('vp.howTitle')}
+        steps={[
+            { title: t('vp.step1Title'), desc: t('vp.step1Desc') },
+            { title: t('vp.step2Title'), desc: t('vp.step2Desc') },
+            { title: t('vp.step3Title'), desc: t('vp.step3Desc') },
+        ]}
+        listEyebrow={t('vp.cmdEyebrow')}
+        listTitle={t('vp.cmdTitle')}
+        listItems={[
+            { name: t('vp.cmd1Name'), desc: t('vp.cmd1Desc') },
+            { name: t('vp.cmd2Name'), desc: t('vp.cmd2Desc') },
+            { name: t('vp.cmd3Name'), desc: t('vp.cmd3Desc') },
+            { name: t('vp.cmd4Name'), desc: t('vp.cmd4Desc') },
+            { name: t('vp.cmd5Name'), desc: t('vp.cmd5Desc') },
+            { name: t('vp.cmd6Name'), desc: t('vp.cmd6Desc') },
+        ]}
+        listNote={t('vp.limitsNote')}
+        faqEyebrow={t('vp.faqEyebrow')}
+        faqTitle={t('vp.faqTitle')}
+        faqItems={[
+            { question: t('vp.faqQ1'), answer: t('vp.faqA1') },
+            { question: t('vp.faqQ2'), answer: t('vp.faqA2') },
+            { question: t('vp.faqQ3'), answer: t('vp.faqA3') },
+            { question: t('vp.faqQ4'), answer: t('vp.faqA4') },
+        ]}
+        ctaTitle={t('vp.ctaTitle')}
+        ctaPrimary={{ href: dashLoginHref(lang), label: t('nav.cta') }}
+        ctaSecondary={{ href: localizePath('/guides/data-sources', lang), label: t('vp.ctaGuide') }}
+        legal={t('vp.legal')}
+    />
+</Layout>

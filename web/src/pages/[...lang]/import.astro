@@ -1,0 +1,54 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Landing page for switchers ("switch from nightbot", "streamelements
+// alternative"). Describes the dashboard's import wizard; the source list
+// mirrors what the wizard actually accepts.
+import Layout from '../../layouts/Layout.astro';
+import FeatureLanding from '../../components/landing/FeatureLanding.astro';
+import { getLangFromUrl, useTranslations, locales, defaultLang } from '../../i18n/ui';
+
+export function getStaticPaths() {
+  return locales.map((l) => ({ params: { lang: l === defaultLang ? undefined : l } }));
+}
+
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+const importHref = `https://dashboard.itsbagelbot.com/settings/import${lang === defaultLang ? '' : `?lang=${lang}`}`;
+---
+
+<Layout title={t('imp.metaTitle')} description={t('imp.metaDesc')}>
+    <FeatureLanding
+        eyebrow={t('imp.eyebrow')}
+        title={t('imp.title')}
+        lead={t('imp.lead')}
+        howEyebrow={t('imp.howEyebrow')}
+        howTitle={t('imp.howTitle')}
+        steps={[
+            { title: t('imp.step1Title'), desc: t('imp.step1Desc') },
+            { title: t('imp.step2Title'), desc: t('imp.step2Desc') },
+            { title: t('imp.step3Title'), desc: t('imp.step3Desc') },
+        ]}
+        listEyebrow={t('imp.srcEyebrow')}
+        listTitle={t('imp.srcTitle')}
+        listItems={[
+            { name: t('imp.src1Name'), desc: t('imp.src1Desc') },
+            { name: t('imp.src2Name'), desc: t('imp.src2Desc') },
+            { name: t('imp.src3Name'), desc: t('imp.src3Desc') },
+            { name: t('imp.src4Name'), desc: t('imp.src4Desc') },
+        ]}
+        listNote={t('imp.limitsNote')}
+        faqEyebrow={t('imp.faqEyebrow')}
+        faqTitle={t('imp.faqTitle')}
+        faqItems={[
+            { question: t('imp.faqQ1'), answer: t('imp.faqA1') },
+            { question: t('imp.faqQ2'), answer: t('imp.faqA2') },
+            { question: t('imp.faqQ3'), answer: t('imp.faqA3') },
+            { question: t('imp.faqQ4'), answer: t('imp.faqA4') },
+        ]}
+        ctaTitle={t('imp.ctaTitle')}
+        ctaPrimary={{ href: importHref, label: t('imp.ctaStart') }}
+        ctaSecondary={{ href: '/vs/nightbot/', label: t('imp.ctaCompare') }}
+    />
+</Layout>

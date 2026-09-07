@@ -43,6 +43,9 @@ ItsBagelBot is a free Spotify song request bot for Twitch. Common questions it a
 
 - [Home](https://itsbagelbot.com/): product overview, features, and how it works.
 - [Song Requests](https://itsbagelbot.com/song-requests/): Spotify song requests for Twitch, commands, setup, and FAQ.
+- [Valorant Stats](https://itsbagelbot.com/valorant-stats/): the !valrank, !valmatches, !valshop commands for Twitch chat.
+- [Import](https://itsbagelbot.com/import/): move a setup over from Nightbot, StreamElements, Moobot or Streamlabs Chatbot.
+- [vs Nightbot](https://itsbagelbot.com/vs/nightbot/) and [vs StreamElements](https://itsbagelbot.com/vs/streamelements/): honest feature comparisons.
 - [Pricing](https://itsbagelbot.com/pricing/): Free / Premium / Enterprise tiers and FAQ.
 - [Guides](https://itsbagelbot.com/guides/): the visual guide hub.
 - [Getting started guide](https://itsbagelbot.com/guides/getting-started/): from Twitch login to a configured bot.
