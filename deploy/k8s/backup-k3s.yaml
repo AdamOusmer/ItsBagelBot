@@ -214,7 +214,7 @@ spec:
             # host. Every capability is still dropped -- uid 0 passes the
             # owner-bits check on those files without CAP_DAC_OVERRIDE.
             - name: snapshot
-              image: alpine/sqlite:3.53.4@sha256:c85930fa0308f480a28ed37382acf22fb4533cb4bc5838a96a4b1ee3f9304701
+              image: alpine/sqlite:3.53.4@sha256:f340775fd07a79dd9a713a253a4624b86c70222a1ac5a423270afda09497082e
               imagePullPolicy: IfNotPresent
               command: ["/bin/sh", "/scripts/snapshot.sh"]
               volumeMounts:
@@ -235,7 +235,7 @@ spec:
                 requests: {cpu: 50m, memory: 128Mi}
                 limits: {memory: 512Mi}
             - name: encrypt
-              image: alpine/openssl:3.5.8@sha256:61cec9c1f221755bf995f1f309211b222164599e2d1943b666f878ef644d3a0e
+              image: alpine/openssl:3.5.8@sha256:80b347d7b4d58e28aae515cf808ba3ce1c4a2a69a323b2cb2cb2d6d278729684
               imagePullPolicy: IfNotPresent
               command: ["/bin/sh", "/scripts/encrypt.sh"]
               envFrom:
@@ -254,7 +254,7 @@ spec:
                 limits: {memory: 512Mi}
           containers:
             - name: upload
-              image: rclone/rclone:1.75.0@sha256:b06aed988cf5967de7c25be5925240983981c757f4ed1ac9d2fa659d51d60548
+              image: rclone/rclone:1.75.1@sha256:45401ad7410db1d67ffdb58e19059ad20b0d8e0285a60e38bbec55cc1019c7a5
               imagePullPolicy: IfNotPresent
               command: ["/bin/sh", "/scripts/upload.sh"]
               env:
