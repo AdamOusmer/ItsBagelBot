@@ -9,7 +9,7 @@ import Layout from '../../../layouts/Layout.astro';
 import PageHero from '../../../components/ui/PageHero.astro';
 import GuideShell from '../../../components/guides/GuideShell.astro';
 import { getLangFromUrl, locales, defaultLang } from '../../../i18n/ui';
-import { getGuide, guidePath, guideSlugs, nextSlug, prevSlug, guideIndex } from '../../../lib/guides/registry';
+import { getGuide, guidePath, guideSlugs, nextSlug, prevSlug, guideIndex, toGuideSlug } from '../../../lib/guides/registry';
 
 export function getStaticPaths() {
     return locales.flatMap((l) =>
@@ -21,7 +21,7 @@ export function getStaticPaths() {
 
 const { slug } = Astro.params;
 const lang = getLangFromUrl(Astro.url);
-const guide = getGuide(slug as string, lang);
+const guide = getGuide(toGuideSlug(slug as string), lang);
 // Pager labels are the neighbour's own hero heading, so a renamed guide renames
 // itself everywhere instead of leaving a stale label behind.
 const before = prevSlug(guide.slug);

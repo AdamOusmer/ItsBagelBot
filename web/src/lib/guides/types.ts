@@ -8,6 +8,7 @@
  * own. Type-only import of Lang so a content file never pulls the i18n runtime.
  */
 import type { Lang } from '../../i18n/ui';
+import type { GuideSlug } from './slugs';
 
 export type { Lang };
 
@@ -89,7 +90,7 @@ export interface GuideMeta {
 }
 
 export interface GuideContent {
-  slug: string;
+  slug: GuideSlug;
   meta: GuideMeta;
   sections: Section[];
 }

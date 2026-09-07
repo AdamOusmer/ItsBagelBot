@@ -14,6 +14,11 @@ export const guideSlugs = ['getting-started', 'commands', 'data-sources', 'modul
 
 export type GuideSlug = (typeof guideSlugs)[number];
 
+/** Whether a bare string names a guide. The one door from URL text into GuideSlug. */
+export function isGuideSlug(value: string): value is GuideSlug {
+  return (guideSlugs as readonly string[]).includes(value);
+}
+
 /** English paths of every guide page, hub first. Feeds LOCALIZED_PATHS. */
 export const guideLocalizedPaths: string[] = [
   '/guides',
