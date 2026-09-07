@@ -38,13 +38,15 @@ const (
 	defaultBaseURL        = "https://api.henrikdev.xyz"
 	defaultContentBaseURL = "https://valorant-api.com"
 
-	// Rank and matches change per game played; two minutes keeps an RR delta
-	// honest across a session without letting a squad of viewers fan out into
-	// upstream calls (they collapse onto one flight instead). Clash Royale's
-	// five minutes fits a profile that moves daily; a competitive ladder that
-	// moves per match does not.
-	rankTTL    = 2 * time.Minute
-	matchesTTL = 2 * time.Minute
+	// Measured 2026-09-07: Henrik caches these two endpoints upstream and
+	// says so (x-cache-ttl starts ~300s on both mmr and v4/matches), so a
+	// 2min TTL here bought nothing — a refresh inside 5min just re-fetched
+	// the same cached bytes from Henrik's edge while still spending one call
+	// against the 30 req/min key budget. Raised to 5min to match Henrik's
+	// own window; an RR delta genuinely can't move faster than Henrik's
+	// cache does. Do not lower this again without re-measuring x-cache-ttl.
+	rankTTL    = 5 * time.Minute
+	matchesTTL = 5 * time.Minute
 
 	// The account reply carries slow-drifting cosmetics (level, card, title);
 	// an hour of staleness is invisible next to how often any of it changes.
@@ -475,6 +477,15 @@ func (p *api) rankFetch(ctx context.Context, req gossiprpc.Request, id provider.
 		return nil, err
 	}
 	var wire mmrWire
+	// Measured 2026-09-07: v3/mmr costs ~0.75s/call vs ~0.33s for v2/mmr.
+	// Considered swapping; blocked. v2's current_data has no
+	// leaderboard_placement equivalent (only currenttier, currenttierpatched,
+	// images, ranking_in_tier, mmr_change_to_last_game, elo,
+	// games_needed_for_rating, old, plus highest_rank/by_season blocks), and
+	// rankReply.Placement is a real consumed field — the !valrank "placement"
+	// token in app/twitch/sesame/modules/valorant.go reads it. Swapping would
+	// silently zero that token. Revisit only if Henrik adds placement to v2,
+	// or if Placement is ever dropped from rankReply.
 	path := "/valorant/v3/mmr/" + eff + "/" + platform + "/" + url.PathEscape(rid.name) + "/" + url.PathEscape(rid.tag)
 	if err := p.http.GetJSON(ctx, path, nil, &wire); err != nil {
 		return nil, err
