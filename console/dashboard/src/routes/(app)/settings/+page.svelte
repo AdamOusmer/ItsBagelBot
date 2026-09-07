@@ -688,7 +688,7 @@
     gap: 18px;
     padding: 16px;
     border: 1px solid rgba(82, 183, 136, 0.25);
-    border-radius: 8px;
+    border-radius: var(--bb-radius-md);
     background: rgba(82, 183, 136, 0.04);
   }
   .identity-face { flex: none; display: flex; }
@@ -704,7 +704,7 @@
     font-size: 10px;
     letter-spacing: 0.1em;
     text-transform: uppercase;
-    border-radius: var(--bb-radius-pill, 100px);
+    border-radius: var(--bb-radius-pill);
     padding: 3px 10px;
     white-space: nowrap;
   }
@@ -726,7 +726,7 @@
     margin-top: 18px;
     padding: 16px;
     border: 1px dashed var(--bb-border);
-    border-radius: 8px;
+    border-radius: var(--bb-radius-md);
     background: rgba(255, 255, 255, 0.02);
   }
   .create-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 14px; }
@@ -739,7 +739,7 @@
     align-items: center;
     gap: 14px;
     border: 1px solid var(--glass-border);
-    border-radius: 8px;
+    border-radius: var(--bb-radius-md);
     padding: 14px 16px;
     background: rgba(255, 255, 255, 0.02);
   }
@@ -770,7 +770,7 @@
     color: var(--bb-tan-light);
     background: rgba(201, 168, 124, 0.1);
     border: 1px solid rgba(201, 168, 124, 0.28);
-    border-radius: 999px;
+    border-radius: var(--bb-radius-pill);
     padding: 2px 10px;
   }
 
@@ -784,7 +784,7 @@
   .notif-list { display: flex; flex-direction: column; gap: 10px; list-style: none; margin: 0; padding: 0; }
   .notif-item {
     display: flex; align-items: flex-start; gap: 12px;
-    border: 1px solid var(--bb-border); border-radius: 8px;
+    border: 1px solid var(--bb-border); border-radius: var(--bb-radius-sm);
     padding: 12px 14px; background: rgba(255, 255, 255, 0.02);
   }
   .notif-item.unread { border-color: rgba(201, 168, 124, 0.3); background: rgba(201, 168, 124, 0.05); }

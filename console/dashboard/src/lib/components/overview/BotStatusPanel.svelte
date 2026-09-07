@@ -355,7 +355,7 @@
     letter-spacing: 0.1em;
     text-transform: uppercase;
     padding: 5px 12px;
-    border-radius: 999px;
+    border-radius: var(--bb-radius-pill);
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid var(--bb-border);
     color: var(--bb-muted);

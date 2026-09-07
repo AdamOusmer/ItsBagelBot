@@ -89,9 +89,13 @@
   --bb-tracking-eyebrow: 0.18em; /* uppercase mono labels */
 
   /* ────────────────────────── spacing / radii ──────────────────── */
-  --bb-radius-sm: 6px;
+  /* Concentric corners: inner radius = outer radius minus the gap between the
+     two edges, snapped to the 4px grid and floored at xs. True circles use 50%,
+     never a token. */
+  --bb-radius-xs: 4px;
+  --bb-radius-sm: 8px;
   --bb-radius-md: 12px;
-  --bb-radius-lg: 20px;
+  --bb-radius-lg: 16px;
   --bb-radius-pill: 999px;
 
   --bb-space-1: 4px;

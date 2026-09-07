@@ -96,7 +96,7 @@
     padding: 12px 16px;
     background: var(--bb-status-warning-bg);
     border: 1px solid var(--bb-status-warning-border);
-    border-radius: 8px;
+    border-radius: var(--bb-radius-sm);
   }
   .ov-attention__text {
     flex: 1;

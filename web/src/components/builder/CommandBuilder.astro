@@ -741,7 +741,7 @@ for (const surface of data.surfaces) {
     /* ── Layout ── */
     .layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 22px; align-items: start; }
     aside { display: grid; gap: 16px; }
-    .card { padding: clamp(22px, 3vw, 34px); border: 1px solid var(--border); border-radius: 16px; background: #111110d9; }
+    .card { padding: clamp(22px, 3vw, 34px); border: 1px solid var(--border); border-radius: var(--radius-lg); background: #111110d9; }
 
     /* ── Compose card ── */
     .compose { display: grid; gap: 20px; }
@@ -753,7 +753,7 @@ for (const surface of data.surfaces) {
         gap: 4px;
         padding: 4px;
         border: 1px solid var(--border);
-        border-radius: 12px;
+        border-radius: var(--radius-md);
         background: #0d0d0c;
     }
 
@@ -762,7 +762,7 @@ for (const surface of data.surfaces) {
         align-items: center;
         gap: 8px;
         padding: 9px 16px;
-        border-radius: 9px;
+        border-radius: var(--radius-sm);
         color: var(--muted);
         font: 700 13px var(--font-display);
         transition: color .2s, background .2s;
@@ -773,7 +773,7 @@ for (const surface of data.surfaces) {
         place-items: center;
         width: 20px;
         height: 20px;
-        border-radius: 6px;
+        border-radius: var(--radius-xs);
         background: #ffffff08;
         color: var(--tan-light);
         font: normal 10px var(--font-mono);
@@ -787,7 +787,7 @@ for (const surface of data.surfaces) {
     label > small,
     .hint { display: block; margin-top: 7px; color: var(--muted); font: 12px var(--font-body); letter-spacing: 0; text-transform: none; }
 
-    .module-pick { padding: 14px 16px; background: #ffffff05; border-radius: 10px; }
+    .module-pick { padding: 14px 16px; background: #ffffff05; border-radius: var(--radius-md); }
 
     /* Name field: prefix anchored to its own wrapper, immune to label-height
        differences (the old absolute-in-label version drifted when hints wrapped). */
@@ -796,7 +796,7 @@ for (const surface of data.surfaces) {
     .prefix { position: absolute; top: 50%; left: 12px; translate: 0 -50%; color: var(--green-glow); }
     .f-wrap input { padding-left: 30px; }
 
-    input, select, textarea { width: 100%; margin-top: 8px; color: var(--white); background: #0d0d0c; border: 1px solid #c9a87c33; border-radius: 8px; outline: 0; }
+    input, select, textarea { width: 100%; margin-top: 8px; color: var(--white); background: #0d0d0c; border: 1px solid #c9a87c33; border-radius: var(--radius-sm); outline: 0; }
     input, select { height: 44px; padding: 0 12px; }
     textarea { padding: 15px; resize: vertical; line-height: 1.6; }
     input:focus, select:focus, textarea:focus { border-color: #52b78899; box-shadow: 0 0 0 3px #52b78818; }
@@ -808,7 +808,7 @@ for (const surface of data.surfaces) {
 
     .recipes { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; margin-top: -8px; }
     .recipes span { color: var(--muted); font: 11px var(--font-mono); text-transform: uppercase; }
-    .recipes :global(button) { padding: 7px 12px; color: #bbb2a9; border: 1px solid var(--border); border-radius: 99px; font-size: 12px; transition: border-color .2s, color .2s; }
+    .recipes :global(button) { padding: 7px 12px; color: #bbb2a9; border: 1px solid var(--border); border-radius: var(--radius-pill); font-size: 12px; transition: border-color .2s, color .2s; }
     .recipes :global(button:hover) { border-color: #52b78877; color: var(--white); }
 
     /* ── Palette (inside the compose card) ── */
@@ -851,7 +851,7 @@ for (const surface of data.surfaces) {
 
     .action header b { color: #e08585; font-weight: 400; letter-spacing: 0; text-transform: none; }
 
-    .send__cta { display: flex; justify-content: center; align-items: center; gap: 10px; width: 100%; padding: 14px; color: #07120d; background: var(--green-glow); border-radius: 8px; font: 700 14px var(--font-display); transition: filter .2s, transform .2s; }
+    .send__cta { display: flex; justify-content: center; align-items: center; gap: 10px; width: 100%; padding: 14px; color: #07120d; background: var(--green-glow); border-radius: var(--radius-sm); font: 700 14px var(--font-display); transition: filter .2s, transform .2s; }
     .send__cta:hover { filter: brightness(1.08); transform: translateY(-1px); }
     .send__cta.is-disabled { opacity: .45; pointer-events: none; }
     .send__help { margin-top: 10px; color: var(--muted); font-size: 12px; line-height: 1.5; text-align: center; }
@@ -859,7 +859,7 @@ for (const surface of data.surfaces) {
     .copyw { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
     [data-send-wrap][hidden] + .copyw { margin-top: 0; padding-top: 0; border-top: 0; }
     .copyw__label { margin-bottom: 10px; color: var(--muted); font: 11px var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }
-    .copyw pre { max-height: 150px; overflow: auto; padding: 12px 14px; background: #0b0b0a; border-radius: 8px; color: var(--tan-pale); white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.6 var(--font-mono); }
+    .copyw pre { max-height: 150px; overflow: auto; padding: 12px 14px; background: #0b0b0a; border-radius: var(--radius-md); color: var(--tan-pale); white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.6 var(--font-mono); }
     /* Was a filled tan 8px button; .bb-chip owns the frame, hover and the
        copied state now, so only the full-width block fit stays local. */
     .copyw > button { justify-content: center; width: 100%; margin-top: 10px; padding: 11px; }
@@ -896,7 +896,7 @@ for (const surface of data.surfaces) {
         position: relative;
         padding: 14px 14px 12px;
         border: 1px solid rgba(240, 236, 228, 0.1);
-        border-radius: 8px;
+        border-radius: var(--radius-md);
         background: rgba(0, 0, 0, 0.3);
         display: flex;
         flex-direction: column;
@@ -940,7 +940,7 @@ for (const surface of data.surfaces) {
     [data-chat] .line.bot.me .bot-name::after { content: none; }
     [data-chat] .line.bot.special .bot-name::after { content: none; }
     [data-chat] .bot-name { color: var(--green-glow, #52b788); }
-    [data-chat] .bot-avatar { width: 14px; height: 14px; border-radius: 8px; }
+    [data-chat] .bot-avatar { width: 14px; height: 14px; border-radius: 50%; }
 
     [data-chat] .msg {
         font-family: var(--font-body, "DM Sans", sans-serif);
@@ -962,7 +962,7 @@ for (const surface of data.surfaces) {
     [data-chat] .msg mark {
         background: rgba(82, 183, 136, 0.14);
         color: var(--green-glow, #52b788);
-        border-radius: 8px;
+        border-radius: var(--radius-xs);
         padding: 0 3px;
     }
     [data-chat] .msg mark.unknown {
@@ -985,7 +985,7 @@ for (const surface of data.surfaces) {
         flex-direction: column;
         gap: 5px;
         padding: 9px 11px;
-        border-radius: 8px;
+        border-radius: var(--radius-md);
         background: color-mix(in srgb, var(--acc) 10%, rgba(0, 0, 0, 0.25));
         animation: bb-reply-in 240ms var(--ease-out-back, ease-out) both;
         animation-delay: var(--reply-delay, 0ms);
@@ -1008,7 +1008,7 @@ for (const surface of data.surfaces) {
         gap: 8px;
         flex-wrap: wrap;
         padding: 7px 11px;
-        border-radius: 8px;
+        border-radius: var(--radius-md);
         border: 1px dashed rgba(82, 183, 136, 0.4);
         background: rgba(82, 183, 136, 0.06);
         animation: bb-reply-in 240ms var(--ease-out-back, ease-out) both;
@@ -1023,7 +1023,7 @@ for (const surface of data.surfaces) {
         flex-direction: column;
         gap: 6px;
         padding: 8px 10px;
-        border-radius: 8px;
+        border-radius: var(--radius-md);
         border: 1px solid rgba(199, 125, 255, 0.35);
         background: rgba(199, 125, 255, 0.07);
         animation: bb-reply-in 240ms var(--ease-out-back, ease-out) both;
@@ -1064,7 +1064,7 @@ for (const surface of data.surfaces) {
         color: var(--white, #f0ece4);
         background: linear-gradient(135deg, rgba(255, 255, 255, .025), rgba(255, 255, 255, .01));
         border: 1px solid var(--border, rgba(201, 168, 124, .15));
-        border-radius: 10px;
+        border-radius: var(--radius-md);
         box-shadow: inset 0 1px rgba(255, 255, 255, .025);
         transition: border-color .2s, background .2s, transform .2s;
     }
@@ -1083,7 +1083,7 @@ for (const surface of data.surfaces) {
         color: var(--tan-light, #e0c49a);
         background: rgba(201, 168, 124, .07);
         border: 1px solid rgba(201, 168, 124, .12);
-        border-radius: 6px;
+        border-radius: var(--radius-xs);
         font: 11px var(--font-mono, monospace);
         white-space: nowrap;
     }
@@ -1129,7 +1129,7 @@ for (const surface of data.surfaces) {
         color: var(--white, #f0ece4);
         background: rgba(0, 0, 0, .3);
         border: 1px solid rgba(201, 168, 124, .2);
-        border-radius: 8px;
+        border-radius: var(--radius-sm);
         font: 12.5px var(--font-body, sans-serif);
     }
     [data-vars] .ctr-name:focus,
@@ -1148,7 +1148,7 @@ for (const surface of data.surfaces) {
         color: var(--white, #f0ece4);
         background: linear-gradient(135deg, rgba(255, 255, 255, .025), rgba(255, 255, 255, .01));
         border: 1px solid rgba(82, 183, 136, .33);
-        border-radius: 8px;
+        border-radius: var(--radius-sm);
         white-space: nowrap;
         transition: border-color .2s, background .2s;
     }

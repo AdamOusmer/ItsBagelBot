@@ -136,7 +136,7 @@
     width: min(100%, 1000px);
     padding: 9px 12px 9px 18px;
     border: 1px solid var(--bb-border);
-    border-radius: 999px;
+    border-radius: var(--bb-radius-pill);
     background: rgba(10, 10, 10, 0.55);
     backdrop-filter: blur(18px);
     pointer-events: auto;
@@ -150,7 +150,7 @@
     color: var(--bb-white);
     text-decoration: none;
   }
-  .logo img { width: 26px; height: 26px; border-radius: 6px; }
+  .logo img { width: 26px; height: 26px; border-radius: var(--bb-radius-sm); }
   .logo span {
     font-family: var(--bb-font-display);
     font-weight: 700;
@@ -180,7 +180,7 @@
     background: var(--bb-green, #2d6a4f);
     border: 1px solid #40916c;
     color: var(--bb-white);
-    border-radius: 999px;
+    border-radius: var(--bb-radius-pill);
     letter-spacing: 0.12em;
     text-transform: uppercase;
     text-decoration: none;
@@ -201,7 +201,7 @@
       height: 44px;
       background: rgba(240, 236, 228, 0.05);
       border: 1px solid rgba(240, 236, 228, 0.14);
-      border-radius: 999px;
+      border-radius: var(--bb-radius-pill);
       padding: 0;
       cursor: pointer;
       flex-direction: column;
@@ -240,7 +240,7 @@
       width: 18px;
       height: 2px;
       background: var(--bb-white);
-      border-radius: 999px;
+      border-radius: var(--bb-radius-pill);
       transform-origin: center;
       transition: transform 280ms var(--bb-ease-out-expo),
                   width 280ms var(--bb-ease-out-expo),

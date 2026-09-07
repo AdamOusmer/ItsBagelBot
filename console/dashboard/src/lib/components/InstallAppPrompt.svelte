@@ -232,7 +232,7 @@
     padding: 3px 3px 3px 4px;
     background: var(--bb-card-bg, #111110);
     border: 1px solid var(--bb-border-strong, rgba(201, 168, 124, 0.35));
-    border-radius: var(--bb-radius-pill, 999px);
+    border-radius: var(--bb-radius-pill);
     box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
     animation: pill-in 260ms var(--bb-ease-out-back, ease-out) both;
   }
@@ -244,7 +244,7 @@
     padding: 7px 12px;
     border: none;
     background: none;
-    border-radius: var(--bb-radius-pill, 999px);
+    border-radius: var(--bb-radius-pill);
     cursor: pointer;
     font: inherit;
     font-size: 13px;
@@ -294,7 +294,7 @@
     padding: 16px;
     background: var(--bb-card-bg, #111110);
     border: 1px solid var(--bb-border-strong, rgba(201, 168, 124, 0.35));
-    border-radius: var(--bb-radius-md, 12px);
+    border-radius: var(--bb-radius-md);
     box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
     animation: sheet-in 240ms var(--bb-ease-out-back, ease-out) both;
   }
@@ -322,7 +322,7 @@
     flex: none;
     border: none;
     background: none;
-    border-radius: 8px;
+    border-radius: var(--bb-radius-sm);
     cursor: pointer;
     color: var(--bb-muted);
   }
@@ -360,7 +360,7 @@
     height: 30px;
     flex: none;
     border: 1px solid var(--bb-border, rgba(201, 168, 124, 0.15));
-    border-radius: 8px;
+    border-radius: var(--bb-radius-sm);
     color: var(--bb-tan-light, #e0c49a);
   }
   .glyph svg {
@@ -373,7 +373,7 @@
     min-height: 40px;
     border: 1px solid rgba(82, 183, 136, 0.4);
     background: rgba(82, 183, 136, 0.12);
-    border-radius: var(--bb-radius-sm, 6px);
+    border-radius: var(--bb-radius-sm);
     cursor: pointer;
     font: inherit;
     font-size: 13px;

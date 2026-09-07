@@ -47,7 +47,7 @@
     gap: 2px;
     padding: 2px;
     border: 1px solid var(--bb-border, rgba(201, 168, 124, 0.15));
-    border-radius: var(--bb-radius-pill, 100px);
+    border-radius: var(--bb-radius-pill);
     flex: none;
   }
   .lang-opt {
@@ -60,7 +60,7 @@
     border: none;
     cursor: pointer;
     padding: 5px 9px;
-    border-radius: var(--bb-radius-pill, 100px);
+    border-radius: var(--bb-radius-pill);
     transition: color var(--bb-dur-fast, 160ms) ease, background var(--bb-dur-fast, 160ms) ease;
   }
   .lang-opt:hover { color: var(--bb-tan-pale); }

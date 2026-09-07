@@ -257,7 +257,7 @@
     background: transparent;
     color: var(--bb-muted);
     cursor: pointer;
-    border-radius: 8px;
+    border-radius: var(--bb-radius-sm);
   }
   .clear:hover { color: var(--bb-white); }
 

@@ -74,13 +74,13 @@ const outcomes = (Array.isArray(props.outcomes) ? props.outcomes : []) as Outcom
 </div>
 
 <style>
-    .gout { display: grid; gap: 12px; margin: 22px 0; padding: 15px 16px; border: 1px solid var(--border, rgba(201, 168, 124, 0.15)); border-radius: var(--radius-card, 16px); background: rgba(17, 17, 16, 0.6); }
+    .gout { display: grid; gap: 12px; margin: 22px 0; padding: 15px 16px; border: 1px solid var(--border, rgba(201, 168, 124, 0.15)); border-radius: var(--radius-lg); background: rgba(17, 17, 16, 0.6); }
     .gout__tabs { display: flex; flex-wrap: wrap; gap: 6px; }
-    .gout__tab { padding: 6px 12px; border: 1px solid var(--border, rgba(201, 168, 124, 0.15)); border-radius: var(--radius-pill, 999px); background: rgba(240, 236, 228, 0.03); color: var(--tan-light, #e0c49a); font-family: var(--font-body, "DM Sans", sans-serif); font-size: 0.78rem; cursor: pointer; transition: border-color 300ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)), background 300ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)); }
+    .gout__tab { padding: 6px 12px; border: 1px solid var(--border, rgba(201, 168, 124, 0.15)); border-radius: var(--radius-pill); background: rgba(240, 236, 228, 0.03); color: var(--tan-light, #e0c49a); font-family: var(--font-body, "DM Sans", sans-serif); font-size: 0.78rem; cursor: pointer; transition: border-color 300ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)), background 300ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)); }
     .gout__tab:hover { border-color: var(--tan, #c9a87c); }
     .gout__tab:focus-visible { outline: 2px solid var(--green-glow, #52b788); outline-offset: 2px; }
     .gout__tab[aria-selected="true"] { background: var(--tan, #c9a87c); border-color: var(--tan, #c9a87c); color: var(--black, #0a0a0a); }
-    .gout__win { border: 1px solid var(--border, rgba(201, 168, 124, 0.15)); border-radius: var(--radius-sm, 6px); background: rgba(10, 10, 10, 0.7); overflow: hidden; }
+    .gout__win { border: 1px solid var(--border, rgba(201, 168, 124, 0.15)); border-radius: var(--radius-sm); background: rgba(10, 10, 10, 0.7); overflow: hidden; }
     .gout__bar { padding: 7px 11px; border-bottom: 1px solid var(--border, rgba(201, 168, 124, 0.15)); font-family: var(--font-mono, "DM Mono", monospace); font-size: 0.62rem; color: var(--muted, #888077); }
     .gout__feed { display: grid; gap: 7px; padding: 11px; }
     .gout__msg { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; font-family: var(--font-body, "DM Sans", sans-serif); font-size: 0.86rem; line-height: 1.5; color: rgba(240, 236, 228, 0.85); }

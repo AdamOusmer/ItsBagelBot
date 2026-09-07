@@ -187,7 +187,7 @@
   .editor :global(.field) { margin-bottom: 0; }
   .input {
     padding: 8px 12px;
-    border-radius: 6px;
+    border-radius: var(--bb-radius-sm);
     border: 1px solid var(--rule);
     background: rgba(240, 236, 228, 0.04);
     color: var(--bb-white);
@@ -212,7 +212,7 @@
     height: 37px;
     padding: 3px;
     border: 1px solid var(--rule);
-    border-radius: 6px;
+    border-radius: var(--bb-radius-sm);
     background: rgba(240, 236, 228, 0.04);
     cursor: pointer;
     flex: none;
@@ -225,7 +225,7 @@
     gap: 12px;
     padding: 11px 12px;
     border: 1px solid var(--rule);
-    border-radius: 8px;
+    border-radius: var(--bb-radius-sm);
   }
   .setrow.on { border-color: var(--rule-tan); background: rgba(201, 168, 124, 0.06); }
   .setrow-text { display: grid; gap: 2px; flex: 1; min-width: 0; }

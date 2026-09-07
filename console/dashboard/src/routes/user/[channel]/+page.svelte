@@ -391,7 +391,7 @@
     gap: 6px;
     padding: 14px 20px 14px 18px;
     border: 1px solid rgba(201, 168, 124, 0.35);
-    border-radius: 12px;
+    border-radius: var(--bb-radius-md);
     background: var(--bb-card-bg) radial-gradient(220px 120px at 100% 0%, rgba(201, 168, 124, 0.14), transparent 70%);
     color: var(--bb-white);
     cursor: pointer;
@@ -464,7 +464,7 @@
     height: 42px;
     padding: 0 14px 0 40px;
     border: 1px solid var(--bb-border);
-    border-radius: 8px;
+    border-radius: var(--bb-radius-sm);
     background: var(--bb-card-bg);
     color: var(--bb-white);
     font-family: var(--bb-font-body);
@@ -504,7 +504,7 @@
   /* Shared Card, re-shaped: the list is a table so its padding goes to the
      rows; the modules panel keeps a plate. Both take the 16px public radius. */
   .list-wrap :global(.card), .side :global(.card) {
-    border-radius: 16px;
+    border-radius: var(--bb-radius-md);
     box-shadow: 0 1px 0 rgba(255, 255, 255, 0.02) inset, 0 8px 30px rgba(0, 0, 0, 0.35);
   }
   .list-wrap :global(.card) { --card-pad: 0; }
@@ -622,7 +622,7 @@
     margin: 0 -8px;
     padding: 11px 8px;
     border: 0;
-    border-radius: 8px;
+    border-radius: var(--bb-radius-sm);
     background: transparent;
     color: inherit;
     font: inherit;
@@ -649,7 +649,7 @@
 
   .legend {
     border: 1px solid var(--bb-border);
-    border-radius: 16px;
+    border-radius: var(--bb-radius-md);
     padding: 20px 22px;
     display: flex;
     flex-direction: column;

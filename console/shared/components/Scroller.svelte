@@ -45,5 +45,5 @@
   }
   .scroller.fill { flex: 1; min-height: 0; }
   .scroller::-webkit-scrollbar { width: 6px; }
-  .scroller::-webkit-scrollbar-thumb { background: rgba(201, 168, 124, 0.35); border-radius: 999px; }
+  .scroller::-webkit-scrollbar-thumb { background: rgba(201, 168, 124, 0.35); border-radius: var(--bb-radius-pill); }
 </style>

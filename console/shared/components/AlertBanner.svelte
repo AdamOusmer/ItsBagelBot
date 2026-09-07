@@ -29,7 +29,7 @@
     gap: 8px;
     margin-bottom: 14px;
     padding: 10px 14px;
-    border-radius: 8px;
+    border-radius: var(--bb-radius-md);
     font-family: var(--bb-font-body);
     font-size: 13px;
   }

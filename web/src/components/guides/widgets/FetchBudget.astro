@@ -75,7 +75,7 @@ const made = Math.min(wanted, 6);
 </div>
 
 <style>
-    .gbudget { display: grid; gap: 14px; margin: 22px 0; padding: 15px 16px; border: 1px solid var(--border, rgba(201, 168, 124, 0.15)); border-radius: var(--radius-card, 16px); background: rgba(17, 17, 16, 0.6); }
+    .gbudget { display: grid; gap: 14px; margin: 22px 0; padding: 15px 16px; border: 1px solid var(--border, rgba(201, 168, 124, 0.15)); border-radius: var(--radius-lg); background: rgba(17, 17, 16, 0.6); }
     .gbudget__controls { display: grid; gap: 14px; }
     @media (min-width: 720px) { .gbudget__controls { grid-template-columns: 1.4fr 1fr; align-items: start; } }
     .gbudget__field { display: grid; gap: 7px; margin: 0; padding: 0; border: 0; }
@@ -83,9 +83,9 @@ const made = Math.min(wanted, 6);
     .gbudget__field input[type="range"] { width: 100%; accent-color: var(--tan, #c9a87c); }
     .gbudget__out { font-family: var(--font-body, "DM Sans", sans-serif); font-size: 0.82rem; color: var(--white, #f0ece4); }
     .gbudget__radios { display: flex; gap: 6px; }
-    .gbudget__radio { display: inline-flex; align-items: center; gap: 5px; padding: 5px 11px; border: 1px solid var(--border, rgba(201, 168, 124, 0.15)); border-radius: var(--radius-pill, 999px); font-family: var(--font-mono, "DM Mono", monospace); font-size: 0.72rem; color: var(--tan-light, #e0c49a); cursor: pointer; }
+    .gbudget__radio { display: inline-flex; align-items: center; gap: 5px; padding: 5px 11px; border: 1px solid var(--border, rgba(201, 168, 124, 0.15)); border-radius: var(--radius-pill); font-family: var(--font-mono, "DM Mono", monospace); font-size: 0.72rem; color: var(--tan-light, #e0c49a); cursor: pointer; }
     .gbudget__radio input { accent-color: var(--green-glow, #52b788); }
-    .gbudget__readout { display: grid; gap: 9px; margin: 0; padding: 11px 12px; border: 1px solid var(--border, rgba(201, 168, 124, 0.15)); border-radius: var(--radius-sm, 6px); background: rgba(10, 10, 10, 0.5); }
+    .gbudget__readout { display: grid; gap: 9px; margin: 0; padding: 11px 12px; border: 1px solid var(--border, rgba(201, 168, 124, 0.15)); border-radius: var(--radius-sm); background: rgba(10, 10, 10, 0.5); }
     .gbudget__readout > div { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 10px; }
     .gbudget__readout dt { font-family: var(--font-body, "DM Sans", sans-serif); font-size: 0.82rem; color: var(--muted, #888077); }
     .gbudget__readout dd { margin: 0; display: flex; align-items: baseline; gap: 6px; }

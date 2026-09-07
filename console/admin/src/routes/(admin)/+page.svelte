@@ -263,7 +263,7 @@
   .botlink-url {
     flex: 1; min-width: 0; padding: 7px 10px;
     font-family: var(--bb-font-mono, monospace); font-size: 12px;
-    border: 1px solid var(--bb-border, #333); border-radius: 8px;
+    border: 1px solid var(--bb-border, #333); border-radius: var(--bb-radius-sm);
     background: var(--bb-bg-1, #1a1a1a); color: var(--bb-white, #eee);
   }
 

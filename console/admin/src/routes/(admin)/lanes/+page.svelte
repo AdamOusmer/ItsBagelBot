@@ -405,7 +405,7 @@
 
   .lane-actions { display: flex; gap: 4px; justify-content: flex-end; }
   .mini-act {
-    width: 26px; height: 26px; border-radius: 7px;
+    width: 26px; height: 26px; border-radius: var(--bb-radius-sm);
     display: inline-flex; align-items: center; justify-content: center;
     background: none; border: 1px solid transparent; color: var(--bb-muted); cursor: pointer;
   }
@@ -417,7 +417,7 @@
   .text-input {
     min-width: 0; width: 180px; padding: 5px 9px;
     font-family: var(--bb-font-mono); font-size: 12px;
-    border: 1px solid var(--rule); border-radius: 7px;
+    border: 1px solid var(--rule); border-radius: var(--bb-radius-sm);
     background: var(--bb-bg-1, #16130f); color: var(--bb-white);
   }
   .text-input:focus { outline: none; border-color: var(--bb-border-strong); }

@@ -170,7 +170,7 @@
     letter-spacing: 0.02em;
     color: var(--bb-tan-light);
     border: 1px solid rgba(201, 168, 124, 0.4);
-    border-radius: var(--bb-radius-pill, 100px);
+    border-radius: var(--bb-radius-pill);
     padding: 1px 8px;
   }
   /* Was a green outlined pill; now the global .bb-tag--bare label. Only the
@@ -241,7 +241,7 @@
     width: 32px;
     height: 32px;
     border: 1px solid transparent;
-    border-radius: 8px;
+    border-radius: var(--bb-radius-sm);
     background: none;
     color: var(--bb-muted);
     cursor: pointer;

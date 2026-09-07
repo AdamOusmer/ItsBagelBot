@@ -102,7 +102,7 @@
     position: relative;
     background: var(--bb-bg-1, #111);
     border: 1px solid var(--glass-border);
-    border-radius: 8px;
+    border-radius: var(--bb-radius-md);
     backdrop-filter: blur(var(--glass-blur));
     padding: 28px 28px 24px; max-width: 420px; width: 100%;
     max-height: calc(100dvh - 32px); overflow-y: auto; overscroll-behavior: contain;

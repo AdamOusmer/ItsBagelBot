@@ -223,7 +223,7 @@
     padding: 12px 14px 26px;
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid var(--glass-border);
-    border-radius: 8px 8px;
+    border-radius: var(--bb-radius-sm);
     color: var(--bb-white);
     font-family: var(--bb-font-body);
     font-size: 13.5px;
@@ -268,7 +268,7 @@
     font-size: 10px;
     color: var(--bb-muted);
     border: 1px solid var(--glass-border);
-    border-radius: 999px;
+    border-radius: var(--bb-radius-pill);
   }
 
   .line-remove {
@@ -284,7 +284,7 @@
     color: var(--bb-muted);
     background: transparent;
     border: 1px solid var(--glass-border);
-    border-radius: 999px;
+    border-radius: var(--bb-radius-pill);
     cursor: pointer;
     transition: all var(--bb-dur-fast, 140ms) ease;
   }
@@ -303,7 +303,7 @@
     color: var(--bb-green-glow, #52b788);
     background: rgba(82, 183, 136, 0.06);
     border: 1px dashed rgba(82, 183, 136, 0.4);
-    border-radius: 999px;
+    border-radius: var(--bb-radius-pill);
     padding: 4px 12px;
     cursor: pointer;
     transition: all var(--bb-dur-fast, 140ms) ease;
@@ -334,7 +334,7 @@
     color: var(--bb-tan-light);
     background: rgba(201, 168, 124, 0.08);
     border: 1px solid rgba(201, 168, 124, 0.22);
-    border-radius: 999px;
+    border-radius: var(--bb-radius-pill);
     padding: 3px 10px;
     cursor: pointer;
     transition: all var(--bb-dur-fast, 140ms) var(--bb-ease-out-expo, ease);

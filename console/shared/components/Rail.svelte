@@ -161,14 +161,14 @@
   /* The one moving part. It sits behind the rows (z-index below .rail-item). */
   .glide {
     position: absolute; left: 14px; right: 14px; pointer-events: none;
-    border-radius: 10px; background: rgba(240, 236, 228, 0.05); opacity: 0;
+    border-radius: var(--bb-radius-sm); background: rgba(240, 236, 228, 0.05); opacity: 0;
     transition: top var(--bb-dur-slow) var(--bb-ease-out-expo),
                 height var(--bb-dur-slow) var(--bb-ease-out-expo),
                 opacity var(--bb-dur-fast) ease;
   }
   .glide.shown { opacity: 1; }
   .glide-edge {
-    position: absolute; left: 0; top: 10px; bottom: 10px; width: 2px; border-radius: 2px;
+    position: absolute; left: 0; top: 10px; bottom: 10px; width: 2px; border-radius: var(--bb-radius-pill);
     background: var(--bb-green-glow); box-shadow: 0 0 10px rgba(82, 183, 136, 0.5);
   }
 
@@ -205,7 +205,7 @@
   .rail-sub {
     position: relative; z-index: 1;
     display: flex; align-items: center; gap: 8px;
-    padding: 8px 10px; border-radius: 9px; text-decoration: none;
+    padding: 8px 10px; border-radius: var(--bb-radius-sm); text-decoration: none;
     font-family: var(--bb-font-sans); font-weight: 500; font-size: 12.5px;
     color: var(--bb-muted);
     transition: color var(--bb-dur-fast) ease;

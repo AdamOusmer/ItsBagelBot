@@ -435,7 +435,7 @@
   }
 
   .mini-act {
-    width: 26px; height: 26px; border-radius: 7px;
+    width: 26px; height: 26px; border-radius: var(--bb-radius-sm);
     display: inline-flex; align-items: center; justify-content: center;
     background: none; border: 1px solid transparent; color: var(--bb-muted); cursor: pointer;
   }
@@ -459,7 +459,7 @@
   .text-input {
     flex: 1; min-width: 0; padding: 8px 11px;
     font-family: var(--bb-font-body); font-size: 13px;
-    border: 1px solid var(--rule); border-radius: 8px;
+    border: 1px solid var(--rule); border-radius: var(--bb-radius-sm);
     background: var(--bb-bg-1, #16130f); color: var(--bb-white);
   }
   .text-input.mono { font-family: var(--bb-font-mono); font-size: 12px; }

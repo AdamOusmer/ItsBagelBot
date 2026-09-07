@@ -136,7 +136,7 @@
   .account { display: flex; align-items: center; gap: 10px; padding: 6px 8px; }
   .account--btn {
     width: 100%; text-align: left;
-    background: none; border: none; border-radius: 10px; cursor: pointer;
+    background: none; border: none; border-radius: var(--bb-radius-sm); cursor: pointer;
     transition: background var(--bb-dur-fast, 180ms) ease;
   }
   .account--btn:hover, .account--btn.open { background: rgba(201, 168, 124, 0.1); }
@@ -165,7 +165,7 @@
     padding: 8px;
     background: var(--bb-card-bg, #111110);
     border: 1px solid var(--bb-border-strong, rgba(201, 168, 124, 0.35));
-    border-radius: 8px 8px;
+    border-radius: var(--bb-radius-md);
     box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
     transform-origin: bottom left;
     animation: foot-menu-in 240ms var(--bb-ease-out-back, ease-out) both;
@@ -199,7 +199,7 @@
   .foot-dash-list { display: flex; flex-direction: column; gap: 2px; }
   .foot-dash {
     display: flex; align-items: center; gap: 10px; width: 100%;
-    padding: 7px 10px; border-radius: 8px 8px;
+    padding: 7px 10px; border-radius: var(--bb-radius-sm);
     text-decoration: none; cursor: pointer;
     transition: background var(--bb-dur-fast, 180ms) ease;
   }

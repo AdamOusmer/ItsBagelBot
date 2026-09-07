@@ -227,7 +227,7 @@
     min-height: 48px;
     padding: 0 22px;
     border: 1px solid transparent;
-    border-radius: var(--bb-radius-sm, 6px);
+    border-radius: var(--bb-radius-sm);
     font-family: var(--bb-font-display);
     font-size: 0.88rem;
     font-weight: 700;

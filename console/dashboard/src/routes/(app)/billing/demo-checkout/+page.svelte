@@ -76,7 +76,7 @@
     border: 1px solid var(--bb-status-error-border, #b05a46);
     background: var(--bb-status-error-bg, #2a1310);
     color: var(--bb-status-error-fg, #f0b0a4);
-    border-radius: 10px;
+    border-radius: var(--bb-radius-md);
     font-family: var(--bb-font-mono);
     font-size: 12px;
     line-height: 1.5;

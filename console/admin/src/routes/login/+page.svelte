@@ -62,14 +62,14 @@
     text-align: center;
     background: var(--glass-fill);
     border: 1px solid var(--glass-border);
-    border-radius: 8px;
+    border-radius: var(--bb-radius-md);
     backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat, 180%));
     box-shadow: var(--glass-rim), var(--glass-shadow);
   }
   .panel img {
     width: 44px;
     height: 44px;
-    border-radius: 8px;
+    border-radius: var(--bb-radius-sm);
     margin-bottom: 16px;
   }
   .name {

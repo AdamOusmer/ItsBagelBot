@@ -134,7 +134,7 @@
     overflow: hidden;
     background: var(--bb-card-bg);
     border: 1px solid var(--bb-border);
-    border-radius: 8px;
+    border-radius: var(--bb-radius-md);
     margin-bottom: var(--row-gap);
   }
   .ov-stream__glow {

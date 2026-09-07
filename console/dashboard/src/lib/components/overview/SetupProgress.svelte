@@ -109,7 +109,7 @@
     justify-content: center;
     width: 32px;
     height: 32px;
-    border-radius: 8px;
+    border-radius: var(--bb-radius-sm);
     flex: none;
     background: rgba(201, 168, 124, 0.1);
     border: 1px solid rgba(201, 168, 124, 0.28);

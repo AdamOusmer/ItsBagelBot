@@ -172,7 +172,7 @@
     padding: 4px 6px;
     background: transparent;
     border: none;
-    border-radius: 6px;
+    border-radius: var(--bb-radius-sm);
     cursor: pointer;
     text-align: left;
   }

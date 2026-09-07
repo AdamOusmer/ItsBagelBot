@@ -265,7 +265,7 @@
     flex: none;
     width: 44px;
     height: 44px;
-    border-radius: 8px;
+    border-radius: var(--bb-radius-sm);
     display: grid;
     place-items: center;
     background: rgba(201, 168, 124, 0.12);
