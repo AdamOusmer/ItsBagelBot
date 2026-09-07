@@ -35,7 +35,7 @@ const getAppHref = `https://dashboard.itsbagelbot.com/?install=1${lang === defau
         </ul>
 
         <div class="mobile-menu__footer" data-menu-footer>
-            <a class="mobile-menu__cta" href={ctaHref}>{ctaLabel}</a>
+            <a class="bb-btn bb-btn--primary mobile-menu__cta" href={ctaHref}>{ctaLabel}</a>
             <a class="mobile-menu__app" href={getAppHref}>{t('nav.getApp')}</a>
             <div class="mobile-menu__lang"><LanguageSwitcher /></div>
             <span class="mobile-menu__meta">{t('menu.meta')}</span>
@@ -139,19 +139,8 @@ const getAppHref = `https://dashboard.itsbagelbot.com/?install=1${lang === defau
     }
 
     .mobile-menu__cta {
-        display: block;
-        text-align: center;
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.85rem;
-        padding: 16px 24px;
-        background: transparent;
-        border: 1px solid var(--tan, #c9a87c);
-        color: var(--tan-light, #e0c49a);
-        border-radius: 6px;
-        letter-spacing: 0;
-        text-transform: uppercase;
-        text-decoration: none;
-        transition: background 200ms ease, color 200ms ease;
+        width: 100%;
+        justify-content: center;
     }
 
     .mobile-menu__cta:active {

@@ -49,7 +49,7 @@ const [first, ...rest] = guides;
                     <b class="ghub__tool-name">{hub.tool.name}</b>
                     <span class="ghub__tool-desc">{hub.tool.description}</span>
                 </span>
-                <span class="ghub__tool-btn" data-cursor>{hub.tool.cta}</span>
+                <span class="bb-btn bb-btn--primary ghub__tool-btn" data-cursor>{hub.tool.cta}</span>
             </span>
         </Card>
 
@@ -115,19 +115,8 @@ const [first, ...rest] = guides;
         max-width: 60ch;
     }
 
-    /* Same shape as ui/Buttons/MainButton, as a span (this sits inside a link). */
     .ghub__tool-btn {
-        display: inline-block;
         white-space: nowrap;
-        font-family: var(--font-display, "Syne", sans-serif);
-        font-weight: 700;
-        font-size: 0.92rem;
-        padding: 14px 28px;
-        background: var(--tan, #c9a87c);
-        color: var(--black, #0a0a0a);
-        border-radius: 4px;
-        letter-spacing: -0.01em;
-        transition: background 240ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
     }
 
     /* Rehearsal in the housing: the request, a thin tan rule, the bot's reply. */
@@ -172,8 +161,13 @@ const [first, ...rest] = guides;
 
     .ghub__tool-line--out :global(b) { font-weight: 700; }
 
+    /* The button takes its own hover from anywhere on the housing, so the
+       affordance shows wherever the pointer sits on the card. */
     @media (hover: hover) and (pointer: fine) {
-        .ghub__tool:hover .ghub__tool-btn { background: var(--tan-light, #e0c49a); }
+        .ghub__tool:hover .ghub__tool-btn {
+            background: var(--tan, #c9a87c);
+            color: var(--black, #0a0a0a);
+        }
     }
 
     .ghub__tool:focus-visible {

@@ -49,7 +49,7 @@ const { index, href, title, description, meta, chips = [], cta, wide = false, re
         <span class="gcard__desc">{description}</span>
         <span class="gcard__foot">
             <span class="gcard__meta">{meta}</span>
-            <span class="gcard__btn" data-cursor>{cta}</span>
+            <span class="bb-btn bb-btn--quiet gcard__btn" data-cursor>{cta}</span>
         </span>
     </span>
 </Card>
@@ -125,24 +125,18 @@ const { index, href, title, description, meta, chips = [], cta, wide = false, re
         white-space: nowrap;
     }
 
-    /* Same shape as ui/Buttons/SecondaryButton, as a span. */
     .gcard__btn {
         white-space: nowrap;
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.72rem;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-        padding: 9px 16px;
-        border: 1px solid var(--tan, #c9a87c);
-        border-radius: 4px;
-        color: var(--tan-light, #e0c49a);
-        transition:
-            background 240ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)),
-            color 240ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
     }
 
+    /* The button takes its own hover from anywhere on the card, so the
+       affordance shows wherever the pointer sits on the plate. */
     @media (hover: hover) and (pointer: fine) {
-        :global(.gcard:hover) .gcard__btn { background: var(--tan, #c9a87c); color: var(--black, #0a0a0a); }
+        :global(.gcard:hover) .gcard__btn {
+            background: rgba(201, 168, 124, 0.08);
+            border-color: rgba(201, 168, 124, 0.5);
+            color: var(--tan-pale, #f5e6cf);
+        }
     }
 
     :global(.gcard:focus-visible) {

@@ -422,6 +422,106 @@ section {
     color: var(--white);
 }
 
+/* Tier 2c · Rails. The tab pattern turned into actions: no frame at all, the
+   label sits on the same tan hairline the tabs use and a green line draws in
+   from the left on hover, the same motion as the working indicator. Use a rail
+   where a framed button would read as a box dropped into running copy. */
+.bb-rail {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 2px 10px;
+    margin-bottom: -1px;
+    border: 0;
+    border-bottom: 1px solid var(--border);
+    border-radius: 0;
+    background: linear-gradient(var(--green-glow), var(--green-glow)) no-repeat left bottom;
+    background-size: 0 1px;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    line-height: 1;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-size 420ms var(--ease-out-expo),
+                color var(--dur-base) var(--ease-out-expo),
+                border-color var(--dur-base) var(--ease-out-expo);
+}
+
+.bb-rail::before {
+    content: "";
+    flex-shrink: 0;
+    box-sizing: border-box;
+    width: 5px;
+    height: 5px;
+    border: 1px solid currentColor;
+    background: transparent;
+    transform: rotate(45deg);
+}
+
+.bb-rail:hover { background-size: 100% 1px; color: var(--white); }
+
+/* Lead: the editorial form, for a rail that carries a section. */
+.bb-rail--lead {
+    padding-bottom: 12px;
+    border-bottom-color: var(--border-chip);
+    color: var(--white);
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 17px;
+    letter-spacing: -0.015em;
+    text-transform: none;
+}
+
+.bb-rail--lead:hover { color: var(--tan-pale); }
+
+/* Prose: sentence case at body size, for a rail that sits inside running copy
+   and has to stay a sentence rather than a label. It is the one rail that
+   wraps, so it drops the label line-height and hangs the mark and the arrow off
+   the first line instead of centring them against the whole block. */
+.bb-rail--prose {
+    align-items: flex-start;
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+    line-height: 1.45;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.bb-rail--prose::before,
+.bb-rail--prose .bb-rail__arrow {
+    margin-top: 6px;
+}
+
+.bb-rail--go { color: var(--green-light); }
+.bb-rail--go:hover { color: var(--white); }
+
+.bb-rail__arrow {
+    font-family: var(--font-mono);
+    color: var(--green-glow);
+    transition: transform 0.25s var(--ease-out-expo);
+}
+
+.bb-rail:hover .bb-rail__arrow { transform: translateX(4px); }
+
+/* The one filled button in the system. 2b keeps every control hollow at rest,
+   but the nav CTA is the site's single conversion target and has to carry the
+   bar on its own: a hairline frame inside a glass pill read as another nav
+   link. Filled stays scoped to this modifier so nothing else drifts. */
+.bb-btn--go-solid {
+    border-color: var(--green-light);
+    background: var(--green);
+    color: var(--white);
+}
+
+.bb-btn--go-solid:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
+    border-color: var(--green-glow);
+    background: var(--green-light);
+    color: var(--white);
+}
+
 .bb-btn--quiet { border-color: var(--border-chip); }
 .bb-btn--quiet:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
     background: rgba(201, 168, 124, 0.08);

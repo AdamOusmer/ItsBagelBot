@@ -50,7 +50,7 @@ const isActive = (href: string) =>
 
         <div class="button">
             <LanguageSwitcher />
-            <a class="bb-btn bb-btn--primary bb-btn--sm cta" href={cta.href}>{cta.label}<span aria-hidden="true"> →</span></a>
+            <a class="bb-btn bb-btn--go-solid bb-btn--sm cta" href={cta.href}>{cta.label}</a>
         </div>
 
         <Hamburger />
@@ -348,7 +348,19 @@ const isActive = (href: string) =>
         color: var(--white);
     }
 
+    /* The CTA is the filled green variant, and takes the bar's own type and
+       curve: the nav links are mono 0.7rem at .14em uppercase, and the shell
+       is a 999px pill, so the system's 12.5px sentence case at 6px corners
+       reads as imported from another page. The pill radius here is the one
+       sanctioned exception to the 6px button corner: it is set by the
+       container, not by the button. */
     .cta {
+        gap: 9px;
+        padding: 9px 16px 9px 13px;
+        border-radius: 999px;
+        font-size: 0.7rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
         white-space: nowrap;
     }
 

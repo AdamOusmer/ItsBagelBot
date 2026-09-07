@@ -77,8 +77,10 @@ const t = useTranslations(lang);
 
                 <!-- Trust signals as bare mono text, not pills: bordered chips under
                      the lede competed with the h1, and each fact has a full section
-                     further down anyway. The import line stays a whisper on purpose:
-                     it only needs to tell switchers the door exists. -->
+                     further down anyway. The import link is a real control now,
+                     but a rail rather than a button: a framed box under the lede
+                     read as a slab dropped into the copy, so it keeps the tan
+                     hairline and draws the green line in on hover instead. -->
                 <div class="facts">
                     <span>{t('hero.badge1')}</span>
                     <span>{t('hero.badge2')}</span>
@@ -86,8 +88,8 @@ const t = useTranslations(lang);
                     <span>{t('hero.badge4')}</span>
                 </div>
 
-                <a class="migrate" href={`https://dashboard.itsbagelbot.com/settings/import${lang === defaultLang ? '' : `?lang=${lang}`}`}>
-                    {t('hero.migrateText')}<span class="migrate__arrow" aria-hidden="true">→</span>
+                <a class="bb-rail bb-rail--prose bb-rail--go migrate" href={`https://dashboard.itsbagelbot.com/settings/import${lang === defaultLang ? '' : `?lang=${lang}`}`}>
+                    {t('hero.migrateText')}<span class="bb-rail__arrow" aria-hidden="true">→</span>
                 </a>
             </div>
         </div>
@@ -475,29 +477,9 @@ const t = useTranslations(lang);
     }
 
     .migrate {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
         margin-top: 18px;
-        font-size: 0.85rem;
-        color: var(--green-light);
-        text-decoration: none;
         opacity: 0;
         animation: fadeUp 0.9s 0.8s var(--ease-out-expo) forwards;
-        position: relative;
-        transition: color 0.2s;
-    }
-
-    .migrate__arrow {
-        transition: transform 0.25s var(--ease-out-expo);
-    }
-
-    .migrate:hover {
-        color: var(--white);
-    }
-
-    .migrate:hover .migrate__arrow {
-        transform: translateX(4px);
     }
 
     @keyframes fadeUp {
@@ -592,7 +574,6 @@ const t = useTranslations(lang);
 
         .migrate {
             margin-top: 14px;
-            font-size: 0.8rem;
         }
 
         .actions {
@@ -644,7 +625,6 @@ const t = useTranslations(lang);
 
         .migrate {
             margin-top: 12px;
-            font-size: 0.76rem;
         }
     }
 
