@@ -17,7 +17,20 @@ interface FaqItem {
     answer: string;
 }
 
-const faqs: FaqItem[] = [
+interface Props {
+    /** Override the pricing defaults so other pages can reuse the component. */
+    eyebrow?: string;
+    title?: string;
+    items?: FaqItem[];
+}
+
+const {
+    eyebrow = t('faq.eyebrow'),
+    title = t('faq.title'),
+    items,
+} = Astro.props;
+
+const faqs: FaqItem[] = items ?? [
     { question: t('faq.q1'), answer: t('faq.a1') },
     { question: t('faq.q2'), answer: t('faq.a2') },
     { question: t('faq.q3'), answer: t('faq.a3') },
@@ -39,7 +52,7 @@ const faqLd = {
 ---
 
 <section class="faq">
-    <SectionHeading eyebrow={t('faq.eyebrow')} title={t('faq.title')} />
+    <SectionHeading eyebrow={eyebrow} title={title} />
 
     <div class="faq__list">
         {faqs.map((faq, i) => (

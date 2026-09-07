@@ -11,7 +11,7 @@
 ## What it is
 
 - ItsBagelBot connects to a Twitch channel in one click and handles moderation and engagement so the streamer can focus on streaming.
-- The entire toolkit is free. A paid Premium tier ($ CAD/month) only adds message priority and faster responses to keep the servers funded; it unlocks no exclusive features. An Enterprise tier serves organizations running many channels.
+- The entire toolkit is free. A paid Premium tier ($7 CAD/month) only adds message priority and faster responses to keep the servers funded; it unlocks no exclusive features. An Enterprise tier serves organizations running many channels.
 - Privacy-first: no third-party trackers, no data sold, chat content is not stored for resale.
 - Source-available (not open source): the code can be read and audited on GitHub, but the license limits redistribution and commercial use.
 - Runs on sustainable hydro-electric power; the site and dashboard rank cleaner than ~92% and ~95% of pages tested by Website Carbon.
@@ -23,7 +23,7 @@
 - Spotify song requests: viewers type `!sr <song or Spotify link>` in Twitch chat and the track is added to the streamer's real Spotify queue. Free, with no premium gate.
 - Timers, polls, and giveaways (verifiably random draws).
 - Channel Points rewards, including a Govee smart-light integration (viewers redeem to drive stream lights).
-- Game-stat integrations: Hypixel Bedwars stats, MCSR Ranked (Minecraft speedrun) Elo, and Fortnite stats plus the daily item shop, pulled straight into chat.
+- Game-stat integrations: Valorant rank/MMR and recent competitive matches, Hypixel Bedwars stats, MCSR Ranked (Minecraft speedrun) Elo, and Fortnite stats plus the daily item shop, pulled straight into chat.
 - Config import wizard: bring an existing setup over from Nightbot, StreamElements, Moobot or Streamlabs Chatbot — commands, timers, counters and quotes. Files are parsed in the browser and every item is reviewed before it is written. Nightbot connects over OAuth; the others take an export file.
 - Setup takes about two minutes; rules read like sentences, not code. Uninstall anytime.
 
@@ -42,14 +42,20 @@ ItsBagelBot is a free Spotify song request bot for Twitch. Common questions it a
 ## Pages
 
 - [Home](https://itsbagelbot.com/): product overview, features, and how it works.
-- [Pricing](https://itsbagelbot.com/pricing): Free / Premium / Enterprise tiers and FAQ.
-- [Guides](https://itsbagelbot.com/guides): visual guides — getting started, commands & variables, and the modules handbook.
-- [Changelog](https://itsbagelbot.com/changelog): every public release, tagged (alpha / beta / pre-release) and linked to GitHub.
-- [Command Builder](https://itsbagelbot.com/command-builder): interactive tool to compose custom commands with variables and send them to the dashboard.
-- [Contact](https://itsbagelbot.com/contact): Discord, support and enterprise email, GitHub.
-- [Privacy Policy](https://itsbagelbot.com/privacy)
-- [Terms of Service](https://itsbagelbot.com/terms)
-- [Creator Code Terms](https://itsbagelbot.com/creator-terms): revenue-share program for creators.
+- [Song Requests](https://itsbagelbot.com/song-requests/): Spotify song requests for Twitch, commands, setup, and FAQ.
+- [Pricing](https://itsbagelbot.com/pricing/): Free / Premium / Enterprise tiers and FAQ.
+- [Guides](https://itsbagelbot.com/guides/): the visual guide hub.
+- [Getting started guide](https://itsbagelbot.com/guides/getting-started/): from Twitch login to a configured bot.
+- [Commands & variables guide](https://itsbagelbot.com/guides/commands/): custom commands, variables, cooldowns.
+- [Data sources guide](https://itsbagelbot.com/guides/data-sources/): game stats and external data in chat.
+- [Modules guide](https://itsbagelbot.com/guides/modules/): the modules handbook, including song requests and moderation.
+- [Counters guide](https://itsbagelbot.com/guides/counters/): loyalty and counter commands.
+- [Changelog](https://itsbagelbot.com/changelog/): every public release, tagged (alpha / beta / pre-release) and linked to GitHub.
+- [Command Builder](https://itsbagelbot.com/command-builder/): interactive tool to compose custom commands with variables and send them to the dashboard.
+- [Contact](https://itsbagelbot.com/contact/): Discord, support and enterprise email, GitHub.
+- [Privacy Policy](https://itsbagelbot.com/privacy/)
+- [Terms of Service](https://itsbagelbot.com/terms/)
+- [Creator Code Terms](https://itsbagelbot.com/creator-terms/): revenue-share program for creators.
 
 ## Product and resources
 
