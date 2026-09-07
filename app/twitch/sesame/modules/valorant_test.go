@@ -10,7 +10,6 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
-	"ItsBagelBot/internal/domain/event/lane"
 	"ItsBagelBot/internal/domain/outgress"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/pkg/bus"
@@ -261,84 +260,4 @@ func TestValshopTemplate(t *testing.T) {
 	assert.Equal(t,
 		"Daily rotation (2): Reaver Vandal (1775 VP), Ion Frenzy (875 VP) · resets in 2h 30m",
 		col.out[0].Text)
-}
-
-// valOnlineCtx builds a stream.online/stream.offline Context for
-// broadcaster 9 with cfg, mirroring fortniteOnlineCtx.
-func valOnlineCtx(evtType, cfg string) *module.Context {
-	return &module.Context{
-		Env:           lane.Envelope{Type: evtType, BroadcasterUserID: "9", BroadcasterUserLogin: "streamer"},
-		BroadcasterID: 9,
-		Log:           zap.NewNop(),
-		Config:        []byte(cfg),
-	}
-}
-
-// stream.online arms gossip's warm loop for the linked account, so
-// !valrank/!valmatches are cache-warm from the stream's first chat command.
-// The call is fire-and-forget on its own goroutine.
-func TestValStreamOnlineArmsWarmSession(t *testing.T) {
-	done := make(chan struct{})
-	gw := &fakeGossip{
-		replies: map[string]any{"valorant.session_start": gossiprpc.ValorantSessionReply{Player: "Frosty#EUW1"}},
-		done:    done,
-	}
-	h := Valorant(engine.Deps{Gossip: gw, Log: zap.NewNop()}).Events["stream.online"]
-	require.NotNil(t, h, "valorant must handle stream.online")
-
-	var col collector
-	cfg := `{"account":"Frosty#EUW1","region":"na","platform":"pc"}`
-	require.NoError(t, h(context.Background(), valOnlineCtx("stream.online", cfg), col.emit))
-	assert.Empty(t, col.out, "session start must not chat")
-
-	select {
-	case <-done:
-	case <-time.After(2 * time.Second):
-		t.Fatal("stream.online never called gossip")
-	}
-	call := gw.lastCall(t)
-	assert.Equal(t, "valorant", call.provider)
-	assert.Equal(t, "session_start", call.endpoint)
-	assert.Equal(t, "Frosty#EUW1", call.req.Account)
-	assert.Equal(t, "na", call.req.Region)
-	assert.Equal(t, "pc", call.req.Platform)
-	assert.Equal(t, "9", call.req.ChannelID)
-}
-
-// Without gossip wired (a deployment running the module without the
-// provider) stream.online must not panic and must not chat.
-func TestValStreamOnlineSkipsWithoutGossip(t *testing.T) {
-	h := Valorant(engine.Deps{Log: zap.NewNop()}).Events["stream.online"]
-	require.NotNil(t, h)
-
-	var col collector
-	require.NoError(t, h(context.Background(), valOnlineCtx("stream.online", `{"account":"Frosty#EUW1"}`), col.emit))
-	assert.Empty(t, col.out)
-}
-
-// stream.offline disarms the channel's warm loop so gossip stops spending
-// the shared HenrikDev budget on an account nobody is watching.
-func TestValStreamOfflineDisarmsWarmSession(t *testing.T) {
-	done := make(chan struct{})
-	gw := &fakeGossip{
-		replies: map[string]any{"valorant.session_end": gossiprpc.ValorantSessionReply{}},
-		done:    done,
-	}
-	h := Valorant(engine.Deps{Gossip: gw, Log: zap.NewNop()}).Events["stream.offline"]
-	require.NotNil(t, h, "valorant must handle stream.offline")
-
-	var col collector
-	require.NoError(t, h(context.Background(), valOnlineCtx("stream.offline", `{"account":"Frosty#EUW1"}`), col.emit))
-	assert.Empty(t, col.out, "session end must not chat")
-
-	select {
-	case <-done:
-	case <-time.After(2 * time.Second):
-		t.Fatal("stream.offline never called gossip")
-	}
-	call := gw.lastCall(t)
-	assert.Equal(t, "valorant", call.provider)
-	assert.Equal(t, "session_end", call.endpoint)
-	assert.Equal(t, "9", call.req.ChannelID)
-	assert.Empty(t, call.req.Account, "the disarm is channel-scoped, not account-scoped")
 }

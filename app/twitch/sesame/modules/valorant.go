@@ -6,7 +6,6 @@ package modules
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -14,8 +13,6 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/outgress"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
-
-	"go.uber.org/zap"
 )
 
 // valModuleName is the ModuleView key; the console MODULE_CATALOG entry and
@@ -26,11 +23,6 @@ const valModuleName = "valorant"
 // (two minutes on rank and matches, a day on the shop rotation), so this only
 // shields chat from command spam, not the API.
 const valCooldown = 10 * time.Second
-
-// valSessionTimeout bounds the fire-and-forget session_start/session_end
-// calls that arm and disarm gossip's rank/matches warm loop, mirroring
-// fortniteSnapshotTimeout.
-const valSessionTimeout = 10 * time.Second
 
 // Default reply templates. The broadcaster customizes them per command on the
 // module page; blank falls back to these.
@@ -204,87 +196,7 @@ func Valorant(d engine.Deps) module.Module {
 		Run(runs.board)
 	m.Command("valshop").Everyone().Cooldown(valCooldown).Aliases("valrotation").
 		Run(runs.shop)
-
-	// Keep the linked account's rank+matches warm in gossip's cache for the
-	// length of the stream, so !valrank/!valmatches hit cache instead of a
-	// cold HenrikDev call. Mirrors fortnite/mcsr's online/offline wiring.
-	m.On("stream.online", valSessionOnline(d))
-	m.On("stream.offline", valSessionOffline(d))
 	return m.Build()
-}
-
-// valSessionOnline arms gossip's warm loop for the linked account when the
-// stream goes online, so !valrank/!valmatches are cache-warm from the first
-// chat command rather than only after someone eats the cold HenrikDev round
-// trip. Fire and forget on a Background context (the consumer ctx is acked
-// and may cancel the moment the handler returns), mirroring the fortnite and
-// mcsr modules' write discipline. Silently no-ops without a resolvable
-// account or without gossip wired.
-func valSessionOnline(d engine.Deps) module.EventHandler {
-	log := d.Log
-	if log == nil {
-		log = zap.NewNop()
-	}
-	return func(_ context.Context, c *module.Context, _ module.Emit) error {
-		if d.Gossip == nil {
-			return nil
-		}
-		var cfg valorantConfig
-		_ = c.Decode(&cfg)
-		account := resolveAccount(accountSources{Linked: cfg.Account, BroadcasterLogin: c.Env.BroadcasterUserLogin})
-		if account == "" {
-			return nil
-		}
-		channelID := strconv.FormatUint(c.BroadcasterID, 10)
-		seqOrGo(d.Seq, c.BroadcasterID, log, func() {
-			wctx, cancel := context.WithTimeout(context.Background(), valSessionTimeout)
-			defer cancel()
-			req := gossiprpc.Request{
-				Account:   account,
-				Region:    cfg.Region,
-				Platform:  cfg.Platform,
-				ChannelID: channelID,
-				IsPremium: c.Regress.IsPremium(),
-			}
-			var reply gossiprpc.ValorantSessionReply
-			if err := d.Gossip.Call(wctx, engine.GossipRoute{Provider: "valorant", Endpoint: "session_start"}, req, &reply); err != nil {
-				log.Debug("valorant: warm session start failed",
-					zap.String("channel_id", channelID), zap.String("account", account), zap.Error(err))
-				return
-			}
-			log.Debug("valorant: warm session started",
-				zap.String("channel_id", channelID), zap.String("player", reply.Player))
-		})
-		return nil
-	}
-}
-
-// valSessionOffline disarms the channel's warm loop when the stream ends, so
-// gossip stops spending the shared HenrikDev budget on an account nobody is
-// watching. Gossip deployments without the provider answer no-responder — an
-// expected miss, hence Debug.
-func valSessionOffline(d engine.Deps) module.EventHandler {
-	log := d.Log
-	if log == nil {
-		log = zap.NewNop()
-	}
-	return func(_ context.Context, c *module.Context, _ module.Emit) error {
-		if d.Gossip == nil {
-			return nil
-		}
-		channelID := strconv.FormatUint(c.BroadcasterID, 10)
-		seqOrGo(d.Seq, c.BroadcasterID, log, func() {
-			wctx, cancel := context.WithTimeout(context.Background(), valSessionTimeout)
-			defer cancel()
-			var reply gossiprpc.ValorantSessionReply
-			err := d.Gossip.Call(wctx, engine.GossipRoute{Provider: "valorant", Endpoint: "session_end"}, gossiprpc.Request{ChannelID: channelID}, &reply)
-			if err != nil {
-				log.Debug("valorant: warm session end failed",
-					zap.String("channel_id", channelID), zap.Error(err))
-			}
-		})
-		return nil
-	}
 }
 
 // valRuns bundles the five subcommand runners so the root dispatcher takes one

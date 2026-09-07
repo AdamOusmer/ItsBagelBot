@@ -166,11 +166,6 @@ func New(cfg Config, d provider.Deps) provider.Provider {
 		Fallback("shop lookup failed").
 		Fetch(p.shopFetch)
 
-	// session_start/session_end keep a live broadcaster's own rank+matches
-	// warm in the cache for the length of the stream; see session.go.
-	b.Endpoint("session_start").Timeout(handlerTimeout).Handle(p.sessionStart)
-	b.Endpoint("session_end").Timeout(handlerTimeout).Handle(p.sessionEnd)
-
 	return b.Build()
 }
 
