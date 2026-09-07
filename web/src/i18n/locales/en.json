@@ -245,8 +245,7 @@
   "games.valCh": "valorant · ch 03",
   "games.crCh": "clash · ch 04",
   "games.reqCh": "requests · open",
-  "games.legal": "ItsBagelBot is not an official Minecraft service and is not approved by or associated with Mojang or Microsoft. Not affiliated with or endorsed by Hypixel Inc. or MCSR Ranked. Hypixel data is retrieved through the official Hypixel API, using a developer key linked to the Minecraft account {ign}, the developer and owner of ItsBagelBot. Portions of the materials used are trademarks and/or copyrighted works of Epic Games, Inc. Not endorsed by Epic Games. Not affiliated with or endorsed by Riot Games. This content is not affiliated with, endorsed, sponsored, or specifically approved by Supercell and Supercell is not responsible for it; see Supercell's Fan Content Policy: supercell.com/en/fan-content-policy.",
-  "games.legalShort": "ItsBagelBot is not affiliated with any game publisher. Full trademark notices sit in the footer.",
+  "games.legalShort": "ItsBagelBot is not affiliated with any game publisher. Full trademark notices sit in the {terms}.",
   "about.line1": "ItsBagelBot is built and operated by {ign}.",
   "about.mcLine": "Game stats come through the official Hypixel API, with the developer key registered to the Minecraft account {ign}.",
   "qw.eyebrow": "The quiet work",
@@ -369,5 +368,6 @@
   "guide.hub": "All guides",
   "guide.prevLabel": "Previous guide",
   "guide.nextLabel": "Next guide",
-  "skip.toContent": "Skip to content"
+  "skip.toContent": "Skip to content",
+  "games.legalTermsLabel": "Terms of Service"
 }

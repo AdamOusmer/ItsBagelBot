@@ -17,14 +17,36 @@ const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
 const dashboardQuery = lang === defaultLang ? '' : `?lang=${lang}`;
 
-// The fine print took over the two notices that used to live on the home page:
-// the About colophon (its own section, now gone) and the Games trademark
-// paragraph. Both name the owner, so both keep the {ign} placeholder split that
-// lets each locale put the linked handle where its own prose needs it.
+// The ownership colophon sits in its own mini section just above the footer,
+// not inside it. It names the owner, so it keeps the {ign} placeholder split
+// that lets each locale put the linked handle where its own prose needs it.
+// The game trademark notices live in the Terms of Service (11-third-party).
 const [ownerBefore, ownerAfter = ''] = t('about.line1').split('{ign}');
 const [keyBefore, keyAfter = ''] = t('about.mcLine').split('{ign}');
-const [legalBefore, legalAfter = ''] = t('games.legal').split('{ign}');
 ---
+
+{/* Deliberately NOT gated behind data-reveal: every revealed block starts at
+    opacity 0 (style.css [data-reveal]) and only appears once reveal.js runs,
+    and Hypixel verifies ownership by scanning served HTML for the username as
+    visible text. A reviewer with JS off has to find ItsMavey here, so this
+    stays statically visible. The id stays "about": it is the ownership
+    colophon; tests/site.spec.js scans #about for the NameMC links. */}
+<section class="colophon">
+    <div class="colophon__owner" id="about">
+        <p>{ownerBefore}<a
+            class="colophon__ign"
+            href={OWNER_PROFILE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+        >{OWNER_IGN}</a>{ownerAfter}</p>
+        <p>{keyBefore}<a
+            class="colophon__ign"
+            href={OWNER_PROFILE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+        >{OWNER_IGN}</a>{keyAfter}</p>
+    </div>
+</section>
 
 <footer>
     <div class="signoff" data-reveal>
@@ -66,35 +88,6 @@ const [legalBefore, legalAfter = ''] = t('games.legal').split('{ign}');
                 <TextLink href={`https://dashboard.itsbagelbot.com${dashboardQuery}`} label={t('footer.dashboard')} external />
             </div>
         </div>
-    </div>
-
-    {/* Fine print. Deliberately NOT gated behind data-reveal: every revealed
-        block starts at opacity 0 (style.css [data-reveal]) and only appears once
-        reveal.js runs, and Hypixel verifies ownership by scanning served HTML
-        for the username as visible text. A reviewer with JS off has to find
-        ItsMavey here, so this stays statically visible. The id stays "about":
-        it is the ownership colophon, only relocated out of its own section. */}
-    <div class="fineprint">
-        <div class="fineprint__owner" id="about">
-            <p>{ownerBefore}<a
-                class="fineprint__ign"
-                href={OWNER_PROFILE_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-            >{OWNER_IGN}</a>{ownerAfter}</p>
-            <p>{keyBefore}<a
-                class="fineprint__ign"
-                href={OWNER_PROFILE_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-            >{OWNER_IGN}</a>{keyAfter}</p>
-        </div>
-        <p class="fineprint__legal">{legalBefore}<a
-            class="fineprint__ign"
-            href={OWNER_PROFILE_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-        >{OWNER_IGN}</a>{legalAfter}</p>
     </div>
 
     <div class="bottom">
@@ -234,33 +227,30 @@ const [legalBefore, legalAfter = ''] = t('games.legal').split('{ign}');
         .brand__logo { transition: none; }
     }
 
-    /* ── Fine print ── */
+    /* ── Colophon ── */
 
-    .fineprint {
+    .colophon {
         position: relative;
-        max-width: 760px;
-        margin: 0 auto 30px;
+        padding: 28px 24px;
+        border-top: 1px solid var(--border, rgba(255, 255, 255, 0.08));
         text-align: center;
         font-family: var(--font-mono);
         color: var(--muted);
     }
 
-    .fineprint__owner p {
+    .colophon__owner {
+        max-width: 760px;
+        margin: 0 auto;
+    }
+
+    .colophon__owner p {
         margin: 0 0 8px;
         font-size: 0.72rem;
         letter-spacing: 0.05em;
         line-height: 1.8;
     }
 
-    .fineprint__legal {
-        margin: 16px 0 0;
-        font-size: 0.62rem;
-        letter-spacing: 0.02em;
-        line-height: 1.7;
-        opacity: 0.75;
-    }
-
-    .fineprint__ign {
+    .colophon__ign {
         color: var(--tan-light);
         text-decoration: underline;
         text-decoration-color: rgba(224, 196, 154, 0.4);
@@ -268,7 +258,7 @@ const [legalBefore, legalAfter = ''] = t('games.legal').split('{ign}');
         transition: color 180ms ease, text-decoration-color 180ms ease;
     }
 
-    .fineprint__ign:is(:hover, :focus-visible) {
+    .colophon__ign:is(:hover, :focus-visible) {
         color: var(--white);
         text-decoration-color: rgba(240, 236, 228, 0.7);
     }
