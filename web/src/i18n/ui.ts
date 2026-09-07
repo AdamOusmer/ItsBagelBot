@@ -59,7 +59,7 @@ function normalizePath(path: string): string {
  */
 export const LOCALIZED_PATHS: ReadonlySet<string> = new Set([
   '/', '/pricing', '/contact', '/privacy', '/terms', '/creator-terms',
-  ...guideLocalizedPaths, '/command-builder', '/changelog',
+  ...guideLocalizedPaths, '/command-builder', '/changelog', '/song-requests',
 ]);
 
 /** Locale from the URL: first path segment when it names a known locale, else default. */
@@ -92,11 +92,15 @@ export function useTranslations(lang: Lang) {
 
 /**
  * Prefix an internal path with the active locale. External URLs (http…, mailto,
- * anchors) and the default locale pass through untouched.
+ * anchors) pass through untouched. Internal paths come back with a trailing
+ * slash: Cloudflare Pages 308-redirects the slashless form, so emitting it in
+ * hrefs and hreflang costs a hop per click and makes hreflang disagree with the
+ * canonical/sitemap URLs (Google drops mismatched hreflang pairs).
  */
 export function localizePath(path: string, lang: Lang): string {
-  if (lang === defaultLang || !path.startsWith('/')) return path;
-  return path === '/' ? `/${lang}/` : `/${lang}${path}`;
+  if (!path.startsWith('/')) return path;
+  const slashed = path.endsWith('/') ? path : `${path}/`;
+  return lang === defaultLang ? slashed : `/${lang}${slashed}`;
 }
 
 /** The human-readable name of a locale, from its own lang.name key. */

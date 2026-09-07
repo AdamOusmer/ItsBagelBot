@@ -1,0 +1,196 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Landing page for the highest-intent query into the product ("twitch spotify
+// song request bot"). The copy mirrors the Q&A block in public/llms.txt so
+// search results, answer engines and the page all tell the same story.
+import Layout from '../../layouts/Layout.astro';
+import PageHero from '../../components/ui/PageHero.astro';
+import SectionHeading from '../../components/ui/SectionHeading.astro';
+import Card from '../../components/ui/Card.astro';
+import Faq from '../../components/pricing/Faq.astro';
+import MainButton from '../../components/ui/Buttons/MainButton.astro';
+import SecondaryButton from '../../components/ui/Buttons/SecondaryButton.astro';
+import { getLangFromUrl, useTranslations, locales, defaultLang, dashLoginHref, localizePath } from '../../i18n/ui';
+
+export function getStaticPaths() {
+  return locales.map((l) => ({ params: { lang: l === defaultLang ? undefined : l } }));
+}
+
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+
+const steps = [
+    { title: t('sr.step1Title'), desc: t('sr.step1Desc') },
+    { title: t('sr.step2Title'), desc: t('sr.step2Desc') },
+    { title: t('sr.step3Title'), desc: t('sr.step3Desc') },
+];
+
+const commands = [
+    { name: t('sr.cmd1Name'), desc: t('sr.cmd1Desc') },
+    { name: t('sr.cmd2Name'), desc: t('sr.cmd2Desc') },
+    { name: t('sr.cmd3Name'), desc: t('sr.cmd3Desc') },
+    { name: t('sr.cmd4Name'), desc: t('sr.cmd4Desc') },
+];
+
+const faqItems = [
+    { question: t('sr.faqQ1'), answer: t('sr.faqA1') },
+    { question: t('sr.faqQ2'), answer: t('sr.faqA2') },
+    { question: t('sr.faqQ3'), answer: t('sr.faqA3') },
+    { question: t('sr.faqQ4'), answer: t('sr.faqA4') },
+    { question: t('sr.faqQ5'), answer: t('sr.faqA5') },
+    { question: t('sr.faqQ6'), answer: t('sr.faqA6') },
+];
+---
+
+<Layout title={t('sr.metaTitle')} description={t('sr.metaDesc')}>
+    <PageHero
+        eyebrow={t('sr.eyebrow')}
+        title={t('sr.title')}
+        description={t('sr.lead')}
+    />
+
+    <section class="srhow">
+        <SectionHeading eyebrow={t('sr.howEyebrow')} title={t('sr.howTitle')} />
+        <ol class="srhow__steps">
+            {steps.map((step, i) => (
+                <li>
+                    <Card class="srhow__card" data-reveal style={`--reveal-i: ${i}`}>
+                        <span class="srhow__num" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
+                        <h3 class="srhow__title">{step.title}</h3>
+                        <p class="srhow__desc">{step.desc}</p>
+                    </Card>
+                </li>
+            ))}
+        </ol>
+    </section>
+
+    <section class="srcmd">
+        <SectionHeading eyebrow={t('sr.cmdEyebrow')} title={t('sr.cmdTitle')} />
+        <dl class="srcmd__list">
+            {commands.map((cmd, i) => (
+                <div class="srcmd__row" data-reveal style={`--reveal-i: ${i}`}>
+                    <dt class="srcmd__name">{cmd.name}</dt>
+                    <dd class="srcmd__desc">{cmd.desc}</dd>
+                </div>
+            ))}
+        </dl>
+        <p class="srcmd__note" data-reveal>{t('sr.limitsNote')}</p>
+    </section>
+
+    <Faq eyebrow={t('sr.faqEyebrow')} title={t('sr.faqTitle')} items={faqItems} />
+
+    <section class="srcta">
+        <h2 class="srcta__title" data-reveal>{t('sr.ctaTitle')}</h2>
+        <div class="srcta__actions" data-reveal style="--reveal-i: 1">
+            <MainButton href={dashLoginHref(lang)} label={t('nav.cta')} />
+            <SecondaryButton href={localizePath('/guides/modules', lang)} label={t('sr.ctaGuide')} />
+        </div>
+    </section>
+</Layout>
+
+<style>
+    .srhow,
+    .srcmd {
+        padding: var(--space-section-sm, 88px) 48px;
+        max-width: var(--content-max, 1200px);
+        margin: 0 auto;
+    }
+
+    .srhow__steps {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 20px;
+        list-style: none;
+        margin: 0;
+        padding: 0;
+    }
+
+    .srhow__card { height: 100%; padding: 28px; }
+
+    .srhow__num {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.68rem;
+        color: var(--tan, #c9a87c);
+    }
+
+    .srhow__title {
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: var(--white, #f0ece4);
+        margin: 10px 0 8px;
+    }
+
+    .srhow__desc {
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 0.9rem;
+        line-height: 1.6;
+        color: var(--muted, #888077);
+        margin: 0;
+    }
+
+    .srcmd__list {
+        max-width: var(--content-narrow, 720px);
+        margin: 0 auto;
+    }
+
+    .srcmd__row {
+        display: flex;
+        align-items: baseline;
+        gap: 20px;
+        padding: 16px 4px;
+        border-bottom: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+    }
+
+    .srcmd__name {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.85rem;
+        color: var(--tan-light, #e0c49a);
+        flex-shrink: 0;
+        min-width: 13ch;
+    }
+
+    .srcmd__desc {
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 0.9rem;
+        color: var(--muted, #888077);
+        margin: 0;
+    }
+
+    .srcmd__note {
+        max-width: var(--content-narrow, 720px);
+        margin: 20px auto 0;
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 0.85rem;
+        color: var(--muted, #888077);
+        text-align: center;
+    }
+
+    .srcta {
+        padding: var(--space-section-sm, 88px) 48px calc(var(--space-section, 120px));
+        text-align: center;
+    }
+
+    .srcta__title {
+        font-family: var(--font-display, "Syne", sans-serif);
+        font-size: clamp(1.6rem, 3.6vw, 2.4rem);
+        font-weight: 800;
+        color: var(--white, #f0ece4);
+        margin: 0 0 24px;
+    }
+
+    .srcta__actions {
+        display: flex;
+        justify-content: center;
+        gap: 14px;
+        flex-wrap: wrap;
+    }
+
+    @media (max-width: 860px) {
+        .srhow,
+        .srcmd { padding-inline: 24px; }
+        .srhow__steps { grid-template-columns: 1fr; }
+    }
+</style>

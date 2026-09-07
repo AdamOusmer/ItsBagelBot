@@ -1,0 +1,25 @@
+# ItsBagelBot Documentation
+
+> Technical documentation for ItsBagelBot, a free all-in-one Twitch companion
+> bot: Spotify song requests (!sr), automated chat moderation, custom commands,
+> timers, giveaways, polls, channel-points rewards, and game-stat integrations
+> (Valorant, Hypixel Bedwars, MCSR Ranked, Fortnite). This site covers the
+> engineering side: architecture, service internals, and decision records.
+> For product features, pricing, and user guides, see
+> https://itsbagelbot.com/llms.txt and https://itsbagelbot.com/guides/.
+
+## Sections
+
+- [Home](https://docs.itsbagelbot.com/): documentation index.
+- [Getting started](https://docs.itsbagelbot.com/guides/getting-started/): developer onboarding.
+- [Architecture](https://docs.itsbagelbot.com/architecture/): how the platform fits together.
+- [Microservices](https://docs.itsbagelbot.com/microservices/): one page per service (ingress, sesame, commands, modules, users, notifications, and more).
+- [Reference](https://docs.itsbagelbot.com/reference/system-overview/): system overview and RPC contracts.
+- [ADRs](https://docs.itsbagelbot.com/adr/): architecture decision records with the reasoning behind each choice.
+
+## Related
+
+- [Product site](https://itsbagelbot.com/): features, pricing, user guides.
+- [Dashboard](https://dashboard.itsbagelbot.com/): sign in with Twitch to configure the bot.
+- [GitHub](https://github.com/AdamOusmer/ItsBagelBot): source code and issue tracker.
+- [Discord community](https://discord.gg/SZ2remwSDv): fastest support channel.

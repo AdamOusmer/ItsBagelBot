@@ -9,7 +9,7 @@ import Layout from '../../../layouts/Layout.astro';
 import PageHero from '../../../components/ui/PageHero.astro';
 import GuideShell from '../../../components/guides/GuideShell.astro';
 import { getLangFromUrl, locales, defaultLang } from '../../../i18n/ui';
-import { getGuide, guidePath, guideSlugs, nextSlug, prevSlug, guideIndex, toGuideSlug } from '../../../lib/guides/registry';
+import { getGuide, guidePath, hubPath, guideSlugs, nextSlug, prevSlug, guideIndex, toGuideSlug } from '../../../lib/guides/registry';
 
 export function getStaticPaths() {
     return locales.flatMap((l) =>
@@ -28,9 +28,38 @@ const before = prevSlug(guide.slug);
 const after = nextSlug(guide.slug);
 const prev = before ? { href: guidePath(before, lang), label: getGuide(before, lang).meta.heading } : undefined;
 const next = after ? { href: guidePath(after, lang), label: getGuide(after, lang).meta.heading } : undefined;
+
+// Guides are the site's only long-form content; TechArticle + BreadcrumbList
+// give them page-type context and rich-result eligibility the site-wide
+// Organization/WebSite/SoftwareApplication graph alone doesn't provide.
+const origin = new URL(Astro.site!).origin;
+const pageUrl = new URL(Astro.url.pathname, Astro.site).href;
+const guideSchema: Record<string, unknown>[] = [
+    {
+        '@type': 'TechArticle',
+        '@id': `${pageUrl}#article`,
+        headline: guide.meta.heading,
+        description: guide.meta.description,
+        inLanguage: lang,
+        url: pageUrl,
+        mainEntityOfPage: pageUrl,
+        image: `${origin}/og-image.png`,
+        author: { '@id': `${origin}/#organization` },
+        publisher: { '@id': `${origin}/#organization` },
+        isPartOf: { '@id': `${origin}/#website` },
+    },
+    {
+        '@type': 'BreadcrumbList',
+        '@id': `${pageUrl}#breadcrumbs`,
+        itemListElement: [
+            { '@type': 'ListItem', position: 1, name: 'Guides', item: new URL(hubPath(lang), Astro.site).href },
+            { '@type': 'ListItem', position: 2, name: guide.meta.heading, item: pageUrl },
+        ],
+    },
+];
 ---
 
-<Layout title={guide.meta.title} description={guide.meta.description} ogType="article">
+<Layout title={guide.meta.title} description={guide.meta.description} ogType="article" extraSchema={guideSchema}>
     <PageHero eyebrow={`${guide.meta.eyebrow} ${guideIndex(guide.slug)}`} title={guide.meta.heading} description={guide.meta.lead} />
 
     <GuideShell sections={guide.sections} minutes={guide.meta.minutes} prev={prev} next={next} />

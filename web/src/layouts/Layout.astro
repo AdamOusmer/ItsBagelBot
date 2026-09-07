@@ -42,6 +42,8 @@ interface Props {
     ogType?: string;
     /** Keep the page out of search indexes (still crawlable for link discovery). */
     noindex?: boolean;
+    /** Page-specific JSON-LD nodes appended to the site @graph (TechArticle, BreadcrumbList, …). */
+    extraSchema?: Record<string, unknown>[];
 }
 
 const {
@@ -50,6 +52,7 @@ const {
     image = '/og-image.png',
     ogType = 'website',
     noindex = false,
+    extraSchema = [],
 } = Astro.props;
 
 const lang = getLangFromUrl(Astro.url);
@@ -126,7 +129,7 @@ const structuredData = {
                 'Channel Points rewards',
                 'Giveaways',
                 'Polls',
-                'Game stat integrations (Hypixel Bedwars, MCSR Ranked, Fortnite)',
+                'Game stat integrations (Valorant rank, Hypixel Bedwars, MCSR Ranked, Fortnite)',
             ],
             // Song requests are the highest-intent entry point into the
             // product ("twitch spotify song request bot"), so the terms people
@@ -139,8 +142,10 @@ const structuredData = {
                 'Spotify queue from Twitch chat',
                 'free Twitch song request bot',
                 'Twitch chat bot',
+                'Valorant rank command Twitch',
             ],
         },
+        ...extraSchema,
     ],
 };
 
