@@ -6,7 +6,7 @@
 //  1. Golden replay: testdata/mapping-golden.json pins the canonicalizers'
 //     outputs for the Go package's own corpus (goldenCorpus() in its
 //     golden_test.go, decoded from testdata/golden.txt during the port). A
-//     diff means every future import's translation changed on purpose —
+//     diff means every future import's translation changed on purpose:
 //     regenerate deliberately and say so in the changelog.
 //  2. Unit vectors lifted verbatim from the Go package's mapping_test.go /
 //     caps_test.go, so correctness is checked independently of stability.

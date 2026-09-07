@@ -27,7 +27,7 @@ describe('token expansion (module/vars.go Expand mirror)', () => {
     expect(choice).toEqual([{ text: 'Hi', kind: 'sample' }]);
   });
 
-  test('any brace span is a token — unknown ones stay literal but marked', () => {
+  test('any brace span is a token, unknown ones stay literal but marked', () => {
     expect(expandSegments('{touser2} {foo bar}', resolve)).toEqual([
       { text: '{touser2}', kind: 'unknown' },
       { text: ' ', kind: 'plain' },

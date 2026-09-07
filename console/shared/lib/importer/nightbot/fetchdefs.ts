@@ -17,8 +17,8 @@ import { IMPORT_ITEM_CAPS } from '../types';
 export const FETCH_DEF_CAP = IMPORT_ITEM_CAPS.commands;
 
 // MAX_FETCH_URL_BYTES mirrors the URL validator commit's ingestion enforces per
-// definition. A longer or scheme-less URL is refused HERE — left literal with
-// the standard unmapped warn — rather than synthesized into a definition that
+// definition. A longer or scheme-less URL is refused HERE (left literal with
+// the standard unmapped warn) rather than synthesized into a definition that
 // can only fail wholesale at save time, taking its URL out of the response text
 // where it stayed visible.
 const MAX_FETCH_URL_BYTES = 512;
@@ -35,8 +35,8 @@ export interface FetchArgs {
 }
 
 // parseFetchArgs reads a $(urlfetch …) / $(customapi …) body. Nightbot's `json`
-// modifier only changes how the RESPONSE is handed to a following $(eval …) —
-// it carries no path of its own — so it is consumed here and reported by the
+// modifier only changes how the RESPONSE is handed to a following $(eval …)
+// (it carries no path of its own), so it is consumed here and reported by the
 // caller instead of inventing a json_path the export never stated. A URL that
 // still holds a token after translation is refused: baking literal "$(…)" or
 // "{…}" text into a stored definition would make it fetch a URL nobody wrote.
@@ -58,7 +58,7 @@ function usableUrl(url: string): boolean {
 
 // makeFetchSlotSink allocates definition slugs for ONE command over the
 // import-level def map. Slot rule: the first distinct URL takes the bare
-// fetchDefSlug('nightbot', command), the Nth (N≥2) appends _N — a legal
+// fetchDefSlug('nightbot', command), the Nth (N≥2) appends _N, a legal
 // ^[a-z0-9_]{1,32}$ name the fetches editor's slugifier reproduces
 // byte-for-byte, so a re-import lands on identical names. The same URL twice in
 // one command shares its definition (equality is byte-exact here).
@@ -84,7 +84,7 @@ export function makeFetchSlotSink(
 }
 
 // registerDef admits one definition into the import-level map: false at the
-// cap, and false with a warn when the slug is already taken — two exported
+// cap, and false with a warn when the slug is already taken: two exported
 // commands normalized onto one name, where first wins (deterministic by export
 // order) because the loser's tokens would silently re-point at another
 // command's data source.

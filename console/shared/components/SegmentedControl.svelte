@@ -14,11 +14,11 @@
   } = $props();
 </script>
 
-<div class="seg" role="radiogroup" aria-label={label}>
+<div class="seg bb-tabs" role="radiogroup" aria-label={label}>
   {#each options as opt (opt)}
     <button
       type="button"
-      class="chip {value === opt ? 'on' : ''}"
+      class="bb-tab {value === opt ? 'is-active' : ''}"
       role="radio"
       aria-checked={value === opt}
       onclick={() => (value = opt)}
@@ -29,9 +29,10 @@
 </div>
 
 <style>
+  /* Was a row of pill .chips; now the global filter rail (.bb-tabs/.bb-tab),
+     with wrapping kept because a filter set can be wider than its column. */
   .seg {
     display: flex;
-    gap: 6px;
     flex-wrap: wrap;
   }
   @media (max-width: 760px) {

@@ -28,18 +28,18 @@ export type ConnSignals = {
 };
 
 export type ConnKind =
-  | 'unavailable' // a core read (grant or active) is down — we cannot tell
+  | 'unavailable' // a core read (grant or active) is down, we cannot tell
   | 'auth_required' // no Twitch grant on file
   | 'reauth_required' // Twitch revoked the grant (password change / app disconnect); user must re-consent
   | 'disabled' // grant present but the channel is inactive (disconnected)
   | 'connecting' // active, enroll in flight (pending / just-published)
-  | 'online' // active + enroll ok — the ONLY truthful "online"
+  | 'online' // active + enroll ok: the ONLY truthful "online"
   | 'degraded' // active + enroll failing (connected but not in chat)
   | 'sub_unknown'; // active but the enroll read is unavailable
 
 export type ConnUi = {
   kind: ConnKind;
-  live: boolean; // the green "in chat" dot — online only
+  live: boolean; // the green "in chat" dot: online only
   canManage: boolean; // channel is active: restart / disconnect apply
   showEnable: boolean; // the ?/enable form (disconnected channel, nothing in flight)
   showConnect: boolean; // route to Settings for Twitch authorization

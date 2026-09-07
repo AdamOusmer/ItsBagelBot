@@ -133,9 +133,9 @@ export const MCSR_MODULE: ModuleDef =
         bastion: '3:55',
         fortress: '7:12',
         firstportal: '9:20',
-        stronghold: '—',
-        end: '—',
-        finish: '—',
+        stronghold: '-',
+        end: '-',
+        finish: '-',
         ago: '12m'
       }
     },

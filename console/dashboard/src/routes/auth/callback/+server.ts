@@ -105,7 +105,7 @@ function streamerSession(id: Identity) {
 }
 
 // Delegated accept flow: if a pending share token rode in on a cookie, bind
-// it to this user now. Single-use — consume always deletes the cookie, and a
+// it to this user now. Single-use: consume always deletes the cookie, and a
 // delegate session is sealed only on success. On any failure we redirect to
 // /login?e=link instead of issuing a normal owner session. No-op without the
 // cookie; when it consumes, it throws the final redirect itself.
@@ -153,8 +153,8 @@ function validOAuthState(code: string | null, state: string | null, stored: stri
 }
 
 // seedLocaleCookie seeds the locale cookie from the account's saved
-// preference, or — if the user explicitly set a locale on this device before
-// logging in — persists that choice to the account instead of overwriting it.
+// preference, or (if the user explicitly set a locale on this device before
+// logging in) persists that choice to the account instead of overwriting it.
 // Best-effort: cookie/Accept-Language still resolve a locale on failure.
 async function seedLocaleCookie(cookies: Cookies, url: URL, userId: string): Promise<void> {
   try {
@@ -205,7 +205,7 @@ async function seedCursorCookie(cookies: Cookies, url: URL, userId: string): Pro
 }
 
 // persistGrant stores the OAuth grant (access + refresh) after the user row
-// exists — the token row references it. Grant failure stays non-fatal: the
+// exists. The token row references it. Grant failure stays non-fatal: the
 // session is still valid (the row exists), the bot just has no channel token
 // yet, and the home needs-attention strip surfaces that. The user can re-auth
 // to retry.
@@ -291,8 +291,8 @@ async function completeLogin(cookies: Cookies, url: URL, code: string, storedNon
   // account, wipes the delegate session on the very next request, and bounces
   // them to /login. A returning owner just no-ops through the accept below.
   //
-  // Real account email (user:read:email consent). Null on any failure —
-  // capture is best-effort and the users service stores it encrypted.
+  // Real account email (user:read:email consent). Null on any failure.
+  // Capture is best-effort and the users service stores it encrypted.
   const email = await fetchAccountEmail(tokens.accessToken());
   await registerUser(identity, email);
 

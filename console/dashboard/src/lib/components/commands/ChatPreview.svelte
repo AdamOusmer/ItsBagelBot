@@ -1,24 +1,24 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // Live chat rehearsal: acts out a response as it will look in Twitch chat —
+  // Live chat rehearsal: acts out a response as it will look in Twitch chat:
   // a viewer types the trigger, the bot "types" for a beat, then replies with
   // sample values substituted into the tokens. Re-runs (debounced) as the
   // response is edited, so authors see the real thing, not a template string.
   //
-  // This component only RENDERS. What the bot would actually send — which
+  // This component only RENDERS. What the bot would actually send (which
   // tokens expand, whether a leading /announce, /shoutout, /pin or /me becomes
-  // a native Twitch action, how many messages a multi-line response mints —
+  // a native Twitch action, how many messages a multi-line response mints)
   // is computed by the shared rehearsal core (@bagel/shared rehearsal.ts),
   // which mirrors the Go engine line by line. `kind` picks the surface:
   //
-  //   kind="command" — custom "!command" responses: full command tokens,
+  //   kind="command": custom "!command" responses: full command tokens,
   //   slash-verb routing per line, up to 5 messages (one per line).
   //
-  //   kind="reply" — module replies (alerts, triggers, rewards, built-ins,
+  //   kind="reply": module replies (alerts, triggers, rewards, built-ins,
   //   gossip commands): ONLY the tokens in `samples` (plus the dynamic set
   //   unless dynamic={false}), one message. A leading slash-verb routes the
-  //   same as a command line — the pipeline translates every emitted output.
+  //   same as a command line: the pipeline translates every emitted output.
   import { page } from '$app/state';
   import {
     Bolota,
@@ -51,12 +51,12 @@
     kind?: 'command' | 'reply';
     showViewer?: boolean;
     // viewerText renders the viewer line verbatim (a plain chat message, no "!"
-    // trigger) — used by trigger-word rehearsals where a normal message fires the
+    // trigger), used by trigger-word rehearsals where a normal message fires the
     // reply. When unset the viewer types the "!command" trigger.
     viewerText?: string;
     tag?: string;
     // kind="command": overrides merged over the standard command samples.
-    // kind="reply": the surface's OWN token map — nothing else substitutes.
+    // kind="reply": the surface's OWN token map: nothing else substitutes.
     samples?: Record<string, string>;
     // kind="reply" only: false for surfaces whose bot path is a bare string
     // replacer with no {random}/{choice:…} fallback (govee, clip).
@@ -99,7 +99,7 @@
   // the bot doesn't stutter on every keystroke.
   let typing = $state(false);
   // The viewer's bolota runs its live engine only while the rehearsal is being
-  // re-acted (typing beat) or the pointer is on the box — same budget rule as
+  // re-acted (typing beat) or the pointer is on the box, same budget rule as
   // the Topbar/AccountFoot avatars: no idle engines on a screen full of chrome.
   let hovered = $state(false);
   let settle: ReturnType<typeof setTimeout> | undefined;
@@ -121,7 +121,7 @@
 {#snippet botName()}
   <span class="who bot-name">
     <!-- Seeded by the broadcaster's name: the bot speaks as the channel, so it
-         wears the channel owner's creature — same face as the topbar avatar. -->
+         wears the channel owner's creature, same face as the topbar avatar. -->
     <span class="avatar" aria-hidden="true"><Bolota name={botSeed} size={20} active={typing || hovered} /></span>
     ItsBagelBot
   </span>
@@ -142,7 +142,7 @@
   onpointerenter={() => (hovered = true)}
   onpointerleave={() => (hovered = false)}
 >
-  <span class="chat-tag">{tag ?? t('chatPreview.rehearsal')}</span>
+  <span class="bb-tag bb-tag--bare chat-tag">{tag ?? t('chatPreview.rehearsal')}</span>
   {#if showViewer}
     <div class="line viewer">
       <span class="who viewer-name">{viewerName}</span>
@@ -153,7 +153,7 @@
     <div class="line bot">
       {@render botName()}
       <span class="msg typing" aria-label={t('chatPreview.ariaTyping')}>
-        <span class="tdot"></span><span class="tdot"></span><span class="tdot"></span>
+        <span class="bb-drawline" aria-hidden="true"></span>
       </span>
     </div>
   {:else if views.length === 0}
@@ -231,14 +231,13 @@
     flex-direction: column;
     gap: 8px;
   }
+  /* Bare .bb-tag: the box already draws the frame this label sits on, so it
+     keeps only the notch (opaque background cutting the border) and its green. */
   .chat-tag {
     position: absolute;
     top: -8px;
     left: 10px;
-    font-family: var(--bb-font-display);
-    font-weight: 700;
     font-size: 10px;
-    letter-spacing: 0.02em;
     color: var(--bb-green-glow);
     background: var(--bb-bg-0, #0a0a0a);
     padding: 0 6px;
@@ -338,7 +337,7 @@
     color: var(--acc);
   }
 
-  /* Twitch shoutout: a compact card — the native /shoutout is an action, not a
+  /* Twitch shoutout: a compact card, the native /shoutout is an action, not a
      chat line, so it reads as "shouts out @channel". */
   .shoutout {
     display: inline-flex;
@@ -380,21 +379,11 @@
   /* /me action: italic, tinted like the bot's name (no colon before it). */
   .msg.action { font-style: italic; color: var(--bb-green-glow); }
 
-  .typing { display: inline-flex; gap: 4px; align-items: center; padding: 4px 0; }
-  .tdot {
-    width: 5px; height: 5px; border-radius: 50%;
-    background: var(--bb-muted);
-    animation: tbounce 900ms ease-in-out infinite;
-  }
-  .tdot:nth-child(2) { animation-delay: 150ms; }
-  .tdot:nth-child(3) { animation-delay: 300ms; }
-  @keyframes tbounce {
-    0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
-    30% { transform: translateY(-3px); opacity: 1; }
-  }
+  /* Three bouncing .tdot circles (tbounce) replaced by one .bb-drawline, which
+     brings its own reduced-motion guard. */
+  .typing { display: inline-flex; align-items: center; padding: 4px 0; }
 
   @media (prefers-reduced-motion: reduce) {
     .reply, .announce, .shoutout, .pin { animation: none; }
-    .tdot { animation: none; }
   }
 </style>

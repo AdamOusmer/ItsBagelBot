@@ -18,12 +18,12 @@
     } = $props();
 </script>
 
-<button {type} class="chip {on ? 'on' : ''} {cls}" {onclick} {...rest}>{@render children()}</button>
+<button {type} class="bb-chip {on ? 'is-on' : ''} {cls}" {onclick} {...rest}>{@render children()}</button>
 
 <style>
-  .chip { font-family: var(--bb-font-mono); font-size: 11px; letter-spacing: 0.06em; padding: 8px 14px; border-radius: var(--bb-radius-pill); white-space: nowrap;
-    background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border); color: var(--bb-muted); cursor: pointer; transition: all var(--bb-dur-base) var(--bb-ease-out-expo); }
-  .chip:hover:not(:disabled) { color: var(--bb-white); border-color: var(--bb-border-strong); }
-  .chip:disabled { cursor: not-allowed; opacity: 0.55; }
-  .chip.on { color: var(--bb-white); background: var(--ui-accent-soft); border-color: var(--bb-border-strong); }
+  /* Was a pill (--bb-radius-pill) with a translucent fill; the frame is now the
+     global Tier-2 control (.bb-chip). `on` keeps its meaning, drawn as the
+     tan-forward active state rather than a filled pill. */
+  .is-on { color: var(--bb-tan-pale); background: rgba(201,168,124,0.10); border-color: rgba(201,168,124,0.50); }
+  .bb-chip:disabled { cursor: not-allowed; opacity: 0.55; }
 </style>

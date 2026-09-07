@@ -296,7 +296,7 @@
           if (p.viewAsUrl) viewAsUrl = p.viewAsUrl;
           return;
         }
-        // Roll back the optimistic apply — the UI must not keep a state the
+        // Roll back the optimistic apply: the UI must not keep a state the
         // server refused.
         if (dir) dir.recent = before;
         detached = beforeDetached;
@@ -415,7 +415,7 @@
   }
 
   function ago(iso?: string): string {
-    if (!iso) return '—';
+    if (!iso) return '-';
     const mins = Math.max(Math.round((Date.now() - new Date(iso).getTime()) / 60e3), 0);
     if (mins < 1) return 'now';
     if (mins < 60) return `${mins}m ago`;

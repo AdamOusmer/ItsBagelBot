@@ -19,6 +19,8 @@ type User struct {
 	ID uint64 `json:"id,omitempty"`
 	// Username holds the value of the "username" field.
 	Username string `json:"username,omitempty"`
+	// DisplayName holds the value of the "display_name" field.
+	DisplayName string `json:"display_name,omitempty"`
 	// Email holds the value of the "email" field.
 	Email string `json:"-"`
 	// EmailEnc holds the value of the "email_enc" field.
@@ -90,7 +92,7 @@ func (*User) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullBool)
 		case user.FieldID, user.FieldGiftsSent:
 			values[i] = new(sql.NullInt64)
-		case user.FieldUsername, user.FieldEmail, user.FieldStatus, user.FieldLocale, user.FieldCreatorCode, user.FieldSubscriptionSource, user.FieldSubscriptionRef, user.FieldBillingEventID:
+		case user.FieldUsername, user.FieldDisplayName, user.FieldEmail, user.FieldStatus, user.FieldLocale, user.FieldCreatorCode, user.FieldSubscriptionSource, user.FieldSubscriptionRef, user.FieldBillingEventID:
 			values[i] = new(sql.NullString)
 		case user.FieldSubscriptionExpiresAt, user.FieldBillingEventAt, user.FieldCreatedAt, user.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -120,6 +122,12 @@ func (_m *User) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field username", values[i])
 			} else if value.Valid {
 				_m.Username = value.String
+			}
+		case user.FieldDisplayName:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field display_name", values[i])
+			} else if value.Valid {
+				_m.DisplayName = value.String
 			}
 		case user.FieldEmail:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -277,6 +285,9 @@ func (_m *User) String() string {
 	builder.WriteString(fmt.Sprintf("id=%v, ", _m.ID))
 	builder.WriteString("username=")
 	builder.WriteString(_m.Username)
+	builder.WriteString(", ")
+	builder.WriteString("display_name=")
+	builder.WriteString(_m.DisplayName)
 	builder.WriteString(", ")
 	builder.WriteString("email=<sensitive>")
 	builder.WriteString(", ")

@@ -3,7 +3,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 /**
- * Playground — the first thing after the Encryption act: not a claim, the
+ * Playground: the first thing after the Encryption act. Not a claim, the
  * actual product. A live-simulated Twitch chat you can poke. Ambient viewers
  * drift by, spam gets caught in front of you, and the command chips (or the
  * real input) talk to the bot. Everything is DOM + textContent; no innerHTML
@@ -55,9 +55,9 @@ const playStrings = {
 
         <div class="play__chips" data-reveal style="--reveal-i: 3">
             {chips.map((chip) => (
-                <button type="button" class="play__chip" data-play-cmd={chip.cmd}>{chip.label}</button>
+                <button type="button" class="bb-chip" data-play-cmd={chip.cmd}>{chip.label}</button>
             ))}
-            <button type="button" class="play__chip play__chip--evil" data-play-spam>
+            <button type="button" class="bb-chip bb-chip--danger" data-play-spam>
                 {t('play.sendSpam')}<span aria-hidden="true"> ☠</span>
             </button>
         </div>
@@ -70,9 +70,8 @@ const playStrings = {
     <div class="play__stage" data-reveal style="--reveal-i: 2" data-playground>
         <div class="play__window">
             <div class="play__bar">
-                <span class="play__dot" aria-hidden="true"></span>
                 <span class="play__channel">#your_channel</span>
-                <span class="play__live">{t('play.live')}</span>
+                <span class="play__live bb-tag bb-tag--live"><i class="bb-mark" aria-hidden="true"></i>{t('play.live')}<i class="bb-sweep" aria-hidden="true"></i></span>
             </div>
 
             <div class="play__feed" data-play-feed role="log" aria-label={t('play.feedAria')}></div>
@@ -155,45 +154,10 @@ const playStrings = {
         margin-bottom: 18px;
     }
 
-    .play__chip {
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.78rem;
-        letter-spacing: 0.04em;
-        color: var(--tan-light, #e0c49a);
-        background: rgba(201, 168, 124, 0.07);
-        border: 1px solid var(--border, rgba(201, 168, 124, 0.15));
-        border-radius: var(--radius-pill, 100px);
-        padding: 9px 16px;
-        cursor: pointer;
-        transition:
-            border-color 240ms var(--ease-out-expo),
-            background 240ms var(--ease-out-expo),
-            transform 240ms var(--ease-out-back, cubic-bezier(0.34, 1.56, 0.64, 1));
-    }
-
-    @media (hover: hover) and (pointer: fine) {
-        .play__chip:hover {
-            border-color: rgba(201, 168, 124, 0.5);
-            background: rgba(201, 168, 124, 0.14);
-            transform: translateY(-2px);
-        }
-    }
-
-    .play__chip:active {
-        transform: translateY(0) scale(0.96);
-    }
-
-    .play__chip--evil {
-        color: #d98a8a;
-        background: rgba(217, 138, 138, 0.06);
-        border-color: rgba(217, 138, 138, 0.22);
-    }
-
-    @media (hover: hover) and (pointer: fine) {
-        .play__chip--evil:hover {
-            border-color: rgba(217, 138, 138, 0.55);
-            background: rgba(217, 138, 138, 0.12);
-        }
+    /* Chips were pill buttons (.play__chip / --evil, radius-pill + a lift on
+       hover); they are .bb-chip / .bb-chip--danger frames now. */
+    .bb-chip:active {
+        transform: scale(0.96);
     }
 
     .play__hint {
@@ -227,20 +191,6 @@ const playStrings = {
         background: rgba(255, 255, 255, 0.015);
     }
 
-    .play__dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background: var(--green-glow, #52b788);
-        box-shadow: 0 0 10px rgba(82, 183, 136, 0.8);
-        animation: playPulse 2.4s ease-in-out infinite;
-    }
-
-    @keyframes playPulse {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.45; }
-    }
-
     .play__channel {
         font-family: var(--font-mono, "DM Mono", monospace);
         font-size: 0.78rem;
@@ -248,13 +198,10 @@ const playStrings = {
         letter-spacing: 0.04em;
     }
 
+    /* Was a bare green word beside .play__dot; .bb-tag--live now owns the
+       type, the hairline and the sweep, so only the placement stays here. */
     .play__live {
         margin-left: auto;
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.62rem;
-        letter-spacing: 0.18em;
-        text-transform: uppercase;
-        color: var(--green-glow, #52b788);
     }
 
     .play__feed {
@@ -324,22 +271,6 @@ const playStrings = {
         gap: 4px;
         align-items: center;
         padding-top: 4px;
-    }
-
-    .play__feed :global(.pmsg--typing .pmsg__text i) {
-        width: 5px;
-        height: 5px;
-        border-radius: 50%;
-        background: rgba(82, 183, 136, 0.7);
-        animation: playTyping 900ms ease-in-out infinite;
-    }
-
-    .play__feed :global(.pmsg--typing .pmsg__text i:nth-child(2)) { animation-delay: 150ms; }
-    .play__feed :global(.pmsg--typing .pmsg__text i:nth-child(3)) { animation-delay: 300ms; }
-
-    @keyframes playTyping {
-        0%, 100% { opacity: 0.3; transform: translateY(0); }
-        50% { opacity: 1; transform: translateY(-3px); }
     }
 
     /* Spam catch */
@@ -472,10 +403,9 @@ const playStrings = {
     }
 
     @media (prefers-reduced-motion: reduce) {
-        .play__dot { animation: none; }
         .play__feed :global(.pmsg) { animation: none; }
         .play__feed :global(.ppoll__fill) { transition: none; }
-        .play__chip, .play__send { transition: none; }
+        .play__send { transition: none; }
     }
 
     @media (max-width: 640px) {
@@ -571,9 +501,12 @@ const playStrings = {
             const who = document.createElement('span');
             who.className = 'pmsg__name';
             who.textContent = 'itsbagelbot';
+            // Was three bouncing <i> dots; one .bb-drawline hairline now.
             const dots = document.createElement('span');
             dots.className = 'pmsg__text';
-            dots.append(document.createElement('i'), document.createElement('i'), document.createElement('i'));
+            const line = document.createElement('span');
+            line.className = 'bb-drawline';
+            dots.append(line);
             typing.append(who, dots);
             feed!.appendChild(typing);
             trim();

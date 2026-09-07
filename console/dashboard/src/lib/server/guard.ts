@@ -4,7 +4,7 @@
 // Request-level account gates, run from hooks.server.ts on EVERY request.
 //
 // These gates used to live in the (app) layout load, but SvelteKit never runs
-// layout loads for form actions or +server.ts endpoints — so a banned or
+// layout loads for form actions or +server.ts endpoints, so a banned or
 // revoked session kept its write access until the cookie expired. Enforcing in
 // the handle hook closes that: pages, actions, data requests and API endpoints
 // all pass through here. Thrown redirect()s are kit-native and are encoded
@@ -49,14 +49,14 @@ function wipe(event: RequestEvent): void {
 // assertAccountUsable runs the three gates that judge the session itself.
 // They fire CONCURRENTLY: each is an independent read (ban via cache fabric,
 // revocation via Valkey, account state via users RPC), and sequential awaits
-// stacked three round trips on every authed request — visible as a stalled
+// stacked three round trips on every authed request, visible as a stalled
 // first paint on the dashboard. Outcomes keep their priority: ban outranks
 // revocation, which outranks ghost-session; only an authoritative answer wipes
 // the cookie, transport blips fail open exactly as before.
-//   * ban — isBanned serves last-known state through a users-service outage.
-//   * revocation — logout kills this sid; "sign out everywhere" kills every
+//   * ban: isBanned serves last-known state through a users-service outage.
+//   * revocation: logout kills this sid; "sign out everywhere" kills every
 //     session issued before that moment. isSessionRevoked never throws.
-//   * ghost session — only an RpcError ("no such user") wipes; anything else
+//   * ghost session: only an RpcError ("no such user") wipes; anything else
 //     keeps the session and lets pages degrade.
 // publishAccountState hands the gate's own account read to the (app) layout via
 // locals, so the shell does not spend a second RPC on it.
@@ -70,8 +70,8 @@ function publishAccountState(event: RequestEvent, state: PromiseSettledResult<Ac
   else if (state.reason instanceof RpcError) event.locals.accountState = { ghost: true };
 }
 
-// refusalSlug reduces three gates that each answer in a different shape — a
-// boolean, a boolean, a rejection kind — to the single question the caller
+// refusalSlug reduces three gates that each answer in a different shape (a
+// boolean, a boolean, a rejection kind) to the single question the caller
 // actually has: which `?e=` slug, if any, refuses this session.
 //
 // Kept separate from the wipe/redirect so that pair is written once instead of
@@ -105,7 +105,7 @@ async function assertAccountUsable(event: RequestEvent, s: Session): Promise<voi
 // The delegate's live grant on the board they are browsing, as the three
 // callers below need it: the grant itself, null when the board is
 // authoritatively gone (owner banned, or the share revoked), and undefined on a
-// transport blip — fail open there, exactly as the account gates above do.
+// transport blip, fail open there, exactly as the account gates above do.
 type Grant = { owner_user_id: string; owner_login: string; sections: string[] };
 
 async function liveGrant(s: Session, ownerId: string): Promise<Grant | null | undefined> {
@@ -125,7 +125,7 @@ function sameSections(a: readonly string[], b: readonly string[]): boolean {
 // An owner who re-scopes a live grant (dropping billing, say) used to be
 // ignored until the delegate's 7-day cookie expired, because the section list
 // is carried IN that cookie. Re-seal it here from the authoritative grant so
-// the scope check below — and every per-page gate after it — reads the
+// the scope check below (and every per-page gate after it) reads the
 // narrowed list on this very request. iat and expires_at ride through
 // unchanged, so a re-seal never extends the session's own life.
 function resealSections(event: RequestEvent, s: Session, sections: string[]): void {
@@ -156,7 +156,7 @@ async function guardDelegateBoard(event: RequestEvent, s: Session, ownerId: stri
   if (grant === null) throw redirect(303, '/delegate/exit');
   if (grant) resealSections(event, s, grant.sections ?? []);
 
-  // Section scope for everything under (app) — pages AND their actions
+  // Section scope for everything under (app): pages AND their actions
   // (the per-page gates remain as defense in depth).
   if (!event.route.id?.startsWith('/(app)')) return;
   const sections = s.sections ?? [];
@@ -169,7 +169,7 @@ async function guardDelegateBoard(event: RequestEvent, s: Session, ownerId: stri
 // guardSession validates an already-opened session against authoritative
 // account state. Returns the session to keep in locals, or throws a redirect
 // (wiping the cookie when the session itself is dead). Anonymous requests
-// never reach this — the (app) layout owns the login redirect for pages and
+// never reach this: the (app) layout owns the login redirect for pages and
 // endpoints already 401 on a missing session.
 export async function guardSession(event: RequestEvent, s: Session): Promise<Session> {
   if (DEMO || isPublic(event.url.pathname)) return s;

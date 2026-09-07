@@ -76,7 +76,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     // The callback URL is fleet-wide and not a secret: the page shows it so a
     // broadcaster can register it on their own Spotify app, which Spotify then
     // matches byte-for-byte at both ends of the flow. A missing
-    // SPOTIFY_REDIRECT_URI is a deploy gap, not a backend outage — surface it
+    // SPOTIFY_REDIRECT_URI is a deploy gap, not a backend outage: surface it
     // as unconfigured rather than collapsing the page behind the degraded
     // banner (that is how a forgotten Doppler key looked like "could not
     // reach the backend" on first ship of BYO Spotify apps).

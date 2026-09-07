@@ -14,7 +14,7 @@ import { COOKIE, seal } from '$lib/server/session';
 // fields, losing both the short cap and the audit trail.
 //
 // The re-seal keeps the original iat/expires_at: switching boards must never
-// extend a session's lifetime — only a fresh OAuth login does that.
+// extend a session's lifetime: only a fresh OAuth login does that.
 export const GET: RequestHandler = async ({ url, locals, cookies }) => {
   const s = locals.session;
   if (!s || s.delegate_of || s.impersonator_id) throw redirect(302, '/login');

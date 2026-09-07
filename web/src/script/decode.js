@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 /**
- * Decode-on-view text — the brand's "decrypt" reveal, reused from the
+ * Decode-on-view text: the brand's "decrypt" reveal, reused from the
  * encryption scene as a shared utility. Tag an element `data-decode`; the
  * first time it scrolls into view its text scrambles, then resolves
  * character-by-character. Honors reduced-motion (shows final text instantly).

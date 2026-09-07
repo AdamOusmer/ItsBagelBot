@@ -49,7 +49,7 @@ async function loadBundle(): Promise<SecretsBundle> {
 }
 
 // Streamed: the shell renders immediately; the Doppler round trips (statuses,
-// scope probe, token lists — all parallel) hydrate in.
+// scope probe, token lists, all parallel) hydrate in.
 export const load: PageServerLoad = async ({ parent }) => {
   const layout = await parent();
   if (!isManager(layout.role)) throw redirect(302, '/');

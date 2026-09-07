@@ -407,7 +407,9 @@ func (a *adminRPC) provision(ctx context.Context, userID string) (*ent.User, err
 	}
 
 	email := fmt.Sprintf("%d@unknown.invalid", id)
-	err := a.repo.Register(ctx, id, fmt.Sprintf("unknown-%d", id), email)
+	// No display name: an admin-provisioned row has no Twitch identity yet;
+	// the owner's first login fills it in.
+	err := a.repo.Register(ctx, id, fmt.Sprintf("unknown-%d", id), "", email)
 	if err != nil {
 		return nil, err
 	}

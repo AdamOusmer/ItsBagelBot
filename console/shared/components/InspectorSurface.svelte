@@ -4,7 +4,7 @@
   // The master-detail inspector shell. On wide screens it is an in-flow docked
   // panel next to the list; on narrow screens it becomes a modal bottom sheet
   // that portals to <body>, traps focus, makes the page inert, and dismisses on
-  // scrim/Escape — reusing the shared overlay foundation. One component so every
+  // scrim/Escape, reusing the shared overlay foundation. One component so every
   // route's inspector behaves identically instead of each re-styling an <aside>.
   import type { Snippet } from 'svelte';
   import Card from './Card.svelte';
@@ -84,7 +84,7 @@
 
 {#snippet body()}
   <div class="surface-head">
-    <span class="surface-tag">{title}</span>
+    <span class="surface-tag bb-tag bb-tag--bare">{title}</span>
     <button class="surface-close" type="button" aria-label={closeLabel} onclick={onClose}>
       <Icon name="x" size={14} />
     </button>
@@ -103,7 +103,7 @@
       </div>
     </div>
   {:else}
-    <!-- Docked: in-flow beside the deck's Card, so it IS a Card — same ink,
+    <!-- Docked: in-flow beside the deck's Card, so it IS a Card: same ink,
          hairline and atmosphere. padding:0 because the head/body own theirs. -->
     <Card as="aside" class="surface docked" style="padding:0" aria-label={title}>
       {@render body()}
@@ -135,15 +135,18 @@
     border-bottom: 1px solid var(--rule);
     flex: none;
   }
+  /* Was a display-700 heading run; now the global .bb-tag--bare label. The
+     title interpolates user-typed names (a reward title, a counter name), so
+     .bb-tag's uppercase is turned off here rather than rewriting their casing.
+     Ellipsis clipping has to stay scoped: --bare sets overflow: visible. */
   .surface-tag {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 12px;
-    letter-spacing: 0.02em;
     color: var(--bb-tan);
+    text-transform: none;
+    letter-spacing: 0.02em;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    min-width: 0;
   }
   .surface-close {
     display: inline-flex;

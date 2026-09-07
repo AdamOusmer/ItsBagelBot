@@ -3,7 +3,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
   // The public nav's link, with the marketing site's roll-over motion (ported
   // from web/src/components/layout/NavLink.astro): two stacked glyph rows in a
-  // mask — the resting row rolls out as the lit row rolls in, glyph by glyph —
+  // mask (the resting row rolls out as the lit row rolls in, glyph by glyph)
   // over an ember rail that sweeps open underneath. Extracted verbatim from
   // routes/user/[channel], which is where this markup first landed.
   let {

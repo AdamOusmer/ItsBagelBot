@@ -29,8 +29,8 @@
   // mention" checkbox, which split a single decision across two widgets and
   // left the reader to work out how they combined.
   //
-  // 'target' is a pseudo-scope. On the wire it is still a viewer-scoped counter
-  // — the difference is only which viewer the bump keys on, which is carried by
+  // 'target' is a pseudo-scope. On the wire it is still a viewer-scoped counter:
+  // the difference is only which viewer the bump keys on, which is carried by
   // the {counter:target:…} token spelling rather than by the counter's own
   // scope (issue #479). Keeping it in this list is what makes the UI match how
   // an author thinks about it; the two derived values below put it back onto
@@ -155,7 +155,7 @@
             <li>
               <button type="button" class="opt" onclick={() => pick(c.name)}>
                 <span class="opt-name">{c.name}</span>
-                <span class="opt-tag">{scopeTag[c.scope]}</span>
+                <span class="opt-tag bb-tag bb-tag--bare">{scopeTag[c.scope]}</span>
               </button>
             </li>
           {/each}
@@ -236,7 +236,8 @@
   }
   .opt:hover { background: var(--glass-fill-2); }
   .opt-name { font-family: var(--bb-font-mono); font-size: 12px; color: var(--bb-white); }
-  .opt-tag { font-family: var(--bb-font-body); font-size: 10.5px; color: var(--bb-muted); white-space: nowrap; }
+  /* Was a plain muted body-font run; now the global .bb-tag--bare label. */
+  .opt-tag { flex: none; }
 
   .err { font-family: var(--bb-font-body); font-size: 11.5px; color: var(--bb-status-error, #cf8a78); }
 

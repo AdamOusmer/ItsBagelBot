@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 // The $(…) scanner behind the Nightbot variable layer. Nightbot's only
-// delimiter is $(…) — it has no ${…} and no bare-brace shorthand — so this
+// delimiter is $(…) (it has no ${…} and no bare-brace shorthand) so this
 // scanner never touches plain braces, and a response's punctuation survives it
 // untouched.
 

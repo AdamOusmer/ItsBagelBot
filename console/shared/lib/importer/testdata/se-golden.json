@@ -36,7 +36,7 @@
             "rip"
           ],
           "responses": [
-            "{counter:deaths} deaths so far — blame {touser} this time"
+            "{counter:deaths} deaths so far, blame {touser} this time"
           ],
           "permission": "mod",
           "cooldown_seconds": 5,
@@ -148,7 +148,7 @@
           "online_only": true
         },
         {
-          "message": "The stream is offline — sleep well, {sender}.",
+          "message": "The stream is offline. Sleep well, {sender}.",
           "interval_seconds": 900
         },
         {
@@ -366,7 +366,7 @@
         {
           "name": "quote",
           "responses": [
-            "{urlfetch:se_quote} — no wait: {urlfetch:se_quote}"
+            "{urlfetch:se_quote}, no wait: {urlfetch:se_quote}"
           ],
           "permission": "everyone"
         },

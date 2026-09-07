@@ -16,7 +16,7 @@ type Env = Record<string, string | undefined>;
  *
  *  Reads the passed env (the apps pass process.env, NOT $env/dynamic/private:
  *  init() runs under the server entry's top-level `await server.init()`, so
- *  reading the dynamic-env proxy there deadlocks that await — unsettled
+ *  reading the dynamic-env proxy there deadlocks that await: unsettled
  *  top-level await -> exit 13. In adapter-node process.env carries the same
  *  Doppler-injected runtime values.) */
 export function initConsoleRuntime(env: Env, assertConfigSane: (env: Env) => void): void {

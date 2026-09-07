@@ -119,7 +119,7 @@ function mergeTwitch(tw: RewardWire, local: ChannelPointReward): ChannelPointRew
 // if it doesn't exist yet, so a broadcaster can make the counter straight from
 // the reward editor. Best-effort: the reward binding is the authoritative save,
 // so a loyalty-service blip (or the service not yet deployed) must not fail the
-// reward write. Create is idempotent — an existing counter keeps its scope.
+// reward write. Create is idempotent: an existing counter keeps its scope.
 async function ensureRewardCounter(userId: string, reward: ChannelPointReward): Promise<void> {
   if (!reward.counter) return;
   try {

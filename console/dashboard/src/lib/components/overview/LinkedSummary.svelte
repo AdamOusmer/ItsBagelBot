@@ -3,7 +3,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
   // At-a-glance summary. Every item is a REAL link whose label spells out both the
   // number and where it goes ("Manage 8 active commands"), so a screen-reader user
-  // hears the count and the destination in one breath — no non-interactive tiles
+  // hears the count and the destination in one breath, no non-interactive tiles
   // dressed up to look clickable.
   //
   // Honesty: a digest whose read failed reports its count as 0, which is

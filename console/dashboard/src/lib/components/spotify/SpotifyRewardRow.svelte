@@ -45,7 +45,7 @@
             <span class="reward-title">{reward.title || t('spotify.thisReward')}</span>
             <span class="reward-cost">{t('spotify.costPts', { n: reward.cost.toLocaleString() })}</span>
           {:else}
-            <span class="unset-tag">{t('spotify.notSetUp')}</span>
+            <span class="unset-tag bb-tag bb-tag--quiet"><i class="bb-mark bb-mark--hollow" aria-hidden="true"></i>{t('spotify.notSetUp')}</span>
           {/if}
         </span>
         <span class="chev" class:open={expanded} aria-hidden="true"><Icon name="settings" size={13} /></span>
@@ -105,12 +105,9 @@
     white-space: nowrap;
   }
   .reward-cost { font-family: var(--bb-font-mono, monospace); font-size: 11.5px; color: var(--bb-tan-light); }
-  .unset-tag {
-    font-family: var(--bb-font-body);
-    font-size: 12.5px;
-    color: var(--bb-muted);
-    font-style: italic;
-  }
+  /* Was an italic muted body run. "Not set up" is the off half of a real
+     state, so it takes the global quiet label + hollow mark instead. */
+  .unset-tag { align-self: flex-start; }
 
   .chev { display: inline-flex; color: var(--bb-muted); transition: color var(--bb-dur-fast, 140ms) ease; }
   .chev.open { color: var(--bb-tan); }

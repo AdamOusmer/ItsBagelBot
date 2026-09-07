@@ -7,7 +7,7 @@ import { FN_SESSION_SAMPLES, FN_SESSION_TOKENS, FN_STATS_SAMPLES, FN_STATS_TOKEN
 export const FORTNITE_MODULE: ModuleDef = 
 {
   // !fnstats and !season share one template surface (same tokens, same
-  // sample shape) — FN_STATS_TOKENS/FN_STATS_SAMPLES above are the one
+  // sample shape): FN_STATS_TOKENS/FN_STATS_SAMPLES above are the one
   // source of truth, mirroring the Bedwars session commands.
   id: 'fortnite',
   label: 'Fortnite Stats',
@@ -21,7 +21,7 @@ export const FORTNITE_MODULE: ModuleDef =
     {
       key: 'stats',
       label: '!fn',
-      tagline: 'All-time Battle Royale stats — !fn, !fn stats or !fnstats.',
+      tagline: 'All-time Battle Royale stats: !fn, !fn stats or !fnstats.',
       event: '!fn',
       command: 'fn',
       enableKey: 'statsEnabled',

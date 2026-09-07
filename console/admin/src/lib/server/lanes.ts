@@ -146,7 +146,7 @@ function inFlightText(ackPending: number, maxAckPend: number) {
 }
 
 function rateText(rate: number, hasRate: boolean) {
-  if (!hasRate) return '—';
+  if (!hasRate) return '-';
   if (rate === 0) return '0 msg/s';
   if (rate < 10) return `${rate.toFixed(1)} msg/s`;
   return `${Math.round(rate)} msg/s`;
@@ -164,7 +164,7 @@ async function loadAliases(): Promise<Map<string, string>> {
   try {
     // Collect keys first, then fetch values in parallel (chunked so a large
     // alias set can't fan out unbounded). The old per-key serial `await kv.get`
-    // paid one KV round-trip per alias — 100 aliases = 100 sequential hops.
+    // paid one KV round-trip per alias, 100 aliases = 100 sequential hops.
     const keys: string[] = [];
     const keysIter = await kv.keys();
     for await (const k of keysIter) keys.push(k);

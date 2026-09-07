@@ -89,7 +89,7 @@ export const demoNotifications: NotificationWire[] = [
     id: 1,
     scope: 'direct',
     title: 'Welcome aboard',
-    body: "Thanks for joining ItsBagelBot — let us know if you run into anything.",
+    body: "Thanks for joining ItsBagelBot, let us know if you run into anything.",
     level: 'info',
     created_by_login: 'itsmavey',
     created_at: new Date(Date.now() - 26 * 3600e3).toISOString(),
@@ -107,7 +107,8 @@ export const demoAccountState: AccountState = {
   status: 'vip',
   onboarded: true,
   creatorCode: null,
-  username: 'demo'
+  username: 'demo',
+  displayName: 'Demo'
 };
 
 // Sample grants covering the full lifecycle (pending + consumed) so the
@@ -581,7 +582,7 @@ export function demoFetches(): { defs: FetchDefView[]; keys: FetchKeyView[] } {
         key_label: ''
       }
     ],
-    // last4 only — the demo never fabricates key material either.
+    // last4 only: the demo never fabricates key material either.
     keys: [{ label: 'weather_api', last4: '9f2c', created_at: '2026-01-01T00:00:00.000Z' }]
   };
 }
@@ -589,7 +590,7 @@ export function demoFetches(): { defs: FetchDefView[]; keys: FetchKeyView[] } {
 // `sample` mirrors what gossip returns for a DryRun: the raw upstream body the
 // builder turns into a clickable field tree. It is shaped to match the demo
 // `weather` definition's json_path (forecast.current.temp_f) so clicking through
-// the demo tree produces the same token the demo def already stores — a demo
+// the demo tree produces the same token the demo def already stores: a demo
 // whose tree disagreed with its own fixtures would teach the wrong thing.
 export function demoFetchTestRun(): { status: string; values: string[]; ms: number; sample: string } {
   return {
@@ -608,13 +609,13 @@ export function demoFetchTestRun(): { status: string; values: string[]; ms: numb
   };
 }
 
-// Sample rows use the STORED key format (no leading "!" — chat adds it), same
+// Sample rows use the STORED key format (no leading "!", chat adds it), same
 // as what the projector serves; the UI renders the "!" itself.
 export const demoCommandRows: CommandView[] = [
   { name: 'dice', aliases: ['roll'], response: '{user} rolls the dice… {random:1-6}!', perm: 'everyone', cooldown: 5, uses: 412, is_active: true, stream_online_only: true },
   { name: 'socials', aliases: ['social', 'links'], response: 'Follow along → twitch.tv/itsmavey · @itsmavey everywhere', perm: 'everyone', cooldown: 30, uses: 288, is_active: true },
   { name: 'bagel', response: '{user} tosses a warm bagel to {target}. Toasty.', perm: 'everyone', cooldown: 10, uses: 1200, is_active: true },
-  { name: 'so', response: 'Go show some love to twitch.tv/{target} — absolute legend', perm: 'mod', cooldown: 0, uses: 96, is_active: true },
+  { name: 'so', response: 'Go show some love to twitch.tv/{target}, absolute legend', perm: 'mod', cooldown: 0, uses: 96, is_active: true },
   { name: 'discord', response: 'Join the bakery → discord.gg/itsbagelbot', perm: 'everyone', cooldown: 60, uses: 203, is_active: true },
   { name: 'debug', response: 'node={node} replica={id} lag={ms}ms', perm: 'broadcaster', cooldown: 0, uses: 14, is_active: false },
   { name: 'lurk', response: '{user} fades into the shadows. Thanks for the lurk.', perm: 'everyone', cooldown: 5, uses: 521, is_active: true },
@@ -700,7 +701,7 @@ export function demoStats(now: number): PublicStats {
   };
 }
 
-// The two public leaderboards. The ranking is fixed — it is a lifetime view —
+// The two public leaderboards. The ranking is fixed (it is a lifetime view)
 // but the counts climb with the clock like demoStats does, so a demo shows the
 // same thing the live page does: boards that tick with the stream rather than
 // sitting still between reloads.
@@ -750,7 +751,7 @@ export function demoStreamMeta(now: number): StreamMeta {
   return {
     live: true,
     known: true,
-    title: 'Rain World — blind run, day three',
+    title: 'Rain World: blind run, day three',
     gameName: 'Rain World',
     startedAt: new Date(now - 222 * 60_000).toISOString(),
     endedAt: null,
@@ -792,7 +793,7 @@ const DEMO_FEED: [ActivityKind, string, string][] = [
   ['command', '!deaths incremented → 14', '33ms'],
   ['reward', 'Bagel Rain redeemed by @kettle', '500 pts'],
   ['event', 'new follower @gremlin_dev · shoutout sent', 'ok'],
-  ['queue', 'Mount Kimbie — Made to Stray queued by @vex', '#4'],
+  ['queue', 'Mount Kimbie - Made to Stray queued by @vex', '#4'],
   ['command', '!uptime answered @mods', '12ms'],
   ['loyalty', '412 watchers earned 5 points', 'tick']
 ];

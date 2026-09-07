@@ -5,7 +5,7 @@ import type { ModuleDef } from './module-def';
 
 // Stream Management is KindCore in sesame (!cmd stays always-on) plus
 // per-command toggles for !title/!game/!tags/!commercial/!marker. The tile
-// has no master switch — a missing row is on — and the commands grant
+// has no master switch (a missing row is on) and the commands grant
 // already opens /commands, so this is discovery + the same grant, not a
 // second permission.
 export const STREAM_MODULE: ModuleDef = {

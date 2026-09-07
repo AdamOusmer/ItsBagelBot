@@ -4,7 +4,7 @@
 import { error, redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { listCommands, listModules } from '$lib/server/commands-store';
-import { publicCommands, publicModules, type PublicCommand, type PublicModule } from '$lib/server/public-directory';
+import { channelLabel, publicCommands, publicModules, type PublicCommand, type PublicModule } from '$lib/server/public-directory';
 import { accountState, resolveLogin } from '$lib/server/services';
 import { requireHost } from '$lib/server/seo-hosts';
 import { dev } from '$app/environment';
@@ -59,7 +59,7 @@ async function channelFromLogin(segment: Segment): Promise<Channel | null> {
 
   const canonical = canonicalLogin(found) ?? login;
   if (canonical !== login) throw redirect(308, `/user/${canonical}`);
-  return { userId: found.userId, channelName: found.username || login };
+  return { userId: found.userId, channelName: channelLabel(found, login) };
 }
 
 // Id reading, kept so links shared before the URL changed still open. The name
@@ -79,7 +79,7 @@ async function resolveChannel(segment: Segment): Promise<Channel> {
   return (await channelFromLogin(segment)) ?? channelFromID(segment);
 }
 
-// One channel, one URL — and one HOST.
+// One channel, one URL, and one HOST.
 //
 // The canonical-form redirects above settle which SEGMENT names a channel;
 // requireHost settles which ORIGIN serves it. traefik routes four hostnames to
@@ -87,7 +87,7 @@ async function resolveChannel(segment: Segment): Promise<Channel> {
 // on all of them, so /user/<login> answered 200 on every one. The leaderboard
 // board page linked here relatively, which is how
 // leaderboard.itsbagelbot.com/user/<login> came to serve the commands page
-// under the wrong origin — one document at four URLs, and a visitor who clicked
+// under the wrong origin: one document at four URLs, and a visitor who clicked
 // a channel name from a board landed on a page that looked like it had moved
 // hosts on them.
 //
@@ -120,7 +120,7 @@ export const load: PageServerLoad = async ({ params, url }) => {
 
     return {
       userId,
-      channelName: account?.username || channelName,
+      channelName: channelLabel(account, channelName),
       creatorCode: account?.creatorCode ?? null,
       commands: publicCommands(commands),
       modules: publicModules(modules),

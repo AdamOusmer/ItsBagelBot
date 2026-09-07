@@ -64,7 +64,7 @@ func TestTokenRoundTrip(t *testing.T) {
 	client, _, repo := setup(t)
 	ctx := context.Background()
 
-	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "mavey@concordia.ca"))
+	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@concordia.ca"))
 
 	plaintext := []byte("oauth-token-super-secret")
 	refresh := []byte("refresh-token-super-secret")
@@ -86,7 +86,7 @@ func TestTokenUpsertReplacesExisting(t *testing.T) {
 	_, _, repo := setup(t)
 	ctx := context.Background()
 
-	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "mavey@concordia.ca"))
+	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@concordia.ca"))
 
 	require.NoError(t, repo.UpsertToken(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch, []byte("old"), nil, nil))
 	require.NoError(t, repo.UpsertToken(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch, []byte("new"), nil, nil))
@@ -107,7 +107,7 @@ func TestTokenExpiryPersistsAndClearsOnOverwrite(t *testing.T) {
 	_, _, repo := setup(t)
 	ctx := context.Background()
 
-	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "mavey@concordia.ca"))
+	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@concordia.ca"))
 
 	expiresAt := ptrTime(time.Now().Add(4 * time.Hour).Truncate(time.Second))
 	require.NoError(t, repo.UpsertToken(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch, []byte("first"), nil, expiresAt))
@@ -132,8 +132,8 @@ func TestTokenCiphertextBoundToOwner(t *testing.T) {
 	client, _, repo := setup(t)
 	ctx := context.Background()
 
-	require.NoError(t, repo.Register(ctx, 1, "Alice", "alice@test.com"))
-	require.NoError(t, repo.Register(ctx, 2, "Bob", "bob@test.com"))
+	require.NoError(t, repo.Register(ctx, 1, "Alice", "Alice", "alice@test.com"))
+	require.NoError(t, repo.Register(ctx, 2, "Bob", "Bob", "bob@test.com"))
 
 	require.NoError(t, repo.UpsertToken(ctx, 1, tokens.TypeAccessToken, tokens.PlatformTwitch, []byte("alice-token"), nil, nil))
 
@@ -154,7 +154,7 @@ func TestSetStatusRefreshesViewAndPublishes(t *testing.T) {
 	_, pub, repo := setup(t)
 	ctx := context.Background()
 
-	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "mavey@concordia.ca"))
+	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@concordia.ca"))
 
 	view, err := repo.Get(ctx, 1001)
 	require.NoError(t, err)
@@ -173,7 +173,7 @@ func TestSetCreatorCodeStoresTrimsClearsAndPublishes(t *testing.T) {
 	client, pub, repo := setup(t)
 	ctx := context.Background()
 
-	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "mavey@concordia.ca"))
+	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@concordia.ca"))
 
 	// Creator code is write-behind preference state: validation is
 	// synchronous, but persistence and the announcement land at flush.
@@ -201,7 +201,7 @@ func TestSetCreatorCodeRejectsTooLongValue(t *testing.T) {
 	_, _, repo := setup(t)
 	ctx := context.Background()
 
-	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "mavey@concordia.ca"))
+	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@concordia.ca"))
 
 	err := repo.SetCreatorCode(ctx, 1001, strings.Repeat("A", repository.CreatorCodeMaxLen+1))
 	require.Error(t, err)
@@ -214,7 +214,7 @@ func TestSetCreatorCodeRejectsTooLongValue(t *testing.T) {
 func TestApplyBillingLifecycleIsMonotonicAndProtectsAdminGrants(t *testing.T) {
 	_, _, repo := setup(t)
 	ctx := context.Background()
-	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "mavey@example.com"))
+	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@example.com"))
 
 	// Relative to now: a fixed 2026-07-02 start put the admin grant's expiry
 
@@ -267,8 +267,8 @@ func TestApplyBillingLifecycleIsMonotonicAndProtectsAdminGrants(t *testing.T) {
 func TestApplyBillingCountsGiftForGifterIdempotently(t *testing.T) {
 	client, _, repo := setup(t)
 	ctx := context.Background()
-	require.NoError(t, repo.Register(ctx, 4001, "Gifter", "gifter@example.com"))
-	require.NoError(t, repo.Register(ctx, 4002, "Recipient", "recipient@example.com"))
+	require.NoError(t, repo.Register(ctx, 4001, "Gifter", "Gifter", "gifter@example.com"))
+	require.NoError(t, repo.Register(ctx, 4002, "Recipient", "Recipient", "recipient@example.com"))
 
 	when := time.Now().UTC().Truncate(time.Second)
 	expires := when.AddDate(0, 1, 0)
@@ -307,7 +307,7 @@ func TestApplyBillingCountsGiftForGifterIdempotently(t *testing.T) {
 func TestApplyBillingCancellationAndEnd(t *testing.T) {
 	_, _, repo := setup(t)
 	ctx := context.Background()
-	require.NoError(t, repo.Register(ctx, 2002, "Bagel", "bagel@example.com"))
+	require.NoError(t, repo.Register(ctx, 2002, "Bagel", "Bagel", "bagel@example.com"))
 
 	started := time.Now().Add(-time.Hour)
 	_, err := repo.ApplyBilling(ctx, billingrpc.ApplyRequest{
@@ -346,7 +346,7 @@ func TestApplyBillingCancellationAndEnd(t *testing.T) {
 func TestApplyBillingBackstopClampsUnboundedPaidGrant(t *testing.T) {
 	_, _, repo := setup(t)
 	ctx := context.Background()
-	require.NoError(t, repo.Register(ctx, 5005, "Chargeback", "chargeback@example.com"))
+	require.NoError(t, repo.Register(ctx, 5005, "Chargeback", "Chargeback", "chargeback@example.com"))
 
 	started := time.Now().UTC().Truncate(time.Second)
 	expires := started.AddDate(0, 1, 0)
@@ -391,12 +391,12 @@ func TestExpireSubscriptionsHonorsTebexGrace(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 7, 2, 12, 0, 0, 0, time.UTC)
 
-	require.NoError(t, repo.Register(ctx, 3003, "AdminGrant", "admin@example.com"))
+	require.NoError(t, repo.Register(ctx, 3003, "AdminGrant", "AdminGrant", "admin@example.com"))
 	adminExpiry := now.Add(-time.Minute)
 	require.NoError(t, repo.SetAdminStatus(ctx, 3003, user.StatusPaid, ptrTime(time.Now().Add(time.Hour))))
 	require.NoError(t, client.User.UpdateOneID(3003).SetSubscriptionExpiresAt(adminExpiry).Exec(ctx))
 
-	require.NoError(t, repo.Register(ctx, 4004, "TebexGrace", "tebex@example.com"))
+	require.NoError(t, repo.Register(ctx, 4004, "TebexGrace", "TebexGrace", "tebex@example.com"))
 	tebexExpiry := now.Add(-time.Hour)
 	_, err := repo.ApplyBilling(ctx, billingrpc.ApplyRequest{
 		UserID: 4004, EventID: "evt-tebex", Action: billingrpc.ActionActivate,
@@ -426,7 +426,7 @@ func TestDeleteCascadesAndPublishes(t *testing.T) {
 	client, pub, repo := setup(t)
 	ctx := context.Background()
 
-	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "mavey@concordia.ca"))
+	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@concordia.ca"))
 	require.NoError(t, repo.UpsertToken(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch, []byte("tok"), nil, nil))
 
 	require.NoError(t, repo.Delete(ctx, 1001))
@@ -576,7 +576,7 @@ func TestIDByUsernameResolves(t *testing.T) {
 	_, _, repo := setup(t)
 	ctx := context.Background()
 
-	require.NoError(t, repo.Register(ctx, 4001, "streamer", "streamer@test.com"))
+	require.NoError(t, repo.Register(ctx, 4001, "streamer", "streamer", "streamer@test.com"))
 
 	id, err := repo.IDByUsername(ctx, "streamer")
 	require.NoError(t, err)
@@ -589,7 +589,7 @@ func TestIDByUsernameNormalizesInput(t *testing.T) {
 	_, _, repo := setup(t)
 	ctx := context.Background()
 
-	require.NoError(t, repo.Register(ctx, 4002, "streamer", "streamer2@test.com"))
+	require.NoError(t, repo.Register(ctx, 4002, "streamer", "streamer", "streamer2@test.com"))
 
 	id, err := repo.IDByUsername(ctx, "  STREAMER ")
 	require.NoError(t, err)
@@ -617,8 +617,8 @@ func TestIDByUsernameTakesFreshestRowOnCollision(t *testing.T) {
 	client, _, repo := setup(t)
 	ctx := context.Background()
 
-	require.NoError(t, repo.Register(ctx, 4003, "shared", "stale@test.com"))
-	require.NoError(t, repo.Register(ctx, 4004, "shared", "fresh@test.com"))
+	require.NoError(t, repo.Register(ctx, 4003, "shared", "shared", "stale@test.com"))
+	require.NoError(t, repo.Register(ctx, 4004, "shared", "shared", "fresh@test.com"))
 
 	now := time.Now()
 	require.NoError(t, client.User.UpdateOneID(4003).SetUpdatedAt(now.Add(-48*time.Hour)).Exec(ctx))

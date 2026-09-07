@@ -3,7 +3,7 @@
 
 // Link helpers for the public (signed-out) pages. Those pages wear the
 // marketing site's nav + footer, so every chrome link points at the live
-// marketing origin rather than at a dashboard route — and follows the visitor
+// marketing origin rather than at a dashboard route, and follows the visitor
 // into their language the same way web/src/i18n/ui.ts localizePath() does.
 import { DEFAULT_LOCALE, type Locale } from '@bagel/shared/i18n';
 
@@ -56,8 +56,8 @@ export function commandsHref(segment: string): string {
 }
 
 /**
- * The dashboard origin. The dashboard has no /<locale> routes — it reads
- * ?lang= — so a non-default locale rides over as a query. Footer "Dashboard"
+ * The dashboard origin. The dashboard has no /<locale> routes. It reads
+ * ?lang=. So a non-default locale rides over as a query. Footer "Dashboard"
  * uses this; Add to Twitch uses dashLoginHref so the click starts OAuth.
  */
 export function dashHref(locale: Locale): string {
@@ -66,4 +66,9 @@ export function dashHref(locale: Locale): string {
 
 export function dashLoginHref(locale: Locale): string {
   return locale === DEFAULT_LOCALE ? DASH_LOGIN : `${DASH_LOGIN}?lang=${locale}`;
+}
+
+/** The mobile menu's "Get the app" link: the dashboard's install prompt, as web's MobileMenu has it. */
+export function dashInstallHref(locale: Locale): string {
+  return locale === DEFAULT_LOCALE ? `${DASH}/?install=1` : `${DASH}/?install=1&lang=${locale}`;
 }

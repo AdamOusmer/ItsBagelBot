@@ -13,7 +13,7 @@ const DEMO = dev && env.DEMO === '1';
 
 // delegateBlocked answers the one question this endpoint asks of a delegated
 // session: does their grant own a counter picker at all? Either grant that
-// carries a counter editor opens it — commands (command replies) or modules
+// carries a counter editor opens it: commands (command replies) or modules
 // (the counters page itself). An owner session is never blocked.
 function delegateBlocked(s: App.Locals['session']): boolean {
   if (!s?.delegate_of) return false;

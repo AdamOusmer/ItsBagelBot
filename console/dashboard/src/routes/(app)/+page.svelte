@@ -82,7 +82,7 @@
 
   // Fold the live /substate poll (`sub`, when set) over the SSR signals and
   // re-derive the same honest UI state the server computed. One mapping, one
-  // source of truth — the poll can't invent a state the server can't.
+  // source of truth: the poll can't invent a state the server can't.
   function liveUi(c: Conn): ConnUi {
     return sub ? connectionUiState({ ...c.signals, sub: sub.state as ConnSignals['sub'] }) : c.ui;
   }
@@ -106,8 +106,8 @@
 
   // The single clock for the whole page. StreamSection derives "3h 42m" from
   // this rather than reading the time itself, which keeps every component in
-  // components/overview pure display — the convention the whole directory
-  // follows — and means one interval ticks instead of one per panel.
+  // components/overview pure display (the convention the whole directory
+  // follows) and means one interval ticks instead of one per panel.
   let now = $state(Date.now());
   onMount(() => {
     const id = setInterval(() => (now = Date.now()), 1000);
@@ -119,7 +119,7 @@
   // few seconds and the markup below prefers it over the awaited SSR value.
   // These lanes are exactly the reads the invalidation bus does not cover
   // (viewer counts, chat volume, the activity feed), so the layout's /events
-  // stream never re-fetches them — without this the panels freeze at their
+  // stream never re-fetches them: without this the panels freeze at their
   // load-time values until a manual reload. Delegates never see the Overview
   // and the endpoint rejects them; skip the connection rather than burn a
   // retrying EventSource on a guaranteed 401.
@@ -137,7 +137,7 @@
       try {
         live = JSON.parse((e as MessageEvent).data);
       } catch {
-        /* malformed frame — keep the last good snapshot */
+        /* malformed frame: keep the last good snapshot */
       }
     });
     return () => es.close();

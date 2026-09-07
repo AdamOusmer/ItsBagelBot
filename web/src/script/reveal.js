@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 /**
- * Scroll reveal — the shared entrance for every section.
+ * Scroll reveal: the shared entrance for every section.
  *
  * Any element tagged `data-reveal` starts hidden (opacity 0 + a small
  * translate, defined globally in style.css) and transitions in the first time

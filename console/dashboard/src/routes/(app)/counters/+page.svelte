@@ -549,7 +549,7 @@
                 <div class="sec-head-row">
                   <span class="sec-head">{t('counters.valuesTitle')}</span>
                   {#if entriesReady && (data.entries ?? []).length}
-                    <span class="sec-count">{(data.entries ?? []).length}</span>
+                    <span class="sec-count bb-tag bb-tag--bare">{(data.entries ?? []).length}</span>
                   {/if}
                 </div>
                 {#if !entriesReady}
@@ -820,15 +820,8 @@
   }
   .sec-head-row { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; }
   .sec-head-row .sec-head { margin: 0; }
-  .sec-count {
-    font-family: var(--bb-font-mono);
-    font-size: 10.5px;
-    color: var(--bb-muted);
-    border: 1px solid var(--bb-border);
-    border-radius: 999px;
-    padding: 1px 7px;
-    font-variant-numeric: tabular-nums;
-  }
+  /* Was a 999px outlined count pill; now the global .bb-tag--bare label. */
+  .sec-count { font-variant-numeric: tabular-nums; }
 
   /* The channel value is the point of that panel, so it gets a larger box. */
   .big-num :global(.num),

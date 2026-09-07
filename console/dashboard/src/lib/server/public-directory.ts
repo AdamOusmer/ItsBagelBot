@@ -33,6 +33,20 @@ export type PublicModule = {
   events: ModuleDetail[];
 };
 
+/**
+ * The name a public page labels a channel with: the Twitch display name (the
+ * login in the owner's casing) when the users service holds one, else the
+ * stored login, else the caller's fallback (the URL segment, or a placeholder
+ * for an id-only lookup). One place, so the commands page and the leaderboard
+ * cannot drift on which name wins.
+ */
+export function channelLabel(
+  record: { displayName?: string; username?: string } | null | undefined,
+  fallback: string
+): string {
+  return record?.displayName || record?.username || fallback;
+}
+
 function asConfig(raw: unknown): Record<string, string> {
   const out: Record<string, string> = {};
   if (!raw || typeof raw !== 'object') return out;

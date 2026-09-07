@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 // Envelope decoding, section parsers and the command/timer/alias expansion
-// pipeline — the port of moobot.go. Tag translation lives in ./tags.
+// pipeline: the port of moobot.go. Tag translation lives in ./tags.
 //
 // Browser-side parser for Moobot settings exports (Tools -> Import & Export ->
 // "Export this dashboard to a file"), ported one-for-one from
@@ -40,7 +40,7 @@ import type {
 import { translateTags } from './tags';
 import type { TagContext, TextOption } from './tags';
 
-// Codes restated from internal/domain/rpc/importer/importer.go — keep in step.
+// Codes restated from internal/domain/rpc/importer/importer.go, keep in step.
 // Every code this parser emits is a row here, so call sites never repeat raw
 // strings (the golden fixtures compare them verbatim).
 const CODE = {
@@ -113,7 +113,7 @@ function errDiag(item_index: number, code: string, message: string): ImportDiagn
 
 // --- canonicalization primitives (ported from app/importer/mapping) ---------
 
-// NormalizeName: trim, strip ONE leading "!", trim, lowercase — identical to
+// NormalizeName: trim, strip ONE leading "!", trim, lowercase, identical to
 // mapping.NormalizeName so browser-produced names collide-detect the same way
 // server-side.
 export function normalizeName(name: string): string {
@@ -258,7 +258,7 @@ function resolveOneGroup(id: number, itemIndex: number, diags: ImportDiagnostic[
     label = 'everyone';
   }
   // id 0 ("normal users") feeds the shared table as everyone; id 2
-  // (editors) narrows to moderators — Moobot editors outrank mods there,
+  // (editors) narrows to moderators: Moobot editors outrank mods there,
   // but our ladder has no editor tier and widening would invent trust
   // (same decision record as moobot.go).
   const feed = id === 0 ? 'everyone' : id === 2 ? 'moderators' : label;
@@ -523,7 +523,7 @@ function parseCommandItem(item: RawCommand, pos: number, state: ParseState): voi
     // variableUnmapped precedent: the tag itself mapped fine, but its
     // definition is a URL-less shell until the broadcaster acts.
     state.diags.push(warnDiag(idx, CODE.fetchUrlAbsent,
-      `response uses <${ref.tag}>, imported as {urlfetch:${ref.key}} — re-enter the URL for "${ref.key}" before it can fetch`));
+      `response uses <${ref.tag}>, imported as {urlfetch:${ref.key}}. Re-enter the URL for "${ref.key}" before it can fetch`));
   }
   const { lines, diags: respDiags } = canonicalizeResponse(tr.text, idx);
   if (lines.length) cmd.responses = lines;
@@ -564,7 +564,7 @@ function commandTagContext(item: RawCommand, name: string, fetchDefs: Map<string
 }
 
 // applyCounterValue records a command's counter start value. idx is derived
-// from the command pass — it equals the slot this command is about to take.
+// from the command pass: it equals the slot this command is about to take.
 function applyCounterValue(item: RawCommand, name: string, counterUsed: boolean, state: ParseState): void {
   const idx = state.commands.length;
   if (counterUsed && asNum(item.counter) === undefined) {
@@ -637,7 +637,7 @@ function noteAliasArguments(a: RawAlias, diags: ImportDiagnostic[]): void {
 
 // applyTimers expands each Moobot timer into one ManifestTimer per referenced
 // command present in the export; a disabled timer is dropped outright (nothing
-// user-authored is lost — entries synthesize from referenced commands).
+// user-authored is lost, entries synthesize from referenced commands).
 function applyTimers(state: ParseState): void {
   for (const t of state.stagedTimers) expandTimer(t, state);
 }

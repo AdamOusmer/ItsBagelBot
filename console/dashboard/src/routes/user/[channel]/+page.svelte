@@ -1,137 +1,118 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { onMount } from 'svelte';
-  import { Card } from '@bagel/shared';
+  import { AlertBanner, Card, LightField } from '@bagel/shared';
   import PublicNav from '$lib/components/public/PublicNav.svelte';
   import PublicFooter from '$lib/components/public/PublicFooter.svelte';
+  import type { PageData } from './$types';
 
-  let { data } = $props();
+  let { data }: { data: PageData } = $props();
 
-  const commandLabel = $derived(data.commands.length === 1 ? 'command' : 'commands');
-  const moduleLabel = $derived(data.modules.length === 1 ? 'module' : 'modules');
+  // One flat directory of everything a viewer can type. Custom commands carry
+  // their own detail (aliases, access, cooldown); module and built-in commands
+  // come from the catalog and carry a usage line instead, with the module that
+  // owns them as the source tag.
+  type Kind = 'custom' | 'module' | 'builtin';
+  type Filter = 'all' | Kind;
+  type Row = {
+    key: string;
+    trigger: string;
+    aliases: string[];
+    response: string;
+    perm: string;
+    cooldown: number;
+    liveOnly: boolean;
+    uses: string;
+    kind: Kind;
+    source: string;
+    moduleId: string | null;
+  };
+
+  const FILTERS: Array<{ id: Filter; label: string; heading: string }> = [
+    { id: 'all', label: 'All', heading: 'Everything you can type' },
+    { id: 'custom', label: 'Custom', heading: 'Custom commands' },
+    { id: 'module', label: 'Modules', heading: 'Module commands' },
+    { id: 'builtin', label: 'Built-in', heading: 'Built-in commands' }
+  ];
+
+  let query = $state('');
+  let filter = $state<Filter>('all');
+  let moduleId = $state<string | null>(null);
+  let copied = $state<string | null>(null);
+
   const creatorCode = $derived(String(data.creatorCode ?? '').trim());
 
-  let fieldEl = $state<HTMLCanvasElement | null>(null);
-  let titleEl = $state<HTMLHeadingElement | null>(null);
-
-  // Warm light-field + decode title, ported from the marketing site's
-  // PageHero (web/src/script/lightfield.js + decode.js). Self-contained per
-  // mount: rAF is gated by an IntersectionObserver and both effects honor
-  // reduced-motion, so the header degrades to a static glow + plain text.
-  onMount(() => {
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const cleanups: Array<() => void> = [];
-
-    // ── star motes drifting up through the hero ──
-    const canvas = fieldEl;
-    if (canvas && !reduce) {
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        let w = 0, h = 0, raf = 0;
-        let dpr = Math.min(window.devicePixelRatio || 1, 2);
-        const warmth = 0.7;
-        type Mote = { x: number; y: number; r: number; vy: number; vx: number; a: number; warm: number };
-        let motes: Mote[] = [];
-
-        const build = () => {
-          w = canvas.clientWidth;
-          h = canvas.clientHeight;
-          if (!w || !h) return;
-          canvas.width = Math.round(w * dpr);
-          canvas.height = Math.round(h * dpr);
-          const count = w < 700 ? 40 : 70;
-          motes = Array.from({ length: count }, () => ({
-            x: Math.random() * w,
-            y: Math.random() * h,
-            r: 0.6 + Math.random() * 2,
-            vy: -(0.05 + Math.random() * 0.2),
-            vx: (Math.random() - 0.5) * 0.1,
-            a: 0.12 + Math.random() * 0.45,
-            warm: Math.random()
-          }));
-        };
-
-        const draw = () => {
-          if (!w || !h || !motes.length) build();
-          if (!w || !h) return;
-          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-          ctx.clearRect(0, 0, w, h);
-          ctx.globalCompositeOperation = 'lighter';
-          for (const m of motes) {
-            m.y += m.vy;
-            m.x += m.vx;
-            if (m.y < -10) { m.y = h + 10; m.x = Math.random() * w; }
-            if (m.x < -10) m.x = w + 10; else if (m.x > w + 10) m.x = -10;
-            const col = m.warm < warmth ? '201, 168, 124' : '82, 183, 136';
-            ctx.beginPath();
-            ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(${col}, ${m.a.toFixed(3)})`;
-            ctx.fill();
-          }
-          ctx.globalCompositeOperation = 'source-over';
-        };
-
-        const stop = () => { if (raf) { cancelAnimationFrame(raf); raf = 0; } };
-        const loop = () => { draw(); raf = requestAnimationFrame(loop); };
-
-        const io = new IntersectionObserver(([e]) => {
-          if (e.isIntersecting && !raf) raf = requestAnimationFrame(loop);
-          else if (!e.isIntersecting) stop();
-        }, { rootMargin: '150px' });
-        io.observe(canvas);
-
-        const onResize = () => { dpr = Math.min(window.devicePixelRatio || 1, 2); build(); };
-        window.addEventListener('resize', onResize, { passive: true });
-        build();
-
-        cleanups.push(() => { stop(); io.disconnect(); window.removeEventListener('resize', onResize); });
-      }
-    }
-
-    // ── decode-on-view channel name ──
-    const title = titleEl;
-    if (title) {
-      const text = title.textContent ?? '';
-      if (reduce) {
-        title.textContent = text;
-      } else {
-        const SCRAMBLE = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#$%&*+-/<>';
-        const chars = Array.from(text);
-        const duration = Math.min(1000, 380 + chars.length * 26);
-        let raf = 0;
-        const run = () => {
-          const start = performance.now();
-          const tick = (now: number) => {
-            const progress = Math.min(1, (now - start) / duration);
-            const revealCount = Math.floor(chars.length * progress);
-            const t = Math.floor(progress * 22);
-            title.textContent = chars
-              .map((char, i) => {
-                if (char === ' ' || /\W/.test(char)) return char;
-                if (i < revealCount) return char;
-                return SCRAMBLE[(i * 19 + t * 7) % SCRAMBLE.length];
-              })
-              .join('');
-            if (progress < 1) raf = requestAnimationFrame(tick);
-            else title.textContent = text;
-          };
-          raf = requestAnimationFrame(tick);
-        };
-        const io = new IntersectionObserver((entries) => {
-          for (const entry of entries) {
-            if (!entry.isIntersecting) continue;
-            io.unobserve(entry.target);
-            run();
-          }
-        }, { threshold: 0.45 });
-        io.observe(title);
-        cleanups.push(() => { if (raf) cancelAnimationFrame(raf); io.disconnect(); });
-      }
-    }
-
-    return () => { for (const c of cleanups) c(); };
+  const all = $derived.by((): Row[] => {
+    const custom: Row[] = data.commands.map((c) => ({
+      ...c,
+      key: `custom:${c.trigger}`,
+      kind: 'custom',
+      source: 'Custom',
+      moduleId: null
+    }));
+    const fromModules: Row[] = data.modules.flatMap((m) =>
+      m.commands.map((c) => ({
+        key: `${m.id}:${c.label}`,
+        trigger: c.label,
+        aliases: [],
+        response: c.meta,
+        perm: '',
+        cooldown: 0,
+        liveOnly: false,
+        uses: '',
+        kind: m.category === 'Built-in' ? 'builtin' : 'module',
+        source: m.label,
+        moduleId: m.id
+      }))
+    );
+    return [...custom, ...fromModules];
   });
+
+  const q = $derived(query.trim().toLowerCase());
+
+  const rows = $derived(
+    all
+      .filter((r) => (moduleId ? r.moduleId === moduleId : filter === 'all' || r.kind === filter))
+      .filter(
+        (r) =>
+          !q ||
+          r.trigger.toLowerCase().includes(q) ||
+          r.aliases.join(' ').toLowerCase().includes(q) ||
+          r.response.toLowerCase().includes(q) ||
+          r.source.toLowerCase().includes(q)
+      )
+      .sort((a, b) => a.trigger.localeCompare(b.trigger))
+  );
+
+  const countOf = (id: Filter) => all.filter((r) => id === 'all' || r.kind === id).length;
+
+  const activeModule = $derived(data.modules.find((m) => m.id === moduleId) ?? null);
+  const listHeading = $derived(
+    `${activeModule ? activeModule.label : FILTERS.find((f) => f.id === filter)?.heading} · ${rows.length}`
+  );
+
+  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+  const summary = $derived(
+    `${plural(data.commands.length, 'custom command')} · ${plural(data.modules.length, 'active module')} · ${all.length} things to type`
+  );
+
+  function pickFilter(id: Filter) {
+    filter = id;
+    moduleId = null;
+  }
+
+  function pickModule(id: string) {
+    moduleId = moduleId === id ? null : id;
+    filter = 'all';
+  }
+
+  let copyTimer: ReturnType<typeof setTimeout> | undefined;
+  function copy(text: string, key: string) {
+    navigator.clipboard?.writeText(text).catch(() => {});
+    clearTimeout(copyTimer);
+    copied = key;
+    copyTimer = setTimeout(() => (copied = null), 1400);
+  }
 </script>
 
 <svelte:head>
@@ -142,393 +123,559 @@
   />
 </svelte:head>
 
-<!-- Shared public chrome (see lib/components/public): the marketing nav + footer. -->
+<!-- Shared public chrome (see lib/components/public): the marketing nav + footer,
+     and the same drifting mote field the leaderboard and stats pages wear. -->
 <PublicNav />
+<div class="grain" aria-hidden="true"></div>
+<div class="starfield" aria-hidden="true"><LightField /></div>
+<div class="glow" aria-hidden="true"></div>
 
 <main class="page">
-  <!-- Hero in the marketing PageHero language: warm light-field + hearth glow
-       + a decode (scramble → resolve) channel name. -->
-  <header class="phero">
-    <canvas class="phero__field" bind:this={fieldEl} aria-hidden="true"></canvas>
-    <div class="phero__glow" aria-hidden="true"></div>
-
-    <div class="phero__inner">
-      <span class="phero__eyebrow">Channel commands</span>
-      <h1 class="phero__title" bind:this={titleEl}>{data.channelName}</h1>
-      <p class="phero__desc">
-        {data.commands.length} active custom {commandLabel}. {data.modules.length} active {moduleLabel}.
-      </p>
+  <header class="hero">
+    <div class="hero__text">
+      <span class="eyebrow">Channel commands</span>
+      <h1 class="title">{data.channelName}</h1>
+      <p class="summary">{summary}</p>
     </div>
+    {#if creatorCode}
+      <button class="creator" type="button" title="Copy creator code" onclick={() => copy(creatorCode, 'cc')}>
+        <span class="creator__label">Creator code</span>
+        <span class="creator__row">
+          <strong>{creatorCode}</strong>
+          <span class="creator__hint bb-chip bb-chip--muted" class:is-done={copied === 'cc'}>{copied === 'cc' ? 'Copied' : 'Click to copy'}</span>
+        </span>
+      </button>
+    {/if}
   </header>
 
-  {#if creatorCode}
-    <section class="creator-strip" aria-label="Creator code">
-      <span class="creator-strip__signal" aria-hidden="true"></span>
-      <span class="creator-strip__label">Creator code</span>
-      <strong>{creatorCode}</strong>
-    </section>
-  {/if}
-
   {#if data.degraded}
-    <section class="notice" role="status">
-      Command data is temporarily unavailable.
-    </section>
+    <div class="notice">
+      <AlertBanner variant="warn" icon="clock">Command data is temporarily unavailable.</AlertBanner>
+    </div>
   {/if}
 
-  <!-- Custom commands ─────────────────────────────────────────── -->
-  <section class="block">
-    <div class="block-head">
-      <span class="block-eyebrow">Commands</span>
-      <h2>Custom commands</h2>
+  <div class="toolbar">
+    <label class="search">
+      <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16">
+        <circle cx="11" cy="11" r="7"></circle>
+        <path d="m20 20-3.5-3.5"></path>
+      </svg>
+      <span class="sr-only">Search commands</span>
+      <input type="search" bind:value={query} placeholder="Search a command or what it does…" />
+    </label>
+    <div class="bb-tabs" role="tablist" aria-label="Command source">
+      {#each FILTERS as f (f.id)}
+        {@const on = !moduleId && filter === f.id}
+        <button class="bb-tab" class:is-active={on} role="tab" type="button" aria-selected={on} onclick={() => pickFilter(f.id)}>
+          <span>{f.label}</span>
+          <span class="tab__count">{countOf(f.id)}</span>
+        </button>
+      {/each}
     </div>
+  </div>
 
-    {#if data.commands.length}
-      <div class="grid">
-        {#each data.commands as command}
-          <Card atmosphere hover class="tile">
-            {#snippet band()}
-              <div class="tile-top">
-                <h3 class="trigger">{command.trigger}</h3>
-                {#if command.uses}
-                  <span class="tag">{command.uses} uses</span>
-                {/if}
-              </div>
-            {/snippet}
-            <p class="tile-desc">{command.response}</p>
-            <ul class="feats">
-              {#if command.aliases.length}
-                {@render feat(command.aliases.join(', '))}
-              {/if}
-              {@render feat(command.perm)}
-              {#if command.cooldown > 0}
-                {@render feat(`${command.cooldown}s cooldown`)}
-              {/if}
-              {#if command.liveOnly}
-                {@render feat('Live only')}
-              {/if}
-            </ul>
-          </Card>
-        {/each}
+  <div class="columns">
+    <section class="list-wrap" aria-label="Commands">
+      <Card atmosphere class="list">
+        <div class="list__head">
+          <span>{listHeading}</span>
+          <span>Click a row to copy</span>
+        </div>
+
+        {#if rows.length}
+          <ul class="rows">
+            {#each rows as row (row.key)}
+              <li>
+                <button class="row" type="button" onclick={() => copy(row.trigger, row.key)}>
+                  <span class="row__trigger">
+                    <code>{row.trigger}</code>
+                    {#if row.aliases.length}
+                      <span class="row__aliases">{row.aliases.join(' ')}</span>
+                    {/if}
+                  </span>
+                  <p class="row__response">{row.response}</p>
+                  <span class="row__tags">
+                    {#if copied === row.key}
+                      <span class="copied">Copied</span>
+                    {/if}
+                    <span class="bb-tag bb-tag--alpha">{row.source}</span>
+                    {#if row.perm}
+                      <span class="bb-tag bb-tag--bare">{row.perm}</span>
+                    {/if}
+                    {#if row.cooldown > 0}
+                      <span class="bb-tag bb-tag--bare" title="Cooldown">
+                        <svg aria-hidden="true" viewBox="0 0 24 24" width="11" height="11">
+                          <circle cx="12" cy="12" r="9"></circle>
+                          <path d="M12 7v5l3 2"></path>
+                        </svg>
+                        {row.cooldown}s
+                      </span>
+                    {/if}
+                    {#if row.liveOnly}
+                      <span class="bb-tag bb-tag--live"><i class="bb-mark" aria-hidden="true"></i>Live only<i class="bb-sweep" aria-hidden="true"></i></span>
+                    {/if}
+                    {#if row.uses}
+                      <span class="uses">{row.uses} uses</span>
+                    {/if}
+                  </span>
+                </button>
+              </li>
+            {/each}
+          </ul>
+        {:else if all.length === 0}
+          <div class="empty">No active commands yet.</div>
+        {:else}
+          <div class="empty">Nothing matches “{query}”. Try a shorter word.</div>
+        {/if}
+      </Card>
+    </section>
+
+    <aside class="side">
+      <Card atmosphere class="modules">
+        <div class="side__head">
+          <span>Active modules</span>
+          <span class="side__count">{data.modules.length}</span>
+        </div>
+        {#if data.modules.length}
+          <ul class="mods">
+            {#each data.modules as mod (mod.id)}
+              {@const n = mod.commands.length}
+              <li>
+                <button
+                  class="mod"
+                  class:on={moduleId === mod.id}
+                  type="button"
+                  disabled={n === 0}
+                  aria-pressed={moduleId === mod.id}
+                  onclick={() => pickModule(mod.id)}
+                >
+                  <i class="bb-mark" aria-hidden="true"></i>
+                  <span class="mod__text">
+                    <span class="mod__label">{mod.label}</span>
+                    <span class="mod__tagline">{mod.tagline}</span>
+                  </span>
+                  <span class="mod__meta">{n ? `${n} ${n === 1 ? 'cmd' : 'cmds'}` : 'auto'}</span>
+                </button>
+              </li>
+            {/each}
+          </ul>
+        {:else}
+          <p class="side__empty">No active modules.</p>
+        {/if}
+      </Card>
+
+      <div class="legend">
+        <span class="side__head">Reading the tags</span>
+        <p>
+          <em>Everyone</em>, <em>Subs</em>, <em>Mods</em> say who can run it. The clock is the cooldown
+          between uses. <em class="live">Live only</em> commands answer while the stream is up.
+        </p>
       </div>
-    {:else}
-      <Card atmosphere class="empty">No active custom commands.</Card>
-    {/if}
-  </section>
-
-  <!-- Active modules ──────────────────────────────────────────── -->
-  <section class="block">
-    <div class="block-head">
-      <span class="block-eyebrow">Modules</span>
-      <h2>Active modules</h2>
-    </div>
-
-    {#if data.modules.length}
-      <div class="grid">
-        {#each data.modules as mod}
-          <Card atmosphere hover class="tile">
-            {#snippet band()}
-              <div class="tile-top">
-                <div class="tile-title">
-                  <span class="cat">{mod.category}</span>
-                  <h3>{mod.label}</h3>
-                </div>
-                <span class="active-dot" aria-label="Active"></span>
-              </div>
-            {/snippet}
-            <p class="tile-desc">{mod.tagline}</p>
-
-            {#if mod.commands.length}
-              <ul class="feats detail">
-                {#each mod.commands as command}
-                  {@render detail(command.label, command.meta)}
-                {/each}
-              </ul>
-            {:else if mod.events.length}
-              <ul class="feats detail">
-                {#each mod.events as event}
-                  {@render detail(event.label, event.meta)}
-                {/each}
-              </ul>
-            {:else}
-              <span class="status">Active</span>
-            {/if}
-          </Card>
-        {/each}
-      </div>
-    {:else}
-      <Card atmosphere class="empty">No active modules.</Card>
-    {/if}
-  </section>
+    </aside>
+  </div>
 </main>
 
 <PublicFooter />
 
-{#snippet check()}
-  <svg class="check" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-    <path d="M3.5 8.5L6.5 11.5L12.5 4.5" stroke="currentColor" stroke-width="1.5"
-          stroke-linecap="round" stroke-linejoin="round" />
-  </svg>
-{/snippet}
-
-{#snippet feat(label: string)}
-  <li class="feat">{@render check()}<span>{label}</span></li>
-{/snippet}
-
-{#snippet detail(label: string, meta: string)}
-  <li class="feat detail-row">
-    {@render check()}
-    <strong>{label}</strong>
-    <span>{meta}</span>
-  </li>
-{/snippet}
-
-
 <style>
-  h1, h2, h3, p { margin: 0; }
+  h1, p { margin: 0; }
 
-  /* ── page shell ── */
-  .page {
-    padding: 0 24px 96px;
-    color: var(--bb-white);
-  }
-
-  /* ── PageHero: light-field + glow + decode title ── */
-  .phero {
-    position: relative;
-    isolation: isolate;
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
     overflow: hidden;
-    max-width: var(--bb-content-max, 1200px);
-    margin: 0 auto;
-    min-height: clamp(56vh, 68vh, 78vh);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    padding: calc(76px + 64px) 24px 72px;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
   }
-  .phero__field { position: absolute; inset: 0; width: 100%; height: 100%; display: block; z-index: -2; pointer-events: none; }
-  .phero__glow {
+
+  /* ── atmosphere ── */
+
+  /* Film grain over everything, nav included. Pointer-events off so it never
+     eats a click; the opacity is low enough to read as texture, not fog. */
+  .grain {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    pointer-events: none;
+    opacity: 0.055;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* Mote field below content (z-index 1), the same stacking the leaderboard
+     and stats pages use. */
+  .starfield {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  /* Hearth glow behind the hero: tan core, green fringe. */
+  .glow {
     position: absolute;
     left: 50%;
-    top: 46%;
-    width: 110vmin;
-    height: 90vmin;
-    translate: -50% -50%;
-    z-index: -1;
+    top: -160px;
+    width: min(1100px, 140vw);
+    height: 640px;
+    transform: translateX(-50%);
     pointer-events: none;
-    background: radial-gradient(55% 60% at 50% 50%, rgba(201,168,124,0.16) 0%, rgba(82,183,136,0.06) 38%, transparent 70%);
-    filter: blur(12px);
-  }
-  .phero__inner { position: relative; z-index: 1; max-width: 720px; display: flex; flex-direction: column; align-items: center; }
-  .phero__eyebrow {
-    font-family: var(--bb-font-mono);
-    font-size: clamp(0.66rem, 1.4vw, 0.76rem);
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
-    color: var(--bb-green-glow);
-    margin-bottom: 22px;
-    text-shadow: 0 0 16px rgba(82,183,136,0.5);
-    opacity: 0;
-    animation: pheroIn 700ms 120ms var(--bb-ease-out-expo) forwards;
-  }
-  .phero__title {
-    font-family: var(--bb-font-display);
-    font-weight: 800;
-    font-size: clamp(2.4rem, 8vw, 5rem);
-    line-height: 1;
-    letter-spacing: -0.03em;
-    color: var(--bb-white);
-    max-width: 16ch;
-    text-shadow: 0 0 24px rgba(240,236,228,0.18), 0 3px 18px rgba(0,0,0,0.9), 0 0 40px rgba(201,168,124,0.22);
-    opacity: 0;
-    animation: pheroIn 760ms 60ms var(--bb-ease-out-expo) forwards;
-  }
-  .phero__desc {
-    font-family: var(--bb-font-body);
-    font-size: clamp(1rem, 1.6vw, 1.15rem);
-    line-height: 1.7;
-    color: var(--bb-muted);
-    max-width: 52ch;
-    margin-top: 26px;
-    opacity: 0;
-    animation: pheroIn 800ms 320ms var(--bb-ease-out-expo) forwards;
-  }
-  @keyframes pheroIn {
-    from { opacity: 0; transform: translateY(16px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .phero__eyebrow, .phero__title, .phero__desc { animation: none; opacity: 1; }
-    .phero__field { display: none; }
+    background: radial-gradient(
+      50% 55% at 50% 45%,
+      rgba(201, 168, 124, 0.18) 0%,
+      rgba(82, 183, 136, 0.08) 40%,
+      transparent 72%
+    );
+    filter: blur(18px);
   }
 
-  /* ── content blocks ── */
-  .block, .notice, .creator-strip { max-width: var(--bb-content-max, 1200px); margin: 0 auto; }
-  .creator-strip {
-    position: sticky;
-    top: calc(76px + env(safe-area-inset-top, 0px) + 14px);
-    z-index: 35;
-    width: max-content;
-    max-width: min(100%, 560px);
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 14px;
-    border: 1px solid rgba(82,183,136,0.34);
-    border-radius: 100px;
-    background:
-      radial-gradient(420px circle at 20% 50%, rgba(201,168,124,0.16), transparent 58%),
-      linear-gradient(180deg, rgba(240,236,228,0.07), rgba(240,236,228,0.025)),
-      rgba(17,17,16,0.9);
+  /* ── page shell ── */
+
+  .page {
+    position: relative;
+    z-index: 1;
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: calc(var(--bb-nav-height, 76px) + env(safe-area-inset-top, 0px) + 72px) 24px 96px;
     color: var(--bb-white);
-    box-shadow:
-      0 18px 42px rgba(0,0,0,0.34),
-      0 0 28px rgba(82,183,136,0.08);
-    backdrop-filter: blur(12px);
   }
-  .creator-strip__signal {
-    width: 8px;
-    height: 8px;
-    flex: none;
-    border-radius: 999px;
-    background: var(--bb-green-glow);
-    box-shadow: 0 0 16px rgba(82,183,136,0.82);
+
+  /* ── hero ── */
+
+  .hero {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px 40px;
+    margin-bottom: 44px;
   }
-  .creator-strip__label {
-    font-family: var(--bb-font-mono);
-    font-size: 0.68rem;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: var(--bb-green-glow);
-    white-space: nowrap;
-  }
-  .creator-strip strong {
+
+  .hero__text {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-family: var(--bb-font-mono);
-    font-size: 0.82rem;
-    font-weight: 500;
-    letter-spacing: 0.08em;
-    color: var(--bb-tan-pale);
-    text-shadow: 0 0 18px rgba(201,168,124,0.22);
   }
-  .notice {
-    margin-bottom: 24px;
-    padding: 14px 18px;
-    border: 1px solid rgba(201,168,124,0.28);
-    border-radius: var(--bb-radius-sm, 8px);
-    background: rgba(201,168,124,0.08);
-    color: var(--bb-tan-light);
-    font-family: var(--bb-font-body);
-  }
-  .block { padding: 40px 0 8px; }
-  .block-head { margin-bottom: 22px; }
-  .block-eyebrow {
+
+  .eyebrow {
     font-family: var(--bb-font-mono);
-    font-size: 0.72rem;
+    font-size: 11px;
     letter-spacing: 0.18em;
     text-transform: uppercase;
     color: var(--bb-green-glow);
+    text-shadow: 0 0 16px rgba(82, 183, 136, 0.45);
   }
-  .block-head h2 {
-    margin-top: 8px;
+
+  .title {
     font-family: var(--bb-font-display);
     font-weight: 800;
-    font-size: clamp(2rem, 4vw, 3.2rem);
+    font-size: clamp(40px, 5.5vw, 64px);
     line-height: 1;
-    letter-spacing: -0.02em;
-  }
-
-  .grid { display: grid; grid-template-columns: 1fr; gap: 24px; }
-  @media (min-width: 860px) { .grid { grid-template-columns: repeat(2, 1fr); } }
-  .grid :global(.card), :global(.empty) { display: flex; flex-direction: column; }
-  /* One housing height per grid: a wrapped trigger or a two-line module title
-     would otherwise drop that card's seam below its neighbour's. */
-  .grid :global(.card__band) { --card-band-h: calc(84px * var(--d, 1)); }
-
-  .tile-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
-  .tile-title { display: flex; flex-direction: column; gap: 8px; }
-  .trigger, .tile-title h3 {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 1.3rem;
-    line-height: 1.1;
-    letter-spacing: 0.01em;
+    letter-spacing: -0.03em;
     color: var(--bb-white);
+    overflow-wrap: anywhere;
   }
-  .cat, .tag, .status {
+
+  .summary {
+    font-family: var(--bb-font-body);
+    font-size: 15px;
+    line-height: 1.55;
+    color: var(--bb-muted);
+  }
+
+  .creator {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 14px 20px 14px 18px;
+    border: 1px solid rgba(201, 168, 124, 0.35);
+    border-radius: 12px;
+    background: var(--bb-card-bg) radial-gradient(220px 120px at 100% 0%, rgba(201, 168, 124, 0.14), transparent 70%);
+    color: var(--bb-white);
+    cursor: pointer;
+    font: inherit;
+    text-align: left;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.02) inset, 0 8px 30px rgba(0, 0, 0, 0.35);
+    transition: box-shadow 180ms, border-color 180ms;
+  }
+  .creator:hover, .creator:focus-visible {
+    border-color: var(--bb-tan);
+    box-shadow: 0 0 0 1px rgba(201, 168, 124, 0.35), 0 0 24px rgba(201, 168, 124, 0.18);
+  }
+  .creator__label {
     font-family: var(--bb-font-mono);
-    font-size: 0.68rem;
+    font-size: 10.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--bb-tan);
+    white-space: nowrap;
+  }
+  .creator__row { display: flex; align-items: baseline; gap: 14px; }
+  .creator__row strong {
+    font-family: var(--bb-font-display);
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    line-height: 1;
+    color: var(--bb-tan-pale);
+    text-shadow: 0 0 18px rgba(201, 168, 124, 0.25);
+  }
+  /* Was bare muted text; it is the copy trigger's confirmation, so it wears a
+     .bb-chip frame and flips to .is-done. Only the type scale stays local. */
+  .creator__hint { font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; }
+
+  .notice { margin-bottom: 24px; }
+
+  /* ── toolbar: search + source tabs, pinned under the nav ── */
+
+  .toolbar {
+    position: sticky;
+    top: calc(var(--bb-nav-height, 76px) + env(safe-area-inset-top, 0px));
+    z-index: 40;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 0 22px;
+    background: linear-gradient(180deg, var(--bb-black) 78%, transparent);
+  }
+
+  .search {
+    position: relative;
+    flex: 1 1 260px;
+    min-width: 0;
+  }
+  .search svg {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    fill: none;
+    stroke: var(--bb-muted);
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    pointer-events: none;
+  }
+  .search input {
+    width: 100%;
+    height: 42px;
+    padding: 0 14px 0 40px;
+    border: 1px solid var(--bb-border);
+    border-radius: 8px;
+    background: var(--bb-card-bg);
+    color: var(--bb-white);
+    font-family: var(--bb-font-body);
+    font-size: 14px;
+    outline: none;
+    transition: border-color 180ms, box-shadow 180ms;
+  }
+  .search input::placeholder { color: var(--bb-muted); }
+  .search input:focus {
+    border-color: rgba(82, 183, 136, 0.6);
+    box-shadow: 0 0 0 1px rgba(82, 183, 136, 0.35), 0 0 24px rgba(82, 183, 136, 0.18);
+  }
+
+  /* The rail wraps on narrow toolbars; .bb-tabs is inline-flex by default. */
+  .bb-tabs { display: flex; flex-wrap: wrap; }
+  .tab__count { font-family: var(--bb-font-mono); font-size: 11px; color: var(--bb-muted); }
+
+  /* ── columns ── */
+
+  .columns {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 28px;
+    margin-top: 10px;
+  }
+
+  .list-wrap { flex: 999 1 520px; min-width: 0; }
+  .side {
+    flex: 1 1 260px;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  /* Shared Card, re-shaped: the list is a table so its padding goes to the
+     rows; the modules panel keeps a plate. Both take the 16px public radius. */
+  .list-wrap :global(.card), .side :global(.card) {
+    border-radius: 16px;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.02) inset, 0 8px 30px rgba(0, 0, 0, 0.35);
+  }
+  .list-wrap :global(.card) { --card-pad: 0; }
+  .side :global(.card) { --card-pad: 22px; }
+
+  .list__head, .side__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    font-family: var(--bb-font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--bb-muted);
+  }
+  .list__head { padding: 16px 24px; border-bottom: 1px solid var(--bb-border); }
+  .side__head { margin-bottom: 16px; }
+  .side__count { font-family: var(--bb-font-mono); font-size: 11px; letter-spacing: 0; text-transform: none; }
+
+  .rows, .mods { list-style: none; margin: 0; padding: 0; }
+
+  /* ── one command row ── */
+
+  .row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 8px 28px;
+    width: 100%;
+    padding: 18px 24px;
+    border: 0;
+    border-top: 1px solid rgba(201, 168, 124, 0.08);
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background 180ms;
+  }
+  .rows li:first-child .row { border-top: 0; }
+  .row:hover, .row:focus-visible { background: rgba(201, 168, 124, 0.045); }
+  .row:focus-visible { outline: 1px solid rgba(82, 183, 136, 0.6); outline-offset: -1px; }
+
+  .row__trigger {
+    flex: 0 0 168px;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .row__trigger code {
+    font-family: var(--bb-font-mono);
+    font-size: 14.5px;
+    font-weight: 500;
+    color: var(--bb-green-glow);
+    overflow-wrap: anywhere;
+  }
+  .row__aliases {
+    font-family: var(--bb-font-mono);
+    font-size: 11.5px;
+    color: var(--bb-muted);
+    overflow-wrap: anywhere;
+  }
+  .row__response {
+    flex: 1 1 240px;
+    min-width: 0;
+    font-family: var(--bb-font-body);
+    font-size: 14.5px;
+    line-height: 1.6;
+    color: var(--bb-white);
+    overflow-wrap: anywhere;
+    text-wrap: pretty;
+  }
+  .row__tags {
+    flex: 0 0 auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    padding-top: 2px;
+    font-family: var(--bb-font-mono);
+    font-size: 10.5px;
     letter-spacing: 0.1em;
     text-transform: uppercase;
     color: var(--bb-tan-light);
-    white-space: nowrap;
   }
-  /* Sits at the top of the banded Card's body; the body padding provides the
-     gap to the housing band above. */
-  .tile-desc {
-    margin-top: 0;
+
+  /* The cooldown clock rides inside a .bb-tag, which sets no svg presentation. */
+  .row__tags svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .uses { color: var(--bb-muted); white-space: nowrap; padding-left: 4px; }
+  .copied { color: var(--bb-green-glow); animation: fadeIn 180ms ease-out; }
+
+  .empty {
+    padding: 40px 20px;
+    text-align: center;
     font-family: var(--bb-font-body);
-    font-size: 0.9rem;
-    line-height: 1.65;
+    font-size: 14px;
     color: var(--bb-muted);
   }
-  .active-dot {
-    width: 9px; height: 9px;
-    margin-top: 5px;
-    border-radius: 999px;
-    background: var(--bb-green-glow);
-    box-shadow: 0 0 14px rgba(82,183,136,0.8);
-    flex: none;
+
+  /* ── modules panel ── */
+
+  .side :global(.modules) {
+    background-image: radial-gradient(240px 140px at 100% 0%, rgba(82, 183, 136, 0.08), transparent 70%);
   }
 
-  .feats { list-style: none; margin: 22px 0 0; padding: 0; display: flex; flex-direction: column; gap: 11px; }
-  .feats.detail { gap: 0; }
-  .feat {
+  .mods { display: flex; flex-direction: column; }
+  .mod {
     display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    font-family: var(--bb-font-body);
-    font-size: 0.87rem;
-    line-height: 1.45;
-    color: rgba(240,236,228,0.72);
-  }
-  .feat :global(.check) { flex-shrink: 0; color: var(--bb-green-glow); margin-top: 1px; }
-  .detail-row {
-    display: grid;
-    grid-template-columns: 18px minmax(84px, 0.4fr) minmax(0, 1fr);
+    align-items: center;
     gap: 12px;
-    align-items: baseline;
-    padding: 12px 0;
-    border-top: 1px solid var(--bb-border);
+    width: calc(100% + 16px);
+    margin: 0 -8px;
+    padding: 11px 8px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background 180ms;
   }
-  .detail-row:first-child { border-top: none; }
-  .detail-row strong { font-family: var(--bb-font-mono); font-size: 0.85rem; font-weight: 500; color: var(--bb-tan-light); }
-  .detail-row > span { color: var(--bb-muted); font-size: 0.88rem; line-height: 1.45; }
-  .status {
-    align-self: flex-start;
-    margin-top: 20px;
-    border: 1px solid var(--bb-border);
-    border-radius: 999px;
-    background: rgba(240,236,228,0.03);
-    padding: 7px 12px;
+  .mod:disabled { cursor: default; }
+  .mod:not(:disabled):hover, .mod:focus-visible { background: rgba(201, 168, 124, 0.06); }
+  .mod.on { background: rgba(82, 183, 136, 0.12); }
+  .mod :global(.bb-mark) { color: var(--bb-green-glow); }
+  .mod__text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .mod__label { font-family: var(--bb-font-body); font-size: 14px; font-weight: 600; color: var(--bb-white); }
+  .mod__tagline {
+    font-family: var(--bb-font-body);
+    font-size: 12.5px;
+    line-height: 1.4;
+    color: var(--bb-muted);
+    text-wrap: pretty;
   }
-  :global(.empty) { padding: 28px; color: var(--bb-muted); font-family: var(--bb-font-body); }
+  .mod__meta { font-family: var(--bb-font-mono); font-size: 11px; color: var(--bb-tan); white-space: nowrap; }
 
-  @media (max-width: 760px) {
-    .page { padding-inline: 18px; }
-    .phero { min-height: 60vh; padding-top: calc(76px + 40px); padding-bottom: 54px; }
-    .creator-strip {
-      width: 100%;
-      justify-content: center;
-      gap: 9px;
-      padding-inline: 12px;
-    }
-    .creator-strip__label { font-size: 0.62rem; letter-spacing: 0.12em; }
-    .creator-strip strong { font-size: 0.75rem; }
-    .detail-row { grid-template-columns: 18px 1fr; gap: 4px 12px; }
-    .detail-row > span { grid-column: 2; }
+  .side__empty { font-family: var(--bb-font-body); font-size: 13px; color: var(--bb-muted); }
+
+  .legend {
+    border: 1px solid var(--bb-border);
+    border-radius: 16px;
+    padding: 20px 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .legend .side__head { margin-bottom: 0; }
+  .legend p {
+    font-family: var(--bb-font-body);
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--bb-muted);
+  }
+  .legend em { font-style: normal; color: var(--bb-tan-light); }
+  .legend em.live { color: var(--bb-green-glow); }
+
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  @media (max-width: 640px) {
+    .page { padding-left: 16px; padding-right: 16px; }
+    .row { padding: 16px 18px; }
+    .row__trigger { flex-basis: 100%; }
+    .row__tags { justify-content: flex-start; }
+    .list__head { padding: 14px 18px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .copied { animation: none; }
   }
 </style>

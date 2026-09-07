@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// @ts-nocheck — deliberate monkey-patch of the fs overloads; typing it buys nothing.
+// @ts-nocheck: deliberate monkey-patch of the fs overloads; typing it buys nothing.
 // SvelteKit assigns client node IDs in the order returned by fs.readdirSync
 // while walking src/routes (and builds the param-matcher list from src/params).
 // Overlay filesystems can return a different order on the native ARM64 and

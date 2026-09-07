@@ -19,8 +19,8 @@
   const { t } = i18n;
 
   // Live refresh: one EventSource to /events, fed by the same cache-invalidation
-  // bus every Go write publishes. On any event for this user's board — and on
-  // every (re)connect, to reconcile anything missed while briefly offline — we
+  // bus every Go write publishes. On any event for this user's board, and on
+  // every (re)connect, to reconcile anything missed while briefly offline, we
   // re-fetch, so an open page (e.g. billing flipping to premium after a payment
   // webhook) updates on its own with no polling. Delegates get no /events (the
   // stream is owner/board-scoped and delegate pages already SSR fresh).

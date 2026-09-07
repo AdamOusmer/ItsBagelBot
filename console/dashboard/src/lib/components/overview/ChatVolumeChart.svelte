@@ -5,7 +5,7 @@
   // minutes a command answered.
   //
   // The path is built here rather than shipped as a fixed `d` string because the
-  // bucket count changes with stream length — a 20-minute stream and a 6-hour
+  // bucket count changes with stream length: a 20-minute stream and a 6-hour
   // one both have to fill the same box. Everything is unitless viewBox space and
   // the SVG scales with its container, so no resize observer is involved.
   import { getI18n } from '@bagel/shared/i18n/context';

@@ -26,7 +26,7 @@ import { fail } from '@sveltejs/kit';
 const DEMO = dev && env.DEMO === '1';
 
 // Delegate scope comes from the channelpoints catalog def (its own grant, not
-// the blanket 'modules' one — see module-gate.ts).
+// the blanket 'modules' one, see module-gate.ts).
 function gate(session: Session | null | undefined): void {
   gateModulePage(session, 'channelpoints');
 }

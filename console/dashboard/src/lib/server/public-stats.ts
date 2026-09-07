@@ -3,12 +3,12 @@
 
 // Public (unauthenticated) global counters for /stats.
 //
-// Two lifetime, bot-scope counters live in the loyalty service — the same
+// Two lifetime, bot-scope counters live in the loyalty service, the same
 // counter store the dashboard's per-channel counters use, but written under the
 // reserved '0' user id so they aggregate the whole fleet rather than a channel:
 //
-//   messages_processed — every chat message the ingress path has handled
-//   events_processed   — every Twitch event (subs, cheers, follows, …)
+//   messages_processed: every chat message the ingress path has handled
+//   events_processed  : every Twitch event (subs, cheers, follows, …)
 //
 // The page is public, so this read must be cheap and must never be able to
 // error a render. Three rules follow from that:
@@ -23,7 +23,7 @@
 //
 // Rates are derived here, not stored: each fresh snapshot diffs against the
 // previous one and divides by the wall time between them (same shape as the
-// admin lane sampler). Sampling is per-pod and per-process, which is fine — the
+// admin lane sampler). Sampling is per-pod and per-process, which is fine: the
 // counters are fleet-global, so any pod's delta measures the same fleet.
 import { rpc } from '@bagel/shared/server/nats';
 import { dev } from '$app/environment';
@@ -76,7 +76,7 @@ interface LoyaltyReplyWire {
  * Returns the value, or null when loyalty could not answer. A counter that was
  * never created is NOT an error: loyalty replies `found: false` with no counter,
  * which reads as an honest 0 (the writer may ship after this page does). An
- * RpcError, by contrast, is loyalty reporting a real failure — that degrades
+ * RpcError, by contrast, is loyalty reporting a real failure: that degrades
  * the snapshot rather than rendering zeroed lifetime totals on a healthy page.
  */
 async function counterValue(name: string): Promise<number | null> {
@@ -112,7 +112,7 @@ function perSecond(current: number, previous: number, secs: number): number {
 
 /**
  * Fold a fresh reading into the rate baseline and return the derived rates.
- * The first reading of a process establishes the baseline and yields nulls —
+ * The first reading of a process establishes the baseline and yields nulls:
  * there is no honest rate to show from a single sample.
  */
 function sampleRates(messages: number, events: number, now: number): { msg: number | null; event: number | null } {
@@ -153,7 +153,7 @@ async function loadStats(): Promise<PublicStats> {
 
 /**
  * The whole public snapshot: both lifetime totals plus their derived rates.
- * Never rejects — a total failure to reach loyalty resolves to zeros with
+ * Never rejects: a total failure to reach loyalty resolves to zeros with
  * `degraded: true`.
  */
 export async function publicStats(): Promise<PublicStats> {

@@ -9,7 +9,7 @@
 //
 //   1. merge the new row into the cached list (optimistic, this replica);
 //   2. push the merged list to the projector (`projector.*.replace`) so the
-//      Valkey projection — read by other replicas AND the chat worker — is
+//      Valkey projection (read by other replicas AND the chat worker) is
 //      correct now instead of after the event pipeline catches up;
 //   3. write-through the merged list into L1.
 //
@@ -79,7 +79,7 @@ export async function listModules(userId: string): Promise<ModuleView[]> {
 // replaceProjected is the best-effort projection push for either collection.
 // Returns whether the projector confirmed it, so callers can decide how long to
 // trust their optimistic cache entry. Failures are logged (they silently
-// degraded freshness for minutes before) but never thrown — the change-event
+// degraded freshness for minutes before) but never thrown: the change-event
 // pipeline reconciles the projection regardless.
 async function replaceProjected(kind: section, userId: string, rows: unknown[]): Promise<boolean> {
   try {
@@ -110,10 +110,10 @@ function commitOptimistic<T>(key: string, value: T, synced: boolean): void {
 // and the local cache, mirroring upsertCommand.
 //
 // The write RPC throws (RpcError / timeout / no-responders) when the write
-// itself fails — callers convert that into a `fail()` so the real reason reaches
+// itself fails: callers convert that into a `fail()` so the real reason reaches
 // the toast. The projection/cache refresh AFTER a confirmed write is best-effort:
 // a hiccup reading it back must never turn a landed write into a reported
-// failure (that was the old bug — a slow projector made a successful toggle look
+// failure (that was the old bug, a slow projector made a successful toggle look
 // broken and gave no feedback).
 export async function upsertModule(
   userId: string,
@@ -227,7 +227,7 @@ export async function upsertCommand(
       perm: cmd.perm,
       cooldown: cmd.cooldown,
       allowed_user_id: cmd.allowedUserId,
-      // Preserve the lifetime counter through the optimistic merge — edits
+      // Preserve the lifetime counter through the optimistic merge: edits
       // never change it and losing it here would flash 0 in the UI.
       uses: current.find((c) => c.name === (originalName ?? cmd.name))?.uses
     };

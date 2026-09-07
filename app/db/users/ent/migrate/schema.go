@@ -133,6 +133,7 @@ var (
 	UsersColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeUint64, Increment: true},
 		{Name: "username", Type: field.TypeString},
+		{Name: "display_name", Type: field.TypeString, Size: 64, Default: ""},
 		{Name: "email", Type: field.TypeString, Unique: true},
 		{Name: "email_enc", Type: field.TypeBytes, Nullable: true},
 		{Name: "is_active", Type: field.TypeBool, Default: true},
@@ -161,7 +162,7 @@ var (
 			{
 				Name:    "user_status_subscription_source_subscription_expires_at",
 				Unique:  false,
-				Columns: []*schema.Column{UsersColumns[6], UsersColumns[10], UsersColumns[11]},
+				Columns: []*schema.Column{UsersColumns[7], UsersColumns[11], UsersColumns[12]},
 			},
 			{
 				Name:    "user_username",

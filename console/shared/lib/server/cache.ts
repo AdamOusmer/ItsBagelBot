@@ -7,11 +7,11 @@
 // primarily push-driven (the cache-invalidation bus), so the clock windows here
 // are safety nets, not the consistency mechanism. Semantics per read:
 //
-//   * fresh hit   — value returned as-is.
-//   * stale hit   — value returned immediately, one background revalidation is
+//   * fresh hit   : value returned as-is.
+//   * stale hit   : value returned immediately, one background revalidation is
 //     kicked off (single-flighted) so the next reader sees fresh data.
-//   * miss        — callers coalesce on one in-flight load.
-//   * loader error — if a value exists within its stale-if-error window, it is
+//   * miss        : callers coalesce on one in-flight load.
+//   * loader error : if a value exists within its stale-if-error window, it is
 //     served instead of throwing (an outage degrades to slightly-old data, not
 //     a broken page); otherwise the error propagates and nothing is cached.
 //
@@ -23,7 +23,7 @@
 //   * every key carries a generation counter, bumped by invalidate/set/delete.
 //     A load only commits if the generation it started under is still current,
 //     so a bus invalidation (or optimistic write) always beats an older
-//     in-flight result — stale data can never resurrect a just-evicted key.
+//     in-flight result: stale data can never resurrect a just-evicted key.
 //
 // Values are heterogeneous (one cache per app holds tiers, accounts, commands,
 // ...), so entries are stored as `unknown` and typed at the call site via the

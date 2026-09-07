@@ -288,7 +288,7 @@
     ></div>
     <aside class="inspector" class:open={historyFor !== null} aria-label="Member history">
       <div class="inspector-head">
-        <span class="inspector-tag">{historyFor ? `@${historyFor.login} — history` : 'History'}</span>
+        <span class="inspector-tag">{historyFor ? `History for @${historyFor.login}` : 'History'}</span>
         {#if historyFor}
           <button class="mini" type="button" aria-label="Close" onclick={closeHistory}>
             <Icon name="x" size={14} />

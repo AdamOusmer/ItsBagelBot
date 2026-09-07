@@ -3,12 +3,12 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 /**
- * DashFrame — an annotated, hand-built "screenshot" of the dashboard for the
+ * DashFrame: an annotated, hand-built "screenshot" of the dashboard for the
  * guides. Pure CSS, no images: a browser window (traffic lights + address bar)
  * wraps a mock UI the page composes in the slot from the df-* helper classes
  * below. Numbered tan dots (`<i class="df-dot">1</i>`) placed inside the mock
  * pair with the `notes` legend rendered underneath, so every visual carries
- * its own explanation — no "see figure 3" indirection.
+ * its own explanation, no "see figure 3" indirection.
  */
 interface Note {
     n: number;
@@ -129,7 +129,7 @@ const { path = '/', notes = [], caption } = Astro.props;
      attribute, not this component's, so these must be global). All df-*
      prefixed to stay collision-safe. The kit mirrors the real console shell:
      topbar with brand + breadcrumb + account, content column, and the
-     floating bottom dock for navigation — the dashboard has NO sidebar. -->
+     floating bottom dock for navigation. The dashboard has NO sidebar. -->
 <style is:global>
     .df-dot {
         display: inline-grid;

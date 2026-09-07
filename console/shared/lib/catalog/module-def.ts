@@ -86,7 +86,7 @@ export interface ModuleReply {
 // broadcaster can see what turning the module on unlocks. Unlike a ModuleReply
 // these are not editable or toggleable: modules whose replies are fixed system
 // lines (the queue) have nothing to configure per command, so the rows are
-// informational only — never clickable.
+// informational only, never clickable.
 export interface ModuleCommandInfo {
   trigger: string; // the chat trigger with '!' (e.g. '!join', '!queue next')
   summary: string; // one-line description of what it does

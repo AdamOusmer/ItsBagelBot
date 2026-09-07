@@ -263,7 +263,7 @@
     margin: 0 0 12px;
   }
 
-  /* Passed to <Card>, so it needs :global — the parent's scoping hash never
+  /* Passed to <Card>, so it needs :global. The parent's scoping hash never
      reaches a child component's root element. */
   :global(.status-row) {
     display: flex;

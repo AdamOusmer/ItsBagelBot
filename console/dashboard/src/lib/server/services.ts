@@ -24,7 +24,7 @@ import { dashboardL1CacheCapacity } from './config-sanity';
 // Every env fallback below is `||`, never `??`: Doppler has shipped set-but-
 // blank vars before, and `??` passes one straight through, collapsing every
 // subject built from it to a leading-dot fragment ('.modules.get') that no
-// responder answers — a silent RPC timeout, not a config error. The identical
+// responder answers, a silent RPC timeout, not a config error. The identical
 // pattern once delivered a blank Valkey master name and took writes down; that
 // fix was also `||`. All defaults here are non-empty strings, so there is no
 // legitimate falsy value `||` could discard.
@@ -79,7 +79,7 @@ const SCOPES: ScopeMap = {
 // shared POLICY table; the bus, not the clock, is the main freshness lever.
 // onInvalidation forwards each applied bus event to the live hub, which pushes it
 // to that board's open browser SSE connections (see routes/events) so an open
-// page re-fetches instantly — no client polling.
+// page re-fetches instantly, no client polling.
 export const fabric = createCacheFabric({
   app: 'dashboard',
   scopes: SCOPES,
@@ -258,7 +258,7 @@ export async function publishEventSubReconnect(broadcasterId: string): Promise<v
 // Enqueue an ensure-optional job: outgress (re)creates only the optional
 // subscriptions (the channel-points redemption sub) without touching the
 // mandatory set. Idempotent (409) and non-affiliate-tolerant, so it is safe to
-// fire after every reward create/enable — it is how a channel that just gained
+// fire after every reward create/enable: it is how a channel that just gained
 // channel points (or just re-consented with the redemption scope) starts
 // receiving redemption events without a full reconnect.
 export async function publishEventSubEnsureOptional(broadcasterId: string): Promise<void> {
@@ -290,7 +290,7 @@ function isKnownSubState(s: string): s is (typeof KNOWN_SUB_STATES)[number] {
 
 // Read the persisted EventSub enroll state for a channel. Two distinct
 // negatives: 'unenrolled' means outgress answered and holds no enrollment for
-// this channel (never enrolled, or cleared by a disconnect) — callers may
+// this channel (never enrolled, or cleared by a disconnect), callers may
 // safely (re)enroll on it. 'unknown' is reserved for transport failure and
 // fails safe: a transient outage never blocks page render and must never
 // trigger writes. The fail-open catch doesn't fit defineRead cleanly (no cache
@@ -350,7 +350,7 @@ export const tier = defineRead({
 // Outage posture: the `security` policy serves the last KNOWN state on loader
 // error (stale-if-error window), so an already-banned user stays banned through
 // a users-service outage. Only users with no cached state at all fail OPEN
-// (return false) — fail-closed would lock every user out during any outage.
+// (return false), fail-closed would lock every user out during any outage.
 // The fail-open catch around the whole cached() call doesn't fit defineRead
 // (which has no outer error handling), so this stays hand-written.
 export async function isBanned(userId: string): Promise<boolean> {
@@ -427,7 +427,7 @@ export const hasGrant = defineRead({
 });
 
 export type AccountStatus = 'free' | 'paid' | 'vip';
-export type AccountState = { active: boolean; status: AccountStatus; onboarded: boolean; creatorCode: string | null; username: string };
+export type AccountState = { active: boolean; status: AccountStatus; onboarded: boolean; creatorCode: string | null; username: string; displayName: string };
 
 function normalizeStatus(raw: string | undefined): AccountStatus {
   const s = (raw ?? 'free').toLowerCase();
@@ -446,6 +446,7 @@ export const accountState = defineRead({
     onboarded?: boolean;
     creator_code?: string | null;
     username?: string | null;
+    display_name?: string | null;
   }): AccountState => ({
     active: !!r.active,
     status: normalizeStatus(r.status),
@@ -453,7 +454,10 @@ export const accountState = defineRead({
     creatorCode: r.creator_code?.trim() ? r.creator_code : null,
     // Authoritative Twitch login from the users service. The public command
     // page labels the channel with this, never with a caller-supplied string.
-    username: (r.username ?? '').trim()
+    username: (r.username ?? '').trim(),
+    // Twitch display name (the login in the owner's casing); empty for a row
+    // that predates the field, until that user's next login refreshes it.
+    displayName: (r.display_name ?? '').trim()
   }),
   timeoutMs: READ_TIMEOUT_MS,
   cache: {
@@ -462,7 +466,7 @@ export const accountState = defineRead({
     policy: POLICY.entity,
     l2: async (userId: string) => {
       const u = await valkey.getUser(userId);
-      if (!u.known) return { hit: false, value: { active: false, status: 'free' as AccountStatus, onboarded: false, creatorCode: null, username: '' } };
+      if (!u.known) return { hit: false, value: { active: false, status: 'free' as AccountStatus, onboarded: false, creatorCode: null, username: '', displayName: '' } };
       // Valkey L2 does not cache onboarded or creator codes, so we fail the hit if we care about it,
       // but since it's just projected data, we'll let it pass or say hit: false if we must have onboarded.
       // Actually, since we need onboarded reliably on first load, and L2 is used for fast SSR, 
@@ -470,7 +474,7 @@ export const accountState = defineRead({
       // For now, let's just return false and let SWR correct it if it was true, but this might flash.
       // Since it's only critical when false (to show modal), assuming true here would hide the modal until SWR finishes.
       // We will assume hit: false to force an RPC call to get the authoritative onboarded state.
-      return { hit: false, value: { active: u.active, status: normalizeStatus(u.status), onboarded: false, creatorCode: null, username: '' } };
+      return { hit: false, value: { active: u.active, status: normalizeStatus(u.status), onboarded: false, creatorCode: null, username: '', displayName: '' } };
     }
   }
 });
@@ -541,13 +545,13 @@ export type BillingState = {
   status: AccountStatus;
   // End of the current paid period (Tebex or staff grant); absent for free/vip.
   expiresAt: string | null;
-  // 'tebex' | 'admin' | '' — who granted the paid period.
+  // 'tebex' | 'admin' | '': who granted the paid period.
   source: string;
   subscriptionRef: string | null;
   cancelPending: boolean;
 };
 
-export type ResolvedChannel = { userId: string; username: string };
+export type ResolvedChannel = { userId: string; username: string; displayName: string };
 
 // Login -> broadcaster id for the public command page, whose URL is keyed by
 // the channel's login (/user/<login>) so a shared link names the channel it
@@ -564,9 +568,10 @@ export type ResolvedChannel = { userId: string; username: string };
 export const resolveLogin = defineRead({
   subject: `${SUB.dashboard}.login_resolve`,
   request: (login: string) => ({ login }),
-  map: (r: { user_id?: string; username?: string }): ResolvedChannel => ({
+  map: (r: { user_id?: string; username?: string; display_name?: string }): ResolvedChannel => ({
     userId: (r.user_id ?? '').trim(),
-    username: (r.username ?? '').trim()
+    username: (r.username ?? '').trim(),
+    displayName: (r.display_name ?? '').trim()
   }),
   timeoutMs: READ_TIMEOUT_MS,
   cache: {
@@ -610,7 +615,7 @@ export const billingState = defineRead({
 // embedding payment UI. When recipientUsername is set the basket is a gift: the
 // transactions service resolves and vets the recipient (registered, not banned,
 // not already premium) and the entitlement lands on them while this user pays.
-// Never cached — every checkout attempt gets a fresh basket. Basket creation is
+// Never cached: every checkout attempt gets a fresh basket. Basket creation is
 // two Tebex HTTP calls upstream, so the timeout is looser than the in-cluster
 // read budget.
 export type CheckoutBasket = { ident: string; checkoutUrl: string | null; recipientLogin: string | null };
@@ -665,7 +670,7 @@ export type NotificationsForUser = {
 
 // Broadcast sends can't be push-invalidated per user (the sender doesn't know
 // every recipient's cache key), so this rides a short freshness window
-// instead of relying solely on the invalidation bus — same tradeoff as the
+// instead of relying solely on the invalidation bus, same tradeoff as the
 // shard snapshot's `live` policy.
 export const notificationsForUser = defineRead({
   subject: `${SUB.notifications}.list`,

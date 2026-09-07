@@ -151,7 +151,7 @@ export interface DashboardLink {
 }
 
 // Compat barrel: everything that used to live in this god file now lives in
-// the files below — catalog/ for the module catalog and built-in commands,
+// the files below: catalog/ for the module catalog and built-in commands,
 // govee/channelpoints/timers/loyalty for the page domain models. This file
 // remains only so existing consumers keep importing from '@bagel/shared'
 // unchanged (`export * from './types'` in index.ts); new code should import

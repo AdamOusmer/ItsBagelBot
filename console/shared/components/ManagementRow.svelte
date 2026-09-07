@@ -5,7 +5,7 @@
   // a single <button> (announced with aria-expanded / aria-controls); the quick
   // actions (toggle, delete) are SIBLINGS of that button, never nested inside it.
   // The audit flagged the old rows for putting role="button" on a container that
-  // wrapped a switch and a delete button — invalid, and a screen-reader trap.
+  // wrapped a switch and a delete button, invalid, and a screen-reader trap.
   import type { Snippet } from 'svelte';
 
   let {

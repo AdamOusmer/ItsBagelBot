@@ -9,7 +9,7 @@
  * homepage visitor. Re-exporting only the names the scene actually touches
  * lets the bundler drop the rest (loaders, animation, audio, shadows, …).
  *
- * If the scene starts using a new THREE export, add it here — a missing name
+ * If the scene starts using a new THREE export, add it here, a missing name
  * fails loudly at init with `X is not a constructor` / `undefined`, and the
  * Playwright test "encryption scene boots" catches it.
  */

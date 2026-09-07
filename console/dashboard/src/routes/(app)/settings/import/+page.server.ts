@@ -20,7 +20,7 @@ import type {
 // Since the Moobot path parses browser-side (+page.svelte), only StreamLabs
 // .db uploads remain binary posts; 20MB covers those with room, and the
 // client refuses past 10MB for Moobot JSON long before anything is read.
-// The transport ceiling is adapter-node's BODY_SIZE_LIMIT env — raising it is
+// The transport ceiling is adapter-node's BODY_SIZE_LIMIT env: raising it is
 // a deploy-env change (deploy/k8s/console-dashboard.yaml), not a code one, so
 // this check exists to fail with a readable message instead of a 413.
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
@@ -38,8 +38,8 @@ const MAX_CREDENTIAL_LEN = 4096;
 // global write tier (30 burst / 0.5/s fleet-wide) which already applies to
 // these actions as non-GET requests. A second, smaller bucket earns its keep
 // because each import fans out into hundreds of cross-service writes plus an
-// audit row — the one action type where a bored clicker costs real backend
-// work, so 10 previews/minute sustained is plenty for a human mid-migration.
+// audit row (the one action type where a bored clicker costs real backend
+// work), so 10 previews/minute sustained is plenty for a human mid-migration.
 // Same Valkey-backed limiter, same failure posture: degraded per-pod bucket
 // when Valkey is down, never a page taken down.
 const importLimiter = new ValkeyRateLimiter({ name: 'import', capacity: 10, refillPerSec: 10 / 60 });
@@ -55,7 +55,7 @@ async function importAllowed(s: Session): Promise<boolean> {
 // `dev` is a build-time constant, so Rollup folds the branch and its dynamic
 // import edge out of production builds entirely.
 //
-// Decision record — keep this const ABOVE every transitive reader (measured
+// Decision record: keep this const ABOVE every transitive reader (measured
 // 2026-08-23): with importGate declared first, Rollup folded the initializer
 // to false but stopped substituting references (requireOwner's dynamic
 // demo-data import survived as live code behind a runtime flag) and the
@@ -72,7 +72,7 @@ type GateVerdict = { ok: true; session: Session } | { ok: false; status: number;
 // Owner-only: an import overwrites the board's commands/modules wholesale, and
 // delegates are scoped to read-mostly sections by design. The route also sits
 // outside every grantable section path, so the hooks guard already bounces
-// delegates — this is defense in depth, same as settings/+page.server.ts.
+// delegates: this is defense in depth, same as settings/+page.server.ts.
 // DEMO mints the fixture identity here because hooks never put a session in
 // locals without OAuth; the demo board is an owner by construction.
 async function importGate(locals: App.Locals): Promise<GateVerdict> {
@@ -118,7 +118,7 @@ export const load: PageServerLoad = async ({ locals, cookies }) => {
 
 // SourceInput carries the three form-borne inputs a preview may use: a pasted
 // credential (StreamElements), an uploaded export (StreamLabs .db), or an
-// already-parsed manifest (Moobot — the browser decoded its own export so the
+// already-parsed manifest (Moobot, the browser decoded its own export so the
 // raw file never crosses the wire). Nightbot carries nothing on the form: its
 // credential is the OAuth token cookie, resolved in the action itself.
 interface SourceInput {
@@ -180,8 +180,8 @@ function jwtShapeRefusal(credential: string): InputRefusal {
   };
 }
 
-// decodePreManifest parses an optional posted manifest. It is untrusted input
-// — it goes through validateManifest (caps, lengths, perms) in
+// decodePreManifest parses an optional posted manifest. It is untrusted input:
+// it goes through validateManifest (caps, lengths, perms) in
 // $lib/server/importer before anything renders or commits.
 function decodePreManifest(form: FormData):
   | { ok: true; manifest?: ImportManifest }
@@ -263,7 +263,7 @@ function usableSource(v: string): Exclude<ImportSource, 'fossabot'> | { error: s
 
 // resolveCredential picks the credential a preview fetches with. Nightbot's
 // never rides the form: the OAuth callback parked the access token in an
-// HttpOnly cookie and this is the only reader — null means the account is not
+// HttpOnly cookie and this is the only reader: null means the account is not
 // connected (no cookie, or it expired) and the action refuses with the
 // connect-first prose. Every other source uses whatever the form carried.
 function resolveCredential(source: ImportSource, input: SourceInput, cookies: Cookies): string | null {
@@ -321,7 +321,7 @@ preview: async ({ request, locals, cookies }) => {
 
   // commit applies the reviewed manifest. The client filters unchecked items
   // out of the manifest JSON before submitting; the server trusts nothing
-  // about who is asking beyond the session — $lib/server/importer re-runs
+  // about who is asking beyond the session: $lib/server/importer re-runs
   // validateManifest (counts, lengths, perms, caps) over every incoming
   // manifest before writing, so a hand-edited POST cannot land junk.
   commit: async ({ request, locals, cookies }) => {

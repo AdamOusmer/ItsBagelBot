@@ -9,7 +9,7 @@
 export * from './fetch-tokens';
 
 /** Stored bare/lower-case like a command trigger. Matches Go FetchDefName
- * `^[a-z0-9_]{1,32}$` — one grammar for `{urlfetch:name}` payload heads. */
+ * `^[a-z0-9_]{1,32}$`: one grammar for `{urlfetch:name}` payload heads. */
 export const FETCH_NAME_MAX = 32;
 /** https only; long enough for signed query strings (512 measured across the
  * APIs broadcasters actually wire up), rejected beyond. */
@@ -75,7 +75,7 @@ function ipLiteral(bare: string): boolean {
 
 // Each field's rules live in their own problem function returning the first
 // violation (or undefined), so the assembler below spends exactly one branch
-// per field — the gate shape this file's validators share with validateCommand.
+// per field, the gate shape this file's validators share with validateCommand.
 function fetchNameProblem(f: FetchDefFields): string | undefined {
   if (!f.name) return 'Definition name is required.';
   if (f.name.length > FETCH_NAME_MAX) return `Definition name must be at most ${FETCH_NAME_MAX} characters.`;
@@ -110,7 +110,7 @@ function kindPathProblem(f: FetchDefFields): { field: 'kind' | 'path'; msg: stri
   if (f.kind !== 'plain' && f.kind !== 'json') return { field: 'kind', msg: 'Pick plain or json.' };
   if (f.kind === 'plain') {
     if (f.path.length === 0) return undefined;
-    return { field: 'path', msg: 'A plain fetch reads the whole body — clear the path or switch to json.' };
+    return { field: 'path', msg: 'A plain fetch reads the whole body. Clear the path or switch to json.' };
   }
   return jsonPathProblem(f);
 }
@@ -121,7 +121,7 @@ function jsonPathProblem(f: FetchDefFields): { field: 'path'; msg: string } | un
   }
   const bad = f.path.find((s) => !PATH_SEGMENT_RE.test(s));
   if (bad === undefined) return undefined;
-  return { field: 'path', msg: `"${bad}" cannot be used as a path segment — letters, digits, "-" and "_" only.` };
+  return { field: 'path', msg: `"${bad}" cannot be used as a path segment: letters, digits, "-" and "_" only.` };
 }
 
 export function validateFetchDef(f: FetchDefFields): FetchDefErrors {

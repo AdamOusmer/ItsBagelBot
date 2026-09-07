@@ -33,7 +33,7 @@ export type ModuleCategoryGroup = {
 
 // Jobs, not buckets: Chat / Community / Games hid Song Requests behind
 // "Community" and five stats packs behind one gamepad. Moderation first so
-// AutoMod is the first row a streamer sees — it is on by default and the
+// AutoMod is the first row a streamer sees: it is on by default and the
 // one module that should be configured before the rest of the catalog.
 // Spotify and Govee share Gear: both are a third-party account you plug in
 // before chat can drive the room; a one-item Lights section left Govee

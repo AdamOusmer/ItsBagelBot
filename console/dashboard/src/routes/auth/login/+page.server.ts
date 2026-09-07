@@ -15,8 +15,8 @@ import { skipAuthorizeIfSignedIn } from '$lib/server/oauth-start';
 const DEMO = dev && env.DEMO === '1';
 
 // Start of the Twitch authorization-code flow. This is a *page* load (not a
-// +server.ts endpoint) so a failed start renders src/routes/+error.svelte —
-// endpoints never go through that boundary and SvelteKit paints its grey
+// +server.ts endpoint) so a failed start renders src/routes/+error.svelte.
+// Endpoints never go through that boundary and SvelteKit paints its grey
 // fallback instead ("500 | Internal Error").
 //
 // State is stored in a short-lived HttpOnly cookie and verified in the

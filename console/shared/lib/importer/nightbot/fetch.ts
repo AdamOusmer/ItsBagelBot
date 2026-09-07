@@ -23,7 +23,7 @@ export const DEFAULT_API_BASE = 'https://api.nightbot.tv';
 // sequential calls happen per fetch, so worst case is ~30s.
 export const FETCH_TIMEOUT_MS = 10_000;
 
-// MAX_RESPONSE_BODY caps how much of one upstream reply is read into memory —
+// MAX_RESPONSE_BODY caps how much of one upstream reply is read into memory,
 // same posture as the StreamElements fetch layer: orders of magnitude past any
 // real command list while bounding a hostile or broken server response.
 const MAX_RESPONSE_BODY = 16 << 20;
@@ -57,7 +57,7 @@ export interface NbFetchEnvelope {
 
 // fetchNightbot reads the account's config over the REST API with the OAuth
 // access token. Commands and timers are load-bearing (a failure throws);
-// spam protection degrades to an empty filter list — the blacklist is a bonus
+// spam protection degrades to an empty filter list: the blacklist is a bonus
 // collection and a scope hiccup must not cost the broadcaster their commands.
 export async function fetchNightbot(
   accessToken: string,
@@ -177,7 +177,7 @@ function joinChunks(chunks: Uint8Array[], total: number): string {
 // expiry without this nudge.
 function authHint(status: number): string {
   return status === 401 || status === 403
-    ? ' (reconnect your Nightbot account — the authorization expired or was revoked)'
+    ? ' (reconnect your Nightbot account: the authorization expired or was revoked)'
     : '';
 }
 

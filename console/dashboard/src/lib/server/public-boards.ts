@@ -5,22 +5,22 @@
 //
 // Two leaderboards sit under the fleet odometer, both read-only:
 //
-//   traffic — the channels that moved the most chat and events, from the
+//   traffic : the channels that moved the most chat and events, from the
 //             per-channel `messages_processed` / `events_processed` counters
 //             sesame writes beside the fleet-wide pair (see bot_stats.go)
-//   feed    — "feed the bagel", one bagel fed by every channel, from the
+//   feed    : "feed the bagel", one bagel fed by every channel, from the
 //             modules service's permanent per-channel rows
 //
 // Unlike the odometer next to them, these move slowly and cost more per read
 // (two ranked counter queries, a board query, and one name lookup per listed
 // channel), so a fresh read is rare. The caching is deliberately two-layer:
 //
-//   Valkey (BOARDS_TTL_MS) — ONE snapshot for the whole deployment. The fabric
+//   Valkey (BOARDS_TTL_MS) : ONE snapshot for the whole deployment. The fabric
 //     cache is in-process, so a pod-local window alone let three pods answer
 //     three different rankings; a reader hopping pods between two frames saw
 //     the board flicker between them. The shared key makes every pod serve the
 //     same bytes for the same window.
-//   fabric  (POLICY.board)  — a short in-process window in front of it, so a
+//   fabric  (POLICY.board)  : a short in-process window in front of it, so a
 //     busy pod reads Valkey a few times a second at most, not once per request.
 //
 // The same three rules as public-stats.ts apply: one shared snapshot for every
@@ -45,8 +45,8 @@ const SHARED_KEY = 'public-stats:boards:v1';
 // How long one snapshot serves the whole deployment. Deliberately the stream's
 // own tick: the boards ride the same 2s frames as the odometer, so a feeding or
 // a rank change lands as fast as the message counters beside it. Because the
-// key is shared, that cadence costs the fleet one board read every 2s in total
-// — not one per pod, and never one per viewer.
+// key is shared, that cadence costs the fleet one board read every 2s in total,
+// not one per pod, and never one per viewer.
 const BOARDS_TTL_MS = 2_000;
 
 const COUNTER_MESSAGES = 'messages_processed';
@@ -134,8 +134,8 @@ async function counterBoard(name: string): Promise<Map<string, number> | null> {
  * Name one channel the users service has to be asked about.
  *
  * Only reached for a channel the feed board did not already name (see
- * nameTraffic). The users service is the only authority on a channel's login —
- * never a caller-supplied string — and its answer is cached per channel for
+ * nameTraffic). The users service is the only authority on a channel's login
+ * (never a caller-supplied string), and its answer is cached per channel for
  * minutes, so even these rows usually resolve without an RPC. A lookup that
  * fails leaves the row unnamed rather than dropping it: the numbers are still
  * true, and the page prints an "unnamed channel" label.
@@ -164,7 +164,7 @@ function mergeTraffic(messages: Map<string, number>, events: Map<string, number>
  *
  * The feed board is read on the same tick and stores each channel's name with
  * its row, so it already answers the naming question for every channel that has
- * ever fed the bagel — which, on a board ranked by traffic, is most of them.
+ * ever fed the bagel, which, on a board ranked by traffic, is most of them.
  * Those names are taken as they are: asking the users service for a name we
  * were just handed would be a second round trip for the same answer, and it
  * would print the two boards' names differently (the stored display name beside
@@ -172,7 +172,7 @@ function mergeTraffic(messages: Map<string, number>, events: Map<string, number>
  *
  * The users service is the fallback for the rest, and the cut comes first, so a
  * refresh costs at most BOARD_SIZE lookups however deep the counter boards were
- * read — usually none.
+ * read: usually none.
  */
 async function nameTraffic(rows: ChannelTraffic[], known: Map<string, string>): Promise<ChannelTraffic[]> {
   const shown = rows.slice(0, BOARD_SIZE);

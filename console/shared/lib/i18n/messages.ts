@@ -10,12 +10,12 @@
 // Catalogs are plain JSON data discovered at build time by Vite's
 // import.meta.glob: every shared/lib/i18n/locales/*.json becomes a locale keyed
 // by its filename. A translator ships a new language by dropping one JSON file
-// in that directory — no code edit, no registry entry — and their file is parsed
+// in that directory (no code edit, no registry entry) and their file is parsed
 // as data, never executed. Malformed JSON fails the build; a missing key falls
 // back to English (see translate()).
 //
 // Only the default catalog is bundled eagerly (~53 KB of object literals that
-// every boot otherwise paid for — both catalogs eager cost ~107 KB of eval
+// every boot otherwise paid for, both catalogs eager cost ~107 KB of eval
 // before first paint). The other catalogs become separate chunks behind
 // ensureCatalog(); routes that know their locale await it in a load function,
 // so SSR and hydration always see the same strings.
@@ -74,7 +74,7 @@ export function ensureCatalog(locale: Locale): Promise<void> {
       })
       .catch(() => {
         // Never reject. Callers await this from a universal root load, so a
-        // rejection fails that load for EVERY route — one translation file
+        // rejection fails that load for EVERY route, one translation file
         // failing to arrive would take the whole app down with a 500, which is
         // a far worse outcome than showing English.
         //
@@ -86,7 +86,7 @@ export function ensureCatalog(locale: Locale): Promise<void> {
         //
         // The cost is a hydration mismatch when the server registered the
         // catalog and the client could not: SSR ships translated markup, the
-        // client re-renders English. Accepted deliberately — a page in the
+        // client re-renders English. Accepted deliberately: a page in the
         // wrong language still works, a 500 does not.
         //
         // Not remembered as a failure: `pending` is cleared below either way,

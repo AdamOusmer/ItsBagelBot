@@ -48,12 +48,12 @@ export const init: ServerInit = async () => {
 // every pod enforces the same global budget; on any Valkey failure each tier
 // degrades to a per-pod bucket with the same tuning (see rate-limit.ts).
 // Three tiers, tightest wins by route/method:
-//   * auth   — /auth/* + /delegate/*: OAuth redirects/callbacks and session
+//   * auth: /auth/* + /delegate/*: OAuth redirects/callbacks and session
 //     escalation. Brute-force target, humans hit it a handful of times.
-//   * write  — any non-GET/HEAD elsewhere: form actions and API mutations.
+//   * write: any non-GET/HEAD elsewhere: form actions and API mutations.
 //     Clicking around settings is bursty, so allow a real burst but a modest
 //     sustained rate (the Go batchers coalesce anyway).
-//   * read   — everything else: page loads, __data.json, SSE connects.
+//   * read: everything else: page loads, __data.json, SSE connects.
 // Keyed by session user id only: client IPs are never written to Valkey
 // (hard policy). Anonymous traffic skips these buckets entirely and is
 // limited per IP by traefik's in-memory rateLimit middlewares on the public
@@ -97,7 +97,7 @@ async function enforceRateLimit(event: Parameters<Handle>[0]['event']): Promise<
 // resolveLocale resolves the UI locale once per request: a valid ?lang override
 // wins (and is pinned to the switcher cookie), else the cookie, else the
 // browser's Accept-Language, else English. Admin view-as sessions always render
-// in English — their language control edits the target account preference, not
+// in English: their language control edits the target account preference, not
 // the administrative UI itself.
 function resolveLocale(event: Parameters<Handle>[0]['event']): ReturnType<typeof detectLocale> {
   const queryLang = event.url.searchParams.get('lang');
@@ -133,21 +133,21 @@ const EDGE_CACHE: Record<string, readonly [number, number]> = {
 // The gates exist because Cloudflare's cache key ignores cookies and
 // Accept-Language: anything request-specific must be excluded at origin
 // rather than varied at the edge.
-//   * anonymous only — an authed render must never be replayed to another
+//   * anonymous only: an authed render must never be replayed to another
 //     user; guard.ts has already settled locals.session above.
-//   * locale 'en' only — detectLocale falls back to Accept-Language, so
+//   * locale 'en' only: detectLocale falls back to Accept-Language, so
 //     otherwise the first visitor's language would win the cache entry for
 //     every subsequent visitor for the whole TTL.
-//   * no ?lang param — it pins the locale cookie, and Set-Cookie responses
+//   * no ?lang param: it pins the locale cookie, and Set-Cookie responses
 //     must never be shared from a CDN.
-//   * cursor cookie not '0' — the opt-out flips markup server-side; any other
+//   * cursor cookie not '0': the opt-out flips markup server-side; any other
 //     value renders byte-identical to no cookie.
 //
 // max-age=0 keeps browsers revalidating each navigation (kit ETag -> cheap
 // 304) while the edge serves HITs for s-maxage; stale-while-revalidate lets
 // Cloudflare serve its stale copy during background revalidation, so TTL
 // expiry never stampedes origin. Edge hits bypass traefik and the pods
-// entirely, which also means they bypass the per-IP rate limits — intended:
+// entirely, which also means they bypass the per-IP rate limits, intended:
 // abuse of these paths is absorbed by Cloudflare before it reaches us.
 //
 // CSP nonces: SvelteKit mints one per request into both the header and the
@@ -180,7 +180,7 @@ export const handle: Handle = async ({ event, resolve }) => {
   }
 
   // Account gates (ban / deleted account / delegation revoke / delegate scope)
-  // for every authenticated request — actions and API endpoints included, which
+  // for every authenticated request, actions and API endpoints included, which
   // layout loads never cover. Throws kit-native redirects; runs after the rate
   // limiter so the gate RPCs sit behind the same request budget.
   if (event.locals.session) {

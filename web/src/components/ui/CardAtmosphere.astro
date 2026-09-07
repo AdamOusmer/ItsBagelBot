@@ -3,15 +3,15 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 /**
- * Card atmosphere — the instrument-panel light (QuietWork Cards, variant 3a):
+ * Card atmosphere: the instrument-panel light (QuietWork Cards, variant 3a):
  * the hero's tan→green arc parked off the right edge, plus a green sheen
- * washing in from the top-right corner. Character from structure, not glow —
+ * washing in from the top-right corner. Character from structure, not glow:
  * the blurred green/tan orbs the earlier atmosphere carried are gone. They
  * were two 42px-blur bitmaps per card; the sheen is one unblurred radial
  * gradient, so a grid of cards drops the blur rasters entirely.
  *
  * Everything stays static. The arc never spins (rotating a masked layer on
- * every tile re-rasters at 60fps — the original hitch) and hover only nudges
+ * every tile re-rasters at 60fps, the original hitch) and hover only nudges
  * opacity, which stays on the compositor.
  *
  * Inside a `.card__band` housing the arc re-parks to band scale (see
@@ -34,14 +34,14 @@
         pointer-events: none;
         z-index: 0;
         /* Rest/hover pair replaces the old orb bump (0.28→0.42): the sheen's
-           0.12 alpha is authored into the gradient, so the var scales it —
+           0.12 alpha is authored into the gradient, so the var scales it,
            1.6 lands the hover wash at ~0.19 against #0A0A0A. */
         --card-atmo-glow: 1;
         --card-atmo-ring: 0.16;
     }
 
     /* Even siblings flip so neighbouring cards don't share one corner glow.
-       scaleX on this layer only — body copy is a sibling, not a child. */
+       scaleX on this layer only, body copy is a sibling, not a child. */
     :global(.card:nth-child(even)) .card-atmo,
     :global(.gcard:nth-child(even)) .card-atmo,
     :global(.clog__item:nth-child(even) .clog__card) .card-atmo {
@@ -60,7 +60,7 @@
     /* Mini of Header's .bg-ring: a 1.5px tan→green arc, not a filled disc.
        Masked conic so we never mint per-card SVG ids (g1/g2 would collide).
        Parked half off the right edge the way the hero ring sits off-canvas.
-       No spin — rotating a masked layer on every tile was the other hitch. */
+       No spin: rotating a masked layer on every tile was the other hitch. */
     .card-atmo__ring {
         position: absolute;
         top: 42%;

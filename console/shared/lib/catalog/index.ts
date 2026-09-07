@@ -8,8 +8,8 @@
 // ../catalog-valorant (same pattern, older cut) and are spread in here.
 //
 // MOD maps every module id used in the catalog. Module-id strings were
-// previously hardcoded per store — a typo compiled fine and silently missed
-// the module blob — so stores key off MOD.<name> instead of a raw literal.
+// previously hardcoded per store (a typo compiled fine and silently missed
+// the module blob) so stores key off MOD.<name> instead of a raw literal.
 import type { ModuleDef } from './module-def';
 import { GAME_MODULE_DEFS } from '../catalog-games';
 import { VALORANT_MODULE_DEF } from '../catalog-valorant';

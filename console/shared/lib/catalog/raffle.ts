@@ -9,7 +9,7 @@ export const RAFFLE_MODULE: ModuleDef =
   label: 'Raffle',
   tagline: 'Timed random draws your chat enters with !join.',
   description:
-    'Open a raffle and viewers type !join to enter. While it runs the bot posts a time-left reminder every few minutes (the cadence is yours to set), and when time runs out it draws automatically — winners are picked uniformly at random from everyone who entered, every entry counts once, and the draw leaves a verifiable receipt behind. Winners confirm with !claim inside a 15-minute window. You (and your mods) also control everything from chat: !raffle open starts one, !raffle draw closes early and announces, !raffle cancel tears it down without drawing. When both this and the Play Queue are on, !join belongs to the raffle and the queue is reachable through !queue join.',
+    'Open a raffle and viewers type !join to enter. While it runs the bot posts a time-left reminder every few minutes (the cadence is yours to set), and when time runs out it draws automatically. Winners are picked uniformly at random from everyone who entered, every entry counts once, and the draw leaves a verifiable receipt behind. Winners confirm with !claim inside a 15-minute window. You (and your mods) also control everything from chat: !raffle open starts one, !raffle draw closes early and announces, !raffle cancel tears it down without drawing. When both this and the Play Queue are on, !join belongs to the raffle and the queue is reachable through !queue join.',
   icon: 'ticket',
   category: 'Play',
   defaultEnabled: false,
@@ -60,7 +60,7 @@ export const RAFFLE_MODULE: ModuleDef =
       event: '!raffle open',
       command: 'raffle open',
       messageKey: 'openedMessage',
-      defaultMessage: 'Raffle is LIVE! Type !join to enter — drawing in {mins} min!',
+      defaultMessage: 'Raffle is LIVE! Type !join to enter. Drawing in {mins} min!',
       tokens: ['mins'],
       previewSamples: { mins: '10' }
     },
@@ -72,7 +72,7 @@ export const RAFFLE_MODULE: ModuleDef =
       command: 'raffle draw',
       messageKey: 'wonMessage',
       defaultMessage:
-        '{targets} — congratulations! You won the raffle ({count} winner(s) from {entrants})! Type !claim within {claim} min to confirm your prize!',
+        '{targets}, congratulations! You won the raffle ({count} winner(s) from {entrants})! Type !claim within {claim} min to confirm your prize!',
       tokens: ['targets', 'count', 'entrants', 'claim'],
       previewSamples: { targets: '@maya_live, @crustycrumbs', count: '2', entrants: '18', claim: '15' }
     },
@@ -83,7 +83,7 @@ export const RAFFLE_MODULE: ModuleDef =
       event: '!claim',
       command: 'claim',
       messageKey: 'claimOkMessage',
-      defaultMessage: '@{user} your prize is confirmed — enjoy!',
+      defaultMessage: '@{user} your prize is confirmed. Enjoy!',
       tokens: ['user'],
       previewSamples: { user: 'maya_live' }
     }

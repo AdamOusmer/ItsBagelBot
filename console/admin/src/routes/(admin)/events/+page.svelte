@@ -53,7 +53,7 @@
 
   function togglePause() {
     if (paused) {
-      // Flush what arrived while reading, newest first — nothing dropped silently.
+      // Flush what arrived while reading, newest first: nothing dropped silently.
       events = [...buffer, ...events].slice(0, CAP);
       buffer = [];
       missedWhilePaused = 0;

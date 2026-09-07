@@ -3,7 +3,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 /**
- * CommandBuilder — the interactive command workbench. Non-technical streamers
+ * CommandBuilder: the interactive command workbench. Non-technical streamers
  * compose a command (or a module reply) by clicking variables instead of
  * memorizing syntax, watch a live chat rehearsal, then either send the result
  * to the dashboard (deep link; a confirmation modal creates it, falling back
@@ -12,16 +12,16 @@
  *
  * Layout is deliberately two zones: one compose card (essentials on top,
  * access/cooldown/aliases folded into "More options") and a slim aside with
- * the rehearsal and a single action card — one primary CTA, the chat-paste
+ * the rehearsal and a single action card: one primary CTA, the chat-paste
  * path secondary beneath it.
  *
  * The rehearsal SHARES the dashboard's logic rather than copying it: the
  * client script imports the engine mirror from console/shared/lib/rehearsal.ts
- * (aliased as `@bagel/rehearsal` in astro.config.mjs) — the same module the
- * dashboard inspector's ChatPreview uses — so the slash-verb grammar and token
+ * (aliased as `@bagel/rehearsal` in astro.config.mjs), the same module the
+ * dashboard inspector's ChatPreview uses, so the slash-verb grammar and token
  * expansion here always match the bot. Only the rendering is local: same
  * typing beat, same staggered reply-in animation, same announcement /
- * shoutout / pin / me styling and sample-value highlights — the builder is
+ * shoutout / pin / me styling and sample-value highlights, the builder is
  * meant to feel like the dashboard reaching out onto the marketing site.
  *
  * All copy and the variable catalog come from src/i18n/builder.ts (both
@@ -117,9 +117,9 @@ for (const surface of data.surfaces) {
 
         <aside>
             <section class="preview card">
-                <header><b><i></i> {ui.previewTitle}</b><span data-context></span></header>
+                <header><b><i class="bb-mark" aria-hidden="true"></i> {ui.previewTitle}</b><span data-context></span></header>
                 <div class="chat" data-chat data-avatar={avatarImage.src}>
-                    <span class="chat-tag" data-chat-tag>{ui.rehearsal}</span>
+                    <span class="chat-tag bb-tag bb-tag--bare" data-chat-tag>{ui.rehearsal}</span>
                 </div>
                 <small data-preview-note></small>
             </section>
@@ -135,7 +135,7 @@ for (const surface of data.surfaces) {
                 <div class="copyw" data-copy-wrap>
                     <p class="copyw__label" data-copy-title>{ui.copyTitleCustom}</p>
                     <pre data-output></pre>
-                    <button type="button" data-copy><span>{ui.copyCta}</span></button>
+                    <button type="button" class="bb-chip" data-copy><span>{ui.copyCta}</span></button>
                     <a class="copyw__module-link" data-module-link hidden target="_blank" rel="noopener noreferrer" href={data.dashboardOrigin}>{ui.openModule} →</a>
                 </div>
             </section>
@@ -181,7 +181,7 @@ for (const surface of data.surfaces) {
 <script>
     // scopes is set only on the custom surface's counter var: the four
     // broadcaster-facing counter scopes (i18n/builder.ts COUNTER_SCOPES),
-    // label + hint only — the token itself never encodes scope.
+    // label + hint only, the token itself never encodes scope.
     type CounterScope = { id: string; label: string; hint: string };
     type Var = { token: string; sample: string; name: string; desc: string; scopes?: CounterScope[] };
     type Surface = { id: string; group: string; label: string; dashPath: string; hint: string; example: string; prompt: string; vars: Var[] };
@@ -206,7 +206,7 @@ for (const surface of data.surfaces) {
     // src/i18n/builder.ts, and ride in as the `samples` argument.
     import { rehearseCommand, rehearseReply, type RehearsedLine, type Seg } from '@bagel/rehearsal';
 
-    // Announcement accent colors — presentation only, keyed by the color the
+    // Announcement accent colors: presentation only, keyed by the color the
     // shared parse reports.
     const ACCENT: Record<string, string> = {
         primary: 'var(--tan-light)',
@@ -265,13 +265,13 @@ for (const surface of data.surfaces) {
         };
 
         // Hard caps while typing, matching the dashboard editor: at most 5
-        // lines and 500 characters per line — extra input is dropped instead of
+        // lines and 500 characters per line, extra input is dropped instead of
         // only flagged after the fact.
         function clampTemplate() {
             const raw = ta.value.split(/\r\n|\r|\n/);
             let changed = raw.length > data.limits.linesMax;
             // The first-line style verb ("/announce " …) is prepended on the
-            // wire, so the first line's budget shrinks by the prefix length —
+            // wire, so the first line's budget shrinks by the prefix length,
             // otherwise a full 500-char line ships at 500+verb and fails the
             // dashboard validator.
             const prefixLen = mode === 'custom' ? styleSel.value.length : 0;
@@ -313,7 +313,7 @@ for (const surface of data.surfaces) {
         }
 
         // A surface resolves the dynamic tokens when its module falls back to
-        // module.ParseDynamic — which the catalog encodes by offering them in
+        // module.ParseDynamic, which the catalog encodes by offering them in
         // the palette. The odd one out is the !clip reply: outgress expands it
         // with a bare token replacer, so {random} there stays literal.
         const surfaceIsDynamic = () => current().vars.some((x) => /^\{(random|choice)/.test(x.token));
@@ -364,7 +364,7 @@ for (const surface of data.surfaces) {
         }
 
         function viaBadge(label: string, inline = false): HTMLElement {
-            return el('span', inline ? 'via inline' : 'via', `Twitch ${label}`);
+            return el('span', `via bb-tag bb-tag--quiet bb-tag--bare${inline ? ' inline' : ''}`, `Twitch ${label}`);
         }
 
         function botLine(view: RehearsedLine, index: number): HTMLElement {
@@ -420,7 +420,7 @@ for (const surface of data.surfaces) {
         }
 
         // Event-driven surfaces (alerts, shoutout, channel points…) rehearse
-        // without a viewer line — the firing event becomes the box tag, exactly
+        // without a viewer line, the firing event becomes the box tag, exactly
         // like the dashboard's module-reply inspectors.
         const promptKind = () => {
             const surface = current();
@@ -469,12 +469,14 @@ for (const surface of data.surfaces) {
             const line = el('div', 'line bot');
             const msg = el('span', 'msg typing');
             msg.setAttribute('aria-label', ui.ariaTyping);
-            msg.append(el('span', 'tdot'), el('span', 'tdot'), el('span', 'tdot'));
+            // Was three .tdot circles bouncing on a staggered delay; one
+            // drawing hairline replaces them.
+            msg.append(el('span', 'bb-drawline'));
             line.append(botName(), msg);
             chat.append(line);
         }
 
-        // Typing beat: edits flip to the dots, settle back to the reply — the
+        // Typing beat: edits flip to the dots, settle back to the reply, the
         // dashboard's debounce, same 550ms.
         let settle: ReturnType<typeof setTimeout> | undefined;
         let firstRender = true;
@@ -514,7 +516,7 @@ for (const surface of data.surfaces) {
         // The counter var is a small picker, not a one-click insert: type a
         // name, choose one of the four scopes, then insert {counter:name}.
         // The scope choice only ever touches this card's own hint text and
-        // the live token preview — it can't travel through the token itself.
+        // the live token preview, it can't travel through the token itself.
         function buildCounterVar(item: Var): HTMLElement {
             const scopes = item.scopes ?? [];
             const defaultName = item.token.match(/^\{counter:(.+)\}$/)?.[1] ?? 'name';
@@ -708,10 +710,14 @@ for (const surface of data.surfaces) {
             try {
                 await navigator.clipboard.writeText($('[data-output]').textContent || '');
                 label.textContent = ui.copied;
+                copyBtn.classList.add('is-done');
             } catch {
                 label.textContent = ui.copyFail;
             }
-            setTimeout(() => (label.textContent = ui.copyCta), 1800);
+            setTimeout(() => {
+                label.textContent = ui.copyCta;
+                copyBtn.classList.remove('is-done');
+            }, 1800);
         });
 
         sendLink.addEventListener('click', (event) => {
@@ -839,7 +845,8 @@ for (const surface of data.surfaces) {
 
     .preview header, .action header { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; margin-bottom: 16px; color: var(--muted); font: 11px var(--font-mono); text-transform: uppercase; letter-spacing: .08em; }
     .preview header b { color: var(--white); }
-    .preview header i { display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: #e06262; }
+    /* Was a 7px 50% red dot; .bb-mark makes it the house diamond, red kept. */
+    .preview header i { display: inline-block; margin-right: 6px; color: #e06262; }
     .preview > small { display: block; margin-top: 11px; color: #a39c92; font-size: 12px; line-height: 1.5; }
 
     .action header b { color: #e08585; font-weight: 400; letter-spacing: 0; text-transform: none; }
@@ -853,8 +860,9 @@ for (const surface of data.surfaces) {
     [data-send-wrap][hidden] + .copyw { margin-top: 0; padding-top: 0; border-top: 0; }
     .copyw__label { margin-bottom: 10px; color: var(--muted); font: 11px var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }
     .copyw pre { max-height: 150px; overflow: auto; padding: 12px 14px; background: #0b0b0a; border-radius: 8px; color: var(--tan-pale); white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.6 var(--font-mono); }
-    .copyw > button { display: flex; justify-content: center; gap: 10px; width: 100%; margin-top: 10px; padding: 11px; color: var(--tan-pale); background: #c9a87c14; border: 1px solid #c9a87c44; border-radius: 8px; font: 700 13px var(--font-display); transition: background .2s, border-color .2s; }
-    .copyw > button:hover { background: #c9a87c22; border-color: #c9a87c77; }
+    /* Was a filled tan 8px button; .bb-chip owns the frame, hover and the
+       copied state now, so only the full-width block fit stays local. */
+    .copyw > button { justify-content: center; width: 100%; margin-top: 10px; padding: 11px; }
     .copyw > button:disabled { opacity: .45; pointer-events: none; }
     .copyw__module-link { display: block; margin-top: 11px; color: var(--tan); font: 12px var(--font-mono); text-align: center; }
     .copyw__module-link:hover { color: var(--tan-light); }
@@ -896,21 +904,21 @@ for (const surface of data.surfaces) {
         min-height: 96px;
     }
 
+    /* Notch label straddling the panel border; .bb-tag--bare supplies the
+       mono/uppercase treatment, the panel background masks the border. */
     [data-chat] .chat-tag {
         position: absolute;
-        top: -8px;
+        top: -9px;
         left: 10px;
-        font-family: var(--font-display, "Syne", sans-serif);
-        font-weight: 700;
-        font-size: 10px;
-        letter-spacing: 0.02em;
+        /* block + overflow beat .bb-tag's inline-flex so the label still
+           truncates with an ellipsis inside the panel. */
+        display: block;
+        overflow: hidden;
         color: var(--green-glow, #52b788);
         background: #111110;
         padding: 0 6px;
         max-width: calc(100% - 20px);
-        overflow: hidden;
         text-overflow: ellipsis;
-        white-space: nowrap;
     }
 
     [data-chat] .line { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
@@ -965,18 +973,9 @@ for (const surface of data.surfaces) {
     }
     [data-chat] .msg.empty { color: var(--muted, #888077); font-style: italic; }
 
-    [data-chat] .via {
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-weight: 600;
-        font-size: 10px;
-        letter-spacing: 0.02em;
-        color: var(--acc, var(--green-glow, #52b788));
-        background: color-mix(in srgb, var(--acc, var(--green-glow, #52b788)) 14%, transparent);
-        border: 1px solid color-mix(in srgb, var(--acc, var(--green-glow, #52b788)) 40%, transparent);
-        border-radius: 999px;
-        padding: 1px 7px;
-        white-space: nowrap;
-    }
+    /* Was a 999px translucent green pill; the tag reads as a label now. The
+       --acc tint stays so the badge still tracks the surface accent. */
+    [data-chat] .via { color: var(--acc, var(--green-glow, #52b788)); }
     [data-chat] .via.inline { margin-right: 2px; }
 
     [data-chat] .announce {
@@ -1042,26 +1041,12 @@ for (const surface of data.surfaces) {
     [data-chat] .msg.action { font-style: italic; color: var(--green-glow, #52b788); }
 
     [data-chat] .typing { display: inline-flex; gap: 4px; align-items: center; padding: 4px 0; }
-    [data-chat] .tdot {
-        width: 5px;
-        height: 5px;
-        border-radius: 50%;
-        background: var(--muted, #888077);
-        animation: bb-tbounce 900ms ease-in-out infinite;
-    }
-    [data-chat] .tdot:nth-child(2) { animation-delay: 150ms; }
-    [data-chat] .tdot:nth-child(3) { animation-delay: 300ms; }
-    @keyframes bb-tbounce {
-        0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
-        30% { transform: translateY(-3px); opacity: 1; }
-    }
 
     @media (prefers-reduced-motion: reduce) {
         [data-chat] .reply,
         [data-chat] .announce,
         [data-chat] .shoutout,
         [data-chat] .pin { animation: none; }
-        [data-chat] .tdot { animation: none; }
     }
 </style>
 

@@ -6,8 +6,8 @@
   //
   // It exists because an in-flow dropdown cannot work there. The palette lives
   // inside InspectorSurface, which sets `overflow: hidden` to clip its own
-  // scroller, so an absolutely-positioned panel is clipped at the editor's edge
-  // — the menu opens "inside" the editor and the half that matters is
+  // scroller, so an absolutely-positioned panel is clipped at the editor's edge:
+  // the menu opens "inside" the editor and the half that matters is
   // unreachable. Portalling to <body> and positioning fixed is the same escape
   // hatch InspectorSurface uses for its own mobile sheet.
   //
@@ -70,7 +70,7 @@
     if (!anchor) return;
     const r = anchor.getBoundingClientRect();
     // Prefer the right of the trigger, fall back to its left, then clamp so the
-    // full height stays on screen — a palette sits low in a long form, so the
+    // full height stays on screen: a palette sits low in a long form, so the
     // naive "below the trigger" placement runs off the bottom exactly when the
     // form is longest.
     const left =
@@ -188,8 +188,8 @@
     padding: 8px 16px calc(16px + env(safe-area-inset-bottom, 0px));
     /* No fill mode on purpose: the element's resting state is then the visible
        one, and the slide-in is decoration layered over it. With `both` the
-       resting state before the animation starts is translateY(100%) — fully
-       off-screen — so anything that keeps the animation from starting leaves
+       resting state before the animation starts is translateY(100%) (fully
+       off-screen), so anything that keeps the animation from starting leaves
        the sheet permanently invisible.
 
        This does not cover a suspended mid-run animation (a pane that is not

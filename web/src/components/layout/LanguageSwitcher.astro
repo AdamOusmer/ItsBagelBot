@@ -21,43 +21,22 @@ function localePath(target: Lang): string {
 const options: readonly Lang[] = locales;
 ---
 
-<div class="lang-switch" role="group" aria-label="Language">
+<div class="lang-switch bb-tabs" role="group" aria-label="Language">
   {options.map((l) => (
     <a
       href={localePath(l)}
       hreflang={l}
-      class:list={['lang-switch__opt', { 'is-active': l === current }]}
+      class:list={['lang-switch__opt', 'bb-tab', { 'is-active': l === current }]}
       aria-current={l === current ? 'true' : undefined}
     >{l.toUpperCase()}</a>
   ))}
 </div>
 
 <style>
-  .lang-switch {
-    display: inline-flex;
-    align-items: center;
-    gap: 2px;
-    padding: 3px;
-    border: 1px solid var(--border);
-    border-radius: 999px;
-  }
+  /* Was a 999px track with a tan-filled 999px knob on the active locale, a
+     two-way pill toggle. Now the shared .bb-tabs rail: the green underline
+     marks the active locale, so only the link reset stays local. */
+  .lang-switch { gap: 16px; }
 
-  .lang-switch__opt {
-    font-family: var(--font-mono, "DM Mono", monospace);
-    font-size: 0.7rem;
-    font-weight: 500;
-    letter-spacing: 0.06em;
-    color: var(--muted);
-    text-decoration: none;
-    padding: 4px 9px;
-    border-radius: 999px;
-    transition: color 0.2s ease, background 0.2s ease;
-  }
-
-  .lang-switch__opt:hover { color: var(--tan-light); }
-
-  .lang-switch__opt.is-active {
-    color: var(--black, #0a0a0a);
-    background: var(--tan, #c9a87c);
-  }
+  .lang-switch__opt { text-decoration: none; }
 </style>

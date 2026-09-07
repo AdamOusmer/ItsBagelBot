@@ -168,7 +168,7 @@ function demoView(cmd: ReturnType<typeof parseCommand>, isActive: boolean): Comm
 // actionContext runs the shared action prologue: section gate, effective
 // dashboard id, auth check, and form parse. DEMO runs without a real session;
 // the demo branches in each action short-circuit before any RPC, so only
-// production requests need the auth gate — null means "respond 401".
+// production requests need the auth gate: null means "respond 401".
 async function actionContext({ request, locals }: { request: Request; locals: App.Locals }) {
   gateCommands(locals.session);
   if (!DEMO && !locals.session) return null;
@@ -181,7 +181,7 @@ async function actionContext({ request, locals }: { request: Request; locals: Ap
 
 const notSignedIn = () => fail(401, { ok: false, error: 'Not signed in.' });
 
-// tryRpc runs one store RPC, logging the real failure server-side — RpcError /
+// tryRpc runs one store RPC, logging the real failure server-side: RpcError /
 // NATS timeout messages can carry internal service detail, so they go to the
 // logs, never the dashboard. The caller returns a generic fail(); the client
 // shows its own localized "…failed" copy.
@@ -363,7 +363,7 @@ export const actions: Actions = {
 
   // Save an editable built-in's custom reply template. Like the toggle, the
   // value lives in the modules service (under the built-in id, config key
-  // def.replyKey), so this writes there — not the commands service. An empty
+  // def.replyKey), so this writes there, not the commands service. An empty
   // reply clears the override (upsertModule omits empty config), so the bot
   // falls back to the default template. The current on/off state rides along so
   // the write preserves it.

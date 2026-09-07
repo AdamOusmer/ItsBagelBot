@@ -26,7 +26,7 @@
   const podium = $derived(data.top.slice(0, 3));
   const rest = $derived(data.top.slice(3));
 
-  // Module and built-in command triggers, flattened to bare chips — the
+  // Module and built-in command triggers, flattened to bare chips: the
   // custom commands above them carry the detail.
   const commandTriggers = $derived(
     (data.modules ?? [])
@@ -201,8 +201,7 @@
   {/if}
 
   <footer class="foot reveal" style="--i:7">
-    <span class="pip" aria-hidden="true"></span>
-    <span>{t('leaderboard.earnNote')}</span>
+    <span class="bb-tag bb-tag--live"><i class="bb-mark" aria-hidden="true"></i>{t('leaderboard.earnNote')}<i class="bb-sweep" aria-hidden="true"></i></span>
   </footer>
 </main>
 
@@ -451,8 +450,8 @@
     --card-pad: clamp(20px, 2.4vw, 30px);
     min-width: 0;
   }
-  /* Sized for the note wrapped to three lines on a 375px screen — the same
-     head shape as the stats boards. */
+  /* Sized for the note wrapped to three lines on a 375px screen (the same
+     head shape as the stats boards). */
   .board-wrap :global(.card__band) {
     --card-band-h: calc(112px * var(--d, 1));
     padding: calc(16px * var(--d, 1)) var(--card-pad);
@@ -680,23 +679,12 @@
     text-transform: uppercase;
     color: var(--bb-muted);
   }
-  .pip {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--bb-green-glow);
-    box-shadow: 0 0 10px rgba(82, 183, 136, 0.7);
-    animation: blink 2.4s ease-in-out infinite;
-  }
-  :global(:root[data-theme='light']) .pip { box-shadow: 0 0 8px rgba(45, 106, 79, 0.4); }
-
-  @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+  /* Was a blinking round .pip; the live label carries the state now. The note
+     is a sentence, not a short label, so this one tag is allowed to wrap. */
+  .foot :global(.bb-tag) { white-space: normal; text-align: left; }
 
   @media (max-width: 900px) {
     .podium { grid-template-columns: minmax(0, 1fr); max-width: 480px; }
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .pip { animation: none; }
-  }
 </style>

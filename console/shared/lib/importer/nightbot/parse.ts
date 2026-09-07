@@ -182,7 +182,7 @@ function parseCommandRow(row: NbRow, notes: Notes): ManifestCommand | null {
   return cmd;
 }
 
-// commandPermission maps Nightbot's own labels — everyone / regular /
+// commandPermission maps Nightbot's own labels: everyone / regular /
 // subscriber / twitch_vip / moderator / owner. mapPermission owns the table;
 // "regular" is Nightbot's manually-granted trust tier, which this bot has no
 // equivalent for, so it widens to everyone WITH a note rather than silently.
@@ -277,7 +277,7 @@ function parseTimerRow(row: NbRow, notes: Notes): ManifestTimer | null {
     );
   }
 
-  // Decision record — interval units: Nightbot timer intervals are MINUTES (its
+  // Decision record - interval units: Nightbot timer intervals are MINUTES (its
   // dashboard labels the field "Interval (minutes)" and enforces a 5-minute
   // floor). Multiply by 60 once here so the manifest carries seconds like every
   // consumer expects; commit clamps sub-floor values itself.
@@ -293,7 +293,7 @@ function parseTimerRow(row: NbRow, notes: Notes): ManifestTimer | null {
 }
 
 // Nightbot additionally gates a timer on N chat lines having passed since its
-// last run. This engine's timers are interval-only, so the gate is dropped —
+// last run. This engine's timers are interval-only, so the gate is dropped:
 // the timer posts more often on a quiet stream than it did upstream, which is a
 // behavior change worth naming.
 function reportLineGate(src: NbTimer, notes: Notes): void {

@@ -4,7 +4,7 @@
 // Redeem an admin "view as" link: verify the signed token, burn its jti (a
 // link is single-use), then seal a short (1h) dashboard session for the target
 // user that also carries the acting admin (impersonator_*). hooks.server.ts
-// opens it like any session — with a hard 1h cap from iat — and the write
+// opens it like any session (with a hard 1h cap from iat) and the write
 // actions audit back to the admin while these fields are present.
 import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';

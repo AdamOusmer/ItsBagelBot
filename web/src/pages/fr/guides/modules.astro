@@ -19,7 +19,7 @@ const sections = [
 ---
 
 <Layout
-    title="Le manuel des modules — Guides ItsBagelBot"
+    title="Le manuel des modules - Guides ItsBagelBot"
     description="Chaque module d'ItsBagelBot expliqué: alertes de chat, shoutout automatique, mots déclencheurs, points de fidélité, récompenses de points de chaîne, minuteries, loteries, jeux de mise, file d'attente, citations, stats de jeu, pyramides d'émotes et AutoMod."
     ogType="article"
 >
@@ -184,7 +184,7 @@ const sections = [
                 <code>!duel 100</code>, chacun ajoute sa mise tant que la fenêtre est ouverte, puis le
                 bot tire un gagnant pondéré par la mise et il rafle tout. Le défi :
                 <code>!duel @maya_live 500</code> désigne un adversaire qui doit taper
-                <code>!duel accept</code> avant la fin du délai — mises égales, pile ou face, le
+                <code>!duel accept</code> avant la fin du délai : mises égales, pile ou face, le
                 gagnant prend tout. Refus, annulations et absences remboursent toujours chaque point.
             </p>
             <p class="gtip">
@@ -199,8 +199,8 @@ const sections = [
             <p>
                 Un tirage au sort minuté, impossible à contester. Les spectateurs participent une
                 seule fois avec <code>!join</code> ; le bot fait le compte à rebours à voix haute à
-                l'intervalle que vous choisissez, puis tire lui-même les gagnants à la fin du délai
-                — uniformément au hasard, une participation par spectateur, avec un reçu
+                l'intervalle que vous choisissez, puis tire lui-même les gagnants à la fin du délai,
+                uniformément au hasard, une participation par spectateur, avec un reçu
                 vérifiable. Les gagnants confirment avec <code>!claim</code>. Vous et vos modérateurs
                 lancez avec <code>!raffle open</code>, clôturez en avance avec
                 <code>!raffle draw</code>, ou annulez avec <code>!raffle cancel</code>.
@@ -210,13 +210,13 @@ const sections = [
                 caption="Ouverte, rappelée, tirée, confirmée."
                 lines={[
                     { who: 'mod', name: 'mod_sam', text: '!raffle open 10' },
-                    { who: 'bot', text: 'La loterie est LANCÉE ! Tapez !join pour participer — tirage dans 10 min !' },
-                    { who: 'bot', text: 'Rappel loterie : ~5 min restantes ! 14 inscrits — tapez !join ! Les gagnants doivent taper !claim.' },
+                    { who: 'bot', text: 'La loterie est LANCÉE ! Tapez !join pour participer. Tirage dans 10 min !' },
+                    { who: 'bot', text: 'Rappel loterie : ~5 min restantes ! 14 inscrits, tapez !join ! Les gagnants doivent taper !claim.' },
                     { who: 'viewer', name: 'maya_live', text: '!join' },
                     { who: 'bot', text: "@maya_live c'est bon, tu participes ! 15 inscrits pour l'instant. Bonne chance !" },
-                    { who: 'bot', text: '@crustycrumbs, @maya_live — félicitations ! Vous avez gagné la loterie (2 gagnant(s) parmi 15) ! Tapez !claim dans les 15 min pour confirmer votre lot !' },
+                    { who: 'bot', text: '@crustycrumbs, @maya_live, félicitations ! Vous avez gagné la loterie (2 gagnant(s) parmi 15) ! Tapez !claim dans les 15 min pour confirmer votre lot !' },
                     { who: 'viewer', name: 'maya_live', text: '!claim' },
-                    { who: 'bot', text: '@maya_live ton lot est confirmé — profite bien !' },
+                    { who: 'bot', text: '@maya_live ton lot est confirmé, profite bien !' },
                 ]}
             />
             <h3>File d'attente</h3>
@@ -253,7 +253,7 @@ const sections = [
                 Une clique d'encouragements pour les projets artistiques du chat. Le module surveille
                 les pyramides d'émotes (le même émote empilé 1-2-3 puis redescendu) et les séries de
                 messages à émote unique, et publie une ligne de célébration quand l'une atterrit
-                proprement — rien d'autre posté entre deux. Totalement automatique : pas de commande,
+                proprement, rien d'autre posté entre deux. Totalement automatique : pas de commande,
                 pas de réglage, juste l'interrupteur.
             </p>
         </Fragment>
@@ -286,7 +286,7 @@ const sections = [
                         <tr>
                             <td>Stats Clash Royale</td>
                             <td><code>!cr</code> <code>!cr decks</code> <code>!cr ranked</code> <code>!cr road</code></td>
-                            <td>Profil à vie (niveau, victoires/défaites, taux de victoire), le deck actuel avec son élixir moyen, le classement Path of Legends et le record trophée — par tag de joueur.</td>
+                            <td>Profil à vie (niveau, victoires/défaites, taux de victoire), le deck actuel avec son élixir moyen, le classement Path of Legends et le record trophée, par tag de joueur.</td>
                         </tr>
                         <tr>
                             <td>Stats Valorant</td>

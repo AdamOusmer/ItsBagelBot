@@ -3,11 +3,11 @@
 
 /**
  * Small shared micro-interactions wired by data-attributes, so section
- * components only add markup — no per-component scripts.
+ * components only add markup, no per-component scripts.
  *
  *
  *   [data-copy="text"]     click copies `text` to the clipboard and toggles
- *                          `.is-copied` for ~1.6s of micro-feedback.
+ *                          `.is-done` (the .bb-chip confirmed state) for ~1.6s.
  *
  *   [data-tilt]            pointer-tracked 3D tilt. Optional numeric value =
  *                          max degrees (default 4). Writes `--tilt-x/y`; the
@@ -31,11 +31,11 @@ function setupCopy(el) {
         event.stopPropagation();
         try {
             await navigator.clipboard.writeText(text);
-            el.classList.add("is-copied");
+            el.classList.add("is-done");
             window.clearTimeout(el._copyTimer);
-            el._copyTimer = window.setTimeout(() => el.classList.remove("is-copied"), 1600);
+            el._copyTimer = window.setTimeout(() => el.classList.remove("is-done"), 1600);
         } catch {
-            /* clipboard blocked — leave the element as-is */
+            /* clipboard blocked, leave the element as-is */
         }
     });
 }

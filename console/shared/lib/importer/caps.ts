@@ -15,7 +15,7 @@ const KINDS: readonly CappedKind[] = ['commands', 'timers', 'triggers', 'quotes'
 
 // applyImportCaps truncates every manifest collection to its cap in place,
 // returning the same manifest plus one manifest-level warn diagnostic per
-// truncated collection. Truncation — not pass-through-with-server-flags — is
+// truncated collection. Truncation (not pass-through-with-server-flags) is
 // deliberate: it bounds both the POST body (the whole point of client-side
 // parsing) and the review DOM, which cannot render tens of thousands of rows
 // anyway. The server's own cap diagnostics stay authoritative for direct RPC

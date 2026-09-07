@@ -10,7 +10,7 @@ import { FETCH_NAME_MAX, PATH_SEGMENT_RE } from './fetch-validate';
  * lower-case, fold every non-grammar rune run to "_", trim "_" edges. Empty
  * when the input carries no usable character at all. */
 export function slugifyName(s: string): string {
-  // Underscore edges are trimmed by index scan, not /^_+/ and /_+$/ — those
+  // Underscore edges are trimmed by index scan, not /^_+/ and /_+$/: those
   // anchors backtrack polynomially on adversarial runs of "_" (CodeQL
   // js/polynomial-redos), and this input is broadcaster-typed. The remaining
   // char-class fold is unambiguous and linear.
@@ -29,7 +29,7 @@ function trimUnderscores(s: string): string {
 
 /**
  * Dotted token form of a path ('forecast.current.temp_f', array indices as
- * bare digits) — the exact spelling inside `{urlfetch:name.<path>}` that the
+ * bare digits): the exact spelling inside `{urlfetch:name.<path>}` that the
  * Go dot-path extractor reads.
  */
 export function buildJsonPath(segments: string[]): string {
@@ -49,7 +49,7 @@ export function parseJsonPath(dotted: string): string[] | null {
 }
 
 /**
- * Distinct `{urlfetch:<payload>}` payloads in first-appearance order — the
+ * Distinct `{urlfetch:<payload>}` payloads in first-appearance order: the
  * byte-for-byte twin of sesame's urlFetchNames scan (fast-path Contains, then
  * Index('{urlfetch:') / IndexByte('}')). Payloads fold to lower-case because
  * def names are stored bare/lower-case; repeats collapse so one definition
@@ -70,7 +70,7 @@ export function urlFetchNames(response: string): string[] {
 }
 
 /**
- * `{urlfetch…` spans that can never resolve — unclosed brace, empty payload,
+ * `{urlfetch…` spans that can never resolve: unclosed brace, empty payload,
  * or a payload failing the name/path grammar. The source view flags these
  * verbatim (mark.unknown treatment): typos stay visible, matching the
  * engine's leave-unknown-tokens-literal rule.

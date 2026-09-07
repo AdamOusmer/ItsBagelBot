@@ -46,8 +46,8 @@ const t = useTranslations(lang);
 
     <div class="header-material">
         <a class="eyebrow" href="https://discord.gg/SZ2remwSDv" target="_blank" rel="noopener noreferrer">
-            <span class="eyebrow__badge">
-                <span class="eyebrow__dot"></span>{t('hero.devBadge')}
+            <span class="bb-tag bb-tag--live">
+                <i class="bb-mark" aria-hidden="true"></i>{t('hero.devBadge')}<i class="bb-sweep" aria-hidden="true"></i>
             </span>
             <span class="eyebrow__text">{t('hero.topText')}</span>
         </a>
@@ -77,7 +77,7 @@ const t = useTranslations(lang);
 
                 <!-- Trust signals as bare mono text, not pills: bordered chips under
                      the lede competed with the h1, and each fact has a full section
-                     further down anyway. The import line stays a whisper on purpose —
+                     further down anyway. The import line stays a whisper on purpose:
                      it only needs to tell switchers the door exists. -->
                 <div class="facts">
                     <span>{t('hero.badge1')}</span>
@@ -208,7 +208,7 @@ const t = useTranslations(lang);
 
     /* display:contents keeps the stacked phone layout identical to the old
        markup; the 2b desktop block at the end of this sheet turns it into the
-       editorial grid. That block stays LAST — an earlier attempt sat above the
+       editorial grid. That block stays LAST, an earlier attempt sat above the
        base rules and silently lost the cascade. */
     .split {
         display: contents;
@@ -290,7 +290,7 @@ const t = useTranslations(lang);
         will-change: opacity, transform;
     }
 
-    /* 2b: glows trade corners — green rides top-right above the ring, tan
+    /* 2b: glows trade corners: green rides top-right above the ring, tan
        warms bottom-left under the headline. Shift math still converges each
        orb on the viewport center as --hero-p climbs. */
     .orb-1 {
@@ -360,30 +360,14 @@ const t = useTranslations(lang);
         animation: fadeUp 800ms 200ms var(--ease-out-expo) forwards;
     }
 
-    .eyebrow__badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 7px;
+    /* Was .eyebrow__badge (green pill) + .eyebrow__dot (pulsing circle); now
+       .bb-tag--live + .bb-mark + .bb-sweep. Only the hero pause hook and the
+       no-shrink the pill used to carry stay local. */
+    .eyebrow .bb-tag {
         flex-shrink: 0;
-        padding: 4px 11px;
-        border-radius: 20px;
-        background: rgba(45, 106, 79, 0.15);
-        border: 1px solid rgba(64, 145, 108, 0.30);
-        font-family: var(--font-mono);
-        font-size: 0.7rem;
-        letter-spacing: 0.1em;
-        text-transform: uppercase;
-        color: var(--green-light);
-        transition: border-color 0.2s;
     }
 
-    .eyebrow__dot {
-        width: 7px;
-        height: 7px;
-        flex-shrink: 0;
-        border-radius: 50%;
-        background: var(--green-glow);
-        animation: pulse-dot 1.8s ease-in-out infinite;
+    .eyebrow .bb-sweep {
         animation-play-state: var(--hero-animation-state, running);
     }
 
@@ -396,15 +380,15 @@ const t = useTranslations(lang);
         transition: color 0.2s;
     }
 
-    .eyebrow:hover .eyebrow__badge {
-        border-color: rgba(64, 145, 108, 0.7);
+    .eyebrow:hover .bb-tag--live {
+        border-bottom-color: rgba(82, 183, 136, 0.70);
     }
 
     .eyebrow:hover .eyebrow__text {
         color: var(--white);
     }
 
-    /* No block-level fadeUp here any more — the intro script rolls the title
+    /* No block-level fadeUp here any more, the intro script rolls the title
        in glyph by glyph, so the h1 itself stays static. */
     h1 {
         font-family: var(--font-display);
@@ -440,7 +424,7 @@ const t = useTranslations(lang);
     }
 
     /* Hide glyphs pre-intro only when the script that reveals them can run,
-       and never for reduced-motion users — no-JS and reduced-motion both get
+       and never for reduced-motion users, no-JS and reduced-motion both get
        the static headline instantly. */
     @media (scripting: enabled) and (prefers-reduced-motion: no-preference) {
         h1 .glyph {
@@ -516,17 +500,6 @@ const t = useTranslations(lang);
         transform: translateX(4px);
     }
 
-    @keyframes pulse-dot {
-        0%, 100% {
-            opacity: 1;
-            transform: scale(1);
-        }
-        50% {
-            opacity: 0.30;
-            transform: scale(0.75);
-        }
-    }
-
     @keyframes fadeUp {
         from {
             opacity: 0;
@@ -600,11 +573,6 @@ const t = useTranslations(lang);
             letter-spacing: 0.16em;
         }
 
-        .eyebrow__badge {
-            padding: 3px 9px;
-            font-size: 0.62rem;
-        }
-
         .aside > p {
             max-width: min(520px, 100%);
             font-size: 0.98rem;
@@ -654,11 +622,6 @@ const t = useTranslations(lang);
             letter-spacing: 0.14em;
         }
 
-        .eyebrow__dot {
-            width: 6px;
-            height: 6px;
-        }
-
         h1 {
             font-size: clamp(1.75rem, min(8.4vw, 7.6vh), 2.25rem);
             margin-bottom: 16px;
@@ -700,7 +663,7 @@ const t = useTranslations(lang);
         }
     }
 
-    /* ── 2b "Editorial left" — desktop only. Keep this block last. ── */
+    /* ── 2b "Editorial left", desktop only. Keep this block last. ── */
     @media (min-width: 901px) {
         .header-material {
             align-items: flex-start;

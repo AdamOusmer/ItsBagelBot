@@ -7,9 +7,9 @@
 // projector, per-service RPC). A single slow or broken dependency must never
 // take a page down or blow the p99 budget. Two tools cover that:
 //
-//   * withTimeout — bound any awaited dependency so a hung responder degrades
+//   * withTimeout: bound any awaited dependency so a hung responder degrades
 //     fast instead of hanging SSR to a gateway 500.
-//   * CircuitBreaker — once a dependency is failing, stop calling it (fail fast
+//   * CircuitBreaker: once a dependency is failing, stop calling it (fail fast
 //     to the fallback) until it recovers, so one bad dependency does not burn
 //     the timeout budget on every request.
 

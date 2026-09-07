@@ -6,12 +6,12 @@
 //
 // Token model (least privilege): every service must resolve its own
 // DOPPLER_TOKEN_<SERVICE>, scoped to that one project (users/commands/…).
-// There is deliberately NO broad-token fallback — DOPPLER_MANAGEMENT_TOKEN /
+// There is deliberately NO broad-token fallback: DOPPLER_MANAGEMENT_TOKEN /
 // generic DOPPLER_TOKEN used to be consulted when a scoped token was missing,
 // which turned any console-admin compromise into read access to all five DB
 // projects plus token minting (red-team finding F-secrets). Missing now means
 // missing: the UI reports it instead of silently escalating privilege.
-// Minted service tokens are always read-only and scoped to a single config —
+// Minted service tokens are always read-only and scoped to a single config:
 // the narrowest credential Doppler can issue.
 import { env } from '$env/dynamic/private';
 import { nanoid } from 'nanoid';
@@ -239,7 +239,7 @@ export interface MintTokenInput {
   expireDays: number;
 }
 
-// mintServiceToken issues a READ-ONLY token scoped to one service's config —
+// mintServiceToken issues a READ-ONLY token scoped to one service's config:
 // the least-privileged credential Doppler can hand out. The key is returned
 // exactly once; it is never stored server-side.
 export async function mintServiceToken(
@@ -321,7 +321,7 @@ function dbEnvOf(cred: DbCredentialInput, svc: ServiceDef): Record<string, strin
 // The namespace check matters on the write paths, not just revokes: every
 // caller hands the resulting user to provisionDbUser, which GRANTs it on that
 // service's schema. Without it, naming another service's user here would widen
-// that user's access to this schema too — the one thing the per-service
+// that user's access to this schema too, the one thing the per-service
 // schema+user split exists to prevent.
 function assertManageable(cred: Pick<DbCredentialInput, 'dbUser'>, svc: ServiceDef): void {
   assertFormat(cred.dbUser, FORMATS.dbUser);

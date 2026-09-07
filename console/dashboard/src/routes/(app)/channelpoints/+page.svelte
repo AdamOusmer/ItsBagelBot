@@ -227,7 +227,7 @@
     {/snippet}
   </PageToolbar>
 
-  <!-- The deck: ledger list left, docked inspector right — same layout as the
+  <!-- The deck: ledger list left, docked inspector right, same layout as the
        commands page, so the two management screens read as one system. -->
   <div class="deck {editorDraft ? 'inspecting' : ''}">
     <DeckList>

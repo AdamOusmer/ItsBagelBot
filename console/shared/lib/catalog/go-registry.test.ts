@@ -6,7 +6,7 @@
 // contract runs across languages (app/twitch/sesame/modules/*.go and, for timers,
 // app/twitch/sesame/engine/timers_valkey.go). The TypeScript-side test in
 // ../module-catalog.test.ts only proves MOD and the catalog agree with each
-// other — both sides could agree on a name Go stopped using, and the symptom
+// other: both sides could agree on a name Go stopped using, and the symptom
 // is silent: upsertModule writes a row nothing reads, the feature is simply
 // dead for every broadcaster who toggles it.
 //
@@ -56,7 +56,7 @@ function goSourcesIn(dir: string): string[] {
   const abs = join(SESAME, dir);
   // A hard failure, not a skip: a moved sesame tree must break this test rather
   // than let it pass over nothing.
-  if (!existsSync(abs)) throw new Error(`sesame source not found at ${abs} — fix this test's path, do not delete it`);
+  if (!existsSync(abs)) throw new Error(`sesame source not found at ${abs}. Fix this test's path, do not delete it`);
   return readdirSync(abs)
     .filter((name) => name.endsWith('.go') && !name.endsWith('_test.go'))
     .map((name) => readFileSync(join(abs, name), 'utf8'));
@@ -69,7 +69,7 @@ function matches(re: RegExp): RegExpMatchArray[] {
 }
 
 // Every `<ident>ModuleName = "<name>"` constant, keyed by identifier. These are
-// the ModuleView keys, including the ones no module.NewModule call names —
+// the ModuleView keys, including the ones no module.NewModule call names:
 // timers is written by the dashboard and read by the engine's Valkey clock, so
 // it has a key without being a module.
 function moduleNameConstants(): Map<string, string> {
