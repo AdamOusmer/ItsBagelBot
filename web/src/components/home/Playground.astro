@@ -89,7 +89,7 @@ const playStrings = {
                     autocomplete="off"
                     spellcheck="false"
                 />
-                <button class="play__send" type="submit" aria-label={t('play.sendAria')}>↵</button>
+                <button class="bb-btn bb-btn--primary play__send" type="submit" aria-label={t('play.sendAria')}>↵</button>
             </form>
         </div>
     </div>
@@ -380,26 +380,18 @@ const playStrings = {
         box-shadow: 0 0 0 3px rgba(201, 168, 124, 0.08);
     }
 
+    /* Square send key: the .bb-btn frame with the mark suppressed, since
+       the glyph is the label. */
     .play__send {
         flex-shrink: 0;
         width: 42px;
-        border-radius: 10px;
-        background: var(--tan, #c9a87c);
-        color: var(--black, #0a0a0a);
-        font-family: var(--font-mono, "DM Mono", monospace);
+        padding: 0;
+        justify-content: center;
         font-size: 0.9rem;
-        transition: background 200ms ease, transform 200ms var(--ease-out-back);
     }
 
-    @media (hover: hover) and (pointer: fine) {
-        .play__send:hover {
-            background: var(--tan-light, #e0c49a);
-            transform: translateY(-1px);
-        }
-    }
-
-    .play__send:active {
-        transform: scale(0.94);
+    .play__send::before {
+        content: none;
     }
 
     @media (prefers-reduced-motion: reduce) {

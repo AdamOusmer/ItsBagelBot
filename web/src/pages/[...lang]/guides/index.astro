@@ -6,10 +6,12 @@
 // content file (meta.card), so the hub can never describe a guide that no
 // longer says that; order and numbering come from the slug list.
 //
-// Order on the page: the command builder first (the thing most people came
-// for), then the five guides as one calm list, then where to ask.
+// Layout, top to bottom: the command builder as a wide banded Card (the thing
+// most visitors came for), the first guide as a wide Card (the starting
+// point), the remaining guides in two columns, then where to ask.
 import Layout from '../../../layouts/Layout.astro';
 import PageHero from '../../../components/ui/PageHero.astro';
+import Card from '../../../components/ui/Card.astro';
 import GuideCard from '../../../components/guides/GuideCard.astro';
 import TextLink from '../../../components/ui/TextLink.astro';
 import { getLangFromUrl, locales, defaultLang } from '../../../i18n/ui';
@@ -26,34 +28,40 @@ const guides = guideSlugs.map((slug) => ({
     href: guidePath(slug, lang),
     ...getGuide(slug, lang).meta.card,
 }));
+const [first, ...rest] = guides;
 ---
 
 <Layout title={hub.meta.title} description={hub.meta.description} ogType="article">
     <PageHero eyebrow={hub.meta.eyebrow} title={hub.meta.heading} description={hub.meta.lead} />
 
     <section class="ghub">
-        <!-- The builder: a workbench, not a guide. One flat plate, copy and a
-             real button on the left, the rehearsal on the right. The whole
-             plate is the link; the cursor stays quiet on it and morphs on the
-             button only. -->
-        <a class="ghub__tool" href={hub.tool.href} data-cursor="quiet" data-reveal style="--reveal-i: 1">
-            <span class="ghub__tool-copy">
-                <span class="ghub__eyebrow">{hub.tool.eyebrow}</span>
-                <b class="ghub__tool-name">{hub.tool.name}</b>
-                <span class="ghub__tool-desc">{hub.tool.description}</span>
-                <span class="ghub__tool-btn" data-cursor>{hub.tool.cta}</span>
-            </span>
-            <span class="ghub__tool-demo" aria-hidden="true">
+        <!-- The builder: a workbench, not a guide. Same banded Card as the
+             guides; the rehearsal is the housing's visual, the body carries a
+             solid button. The whole card is the link; the cursor stays quiet
+             on it and morphs on the button only. -->
+        <Card as="a" href={hub.tool.href} label={hub.tool.eyebrow} class="ghub__tool" data-cursor="quiet" data-reveal style="--reveal-i: 1">
+            <span class="ghub__tool-demo" slot="band" aria-hidden="true">
                 <span class="ghub__tool-line" set:html={hub.tool.demoIn}></span>
                 <span class="ghub__tool-line ghub__tool-line--out" set:html={hub.tool.demoOut}></span>
             </span>
-        </a>
+            <span class="ghub__tool-body">
+                <span class="ghub__tool-copy">
+                    <b class="ghub__tool-name">{hub.tool.name}</b>
+                    <span class="ghub__tool-desc">{hub.tool.description}</span>
+                </span>
+                <span class="ghub__tool-btn" data-cursor>{hub.tool.cta}</span>
+            </span>
+        </Card>
 
-        <ol class="ghub__list" aria-label={hub.meta.eyebrow}>
-            {guides.map((guide, i) => (
-                <li><GuideCard {...guide} cta={hub.readCta} revealIndex={Math.min(i + 2, 6)} /></li>
+        <div class="ghub__start">
+            <GuideCard {...first} cta={hub.readCta} wide revealIndex={2} />
+        </div>
+
+        <div class="ghub__grid">
+            {rest.map((guide, i) => (
+                <GuideCard {...guide} cta={hub.readCta} revealIndex={Math.min(i + 3, 6)} />
             ))}
-        </ol>
+        </div>
 
         <div class="ghub__help" data-reveal style="--reveal-i: 6">
             <p>{hub.help.prompt}</p>
@@ -68,33 +76,22 @@ const guides = guideSlugs.map((slug) => ({
 
 <style>
     .ghub {
-        width: min(880px, calc(100% - 48px));
+        width: min(var(--content-max, 1200px), calc(100% - 48px));
         margin: 0 auto;
         padding: 0 0 110px;
     }
 
-    .ghub__eyebrow {
-        display: block;
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.72rem;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
-        color: var(--green-glow, #52b788);
-        margin-bottom: 12px;
+    /* ── Builder card ── */
+    .ghub__tool {
+        --card-band-h: 128px;
+        margin-bottom: 40px;
     }
 
-    /* ── Builder plate ── */
-    .ghub__tool {
+    .ghub__tool-body {
         display: grid;
-        grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+        grid-template-columns: minmax(0, 1fr) auto;
         align-items: center;
-        gap: 32px;
-        padding: 30px 32px;
-        background: var(--card-bg, #111110);
-        border: 1px solid var(--border, rgba(201, 168, 124, 0.15));
-        border-radius: var(--radius-card, 16px);
-        text-decoration: none;
-        transition: border-color 360ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+        gap: 16px 40px;
     }
 
     .ghub__tool-copy { display: block; min-width: 0; }
@@ -106,7 +103,7 @@ const guides = guideSlugs.map((slug) => ({
         font-weight: 800;
         letter-spacing: -0.02em;
         color: var(--white, #f0ece4);
-        margin-bottom: 10px;
+        margin-bottom: 8px;
     }
 
     .ghub__tool-desc {
@@ -115,17 +112,17 @@ const guides = guideSlugs.map((slug) => ({
         font-size: 0.98rem;
         line-height: 1.65;
         color: #a39c92;
-        max-width: 46ch;
-        margin-bottom: 20px;
+        max-width: 60ch;
     }
 
     /* Same shape as ui/Buttons/MainButton, as a span (this sits inside a link). */
     .ghub__tool-btn {
         display: inline-block;
+        white-space: nowrap;
         font-family: var(--font-display, "Syne", sans-serif);
         font-weight: 700;
         font-size: 0.92rem;
-        padding: 13px 26px;
+        padding: 14px 28px;
         background: var(--tan, #c9a87c);
         color: var(--black, #0a0a0a);
         border-radius: 4px;
@@ -133,19 +130,16 @@ const guides = guideSlugs.map((slug) => ({
         transition: background 240ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
     }
 
-    /* Rehearsal: the request, a thin tan rule, the bot's reply. Inset on the
-       page ink so it reads as a screen, not as more plate. */
+    /* Rehearsal in the housing: the request, a thin tan rule, the bot's reply. */
     .ghub__tool-demo {
         display: flex;
         flex-direction: column;
         justify-content: center;
         gap: 10px;
-        padding: 18px 20px;
-        background: var(--black, #0a0a0a);
-        border: 1px solid rgba(201, 168, 124, 0.12);
-        border-radius: var(--radius-sm, 6px);
+        height: 100%;
+        padding-right: 140px;
         font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.78rem;
+        font-size: 0.8rem;
         line-height: 1.6;
     }
 
@@ -179,7 +173,6 @@ const guides = guideSlugs.map((slug) => ({
     .ghub__tool-line--out :global(b) { font-weight: 700; }
 
     @media (hover: hover) and (pointer: fine) {
-        .ghub__tool:hover { border-color: rgba(201, 168, 124, 0.38); }
         .ghub__tool:hover .ghub__tool-btn { background: var(--tan-light, #e0c49a); }
     }
 
@@ -188,13 +181,19 @@ const guides = guideSlugs.map((slug) => ({
         outline-offset: 3px;
     }
 
-    /* ── Guide list ── */
-    .ghub__list {
+    /* ── Guides ── */
+    /* One housing height per section so every seam in a row lands on the
+       same line (Card's band is a fixed height). */
+    .ghub__start {
+        --card-band-h: 92px;
+        margin-bottom: 20px;
+    }
+
+    .ghub__grid {
+        --card-band-h: 108px;
         display: grid;
-        gap: 12px;
-        list-style: none;
-        margin: 36px 0 0;
-        padding: 0;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 20px;
     }
 
     /* ── Help strip ── */
@@ -218,16 +217,17 @@ const guides = guideSlugs.map((slug) => ({
 
     .ghub__help div { display: flex; flex-wrap: wrap; gap: 20px; }
 
+    @media (max-width: 860px) {
+        .ghub__grid { grid-template-columns: 1fr; }
+        .ghub__tool-body { grid-template-columns: 1fr; }
+        .ghub__tool-demo { padding-right: 0; }
+    }
+
     @media (max-width: 760px) {
         .ghub { width: calc(100% - 32px); }
-        .ghub__tool {
-            grid-template-columns: 1fr;
-            gap: 20px;
-            padding: 24px 22px;
-        }
     }
 
     @media (prefers-reduced-motion: reduce) {
-        .ghub__tool, .ghub__tool-btn { transition: none; }
+        .ghub__tool-btn { transition: none; }
     }
 </style>

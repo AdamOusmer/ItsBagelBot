@@ -3,14 +3,17 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 /**
- * GuideCard: one row on the guides hub. A flat plate on purpose (no band, no
- * atmosphere, no lift): five of them stack, and five glowing housings read as
- * a wall. The whole row is the link, but the row carries data-cursor="quiet"
- * so the custom cursor does not stamp itself onto 700px of card; the button
- * inside is the one element that takes the morph, and it fills on row hover
- * so the affordance is obvious from anywhere on the row. The button is a
- * <span>: an <a> inside an <a> is not allowed.
+ * GuideCard: one entry on the guides hub, on the shared banded ui/Card. The
+ * housing holds the guide's chips (the tokens and commands it teaches) as
+ * the visual and the index as the mono channel label; the plate holds title,
+ * one line, reading time and a real button. The whole card is the link, and
+ * it carries data-cursor="quiet" so the custom cursor does not stamp itself
+ * onto the entire card; the button is the one element that takes the morph,
+ * and it fills on card hover so the affordance shows from anywhere on the
+ * card. The button is a <span>: an <a> inside an <a> is not allowed.
  */
+import Card from '../ui/Card.astro';
+
 interface Props {
     index: string;
     href: string;
@@ -19,63 +22,78 @@ interface Props {
     meta: string;
     /** Small mono chips naming what's inside (e.g. "!commands", "variables"). */
     chips?: string[];
-    /** Button label, from the hub content (same in every row). */
+    /** Button label, from the hub content (same on every card). */
     cta: string;
+    /** Full-width card: chips and copy get more room. */
+    wide?: boolean;
     revealIndex?: number;
 }
 
-const { index, href, title, description, meta, chips = [], cta, revealIndex = 0 } = Astro.props;
+const { index, href, title, description, meta, chips = [], cta, wide = false, revealIndex = 0 } = Astro.props;
 ---
 
-<a class="gcard" href={href} data-cursor="quiet" data-reveal style={`--reveal-i: ${revealIndex}`}>
-    <span class="gcard__index" aria-hidden="true">{index}</span>
+<Card
+    as="a"
+    href={href}
+    label={index}
+    class:list={['gcard', { 'gcard--wide': wide }]}
+    data-cursor="quiet"
+    data-reveal
+    style={`--reveal-i: ${revealIndex}`}
+>
+    <span class="gcard__chips" slot="band" aria-hidden="true">
+        {chips.map((chip) => <i>{chip}</i>)}
+    </span>
     <span class="gcard__body">
         <b class="gcard__title">{title}</b>
         <span class="gcard__desc">{description}</span>
-        <span class="gcard__meta">
-            <span>{meta}</span>
-            {chips.map((chip) => <i class="bb-tag bb-tag--bare">{chip}</i>)}
+        <span class="gcard__foot">
+            <span class="gcard__meta">{meta}</span>
+            <span class="gcard__btn" data-cursor>{cta}</span>
         </span>
     </span>
-    <span class="gcard__btn" data-cursor>{cta}</span>
-</a>
+</Card>
 
 <style>
-    .gcard {
-        display: grid;
-        grid-template-columns: 44px 1fr auto;
+    /* Chips are the band's visual: mono tokens on the page ink, wrapped and
+       vertically centered in the housing. */
+    .gcard__chips {
+        display: flex;
+        flex-wrap: wrap;
+        align-content: center;
         align-items: center;
-        gap: 20px 24px;
-        padding: 24px 26px;
-        background: var(--card-bg, #111110);
-        border: 1px solid var(--border, rgba(201, 168, 124, 0.15));
-        border-radius: var(--radius-card, 16px);
-        text-decoration: none;
-        transition: border-color 360ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+        gap: 8px;
+        height: 100%;
+        padding-right: 48px;
     }
 
-    .gcard__index {
+    .gcard__chips i {
+        font-style: normal;
         font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.78rem;
-        letter-spacing: 0.12em;
-        color: var(--tan, #c9a87c);
-        align-self: start;
-        padding-top: 4px;
+        font-size: 0.72rem;
+        letter-spacing: 0.04em;
+        color: var(--tan-light, #e0c49a);
+        padding: 4px 9px;
+        border: 1px solid rgba(201, 168, 124, 0.22);
+        border-radius: var(--radius-sm, 6px);
+        background: rgba(201, 168, 124, 0.05);
     }
 
     .gcard__body {
-        display: block;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
         min-width: 0;
     }
 
     .gcard__title {
         display: block;
         font-family: var(--font-display, "Syne", sans-serif);
-        font-size: clamp(1.1rem, 2vw, 1.35rem);
+        font-size: clamp(1.15rem, 2vw, 1.4rem);
         font-weight: 700;
         letter-spacing: -0.015em;
         color: var(--white, #f0ece4);
-        margin-bottom: 6px;
+        margin-bottom: 8px;
     }
 
     .gcard__desc {
@@ -84,35 +102,37 @@ const { index, href, title, description, meta, chips = [], cta, revealIndex = 0 
         font-size: 0.96rem;
         line-height: 1.6;
         color: #a39c92;
-        max-width: 60ch;
-        margin-bottom: 12px;
+        max-width: 58ch;
+        margin-bottom: 18px;
     }
 
-    .gcard__meta {
+    /* Meta on the left, button on the right, pinned to the plate's bottom so
+       every card in a row lines its button up. */
+    .gcard__foot {
         display: flex;
         flex-wrap: wrap;
         align-items: center;
-        gap: 8px 10px;
+        justify-content: space-between;
+        gap: 12px;
+        margin-top: auto;
+    }
+
+    .gcard__meta {
         font-family: var(--font-mono, "DM Mono", monospace);
         font-size: 0.68rem;
         letter-spacing: 0.08em;
         color: var(--muted, #888077);
-    }
-
-    .gcard__meta i {
-        font-style: normal;
-        color: var(--tan-light, #e0c49a);
+        white-space: nowrap;
     }
 
     /* Same shape as ui/Buttons/SecondaryButton, as a span. */
     .gcard__btn {
-        justify-self: end;
         white-space: nowrap;
         font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.74rem;
+        font-size: 0.72rem;
         letter-spacing: 0.06em;
         text-transform: uppercase;
-        padding: 10px 18px;
+        padding: 9px 16px;
         border: 1px solid var(--tan, #c9a87c);
         border-radius: 4px;
         color: var(--tan-light, #e0c49a);
@@ -122,26 +142,39 @@ const { index, href, title, description, meta, chips = [], cta, revealIndex = 0 
     }
 
     @media (hover: hover) and (pointer: fine) {
-        .gcard:hover { border-color: rgba(201, 168, 124, 0.38); }
-        .gcard:hover .gcard__btn { background: var(--tan, #c9a87c); color: var(--black, #0a0a0a); }
+        :global(.gcard:hover) .gcard__btn { background: var(--tan, #c9a87c); color: var(--black, #0a0a0a); }
     }
 
-    .gcard:focus-visible {
+    :global(.gcard:focus-visible) {
         outline: 2px solid var(--green-glow, #52b788);
         outline-offset: 3px;
     }
 
+    /* The wide card (the starting point) puts copy and button side by side. */
+    :global(.gcard--wide) .gcard__body {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: end;
+        gap: 8px 32px;
+    }
+    :global(.gcard--wide) .gcard__title { grid-column: 1; }
+    :global(.gcard--wide) .gcard__desc { grid-column: 1; margin-bottom: 0; }
+    :global(.gcard--wide) .gcard__foot {
+        grid-column: 2;
+        grid-row: 1 / span 2;
+        flex-direction: column;
+        align-items: flex-end;
+        margin-top: 0;
+    }
+
     @media (max-width: 640px) {
-        .gcard {
-            grid-template-columns: 1fr;
-            gap: 10px;
-            padding: 20px;
-        }
-        .gcard__index { padding-top: 0; }
-        .gcard__btn { justify-self: start; }
+        :global(.gcard--wide) .gcard__body { display: flex; align-items: stretch; }
+        :global(.gcard--wide) .gcard__desc { margin-bottom: 18px; }
+        :global(.gcard--wide) .gcard__foot { flex-direction: row; align-items: center; }
+        .gcard__chips { padding-right: 0; }
     }
 
     @media (prefers-reduced-motion: reduce) {
-        .gcard, .gcard__btn { transition: none; }
+        .gcard__btn { transition: none; }
     }
 </style>

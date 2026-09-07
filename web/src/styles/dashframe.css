@@ -415,35 +415,74 @@
     border-color: var(--tan, #c9a87c);
 }
 
-/* Buttons. */
+/* Buttons. Same "Mark" system as .bb-btn in style.css: 1px frame, nothing
+   filled at rest, a rotated-square mark carrying the state. The mocks keep
+   their own type scale (the frame is a reduced-size console screenshot, so
+   the 12.5px live size would read as oversized here); every other value is
+   the spec's. No hover states: these are <span> mockups, not controls. */
 .df-btn {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 7px 14px;
-    border-radius: 8px;
-    font-family: var(--font-display, "Syne", sans-serif);
+    gap: 9px;
+    padding: 7px 12px 7px 10px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm, 6px);
+    background: transparent;
+    font-family: var(--font-mono, "DM Mono", monospace);
     font-size: 0.7rem;
-    font-weight: 700;
+    letter-spacing: 0.04em;
+    line-height: 1;
     white-space: nowrap;
 }
 
-.df-btn--primary { color: #07120d; background: var(--green-glow, #52b788); }
-.df-btn--tan { color: #131210; background: var(--tan, #c9a87c); }
-.df-btn--ghost { color: #aaa299; border: 1px solid rgba(201, 168, 124, 0.2); }
+.df-btn::before {
+    content: "";
+    flex-shrink: 0;
+    box-sizing: border-box;
+    width: 4px;
+    height: 4px;
+    border: 1px solid currentColor;
+    background: transparent;
+    transform: rotate(45deg);
+}
+
+.df-btn--primary { border-color: var(--tan, #c9a87c); color: var(--tan-light, #e0c49a); }
+.df-btn--tan { border-color: rgba(201, 168, 124, 0.28); color: var(--tan-light, #e0c49a); }
+.df-btn--ghost { border-color: transparent; color: var(--muted, #888077); }
+.df-btn--ghost::before {
+    width: 6px;
+    height: 1px;
+    border: 0;
+    background: currentColor;
+    transform: none;
+}
 
 .df-btn--configure {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    padding: 5px 10px 5px 8px;
+    border: 1px solid rgba(201, 168, 124, 0.28);
+    border-radius: var(--radius-sm, 6px);
+    background: transparent;
     font-family: var(--font-mono, "DM Mono", monospace);
-    font-weight: 500;
     font-size: 0.54rem;
     letter-spacing: 0.1em;
+    line-height: 1;
     text-transform: uppercase;
-    color: #bbb2a9;
-    border: 1px solid rgba(201, 168, 124, 0.18);
-    border-radius: 99px;
-    padding: 5px 10px;
-    background: rgba(240, 236, 228, 0.03);
+    color: var(--tan-light, #e0c49a);
+    white-space: nowrap;
+}
+
+.df-btn--configure::before {
+    content: "";
+    flex-shrink: 0;
+    box-sizing: border-box;
+    width: 4px;
+    height: 4px;
+    border: 1px solid currentColor;
+    background: transparent;
+    transform: rotate(45deg);
 }
 
 .df-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
