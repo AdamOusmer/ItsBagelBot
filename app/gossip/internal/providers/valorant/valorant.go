@@ -640,10 +640,7 @@ func (p *api) matchesFetch(ctx context.Context, req gossiprpc.Request, id provid
 			entry.ACS = float64(player.Statistics.Score) / float64(rounds)
 		}
 		entry.ACS = float64(int(entry.ACS*10+0.5)) / 10
-		entry.AgoSeconds = int64(now.Sub(match.Metadata.StartedAt).Seconds())
-		if entry.AgoSeconds < 0 {
-			entry.AgoSeconds = 0
-		}
+		entry.AgoSeconds = max(int64(now.Sub(match.Metadata.StartedAt).Seconds()), 0)
 		entries = append(entries, entry)
 	}
 	return matchesReply{
