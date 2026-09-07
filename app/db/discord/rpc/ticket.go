@@ -45,10 +45,10 @@ func (h ticketRPC) open(ctx context.Context, req discorddata.TicketOpenRequest) 
 
 		PanelMessageID: req.PanelMessageID,
 	})
+	// The count travels even on a refusal: at CodeLimit it is how many
+	// tickets the opener already holds, which is what the ephemeral reply
+	// names back to them. So this one verb does not go through reply().
 	if err != nil {
-		// The count travels even on a refusal: at CodeLimit it is how many
-		// tickets the opener already holds, which is what the ephemeral reply
-		// names back to them.
 		return discorddata.TicketOpenReply{OpenCount: count, Refusal: refusal(err)}
 	}
 	return discorddata.TicketOpenReply{TicketID: id, OpenCount: count}
@@ -59,10 +59,7 @@ func (h ticketRPC) claim(ctx context.Context, req discorddata.TicketClaimRequest
 		Key:     ticketKey(req.GuildID, req.ChannelID),
 		StaffID: req.StaffID,
 	})
-	if err != nil {
-		return discorddata.TicketClaimReply{Refusal: refusal(err)}
-	}
-	return discorddata.TicketClaimReply{TicketID: id}
+	return reply(err, func() discorddata.TicketClaimReply { return discorddata.TicketClaimReply{TicketID: id} })
 }
 
 func (h ticketRPC) close(ctx context.Context, req discorddata.TicketCloseRequest) discorddata.TicketCloseReply {
@@ -71,31 +68,21 @@ func (h ticketRPC) close(ctx context.Context, req discorddata.TicketCloseRequest
 		ClosedBy:          req.ClosedBy,
 		ArchivedChannelID: req.ArchivedChannelID,
 	})
-	if err != nil {
-		return discorddata.TicketCloseReply{Refusal: refusal(err)}
-	}
-	return discorddata.TicketCloseReply{TicketID: id, OpenerID: openerID}
+	return reply(err, func() discorddata.TicketCloseReply {
+		return discorddata.TicketCloseReply{TicketID: id, OpenerID: openerID}
+	})
 }
 
 func (h ticketRPC) get(ctx context.Context, req discorddata.TicketGetRequest) discorddata.TicketGetReply {
 	row, found, err := h.repo.TicketGet(ctx, ticketKey(req.GuildID, req.ChannelID))
-	if err != nil {
-		return discorddata.TicketGetReply{Refusal: refusal(err)}
-	}
-	if !found {
-		return discorddata.TicketGetReply{}
-	}
-	return discorddata.TicketGetReply{Ticket: ticketView(row), Found: true}
+	return lookup(found, err, func() discorddata.TicketGetReply {
+		return discorddata.TicketGetReply{Ticket: ticketView(row), Found: true}
+	})
 }
 
 func (h ticketRPC) count(ctx context.Context, req discorddata.TicketCountRequest) discorddata.TicketCountReply {
-	n, err := h.repo.TicketOpenCount(ctx, repository.MemberKey{
-		GuildID: req.GuildID, MemberID: req.OpenerID,
-	})
-	if err != nil {
-		return discorddata.TicketCountReply{Refusal: refusal(err)}
-	}
-	return discorddata.TicketCountReply{Count: n}
+	n, err := h.repo.TicketOpenCount(ctx, repository.MemberKey{GuildID: req.GuildID, MemberID: req.OpenerID})
+	return reply(err, func() discorddata.TicketCountReply { return discorddata.TicketCountReply{Count: n} })
 }
 
 func (h ticketRPC) list(ctx context.Context, req discorddata.TicketListRequest) discorddata.TicketListReply {
@@ -105,14 +92,13 @@ func (h ticketRPC) list(ctx context.Context, req discorddata.TicketListRequest) 
 		Limit:   req.Limit,
 		Cursor:  req.Cursor,
 	})
-	if err != nil {
-		return discorddata.TicketListReply{Refusal: refusal(err)}
-	}
-	views := make([]discorddata.Ticket, 0, len(rows))
-	for _, row := range rows {
-		views = append(views, ticketView(row))
-	}
-	return discorddata.TicketListReply{Tickets: views, NextCursor: next}
+	return reply(err, func() discorddata.TicketListReply {
+		views := make([]discorddata.Ticket, 0, len(rows))
+		for _, row := range rows {
+			views = append(views, ticketView(row))
+		}
+		return discorddata.TicketListReply{Tickets: views, NextCursor: next}
+	})
 }
 
 func (h ticketRPC) transcriptPut(ctx context.Context, req discorddata.TranscriptPutRequest) discorddata.TranscriptPutReply {
@@ -122,21 +108,16 @@ func (h ticketRPC) transcriptPut(ctx context.Context, req discorddata.Transcript
 
 func (h ticketRPC) transcriptGet(ctx context.Context, req discorddata.TranscriptGetRequest) discorddata.TranscriptGetReply {
 	row, found, err := h.repo.TranscriptGet(ctx, req.TicketID)
-	if err != nil {
-		return discorddata.TranscriptGetReply{Refusal: refusal(err)}
-	}
-	if !found {
-		return discorddata.TranscriptGetReply{}
-	}
-	return discorddata.TranscriptGetReply{
-		Body:           row.Body,
-		MessageCount:   row.MessageCount,
-		StoredAtUnixMs: unixMs(row.StoredAt),
-		Found:          true,
-	}
+	return lookup(found, err, func() discorddata.TranscriptGetReply {
+		return discorddata.TranscriptGetReply{
+			Body:           row.Body,
+			MessageCount:   row.MessageCount,
+			StoredAtUnixMs: unixMs(row.StoredAt),
+			Found:          true,
+		}
+	})
 }
 
-// ticketView renders one stored row onto the wire type.
 func ticketView(row *ent.Ticket) discorddata.Ticket {
 	return discorddata.Ticket{
 		ID:                row.ID,

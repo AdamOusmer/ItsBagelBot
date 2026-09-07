@@ -208,6 +208,10 @@ type Refusal struct {
 	Code  string `json:"code,omitempty"`
 }
 
+// Refuse stamps the refusal onto a reply that embeds it, which lets a
+// handler build any of those replies through one generic helper.
+func (r *Refusal) Refuse(v Refusal) { *r = v }
+
 type TicketOpenReply struct {
 	TicketID  int `json:"ticket_id"`
 	OpenCount int `json:"open_count"`

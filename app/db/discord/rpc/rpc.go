@@ -114,6 +114,36 @@ func serve[Req, Rep any](w Wiring, verb string, h func(context.Context, Req) Rep
 // failure maps a repository error onto the reply's (error, code) pair. The
 // code is what callers switch on; the message is for logs and for the one
 // release during which the console still reads text.
+// refusing is any reply that embeds discorddata.Refusal.
+type refusing interface{ Refuse(discorddata.Refusal) }
+
+// reply is the shape every data verb answers with: an error becomes the
+// refusal, otherwise hit renders the success reply. lookup adds the miss
+// case for reads that may find nothing. The handlers used to spell these
+// three branches out per verb, which is what CodeScene flagged as eight
+// copies of the same block.
+func reply[Rep any, PR interface {
+	*Rep
+	refusing
+}](err error, hit func() Rep) Rep {
+	return lookup[Rep, PR](true, err, hit)
+}
+
+func lookup[Rep any, PR interface {
+	*Rep
+	refusing
+}](found bool, err error, hit func() Rep) Rep {
+	var zero Rep
+	if err != nil {
+		PR(&zero).Refuse(refusal(err))
+		return zero
+	}
+	if !found {
+		return zero
+	}
+	return hit()
+}
+
 // refusal is failure() shaped for the reply types that embed Refusal.
 func refusal(err error) discorddata.Refusal {
 	message, code := failure(err)
