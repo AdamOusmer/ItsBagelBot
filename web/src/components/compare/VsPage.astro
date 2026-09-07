@@ -37,7 +37,10 @@ const DASHBOARD_LOGIN = 'https://dashboard.itsbagelbot.com/auth/login';
 />
 
 <section class="vs">
-    <div class="vs__tablewrap">
+    {/* The reveal rides the wrapper, not the rows: overflow-x auto makes the
+        wrapper a scroll container on both axes, so per-row translateY spawns
+        a vertical scrollbar for the length of the entrance animation. */}
+    <div class="vs__tablewrap" data-reveal>
         <table class="vs__table">
             <thead>
                 <tr>
@@ -47,8 +50,8 @@ const DASHBOARD_LOGIN = 'https://dashboard.itsbagelbot.com/auth/login';
                 </tr>
             </thead>
             <tbody>
-                {rows.map((row, i) => (
-                    <tr data-reveal style={`--reveal-i: ${i}`}>
+                {rows.map((row) => (
+                    <tr>
                         <th scope="row">{row.label}</th>
                         <td>{row.us}</td>
                         <td>{row.them}</td>

@@ -106,6 +106,9 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
                 {t('games.valTitle')}
             </h3>
             <p class="games__desc">{t('games.valDesc')}</p>
+            <a class="bb-rail bb-rail--go games__more" href={localizePath('/valorant-stats', lang)}>
+                {t('rail.learnMore')}<span class="bb-rail__arrow" aria-hidden="true">→</span>
+            </a>
         </Card>
 
         <!-- Clash Royale -->
@@ -183,6 +186,8 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
         color: var(--white, #f0ece4);
         margin: 0 0 8px;
     }
+
+    .games__more { margin-top: 14px; align-self: flex-start; }
 
     .games__desc {
         font-family: var(--font-body, "DM Sans", sans-serif);
