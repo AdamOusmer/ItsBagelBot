@@ -245,8 +245,7 @@
   "games.valCh": "valorant · ch 03",
   "games.crCh": "clash · ch 04",
   "games.reqCh": "demandes · ouvert",
-  "games.legal": "ItsBagelBot n'est pas un service Minecraft officiel et n'est ni approuvé par ni associé à Mojang ou Microsoft. Non affilié à ni approuvé par Hypixel Inc. ou MCSR Ranked. Les données Hypixel sont récupérées via l'API officielle Hypixel, avec une clé développeur liée au compte Minecraft {ign}, développeur et propriétaire d'ItsBagelBot. Certains éléments utilisés sont des marques et/ou des œuvres protégées d'Epic Games, Inc. Non approuvé par Epic Games. Non affilié à ni approuvé par Riot Games. Ce contenu n'est pas affilié à, ni approuvé, sponsorisé ou spécifiquement validé par Supercell, et Supercell n'en est pas responsable ; voir la Politique de contenu fan de Supercell : supercell.com/en/fan-content-policy.",
-  "games.legalShort": "ItsBagelBot n'est affilié à aucun éditeur de jeux. Les mentions de marques complètes figurent dans le pied de page.",
+  "games.legalShort": "ItsBagelBot n'est affilié à aucun éditeur de jeux. Les mentions de marques complètes figurent dans les {terms}.",
   "about.line1": "ItsBagelBot est développé et opéré par {ign}.",
   "about.mcLine": "Les stats de jeux passent par l'API officielle Hypixel, avec la clé développeur enregistrée au compte Minecraft {ign}.",
   "qw.eyebrow": "Le travail discret",
@@ -369,5 +368,6 @@
   "guide.hub": "Tous les guides",
   "guide.prevLabel": "Guide précédent",
   "guide.nextLabel": "Guide suivant",
-  "skip.toContent": "Aller au contenu"
+  "skip.toContent": "Aller au contenu",
+  "games.legalTermsLabel": "Conditions d'utilisation"
 }
