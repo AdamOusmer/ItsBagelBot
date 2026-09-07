@@ -18,6 +18,10 @@ export interface ModuleField {
   help?: string;
   // options drive a 'select' field.
   options?: { value: string; label: string }[];
+  // hidden keeps the key in the stored config (allowedConfigKeys) without
+  // rendering a control. Used for derived values like a resolved Minecraft
+  // UUID that sesame reads but the broadcaster never types.
+  hidden?: boolean;
   // followsLevel marks a 'toggle' whose unset state follows the module's
   // "level" select (see automodToggleDefault): the blob only stores an
   // explicit "on"/"off" once the user flips it.

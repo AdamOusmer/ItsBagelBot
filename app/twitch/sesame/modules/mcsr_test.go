@@ -86,6 +86,36 @@ func TestMcsrStreamOnlineSnapshots(t *testing.T) {
 	assert.Equal(t, "2", call.req.ChannelID)
 }
 
+func TestMcsrStreamOnlinePrefersStoredUUID(t *testing.T) {
+	done := make(chan struct{})
+	gw := &fakeGossip{
+		replies: map[string]any{"mcsr.session_start": gossiprpc.McsrSnapshotReply{Nickname: "Feinberg", Elo: 1650}},
+		done:    done,
+	}
+	m := mcsrModule(gw)
+	h := m.Events["stream.online"]
+	require.NotNil(t, h)
+
+	c := &module.Context{
+		Env: lane.Envelope{
+			Type:                 "stream.online",
+			BroadcasterUserID:    "2",
+			BroadcasterUserLogin: "streamer",
+		},
+		BroadcasterID: 2,
+		Log:           zap.NewNop(),
+		Config:        []byte(`{"account":"Feinberg","accountUuid":"deadbeefdeadbeefdeadbeefdeadbeef"}`),
+	}
+	var col collector
+	require.NoError(t, h(context.Background(), c, col.emit))
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("stream.online never called gossip")
+	}
+	assert.Equal(t, "deadbeefdeadbeefdeadbeefdeadbeef", gw.lastCall(t).req.Account)
+}
+
 // --- parseMcsrSeason ---------------------------------------------------------------
 
 func TestParseMcsrSeason(t *testing.T) {

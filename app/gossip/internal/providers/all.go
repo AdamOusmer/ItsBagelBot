@@ -73,13 +73,19 @@ func appendUrchin(out []provider.Provider, cfg *config.Config, d provider.Deps, 
 }
 
 func appendHypixel(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
-	return gated(out, log, cfg.HypixelAPIKey == "", "hypixel provider disabled: HYPIXEL_API_KEY not set (!bwstats will not answer)", hypixel.New, hypixel.Config{
+	// Mojang uuid resolve does not need the Hypixel key (the dashboard stores
+	// linked-account uuids through hypixel.uuid). Without a key the provider
+	// still starts and merely skips stats — the same shop-only shape as fortnite.
+	if cfg.HypixelAPIKey == "" {
+		log.Warn("hypixel provider running uuid-only: HYPIXEL_API_KEY not set (!bwstats will not answer)")
+	}
+	return append(out, hypixel.New(hypixel.Config{
 		BaseURL:         cfg.HypixelBaseURL,
 		MojangBaseURL:   cfg.MojangBaseURL,
 		APIKey:          cfg.HypixelAPIKey,
 		RateLimit:       cfg.HypixelRateLimit,
 		MojangRateLimit: cfg.MojangRateLimit,
-	}, d)
+	}, d))
 }
 
 func appendMcsr(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {

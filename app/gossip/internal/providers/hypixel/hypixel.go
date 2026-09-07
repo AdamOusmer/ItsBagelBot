@@ -9,9 +9,11 @@
 // sesame/console concern, not a gossip one.
 //
 // The player identifier resolves through Mojang's public profile endpoint, so
-// this provider depends on no other provider. All endpoints are byte-flow: the
-// reply is shaped and marshaled once on fetch, and a cache hit answers with
-// the stored wire bytes untouched.
+// this provider depends on no other provider. Stats is byte-flow: the reply is
+// shaped and marshaled once on fetch, and a cache hit answers with the stored
+// wire bytes untouched. hypixel.uuid is a Handle: it reuses the same Mojang
+// cache stats already fills, and stays up even when the Hypixel key is unset
+// so the dashboard can persist a linked-account uuid without !bwstats.
 package hypixel
 
 import (
@@ -23,8 +25,9 @@ import (
 	"ItsBagelBot/app/gossip/internal/core"
 	"ItsBagelBot/app/gossip/internal/provider"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
-
 	"ItsBagelBot/pkg/ratelimit"
+
+	"go.uber.org/zap"
 )
 
 const (
@@ -45,9 +48,9 @@ const (
 	mojangWindowSeconds = 600.0
 )
 
-// Config carries the provider's environment. APIKey empty = provider disabled
-// (main skips it). RateLimit is requests per 5 minutes; Hypixel personal keys
-// allow 300.
+// Config carries the provider's environment. APIKey empty = stats endpoint
+// omitted (uuid resolve still runs; Mojang needs no Hypixel key). RateLimit is
+// requests per 5 minutes; Hypixel personal keys allow 300.
 type Config struct {
 	BaseURL       string
 	MojangBaseURL string
@@ -69,6 +72,7 @@ type api struct {
 	http    *core.HTTPClient
 	mojang  *core.HTTPClient
 	cache   *core.Cache
+	log     *zap.Logger
 	limiter *ratelimit.Limiter
 	buckets core.Buckets
 	// mojangBuckets is the resolve hop's own budget. Sharing `buckets` would be
@@ -78,19 +82,23 @@ type api struct {
 	mojangBuckets core.Buckets
 }
 
-// New builds the hypixel provider: one byte-flow stats endpoint.
+// New builds the hypixel provider: Mojang uuid resolve always, and the
+// byte-flow stats endpoint when an API key is configured.
 //
 // Trusted is declared before any client exists — trust is positional — and
 // marks both dialing surfaces (Hypixel, Mojang) direct-egress.
 func New(cfg Config, d provider.Deps) provider.Provider {
 	b := provider.NewProvider(providerName, d).Trusted()
 	p := newAPI(cfg, d, b)
-	b.Endpoint("stats").Timeout(handlerTimeout).
-		Cached(statsTTL, negativeTTL).
-		Reply(statsErrReply).
-		Budget(p.statsBudget).
-		Fallback("stats lookup failed").
-		Fetch(p.statsFetch)
+	b.Endpoint("uuid").Timeout(handlerTimeout).Handle(p.uuid)
+	if cfg.APIKey != "" {
+		b.Endpoint("stats").Timeout(handlerTimeout).
+			Cached(statsTTL, negativeTTL).
+			Reply(statsErrReply).
+			Budget(p.statsBudget).
+			Fallback("stats lookup failed").
+			Fetch(p.statsFetch)
+	}
 	return b.Build()
 }
 
@@ -113,6 +121,7 @@ func newAPI(cfg Config, d provider.Deps, b *provider.Builder) *api {
 		http:          b.Client(base, map[string]string{"API-Key": cfg.APIKey}, httpTimeout),
 		mojang:        b.Client(mojangBase, nil, httpTimeout),
 		cache:         d.Cache,
+		log:           d.Logger(),
 		limiter:       d.Limiter,
 		buckets:       core.NewBuckets("ratelimit:gossip:hypixel", cfg.RateLimit, rateWindowSeconds),
 		mojangBuckets: core.NewBuckets("ratelimit:gossip:mojang", cfg.MojangRateLimit, mojangWindowSeconds),
@@ -142,11 +151,12 @@ func (p *api) statsFetch(ctx context.Context, _ gossiprpc.Request, id provider.I
 // to it, which is how a drained standard bucket denied premium callers the
 // reserve they are entitled to.
 //
-// An account given as a raw uuid needs no Mojang call and is debited for one
-// anyway. That over-counts a rare input against a budget whose purpose is to
-// stay under an allowance, which is the safe direction to be wrong in.
+// An account given as a raw uuid needs no Mojang call, so it skips that
+// bucket: linked-account configs store the uuid precisely so this hop is
+// gone, and charging it would spend Mojang's per-IP allowance on traffic
+// that never reaches Mojang.
 func (p *api) statsBudget(ctx context.Context, req gossiprpc.Request) error {
-	if err := p.mojangBuckets.Enforce(ctx, p.limiter, req.IsPremium); err != nil {
+	if err := p.debitMojangUnlessUUID(ctx, req.Account, req.IsPremium); err != nil {
 		return err
 	}
 	return p.buckets.Enforce(ctx, p.limiter, req.IsPremium)
@@ -154,57 +164,6 @@ func (p *api) statsBudget(ctx context.Context, req gossiprpc.Request) error {
 
 // accountKey normalizes the player identifier for cache keys.
 func accountKey(account string) string { return strings.ToLower(strings.TrimSpace(account)) }
-
-// --- uuid resolution (Mojang) --------------------------------------------------
-
-// mojangProfile is the api.mojang.com profile lookup body.
-type mojangProfile struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-}
-
-// looksLikeUUID reports whether account is already a uuid (32 hex chars,
-// dashes optional), in which case Mojang is skipped.
-func looksLikeUUID(account string) bool {
-	n := 0
-	for _, r := range account {
-		switch {
-		case r == '-':
-			continue
-		case r >= '0' && r <= '9', r >= 'a' && r <= 'f', r >= 'A' && r <= 'F':
-			n++
-		default:
-			return false
-		}
-	}
-	return n == 32
-}
-
-// resolveUUID turns a username into the canonical uuid via Mojang, cached for
-// a day. An unknown name is a 404 there already (204 on the legacy path is
-// also treated as missing by the empty-id check), so it negative-caches.
-//
-// The Mojang budget is spent inside the cache fill, so only a real resolve
-// costs a token and a hit costs nothing. Metering here is what keeps Mojang
-// from answering 429 on its own terms: it throttles per source IP, so an
-// unguarded resolve could exhaust the fleet's allowance while the Hypixel key
-// — whose bucket is only reached further down — still showed a full budget.
-func (p *api) resolveUUID(ctx context.Context, account string) (string, error) {
-	if looksLikeUUID(account) {
-		return strings.ReplaceAll(account, "-", ""), nil
-	}
-	key := core.Key(providerName, "uuid", accountKey(account))
-	return core.Cached(ctx, p.cache, key, uuidTTL, negativeTTL, nil, func(ctx context.Context) (string, error) {
-		var profile mojangProfile
-		if err := p.mojang.GetJSON(ctx, "/users/profiles/minecraft/"+account, nil, &profile); err != nil {
-			return "", err
-		}
-		if strings.TrimSpace(profile.ID) == "" {
-			return "", &core.UpstreamError{Status: 404, Message: "player not found"}
-		}
-		return profile.ID, nil
-	})
-}
 
 // --- lifetime stats --------------------------------------------------------------
 

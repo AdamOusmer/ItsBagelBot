@@ -285,3 +285,67 @@ func TestLooksLikeUUID(t *testing.T) {
 	assert.False(t, looksLikeUUID("Technoblade"))
 	assert.False(t, looksLikeUUID("deadbeef"))
 }
+
+func uuidHandle(t *testing.T, p provider.Provider) func(context.Context, gossiprpc.Request) any {
+	t.Helper()
+	for _, ep := range p.Endpoints() {
+		if ep.Name == "uuid" {
+			return ep.Handle
+		}
+	}
+	t.Fatal("uuid endpoint not declared")
+	return nil
+}
+
+func asUUIDReply(t *testing.T, res any) gossiprpc.HypixelUUIDReply {
+	t.Helper()
+	if v, ok := res.(gossiprpc.HypixelUUIDReply); ok {
+		return v
+	}
+	raw, ok := res.(codec.RawMessage)
+	require.True(t, ok, "unexpected handler result type %T", res)
+	var v gossiprpc.HypixelUUIDReply
+	require.NoError(t, codec.Unmarshal(raw, &v))
+	return v
+}
+
+func TestUUIDResolvesViaMojang(t *testing.T) {
+	p := newTestProvider(t,
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			require.Equal(t, "/users/profiles/minecraft/Techno", r.URL.Path)
+			_, _ = w.Write([]byte(`{"id":"deadbeefdeadbeefdeadbeefdeadbeef","name":"Techno"}`))
+		}),
+		http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+			t.Error("hypixel must not be called for a uuid resolve")
+		}))
+
+	reply := asUUIDReply(t, uuidHandle(t, p)(context.Background(), gossiprpc.Request{Account: "Techno"}))
+	require.Empty(t, reply.Error)
+	assert.Equal(t, "deadbeefdeadbeefdeadbeefdeadbeef", reply.UUID)
+	assert.Equal(t, "Techno", reply.Player)
+}
+
+func TestUUIDSkipsMojangWhenAlreadyUUID(t *testing.T) {
+	p := newTestProvider(t,
+		http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+			t.Error("mojang must not be called for a uuid account")
+		}),
+		http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+			t.Error("hypixel must not be called for a uuid resolve")
+		}))
+
+	reply := asUUIDReply(t, uuidHandle(t, p)(context.Background(),
+		gossiprpc.Request{Account: "deadbeef-dead-beef-dead-beefdeadbeef"}))
+	require.Empty(t, reply.Error)
+	assert.Equal(t, "deadbeefdeadbeefdeadbeefdeadbeef", reply.UUID)
+}
+
+func TestUUIDOnlyWithoutAPIKey(t *testing.T) {
+	p := New(Config{}, provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop()})
+	var names []string
+	for _, ep := range p.Endpoints() {
+		names = append(names, ep.Name)
+	}
+	assert.Contains(t, names, "uuid")
+	assert.NotContains(t, names, "stats")
+}

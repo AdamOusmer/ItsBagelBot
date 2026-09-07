@@ -19,26 +19,52 @@ import (
 // format the same kinds of numbers.
 
 // accountSources is the fallback chain resolveAccount picks from, highest
-// priority first: the argument the viewer typed, the module's linked account,
-// and the broadcaster's own Twitch login.
+// priority first: the argument the viewer typed, the module's linked account
+// (uuid when PreferUUID and one is stored), and the broadcaster's own Twitch
+// login.
 type accountSources struct {
 	Arg              string
 	Linked           string
+	LinkedUUID       string
 	BroadcasterLogin string
+	// PreferUUID uses LinkedUUID for the linked-account path when the
+	// upstream accepts or requires a uuid (Hypixel requires one; Urchin and
+	// MCSR Ranked accept one). PaceMan is name-keyed, so those commands leave
+	// this false and keep the typed username.
+	PreferUUID bool
 }
 
 // resolveAccount picks the account a stats command targets, in priority order:
 // an explicit argument typed after the command (first word, '@' stripped), the
-// module's configured linked account, then the broadcaster's own Twitch login
-// (the "default linked account per user" — most streamers use the same handle).
+// module's configured linked account (uuid when PreferUUID and one is stored),
+// then the broadcaster's own Twitch login (the "default linked account per
+// user" — most streamers use the same handle).
 func resolveAccount(s accountSources) string {
 	if first, _, _ := strings.Cut(strings.TrimSpace(s.Arg), " "); first != "" {
 		return strings.TrimPrefix(first, "@")
 	}
-	if linked := strings.TrimSpace(s.Linked); linked != "" {
+	if linked := linkedAccount(s); linked != "" {
 		return linked
 	}
 	return s.BroadcasterLogin
+}
+
+// linkedAccount is the module's configured identity: the stored uuid when
+// PreferUUID and one exists, otherwise the typed username.
+func linkedAccount(s accountSources) string {
+	uuid := strings.TrimSpace(s.LinkedUUID)
+	if s.PreferUUID && uuid != "" {
+		return uuid
+	}
+	return strings.TrimSpace(s.Linked)
+}
+
+// resolveLinked fills BroadcasterLogin from the chat context and runs
+// resolveAccount. Every urchin/mcsr linked-account path goes through here so
+// the uuid-vs-name choice lives in one literal rather than five copies.
+func resolveLinked(c *module.Context, s accountSources) string {
+	s.BroadcasterLogin = c.Env.BroadcasterUserLogin
+	return resolveAccount(s)
 }
 
 // chatReplyError turns a gossip failure into a chat line so the viewer gets an

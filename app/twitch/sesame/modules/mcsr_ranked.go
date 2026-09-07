@@ -221,7 +221,9 @@ func mcsrRecordAccounts(args string, cfg mcsrConfig, c *module.Context) (a, b st
 	}
 	first := strings.TrimPrefix(fields[0], "@")
 	if len(fields) == 1 {
-		self := resolveAccount(accountSources{Linked: cfg.Account, BroadcasterLogin: c.Env.BroadcasterUserLogin})
+		self := resolveLinked(c, accountSources{
+			Linked: cfg.Account, LinkedUUID: cfg.AccountUUID, PreferUUID: true,
+		})
 		return self, first
 	}
 	return first, strings.TrimPrefix(fields[1], "@")
@@ -440,9 +442,10 @@ func mcsrPbRun(d engine.Deps) module.RunFunc {
 		}
 
 		h := mcsrHandler[gossiprpc.PacemanPersonalBestReply]{
-			d:       d,
-			enabled: func(cfg mcsrConfig) string { return cfg.PbEnabled },
-			route:   engine.GossipRoute{Provider: "paceman", Endpoint: "personal_best"},
+			d:          d,
+			enabled:    func(cfg mcsrConfig) string { return cfg.PbEnabled },
+			route:      engine.GossipRoute{Provider: "paceman", Endpoint: "personal_best"},
+			preferName: true,
 			request: func(c *module.Context, account string, cfg mcsrConfig) gossiprpc.Request {
 				return gossiprpc.Request{Account: account, TimeWindow: window, IsPremium: c.Regress.IsPremium()}
 			},

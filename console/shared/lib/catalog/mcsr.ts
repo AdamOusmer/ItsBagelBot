@@ -217,7 +217,13 @@ export const MCSR_MODULE: ModuleDef =
       label: 'Linked Minecraft account',
       type: 'text',
       placeholder: 'Your Minecraft username',
-      help: 'Default player for every command. Leave blank to use your Twitch username.'
+      help: 'Default player for every command. Leave blank to use your Twitch username. The bot stores the account UUID when Mojang allows it, so Ranked commands keep working after a rename. PaceMan still uses the username.'
+    },
+    {
+      key: 'accountUuid',
+      label: 'Minecraft UUID',
+      type: 'text',
+      hidden: true
     }
   ]
 };

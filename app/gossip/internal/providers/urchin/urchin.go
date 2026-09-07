@@ -319,39 +319,28 @@ type cubelifyResponse struct {
 	Tags []codec.RawMessage `json:"tags"`
 }
 
-// resolveUUID turns a username into the canonical uuid, reading through the
-// shared tags cache (playerTags) so it reuses a lookup the tags command may
-// already have made instead of dialing Coral again. An empty uuid on a 200 is
-// shaped like a 404 so the downstream cubelify call is never made with a blank
-// id.
-func (p *api) resolveUUID(ctx context.Context, acct account) (string, error) {
-	resp, err := p.playerTags(ctx, acct)
-	if err != nil {
-		return "", err
-	}
-	if strings.TrimSpace(resp.UUID) == "" {
-		return "", &core.UpstreamError{Status: 404, Message: "player not found"}
-	}
-	return resp.UUID, nil
-}
-
 // sniperFetch resolves the uuid through the shared tags cache, spends one
-// Coral token, and pulls the cubelify sniper score.
+// Coral token, and pulls the cubelify sniper score. Player is the API
+// display name so a uuid-shaped account still chats a username.
 func (p *api) sniperFetch(ctx context.Context, req gossiprpc.Request, id provider.ID) (any, error) {
 	acct := account(id.Display)
-	uuid, err := p.resolveUUID(ctx, acct)
+	tags, err := p.playerTags(ctx, acct)
 	if err != nil {
 		return nil, err
+	}
+	if strings.TrimSpace(tags.UUID) == "" {
+		return nil, &core.UpstreamError{Status: 404, Message: "player not found"}
 	}
 	// The cubelify endpoint authenticates via the key query parameter (it is
 	// built for the overlay); the client's X-API-Key header rides along too.
 	var resp cubelifyResponse
-	q := url.Values{"uuid": {uuid}, "key": {p.key}, "name": {acct.String()}}
+	name := displayOr(tags.DisplayName, acct.String())
+	q := url.Values{"uuid": {tags.UUID}, "key": {p.key}, "name": {name}}
 	if err := p.http.GetJSON(ctx, "/v3/cubelify", q, &resp); err != nil {
 		return nil, err
 	}
 	return gossiprpc.UrchinSniperReply{
-		Player:   acct.String(),
+		Player:   name,
 		Score:    resp.Score.Value,
 		Mode:     resp.Score.Mode,
 		TagCount: len(resp.Tags),
