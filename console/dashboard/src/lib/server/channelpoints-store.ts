@@ -22,7 +22,7 @@ import { logger } from '@bagel/shared/server/logger';
 import { type ChannelPointReward, MOD } from '@bagel/shared';
 import { SUB, publishEventSubEnsureOptional } from './services';
 import { upsertModule } from './commands-store';
-import { readModuleBlob } from './module-blob';
+import { readModuleBlob, setModuleEnabled } from './module-blob';
 import { createCounter } from './loyalty-store';
 
 const CP_MODULE = MOD.channelpoints;
@@ -187,6 +187,5 @@ export async function deleteReward(userId: string, rewardId: string): Promise<Re
 // setEnabled flips the whole module on/off (whether sesame acts on redemptions
 // at all) without touching the rewards themselves.
 export async function setChannelPointsEnabled(userId: string, enabled: boolean): Promise<void> {
-  const cur = await readRewards(userId);
-  await writeRewards(userId, enabled, cur.rewards);
+  await setModuleEnabled(userId, CP_MODULE, enabled);
 }

@@ -25,7 +25,7 @@ import { POLICY } from '@bagel/shared/server/cache-keys';
 import { type GoveeOnRedeem, type GoveeDevice, type GoveeReward, type GoveeBinding, MOD } from '@bagel/shared';
 import { SUB, fabric, invalidate, publishEventSubEnsureOptional } from './services';
 import { upsertModule } from './commands-store';
-import { readModuleBlob } from './module-blob';
+import { readModuleBlob, setModuleEnabled } from './module-blob';
 
 // Re-export the shared govee shapes so existing importers of this store keep
 // working; the definitions live in @bagel/shared for the client components too.
@@ -312,8 +312,7 @@ export function goveeStore(userId: string): GoveeStore {
     clearKey,
     listDevices,
     setEnabled: async (enabled: boolean) => {
-      const cur = await read();
-      await writeBindings(enabled, cur.bindings);
+      await setModuleEnabled(userId, GOVEE_MODULE, enabled);
       return { ok: true };
     },
     saveReward,
