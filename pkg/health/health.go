@@ -348,10 +348,9 @@ func (s *Set) Handler() http.Handler {
 }
 
 // tlsEnvConfig reads the TLS_CERT_FILE/TLS_KEY_FILE pair mounted from the
-// cert-manager-managed Secret and builds a config that re-reads it from disk on
-// every handshake (see pkg/tlsenv for why per-handshake). The pair is also
-// loaded once up front so an unreadable cert fails the boot loudly instead of
-// on the first probe.
+// cert-manager-managed Secret. The eager load and the per-handshake re-read
+// both live in tlsenv.Pair.ServerConfig, which is also what the transactions
+// listener serves with, so the two cannot drift apart.
 //
 // Both unset returns a nil config (plaintext listener); a half-set pair is an
 // error, never a plaintext fallback.
@@ -360,20 +359,15 @@ func tlsEnvConfig() (*tls.Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !pair.Configured() {
-		return nil, nil
-	}
-	if _, err := pair.Load(); err != nil {
-		return nil, err
-	}
-	return &tls.Config{GetCertificate: pair.GetCertificate}, nil
+	return pair.ServerConfig()
 }
 
 // Serve starts the health endpoints on addr in a background goroutine. The
 // returned error channel yields at most one listener error.
 //
 // When the TLS_CERT_FILE/TLS_KEY_FILE pair is set (the cert-manager fleet-CA
-// cert, mirroring the transactions listener) it serves HTTPS: the fleet's
+// cert, presented per handshake exactly as the transactions listener presents
+// its own, see tlsenv.Pair.ServerConfig) it serves HTTPS: the fleet's
 // traefik->backend hops are TLS with no exceptions, and /status is routed
 // through traefik. A half-set pair is an error, never a plaintext fallback;
 // the dead listener then fails the pod's probes, which is what makes the
