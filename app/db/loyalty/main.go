@@ -6,9 +6,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
 
@@ -23,16 +20,18 @@ import (
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
-	"ItsBagelBot/pkg/db"
 	"ItsBagelBot/pkg/env"
-	"ItsBagelBot/pkg/logger"
 	"ItsBagelBot/pkg/monitor"
 	"ItsBagelBot/pkg/svcboot"
+	"ItsBagelBot/pkg/svcboot/databoot"
 
 	"go.uber.org/zap"
 )
 
-const serviceName = "loyalty"
+const (
+	serviceName = "loyalty"
+	queueGroup  = "loyalty-rpc"
+)
 
 // registerConsumers wires the event subscriptions onto repo. Everything here
 // is delta folding or cleanup that must happen exactly once per event, so all
@@ -107,79 +106,48 @@ func deleteAllForUser(repo *repository.Loyalty, log *zap.Logger) func(*bus.Messa
 }
 
 func main() {
-	log := logger.New(env.Get("APP_ENV", "development")).Named(serviceName)
-	defer func() { _ = log.Sync() }()
+	core, done := svcboot.NewCore(serviceName)
+	defer done()
+	log := core.Log
 
-	nrApp, err := monitor.New(serviceName, log)
-	if err != nil {
-		log.Fatal("failed to start new relic", zap.Error(err))
-	}
-	log = monitor.WrapLogger(log, nrApp)
-	defer monitor.Shutdown(nrApp)
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
-	driver, err := db.NewDriver(db.Config{
-		Address:  env.Get("DB_ADDR", "127.0.0.1:3306"),
-		Username: env.MustGet("DB_USER"),
-		Password: env.MustGet("DB_PASS"),
-		Schema:   env.Get("DB_SCHEMA", "bagel_loyalty"),
-	})
-	if err != nil {
-		log.Fatal("failed to open database", zap.Error(err))
-	}
-
+	driver := databoot.MustEntDriver(log, "bagel_loyalty")
 	client := ent.NewClient(ent.Driver(driver))
 	defer func() { _ = client.Close() }()
 
-	if env.GetBool("DB_AUTO_MIGRATE", true) {
-		if err := client.Schema.Create(ctx); err != nil {
-			log.Fatal("failed to run migrations", zap.Error(err))
-		}
-	}
+	databoot.AutoMigrate(core.Ctx, log, func(ctx context.Context) error { return client.Schema.Create(ctx) })
 
-	natsURL := env.Get("NATS_URL", "nats://127.0.0.1:4222")
-	rpcURL := bus.RPCURL(natsURL)
-
-	repo := repository.NewLoyalty(client, driver, nrApp, log)
+	repo := repository.NewLoyalty(client, driver, core.NR, log)
 	defer repo.Close(context.Background()) // flushes pending deltas on shutdown
 
-	nc, err := bus.Connect(rpcURL, serviceName)
-	if err != nil {
-		log.Fatal("failed to connect to nats", zap.Error(err))
-	}
+	// Only the RPC connection and the durable group, not the full MustNATS set:
+	// loyalty publishes nothing and needs no broadcast subscriber -- every
+	// subject it reads is a delta that exactly one instance must fold.
+	nc := svcboot.MustRPCConn(core, bus.RPCURL(core.NATSURL))
 	defer nc.Close()
 
-	// Durable group subscription: exactly one instance folds each delta event,
-	// and an instance failure is retried on another.
-	grouped, err := bus.NewSubscriber(natsURL, serviceName, log)
-	if err != nil {
-		log.Fatal("failed to connect group subscriber", zap.Error(err))
-	}
+	grouped, err := bus.NewSubscriber(core.NATSURL, serviceName, log)
+	svcboot.FatalIf(log, err, "failed to connect group subscriber")
 	defer func() { _ = grouped.Close() }()
 
-	if err := registerConsumers(ctx, nrApp, repo, grouped, log); err != nil {
-		log.Fatal("failed to subscribe to events", zap.Error(err))
-	}
+	svcboot.FatalIf(log, registerConsumers(core.Ctx, core.NR, repo, grouped, log), "failed to subscribe to events")
 
 	loyaltyPrefix := env.Get("NATS_LOYALTY_SUBJECT_PREFIX", "bagel.rpc.loyalty")
-	if err := rpc.Subscribe(nc, repo, loyaltyPrefix, "loyalty-rpc", nrApp, log); err != nil {
-		log.Fatal("failed to subscribe loyalty rpc", zap.Error(err))
-	}
+	svcboot.FatalIf(log, rpc.Subscribe(nc, repo, loyaltyPrefix, queueGroup, core.NR, log),
+		"failed to subscribe loyalty rpc")
 	// The lane check covers the durable group folding data.loyalty.earned,
 	// data.loyalty.counters and data.users.deleted. Its verdict is hard, not
 	// degrading: a consumer that stays bound while failing to fetch stops points
 	// accruing entirely, with NATS and MySQL both still reading green.
-	svcboot.ServeDataHealth(svcboot.DataHealth{
-		Log: log, NC: nc, Service: serviceName, QueueGroup: "loyalty-rpc", Pool: driver.DB(),
+	databoot.ServeHealth(databoot.Health{
+		Health: svcboot.Health{
+			Log: log, NC: nc, Service: serviceName, QueueGroup: queueGroup, ListenAddr: core.ListenAddr,
+		},
+		Pool: driver.DB(),
 	}, bus.LaneCheck("data", grouped))
 
 	log.Info("loyalty service ready",
 		zap.String("loyalty_prefix", loyaltyPrefix),
 	)
 
-	<-ctx.Done()
-
-	log.Info("loyalty service shutting down")
+	core.Await()
 }

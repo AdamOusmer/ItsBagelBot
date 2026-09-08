@@ -5,9 +5,6 @@ package main
 
 import (
 	"context"
-	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	"ItsBagelBot/app/projector/hydration"
@@ -19,9 +16,7 @@ import (
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/health"
-	"ItsBagelBot/pkg/logger"
-	"ItsBagelBot/pkg/monitor"
-	pkg_valkey "ItsBagelBot/pkg/valkey"
+	"ItsBagelBot/pkg/svcboot"
 
 	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/newrelic"
@@ -29,7 +24,10 @@ import (
 	"go.uber.org/zap"
 )
 
-const serviceName = "projector"
+const (
+	serviceName = "projector"
+	queueGroup  = "projector-rpc"
+)
 
 // dataTierServices are the services the projector's own /status answers for.
 // The public health.itsbagelbot.com/db endpoint terminates here, so each one is
@@ -41,14 +39,6 @@ const serviceName = "projector"
 // (health.itsbagelbot.com/billing) and checks itself, because a payment
 // processor outage is not a data-tier outage and must not page as one.
 var dataTierServices = []string{"users", "commands", "modules", "loyalty", "notifications", "discord-data"}
-
-// fatalIf aborts startup on err: the projector cannot run degraded without any
-// of its core dependencies, so a failed step must crash the pod.
-func fatalIf(log *zap.Logger, err error, msg string) {
-	if err != nil {
-		log.Fatal(msg, zap.Error(err))
-	}
-}
 
 // projectorTopics are the projection RPC / hydration subjects read from the
 // environment once at startup.
@@ -98,27 +88,15 @@ func loadTopics() projectorTopics {
 func main() {
 	validate.CheckFloor = moderation.CheckFloor
 
-	log := logger.New(env.Get("APP_ENV", "development")).Named(serviceName)
-	defer func() { _ = log.Sync() }()
+	core, done := svcboot.NewCore(serviceName)
+	defer done()
+	log, ctx, nrApp := core.Log, core.Ctx, core.NR
 
-	nrApp, err := monitor.New(serviceName, log)
-	fatalIf(log, err, "failed to start new relic")
-	log = monitor.WrapLogger(log, nrApp)
-	defer monitor.Shutdown(nrApp)
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
-	valkeyClient, err := pkg_valkey.NewClient(
-		env.Get("VALKEY_ADDR", "127.0.0.1:6379"),
-		env.Get("VALKEY_PASSWORD", ""),
-	)
-	fatalIf(log, err, "failed to connect to valkey")
+	valkeyClient := svcboot.MustValkey(core)
 	defer valkeyClient.Close()
 	valkeyStore := projection.NewStore(valkeyClient)
 
-	natsURL := env.Get("NATS_URL", "nats://127.0.0.1:4222")
-	nc, pub, sub := connectBus(ctx, natsURL, log)
+	nc, pub, sub := connectBus(core)
 	defer nc.Close()
 	defer func() { _ = pub.Close() }()
 	defer func() { _ = sub.Close() }()
@@ -143,24 +121,19 @@ func main() {
 	subscribeRPCs(rpcRuntime{
 		nc: nc, store: valkeyStore, pub: pub, hydrator: hydrator, nrApp: nrApp, log: log,
 	}, topics)
-	set := healthSet(nc, sub)
-	rpcHealth, err := bus.SubscribeRPCHealth(nc, serviceName, "projector-rpc", set)
-	fatalIf(log, err, "failed to subscribe rpc health")
-	set.Add(rpcHealth)
-
-	health.ServeSet(env.Get("LISTEN_ADDR", ":8080"), set)
+	svcboot.ServeHealth(svcboot.Health{
+		Log: log, NC: nc, Service: serviceName, QueueGroup: queueGroup, ListenAddr: core.ListenAddr,
+	}, tierChecks(nc, sub)...)
 
 	log.Info("projector ready",
 		zap.String("status_subject", topics.status),
 		zap.String("dashboard_subject", topics.dashboard),
 		zap.String("stream_subject", topics.stream))
 
-	<-ctx.Done()
-
-	log.Info("projector shutting down")
+	core.Await()
 }
 
-// healthSet builds the projector's health surface: its own dependencies plus
+// tierChecks builds the projector's health surface: its own dependencies plus
 // one probe per data-tier service, so /status here is the whole tier's answer
 // on one endpoint.
 //
@@ -172,9 +145,8 @@ func main() {
 // Each aggregated service keeps its own MySQL check instead of the projector
 // holding one for the tier: the schemas are expected to split across servers,
 // and a single hoisted check could not say which database went.
-func healthSet(nc *nats.Conn, sub bus.Subscriber) *health.Set {
+func tierChecks(nc *nats.Conn, sub bus.Subscriber) []health.Check {
 	checks := []health.Check{
-		health.NATS("nats", nc),
 		// One durable group carries every fold: the twitch.ingress.event.stream
 		// lane and the data.> subjects share this subscriber, so the check is
 		// per-group rather than per-subject. It catches a consumer that stays
@@ -185,7 +157,7 @@ func healthSet(nc *nats.Conn, sub bus.Subscriber) *health.Set {
 	for _, service := range dataTierServices {
 		checks = append(checks, bus.HealthProbe(nc, service))
 	}
-	return health.NewSet(serviceName, checks...)
+	return checks
 }
 
 // connectBus reconciles the streams the projector reads, then opens the
@@ -200,21 +172,21 @@ func healthSet(nc *nats.Conn, sub bus.Subscriber) *health.Set {
 // the partition flag ordering (narrow before create) is preserved here exactly
 // as it is in sesame. The trade is deliberate: the projector credential can
 // now mutate streams it reads, bounded by per-stream ACL grants.
-func connectBus(ctx context.Context, natsURL string, log *zap.Logger) (*nats.Conn, bus.Publisher, bus.Subscriber) {
+func connectBus(core svcboot.Core) (*nats.Conn, bus.Publisher, bus.Subscriber) {
+	log := core.Log
 	specs := append([]bus.StreamSpec{bus.BagelDataStream}, bus.IngressLaneSpecs()...)
-	fatalIf(log, bus.EnsureStreams(ctx, natsURL, specs, log), "failed to provision projector streams")
+	svcboot.FatalIf(log, bus.EnsureStreams(core.Ctx, core.NATSURL, specs, log), "failed to provision projector streams")
 
 	// One durable group for the whole projector fleet: each event is folded
 	// into Valkey exactly once, and the durable consumer keeps its position
 	// across restarts.
-	sub, err := bus.NewSubscriber(natsURL, serviceName, log)
-	fatalIf(log, err, "failed to connect subscriber")
+	sub, err := bus.NewSubscriber(core.NATSURL, serviceName, log)
+	svcboot.FatalIf(log, err, "failed to connect subscriber")
 
-	nc, err := bus.Connect(bus.RPCURL(natsURL), serviceName)
-	fatalIf(log, err, "failed to connect nats")
+	nc := svcboot.MustRPCConn(core, bus.RPCURL(core.NATSURL))
 
-	pub, err := bus.NewPublisher(natsURL, log)
-	fatalIf(log, err, "failed to connect publisher")
+	pub, err := bus.NewPublisher(core.NATSURL, log)
+	svcboot.FatalIf(log, err, "failed to connect publisher")
 
 	return nc, pub, sub
 }
@@ -245,7 +217,7 @@ func registerConsumers(ctx context.Context, rt consumerRuntime, projector *Proje
 		{streamTopic, projector.HandleStreamEvent},
 	}
 	for _, b := range bindings {
-		fatalIf(rt.log, bus.Consume(ctx, rt.nrApp, rt.sub, b.subject, b.handle, rt.log),
+		svcboot.FatalIf(rt.log, bus.Consume(ctx, rt.nrApp, rt.sub, b.subject, b.handle, rt.log),
 			"failed to subscribe consumer: "+b.subject)
 	}
 }
@@ -265,15 +237,15 @@ type rpcRuntime struct {
 // status, the dashboard projection reads, and the live verb (which answers from
 // the projection or escalates to Twitch via the outgress system lane).
 func subscribeRPCs(rt rpcRuntime, topics projectorTopics) {
-	fatalIf(rt.log, rpc.SubscribeStatus(rt.nc, rt.store, topics.status, topics.users, topics.invalidate, "projector-rpc", rt.nrApp, rt.log),
+	svcboot.FatalIf(rt.log, rpc.SubscribeStatus(rt.nc, rt.store, topics.status, topics.users, topics.invalidate, queueGroup, rt.nrApp, rt.log),
 		"failed to subscribe status rpc")
-	fatalIf(rt.log, rpc.SubscribeDashboard(rt.nc, rt.store, topics.dashboard,
-		topics.commands, topics.modules, topics.cacheInvalidate, rt.hydrator, "projector-rpc", rt.nrApp, rt.log),
+	svcboot.FatalIf(rt.log, rpc.SubscribeDashboard(rt.nc, rt.store, topics.dashboard,
+		topics.commands, topics.modules, topics.cacheInvalidate, rt.hydrator, queueGroup, rt.nrApp, rt.log),
 		"failed to subscribe dashboard projector rpc")
-	fatalIf(rt.log, rpc.SubscribeLive(rt.nc, rt.store, rt.pub, topics.live, topics.outgressSystem, "projector-rpc", rt.nrApp, rt.log),
+	svcboot.FatalIf(rt.log, rpc.SubscribeLive(rt.nc, rt.store, rt.pub, topics.live, topics.outgressSystem, queueGroup, rt.nrApp, rt.log),
 		"failed to subscribe live rpc")
-	fatalIf(rt.log, rpc.SubscribeStreamInfo(rpc.StreamInfoDeps{
+	svcboot.FatalIf(rt.log, rpc.SubscribeStreamInfo(rpc.StreamInfoDeps{
 		NC: rt.nc, Store: rt.store, Subject: topics.streamInfo,
-		QueueGroup: "projector-rpc", App: rt.nrApp, Log: rt.log,
+		QueueGroup: queueGroup, App: rt.nrApp, Log: rt.log,
 	}), "failed to subscribe stream info rpc")
 }

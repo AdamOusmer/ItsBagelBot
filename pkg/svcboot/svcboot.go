@@ -1,32 +1,43 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Package svcboot is the shared boot scaffold for the fleet's Go data services
-// (commands, modules, ...). It owns the plumbing every service repeats before
-// its first line of real wiring: named logger, New Relic app, signal context,
-// the env-conventional MySQL driver and the standard set of NATS connections.
-// Keeping it here means a change to the boot conventions (bus constructor
-// signatures, credential env names, observability wiring) lands in one file
-// instead of once per service main.
+// Package svcboot is the Facade over the service lifecycle for every Go binary
+// under app/. It owns the plumbing each service used to repeat before its first
+// line of real wiring: named logger, New Relic app, signal context, the shared
+// endpoint block, the env-conventional MySQL driver, the standard NATS
+// connections, the Valkey client and the health surface.
+//
+// The lifecycle is a Template Method: NewCore -> Must* connectors -> ServeHealth
+// -> Await, in that fixed order, with each service supplying only its own
+// wiring between the steps. main becomes wiring and nothing else.
+//
+// Keeping the skeleton here means a change to the boot conventions (bus
+// constructor signatures, credential env names, observability wiring, the
+// shutdown drain) lands in one file instead of once per service main. The
+// twelve hand-rolled copies this replaced had already drifted: they defaulted
+// APP_ENV to development, so a production pod that forgot to set it got
+// verbose, unsampled logging with nothing saying so — see resolveAppEnv — and
+// only one of the fifteen drained its RPC handlers before shutdown, see Await.
+//
+// pkg/svcboot/guard_test.go is what keeps the next main from hand-rolling it
+// again.
 package svcboot
 
 import (
 	"context"
-	"database/sql"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
-	entsql "entgo.io/ent/dialect/sql"
 	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/newrelic"
+	valkey_go "github.com/valkey-io/valkey-go"
 
 	"ItsBagelBot/pkg/bus"
-	"ItsBagelBot/pkg/db"
-	"ItsBagelBot/pkg/env"
-	"ItsBagelBot/pkg/health"
 	"ItsBagelBot/pkg/logger"
 	"ItsBagelBot/pkg/monitor"
+	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"go.uber.org/zap"
 )
@@ -43,7 +54,7 @@ const (
 // production boot that forgot APP_ENV used to silently get verbose, unsampled
 // development logs — the expensive configuration — with nothing saying so. A
 // missing value must fall to the restrictive end, and defaulted=true is what
-// NewCore turns into the one-time boot warning that says it happened.
+// NewLogger turns into the one-time boot warning that says it happened.
 func resolveAppEnv(get func(string) string) (string, bool) {
 	if value := get("APP_ENV"); value != "" {
 		return value, false
@@ -51,30 +62,62 @@ func resolveAppEnv(get func(string) string) (string, bool) {
 	return appEnvProduction, true
 }
 
+// FatalIf aborts startup on err. A service cannot run degraded without any of
+// its core dependencies, so a failed boot step must crash the pod and let
+// Kubernetes restart it.
+//
+// It reads at the call site as what the failure does, which is why the boot
+// path uses it in place of an if/Fatal block: three services had already
+// written this same helper into their own main, byte for byte.
+func FatalIf(log *zap.Logger, err error, msg string) {
+	if err != nil {
+		log.Fatal(msg, zap.Error(err))
+	}
+}
+
 // Core bundles the observability and lifecycle plumbing every service starts
-// with: the named, New-Relic-wrapped logger, the APM app and the SIGINT/SIGTERM
-// context main blocks on.
+// with: the named, New-Relic-wrapped logger, the APM app, the SIGINT/SIGTERM
+// context main blocks on, and the shared endpoint block the connectors read.
 type Core struct {
+	// Infra is embedded so a service with no config package of its own reads
+	// core.NATSURL and core.ListenAddr directly.
+	Infra
+
 	Log *zap.Logger
 	NR  *newrelic.Application
 	Ctx context.Context
+
+	// Service is the fleet-wide service name: the logger's name, the New
+	// Relic app, the NATS client name and the health RPC token, all of which
+	// have to agree.
+	Service string
 }
 
-// NewCore boots the logger, the New Relic app and the signal context. The
-// returned cleanup stops signal delivery, flushes the APM agent and syncs the
-// logger, in that order; defer it first so it runs last.
-func NewCore(serviceName string) (Core, func()) {
+// NewLogger builds the process logger from APP_ENV, warning once when the value
+// was defaulted.
+//
+// Exported separately from NewCore for the one-shot cron entrypoints
+// (app/db/notifications' `cleanup` argv mode) that fire a single RPC and exit:
+// they need the logger and its APP_ENV decision, but starting an APM app for a
+// process that lives sixty seconds would report a phantom service instance.
+func NewLogger(serviceName string) *zap.Logger {
 	appEnv, defaulted := resolveAppEnv(os.Getenv)
 	log := logger.New(appEnv).Named(serviceName)
 	if defaulted {
 		// Once, before any wiring: after this point nothing else will say it.
 		log.Warn("APP_ENV not set; defaulted to production logging")
 	}
+	return log
+}
+
+// NewCore boots the logger, the New Relic app and the signal context. The
+// returned cleanup stops signal delivery, flushes the APM agent and syncs the
+// logger, in that order; defer it first so it runs last.
+func NewCore(serviceName string) (Core, func()) {
+	log := NewLogger(serviceName)
 
 	nrApp, err := monitor.New(serviceName, log)
-	if err != nil {
-		log.Fatal("failed to start new relic", zap.Error(err))
-	}
+	FatalIf(log, err, "failed to start new relic")
 	log = monitor.WrapLogger(log, nrApp)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -84,35 +127,63 @@ func NewCore(serviceName string) (Core, func()) {
 		monitor.Shutdown(nrApp)
 		_ = log.Sync()
 	}
-	return Core{Log: log, NR: nrApp, Ctx: ctx}, cleanup
+	return Core{Infra: LoadInfra(), Log: log, NR: nrApp, Ctx: ctx, Service: serviceName}, cleanup
 }
 
-// MustEntDriver opens the MySQL driver from the fleet's env conventions
-// (DB_ADDR, DB_USER, DB_PASS, DB_SCHEMA). Fatal on failure: a data service
-// without its database can only crashloop later anyway.
-func MustEntDriver(log *zap.Logger, defaultSchema string) *entsql.Driver {
-	driver, err := db.NewDriver(db.Config{
-		Address:  env.Get("DB_ADDR", "127.0.0.1:3306"),
-		Username: env.MustGet("DB_USER"),
-		Password: env.MustGet("DB_PASS"),
-		Schema:   env.Get("DB_SCHEMA", defaultSchema),
-	})
-	if err != nil {
-		log.Fatal("failed to open database", zap.Error(err))
+// rpcDrainTimeout bounds the wait for in-flight RPC handlers at shutdown. It
+// fits inside the pod's budget: the preStop hook holds SIGTERM for 10s on
+// /drain and terminationGracePeriodSeconds is 45, so a handler blocked on its
+// own 10-15s upstream timeout is still given room to answer before the kubelet
+// escalates to SIGKILL.
+const rpcDrainTimeout = 15 * time.Second
+
+// Await blocks until SIGINT or SIGTERM, logs the shutdown line, and drains
+// in-flight RPC handlers.
+//
+// The drain has to happen here, inside the last statement of main, rather than
+// in a deferred close: handlers execute on pool workers rather than on the NATS
+// callback goroutine, so a main that returns straight into its deferred closers
+// shuts the NATS connection, the Valkey client and the database underneath a
+// handler still using them. The requester loses its reply and the log fills
+// with use-after-close noise that reads like a broker fault rather than a
+// shutdown. Only app/gossip did this before; the other fourteen mains closed
+// everything out from under their handlers.
+//
+// A service whose shutdown is more than this (an HTTP server to drain, a
+// JetStream consumer's in-flight events to finish) keeps its own tail and does
+// not call Await.
+func (c Core) Await() {
+	<-c.Ctx.Done()
+	c.Log.Info(c.Service + " shutting down")
+
+	ctx, cancel := context.WithTimeout(context.Background(), rpcDrainTimeout)
+	defer cancel()
+	if err := bus.DrainRPCHandlers(ctx); err != nil {
+		c.Log.Warn("rpc handlers did not drain before the deadline", zap.Error(err))
 	}
-	return driver
 }
 
-// AutoMigrate runs the service's ent auto-migration unless disabled by
-// DB_AUTO_MIGRATE. The generated ent clients are distinct types per service,
-// so the schema-create step arrives as a closure (client.Schema.Create).
-func AutoMigrate(ctx context.Context, log *zap.Logger, create func(context.Context) error) {
-	if !env.GetBool("DB_AUTO_MIGRATE", true) {
-		return
-	}
-	if err := create(ctx); err != nil {
-		log.Fatal("failed to run migrations", zap.Error(err))
-	}
+// MustValkey opens the shared Valkey client from Infra. Fatal on failure: every
+// caller either caches, rate-limits or holds lease state there and has no
+// degraded mode without it.
+func MustValkey(core Core) valkey_go.Client {
+	client, err := pkg_valkey.NewClient(core.ValkeyAddr, core.ValkeyPassword)
+	FatalIf(core.Log, err, "failed to connect to valkey")
+	return client
+}
+
+// MustRPCConn opens one core request/reply connection to url, named for the
+// service so the broker's connz output says who is holding it.
+//
+// url stays a parameter because the services genuinely disagree on it: the ones
+// with a config package dial cfg.NATSRPCURL (NATS_RPC_URL, which may point at a
+// different account or leaf), while the data tier derives it from NATS_URL with
+// bus.RPCURL. Defaulting it here would silently move half the fleet's RPC
+// plane.
+func MustRPCConn(core Core, url string) *nats.Conn {
+	nc, err := bus.Connect(url, core.Service)
+	FatalIf(core.Log, err, "failed to connect to nats")
+	return nc
 }
 
 // NATS bundles the standard connection set of a data service: the JetStream
@@ -120,7 +191,7 @@ func AutoMigrate(ctx context.Context, log *zap.Logger, create func(context.Conte
 // every instance sees every message, for cache invalidation) and a durable
 // group subscriber (exactly one instance handles each event).
 //
-// The health responder is not attached here — see MustHealthRPC.
+// The health responder is not attached here — see NewHealthSet.
 type NATS struct {
 	URL    string
 	RPCURL string
@@ -137,88 +208,28 @@ type NATS struct {
 // and the RPC connection — the message intake — and is deliberately separate
 // from Pub: main defers Pub.Close before its repository's Close so pending
 // writes still flush through the publisher during shutdown.
-func MustNATS(core Core, serviceName, queueGroup string) (NATS, func()) {
-	natsURL := env.Get("NATS_URL", "nats://127.0.0.1:4222")
-	rpcURL := bus.RPCURL(natsURL)
+func MustNATS(core Core) (NATS, func()) {
+	// bus.RPCURL(NATS_URL), not core.NATSRPCURL: the data tier has never been
+	// given a split RPC endpoint, and reading NATS_RPC_URL here would move it
+	// the first time an unrelated service set that variable fleet-wide.
+	rpcURL := bus.RPCURL(core.NATSURL)
 
-	pub, err := bus.NewPublisher(natsURL, core.Log)
-	if err != nil {
-		core.Log.Fatal("failed to connect publisher", zap.Error(err))
-	}
+	pub, err := bus.NewPublisher(core.NATSURL, core.Log)
+	FatalIf(core.Log, err, "failed to connect publisher")
 
-	nc, err := bus.Connect(rpcURL, serviceName)
-	if err != nil {
-		core.Log.Fatal("failed to connect to nats", zap.Error(err))
-	}
-	broadcast, err := bus.NewSubscriber(natsURL, "", core.Log)
-	if err != nil {
-		core.Log.Fatal("failed to connect broadcast subscriber", zap.Error(err))
-	}
+	nc := MustRPCConn(core, rpcURL)
 
-	grouped, err := bus.NewSubscriber(natsURL, serviceName, core.Log)
-	if err != nil {
-		core.Log.Fatal("failed to connect group subscriber", zap.Error(err))
-	}
+	broadcast, err := bus.NewSubscriber(core.NATSURL, "", core.Log)
+	FatalIf(core.Log, err, "failed to connect broadcast subscriber")
 
-	n := NATS{URL: natsURL, RPCURL: rpcURL, Pub: pub, RPC: nc, Broadcast: broadcast, Grouped: grouped}
+	grouped, err := bus.NewSubscriber(core.NATSURL, core.Service, core.Log)
+	FatalIf(core.Log, err, "failed to connect group subscriber")
+
+	n := NATS{URL: core.NATSURL, RPCURL: rpcURL, Pub: pub, RPC: nc, Broadcast: broadcast, Grouped: grouped}
 	closeIntake := func() {
 		_ = grouped.Close()
 		_ = broadcast.Close()
 		nc.Close()
 	}
 	return n, closeIntake
-}
-
-// ServeDataHealth builds a data-tier service's health surface, attaches the RPC
-// responder that answers out of it, and serves it. Fatal on failure, matching
-// MustNATS. Every service behind health.itsbagelbot.com/db calls this, so the
-// five of them cannot drift into reporting different things.
-//
-// One Set backs both surfaces on purpose: the aggregate the projector serves at
-// /db can never disagree with what a pod reports over HTTP at the same instant.
-// The responder can only be registered against a Set that already exists, and
-// the check watching that registration only exists afterwards, so the ordering
-// here is load-bearing rather than stylistic.
-//
-// The mysql check sits alongside nats because PingContext exercises the same
-// pool the repository code uses, catching a wedged pool or rotated-out
-// credentials that IsConnected alone would miss (pkg/db/health.go). It degrades
-// rather than fails readiness: a hard failure would pull every pod of a service
-// out of rotation on one shared DB blip, turning a brief outage into a total
-// one. A healthy ping lands in single-digit ms (measured ~3.6ms pod-to-MySQL
-// RTT); much higher means the pool went cold and is paying the ~18ms handshake
-// instead of reusing a connection.
-//
-// The database check stays with each service rather than being hoisted into the
-// projector's /db aggregate: the schemas are expected to split across servers,
-// and one hoisted check could not name which one went.
-//
-// extra carries whatever else a given service depends on — a lane check for the
-// ones that consume a durable group, nothing for the request/reply-only ones.
-// It is a parameter rather than a nil-able subscriber because bus.LaneCheck on a
-// nil Subscriber silently passes, which is worse than having no check at all.
-func ServeDataHealth(d DataHealth, extra ...health.Check) {
-	checks := append([]health.Check{health.NATS("nats", d.NC)}, extra...)
-	set := health.NewSet(d.Service, append(checks, health.Degrades(db.HealthCheck("mysql", d.Pool)))...)
-
-	rpcHealth, err := bus.SubscribeRPCHealth(d.NC, d.Service, d.QueueGroup, set)
-	if err != nil {
-		d.Log.Fatal("failed to subscribe rpc health", zap.Error(err))
-	}
-	set.Add(rpcHealth)
-
-	health.ServeSet(env.Get("LISTEN_ADDR", ":8080"), set)
-}
-
-// DataHealth is one data-tier service's identity and dependencies, travelling
-// as a single value for the same reason bus.RPCSubscription does: Service and
-// QueueGroup are both strings and interchangeable at a call site, and a
-// transposed pair registers a working responder on the wrong token, which shows
-// up only as a sibling reading this service as down.
-type DataHealth struct {
-	Log        *zap.Logger
-	NC         *nats.Conn
-	Service    string
-	QueueGroup string
-	Pool       *sql.DB
 }

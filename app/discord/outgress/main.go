@@ -13,9 +13,6 @@ package main
 
 import (
 	"context"
-	"os"
-	"os/signal"
-	"syscall"
 
 	"ItsBagelBot/app/discord/outgress/internal/bootstrap"
 	"ItsBagelBot/app/discord/outgress/internal/commands"
@@ -27,15 +24,11 @@ import (
 	"ItsBagelBot/internal/discordrate"
 	"ItsBagelBot/internal/discordstore"
 	"ItsBagelBot/pkg/bus"
-	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/health"
-	"ItsBagelBot/pkg/logger"
-	"ItsBagelBot/pkg/monitor"
-	pkg_valkey "ItsBagelBot/pkg/valkey"
+	"ItsBagelBot/pkg/svcboot"
 
 	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/newrelic"
-	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
 )
 
@@ -45,24 +38,21 @@ const serviceName = "discord-outgress"
 // the process on its own fatal error (matching what this used to do inline)
 // so the phase order below is also the exact fatal-error order.
 func main() {
-	log, nrApp := bootLogger()
-	defer func() { _ = log.Sync() }()
-	defer monitor.Shutdown(nrApp)
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
+	core, done := svcboot.NewCore(serviceName)
+	defer done()
+	log, ctx, nrApp := core.Log, core.Ctx, core.NR
 
 	cfg := config.Load()
 	if cfg.DiscordBotToken == "" {
 		log.Info("DISCORD_BOT_TOKEN unset; discord outgress idle")
 		health.Serve(cfg.ListenAddr, serviceName)
-		<-ctx.Done()
+		core.Await()
 		return
 	}
 
 	ensureOutgressStream(ctx, cfg, log)
 
-	valkeyClient := connectValkey(cfg, log)
+	valkeyClient := svcboot.MustValkey(core)
 	defer valkeyClient.Close()
 
 	rest := discordrate.NewLimitedClient(discordapi.NewClient(cfg.DiscordBotToken), discordrate.New(valkeyClient))
@@ -73,7 +63,7 @@ func main() {
 
 	applicationID := registerSlashCommands(ctx, rest, log)
 
-	nc := connectNATS(cfg, log)
+	nc := svcboot.MustRPCConn(core, cfg.NATSRPCURL)
 	defer nc.Close()
 
 	// discord-data-backed, same as engine's: the dashboard's setup, unbind
@@ -93,22 +83,12 @@ func main() {
 	})
 	defer lanes.Close()
 
-	health.ServeSet(cfg.ListenAddr, healthSet(nc, lanes, log))
+	svcboot.ServeHealth(svcboot.Health{
+		Log: log, NC: nc, Service: serviceName, QueueGroup: serviceName + "-rpc", ListenAddr: cfg.ListenAddr,
+	}, laneChecks(lanes)...)
 	log.Info("discord outgress ready", zap.String("application_id", applicationID), zap.String("rpc_prefix", cfg.RPCPrefix))
 
-	<-ctx.Done()
-	log.Info("discord outgress shutting down")
-}
-
-// bootLogger builds the process logger wired through New Relic. It exits the
-// process on failure: nothing after this point can run without a logger.
-func bootLogger() (*zap.Logger, *newrelic.Application) {
-	log := logger.New(env.Get("APP_ENV", "development")).Named(serviceName)
-	nrApp, err := monitor.New(serviceName, log)
-	if err != nil {
-		log.Fatal("failed to start new relic", zap.Error(err))
-	}
-	return monitor.WrapLogger(log, nrApp), nrApp
+	core.Await()
 }
 
 // ensureOutgressStream provisions DISCORD_OUTGRESS, the stream this process
@@ -116,17 +96,8 @@ func bootLogger() (*zap.Logger, *newrelic.Application) {
 // DISCORD_INGRESS, which it only ever reads nothing from at all -- that is
 // engine's job, as the consumer on that side.
 func ensureOutgressStream(ctx context.Context, cfg config.Config, log *zap.Logger) {
-	if err := bus.EnsureStreams(ctx, cfg.NATSURL, []bus.StreamSpec{bus.DiscordOutgressStream}, log); err != nil {
-		log.Fatal("failed to provision the DISCORD_OUTGRESS stream", zap.Error(err))
-	}
-}
-
-func connectValkey(cfg config.Config, log *zap.Logger) valkey.Client {
-	valkeyClient, err := pkg_valkey.NewClient(cfg.ValkeyAddr, cfg.ValkeyPassword)
-	if err != nil {
-		log.Fatal("failed to connect to valkey", zap.Error(err))
-	}
-	return valkeyClient
+	svcboot.FatalIf(log, bus.EnsureStreams(ctx, cfg.NATSURL, []bus.StreamSpec{bus.DiscordOutgressStream}, log),
+		"failed to provision the DISCORD_OUTGRESS stream")
 }
 
 // registerSlashCommands is not fatal on failure: a stale slash-command
@@ -139,14 +110,6 @@ func registerSlashCommands(ctx context.Context, rest *discordrate.LimitedClient,
 		log.Warn("discord slash-command bootstrap failed", zap.Error(err))
 	}
 	return applicationID
-}
-
-func connectNATS(cfg config.Config, log *zap.Logger) *nats.Conn {
-	nc, err := bus.Connect(cfg.NATSRPCURL, serviceName)
-	if err != nil {
-		log.Fatal("failed to connect to nats", zap.Error(err))
-	}
-	return nc
 }
 
 // rpcDeps is subscribeRPCs's whole input, collapsed from eight positional
@@ -218,10 +181,9 @@ func startCommandConsumer(deps consumerDeps) commands.Lanes {
 	return lanes
 }
 
-// healthSet is outgress's own report plus the RPC responder that serves it, the
-// one engine folds into health.itsbagelbot.com/discord -- outgress is not
-// routed from outside, so this RPC is the only way its verdict reaches the
-// vertical's answer.
+// laneChecks is outgress's own report, the one engine folds into
+// health.itsbagelbot.com/discord -- outgress is not routed from outside, so the
+// health RPC is the only way its verdict reaches the vertical's answer.
 //
 // The two lane checks are the reason this is a Set and not a lone NATS check.
 // Draining DISCORD_OUTGRESS is the entire job of this process, and a durable
@@ -229,16 +191,9 @@ func startCommandConsumer(deps consumerDeps) commands.Lanes {
 // while every Command silently ages out at the stream's 60s MaxAge. Checked per
 // lane so the report names which of mod/default wedged, since mod-first
 // priority means the two fail independently.
-func healthSet(nc *nats.Conn, lanes commands.Lanes, log *zap.Logger) *health.Set {
-	set := health.NewSet(serviceName,
-		health.NATS("nats", nc),
+func laneChecks(lanes commands.Lanes) []health.Check {
+	return []health.Check{
 		bus.LaneCheck("mod", lanes.Mod),
 		bus.LaneCheck("default", lanes.Default),
-	)
-	rpcCheck, err := bus.SubscribeRPCHealth(nc, serviceName, serviceName+"-rpc", set)
-	if err != nil {
-		log.Fatal("failed to subscribe rpc health", zap.Error(err))
 	}
-	set.Add(rpcCheck)
-	return set
 }

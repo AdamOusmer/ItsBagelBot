@@ -19,11 +19,13 @@ import (
 	"time"
 
 	"ItsBagelBot/pkg/env"
+	"ItsBagelBot/pkg/svcboot"
 )
 
 type Config struct {
-	NATSURL    string
-	NATSRPCURL string
+	// Infra is the shared NATS/Valkey/listen block (see svcboot.Infra); its
+	// fields are promoted, so cfg.NATSURL and cfg.ListenAddr read unchanged.
+	svcboot.Infra
 
 	// ConsumerName is the JetStream durable/queue group the subscriber binds. It
 	// defaults to "worker" so sesame reuses the worker's existing lane consumer:
@@ -189,19 +191,13 @@ type Config struct {
 	// watch tick appends ".chatters.get" to list a live channel's chatters.
 	OutgressRPCPrefix string
 
-	// Valkey holds the settings projection (user tier + modules) sesame reads on
-	// the hot path.
-	ValkeyAddr     string
-	ValkeyPassword string
-
-	ListenAddr string
+	// Valkey (see Infra) holds the settings projection (user tier + modules)
+	// sesame reads on the hot path.
 }
 
 func Load() *Config {
-	natsURL := env.Get("NATS_URL", "nats://127.0.0.1:4222")
 	return &Config{
-		NATSURL:    natsURL,
-		NATSRPCURL: env.Get("NATS_RPC_URL", natsURL),
+		Infra: svcboot.LoadInfra(),
 
 		ConsumerName: env.Get("SESAME_CONSUMER_NAME", "worker"),
 
@@ -267,10 +263,5 @@ func Load() *Config {
 		LoyaltyRPCPrefix: env.Get("NATS_LOYALTY_SUBJECT_PREFIX", "bagel.rpc.loyalty"),
 
 		OutgressRPCPrefix: env.Get("NATS_OUTGRESS_RPC_PREFIX", "bagel.rpc.outgress"),
-
-		ValkeyAddr:     env.Get("VALKEY_ADDR", "127.0.0.1:6379"),
-		ValkeyPassword: env.Get("VALKEY_PASSWORD", ""),
-
-		ListenAddr: env.Get("LISTEN_ADDR", ":8080"),
 	}
 }

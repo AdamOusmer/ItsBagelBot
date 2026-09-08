@@ -15,11 +15,6 @@
 package main
 
 import (
-	"context"
-	"os"
-	"os/signal"
-	"syscall"
-
 	"ItsBagelBot/app/discord/ingress/internal/botstatus"
 	"ItsBagelBot/app/discord/ingress/internal/config"
 	"ItsBagelBot/app/discord/ingress/internal/gateway"
@@ -30,9 +25,7 @@ import (
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/health"
-	"ItsBagelBot/pkg/logger"
-	"ItsBagelBot/pkg/monitor"
-	pkg_valkey "ItsBagelBot/pkg/valkey"
+	"ItsBagelBot/pkg/svcboot"
 
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
@@ -41,18 +34,9 @@ import (
 const serviceName = "discord-ingress"
 
 func main() {
-	log := logger.New(env.Get("APP_ENV", "development")).Named(serviceName)
-	defer func() { _ = log.Sync() }()
-
-	nrApp, err := monitor.New(serviceName, log)
-	if err != nil {
-		log.Fatal("failed to start new relic", zap.Error(err))
-	}
-	log = monitor.WrapLogger(log, nrApp)
-	defer monitor.Shutdown(nrApp)
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
+	core, done := svcboot.NewCore(serviceName)
+	defer done()
+	log, ctx := core.Log, core.Ctx
 
 	cfg := config.Load()
 	if cfg.DiscordBotToken == "" {
@@ -61,14 +45,11 @@ func main() {
 		// deliberately unconfigured deploy.
 		log.Info("DISCORD_BOT_TOKEN unset; discord ingress idle")
 		health.Serve(cfg.ListenAddr, serviceName)
-		<-ctx.Done()
+		core.Await()
 		return
 	}
 
-	valkeyClient, err := pkg_valkey.NewClient(cfg.ValkeyAddr, cfg.ValkeyPassword)
-	if err != nil {
-		log.Fatal("failed to connect to valkey", zap.Error(err))
-	}
+	valkeyClient := svcboot.MustValkey(core)
 	defer valkeyClient.Close()
 
 	// The interaction defer is the one REST call ingress makes; it still
@@ -78,9 +59,7 @@ func main() {
 	rest := discordrate.NewLimitedClient(discordapi.NewClient(cfg.DiscordBotToken), discordrate.New(valkeyClient))
 
 	pub, err := bus.NewPublisher(cfg.NATSURL, log)
-	if err != nil {
-		log.Fatal("failed to connect publisher", zap.Error(err))
-	}
+	svcboot.FatalIf(log, err, "failed to connect publisher")
 	defer func() { _ = pub.Close() }()
 
 	r := &relay.Relay{REST: rest, Pub: pub, Log: log}
@@ -88,10 +67,7 @@ func main() {
 	// RPC connection, separate from pub above: pub is the fire-and-forget
 	// event publisher (no reply subject), while the counts lookup behind
 	// gateway presence is a request/reply call. See presence.NewFetch's doc.
-	rpcConn, err := bus.Connect(bus.RPCURL(cfg.NATSRPCURL), serviceName)
-	if err != nil {
-		log.Fatal("failed to connect to nats rpc", zap.Error(err))
-	}
+	rpcConn := svcboot.MustRPCConn(core, bus.RPCURL(cfg.NATSRPCURL))
 	defer rpcConn.Close()
 
 	// HOSTNAME is the pod name the kubelet injects; it is the only field of
@@ -102,7 +78,7 @@ func main() {
 	status := botstatus.New(valkeyClient, pod, log)
 	go status.Run(ctx)
 
-	health.ServeSet(cfg.ListenAddr, healthSet(rpcConn, status, log))
+	health.ServeSet(cfg.ListenAddr, healthSet(core, rpcConn, status))
 
 	sess := gateway.Session{
 		Token:  cfg.DiscordBotToken,
@@ -141,17 +117,14 @@ func main() {
 // The idle path above (no DISCORD_BOT_TOKEN) deliberately does not come
 // through here: it has no NATS connection to register a responder on, and
 // staying Ready with nothing to check is the behaviour it is there for.
-func healthSet(nc *nats.Conn, status *botstatus.Reporter, log *zap.Logger) *health.Set {
-	set := health.NewSet(serviceName, health.NATS("nats", nc), status.ReadyCheck())
+func healthSet(core svcboot.Core, nc *nats.Conn, status *botstatus.Reporter) *health.Set {
+	set := svcboot.NewHealthSet(svcboot.Health{
+		Log: core.Log, NC: nc, Service: serviceName, QueueGroup: serviceName + "-rpc",
+	}, status.ReadyCheck())
 	// The gateway is the one dependency whose failure a restart can actually
 	// fix, so it is also the one liveness gate in the fleet: a fatal close
 	// code means this process will never hold the bot's Identify session
 	// again, and a stalled heartbeat means the loop that owns it is gone.
 	set.Live(status.LiveCheck())
-	rpcCheck, err := bus.SubscribeRPCHealth(nc, serviceName, serviceName+"-rpc", set)
-	if err != nil {
-		log.Fatal("failed to subscribe rpc health", zap.Error(err))
-	}
-	set.Add(rpcCheck)
 	return set
 }

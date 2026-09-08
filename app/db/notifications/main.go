@@ -6,8 +6,6 @@ package main
 import (
 	"context"
 	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	"ItsBagelBot/app/db/notifications/ent"
@@ -17,71 +15,43 @@ import (
 	"ItsBagelBot/app/db/notifications/repository"
 	"ItsBagelBot/app/db/notifications/rpc"
 	"ItsBagelBot/pkg/bus"
-	"ItsBagelBot/pkg/db"
 	"ItsBagelBot/pkg/env"
-	"ItsBagelBot/pkg/logger"
-	"ItsBagelBot/pkg/monitor"
 	"ItsBagelBot/pkg/svcboot"
+	"ItsBagelBot/pkg/svcboot/databoot"
 
-	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 )
 
-const serviceName = "notifications"
+const (
+	serviceName = "notifications"
+	queueGroup  = "notifications-rpc"
+)
 
 func main() {
-
-	log := logger.New(env.Get("APP_ENV", "development")).Named(serviceName)
-	defer func() { _ = log.Sync() }()
-
 	// One-shot cron mode: `notifications cleanup` just fires the janitor verb at
 	// the running service and exits, so the k3s CronJob reuses this same image.
+	// It stops short of svcboot.NewCore on purpose -- see svcboot.NewLogger.
 	if len(os.Args) > 1 && os.Args[1] == "cleanup" {
-		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-		defer cancel()
-		if err := runCleanup(ctx, log); err != nil {
-			log.Fatal("notification cleanup failed", zap.Error(err))
-		}
+		runCleanupMode()
 		return
 	}
 
-	nrApp, err := monitor.New(serviceName, log)
-	if err != nil {
-		log.Fatal("failed to start new relic", zap.Error(err))
-	}
-	log = monitor.WrapLogger(log, nrApp)
-	defer monitor.Shutdown(nrApp)
+	core, done := svcboot.NewCore(serviceName)
+	defer done()
+	log := core.Log
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
-	driver, err := db.NewDriver(db.Config{
-		Address:  env.Get("DB_ADDR", "127.0.0.1:3306"),
-		Username: env.MustGet("DB_USER"),
-		Password: env.MustGet("DB_PASS"),
-		Schema:   env.Get("DB_SCHEMA", "bagel_notifications"),
-	})
-	if err != nil {
-		log.Fatal("failed to open database", zap.Error(err))
-	}
-
+	driver := databoot.MustEntDriver(log, "bagel_notifications")
 	client := ent.NewClient(ent.Driver(driver))
 	defer func() { _ = client.Close() }()
 
-	if env.GetBool("DB_AUTO_MIGRATE", true) {
-		if err := client.Schema.Create(ctx); err != nil {
-			log.Fatal("failed to run migrations", zap.Error(err))
-		}
-	}
+	databoot.AutoMigrate(core.Ctx, log, func(ctx context.Context) error { return client.Schema.Create(ctx) })
 
-	natsURL := env.Get("NATS_URL", "nats://127.0.0.1:4222")
-	rpcURL := bus.RPCURL(natsURL)
-
-	nc := connectRPC(rpcURL, log)
+	// Only the RPC connection, not the full MustNATS set: notifications
+	// consumes no event lane, it only answers request/reply.
+	nc := svcboot.MustRPCConn(core, bus.RPCURL(core.NATSURL))
 	defer nc.Close()
 
 	repo := repository.New(client)
-	queueGroup := "notifications-rpc"
 	invalidationPrefix := env.Get("NATS_CACHE_INVALIDATION_PREFIX", "bagel.cache.invalidate")
 
 	// TTL tiers (all Go durations). A send with no explicit expiry lives
@@ -104,9 +74,7 @@ func main() {
 		QueueGroup:         queueGroup,
 		DefaultTTL:         defaultTTL,
 	}
-	if err := rpc.SubscribeAdmin(nc, repo, adminCfg, nrApp, log); err != nil {
-		log.Fatal("failed to subscribe admin rpc", zap.Error(err))
-	}
+	svcboot.FatalIf(log, rpc.SubscribeAdmin(nc, repo, adminCfg, core.NR, log), "failed to subscribe admin rpc")
 
 	userPrefix := env.Get("NATS_NOTIFICATIONS_SUBJECT_PREFIX", "bagel.rpc.notifications")
 	userCfg := rpc.UserConfig{
@@ -115,20 +83,21 @@ func main() {
 		FullReadTTL: fullReadTTL,
 		PeekTTL:     peekTTL,
 	}
-	if err := rpc.SubscribeUser(nc, repo, userCfg, nrApp, log); err != nil {
-		log.Fatal("failed to subscribe user rpc", zap.Error(err))
-	}
+	svcboot.FatalIf(log, rpc.SubscribeUser(nc, repo, userCfg, core.NR, log), "failed to subscribe user rpc")
 
 	// Internal janitor verb driven by the k3s cron (see deploy/k8s). Not
 	// exported from the NATS account, so only a client with the service's own
 	// credentials can reach it.
 	cleanupSubject := env.Get("NATS_NOTIFICATIONS_CLEANUP_SUBJECT", "bagel.rpc.internal.notifications.cleanup")
-	if err := rpc.SubscribeMaintenance(nc, repo, cleanupSubject, queueGroup, nrApp, log); err != nil {
-		log.Fatal("failed to subscribe maintenance rpc", zap.Error(err))
-	}
+	svcboot.FatalIf(log, rpc.SubscribeMaintenance(nc, repo, cleanupSubject, queueGroup, core.NR, log),
+		"failed to subscribe maintenance rpc")
+
 	// No lane check: this service consumes no event lane, only request/reply.
-	svcboot.ServeDataHealth(svcboot.DataHealth{
-		Log: log, NC: nc, Service: serviceName, QueueGroup: queueGroup, Pool: driver.DB(),
+	databoot.ServeHealth(databoot.Health{
+		Health: svcboot.Health{
+			Log: log, NC: nc, Service: serviceName, QueueGroup: queueGroup, ListenAddr: core.ListenAddr,
+		},
+		Pool: driver.DB(),
 	})
 
 	log.Info("notifications service ready",
@@ -136,18 +105,20 @@ func main() {
 		zap.String("user_prefix", userPrefix),
 		zap.String("cleanup_subject", cleanupSubject))
 
-	<-ctx.Done()
-
-	log.Info("notifications service shutting down")
+	core.Await()
 }
 
-// connectRPC opens the service's RPC connection. The health responder is no
-// longer registered here: it answers out of the health Set, and that Set cannot
-// exist until the database it reports on is open.
-func connectRPC(url string, log *zap.Logger) *nats.Conn {
-	nc, err := bus.Connect(url, serviceName)
-	if err != nil {
-		log.Fatal("failed to connect to nats", zap.Error(err))
-	}
-	return nc
+// runCleanupMode fires the janitor verb at the running service and returns. It
+// builds a logger but no APM app or signal context: the process lives for one
+// RPC round trip.
+func runCleanupMode() {
+	log := svcboot.NewLogger(serviceName)
+	defer func() { _ = log.Sync() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), cleanupBudget)
+	defer cancel()
+	svcboot.FatalIf(log, runCleanup(ctx, log), "notification cleanup failed")
 }
+
+// cleanupBudget bounds the one-shot cron invocation end to end.
+const cleanupBudget = 60 * time.Second

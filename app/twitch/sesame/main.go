@@ -5,9 +5,6 @@ package main
 
 import (
 	"context"
-	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/automod"
@@ -19,15 +16,15 @@ import (
 	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/env"
-	"ItsBagelBot/pkg/health"
-	"ItsBagelBot/pkg/logger"
-	"ItsBagelBot/pkg/monitor"
-	pkg_valkey "ItsBagelBot/pkg/valkey"
+	"ItsBagelBot/pkg/svcboot"
 
 	"go.uber.org/zap"
 )
 
-const serviceName = "sesame"
+const (
+	serviceName = "sesame"
+	queueGroup  = "sesame-rpc"
+)
 
 // projectionCacheTTL bounds how long a stale module/command/user view can linger
 // in sesame before the next read re-checks Valkey and the projector.
@@ -39,20 +36,11 @@ const projectionCacheTTL = 30 * time.Second
 const cacheOccupancyInterval = 5 * time.Minute
 
 func main() {
-	log := logger.New(env.Get("APP_ENV", "development")).Named(serviceName)
-	defer func() { _ = log.Sync() }()
-
-	nrApp, err := monitor.New(serviceName, log)
-	if err != nil {
-		log.Fatal("failed to start new relic", zap.Error(err))
-	}
-	log = monitor.WrapLogger(log, nrApp)
-	defer monitor.Shutdown(nrApp)
+	core, done := svcboot.NewCore(serviceName)
+	defer done()
+	log, ctx, nrApp := core.Log, core.Ctx, core.NR
 
 	warnLocaleGaps(log)
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 
 	cfg := config.Load()
 
@@ -81,19 +69,15 @@ func main() {
 	if bus.FlowConsumeEnabled() {
 		owned = append(owned, bus.TwitchIngressRetryStream)
 	}
-	if err := bus.EnsureStreams(ctx, cfg.NATSURL, owned, log); err != nil {
-		log.Fatal("failed to provision the TWITCH_INGRESS streams", zap.Error(err))
-	}
+	svcboot.FatalIf(log, bus.EnsureStreams(ctx, cfg.NATSURL, owned, log),
+		"failed to provision the TWITCH_INGRESS streams")
 
 	nc, pub, sub := dialNATS(cfg, log)
 	defer nc.Close()
 	defer func() { _ = pub.Close() }()
 	defer func() { _ = sub.Close() }()
 
-	valkeyClient, err := pkg_valkey.NewClient(cfg.ValkeyAddr, cfg.ValkeyPassword)
-	if err != nil {
-		log.Fatal("failed to connect to valkey", zap.Error(err))
-	}
+	valkeyClient := svcboot.MustValkey(core)
 	defer valkeyClient.Close()
 
 	// Real Overview activity sink: internal/activity.Emit is a no-op until a
@@ -151,9 +135,7 @@ func main() {
 	pipe.RegisterObserver(chatVolumeObserver{store: chatvolume.New(valkeyClient, log)})
 
 	weighted, err := newConsumer(sub, nrApp, cfg, log).Start(ctx, pipe.Process)
-	if err != nil {
-		log.Fatal("failed to start consumer", zap.Error(err))
-	}
+	svcboot.FatalIf(log, err, "failed to start consumer")
 	serveHealth(w)
 	logReady(cfg, deps.Special.Len(), log)
 
@@ -179,22 +161,13 @@ func main() {
 // and SubscriberHealthy reads that one subscriber's fetch clock. Splitting it
 // per lane would publish the same bool under three names.
 func serveHealth(w wireCtx) {
-	set := health.NewSet(serviceName,
-		health.NATS("nats", w.in.nc),
+	svcboot.ServeHealth(svcboot.Health{
+		Log: w.log, NC: w.in.nc, Service: serviceName, QueueGroup: queueGroup, ListenAddr: w.cfg.ListenAddr,
+	},
 		bus.LaneCheck("ingress_events", w.in.sub),
 		bus.HealthProbe(w.in.nc, "ingress"),
 		bus.HealthProbe(w.in.nc, "outgress"),
 	)
-	rpcCheck, err := bus.SubscribeRPCHealth(w.in.nc, serviceName, "sesame-rpc", set)
-	if err != nil {
-		w.log.Fatal("failed to subscribe rpc health", zap.Error(err))
-	}
-	// Registered after the Set exists, then added back into it: the returned
-	// check watches the subscription this call just made, which a NATS
-	// permission violation kills asynchronously while the pod keeps running
-	// and every other check stays green.
-	set.Add(rpcCheck)
-	health.ServeSet(w.cfg.ListenAddr, set)
 }
 
 // startRefreshers launches the background automod refreshers that feed the

@@ -14,10 +14,7 @@ package main
 
 import (
 	"context"
-	"os"
-	"os/signal"
 	"strconv"
-	"syscall"
 	"time"
 
 	"ItsBagelBot/app/gossip/internal/config"
@@ -27,13 +24,9 @@ import (
 	"ItsBagelBot/app/gossip/internal/providers"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/internal/projection"
-	"ItsBagelBot/pkg/bus"
-	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/health"
-	"ItsBagelBot/pkg/logger"
-	"ItsBagelBot/pkg/monitor"
 	"ItsBagelBot/pkg/ratelimit"
-	pkg_valkey "ItsBagelBot/pkg/valkey"
+	"ItsBagelBot/pkg/svcboot"
 
 	"github.com/nats-io/nats.go"
 	valkey_go "github.com/valkey-io/valkey-go"
@@ -46,25 +39,16 @@ const serviceName = "gossip"
 const queueGroup = "gossip-rpc"
 
 func main() {
-	log := logger.New(env.Get("APP_ENV", "development")).Named(serviceName)
-	defer func() { _ = log.Sync() }()
-
-	nrApp, err := monitor.New(serviceName, log)
-	if err != nil {
-		log.Fatal("failed to start new relic", zap.Error(err))
-	}
-	log = monitor.WrapLogger(log, nrApp)
-	defer monitor.Shutdown(nrApp)
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
+	core, done := svcboot.NewCore(serviceName)
+	defer done()
+	log := core.Log
 
 	cfg := config.Load()
 
-	valkeyClient := connectValkey(cfg, log)
+	valkeyClient := svcboot.MustValkey(core)
 	defer valkeyClient.Close()
 
-	nc := connectNATS(cfg, log)
+	nc := svcboot.MustRPCConn(core, cfg.NATSRPCURL)
 	defer nc.Close()
 
 	deps := buildDeps(cfg, nc, valkeyClient, log)
@@ -73,40 +57,18 @@ func main() {
 	if len(active) == 0 {
 		log.Warn("no providers configured; gossip will answer nothing")
 	}
-	if err := engine.Serve(nc, cfg.SubjectPrefix, queueGroup, active, nrApp, log); err != nil {
-		log.Fatal("failed to subscribe provider endpoints", zap.Error(err))
-	}
-	// One Set feeds both surfaces: /status (and the probes derived from it)
-	// and the health RPC responder. Building a second Set for the RPC would
-	// let the two disagree about this service at the same instant. The
-	// responder answers out of the Set, and the check watching its
-	// registration can only be built afterwards, hence NewSet -> subscribe ->
-	// Add -> ServeSet. gossip runs no JetStream lanes, so there is no
-	// bus.LaneCheck here: its "lane" is the RPC surface the rpc check covers.
-	set := health.NewSet(serviceName, health.NATS("nats", nc), warpCheck())
-	set.Add(subscribeRPCHealth(nc, queueGroup, set, log))
+	svcboot.FatalIf(log, engine.Serve(nc, cfg.SubjectPrefix, queueGroup, active, core.NR, log),
+		"failed to subscribe provider endpoints")
 
-	health.ServeSet(cfg.ListenAddr, set)
+	// gossip runs no JetStream lanes, so there is no bus.LaneCheck here: its
+	// "lane" is the RPC surface svcboot's own rpc check already covers.
+	svcboot.ServeHealth(svcboot.Health{
+		Log: log, NC: nc, Service: serviceName, QueueGroup: queueGroup, ListenAddr: cfg.ListenAddr,
+	}, warpCheck())
 
 	logReady(active, cfg, log)
 
-	awaitShutdown(ctx, log)
-}
-
-func connectValkey(cfg *config.Config, log *zap.Logger) valkey_go.Client {
-	valkeyClient, err := pkg_valkey.NewClient(cfg.ValkeyAddr, cfg.ValkeyPassword)
-	if err != nil {
-		log.Fatal("failed to connect to valkey", zap.Error(err))
-	}
-	return valkeyClient
-}
-
-func connectNATS(cfg *config.Config, log *zap.Logger) *nats.Conn {
-	nc, err := bus.Connect(cfg.NATSRPCURL, serviceName)
-	if err != nil {
-		log.Fatal("failed to connect to nats", zap.Error(err))
-	}
-	return nc
+	core.Await()
 }
 
 func buildDeps(cfg *config.Config, nc *nats.Conn, valkeyClient valkey_go.Client, log *zap.Logger) provider.Deps {
@@ -132,42 +94,6 @@ func logReady(active []provider.Provider, cfg *config.Config, log *zap.Logger) {
 		zap.String("subject_prefix", cfg.SubjectPrefix),
 		zap.Strings("providers", names),
 	)
-}
-
-func awaitShutdown(ctx context.Context, log *zap.Logger) {
-	<-ctx.Done()
-
-	log.Info("gossip shutting down")
-	drainRPCHandlers(log)
-}
-
-// rpcDrainTimeout bounds the wait for in-flight RPC handlers at shutdown. It
-// fits inside the pod's budget: the preStop hook holds SIGTERM for 10s on
-// /drain and terminationGracePeriodSeconds is 45, so a handler blocked on its
-// own 10-15s upstream timeout is still given room to answer before the kubelet
-// escalates to SIGKILL.
-const rpcDrainTimeout = 15 * time.Second
-
-// drainRPCHandlers waits for handlers that are mid-request before main returns
-// and its deferred closes run. Handlers now execute on pool workers rather than
-// on the NATS callback goroutine, so without this a SIGTERM would close the NATS
-// connection and the Valkey client underneath a handler still using them: the
-// requester loses its reply and the log fills with use-after-close noise that
-// looks like a broker fault rather than a shutdown.
-func drainRPCHandlers(log *zap.Logger) {
-	ctx, cancel := context.WithTimeout(context.Background(), rpcDrainTimeout)
-	defer cancel()
-	if err := bus.DrainRPCHandlers(ctx); err != nil {
-		log.Warn("rpc handlers did not drain before the deadline", zap.Error(err))
-	}
-}
-
-func subscribeRPCHealth(nc *nats.Conn, queueGroup string, set *health.Set, log *zap.Logger) health.Check {
-	check, err := bus.SubscribeRPCHealth(nc, serviceName, queueGroup, set)
-	if err != nil {
-		log.Fatal("failed to subscribe rpc health", zap.Error(err))
-	}
-	return check
 }
 
 // warpCheck watches the WARP sidecar's loopback SOCKS listener via

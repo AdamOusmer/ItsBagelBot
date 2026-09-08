@@ -4,14 +4,10 @@
 package main
 
 import (
-	"ItsBagelBot/app/plain/internal/config"
-	"ItsBagelBot/pkg/env"
-	"ItsBagelBot/pkg/logger"
-	"ItsBagelBot/pkg/monitor"
-	pkg_valkey "ItsBagelBot/pkg/valkey"
 	"time"
 
-	"go.uber.org/zap"
+	"ItsBagelBot/app/plain/internal/config"
+	"ItsBagelBot/pkg/svcboot"
 )
 
 const serviceName = "outgress"
@@ -22,23 +18,14 @@ const (
 )
 
 func main() {
+	core, done := svcboot.NewCore(serviceName)
+	defer done()
 
-	log := logger.New(env.Get("APP_ENV", "development")).Named(serviceName)
-	defer func() { _ = log.Sync() }()
+	// Loaded but unused: this binary is still a stub, and the load is kept so
+	// the config package stays wired for whatever finishes it. Valkey's own
+	// endpoints now come from svcboot.Infra, which reads the same two vars.
+	_ = config.Load()
 
-	nrApp, err := monitor.New(serviceName, log)
-	if err != nil {
-		log.Fatal("failed to start new relic", zap.Error(err))
-	}
-	log = monitor.WrapLogger(log, nrApp)
-	defer monitor.Shutdown(nrApp)
-
-	cfg := config.Load()
-
-	valkeyClient, err := pkg_valkey.NewClient(cfg.ValkeyAddr, cfg.ValkeyPassword)
-	if err != nil {
-		log.Fatal("failed to connect to valkey", zap.Error(err))
-	}
+	valkeyClient := svcboot.MustValkey(core)
 	defer valkeyClient.Close()
-
 }

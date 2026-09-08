@@ -15,8 +15,8 @@ import (
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/svcboot"
+	"ItsBagelBot/pkg/svcboot/databoot"
 
-	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 )
 
@@ -40,13 +40,13 @@ func main() {
 	// -> rpc -> health. The health Set reports on the pool, so it cannot be
 	// built before the pool exists, and the RPC surface must not answer before
 	// the schema it queries is there.
-	driver := svcboot.MustEntDriver(log, defaultSchema)
+	driver := databoot.MustEntDriver(log, defaultSchema)
 	client := ent.NewClient(ent.Driver(driver))
 	defer func() { _ = client.Close() }()
 
-	svcboot.AutoMigrate(core.Ctx, log, func(ctx context.Context) error { return client.Schema.Create(ctx) })
+	databoot.AutoMigrate(core.Ctx, log, func(ctx context.Context) error { return client.Schema.Create(ctx) })
 
-	nc := connectRPC(log)
+	nc := svcboot.MustRPCConn(core, rpcEndpoint())
 	defer nc.Close()
 
 	prefix := env.Get("NATS_DISCORD_DATA_SUBJECT_PREFIX", "bagel.rpc.discord-data")
@@ -63,15 +63,16 @@ func main() {
 	}
 
 	// No lane check: this service consumes no event lane, only request/reply.
-	svcboot.ServeDataHealth(svcboot.DataHealth{
-		Log: log, NC: nc, Service: serviceName, QueueGroup: queueGroup, Pool: driver.DB(),
+	databoot.ServeHealth(databoot.Health{
+		Health: svcboot.Health{
+			Log: log, NC: nc, Service: serviceName, QueueGroup: queueGroup, ListenAddr: core.ListenAddr,
+		},
+		Pool: driver.DB(),
 	})
 
 	log.Info("discord-data service ready", zap.String("prefix", prefix))
 
-	<-core.Ctx.Done()
-
-	log.Info("discord-data service shutting down")
+	core.Await()
 }
 
 // rpcEndpoint resolves the one NATS endpoint this service dials.
@@ -86,16 +87,4 @@ func main() {
 // merely opening connections nothing uses.
 func rpcEndpoint() string {
 	return bus.RPCURL(env.Get("NATS_URL", defaultNATSURL))
-}
-
-// connectRPC opens the service's single core connection. The health responder
-// is not registered here: it answers out of the health Set, and that Set
-// cannot exist until the database it reports on is open.
-func connectRPC(log *zap.Logger) *nats.Conn {
-	url := rpcEndpoint()
-	nc, err := bus.Connect(url, serviceName)
-	if err != nil {
-		log.Fatal("failed to connect to nats", zap.Error(err), zap.String("url", url))
-	}
-	return nc
 }

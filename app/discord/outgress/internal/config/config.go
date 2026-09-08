@@ -6,6 +6,7 @@ package config
 import (
 	"ItsBagelBot/internal/discordstore"
 	"ItsBagelBot/pkg/env"
+	"ItsBagelBot/pkg/svcboot"
 )
 
 // Config is the process env app/discord/outgress boots from. outgress holds
@@ -13,13 +14,11 @@ import (
 // is the one Discord service safe at any replica count -- no gateway
 // Identify session, no in-process state a second replica could diverge on.
 type Config struct {
-	ListenAddr      string
-	ValkeyAddr      string
-	ValkeyPassword  string
-	DiscordBotToken string
+	// Infra is the shared NATS/Valkey/listen block (see svcboot.Infra); its
+	// fields are promoted, so cfg.NATSURL and cfg.ListenAddr read unchanged.
+	svcboot.Infra
 
-	NATSURL    string
-	NATSRPCURL string
+	DiscordBotToken string
 
 	// RPCPrefix/RPCQueue address the dashboard-facing guild
 	// setup/layout/unbind/post RPC, ported unchanged from
@@ -52,14 +51,9 @@ type Config struct {
 // Load reads process env. Empty DISCORD_BOT_TOKEN leaves the service idle
 // with health still serving.
 func Load() Config {
-	natsURL := env.Get("NATS_URL", "nats://127.0.0.1:4222")
 	return Config{
-		ListenAddr:             env.Get("LISTEN_ADDR", ":8080"),
-		ValkeyAddr:             env.Get("VALKEY_ADDR", "127.0.0.1:6379"),
-		ValkeyPassword:         env.Get("VALKEY_PASSWORD", ""),
+		Infra:                  svcboot.LoadInfra(),
 		DiscordBotToken:        env.Get("DISCORD_BOT_TOKEN", ""),
-		NATSURL:                natsURL,
-		NATSRPCURL:             env.Get("NATS_RPC_URL", natsURL),
 		RPCPrefix:              env.Get("NATS_DINGRESS_RPC_PREFIX", "bagel.rpc.dingress"),
 		RPCQueue:               env.Get("NATS_DINGRESS_RPC_QUEUE", "dingress-rpc"),
 		DiscordEngineRPCPrefix: env.Get("NATS_DISCORD_OUTGRESS_RPC_PREFIX", "bagel.rpc.discord-outgress"),
