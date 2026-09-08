@@ -16,15 +16,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 func valCmd(t *testing.T, gw engine.GossipCaller, name string) module.Command {
 	t.Helper()
-	m := Valorant(engine.Deps{Gossip: gw, Log: zap.NewNop()})
-	assert.Equal(t, "valorant", m.Name)
-	assert.Equal(t, module.KindOptIn, m.Kind)
-	return findCmd(t, m, name)
+	return optInCmd(t, Valorant(gossipDeps(gw)), "valorant", name)
 }
 
 func valRankReply() gossiprpc.ValorantRankReply {

@@ -10,6 +10,8 @@ import (
 	"math/big"
 	"sort"
 	"strconv"
+
+	"ItsBagelBot/pkg/cache"
 )
 
 // Pure duel mechanics: settings clamping, the weighted pot pick and the
@@ -108,7 +110,7 @@ func DigestDuelPool(sorted []DuelStake) string {
 }
 
 // duelKey builds one broadcaster-scoped key from a prefix.
-func duelKey(prefix string, id uint64) string { return prefix + strconv.FormatUint(id, 10) }
+func duelKey(prefix string, id uint64) string { return cache.UserKey(prefix, id) }
 
 // parseDuelLedger converts a raw hash read into canonical stakes, dropping
 // unreadable or non-positive entries rather than poisoning the pool.

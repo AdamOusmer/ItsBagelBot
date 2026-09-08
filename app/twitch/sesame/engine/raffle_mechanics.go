@@ -8,9 +8,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"math/big"
-	"strconv"
 	"strings"
 
+	"ItsBagelBot/pkg/cache"
 	"ItsBagelBot/pkg/codec"
 )
 
@@ -18,7 +18,7 @@ import (
 // pick, receipt digests and announcement text shaping. No I/O lives here —
 // everything takes and returns plain values so tests pin them directly.
 
-func raffleKey(prefix string, id uint64) string { return prefix + strconv.FormatUint(id, 10) }
+func raffleKey(prefix string, id uint64) string { return cache.UserKey(prefix, id) }
 
 // clampRaffleOpen applies the store's floors and ceilings to one open request.
 // Pure, so Open's gate stays a straight line; remindSecs is what the reminder

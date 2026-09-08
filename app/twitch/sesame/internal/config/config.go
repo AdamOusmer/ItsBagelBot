@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"ItsBagelBot/pkg/env"
+	"ItsBagelBot/pkg/env/conf"
 	"ItsBagelBot/pkg/svcboot"
 )
 
@@ -35,11 +36,13 @@ type Config struct {
 	// the same lanes and the same pkg/bus consumer.
 	ConsumerName string
 
-	// Ingress lanes sesame consumes: premium and standard. Both carry every
-	// actionable event laned by broadcaster status, including the live
-	// (stream.online/offline) events ingress dual-publishes onto them.
-	PremiumSubject  string
-	StandardSubject string
+	// Lanes are the ingress lanes sesame consumes (premium and standard, both
+	// carrying every actionable event laned by broadcaster status, including
+	// the live stream.online/offline events ingress dual-publishes onto them)
+	// and the outgress lanes the pipeline publishes onto, chosen from the
+	// event's regress status. Fields are promoted, so cfg.PremiumSubject and
+	// cfg.OutgressPremiumSubject read unchanged.
+	conf.Lanes
 
 	// The one consumer drains both lanes into a shared, autoscaling pool of
 	// pipeline routines. PremiumReserve keeps a slice of the pool for premium so a
@@ -60,10 +63,6 @@ type Config struct {
 	// and are folded by the broker.
 	DrainTimeout time.Duration
 
-	// Outgress lane subjects the pipeline publishes onto, chosen from the event's
-	// regress status (premium vs standard).
-	OutgressPremiumSubject  string
-	OutgressStandardSubject string
 	// OutgressSystemSubject is the outgress system lane (off the chat budget); the
 	// live key-expiry re-check publishes its Twitch Get Streams job here.
 	OutgressSystemSubject string
@@ -146,19 +145,14 @@ type Config struct {
 	IdempotencyEnabled bool
 	IdempotencyTTL     time.Duration
 
-	// Projection RPC subjects: the cold-key fallbacks behind the Valkey
-	// settings projection. Modules and commands ask the PROJECTOR's dashboard
-	// get verbs — the projector owns Valkey, so its miss path hydrates the
-	// projection and the next read is a plain Valkey hit; sesame never asks
-	// the modules/commands services directly. Users still asks the users
-	// service's projection verb (the projector exposes no user-shaped read).
-	ProjectionUsersSubject    string
-	ProjectionModulesSubject  string
-	ProjectionCommandsSubject string
-
-	// CacheInvalidationPrefix is the NATS subject prefix sesame subscribes to for
-	// push invalidation of its in-process projection cache.
-	CacheInvalidationPrefix string
+	// Projection holds the cold-key fallbacks behind the Valkey settings
+	// projection plus the push-invalidation prefix. sesame loads the
+	// via-projector variant: modules and commands ask the projector's
+	// dashboard get verbs so a miss hydrates Valkey (see
+	// conf.LoadProjectionViaProjector). Fields are promoted, so
+	// cfg.ProjectionModulesSubject and cfg.CacheInvalidationPrefix read
+	// unchanged.
+	conf.Projection
 
 	// CommandsDashboardPrefix is the NATS subject prefix the commands service
 	// dashboard RPC subscribes to; sesame appends ".upsert" / ".delete" to
@@ -201,8 +195,8 @@ func Load() *Config {
 
 		ConsumerName: env.Get("SESAME_CONSUMER_NAME", "worker"),
 
-		PremiumSubject:  env.Get("NATS_INGRESS_PREMIUM_SUBJECT", "twitch.ingress.event.premium"),
-		StandardSubject: env.Get("NATS_INGRESS_STANDARD_SUBJECT", "twitch.ingress.event.standard"),
+		Lanes:      conf.LoadLanes(),
+		Projection: conf.LoadProjectionViaProjector(),
 
 		MinRoutines:    env.GetInt("SESAME_MIN_ROUTINES", 2),
 		MaxRoutines:    env.GetInt("SESAME_MAX_ROUTINES", 8),
@@ -214,9 +208,7 @@ func Load() *Config {
 
 		DrainTimeout: env.GetDuration("SESAME_DRAIN_TIMEOUT", 25*time.Second),
 
-		OutgressPremiumSubject:  env.Get("NATS_OUTGRESS_PREMIUM_SUBJECT", "twitch.outgress.premium"),
-		OutgressStandardSubject: env.Get("NATS_OUTGRESS_STANDARD_SUBJECT", "twitch.outgress.standard"),
-		OutgressSystemSubject:   env.Get("NATS_OUTGRESS_SYSTEM_SUBJECT", "twitch.outgress.system"),
+		OutgressSystemSubject: env.Get("NATS_OUTGRESS_SYSTEM_SUBJECT", "twitch.outgress.system"),
 
 		ProjectionLiveSubject: env.Get("NATS_BROADCASTER_LIVE_SUBJECT", "bagel.rpc.broadcaster.live.get"),
 
@@ -241,12 +233,6 @@ func Load() *Config {
 
 		IdempotencyEnabled: env.Get("SESAME_IDEMPOTENCY", "on") != "off",
 		IdempotencyTTL:     env.GetDuration("SESAME_IDEMPOTENCY_TTL", 15*time.Minute),
-
-		ProjectionUsersSubject:    env.Get("NATS_INTERNAL_PROJECTION_USERS_SUBJECT", "bagel.rpc.internal.projection.users.get"),
-		ProjectionModulesSubject:  env.Get("NATS_INTERNAL_PROJECTION_MODULES_SUBJECT", "bagel.rpc.projector.dashboard.modules.get"),
-		ProjectionCommandsSubject: env.Get("NATS_INTERNAL_PROJECTION_COMMANDS_SUBJECT", "bagel.rpc.projector.dashboard.commands.get"),
-
-		CacheInvalidationPrefix: env.Get("NATS_CACHE_INVALIDATION_PREFIX", "bagel.cache.invalidate"),
 
 		CommandsDashboardPrefix: env.Get("NATS_COMMANDS_DASHBOARD_PREFIX", "bagel.rpc.commands"),
 

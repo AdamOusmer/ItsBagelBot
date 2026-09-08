@@ -79,7 +79,7 @@ func timeReply(log *zap.Logger, c *module.Context, now time.Time) string {
 	loc, err := time.LoadLocation(tz)
 	if err != nil {
 		log.Warn("time: configured timezone failed to load",
-			zap.Uint64("broadcaster_id", c.BroadcasterID), zap.String("timezone", tz), zap.Error(err))
+			c.BID(), zap.String("timezone", tz), zap.Error(err))
 		return "The time is unavailable right now."
 	}
 	return expandTimeTemplate(cfg, now.In(loc), c)

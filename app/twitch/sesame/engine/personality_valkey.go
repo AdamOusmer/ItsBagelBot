@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"time"
 
+	"ItsBagelBot/pkg/cache"
+
 	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
 )
@@ -42,7 +44,7 @@ func NewValkeyPersonality(client valkey.Client, total FeedTotalPersister, log *z
 }
 
 func personalityKey(section string, id uint64) string {
-	return "personality:" + section + ":" + strconv.FormatUint(id, 10)
+	return cache.UserKey("personality:"+section+":", id)
 }
 
 // FactCursor bumps and returns the channel's fact cursor. The module takes it

@@ -89,10 +89,7 @@ func urchinCtx(config string) *module.Context {
 
 func urchinCmd(t *testing.T, gw engine.GossipCaller, name string) module.Command {
 	t.Helper()
-	m := Urchin(engine.Deps{Gossip: gw, Log: zap.NewNop()})
-	assert.Equal(t, "urchin", m.Name)
-	assert.Equal(t, module.KindOptIn, m.Kind)
-	return findCmd(t, m, name)
+	return optInCmd(t, Urchin(gossipDeps(gw)), "urchin", name)
 }
 
 func TestUrchinDailyDefaultTemplate(t *testing.T) {

@@ -11,8 +11,6 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
-	"ItsBagelBot/internal/domain/i18n"
-	"ItsBagelBot/internal/domain/outgress"
 
 	"go.uber.org/zap"
 )
@@ -87,8 +85,8 @@ type raffleConfig struct {
 // method taking only its own arguments instead of threading the same five
 // values through every call.
 type raffleCmd struct {
+	chatReplier
 	r   engine.RaffleStore
-	c   *module.Context
 	cfg raffleConfig
 	log *zap.Logger
 }
@@ -100,7 +98,7 @@ func newRaffleCmd(d engine.Deps, c *module.Context, log *zap.Logger) (rc raffleC
 	if d.Raffle == nil {
 		return raffleCmd{}, false
 	}
-	rc = raffleCmd{r: d.Raffle, c: c, log: log}
+	rc = raffleCmd{chatReplier: newChatReplier(c), r: d.Raffle, log: log}
 	_ = c.Decode(&rc.cfg)
 	return rc, true
 }
@@ -168,7 +166,7 @@ func raffleDispatch(d engine.Deps, log *zap.Logger) module.RunFunc {
 func (rc raffleCmd) status(ctx context.Context, emit module.Emit) error {
 	st, err := rc.r.Status(ctx, rc.c.BroadcasterID)
 	if err != nil {
-		rc.log.Warn("raffle: status failed", rc.bid(), zap.Error(err))
+		rc.log.Warn("raffle: status failed", rc.c.BID(), zap.Error(err))
 		return err
 	}
 	if st.Open {
@@ -229,7 +227,7 @@ func (rc raffleCmd) open(ctx context.Context, args string, emit module.Emit) err
 		Remind:   remind,
 	})
 	if err != nil {
-		rc.log.Warn("raffle: open failed", rc.bid(), zap.Error(err))
+		rc.log.Warn("raffle: open failed", rc.c.BID(), zap.Error(err))
 		return err
 	}
 	if ok {
@@ -249,7 +247,7 @@ func (rc raffleCmd) join(ctx context.Context, emit module.Emit) error {
 	}
 	entry, err := rc.r.Join(ctx, rc.c.BroadcasterID, login)
 	if err != nil {
-		rc.log.Warn("raffle: join failed", rc.bid(), zap.Error(err))
+		rc.log.Warn("raffle: join failed", rc.c.BID(), zap.Error(err))
 		return err
 	}
 	count := strconv.FormatInt(entry.Entrants, 10)
@@ -273,7 +271,7 @@ func (rc raffleCmd) draw(ctx context.Context, arg string, emit module.Emit) erro
 	}
 	res, err := rc.r.Draw(ctx, rc.c.BroadcasterID, override)
 	if err != nil {
-		rc.log.Warn("raffle: draw failed", rc.bid(), zap.Error(err))
+		rc.log.Warn("raffle: draw failed", rc.c.BID(), zap.Error(err))
 		return err
 	}
 	if res == nil {
@@ -288,7 +286,7 @@ func (rc raffleCmd) draw(ctx context.Context, arg string, emit module.Emit) erro
 func (rc raffleCmd) cancel(ctx context.Context, emit module.Emit) error {
 	ok, err := rc.r.Cancel(ctx, rc.c.BroadcasterID)
 	if err != nil {
-		rc.log.Warn("raffle: cancel failed", rc.bid(), zap.Error(err))
+		rc.log.Warn("raffle: cancel failed", rc.c.BID(), zap.Error(err))
 		return err
 	}
 	if ok {
@@ -304,7 +302,7 @@ func (rc raffleCmd) cancel(ctx context.Context, emit module.Emit) error {
 func (rc raffleCmd) last(ctx context.Context, emit module.Emit) error {
 	res, found, err := rc.r.LastResult(ctx, rc.c.BroadcasterID)
 	if err != nil {
-		rc.log.Warn("raffle: last failed", rc.bid(), zap.Error(err))
+		rc.log.Warn("raffle: last failed", rc.c.BID(), zap.Error(err))
 		return err
 	}
 	switch {
@@ -336,7 +334,7 @@ func (rc raffleCmd) claimConfirm(ctx context.Context, emit module.Emit) error {
 	}
 	outcome, err := rc.r.Claim(ctx, rc.c.BroadcasterID, login)
 	if err != nil {
-		rc.log.Warn("raffle: claim failed", rc.bid(), zap.Error(err))
+		rc.log.Warn("raffle: claim failed", rc.c.BID(), zap.Error(err))
 		return err
 	}
 	switch outcome {
@@ -374,37 +372,3 @@ func mentionTargets(winners []string) string {
 	}
 	return strings.Join(prefixed, ", ")
 }
-
-// reply emits one localized system line. kv are {token},value pairs; {user}
-// (the invoking chatter) is always available.
-// reply emits one chat line. override is the broadcaster's customized template
-// for this reply ("" for the fixed system lines, or an uncustomized
-// customizable one); when empty the localized default for key is used. kv are
-// {token},value pairs (token names without braces); {user} (the invoking
-// chatter) and the generic dynamic vars ({random}, {choice:…}) are always
-// available, so a customized template can use them too.
-func (rc raffleCmd) reply(emit module.Emit, override, key string, kv ...string) {
-	tmpl := override
-	if tmpl == "" {
-		tmpl = i18n.T(rc.c.Locale, key)
-	}
-	text := module.ExpandString(tmpl, func(k string) (string, bool) {
-		for i := 0; i+1 < len(kv); i += 2 {
-			if kv[i] == k {
-				return kv[i+1], true
-			}
-		}
-		if k == "user" {
-			return rc.c.Env.ChatterUserLogin, true
-		}
-		return module.ParseDynamic(k)
-	})
-	emit(&module.Output{
-		Type:          outgress.TypeChat,
-		BroadcasterID: rc.c.Env.BroadcasterUserID,
-		Text:          text,
-	})
-}
-
-// bid is the broadcaster-id log field, shared by every handler's warn path.
-func (rc raffleCmd) bid() zap.Field { return zap.Uint64("broadcaster_id", rc.c.BroadcasterID) }

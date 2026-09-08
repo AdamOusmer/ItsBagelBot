@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"ItsBagelBot/pkg/cache"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/valkey-io/valkey-go"
@@ -76,8 +77,8 @@ func NewValkeyQueueStore(client valkey.Client, ttl time.Duration, log *zap.Logge
 	return &ValkeyQueueStore{client: pkg_valkey.Primary(client), ttl: ttl, log: log}
 }
 
-func queueOpenKey(id uint64) string { return queueOpenPrefix + strconv.FormatUint(id, 10) }
-func queueLineKey(id uint64) string { return queueLinePrefix + strconv.FormatUint(id, 10) }
+func queueOpenKey(id uint64) string { return cache.UserKey(queueOpenPrefix, id) }
+func queueLineKey(id uint64) string { return cache.UserKey(queueLinePrefix, id) }
 
 func (s *ValkeyQueueStore) SetOpen(ctx context.Context, broadcasterID uint64, open bool) error {
 	if !open {

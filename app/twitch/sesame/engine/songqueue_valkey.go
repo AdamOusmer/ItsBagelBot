@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"ItsBagelBot/pkg/cache"
 	"ItsBagelBot/pkg/codec"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
@@ -161,7 +162,7 @@ type (
 )
 
 func songQueueDocKey(id uint64) docKey {
-	return docKey(songQueueDocPrefix + strconv.FormatUint(id, 10))
+	return docKey(cache.UserKey(songQueueDocPrefix, id))
 }
 
 // docState is one read of a channel's document: the raw payload the next

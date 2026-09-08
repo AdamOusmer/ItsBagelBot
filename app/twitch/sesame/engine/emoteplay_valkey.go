@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"ItsBagelBot/pkg/cache"
+
 	"github.com/valkey-io/valkey-go"
 )
 
@@ -215,7 +217,7 @@ redis.call('PEXPIRE', KEYS[1], tonumber(ARGV[7]))
 return {flags, milestone, done_apex}`)
 
 func emoteplayKey(broadcasterID uint64) string {
-	return "emoteplay:v1:" + strconv.FormatUint(broadcasterID, 10)
+	return cache.UserKey("emoteplay:v1:", broadcasterID)
 }
 
 // Bump advances both chains for one line in a single master round trip. Pure

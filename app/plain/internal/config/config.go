@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"ItsBagelBot/pkg/env"
+	"ItsBagelBot/pkg/env/conf"
 	"ItsBagelBot/pkg/svcboot"
 )
 
@@ -22,8 +23,13 @@ type Config struct {
 	// fields are promoted, so cfg.NATSURL and cfg.ListenAddr read unchanged.
 	svcboot.Infra
 
-	PremiumSubject  string
-	StandardSubject string
+	// Lanes and Projection are the blocks this worker shares with sesame; both
+	// are embedded so their fields stay promoted (cfg.PremiumSubject). They
+	// were a field-for-field copy of sesame's config until the projection
+	// modules subject drifted to a second default behind the same variable
+	// name.
+	conf.Lanes
+	conf.Projection
 
 	MaxRoutines    int
 	MaxConsumers   int
@@ -31,28 +37,17 @@ type Config struct {
 	ScaleDownAfter time.Duration
 	PremiumReserve int
 
-	OutgressPremiumSubject  string
-	OutgressStandardSubject string
-
-	ProjectionLiveSubject string
-
 	SpecialUserIDs string
 
 	LiveTTL time.Duration
-
-	ProjectionUsersSubject    string
-	ProjectionModulesSubject  string
-	ProjectionCommandsSubject string
-
-	CacheInvalidationPrefix string
 }
 
 func Load() *Config {
 	return &Config{
 		Infra: svcboot.LoadInfra(),
 
-		PremiumSubject:  env.Get("NATS_INGRESS_PREMIUM_SUBJECT", "twitch.ingress.event.premium"),
-		StandardSubject: env.Get("NATS_INGRESS_STANDARD_SUBJECT", "twitch.ingress.event.standard"),
+		Lanes:      conf.LoadLanes(),
+		Projection: conf.LoadProjection(),
 
 		MaxRoutines:    env.GetInt("WORKER_MAX_ROUTINES", 50),
 		MaxConsumers:   env.GetInt("WORKER_MAX_CONSUMERS", 3),
@@ -60,17 +55,8 @@ func Load() *Config {
 		ScaleDownAfter: env.GetDuration("WORKER_SCALE_DOWN_AFTER", 30*time.Second),
 		PremiumReserve: env.GetInt("WORKER_PREMIUM_RESERVE_PERCENT", 25),
 
-		OutgressPremiumSubject:  env.Get("NATS_OUTGRESS_PREMIUM_SUBJECT", "twitch.outgress.premium"),
-		OutgressStandardSubject: env.Get("NATS_OUTGRESS_STANDARD_SUBJECT", "twitch.outgress.standard"),
-
 		SpecialUserIDs: env.Get("TWITCH_SPECIAL_USER_IDS", ""),
 
 		LiveTTL: env.GetDuration("WORKER_LIVE_TTL", 12*time.Hour),
-
-		ProjectionUsersSubject:    env.Get("NATS_INTERNAL_PROJECTION_USERS_SUBJECT", "bagel.rpc.internal.projection.users.get"),
-		ProjectionModulesSubject:  env.Get("NATS_INTERNAL_PROJECTION_MODULES_SUBJECT", "bagel.rpc.internal.projection.modules.get"),
-		ProjectionCommandsSubject: env.Get("NATS_INTERNAL_PROJECTION_COMMANDS_SUBJECT", "bagel.rpc.internal.projection.commands.get"),
-
-		CacheInvalidationPrefix: env.Get("NATS_CACHE_INVALIDATION_PREFIX", "bagel.cache.invalidate"),
 	}
 }

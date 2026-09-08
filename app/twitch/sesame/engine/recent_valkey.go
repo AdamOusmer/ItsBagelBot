@@ -15,6 +15,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/event/lane"
 	"ItsBagelBot/internal/moderation"
+	"ItsBagelBot/pkg/cache"
 
 	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
@@ -78,7 +79,7 @@ func NewValkeyRecent(client valkey.Client, log *zap.Logger) *ValkeyRecent {
 }
 
 func recentChannelKey(chanID channelID) string {
-	return recentKeyPrefix + strconv.FormatUint(uint64(chanID), 10)
+	return cache.UserKey(recentKeyPrefix, uint64(chanID))
 }
 
 // Start runs the flush loop until ctx is canceled, then best-effort flushes

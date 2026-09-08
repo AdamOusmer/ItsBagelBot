@@ -66,7 +66,7 @@ type gambleConfig struct {
 
 // gambleCmd bundles the per-invocation state every handler shares.
 type gambleCmd struct {
-	gameReplier
+	chatReplier
 	d       engine.Deps
 	c       *module.Context
 	cfg     engine.GambleSettings
@@ -89,7 +89,7 @@ func newGambleCmd(ctx context.Context, d engine.Deps, c *module.Context, log *za
 		return gambleCmd{}, false
 	}
 	gc = gambleCmd{
-		gameReplier: newGameReplier(c, points),
+		chatReplier: newGameReplier(c, points),
 		d:           d,
 		c:           c,
 		cfg:         engine.ClampGambleSettings(raw.MinBet, raw.MaxBet, raw.WinPercent, raw.CooldownSeconds),
@@ -117,7 +117,7 @@ func (gc gambleCmd) run(ctx context.Context, arg string, emit module.Emit) error
 
 	bal, err := gc.d.Loyalty.BalanceGet(ctx, gc.c.BroadcasterID, gc.viewerID())
 	if err != nil {
-		gc.log.Warn("gamble: balance read failed", gc.bid(), zap.Error(err))
+		gc.log.Warn("gamble: balance read failed", gc.c.BID(), zap.Error(err))
 		return err
 	}
 	gc.balance = bal.Points
@@ -133,7 +133,7 @@ func (gc gambleCmd) run(ctx context.Context, arg string, emit module.Emit) error
 		return err
 	}
 	if !allowed {
-		gc.reply(emit, "", "gamble.cool", tk("secs", strconv.FormatInt(gc.cfg.CooldownSeconds, 10)))
+		gc.reply(emit, "", "gamble.cool", "secs", strconv.FormatInt(gc.cfg.CooldownSeconds, 10))
 		return nil
 	}
 
@@ -151,7 +151,7 @@ func (gc gambleCmd) run(ctx context.Context, arg string, emit module.Emit) error
 func (gc gambleCmd) settle(ctx context.Context, login string, wager wagerOutcome, emit module.Emit) error {
 	roll, err := engine.RollGamble()
 	if err != nil {
-		gc.log.Warn("gamble: roll failed", gc.bid(), zap.Error(err))
+		gc.log.Warn("gamble: roll failed", gc.c.BID(), zap.Error(err))
 		return err
 	}
 	wager.roll = roll
@@ -159,10 +159,10 @@ func (gc gambleCmd) settle(ctx context.Context, login string, wager wagerOutcome
 		return gc.settleWin(ctx, login, wager, emit)
 	}
 	gc.reply(emit, gc.tmpl.LoseMessage, "gamble.lose",
-		tk("roll", strconv.FormatInt(roll, 10)),
-		tk("chance", strconv.FormatInt(gc.cfg.WinPercent, 10)),
-		tk("amount", strconv.FormatInt(wager.bet, 10)),
-		tk("balance", strconv.FormatInt(wager.balance, 10)))
+		"roll", strconv.FormatInt(roll, 10),
+		"chance", strconv.FormatInt(gc.cfg.WinPercent, 10),
+		"amount", strconv.FormatInt(wager.bet, 10),
+		"balance", strconv.FormatInt(wager.balance, 10))
 	return nil
 }
 
@@ -173,7 +173,7 @@ func (gc gambleCmd) escrow(ctx context.Context, login string, bet int64, emit mo
 	newBal, found, spent, err := gc.d.Loyalty.BalanceSpend(ctx, gc.c.BroadcasterID, login, bet)
 	switch {
 	case err != nil:
-		gc.log.Warn("gamble: stake debit failed", gc.bid(), zap.Error(err))
+		gc.log.Warn("gamble: stake debit failed", gc.c.BID(), zap.Error(err))
 		return 0, false, err
 	case !found:
 		gc.reply(emit, "", "gamble.unknown")
@@ -182,7 +182,7 @@ func (gc gambleCmd) escrow(ctx context.Context, login string, bet int64, emit mo
 		// A racing command drained the account between our read and now;
 		// the service's fresh reply names what they actually hold.
 		gc.reply(emit, "", "gamble.broke",
-			tk("balance", strconv.FormatInt(newBal.Points, 10)))
+			"balance", strconv.FormatInt(newBal.Points, 10))
 		return 0, false, nil
 	}
 	return newBal.Points, true, nil
@@ -200,7 +200,7 @@ type wagerOutcome struct {
 // tokens it carries. An empty key means the bet stands.
 type refusal struct {
 	key    replyKey
-	tokens []token
+	tokens []string
 }
 
 // refuse maps the parsed wager against the channel's limits and the
@@ -217,13 +217,13 @@ func (gc gambleCmd) refuse(arg string) (int64, refusal) {
 	case engine.BetAboveMax:
 		return 0, refusal{key: "gamble.max", tokens: boundKV("max", gc.cfg.MaxBet)}
 	default: // BetOverBalance
-		return 0, refusal{key: "gamble.broke", tokens: []token{tk("balance", strconv.FormatInt(gc.balance, 10))}}
+		return 0, refusal{key: "gamble.broke", tokens: []string{"balance", strconv.FormatInt(gc.balance, 10)}}
 	}
 }
 
 // boundKV renders a limit line's token pair.
-func boundKV(name string, limit int64) []token {
-	return []token{tk(name, strconv.FormatInt(limit, 10))}
+func boundKV(name string, limit int64) []string {
+	return []string{name, strconv.FormatInt(limit, 10)}
 }
 
 // claimCooldown takes the chatter's per-user window once the wager itself is
@@ -236,7 +236,7 @@ func (gc gambleCmd) claimCooldown(ctx context.Context, login string) (bool, erro
 		gambleCooldownKey(gc.c.BroadcasterID, login),
 		engine.GambleCooldown(gc.cfg.CooldownSeconds))
 	if err != nil {
-		gc.log.Warn("gamble: cooldown check failed", gc.bid(), zap.Error(err))
+		gc.log.Warn("gamble: cooldown check failed", gc.c.BID(), zap.Error(err))
 		return false, err
 	}
 	return allowed, nil
@@ -247,7 +247,7 @@ func (gc gambleCmd) settleWin(ctx context.Context, login string, wager wagerOutc
 	// The stake is already escrowed: a win returns it with its match on top.
 	newBal, found, err := gc.d.Loyalty.BalanceAdjust(ctx, gc.c.BroadcasterID, login, wager.bet*2, false)
 	if err != nil {
-		gc.log.Warn("gamble: win credit failed", gc.bid(), zap.Error(err))
+		gc.log.Warn("gamble: win credit failed", gc.c.BID(), zap.Error(err))
 		return err
 	}
 	if !found {
@@ -265,10 +265,10 @@ func (gc gambleCmd) settleWin(ctx context.Context, login string, wager wagerOutc
 // four tokens (the dice and the money), only the template differs.
 func (gc gambleCmd) announce(emit module.Emit, override string, key replyKey, wager wagerOutcome) {
 	gc.reply(emit, override, key,
-		tk("roll", strconv.FormatInt(wager.roll, 10)),
-		tk("chance", strconv.FormatInt(gc.cfg.WinPercent, 10)),
-		tk("amount", strconv.FormatInt(wager.bet, 10)),
-		tk("balance", strconv.FormatInt(wager.balance, 10)))
+		"roll", strconv.FormatInt(wager.roll, 10),
+		"chance", strconv.FormatInt(gc.cfg.WinPercent, 10),
+		"amount", strconv.FormatInt(wager.bet, 10),
+		"balance", strconv.FormatInt(wager.balance, 10))
 }
 
 // viewerID parses the chatter's Twitch id for balance reads; chat events
@@ -278,5 +278,3 @@ func (gc gambleCmd) viewerID() uint64 {
 	id, _ := strconv.ParseUint(gc.c.Env.ChatterUserID, 10, 64)
 	return id
 }
-
-func (gc gambleCmd) bid() zap.Field { return zap.Uint64("broadcaster_id", gc.c.BroadcasterID) }

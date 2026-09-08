@@ -3,7 +3,31 @@
 
 package modules
 
-import "testing"
+import (
+	"testing"
+
+	"ItsBagelBot/app/twitch/sesame/engine"
+	"ItsBagelBot/app/twitch/sesame/module"
+
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
+)
+
+// gossipDeps is the deps every external-stats module test builds its module
+// from: a fake gossip caller and a silent logger, nothing else.
+func gossipDeps(gw engine.GossipCaller) engine.Deps {
+	return engine.Deps{Gossip: gw, Log: zap.NewNop()}
+}
+
+// optInCmd asserts that m is the expected opt-in module and returns one of its
+// commands. Four stats modules had grown the same three-line builder, so a
+// fifth would have copied it too.
+func optInCmd(t *testing.T, m module.Module, id, name string) module.Command {
+	t.Helper()
+	assert.Equal(t, id, m.Name)
+	assert.Equal(t, module.KindOptIn, m.Kind)
+	return findCmd(t, m, name)
+}
 
 const testUUID = "deadbeefdeadbeefdeadbeefdeadbeef"
 

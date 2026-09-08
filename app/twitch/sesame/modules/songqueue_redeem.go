@@ -127,7 +127,7 @@ func (r songqueueRedeemRun) apply(ctx context.Context) error {
 		case errors.Is(err, engine.ErrSongQueueFull):
 			r.refund("the song queue is full, your points were refunded")
 		default:
-			r.qc.log.Warn("songqueue: redeem add failed", r.qc.bid(), zap.Error(err))
+			r.qc.log.Warn("songqueue: redeem add failed", r.qc.c.BID(), zap.Error(err))
 			r.refund("could not queue that track, your points were refunded")
 		}
 		return nil
@@ -137,7 +137,7 @@ func (r songqueueRedeemRun) apply(ctx context.Context) error {
 	// refunds, since points for an inaudible request are points eaten.
 	if failure := r.qc.pushToPlayer(ctx, track.ID); failure != "" {
 		if _, _, rbErr := r.qc.store.RetractOwn(ctx, r.qc.c.BroadcasterID, r.ev.UserID); rbErr != nil {
-			r.qc.log.Warn("songqueue: redeem rollback after player refusal failed", r.qc.bid(), zap.Error(rbErr))
+			r.qc.log.Warn("songqueue: redeem rollback after player refusal failed", r.qc.c.BID(), zap.Error(rbErr))
 		}
 		r.refund(failure + ", your points were refunded")
 		return nil

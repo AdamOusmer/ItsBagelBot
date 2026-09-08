@@ -4,7 +4,6 @@
 package modules
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -13,7 +12,6 @@ import (
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/i18n"
-	"ItsBagelBot/internal/domain/outgress"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 
 	"go.uber.org/zap"
@@ -51,9 +49,15 @@ const fortniteShopBudget = 380
 // on, matching the alerts module's semantics — and each *Message is a
 // customized template (blank = default).
 type fortniteConfig struct {
-	Account     string `json:"account"`
+	// linkedAccountConfig carries account/accountUuid/linkedOnly. Fortnite
+	// identities are name-plus-platform, so accountUuid stays unset here and
+	// is never consulted (the resolution asks for it only under PreferUUID);
+	// AccountType below is the platform namespace instead.
+	linkedAccountConfig
+
+	// AccountType is the platform namespace the linked account lives in
+	// (epic/psn/xbl).
 	AccountType string `json:"accountType"`
-	LinkedOnly  string `json:"linkedOnly"`
 
 	StatsEnabled   string `json:"statsEnabled"`
 	StatsMessage   string `json:"statsMessage"`
@@ -100,7 +104,13 @@ func Fortnite(d engine.Deps) module.Module {
 
 	m := module.NewModule(fortniteModuleName, module.KindOptIn)
 	m.Command("fn").Everyone().Cooldown(fortniteCooldown).
-		Run(fortniteDispatchRun(statsRun, seasonRun, sessionRun, storeRun))
+		Run(subDispatch(statsRun, map[string]module.RunFunc{
+			"stats":   statsRun,
+			"season":  seasonRun,
+			"session": sessionRun,
+			"store":   storeRun,
+			"shop":    storeRun,
+		}))
 	m.Command("fnstats").Everyone().Cooldown(fortniteCooldown).Aliases("fortnitestats").
 		Run(statsRun)
 	m.Command("fnseason").Everyone().Cooldown(fortniteCooldown).
@@ -111,108 +121,26 @@ func Fortnite(d engine.Deps) module.Module {
 		Run(storeRun)
 
 	// Snapshot the linked account's standing the moment the stream goes online,
-	// so !fn session has a baseline. Gated on the session toggle: no point
-	// spending the tight daily stats budget for a command the broadcaster
-	// turned off.
-	m.On("stream.online", fortniteSnapshotOnline(d))
-	m.On("stream.offline", fortniteSessionOffline(d))
+	// so !fn session has a baseline, and clear it when the stream ends. Gated
+	// on the session toggle: no point spending the tight daily stats budget for
+	// a command the broadcaster turned off.
+	online, offline := snapshotHandlers(d, snapshotSpec[fortniteConfig, gossiprpc.FortniteSnapshotReply]{
+		provider: "fortnite",
+		enabled:  func(cfg fortniteConfig) bool { return alertOn(cfg.SessionEnabled) },
+		request:  fortniteSnapshotRequest,
+		stored:   func(r *gossiprpc.FortniteSnapshotReply) zap.Field { return zap.String("player", r.Player) },
+	})
+	m.On("stream.online", online)
+	m.On("stream.offline", offline)
 	return m.Build()
 }
 
-// fortniteSnapshotOnline snapshots the linked account's lifetime standing when
-// the stream goes online. The pipeline only runs this when the module is
-// enabled and wires the module config in. Fire and forget on a Background
-// context (the consumer ctx is acked and may cancel the moment the handler
-// returns), mirroring the mcsr module's write discipline.
-func fortniteSnapshotOnline(d engine.Deps) module.EventHandler {
-	log := d.Log
-	if log == nil {
-		log = zap.NewNop()
-	}
-	return func(_ context.Context, c *module.Context, _ module.Emit) error {
-		if d.Gossip == nil {
-			return nil
-		}
-		var cfg fortniteConfig
-		_ = c.Decode(&cfg)
-		if !alertOn(cfg.SessionEnabled) {
-			return nil
-		}
-		account := resolveAccount(accountSources{Linked: cfg.Account, BroadcasterLogin: c.Env.BroadcasterUserLogin})
-		channelID := strconv.FormatUint(c.BroadcasterID, 10)
-		seqOrGo(d.Seq, c.BroadcasterID, log, func() {
-			wctx, cancel := context.WithTimeout(context.Background(), fortniteSnapshotTimeout)
-			defer cancel()
-			req := gossiprpc.Request{Account: account, AccountType: cfg.AccountType, ChannelID: channelID, IsPremium: c.Regress.IsPremium()}
-			var reply gossiprpc.FortniteSnapshotReply
-			if err := d.Gossip.Call(wctx, engine.GossipRoute{Provider: "fortnite", Endpoint: "session_start"}, req, &reply); err != nil {
-				log.Warn("fortnite: stream-start snapshot failed",
-					zap.String("channel_id", channelID), zap.String("account", account), zap.Error(err))
-				return
-			}
-			log.Debug("fortnite: stream-start snapshot stored",
-				zap.String("channel_id", channelID), zap.String("player", reply.Player))
-		})
-		return nil
-	}
-}
-
-// fortniteSessionOffline clears the channel's session baseline when the stream
-// ends, so a rapid stop/restart cycle (#561) cannot leave !fn session diffing
-// the new stream against the old one's snapshot. Sequenced behind the online
-// snapshot like every other lifecycle effect; only fires when the online
-// snapshot was enabled (the baseline it clears exists then). Gossip
-// deployments without the provider answer no-responder — an expected miss,
-// hence Debug.
-func fortniteSessionOffline(d engine.Deps) module.EventHandler {
-	log := d.Log
-	if log == nil {
-		log = zap.NewNop()
-	}
-	return func(_ context.Context, c *module.Context, _ module.Emit) error {
-		if d.Gossip == nil {
-			return nil
-		}
-		var cfg fortniteConfig
-		_ = c.Decode(&cfg)
-		if !alertOn(cfg.SessionEnabled) {
-			return nil
-		}
-		channelID := strconv.FormatUint(c.BroadcasterID, 10)
-		seqOrGo(d.Seq, c.BroadcasterID, log, func() {
-			wctx, cancel := context.WithTimeout(context.Background(), fortniteSnapshotTimeout)
-			defer cancel()
-			var reply gossiprpc.FortniteSnapshotReply
-			err := d.Gossip.Call(wctx, engine.GossipRoute{Provider: "fortnite", Endpoint: "session_end"}, gossiprpc.Request{ChannelID: channelID}, &reply)
-			if err != nil {
-				log.Debug("fortnite: stream-end snapshot clear failed",
-					zap.String("channel_id", channelID), zap.Error(err))
-			}
-		})
-		return nil
-	}
-}
-
-// fortniteDispatchRun routes !fn's first argument word onto the subcommand
-// runners: "stats"/"season"/"session"/"store" (and "shop") select one
-// explicitly, and anything else — nothing, or a player name — is an all-time
-// stats lookup, so "!fn Ninja" reads naturally.
-func fortniteDispatchRun(statsRun, seasonRun, sessionRun, storeRun module.RunFunc) module.RunFunc {
-	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
-		sub, rest, _ := strings.Cut(strings.TrimSpace(args), " ")
-		switch strings.ToLower(sub) {
-		case "stats":
-			return statsRun(ctx, c, rest, emit)
-		case "season":
-			return seasonRun(ctx, c, rest, emit)
-		case "session":
-			return sessionRun(ctx, c, rest, emit)
-		case "store", "shop":
-			return storeRun(ctx, c, rest, emit)
-		default:
-			return statsRun(ctx, c, args, emit)
-		}
-	}
+// fortniteSnapshotRequest builds the stream-start call: the linked account
+// (never a typed one — nobody types at a lifecycle event), its platform
+// namespace and the channel the baseline is filed under.
+func fortniteSnapshotRequest(c *module.Context, cfg fortniteConfig, channelID string) gossiprpc.Request {
+	account := resolveAccount(accountSources{Linked: cfg.Account, BroadcasterLogin: c.Env.BroadcasterUserLogin})
+	return gossiprpc.Request{Account: account, AccountType: cfg.AccountType, ChannelID: channelID, IsPremium: c.Regress.IsPremium()}
 }
 
 // fortniteStatsCommand names one stats command's wiring: the fixed window it
@@ -225,9 +153,9 @@ type fortniteStatsCommand struct {
 }
 
 // fortniteStatsTokens is the !fnstats template palette over the gossip reply.
-func fortniteStatsTokens() map[string]func(*gossiprpc.FortniteStatsReply) string {
+func fortniteStatsTokens() module.TokenExpander[gossiprpc.FortniteStatsReply] {
 	type reply = gossiprpc.FortniteStatsReply
-	return map[string]func(*reply) string{
+	return module.TokenExpander[reply]{
 		"player":       func(r *reply) string { return r.Player },
 		"window":       func(r *reply) string { return r.Window },
 		"wins":         func(r *reply) string { return i64(r.Overall.Wins) },
@@ -254,40 +182,31 @@ func fortniteStatsTokens() map[string]func(*gossiprpc.FortniteStatsReply) string
 // {winrate} plus the per-mode {solowins} {solomatches} {solokd} {duowins}
 // {duomatches} {duokd} {squadwins} {squadmatches} {squadkd}.
 func fortniteStatsRun(d engine.Deps, cmd fortniteStatsCommand) module.RunFunc {
-	tokens := fortniteStatsTokens()
-	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
-		var cfg fortniteConfig
-		_ = c.Decode(&cfg)
-		if !alertOn(cmd.enabled(cfg)) || d.Gossip == nil {
-			return nil
-		}
-
-		account := resolveAccount(accountSources{
-			Arg: args, Linked: cfg.Account, BroadcasterLogin: c.Env.BroadcasterUserLogin, LinkedOnly: explicitOn(cfg.LinkedOnly),
-		})
-		req := gossiprpc.Request{
-			Account:     account,
-			AccountType: cfg.AccountType,
+	h := externalCommand[fortniteConfig, gossiprpc.FortniteStatsReply]{
+		route:    fortniteRoute("stats"),
+		enabled:  cmd.enabled,
+		message:  cmd.message,
+		fallback: cmd.fallback,
+		tokens:   fortniteStatsTokens(),
+		// Fortnite is name-keyed: never substitute a stored uuid.
+		preferName: true,
+	}.handler(d)
+	// The shared account request carries no platform namespace or window, and
+	// both are per-command wiring rather than something a viewer types.
+	h.request = func(call statsCall[fortniteConfig], subject statsSubject) gossiprpc.Request {
+		return gossiprpc.Request{
+			Account:     subject.Account,
+			AccountType: call.Cfg.AccountType,
 			TimeWindow:  cmd.window,
-			IsPremium:   c.Regress.IsPremium(),
+			IsPremium:   call.Ctx.Regress.IsPremium(),
 		}
-		var reply gossiprpc.FortniteStatsReply
-		if err := d.Gossip.Call(ctx, engine.GossipRoute{Provider: "fortnite", Endpoint: "stats"}, req, &reply); err != nil {
-			if chatReplyError(c, emit, account, err) {
-				return nil
-			}
-			return err
-		}
-
-		msg := module.ExpandString(orDefault(cmd.message(cfg), cmd.fallback), func(key string) (string, bool) {
-			if field, ok := tokens[key]; ok {
-				return field(&reply), true
-			}
-			return module.ParseDynamic(key)
-		})
-		emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: msg})
-		return nil
 	}
+	return h.run
+}
+
+// fortniteRoute names one Fortnite gossip endpoint.
+func fortniteRoute(endpoint string) engine.GossipRoute {
+	return engine.GossipRoute{Provider: "fortnite", Endpoint: endpoint}
 }
 
 // fortniteSessionText renders the !fn session chat line: the delta line when a
@@ -324,65 +243,55 @@ func fortniteSessionText(cfg fortniteConfig, reply *gossiprpc.FortniteSessionRep
 // enabled mid-stream) gossip starts tracking now and the reply says so
 // instead of faking a zero delta.
 func fortniteSessionRun(d engine.Deps) module.RunFunc {
-	return func(ctx context.Context, c *module.Context, _ string, emit module.Emit) error {
-		var cfg fortniteConfig
-		_ = c.Decode(&cfg)
-		if !alertOn(cfg.SessionEnabled) || d.Gossip == nil {
-			return nil
-		}
-
-		account := resolveAccount(accountSources{Linked: cfg.Account, BroadcasterLogin: c.Env.BroadcasterUserLogin})
-		req := gossiprpc.Request{
-			Account:     account,
-			AccountType: cfg.AccountType,
-			ChannelID:   strconv.FormatUint(c.BroadcasterID, 10),
-			IsPremium:   c.Regress.IsPremium(),
-		}
-		var reply gossiprpc.FortniteSessionReply
-		if err := d.Gossip.Call(ctx, engine.GossipRoute{Provider: "fortnite", Endpoint: "session"}, req, &reply); err != nil {
-			if chatReplyError(c, emit, account, err) {
-				return nil
+	h := statsHandler[fortniteConfig, gossiprpc.FortniteSessionReply]{
+		d:       d,
+		enabled: func(cfg fortniteConfig) string { return cfg.SessionEnabled },
+		route:   fortniteRoute("session"),
+		target:  linkedTarget[fortniteConfig](false),
+		request: func(call statsCall[fortniteConfig], subject statsSubject) gossiprpc.Request {
+			return gossiprpc.Request{
+				Account:     subject.Account,
+				AccountType: call.Cfg.AccountType,
+				ChannelID:   strconv.FormatUint(call.Ctx.BroadcasterID, 10),
+				IsPremium:   call.Ctx.Regress.IsPremium(),
 			}
-			return err
-		}
-		emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: fortniteSessionText(cfg, &reply)})
-		return nil
+		},
+		render: func(call statsCall[fortniteConfig], reply *gossiprpc.FortniteSessionReply) string {
+			return fortniteSessionText(call.Cfg, reply)
+		},
 	}
+	return ignoreArgs(h.run)
 }
 
 // fortniteStoreRun answers !store with the current item-shop rotation.
 // Template tokens: {date} {count} {items}.
 func fortniteStoreRun(d engine.Deps) module.RunFunc {
-	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
-		var cfg fortniteConfig
-		_ = c.Decode(&cfg)
-		if !alertOn(cfg.StoreEnabled) || d.Gossip == nil {
-			return nil
-		}
-
-		var reply gossiprpc.FortniteShopReply
-		req := gossiprpc.Request{IsPremium: c.Regress.IsPremium()}
-		if err := d.Gossip.Call(ctx, engine.GossipRoute{Provider: "fortnite", Endpoint: "shop"}, req, &reply); err != nil {
-			if chatReplyError(c, emit, "item shop", err) {
-				return nil
-			}
-			return err
-		}
-
-		msg := module.ExpandString(orDefault(cfg.StoreMessage, defaultFortniteStoreTemplate), func(key string) (string, bool) {
-			switch key {
-			case "date":
-				return reply.Date, true
-			case "count":
-				return strconv.Itoa(reply.Count), true
-			case "items":
-				return formatShopEntries(c.Locale, reply.Entries), true
-			}
-			return module.ParseDynamic(key)
-		})
-		emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: msg})
-		return nil
-	}
+	type reply = gossiprpc.FortniteShopReply
+	return statsHandler[fortniteConfig, reply]{
+		d:       d,
+		enabled: func(cfg fortniteConfig) string { return cfg.StoreEnabled },
+		route:   fortniteRoute("shop"),
+		// The rotation is global: no account scopes it, so a failure names the
+		// feature instead of a player.
+		target:  fixedSubject[fortniteConfig]("item shop"),
+		request: laneRequest[fortniteConfig],
+		render: func(call statsCall[fortniteConfig], r *reply) string {
+			// {items} needs the channel's locale for its "+N more" tail, which
+			// a TokenExpander palette has no way to reach, so this command
+			// renders its own template rather than declaring one.
+			return module.ExpandString(orDefault(call.Cfg.StoreMessage, defaultFortniteStoreTemplate), func(key string) (string, bool) {
+				switch key {
+				case "date":
+					return r.Date, true
+				case "count":
+					return strconv.Itoa(r.Count), true
+				case "items":
+					return formatShopEntries(call.Ctx.Locale, r.Entries), true
+				}
+				return module.ParseDynamic(key)
+			})
+		},
+	}.run
 }
 
 // formatShopEntries renders the shop offers as "Name (price), ..." within the

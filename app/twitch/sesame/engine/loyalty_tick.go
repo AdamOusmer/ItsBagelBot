@@ -17,6 +17,7 @@ import (
 	"ItsBagelBot/internal/domain/rpc/manage"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/cache"
 	"ItsBagelBot/pkg/codec"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
@@ -169,7 +170,7 @@ func NewValkeyLoyaltyClock(client valkey.Client, nc *nats.Conn, proj projection.
 }
 
 func loyaltyTickKey(broadcasterID uint64) string {
-	return loyaltyTickKeyPrefix + strconv.FormatUint(broadcasterID, 10)
+	return cache.UserKey(loyaltyTickKeyPrefix, broadcasterID)
 }
 
 // Arm starts (or leaves counting) the broadcaster's watch tick, if their

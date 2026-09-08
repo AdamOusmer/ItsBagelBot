@@ -40,7 +40,7 @@ func main() {
 	defer done()
 	log, ctx, nrApp := core.Log, core.Ctx, core.NR
 
-	warnLocaleGaps(log)
+	i18n.WarnGaps(log)
 
 	cfg := config.Load()
 
@@ -203,33 +203,6 @@ func logReady(cfg *config.Config, specialUsers int, log *zap.Logger) {
 		zap.Int("special_users", specialUsers),
 		zap.Duration("live_ttl", cfg.LiveTTL),
 	)
-}
-
-// warnLocaleGaps logs one warning per supported locale that is missing keys, so
-// a half-translated language shows up in the startup logs. Missing keys fall
-// back to English at lookup time (i18n.T), so this never blocks startup; a
-// declared locale with no catalog file yet reports its whole key set, capped for
-// readability.
-func warnLocaleGaps(log *zap.Logger) {
-	for locale, missing := range i18n.Gaps() {
-		if len(missing) == 0 {
-			continue
-		}
-		log.Warn("i18n locale is missing keys; falling back to English",
-			zap.String("locale", locale),
-			zap.Int("missing_count", len(missing)),
-			zap.Strings("missing_keys", capLocaleKeys(missing)))
-	}
-}
-
-// capLocaleKeys bounds the key list logged for a locale gap so a single warning
-// line stays readable when an entire catalog file is absent.
-func capLocaleKeys(keys []string) []string {
-	const maxKeys = 20
-	if len(keys) > maxKeys {
-		return keys[:maxKeys]
-	}
-	return keys
 }
 
 // drainInflight waits for the handlers the consumer already dispatched to run to

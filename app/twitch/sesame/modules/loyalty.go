@@ -13,8 +13,6 @@ import (
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/event/data"
-	"ItsBagelBot/internal/domain/i18n"
-	"ItsBagelBot/internal/domain/outgress"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	"ItsBagelBot/pkg/codec"
 
@@ -185,7 +183,7 @@ func loyaltyRun(d engine.Deps, log *zap.Logger, fn func(loyaltyCmd, context.Cont
 		if d.Loyalty == nil {
 			return nil
 		}
-		return fn(loyaltyCmd{d, c, emit, log}, ctx, args)
+		return fn(loyaltyCmd{newChatReplier(c), d, emit, log}, ctx, args)
 	}
 }
 
@@ -251,8 +249,8 @@ func (lc loyaltyCmd) owner() bool {
 }
 
 type loyaltyCmd struct {
+	chatReplier
 	d    engine.Deps
-	c    *module.Context
 	emit module.Emit
 	log  *zap.Logger
 }
@@ -301,7 +299,7 @@ func (lc loyaltyCmd) pointsAdjust(ctx context.Context, target, amount string, ab
 
 	bal, found, err := lc.d.Loyalty.BalanceAdjust(ctx, lc.c.BroadcasterID, login, value, absolute)
 	if err != nil {
-		lc.log.Warn("loyalty: balance adjust failed", zap.Uint64("broadcaster_id", lc.c.BroadcasterID), zap.Error(err))
+		lc.log.Warn("loyalty: balance adjust failed", lc.c.BID(), zap.Error(err))
 		lc.reply("loyalty.counter.err")
 		return nil
 	}
@@ -357,7 +355,7 @@ func (lc loyaltyCmd) pointsGive(ctx context.Context, target, amount string, enab
 	}
 	bal, found, moved, err := lc.d.Loyalty.BalanceTransfer(ctx, lc.c.BroadcasterID, senderID, login, value)
 	if err != nil {
-		lc.log.Warn("loyalty: balance transfer failed", zap.Uint64("broadcaster_id", lc.c.BroadcasterID), zap.Error(err))
+		lc.log.Warn("loyalty: balance transfer failed", lc.c.BID(), zap.Error(err))
 		lc.reply("loyalty.counter.err")
 		return nil
 	}
@@ -407,7 +405,7 @@ func (lc loyaltyCmd) leaderboardShow(ctx context.Context, args string) error {
 	}
 	top, err := lc.d.Loyalty.Top(ctx, lc.c.BroadcasterID, limit)
 	if err != nil {
-		lc.log.Warn("loyalty: top read failed", zap.Uint64("broadcaster_id", lc.c.BroadcasterID), zap.Error(err))
+		lc.log.Warn("loyalty: top read failed", lc.c.BID(), zap.Error(err))
 		lc.reply("loyalty.counter.err")
 		return nil
 	}
@@ -460,7 +458,7 @@ func (lc loyaltyCmd) pointsShow(ctx context.Context) error {
 	}
 	bal, err := lc.d.Loyalty.BalanceGet(ctx, lc.c.BroadcasterID, viewerID)
 	if err != nil {
-		lc.log.Warn("loyalty: balance read failed", zap.Uint64("broadcaster_id", lc.c.BroadcasterID), zap.Error(err))
+		lc.log.Warn("loyalty: balance read failed", lc.c.BID(), zap.Error(err))
 		return nil
 	}
 	var cfg engine.LoyaltyModuleConfig
@@ -700,7 +698,7 @@ func (lc loyaltyCmd) counterShow(ctx context.Context, name, command string) erro
 		lc.reply("loyalty.counter.not_found", "counter", engine.NormalizeCounterName(name))
 		return nil
 	}
-	key := "loyalty.counter.show"
+	key := replyKey("loyalty.counter.show")
 	if counter.Scope == data.CounterScopeViewer || counter.Scope == data.CounterScopeViewerCommand {
 		key = "loyalty.counter.show.viewer"
 	}
@@ -711,28 +709,15 @@ func (lc loyaltyCmd) counterShow(ctx context.Context, name, command string) erro
 // fail logs the failure and posts the generic error line; the error is
 // swallowed (the pipeline would only drop it anyway).
 func (lc loyaltyCmd) fail(op string, err error) error {
-	lc.log.Warn("loyalty: counter "+op+" failed", zap.Uint64("broadcaster_id", lc.c.BroadcasterID), zap.Error(err))
+	lc.log.Warn("loyalty: counter "+op+" failed", lc.c.BID(), zap.Error(err))
 	lc.reply("loyalty.counter.err")
 	return nil
 }
 
-// reply emits one localized chat line. kv are {token},value pairs; {user}
-// (the invoking chatter) and the dynamic vars are always available.
-func (lc loyaltyCmd) reply(key string, kv ...string) {
-	text := module.ExpandString(i18n.T(lc.c.Locale, key), func(k string) (string, bool) {
-		for i := 0; i+1 < len(kv); i += 2 {
-			if kv[i] == k {
-				return kv[i+1], true
-			}
-		}
-		if k == "user" {
-			return lc.c.Env.ChatterUserLogin, true
-		}
-		return module.ParseDynamic(k)
-	})
-	lc.emit(&module.Output{
-		Type:          outgress.TypeChat,
-		BroadcasterID: lc.c.Env.BroadcasterUserID,
-		Text:          text,
-	})
+// reply posts one localized system line. loyalty binds emit for the whole
+// invocation and has no customizable templates, so it hands the shared
+// replier those two fixed arguments rather than repeating them at 40 call
+// sites.
+func (lc loyaltyCmd) reply(key replyKey, kv ...string) {
+	lc.chatReplier.reply(lc.emit, "", key, kv...)
 }

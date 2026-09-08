@@ -11,8 +11,6 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
-	"ItsBagelBot/internal/domain/i18n"
-	"ItsBagelBot/internal/domain/outgress"
 
 	"go.uber.org/zap"
 )
@@ -83,8 +81,8 @@ func Queue(d engine.Deps) module.Module {
 // is a method taking only its own arguments instead of threading the same five
 // values through every call. It is built once per command by newQueueCmd.
 type queueCmd struct {
+	chatReplier
 	q   engine.QueueStore
-	c   *module.Context
 	cfg queueConfig
 	log *zap.Logger
 }
@@ -96,7 +94,7 @@ func newQueueCmd(d engine.Deps, c *module.Context, log *zap.Logger) (qc queueCmd
 	if d.Queue == nil {
 		return queueCmd{}, false
 	}
-	qc = queueCmd{q: d.Queue, c: c, log: log}
+	qc = queueCmd{chatReplier: newChatReplier(c), q: d.Queue, log: log}
 	_ = c.Decode(&qc.cfg)
 	return qc, true
 }
@@ -178,7 +176,7 @@ func (qc queueCmd) status(ctx context.Context, emit module.Emit) error {
 	if err != nil {
 		return err
 	}
-	key := "queue.status.closed"
+	key := replyKey("queue.status.closed")
 	if open {
 		key = "queue.status.open"
 	}
@@ -188,7 +186,7 @@ func (qc queueCmd) status(ctx context.Context, emit module.Emit) error {
 
 func (qc queueCmd) setOpen(ctx context.Context, emit module.Emit, open bool) error {
 	if err := qc.q.SetOpen(ctx, qc.c.BroadcasterID, open); err != nil {
-		qc.log.Warn("queue: set-open failed", zap.Bool("open", open), qc.bid(), zap.Error(err))
+		qc.log.Warn("queue: set-open failed", zap.Bool("open", open), qc.c.BID(), zap.Error(err))
 		return err
 	}
 	if open {
@@ -208,7 +206,7 @@ func (qc queueCmd) join(ctx context.Context, emit module.Emit) error {
 	}
 	open, err := qc.q.IsOpen(ctx, qc.c.BroadcasterID)
 	if err != nil {
-		qc.log.Warn("queue: open check failed", qc.bid(), zap.Error(err))
+		qc.log.Warn("queue: open check failed", qc.c.BID(), zap.Error(err))
 		return err
 	}
 	if !open {
@@ -218,7 +216,7 @@ func (qc queueCmd) join(ctx context.Context, emit module.Emit) error {
 	}
 	pos, _, joined, err := qc.q.Join(ctx, qc.c.BroadcasterID, login)
 	if err != nil {
-		qc.log.Warn("queue: join failed", qc.bid(), zap.Error(err))
+		qc.log.Warn("queue: join failed", qc.c.BID(), zap.Error(err))
 		return err
 	}
 	posStr := strconv.FormatInt(pos, 10)
@@ -237,7 +235,7 @@ func (qc queueCmd) leave(ctx context.Context, emit module.Emit) error {
 	}
 	removed, err := qc.q.Remove(ctx, qc.c.BroadcasterID, login)
 	if err != nil {
-		qc.log.Warn("queue: leave failed", qc.bid(), zap.Error(err))
+		qc.log.Warn("queue: leave failed", qc.c.BID(), zap.Error(err))
 		return err
 	}
 	if removed {
@@ -253,7 +251,7 @@ func (qc queueCmd) leave(ctx context.Context, emit module.Emit) error {
 func (qc queueCmd) next(ctx context.Context, emit module.Emit) error {
 	login, remaining, err := qc.q.Pop(ctx, qc.c.BroadcasterID)
 	if err != nil {
-		qc.log.Warn("queue: next failed", qc.bid(), zap.Error(err))
+		qc.log.Warn("queue: next failed", qc.c.BID(), zap.Error(err))
 		return err
 	}
 	if login == "" {
@@ -275,7 +273,7 @@ func (qc queueCmd) remove(ctx context.Context, args string, emit module.Emit) er
 	}
 	removed, err := qc.q.Remove(ctx, qc.c.BroadcasterID, target)
 	if err != nil {
-		qc.log.Warn("queue: remove failed", zap.String("target", target), qc.bid(), zap.Error(err))
+		qc.log.Warn("queue: remove failed", zap.String("target", target), qc.c.BID(), zap.Error(err))
 		return err
 	}
 	if removed {
@@ -288,7 +286,7 @@ func (qc queueCmd) remove(ctx context.Context, args string, emit module.Emit) er
 
 func (qc queueCmd) clear(ctx context.Context, emit module.Emit) error {
 	if err := qc.q.Clear(ctx, qc.c.BroadcasterID); err != nil {
-		qc.log.Warn("queue: clear failed", qc.bid(), zap.Error(err))
+		qc.log.Warn("queue: clear failed", qc.c.BID(), zap.Error(err))
 		return err
 	}
 	qc.reply(emit, "", "queue.cleared")
@@ -316,7 +314,7 @@ func (qc queueCmd) listCooled(ctx context.Context, cd engine.CooldownStore, emit
 func (qc queueCmd) list(ctx context.Context, emit module.Emit) error {
 	entries, total, err := qc.q.List(ctx, qc.c.BroadcasterID, queueListLen)
 	if err != nil {
-		qc.log.Warn("queue: list failed", qc.bid(), zap.Error(err))
+		qc.log.Warn("queue: list failed", qc.c.BID(), zap.Error(err))
 		return err
 	}
 	if total == 0 {
@@ -341,35 +339,3 @@ func (qc queueCmd) list(ctx context.Context, emit module.Emit) error {
 	}
 	return nil
 }
-
-// reply emits one chat line. override is the broadcaster's customized template
-// for this reply ("" for the fixed system lines, or an uncustomized
-// customizable one); when empty the localized default for key is used. kv are
-// {token},value pairs (token names without braces); {user} (the invoking
-// chatter) and the generic dynamic vars ({random}, {choice:…}) are always
-// available, so a customized template can use them too.
-func (qc queueCmd) reply(emit module.Emit, override, key string, kv ...string) {
-	tmpl := override
-	if tmpl == "" {
-		tmpl = i18n.T(qc.c.Locale, key)
-	}
-	text := module.ExpandString(tmpl, func(k string) (string, bool) {
-		for i := 0; i+1 < len(kv); i += 2 {
-			if kv[i] == k {
-				return kv[i+1], true
-			}
-		}
-		if k == "user" {
-			return qc.c.Env.ChatterUserLogin, true
-		}
-		return module.ParseDynamic(k)
-	})
-	emit(&module.Output{
-		Type:          outgress.TypeChat,
-		BroadcasterID: qc.c.Env.BroadcasterUserID,
-		Text:          text,
-	})
-}
-
-// bid is the broadcaster-id log field, shared by every handler's warn path.
-func (qc queueCmd) bid() zap.Field { return zap.Uint64("broadcaster_id", qc.c.BroadcasterID) }

@@ -195,10 +195,10 @@ func SongQueue(d engine.Deps) module.Module {
 // songQueueCmd bundles the per-invocation state every handler shares, built
 // once by newSongQueueCmd, the same shape as queueCmd.
 type songQueueCmd struct {
+	chatReplier
 	store    engine.SongQueueStore
 	gossip   engine.GossipCaller
 	live     engine.IsLiveChecker
-	c        *module.Context
 	cfg      songqueueConfig
 	log      *zap.Logger
 	maxDepth int
@@ -208,7 +208,7 @@ func newSongQueueCmd(d engine.Deps, c *module.Context, log *zap.Logger) (qc song
 	if d.SongQueue == nil {
 		return songQueueCmd{}, false
 	}
-	qc = songQueueCmd{store: d.SongQueue, gossip: d.Gossip, live: d.Live, c: c, log: log}
+	qc = songQueueCmd{chatReplier: newChatReplier(c), store: d.SongQueue, gossip: d.Gossip, live: d.Live, log: log}
 	_ = c.Decode(&qc.cfg)
 	qc.maxDepth = qc.cfg.MaxDepth
 	if qc.maxDepth <= 0 {
@@ -271,7 +271,7 @@ func (qc songQueueCmd) current(ctx context.Context, emit module.Emit) error {
 		"artist", strings.Join(track.Artists, ", "),
 		"url", track.URL,
 	}
-	key := "songqueue.current.ok"
+	key := replyKey("songqueue.current.ok")
 	if req := qc.requesterOf(ctx, track.ID); req != "" {
 		kv = append(kv, "req", req)
 		key = "songqueue.current.req"
@@ -299,7 +299,7 @@ func (qc songQueueCmd) livePlayer(ctx context.Context) (*gossiprpc.SpotifyTrack,
 		return nil, reply.Error
 	}
 	if err != nil {
-		qc.log.Warn("songqueue: nowplaying rpc failed", qc.bid(), zap.Error(err))
+		qc.log.Warn("songqueue: nowplaying rpc failed", qc.c.BID(), zap.Error(err))
 		return nil, i18n.T(qc.c.Locale, "songqueue.err.upstream")
 	}
 	if !reply.IsPlaying {
@@ -341,7 +341,7 @@ func (qc songQueueCmd) syncWithPlayer(ctx context.Context) {
 		return
 	}
 	if _, err := qc.store.SyncPlaying(ctx, qc.c.BroadcasterID, track.ID); err != nil {
-		qc.log.Warn("songqueue: player sync failed", qc.bid(), zap.Error(err))
+		qc.log.Warn("songqueue: player sync failed", qc.c.BID(), zap.Error(err))
 	}
 }
 
@@ -484,7 +484,7 @@ func (qc songQueueCmd) request(ctx context.Context, query string, emit module.Em
 	// hears the actual reason instead of a hollow "queued".
 	if failure := qc.pushToPlayer(ctx, track.ID); failure != "" {
 		if _, _, rbErr := qc.store.RetractOwn(ctx, qc.c.BroadcasterID, qc.c.Env.ChatterUserID); rbErr != nil {
-			qc.log.Warn("songqueue: rollback after player refusal failed", qc.bid(), zap.Error(rbErr))
+			qc.log.Warn("songqueue: rollback after player refusal failed", qc.c.BID(), zap.Error(rbErr))
 		}
 		qc.emitChat(emit, failure)
 		return nil
@@ -497,7 +497,7 @@ func (qc songQueueCmd) request(ctx context.Context, query string, emit module.Em
 // stays open so channels that only ever flipped the master toggle keep
 // working; an explicit false closes adds while the view and the mod verbs
 // still run.
-func (qc songQueueCmd) srRefusal() string {
+func (qc songQueueCmd) srRefusal() replyKey {
 	if qc.cfg.Sr == nil {
 		return ""
 	}
@@ -534,7 +534,7 @@ func (qc songQueueCmd) livePermits(ctx context.Context, allowOffline bool) bool 
 	}
 	ok, err := qc.live.IsLive(ctx, qc.c.BroadcasterID)
 	if err != nil {
-		qc.log.Warn("songqueue: live check failed, denying", qc.bid(), zap.Error(err))
+		qc.log.Warn("songqueue: live check failed, denying", qc.c.BID(), zap.Error(err))
 		return false
 	}
 	return ok
@@ -589,7 +589,7 @@ func (qc songQueueCmd) pushToPlayer(ctx context.Context, trackID string) string 
 		return reply.Error
 	}
 	if err != nil {
-		qc.log.Warn("songqueue: player queue push failed", qc.bid(), zap.Error(err))
+		qc.log.Warn("songqueue: player queue push failed", qc.c.BID(), zap.Error(err))
 		return i18n.T(qc.c.Locale, "songqueue.err.upstream")
 	}
 	return ""
@@ -613,7 +613,7 @@ func (qc songQueueCmd) skipPlayer(ctx context.Context) string {
 		return reply.Error
 	}
 	if err != nil {
-		qc.log.Warn("songqueue: player skip failed", qc.bid(), zap.Error(err))
+		qc.log.Warn("songqueue: player skip failed", qc.c.BID(), zap.Error(err))
 		return i18n.T(qc.c.Locale, "songqueue.err.upstream")
 	}
 	return ""
@@ -635,7 +635,7 @@ func (qc songQueueCmd) reportAdd(emit module.Emit, track gossiprpc.SpotifyTrack,
 	case errors.Is(err, engine.ErrSongQueueFull):
 		qc.reply(emit, "", "songqueue.add.full")
 	case err != nil:
-		qc.log.Warn("songqueue: add failed", qc.bid(), zap.Error(err))
+		qc.log.Warn("songqueue: add failed", qc.c.BID(), zap.Error(err))
 		return err
 	default:
 		qc.reply(emit, qc.cfg.AddMessage, "songqueue.add.ok",
@@ -667,7 +667,7 @@ func (qc songQueueCmd) resolveTrack(ctx context.Context, query string) (*gossipr
 		return nil, reply.Error
 	case err != nil:
 		qc.log.Warn("songqueue: search rpc failed",
-			zap.String("query", query), qc.bid(), zap.Error(err))
+			zap.String("query", query), qc.c.BID(), zap.Error(err))
 		return nil, i18n.T(qc.c.Locale, "songqueue.err.upstream")
 	case len(reply.Tracks) == 0:
 		return nil, i18n.T(qc.c.Locale, "songqueue.search.none")
@@ -695,7 +695,7 @@ func (qc songQueueCmd) entry(t gossiprpc.SpotifyTrack) engine.SongEntry {
 func (qc songQueueCmd) retract(ctx context.Context, emit module.Emit) error {
 	entry, removed, err := qc.store.RetractOwn(ctx, qc.c.BroadcasterID, qc.c.Env.ChatterUserID)
 	if err != nil {
-		qc.log.Warn("songqueue: retract failed", qc.bid(), zap.Error(err))
+		qc.log.Warn("songqueue: retract failed", qc.c.BID(), zap.Error(err))
 		return err
 	}
 	if !removed {
@@ -710,7 +710,7 @@ func (qc songQueueCmd) retract(ctx context.Context, emit module.Emit) error {
 func (qc songQueueCmd) removeAt(ctx context.Context, pos int, emit module.Emit) error {
 	entry, removed, err := qc.store.RemoveAt(ctx, qc.c.BroadcasterID, pos)
 	if err != nil {
-		qc.log.Warn("songqueue: remove-at failed", zap.Int("position", pos), qc.bid(), zap.Error(err))
+		qc.log.Warn("songqueue: remove-at failed", zap.Int("position", pos), qc.c.BID(), zap.Error(err))
 		return err
 	}
 	if !removed {
@@ -737,7 +737,7 @@ func (qc songQueueCmd) nextTrack(ctx context.Context, emit module.Emit) error {
 	}
 	_, now, err := qc.store.Advance(ctx, qc.c.BroadcasterID)
 	if err != nil {
-		qc.log.Warn("songqueue: advance failed", qc.bid(), zap.Error(err))
+		qc.log.Warn("songqueue: advance failed", qc.c.BID(), zap.Error(err))
 		return err
 	}
 	if now == nil {
@@ -754,7 +754,7 @@ func (qc songQueueCmd) nextTrack(ctx context.Context, emit module.Emit) error {
 
 func (qc songQueueCmd) clearAll(ctx context.Context, emit module.Emit) error {
 	if err := qc.store.Clear(ctx, qc.c.BroadcasterID); err != nil {
-		qc.log.Warn("songqueue: clear failed", qc.bid(), zap.Error(err))
+		qc.log.Warn("songqueue: clear failed", qc.c.BID(), zap.Error(err))
 		return err
 	}
 	qc.reply(emit, "", "songqueue.cleared")
@@ -770,7 +770,7 @@ func (qc songQueueCmd) viewDepth(ctx context.Context, depth int, emit module.Emi
 	qc.syncWithPlayer(ctx)
 	snap, err := qc.store.Snapshot(ctx, qc.c.BroadcasterID, depth)
 	if err != nil {
-		qc.log.Warn("songqueue: snapshot failed", qc.bid(), zap.Error(err))
+		qc.log.Warn("songqueue: snapshot failed", qc.c.BID(), zap.Error(err))
 		return err
 	}
 	if snap.Current == nil && len(snap.UpNext) == 0 {
@@ -837,26 +837,3 @@ func (qc songQueueCmd) emitChat(emit module.Emit, text string) {
 		Text:          text,
 	})
 }
-
-// reply emits one chat line from a customizable override or the localized
-// default: the queue module's mechanism, shared verbatim.
-func (qc songQueueCmd) reply(emit module.Emit, override, key string, kv ...string) {
-	tmpl := override
-	if tmpl == "" {
-		tmpl = i18n.T(qc.c.Locale, key)
-	}
-	text := module.ExpandString(tmpl, func(k string) (string, bool) {
-		for i := 0; i+1 < len(kv); i += 2 {
-			if kv[i] == k {
-				return kv[i+1], true
-			}
-		}
-		if k == "user" {
-			return qc.c.Env.ChatterUserLogin, true
-		}
-		return module.ParseDynamic(k)
-	})
-	qc.emitChat(emit, text)
-}
-
-func (qc songQueueCmd) bid() zap.Field { return zap.Uint64("broadcaster_id", qc.c.BroadcasterID) }

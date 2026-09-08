@@ -190,7 +190,7 @@ func mcsrRecordRun(d engine.Deps) module.RunFunc {
 		rest, season := parseMcsrSeason(args)
 		accountA, accountB, displayA := mcsrRecordAccounts(rest, cfg, c)
 		if accountA == "" || accountB == "" {
-			mcsrEmit(c, emit, i18n.T(c.Locale, "mcsr.record.usage"))
+			emitChat(c, emit, i18n.T(c.Locale, "mcsr.record.usage"))
 			return nil
 		}
 
@@ -204,7 +204,7 @@ func mcsrRecordRun(d engine.Deps) module.RunFunc {
 		}
 
 		tmpl := orDefault(cfg.RecordMessage, defaultMcsrRecordTemplate)
-		mcsrEmit(c, emit, module.ExpandString(tmpl, mcsrRecordTokens(reply)))
+		emitChat(c, emit, module.ExpandString(tmpl, mcsrRecordTokens(reply)))
 		return nil
 	}
 }
@@ -279,12 +279,12 @@ func mcsrLbRun(d engine.Deps) module.RunFunc {
 		}
 
 		if reply.Empty {
-			mcsrEmit(c, emit, mcsrBoardLabel(reply.Board)+": "+i18n.T(c.Locale, "mcsr.leaderboard.empty"))
+			emitChat(c, emit, mcsrBoardLabel(reply.Board)+": "+i18n.T(c.Locale, "mcsr.leaderboard.empty"))
 			return nil
 		}
 
 		tmpl := orDefault(cfg.LbMessage, defaultMcsrLbTemplate)
-		mcsrEmit(c, emit, module.ExpandString(tmpl, mcsrLbTokens(reply)))
+		emitChat(c, emit, module.ExpandString(tmpl, mcsrLbTokens(reply)))
 		return nil
 	}
 }

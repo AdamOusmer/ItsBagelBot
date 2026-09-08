@@ -67,7 +67,7 @@ type duelConfig struct {
 
 // duelCmd bundles the per-invocation state every handler shares.
 type duelCmd struct {
-	gameReplier
+	chatReplier
 	s   engine.DuelStore
 	c   *module.Context
 	cfg duelClamps
@@ -93,7 +93,7 @@ func newDuelCmd(ctx context.Context, d engine.Deps, c *module.Context, log *zap.
 		return duelCmd{}, false
 	}
 	dc = duelCmd{
-		gameReplier: newGameReplier(c, points),
+		chatReplier: newGameReplier(c, points),
 		s:           d.Duel,
 		c:           c,
 		cfg: duelClamps{
@@ -198,20 +198,20 @@ func splitChallenge(first, rest string) challengeReq {
 func (dc duelCmd) status(ctx context.Context, emit module.Emit) error {
 	st, err := dc.s.Status(ctx, dc.c.BroadcasterID)
 	if err != nil {
-		dc.log.Warn("duel: status failed", dc.bid(), zap.Error(err))
+		dc.log.Warn("duel: status failed", dc.c.BID(), zap.Error(err))
 		return err
 	}
 	if !st.Open {
 		dc.reply(emit, "", "duel.status.none")
 		return nil
 	}
-	tokens := []token{
-		tk("opener", st.Opener),
-		tk("target", st.Challenged),
-		tk("stake", strconv.FormatInt(st.Stake, 10)),
-		tk("pot", strconv.FormatInt(st.Pot, 10)),
-		tk("count", strconv.FormatInt(st.Entrants, 10)),
-		tk("secs", strconv.FormatInt(st.SecondsLeft, 10)),
+	tokens := []string{
+		"opener", st.Opener,
+		"target", st.Challenged,
+		"stake", strconv.FormatInt(st.Stake, 10),
+		"pot", strconv.FormatInt(st.Pot, 10),
+		"count", strconv.FormatInt(st.Entrants, 10),
+		"secs", strconv.FormatInt(st.SecondsLeft, 10),
 	}
 	key := replyKey("duel.status.pot")
 	if st.Kind == engine.DuelChallenge {
@@ -232,7 +232,7 @@ func (dc duelCmd) stake(ctx context.Context, login, raw string, emit module.Emit
 
 	res, err := dc.s.Join(ctx, dc.c.BroadcasterID, login, stake)
 	if err != nil {
-		dc.log.Warn("duel: join failed", dc.bid(), zap.Error(err))
+		dc.log.Warn("duel: join failed", dc.c.BID(), zap.Error(err))
 		return err
 	}
 	switch {
@@ -256,13 +256,13 @@ func (dc duelCmd) replyJoin(res engine.DuelJoinResult, stake int64, emit module.
 	switch {
 	case res.Joined:
 		dc.reply(emit, dc.t.JoinMessage, "duel.joined",
-			tk("stake", strconv.FormatInt(stake, 10)),
-			tk("count", strconv.FormatInt(res.Entrants, 10)),
-			tk("pot", strconv.FormatInt(res.Pot, 10)))
+			"stake", strconv.FormatInt(stake, 10),
+			"count", strconv.FormatInt(res.Entrants, 10),
+			"pot", strconv.FormatInt(res.Pot, 10))
 	case res.Already:
 		dc.reply(emit, "", "duel.join.already",
-			tk("count", strconv.FormatInt(res.Entrants, 10)),
-			tk("pot", strconv.FormatInt(res.Pot, 10)))
+			"count", strconv.FormatInt(res.Entrants, 10),
+			"pot", strconv.FormatInt(res.Pot, 10))
 	case res.Unknown:
 		dc.reply(emit, "", "duel.join.unknown")
 	case res.Short:
@@ -301,13 +301,13 @@ func (dc duelCmd) openPot(ctx context.Context, login string, stake int64, emit m
 		PotSeconds: dc.t.PotSeconds,
 	})
 	if err != nil {
-		dc.log.Warn("duel: open failed", dc.bid(), zap.Error(err))
+		dc.log.Warn("duel: open failed", dc.c.BID(), zap.Error(err))
 		return err
 	}
 	dc.replyOpen(emit, res, func() {
 		dc.reply(emit, dc.t.OpenedMessage, "duel.opened",
-			tk("secs", strconv.FormatInt(engine.ClampDuelSeconds(dc.t.PotSeconds, engine.DuelDefaultPotSeconds), 10)),
-			tk("stake", strconv.FormatInt(stake, 10)))
+			"secs", strconv.FormatInt(engine.ClampDuelSeconds(dc.t.PotSeconds, engine.DuelDefaultPotSeconds), 10),
+			"stake", strconv.FormatInt(stake, 10))
 	})
 	return nil
 }
@@ -335,15 +335,15 @@ func (dc duelCmd) challenge(ctx context.Context, login string, req challengeReq,
 		ChallengeSeconds: dc.t.ChallengeSeconds,
 	})
 	if err != nil {
-		dc.log.Warn("duel: challenge failed", dc.bid(), zap.Error(err))
+		dc.log.Warn("duel: challenge failed", dc.c.BID(), zap.Error(err))
 		return err
 	}
 	dc.replyOpen(emit, res, func() {
 		dc.reply(emit, dc.t.ChallengeMessage, "duel.challenge.sent",
-			tk("target", req.target),
-			tk("stake", strconv.FormatInt(stake, 10)),
-			tk("pot", strconv.FormatInt(stake*2, 10)),
-			tk("secs", strconv.FormatInt(engine.ClampDuelSeconds(dc.t.ChallengeSeconds, engine.DuelDefaultChallengeSeconds), 10)))
+			"target", req.target,
+			"stake", strconv.FormatInt(stake, 10),
+			"pot", strconv.FormatInt(stake*2, 10),
+			"secs", strconv.FormatInt(engine.ClampDuelSeconds(dc.t.ChallengeSeconds, engine.DuelDefaultChallengeSeconds), 10))
 	})
 	return nil
 }
@@ -352,7 +352,7 @@ func (dc duelCmd) challenge(ctx context.Context, login string, req challengeReq,
 func (dc duelCmd) accept(ctx context.Context, login string, emit module.Emit) error {
 	res, err := dc.s.Accept(ctx, dc.c.BroadcasterID, login)
 	if err != nil {
-		dc.log.Warn("duel: accept failed", dc.bid(), zap.Error(err))
+		dc.log.Warn("duel: accept failed", dc.c.BID(), zap.Error(err))
 		return err
 	}
 	switch {
@@ -379,28 +379,28 @@ func (dc duelCmd) replySettled(res engine.DuelAcceptResult, emit module.Emit) {
 		// Settled on paper, credit failed: name the winner and pot so chat
 		// knows the outcome while the payout lands.
 		dc.reply(emit, "", "duel.payout_pending",
-			tk("winner", res.Winner),
-			tk("pot", strconv.FormatInt(res.Pot, 10)))
+			"winner", res.Winner,
+			"pot", strconv.FormatInt(res.Pot, 10))
 		return
 	}
 	dc.reply(emit, dc.t.WonMessage, "duel.won",
-		tk("winner", res.Winner),
-		tk("loser", res.Loser),
-		tk("pot", strconv.FormatInt(res.Pot, 10)))
+		"winner", res.Winner,
+		"loser", res.Loser,
+		"pot", strconv.FormatInt(res.Pot, 10))
 }
 
 // decline refuses a pending challenge; the opener's stake goes back.
 func (dc duelCmd) decline(ctx context.Context, login string, emit module.Emit) error {
 	res, err := dc.s.Decline(ctx, dc.c.BroadcasterID, login)
 	if err != nil {
-		dc.log.Warn("duel: decline failed", dc.bid(), zap.Error(err))
+		dc.log.Warn("duel: decline failed", dc.c.BID(), zap.Error(err))
 		return err
 	}
 	switch {
 	case res.Declined:
 		dc.reply(emit, "", "duel.decline.ok",
-			tk("opener", res.Opener),
-			tk("refund", strconv.FormatInt(res.Refund, 10)))
+			"opener", res.Opener,
+			"refund", strconv.FormatInt(res.Refund, 10))
 	case res.Found && res.WrongUser:
 		dc.reply(emit, "", "duel.accept.notYou")
 	case res.Busy:
@@ -417,14 +417,14 @@ func (dc duelCmd) cancel(ctx context.Context, login string, emit module.Emit) er
 	mod := dc.c.Chatter().Allows(module.RoleModerator)
 	res, err := dc.s.Cancel(ctx, dc.c.BroadcasterID, login, mod)
 	if err != nil {
-		dc.log.Warn("duel: cancel failed", dc.bid(), zap.Error(err))
+		dc.log.Warn("duel: cancel failed", dc.c.BID(), zap.Error(err))
 		return err
 	}
 	switch {
 	case res.Cancelled:
 		dc.reply(emit, "", "duel.cancel.ok",
-			tk("refunds", strconv.FormatInt(res.Refunded, 10)),
-			tk("total", strconv.FormatInt(res.Total, 10)))
+			"refunds", strconv.FormatInt(res.Refunded, 10),
+			"total", strconv.FormatInt(res.Total, 10))
 	case res.Found && !res.Allowed:
 		dc.reply(emit, "", "duel.cancel.denied")
 	case res.Busy:
@@ -465,12 +465,10 @@ func (dc duelCmd) refuseReply(emit module.Emit, refused stakeRefusal) {
 	key := replyKey(refused)
 	switch refused {
 	case refMinStake:
-		dc.reply(emit, "", key, tk("min", strconv.FormatInt(dc.cfg.MinStake, 10)))
+		dc.reply(emit, "", key, "min", strconv.FormatInt(dc.cfg.MinStake, 10))
 	case refMaxStake:
-		dc.reply(emit, "", key, tk("max", strconv.FormatInt(dc.cfg.MaxStake, 10)))
+		dc.reply(emit, "", key, "max", strconv.FormatInt(dc.cfg.MaxStake, 10))
 	default:
 		dc.reply(emit, "", key)
 	}
 }
-
-func (dc duelCmd) bid() zap.Field { return zap.Uint64("broadcaster_id", dc.c.BroadcasterID) }
