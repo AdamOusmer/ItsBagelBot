@@ -131,10 +131,14 @@ type rpcDeps struct {
 // engine-facing channel-management/live RPC onto the same connection.
 func subscribeRPCs(deps rpcDeps) {
 	setupWorker := setup.New(setup.Config{Discord: deps.Rest, Store: deps.Store, Log: deps.Log.Named("setup")})
-	if err := rpc.SubscribeSetup(setupWorker, rpc.SetupWiring{
-		NC: deps.NC, Prefix: deps.Cfg.RPCPrefix, Queue: deps.Cfg.RPCQueue, App: deps.NRApp,
-		Reauth: deps.Reauth, Status: deps.BotStatus, Log: deps.Log.Named("rpc"),
-	}); err != nil {
+	setupWiring := rpc.SetupWiring{
+		Wiring: rpc.Wiring{
+			NC: deps.NC, Prefix: deps.Cfg.RPCPrefix, Queue: deps.Cfg.RPCQueue,
+			App: deps.NRApp, Log: deps.Log.Named("rpc"),
+		},
+		Reauth: deps.Reauth, Status: deps.BotStatus,
+	}
+	if err := rpc.SubscribeSetup(setupWorker, setupWiring); err != nil {
 		deps.Log.Fatal("failed to subscribe discord guild setup rpc", zap.Error(err))
 	}
 	engineWiring := rpc.EngineWiring{
