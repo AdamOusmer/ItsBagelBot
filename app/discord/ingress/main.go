@@ -21,6 +21,7 @@ import (
 	"ItsBagelBot/app/discord/ingress/internal/presence"
 	"ItsBagelBot/app/discord/ingress/internal/relay"
 	"ItsBagelBot/internal/discordapi"
+	"ItsBagelBot/internal/discordboot"
 	"ItsBagelBot/internal/discordrate"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/env"
@@ -39,13 +40,10 @@ func main() {
 	log, ctx := core.Log, core.Ctx
 
 	cfg := config.Load()
-	if cfg.DiscordBotToken == "" {
-		// No token means no gateway Identify is possible. Health still
-		// serves so the pod stays Ready instead of crash-looping on a
-		// deliberately unconfigured deploy.
-		log.Info("DISCORD_BOT_TOKEN unset; discord ingress idle")
-		health.Serve(cfg.ListenAddr, serviceName)
-		core.Await()
+	// No token means no gateway Identify is possible; see IdleIfNoToken for
+	// why that parks the pod rather than failing it.
+	idle := discordboot.Service{Name: serviceName, Token: cfg.DiscordBotToken, Listen: cfg.ListenAddr}
+	if discordboot.IdleIfNoToken(core, idle) {
 		return
 	}
 

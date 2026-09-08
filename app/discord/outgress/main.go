@@ -21,6 +21,7 @@ import (
 	"ItsBagelBot/app/discord/outgress/internal/rpc"
 	"ItsBagelBot/app/discord/outgress/internal/setup"
 	"ItsBagelBot/internal/discordapi"
+	"ItsBagelBot/internal/discordboot"
 	"ItsBagelBot/internal/discordrate"
 	"ItsBagelBot/internal/discordstore"
 	"ItsBagelBot/pkg/bus"
@@ -43,10 +44,8 @@ func main() {
 	log, ctx, nrApp := core.Log, core.Ctx, core.NR
 
 	cfg := config.Load()
-	if cfg.DiscordBotToken == "" {
-		log.Info("DISCORD_BOT_TOKEN unset; discord outgress idle")
-		health.Serve(cfg.ListenAddr, serviceName)
-		core.Await()
+	idle := discordboot.Service{Name: serviceName, Token: cfg.DiscordBotToken, Listen: cfg.ListenAddr}
+	if discordboot.IdleIfNoToken(core, idle) {
 		return
 	}
 
