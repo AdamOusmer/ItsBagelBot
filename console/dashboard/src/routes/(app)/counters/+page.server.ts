@@ -5,33 +5,22 @@ import type { Actions, PageServerLoad } from './$types';
 import type { CounterDef, CounterEntryView, CounterScope } from '@bagel/shared';
 import { COUNTER_SCOPES } from '@bagel/shared';
 import { listCounters, createCounter, renameCounter, deleteCounter, counterEntries } from '$lib/server/loyalty-store';
-import { UserError, normalizeName } from '$lib/server/counter-form';
+import { UserError, normalizeCounterName } from '$lib/server/counter-form';
 import { runSet, runAddEntry, runDeleteEntry } from '$lib/server/counter-actions';
-import { auditDashboardImpersonation } from '$lib/server/services';
-import { logger } from '@bagel/shared/server/logger';
-import { gateModulePage } from '$lib/server/module-gate';
 import { moduleLoad } from '$lib/server/module-page';
-import type { Session } from '$lib/server/session';
-import { effectiveId } from '$lib/server/board';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { fail } from '@sveltejs/kit';
-import { mutateAction } from '@bagel/shared/server/form-action';
+import { moduleAction } from '$lib/server/module-action';
 
 // Gated on the build-time `dev` constant first, so Rollup erases every demo
 // branch (and the dynamic demo-data import inside it) from production builds.
 const DEMO = dev && env.DEMO === '1';
 
-// Counters are a catalog-defined Modules tool, so the page and every action
-// derive delegate access from the same definition as its tile and route guard.
-function gate(session: Session | null | undefined): void {
-  gateModulePage(session, 'counters');
-}
-
 // The optional ?c=<name> selects one entry-scoped counter whose stored values
 // (the per-viewer buckets) are loaded alongside the list.
 export const load: PageServerLoad = ({ locals, url }) => {
-  const selected = normalizeName(url.searchParams.get('c'));
+  const selected = normalizeCounterName(url.searchParams.get('c'));
   return moduleLoad('counters', locals.session, {
     demo: DEMO
       ? async () => {
@@ -57,41 +46,32 @@ export const load: PageServerLoad = ({ locals, url }) => {
   });
 };
 
-// mutate binds one POST action to the shared write skeleton
-// (@bagel/shared/server/form-action): gate, form, demo short-circuit, error
-// mapping, audit. The board id is this page's actor context; `run` returns the
-// audit detail, or null for a validation failure.
+// mutate binds one POST action to the module write skeleton
+// ($lib/server/module-action): gate, form, demo short-circuit, error mapping,
+// audit. A UserError carries a message written for the broadcaster, so it is
+// answered as this verb's own refusal; anything else is ours and reaches
+// moduleAction's generic handler (logged, generic line).
 type Mutation = (uid: string, f: FormData) => Promise<string | null>;
 
-// The board being written plus the session that asked for it: the audit line
-// names the delegate, the write is keyed by the owner.
-type Actor = { uid: string; session: Session | null };
-
 function mutate(op: string, run: Mutation) {
-  return mutateAction<Actor, Parameters<NonNullable<Actions[string]>>[0]>({
-    gate: ({ locals }) => {
-      gate(locals.session);
-      if (!DEMO && !locals.session) return null;
-      return { uid: effectiveId(locals.session), session: locals.session ?? null };
+  return moduleAction(
+    'counters',
+    op,
+    async (uid, f) => {
+      try {
+        return await run(uid, f);
+      } catch (e) {
+        if (e instanceof UserError) return fail(400, { ok: false, error: e.message });
+        throw e;
+      }
     },
-    refusal: () => fail(401, { ok: false, error: 'Not signed in.' }),
-    demo: DEMO,
-    run: (actor, f) => run(actor.uid, f),
-    // A UserError carries a message written for the broadcaster; anything else
-    // is ours, so it is logged and answered with the generic line.
-    failed: (e) => {
-      if (e instanceof UserError) return fail(400, { ok: false, error: e.message });
-      logger.error({ err: e }, `[counters] ${op} failed`);
-      return fail(400, { ok: false, error: `${op} failed` });
-    },
-    audited: (actor, detail) => auditDashboardImpersonation(actor.session, `counters:${op}`, detail),
-    invalid: 'Invalid counter.'
-  });
+    { demo: DEMO, invalid: 'Invalid counter.' }
+  );
 }
 
 export const actions: Actions = {
   create: mutate('create', async (uid, f) => {
-    const name = normalizeName(f.get('name'));
+    const name = normalizeCounterName(f.get('name'));
     const scope = String(f.get('scope') ?? 'channel') as CounterScope;
     if (!name || !COUNTER_SCOPES.includes(scope)) return null;
     await createCounter(uid, name, scope);
@@ -106,8 +86,8 @@ export const actions: Actions = {
   addEntry: mutate('addEntry', runAddEntry),
 
   rename: mutate('rename', async (uid, f) => {
-    const name = normalizeName(f.get('name'));
-    const newName = normalizeName(f.get('new_name'));
+    const name = normalizeCounterName(f.get('name'));
+    const newName = normalizeCounterName(f.get('new_name'));
     if (!name || !newName) return null;
     if (newName === name) return null;
     const found = await renameCounter(uid, name, newName);
@@ -116,7 +96,7 @@ export const actions: Actions = {
   }),
 
   delete: mutate('delete', async (uid, f) => {
-    const name = normalizeName(f.get('name'));
+    const name = normalizeCounterName(f.get('name'));
     if (!name) return null;
     await deleteCounter(uid, name);
     return name;

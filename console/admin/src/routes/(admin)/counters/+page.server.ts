@@ -1,9 +1,10 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import type { Actions, PageServerLoad } from './$types';
+import type { Actions, PageServerLoad, RequestEvent } from './$types';
 import { fail, redirect } from '@sveltejs/kit';
 import { mutateAction } from '@bagel/shared/server/form-action';
+import { normalizeCounterName } from '@bagel/shared/validation';
 import { dev } from '$app/environment';
 import { requireAdmin, isManager, type AdminIdentity } from '$lib/server/access';
 import {
@@ -19,16 +20,9 @@ const DEMO = dev && process.env.DEMO === '1';
 
 export type BotCountersBundle = { counters: BotCounter[]; degraded: boolean };
 
-// normalizeName mirrors the loyalty service: bare key, lower-cased, no "!".
-// ':' is reserved (the worker's bot-token prefix), so it never enters a name.
-function normalizeName(raw: unknown): string {
-  return String(raw ?? '')
-    .trim()
-    .replace(/^!/, '')
-    .toLowerCase()
-    .slice(0, 64);
-}
-
+// ':' is reserved (the worker's bot-token prefix), so it never enters a name;
+// the fold itself is normalizeCounterName, shared with the dashboard's counters
+// page because both write the same keyspace.
 function validName(name: string): boolean {
   return name.length > 0 && !name.includes(':');
 }
@@ -62,37 +56,38 @@ type Mutation = (f: FormData) => Promise<string | null>;
 
 function mutate(op: string, run: Mutation) {
   const action = `bot_counter_${op}`;
-  return mutateAction<AdminIdentity, Parameters<NonNullable<Actions[string]>>[0]>({
-    gate: async ({ locals }) => {
-      const admin = await requireAdmin(locals.session);
-      return admin && isManager(admin.role) ? admin : null;
-    },
-    refusal: () => fail(403, { ok: false, error: 'forbidden' }),
-    demo: DEMO,
-    run: (_admin, f) => run(f),
-    // A failed write is audited too, with the name it was attempted on: a
-    // rejected bot-counter change is exactly the kind of thing the trail is
-    // read for afterwards.
-    failed: (e, f, admin) => {
-      const error = (e as Error).message;
-      audit(admin, { action, target: 'bot', detail: String(f.get('name') ?? ''), ok: false, error });
-      return fail(400, { ok: false, error });
-    },
-    audited: (admin, detail) => audit(admin, { action, target: 'bot', detail, ok: true }),
-    invalid: 'Invalid counter.'
-  });
+  return (event: RequestEvent) =>
+    mutateAction<AdminIdentity>(event, {
+      gate: async () => {
+        const admin = await requireAdmin(event.locals.session);
+        return admin && isManager(admin.role) ? admin : null;
+      },
+      refusal: () => fail(403, { ok: false, error: 'forbidden' }),
+      demo: DEMO,
+      run: (_admin, f) => run(f),
+      // A failed write is audited too, with the name it was attempted on: a
+      // rejected bot-counter change is exactly the kind of thing the trail is
+      // read for afterwards.
+      failed: (e, f, admin) => {
+        const error = (e as Error).message;
+        audit(admin, { action, target: 'bot', detail: String(f.get('name') ?? ''), ok: false, error });
+        return fail(400, { ok: false, error });
+      },
+      audited: (admin, detail) => audit(admin, { action, target: 'bot', detail, ok: true }),
+      invalid: 'Invalid counter.'
+    });
 }
 
 export const actions: Actions = {
   create: mutate('create', async (f) => {
-    const name = normalizeName(f.get('name'));
+    const name = normalizeCounterName(f.get('name'));
     if (!validName(name)) return null;
     await botCounterCreate(name);
     return name;
   }),
 
   set: mutate('set', async (f) => {
-    const name = normalizeName(f.get('name'));
+    const name = normalizeCounterName(f.get('name'));
     const value = Math.trunc(Number(f.get('value')));
     if (!validName(name) || !Number.isFinite(value)) return null;
     await botCounterSet(name, value);
@@ -100,7 +95,7 @@ export const actions: Actions = {
   }),
 
   delete: mutate('delete', async (f) => {
-    const name = normalizeName(f.get('name'));
+    const name = normalizeCounterName(f.get('name'));
     if (!validName(name)) return null;
     await botCounterDelete(name);
     return name;

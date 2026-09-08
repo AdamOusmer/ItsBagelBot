@@ -11,12 +11,8 @@ import {
   setTimersEnabled,
   type TimerResult
 } from '$lib/server/timers-store';
-import { auditDashboardImpersonation } from '$lib/server/services';
-import { logger } from '@bagel/shared/server/logger';
-import { gateModulePage } from '$lib/server/module-gate';
 import { moduleLoad } from '$lib/server/module-page';
-import type { Session } from '$lib/server/session';
-import { effectiveId } from '$lib/server/board';
+import { moduleAction, type ModuleMutation } from '$lib/server/module-action';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { fail } from '@sveltejs/kit';
@@ -24,11 +20,6 @@ import { fail } from '@sveltejs/kit';
 // Gated on the build-time `dev` constant first, so Rollup erases every demo
 // branch (and the dynamic demo-data import inside it) from production builds.
 const DEMO = dev && env.DEMO === '1';
-
-// Delegate scope comes from the timers catalog def (see module-gate.ts).
-function gate(session: Session | null | undefined): void {
-  gateModulePage(session, 'timers');
-}
 
 export const load: PageServerLoad = ({ locals }) =>
   moduleLoad('timers', locals.session, {
@@ -61,93 +52,46 @@ function parseTimer(raw: string): TimerDef | null {
   };
 }
 
-// actionContext runs the shared prologue every timers action repeats: scope
-// gate, auth check, effective board id, and form parse. DEMO runs without a
-// session (each action short-circuits before the store call).
-async function actionContext({ request, locals }: { request: Request; locals: App.Locals }) {
-  gate(locals.session);
-  if (!DEMO && !locals.session) return null;
-  return { uid: effectiveId(locals.session), session: locals.session, form: await request.formData() };
+// mutate binds one POST action to the module write skeleton
+// ($lib/server/module-action): delegate gate, form, demo short-circuit, error
+// mapping, audit. Each verb below is only its own parse plus its store call.
+function mutate(op: string, invalid: string, run: ModuleMutation) {
+  return moduleAction('timers', op, run, { demo: DEMO, invalid });
 }
 
-const notSignedIn = () => fail(401, { ok: false, error: 'Not signed in.' });
+// refused answers a store result that failed for a reason the broadcaster can
+// read (sesame refused the shape, the list is full) with that reason, rather
+// than the generic line a thrown error gets.
+function refused(res: Extract<TimerResult, { ok: false }>) {
+  return fail(400, { ok: false, error: res.error ?? 'failed' });
+}
 
 export const actions: Actions = {
-  create: async (event) => {
-    const ctx = await actionContext(event);
-    if (!ctx) return notSignedIn();
-    const { uid, form: f } = ctx;
+  create: mutate('create', 'Invalid timer.', async (uid, f) => {
     const draft = parseTimer(String(f.get('timer') ?? ''));
-    if (!draft) return fail(400, { ok: false, error: 'Invalid timer.' });
-    if (DEMO) return { ok: true };
+    if (!draft) return null;
+    const res = await createTimer(uid, draft);
+    return res.ok ? draft.message : refused(res);
+  }),
 
-    let res: TimerResult;
-    try {
-      res = await createTimer(uid, draft);
-    } catch (e) {
-      logger.error({ err: e }, '[timers] create failed');
-      return fail(400, { ok: false, error: 'create failed' });
-    }
-    if (!res.ok) return fail(400, { ok: false, error: res.error ?? 'failed' });
-    auditDashboardImpersonation(ctx.session, 'timers:create', draft.message);
-    return { ok: true };
-  },
-
-  update: async (event) => {
-    const ctx = await actionContext(event);
-    if (!ctx) return notSignedIn();
-    const { uid, form: f } = ctx;
+  update: mutate('update', 'Invalid timer.', async (uid, f) => {
     const draft = parseTimer(String(f.get('timer') ?? ''));
-    if (!draft || !draft.id) return fail(400, { ok: false, error: 'Invalid timer.' });
-    if (DEMO) return { ok: true };
+    if (!draft || !draft.id) return null;
+    const res = await updateTimer(uid, draft);
+    return res.ok ? draft.message : refused(res);
+  }),
 
-    let res: TimerResult;
-    try {
-      res = await updateTimer(uid, draft);
-    } catch (e) {
-      logger.error({ err: e }, '[timers] update failed');
-      return fail(400, { ok: false, error: 'update failed' });
-    }
-    if (!res.ok) return fail(400, { ok: false, error: res.error ?? 'failed' });
-    auditDashboardImpersonation(ctx.session, 'timers:update', draft.message);
-    return { ok: true };
-  },
-
-  delete: async (event) => {
-    const ctx = await actionContext(event);
-    if (!ctx) return notSignedIn();
-    const { uid, form: f } = ctx;
+  delete: mutate('delete', 'Missing timer id.', async (uid, f) => {
     const id = String(f.get('id') ?? '');
-    if (!id) return fail(400, { ok: false, error: 'Missing timer id.' });
-    if (DEMO) return { ok: true };
-
-    let res: TimerResult;
-    try {
-      res = await deleteTimer(uid, id);
-    } catch (e) {
-      logger.error({ err: e }, '[timers] delete failed');
-      return fail(400, { ok: false, error: 'delete failed' });
-    }
-    if (!res.ok) return fail(400, { ok: false, error: res.error ?? 'failed' });
-    auditDashboardImpersonation(ctx.session, 'timers:delete', id);
-    return { ok: true };
-  },
+    if (!id) return null;
+    const res = await deleteTimer(uid, id);
+    return res.ok ? id : refused(res);
+  }),
 
   // Master on/off for whether sesame arms any timer at all.
-  toggle: async (event) => {
-    const ctx = await actionContext(event);
-    if (!ctx) return notSignedIn();
-    const { uid, form: f } = ctx;
+  toggle: mutate('toggle', 'Invalid timer.', async (uid, f) => {
     const enabled = f.get('is_enabled') === 'on';
-    if (DEMO) return { ok: true, enabled };
-
-    try {
-      await setTimersEnabled(uid, enabled);
-    } catch (e) {
-      logger.error({ err: e }, '[timers] toggle failed');
-      return fail(400, { ok: false });
-    }
-    auditDashboardImpersonation(ctx.session, 'timers:toggle', String(enabled));
-    return { ok: true, enabled };
-  }
+    await setTimersEnabled(uid, enabled);
+    return String(enabled);
+  })
 };

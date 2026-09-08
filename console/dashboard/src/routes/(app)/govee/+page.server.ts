@@ -12,12 +12,9 @@ import {
   type GoveeView,
   type RewardDraft
 } from '$lib/server/govee-store';
-import { auditDashboardImpersonation } from '$lib/server/services';
-import { logger } from '@bagel/shared/server/logger';
-import { gateModulePage } from '$lib/server/module-gate';
 import { moduleLoad } from '$lib/server/module-page';
-import type { Session } from '$lib/server/session';
-import { effectiveId } from '$lib/server/board';
+import { moduleAction } from '$lib/server/module-action';
+import type { MutationRefusal } from '@bagel/shared/server/form-action';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { fail } from '@sveltejs/kit';
@@ -25,11 +22,6 @@ import { fail } from '@sveltejs/kit';
 // Gated on the build-time `dev` constant first, so Rollup erases every demo
 // branch (and the dynamic demo-data import inside it) from production builds.
 const DEMO = dev && env.DEMO === '1';
-
-// Delegate scope comes from the govee catalog def (see module-gate.ts).
-function gate(session: Session | null | undefined): void {
-  gateModulePage(session, 'govee');
-}
 
 // The device list streams (see `read`), so the field is a promise on the happy
 // path and a settled list on the degraded one; naming the union here keeps both
@@ -75,13 +67,10 @@ export const load: PageServerLoad = ({ locals }) => {
   });
 };
 
-function requireSession(locals: App.Locals): string | null {
-  if (!DEMO && !locals.session) return null;
-  return effectiveId(locals.session);
-}
-
 // resultFail maps a store failure to a SvelteKit fail(): a missing-scope
-// rejection carries a flag so the page shows the reconnect CTA.
+// rejection carries a flag so the page shows the reconnect CTA. Returned from
+// the verb rather than thrown: it is a reason the broadcaster acts on, not a
+// fault, so it must not become moduleAction's generic line.
 function resultFail(r: Extract<GoveeResult, { ok: false }>) {
   if (r.missingScope) return fail(403, { ok: false, missingScope: true });
   return fail(400, { ok: false, error: r.error ?? 'failed' });
@@ -138,55 +127,49 @@ function parseRewardForm(f: FormData): { device: GoveeDevice; draft: RewardDraft
   return { device: { device, sku, name: String(f.get('deviceName') ?? '').trim(), color: true }, draft: parsed.draft };
 }
 
-// run is the shared action skeleton: gate, resolve the session, short-circuit in
-// demo, then run the store operation with uniform error handling + audit. Each
-// action only parses its own form and calls run, so there is one copy of the
-// gate/try/audit dance instead of one per verb.
-async function run(
-  locals: App.Locals,
-  audit: { action: string; detail: string },
-  work: (store: GoveeStore) => Promise<GoveeResult>
+// mutate binds one POST action to the module write skeleton
+// ($lib/server/module-action): delegate gate, form, demo short-circuit, error
+// mapping, audit. Each verb below is only its own parse plus one store call,
+// against a store built for the board being edited.
+function mutate(
+  op: string,
+  invalid: string,
+  run: (store: GoveeStore, f: FormData) => Promise<string | null | MutationRefusal>
 ) {
-  gate(locals.session);
-  const uid = requireSession(locals);
-  if (uid === null) return fail(401, { ok: false, error: 'Not signed in.' });
-  if (DEMO) return { ok: true };
+  return moduleAction('govee', op, (uid, f) => run(goveeStore(uid), f), { demo: DEMO, invalid });
+}
 
-  let res: GoveeResult;
-  try {
-    res = await work(goveeStore(uid));
-  } catch (e) {
-    logger.error({ err: e }, `[govee] ${audit.action} failed`);
-    return fail(400, { ok: false });
-  }
-  if (!res.ok) return resultFail(res);
-  auditDashboardImpersonation(locals.session, audit.action, audit.detail);
-  return { ok: true };
+// done maps a store result to what mutate expects: the audit detail on success,
+// the store's own refusal otherwise.
+function done(res: GoveeResult, detail: string): string | MutationRefusal {
+  return res.ok ? detail : resultFail(res);
 }
 
 export const actions: Actions = {
-  saveKey: async ({ request, locals }) => {
-    const key = String((await request.formData()).get('key') ?? '').trim();
-    if (!key) return fail(400, { ok: false, error: 'Enter your Govee API key.' });
-    return run(locals, { action: 'govee:key_set', detail: '' }, (s) => s.setKey(key));
-  },
+  // Action names are what the page's forms post to; the first argument is the
+  // audit verb (`govee:key_set`), which is why the two differ.
+  saveKey: mutate('key_set', 'Enter your Govee API key.', async (store, f) => {
+    const key = String(f.get('key') ?? '').trim();
+    if (!key) return null;
+    return done(await store.setKey(key), '');
+  }),
 
-  clearKey: ({ locals }) => run(locals, { action: 'govee:key_clear', detail: '' }, (s) => s.clearKey()),
+  clearKey: mutate('key_clear', 'Invalid request.', async (store) => done(await store.clearKey(), '')),
 
-  saveReward: async ({ request, locals }) => {
-    const parsed = parseRewardForm(await request.formData());
+  saveReward: mutate('reward', 'Pick a light first.', async (store, f) => {
+    const parsed = parseRewardForm(f);
     if ('error' in parsed) return fail(400, { ok: false, error: parsed.error });
-    return run(locals, { action: 'govee:reward', detail: parsed.draft.title }, (s) => s.saveReward(parsed.device, parsed.draft));
-  },
+    return done(await store.saveReward(parsed.device, parsed.draft), parsed.draft.title);
+  }),
 
-  deleteReward: async ({ request, locals }) => {
-    const deviceId = String((await request.formData()).get('device') ?? '').trim();
-    if (!deviceId) return fail(400, { ok: false, error: 'Pick a light first.' });
-    return run(locals, { action: 'govee:reward_delete', detail: deviceId }, (s) => s.deleteReward(deviceId));
-  },
+  deleteReward: mutate('reward_delete', 'Pick a light first.', async (store, f) => {
+    const deviceId = String(f.get('device') ?? '').trim();
+    if (!deviceId) return null;
+    return done(await store.deleteReward(deviceId), deviceId);
+  }),
 
-  toggle: async ({ request, locals }) => {
-    const enabled = (await request.formData()).get('is_enabled') === 'on';
-    return run(locals, { action: 'govee:toggle', detail: String(enabled) }, (s) => s.setEnabled(enabled));
-  }
+  toggle: mutate('toggle', 'Invalid request.', async (store, f) => {
+    const enabled = f.get('is_enabled') === 'on';
+    return done(await store.setEnabled(enabled), String(enabled));
+  })
 };
