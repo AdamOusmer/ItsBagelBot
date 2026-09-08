@@ -8,7 +8,18 @@
   import { enhance } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Button, PageHead, AlertBanner, ConfirmDialog, Skeleton, toast, actionPayload } from '@bagel/shared';
+  import {
+    Button,
+    PageHead,
+    AlertBanner,
+    ConfirmDialog,
+    Skeleton,
+    toast,
+    actionPayload,
+    adminToastFailure
+  } from '@bagel/shared';
+
+  const failed = adminToastFailure(toast);
   import type { BotCountersBundle } from './+page.server';
 
   let { data } = $props();
@@ -54,7 +65,7 @@
           await invalidateAll();
           return;
         }
-        toast('err', payload?.error ?? "That didn't work. Try again.");
+        failed(payload, "That didn't work. Try again.");
       };
     };
   }

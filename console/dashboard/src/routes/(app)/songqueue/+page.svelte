@@ -31,6 +31,7 @@
     SPOTIFY_QUOTA_TIERS,
     type SpotifyQuotas,
     actionPayload,
+    toastFailure,
     type ActionOk,
   } from '@bagel/shared';
   import SpotifyRewardEditor from '$lib/components/spotify/SpotifyRewardEditor.svelte';
@@ -39,6 +40,7 @@
 
   let { data } = $props();
   const { t } = getI18n();
+  const failed = toastFailure(toast, t);
 
   // Chat-commands reference from the shared catalog so this page never drifts
   // from the generic /modules/[id] ledger (the quotes pattern).
@@ -110,7 +112,7 @@
         await invalidateAll();
         return;
       }
-      toast('err', payload?.error ?? t('spotify.appSaveFailed'));
+      failed(payload, 'spotify.appSaveFailed');
     };
 
   async function copyRedirect() {
@@ -177,7 +179,7 @@
         missingScope = true;
         return;
       }
-      toast('err', payload?.error ?? t('spotify.srSaveFailed'));
+      failed(payload, 'spotify.srSaveFailed');
       await invalidateAll();
     };
   };
@@ -197,7 +199,7 @@
         await invalidateAll();
         return;
       }
-      toast('err', payload?.error ?? t('spotify.quotaSaveFailed'));
+      failed(payload, 'spotify.quotaSaveFailed');
       await invalidateAll();
     };
 
@@ -214,7 +216,7 @@
         missingScope = true;
         return;
       }
-      toast('err', payload?.error ?? t('spotify.masterFail'));
+      failed(payload, 'spotify.masterFail');
       await invalidateAll();
     };
   };
@@ -244,7 +246,7 @@
         missingScope = true;
         return;
       }
-      toast('err', payload?.error ?? t('spotify.toastSaveFailed'));
+      failed(payload, 'spotify.toastSaveFailed');
     };
   };
 
@@ -269,7 +271,7 @@
         missingScope = true;
         return;
       }
-      toast('err', payload?.error ?? t('spotify.toastDeleteFailed'));
+      failed(payload, 'spotify.toastDeleteFailed');
     };
   };
 

@@ -25,12 +25,14 @@
     type CounterEntryView,
     type CounterScope,
     actionPayload,
+    toastFailure,
     type ActionOk,
   } from '@bagel/shared';
   import CounterRow from '$lib/components/counters/CounterRow.svelte';
 
   let { data } = $props();
   const { t } = getI18n();
+  const failed = toastFailure(toast, t);
 
   // Local source of truth, reseeded when a fresh SSR load lands. create / set /
   // delete resync through invalidateAll (which swaps `data` and re-seeds here).
@@ -193,7 +195,7 @@
         return;
       }
       // Keep the form open with the typed name; surface the reason.
-      toast('err', actionPayload(result)?.error ?? t('counters.toastFailed'));
+      failed(actionPayload(result), 'counters.toastFailed');
     };
   };
 
@@ -208,7 +210,7 @@
         await invalidateAll();
         return;
       }
-      toast('err', actionPayload(result)?.error ?? t('counters.toastFailed'));
+      failed(actionPayload(result), 'counters.toastFailed');
     };
   };
 
@@ -235,7 +237,7 @@
         await invalidateAll();
         return;
       }
-      toast('err', actionPayload(result)?.error ?? t('counters.toastFailed'));
+      failed(actionPayload(result), 'counters.toastFailed');
     };
   };
 
@@ -253,7 +255,7 @@
         await invalidateAll();
         return;
       }
-      toast('err', actionPayload(result)?.error ?? t('counters.toastFailed'));
+      failed(actionPayload(result), 'counters.toastFailed');
     };
   };
 
@@ -329,7 +331,7 @@
       delete entryEdits[key];
       await invalidateAll();
     } else {
-      toast('err', payload?.error ?? t('counters.toastFailed'));
+      failed(payload, 'counters.toastFailed');
     }
   }
 
@@ -353,7 +355,7 @@
         await invalidateAll();
         return;
       }
-      toast('err', actionPayload(result)?.error ?? t('counters.toastFailed'));
+      failed(actionPayload(result), 'counters.toastFailed');
     };
   };
 
@@ -380,7 +382,7 @@
         return;
       }
       if (snapshot) items = [...items.filter((c) => c.name !== snapshot.name), snapshot];
-      toast('err', actionPayload(result)?.error ?? t('counters.toastFailed'));
+      failed(actionPayload(result), 'counters.toastFailed');
     };
   };
 </script>

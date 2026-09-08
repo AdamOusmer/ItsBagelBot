@@ -4,7 +4,7 @@
   import { enhance } from '$app/forms';
   import { onMount, untrack } from 'svelte';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { PageHead, AlertBanner, Skeleton, toast, actionPayload } from '@bagel/shared';
+  import { PageHead, AlertBanner, Skeleton, toast, actionPayload, adminToastFailure } from '@bagel/shared';
   import type { Shard, ShardSnapshot } from '@bagel/shared';
   import {
     barWidth,
@@ -165,6 +165,8 @@
   // ── Actions: apply the echoed snapshot; autoscale flips optimistically ─────
   type ActionPayload = { action?: { ok: boolean; notice: string }; snapshot?: ShardSnapshot; error?: string };
 
+  const failed = adminToastFailure(toast);
+
   let busy = $state(false);
 
   const scaleSubmit: SubmitFunction = ({ formData }) => {
@@ -178,7 +180,7 @@
         if (p.snapshot) snap = p.snapshot;
         toast('ok', p.action.notice);
       } else {
-        toast('err', p?.action?.notice ?? p?.error ?? 'scale failed');
+        failed(p, 'scale failed');
       }
       await update({ reset: false });
     };
@@ -198,7 +200,7 @@
       } else {
         // Roll the flip back: the toggle must show what the fleet actually runs.
         if (before) snap = before;
-        toast('err', p?.action?.notice ?? p?.error ?? 'autoscale change failed');
+        failed(p, 'autoscale change failed');
       }
       await update({ reset: false });
     };

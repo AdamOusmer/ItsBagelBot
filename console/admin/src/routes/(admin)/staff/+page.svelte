@@ -16,9 +16,12 @@
     Skeleton,
     toast,
     actionPayload,
+    adminToastFailure,
     ago,
   } from '@bagel/shared';
   import type { AdminAcct, AdminRole, AuditEntry } from '$lib/server/services';
+
+  const failed = adminToastFailure(toast);
 
   let { data } = $props();
 
@@ -81,7 +84,7 @@
           return;
         }
         staff = before;
-        toast('err', p?.action?.notice ?? p?.error ?? 'roster change failed');
+        failed(p, 'roster change failed');
       };
     };
   }

@@ -14,6 +14,7 @@
     toast,
     copyFlash,
     fmtDate as fmtDateOf,
+    adminToastFailure,
   } from '@bagel/shared';
   import type { DbCredentialStatus, ServiceTokenView } from '$lib/server/secrets';
   import type { SecretsBundle } from './+page.server';
@@ -90,6 +91,8 @@
   let mintedKey = $state('');
   let mintedCopied = $state(false);
 
+  const failed = adminToastFailure(toast);
+
   type ActionPayload = {
     action?: { ok: boolean; notice: string };
     mintedKey?: string;
@@ -114,7 +117,7 @@
         await invalidateAll();
         return;
       }
-      toast('err', p?.error ?? p?.action?.notice ?? 'action failed');
+      failed(p, 'action failed');
     };
   };
 

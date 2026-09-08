@@ -39,8 +39,36 @@ export function actionPayload<T = ActionOk>(result: unknown): T | undefined {
 export function toastFailure(
   toast: (kind: 'err', text: string) => unknown,
   t: (key: string) => string
-): (payload: ActionOk | undefined, fallbackKey: string) => void {
+): (payload: ActionOk | null | undefined, fallbackKey: string) => void {
   return (payload, fallbackKey) => {
     toast('err', payload?.error ?? t(fallbackKey));
+  };
+}
+
+/**
+ * What an admin action answers with. The staff console's actions return their
+ * outcome under `action` so a page can render the notice inline as well as
+ * toast it; a few answer with a bare `notice`, and `error` is the shape a
+ * plain `fail()` produces.
+ */
+export type AdminActionOk = ActionOk & { notice?: string; action?: { ok?: boolean; notice?: string } };
+
+/**
+ * The admin console's half of toastFailure: no translator (the staff console
+ * is English-only, so the fallback is the message, not a key), and the notice
+ * is read first.
+ *
+ * The order is the reason this exists. Nine call sites tried three orders
+ * between them -- notice ?? error ?? fallback, error ?? notice ?? fallback,
+ * and one reading a bare `notice` -- so which server message a staff member
+ * saw depended on which page they were on. Notice wins because it is the line
+ * the action wrote FOR them ("shard 3 is already draining"), while `error` is
+ * whatever the failure path produced.
+ */
+export function adminToastFailure(
+  toast: (kind: 'err', text: string) => unknown
+): (payload: AdminActionOk | null | undefined, fallback: string) => void {
+  return (payload, fallback) => {
+    toast('err', payload?.action?.notice ?? payload?.notice ?? payload?.error ?? fallback);
   };
 }

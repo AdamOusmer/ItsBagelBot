@@ -20,6 +20,7 @@
     toast,
     normName,
     getI18n,
+    toastFailure,
     builtinDef,
     BUILTIN_NAMES,
     validateCommand,
@@ -46,6 +47,7 @@
   let { data } = $props();
 
   const { t } = getI18n();
+  const failed = toastFailure(toast, t);
 
   // Local source of truth, seeded from the SSR load. Each action result is
   // reconciled row-by-row into this list (see applyResult) rather than wholesale
@@ -477,7 +479,7 @@
     editorDraft = d;
     expanded = NEW;
     editorGen++;
-    if (!payload?.errors) toast('err', payload?.error ?? t('commands.toastSaveFailed'));
+    if (!payload?.errors) failed(payload, 'commands.toastSaveFailed');
   }
   function openEdit(c: CommandView) {
     if (expanded === c.name) {
@@ -572,7 +574,7 @@
       // Field-level validation shows inline; anything else (RPC failure, missing
       // payload) falls back to the localized generic toast so the failure is
       // never silent. The server logs the real reason.
-      if (!payload?.errors) toast('err', payload?.error ?? t('commands.toastSaveFailed'));
+      if (!payload?.errors) failed(payload, 'commands.toastSaveFailed');
     };
   };
 

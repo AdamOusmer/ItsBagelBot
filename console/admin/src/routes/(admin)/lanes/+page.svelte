@@ -17,8 +17,11 @@
     Skeleton,
     toast,
     actionPayload,
+    adminToastFailure,
   } from '@bagel/shared';
   import type { LaneView, LanesResult } from '$lib/server/lanes';
+
+  const failed = adminToastFailure(toast);
 
   let { data } = $props();
 
@@ -130,7 +133,7 @@
       }
       if (result && pendingRenameRollback) result.lanes = pendingRenameRollback;
       pendingRenameRollback = null;
-      toast('err', p?.error ?? p?.notice ?? 'rename failed');
+      failed(p, 'rename failed');
     };
   };
 
@@ -153,7 +156,7 @@
           poll();
           return;
         }
-        toast('err', p?.error ?? p?.notice ?? failMsg);
+        failed(p, failMsg);
       };
     };
   }

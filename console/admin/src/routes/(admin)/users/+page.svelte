@@ -18,12 +18,15 @@
     Skeleton,
     toast,
     actionPayload,
+    adminToastFailure,
     ago,
     fmtDate,
     copyFlash,
   } from '@bagel/shared';
   import type { AdminUserWire, AuditEntry, ChannelSubState } from '$lib/server/services';
   import type { UserDirectory } from './+page.server';
+
+  const failed = adminToastFailure(toast);
 
   let { data } = $props();
 
@@ -221,7 +224,7 @@
         toast('ok', p.action.notice);
         return;
       }
-      toast('err', p?.action?.notice ?? p?.error ?? 'send failed');
+      failed(p, 'send failed');
     };
   };
 
@@ -299,7 +302,7 @@
         // server refused.
         if (dir) dir.recent = before;
         detached = beforeDetached;
-        toast('err', p?.action?.notice ?? p?.error ?? `${verb} failed`);
+        failed(p, `${verb} failed`);
       };
     };
   }
@@ -322,7 +325,7 @@
         subState = p.subState ?? null;
         return;
       }
-      toast('err', p?.action?.notice ?? p?.error ?? 'restart failed');
+      failed(p, 'restart failed');
     };
   };
 
@@ -340,7 +343,7 @@
           if (p.lookup?.user) reconcileUser(p.lookup.user);
           return;
         }
-        toast('err', p?.action?.notice ?? p?.error ?? `${verb} failed`);
+        failed(p, `${verb} failed`);
       };
     };
   }
@@ -380,7 +383,7 @@
         closeInspector();
         return;
       }
-      toast('err', p?.action?.notice ?? p?.error ?? 'delete failed');
+      failed(p, 'delete failed');
     };
   };
 
