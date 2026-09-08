@@ -4,7 +4,8 @@
 import type { Actions, PageServerLoad } from './$types';
 import type { ModuleState } from '@bagel/shared';
 import { MODULE_CATALOG, betaLocked, catalogIndexable, moduleDef } from '@bagel/shared';
-import { listModules, upsertModule, type ModuleView } from '$lib/server/commands-store';
+import { listModules, type ModuleView } from '$lib/server/commands-store';
+import { setModuleEnabled } from '$lib/server/module-blob';
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
 import { assertModuleWritable, broadcasterPremium, delegateCanOpen, moduleLocked } from '$lib/server/module-gate';
@@ -125,9 +126,7 @@ async function flipModule(
 ) {
   const { name, uid, enabled } = flip;
   try {
-    const rows = await listModules(uid);
-    const config = rows.find((r) => r.name === name)?.configs;
-    await upsertModule(uid, name, enabled, config);
+    await setModuleEnabled(uid, name, enabled);
     // Nested games cannot outlive their parent: flipping loyalty off from
     // this tile must clear gamble/duel too, matching the loyalty page toggle.
     if (!enabled) await disableChildren(uid, name);

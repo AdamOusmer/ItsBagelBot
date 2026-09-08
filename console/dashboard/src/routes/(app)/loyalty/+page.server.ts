@@ -5,7 +5,8 @@ import type { Actions, PageServerLoad } from './$types';
 import type { LoyaltyConfig, LoyaltyStanding } from '@bagel/shared';
 import { blankLoyaltyConfig, catalogChildren, moduleDef } from '@bagel/shared';
 import { readLoyalty, writeLoyalty, topStandings } from '$lib/server/loyalty-store';
-import { listModules, upsertModule } from '$lib/server/commands-store';
+import { listModules } from '$lib/server/commands-store';
+import { setModuleEnabled } from '$lib/server/module-blob';
 import { disableChildren, isChildOf } from '$lib/server/module-parent';
 import { moduleLoad } from '$lib/server/module-page';
 import { moduleAction, type ModuleMutation } from '$lib/server/module-action';
@@ -141,9 +142,7 @@ export const actions: Actions = {
     const loy = await readLoyalty(uid);
     // A reason the page renders (it points at the master switch), not a fault.
     if (enabled && !loy.enabled) return fail(400, { ok: false, error: 'loyalty-off' });
-    const rows = await listModules(uid);
-    const config = rows.find((r) => r.name === name)?.configs;
-    await upsertModule(uid, name, enabled, config);
+    await setModuleEnabled(uid, name, enabled);
     return `${name}=${enabled}`;
   })
 };

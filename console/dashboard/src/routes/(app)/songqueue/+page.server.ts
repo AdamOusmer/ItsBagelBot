@@ -11,13 +11,10 @@ import type {
 } from '$lib/server/spotify-store';
 import { spotifyStore } from '$lib/server/spotify-store';
 import { spotifyRedirectURI, spotifyScopeGap, spotifyConfigured } from '$lib/server/oauth';
-import { auditDashboardImpersonation } from '$lib/server/services';
-import { logger } from '@bagel/shared/server/logger';
 import { getSongQueue, type SongQueueDoc } from '@bagel/shared/server/songqueue-store';
-import { gateModulePage } from '$lib/server/module-gate';
 import { moduleLoad } from '$lib/server/module-page';
-import type { Session } from '$lib/server/session';
-import { effectiveId } from '$lib/server/board';
+import { moduleAction } from '$lib/server/module-action';
+import type { MutationRefusal } from '@bagel/shared/server/form-action';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { fail } from '@sveltejs/kit';
@@ -25,11 +22,6 @@ import { fail } from '@sveltejs/kit';
 // Gated on the build-time `dev` constant first, so Rollup erases every demo
 // branch (and the dynamic demo-data import inside it) from production builds.
 const DEMO = dev && env.DEMO === '1';
-
-// Delegate scope comes from the spotify catalog def (see module-gate.ts).
-function gate(session: Session | null | undefined): void {
-  gateModulePage(session, 'songqueue');
-}
 
 export const load: PageServerLoad = ({ locals, url }) => {
   // OAuth round-trip notices ride query params (?connected=1 / ?e=slug); read
@@ -137,40 +129,36 @@ function shapeQueue(doc: SongQueueDoc): QueueView {
   };
 }
 
-function requireSession(locals: App.Locals): string | null {
-  if (!DEMO && !locals.session) return null;
-  return effectiveId(locals.session);
-}
-
 // resultFail maps a store failure to a SvelteKit fail(): a missing-scope
-// rejection carries a flag so the page shows the reconnect CTA.
+// rejection carries a flag so the page shows the reconnect CTA. Returned from
+// the verb rather than thrown: it is a reason the broadcaster acts on, not a
+// fault, so it must not become moduleAction's generic line.
 function resultFail(r: Extract<SpotifyResult, { ok: false }>) {
   if (r.missingScope) return fail(403, { ok: false, missingScope: true });
   return fail(400, { ok: false, error: r.error ?? 'failed' });
 }
 
-// run is the shared action skeleton: gate, resolve the session, short-circuit
-// in demo, then run the store operation with uniform error handling + audit.
-async function run(
-  locals: App.Locals,
-  audit: { action: string; detail: string },
-  work: (store: SpotifyStore) => Promise<SpotifyResult>
+// mutate binds one POST action to the module write skeleton
+// ($lib/server/module-action): delegate gate, form, demo short-circuit, error
+// mapping, audit. The trail stays `spotify:*` (auditAs) even though the module
+// is songqueue: the prefix predates the rename, and changing it now would
+// split the history anyone reads back.
+function mutate(
+  op: string,
+  invalid: string,
+  run: (store: SpotifyStore, f: FormData) => Promise<string | null | MutationRefusal>
 ) {
-  gate(locals.session);
-  const uid = requireSession(locals);
-  if (uid === null) return fail(401, { ok: false, error: 'Not signed in.' });
-  if (DEMO) return { ok: true };
+  return moduleAction('songqueue', op, (uid, f) => run(spotifyStore(uid), f), {
+    demo: DEMO,
+    invalid,
+    auditAs: 'spotify'
+  });
+}
 
-  let res: SpotifyResult;
-  try {
-    res = await work(spotifyStore(uid));
-  } catch (e) {
-    logger.error({ err: e }, `[spotify] ${audit.action} failed`);
-    return fail(400, { ok: false });
-  }
-  if (!res.ok) return resultFail(res);
-  auditDashboardImpersonation(locals.session, audit.action, audit.detail);
-  return { ok: true };
+// done maps a store result to what mutate expects: the audit detail on success,
+// the store's own refusal otherwise.
+function done(res: SpotifyResult, detail: string): string | MutationRefusal {
+  return res.ok ? detail : resultFail(res);
 }
 
 function asPerm(v: FormDataEntryValue | null): SpotifySrPerm {
@@ -255,40 +243,34 @@ export const actions: Actions = {
   // saveApp takes the broadcaster's OWN Spotify application. The secret is
   // write-only from here: it goes straight into sealed custody and is never
   // read back into the console (see spotify-store's SpotifyApp).
-  saveApp: async ({ request, locals }) => {
-    const f = await request.formData();
+  //
+  // Action names are what the page's forms post to; the first argument to
+  // mutate is the audit verb (`spotify:app`), which is why the two differ.
+  saveApp: mutate('app', 'Both the client ID and the client secret are required.', async (store, f) => {
     const clientId = String(f.get('client_id') ?? '').trim();
     const clientSecret = String(f.get('client_secret') ?? '').trim();
-    if (!clientId || !clientSecret) {
-      return fail(400, { ok: false, error: 'Both the client ID and the client secret are required.' });
-    }
+    if (!clientId || !clientSecret) return null;
     // The audit detail records WHICH app, never the secret.
-    return run(locals, { action: 'spotify:app', detail: clientId }, (s) => s.saveApp(clientId, clientSecret));
-  },
+    return done(await store.saveApp(clientId, clientSecret), clientId);
+  }),
 
-  clearApp: ({ locals }) => run(locals, { action: 'spotify:app_clear', detail: '' }, (s) => s.clearApp()),
+  clearApp: mutate('app_clear', 'Invalid request.', async (store) => done(await store.clearApp(), '')),
 
-  toggle: async ({ request, locals }) => {
-    const enabled = (await request.formData()).get('is_enabled') === 'on';
-    return run(locals, { action: 'spotify:toggle', detail: String(enabled) }, (s) => s.setEnabled(enabled));
-  },
+  toggle: mutate('toggle', 'Invalid request.', async (store, f) => {
+    const enabled = f.get('is_enabled') === 'on';
+    return done(await store.setEnabled(enabled), String(enabled));
+  }),
 
-  sr: async ({ request, locals }) => {
-    const f = await request.formData();
+  sr: mutate('sr', 'Invalid request.', async (store, f) => {
     const sr = {
       enabled: f.get('sr_enabled') === 'on',
       perm: asPerm(f.get('perm')),
       allowOffline: f.get('sr_allow_offline') === 'on'
     };
-    return run(
-      locals,
-      { action: 'spotify:sr', detail: `${sr.enabled}/${sr.perm}/off=${sr.allowOffline}` },
-      (s) => s.saveSr(sr)
-    );
-  },
+    return done(await store.saveSr(sr), `${sr.enabled}/${sr.perm}/off=${sr.allowOffline}`);
+  }),
 
-  quotas: async ({ request, locals }) => {
-    const f = await request.formData();
+  quotas: mutate('quotas', 'Invalid request.', async (store, f) => {
     // Empty or non-positive input means unlimited for that tier; the store
     // coerces the same way on read, so both directions agree on what null is.
     const quotas = blankSpotifyQuotas();
@@ -297,30 +279,24 @@ export const actions: Actions = {
       quotas[tier] = Number.isFinite(n) && n > 0 ? Math.floor(n) : null;
     }
     const detail = SPOTIFY_QUOTA_TIERS.map((t) => `${t}=${quotas[t] ?? 'inf'}`).join('/');
-    return run(locals, { action: 'spotify:quotas', detail }, (s) => s.saveQuotas(quotas));
-  },
+    return done(await store.saveQuotas(quotas), detail);
+  }),
 
-  redeemToggle: async ({ request, locals }) => {
-    const f = await request.formData();
+  redeemToggle: mutate('redeem_toggle', 'Invalid request.', async (store, f) => {
     const path = {
       enabled: f.get('redeem_enabled') === 'on',
       allowOffline: f.get('redeem_allow_offline') === 'on'
     };
-    return run(
-      locals,
-      { action: 'spotify:redeem_toggle', detail: `${path.enabled}/off=${path.allowOffline}` },
-      (s) => s.setRedeemPath(path)
-    );
-  },
+    return done(await store.setRedeemPath(path), `${path.enabled}/off=${path.allowOffline}`);
+  }),
 
-  saveReward: async ({ request, locals }) => {
-    const parsed = parseRewardDraft(await request.formData());
+  saveReward: mutate('reward', 'Invalid reward.', async (store, f) => {
+    const parsed = parseRewardDraft(f);
     if ('error' in parsed) return fail(400, { ok: false, error: parsed.error });
-    return run(locals, { action: 'spotify:reward', detail: parsed.draft.title }, (s) => s.saveReward(parsed.draft));
-  },
+    return done(await store.saveReward(parsed.draft), parsed.draft.title);
+  }),
 
-  deleteReward: ({ locals }) =>
-    run(locals, { action: 'spotify:reward_delete', detail: '' }, (s) => s.deleteReward()),
+  deleteReward: mutate('reward_delete', 'Invalid request.', async (store) => done(await store.deleteReward(), '')),
 
-  disconnect: ({ locals }) => run(locals, { action: 'spotify:disconnect', detail: '' }, (s) => s.disconnect())
+  disconnect: mutate('disconnect', 'Invalid request.', async (store) => done(await store.disconnect(), ''))
 };

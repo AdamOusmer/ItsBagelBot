@@ -5,26 +5,20 @@
 // everything that is true of the account -- the master switch, the list, the
 // invite path -- and /discord/[guildId] holds everything that is true of one
 // server.
-import type { Actions, PageServerLoad, RequestEvent } from './$types';
+import type { Actions, PageServerLoad } from './$types';
 import { readDiscord, saveDiscordModule, type DiscordGuildSummary } from '$lib/server/discord-store';
 import { DISCORD_ERROR_SLUGS, discordConfigured, discordTemplateURL } from '$lib/server/discord-oauth';
-import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
-import { assertModuleUnlocked, gateModulePage, moduleLocked } from '$lib/server/module-gate';
+import { assertModuleUnlocked, moduleLocked } from '$lib/server/module-gate';
 import { moduleLoad } from '$lib/server/module-page';
+import { moduleAction } from '$lib/server/module-action';
 import { DISCORD_DEF } from '$lib/server/discord-def';
-import type { Session } from '$lib/server/session';
-import { effectiveId } from '$lib/server/board';
 import { dev } from '$app/environment';
 import { fail } from '@sveltejs/kit';
 
 // process.env, not $env/dynamic/private: this route sits behind guard.ts on
 // the boot import graph (see module-gate.ts).
 const DEMO = dev && process.env.DEMO === '1';
-
-function gate(session: Session | null | undefined): void {
-  gateModulePage(session, 'discord');
-}
 
 type DiscordListPage = {
   locked: boolean;
@@ -88,24 +82,22 @@ export const actions: Actions = {
   // The master switch is per broadcaster, not per guild: turning Discord off
   // stops Bagel posting in every server at once, which is what a streamer who
   // reaches for this control means.
-  toggle: async (event: RequestEvent) => {
-    gate(event.locals.session);
-    if (!DEMO && !event.locals.session) return fail(401, { ok: false, error: 'Not signed in.' });
-    if (!(await assertModuleUnlocked(event.locals, DISCORD_DEF))) {
-      return fail(403, { ok: false, error: 'Discord is in beta and open to Premium channels only.' });
-    }
-    const form = await event.request.formData();
-    const enabled = form.get('is_enabled') === 'on';
-    if (DEMO) return { ok: true, enabled };
-    const uid = effectiveId(event.locals.session);
-    try {
+  //
+  // The beta lock is checked here rather than in the gate: it is a refusal
+  // with its own status and copy (the page renders the upgrade panel), which
+  // the skeleton's single "not signed in" refusal cannot say.
+  toggle: moduleAction(
+    'discord',
+    'toggle',
+    async (uid, f, locals) => {
+      if (!(await assertModuleUnlocked(locals, DISCORD_DEF))) {
+        return fail(403, { ok: false, error: 'Discord is in beta and open to Premium channels only.' });
+      }
+      const enabled = f.get('is_enabled') === 'on';
       const view = await readDiscord({ userId: uid });
       await saveDiscordModule({ userId: uid, enabled, twitchLogin: view.twitchLogin });
-    } catch (e) {
-      logger.error({ err: e }, '[discord] toggle failed');
-      return fail(400, { ok: false, error: 'Could not toggle Discord.' });
-    }
-    auditDashboardImpersonation(event.locals.session, 'discord:toggle', String(enabled));
-    return { ok: true, enabled };
-  }
+      return String(enabled);
+    },
+    { demo: DEMO, invalid: 'Could not toggle Discord.' }
+  )
 };

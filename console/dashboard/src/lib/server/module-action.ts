@@ -34,14 +34,30 @@ export type ModuleActor = { uid: string; session: Session | null };
  * One verb's write. Returns the audit detail, null when the submitted form is
  * invalid, or its own refusal when the store answered with a reason the page
  * renders specially (a missing OAuth scope, a parent module still off).
+ *
+ * `locals` is handed through for the per-request checks a verb makes that the
+ * gate cannot: the beta lock is one refusal with its own copy and status, not
+ * the gate's single "not signed in", and it is read per write rather than
+ * cached on the actor so a tier change mid-session cannot leave a stale grant.
  */
-export type ModuleMutation = (uid: string, form: FormData) => Promise<string | null | MutationRefusal>;
+export type ModuleMutation = (
+  uid: string,
+  form: FormData,
+  locals: App.Locals
+) => Promise<string | null | MutationRefusal>;
 
 export type ModuleActionOpts = {
   /** True only in a `vite dev` demo build; see the header. */
   demo: boolean;
   /** Message for input `run` rejected. */
   invalid?: string;
+  /**
+   * Prefix for the audit verb, when the page's trail does not use the module
+   * id. The song queue writes `spotify:*` and has since before the module was
+   * named songqueue; renaming the prefix now would split the trail in two for
+   * anyone reading it back.
+   */
+  auditAs?: string;
 };
 
 type ActionEvent = { request: Request; locals: App.Locals };
@@ -64,7 +80,7 @@ export function moduleAction(
       },
       refusal: () => fail(401, { ok: false, error: 'Not signed in.' }),
       demo: opts.demo,
-      run: (actor, form) => run(actor.uid, form),
+      run: (actor, form) => run(actor.uid, form, event.locals),
       // The thrown case is ours (an RPC that timed out, a bug): logged with the
       // verb that failed, answered with a generic line. A reason the broadcaster
       // can act on comes back through `run`'s own refusal instead.
@@ -72,7 +88,8 @@ export function moduleAction(
         logger.error({ err }, `[${modId}] ${op} failed`);
         return fail(400, { ok: false, error: `${op} failed` });
       },
-      audited: (actor, detail) => auditDashboardImpersonation(actor.session, `${modId}:${op}`, detail),
+      audited: (actor, detail) =>
+        auditDashboardImpersonation(actor.session, `${opts.auditAs ?? modId}:${op}`, detail),
       invalid: opts.invalid ?? 'Invalid input.'
     });
 }
