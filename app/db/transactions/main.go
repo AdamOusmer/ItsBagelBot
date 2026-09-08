@@ -178,8 +178,9 @@ func newMailer(dashboardOrigin string, log *zap.Logger) *mail.Mailer {
 }
 
 // serveHTTP runs the server until ctx is cancelled or the listener fails,
-// then drains in-flight requests before returning. certFile/keyFile serve TLS
-// when both are set; empty (the default) keeps plaintext HTTP.
+// then drains in-flight requests before returning. A configured cert pair
+// serves TLS; an empty one (the default) keeps plaintext HTTP.
+//
 // listener carries the server together with the cert pair it should present.
 // They are decided together and never travel apart, so they are passed together.
 type listener struct {
