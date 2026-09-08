@@ -167,8 +167,14 @@ spec:
             # 200; pkg/db/provider.go defaultMaxConns now also 8.
             - name: DB_MAX_OPEN_CONNS
               value: "8"
+            # Gate raised 8->16 2026-09-08, pool left at 8: New Relic showed a 3.5ms
+            # INSERT inside a 1,060ms loyalty flush and a 3,001ms users counts RPC,
+            # both waiting on the gate while the server sat idle. At gate == pool
+            # the gate binds first and queues invisibly. At 2x pool the wait moves
+            # into database/sql, which reuses warm connections and still caps at 8
+            # server connections per pod, so the 144-of-200 ceiling is unchanged.
             - name: DB_QUERY_CONCURRENCY
-              value: "8"
+              value: "16"
             - name: DB_AUTO_MIGRATE
               value: "true"
             - name: GOMEMLIMIT
