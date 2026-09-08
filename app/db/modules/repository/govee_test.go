@@ -14,6 +14,8 @@ import (
 	"ItsBagelBot/app/db/modules/repository"
 	"ItsBagelBot/pkg/crypto"
 
+	"ItsBagelBot/internal/testdb"
+
 	_ "github.com/mattn/go-sqlite3" // in-memory DB
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,8 +38,7 @@ func newPacker(t *testing.T) *crypto.Crypto {
 
 func goveeSetup(t *testing.T) (*ent.Client, *repository.GoveeCreds) {
 	t.Helper()
-	client := enttest.Open(t, "sqlite3", "file:goveecreds?mode=memory&cache=shared&_fk=1")
-	t.Cleanup(func() { _ = client.Close() })
+	client := testdb.Open(t, "goveecreds", func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
 	return client, repository.NewGoveeCreds(client, newPacker(t))
 }
 

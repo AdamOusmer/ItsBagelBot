@@ -14,6 +14,8 @@ import (
 	"ItsBagelBot/pkg/bus/bustest"
 	"ItsBagelBot/pkg/codec"
 
+	"ItsBagelBot/internal/testdb"
+
 	_ "github.com/mattn/go-sqlite3" // Required for the in-memory DB
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,8 +26,7 @@ import (
 func setup(t *testing.T) (*ent.Client, *bustest.Publisher, *repository.Modules) {
 	t.Helper()
 
-	client := enttest.Open(t, "sqlite3", "file:modulesent?mode=memory&cache=shared&_fk=1")
-	t.Cleanup(func() { _ = client.Close() })
+	client := testdb.Open(t, "modulesent", func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
 
 	pub := bustest.NewPublisher()
 

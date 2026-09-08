@@ -11,6 +11,8 @@ import (
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/bus/bustest"
 
+	"ItsBagelBot/internal/testdb"
+
 	_ "github.com/mattn/go-sqlite3" // Required for the in-memory DB
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,7 +24,7 @@ import (
 // validator) must be dropped by the per-item fallback while the rest of the
 // window lands — the poison item must not wedge the whole batch.
 func TestUpsertEachIsolatesPoisonItem(t *testing.T) {
-	client := enttest.Open(t, "sqlite3", "file:commandsflush?mode=memory&cache=shared&_fk=1")
+	client := enttest.Open(t, testdb.Driver, testdb.MemDSN("commandsflush"))
 	t.Cleanup(func() { _ = client.Close() })
 
 	r := NewCommands(client, bustest.NewPublisher(), nil, zap.NewNop())
@@ -50,7 +52,7 @@ func TestUpsertEachIsolatesPoisonItem(t *testing.T) {
 // The bulk fast path must not touch the uses counter when an edit updates an
 // existing row: the counter belongs to the counter flush alone.
 func TestBulkUpsertPreservesUses(t *testing.T) {
-	client := enttest.Open(t, "sqlite3", "file:commandsuses?mode=memory&cache=shared&_fk=1")
+	client := enttest.Open(t, testdb.Driver, testdb.MemDSN("commandsuses"))
 	t.Cleanup(func() { _ = client.Close() })
 
 	ctx := context.Background()
@@ -74,7 +76,7 @@ func TestBulkUpsertPreservesUses(t *testing.T) {
 // whose row vanished before the flush must not fail its group — it matches
 // nothing and is dropped later by the reload in publishUseEvents.
 func TestPersistUsesGroupsByIncrement(t *testing.T) {
-	client := enttest.Open(t, "sqlite3", "file:commandsusesgroup?mode=memory&cache=shared&_fk=1")
+	client := enttest.Open(t, testdb.Driver, testdb.MemDSN("commandsusesgroup"))
 	t.Cleanup(func() { _ = client.Close() })
 
 	r := NewCommands(client, bustest.NewPublisher(), nil, zap.NewNop())

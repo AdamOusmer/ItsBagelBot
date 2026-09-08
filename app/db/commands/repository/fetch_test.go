@@ -18,6 +18,8 @@ import (
 	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/crypto"
 
+	"ItsBagelBot/internal/testdb"
+
 	_ "github.com/mattn/go-sqlite3" // in-memory DB
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -45,8 +47,7 @@ func newFetchPacker(t *testing.T) *crypto.Crypto {
 func fetchSetup(t *testing.T) (*ent.Client, *bustest.Publisher, *repository.Fetches) {
 	t.Helper()
 
-	client := enttest.Open(t, "sqlite3", "file:fetchdefs?mode=memory&cache=shared&_fk=1")
-	t.Cleanup(func() { _ = client.Close() })
+	client := testdb.Open(t, "fetchdefs", func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
 
 	pub := bustest.NewPublisher()
 	repo := repository.NewFetches(client, newFetchPacker(t), pub, zap.NewNop())
@@ -143,8 +144,7 @@ func TestFetchKeyMissingMapsToErrNoFetchKey(t *testing.T) {
 }
 
 func TestFetchCustodyDisabledRefusesClosedButDefsWork(t *testing.T) {
-	client := enttest.Open(t, "sqlite3", "file:nocustody?mode=memory&cache=shared&_fk=1")
-	t.Cleanup(func() { _ = client.Close() })
+	client := testdb.Open(t, "nocustody", func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
 	repo := repository.NewFetches(client, nil, bustest.NewPublisher(), zap.NewNop())
 	ctx := context.Background()
 

@@ -14,6 +14,8 @@ import (
 	"ItsBagelBot/app/db/users/ent/enttest"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 
+	"ItsBagelBot/internal/testdb"
+
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,8 +25,7 @@ import (
 func setupAdminAuthTest(t *testing.T) (*adminAuthRPC, *ent.Client) {
 	t.Helper()
 
-	client := enttest.Open(t, "sqlite3", "file:adminauth?mode=memory&cache=shared&_fk=1")
-	t.Cleanup(func() { _ = client.Close() })
+	client := testdb.Open(t, "adminauth", func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
 
 	return &adminAuthRPC{db: client, log: zap.NewNop()}, client
 }
