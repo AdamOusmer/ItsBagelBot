@@ -33,7 +33,35 @@ type socket struct {
 	// the full grace period. Buffered and non-blocking: nobody may be
 	// waiting, and a missed signal only costs the timer.
 	settled chan struct{}
+	// acks counts the heartbeat ACKs (op 11) Discord has answered on this
+	// socket. Written by the pump goroutine, read by the heartbeat's, which
+	// is why it is atomic rather than a plain int.
+	acks atomic.Int64
 }
+
+// noteAck records one heartbeat ACK.
+func (k *socket) noteAck() { k.acks.Add(1) }
+
+// stale reports whether the heartbeat written on the previous tick went
+// unanswered. sent is how many this socket has written so far.
+//
+// This is the only test that separates a live socket from a zombied one. A
+// TCP connection that Discord has stopped serving stays open and readable
+// forever; nothing arrives, no close frame is sent, and the pump waits in
+// Read for the life of the process. Discord's own docs name the case and say
+// the client must close and resume. Until this existed, ingress had no
+// detection at all: on 2026-09-07 the surviving evidence of a broken gateway
+// was 21,575 reconnect lines with no cause on any of them.
+//
+// A count, not a deadline. The ACK for beat N is due before beat N+1 goes
+// out, and comparing counters says exactly that, where a duration threshold
+// would have to guess a slack around an interval Discord picks per session
+// (41.25s today, documented as not constant). It is also why no read deadline
+// is set on the connection: there has never been one, and one would be a
+// second, coarser copy of this same test -- a read deadline cannot tell a
+// quiet guild from a dead gateway, which is the entire distinction an ACK
+// exists to draw.
+func (k *socket) stale(sent int64) bool { return k.acks.Load() < sent }
 
 func newSocket(conn Conn) *socket {
 	return &socket{
