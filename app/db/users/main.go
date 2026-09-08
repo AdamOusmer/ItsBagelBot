@@ -25,8 +25,6 @@ import (
 	"ItsBagelBot/pkg/svcboot"
 	"ItsBagelBot/pkg/svcboot/databoot"
 
-	"github.com/nats-io/nats.go"
-
 	"go.uber.org/zap"
 )
 
@@ -48,11 +46,15 @@ func main() {
 	client, dbPool, packer := openStore(ctx, core)
 	defer func() { _ = client.Close() }()
 
-	nc, pub := connectBus(core)
-	defer nc.Close()
-	defer func() { _ = pub.Close() }()
+	// EnsureStreams first: users owns BAGEL_DATA, and the publisher MustNATS
+	// opens is what writes to it. TWITCH_INGRESS is owned by sesame; keeping
+	// ownership separate is what lets NATS scope stream-management ACLs.
+	svcboot.FatalIf(log, bus.EnsureStreams(ctx, core.NATSURL, []bus.StreamSpec{bus.BagelDataStream}, log),
+		"failed to provision BAGEL_DATA stream")
+	n, closeIntake := svcboot.MustNATS(core)
+	defer func() { _ = n.Pub.Close() }()
 
-	repo := repository.NewUsers(client, packer, pub, core.NR, log)
+	repo := repository.NewUsers(client, packer, n.Pub, core.NR, log)
 	defer func() {
 		// Bounded so a shutdown cannot hang on the final preference drain;
 		// the batcher's own flush deadline caps each window inside it.
@@ -61,21 +63,20 @@ func main() {
 		repo.Close(flushCtx)
 	}()
 
-	closeConsumers := startConsumers(ctx, core.NATSURL, repo, log)
-	defer closeConsumers()
+	defer closeIntake() // stops intake before the repo flush above
+
+	startConsumers(ctx, n, repo, log)
 
 	go expireSubscriptions(ctx, repo, log)
 
 	wiring := rpc.Wiring{
-		RPCWiring: bus.RPCWiring{NC: nc, App: core.NR, Queue: queueGroup, Log: log},
+		RPCWiring: bus.RPCWiring{NC: n.RPC, App: core.NR, Queue: queueGroup, Log: log},
 		Repo:      repo,
 	}
 	subjects := subscribeRPCs(ctx, wiring, client, log)
-	// No lane check: both event subscribers live inside startConsumers, which
-	// hands back only a cleanup func.
 	databoot.ServeHealth(databoot.Health{
 		Health: svcboot.Health{
-			Log: log, NC: nc, Service: serviceName, QueueGroup: queueGroup, ListenAddr: core.ListenAddr,
+			Log: log, NC: n.RPC, Service: serviceName, QueueGroup: queueGroup, ListenAddr: core.ListenAddr,
 		},
 		Pool: dbPool,
 	})
@@ -102,42 +103,18 @@ func openStore(ctx context.Context, core svcboot.Core) (*ent.Client, *sql.DB, *c
 	return client, driver.DB(), packer
 }
 
-// connectBus reconciles the BAGEL_DATA stream owned by users, opens the RPC
-// connection, and builds the bus publisher. TWITCH_INGRESS is owned by sesame;
-// keeping ownership separate is what lets NATS scope stream-management ACLs.
-func connectBus(core svcboot.Core) (*nats.Conn, bus.Publisher) {
-	log := core.Log
-	svcboot.FatalIf(log, bus.EnsureStreams(core.Ctx, core.NATSURL, []bus.StreamSpec{bus.BagelDataStream}, log),
-		"failed to provision BAGEL_DATA stream")
-
-	nc := svcboot.MustRPCConn(core, bus.RPCURL(core.NATSURL))
-
-	pub, err := bus.NewPublisher(core.NATSURL, log)
-	svcboot.FatalIf(log, err, "failed to connect publisher")
-
-	return nc, pub
-}
-
-// startConsumers wires the two event-plane consumers: a groupless broadcast
-// subscriber that drops each instance's cached view on any user change, and a
-// durable-group subscriber where exactly one instance answers a reproject by
-// replaying the table. The returned cleanup closes both subscribers.
-func startConsumers(ctx context.Context, natsURL string, repo *repository.Users, log *zap.Logger) func() {
-	broadcast, err := bus.NewSubscriber(natsURL, "", log)
-	svcboot.FatalIf(log, err, "failed to connect broadcast subscriber")
-	svcboot.FatalIf(log, bus.Consume(ctx, nil, broadcast, data.SubjectUserChanged, consumers.OnChangeInvalidate(changedUserID, repo.Invalidate), log),
+// startConsumers wires the two event-plane consumers onto the connections
+// svcboot already opened: the groupless broadcast subscriber drops each
+// instance's cached view on any user change, and the durable-group subscriber
+// picks exactly one instance to answer a reproject by replaying the table.
+// Closing them is svcboot's closeIntake, not this function's business.
+func startConsumers(ctx context.Context, n svcboot.NATS, repo *repository.Users, log *zap.Logger) {
+	svcboot.FatalIf(log, bus.Consume(ctx, nil, n.Broadcast, data.SubjectUserChanged, consumers.OnChangeInvalidate(changedUserID, repo.Invalidate), log),
 		"failed to subscribe to user changes")
 
-	grouped, err := bus.NewSubscriber(natsURL, serviceName, log)
-	svcboot.FatalIf(log, err, "failed to connect group subscriber")
-	svcboot.FatalIf(log, bus.Consume(ctx, nil, grouped, data.SubjectReprojectRequest, func(*bus.Message) error {
+	svcboot.FatalIf(log, bus.Consume(ctx, nil, n.Grouped, data.SubjectReprojectRequest, func(*bus.Message) error {
 		return repo.Reproject(ctx)
 	}, log), "failed to subscribe to reproject requests")
-
-	return func() {
-		_ = grouped.Close()
-		_ = broadcast.Close()
-	}
 }
 
 // changedUserID reads the account off a user change event. Go cannot reach a
