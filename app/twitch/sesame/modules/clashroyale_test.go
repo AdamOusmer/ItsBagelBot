@@ -15,15 +15,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 func clashCmd(t *testing.T, gw engine.GossipCaller, name string) module.Command {
 	t.Helper()
-	m := ClashRoyale(engine.Deps{Gossip: gw, Log: zap.NewNop()})
-	assert.Equal(t, "clashroyale", m.Name)
-	assert.Equal(t, module.KindOptIn, m.Kind)
-	return findCmd(t, m, name)
+	return optInCmd(t, ClashRoyale(gossipDeps(gw)), "clashroyale", name)
 }
 
 func clashStatsReply() gossiprpc.ClashRoyaleStatsReply {

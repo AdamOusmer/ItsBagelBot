@@ -24,10 +24,7 @@ import (
 
 func fortniteCmd(t *testing.T, gw engine.GossipCaller, name string) module.Command {
 	t.Helper()
-	m := Fortnite(engine.Deps{Gossip: gw, Log: zap.NewNop()})
-	assert.Equal(t, "fortnite", m.Name)
-	assert.Equal(t, module.KindOptIn, m.Kind)
-	return findCmd(t, m, name)
+	return optInCmd(t, Fortnite(gossipDeps(gw)), "fortnite", name)
 }
 
 func fortniteStatsReply() gossiprpc.FortniteStatsReply {
