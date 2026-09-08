@@ -9,12 +9,12 @@ package rpc
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"ItsBagelBot/app/db/discord/ent"
 	"ItsBagelBot/app/db/discord/repository"
 	ddiscord "ItsBagelBot/internal/domain/discord"
+	domainrpc "ItsBagelBot/internal/domain/rpc"
 	"ItsBagelBot/internal/domain/rpc/discorddata"
 	"ItsBagelBot/pkg/bus"
 )
@@ -110,11 +110,8 @@ func serve[Req, Rep any](w Wiring, verb string, h func(context.Context, Req) Rep
 	return bus.Serve(w.RPCWiring, w.subject(verb), h)
 }
 
-// failure maps a repository error onto the reply's (error, code) pair. The
-// code is what callers switch on; the message is for logs and for the one
-// release during which the console still reads text.
 // refusing is any reply that embeds discorddata.Refusal.
-type refusing interface{ Refuse(discorddata.Refusal) }
+type refusing = domainrpc.Refusing
 
 // reply is the shape every data verb answers with: an error becomes the
 // refusal, otherwise hit renders the success reply. lookup adds the miss
@@ -143,31 +140,30 @@ func lookup[Rep any, PR interface {
 	return hit()
 }
 
-// refusal is failure() shaped for the reply types that embed Refusal.
-func refusal(err error) discorddata.Refusal {
-	message, code := failure(err)
-	return discorddata.Refusal{Error: message, Code: code}
+// storeRules is this service's half of the classification: the six repository
+// sentinels, three of which name a distinction no other service makes. The
+// generic cases (a timed-out dependency, an unrecognised error) live in
+// domainrpc.Fail so all seven db services answer the same way for them.
+var storeRules = []domainrpc.Rule{
+	domainrpc.Is(repository.ErrBoundElsewhere, discorddata.CodeBoundElsewhere),
+	domainrpc.Is(repository.ErrNotBound, discorddata.CodeNotBound),
+	domainrpc.Is(repository.ErrOpenLimit, discorddata.CodeLimit),
+	domainrpc.Is(repository.ErrNotFound, discorddata.CodeNotFound),
+	domainrpc.Is(repository.ErrInvalidInput, discorddata.CodeInvalid),
+	domainrpc.Is(repository.ErrVersionConflict, discorddata.CodeConflict),
 }
 
-func failure(err error) (string, string) {
-	switch {
-	case err == nil:
-		return "", discorddata.CodeOK
-	case errors.Is(err, repository.ErrBoundElsewhere):
-		return err.Error(), discorddata.CodeBoundElsewhere
-	case errors.Is(err, repository.ErrNotBound):
-		return err.Error(), discorddata.CodeNotBound
-	case errors.Is(err, repository.ErrOpenLimit):
-		return err.Error(), discorddata.CodeLimit
-	case errors.Is(err, repository.ErrNotFound):
-		return err.Error(), discorddata.CodeNotFound
-	case errors.Is(err, repository.ErrInvalidInput):
-		return err.Error(), discorddata.CodeInvalid
-	case errors.Is(err, repository.ErrVersionConflict):
-		return err.Error(), discorddata.CodeConflict
-	default:
-		return err.Error(), discorddata.CodeInternal
-	}
+// refusal classifies one repository error. Kept as a named wrapper so the
+// rules table is named once rather than spread across every call site.
+func refusal(err error) discorddata.Refusal {
+	return domainrpc.Fail(err, storeRules...)
+}
+
+// failure is refusal split into the pair the reply types that carry Error and
+// Code as separate fields still take.
+func failure(err error) (string, domainrpc.Code) {
+	r := refusal(err)
+	return r.Error, r.Code
 }
 
 // unixMs renders a timestamp for the wire. Zero times stay 0 rather than
