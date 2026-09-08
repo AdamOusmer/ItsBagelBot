@@ -11,13 +11,13 @@ import PageHero from '../../../components/ui/PageHero.astro';
 import ChangelogList from '../../../components/changelog/ChangelogList.astro';
 import TextLink from '../../../components/ui/TextLink.astro';
 import { getCollection } from 'astro:content';
-import { getLangFromUrl, useTranslations, locales, defaultLang, localizePath } from '../../../i18n/ui';
+import { getLangFromUrl, useTranslations, locales, langParam, localizePath } from '../../../i18n/ui';
 
 export async function getStaticPaths() {
   const entries = await getCollection('changelog');
   return locales.flatMap((l) =>
     entries.map((entry) => ({
-      params: { lang: l === defaultLang ? undefined : l, version: entry.data.version },
+      params: { lang: langParam(l), version: entry.data.version },
       props: { entry },
     })),
   );

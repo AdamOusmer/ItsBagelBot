@@ -14,12 +14,10 @@ import PageHero from '../../../components/ui/PageHero.astro';
 import Card from '../../../components/ui/Card.astro';
 import GuideCard from '../../../components/guides/GuideCard.astro';
 import TextLink from '../../../components/ui/TextLink.astro';
-import { getLangFromUrl, locales, defaultLang } from '../../../i18n/ui';
+import { getLangFromUrl, localeStaticPaths } from '../../../i18n/ui';
 import { getGuide, getHub, guideIndex, guidePath, guideSlugs } from '../../../lib/guides/registry';
 
-export function getStaticPaths() {
-    return locales.map((l) => ({ params: { lang: l === defaultLang ? undefined : l } }));
-}
+export const getStaticPaths = localeStaticPaths;
 
 const lang = getLangFromUrl(Astro.url);
 const hub = getHub(lang);

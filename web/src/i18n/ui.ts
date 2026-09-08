@@ -73,6 +73,27 @@ export const LOCALIZED_PATHS: ReadonlySet<string> = new Set([
   '/valorant-stats', '/import', ...changelogLocalizedPaths,
 ]);
 
+/**
+ * The `lang` route param for a locale: `undefined` for the default locale,
+ * which lives at the root (prefixDefaultLocale:false in astro.config), the
+ * code itself for every other. Exported for the two pages whose paths are a
+ * locale × something product (changelog versions, guide slugs).
+ */
+export function langParam(lang: Lang): Lang | undefined {
+  return lang === defaultLang ? undefined : lang;
+}
+
+/**
+ * `getStaticPaths` for a page that exists once per locale and nothing else.
+ * Twelve pages each spelled out the same map, so a new locale rule (or a fix
+ * to the default-locale param) had twelve places to reach. Lives here because
+ * this module already owns `locales` and `defaultLang`; a page importing it
+ * cannot disagree with the router about which paths exist.
+ */
+export function localeStaticPaths() {
+  return locales.map((l) => ({ params: { lang: langParam(l) } }));
+}
+
 /** Locale from the URL: first path segment when it names a known locale, else default. */
 export function getLangFromUrl(url: URL): Lang {
   const seg = url.pathname.split('/')[1] ?? '';

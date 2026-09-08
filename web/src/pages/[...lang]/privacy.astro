@@ -3,11 +3,9 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import LegalPage from '../../components/legal/LegalPage.astro';
-import { locales, defaultLang } from '../../i18n/ui';
+import { localeStaticPaths } from '../../i18n/ui';
 
-export function getStaticPaths() {
-  return locales.map((l) => ({ params: { lang: l === defaultLang ? undefined : l } }));
-}
+export const getStaticPaths = localeStaticPaths;
 ---
 
 <LegalPage doc="privacy" />
