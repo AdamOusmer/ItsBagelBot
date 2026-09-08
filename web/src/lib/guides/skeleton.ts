@@ -104,11 +104,13 @@ function collect(node: unknown, found: string[]): void {
         found.push(node.id);
         return;
     }
-    if (Array.isArray(node)) {
-        for (const child of node) collect(child, found);
-        return;
-    }
-    if (node && typeof node === 'object') {
-        for (const child of Object.values(node)) collect(child, found);
-    }
+    for (const child of children(node)) collect(child, found);
+}
+
+// Arrays and plain objects are the only containers a skeleton nests; a
+// Key is a leaf and anything else (string, number, null) has no children.
+function children(node: unknown): unknown[] {
+    if (Array.isArray(node)) return node;
+    if (node && typeof node === 'object') return Object.values(node);
+    return [];
 }
