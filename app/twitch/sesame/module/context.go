@@ -133,4 +133,15 @@ func (c *Context) Reset() {
 // it logs. It lives here rather than as a helper per command type because four
 // of them (quotes, queue, raffle, songqueue) had each grown a byte-identical
 // bid() for it, and a free function would have to be handed the id anyway.
-func (c *Context) BID() zap.Field { return zap.Uint64("broadcaster_id", c.BroadcasterID) }
+func (c *Context) BID() zap.Field { return BIDField(c.BroadcasterID) }
+
+// BIDField is the same field for the code that has an id but no Context: the
+// engine's background loops (timers, duels, loyalty ticks) and the modules'
+// own goroutines, which cannot borrow the pooled per-message Context because
+// it is reset the moment the handler returns.
+//
+// It exists so the field NAME is written once. Sixty call sites had spelled
+// zap.Uint64("broadcaster_id", …) by hand, and a log search only finds what
+// every one of them agreed to call it — one typo is a channel's worth of
+// warnings that no dashboard query returns.
+func BIDField(id uint64) zap.Field { return zap.Uint64("broadcaster_id", id) }

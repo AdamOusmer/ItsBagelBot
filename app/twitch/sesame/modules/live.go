@@ -76,13 +76,13 @@ func liveOnlineHandler(d engine.Deps, log *zap.Logger) module.EventHandler {
 			defer cancel()
 			applied, err := d.Live.SetLive(wctx, id, version)
 			if err != nil {
-				log.Warn("live: failed to set live", zap.Uint64("broadcaster_id", id), zap.Error(err))
+				log.Warn("live: failed to set live", module.BIDField(id), zap.Error(err))
 			}
 			if !applied {
 				return
 			}
 			if err := d.Greet.ResetGreets(wctx, id); err != nil {
-				log.Warn("live: failed to reset greets", zap.Uint64("broadcaster_id", id), zap.Error(err))
+				log.Warn("live: failed to reset greets", module.BIDField(id), zap.Error(err))
 			}
 			if d.Timers != nil {
 				d.Timers.ArmAll(wctx, id)
@@ -95,7 +95,7 @@ func liveOnlineHandler(d engine.Deps, log *zap.Logger) module.EventHandler {
 			Text:          i18n.T(c.Locale, "bagels_ready"),
 		})
 
-		log.Debug("stream online", zap.Uint64("broadcaster_id", id))
+		log.Debug("stream online", module.BIDField(id))
 		return nil
 	}
 }
@@ -113,13 +113,13 @@ func liveOfflineHandler(d engine.Deps, log *zap.Logger) module.EventHandler {
 			wctx, cancel := context.WithTimeout(context.Background(), liveWriteTimeout)
 			defer cancel()
 			if _, err := d.Live.ClearLive(wctx, id, version); err != nil {
-				log.Warn("live: failed to clear live", zap.Uint64("broadcaster_id", id), zap.Error(err))
+				log.Warn("live: failed to clear live", module.BIDField(id), zap.Error(err))
 			}
 			if d.Timers != nil {
 				d.Timers.DisarmAll(wctx, id)
 			}
 		})
-		log.Debug("stream offline", zap.Uint64("broadcaster_id", id))
+		log.Debug("stream offline", module.BIDField(id))
 		return nil
 	}
 }
@@ -140,7 +140,7 @@ func seqOrGo(seq *engine.Sequencer, broadcasterID uint64, log *zap.Logger, task 
 			// One panicking task must not kill its pump goroutine and strand
 			// the broadcaster's queued work behind it.
 			if r := recover(); r != nil {
-				log.Error("live: lifecycle task panicked", zap.Uint64("broadcaster_id", broadcasterID), zap.Any("panic", r))
+				log.Error("live: lifecycle task panicked", module.BIDField(broadcasterID), zap.Any("panic", r))
 			}
 		}()
 		task()

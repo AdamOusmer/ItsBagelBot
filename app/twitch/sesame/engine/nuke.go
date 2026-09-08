@@ -145,7 +145,7 @@ func (n *Nuke) Execute(ctx context.Context, c *module.Context, args string, emit
 	emitChat(emit, res.broadcaster, res.summary(shielded))
 
 	n.log.Info("nuke executed",
-		zap.Uint64("broadcaster_id", c.BroadcasterID),
+		module.BIDField(c.BroadcasterID),
 		zap.Int("targets", res.actioned),
 		zap.Int("matched", len(hits)),
 		zap.Int("phrase_runes", runes),

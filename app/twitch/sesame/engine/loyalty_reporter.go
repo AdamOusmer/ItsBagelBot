@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/bus"
 
@@ -290,7 +291,7 @@ func publishPerUser[E any](ctx context.Context, r *LoyaltyReporter, perUser map[
 			if err := bus.PublishJSON(ctx, r.pub, subject, wrap(userID, chunk)); err != nil {
 				r.log.Debug("failed to publish loyalty window",
 					zap.String("subject", subject),
-					zap.Uint64("broadcaster_id", userID),
+					module.BIDField(userID),
 					zap.Int("entries", len(chunk)),
 					zap.Error(err),
 				)

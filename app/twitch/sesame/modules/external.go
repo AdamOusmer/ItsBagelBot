@@ -200,6 +200,21 @@ type statsCall[C any] struct {
 type statsSubject struct {
 	Account string
 	Display string
+
+	// AccountB is the other side of a lookup that compares two players
+	// (mcsr's !record). It stays empty for every single-account command and is
+	// read only by a request strategy that asks for it; resolving both sides
+	// here is what keeps the pair and the name a failure chats from being
+	// derived twice per call.
+	AccountB string
+
+	// Refusal is the line to chat instead of calling upstream, for arguments
+	// that name no answerable subject (!record with nobody to compare
+	// against). It rides the subject because resolving one is where a command
+	// first learns its arguments are unusable, and because the refusal must
+	// come after the module's own toggle has been checked — a command the
+	// broadcaster turned off answers nothing at all, usage line included.
+	Refusal string
 }
 
 // statsHandler is the shape every external-stats command shares.
@@ -237,6 +252,11 @@ func (h statsHandler[C, R]) run(ctx context.Context, c *module.Context, args str
 
 	call := statsCall[C]{Ctx: c, Cfg: cfg, Args: args}
 	subject := h.target(call)
+	if subject.Refusal != "" {
+		emitChat(c, emit, subject.Refusal)
+		return nil
+	}
+
 	var reply R
 	if err := h.d.Gossip.Call(ctx, h.route, h.request(call, subject), &reply); err != nil {
 		return gossipCallErr(c, emit, subject.Display, err)
@@ -278,8 +298,11 @@ func linkedTarget[C linkedConfig](preferUUID bool) func(statsCall[C]) statsSubje
 	}
 }
 
-// fixedSubject is the target strategy for a lookup no account scopes (a shop
-// rotation, a leaderboard): name is what a failure chats about instead.
+// fixedSubject is the one way this package says "no account scopes this
+// lookup" (fortnite's item shop, valorant's daily rotation): nothing is
+// resolved, and name is what a failure chats about instead of a player. The
+// empty Account it leaves behind is what accountRequest then sends, so those
+// commands need no request strategy of their own.
 func fixedSubject[C any](name string) func(statsCall[C]) statsSubject {
 	return func(statsCall[C]) statsSubject { return statsSubject{Display: name} }
 }
@@ -288,12 +311,6 @@ func fixedSubject[C any](name string) func(statsCall[C]) statsSubject {
 // account plus the caller's premium lane.
 func accountRequest[C any](call statsCall[C], subject statsSubject) gossiprpc.Request {
 	return gossiprpc.Request{Account: subject.Account, IsPremium: call.Ctx.Regress.IsPremium()}
-}
-
-// laneRequest is the request an account-less command sends: nothing scopes it
-// but the caller's premium lane.
-func laneRequest[C any](call statsCall[C], _ statsSubject) gossiprpc.Request {
-	return gossiprpc.Request{IsPremium: call.Ctx.Regress.IsPremium()}
 }
 
 // externalCommand is one linked-account stats command's whole wiring: the
@@ -313,9 +330,15 @@ type externalCommand[C linkedConfig, R any] struct {
 	tokens   module.TokenExpander[R]
 
 	// special replaces the template entirely when the reply carries nothing
-	// renderable (an unranked player, an empty board): every numeric token
-	// would print zero, which reads as a wrong answer rather than no answer.
-	special func(*R) (string, bool)
+	// renderable (an unranked player, an empty board, a player who has not
+	// played a match this season): every numeric token would print zero,
+	// which reads as a wrong answer rather than no answer.
+	//
+	// It takes the whole call, like every other strategy here, because that
+	// line is usually a translated sentence and the channel's locale hangs
+	// off the context: a hook handed only the reply can answer nothing but
+	// English.
+	special func(statsCall[C], *R) (string, bool)
 
 	// preferName keeps the linked username even when a uuid is stored, for
 	// upstreams whose API is name-keyed and rejects uuids.
@@ -340,18 +363,18 @@ func (e externalCommand[C, R]) run(d engine.Deps) module.RunFunc { return e.hand
 // render is the handler's render strategy: the empty-state override when it
 // fires, otherwise the configured template expanded over the reply.
 func (e externalCommand[C, R]) render(call statsCall[C], reply *R) string {
-	if text, ok := specialText(e.special, reply); ok {
+	if text, ok := specialText(e.special, call, reply); ok {
 		return text
 	}
 	return e.tokens.Expand(orDefault(e.message(call.Cfg), e.fallback), reply)
 }
 
 // specialText applies a command's empty-state override, if one is wired.
-func specialText[R any](special func(*R) (string, bool), reply *R) (string, bool) {
+func specialText[C any, R any](special func(statsCall[C], *R) (string, bool), call statsCall[C], reply *R) (string, bool) {
 	if special == nil {
 		return "", false
 	}
-	return special(reply)
+	return special(call, reply)
 }
 
 // ignoreArgs discards whatever the viewer typed. The session commands always

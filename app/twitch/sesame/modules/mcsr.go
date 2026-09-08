@@ -130,19 +130,19 @@ type mcsrConfig struct {
 // Handlers across both command families (see mcsr_ranked.go and
 // mcsr_pace.go) share one shape: decode the config, check its toggle,
 // resolve the account, call gossip, chat an upstream error, expand a
-// template. mcsrHandler.run (below) is that shape's one implementation;
-// each command supplies only what differs (which toggle, which endpoint,
-// how to build the request, how to render a successful reply).
+// template. That shape is statsHandler in external.go, the same one the
+// valorant/clashroyale/fortnite/urchin commands ride; each command here
+// supplies only what differs (which toggle, which endpoint, how to build the
+// request, how to render a successful reply).
 func Mcsr(d engine.Deps) module.Module {
-	log := d.Log
-	if log == nil {
-		log = zap.NewNop()
-	}
-
 	m := module.NewModule(mcsrModuleName, module.KindOptIn)
 
+	m.Command("elo").Everyone().Cooldown(mcsrCooldown).Aliases("mcsr", "ranked").
+		Run(mcsrEloRun(d))
 	m.Command("session").Everyone().Cooldown(mcsrCooldown).Aliases("mcsrsession").
 		Run(mcsrSessionRun(d))
+	m.Command("lastmatch").Everyone().Cooldown(mcsrCooldown).Aliases("rankedmatch").
+		Run(mcsrLastMatchRun(d))
 	m.Command("record").Everyone().Cooldown(mcsrCooldown).Aliases("matchrecord").
 		Run(mcsrRecordRun(d))
 	m.Command("lb").Everyone().Cooldown(mcsrCooldown).Aliases("leaderboard", "rankedlb").
@@ -151,13 +151,12 @@ func Mcsr(d engine.Deps) module.Module {
 		Run(mcsrRaceRun(d))
 	m.Command("pb").Everyone().Cooldown(mcsrCooldown).Aliases("personalbest").
 		Run(mcsrPbRun(d))
-
-	for _, reg := range mcsrSeasonCommands(d) {
-		m.Command(reg.name).Everyone().Cooldown(mcsrCooldown).Aliases(reg.aliases...).Run(reg.run)
-	}
-	for _, reg := range mcsrPaceCommands(d) {
-		m.Command(reg.name).Everyone().Cooldown(mcsrCooldown).Aliases(reg.aliases...).Run(reg.run)
-	}
+	m.Command("pace").Everyone().Cooldown(mcsrCooldown).Aliases("pacesession", "splits").
+		Run(mcsrPaceRun(d))
+	m.Command("nethers").Everyone().Cooldown(mcsrCooldown).Aliases("nph").
+		Run(mcsrNethersRun(d))
+	m.Command("lastfort").Everyone().Cooldown(mcsrCooldown).Aliases("lastpace", "previousfort").
+		Run(mcsrLastFortRun(d))
 
 	// Snapshot the linked account's standing the moment the stream goes online
 	// so !session has a baseline, and clear it when the stream ends — a rapid
@@ -166,7 +165,7 @@ func Mcsr(d engine.Deps) module.Module {
 	// enabled module and wires the module config in, so the snapshot targets
 	// the linked account.
 	online, offline := snapshotHandlers(d, snapshotSpec[mcsrConfig, gossiprpc.McsrSnapshotReply]{
-		provider: "mcsr",
+		provider: mcsrProvider,
 		enabled:  func(mcsrConfig) bool { return true },
 		request:  mcsrSnapshotRequest,
 		stored:   func(r *gossiprpc.McsrSnapshotReply) zap.Field { return zap.Int("elo", r.Elo) },
@@ -187,131 +186,90 @@ func mcsrSnapshotRequest(c *module.Context, cfg mcsrConfig, channelID string) go
 	return gossiprpc.Request{Account: account, ChannelID: channelID, IsPremium: c.Regress.IsPremium()}
 }
 
-// mcsrHandler binds the shared statsHandler (external.go) to this module:
-// mcsrConfig for the config, the linked Minecraft account for the target, and
-// the account-shaped request/reply hooks every !mcsr and !pace command writes.
-// It is a named binding rather than a statsHandler literal at each of the five
-// construction sites because the two hook adapters below would otherwise be
-// spelled out at every one of them.
-type mcsrHandler[R any] struct {
-	d engine.Deps
-
-	// enabled reads the command's own toggle field off the decoded config.
-	enabled func(mcsrConfig) string
-	// route names the gossip provider/endpoint this command calls.
-	route engine.GossipRoute
-	// request builds the gossip request once the account is resolved.
-	request func(c *module.Context, account string, cfg mcsrConfig) gossiprpc.Request
-	// preferName keeps the linked Minecraft username even when a uuid is
-	// stored. PaceMan's API is name-keyed and does not accept uuids; MCSR
-	// Ranked and Hypixel prefer the stored uuid.
-	preferName bool
-	// reply turns a successful gossip reply into the chat line to send.
-	reply func(c *module.Context, cfg mcsrConfig, reply R) string
+// mcsrRoute names one MCSR Ranked gossip endpoint, pacemanRoute one PaceMan
+// endpoint. Both families sit behind this one module but are separate
+// upstreams with their own cache and rate-limit budgets.
+func mcsrRoute(endpoint string) engine.GossipRoute {
+	return engine.GossipRoute{Provider: mcsrProvider, Endpoint: endpoint}
 }
 
-// run implements module.RunFunc's signature, so most commands can hand it
-// straight to Command(...).Run without an extra wrapper closure; commands
-// that need to pre-process their typed args (peeling off a "season:<n>" or
-// window token) call it directly with the trimmed args instead.
-func (h mcsrHandler[R]) run(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
-	return h.handler().run(ctx, c, args, emit)
+func pacemanRoute(endpoint string) engine.GossipRoute {
+	return engine.GossipRoute{Provider: pacemanProvider, Endpoint: endpoint}
 }
 
-// handler adapts this module's hooks onto the shared skeleton. The mcsr
-// commands never vary by what the viewer typed beyond the account itself, so
-// the request hook is handed the resolved account rather than the raw call.
-func (h mcsrHandler[R]) handler() statsHandler[mcsrConfig, R] {
+// mcsrRequest is the request strategy an mcsr command supplies. It is named
+// so the handler literals below read as wiring rather than as type spelling.
+type mcsrRequest = func(statsCall[mcsrConfig], statsSubject) gossiprpc.Request
+
+// mcsrProvider and pacemanProvider name the two upstreams behind this module.
+const (
+	mcsrProvider    = "mcsr"
+	pacemanProvider = "paceman"
+)
+
+// mcsrCommand is the wiring every mcsr command shares: the module's own
+// config, the linked Minecraft account, and an account-only request. render is
+// what actually differs — how one reply reads in chat — and a command whose
+// request carries more than an account (a season, a window, the channel id)
+// replaces that one field.
+//
+// It is a constructor, not a type. What it replaced was a parallel handler
+// type whose hooks were handed a resolved account and nothing else, which is
+// precisely what kept !record (two accounts) and !lb (no account) hand-rolling
+// the whole skeleton instead of riding it. Here the strategies keep their
+// shared signatures, so any command can still say what it needs to.
+func mcsrCommand[R any](d engine.Deps, route engine.GossipRoute, enabled func(mcsrConfig) string, render func(statsCall[mcsrConfig], *R) string) statsHandler[mcsrConfig, R] {
 	return statsHandler[mcsrConfig, R]{
-		d:       h.d,
-		enabled: h.enabled,
-		route:   h.route,
-		target:  linkedTarget[mcsrConfig](!h.preferName),
-		request: func(call statsCall[mcsrConfig], subject statsSubject) gossiprpc.Request {
-			return h.request(call.Ctx, subject.Account, call.Cfg)
-		},
-		render: func(call statsCall[mcsrConfig], reply *R) string {
-			return h.reply(call.Ctx, call.Cfg, *reply)
-		},
-	}
-}
-
-// mcsrSimpleRequest builds a gossip request carrying only the resolved
-// account and the caller's premium lane — the shape every account-only
-// !mcsr/!pace command (pace, nethers, lastfort, race, !pb ranked) shares.
-// Commands that need extra fields (season, a channel id, a time window)
-// build their own request instead of using this one.
-func mcsrSimpleRequest(c *module.Context, account string, _ mcsrConfig) gossiprpc.Request {
-	return gossiprpc.Request{Account: account, IsPremium: c.Regress.IsPremium()}
-}
-
-// mcsrSeasonRequest builds the request-building closure the season-scoped
-// commands (!elo, !lastmatch) share: same fields, a different season parsed
-// from that call's typed args.
-func mcsrSeasonRequest(season int) func(c *module.Context, account string, cfg mcsrConfig) gossiprpc.Request {
-	return func(c *module.Context, account string, _ mcsrConfig) gossiprpc.Request {
-		return gossiprpc.Request{Account: account, Season: season, IsPremium: c.Regress.IsPremium()}
-	}
-}
-
-// mcsrSeasonSpec is what a season-scoped command (!elo, !lastmatch) supplies
-// to mcsrSeasonCommand: its own toggle, endpoint, optional "no data yet"
-// check and message/template/tokens. Season itself is threaded in
-// separately since it comes from that call's typed args, not from the
-// command's fixed wiring.
-type mcsrSeasonSpec[R any] struct {
-	enabled  func(mcsrConfig) string
-	endpoint string
-	// isEmpty is nil for commands that never special-case an empty reply
-	// (e.g. !elo). When set and it reports empty, mcsrEmptyText(player, key)
-	// is sent instead of expanding the template.
-	isEmpty  func(R) (player, key string, empty bool)
-	message  func(mcsrConfig) string
-	template string
-	tokens   func(c *module.Context, reply R) func(string) (string, bool)
-}
-
-// mcsrSeasonCommand builds the mcsrHandler shared by every !mcsr command
-// that accepts a trailing "season:<n>" token: same provider, a request
-// carrying that call's parsed season, everything else supplied by spec.
-func mcsrSeasonCommand[R any](d engine.Deps, season int, spec mcsrSeasonSpec[R]) mcsrHandler[R] {
-	return mcsrHandler[R]{
 		d:       d,
-		enabled: spec.enabled,
-		route:   engine.GossipRoute{Provider: "mcsr", Endpoint: spec.endpoint},
-		request: mcsrSeasonRequest(season),
-		reply: func(c *module.Context, cfg mcsrConfig, reply R) string {
-			if spec.isEmpty != nil {
-				if player, key, empty := spec.isEmpty(reply); empty {
-					return mcsrEmptyText(c, player, key)
-				}
-			}
-			tmpl := orDefault(spec.message(cfg), spec.template)
-			return module.ExpandString(tmpl, spec.tokens(c, reply))
-		},
+		enabled: enabled,
+		route:   route,
+		// The uuid preference follows the upstream, not the command: MCSR
+		// Ranked accepts a stored Mojang uuid and it survives a rename, while
+		// PaceMan is keyed by username and rejects one. Deriving it from the
+		// route means a new endpoint on either side cannot get it wrong.
+		target:  linkedTarget[mcsrConfig](route.Provider == mcsrProvider),
+		request: accountRequest[mcsrConfig],
+		render:  render,
 	}
 }
 
-// mcsrSeasonRunFunc wraps a season-scoped command's spec into a
-// module.RunFunc: peel the trailing "season:<n>" token off that call's typed
-// args, build the handler for the parsed season and dispatch. Factoring this
-// out means !elo and !lastmatch don't each carry their own copy of this
-// three-line shape.
-func mcsrSeasonRunFunc[R any](d engine.Deps, spec mcsrSeasonSpec[R]) module.RunFunc {
+// mcsrSeasonRun peels the trailing "season:<n>" token off this call's typed
+// args before the handler sees them — the shared account resolution reads the
+// first word, and "season:3" is not a player — and hands the parsed season to
+// scope, which builds that call's request.
+//
+// The season arrives here rather than as a field on the handler because it is
+// a property of the call, not of the command: !elo and !lastmatch answer for
+// whichever season the viewer typed. The handler is copied per call for the
+// same reason — mutating the shared one would race every concurrent chat line.
+func mcsrSeasonRun[R any](h statsHandler[mcsrConfig, R], scope func(season int) mcsrRequest) module.RunFunc {
 	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
 		rest, season := parseMcsrSeason(args)
-		h := mcsrSeasonCommand(d, season, spec)
-		return h.run(ctx, c, rest, emit)
+		scoped := h
+		scoped.request = scope(season)
+		return scoped.run(ctx, c, rest, emit)
 	}
 }
 
-// mcsrCommandReg is one command's Twitch-facing wiring: its name, aliases
-// and the RunFunc that answers it. Building a command family (see
-// mcsrPaceCommands, mcsrSeasonCommands) from a table of these means Mcsr
-// doesn't carry one near-identical "spec -> handler -> Command(...).Run(...)"
-// line per command.
-type mcsrCommandReg struct {
-	name    string
-	aliases []string
-	run     module.RunFunc
+// mcsrAccountSeason is the request the season-scoped single-account commands
+// (!elo, !lastmatch) send: the resolved account, that call's season, and the
+// caller's premium lane.
+func mcsrAccountSeason(season int) mcsrRequest {
+	return func(call statsCall[mcsrConfig], subject statsSubject) gossiprpc.Request {
+		return gossiprpc.Request{Account: subject.Account, Season: season, IsPremium: call.Ctx.Regress.IsPremium()}
+	}
+}
+
+// mcsrEmpty builds the empty-state override the PaceMan commands share: a
+// reply carrying no run data chats one plain translated line naming the
+// player, instead of a template whose every number would render zero. empty
+// reports whether this reply is that case and which player it was about.
+func mcsrEmpty[R any](key string, empty func(*R) (player string, isEmpty bool)) func(statsCall[mcsrConfig], *R) (string, bool) {
+	return func(call statsCall[mcsrConfig], reply *R) (string, bool) {
+		player, isEmpty := empty(reply)
+		if !isEmpty {
+			return "", false
+		}
+		return mcsrEmptyText(call.Ctx, player, key), true
+	}
 }

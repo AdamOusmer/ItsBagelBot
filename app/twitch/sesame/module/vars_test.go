@@ -62,3 +62,21 @@ func TestParseDynamicCaseInsensitiveViaExpand(t *testing.T) {
 	})
 	assert.Equal(t, "5", got)
 }
+
+// TestStringPaletteExpand pins that a palette resolves the same three ways a
+// TokenExpander does: its own value, then the dynamic vars, then literal.
+func TestStringPaletteExpand(t *testing.T) {
+	p := StringPalette{"player": "Feinberg", "elo": "unrated"}
+	assert.Equal(t, "Feinberg: unrated · {rank}", p.Expand("{player}: {elo} · {rank}"))
+	assert.Equal(t, "5", p.Expand("{Random:5-5}"))
+}
+
+// TestStringPaletteMerge covers what the merged fragments rely on: later parts
+// win, and the receiver is left alone so a shared fragment cannot pick up one
+// command's extra tokens.
+func TestStringPaletteMerge(t *testing.T) {
+	base := StringPalette{"player": "Feinberg", "elo": "1650"}
+	got := base.Merge(StringPalette{"elo": "1700"}, StringPalette{"rank": "12"})
+	assert.Equal(t, StringPalette{"player": "Feinberg", "elo": "1700", "rank": "12"}, got)
+	assert.Equal(t, StringPalette{"player": "Feinberg", "elo": "1650"}, base)
+}

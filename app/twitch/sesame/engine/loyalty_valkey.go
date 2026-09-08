@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/event/data"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	"ItsBagelBot/pkg/cache"
@@ -182,7 +183,7 @@ func (s *ValkeyLoyaltyStore) scope(ctx context.Context, broadcasterID uint64, na
 	})
 	if err != nil {
 		s.log.Debug("loyalty: scope resolve failed, defaulting to channel",
-			zap.Uint64("broadcaster_id", broadcasterID), zap.String("counter", name), zap.Error(err))
+			module.BIDField(broadcasterID), zap.String("counter", name), zap.Error(err))
 		return data.CounterScopeChannel
 	}
 	return scope
@@ -384,7 +385,7 @@ func (s *ValkeyLoyaltyStore) CounterInvalidate(ctx context.Context, broadcasterI
 		Key(ref.channelKey(), ref.viewerKey()).
 		Build()).Error(); err != nil {
 		s.log.Warn("loyalty: failed to invalidate counter view",
-			zap.Uint64("broadcaster_id", broadcasterID), zap.String("counter", name), zap.Error(err))
+			module.BIDField(broadcasterID), zap.String("counter", name), zap.Error(err))
 	}
 	s.scopes.Invalidate(ref.scopeKey())
 }

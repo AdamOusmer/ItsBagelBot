@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/bus"
 
@@ -101,7 +102,7 @@ func (r *useReporter) flush(ctx context.Context) {
 			Count:  n,
 		}); err != nil {
 			r.log.Debug("failed to publish command uses",
-				zap.Uint64("broadcaster_id", key.userID),
+				module.BIDField(key.userID),
 				zap.String("command", key.name),
 				zap.Uint64("count", n),
 				zap.Error(err),

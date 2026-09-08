@@ -124,7 +124,7 @@ func (p *Pipeline) gateChat(ctx context.Context, mctx *module.Context, amCfg *au
 		zap.String("action", v.Action.String()),
 		zap.String("rule", v.Rule),
 		zap.Bool("enforced", actioned),
-		zap.Uint64("broadcaster_id", mctx.BroadcasterID),
+		module.BIDField(mctx.BroadcasterID),
 		zap.String("chatter_id", env.ChatterUserID),
 		shadowText(actioned, env.Text))
 	return actioned
@@ -178,7 +178,7 @@ func (p *Pipeline) campaignVote(ctx context.Context, in voteInput) (automod.Verd
 	}
 
 	p.log.Warn("campaign band quorum",
-		zap.Uint64("broadcaster_id", in.broadcaster),
+		module.BIDField(in.broadcaster),
 		zap.String("chatter_id", in.sender))
 
 	switch in.verdict.Action {
@@ -248,7 +248,7 @@ func (p *Pipeline) gateCohort(ctx context.Context, mctx *module.Context, amCfg *
 		zap.String("rule", v.Rule),
 		zap.Int("cohort", len(env.Senders)),
 		zap.Bool("enforced", actioned),
-		zap.Uint64("broadcaster_id", broadcasterID),
+		module.BIDField(broadcasterID),
 		shadowText(actioned, env.Text))
 	return actioned
 }
@@ -360,7 +360,7 @@ func (p *Pipeline) emitCohort(v automod.Verdict, broadcasterID uint64, env *lane
 		// per-rule audit shows raids separately from the per-line verdicts.
 		p.stats.flag(broadcasterID, ruleShieldMode, true)
 		p.log.Warn("automod shield mode",
-			zap.Uint64("broadcaster_id", broadcasterID),
+			module.BIDField(broadcasterID),
 			zap.Int("cohort", len(env.Senders)),
 			zap.String("rule", v.Rule))
 		acted = true

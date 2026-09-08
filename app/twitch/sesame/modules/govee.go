@@ -259,7 +259,7 @@ func goveeLivePermits(ctx context.Context, d engine.Deps, cfg goveeConfig, broad
 	live, err := d.Live.IsLive(ctx, broadcasterID)
 	if err != nil {
 		if d.Log != nil {
-			d.Log.Warn("govee: live check failed, refunding", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
+			d.Log.Warn("govee: live check failed, refunding", module.BIDField(broadcasterID), zap.Error(err))
 		}
 		return false
 	}

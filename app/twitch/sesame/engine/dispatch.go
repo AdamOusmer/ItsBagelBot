@@ -93,7 +93,7 @@ func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, name, args 
 	p.log.Debug("command matched",
 		zap.String("command", name),
 		zap.String("regress", c.Regress.String()),
-		zap.Uint64("broadcaster_id", c.BroadcasterID),
+		module.BIDField(c.BroadcasterID),
 	)
 
 	// Route the expanded response through the post-processing middleware, one
@@ -301,7 +301,7 @@ func (p *Pipeline) claimedCounterValue(ctx context.Context, c *module.Context, n
 	}
 	fail := func(err error) string {
 		p.log.Warn("counter token bump failed",
-			zap.Uint64("broadcaster_id", c.BroadcasterID),
+			module.BIDField(c.BroadcasterID),
 			zap.String("counter", name),
 			zap.Error(err),
 		)

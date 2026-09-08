@@ -17,6 +17,7 @@ import (
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/tmpl"
 
 	"go.uber.org/zap"
 )
@@ -267,33 +268,13 @@ func clipExpand(meta clipMeta, clipURL string) string {
 	return expandTokens(strings.TrimSpace(meta.Reply), tokens)
 }
 
-// expandTokens is a single-pass {key} substitution mirroring sesame's
-// module.Expand semantics (outgress does not import sesame packages): token
-// names are case-insensitive, an unknown token stays literal (braces and
-// all), and a '{' with no closing brace is copied through to the end.
-func expandTokens(tmpl string, tokens map[string]string) string {
-	var b strings.Builder
-	b.Grow(len(tmpl))
-	for i := 0; i < len(tmpl); {
-		open := strings.IndexByte(tmpl[i:], '{')
-		if open < 0 {
-			b.WriteString(tmpl[i:])
-			break
-		}
-		open += i
-		end := strings.IndexByte(tmpl[open:], '}')
-		if end < 0 {
-			b.WriteString(tmpl[i:])
-			break
-		}
-		end += open
-		b.WriteString(tmpl[i:open])
-		if val, ok := tokens[strings.ToLower(tmpl[open+1:end])]; ok {
-			b.WriteString(val)
-		} else {
-			b.WriteString(tmpl[open : end+1])
-		}
-		i = end + 1
-	}
-	return b.String()
+// expandTokens renders tmpl over a fixed token map. The scanner itself lives
+// in pkg/tmpl: this file and sesame's module.Expand had each grown their own
+// copy of it, free to drift on brace and case edge cases, and pkg/tmpl is now
+// the single one both call (its pinning table records what each used to do).
+func expandTokens(t string, tokens map[string]string) string {
+	return tmpl.Expand(t, func(key string) (string, bool) {
+		val, ok := tokens[key]
+		return val, ok
+	})
 }

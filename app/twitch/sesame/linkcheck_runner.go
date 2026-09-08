@@ -10,6 +10,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/automod"
 	"ItsBagelBot/app/twitch/sesame/automod/linkcheck"
 	"ItsBagelBot/app/twitch/sesame/internal/config"
+	"ItsBagelBot/app/twitch/sesame/module"
 
 	"go.uber.org/zap"
 )
@@ -43,7 +44,7 @@ func runLinkCheck(ctx context.Context, guard *automod.Gate, cfg *config.Config, 
 			zap.String("token", h.Token),
 			zap.String("via", h.Via),
 			zap.String("source", string(h.Source)),
-			zap.Uint64("broadcaster_id", h.Channel),
+			module.BIDField(h.Channel),
 			zap.String("chatter_id", h.Sender))
 	}
 	guard.SetLinkChecker(checker)

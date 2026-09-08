@@ -79,7 +79,7 @@ func TestMcsrSessionDrawsFillTheGap(t *testing.T) {
 // snapshot: the live counters reset below the baseline, so the subtraction
 // would go negative and render "-2D".
 func TestMcsrSessionDrawsNeverNegative(t *testing.T) {
-	assert.Equal(t, "0", mcsrWinLossTokens(3, 1, 2)["draws"])
+	assert.Equal(t, "0", mcsrWinLoss(3, 1, 2)["draws"])
 }
 
 // TestMcsrSessionTemplateUpgrade covers the three stored shapes: blank falls

@@ -136,7 +136,7 @@ func clashRoute(endpoint string) engine.GossipRoute {
 
 // clashRankedSpecial answers !crranked when the player has no Path of Legends
 // record: every numeric token would render zero, so the line says why instead.
-func clashRankedSpecial(r *gossiprpc.ClashRoyaleRankedReply) (string, bool) {
+func clashRankedSpecial(_ statsCall[clashroyaleConfig], r *gossiprpc.ClashRoyaleRankedReply) (string, bool) {
 	if !r.Unranked {
 		return "", false
 	}

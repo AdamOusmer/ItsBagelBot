@@ -272,9 +272,10 @@ func fortniteStoreRun(d engine.Deps) module.RunFunc {
 		enabled: func(cfg fortniteConfig) string { return cfg.StoreEnabled },
 		route:   fortniteRoute("shop"),
 		// The rotation is global: no account scopes it, so a failure names the
-		// feature instead of a player.
+		// feature instead of a player and the shared request sends the empty
+		// account it leaves behind (the wire value is the same as omitting it).
 		target:  fixedSubject[fortniteConfig]("item shop"),
-		request: laneRequest[fortniteConfig],
+		request: accountRequest[fortniteConfig],
 		render: func(call statsCall[fortniteConfig], r *reply) string {
 			// {items} needs the channel's locale for its "+N more" tail, which
 			// a TokenExpander palette has no way to reach, so this command

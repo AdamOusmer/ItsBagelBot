@@ -53,7 +53,7 @@ func (s *ValkeyDuelStore) localeOf(ctx context.Context, broadcasterID uint64) st
 func (s *ValkeyDuelStore) post(ctx context.Context, broadcasterID uint64, text string) {
 	if term, hit := moderation.CheckFloor(text); hit {
 		s.log.Warn("duel: suppressed announcement carrying floor content",
-			zap.Uint64("broadcaster_id", broadcasterID), zap.String("term", term))
+			module.BIDField(broadcasterID), zap.String("term", term))
 		return
 	}
 
@@ -67,10 +67,10 @@ func (s *ValkeyDuelStore) post(ctx context.Context, broadcasterID uint64, text s
 		Text:          text,
 	})
 	if err != nil {
-		s.log.Warn("duel: failed to build outgress message", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
+		s.log.Warn("duel: failed to build outgress message", module.BIDField(broadcasterID), zap.Error(err))
 		return
 	}
 	if err := bus.PublishRaw(ctx, s.cfg.Pub, subject, body); err != nil {
-		s.log.Warn("duel: failed to publish", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
+		s.log.Warn("duel: failed to publish", module.BIDField(broadcasterID), zap.Error(err))
 	}
 }
