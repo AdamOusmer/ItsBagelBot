@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -101,6 +102,24 @@ func NewCache(store Store) *Cache { return &Cache{store: store} }
 // Key builds the canonical cache key for one endpoint lookup.
 func Key(provider, endpoint, id string) string {
 	return "gossip:" + provider + ":" + endpoint + ":" + id
+}
+
+// CacheID joins the parts that identify one lookup into the id half of a Key,
+// trimming and case-folding each part so " Frosty " and "frosty" share one
+// entry. Providers call this instead of spelling the fold out inline: six
+// hand-rolled copies of ToLower(TrimSpace(x))+":"+y had already drifted (mcsr's
+// leaderboard id skipped the trim), and a drifting id layout is invisible from
+// the outside — it just quietly caches one lookup under two keys.
+//
+// Folding here rather than at each provider's parse step is deliberate: the
+// display form callers echo back to chat must keep the caller's own spelling,
+// so the fold belongs to the key, not to the value.
+func CacheID(parts ...string) string {
+	folded := make([]string, len(parts))
+	for i, part := range parts {
+		folded[i] = strings.ToLower(strings.TrimSpace(part))
+	}
+	return strings.Join(folded, ":")
 }
 
 // cacheEnvelope wraps a cached item so we can store both successful values and

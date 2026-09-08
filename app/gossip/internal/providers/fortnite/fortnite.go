@@ -405,7 +405,7 @@ type statsQuery struct {
 // time, because two independent spellings of one key is exactly how !fn and
 // !fnstats came to fetch identical numbers under two keys.
 func statsCacheID(window, account string) string {
-	return normalizeWindow(window) + ":" + strings.ToLower(strings.TrimSpace(account))
+	return core.CacheID(normalizeWindow(window), account)
 }
 
 // statsID validates the stats identity: an Epic display name, cache-keyed by

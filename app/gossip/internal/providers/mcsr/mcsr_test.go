@@ -519,7 +519,7 @@ func TestCacheIDBytes(t *testing.T) {
 		}{
 			{season: 0, want: "0:"},
 			{season: 2, country: "CA", want: "2:ca"},
-			{season: 2, country: " Ca ", want: "2: ca "}, // untrimmed today; see the shared-helper commit
+			{season: 2, country: " Ca ", want: "2:ca"},
 			{season: 2, country: "ca", predicted: true, want: "2:ca:predicted"},
 		}
 		for _, c := range cases {

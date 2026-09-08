@@ -253,7 +253,7 @@ func resolveHoursBetween(hoursBetween int) int {
 // in whatever else changes the answer (the session-cutoff gap) so two
 // different windows never collide on one entry.
 func cacheAccount(account string, hoursBetween int) string {
-	return strings.ToLower(strings.TrimSpace(account)) + ":" + strconv.Itoa(hoursBetween)
+	return core.CacheID(account, strconv.Itoa(hoursBetween))
 }
 
 // --- upstream fetches ------------------------------------------------------------
