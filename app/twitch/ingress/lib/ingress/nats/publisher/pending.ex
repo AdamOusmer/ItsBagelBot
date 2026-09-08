@@ -121,6 +121,37 @@ defmodule Ingress.Nats.Publisher.Pending do
   defp expired?({_id, :batch_hold, stamp}, _ack, batch_deadline), do: stamp <= batch_deadline
   defp expired?(_row, _ack_deadline, _batch_deadline), do: false
 
+  ## Settlement
+  #
+  # Both wires end a row the same way: drop it, give the admission window its
+  # slots back, and charge the outcome. Spelled out as three calls at each of
+  # the four sites, a row that is deleted without settling the window leaks an
+  # admission slot for the life of the shard, and the mistake is invisible in
+  # review. The sequence lives here, whole, so there is nothing to get wrong.
+  #
+  # The ack-latency sample stays at the call site: only the wire holds the
+  # row's stamp, and the two wires measure it either side of the delete.
+
+  @doc """
+  Retires `count` acknowledged events held under `id`.
+  """
+  @spec resolve(table(), counter(), id(), pos_integer()) :: :ok
+  def resolve(table, counter, id, count) do
+    delete(table, id)
+    settle(counter, count)
+    acked(counter, count)
+  end
+
+  @doc """
+  Retires `count` events held under `id` as publish failures.
+  """
+  @spec fail(table(), counter(), id(), pos_integer()) :: :ok
+  def fail(table, counter, id, count) do
+    delete(table, id)
+    settle(counter, count)
+    failed(counter, count)
+  end
+
   ## Outcome counters
   #
   # Wires bump these; the collector's gauge tick drains them into metrics.

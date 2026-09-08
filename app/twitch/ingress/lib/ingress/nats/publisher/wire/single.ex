@@ -111,17 +111,11 @@ defmodule Ingress.Nats.Publisher.Wire.Single do
 
   defp resolve(id, stamp, wire) do
     Wire.record_ack_latency(id, stamp, 1)
-    Pending.delete(wire.table, id)
-    Pending.settle(wire.counter, 1)
-    Pending.acked(wire.counter, 1)
+    Pending.resolve(wire.table, wire.counter, id, 1)
   end
 
   defp drop({id, :single, _subject, _payload, _attempts, _stamp}, wire),
     do: settle_failed(id, wire)
 
-  defp settle_failed(id, wire) do
-    Pending.delete(wire.table, id)
-    Pending.settle(wire.counter, 1)
-    Pending.failed(wire.counter, 1)
-  end
+  defp settle_failed(id, wire), do: Pending.fail(wire.table, wire.counter, id, 1)
 end

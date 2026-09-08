@@ -191,11 +191,9 @@ defmodule Ingress.Nats.Publisher.Wire.Atomic do
   end
 
   defp resolve({id, :batch, entries, stamp}, wire) do
-    Pending.delete(wire.table, id)
     count = length(entries)
+    Pending.resolve(wire.table, wire.counter, id, count)
     Wire.record_ack_latency(id, stamp, count)
-    Pending.settle(wire.counter, count)
-    Pending.acked(wire.counter, count)
     Pending.batch_closed(wire.counter)
   end
 
@@ -223,10 +221,6 @@ defmodule Ingress.Nats.Publisher.Wire.Atomic do
     Pending.batch_closed(wire.counter)
   end
 
-  defp settle_failed(id, entries, wire) do
-    Pending.delete(wire.table, id)
-    count = length(entries)
-    Pending.settle(wire.counter, count)
-    Pending.failed(wire.counter, count)
-  end
+  defp settle_failed(id, entries, wire),
+    do: Pending.fail(wire.table, wire.counter, id, length(entries))
 end
