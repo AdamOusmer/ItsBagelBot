@@ -15,7 +15,8 @@
     EmptyState,
     ConfirmDialog,
     Skeleton,
-    toast
+    toast,
+    actionPayload,
   } from '@bagel/shared';
   import type { LaneView, LanesResult } from '$lib/server/lanes';
 
@@ -117,10 +118,7 @@
   }
 
   type LaneActionPayload = { ok?: boolean; notice?: string; error?: string };
-  function payloadOf(r: unknown): LaneActionPayload | undefined {
-    const res = r as { type: string; data?: LaneActionPayload };
-    return res.type === 'success' || res.type === 'failure' ? res.data : undefined;
-  }
+  const payloadOf = (r: unknown) => actionPayload<LaneActionPayload>(r);
 
   const renameSubmit: SubmitFunction = () => {
     return async ({ result: r }) => {
@@ -198,7 +196,7 @@
 
   <DeckList>
     {#if result === null}
-      <div class="row-skeletons">
+      <div class="bb-skeletons">
         {#each [0, 1, 2, 3, 4] as i (i)}<Skeleton variant="block" height="56px" />{/each}
       </div>
     {:else if rows.length}
@@ -206,7 +204,7 @@
         <span>lane</span><span>subject</span><span class="num">pending</span>
         <span class="num">in-flight</span><span class="num">rate</span><span class="num">redeliv</span><span></span>
       </div>
-      <ul class="list" aria-label="Lanes">
+      <ul class="bb-list" aria-label="Lanes">
         {#each rows as l (laneKey(l))}
           <li class="lane-row" class:orphan={l.orphan}>
             <div class="lane-id">
@@ -352,7 +350,6 @@
 
   .toolbar-search { width: 240px; }
   .toolbar-search :global(.search) { width: 100%; }
-  .row-skeletons { display: flex; flex-direction: column; gap: 8px; padding: 12px; }
 
   .lane-head, .lane-row {
     display: grid;
@@ -368,7 +365,6 @@
   }
   .lane-head .num { text-align: right; }
 
-  .list { list-style: none; margin: 0; padding: 0; }
   .lane-row { padding: 12px 14px; border-bottom: 1px solid var(--rule); }
   .lane-row:last-child { border-bottom: none; }
   .lane-row.orphan { background: rgba(176, 90, 70, 0.03); }

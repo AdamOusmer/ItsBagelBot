@@ -10,7 +10,8 @@
 // (app/twitch/sesame/engine/timers_valkey.go), re-reading this same blob every cycle.
 import { randomUUID } from 'node:crypto';
 import { type TimerDef, MOD } from '@bagel/shared';
-import { listModules, upsertModule } from './commands-store';
+import { upsertModule } from './commands-store';
+import { readModuleBlob } from './module-blob';
 
 const TIMERS_MODULE = MOD.timers;
 
@@ -23,10 +24,7 @@ export type TimerResult = { ok: true; timer?: TimerDef } | { ok: false; error?: 
 
 // readTimers loads the current blob (enable flag + timer records).
 export async function readTimers(userId: string): Promise<TimersView> {
-  const rows = await listModules(userId);
-  const row = rows.find((r) => r.name === TIMERS_MODULE);
-  const enabled = row ? row.is_enabled : false;
-  const configs = (row?.configs ?? {}) as { timers?: TimerDef[] };
+  const { enabled, configs } = await readModuleBlob<{ timers?: TimerDef[] }>(userId, TIMERS_MODULE);
   return { enabled, timers: Array.isArray(configs.timers) ? configs.timers : [] };
 }
 

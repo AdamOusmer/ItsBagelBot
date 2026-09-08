@@ -2,11 +2,11 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 // The Valorant module's catalog definition, split out of types.ts for the
-// same reason as catalog-games.ts: five customizable replies plus settings
+// same reason as games.ts: five customizable replies plus settings
 // make it one of the longest MODULE_CATALOG entries, and its token palettes
 // mirror app/twitch/sesame/modules/valorant.go (same config keys, same defaults).
-import type { ModuleDef } from './types';
-import { LINKED_ONLY_FIELD } from './catalog/linked-only';
+import type { ModuleDef } from './module-def';
+import { LINKED_ONLY_FIELD } from './shared-fields';
 
 export const VALORANT_MODULE_DEF: ModuleDef = {
   // All five !val views are gossip lookups, so their token palettes below

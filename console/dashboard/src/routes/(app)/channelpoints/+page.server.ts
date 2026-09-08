@@ -3,7 +3,7 @@
 
 import type { Actions, PageServerLoad } from './$types';
 import type { ChannelPointReward, CounterScope, RewardActionKind, RewardOnRedeem } from '@bagel/shared';
-import { COUNTER_SCOPES, REWARD_ACTIONS, REWARD_ON_REDEEM } from '@bagel/shared';
+import { clampInt, COUNTER_SCOPES, REWARD_ACTIONS, REWARD_ON_REDEEM } from '@bagel/shared';
 import {
   readRewards,
   createReward,
@@ -15,6 +15,7 @@ import {
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
 import { gateModulePage } from '$lib/server/module-gate';
+import { moduleLoad } from '$lib/server/module-page';
 import type { Session } from '$lib/server/session';
 import { effectiveId } from '$lib/server/board';
 import { dev } from '$app/environment';
@@ -31,27 +32,17 @@ function gate(session: Session | null | undefined): void {
   gateModulePage(session, 'channelpoints');
 }
 
-export const load: PageServerLoad = async ({ locals }) => {
-  gate(locals.session);
-  const uid = effectiveId(locals.session);
-  if (DEMO) {
-    const { demoRewards } = await import('$lib/server/demo-data');
-    return { enabled: true, rewards: demoRewards() };
-  }
-  try {
-    const view = await readRewards(uid);
-    return { enabled: view.enabled, rewards: view.rewards };
-  } catch {
-    return { enabled: false, rewards: [] as ChannelPointReward[], degraded: true };
-  }
-};
-
-// clampInt coerces a form value into a bounded integer.
-function clampInt(raw: unknown, min: number, max: number, dflt: number): number {
-  const n = Math.trunc(Number(raw));
-  if (!Number.isFinite(n)) return dflt;
-  return Math.min(max, Math.max(min, n));
-}
+export const load: PageServerLoad = ({ locals }) =>
+  moduleLoad('channelpoints', locals.session, {
+    demo: DEMO
+      ? async () => ({ enabled: true, rewards: (await import('$lib/server/demo-data')).demoRewards() })
+      : undefined,
+    read: async (uid) => {
+      const view = await readRewards(uid);
+      return { enabled: view.enabled, rewards: view.rewards };
+    },
+    blank: () => ({ enabled: false, rewards: [] as ChannelPointReward[] })
+  });
 
 // parseReward validates and normalizes the posted reward JSON into a full
 // ChannelPointReward. Returns null on anything malformed; the action strings are

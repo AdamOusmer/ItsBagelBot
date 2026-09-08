@@ -147,7 +147,7 @@
   <Card class="notif-card">
     <CardHead title="Sent" />
     {#if !historyLoaded}
-      <div class="row-skeletons">
+      <div class="bb-skeletons">
         {#each [0, 1, 2] as i (i)}<Skeleton variant="block" height="72px" />{/each}
       </div>
     {:else if degraded}
@@ -210,7 +210,8 @@
   :global(.notif-card) { margin-top: 18px; }
 
   .compose { display: flex; flex-direction: column; gap: 14px; }
-  .row-skeletons { display: flex; flex-direction: column; gap: 10px; }
+  /* Cards, not rows: they need a touch more air than the shared stack. */
+  .bb-skeletons { gap: 10px; padding: 0; }
   .row { display: flex; gap: 14px; flex-wrap: wrap; }
   .row.two > label { flex: 1; min-width: 180px; }
 

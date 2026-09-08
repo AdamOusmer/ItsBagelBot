@@ -18,7 +18,9 @@
     ButtonLink,
     toast,
     getI18n,
-    type GoveeDevice
+    type GoveeDevice,
+    actionPayload,
+    type ActionOk,
   } from '@bagel/shared';
   import GoveeLightRow from '$lib/components/govee/GoveeLightRow.svelte';
   import GoveeRewardEditor from '$lib/components/govee/GoveeRewardEditor.svelte';
@@ -49,11 +51,8 @@
 
   let missingScope = $state(false);
 
-  type ActionResult = { ok?: boolean; missingScope?: boolean; error?: string };
-  function payloadOf(result: unknown): ActionResult | undefined {
-    const r = result as { type: string; data?: ActionResult };
-    return r.type === 'success' || r.type === 'failure' ? r.data : undefined;
-  }
+  type GoveeActionOk = ActionOk & { missingScope?: boolean };
+  const payloadOf = (result: unknown) => actionPayload<GoveeActionOk>(result);
 
   // formResult is the shared enhance handler for the API-key forms: on success it
   // optionally flips an optimistic mirror, toasts, and reloads.

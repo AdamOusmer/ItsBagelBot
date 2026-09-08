@@ -30,20 +30,10 @@ import { signViewAs } from '@bagel/shared/server/impersonation';
 import { env } from '$env/dynamic/private';
 import { EMPTY_USER_STATS } from '$lib/server/fallback';
 import type { UserStats } from '@bagel/shared';
+import { parsePage, normalizeSearch } from '$lib/server/paging';
 
-const MAX_SEARCH_LENGTH = 200;
 const CREATOR_CODE_MAX_LENGTH = 64;
 const DEMO = dev && process.env.DEMO === '1';
-
-function parsePage(raw: string | null): number {
-  const page = Number(raw ?? '1');
-  if (!Number.isFinite(page)) return 1;
-  return Math.min(Math.max(Math.trunc(page), 1), USER_MAX_PAGES);
-}
-
-function normalizeSearch(raw: string | null): string {
-  return (raw ?? '').trim().slice(0, MAX_SEARCH_LENGTH);
-}
 
 function matchesSearch(user: AdminUserWire, search: string): boolean {
   if (!search) return true;
@@ -129,7 +119,7 @@ async function loadDirectory(page: number, search: string, state: string): Promi
 // Streamed: the shell (toolbar, headers) renders immediately; the directory
 // hydrates when the users RPC lands instead of blocking SSR on NATS.
 export const load: PageServerLoad = ({ url }) => {
-  const page = parsePage(url.searchParams.get('page'));
+  const page = parsePage(url.searchParams.get('page'), USER_MAX_PAGES);
   const search = normalizeSearch(url.searchParams.get('q'));
   const state = parseState(url.searchParams.get('state'));
 

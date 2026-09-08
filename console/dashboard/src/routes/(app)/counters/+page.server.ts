@@ -10,11 +10,13 @@ import { runSet, runAddEntry, runDeleteEntry } from '$lib/server/counter-actions
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
 import { gateModulePage } from '$lib/server/module-gate';
+import { moduleLoad } from '$lib/server/module-page';
 import type { Session } from '$lib/server/session';
 import { effectiveId } from '$lib/server/board';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { fail } from '@sveltejs/kit';
+import { mutateAction } from '@bagel/shared/server/form-action';
 
 // Gated on the build-time `dev` constant first, so Rollup erases every demo
 // branch (and the dynamic demo-data import inside it) from production builds.
@@ -28,58 +30,63 @@ function gate(session: Session | null | undefined): void {
 
 // The optional ?c=<name> selects one entry-scoped counter whose stored values
 // (the per-viewer buckets) are loaded alongside the list.
-export const load: PageServerLoad = async ({ locals, url }) => {
-  gate(locals.session);
-  const uid = effectiveId(locals.session);
+export const load: PageServerLoad = ({ locals, url }) => {
   const selected = normalizeName(url.searchParams.get('c'));
-  if (DEMO) {
-    const { demoCounters, demoEntries } = await import('$lib/server/demo-data');
-    const demo = demoCounters();
-    const sel = demo.some((c) => c.name === selected && c.scope !== 'channel') ? selected : '';
-    return { counters: demo, selected: sel, entries: sel ? demoEntries(sel) : [] };
-  }
-
-  try {
-    const counters = await listCounters(uid);
-    let entries: CounterEntryView[] = [];
-    if (selected && counters.some((c) => c.name === selected && c.scope !== 'channel')) {
-      try {
-        entries = await counterEntries(uid, selected, 25);
-      } catch {
-        /* entries are decorative next to the list */
+  return moduleLoad('counters', locals.session, {
+    demo: DEMO
+      ? async () => {
+          const { demoCounters, demoEntries } = await import('$lib/server/demo-data');
+          const demo = demoCounters();
+          const sel = demo.some((c) => c.name === selected && c.scope !== 'channel') ? selected : '';
+          return { counters: demo, selected: sel, entries: sel ? demoEntries(sel) : [] };
+        }
+      : undefined,
+    read: async (uid) => {
+      const counters = await listCounters(uid);
+      let entries: CounterEntryView[] = [];
+      if (selected && counters.some((c) => c.name === selected && c.scope !== 'channel')) {
+        try {
+          entries = await counterEntries(uid, selected, 25);
+        } catch {
+          /* entries are decorative next to the list */
+        }
       }
-    }
-    return { counters, selected, entries };
-  } catch {
-    return { counters: [] as CounterDef[], selected: '', entries: [] as CounterEntryView[], degraded: true };
-  }
+      return { counters, selected, entries };
+    },
+    blank: () => ({ counters: [] as CounterDef[], selected: '', entries: [] as CounterEntryView[] })
+  });
 };
 
-// mutate wraps one POST action with the shared boilerplate: gate, session,
-// demo short-circuit, error mapping and the impersonation audit line. run
-// returns the audit detail, or null for a validation failure.
+// mutate binds one POST action to the shared write skeleton
+// (@bagel/shared/server/form-action): gate, form, demo short-circuit, error
+// mapping, audit. The board id is this page's actor context; `run` returns the
+// audit detail, or null for a validation failure.
 type Mutation = (uid: string, f: FormData) => Promise<string | null>;
 
-function mutate(op: string, run: Mutation) {
-  return async ({ request, locals }: Parameters<NonNullable<Actions[string]>>[0]) => {
-    gate(locals.session);
-    if (!DEMO && !locals.session) return fail(401, { ok: false, error: 'Not signed in.' });
-    const uid = effectiveId(locals.session);
+// The board being written plus the session that asked for it: the audit line
+// names the delegate, the write is keyed by the owner.
+type Actor = { uid: string; session: Session | null };
 
-    const f = await request.formData();
-    if (DEMO) return { ok: true };
-    let detail: string | null;
-    try {
-      detail = await run(uid, f);
-    } catch (e) {
+function mutate(op: string, run: Mutation) {
+  return mutateAction<Actor, Parameters<NonNullable<Actions[string]>>[0]>({
+    gate: ({ locals }) => {
+      gate(locals.session);
+      if (!DEMO && !locals.session) return null;
+      return { uid: effectiveId(locals.session), session: locals.session ?? null };
+    },
+    refusal: () => fail(401, { ok: false, error: 'Not signed in.' }),
+    demo: DEMO,
+    run: (actor, f) => run(actor.uid, f),
+    // A UserError carries a message written for the broadcaster; anything else
+    // is ours, so it is logged and answered with the generic line.
+    failed: (e) => {
       if (e instanceof UserError) return fail(400, { ok: false, error: e.message });
       logger.error({ err: e }, `[counters] ${op} failed`);
       return fail(400, { ok: false, error: `${op} failed` });
-    }
-    if (detail === null) return fail(400, { ok: false, error: 'Invalid counter.' });
-    auditDashboardImpersonation(locals.session, `counters:${op}`, detail);
-    return { ok: true };
-  };
+    },
+    audited: (actor, detail) => auditDashboardImpersonation(actor.session, `counters:${op}`, detail),
+    invalid: 'Invalid counter.'
+  });
 }
 
 export const actions: Actions = {

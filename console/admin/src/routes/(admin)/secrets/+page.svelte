@@ -11,7 +11,9 @@
     ConfirmDialog,
     Modal,
     Skeleton,
-    toast
+    toast,
+    copyFlash,
+    fmtDate as fmtDateOf,
   } from '@bagel/shared';
   import type { DbCredentialStatus, ServiceTokenView } from '$lib/server/secrets';
   import type { SecretsBundle } from './+page.server';
@@ -116,15 +118,7 @@
     };
   };
 
-  async function copyMinted() {
-    try {
-      await navigator.clipboard.writeText(mintedKey);
-      mintedCopied = true;
-      setTimeout(() => (mintedCopied = false), 1500);
-    } catch {
-      mintedCopied = false;
-    }
-  }
+  const copyMinted = () => copyFlash(mintedKey, (on) => (mintedCopied = on));
 
   // ── Local secret generator (never leaves the browser) ─────────────────────
   type GenKind = 'base64' | 'hex' | 'password';
@@ -148,20 +142,14 @@
     genCopied = false;
   }
 
-  async function copyGenerated() {
-    try {
-      await navigator.clipboard.writeText(generated);
-      genCopied = true;
-      setTimeout(() => (genCopied = false), 1500);
-    } catch {
-      genCopied = false;
-    }
-  }
+  const copyGenerated = () => copyFlash(generated, (on) => (genCopied = on));
 
-  function fmtDate(iso: string | null): string {
-    if (!iso) return 'never';
-    return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-  }
+  // Token timestamps are operational and recent, so the year is noise here;
+  // an absent one reads 'never', not 'unknown' -- a token with no last-seen has
+  // demonstrably never been used, which is a fact, not a gap in the record.
+  const fmtDate = (iso: string | null) =>
+    fmtDateOf(iso, { missing: 'never', parts: { month: 'short', day: 'numeric' } });
+
 
   const SOURCE_META: Record<string, { label: string; cls: string }> = {
     scoped: { label: 'scoped token', cls: 'ok' },

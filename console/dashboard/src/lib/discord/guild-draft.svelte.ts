@@ -19,9 +19,11 @@ import { beforeNavigate, goto, invalidateAll } from '$app/navigation';
 import { untrack } from 'svelte';
 import type { SubmitFunction } from '@sveltejs/kit';
 import {
+  actionPayload,
   fieldErrorsByField,
   flagValue,
   toast,
+  type ActionOk,
   type DiscordConfig,
   type I18n,
   type RefusedFields
@@ -34,17 +36,14 @@ import { FIELD_LABEL_KEYS } from './guild-fields';
  *  props are generated per route and every one of them is a superset. */
 export type GuildDraftData = { config: DiscordConfig; version: number };
 
-export type ActionPayload = {
-  ok?: boolean;
-  error?: string;
+export type ActionPayload = ActionOk & {
   code?: string;
   refused?: string;
   fields?: string[];
 };
 
 export function payloadOf(result: unknown): ActionPayload | undefined {
-  const r = result as { type: string; data?: ActionPayload };
-  return r.type === 'success' || r.type === 'failure' ? r.data : undefined;
+  return actionPayload<ActionPayload>(result);
 }
 
 export function succeeded(result: { type: string }, p: ActionPayload | undefined): boolean {

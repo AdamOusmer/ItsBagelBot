@@ -16,7 +16,11 @@
     ConfirmDialog,
     Scroller,
     Skeleton,
-    toast
+    toast,
+    actionPayload,
+    ago,
+    fmtDate,
+    copyFlash,
   } from '@bagel/shared';
   import type { AdminUserWire, AuditEntry, ChannelSubState } from '$lib/server/services';
   import type { UserDirectory } from './+page.server';
@@ -241,10 +245,7 @@
     error?: string;
   };
 
-  function payloadOf(result: unknown): ActionPayload | undefined {
-    const r = result as { type: string; data?: ActionPayload };
-    return r.type === 'success' || r.type === 'failure' ? r.data : undefined;
-  }
+  const payloadOf = (result: unknown) => actionPayload<ActionPayload>(result);
 
   const lookupSubmit: SubmitFunction = () => {
     return async ({ result }) => {
@@ -404,34 +405,7 @@
     return qs ? `/users?${qs}` : '/users';
   }
 
-  async function copyViewAs() {
-    try {
-      await navigator.clipboard.writeText(viewAsUrl);
-      viewAsCopied = true;
-      setTimeout(() => (viewAsCopied = false), 1500);
-    } catch {
-      viewAsCopied = false;
-    }
-  }
-
-  function ago(iso?: string): string {
-    if (!iso) return '-';
-    const mins = Math.max(Math.round((Date.now() - new Date(iso).getTime()) / 60e3), 0);
-    if (mins < 1) return 'now';
-    if (mins < 60) return `${mins}m ago`;
-    const hours = Math.round(mins / 60);
-    if (hours < 48) return `${hours}h ago`;
-    return `${Math.round(hours / 24)}d ago`;
-  }
-
-  function fmtDate(iso?: string): string {
-    if (!iso) return 'unknown';
-    return new Date(iso).toLocaleDateString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  }
+  const copyViewAs = () => copyFlash(viewAsUrl, (on) => (viewAsCopied = on));
 
   const subTone = $derived.by(() => {
     switch (subState?.state) {
@@ -512,7 +486,7 @@
   <div class="deck">
     <DeckList>
       {#if dir === null}
-        <div class="row-skeletons">
+        <div class="bb-skeletons">
           {#each [0, 1, 2, 3, 4, 5] as i (i)}<Skeleton variant="block" height="52px" />{/each}
         </div>
       {:else if visible.length}
@@ -528,7 +502,7 @@
             {/if}
           {/each}
         </div>
-        <ul class="list" aria-label="Users">
+        <ul class="bb-list" aria-label="Users">
           {#each visible as u (u.id)}
             <li>
               <!-- data-cursor="off": a row is a reading surface, not a control;
@@ -910,7 +884,6 @@
   .dir-stats .mid { color: var(--rule-strong); }
   .search-form { display: flex; gap: 8px; align-items: center; }
 
-  .row-skeletons { display: flex; flex-direction: column; gap: 8px; padding: 12px; }
 
   .deck { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
   @media (min-width: 1080px) {
@@ -942,7 +915,6 @@
   .msg-fields textarea { resize: vertical; font-family: var(--bb-font-body); }
 
   /* ── Five state colors. VIP is silver, deliberately not purple. ─────────── */
-  .list { list-style: none; margin: 0; padding: 0; }
 
   /* Header and rows share one grid template so every column lines up. */
   .user-head, .user-row {

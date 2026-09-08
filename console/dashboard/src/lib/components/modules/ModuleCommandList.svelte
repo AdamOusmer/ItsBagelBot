@@ -25,7 +25,7 @@
     <h2 id={headingId} class="section-title">{t('modules.commandsTitle')}</h2>
     <span class="cmd-head-hint">{t('modules.commandsHint')}</span>
   </div>
-  <ul class="list" aria-labelledby={headingId}>
+  <ul class="bb-list" aria-labelledby={headingId}>
     {#each commands as command, i (command.trigger)}
       <li><ModuleCommandRow {command} index={i + 1} /></li>
     {/each}
@@ -51,6 +51,5 @@
   .cmd-head { flex-direction: column; align-items: flex-start; gap: 2px; }
   .cmd-head-hint { font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
 
-  .list { list-style: none; margin: 0; padding: 0; }
-  .list > li:last-child :global(.row-shell) { border-bottom: none; }
+  .bb-list > li:last-child :global(.row-shell) { border-bottom: none; }
 </style>

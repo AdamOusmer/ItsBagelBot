@@ -5,6 +5,7 @@
   import { deserialize } from '$app/forms';
   import { replaceState } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
+  import { createDiscardGuard } from '$lib/inspector/discard-guard.svelte';
   import {
     Icon,
     PageHead,
@@ -294,28 +295,13 @@
   // Dirty guard: close / row-switch / new all route through one confirmation
   // rather than silently dropping in-progress edits. The sessionStorage mirror
   // still backs a forced browser reload; a deliberate discard clears it.
-  let discardOpen = $state(false);
-  let afterDiscard: (() => void) | null = null;
-  function guarded(action: () => void) {
-    if (isDirty) {
-      afterDiscard = action;
-      discardOpen = true;
-    } else {
-      action();
+  const discard = createDiscardGuard(
+    () => isDirty,
+    () => {
+      if (editorDraft && !editorDraft.builtin) clearDraft(editorDraft.edit ? editorDraft.originalName : '', editorDraft.edit);
+      draftVersion++;
     }
-  }
-  function confirmDiscard() {
-    discardOpen = false;
-    if (editorDraft && !editorDraft.builtin) clearDraft(editorDraft.edit ? editorDraft.originalName : '', editorDraft.edit);
-    draftVersion++;
-    const a = afterDiscard;
-    afterDiscard = null;
-    a?.();
-  }
-  function cancelDiscard() {
-    discardOpen = false;
-    afterDiscard = null;
-  }
+  );
 
   function doOpenNew(name = '') {
     serverErrors = null;
@@ -364,7 +350,7 @@
   }
 
   function openNew() {
-    guarded(() => doOpenNew());
+    discard.guard(() => doOpenNew());
   }
 
   // The filter doubles as the create field: a name that matches nothing is an
@@ -378,7 +364,7 @@
   );
   function createTyped() {
     const name = typedName;
-    guarded(() => doOpenNew(name));
+    discard.guard(() => doOpenNew(name));
   }
 
   // --- Deep-link compose (marketing command builder) ---------------------------
@@ -498,10 +484,10 @@
       closeEditor();
       return;
     }
-    guarded(() => doOpenEdit(c));
+    discard.guard(() => doOpenEdit(c));
   }
   function closeEditor() {
-    guarded(doCloseEditor);
+    discard.guard(doCloseEditor);
   }
 
   const rowHasDraft = (name: string) => {
@@ -753,7 +739,7 @@
   // Escape is owned by the InspectorSurface (it yields to the discard dialog);
   // the page only handles the search / new shortcuts.
   function onKey(e: KeyboardEvent) {
-    if (composeDraft !== null || discardOpen) return;
+    if (composeDraft !== null || discard.open) return;
     if (isTyping(e) || e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.key === '/') {
       e.preventDefault();
@@ -945,14 +931,14 @@
 </ConfirmDialog>
 
 <ConfirmDialog
-  open={discardOpen}
+  open={discard.open}
   title={t('commands.discardTitle')}
   body={t('commands.discardBody')}
   confirmLabel={t('commands.discard')}
   cancelLabel={t('commands.keepEditing')}
   danger
-  onCancel={cancelDiscard}
-  onConfirm={confirmDiscard}
+  onCancel={discard.cancel}
+  onConfirm={discard.confirm}
 />
 
 <svelte:window onkeydown={onKey} />

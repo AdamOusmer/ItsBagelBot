@@ -15,6 +15,7 @@ import {
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
 import { gateModulePage } from '$lib/server/module-gate';
+import { moduleLoad } from '$lib/server/module-page';
 import type { Session } from '$lib/server/session';
 import { effectiveId } from '$lib/server/board';
 import { dev } from '$app/environment';
@@ -30,38 +31,48 @@ function gate(session: Session | null | undefined): void {
   gateModulePage(session, 'govee');
 }
 
-export const load: PageServerLoad = async ({ locals }) => {
-  gate(locals.session);
-  const uid = effectiveId(locals.session);
+// The device list streams (see `read`), so the field is a promise on the happy
+// path and a settled list on the degraded one; naming the union here keeps both
+// branches assignable to one page shape.
+type DeviceList = { devices: GoveeDevice[]; error?: string };
+type GoveePage = {
+  enabled: boolean;
+  keyPresent: boolean;
+  bindings: GoveeView['bindings'];
+  devices: DeviceList | Promise<DeviceList>;
+  colors: string[];
+};
+
+export const load: PageServerLoad = ({ locals }) => {
   const colors = [...GOVEE_COLOR_NAMES];
-
-  if (DEMO) {
-    const { demoGoveeView, demoGoveeDevices } = await import('$lib/server/demo-data');
-    return { ...demoGoveeView(), devices: { devices: demoGoveeDevices(), error: undefined }, colors };
-  }
-
-  try {
-    const store = goveeStore(uid);
-    const view = await store.read();
-    // The device list is the one slow read (a Govee cloud round trip). Stream it
-    // as an unresolved promise so SSR emits the shell + the key/reward steps
-    // instantly and the picker fills in when it lands. Only fetch once a key is
-    // on file; a lookup failure degrades to an empty list plus a flag on the
-    // resolved value, never a broken page.
-    const devices = view.keyPresent
-      ? store.listDevices()
-      : Promise.resolve({ devices: [] as GoveeDevice[], error: undefined });
-    return { ...view, devices, colors };
-  } catch {
-    return {
+  return moduleLoad<GoveePage>('govee', locals.session, {
+    demo: DEMO
+      ? async () => {
+          const { demoGoveeView, demoGoveeDevices } = await import('$lib/server/demo-data');
+          return { ...demoGoveeView(), devices: { devices: demoGoveeDevices(), error: undefined }, colors };
+        }
+      : undefined,
+    read: async (uid) => {
+      const store = goveeStore(uid);
+      const view = await store.read();
+      // The device list is the one slow read (a Govee cloud round trip). Stream
+      // it as an unresolved promise so SSR emits the shell + the key/reward
+      // steps instantly and the picker fills in when it lands. Only fetch once
+      // a key is on file; a lookup failure degrades to an empty list plus a
+      // flag on the resolved value, never a broken page.
+      const devices = view.keyPresent
+        ? store.listDevices()
+        : Promise.resolve({ devices: [] as GoveeDevice[], error: undefined });
+      return { ...view, devices, colors };
+    },
+    blank: () => ({
       enabled: false,
       keyPresent: false,
       bindings: [] as GoveeView['bindings'],
       devices: { devices: [] as GoveeDevice[], error: undefined },
-      colors,
-      degraded: true
-    };
-  }
+      colors
+    })
+  });
 };
 
 function requireSession(locals: App.Locals): string | null {

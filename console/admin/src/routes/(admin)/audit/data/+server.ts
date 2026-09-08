@@ -11,19 +11,9 @@ import {
   AUDIT_PAGE_SIZE,
   type AuditEntry
 } from '$lib/server/services';
+import { parsePage, normalizeSearch } from '$lib/server/paging';
 
-const MAX_SEARCH_LENGTH = 200;
 const DEMO = dev && process.env.DEMO === '1';
-
-function parsePage(raw: string | null): number {
-  const page = Number(raw ?? '1');
-  if (!Number.isFinite(page)) return 1;
-  return Math.min(Math.max(Math.trunc(page), 1), AUDIT_MAX_PAGES);
-}
-
-function normalizeSearch(raw: string | null): string {
-  return (raw ?? '').trim().slice(0, MAX_SEARCH_LENGTH);
-}
 
 function matchesSearch(entry: AuditEntry, search: string): boolean {
   if (!search) return true;
@@ -56,7 +46,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
   const admin = await requireAdmin(locals.session);
   if (!admin || !isManager(admin.role)) throw error(403, 'forbidden');
 
-  const page = parsePage(url.searchParams.get('page'));
+  const page = parsePage(url.searchParams.get('page'), AUDIT_MAX_PAGES);
   const search = normalizeSearch(url.searchParams.get('q'));
 
   if (DEMO) {

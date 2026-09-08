@@ -13,7 +13,8 @@
 import { rpc } from '@bagel/shared/server/nats';
 import { MOD } from '@bagel/shared';
 import { SUB } from './services';
-import { listModules, upsertModule } from './commands-store';
+import { upsertModule } from './commands-store';
+import { readModuleBlob } from './module-blob';
 
 const QUOTES_MODULE = MOD.quotes;
 
@@ -50,11 +51,9 @@ function quoteSubject(verb: string): string {
 // blob. A missing row means the module has never been configured (disabled,
 // default perms).
 async function readModuleState(userId: string): Promise<{ enabled: boolean } & QuotePerms> {
-  const rows = await listModules(userId);
-  const row = rows.find((r) => r.name === QUOTES_MODULE);
-  const configs = (row?.configs ?? {}) as Partial<QuotePerms>;
+  const { enabled, configs } = await readModuleBlob<Partial<QuotePerms>>(userId, QUOTES_MODULE);
   return {
-    enabled: row ? row.is_enabled : false,
+    enabled,
     addPerm: configs.addPerm || DEFAULT_PERM,
     editPerm: configs.editPerm || DEFAULT_PERM
   };

@@ -3,16 +3,16 @@
 
 // The module catalog is one file per module under catalog/: adding a module
 // means adding one file plus one line in MODULE_CATALOG below, mirroring how
-// app/twitch/sesame/modules/all.go registers the Go side of the same module. The
-// loyalty-wager games stay split in ../catalog-games and valorant in
-// ../catalog-valorant (same pattern, older cut) and are spread in here.
+// app/twitch/sesame/modules/all.go registers the Go side of the same module.
+// The loyalty-wager games are one file holding two defs (they nest under
+// loyalty and change together), spread into the list below.
 //
 // MOD maps every module id used in the catalog. Module-id strings were
 // previously hardcoded per store (a typo compiled fine and silently missed
 // the module blob) so stores key off MOD.<name> instead of a raw literal.
 import type { ModuleDef } from './module-def';
-import { GAME_MODULE_DEFS } from '../catalog-games';
-import { VALORANT_MODULE_DEF } from '../catalog-valorant';
+import { GAME_MODULE_DEFS } from './games';
+import { VALORANT_MODULE_DEF } from './valorant';
 import { ALERTS_MODULE } from './alerts';
 import { AUTOMOD_MODULE } from './automod';
 import { CHANNELPOINTS_MODULE } from './channelpoints';

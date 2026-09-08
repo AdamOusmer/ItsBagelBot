@@ -19,8 +19,11 @@
     PageToolbar,
     AlertBanner,
     DeckList,
-    EmptyState
+    EmptyState,
+    actionPayload,
+    type ActionOk,
   } from '@bagel/shared';
+  import { createDiscardGuard } from '$lib/inspector/discard-guard.svelte';
   import RewardRow from '$lib/components/channelpoints/RewardRow.svelte';
   import RewardEditor from '$lib/components/channelpoints/RewardEditor.svelte';
 
@@ -66,26 +69,7 @@
     !!editorDraft && committed !== null ? JSON.stringify(editorDraft) !== JSON.stringify(committed) : false
   );
 
-  let discardOpen = $state(false);
-  let afterDiscard: (() => void) | null = null;
-  function guarded(action: () => void) {
-    if (isDirty) {
-      afterDiscard = action;
-      discardOpen = true;
-    } else {
-      action();
-    }
-  }
-  function confirmDiscard() {
-    discardOpen = false;
-    const a = afterDiscard;
-    afterDiscard = null;
-    a?.();
-  }
-  function cancelDiscard() {
-    discardOpen = false;
-    afterDiscard = null;
-  }
+  const discard = createDiscardGuard(() => isDirty);
   // Unguarded close (after a save / delete, or a scope error).
   function doClose() {
     expanded = null;
@@ -93,7 +77,7 @@
   }
 
   function openNew() {
-    guarded(() => {
+    discard.guard(() => {
       editorDraft = blankReward();
       expanded = NEW;
     });
@@ -103,23 +87,20 @@
       closeEditor();
       return;
     }
-    guarded(() => {
+    discard.guard(() => {
       editorDraft = { ...r };
       expanded = r.id;
     });
   }
   function closeEditor() {
-    guarded(doClose);
+    discard.guard(doClose);
   }
 
-  type ActionResult = { ok?: boolean; missingScope?: boolean; error?: string };
+  type RewardActionOk = ActionOk & { missingScope?: boolean };
 
-  function payloadOf(result: unknown): ActionResult | undefined {
-    const r = result as { type: string; data?: ActionResult };
-    return r.type === 'success' || r.type === 'failure' ? r.data : undefined;
-  }
+  const payloadOf = (result: unknown) => actionPayload<RewardActionOk>(result);
 
-  function failed(payload: ActionResult | undefined, fallbackKey: string) {
+  function failed(payload: RewardActionOk | undefined, fallbackKey: string) {
     if (payload?.missingScope) {
       missingScope = true;
       doClose();
@@ -232,7 +213,7 @@
   <div class="deck {editorDraft ? 'inspecting' : ''}">
     <DeckList>
       {#if rows.length}
-        <ul class="list" aria-label={t('channelpoints.listLabel')}>
+        <ul class="bb-list" aria-label={t('channelpoints.listLabel')}>
           {#each rows as r, i (r.id)}
             <RewardRow
               reward={r}
@@ -270,14 +251,14 @@
 </section>
 
 <ConfirmDialog
-  open={discardOpen}
+  open={discard.open}
   title={t('channelpoints.discardTitle')}
   body={t('channelpoints.discardBody')}
   confirmLabel={t('channelpoints.discard')}
   cancelLabel={t('channelpoints.keepEditing')}
   danger
-  onCancel={cancelDiscard}
-  onConfirm={confirmDiscard}
+  onCancel={discard.cancel}
+  onConfirm={discard.confirm}
 />
 
 <ConfirmDialog
@@ -307,6 +288,5 @@
     .deck.inspecting { grid-template-columns: minmax(0, 1fr) 420px; }
   }
 
-  .list { list-style: none; margin: 0; padding: 0; }
-  .list :global(li:last-child .row-shell) { border-bottom: none; }
+  .bb-list :global(li:last-child .row-shell) { border-bottom: none; }
 </style>

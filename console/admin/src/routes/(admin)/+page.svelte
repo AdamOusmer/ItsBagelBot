@@ -2,7 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { onMount } from 'svelte';
-  import { StatTile, PageHead, CardHead, Card, Button, Skeleton, AlertBanner } from '@bagel/shared';
+  import { StatTile, PageHead, CardHead, Card, Button, Skeleton, AlertBanner, ago, copyFlash } from '@bagel/shared';
   import type { ShardSnapshot } from '@bagel/shared';
   import EnrollmentChart from '$lib/components/EnrollmentChart.svelte';
   import type { AuditEntry } from '$lib/server/services';
@@ -20,13 +20,7 @@
 
   async function copyLink() {
     if (!botLink) return;
-    try {
-      await navigator.clipboard.writeText(botLink);
-      copied = true;
-      setTimeout(() => (copied = false), 1500);
-    } catch {
-      copied = false;
-    }
+    await copyFlash(botLink, (on) => (copied = on));
   }
 
   function shardSummary(snap: ShardSnapshot) {
@@ -45,15 +39,6 @@
     if (lastWeek === 0) return `+${thisWeek} this week`;
     const pct = Math.round(((thisWeek - lastWeek) / lastWeek) * 100);
     return `+${thisWeek} this week (${pct >= 0 ? '+' : ''}${pct}% wow)`;
-  }
-
-  function ago(iso: string): string {
-    const mins = Math.max(Math.round((Date.now() - new Date(iso).getTime()) / 60e3), 0);
-    if (mins < 1) return 'now';
-    if (mins < 60) return `${mins}m ago`;
-    const hours = Math.round(mins / 60);
-    if (hours < 48) return `${hours}h ago`;
-    return `${Math.round(hours / 24)}d ago`;
   }
 
   function auditLine(e: AuditEntry): string {

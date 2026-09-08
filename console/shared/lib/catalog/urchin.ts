@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { ModuleDef } from './module-def';
-import { LINKED_ONLY_FIELD } from './linked-only';
+import { LINKED_ONLY_FIELD, MINECRAFT_UUID_FIELD } from './shared-fields';
 import { BW_SESSION_SAMPLES, BW_SESSION_TOKENS } from './rehearsal-tokens';
 
 export const URCHIN_MODULE: ModuleDef = 
@@ -129,12 +129,7 @@ export const URCHIN_MODULE: ModuleDef =
       placeholder: 'Your Minecraft username',
       help: 'Default player for every command. Leave blank to use your Twitch username. The bot stores the account UUID when Mojang allows it, so commands keep working after a rename.'
     },
-    {
-      key: 'accountUuid',
-      label: 'Minecraft UUID',
-      type: 'text',
-      hidden: true
-    },
+    MINECRAFT_UUID_FIELD,
     LINKED_ONLY_FIELD
   ]
 };

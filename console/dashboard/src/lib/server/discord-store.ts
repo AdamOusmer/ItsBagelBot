@@ -27,7 +27,8 @@ import {
   type PinnedSlot
 } from '@bagel/shared';
 import { SUB } from './services';
-import { listModules, upsertModule } from './commands-store';
+import { upsertModule } from './commands-store';
+import { readModuleBlob } from './module-blob';
 
 export {
   blankDiscordConfig,
@@ -236,15 +237,14 @@ export type DiscordGuildTarget = {
 export type DiscordSave = { userId: string; enabled: boolean; twitchLogin: string };
 
 export async function readDiscord(user: DiscordUser): Promise<DiscordView> {
-  const rows = await listModules(user.userId);
-  const row = rows.find((r) => r.name === DISCORD_MODULE);
+  const { enabled, configs } = await readModuleBlob<unknown>(user.userId, DISCORD_MODULE);
   const list = await listGuildsPage(user);
   return {
-    enabled: row ? row.is_enabled : false,
+    enabled,
     // Still parsed through the full config parser: the row predates the split
     // and a board that has not been touched since still carries the old blob,
     // whose extra keys we now simply ignore.
-    twitchLogin: parseDiscordConfig(row?.configs).twitchLogin,
+    twitchLogin: parseDiscordConfig(configs).twitchLogin,
     guilds: list.guilds,
     truncated: list.truncated
   };
@@ -259,8 +259,8 @@ export async function readDiscord(user: DiscordUser): Promise<DiscordView> {
  * page render for nothing.
  */
 export async function readLegacyBlob(user: DiscordUser): Promise<DiscordConfig> {
-  const rows = await listModules(user.userId);
-  return parseDiscordConfig(rows.find((r) => r.name === DISCORD_MODULE)?.configs);
+  const { configs } = await readModuleBlob<unknown>(user.userId, DISCORD_MODULE);
+  return parseDiscordConfig(configs);
 }
 
 /**

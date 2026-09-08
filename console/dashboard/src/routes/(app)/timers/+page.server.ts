@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { Actions, PageServerLoad } from './$types';
-import type { TimerDef } from '@bagel/shared';
+import { clampInt, type TimerDef } from '@bagel/shared';
 import {
   readTimers,
   createTimer,
@@ -14,6 +14,7 @@ import {
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
 import { gateModulePage } from '$lib/server/module-gate';
+import { moduleLoad } from '$lib/server/module-page';
 import type { Session } from '$lib/server/session';
 import { effectiveId } from '$lib/server/board';
 import { dev } from '$app/environment';
@@ -29,24 +30,15 @@ function gate(session: Session | null | undefined): void {
   gateModulePage(session, 'timers');
 }
 
-export const load: PageServerLoad = async ({ locals }) => {
-  gate(locals.session);
-  const uid = effectiveId(locals.session);
-  if (DEMO) return (await import('$lib/server/demo-data')).demoTimersView();
-  try {
-    const view = await readTimers(uid);
-    return { enabled: view.enabled, timers: view.timers };
-  } catch {
-    return { enabled: false, timers: [] as TimerDef[], degraded: true };
-  }
-};
-
-// clampInt coerces a form value into a bounded integer.
-function clampInt(raw: unknown, min: number, max: number, dflt: number): number {
-  const n = Math.trunc(Number(raw));
-  if (!Number.isFinite(n)) return dflt;
-  return Math.min(max, Math.max(min, n));
-}
+export const load: PageServerLoad = ({ locals }) =>
+  moduleLoad('timers', locals.session, {
+    demo: DEMO ? async () => (await import('$lib/server/demo-data')).demoTimersView() : undefined,
+    read: async (uid) => {
+      const view = await readTimers(uid);
+      return { enabled: view.enabled, timers: view.timers };
+    },
+    blank: () => ({ enabled: false, timers: [] as TimerDef[] })
+  });
 
 // parseTimer validates and normalizes the posted timer JSON into a full
 // TimerDef. Returns null on anything malformed. The interval is clamped to

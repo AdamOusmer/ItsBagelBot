@@ -10,6 +10,7 @@ import { disableChildren, isChildOf } from '$lib/server/module-parent';
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
 import { gateModulePage } from '$lib/server/module-gate';
+import { moduleLoad } from '$lib/server/module-page';
 import type { Session } from '$lib/server/session';
 import { effectiveId } from '$lib/server/board';
 import { dev } from '$app/environment';
@@ -32,35 +33,41 @@ function gameFlags(rows: { name: string; is_enabled: boolean }[]) {
   }));
 }
 
-export const load: PageServerLoad = async ({ locals }) => {
-  gate(locals.session);
-  const uid = effectiveId(locals.session);
-  if (DEMO) {
-    const { demoStandings } = await import('$lib/server/demo-data');
-    return { enabled: true, config: blankLoyaltyConfig(), top: demoStandings(), games: gameFlags([]) };
-  }
-
-  try {
-    const view = await readLoyalty(uid);
-    // The leaderboard is decorative next to the settings: a loyalty-service
-    // blip must not degrade the whole page.
-    let top: LoyaltyStanding[] = [];
-    try {
-      top = await topStandings(uid, 10);
-    } catch {
-      /* standings unavailable: render the settings alone */
-    }
-    let games = gameFlags([]);
-    try {
-      games = gameFlags(await listModules(uid));
-    } catch {
-      /* nested game flags unavailable: render the rows off */
-    }
-    return { enabled: view.enabled, config: view.config, top, games };
-  } catch {
-    return { enabled: false, config: blankLoyaltyConfig(), top: [] as LoyaltyStanding[], games: gameFlags([]), degraded: true };
-  }
-};
+export const load: PageServerLoad = ({ locals }) =>
+  moduleLoad('loyalty', locals.session, {
+    demo: DEMO
+      ? async () => ({
+          enabled: true,
+          config: blankLoyaltyConfig(),
+          top: (await import('$lib/server/demo-data')).demoStandings(),
+          games: gameFlags([])
+        })
+      : undefined,
+    read: async (uid) => {
+      const view = await readLoyalty(uid);
+      // The leaderboard is decorative next to the settings: a loyalty-service
+      // blip must not degrade the whole page.
+      let top: LoyaltyStanding[] = [];
+      try {
+        top = await topStandings(uid, 10);
+      } catch {
+        /* standings unavailable: render the settings alone */
+      }
+      let games = gameFlags([]);
+      try {
+        games = gameFlags(await listModules(uid));
+      } catch {
+        /* nested game flags unavailable: render the rows off */
+      }
+      return { enabled: view.enabled, config: view.config, top, games };
+    },
+    blank: () => ({
+      enabled: false,
+      config: blankLoyaltyConfig(),
+      top: [] as LoyaltyStanding[],
+      games: gameFlags([])
+    })
+  });
 
 // clampRate coerces a form value into a rate: 0 = default, -1 = off, else a
 // bounded positive integer.

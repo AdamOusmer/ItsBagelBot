@@ -115,3 +115,15 @@ export function containsLink(s: string): boolean {
 	}
 	return false;
 }
+
+// clampInt coerces a submitted form value into a bounded integer. Both the
+// timers and channel-points actions had their own copy, and both exist for the
+// same reason: the server stores the clamped value, so the page must submit
+// what the server will keep or "Saved" is shown for a number that was silently
+// normalized away. Returns dflt for anything non-numeric (an empty field, a
+// crafted post) rather than throwing: a form action answers with a value.
+export function clampInt(raw: unknown, min: number, max: number, dflt: number): number {
+	const n = Math.trunc(Number(raw));
+	if (!Number.isFinite(n)) return dflt;
+	return Math.min(max, Math.max(min, n));
+}

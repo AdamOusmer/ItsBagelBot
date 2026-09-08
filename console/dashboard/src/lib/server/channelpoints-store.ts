@@ -21,7 +21,8 @@ import { rpc } from '@bagel/shared/server/nats';
 import { logger } from '@bagel/shared/server/logger';
 import { type ChannelPointReward, MOD } from '@bagel/shared';
 import { SUB, publishEventSubEnsureOptional } from './services';
-import { listModules, upsertModule } from './commands-store';
+import { upsertModule } from './commands-store';
+import { readModuleBlob } from './module-blob';
 import { createCounter } from './loyalty-store';
 
 const CP_MODULE = MOD.channelpoints;
@@ -131,10 +132,7 @@ async function ensureRewardCounter(userId: string, reward: ChannelPointReward): 
 
 // readRewards loads the current bindings blob (enable flag + reward records).
 export async function readRewards(userId: string): Promise<RewardsView> {
-  const rows = await listModules(userId);
-  const row = rows.find((r) => r.name === CP_MODULE);
-  const enabled = row ? row.is_enabled : false;
-  const configs = (row?.configs ?? {}) as { rewards?: ChannelPointReward[] };
+  const { enabled, configs } = await readModuleBlob<{ rewards?: ChannelPointReward[] }>(userId, CP_MODULE);
   return { enabled, rewards: Array.isArray(configs.rewards) ? configs.rewards : [] };
 }
 

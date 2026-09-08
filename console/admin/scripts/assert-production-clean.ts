@@ -1,58 +1,17 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { readdir, readFile } from 'node:fs/promises';
-import { extname, relative, sep } from 'node:path';
+// Admin's output-layer demo gate. The scan lives in
+// ../../shared/scripts/assert-production-clean.ts; this names what is
+// admin-specific about it. Kept as a per-app entry rather than one script with
+// an app argument so the fixture chunks and demo copy are declared next to the
+// app that owns them, and a new demo surface is added here rather than in a
+// shared list of everyone's strings.
 import { fileURLToPath } from 'node:url';
+import { assertProductionClean } from '../../shared/scripts/assert-production-clean';
 
-const buildRoot = fileURLToPath(new URL('../build/', import.meta.url));
-const textExtensions = new Set(['.css', '.html', '.js', '.json', '.map']);
-
-// Every seeded fixture lives behind the guarded demo-data module. Detect the
-// module itself instead of maintaining an inevitably incomplete list of its
-// current values: an emitted chunk, source-map reference, import edge, or the
-// module's side-effect sentinel is enough to fail the production build.
-const forbiddenModuleTokens = [
-  'ADMIN_DEV_FIXTURE_INCLUDED_IN_PRODUCTION',
-  'demo-data',
-  // A surviving env read means a demo branch escaped dead-code elimination,
-  // which is the precondition for a runtime env var re-enabling demo mode on a
-  // shipped image. The deliberate boot-time refusal reads the key through
-  // shared/server/demo-guard, which never spells this out.
-  'env.DEMO'
-] as const;
-
-async function filesUnder(dir: string): Promise<string[]> {
-  const entries = await readdir(dir, { withFileTypes: true });
-  const nested = await Promise.all(
-    entries.map((entry) => {
-      const path = `${dir}${sep}${entry.name}`;
-      return entry.isDirectory() ? filesUnder(path) : Promise.resolve([path]);
-    })
-  );
-  return nested.flat();
-}
-
-const failures: string[] = [];
-const files = await filesUnder(buildRoot);
-
-for (const file of files) {
-  const name = relative(buildRoot, file);
-  if (/(^|[/\\])(demo-data|demo-access|sample)([.-]|[/\\])/.test(name)) {
-    failures.push(`${name}: development fixture chunk was emitted`);
-  }
-  if (!textExtensions.has(extname(file))) continue;
-
-  const body = await readFile(file, 'utf8');
-  for (const token of forbiddenModuleTokens) {
-    if (body.includes(token)) failures.push(`${name}: references development fixture module ${JSON.stringify(token)}`);
-  }
-}
-
-if (failures.length > 0) {
-  console.error('Production admin build contains development-only demo artifacts:');
-  for (const failure of failures) console.error(`- ${failure}`);
-  process.exit(1);
-}
-
-console.log(`Verified ${files.length} production build files: no admin demo fixtures emitted.`);
+await assertProductionClean({
+  app: 'admin',
+  buildRoot: fileURLToPath(new URL('../build/', import.meta.url)),
+  fixtureChunks: ['demo-data', 'demo-access', 'sample']
+});
