@@ -6,22 +6,19 @@ package config
 import (
 	"ItsBagelBot/internal/discordstore"
 	"ItsBagelBot/pkg/env"
+	"ItsBagelBot/pkg/svcboot"
 )
 
 // Config is the process env app/discord/engine boots from.
 type Config struct {
-	ListenAddr     string
-	ValkeyAddr     string
-	ValkeyPassword string
-
 	// NATSURL is where engine binds its durable consumers: the six
 	// discord.ingress.event.* subjects, plus the Twitch stream/clip subjects
-	// Live/Clip consume (see modules/live.go, modules/clip.go).
-	NATSURL string
-	// NATSRPCURL is engine's outbound RPC connection: calls into
-	// app/discord/outgress's internal channel/live RPC, and Twitch
-	// outgress's streaminfo RPC.
-	NATSRPCURL string
+	// Live/Clip consume (see modules/live.go, modules/clip.go). NATSRPCURL is
+	// engine's outbound RPC connection: calls into app/discord/outgress's
+	// internal channel/live RPC, and Twitch outgress's streaminfo RPC.
+	// Infra is the shared NATS/Valkey/listen block (see svcboot.Infra); its
+	// fields are promoted, so cfg.NATSURL and cfg.ListenAddr read unchanged.
+	svcboot.Infra
 
 	// DiscordOutgressRPCPrefix addresses app/discord/outgress's internal
 	// channel-management/live RPC (see internal/domain/rpc/discordoutgress).
@@ -52,13 +49,8 @@ type Config struct {
 
 // Load reads process env.
 func Load() Config {
-	natsURL := env.Get("NATS_URL", "nats://127.0.0.1:4222")
 	return Config{
-		ListenAddr:               env.Get("LISTEN_ADDR", ":8080"),
-		ValkeyAddr:               env.Get("VALKEY_ADDR", "127.0.0.1:6379"),
-		ValkeyPassword:           env.Get("VALKEY_PASSWORD", ""),
-		NATSURL:                  natsURL,
-		NATSRPCURL:               env.Get("NATS_RPC_URL", natsURL),
+		Infra:                    svcboot.LoadInfra(),
 		DiscordOutgressRPCPrefix: env.Get("NATS_DISCORD_OUTGRESS_RPC_PREFIX", "bagel.rpc.discord-outgress"),
 		TwitchOutgressRPCPrefix:  env.Get("NATS_OUTGRESS_RPC_PREFIX", "bagel.rpc.outgress"),
 		DiscordDataRPCPrefix:     env.Get("NATS_DISCORD_DATA_RPC_PREFIX", discordstore.DefaultRPCPrefix),

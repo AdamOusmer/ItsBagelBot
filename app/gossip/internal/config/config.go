@@ -14,19 +14,20 @@ import (
 	"time"
 
 	"ItsBagelBot/pkg/env"
+	"ItsBagelBot/pkg/svcboot"
 )
 
 type Config struct {
-	NATSURL    string
-	NATSRPCURL string
+	// Infra is the shared NATS/Valkey/listen block (see svcboot.Infra); its
+	// fields are promoted, so cfg.NATSURL and cfg.ListenAddr read unchanged.
+	svcboot.Infra
 
 	// SubjectPrefix is the NATS prefix every provider endpoint subscribes
 	// under: "<prefix>.<provider>.<endpoint>".
 	SubjectPrefix string
 
-	// Valkey holds the reply cache and the mcsr stream-session snapshots.
-	ValkeyAddr     string
-	ValkeyPassword string
+	// Valkey (see Infra) holds the reply cache and the mcsr stream-session
+	// snapshots.
 
 	// Urchin (Coral) provider. APIKey empty = provider disabled.
 	UrchinBaseURL   string
@@ -143,19 +144,14 @@ type Config struct {
 }
 
 func Load() *Config {
-	natsURL := env.Get("NATS_URL", "nats://127.0.0.1:4222")
 	return &Config{
-		NATSURL:    natsURL,
-		NATSRPCURL: env.Get("NATS_RPC_URL", natsURL),
+		Infra: svcboot.LoadInfra(),
 
 		// Hard cutover from the gateway rename: no NATS_GATEWAY_SUBJECT_PREFIX
 		// fallback. The NATS account/user were renamed too, so a stale prefix
 		// would resolve against ACLs the old credential no longer has; delete
 		// any leftover NATS_GATEWAY_SUBJECT_PREFIX from Doppler.
 		SubjectPrefix: env.Get("NATS_GOSSIP_SUBJECT_PREFIX", "bagel.rpc.gossip"),
-
-		ValkeyAddr:     env.Get("VALKEY_ADDR", "127.0.0.1:6379"),
-		ValkeyPassword: env.Get("VALKEY_PASSWORD", ""),
 
 		UrchinBaseURL: env.Get("URCHIN_BASE_URL", "https://api.urchin.gg"),
 		UrchinAPIKey:  env.Get("URCHIN_API_KEY", ""),

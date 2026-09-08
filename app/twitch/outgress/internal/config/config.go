@@ -7,11 +7,14 @@ import (
 	"time"
 
 	"ItsBagelBot/pkg/env"
+	"ItsBagelBot/pkg/svcboot"
 )
 
 type Config struct {
-	NATSURL         string
-	NATSRPCURL      string
+	// Infra is the shared NATS/Valkey/listen block (see svcboot.Infra); its
+	// fields are promoted, so cfg.NATSURL and cfg.ListenAddr read unchanged.
+	svcboot.Infra
+
 	PremiumSubject  string
 	StandardSubject string
 	SystemSubject   string
@@ -32,9 +35,6 @@ type Config struct {
 	// SystemWorkers sizes the system lane's own, independent consumer (the
 	// dashboard's EventSub create/delete jobs), kept off the weighted budget.
 	SystemWorkers int
-
-	ValkeyAddr     string
-	ValkeyPassword string
 
 	TwitchClientID     string
 	TwitchClientSecret string
@@ -108,16 +108,12 @@ type Config struct {
 }
 
 func Load() *Config {
-	natsURL := env.Get("NATS_URL", "nats://127.0.0.1:4222")
 	return &Config{
-		NATSURL:                natsURL,
-		NATSRPCURL:             env.Get("NATS_RPC_URL", natsURL),
+		Infra:                  svcboot.LoadInfra(),
 		PremiumSubject:         env.Get("NATS_OUTGRESS_PREMIUM_SUBJECT", "twitch.outgress.premium"),
 		StandardSubject:        env.Get("NATS_OUTGRESS_STANDARD_SUBJECT", "twitch.outgress.standard"),
 		SystemSubject:          env.Get("NATS_OUTGRESS_SYSTEM_SUBJECT", "twitch.outgress.system"),
 		RPCPrefix:              env.Get("NATS_OUTGRESS_RPC_PREFIX", "bagel.rpc.outgress"),
-		ValkeyAddr:             env.Get("VALKEY_ADDR", "127.0.0.1:6379"),
-		ValkeyPassword:         env.Get("VALKEY_PASSWORD", ""),
 		TwitchClientID:         env.MustGet("TWITCH_CLIENT_ID"),
 		TwitchClientSecret:     env.MustGet("TWITCH_CLIENT_SECRET"),
 		TwitchConduitID:        env.Get("TWITCH_CONDUIT_ID", ""),

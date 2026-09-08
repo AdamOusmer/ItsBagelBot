@@ -20,6 +20,7 @@ import (
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/monitor"
 	"ItsBagelBot/pkg/svcboot"
+	"ItsBagelBot/pkg/svcboot/databoot"
 
 	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/newrelic"
@@ -27,7 +28,10 @@ import (
 	"go.uber.org/zap"
 )
 
-const serviceName = "modules"
+const (
+	serviceName = "modules"
+	queueGroup  = "modules-rpc"
+)
 
 func main() {
 	validate.CheckFloor = moderation.CheckFloor
@@ -36,13 +40,13 @@ func main() {
 	defer done()
 	log := core.Log
 
-	driver := svcboot.MustEntDriver(log, "bagel_modules")
+	driver := databoot.MustEntDriver(log, "bagel_modules")
 	client := ent.NewClient(ent.Driver(driver))
 	defer func() { _ = client.Close() }()
 
-	svcboot.AutoMigrate(core.Ctx, log, func(ctx context.Context) error { return client.Schema.Create(ctx) })
+	databoot.AutoMigrate(core.Ctx, log, func(ctx context.Context) error { return client.Schema.Create(ctx) })
 
-	n, closeIntake := svcboot.MustNATS(core, serviceName, "modules-rpc")
+	n, closeIntake := svcboot.MustNATS(core)
 	defer func() { _ = n.Pub.Close() }()
 
 	repo := repository.NewModules(client, n.Pub, core.NR, log)
@@ -64,15 +68,16 @@ func main() {
 	// fetch leaves reprojection requests unanswered, with NATS and MySQL both
 	// still reading green. The broadcast subscriber is not checked -- it has no
 	// fetch loop to wedge.
-	svcboot.ServeDataHealth(svcboot.DataHealth{
-		Log: log, NC: n.RPC, Service: serviceName, QueueGroup: "modules-rpc", Pool: driver.DB(),
+	databoot.ServeHealth(databoot.Health{
+		Health: svcboot.Health{
+			Log: log, NC: n.RPC, Service: serviceName, QueueGroup: queueGroup, ListenAddr: core.ListenAddr,
+		},
+		Pool: driver.DB(),
 	}, bus.LaneCheck("data", n.Grouped))
 
 	log.Info("modules service ready", zap.String("projection_subject", projectionSubject))
 
-	<-core.Ctx.Done()
-
-	log.Info("modules service shutting down")
+	core.Await()
 }
 
 // eventsWiring bundles what consumeEvents needs so the wiring reads as one
@@ -160,14 +165,14 @@ type rpcWiring struct {
 // Fatal on any subscribe failure, matching main's boot style.
 func subscribeRPCs(w rpcWiring) string {
 	projectionSubject := env.Get("NATS_INTERNAL_PROJECTION_MODULES_SUBJECT", "bagel.rpc.internal.projection.modules.get")
-	if err := rpc.SubscribeProjection(w.nc, w.repo, projectionSubject, "modules-rpc", w.app, w.log); err != nil {
+	if err := rpc.SubscribeProjection(w.nc, w.repo, projectionSubject, queueGroup, w.app, w.log); err != nil {
 		w.log.Fatal("failed to subscribe projection rpc", zap.Error(err))
 	}
 
 	// Dashboard verbs (list, upsert): the console toggles/configures modules the
 	// same way it manages commands.
 	dashboardSubject := env.Get("NATS_MODULES_SUBJECT_PREFIX", "bagel.rpc.modules")
-	if err := rpc.SubscribeDashboard(w.nc, w.repo, dashboardSubject, "modules-rpc", w.app, w.log); err != nil {
+	if err := rpc.SubscribeDashboard(w.nc, w.repo, dashboardSubject, queueGroup, w.app, w.log); err != nil {
 		w.log.Fatal("failed to subscribe dashboard rpc", zap.Error(err))
 	}
 
@@ -176,7 +181,7 @@ func subscribeRPCs(w rpcWiring) string {
 		NC:         w.nc,
 		Repo:       w.quotes,
 		Prefix:     dashboardSubject + ".quote",
-		QueueGroup: "modules-rpc",
+		QueueGroup: queueGroup,
 		App:        w.app,
 		Log:        w.log,
 	}); err != nil {
@@ -188,7 +193,7 @@ func subscribeRPCs(w rpcWiring) string {
 		NC:         w.nc,
 		Repo:       repository.NewPersonality(w.client),
 		Prefix:     dashboardSubject + ".personality",
-		QueueGroup: "modules-rpc",
+		QueueGroup: queueGroup,
 		App:        w.app,
 		Log:        w.log,
 	}); err != nil {

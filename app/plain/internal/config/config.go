@@ -14,11 +14,13 @@ import (
 	"time"
 
 	"ItsBagelBot/pkg/env"
+	"ItsBagelBot/pkg/svcboot"
 )
 
 type Config struct {
-	NATSURL    string
-	NATSRPCURL string
+	// Infra is the shared NATS/Valkey/listen block (see svcboot.Infra); its
+	// fields are promoted, so cfg.NATSURL and cfg.ListenAddr read unchanged.
+	svcboot.Infra
 
 	PremiumSubject  string
 	StandardSubject string
@@ -43,16 +45,11 @@ type Config struct {
 	ProjectionCommandsSubject string
 
 	CacheInvalidationPrefix string
-
-	ValkeyAddr     string
-	ValkeyPassword string
 }
 
 func Load() *Config {
-	natsURL := env.Get("NATS_URL", "nats://127.0.0.1:4222")
 	return &Config{
-		NATSURL:    natsURL,
-		NATSRPCURL: env.Get("NATS_RPC_URL", natsURL),
+		Infra: svcboot.LoadInfra(),
 
 		PremiumSubject:  env.Get("NATS_INGRESS_PREMIUM_SUBJECT", "twitch.ingress.event.premium"),
 		StandardSubject: env.Get("NATS_INGRESS_STANDARD_SUBJECT", "twitch.ingress.event.standard"),
@@ -75,8 +72,5 @@ func Load() *Config {
 		ProjectionCommandsSubject: env.Get("NATS_INTERNAL_PROJECTION_COMMANDS_SUBJECT", "bagel.rpc.internal.projection.commands.get"),
 
 		CacheInvalidationPrefix: env.Get("NATS_CACHE_INVALIDATION_PREFIX", "bagel.cache.invalidate"),
-
-		ValkeyAddr:     env.Get("VALKEY_ADDR", "127.0.0.1:6379"),
-		ValkeyPassword: env.Get("VALKEY_PASSWORD", ""),
 	}
 }

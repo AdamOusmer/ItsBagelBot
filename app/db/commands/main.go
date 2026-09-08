@@ -24,11 +24,15 @@ import (
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/monitor"
 	"ItsBagelBot/pkg/svcboot"
+	"ItsBagelBot/pkg/svcboot/databoot"
 
 	"go.uber.org/zap"
 )
 
-const serviceName = "commands"
+const (
+	serviceName = "commands"
+	queueGroup  = "commands-rpc"
+)
 
 // registerConsumers wires the event subscriptions onto repo: cache
 // invalidation fans out to every instance (broadcast), while use-counter and
@@ -127,13 +131,13 @@ func main() {
 	defer done()
 	log := core.Log
 
-	driver := svcboot.MustEntDriver(log, "bagel_commands")
+	driver := databoot.MustEntDriver(log, "bagel_commands")
 	client := ent.NewClient(ent.Driver(driver))
 	defer func() { _ = client.Close() }()
 
-	svcboot.AutoMigrate(core.Ctx, log, func(ctx context.Context) error { return client.Schema.Create(ctx) })
+	databoot.AutoMigrate(core.Ctx, log, func(ctx context.Context) error { return client.Schema.Create(ctx) })
 
-	n, closeIntake := svcboot.MustNATS(core, serviceName, "commands-rpc")
+	n, closeIntake := svcboot.MustNATS(core)
 	defer func() { _ = n.Pub.Close() }()
 
 	repo := repository.NewCommands(client, n.Pub, core.NR, log)
@@ -154,21 +158,21 @@ func main() {
 	}
 
 	projectionSubject := env.Get("NATS_INTERNAL_PROJECTION_COMMANDS_SUBJECT", "bagel.rpc.internal.projection.commands.get")
-	if err := rpc.SubscribeProjection(n.RPC, repo, projectionSubject, "commands-rpc", core.NR, log); err != nil {
+	if err := rpc.SubscribeProjection(n.RPC, repo, projectionSubject, queueGroup, core.NR, log); err != nil {
 		log.Fatal("failed to subscribe projection rpc", zap.Error(err))
 	}
 
 	fetchesProjectionSubject := env.Get("NATS_INTERNAL_PROJECTION_COMMANDS_FETCHES_SUBJECT", "bagel.rpc.internal.projection.commands.fetches.get")
-	if err := rpc.SubscribeFetchProjection(n.RPC, fetches, fetchesProjectionSubject, "commands-rpc", core.NR, log); err != nil {
+	if err := rpc.SubscribeFetchProjection(n.RPC, fetches, fetchesProjectionSubject, queueGroup, core.NR, log); err != nil {
 		log.Fatal("failed to subscribe fetches projection rpc", zap.Error(err))
 	}
 
 	commandsPrefix := env.Get("NATS_COMMANDS_SUBJECT_PREFIX", "bagel.rpc.commands")
-	if err := rpc.SubscribeDashboard(n.RPC, repo, commandsPrefix, "commands-rpc", core.NR, log); err != nil {
+	if err := rpc.SubscribeDashboard(n.RPC, repo, commandsPrefix, queueGroup, core.NR, log); err != nil {
 		log.Fatal("failed to subscribe dashboard rpc", zap.Error(err))
 	}
 	if err := rpc.SubscribeFetchDashboard(rpc.FetchDashboardWiring{
-		NC: n.RPC, Repo: fetches, Prefix: commandsPrefix, QueueGroup: "commands-rpc", App: core.NR, Log: log,
+		NC: n.RPC, Repo: fetches, Prefix: commandsPrefix, QueueGroup: queueGroup, App: core.NR, Log: log,
 	}); err != nil {
 		log.Fatal("failed to subscribe fetch dashboard rpc", zap.Error(err))
 	}
@@ -178,7 +182,7 @@ func main() {
 		NC:         n.RPC,
 		Repo:       fetches,
 		Subject:    fetchKeySubject,
-		QueueGroup: "commands-rpc",
+		QueueGroup: queueGroup,
 		App:        core.NR,
 		Log:        log,
 	}); err != nil {
@@ -190,8 +194,11 @@ func main() {
 	// stops the use counters silently, with NATS and MySQL both still reading
 	// green. The broadcast subscriber is not checked -- it has no fetch loop to
 	// wedge.
-	svcboot.ServeDataHealth(svcboot.DataHealth{
-		Log: log, NC: n.RPC, Service: serviceName, QueueGroup: "commands-rpc", Pool: driver.DB(),
+	databoot.ServeHealth(databoot.Health{
+		Health: svcboot.Health{
+			Log: log, NC: n.RPC, Service: serviceName, QueueGroup: queueGroup, ListenAddr: core.ListenAddr,
+		},
+		Pool: driver.DB(),
 	}, bus.LaneCheck("data", n.Grouped))
 
 	log.Info("commands service ready",
@@ -202,7 +209,5 @@ func main() {
 		zap.Bool("key_custody", fetches.CustodyEnabled()),
 	)
 
-	<-core.Ctx.Done()
-
-	log.Info("commands service shutting down")
+	core.Await()
 }
