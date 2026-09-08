@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/invalidate"
 	livekey "ItsBagelBot/internal/domain/live"
 	"ItsBagelBot/internal/domain/outgress"
@@ -198,7 +199,7 @@ func (s *ValkeyLiveStore) broadcast(broadcasterID uint64) {
 		return
 	}
 	if err := invalidate.Publish(s.nc, s.cfg.CacheInvalidatePrefix, livekey.InvalidateScope, strconv.FormatUint(broadcasterID, 10)); err != nil {
-		s.log.Warn("live: failed to broadcast invalidation", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
+		s.log.Warn("live: failed to broadcast invalidation", module.BIDField(broadcasterID), zap.Error(err))
 	}
 }
 

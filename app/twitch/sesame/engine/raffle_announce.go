@@ -31,7 +31,7 @@ func (s *ValkeyRaffleStore) autoDraw(ctx context.Context, broadcasterID uint64) 
 	defer cancel()
 	res, err := s.Draw(dctx, broadcasterID, 0) // 0: use the state's configured count
 	if err != nil {
-		s.log.Warn("raffle: auto-close draw failed", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
+		s.log.Warn("raffle: auto-close draw failed", module.BIDField(broadcasterID), zap.Error(err))
 		return
 	}
 	if res == nil {
@@ -112,7 +112,7 @@ func (s *ValkeyRaffleStore) post(ctx context.Context, broadcasterID uint64, text
 	}
 	if term, hit := moderation.CheckFloor(text); hit {
 		s.log.Warn("raffle: suppressed announcement carrying floor content",
-			zap.Uint64("broadcaster_id", broadcasterID), zap.String("term", term))
+			module.BIDField(broadcasterID), zap.String("term", term))
 		return
 	}
 
@@ -122,10 +122,10 @@ func (s *ValkeyRaffleStore) post(ctx context.Context, broadcasterID uint64, text
 	}
 	body, err := buildOutgress(&module.Output{Type: outgress.TypeChat, BroadcasterID: strconv.FormatUint(broadcasterID, 10), Text: text})
 	if err != nil {
-		s.log.Warn("raffle: failed to build outgress message", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
+		s.log.Warn("raffle: failed to build outgress message", module.BIDField(broadcasterID), zap.Error(err))
 		return
 	}
 	if err := bus.PublishRaw(ctx, s.cfg.Pub, subject, body); err != nil {
-		s.log.Warn("raffle: failed to publish", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
+		s.log.Warn("raffle: failed to publish", module.BIDField(broadcasterID), zap.Error(err))
 	}
 }

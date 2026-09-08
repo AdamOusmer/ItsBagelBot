@@ -129,7 +129,7 @@ func clipSettings(ctx context.Context, d engine.Deps, broadcasterID uint64, log 
 	view, state, err := engine.ModuleLookup{Proj: d.Proj, BroadcasterID: broadcasterID, Name: clipModuleName, Absent: engine.ModuleOn}.Resolve(ctx)
 	if err != nil {
 		log.Warn("clip: module state read failed, allowing",
-			zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
+			module.BIDField(broadcasterID), zap.Error(err))
 	}
 	var cfg clipConfig
 	if len(view.Configs) > 0 {

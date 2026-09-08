@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/projection"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
@@ -448,7 +449,7 @@ func (s *ValkeyRaffleStore) writeDrawPhase(ctx context.Context, broadcasterID ui
 		s.client.B().Expire().Key(receipt).Seconds(ttl).Build(),
 	) {
 		if err := r.Error(); err != nil && !valkey.IsValkeyNil(err) {
-			s.log.Warn("raffle: draw teardown incomplete", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
+			s.log.Warn("raffle: draw teardown incomplete", module.BIDField(broadcasterID), zap.Error(err))
 			break
 		}
 	}

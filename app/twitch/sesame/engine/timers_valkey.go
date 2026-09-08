@@ -309,7 +309,7 @@ func (s *ValkeyTimerStore) armAfter(ctx context.Context, broadcasterID uint64, t
 	}
 	err := s.client.Do(ctx, s.client.B().Set().Key(timerKey(broadcasterID, td.ID)).Value("1").Nx().ExSeconds(int64(ex.Seconds())).Build()).Error()
 	if err != nil && !valkey.IsValkeyNil(err) {
-		s.log.Warn("timers: failed to arm", zap.Uint64("broadcaster_id", broadcasterID), zap.String("timer_id", td.ID), zap.Error(err))
+		s.log.Warn("timers: failed to arm", module.BIDField(broadcasterID), zap.String("timer_id", td.ID), zap.Error(err))
 	}
 }
 
@@ -327,7 +327,7 @@ func (s *ValkeyTimerStore) DisarmAll(ctx context.Context, broadcasterID uint64) 
 			continue
 		}
 		if err := s.client.Do(ctx, s.client.B().Del().Key(timerKey(broadcasterID, td.ID)).Build()).Error(); err != nil {
-			s.log.Warn("timers: failed to disarm", zap.Uint64("broadcaster_id", broadcasterID), zap.String("timer_id", td.ID), zap.Error(err))
+			s.log.Warn("timers: failed to disarm", module.BIDField(broadcasterID), zap.String("timer_id", td.ID), zap.Error(err))
 		}
 	}
 }
@@ -341,7 +341,7 @@ func (s *ValkeyTimerStore) config(ctx context.Context, broadcasterID uint64) (ti
 	// could not read posts the wrong message into chat.
 	view, state, err := ModuleLookup{Proj: s.proj, BroadcasterID: broadcasterID, Name: timersModuleName, Absent: ModuleOff}.Resolve(ctx)
 	if err != nil {
-		s.log.Warn("timers: failed to read module views", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
+		s.log.Warn("timers: failed to read module views", module.BIDField(broadcasterID), zap.Error(err))
 	}
 	if state != ModuleOn {
 		return timersConfig{}, false
@@ -354,7 +354,7 @@ func (s *ValkeyTimerStore) config(ctx context.Context, broadcasterID uint64) (ti
 	}
 	var cfg timersConfig
 	if err := codec.Unmarshal(view.Configs, &cfg); err != nil {
-		s.log.Warn("timers: bad config", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
+		s.log.Warn("timers: bad config", module.BIDField(broadcasterID), zap.Error(err))
 		return timersConfig{}, false
 	}
 	return cfg, true
@@ -494,7 +494,7 @@ func findTimer(timers []timerDef, id string) (timerDef, bool) {
 func (s *ValkeyTimerStore) fire(ctx context.Context, broadcasterID uint64, td timerDef) {
 	if term, hit := moderation.CheckFloor(td.Message); hit {
 		s.log.Warn("timers: suppressed message carrying floor content",
-			zap.Uint64("broadcaster_id", broadcasterID), zap.String("timer_id", td.ID), zap.String("term", term))
+			module.BIDField(broadcasterID), zap.String("timer_id", td.ID), zap.String("term", term))
 		return
 	}
 
@@ -506,10 +506,10 @@ func (s *ValkeyTimerStore) fire(ctx context.Context, broadcasterID uint64, td ti
 
 	body, err := buildOutgress(&module.Output{Type: outgress.TypeChat, BroadcasterID: idStr, Text: td.Message})
 	if err != nil {
-		s.log.Warn("timers: failed to build outgress message", zap.Uint64("broadcaster_id", broadcasterID), zap.String("timer_id", td.ID), zap.Error(err))
+		s.log.Warn("timers: failed to build outgress message", module.BIDField(broadcasterID), zap.String("timer_id", td.ID), zap.Error(err))
 		return
 	}
 	if err := bus.PublishRaw(ctx, s.pub, subject, body); err != nil {
-		s.log.Warn("timers: failed to publish", zap.Uint64("broadcaster_id", broadcasterID), zap.String("timer_id", td.ID), zap.Error(err))
+		s.log.Warn("timers: failed to publish", module.BIDField(broadcasterID), zap.String("timer_id", td.ID), zap.Error(err))
 	}
 }

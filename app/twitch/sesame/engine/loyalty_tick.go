@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/invalidate"
 	livekey "ItsBagelBot/internal/domain/live"
 	"ItsBagelBot/internal/domain/outgress"
@@ -187,7 +188,7 @@ func (s *ValkeyLoyaltyClock) Arm(ctx context.Context, broadcasterID uint64) {
 	err := s.client.Do(ctx, s.client.B().Set().Key(loyaltyTickKey(broadcasterID)).Value("1").Nx().
 		ExSeconds(int64((watchTickInterval + offset).Seconds())).Build()).Error()
 	if err != nil && !valkey.IsValkeyNil(err) {
-		s.log.Warn("loyalty: failed to arm watch tick", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
+		s.log.Warn("loyalty: failed to arm watch tick", module.BIDField(broadcasterID), zap.Error(err))
 	}
 }
 
@@ -203,7 +204,7 @@ func (s *ValkeyLoyaltyClock) Disarm(ctx context.Context, broadcasterID uint64) {
 	delete(s.fires, broadcasterID)
 	s.tmu.Unlock()
 	if err := s.client.Do(ctx, s.client.B().Del().Key(loyaltyTickKey(broadcasterID)).Build()).Error(); err != nil {
-		s.log.Warn("loyalty: failed to disarm watch tick", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
+		s.log.Warn("loyalty: failed to disarm watch tick", module.BIDField(broadcasterID), zap.Error(err))
 	}
 }
 
@@ -397,7 +398,7 @@ func (s *ValkeyLoyaltyClock) rearm(ctx context.Context, broadcasterID uint64, tt
 	err := s.client.Do(ctx, s.client.B().Set().Key(loyaltyTickKey(broadcasterID)).Value("1").Nx().
 		ExSeconds(int64(ttl.Seconds())).Build()).Error()
 	if err != nil && !valkey.IsValkeyNil(err) {
-		s.log.Warn("loyalty: failed to re-arm watch tick", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
+		s.log.Warn("loyalty: failed to re-arm watch tick", module.BIDField(broadcasterID), zap.Error(err))
 	}
 }
 
@@ -417,7 +418,7 @@ func (s *ValkeyLoyaltyClock) accrue(ctx context.Context, broadcasterID uint64, c
 		}
 	}
 	s.log.Debug("loyalty: watch tick accrued",
-		zap.Uint64("broadcaster_id", broadcasterID), zap.Int("chatters", len(chatters)))
+		module.BIDField(broadcasterID), zap.Int("chatters", len(chatters)))
 	return nil
 }
 
@@ -498,7 +499,7 @@ func (s *ValkeyLoyaltyClock) settleFailure(broadcasterID uint64, cause error) ti
 	s.tmu.Unlock()
 
 	fields := []zap.Field{
-		zap.Uint64("broadcaster_id", broadcasterID),
+		module.BIDField(broadcasterID),
 		zap.Int("consecutive_failures", n),
 		zap.Error(cause),
 	}
@@ -560,6 +561,6 @@ func (s *ValkeyLoyaltyClock) requestLiveRecheck(ctx context.Context, broadcaster
 		Payload:       body,
 	}); err != nil {
 		s.log.Debug("loyalty: live re-check publish failed",
-			zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
+			module.BIDField(broadcasterID), zap.Error(err))
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/pkg/cache"
 	"ItsBagelBot/pkg/codec"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
@@ -242,7 +243,7 @@ func (s *ValkeySongQueueStore) loadDoc(ctx context.Context, broadcasterID uint64
 	}
 	if err := codec.Unmarshal([]byte(raw), &st.doc); err != nil {
 		s.log.Warn("songqueue: undecodable document, resetting",
-			zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
+			module.BIDField(broadcasterID), zap.Error(err))
 		st.doc = songQueueDoc{}
 	}
 	return st, nil

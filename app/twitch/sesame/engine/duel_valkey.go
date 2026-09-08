@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/projection"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
@@ -484,7 +485,7 @@ func (s *ValkeyDuelStore) writeInstall(ctx context.Context, broadcasterID uint64
 func (s *ValkeyDuelStore) compensateOpen(ctx context.Context, broadcasterID uint64, state DuelState) {
 	entry := DuelStake{Login: state.Opener, Stake: state.OpenerStake}
 	if err := s.cfg.Wallet.Credit(ctx, broadcasterID, entry); err != nil {
-		s.log.Warn("duel: open rollback refund failed", zap.Uint64("broadcaster_id", broadcasterID),
+		s.log.Warn("duel: open rollback refund failed", module.BIDField(broadcasterID),
 			zap.String("login", state.Opener), zap.Int64("amount", state.OpenerStake), zap.Error(err))
 	}
 	s.releaseSlot(ctx, broadcasterID)
@@ -574,7 +575,7 @@ func (s *ValkeyDuelStore) claimSeat(ctx context.Context, broadcasterID uint64, e
 // top-up can take the seat.
 func (s *ValkeyDuelStore) unclaimSeat(ctx context.Context, broadcasterID uint64, login string) {
 	if _, err := s.hdelEntry(ctx, broadcasterID, login); err != nil {
-		s.log.Warn("duel: join rollback unclaim failed", zap.Uint64("broadcaster_id", broadcasterID),
+		s.log.Warn("duel: join rollback unclaim failed", module.BIDField(broadcasterID),
 			zap.String("login", login), zap.Error(err))
 	}
 }
@@ -624,13 +625,13 @@ func (s *ValkeyDuelStore) stateOf(ctx context.Context, broadcasterID uint64) *Du
 		Key(duelKey(duelStatePrefix, broadcasterID)).Build()).ToString()
 	if err != nil {
 		if !valkey.IsValkeyNil(err) {
-			s.log.Warn("duel: state read failed", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
+			s.log.Warn("duel: state read failed", module.BIDField(broadcasterID), zap.Error(err))
 		}
 		return nil
 	}
 	st := DuelState{}
 	if codec.UnmarshalFromString(raw, &st) != nil {
-		s.log.Warn("duel: unreadable state", zap.Uint64("broadcaster_id", broadcasterID))
+		s.log.Warn("duel: unreadable state", module.BIDField(broadcasterID))
 		return nil
 	}
 	return &st
@@ -712,7 +713,7 @@ func (s *ValkeyDuelStore) settleChallenge(ctx context.Context, broadcasterID uin
 func (s *ValkeyDuelStore) payWinner(ctx context.Context, broadcasterID uint64, receipt *DuelReceipt) error {
 	entry := DuelStake{Login: receipt.Winner, Stake: receipt.Pot}
 	if err := s.cfg.Wallet.Credit(ctx, broadcasterID, entry); err != nil {
-		s.log.Warn("duel: winner credit failed", zap.Uint64("broadcaster_id", broadcasterID),
+		s.log.Warn("duel: winner credit failed", module.BIDField(broadcasterID),
 			zap.String("winner", receipt.Winner), zap.Int64("pot", receipt.Pot), zap.Error(err))
 		return err
 	}
@@ -776,7 +777,7 @@ func (s *ValkeyDuelStore) Cancel(ctx context.Context, broadcasterID uint64, byLo
 	if err != nil {
 		// A transient ledger failure must not become an opener-only refund:
 		// leave the duel alive and let chat retry the cancel.
-		s.log.Warn("duel: cancel ledger read failed", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
+		s.log.Warn("duel: cancel ledger read failed", module.BIDField(broadcasterID), zap.Error(err))
 		return res, err
 	}
 
@@ -830,7 +831,7 @@ func (s *ValkeyDuelStore) escrowedStakes(ctx context.Context, broadcasterID uint
 func (s *ValkeyDuelStore) refundAll(ctx context.Context, broadcasterID uint64, entries []DuelStake) (refunded int64) {
 	for _, entry := range SortDuelStakes(entries) {
 		if err := s.cfg.Wallet.Credit(ctx, broadcasterID, entry); err != nil {
-			s.log.Warn("duel: cancel refund failed", zap.Uint64("broadcaster_id", broadcasterID),
+			s.log.Warn("duel: cancel refund failed", module.BIDField(broadcasterID),
 				zap.String("login", entry.Login), zap.Int64("amount", entry.Stake), zap.Error(err))
 			continue
 		}
@@ -842,7 +843,7 @@ func (s *ValkeyDuelStore) refundAll(ctx context.Context, broadcasterID uint64, e
 // refund returns one escrowed entry to its owner, logging loudly on failure.
 func (s *ValkeyDuelStore) refund(ctx context.Context, broadcasterID uint64, entry DuelStake) {
 	if err := s.cfg.Wallet.Credit(ctx, broadcasterID, entry); err != nil {
-		s.log.Warn("duel: refund failed", zap.Uint64("broadcaster_id", broadcasterID),
+		s.log.Warn("duel: refund failed", module.BIDField(broadcasterID),
 			zap.String("login", entry.Login), zap.Int64("amount", entry.Stake), zap.Error(err))
 	}
 }
@@ -918,7 +919,7 @@ func (s *ValkeyDuelStore) teardown(ctx context.Context, broadcasterID uint64, re
 	}
 	for _, r := range s.client.DoMulti(ctx, batch...) {
 		if err := r.Error(); !benign(err) {
-			s.log.Warn("duel: teardown incomplete", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
+			s.log.Warn("duel: teardown incomplete", module.BIDField(broadcasterID), zap.Error(err))
 			break
 		}
 	}
@@ -1008,7 +1009,7 @@ func (s *ValkeyDuelStore) autoDraw(ctx context.Context, broadcasterID uint64, st
 	m, err := s.client.Do(ctx, s.client.B().Hgetall().
 		Key(duelKey(duelEntriesPrefix, broadcasterID)).Build()).AsStrMap()
 	if err != nil {
-		s.log.Warn("duel: auto-draw ledger read failed", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
+		s.log.Warn("duel: auto-draw ledger read failed", module.BIDField(broadcasterID), zap.Error(err))
 		return
 	}
 	sorted := parseDuelLedger(m)
@@ -1035,7 +1036,7 @@ func (s *ValkeyDuelStore) autoDraw(ctx context.Context, broadcasterID uint64, st
 	s.teardownWithSnapshot(ctx, broadcasterID, &receipt)
 
 	if err := s.cfg.Wallet.Credit(ctx, broadcasterID, DuelStake{Login: winner, Stake: total}); err != nil {
-		s.log.Warn("duel: pot payout failed", zap.Uint64("broadcaster_id", broadcasterID),
+		s.log.Warn("duel: pot payout failed", module.BIDField(broadcasterID),
 			zap.String("winner", winner), zap.Int64("pot", total), zap.Error(err))
 	}
 	s.announce(ctx, broadcasterID, func(locale string) string {
@@ -1085,7 +1086,7 @@ func (s *ValkeyDuelStore) teardownWithSnapshot(ctx context.Context, broadcasterI
 			Key(duelKey(duelDeadlinePrefix, broadcasterID)).Build(),
 	) {
 		if err := r.Error(); !benign(err) {
-			s.log.Warn("duel: snapshot teardown incomplete", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
+			s.log.Warn("duel: snapshot teardown incomplete", module.BIDField(broadcasterID), zap.Error(err))
 			break
 		}
 	}

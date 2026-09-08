@@ -239,7 +239,7 @@ func (p *Pipeline) resolveUrlToken(ctx context.Context, c *module.Context, name 
 	})
 	if err != nil {
 		p.log.Warn("urlfetch token failed",
-			zap.Uint64("broadcaster_id", c.BroadcasterID),
+			module.BIDField(c.BroadcasterID),
 			zap.String("def", name),
 			zap.Error(err),
 		)

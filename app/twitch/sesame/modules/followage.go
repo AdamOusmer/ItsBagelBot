@@ -222,7 +222,7 @@ func moduleEnabled(ctx context.Context, d engine.Deps, broadcasterID uint64, mod
 	// never touched the toggle has no row, and that must not read as "off".
 	_, state, err := engine.ModuleLookup{Proj: d.Proj, BroadcasterID: broadcasterID, Name: moduleName, Absent: engine.ModuleOn}.Resolve(ctx)
 	if err != nil {
-		moduleLog(d).Warn(moduleName+": module state read failed, allowing", zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
+		moduleLog(d).Warn(moduleName+": module state read failed, allowing", module.BIDField(broadcasterID), zap.Error(err))
 	}
 	// Fail open: only an explicit off suppresses the command. ModuleUnavailable
 	// (read error, or no projection wired at all) runs it, which is why this

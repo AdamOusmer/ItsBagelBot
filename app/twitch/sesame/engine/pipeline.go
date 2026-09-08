@@ -655,7 +655,7 @@ func disabledConfig(cfg *automod.Config) *automod.Config {
 // a handler error, never nacked.
 func (p *Pipeline) dispatch(ctx context.Context, mctx *module.Context, views map[string]projection.ModuleView, emit module.Emit) {
 	if err := p.dispatchCommand(ctx, mctx, views, emit); err != nil {
-		p.log.Error("command dispatch failed", zap.Uint64("broadcaster_id", mctx.BroadcasterID), zap.Error(err))
+		p.log.Error("command dispatch failed", module.BIDField(mctx.BroadcasterID), zap.Error(err))
 		notice(ctx, err)
 	}
 }
@@ -685,7 +685,7 @@ func (p *Pipeline) handlerFailed(ctx context.Context, mctx *module.Context, m mo
 	p.log.Error("module handler failed",
 		zap.String("module", moduleLabel(m)),
 		zap.String("type", mctx.Env.Type),
-		zap.Uint64("broadcaster_id", mctx.BroadcasterID),
+		module.BIDField(mctx.BroadcasterID),
 		zap.Error(err))
 	if txn := newrelic.FromContext(ctx); txn != nil {
 		txn.AddAttribute("module.failed", moduleLabel(m))
