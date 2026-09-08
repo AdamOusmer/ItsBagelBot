@@ -1,0 +1,307 @@
+{
+ "roles": [
+  {
+   "id": "242749",
+   "name": "Moderator",
+   "default": true
+  },
+  {
+   "id": "242755",
+   "name": "[Imported] Channel Editor",
+   "default": false
+  },
+  {
+   "id": "242754",
+   "name": "[Imported] Channel Admin",
+   "default": false
+  },
+  {
+   "id": "242753",
+   "name": "Broadcaster",
+   "default": true
+  }
+ ],
+ "commands": [
+  {
+   "enabled_offline": true,
+   "enabled_online": true,
+   "id": "90019",
+   "name": "bot",
+   "response": "@$(user), SeemsGood",
+   "type": "custom",
+   "aliases": [],
+   "role_ids": [
+    "242749",
+    "242755",
+    "242754",
+    "242753"
+   ]
+  },
+  {
+   "enabled_offline": true,
+   "enabled_online": true,
+   "id": "90027",
+   "name": "discord",
+   "response": "@$(user) Join Myth's Discord server! https://discord.gg/gHzjE7nNrW - Check pins if you're a sub! FeelsOkayMan",
+   "type": "custom",
+   "aliases": [],
+   "role_ids": []
+  },
+  {
+   "enabled_offline": true,
+   "enabled_online": true,
+   "id": "90045",
+   "name": "newvid",
+   "response": "@$(sender), \tCheckout Myth's Newest YT Video! $(youtube IMTHETacticalMyth)",
+   "type": "custom",
+   "aliases": [],
+   "role_ids": []
+  },
+  {
+   "enabled_offline": true,
+   "enabled_online": true,
+   "id": "90046",
+   "name": "playlist",
+   "response": "$(references music)",
+   "type": "custom",
+   "aliases": [],
+   "role_ids": []
+  },
+  {
+   "enabled_offline": true,
+   "enabled_online": true,
+   "id": "90044",
+   "name": "music",
+   "response": "\tMyth's Spotify profile - https://open.spotify.com/user/tacticalmyth",
+   "type": "custom",
+   "aliases": [],
+   "role_ids": []
+  },
+  {
+   "enabled_offline": false,
+   "enabled_online": true,
+   "id": "90048",
+   "name": "prevention",
+   "response": ".me If you or anyone you know are struggling, depressed, feel like giving up or anything else, contact suicide prevention, people are here for you, and here to help. The link to Twitch Suicide Prevention is here --> https://bit.ly/2BllxdH mythL https://prntscr.com/k9vglq",
+   "type": "custom",
+   "aliases": [],
+   "role_ids": []
+  },
+  {
+   "enabled_offline": true,
+   "enabled_online": true,
+   "id": "90066",
+   "name": "setgame",
+   "response": "@$(sender), $(setgame)",
+   "type": "custom",
+   "aliases": [],
+   "role_ids": [
+    "242749",
+    "242755",
+    "242754",
+    "242753"
+   ]
+  },
+  {
+   "enabled_offline": true,
+   "enabled_online": true,
+   "id": "90070",
+   "name": "english",
+   "response": "Please keep the chat english only! <3",
+   "type": "custom",
+   "aliases": [
+    "eng"
+   ],
+   "role_ids": [
+    "242749",
+    "242755",
+    "242754",
+    "242753"
+   ]
+  },
+  {
+   "enabled_offline": true,
+   "enabled_online": true,
+   "id": "90077",
+   "name": "nuke",
+   "response": "$(nuke)",
+   "type": "custom",
+   "aliases": [],
+   "role_ids": [
+    "242749",
+    "242755",
+    "242754",
+    "242753"
+   ]
+  },
+  {
+   "enabled_offline": true,
+   "enabled_online": true,
+   "id": "90086",
+   "name": "song",
+   "response": "@$(user), Current Song: $(customapi) ",
+   "type": "custom",
+   "aliases": [],
+   "role_ids": []
+  },
+  {
+   "enabled_offline": true,
+   "enabled_online": true,
+   "id": "90096",
+   "name": "flip",
+   "response": "$(rngphrase Heads, Tails)",
+   "type": "custom",
+   "aliases": [],
+   "role_ids": [
+    "242749",
+    "242755",
+    "242754",
+    "242753"
+   ]
+  },
+  {
+   "enabled_offline": true,
+   "enabled_online": true,
+   "id": "268232",
+   "name": "dc",
+   "response": "another one? PepeLaugh he has now died $(count.increment died 1) times.",
+   "type": "custom",
+   "aliases": [
+    "deathcounter",
+    "trys"
+   ],
+   "role_ids": [
+    "242749"
+   ]
+  },
+  {
+   "enabled_offline": true,
+   "enabled_online": true,
+   "id": "887697",
+   "name": "vintagestory",
+   "response": "\"Vintage Story is a sandbox survival and building game inspired by other Voxel games like Minecraft and Terraria, but with a strong focus on realism, crafting depth, and a medieval aesthetic. Developed by Anego Studios, the game emphasizes survival mechanics, detailed crafting systems, and a rich, immersive world.\" https://www.vintagestory.at/",
+   "type": "custom",
+   "aliases": [
+    "vs"
+   ],
+   "role_ids": []
+  },
+  {
+   "enabled_offline": true,
+   "enabled_online": true,
+   "id": "listcommands",
+   "name": "commands",
+   "response": "The commands for this channel are available at: https://fossa.bot/$(channel.slug)/commands",
+   "type": "default",
+   "aliases": [
+    "cmds",
+    "comds",
+    "cmdlist",
+    "comlist",
+    "commandlist",
+    "listcmds",
+    "help"
+   ],
+   "role_ids": []
+  },
+  {
+   "enabled_offline": true,
+   "enabled_online": true,
+   "id": "dadjoke",
+   "name": "dadjoke",
+   "response": "Tells an unfunny dad joke.",
+   "type": "default",
+   "aliases": [],
+   "role_ids": []
+  },
+  {
+   "enabled_offline": true,
+   "enabled_online": true,
+   "id": "permit",
+   "name": "permit",
+   "response": "Permit someone to not be caught by any Fossabot filters for 60 seconds.",
+   "type": "default",
+   "aliases": [],
+   "role_ids": [
+    "242749"
+   ]
+  },
+  {
+   "enabled_offline": true,
+   "enabled_online": true,
+   "id": "90051",
+   "name": "sens",
+   "response": "DPI : 1200 / Look sensitivity: 0.25 ADS: 0.6",
+   "type": "custom",
+   "aliases": [],
+   "role_ids": []
+  },
+  {
+   "enabled_offline": true,
+   "enabled_online": true,
+   "id": "90052",
+   "name": "sensitivity",
+   "response": "$(references sens)",
+   "type": "custom",
+   "aliases": [],
+   "role_ids": []
+  },
+  {
+   "enabled_offline": true,
+   "enabled_online": true,
+   "id": "90060",
+   "name": "time",
+   "response": "@$(sender) Myth's local time is: $(time America/Los_Angeles)",
+   "type": "custom",
+   "aliases": [],
+   "role_ids": []
+  },
+  {
+   "enabled_offline": true,
+   "enabled_online": true,
+   "id": "90058",
+   "name": "uptime",
+   "response": "@$(user), $(uptime)",
+   "type": "custom",
+   "aliases": [],
+   "role_ids": []
+  },
+  {
+   "enabled_offline": false,
+   "enabled_online": false,
+   "id": "999901",
+   "name": "offseason",
+   "response": "we are on break",
+   "type": "custom",
+   "aliases": [],
+   "role_ids": []
+  },
+  {
+   "enabled_offline": true,
+   "enabled_online": true,
+   "id": "999902",
+   "name": "ghostrole",
+   "response": "@$(user) ask a mod",
+   "type": "custom",
+   "aliases": [],
+   "role_ids": [
+    "242999"
+   ]
+  },
+  {
+   "enabled_offline": true,
+   "enabled_online": true,
+   "id": "999903",
+   "name": "weather",
+   "response": "@$(user), $(customapi https://example.com/weather?q=montreal)",
+   "type": "custom",
+   "aliases": [
+    "forecast",
+    "bad alias"
+   ],
+   "role_ids": [
+    "242749"
+   ]
+  }
+ ]
+}

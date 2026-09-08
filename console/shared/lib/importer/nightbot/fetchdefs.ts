@@ -1,13 +1,19 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Synthesized urlfetch definitions for the Nightbot source: how a
+// Synthesized urlfetch definitions for the $(…)-syntax sources: how a
 // $(urlfetch …) / $(customapi …) call in an imported response becomes a
 // reviewed definition the runtime can resolve, and the slug rule that keeps a
 // re-import landing on the same names.
+//
+// It lives under nightbot/ because Nightbot is where it was written, and it is
+// parameterized by source rather than copied because Fossabot writes the same
+// $(customapi …) call (../fossabot/variables is the second caller): two slot
+// allocators would be two places for the slot rule to drift.
 
 import { fetchDefSlug, warnDiag } from '../validate';
-import type { ImportDiagnostic, ManifestFetch } from '../types';
+import type { FetchSlugSource } from '../validate';
+import type { ImportDiagnostic, ImportSource, ManifestFetch } from '../types';
 import { IMPORT_ITEM_CAPS } from '../types';
 
 // FETCH_DEF_CAP rides IMPORT_ITEM_CAPS.commands for the reason the other
@@ -56,18 +62,30 @@ function usableUrl(url: string): boolean {
   return encoder.encode(url).length <= MAX_FETCH_URL_BYTES;
 }
 
+// MANIFEST_SOURCE maps a slug prefix onto the ImportSource a ManifestFetch is
+// tagged with. The two spellings differ on purpose: the slug prefix is budgeted
+// against a 32-byte name ('se'), the manifest field names the source on the
+// wire ('streamelements').
+const MANIFEST_SOURCE: Record<FetchSlugSource, ImportSource> = {
+  se: 'streamelements',
+  moobot: 'moobot',
+  nightbot: 'nightbot',
+  fossabot: 'fossabot'
+};
+
 // makeFetchSlotSink allocates definition slugs for ONE command over the
 // import-level def map. Slot rule: the first distinct URL takes the bare
-// fetchDefSlug('nightbot', command), the Nth (N≥2) appends _N, a legal
+// fetchDefSlug(source, command), the Nth (N≥2) appends _N, a legal
 // ^[a-z0-9_]{1,32}$ name the fetches editor's slugifier reproduces
 // byte-for-byte, so a re-import lands on identical names. The same URL twice in
 // one command shares its definition (equality is byte-exact here).
 export function makeFetchSlotSink(
+  source: FetchSlugSource,
   commandName: string,
   defs: Map<string, ManifestFetch>,
   diags: ImportDiagnostic[]
 ): FetchSlotSink {
-  const base = fetchDefSlug('nightbot', commandName);
+  const base = fetchDefSlug(source, commandName);
   const byUrl = new Map<string, string>();
   let slots = 0;
   return {
@@ -75,7 +93,7 @@ export function makeFetchSlotSink(
       const known = byUrl.get(url);
       if (known !== undefined) return known;
       const key = slots === 0 ? base : `${base}_${slots + 1}`;
-      if (!registerDef(defs, { name: key, url, source: 'nightbot' }, diags)) return null;
+      if (!registerDef(defs, { name: key, url, source: MANIFEST_SOURCE[source] }, diags)) return null;
       slots++;
       byUrl.set(url, key);
       return key;

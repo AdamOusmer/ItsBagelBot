@@ -162,7 +162,12 @@ function chatLine(piece: string, itemIndex: number, diags: ImportDiagnostic[]): 
 
 // --- permissions -------------------------------------------------------------
 
-const PERM_TIERS: readonly Perm[] = ['everyone', 'sub', 'vip', 'mod', 'lead_mod', 'broadcaster'];
+// PERM_TIERS is the tier order, least to most privileged. Exported because a
+// source can grant one command to SEVERAL roles at once (Fossabot lists role
+// ids per command, any of which may trigger it), and resolving that onto one
+// tier means comparing tiers, which needs this order rather than a second copy
+// of it in the parser.
+export const PERM_TIERS: readonly Perm[] = ['everyone', 'sub', 'vip', 'mod', 'lead_mod', 'broadcaster'];
 
 // permissionAliases maps one external bot's permission labels onto this bot's
 // perm tiers. Keys are lower-cased source spellings; plural and abbreviation
@@ -297,7 +302,7 @@ const MAX_FETCH_SLUG_SUFFIX = 5;
 // let any caller invent a prefix the 32-byte budget was never sized for (and
 // would read as one more anonymous string argument at the call site); the
 // union keeps both the budget and the meaning checked.
-export type FetchSlugSource = 'se' | 'moobot' | 'nightbot';
+export type FetchSlugSource = 'se' | 'moobot' | 'nightbot' | 'fossabot';
 
 // fetchDefSlug builds one legal definition name from a short source prefix and
 // a command name: `<source>_<slugified command>`.
@@ -356,7 +361,7 @@ export function warnDiag(itemIndex: number, code: string, message: string): Impo
 // of printable ASCII without spaces. Returns null when valid.
 const NAME_RULE = 'command name must be 1-64 printable ASCII characters without spaces';
 
-function commandNameProblem(name: string): string | null {
+export function commandNameProblem(name: string): string | null {
   const n = byteLen(name);
   if (n === 0 || n > MAX_COMMAND_NAME_LEN) return NAME_RULE;
   return printableAscii(name) ? null : NAME_RULE;
