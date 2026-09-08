@@ -6,8 +6,6 @@ package bus
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"errors"
-	"fmt"
 	"regexp"
 	"time"
 
@@ -15,6 +13,7 @@ import (
 	"go.uber.org/zap"
 
 	"ItsBagelBot/pkg/env"
+	"ItsBagelBot/pkg/tlsenv"
 )
 
 // The fleet runs two NATS planes on two credential sets:
@@ -195,27 +194,19 @@ func tlsSecureOption() nats.Option {
 	}
 
 	cfg := &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}
-	certFile, keyFile := env.Get("NATS_CLIENT_CERT_FILE", ""), env.Get("NATS_CLIENT_KEY_FILE", "")
-	if (certFile == "") != (keyFile == "") {
-		// Fail here, not inside the handshake. GetClientCertificate only runs
-		// when the server ASKS for a cert, so a half-set pair against a
-		// verify:false listener would connect happily and then fail the moment
-		// that listener flipped — the one moment nobody is looking. The TS and
-		// Elixir clients raise at boot on the same condition; this is the Go
-		// half of that contract, and nats.Secure has no error return, so the
-		// option carries the failure to the dial.
-		return failedTLSOption(errors.New(
-			"bus: NATS_CLIENT_CERT_FILE and NATS_CLIENT_KEY_FILE must both be set or both empty"))
+	// Fail here, not inside the handshake. GetClientCertificate only runs
+	// when the server ASKS for a cert, so a half-set pair against a
+	// verify:false listener would connect happily and then fail the moment
+	// that listener flipped -- the one moment nobody is looking. The TS and
+	// Elixir clients raise at boot on the same condition; this is the Go
+	// half of that contract, and nats.Secure has no error return, so the
+	// option carries the failure to the dial.
+	pair, err := tlsenv.PairFromEnv("NATS_CLIENT_CERT_FILE", "NATS_CLIENT_KEY_FILE")
+	if err != nil {
+		return failedTLSOption(err)
 	}
-	if certFile == "" {
-		return nats.Secure(cfg)
-	}
-	cfg.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
-		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
-		if err != nil {
-			return nil, fmt.Errorf("bus: load nats client key pair: %w", err)
-		}
-		return &cert, nil
+	if pair.Configured() {
+		cfg.GetClientCertificate = pair.GetClientCertificate
 	}
 	return nats.Secure(cfg)
 }

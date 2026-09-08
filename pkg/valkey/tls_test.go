@@ -45,7 +45,7 @@ func TestClientTLSConfigGateBothOrNeither(t *testing.T) {
 		t.Setenv("VALKEY_TLS_CLIENT_KEY_FILE", "")
 
 		_, err := clientTLSConfig()
-		assert.ErrorContains(t, err, "must both be set or both be empty")
+		assert.ErrorContains(t, err, "must both be set or both empty")
 	})
 
 	t.Run("only key set", func(t *testing.T) {
@@ -53,7 +53,7 @@ func TestClientTLSConfigGateBothOrNeither(t *testing.T) {
 		t.Setenv("VALKEY_TLS_CLIENT_KEY_FILE", "/dev/null")
 
 		_, err := clientTLSConfig()
-		assert.ErrorContains(t, err, "must both be set or both be empty")
+		assert.ErrorContains(t, err, "must both be set or both empty")
 	})
 }
 
