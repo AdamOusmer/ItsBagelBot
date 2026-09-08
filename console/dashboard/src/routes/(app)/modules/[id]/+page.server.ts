@@ -8,6 +8,7 @@ import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
 import { assertModuleWritable, moduleLocked } from '$lib/server/module-gate';
 import { parentIsEnabled } from '$lib/server/module-parent';
+import { moduleLoad } from '$lib/server/module-page';
 import { attachLinkedUUID } from '$lib/server/minecraft-uuid';
 import type { Session } from '$lib/server/session';
 import { effectiveId } from '$lib/server/board';
@@ -51,27 +52,26 @@ export const load: PageServerLoad = async ({ params, locals }) => {
   // reply inspector cannot render them, so send any direct hit there.
   if (def.href) throw redirect(302, def.href);
 
-  const uid = effectiveId(locals.session);
   // Beta on a free channel: the page still renders (read-only, with the
-  // upgrade banner) but every write below is refused by resolveWrite.
+  // upgrade banner) but every write below is refused by resolveWrite. Read
+  // before moduleLoad because gateModules() above is this page's real delegate
+  // gate (the 'modules' grant); moduleLoad's per-module gate is the defence in
+  // depth under it, and is a no-op for the href-less defs that land here.
   const locked = await moduleLocked(locals, def);
-  if (DEMO) return { def, locked, enabled: def.defaultEnabled, config: {} as Record<string, string>, revision: 0 };
+  // Defaults rather than a blank page when the read is momentarily down, and
+  // the same shape the demo build serves.
+  const blank = () => ({ def, locked, enabled: def.defaultEnabled, config: {} as Record<string, string>, revision: 0 });
 
-  try {
-    const rows = await listModules(uid);
-    const row = rows.find((r) => r.name === def.id);
-    const { config, revision } = asConfig(row?.configs);
-    return {
-      def,
-      locked,
-      enabled: row ? row.is_enabled : def.defaultEnabled,
-      config,
-      revision
-    };
-  } catch {
-    // Surface defaults rather than a blank page if the read is momentarily down.
-    return { def, locked, enabled: def.defaultEnabled, config: {} as Record<string, string>, revision: 0, degraded: true };
-  }
+  return moduleLoad(def.id, locals.session, {
+    demo: DEMO ? async () => blank() : undefined,
+    read: async (uid) => {
+      const rows = await listModules(uid);
+      const row = rows.find((r) => r.name === def.id);
+      const { config, revision } = asConfig(row?.configs);
+      return { def, locked, enabled: row ? row.is_enabled : def.defaultEnabled, config, revision };
+    },
+    blank
+  });
 };
 
 // buildConfig reads the posted draft into the module's stored config: a

@@ -11,6 +11,7 @@ import { DISCORD_ERROR_SLUGS, discordConfigured, discordTemplateURL } from '$lib
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
 import { assertModuleUnlocked, gateModulePage, moduleLocked } from '$lib/server/module-gate';
+import { moduleLoad } from '$lib/server/module-page';
 import { DISCORD_DEF } from '$lib/server/discord-def';
 import type { Session } from '$lib/server/session';
 import { effectiveId } from '$lib/server/board';
@@ -49,9 +50,7 @@ function blankPage(errorSlug: string, locked: boolean): DiscordListPage {
   };
 }
 
-export const load: PageServerLoad = async ({ locals, url }) => {
-  gate(locals.session);
-  const uid = effectiveId(locals.session);
+export const load: PageServerLoad = ({ locals, url }) => {
   const rawSlug = url.searchParams.get('e') ?? '';
   const errorSlug = (DISCORD_ERROR_SLUGS as readonly string[]).includes(rawSlug) ? rawSlug : '';
 
@@ -59,17 +58,25 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   // sectioned module through so the page can explain that rather than
   // bouncing the visitor to a grid Discord is no longer in; the page renders
   // a locked panel and every action refuses (see listAction).
-  const locked = await moduleLocked(locals, DISCORD_DEF);
-
-  if (DEMO) return demoPage();
-
-  try {
-    const view = await readDiscord({ userId: uid });
-    return { ...blankPage(errorSlug, locked), ...view };
-  } catch (e) {
-    logger.warn({ err: e }, '[discord] server list unavailable');
-    return { ...blankPage(errorSlug, locked), degraded: true };
-  }
+  //
+  // Resolved inside `read` rather than before moduleLoad so the delegate gate
+  // still runs first (moduleLoad pins that order, and the tier lookup is an
+  // RPC for a beta module); `blank` reads the value the read already settled,
+  // which is why it is a captured let rather than a second lookup on the
+  // degraded path.
+  let locked = false;
+  return moduleLoad<DiscordListPage>('discord', locals.session, {
+    demo: DEMO ? demoPage : undefined,
+    read: async (uid) => {
+      locked = await moduleLocked(locals, DISCORD_DEF);
+      const view = await readDiscord({ userId: uid }).catch((e) => {
+        logger.warn({ err: e }, '[discord] server list unavailable');
+        throw e;
+      });
+      return { ...blankPage(errorSlug, locked), ...view };
+    },
+    blank: () => blankPage(errorSlug, locked)
+  });
 };
 
 async function demoPage(): Promise<DiscordListPage> {
