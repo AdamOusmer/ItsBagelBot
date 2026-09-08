@@ -2,9 +2,7 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.NatsCohortIntegrationTest do
-  use ExUnit.Case, async: false
-
-  alias Ingress.Nats.Publisher
+  use Ingress.PublisherCase, async: false
 
   @moduletag :integration
 
@@ -66,36 +64,21 @@ defmodule Ingress.NatsCohortIntegrationTest do
       port = String.to_integer(port)
       conn = :gnat_batch_integration
 
-      overrides =
-        Keyword.merge([publish_batch_size: 2, publish_batch_wait_ms: 100], overrides)
-
-      previous =
-        Enum.map(overrides, fn {key, _} -> {key, Application.get_env(:ingress, key)} end)
-
-      Enum.each(overrides, fn {key, value} -> Application.put_env(:ingress, key, value) end)
+      put_env(Keyword.merge([publish_batch_size: 2, publish_batch_wait_ms: 100], overrides))
 
       {:ok, gnat} = Gnat.start_link(%{host: ~c"127.0.0.1", port: port}, name: conn)
       ensure_stream(conn)
       purge_stream(conn)
-      start_supervised!({Publisher, [index: 0, conn: conn]})
-      :persistent_term.put({Publisher, :n}, 1)
 
-      on_exit(fn ->
-        # The Gnat connection is linked to the test process, so it is already
-        # gone when on_exit runs — only VM-global bookkeeping can be restored
-        # here. Broker-side cleanup happens in the `after` below, while the
-        # connection is still alive.
-        if Process.alive?(gnat), do: GenServer.stop(gnat)
-        :persistent_term.erase({Publisher, :n})
-
-        Enum.each(previous, fn
-          {key, nil} -> Application.delete_env(:ingress, key)
-          {key, value} -> Application.put_env(:ingress, key, value)
-        end)
-      end)
+      # The Gnat connection is linked to the test process, so it is already gone
+      # when on_exit runs; only the connection-independent teardown belongs
+      # there. Broker-side cleanup happens in the `after` below, while the
+      # connection is still alive.
+      on_exit(fn -> if Process.alive?(gnat), do: GenServer.stop(gnat) end)
+      %{ctx: ctx} = start_publisher(conn)
 
       try do
-        run.(conn, :persistent_term.get({Publisher, :ctx, 0}))
+        run.(conn, ctx)
       after
         # Remove the isolated stream: its literal subject sits under the
         # TWITCH_INGRESS wildcard, so a leftover makes any suite that
@@ -142,21 +125,5 @@ defmodule Ingress.NatsCohortIntegrationTest do
     {:ok, %{body: body}} = Gnat.request(conn, "$JS.API.STREAM.INFO." <> @stream, "")
     {:ok, %{"state" => %{"messages" => messages}}} = Ingress.JSON.decode(body)
     messages
-  end
-
-  defp eventually(check, attempts \\ 100)
-
-  defp eventually(check, attempts) do
-    cond do
-      check.() ->
-        true
-
-      attempts == 0 ->
-        false
-
-      true ->
-        Process.sleep(10)
-        eventually(check, attempts - 1)
-    end
   end
 end

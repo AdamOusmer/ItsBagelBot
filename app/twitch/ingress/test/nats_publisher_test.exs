@@ -5,44 +5,7 @@ defmodule Ingress.Nats.PublisherTest do
   # async: false — the publisher uses a named process, a named ETS table and a
   # global persistent_term context, so it cannot share the VM with a parallel
   # instance of itself.
-  use ExUnit.Case, async: false
-
-  alias Ingress.Nats.Publisher
-
-  defmodule FakeGnat do
-    use GenServer
-
-    def start_link(opts),
-      do: GenServer.start_link(__MODULE__, opts, name: Keyword.fetch!(opts, :name))
-
-    def init(opts), do: {:ok, %{test: Keyword.fetch!(opts, :test), sid: 0}}
-
-    def handle_call({:sub, _receiver, _topic, _opts}, _from, state) do
-      {:reply, {:ok, state.sid + 1}, %{state | sid: state.sid + 1}}
-    end
-
-    def handle_call({:pub, topic, message, opts}, from, state) do
-      {publishes, callers} = receive_publishes([{topic, message, opts}], [from], 10)
-      Enum.each(publishes, fn {t, m, o} -> send(state.test, {:pub, t, m, o}) end)
-      Enum.each(callers, &GenServer.reply(&1, :ok))
-      {:noreply, state}
-    end
-
-    defp receive_publishes(publishes, callers, 0), do: {publishes, callers}
-
-    defp receive_publishes(publishes, callers, remaining) do
-      receive do
-        {:"$gen_call", from, {:pub, topic, message, opts}} ->
-          receive_publishes(
-            [{topic, message, opts} | publishes],
-            [from | callers],
-            remaining - 1
-          )
-      after
-        0 -> {publishes, callers}
-      end
-    end
-  end
+  use Ingress.PublisherCase, async: false
 
   describe "id_from_topic/2" do
     @prefix "_INBOX.ingresspub.abc123."
@@ -64,25 +27,11 @@ defmodule Ingress.Nats.PublisherTest do
 
   describe "enqueue/2 admission" do
     setup do
-      prev = Application.get_env(:ingress, :publish_max_pending)
-      Application.put_env(:ingress, :publish_max_pending, 2)
+      put_env(publish_max_pending: 2)
 
       # Stand in for PublisherPool: one shard, its BUS connection deliberately
       # absent so the underlying pub never leaves the VM.
-      start_supervised!({Publisher, [index: 0, conn: :gnat_bus_pub_test]})
-      :persistent_term.put({Publisher, :n}, 1)
-
-      on_exit(fn ->
-        :persistent_term.erase({Publisher, :n})
-
-        if prev do
-          Application.put_env(:ingress, :publish_max_pending, prev)
-        else
-          Application.delete_env(:ingress, :publish_max_pending)
-        end
-      end)
-
-      %{ctx: :persistent_term.get({Publisher, :ctx, 0})}
+      start_publisher(:gnat_bus_pub_test)
     end
 
     test "refuses once the in-flight window is full and does not leak a slot", %{ctx: ctx} do
@@ -124,7 +73,7 @@ defmodule Ingress.Nats.PublisherTest do
 
     test "a saturated local shard falls through to spare publisher capacity", %{ctx: ctx} do
       conn = :gnat_bus_pub_fallback_test
-      start_supervised!({FakeGnat, [name: conn, test: self()]})
+      start_fake_gnat(conn, mode: :coalesce)
 
       start_supervised!(
         Supervisor.child_spec({Publisher, [index: 1, conn: conn]}, id: :fallback_publisher)
@@ -143,27 +92,17 @@ defmodule Ingress.Nats.PublisherTest do
   describe "official per-message PubAck cohorts" do
     setup do
       conn = :gnat_bus_pub_batch_test
-      previous_size = Application.get_env(:ingress, :publish_batch_size)
-      previous_wait = Application.get_env(:ingress, :publish_batch_wait_ms)
-      previous_wire = Application.get_env(:ingress, :publish_wire)
-      Application.put_env(:ingress, :publish_batch_size, 2)
-      Application.put_env(:ingress, :publish_batch_wait_ms, 100)
-      # These cases are about the single wire specifically; the shipped default
-      # is :atomic, which would send this cohort as one batch instead.
-      Application.put_env(:ingress, :publish_wire, :single)
 
-      start_supervised!({FakeGnat, [name: conn, test: self()]})
-      start_supervised!({Publisher, [index: 0, conn: conn]})
-      :persistent_term.put({Publisher, :n}, 1)
+      put_env(
+        publish_batch_size: 2,
+        publish_batch_wait_ms: 100,
+        # These cases are about the single wire specifically; the shipped
+        # default is :atomic, which would send this cohort as one batch instead.
+        publish_wire: :single
+      )
 
-      on_exit(fn ->
-        :persistent_term.erase({Publisher, :n})
-        restore_env(:publish_batch_size, previous_size)
-        restore_env(:publish_batch_wait_ms, previous_wait)
-        restore_env(:publish_wire, previous_wire)
-      end)
-
-      %{publisher: Publisher.process_name(0)}
+      start_fake_gnat(conn, mode: :coalesce)
+      start_publisher(conn)
     end
 
     test "two concurrent events retain individual PubAcks without atomic headers", %{
@@ -186,7 +125,7 @@ defmodule Ingress.Nats.PublisherTest do
       assert_receive {:pub, _, _, second_opts}, 500
 
       opts = [first_opts, second_opts]
-      headers = Enum.map(opts, &prepared_headers/1)
+      headers = Enum.map(opts, &headers_map/1)
 
       Enum.each(headers, fn item ->
         refute Map.has_key?(item, "nats-msg-id")
@@ -224,7 +163,7 @@ defmodule Ingress.Nats.PublisherTest do
              ) == :ok
 
       assert_receive {:pub, _, _, opts}, 500
-      assert prepared_headers(opts)["traceparent"] == traceparent
+      assert headers_map(opts)["traceparent"] == traceparent
 
       send(publisher, {
         :msg,
@@ -241,22 +180,10 @@ defmodule Ingress.Nats.PublisherTest do
   describe "the sweep never outruns replies already in its own mailbox" do
     setup do
       conn = :gnat_bus_pub_sweep_test
-      previous_wire = Application.get_env(:ingress, :publish_wire)
-      previous_size = Application.get_env(:ingress, :publish_batch_size)
-      Application.put_env(:ingress, :publish_wire, :single)
-      Application.put_env(:ingress, :publish_batch_size, 1)
+      put_env(publish_wire: :single, publish_batch_size: 1)
 
-      start_supervised!({FakeGnat, [name: conn, test: self()]})
-      start_supervised!({Publisher, [index: 0, conn: conn]})
-      :persistent_term.put({Publisher, :n}, 1)
-
-      on_exit(fn ->
-        :persistent_term.erase({Publisher, :n})
-        restore_env(:publish_wire, previous_wire)
-        restore_env(:publish_batch_size, previous_size)
-      end)
-
-      %{publisher: Publisher.process_name(0), ctx: :persistent_term.get({Publisher, :ctx, 0})}
+      start_fake_gnat(conn, mode: :coalesce)
+      start_publisher(conn)
     end
 
     test "a PubAck queued behind the tick resolves its row instead of expiring it", %{
@@ -310,23 +237,6 @@ defmodule Ingress.Nats.PublisherTest do
       Process.sleep(100)
 
       assert Process.info(publisher, :monitors) == {:monitors, [process: silent]}
-    end
-  end
-
-  defp age_pending_rows(ctx) do
-    expired = System.monotonic_time(:millisecond) - 10_000_000
-
-    for {id, :single, subject, payload, attempts, _stamp} <- :ets.tab2list(ctx.table) do
-      :ets.insert(ctx.table, {id, :single, subject, payload, attempts, expired})
-    end
-  end
-
-  defp restore_env(key, nil), do: Application.delete_env(:ingress, key)
-  defp restore_env(key, value), do: Application.put_env(:ingress, key, value)
-
-  defp prepared_headers(opts) do
-    for [key, ": ", value, "\r\n"] <- Keyword.get(opts, :headers, []), into: %{} do
-      {String.downcase(key), IO.iodata_to_binary(value)}
     end
   end
 end

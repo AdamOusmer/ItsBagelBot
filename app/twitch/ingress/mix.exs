@@ -10,6 +10,7 @@ defmodule Ingress.MixProject do
       version: "0.1.0",
       elixir: "~> 1.17",
       start_permanent: Mix.env() == :prod,
+      elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps(),
       releases: releases()
     ]
@@ -21,6 +22,11 @@ defmodule Ingress.MixProject do
       mod: {Ingress.Application, []}
     ]
   end
+
+  # test/support holds the fixtures the publisher suites share; it is not part
+  # of the release.
+  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(_env), do: ["lib"]
 
   defp deps do
     [

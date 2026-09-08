@@ -5,82 +5,17 @@ defmodule Ingress.Nats.PublisherAtMostOnceTest do
   # async: false — the publisher uses a named process, a named ETS table and a
   # global persistent_term context, so it cannot share the VM with a parallel
   # instance of itself.
-  use ExUnit.Case, async: false
-
-  alias Ingress.Nats.Publisher
-
-  defmodule FakeGnat do
-    use GenServer
-
-    def start_link(opts),
-      do: GenServer.start_link(__MODULE__, opts, name: Keyword.fetch!(opts, :name))
-
-    def init(opts), do: {:ok, %{test: Keyword.fetch!(opts, :test), sid: 0}}
-
-    def handle_call({:sub, _receiver, _topic, _opts}, _from, state) do
-      {:reply, {:ok, state.sid + 1}, %{state | sid: state.sid + 1}}
-    end
-
-    def handle_call({:pub, topic, message, opts}, _from, state) do
-      send(state.test, {:pub, topic, message, opts})
-      {:reply, :ok, state}
-    end
-  end
+  use Ingress.PublisherCase, async: false
 
   setup context do
     conn = :gnat_bus_pub_at_most_once_test
 
-    overrides =
-      [publish_batch_size: 8, publish_batch_wait_ms: 10] ++
-        Map.get(context, :overrides, [])
+    put_env(
+      [publish_batch_size: 8, publish_batch_wait_ms: 10] ++ Map.get(context, :overrides, [])
+    )
 
-    previous = Enum.map(overrides, fn {key, _} -> {key, Application.get_env(:ingress, key)} end)
-    Enum.each(overrides, fn {key, value} -> Application.put_env(:ingress, key, value) end)
-
-    start_supervised!({FakeGnat, [name: conn, test: self()]})
-    start_supervised!({Publisher, [index: 0, conn: conn]})
-    :persistent_term.put({Publisher, :n}, 1)
-
-    on_exit(fn ->
-      :persistent_term.erase({Publisher, :n})
-
-      Enum.each(previous, fn
-        {key, nil} -> Application.delete_env(:ingress, key)
-        {key, value} -> Application.put_env(:ingress, key, value)
-      end)
-    end)
-
-    %{publisher: Publisher.process_name(0), ctx: :persistent_term.get({Publisher, :ctx, 0})}
-  end
-
-  defp headers_map(opts) do
-    for [key, ": ", value, "\r\n"] <- Keyword.get(opts, :headers, []), into: %{} do
-      {String.downcase(key), IO.iodata_to_binary(value)}
-    end
-  end
-
-  # Rewrites every pending row's timestamp into the past so the next sweep
-  # treats it as expired, without waiting out the real ack timeout. Ages
-  # relative to the current monotonic clock — its absolute value is an
-  # arbitrary (typically negative) offset.
-  defp age_pending_rows(ctx) do
-    expired = System.monotonic_time(:millisecond) - 10_000_000
-
-    for row <- :ets.tab2list(ctx.table) do
-      aged =
-        case row do
-          {id, :single, subject, json, attempts, _ts} ->
-            {id, :single, subject, json, attempts, expired}
-
-          {id, :batch, entries, _ts} ->
-            {id, :batch, entries, expired}
-
-          {id, :batch_hold, _ts} ->
-            {id, :batch_hold, expired}
-        end
-
-      :ets.insert(ctx.table, aged)
-    end
+    start_fake_gnat(conn)
+    start_publisher(conn)
   end
 
   test "the publisher never emits or stores a Nats-Msg-Id", %{ctx: ctx} do
