@@ -13,7 +13,7 @@ defmodule Ingress.HealthRpcTest do
     assert {:reply, body} = Ingress.HealthRpc.request(%{body: "{}"})
 
     assert %{"service" => "ingress", "ok" => false, "status" => "down", "checks" => checks} =
-             Jason.decode!(body)
+             Jason.decode!(IO.iodata_to_binary(body))
 
     assert Enum.map(checks, & &1["name"]) == ["nats_rpc", "nats_bus"]
     refute Enum.any?(checks, & &1["ok"])
