@@ -43,6 +43,15 @@ func (f *fakeConnectLog) Load(_ context.Context, since time.Time) ([]time.Time, 
 	return append([]time.Time(nil), kept...), nil
 }
 
+// forget empties the shared window without failing anything. It is the store
+// that answers an honest nothing while still answering: a ZADD that did not
+// land under a failover, or a key evicted between the write and the read.
+func (f *fakeConnectLog) forget() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.seen = nil
+}
+
 func (f *fakeConnectLog) Add(_ context.Context, at time.Time) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -102,9 +111,50 @@ func TestRestartDropsAttemptsOlderThanTheWindow(t *testing.T) {
 	}
 }
 
+// A store that answers an honest nothing may only ever add history. reload
+// used to replace the local window with whatever came back, so a ZADD that
+// failed while Load still succeeded wiped this process's own attempts on
+// every record and the 800-in-24h ceiling had nothing to trip on -- which is
+// how 21,575 connects in 24 hours (2026-09-07, one process, zero restarts)
+// went past a budget built to bound exactly that.
+func TestReloadKeepsLocalAttemptsWhenTheStoreForgets(t *testing.T) {
+	store := &fakeConnectLog{}
+	c := &budgetClock{t: time.Unix(1_700_000_000, 0)}
+	b := storedBudget(store, nil, c)
+
+	b.note()
+	store.forget()
+	b.reload()
+
+	if st := b.snapshot(); st.Connects != 1 {
+		t.Fatalf("connects after the store forgot = %d, want the local attempt kept", st.Connects)
+	}
+}
+
+// And the union must not double-count: every attempt this process makes comes
+// straight back from the store on the next read, and counting it twice would
+// park the bot on a ceiling it never spent.
+func TestReloadDedupesAttemptsItAlreadyHas(t *testing.T) {
+	store := &fakeConnectLog{}
+	c := &budgetClock{t: time.Unix(1_700_000_000, 0)}
+	b := storedBudget(store, nil, c)
+
+	for range 3 {
+		b.note()
+		c.advance(minConnectInterval)
+	}
+	b.reload()
+	b.reload()
+
+	if st := b.snapshot(); st.Connects != 3 {
+		t.Fatalf("connects after two reloads = %d, want the 3 attempts counted once each", st.Connects)
+	}
+}
+
 // Valkey being unreachable must never block a connect: the budget degrades
 // to what shipped before it was persisted, counting this process only, and
-// says so exactly once. A WARN per attempt would bury the gateway's own log.
+// says so at most once per degradedWarnEvery. A WARN per attempt would bury
+// the gateway's own log.
 func TestStoreFailureDegradesToMemoryWithOneWarning(t *testing.T) {
 	core, logs := observer.New(zapcore.DebugLevel)
 	store := &fakeConnectLog{fail: errors.New("valkey: connection refused")}
@@ -123,6 +173,29 @@ func TestStoreFailureDegradesToMemoryWithOneWarning(t *testing.T) {
 	warns := logs.FilterLevelExact(zapcore.WarnLevel).All()
 	if len(warns) != 1 {
 		t.Fatalf("warn logs = %d, want exactly one across a boot, 3 notes and 3 records", len(warns))
+	}
+}
+
+// The notice has to come back while the budget is still degraded. Once per
+// process was not enough: a pod that logged it at boot and then ran for 16
+// hours left an operator reading a 24h window of connect counts with nothing
+// in that window saying the number was per process rather than per token.
+func TestDegradedWarningRepeatsOnItsSchedule(t *testing.T) {
+	core, logs := observer.New(zapcore.DebugLevel)
+	store := &fakeConnectLog{fail: errors.New("valkey: connection refused")}
+	c := &budgetClock{t: time.Unix(1_700_000_000, 0)}
+
+	b := storedBudget(store, zap.New(core), c)
+	c.advance(degradedWarnEvery - time.Second)
+	b.note()
+	if got := logs.FilterLevelExact(zapcore.WarnLevel).Len(); got != 1 {
+		t.Fatalf("warns inside the interval = %d, want the boot notice only", got)
+	}
+
+	c.advance(2 * time.Second)
+	b.note()
+	if got := logs.FilterLevelExact(zapcore.WarnLevel).Len(); got != 2 {
+		t.Fatalf("warns after %s degraded = %d, want the notice repeated", degradedWarnEvery, got)
 	}
 }
 
