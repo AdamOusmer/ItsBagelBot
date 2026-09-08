@@ -72,6 +72,7 @@ const (
 type mcsrConfig struct {
 	Account     string `json:"account"`
 	AccountUUID string `json:"accountUuid"`
+	LinkedOnly  string `json:"linkedOnly"`
 
 	EloEnabled     string `json:"eloEnabled"`
 	EloMessage     string `json:"eloMessage"`
@@ -252,6 +253,7 @@ func (h mcsrHandler[R]) run(ctx context.Context, c *module.Context, args string,
 
 	account, display := resolveLinked(c, accountSources{
 		Arg: args, Linked: cfg.Account, LinkedUUID: cfg.AccountUUID, PreferUUID: !h.preferName,
+		LinkedOnly: explicitOn(cfg.LinkedOnly),
 	})
 	var reply R
 	if err := h.d.Gossip.Call(ctx, h.route, h.request(c, account, cfg), &reply); err != nil {

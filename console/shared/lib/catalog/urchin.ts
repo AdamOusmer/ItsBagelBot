@@ -2,6 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { ModuleDef } from './module-def';
+import { LINKED_ONLY_FIELD } from './linked-only';
 import { BW_SESSION_SAMPLES, BW_SESSION_TOKENS } from './rehearsal-tokens';
 
 export const URCHIN_MODULE: ModuleDef = 
@@ -133,6 +134,7 @@ export const URCHIN_MODULE: ModuleDef =
       label: 'Minecraft UUID',
       type: 'text',
       hidden: true
-    }
+    },
+    LINKED_ONLY_FIELD
   ]
 };

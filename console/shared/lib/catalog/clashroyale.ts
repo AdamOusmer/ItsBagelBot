@@ -2,6 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { ModuleDef } from './module-def';
+import { LINKED_ONLY_FIELD } from './linked-only';
 
 export const CLASHROYALE_MODULE: ModuleDef = 
 {
@@ -82,6 +83,7 @@ export const CLASHROYALE_MODULE: ModuleDef =
       type: 'text',
       placeholder: '#P2LQ0GR',
       help: 'Default player for every command. Clash Royale has no name lookup, so this must be a player tag; leave blank only if you always type one.'
-    }
+    },
+    LINKED_ONLY_FIELD
   ]
 };

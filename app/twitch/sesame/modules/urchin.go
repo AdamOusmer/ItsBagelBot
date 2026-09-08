@@ -48,6 +48,7 @@ const (
 type urchinConfig struct {
 	Account     string `json:"account"`
 	AccountUUID string `json:"accountUuid"`
+	LinkedOnly  string `json:"linkedOnly"`
 
 	DailyEnabled          string `json:"dailyEnabled"`
 	DailyMessage          string `json:"dailyMessage"`
@@ -146,6 +147,7 @@ func runUrchinCommand[R any](d engine.Deps, cmd gatewayCommand, tokens map[strin
 
 		account, display := resolveLinked(c, accountSources{
 			Arg: args, Linked: cfg.Account, LinkedUUID: cfg.AccountUUID, PreferUUID: true,
+			LinkedOnly: explicitOn(cfg.LinkedOnly),
 		})
 		var reply R
 		if err := d.Gossip.Call(ctx, engine.GossipRoute{Provider: cmd.provider, Endpoint: cmd.endpoint}, gossiprpc.Request{Account: account, IsPremium: c.Regress.IsPremium()}, &reply); err != nil {

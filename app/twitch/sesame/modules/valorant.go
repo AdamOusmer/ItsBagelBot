@@ -51,9 +51,10 @@ const (
 // "on"/"off" — empty means on, matching the alerts module's semantics — and
 // each *Message is a customized template (blank = default).
 type valorantConfig struct {
-	Account  string `json:"account"`
-	Region   string `json:"region"`
-	Platform string `json:"platform"`
+	Account    string `json:"account"`
+	Region     string `json:"region"`
+	Platform   string `json:"platform"`
+	LinkedOnly string `json:"linkedOnly"`
 
 	RankEnabled  string `json:"rankEnabled"`
 	RankMessage  string `json:"rankMessage"`
@@ -269,6 +270,12 @@ func valRequest(cmd valCommand, cfg valorantConfig, c *module.Context, args stri
 		return req
 	}
 	argAccount, argRegion, argPlatform := parseValArgs(args)
+	if explicitOn(cfg.LinkedOnly) {
+		// Linked-only drops the typed id on both branches below; a shard or
+		// ladder word still applies, since it only changes where the linked
+		// account is looked up, not whose.
+		argAccount = ""
+	}
 	req.Region, req.Platform = argRegion, argPlatform
 	if req.Region == "" {
 		req.Region = cfg.Region

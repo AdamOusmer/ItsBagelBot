@@ -53,6 +53,7 @@ const fortniteShopBudget = 380
 type fortniteConfig struct {
 	Account     string `json:"account"`
 	AccountType string `json:"accountType"`
+	LinkedOnly  string `json:"linkedOnly"`
 
 	StatsEnabled   string `json:"statsEnabled"`
 	StatsMessage   string `json:"statsMessage"`
@@ -261,7 +262,9 @@ func fortniteStatsRun(d engine.Deps, cmd fortniteStatsCommand) module.RunFunc {
 			return nil
 		}
 
-		account := resolveAccount(accountSources{Arg: args, Linked: cfg.Account, BroadcasterLogin: c.Env.BroadcasterUserLogin})
+		account := resolveAccount(accountSources{
+			Arg: args, Linked: cfg.Account, BroadcasterLogin: c.Env.BroadcasterUserLogin, LinkedOnly: explicitOn(cfg.LinkedOnly),
+		})
 		req := gossiprpc.Request{
 			Account:     account,
 			AccountType: cfg.AccountType,

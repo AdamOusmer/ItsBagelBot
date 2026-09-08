@@ -78,6 +78,15 @@ func TestValScopingArgsAndConfig(t *testing.T) {
 	assert.Equal(t, "Reyna#KR5", call.req.Account)
 	assert.Equal(t, "ap", call.req.Region)
 	assert.Equal(t, "console", call.req.Platform)
+
+	// linkedOnly "on" drops the typed id but a shard or ladder word still
+	// scopes where the linked account is looked up.
+	cfg = `{"account":"Frosty#EUW1","region":"eu","platform":"pc","linkedOnly":"on"}`
+	require.NoError(t, cmd.Run(context.Background(), urchinCtx(cfg), "console @Reyna#KR5 ap", col.emit))
+	call = gw.lastCall(t)
+	assert.Equal(t, "Frosty#EUW1", call.req.Account)
+	assert.Equal(t, "ap", call.req.Region)
+	assert.Equal(t, "console", call.req.Platform)
 }
 
 // The !val root routes its first argument word onto the subcommand runners;

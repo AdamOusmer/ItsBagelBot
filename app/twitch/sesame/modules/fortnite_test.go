@@ -96,6 +96,14 @@ func TestFnstatsConfigPassthrough(t *testing.T) {
 	call = gw.lastCall(t)
 	assert.Equal(t, "SomePlayer", call.req.Account)
 	assert.Equal(t, "psn", call.req.AccountType)
+
+	// linkedOnly "on" pins every lookup to the linked account; the typed
+	// name is dropped without a chat line.
+	cfg = `{"account":"LinkedAcc","accountType":"psn","linkedOnly":"on"}`
+	require.NoError(t, cmd.Run(context.Background(), urchinCtx(cfg), "@SomePlayer", col.emit))
+	call = gw.lastCall(t)
+	assert.Equal(t, "LinkedAcc", call.req.Account)
+	assert.Equal(t, "psn", call.req.AccountType)
 }
 
 // A per-command "off" toggle keeps that command silent: no chat line and no

@@ -2,6 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { ModuleDef } from './module-def';
+import { LINKED_ONLY_FIELD } from './linked-only';
 
 export const MCSR_MODULE: ModuleDef = 
 {
@@ -224,6 +225,7 @@ export const MCSR_MODULE: ModuleDef =
       label: 'Minecraft UUID',
       type: 'text',
       hidden: true
-    }
+    },
+    LINKED_ONLY_FIELD
   ]
 };

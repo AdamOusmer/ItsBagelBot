@@ -27,10 +27,6 @@ type shoutoutConfig struct {
 	NativeShoutout string `json:"native_shoutout"`
 }
 
-// nativeShoutoutOn reports whether the native-shoutout toggle is on. Unlike
-// alertOn, this one defaults off: only an explicit "on" counts.
-func nativeShoutoutOn(v string) bool { return v == "on" }
-
 // raidEvent is the subset of the channel.raid EventSub payload we use.
 type raidEvent struct {
 	FromBroadcasterUserLogin string `json:"from_broadcaster_user_login"`
@@ -94,7 +90,7 @@ func Shoutout(_ engine.Deps) module.Module {
 		// Shoutout, which Twitch renders with the raider's live category — the
 		// custom chat line above can never show that without a live Helix call
 		// of our own.
-		if nativeShoutoutOn(cfg.NativeShoutout) {
+		if explicitOn(cfg.NativeShoutout) {
 			emit(&module.Output{
 				Type:          outgress.TypeShoutout,
 				BroadcasterID: ev.ToBroadcasterUserID,
