@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"time"
 
 	"go.uber.org/zap"
 
@@ -29,21 +28,17 @@ type tokensRPC struct {
 	log  *zap.Logger
 }
 
+// SubscribeTokens binds the token verbs as an ordered table. The map-and-loop
+// this replaced bound them in Go's randomised map order, so which subject came
+// up first differed run to run and a partial bind failure reported a different
+// verb each time.
 func SubscribeTokens(w Wiring, prefix string) error {
-	nc, repo, app, log, queueGroup := w.NC, w.Repo, w.App, w.Log, w.Queue
-	t := &tokensRPC{repo: repo, log: log}
+	t := &tokensRPC{repo: w.Repo, log: w.Log}
 
-	verbs := map[string]func(context.Context, usersrpc.TokensRequest) usersrpc.TokensReply{
-		"get":  t.handleGet,
-		"save": t.handleSave,
-	}
-	for verb, handle := range verbs {
-		subject := prefix + "." + verb
-		if err := bus.QueueSubscribeJSON[usersrpc.TokensRequest, usersrpc.TokensReply](nc, subject, queueGroup, 2*time.Second, app, log, handle); err != nil {
-			return err
-		}
-	}
-	return nil
+	return bus.ServeVerbs(w.Within(tokensBudget), prefix,
+		bus.At("get", t.handleGet),
+		bus.At("save", t.handleSave),
+	)
 }
 
 func (t *tokensRPC) handleGet(ctx context.Context, req usersrpc.TokensRequest) usersrpc.TokensReply {

@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"strconv"
-	"time"
 
 	"ItsBagelBot/app/db/users/repository"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
@@ -20,9 +19,8 @@ import (
 // no captured email replies with an empty Email, not an error: the caller
 // treats that as "skip the email channel".
 func SubscribeEmail(w Wiring, subject string) error {
-	nc, repo, app, log, queueGroup := w.NC, w.Repo, w.App, w.Log, w.Queue
-	return bus.QueueSubscribeJSON[usersrpc.EmailGetRequest, usersrpc.EmailGetReply](
-		nc, subject, queueGroup, 3*time.Second, app, log,
+	repo := w.Repo
+	return bus.Serve(w.Within(emailBudget), subject,
 		func(ctx context.Context, req usersrpc.EmailGetRequest) usersrpc.EmailGetReply {
 			id, err := strconv.ParseUint(req.UserID, 10, 64)
 			if err != nil {

@@ -13,7 +13,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/nats-io/nats.go"
-	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/db/transactions/tebex"
@@ -33,31 +32,27 @@ type checkoutRPC struct {
 
 // CheckoutConfig names the subjects the checkout RPC binds and resolves
 // against. UserGetSubject is the users service admin lookup
-// (bagel.rpc.admin.user.get) used to resolve and vet gift recipients.
+// (bagel.rpc.admin.user.get) used to resolve and vet gift recipients. The
+// queue group and the process-wide handles arrive as bus.RPCWiring, which is
+// what carried them everywhere else; CheckoutRuntime was a third spelling of
+// that same set, and its QueueGroup sat next to two other plain strings here.
 type CheckoutConfig struct {
 	Prefix         string
 	UserGetSubject string
-	QueueGroup     string
 }
 
-// CheckoutRuntime bundles the process-wide handles the checkout RPC binds
-// against.
-type CheckoutRuntime struct {
-	NC  *nats.Conn
-	App *newrelic.Application
-	Log *zap.Logger
-}
+// basketBudget is the widest handler budget in the service. Basket creation is
+// two upstream Tebex HTTP calls plus, for a gift, a recipient lookup RPC, so
+// it gets far more room than the in-cluster default; checkout_test.go pins it.
+const basketBudget = 15 * time.Second
 
 // SubscribeCheckout registers the dashboard-facing basket_create verb: mint a
 // Tebex basket so the dashboard can redirect to Tebex-hosted checkout, either
 // for the signed-in buyer or as a gift to another registered user.
-func SubscribeCheckout(rt CheckoutRuntime, client *tebex.Client, cfg CheckoutConfig) error {
-	c := &checkoutRPC{tebex: client, nc: rt.NC, userGetSubject: cfg.UserGetSubject, log: rt.Log}
+func SubscribeCheckout(w bus.RPCWiring, client *tebex.Client, cfg CheckoutConfig) error {
+	c := &checkoutRPC{tebex: client, nc: w.NC, userGetSubject: cfg.UserGetSubject, log: w.Log}
 
-	// Basket creation is two upstream HTTP calls (plus a recipient lookup for
-	// gifts), so give it more room than the default in-cluster RPC budget.
-	return bus.QueueSubscribeJSON[transactionsrpc.BasketCreateRequest, transactionsrpc.BasketCreateReply](
-		rt.NC, cfg.Prefix+".basket_create", cfg.QueueGroup, 15*time.Second, rt.App, rt.Log, c.basketCreate)
+	return bus.Serve(w.Within(basketBudget), cfg.Prefix+".basket_create", c.basketCreate)
 }
 
 // buyer is the signed-in purchaser: their numeric id and clamped display login.

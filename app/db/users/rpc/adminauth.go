@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 
 	"go.uber.org/zap"
 
@@ -51,20 +50,23 @@ const (
 func SubscribeAdminAuth(w Wiring, db *ent.Client, authPrefix, auditPrefix string) error {
 	a := &adminAuthRPC{db: db, log: w.Log}
 
-	routes := map[string]func(context.Context, usersrpc.AuthRequest) usersrpc.AuthReply{
-		authPrefix + ".check":   a.check,
-		authPrefix + ".list":    a.listStaff,
-		authPrefix + ".upsert":  a.upsertStaff,
-		authPrefix + ".remove":  a.removeStaff,
-		auditPrefix + ".append": a.auditAppend,
-		auditPrefix + ".list":   a.auditList,
+	// Two tables rather than one map keyed by full subject: the prefixes
+	// differ, so the map had to pre-concatenate them and lost the property
+	// ServeVerbs exists for -- that a verb name is spelled once, next to its
+	// handler, under a prefix named once.
+	staff := w.Within(adminBudget)
+	if err := bus.ServeVerbs(staff, authPrefix,
+		bus.At("check", a.check),
+		bus.At("list", a.listStaff),
+		bus.At("upsert", a.upsertStaff),
+		bus.At("remove", a.removeStaff),
+	); err != nil {
+		return err
 	}
-	for subject, handle := range routes {
-		if err := bus.QueueSubscribeJSON[usersrpc.AuthRequest, usersrpc.AuthReply](w.NC, subject, w.Queue, 3*time.Second, w.App, w.Log, handle); err != nil {
-			return err
-		}
-	}
-	return nil
+	return bus.ServeVerbs(staff, auditPrefix,
+		bus.At("append", a.auditAppend),
+		bus.At("list", a.auditList),
+	)
 }
 
 // rank orders the role ladder for comparisons. Unknown roles rank lowest.

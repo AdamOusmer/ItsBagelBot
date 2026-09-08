@@ -43,30 +43,26 @@ func SubscribeAdmin(w Wiring, prefix, invalidationPrefix string) error {
 		log:                w.Log,
 	}
 
-	verbs := map[string]func(context.Context, usersrpc.AdminRequest) usersrpc.AdminReply{
-		"get":              a.get,
-		"list":             a.list,
-		"stats":            a.stats,
-		"enrollment":       a.enrollment,
-		"overview":         a.overview,
-		"set_status":       a.setStatus,
-		"set_active":       a.setActive,
-		"set_creator_code": a.setCreatorCode,
-		"ban":              a.ban,
-		"unban":            a.unban,
-		"reset":            a.reset,
-		"token_set":        a.tokenSet,
-		"token_status":     a.tokenStatus,
-		"token_clear":      a.tokenClear,
-		"delete":           a.delete,
-	}
-	for verb, handle := range verbs {
-		subject := prefix + "." + verb
-		if err := bus.QueueSubscribeJSON[usersrpc.AdminRequest, usersrpc.AdminReply](a.nc, subject, w.Queue, 3*time.Second, w.App, w.Log, handle); err != nil {
-			return err
-		}
-	}
-	return nil
+	// An ordered table, not the map-and-loop this replaced: Go randomises map
+	// iteration, so the fifteen subjects bound in a different order every boot
+	// and a partial bind failure named a different verb each time.
+	return bus.ServeVerbs(w.Within(adminBudget), prefix,
+		bus.At("get", a.get),
+		bus.At("list", a.list),
+		bus.At("stats", a.stats),
+		bus.At("enrollment", a.enrollment),
+		bus.At("overview", a.overview),
+		bus.At("set_status", a.setStatus),
+		bus.At("set_active", a.setActive),
+		bus.At("set_creator_code", a.setCreatorCode),
+		bus.At("ban", a.ban),
+		bus.At("unban", a.unban),
+		bus.At("reset", a.reset),
+		bus.At("token_set", a.tokenSet),
+		bus.At("token_status", a.tokenStatus),
+		bus.At("token_clear", a.tokenClear),
+		bus.At("delete", a.delete),
+	)
 }
 
 func adminError(msg string) usersrpc.AdminReply { return usersrpc.AdminReply{Error: msg} }
