@@ -18,6 +18,7 @@ import (
 	"entgo.io/ent/dialect"
 
 	"ItsBagelBot/pkg/env"
+	"ItsBagelBot/pkg/tlsenv"
 
 	"github.com/go-sql-driver/mysql"
 	"go.uber.org/zap"
@@ -327,8 +328,8 @@ func newMySQLTLSConfig(caPEM []byte, mode tlsMode, addr string) (*tls.Config, er
 }
 
 const (
-	clientCertEnvVar = "DB_CLIENT_CERT"
-	clientKeyEnvVar  = "DB_CLIENT_KEY"
+	clientCertEnvVar = tlsenv.Var("DB_CLIENT_CERT")
+	clientKeyEnvVar  = tlsenv.Var("DB_CLIENT_KEY")
 )
 
 // loadClientKeyPair reads the optional mTLS client identity presented to the
@@ -345,21 +346,28 @@ const (
 // the server-side REQUIRE X509 refusal it would otherwise surface as is far
 // harder to diagnose than this error.
 func loadClientKeyPair() ([]tls.Certificate, error) {
-	certPEM := strings.TrimSpace(env.Get(clientCertEnvVar, ""))
-	keyPEM := strings.TrimSpace(env.Get(clientKeyEnvVar, ""))
-	if certPEM == "" && keyPEM == "" {
+
+	// Only the both-or-neither gate is shared with tlsenv, not the loading:
+	// these two variables carry the PEM bodies themselves, not paths to them
+	// (HeatWave client identities come from Doppler, there is no Secret volume
+	// on this path), so Pair's file-based accessors and closures do not apply.
+	// The gate is the part that was worth having one wording of.
+	pair, err := tlsenv.PairFromEnv(clientCertEnvVar, clientKeyEnvVar)
+	if err != nil {
+		return nil, fmt.Errorf("db: %w", err)
+	}
+	if !pair.Configured() {
 		return nil, nil
 	}
-	if certPEM == "" || keyPEM == "" {
-		return nil, fmt.Errorf("db: %s and %s must both be set or both be empty",
-			clientCertEnvVar, clientKeyEnvVar)
-	}
-	pair, err := tls.X509KeyPair([]byte(certPEM), []byte(keyPEM))
+
+	certPEM := strings.TrimSpace(env.Get(string(clientCertEnvVar), ""))
+	keyPEM := strings.TrimSpace(env.Get(string(clientKeyEnvVar), ""))
+	keyPair, err := tls.X509KeyPair([]byte(certPEM), []byte(keyPEM))
 	if err != nil {
 		return nil, fmt.Errorf("db: parsing %s/%s client key pair: %w",
 			clientCertEnvVar, clientKeyEnvVar, err)
 	}
-	return []tls.Certificate{pair}, nil
+	return []tls.Certificate{keyPair}, nil
 }
 
 func parsePinnedCA(caPEM []byte) (*x509.Certificate, error) {

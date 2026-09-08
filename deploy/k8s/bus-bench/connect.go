@@ -5,6 +5,7 @@ package main
 
 import (
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/tlsenv"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -50,25 +51,22 @@ func baseConnectOptions() []nats.Option {
 // verify:true listeners ask for. pkg/bus presents this pair on its own
 // connections (connect.go), and the management connection must answer the same
 // certificate request or the dial is refused.
-
-// clientTLSConfig wraps a CA pool with the client key pair the hub's
-// verify:true listeners ask for. pkg/bus presents this pair on its own
-// connections (connect.go), and the management connection must answer the same
-// certificate request or the dial is refused.
-func clientTLSConfig(pool *x509.CertPool) *tls.Config {
+//
+// The pair comes from tlsenv, which is where the fleet's both-or-neither rule
+// and the per-handshake re-read live. Half-set is now an error rather than a
+// silently certificate-less dial: on a verify:true listener that dial fails
+// anyway, several seconds later and as an opaque server-side refusal.
+func clientTLSConfig(pool *x509.CertPool) (*tls.Config, error) {
 	cfg := &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}
-	certFile, keyFile := os.Getenv("NATS_CLIENT_CERT_FILE"), os.Getenv("NATS_CLIENT_KEY_FILE")
-	if certFile == "" || keyFile == "" {
-		return cfg
+	pair, err := tlsenv.PairFromEnv("NATS_CLIENT_CERT_FILE", "NATS_CLIENT_KEY_FILE")
+	if err != nil {
+		return nil, err
 	}
-	cfg.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
-		cert, cerr := tls.LoadX509KeyPair(certFile, keyFile)
-		if cerr != nil {
-			return nil, fmt.Errorf("load nats client key pair: %w", cerr)
-		}
-		return &cert, nil
+	if !pair.Configured() {
+		return cfg, nil
 	}
-	return cfg
+	cfg.GetClientCertificate = pair.GetClientCertificate
+	return cfg, nil
 }
 
 // jetStreamFor opens the management JetStream view on nc. jsapi.NewWithDomain
@@ -93,7 +91,11 @@ func mgmtConnect(url string) (*nats.Conn, jsapi.JetStream, error) {
 		return nil, nil, err
 	}
 	if pool != nil {
-		opts = append(opts, nats.Secure(clientTLSConfig(pool)))
+		cfg, cerr := clientTLSConfig(pool)
+		if cerr != nil {
+			return nil, nil, cerr
+		}
+		opts = append(opts, nats.Secure(cfg))
 	}
 	nc, err := nats.Connect(url, opts...)
 	if err != nil {
