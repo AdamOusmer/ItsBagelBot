@@ -5,7 +5,6 @@ package rpc
 
 import (
 	"context"
-	"strconv"
 	"time"
 
 	"go.uber.org/zap"
@@ -32,35 +31,26 @@ type quotesRPC struct {
 func SubscribeQuotes(w bus.RPCWiring, repo *repository.Quotes, prefix string) error {
 	q := &quotesRPC{repo: repo, log: w.Log}
 
+	// VerbForUser, not At: the broadcaster-id guard is the whole prologue of
+	// all seven handlers. It used to be a package-local withUserID closure
+	// wrapper plus an errReply helper; ForUser is both, shared with every
+	// other user-scoped verb in the fleet, so a returned error becomes the
+	// reply's error field without either of them.
 	return bus.ServeVerbs(w, prefix,
-		bus.At("add", q.handleAdd),
-		bus.At("get", q.handleGet),
-		bus.At("random", q.handleRandom),
-		bus.At("search", q.handleSearch),
-		bus.At("edit", q.handleEdit),
-		bus.At("remove", q.handleRemove),
-		bus.At("list", q.handleList),
+		quoteVerb("add", q.handleAdd),
+		quoteVerb("get", q.handleGet),
+		quoteVerb("random", q.handleRandom),
+		quoteVerb("search", q.handleSearch),
+		quoteVerb("edit", q.handleEdit),
+		quoteVerb("remove", q.handleRemove),
+		quoteVerb("list", q.handleList),
 	)
 }
 
-// withUserID parses the broadcaster id and runs fn, or returns an
-// "invalid user_id" reply. It removes the parse-and-guard prologue every verb
-// would otherwise repeat.
-func (q *quotesRPC) withUserID(req modulesrpc.QuoteRequest, fn func(uint64) modulesrpc.QuoteReply) modulesrpc.QuoteReply {
-	id, err := strconv.ParseUint(req.UserID, 10, 64)
-	if err != nil {
-		return modulesrpc.QuoteReply{Error: "invalid user_id"}
-	}
-	return fn(id)
-}
-
-// errReply maps a repository error onto the reply's error envelope, or falls
-// back to ok when there was none.
-func errReply(err error, ok modulesrpc.QuoteReply) modulesrpc.QuoteReply {
-	if err != nil {
-		return modulesrpc.QuoteReply{Error: err.Error()}
-	}
-	return ok
+// quoteVerb names one guarded quote verb. It fixes the two type arguments
+// every entry of the table would otherwise repeat.
+func quoteVerb(name string, load func(context.Context, modulesrpc.QuoteRequest, uint64) (modulesrpc.QuoteReply, error)) bus.Verb[modulesrpc.QuoteRequest, modulesrpc.QuoteReply] {
+	return bus.VerbForUser[modulesrpc.QuoteRequest, modulesrpc.QuoteReply](name, load)
 }
 
 // parseQuoteDate parses the optional RFC 3339 date riding an add/edit
@@ -74,60 +64,46 @@ func parseQuoteDate(raw string) (time.Time, bool) {
 	return t, err == nil
 }
 
-func (q *quotesRPC) handleAdd(ctx context.Context, req modulesrpc.QuoteRequest) modulesrpc.QuoteReply {
-	return q.withUserID(req, func(id uint64) modulesrpc.QuoteReply {
-		createdAt, ok := parseQuoteDate(req.CreatedAt)
-		if !ok {
-			return modulesrpc.QuoteReply{Error: "invalid quote date"}
-		}
-		draft := repository.QuoteDraft{Text: req.Text, AddedBy: req.AddedBy, CreatedAt: createdAt}
-		view, err := q.repo.Add(ctx, id, draft)
-		return errReply(err, modulesrpc.QuoteReply{Quote: view, Found: true})
-	})
+func (q *quotesRPC) handleAdd(ctx context.Context, req modulesrpc.QuoteRequest, id uint64) (modulesrpc.QuoteReply, error) {
+	createdAt, ok := parseQuoteDate(req.CreatedAt)
+	if !ok {
+		return modulesrpc.QuoteReply{Error: "invalid quote date"}, nil
+	}
+	draft := repository.QuoteDraft{Text: req.Text, AddedBy: req.AddedBy, CreatedAt: createdAt}
+	view, err := q.repo.Add(ctx, id, draft)
+	return modulesrpc.QuoteReply{Quote: view, Found: true}, err
 }
 
-func (q *quotesRPC) handleGet(ctx context.Context, req modulesrpc.QuoteRequest) modulesrpc.QuoteReply {
-	return q.withUserID(req, func(id uint64) modulesrpc.QuoteReply {
-		view, found, err := q.repo.Get(ctx, id, req.Number)
-		return errReply(err, modulesrpc.QuoteReply{Quote: view, Found: found})
-	})
+func (q *quotesRPC) handleGet(ctx context.Context, req modulesrpc.QuoteRequest, id uint64) (modulesrpc.QuoteReply, error) {
+	view, found, err := q.repo.Get(ctx, id, req.Number)
+	return modulesrpc.QuoteReply{Quote: view, Found: found}, err
 }
 
-func (q *quotesRPC) handleRandom(ctx context.Context, req modulesrpc.QuoteRequest) modulesrpc.QuoteReply {
-	return q.withUserID(req, func(id uint64) modulesrpc.QuoteReply {
-		view, found, err := q.repo.Random(ctx, id)
-		return errReply(err, modulesrpc.QuoteReply{Quote: view, Found: found})
-	})
+func (q *quotesRPC) handleRandom(ctx context.Context, _ modulesrpc.QuoteRequest, id uint64) (modulesrpc.QuoteReply, error) {
+	view, found, err := q.repo.Random(ctx, id)
+	return modulesrpc.QuoteReply{Quote: view, Found: found}, err
 }
 
-func (q *quotesRPC) handleSearch(ctx context.Context, req modulesrpc.QuoteRequest) modulesrpc.QuoteReply {
-	return q.withUserID(req, func(id uint64) modulesrpc.QuoteReply {
-		view, found, err := q.repo.Search(ctx, id, req.Text)
-		return errReply(err, modulesrpc.QuoteReply{Quote: view, Found: found})
-	})
+func (q *quotesRPC) handleSearch(ctx context.Context, req modulesrpc.QuoteRequest, id uint64) (modulesrpc.QuoteReply, error) {
+	view, found, err := q.repo.Search(ctx, id, req.Text)
+	return modulesrpc.QuoteReply{Quote: view, Found: found}, err
 }
 
-func (q *quotesRPC) handleEdit(ctx context.Context, req modulesrpc.QuoteRequest) modulesrpc.QuoteReply {
-	return q.withUserID(req, func(id uint64) modulesrpc.QuoteReply {
-		createdAt, ok := parseQuoteDate(req.CreatedAt)
-		if !ok {
-			return modulesrpc.QuoteReply{Error: "invalid quote date"}
-		}
-		view, found, err := q.repo.Update(ctx, id, req.Number, repository.QuoteUpdate{Text: req.Text, CreatedAt: createdAt})
-		return errReply(err, modulesrpc.QuoteReply{Quote: view, Found: found})
-	})
+func (q *quotesRPC) handleEdit(ctx context.Context, req modulesrpc.QuoteRequest, id uint64) (modulesrpc.QuoteReply, error) {
+	createdAt, ok := parseQuoteDate(req.CreatedAt)
+	if !ok {
+		return modulesrpc.QuoteReply{Error: "invalid quote date"}, nil
+	}
+	view, found, err := q.repo.Update(ctx, id, req.Number, repository.QuoteUpdate{Text: req.Text, CreatedAt: createdAt})
+	return modulesrpc.QuoteReply{Quote: view, Found: found}, err
 }
 
-func (q *quotesRPC) handleRemove(ctx context.Context, req modulesrpc.QuoteRequest) modulesrpc.QuoteReply {
-	return q.withUserID(req, func(id uint64) modulesrpc.QuoteReply {
-		found, err := q.repo.Remove(ctx, id, req.Number)
-		return errReply(err, modulesrpc.QuoteReply{Found: found})
-	})
+func (q *quotesRPC) handleRemove(ctx context.Context, req modulesrpc.QuoteRequest, id uint64) (modulesrpc.QuoteReply, error) {
+	found, err := q.repo.Remove(ctx, id, req.Number)
+	return modulesrpc.QuoteReply{Found: found}, err
 }
 
-func (q *quotesRPC) handleList(ctx context.Context, req modulesrpc.QuoteRequest) modulesrpc.QuoteReply {
-	return q.withUserID(req, func(id uint64) modulesrpc.QuoteReply {
-		quotes, err := q.repo.List(ctx, id)
-		return errReply(err, modulesrpc.QuoteReply{Quotes: quotes})
-	})
+func (q *quotesRPC) handleList(ctx context.Context, _ modulesrpc.QuoteRequest, id uint64) (modulesrpc.QuoteReply, error) {
+	quotes, err := q.repo.List(ctx, id)
+	return modulesrpc.QuoteReply{Quotes: quotes}, err
 }

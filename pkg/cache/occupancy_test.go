@@ -26,7 +26,7 @@ func TestLogOccupancyEmitsPerCacheFields(t *testing.T) {
 	users.Set("a", 1)
 	users.client.Wait() // drain the async write buffer so Len is accurate
 
-	LogOccupancy(log, map[string]OccupancySource{
+	logOccupancy(log, map[string]OccupancySource{
 		"users":    users,
 		"commands": commands,
 	})
@@ -44,13 +44,13 @@ func TestLogOccupancyEmitsPerCacheFields(t *testing.T) {
 
 func TestLogOccupancyNoCachesNoLine(t *testing.T) {
 	core, logs := observer.New(zap.InfoLevel)
-	LogOccupancy(zap.New(core), map[string]OccupancySource{})
+	logOccupancy(zap.New(core), map[string]OccupancySource{})
 	assert.Empty(t, logs.All(), "no caches means no log line")
 }
 
 func TestLogOccupancyNilLoggerIsSafe(t *testing.T) {
 	assert.NotPanics(t, func() {
-		LogOccupancy(nil, map[string]OccupancySource{"x": New[int](1, time.Minute)})
+		logOccupancy(nil, map[string]OccupancySource{"x": New[int](1, time.Minute)})
 	})
 }
 

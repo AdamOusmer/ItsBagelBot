@@ -6,7 +6,6 @@ package rpc
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"ItsBagelBot/internal/domain/invalidate"
 	billingrpc "ItsBagelBot/internal/domain/rpc/billing"
@@ -19,9 +18,8 @@ import (
 // SubscribeBilling exposes the narrow private write surface used by the
 // transactions service after it has verified a Tebex webhook signature.
 func SubscribeBilling(w Wiring, subject, invalidationPrefix string) error {
-	nc, repo, app, log, queueGroup := w.NC, w.Repo, w.App, w.Log, w.Queue
-	return bus.QueueSubscribeJSON[billingrpc.ApplyRequest, billingrpc.ApplyReply](
-		nc, subject, queueGroup, 5*time.Second, app, log,
+	nc, repo, log := w.NC, w.Repo, w.Log
+	return bus.Serve(w.Within(billingBudget), subject,
 		func(ctx context.Context, req billingrpc.ApplyRequest) billingrpc.ApplyReply {
 			log := monitor.TxnLogger(ctx, log)
 			applied, err := repo.ApplyBilling(ctx, req)

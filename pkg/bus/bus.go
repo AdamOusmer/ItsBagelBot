@@ -83,7 +83,7 @@ func NewLaneSubscriber(cfg LaneConfig, log *zap.Logger) (Subscriber, error) {
 // bindDurable connects, provisions the server-owned durable consumer, and
 // binds a native nats.go subscriber to it. Only the binding fields of cfg are read;
 // the redelivery pacing arrives resolved as maxDeliveries + nakDelay.
-func bindDurable(cfg LaneConfig, maxDeliveries int, nakDelay redeliveryDelay, log *zap.Logger) (Subscriber, *nats.Conn, error) {
+func bindDurable(cfg LaneConfig, maxDeliveries int, nakDelay maxRetryDelay, log *zap.Logger) (Subscriber, *nats.Conn, error) {
 	consumer := durableName(cfg.Group, cfg.Subject)
 
 	nc, err := nats.Connect(busURL(endpoint(cfg.URL)), busOptions(clientName(cfg.Group))...)

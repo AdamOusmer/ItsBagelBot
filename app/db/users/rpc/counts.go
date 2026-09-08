@@ -5,14 +5,10 @@ package rpc
 
 import (
 	"context"
-	"time"
 
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/pkg/bus"
 )
-
-// countsTimeout bounds the one repo query this verb runs.
-const countsTimeout = 3 * time.Second
 
 // SubscribeCounts exposes the narrow public enrollment counts (total and
 // active user counts, nothing tiered or identifying) that a cosmetic surface
@@ -30,8 +26,7 @@ const countsTimeout = 3 * time.Second
 // scoped to this one subject so a compromised caller gains nothing else.
 func SubscribeCounts(w Wiring, subject string) error {
 	repo := w.Repo
-	return bus.QueueSubscribeJSON[usersrpc.CountsRequest, usersrpc.CountsReply](
-		w.NC, subject, w.Queue, countsTimeout, w.App, w.Log,
+	return bus.Serve(w.Within(countsBudget), subject,
 		func(ctx context.Context, _ usersrpc.CountsRequest) usersrpc.CountsReply {
 			total, active, _, _, err := repo.UserStats(ctx)
 			if err != nil {

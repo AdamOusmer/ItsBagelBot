@@ -158,9 +158,9 @@ func setupCheckout(nc *nats.Conn, nrApp *newrelic.Application, dashboardOrigin s
 	userGetSubject := env.Get("NATS_ADMIN_USER_SUBJECT_PREFIX", "bagel.rpc.admin.user") + ".get"
 	prefix := env.Get("NATS_TRANSACTIONS_SUBJECT_PREFIX", "bagel.rpc.transactions")
 	if err := rpc.SubscribeCheckout(
-		rpc.CheckoutRuntime{NC: nc, App: nrApp, Log: log},
+		bus.RPCWiring{NC: nc, App: nrApp, Queue: queueGroup, Log: log},
 		tebexClient,
-		rpc.CheckoutConfig{Prefix: prefix, UserGetSubject: userGetSubject, QueueGroup: queueGroup},
+		rpc.CheckoutConfig{Prefix: prefix, UserGetSubject: userGetSubject},
 	); err != nil {
 		log.Fatal("failed to subscribe checkout rpc", zap.Error(err))
 	}

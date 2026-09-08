@@ -6,6 +6,7 @@ package rpc
 import (
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
 )
 
@@ -74,5 +75,16 @@ func TestGiftNoteLinkAfterSanitize(t *testing.T) {
 		if noteHasLink(sanitizeGiftMessage(in)) {
 			t.Errorf("gift note %q should be allowed", in)
 		}
+	}
+}
+
+// TestBasketBudget pins the widest handler budget in the service. It was a
+// positional argument to a seven-argument subscribe call, which is exactly the
+// kind of value a refactor flattens onto the 2s default: two upstream Tebex
+// calls do not fit in two seconds, and the failure would be a timeout in
+// production rather than a compile error here.
+func TestBasketBudget(t *testing.T) {
+	if want := 15 * time.Second; basketBudget != want {
+		t.Fatalf("basketBudget = %v, want %v", basketBudget, want)
 	}
 }

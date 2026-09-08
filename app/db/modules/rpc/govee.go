@@ -6,7 +6,6 @@ package rpc
 import (
 	"context"
 	"errors"
-	"strconv"
 
 	"go.uber.org/zap"
 
@@ -23,7 +22,8 @@ import (
 // key custody is disabled (nil store).
 //
 // The four verbs carry different request and reply types, so they cannot share
-// one ServeVerbs table; each is bound on its own through the same wiring.
+// one ServeVerbs table; each is bound on its own through the same wiring, and
+// ServeForUser puts the fleet-wide user-id guard in front of every one.
 func wireGovee(w bus.RPCWiring, creds *repository.GoveeCreds) error {
 	if creds == nil {
 		return nil
@@ -33,16 +33,12 @@ func wireGovee(w bus.RPCWiring, creds *repository.GoveeCreds) error {
 	g := &goveeRPC{creds: creds, log: w.Log}
 
 	custody := w.Within(custodyBudget)
-	if err := bus.Serve(custody, dash+".set", g.handleSet); err != nil {
-		return err
-	}
-	if err := bus.Serve(custody, dash+".clear", g.handleClear); err != nil {
-		return err
-	}
-	if err := bus.Serve(custody, dash+".status", g.handleStatus); err != nil {
-		return err
-	}
-	if err := bus.Serve(custody, internal+".get", g.handleGet); err != nil {
+	if err := errors.Join(
+		bus.ServeForUser[goveerpc.KeySetRequest, goveerpc.KeyMutateReply](custody, dash+".set", g.handleSet),
+		bus.ServeForUser[goveerpc.KeyClearRequest, goveerpc.KeyMutateReply](custody, dash+".clear", g.handleClear),
+		bus.ServeForUser[goveerpc.KeyStatusRequest, goveerpc.KeyStatusReply](custody, dash+".status", g.handleStatus),
+		bus.ServeForUser[goveerpc.KeyGetRequest, goveerpc.KeyGetReply](custody, internal+".get", g.handleGet),
+	); err != nil {
 		return err
 	}
 	w.Log.Info("govee key custody enabled", zap.String("dashboard_prefix", dash))
@@ -54,52 +50,29 @@ type goveeRPC struct {
 	log   *zap.Logger
 }
 
-func (g *goveeRPC) handleSet(ctx context.Context, req goveerpc.KeySetRequest) goveerpc.KeyMutateReply {
-	id, err := strconv.ParseUint(req.UserID, 10, 64)
-	if err != nil {
-		return goveerpc.KeyMutateReply{Error: "user_id must be numeric"}
-	}
-	if err := g.creds.SetKey(ctx, id, req.Key); err != nil {
-		// The error never carries the key; it is a validation or seal failure.
-		return goveerpc.KeyMutateReply{Error: err.Error()}
-	}
-	return goveerpc.KeyMutateReply{}
+// A surfaced error never carries the key: these writes take their plaintext as
+// an argument and fail on validation or sealing.
+func (g *goveeRPC) handleSet(ctx context.Context, req goveerpc.KeySetRequest, id uint64) (goveerpc.KeyMutateReply, error) {
+	return goveerpc.KeyMutateReply{}, g.creds.SetKey(ctx, id, req.Key)
 }
 
-func (g *goveeRPC) handleClear(ctx context.Context, req goveerpc.KeyClearRequest) goveerpc.KeyMutateReply {
-	id, err := strconv.ParseUint(req.UserID, 10, 64)
-	if err != nil {
-		return goveerpc.KeyMutateReply{Error: "user_id must be numeric"}
-	}
-	if err := g.creds.ClearKey(ctx, id); err != nil {
-		return goveerpc.KeyMutateReply{Error: err.Error()}
-	}
-	return goveerpc.KeyMutateReply{}
+func (g *goveeRPC) handleClear(ctx context.Context, _ goveerpc.KeyClearRequest, id uint64) (goveerpc.KeyMutateReply, error) {
+	return goveerpc.KeyMutateReply{}, g.creds.ClearKey(ctx, id)
 }
 
-func (g *goveeRPC) handleStatus(ctx context.Context, req goveerpc.KeyStatusRequest) goveerpc.KeyStatusReply {
-	id, err := strconv.ParseUint(req.UserID, 10, 64)
-	if err != nil {
-		return goveerpc.KeyStatusReply{Error: "user_id must be numeric"}
-	}
+func (g *goveeRPC) handleStatus(ctx context.Context, _ goveerpc.KeyStatusRequest, id uint64) (goveerpc.KeyStatusReply, error) {
 	present, err := g.creds.HasKey(ctx, id)
 	if err != nil {
-		return goveerpc.KeyStatusReply{Error: err.Error()}
+		return goveerpc.KeyStatusReply{}, err
 	}
-	return goveerpc.KeyStatusReply{Present: present}
+	return goveerpc.KeyStatusReply{Present: present}, nil
 }
 
-func (g *goveeRPC) handleGet(ctx context.Context, req goveerpc.KeyGetRequest) goveerpc.KeyGetReply {
-	id, err := strconv.ParseUint(req.UserID, 10, 64)
-	if err != nil {
-		return goveerpc.KeyGetReply{Error: "user_id must be numeric"}
-	}
+func (g *goveeRPC) handleGet(ctx context.Context, _ goveerpc.KeyGetRequest, id uint64) (goveerpc.KeyGetReply, error) {
 	key, err := g.creds.Key(ctx, id)
-	switch {
-	case errors.Is(err, repository.ErrNoGoveeKey):
-		return goveerpc.KeyGetReply{}
-	case err != nil:
-		return goveerpc.KeyGetReply{Error: err.Error()}
+	if errors.Is(err, repository.ErrNoGoveeKey) {
+		// "None on file" is an empty reply, not a failure.
+		return goveerpc.KeyGetReply{}, nil
 	}
-	return goveerpc.KeyGetReply{Key: key}
+	return goveerpc.KeyGetReply{Key: key}, err
 }

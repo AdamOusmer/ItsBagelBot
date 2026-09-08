@@ -7,14 +7,15 @@ import (
 	"context"
 
 	"ItsBagelBot/internal/domain/rpc/projection"
+	"ItsBagelBot/pkg/bus"
 )
 
 // SubscribeProjection serves the internal projection read the worker falls
 // through to when a user's settings hash has no projected module section yet.
-// The user-id guard chain lives in projection.ServeProjection, shared with the
-// commands and users services.
+// The user-id guard lives in bus.ServeForUser, shared with every other
+// user-scoped verb in the fleet.
 func SubscribeProjection(w Wiring, subject string) error {
-	return projection.ServeProjection[projection.Request, projection.ModulesReply](w.RPCWiring, subject,
+	return bus.ServeForUser[projection.Request, projection.ModulesReply](w.RPCWiring, subject,
 		func(ctx context.Context, req projection.Request, id uint64) (projection.ModulesReply, error) {
 			views, err := w.Repo.List(ctx, id)
 			if err != nil {

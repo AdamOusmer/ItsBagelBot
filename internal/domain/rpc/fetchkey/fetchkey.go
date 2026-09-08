@@ -62,9 +62,9 @@ type FetchListReply struct {
 	Error   string      `json:"error,omitempty"`
 }
 
-// Requested and Failed let this pair ride projection.ServeProjection, which
-// owns the user-id guard chain the fetch fallback verb shares with the three
-// projection verbs. Structural, so this package still imports nothing new.
+// Requested and Failed let this pair ride bus.ServeForUser, which owns the
+// user-id guard the fetch fallback verb shares with every other user-scoped
+// verb. Structural, so this package still imports nothing new.
 func (r FetchListRequest) Requested() string { return r.UserID }
 
 // Failed records a refusal on the reply.

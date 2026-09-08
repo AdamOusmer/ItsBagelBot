@@ -5,7 +5,6 @@ package rpc
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 	"time"
 
@@ -109,10 +108,7 @@ func (u *userRPC) markPeeked(ctx context.Context, req notificationsrpc.MarkPeeke
 	return notificationsrpc.MarkPeekedReply{Peeked: peeked}
 }
 
-func parseUserID(s string) (uint64, error) {
-	id, err := strconv.ParseUint(s, 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("user_id must be numeric")
-	}
-	return id, nil
-}
+// parseUserID is bus.UserID under this package's name: the admin send verb
+// resolves a recipient partway through its own validation, so the guard cannot
+// be the bind-time bus.ServeForUser prologue here.
+func parseUserID(s string) (uint64, error) { return bus.UserID(s) }

@@ -30,7 +30,7 @@ type concurrentDurableSubscriber struct {
 	stream   string
 	consumer string
 	group    string
-	delay    redeliveryDelay
+	delay    maxRetryDelay
 	// handlerDeadline is the ceiling on one handler's total run time, NOT the
 	// consumer's AckWait. Those are different clocks and used to share a name.
 	// awaitResult reports InProgress every `progress`, which resets the server's
@@ -76,7 +76,7 @@ type concurrentSubscriberConfig struct {
 	stream   string
 	consumer string
 	group    string
-	delay    redeliveryDelay
+	delay    maxRetryDelay
 	log      *zap.Logger
 }
 
@@ -146,12 +146,12 @@ func workQueueRetention(stream string) bool {
 	return false
 }
 
-// redeliveryDelay keeps retry pacing behind the native subscriber abstraction.
-// retry is JetStream's one-based NumDelivered counter.
-type redeliveryDelay interface {
-	WaitTime(retry uint64) time.Duration
-}
-
+// maxRetryDelay is the retry pacing the durable lanes run on: a fixed NAK
+// delay until the one-based JetStream NumDelivered counter reaches max, then
+// terminate. It used to sit behind a one-method redeliveryDelay interface with
+// this as the only implementation, in this package, with no test double; the
+// concrete type is the honest shape and a second policy can introduce the
+// interface when it exists.
 type maxRetryDelay struct {
 	delay time.Duration
 	max   uint64
@@ -161,7 +161,14 @@ func newMaxRetryDelay(delay time.Duration, max uint64) maxRetryDelay {
 	return maxRetryDelay{delay: delay, max: max}
 }
 
+// WaitTime paces one redelivery. retry is JetStream's one-based NumDelivered
+// counter. The zero value is the Null Object the broadcast lanes bind with:
+// max 0 means "no pacing policy", answered with a plain immediate NAK rather
+// than the termination that retry >= 0 would otherwise read as.
 func (d maxRetryDelay) WaitTime(retry uint64) time.Duration {
+	if d.max == 0 {
+		return 0
+	}
 	if retry >= d.max {
 		return terminateDelivery
 	}
@@ -779,10 +786,8 @@ func (s *concurrentDurableSubscriber) reportProgress(msg *nats.Msg) {
 
 func (s *concurrentDurableSubscriber) nack(msg *nats.Msg) {
 	delay := time.Duration(0)
-	if s.delay != nil {
-		if metadata, err := msg.Metadata(); err == nil {
-			delay = s.delay.WaitTime(metadata.NumDelivered)
-		}
+	if metadata, err := msg.Metadata(); err == nil {
+		delay = s.delay.WaitTime(metadata.NumDelivered)
 	}
 	var err error
 	switch {
