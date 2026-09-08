@@ -20,7 +20,7 @@ import (
 
 	discapi "ItsBagelBot/internal/discordapi"
 	ddiscord "ItsBagelBot/internal/domain/discord"
-	"ItsBagelBot/pkg/codec"
+	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/valkey-io/valkey-go"
 )
@@ -50,7 +50,7 @@ type LiveStore interface {
 }
 
 type valkeyLiveStore struct {
-	client valkey.Client
+	kv pkg_valkey.KV
 }
 
 // New builds the Valkey-backed LiveStore. A nil client (Valkey unreachable
@@ -61,7 +61,7 @@ func New(client valkey.Client) LiveStore {
 	if client == nil {
 		return nil
 	}
-	return valkeyLiveStore{client: client}
+	return valkeyLiveStore{kv: pkg_valkey.NewKV(client)}
 }
 
 // liveKey is keyed by GUILD id, not the Twitch broadcaster id the original
@@ -72,13 +72,13 @@ func New(client valkey.Client) LiveStore {
 func liveKey(guildID GuildID) string { return "discord:live-msg:" + string(guildID) }
 
 func (s valkeyLiveStore) PutLiveMessage(ctx context.Context, guildID GuildID, m discapi.Message) error {
-	return s.client.Do(ctx, s.client.B().Set().Key(liveKey(guildID)).
-		Value(m.ChannelID+"|"+m.ID).Ex(liveMessageTTL).Build()).Error()
+	at := pkg_valkey.Key{Name: liveKey(guildID), TTL: liveMessageTTL}
+	return s.kv.Set(ctx, at, m.ChannelID+"|"+m.ID)
 }
 
 func (s valkeyLiveStore) GetLiveMessage(ctx context.Context, guildID GuildID) (discapi.Message, bool) {
-	raw, err := s.client.Do(ctx, s.client.B().Get().Key(liveKey(guildID)).Build()).ToString()
-	if missingLiveMessage(raw, err) {
+	raw, ok := s.kv.GetString(ctx, liveKey(guildID))
+	if !ok {
 		return discapi.Message{}, false
 	}
 	ch, id, ok := strings.Cut(raw, "|")
@@ -86,12 +86,6 @@ func (s valkeyLiveStore) GetLiveMessage(ctx context.Context, guildID GuildID) (d
 		return discapi.Message{}, false
 	}
 	return discapi.Message{ChannelID: ch, ID: id}, true
-}
-
-// missingLiveMessage reports whether the Valkey read failed, or simply found
-// nothing (GET returns an empty string on a miss).
-func missingLiveMessage(raw string, err error) bool {
-	return err != nil || raw == ""
 }
 
 // malformedLiveMessage reports whether the stored "channel|id" value did not
@@ -103,7 +97,7 @@ func malformedLiveMessage(ch, id string, ok bool) bool {
 }
 
 func (s valkeyLiveStore) DeleteLiveMessage(ctx context.Context, guildID GuildID) error {
-	return s.client.Do(ctx, s.client.B().Del().Key(liveKey(guildID)).Build()).Error()
+	return s.kv.Del(ctx, liveKey(guildID))
 }
 
 // BotStatusReader reads the gateway status key discord-ingress publishes
@@ -121,10 +115,10 @@ func NewBotStatusReader(client valkey.Client) BotStatusReader {
 	if client == nil {
 		return nil
 	}
-	return valkeyBotStatus{client: client}
+	return valkeyBotStatus{kv: pkg_valkey.NewKV(client)}
 }
 
-type valkeyBotStatus struct{ client valkey.Client }
+type valkeyBotStatus struct{ kv pkg_valkey.KV }
 
 // BotStatus reports the last published status, or ok=false when the key is
 // missing or unreadable. A decode failure reads as missing on purpose: the
@@ -132,11 +126,11 @@ type valkeyBotStatus struct{ client valkey.Client }
 // came from a build that no longer exists, and treating it as "no status" is
 // what lets a rollout heal itself.
 func (s valkeyBotStatus) BotStatus(ctx context.Context) (ddiscord.BotStatus, bool) {
-	raw, err := s.client.Do(ctx, s.client.B().Get().Key(ddiscord.BotStatusKey).Build()).AsBytes()
-	if err != nil || len(raw) == 0 {
+	raw, ok := s.kv.GetString(ctx, ddiscord.BotStatusKey)
+	if !ok {
 		return ddiscord.BotStatus{}, false
 	}
-	got, err := ddiscord.DecodeBotStatus(raw)
+	got, err := ddiscord.DecodeBotStatus([]byte(raw))
 	if err != nil {
 		return ddiscord.BotStatus{}, false
 	}
@@ -162,27 +156,32 @@ type ReauthStore interface {
 }
 
 // NewReauthStore builds the Valkey-backed store.
-func NewReauthStore(client valkey.Client) ReauthStore { return valkeyReauth{client: client} }
+func NewReauthStore(client valkey.Client) ReauthStore {
+	return valkeyReauth{kv: pkg_valkey.NewKV(client)}
+}
 
-type valkeyReauth struct{ client valkey.Client }
+type valkeyReauth struct{ kv pkg_valkey.KV }
 
 // MarkNeedsReauth records the refusal. No TTL: the missing permission is
 // frozen into the bot's role at install and does not lapse on its own, so an
 // expiring flag would just make the prompt blink in and out until someone
 // acts on it.
 func (s valkeyReauth) MarkNeedsReauth(ctx context.Context, guildID GuildID) error {
-	return s.client.Do(ctx, s.client.B().Set().Key(reauthKey(guildID)).Value("1").Build()).Error()
+	return s.kv.Set(ctx, pkg_valkey.Key{Name: reauthKey(guildID)}, "1")
 }
 
 // ClearNeedsReauth is called once a rename succeeds, which is the only proof
 // the permission actually arrived.
 func (s valkeyReauth) ClearNeedsReauth(ctx context.Context, guildID GuildID) error {
-	return s.client.Do(ctx, s.client.B().Del().Key(reauthKey(guildID)).Build()).Error()
+	return s.kv.Del(ctx, reauthKey(guildID))
 }
 
+// NeedsReauth reads the marker rather than EXISTS-ing it: the value is always
+// the constant "1", so presence and a successful read are the same fact, and
+// going through the shared GET keeps one command shape for the whole file.
 func (s valkeyReauth) NeedsReauth(ctx context.Context, guildID GuildID) bool {
-	n, err := s.client.Do(ctx, s.client.B().Exists().Key(reauthKey(guildID)).Build()).AsInt64()
-	return err == nil && n > 0
+	_, marked := s.kv.GetString(ctx, reauthKey(guildID))
+	return marked
 }
 
 // lockdownTTL bounds how long a lockdown's undo state is kept. A lockdown is
@@ -236,34 +235,22 @@ func NewLockdownStore(client valkey.Client) LockdownStore {
 	if client == nil {
 		return nil
 	}
-	return valkeyLockdown{client: client}
+	return valkeyLockdown{kv: pkg_valkey.NewKV(client)}
 }
 
-type valkeyLockdown struct{ client valkey.Client }
+type valkeyLockdown struct{ kv pkg_valkey.KV }
 
 func lockdownKey(guildID GuildID) string { return "discord:lockdown:" + string(guildID) }
 
 func (s valkeyLockdown) PutLockdown(ctx context.Context, guildID GuildID, state LockdownState) error {
-	raw, err := codec.Marshal(state)
-	if err != nil {
-		return err
-	}
-	return s.client.Do(ctx, s.client.B().Set().Key(lockdownKey(guildID)).
-		Value(string(raw)).Ex(lockdownTTL).Build()).Error()
+	at := pkg_valkey.Key{Name: lockdownKey(guildID), TTL: lockdownTTL}
+	return pkg_valkey.SetJSON(ctx, s.kv, at, state)
 }
 
 func (s valkeyLockdown) GetLockdown(ctx context.Context, guildID GuildID) (LockdownState, bool) {
-	raw, err := s.client.Do(ctx, s.client.B().Get().Key(lockdownKey(guildID)).Build()).ToString()
-	if err != nil || raw == "" {
-		return LockdownState{}, false
-	}
-	var state LockdownState
-	if err := codec.Unmarshal([]byte(raw), &state); err != nil {
-		return LockdownState{}, false
-	}
-	return state, true
+	return pkg_valkey.GetJSON[LockdownState](ctx, s.kv, lockdownKey(guildID))
 }
 
 func (s valkeyLockdown) DeleteLockdown(ctx context.Context, guildID GuildID) error {
-	return s.client.Do(ctx, s.client.B().Del().Key(lockdownKey(guildID)).Build()).Error()
+	return s.kv.Del(ctx, lockdownKey(guildID))
 }

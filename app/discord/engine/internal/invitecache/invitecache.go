@@ -24,6 +24,8 @@ import (
 	"context"
 	"time"
 
+	pkg_valkey "ItsBagelBot/pkg/valkey"
+
 	"github.com/valkey-io/valkey-go"
 )
 
@@ -40,7 +42,7 @@ const noGuild = "\x00none"
 
 // Cache is the Valkey-backed invite code -> guild id cache.
 type Cache struct {
-	client valkey.Client
+	kv pkg_valkey.KV
 }
 
 // New builds the cache. Like linkguard.New (internal/domain/discord/
@@ -48,7 +50,7 @@ type Cache struct {
 // Fatals before valkeyClient can be nil, so a defensive nil check here
 // would just hide that invariant breaking instead of surfacing it.
 func New(client valkey.Client) *Cache {
-	return &Cache{client: client}
+	return &Cache{kv: pkg_valkey.NewKV(client)}
 }
 
 func key(code string) string { return "discord:invite:" + code + ":guild" }
@@ -60,8 +62,8 @@ func key(code string) string { return "discord:invite:" + code + ":guild" }
 // miss: guildID == "" with hit == true means "confirmed, no guild",
 // distinct from hit == false, "unknown, go ask".
 func (c *Cache) Get(ctx context.Context, code string) (guildID string, hit bool) {
-	raw, err := c.client.Do(ctx, c.client.B().Get().Key(key(code)).Build()).ToString()
-	if err != nil || raw == "" {
+	raw, ok := c.kv.GetString(ctx, key(code))
+	if !ok {
 		return "", false
 	}
 	if raw == noGuild {
@@ -80,5 +82,5 @@ func (c *Cache) Put(ctx context.Context, code, guildID string, ttl time.Duration
 	if val == "" {
 		val = noGuild
 	}
-	return c.client.Do(ctx, c.client.B().Set().Key(key(code)).Value(val).Ex(ttl).Build()).Error()
+	return c.kv.Set(ctx, pkg_valkey.Key{Name: key(code), TTL: ttl}, val)
 }

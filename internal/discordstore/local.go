@@ -8,7 +8,7 @@ import (
 	"time"
 
 	ddiscord "ItsBagelBot/internal/domain/discord"
-	"ItsBagelBot/pkg/codec"
+	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/valkey-io/valkey-go"
 )
@@ -111,6 +111,12 @@ func newLocal(client valkey.Client) localStore {
 	return valkeyStore{client: client}
 }
 
+// kv is the shared string/JSON command surface over this store's own client.
+// Built on demand rather than kept as a second field: it is a one-word value
+// over the client the struct already holds, and a field would mean every
+// construction site had to remember to fill it in step with client.
+func (s valkeyStore) kv() pkg_valkey.KV { return pkg_valkey.NewKV(s.client) }
+
 func (s valkeyStore) cachedBroadcaster(ctx context.Context, g Guild) (Broadcaster, bool) {
 	return s.Broadcaster(ctx, g)
 }
@@ -122,24 +128,19 @@ func (s valkeyStore) cacheBroadcaster(ctx context.Context, g Guild, b Broadcaste
 	// Failing to cache is not failing the read: the next call pays another
 	// round trip, which is strictly better than turning a served event into an
 	// error because Valkey blinked.
-	_ = s.client.Do(ctx, s.client.B().Set().Key(guildKey(g)).Value(b.ID).
-		ExSeconds(int64(bindingCacheTTL.Seconds())).Build()).Error()
+	_ = s.kv().Set(ctx, pkg_valkey.Key{Name: guildKey(g), TTL: bindingCacheTTL}, b.ID)
 }
 
 func (s valkeyStore) dropBroadcaster(ctx context.Context, g Guild) {
 	// The binding key and its cache entry are the same key here, so dropping
 	// the cache is the DEL UnbindGuild issues -- minus the guild-list
 	// invalidation, which has no broadcaster to address at this point.
-	_ = s.client.Do(ctx, s.client.B().Del().Key(guildKey(g)).Build()).Error()
+	_ = s.kv().Del(ctx, guildKey(g))
 }
 
 func (s valkeyStore) cachedConfig(ctx context.Context, g Guild) (ddiscord.Config, int, bool) {
-	raw, err := s.client.Do(ctx, s.client.B().Get().Key(cfgKey(g)).Build()).ToString()
-	if err != nil || raw == "" {
-		return ddiscord.Config{}, 0, false
-	}
-	var entry cachedConfigEntry
-	if err := codec.FastUnmarshal([]byte(raw), &entry); err != nil {
+	entry, ok := pkg_valkey.GetJSON[cachedConfigEntry](ctx, s.kv(), cfgKey(g))
+	if !ok {
 		return ddiscord.Config{}, 0, false
 	}
 	return entry.Config, entry.Version, true
@@ -149,18 +150,14 @@ func (s valkeyStore) cacheConfig(ctx context.Context, g Guild, cfg ddiscord.Conf
 	if g.ID == "" {
 		return
 	}
-	body, err := codec.FastMarshal(cachedConfigEntry{Config: cfg, Version: version})
-	if err != nil {
-		return
-	}
 	// Failing to cache is not failing the read, same as cacheBroadcaster: the
 	// next event pays another round trip rather than being dropped.
-	_ = s.client.Do(ctx, s.client.B().Set().Key(cfgKey(g)).Value(string(body)).
-		ExSeconds(int64(configCacheTTL.Seconds())).Build()).Error()
+	at := pkg_valkey.Key{Name: cfgKey(g), TTL: configCacheTTL}
+	_ = pkg_valkey.SetJSON(ctx, s.kv(), at, cachedConfigEntry{Config: cfg, Version: version})
 }
 
 func (s valkeyStore) dropConfig(ctx context.Context, g Guild) {
-	_ = s.client.Do(ctx, s.client.B().Del().Key(cfgKey(g)).Build()).Error()
+	_ = s.kv().Del(ctx, cfgKey(g))
 }
 
 func (m *Mem) cachedConfig(ctx context.Context, g Guild) (ddiscord.Config, int, bool) {
@@ -180,35 +177,22 @@ func (m *Mem) dropConfig(_ context.Context, g Guild) {
 }
 
 func (s valkeyStore) cachedGuilds(ctx context.Context, b Broadcaster) ([]Binding, bool) {
-	raw, err := s.client.Do(ctx, s.client.B().Get().Key(guildsKey(b)).Build()).ToString()
-	if err != nil || raw == "" {
-		return nil, false
-	}
-	var entry []Binding
-	if err := codec.FastUnmarshal([]byte(raw), &entry); err != nil {
-		return nil, false
-	}
-	return entry, true
+	return pkg_valkey.GetJSON[[]Binding](ctx, s.kv(), guildsKey(b))
 }
 
 func (s valkeyStore) cacheGuilds(ctx context.Context, b Broadcaster, guilds []Binding) {
 	if b.ID == "" {
 		return
 	}
-	body, err := codec.FastMarshal(guilds)
-	if err != nil {
-		return
-	}
 	// Failing to cache is not failing the read, same as cacheBroadcaster.
-	_ = s.client.Do(ctx, s.client.B().Set().Key(guildsKey(b)).Value(string(body)).
-		ExSeconds(int64(guildsCacheTTL.Seconds())).Build()).Error()
+	_ = pkg_valkey.SetJSON(ctx, s.kv(), pkg_valkey.Key{Name: guildsKey(b), TTL: guildsCacheTTL}, guilds)
 }
 
 func (s valkeyStore) dropGuilds(ctx context.Context, b Broadcaster) {
 	if b.ID == "" {
 		return
 	}
-	_ = s.client.Do(ctx, s.client.B().Del().Key(guildsKey(b)).Build()).Error()
+	_ = s.kv().Del(ctx, guildsKey(b))
 }
 
 // The memory double's guild-list cache is its own map, not its GuildsOf: the
