@@ -5,77 +5,40 @@ package modules
 
 import "testing"
 
-func TestResolveAccountPrefersStoredUUID(t *testing.T) {
-	got := resolveAccount(accountSources{
-		Linked:           "Feinberg",
-		LinkedUUID:       "deadbeefdeadbeefdeadbeefdeadbeef",
-		BroadcasterLogin: "streamer",
-		PreferUUID:       true,
-	})
-	if got != "deadbeefdeadbeefdeadbeefdeadbeef" {
-		t.Fatalf("linked uuid: got %q", got)
-	}
-}
+const testUUID = "deadbeefdeadbeefdeadbeefdeadbeef"
 
-func TestResolveAccountTypedArgBeatsUUID(t *testing.T) {
-	got := resolveAccount(accountSources{
-		Arg:              "@Other",
-		Linked:           "Feinberg",
-		LinkedUUID:       "deadbeefdeadbeefdeadbeefdeadbeef",
-		BroadcasterLogin: "streamer",
-		PreferUUID:       true,
-	})
-	if got != "Other" {
-		t.Fatalf("typed arg: got %q", got)
+// resolveAccount's fallback chain, one row per priority rule: typed arg,
+// linked uuid (only when PreferUUID and one is stored), linked name,
+// broadcaster login. LinkedOnly drops the typed arg silently on every row.
+func TestResolveAccount(t *testing.T) {
+	cases := []struct {
+		name string
+		in   accountSources
+		want string
+	}{
+		{"prefers stored uuid", accountSources{
+			Linked: "Feinberg", LinkedUUID: testUUID, BroadcasterLogin: "streamer", PreferUUID: true,
+		}, testUUID},
+		{"typed arg beats uuid", accountSources{
+			Arg: "@Other", Linked: "Feinberg", LinkedUUID: testUUID, BroadcasterLogin: "streamer", PreferUUID: true,
+		}, "Other"},
+		{"name when uuid unwanted", accountSources{
+			Linked: "Feinberg", LinkedUUID: testUUID, BroadcasterLogin: "streamer",
+		}, "Feinberg"},
+		{"falls back to name without uuid", accountSources{
+			Linked: "Feinberg", BroadcasterLogin: "streamer", PreferUUID: true,
+		}, "Feinberg"},
+		{"linked only ignores arg", accountSources{
+			Arg: "@Other extra", Linked: "Feinberg", BroadcasterLogin: "streamer", LinkedOnly: true,
+		}, "Feinberg"},
+		{"linked only falls back to broadcaster", accountSources{
+			Arg: "Other", BroadcasterLogin: "streamer", LinkedOnly: true,
+		}, "streamer"},
 	}
-}
-
-func TestResolveAccountNameWhenUUIDUnwanted(t *testing.T) {
-	got := resolveAccount(accountSources{
-		Linked:           "Feinberg",
-		LinkedUUID:       "deadbeefdeadbeefdeadbeefdeadbeef",
-		BroadcasterLogin: "streamer",
-	})
-	if got != "Feinberg" {
-		t.Fatalf("prefer name: got %q", got)
-	}
-}
-
-func TestResolveAccountFallsBackToNameWithoutUUID(t *testing.T) {
-	got := resolveAccount(accountSources{
-		Linked:           "Feinberg",
-		BroadcasterLogin: "streamer",
-		PreferUUID:       true,
-	})
-	if got != "Feinberg" {
-		t.Fatalf("no uuid stored: got %q", got)
-	}
-}
-
-// The broadcaster's linked-only toggle drops the typed name silently: the
-// viewer gets the linked account, not a refusal.
-func TestResolveAccountLinkedOnlyIgnoresArg(t *testing.T) {
-	got := resolveAccount(accountSources{
-		Arg:              "@Other extra",
-		Linked:           "Feinberg",
-		BroadcasterLogin: "streamer",
-		LinkedOnly:       true,
-	})
-	if got != "Feinberg" {
-		t.Fatalf("linked only: got %q", got)
-	}
-}
-
-// Linked-only with no linked account still lands on the broadcaster's own
-// login, never on the typed name.
-func TestResolveAccountLinkedOnlyFallsBackToBroadcaster(t *testing.T) {
-	got := resolveAccount(accountSources{
-		Arg:              "Other",
-		BroadcasterLogin: "streamer",
-		LinkedOnly:       true,
-	})
-	if got != "streamer" {
-		t.Fatalf("linked only, nothing linked: got %q", got)
+	for _, tc := range cases {
+		if got := resolveAccount(tc.in); got != tc.want {
+			t.Errorf("%s: got %q, want %q", tc.name, got, tc.want)
+		}
 	}
 }
 
