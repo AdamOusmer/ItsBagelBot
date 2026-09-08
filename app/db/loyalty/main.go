@@ -95,7 +95,7 @@ func main() {
 	defer done()
 	log := core.Log
 
-	driver := databoot.MustEntDriver(log, "bagel_loyalty")
+	driver := databoot.MustEntDriver(core, "bagel_loyalty")
 	client := ent.NewClient(ent.Driver(driver))
 	defer func() { _ = client.Close() }()
 

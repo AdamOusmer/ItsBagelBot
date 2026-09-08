@@ -45,7 +45,7 @@ func main() {
 	defer done()
 	log, ctx := core.Log, core.Ctx
 
-	client, dbPool, packer := openStore(ctx, log)
+	client, dbPool, packer := openStore(ctx, core)
 	defer func() { _ = client.Close() }()
 
 	nc, pub := connectBus(core)
@@ -87,14 +87,16 @@ func main() {
 // openStore reads the encryption keyset, opens the database, runs migrations,
 // and returns the ent client, the underlying pool (for the health check) and
 // the field-crypto packer.
-func openStore(ctx context.Context, log *zap.Logger) (*ent.Client, *sql.DB, *crypto.Crypto) {
+func openStore(ctx context.Context, core svcboot.Core) (*ent.Client, *sql.DB, *crypto.Crypto) {
+	log := core.Log
+
 	keysetJSON, err := os.ReadFile(env.MustGet("TINK_KEYSET_PATH"))
 	svcboot.FatalIf(log, err, "failed to read tink keyset")
 
 	packer, err := crypto.NewCrypto(keysetJSON)
 	svcboot.FatalIf(log, err, "failed to initialize crypto")
 
-	driver := databoot.MustEntDriver(log, "bagel_users")
+	driver := databoot.MustEntDriver(core, "bagel_users")
 	client := ent.NewClient(ent.Driver(driver))
 	databoot.AutoMigrate(ctx, log, func(ctx context.Context) error { return client.Schema.Create(ctx) })
 	return client, driver.DB(), packer

@@ -17,7 +17,6 @@ require (
 	github.com/nats-io/nats.go v1.53.1
 	github.com/nats-io/nuid v1.0.1
 	github.com/newrelic/go-agent/v3 v3.44.2
-	github.com/newrelic/go-agent/v3/integrations/nrmysql v1.2.2
 	github.com/puzpuzpuz/xsync/v4 v4.5.0
 	github.com/resend/resend-go/v4 v4.3.0
 	github.com/stretchr/testify v1.12.1
