@@ -5,6 +5,7 @@
 // route module so +page.server.ts stays a thin list of actions: each one reads
 // its inputs through these, then calls the loyalty store.
 import type { CounterScope } from '@bagel/shared';
+import { normalizeCounterName } from '@bagel/shared/validation';
 import { resolveViewerId, type CounterTarget } from './loyalty-store';
 
 // UserError carries a safe, machine-readable failure code out of an action so
@@ -12,19 +13,15 @@ import { resolveViewerId, type CounterTarget } from './loyalty-store';
 // maps it to localized copy.
 export class UserError extends Error {}
 
-// normalizeName mirrors the loyalty service: bare key, lower-cased, no "!".
-export function normalizeName(raw: unknown): string {
-  return String(raw ?? '')
-    .trim()
-    .replace(/^!/, '')
-    .toLowerCase()
-    .slice(0, 64);
-}
+// Re-exported so the counters actions keep one import for their form helpers;
+// the fold itself lives in @bagel/shared/validation, shared with the admin
+// console's bot-counter page (same keyspace, same normalization).
+export { normalizeCounterName };
 
 // namedValue reads the (name, integer value) pair the value-writing actions
 // share; null when either is missing or non-numeric.
 export function namedValue(f: FormData): { name: string; value: number } | null {
-  const name = normalizeName(f.get('name'));
+  const name = normalizeCounterName(f.get('name'));
   const value = Math.trunc(Number(f.get('value')));
   if (!name || !Number.isFinite(value)) return null;
   return { name, value };
@@ -36,7 +33,7 @@ export function namedValue(f: FormData): { name: string; value: number } | null 
 export function bucketTarget(f: FormData): CounterTarget | null {
   const viewerId = String(f.get('viewer_id') ?? '').trim();
   if (viewerId && !/^\d+$/.test(viewerId)) return null;
-  return { viewerId, command: normalizeName(f.get('command')) };
+  return { viewerId, command: normalizeCounterName(f.get('command')) };
 }
 
 // bucketLabel renders the audit-line suffix for a targeted write; '' when the
