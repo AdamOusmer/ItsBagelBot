@@ -1,11 +1,11 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// The "getting-started" guide in fr. Copy only: the structure it fills lives in
-// src/lib/guides/skeletons/getting-started.ts, and every key below is one k('...')
-// there. Adding a language is this file translated, with no structure to get
-// wrong; a key this locale omits falls back to English.
-import type { GuideStrings } from '../../lib/guides/skeleton';
+// The "getting-started" guide in fr. Copy only: the structure it fills is the
+// English guide, getting-started.en.ts, and every id below names one string in it
+// (lib/guides/translate.ts derives the ids from where the strings sit).
+// Adding a language is this file translated, with no structure to get wrong.
+import type { GuideStrings } from '../../lib/guides/translate';
 
 const strings: GuideStrings = {
     'connect.b0.html': `
@@ -100,6 +100,13 @@ const strings: GuideStrings = {
     'first-module.b1.caption': 'La page Modules: un rail de catégories à gauche, des tuiles avec Configurer et un interrupteur.',
     'first-module.b1.labels.account': 'streamer · Diffuseur',
     'first-module.b1.labels.configure': 'Configurer',
+    // The English guide blanks dots 3-6 on this mock (the legend only has
+    // two notes); French says the same nothing, spelled out because the
+    // parity guard wants every id answered.
+    'first-module.b1.labels.dot3': '',
+    'first-module.b1.labels.dot4': '',
+    'first-module.b1.labels.dot5': '',
+    'first-module.b1.labels.dot6': '',
     'first-module.b1.labels.dockBilling': 'Facturation',
     'first-module.b1.labels.dockCommands': 'Commandes',
     'first-module.b1.labels.dockDiscord': 'Discord',

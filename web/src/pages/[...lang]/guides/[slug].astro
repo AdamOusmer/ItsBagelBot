@@ -9,7 +9,7 @@ import Layout from '../../../layouts/Layout.astro';
 import PageHero from '../../../components/ui/PageHero.astro';
 import GuideShell from '../../../components/guides/GuideShell.astro';
 import { getLangFromUrl, locales, langParam } from '../../../i18n/ui';
-import { getGuide, guidePath, hubPath, guideSlugs, nextSlug, prevSlug, guideIndex, toGuideSlug } from '../../../lib/guides/registry';
+import { getGuide, guidePath, hubPath, guideSlugs, guideIndex, toGuideSlug } from '../../../lib/guides/registry';
 
 export function getStaticPaths() {
     return locales.flatMap((l) =>
@@ -23,11 +23,13 @@ const { slug } = Astro.params;
 const lang = getLangFromUrl(Astro.url);
 const guide = getGuide(toGuideSlug(slug as string), lang);
 // Pager labels are the neighbour's own hero heading, so a renamed guide renames
-// itself everywhere instead of leaving a stale label behind.
-const before = prevSlug(guide.slug);
-const after = nextSlug(guide.slug);
-const prev = before ? { href: guidePath(before, lang), label: getGuide(before, lang).meta.heading } : undefined;
-const next = after ? { href: guidePath(after, lang), label: getGuide(after, lang).meta.heading } : undefined;
+// itself everywhere instead of leaving a stale label behind. guideSlugs is the
+// reading order, so the neighbours are just the slugs either side of this one.
+const here = guideSlugs.indexOf(guide.slug);
+const pager = (at: number) =>
+    guideSlugs[at] ? { href: guidePath(guideSlugs[at], lang), label: getGuide(guideSlugs[at], lang).meta.heading } : undefined;
+const prev = pager(here - 1);
+const next = pager(here + 1);
 
 // Guides are the site's only long-form content; TechArticle + BreadcrumbList
 // give them page-type context and rich-result eligibility the site-wide

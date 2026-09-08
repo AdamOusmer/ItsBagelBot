@@ -1,11 +1,11 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// The "commands" guide in fr. Copy only: the structure it fills lives in
-// src/lib/guides/skeletons/commands.ts, and every key below is one k('...')
-// there. Adding a language is this file translated, with no structure to get
-// wrong; a key this locale omits falls back to English.
-import type { GuideStrings } from '../../lib/guides/skeleton';
+// The "commands" guide in fr. Copy only: the structure it fills is the
+// English guide, commands.en.ts, and every id below names one string in it
+// (lib/guides/translate.ts derives the ids from where the strings sit).
+// Adding a language is this file translated, with no structure to get wrong.
+import type { GuideStrings } from '../../lib/guides/translate';
 
 const strings: GuideStrings = {
     'anatomy.b0.html': `
