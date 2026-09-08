@@ -29,19 +29,27 @@ const ENTRIES: {
   source: string;
 }[] = [
   {
-    // The two client-side imports of the dashboard's import page: the Moobot
-    // JSON parser plus the shared per-kind caps. Initial measurement
-    // 2026-08-24: 18577 B gzip at introduction of this gate (parser ported
-    // from the Go importer service when it folded into the dashboard; the
-    // engine-split refactor of PR #648 is inside this number). Largest row
-    // here and client-facing: the first candidate for a lazy import if the
-    // import page's chunk ever needs to shrink.
+    // The client-side imports of the dashboard's import page: the Moobot JSON
+    // parser, the shared per-kind caps, and the source strategy registry.
+    // Initial measurement 2026-08-24: 18577 B gzip at introduction of this
+    // gate (parser ported from the Go importer service when it folded into the
+    // dashboard; the engine-split refactor of PR #648 is inside this number).
+    // Largest row here and client-facing: the first candidate for a lazy
+    // import if the import page's chunk ever needs to shrink.
+    //
+    // 2026-09-07, source-strategy split: the page now pulls
+    // lib/importer/strategy.ts, which statically imports the same parseMoobot
+    // it already bundled, so the entry gained the registry alone: 6849 ->
+    // 7496 B gzip on macOS/arm64 (+647 B). Budget untouched, still 11.6 KB of
+    // room; the two figures also record how far the row has drifted below the
+    // number it was budgeted against.
     name: "import page (moobot + caps)",
     budget: 19100,
     external: [],
     source: `import { parseMoobot } from "../../lib/importer/moobot";
              import { applyImportCaps } from "../../lib/importer/caps";
-             globalThis.x = [parseMoobot, applyImportCaps];`,
+             import { IMPORT_STRATEGIES } from "../../lib/importer/strategy";
+             globalThis.x = [parseMoobot, applyImportCaps, IMPORT_STRATEGIES];`,
   },
   {
     // Server-side StreamElements parser. Not currently in any client bundle;

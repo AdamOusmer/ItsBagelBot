@@ -25,9 +25,10 @@ declare global {
       displayName?: string;
       locale?: Locale;
       cursorEnabled?: boolean;
-      // Import wizard: the Nightbot OAuth connect flow has parked an unexpired
-      // access-token cookie for this browser (settings/import load).
-      nightbotConnected?: boolean;
+      // Import wizard: per source, whether its connect flow has parked an
+      // unexpired access-token cookie for this browser (settings/import load
+      // builds it from the sources that declare a connect step).
+      connected?: Record<string, boolean>;
     }
   }
 }

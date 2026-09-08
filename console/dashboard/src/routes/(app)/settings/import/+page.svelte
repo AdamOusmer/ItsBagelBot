@@ -15,12 +15,20 @@
   // console/shared/lib/importer/types.ts since the importer service folded
   // into the dashboard.
   //
-  // Client-side parsing: the Moobot export is decoded and translated HERE
-  // (lib/importer/moobot.ts, pinned against the Go parser it was ported from)
-  // and only the resulting manifest is POSTed: raw files no longer cross the
-  // wire for that source. StreamLabs .db stays a server-side upload because
-  // console CSP forbids WASM (no wasm-unsafe-eval in script-src), which rules
-  // out an in-browser SQLite reader; see the decision record at runPreview.
+  // Every per-source difference lives in ONE place: the strategy registry in
+  // shared/lib/importer/strategy.ts. This page renders tiles, an input block
+  // and a preview post off the picked strategy and names no source anywhere,
+  // so a new source is an entry there plus one server-side object, never a
+  // branch here. Before the split (2026-09-07) this file carried five parallel
+  // per-source tables and a `source === '…'` branch per input kind.
+  //
+  // Client-side parsing: a file source may carry parseInBrowser (Moobot does,
+  // pinned against the Go parser it was ported from), in which case the export
+  // is decoded HERE and only the resulting manifest is POSTed: raw files no
+  // longer cross the wire for that source. StreamLabs .db stays a server-side
+  // upload because console CSP forbids WASM (no wasm-unsafe-eval in
+  // script-src), which rules out an in-browser SQLite reader; see the decision
+  // record at prepareFile.
 
   import { page } from '$app/state';
   import { deserialize } from '$app/forms';
@@ -36,58 +44,31 @@
     toast,
     getI18n
   } from '@bagel/shared';
-  import { parseMoobot, MoobotExportError } from '@bagel/shared/importer/moobot';
   import { applyImportCaps } from '@bagel/shared/importer/caps';
-  import type {
-    CommitResponse,
-    ImportDiagnostic,
-    ImportSource,
-    ManifestCommand,
-    ManifestCounter,
-    ManifestQuote,
-    ManifestTimer,
-    ManifestTrigger,
-    PreviewResponse
+  import {
+    CHIP_LABEL_KEYS,
+    IMPORT_STRATEGIES,
+    isImportSource,
+    type FileInputSpec,
+    type ImportSourceStrategy,
+    type InputSpec,
+    type OAuthInputSpec,
+    type TextInputSpec
+  } from '@bagel/shared/importer/strategy';
+  import {
+    IMPORT_SOURCES,
+    type CommitResponse,
+    type ImportDiagnostic,
+    type ImportSource,
+    type ManifestCommand,
+    type ManifestCounter,
+    type ManifestQuote,
+    type ManifestTimer,
+    type ManifestTrigger,
+    type PreviewResponse
   } from '@bagel/shared';
 
   const { t, tl } = getI18n();
-
-  // Sources that can actually be picked. Fossabot is excluded: its parser
-  // exists backend-side but is unregistered and its OAuth connect flow is
-  // unbuilt, so a deep link asking for it falls back to the plain picker.
-  const PICKABLE: readonly ImportSource[] = [
-    'streamelements',
-    'moobot',
-    'nightbot',
-    'streamlabs_desktop'
-  ];
-
-  // Sources whose export is a JSON file this page parses itself, so the raw
-  // file never leaves the browser. Everything else either fetches server-side
-  // (StreamElements' pasted JWT, Nightbot's OAuth token cookie) or must
-  // upload (StreamLabs' SQLite .db, CSP no-go for a browser-side reader).
-  const CLIENT_PARSED = {
-    moobot: parseMoobot
-  } as const;
-
-  function isClientParsed(s: ImportSource | ''): s is keyof typeof CLIENT_PARSED {
-    return s === 'moobot';
-  }
-
-  const SOURCE_LABEL: Record<ImportSource, string> = {
-    streamelements: 'StreamElements',
-    fossabot: 'Fossabot',
-    moobot: 'Moobot',
-    nightbot: 'Nightbot',
-    streamlabs_desktop: 'StreamLabs Chatbot'
-  };
-  const SOURCE_INITIALS: Record<ImportSource, string> = {
-    streamelements: 'SE',
-    fossabot: 'F',
-    moobot: 'M',
-    nightbot: 'NB',
-    streamlabs_desktop: 'SL'
-  };
 
   const STAGES = [
     'import.stagePick',
@@ -99,25 +80,30 @@
   // --- step state ----------------------------------------------------------
   type Step = 'pick' | 'instructions' | 'review' | 'done';
   // svelte-ignore state_referenced_locally
-  let source = $state<ImportSource | ''>(
-    (() => {
-      const q = page.url.searchParams.get('source');
-      return q && (PICKABLE as readonly string[]).includes(q) ? (q as ImportSource) : '';
-    })()
-  );
+  let source = $state<ImportSource | ''>(deepLinkSource());
   // A ?source= deep link lands on that source's instructions directly: this
-  // is what brings the wizard back mid-flow after the Nightbot OAuth round
-  // trip instead of dropping the user on the picker again.
+  // is what brings the wizard back mid-flow after an OAuth round trip instead
+  // of dropping the user on the picker again.
   // svelte-ignore state_referenced_locally
   let step = $state<Step>(source ? 'instructions' : 'pick');
 
-  // Nightbot OAuth connect status (load reads the token cookie) and any error
-  // the callback route bounced back with.
-  const nightbotConnected = $derived(!!page.data.nightbotConnected);
-  const NB_OAUTH_ERRORS: Record<string, 'import.errNbOauth' | 'import.errNbConfig'> = {
-    nb_oauth: 'import.errNbOauth',
-    nb_config: 'import.errNbConfig'
-  };
+  function deepLinkSource(): ImportSource | '' {
+    const q = page.url.searchParams.get('source') ?? '';
+    if (!isImportSource(q)) return '';
+    // A source with no working input has no instructions step to land on, so
+    // the deep link falls back to the plain picker.
+    return IMPORT_STRATEGIES[q].available ? q : '';
+  }
+
+  // The picked source's strategy. Everything the steps below render, validate
+  // and post comes off it, which is what keeps this page from naming a source.
+  const strategy = $derived<ImportSourceStrategy | null>(source ? IMPORT_STRATEGIES[source] : null);
+  const inputSpec = $derived<InputSpec | null>(strategy?.input ?? null);
+
+  // Connect status per source, from load(): a source with a connect step is
+  // connected once its OAuth callback parked a token cookie.
+  const connected = $derived((page.data.connected ?? {}) as Partial<Record<ImportSource, boolean>>);
+  const sourceConnected = $derived(source ? connected[source] === true : false);
   let credential = $state('');
   let uploadFile = $state<File | null>(null);
   let dragKind = $state<'' | ImportSource>('');
@@ -281,17 +267,21 @@
   // One line of detail per rail stage, so the rail reports the actual choices
   // (source, file/token, selection) instead of repeating the stage names.
   const railDetail = $derived.by(() => [
-    source ? SOURCE_LABEL[source] : t('import.railPickPending'),
-    source === 'streamelements'
-      ? credential
-        ? t('import.railTokenSet')
-        : t('import.railTokenPending')
-      : uploadFile
-        ? uploadFile.name
-        : t('import.railFilePending'),
+    strategy ? strategy.label : t('import.railPickPending'),
+    inputDetail(),
     previewResult ? selectionLine : t('import.railReviewPending'),
     commitResult ? t('import.railDone') : ''
   ]);
+
+  // The second rail line reports what the picked source actually takes: the
+  // pasted token for a text source, the chosen file for everything else (a
+  // connect-first source has neither, and reads as a pending file exactly as
+  // it did before this line stopped naming StreamElements).
+  function inputDetail(): string {
+    if (inputSpec?.kind === 'text')
+      return credential ? t('import.railTokenSet') : t('import.railTokenPending');
+    return uploadFile ? uploadFile.name : t('import.railFilePending');
+  }
 
   // Count tiles on the done panel: only collections that actually landed.
   const appliedTiles = $derived.by(() => {
@@ -307,11 +297,8 @@
   });
 
   const reviewHint = $derived.by(() => {
-    if (!source) return '';
-    let s = t('import.reviewHint', {
-      source: SOURCE_LABEL[source as ImportSource],
-      stats: statsLine
-    });
+    if (!strategy) return '';
+    let s = t('import.reviewHint', { source: strategy.label, stats: statsLine });
     if (fatalCount > 0) s += ' ' + t('import.fatalSuffix', { n: fatalCount });
     return s;
   });
@@ -344,129 +331,139 @@
   }
 
   // --- form handlers -------------------------------------------------------
-  // Client ceilings mirror/precede the server's (+page.server.ts): Moobot
-  // JSON is parsed in the browser and capped at 10MB before it is even read;
-  // StreamLabs .db still uploads whole (20MB) because console CSP forbids
-  // WASM: no 'wasm-unsafe-eval' in script-src (console/shared/svelte-
-  // config.js), so a browser-side SQLite reader is a no-go. Decision record:
-  // adding the directive to loosen CSP was weighed and rejected; one source
-  // keeping its server path costs less than widening script-src for every
-  // dashboard visitor.
-  const MAX_JSON_BYTES = 10 * 1024 * 1024;
-  const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
-
-  // Instructions content per source: numbered steps are list leaves; the
-  // StreamElements JWT hunt additionally gets a real deep link.
-  const INSTR_KEY: Partial<
-    Record<
-      ImportSource,
-      'import.instrSe' | 'import.instrMoobot' | 'import.instrNightbot' | 'import.instrSl'
-    >
-  > = {
-    streamelements: 'import.instrSe',
-    moobot: 'import.instrMoobot',
-    nightbot: 'import.instrNightbot',
-    streamlabs_desktop: 'import.instrSl'
-  };
+  // Instructions content per source: numbered steps are list leaves, named by
+  // the source's own strategy.
   const instrSteps = $derived.by(() => {
-    if (!source) return [] as string[];
-    const key = INSTR_KEY[source];
+    const key = strategy?.i18n.instr;
     return key ? tl(key) : [];
   });
 
-  // Seeded from the ?e= the Nightbot OAuth routes bounce back with, so the
+  // Seeded from the ?e= a source's connect routes bounce back with, so the
   // failure reads inline on the instructions step the deep link reopens.
   // svelte-ignore state_referenced_locally
-  let previewError = $state(
-    (() => {
-      const e = page.url.searchParams.get('e');
-      const key = e ? NB_OAUTH_ERRORS[e] : undefined;
-      return key ? t(key) : '';
-    })()
-  );
+  let previewError = $state(deepLinkError());
+
+  function deepLinkError(): string {
+    const e = page.url.searchParams.get('e');
+    const spec = source ? IMPORT_STRATEGIES[source].input : null;
+    if (!e || spec?.kind !== 'oauth') return '';
+    const key = spec.errorParams[e];
+    return key ? t(key) : '';
+  }
+
   let commitError = $state('');
 
   async function runPreview() {
     if (!source || submitting) return;
     previewError = '';
-    if (source === 'fossabot') {
-      previewError = t('import.errFossabot');
-      return;
-    }
 
     const body = new FormData();
     body.set('source', source);
 
-    if (source === 'streamelements') {
-      if (!credential.trim()) {
-        previewError = t('import.errJwtMissing');
-        return;
-      }
-      body.set('credential', credential.trim());
-    } else if (source === 'nightbot') {
-      // No form inputs: the server reads the OAuth access token off the
-      // HttpOnly cookie the connect flow parked, then fetches the account's
-      // config itself.
-      if (!nightbotConnected) {
-        previewError = t('import.errNbNotConnected');
-        return;
-      }
-    } else if (!uploadFile || uploadFile.size === 0) {
-      previewError = t('import.errFileMissing');
-      return;
-    } else if (isClientParsed(source)) {
-      if (uploadFile.size > MAX_JSON_BYTES) {
-        previewError = t('import.errTooLarge', { limit: 10 });
-        return;
-      }
-      // Parse locally: JSON.parse inside the parser (never eval), with
-      // per-item degradation. Only the resulting manifest rides to the server,
-      // which re-validates it through validateManifest for authoritative
-      // diagnostics/collisions/stats.
-      submitting = true;
-      try {
-        const bytes = new Uint8Array(await uploadFile.arrayBuffer());
-        const parsed = CLIENT_PARSED[source](bytes);
-        const capped = applyImportCaps(parsed.manifest);
-        body.set('manifest', JSON.stringify(capped.manifest));
-        const r = await postPreview(body);
-        if (r.ok && r.preview) {
-          // Caps fired client-side only (the overflow never reached the
-          // server); keep those warnings visible alongside the server's.
-          r.preview.diagnostics = [...capped.diagnostics, ...(r.preview.diagnostics ?? [])];
-          previewResult = r.preview;
-          step = 'review';
-        } else {
-          previewError = r.error || t('import.errGeneric');
-        }
-      } catch (err) {
-        if (err instanceof MoobotExportError)
-          previewError = t('import.errParseFailed', {
-            m: err.message.replace(/^importer\/moobot:\s*/, '')
-          });
-        else previewError = t('import.errGeneric');
-      }
+    submitting = true;
+    const prepared = await prepareInput(IMPORT_STRATEGIES[source].input, body);
+    if ('error' in prepared) {
+      previewError = prepared.error;
       submitting = false;
       return;
-    } else {
-      // streamlabs_desktop: binary upload via the server path (CSP no-go for
-      // client WASM, see the decision record above).
-      if (uploadFile.size > MAX_UPLOAD_BYTES) {
-        previewError = t('import.errTooLarge', { limit: 20 });
-        return;
-      }
-      body.set('file', uploadFile);
     }
 
-    submitting = true;
     const r = await postPreview(body);
     if (r.ok && r.preview) {
+      // Caps fire client-side only (the overflow never reached the server), so
+      // those warnings are stapled in front of the server's own.
+      r.preview.diagnostics = [...prepared.diags, ...(r.preview.diagnostics ?? [])];
       previewResult = r.preview;
       step = 'review';
     } else {
       previewError = r.error || t('import.errGeneric');
     }
     submitting = false;
+  }
+
+  // PreparedInput is what one input kind contributed to the post: either a
+  // refusal to show inline, or the diagnostics a browser-side parse produced
+  // (empty for every source the server parses).
+  type PreparedInput = { error: string } | { diags: ImportDiagnostic[] };
+
+  function prepareInput(spec: InputSpec, body: FormData): Promise<PreparedInput> | PreparedInput {
+    if (spec.kind === 'text') return prepareText(spec, body);
+    if (spec.kind === 'oauth') return prepareOauth(spec);
+    return prepareFile(spec, body);
+  }
+
+  // prepareText posts the pasted value as `credential`. The shape gate is the
+  // source's own (the StreamElements JWT's three base64url segments today), so
+  // an obvious typo is answered without a round trip; the action re-checks it.
+  function prepareText(spec: TextInputSpec, body: FormData): PreparedInput {
+    const value = credential.trim();
+    if (value === '') return { error: t(spec.i18n.errMissing) };
+    if (!acceptableText(spec, value)) return { error: t(spec.i18n.errShape) };
+    body.set('credential', value);
+    return { diags: [] };
+  }
+
+  function acceptableText(spec: TextInputSpec, value: string): boolean {
+    return value.length <= spec.maxLen && spec.shape.test(value);
+  }
+
+  // prepareOauth posts no inputs at all: the server reads the access token off
+  // the HttpOnly cookie the connect flow parked, then fetches the account's
+  // config itself.
+  function prepareOauth(spec: OAuthInputSpec): PreparedInput {
+    if (!sourceConnected) return { error: t(spec.i18n.errNotConnected) };
+    return { diags: [] };
+  }
+
+  // prepareFile refuses an oversized file before reading a byte of it. The
+  // ceiling is the source's own and mirrors/precedes the server's: 10MB for
+  // the Moobot JSON this page parses itself, 20MB for the StreamLabs .db that
+  // still uploads whole because console CSP forbids WASM (no
+  // 'wasm-unsafe-eval' in script-src, see shared/svelte-config.js), which
+  // rules out an in-browser SQLite reader. Decision record: loosening the CSP
+  // was weighed and rejected, one source keeping its server path costs less
+  // than widening script-src for every dashboard visitor.
+  async function prepareFile(spec: FileInputSpec, body: FormData): Promise<PreparedInput> {
+    const file = uploadFile;
+    if (!file || file.size === 0) return { error: t('import.errFileMissing') };
+    if (file.size > spec.maxBytes)
+      return { error: t('import.errTooLarge', { limit: Math.round(spec.maxBytes / (1024 * 1024)) }) };
+    if (!spec.parseInBrowser) {
+      body.set('file', file);
+      return { diags: [] };
+    }
+    return parseInPage(spec.parseInBrowser, file, body);
+  }
+
+  // parseInPage decodes an export in the browser: JSON.parse inside the parser
+  // (never eval), with per-item degradation. Only the resulting manifest rides
+  // to the server, which re-validates it through validateManifest for
+  // authoritative diagnostics, collisions and stats, so the raw file never
+  // leaves the machine it was exported on.
+  async function parseInPage(
+    parse: NonNullable<FileInputSpec['parseInBrowser']>,
+    file: File,
+    body: FormData
+  ): Promise<PreparedInput> {
+    try {
+      const parsed = parse(new Uint8Array(await file.arrayBuffer()));
+      const capped = applyImportCaps(parsed.manifest);
+      body.set('manifest', JSON.stringify(capped.manifest));
+      return { diags: [...capped.diagnostics] };
+    } catch (err) {
+      return { error: parseErrorMessage(err) };
+    }
+  }
+
+  // parseErrorMessage surfaces a parser's own refusal. Every parser prefixes
+  // its messages with `importer/<source>: `, which is both how one is
+  // recognized here and what gets stripped before the prose is shown; anything
+  // else that went wrong reading the file reads as the generic failure.
+  function parseErrorMessage(err: unknown): string {
+    const message = err instanceof Error ? err.message : '';
+    const parserRefusal = /^importer\/[a-z-]+:\s*([\s\S]*)$/.exec(message);
+    if (!parserRefusal) return t('import.errGeneric');
+    return t('import.errParseFailed', { m: parserRefusal[1] });
   }
 
   async function postPreview(body: FormData): Promise<{ ok: boolean; preview?: PreviewResponse; error?: string }> {
@@ -531,24 +528,28 @@
   // NOT a security control: extensions are trivially spoofed either way; the
   // authoritative checks stay content-based (JSON envelope shape for Moobot,
   // SQLite magic bytes + feature-table probe for StreamLabs).
-  const WANT_EXT: Partial<Record<ImportSource, string>> = {
-    moobot: '.json',
-    streamlabs_desktop: '.db'
-  };
-
   function pickFile(f: File | null | undefined) {
     previewError = '';
     if (!f) {
       uploadFile = null;
       return;
     }
-    const want = source ? WANT_EXT[source] : undefined;
+    const want = wantedExtension();
     if (want && !f.name.toLowerCase().endsWith(want)) {
       previewError = t('import.errWrongType', { want });
       uploadFile = null;
       return;
     }
     uploadFile = f;
+  }
+
+  // A file spec's accept list leads with the extension and follows with the
+  // MIME type ('.json,application/json'), so the drop-time check reads the
+  // first entry rather than carrying a second table of its own.
+  function wantedExtension(): string {
+    if (inputSpec?.kind !== 'file') return '';
+    const first = inputSpec.accept.split(',')[0];
+    return first.startsWith('.') ? first : '';
   }
 </script>
 
@@ -594,102 +595,52 @@
       <p class="hint">{t('import.pickHint')}</p>
 
       <div class="tiles">
-        <!-- StreamElements: API-backed, needs the channel JWT. The input for
-             it lives on the next (instructions) step, so tiles stay pure
-             selectors: picking one advances immediately. -->
-        <label class="tile" class:picked={source === 'streamelements'} data-cursor>
-          <input
-            type="radio"
-            name="source-pick"
-            value="streamelements"
-            checked={source === 'streamelements'}
-            onchange={() => choose('streamelements')}
-          />
-          <span class="tile-top">
-            <span class="glyph" aria-hidden="true">{SOURCE_INITIALS.streamelements}</span>
-            <span class="tile-name">StreamElements</span>
-            <span class="chip">{t('import.chipToken')}</span>
-          </span>
-          <span class="tile-desc">{t('import.seDesc')}</span>
-          <span class="tile-cta">{t('import.tileCta')}</span>
-        </label>
-
-        <!-- Fossabot: the parser exists backend-side but is not registered yet
-             and its OAuth connect flow is unbuilt, so the tile ships visibly
-             disabled rather than half-working. -->
-        <div class="tile disabled" aria-disabled="true">
-          <span class="tile-top">
-            <span class="glyph" aria-hidden="true">{SOURCE_INITIALS.fossabot}</span>
-            <span class="tile-name">Fossabot</span>
-            <span class="chip soon">{t('import.chipSoon')}</span>
-          </span>
-          <span class="tile-desc">{t('import.fossabotDesc')}</span>
-        </div>
-
-        <!-- Moobot: file export (.json), parsed in the browser -->
-        <label class="tile" class:picked={source === 'moobot'} data-cursor>
-          <input
-            type="radio"
-            name="source-pick"
-            value="moobot"
-            checked={source === 'moobot'}
-            onchange={() => choose('moobot')}
-          />
-          <span class="tile-top">
-            <span class="glyph" aria-hidden="true">{SOURCE_INITIALS.moobot}</span>
-            <span class="tile-name">Moobot</span>
-            <span class="chip">{t('import.chipFile')}</span>
-          </span>
-          <span class="tile-desc">{t('import.moobotDesc')}</span>
-          <span class="tile-cta">{t('import.tileCta')}</span>
-        </label>
-
-        <!-- Nightbot: OAuth connect: the account's commands/timers/spam
-             protection are fetched server-side with the granted token,
-             the same way StreamElements' own Nightbot import works -->
-        <label class="tile" class:picked={source === 'nightbot'} data-cursor>
-          <input
-            type="radio"
-            name="source-pick"
-            value="nightbot"
-            checked={source === 'nightbot'}
-            onchange={() => choose('nightbot')}
-          />
-          <span class="tile-top">
-            <span class="glyph" aria-hidden="true">{SOURCE_INITIALS.nightbot}</span>
-            <span class="tile-name">Nightbot</span>
-            <span class="chip">{t('import.chipConnect')}</span>
-          </span>
-          <span class="tile-desc">{t('import.nightbotDesc')}</span>
-          <span class="tile-cta">{t('import.tileCta')}</span>
-        </label>
-
-        <!-- StreamLabs Chatbot: desktop database export (.db) -->
-        <label class="tile" class:picked={source === 'streamlabs_desktop'} data-cursor>
-          <input
-            type="radio"
-            name="source-pick"
-            value="streamlabs_desktop"
-            checked={source === 'streamlabs_desktop'}
-            onchange={() => choose('streamlabs_desktop')}
-          />
-          <span class="tile-top">
-            <span class="glyph" aria-hidden="true">{SOURCE_INITIALS.streamlabs_desktop}</span>
-            <span class="tile-name">StreamLabs Chatbot</span>
-            <span class="chip">{t('import.chipFile')}</span>
-          </span>
-          <span class="tile-desc">{t('import.slDesc')}</span>
-          <span class="tile-cta">{t('import.tileCta')}</span>
-        </label>
+        <!-- One tile per registered source, in IMPORT_SOURCES order. Tiles are
+             pure selectors: picking one advances to that source's how-to-find-it
+             instructions, where its credential/file input lives. A source whose
+             input is not built yet ships visibly disabled rather than
+             half-working, and cannot be picked or deep-linked into. -->
+        {#each IMPORT_SOURCES as id (id)}
+          {@const s = IMPORT_STRATEGIES[id]}
+          {#if s.available}
+            <label class="tile" class:picked={source === id} data-cursor>
+              <input
+                type="radio"
+                name="source-pick"
+                value={id}
+                checked={source === id}
+                onchange={() => choose(id)}
+              />
+              <span class="tile-top">
+                <span class="glyph" aria-hidden="true">{s.initials}</span>
+                <span class="tile-name">{s.label}</span>
+                <span class="chip">{t(CHIP_LABEL_KEYS[s.chip])}</span>
+              </span>
+              <span class="tile-desc">{t(s.i18n.desc)}</span>
+              <span class="tile-cta">{t('import.tileCta')}</span>
+            </label>
+          {:else}
+            <div class="tile disabled" aria-disabled="true">
+              <span class="tile-top">
+                <span class="glyph" aria-hidden="true">{s.initials}</span>
+                <span class="tile-name">{s.label}</span>
+                <span class="chip soon">{t('import.chipSoon')}</span>
+              </span>
+              <span class="tile-desc">{t(s.i18n.desc)}</span>
+            </div>
+          {/if}
+        {/each}
       </div>
     </Card>
   {:else if step === 'instructions' && source}
+    {@const st = IMPORT_STRATEGIES[source]}
+    {@const spec = st.input}
     <Card>
       <div class="instr-head">
-        <span class="glyph" aria-hidden="true">{SOURCE_INITIALS[source]}</span>
-        <h2>{t('import.stepInstructions', { source: SOURCE_LABEL[source] })}</h2>
+        <span class="glyph" aria-hidden="true">{st.initials}</span>
+        <h2>{t('import.stepInstructions', { source: st.label })}</h2>
       </div>
-      <p class="hint">{t('import.instrHint', { source: SOURCE_LABEL[source] })}</p>
+      <p class="hint">{t('import.instrHint', { source: st.label })}</p>
 
       {#if instrSteps.length}
         <ol class="steps">
@@ -697,42 +648,42 @@
         </ol>
       {/if}
 
-      {#if source === 'streamelements'}
-        <p class="instr-link">
-          <a
-            href="https://streamelements.com/dashboard/account/channels"
-            target="_blank"
-            rel="noopener noreferrer">{t('import.seLinkLabel')}</a
-          >
-        </p>
+      {#if spec.kind === 'text'}
+        {#if spec.linkHref && spec.linkLabel}
+          <p class="instr-link">
+            <a href={spec.linkHref} target="_blank" rel="noopener noreferrer">{t(spec.linkLabel)}</a>
+          </p>
+        {/if}
         <div class="cred">
           <textarea
             rows="3"
-            placeholder="eyJhbGciOi…"
+            placeholder={spec.placeholder}
             bind:value={credential}
             spellcheck="false"
             autocomplete="off"
             autocapitalize="off"
-            aria-label={t('import.jwtFieldAria')}
+            aria-label={t(spec.i18n.field)}
           ></textarea>
-          <p class="hint">
-            {@html t('import.jwtHint')}
-          </p>
+          {#if spec.i18n.hint}
+            <p class="hint">
+              {@html t(spec.i18n.hint)}
+            </p>
+          {/if}
         </div>
-      {:else if source === 'nightbot'}
+      {:else if spec.kind === 'oauth'}
         <div class="cred">
-          {#if nightbotConnected}
+          {#if sourceConnected}
             <p class="nb-connected" role="status">
-              {t('import.nbConnected')}
+              {t(spec.i18n.connected)}
             </p>
           {:else}
-            <ButtonLink href="/settings/import/nightbot/connect" variant="primary">
-              {t('import.nbConnectCta')}
+            <ButtonLink href={spec.connectPath} variant="primary">
+              {t(spec.i18n.cta)}
             </ButtonLink>
           {/if}
-          <p class="hint">{t('import.nbScopeHint')}</p>
+          <p class="hint">{t(spec.i18n.scopeHint)}</p>
         </div>
-      {:else if source === 'moobot' || source === 'streamlabs_desktop'}
+      {:else}
         <!-- Drag handlers sit on the input, not the wrapper: the input covers
              the whole zone invisibly, so behaviour is identical while the
              wrapper needs no interactive ARIA role. -->
@@ -743,9 +694,7 @@
         >
           <input
             type="file"
-            accept={source === 'streamlabs_desktop'
-              ? '.db,application/octet-stream'
-              : '.json,application/json'}
+            accept={spec.accept}
             onchange={(e) => pickFile(e.currentTarget.files?.[0])}
             ondragover={(e) => {
               e.preventDefault();
