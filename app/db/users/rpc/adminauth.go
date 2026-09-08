@@ -628,13 +628,7 @@ func adminViewOf(r *ent.AdminUser) usersrpc.AdminAcctView {
 	}
 }
 
-func parseID(s string) (uint64, error) {
-	if s == "" {
-		return 0, fmt.Errorf("user_id required")
-	}
-	id, err := strconv.ParseUint(s, 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("user_id must be numeric")
-	}
-	return id, nil
-}
+// parseID is bus.UserID under this package's name. The staff verbs cannot use
+// the bind-time guard (bus.ServeForUser): auth.list and audit.list carry no
+// user id at all, and audit.append validates the actor before the target.
+func parseID(s string) (uint64, error) { return bus.UserID(s) }

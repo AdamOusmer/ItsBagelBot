@@ -5,7 +5,6 @@ package rpc
 
 import (
 	"context"
-	"strconv"
 
 	"go.uber.org/zap"
 
@@ -27,10 +26,12 @@ type dashboardRPC struct {
 func SubscribeDashboard(w Wiring, prefix string) error {
 	d := &dashboardRPC{repo: w.Repo, log: w.Log}
 
+	// VerbForUser, not At: the user-id guard is the whole prologue of all three
+	// handlers, so it is bound once here rather than re-derived in each.
 	if err := bus.ServeVerbs(w.RPCWiring, prefix,
-		bus.At("list", d.handleList),
-		bus.At("upsert", d.handleUpsert),
-		bus.At("patch", d.handlePatch),
+		bus.VerbForUser[modulesrpc.DashboardRequest, modulesrpc.DashboardReply]("list", d.handleList),
+		bus.VerbForUser[modulesrpc.DashboardRequest, modulesrpc.DashboardReply]("upsert", d.handleUpsert),
+		bus.VerbForUser[modulesrpc.DashboardRequest, modulesrpc.DashboardReply]("patch", d.handlePatch),
 	); err != nil {
 		return err
 	}
@@ -46,59 +47,33 @@ func SubscribeDashboard(w Wiring, prefix string) error {
 	return wireSpotify(w.RPCWiring, w.Repo.Spotify())
 }
 
-func (d *dashboardRPC) parseUserID(req modulesrpc.DashboardRequest) (uint64, bool, modulesrpc.DashboardReply) {
-	id, err := strconv.ParseUint(req.UserID, 10, 64)
-	if err != nil {
-		return 0, false, modulesrpc.DashboardReply{Error: "invalid user_id"}
-	}
-	return id, true, modulesrpc.DashboardReply{}
-}
-
-func (d *dashboardRPC) handleList(ctx context.Context, req modulesrpc.DashboardRequest) modulesrpc.DashboardReply {
-	id, ok, reply := d.parseUserID(req)
-	if !ok {
-		return reply
-	}
+func (d *dashboardRPC) handleList(ctx context.Context, _ modulesrpc.DashboardRequest, id uint64) (modulesrpc.DashboardReply, error) {
 	views, err := d.repo.List(ctx, id)
 	if err != nil {
-		return modulesrpc.DashboardReply{Error: err.Error()}
+		return modulesrpc.DashboardReply{}, err
 	}
-	return modulesrpc.DashboardReply{Modules: views}
+	return modulesrpc.DashboardReply{Modules: views}, nil
 }
 
-func (d *dashboardRPC) handleUpsert(ctx context.Context, req modulesrpc.DashboardRequest) modulesrpc.DashboardReply {
-	id, ok, reply := d.parseUserID(req)
-	if !ok {
-		return reply
-	}
-
-	if err := d.repo.Set(id, req.Name, req.IsEnabled, req.Configs); err != nil {
-		return modulesrpc.DashboardReply{Error: err.Error()}
-	}
-
-	return modulesrpc.DashboardReply{}
+func (d *dashboardRPC) handleUpsert(_ context.Context, req modulesrpc.DashboardRequest, id uint64) (modulesrpc.DashboardReply, error) {
+	return modulesrpc.DashboardReply{}, d.repo.Set(id, req.Name, req.IsEnabled, req.Configs)
 }
 
 // handlePatch merges a subset of config keys into a module under optimistic
 // concurrency: Configs carries only the keys to change, and ExpectedRev (when
 // set) must match the stored revision or the write is reported as a conflict for
 // the client to refetch and retry.
-func (d *dashboardRPC) handlePatch(ctx context.Context, req modulesrpc.DashboardRequest) modulesrpc.DashboardReply {
-	id, ok, reply := d.parseUserID(req)
-	if !ok {
-		return reply
-	}
-
+func (d *dashboardRPC) handlePatch(ctx context.Context, req modulesrpc.DashboardRequest, id uint64) (modulesrpc.DashboardReply, error) {
 	partial := map[string]codec.RawMessage{}
 	if len(req.Configs) > 0 {
 		if err := codec.Unmarshal(req.Configs, &partial); err != nil {
-			return modulesrpc.DashboardReply{Error: "invalid configs"}
+			return modulesrpc.DashboardReply{Error: "invalid configs"}, nil
 		}
 	}
 
 	res, err := d.repo.Patch(ctx, id, req.Name, req.IsEnabled, partial, req.ExpectedRev)
 	if err != nil {
-		return modulesrpc.DashboardReply{Error: err.Error()}
+		return modulesrpc.DashboardReply{}, err
 	}
-	return modulesrpc.DashboardReply{Rev: res.Rev, Conflict: res.Conflict}
+	return modulesrpc.DashboardReply{Rev: res.Rev, Conflict: res.Conflict}, nil
 }

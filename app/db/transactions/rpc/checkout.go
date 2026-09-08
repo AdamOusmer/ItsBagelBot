@@ -6,7 +6,6 @@ package rpc
 import (
 	"context"
 	"net"
-	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -63,9 +62,11 @@ type buyer struct {
 
 func (c *checkoutRPC) basketCreate(ctx context.Context, req transactionsrpc.BasketCreateRequest) transactionsrpc.BasketCreateReply {
 	log := monitor.TxnLogger(ctx, c.log)
-	buyerID, err := strconv.ParseUint(req.UserID, 10, 64)
+	// Not the bind-time bus.ServeForUser guard: a basket for user 0 is
+	// meaningless, and that extra rejection has to ride the same refusal.
+	buyerID, err := bus.UserID(req.UserID)
 	if err != nil || buyerID == 0 {
-		return transactionsrpc.BasketCreateReply{Error: "user_id must be numeric"}
+		return transactionsrpc.BasketCreateReply{Error: bus.ErrInvalidUserID.Error()}
 	}
 	packageType, ok := normalizePackageType(req.PackageType)
 	if !ok {

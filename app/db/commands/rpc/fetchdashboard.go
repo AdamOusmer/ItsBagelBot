@@ -6,7 +6,6 @@ package rpc
 import (
 	"context"
 	"errors"
-	"strconv"
 
 	"ItsBagelBot/app/db/commands/repository"
 	fetchkeyrpc "ItsBagelBot/internal/domain/rpc/fetchkey"
@@ -23,11 +22,14 @@ import (
 func SubscribeFetchDashboard(w Wiring, prefix string) error {
 	d := &fetchDashboardRPC{repo: w.Fetches}
 
+	// Four verbs, four different request and reply types, so they cannot share
+	// one ServeVerbs table; ServeForUser binds each on the shared wiring and
+	// puts the user-id guard in front of every one of them.
 	return errors.Join(
-		bus.Serve(w.RPCWiring, prefix+".fetch_list", d.handleList),
-		bus.Serve(w.RPCWiring, prefix+".fetch_set_def", d.handleSetDef),
-		bus.Serve(w.RPCWiring, prefix+".fetch_set_key", d.handleSetKey),
-		bus.Serve(w.RPCWiring, prefix+".fetch_delete", d.handleDelete),
+		bus.ServeForUser[fetchkeyrpc.FetchListRequest, fetchkeyrpc.FetchListReply](w.RPCWiring, prefix+".fetch_list", d.handleList),
+		bus.ServeForUser[fetchkeyrpc.FetchDefSetRequest, fetchkeyrpc.FetchMutateReply](w.RPCWiring, prefix+".fetch_set_def", d.handleSetDef),
+		bus.ServeForUser[fetchkeyrpc.FetchKeySetRequest, fetchkeyrpc.FetchKeySetReply](w.RPCWiring, prefix+".fetch_set_key", d.handleSetKey),
+		bus.ServeForUser[fetchkeyrpc.FetchDeleteRequest, fetchkeyrpc.FetchMutateReply](w.RPCWiring, prefix+".fetch_delete", d.handleDelete),
 	)
 }
 
@@ -35,35 +37,19 @@ type fetchDashboardRPC struct {
 	repo *repository.Fetches
 }
 
-// parseUserID converts the wire user_id; a non-numeric id is a caller bug and
-// gets the same refusal shape as the command dashboard verbs.
-func parseUserID(raw string) (uint64, error) {
-	return strconv.ParseUint(raw, 10, 64)
-}
-
-func (d *fetchDashboardRPC) handleList(ctx context.Context, req fetchkeyrpc.FetchListRequest) fetchkeyrpc.FetchListReply {
-	id, err := parseUserID(req.UserID)
-	if err != nil {
-		return fetchkeyrpc.FetchListReply{Error: "invalid user_id"}
-	}
-
+func (d *fetchDashboardRPC) handleList(ctx context.Context, _ fetchkeyrpc.FetchListRequest, id uint64) (fetchkeyrpc.FetchListReply, error) {
 	views, err := d.repo.List(ctx, id)
 	if err != nil {
-		return fetchkeyrpc.FetchListReply{Error: err.Error()}
+		return fetchkeyrpc.FetchListReply{}, err
 	}
 	keys, err := d.repo.ListKeys(ctx, id)
 	if err != nil {
-		return fetchkeyrpc.FetchListReply{Error: err.Error()}
+		return fetchkeyrpc.FetchListReply{}, err
 	}
-	return fetchkeyrpc.FetchListReply{Fetches: views, Keys: keys}
+	return fetchkeyrpc.FetchListReply{Fetches: views, Keys: keys}, nil
 }
 
-func (d *fetchDashboardRPC) handleSetDef(ctx context.Context, req fetchkeyrpc.FetchDefSetRequest) fetchkeyrpc.FetchMutateReply {
-	id, err := parseUserID(req.UserID)
-	if err != nil {
-		return fetchkeyrpc.FetchMutateReply{Error: "invalid user_id"}
-	}
-
+func (d *fetchDashboardRPC) handleSetDef(ctx context.Context, req fetchkeyrpc.FetchDefSetRequest, id uint64) (fetchkeyrpc.FetchMutateReply, error) {
 	spec := repository.FetchSpec{
 		Name:     req.Name,
 		URL:      req.URL,
@@ -75,56 +61,34 @@ func (d *fetchDashboardRPC) handleSetDef(ctx context.Context, req fetchkeyrpc.Fe
 	// A rename updates the existing row's name field in place; a plain edit
 	// or create goes through the immediate validated upsert (never the
 	// write-behind batcher — the quota count must see real rows).
-	var opErr error
 	if req.OriginalName != "" && req.OriginalName != req.Name {
-		opErr = d.repo.RenameDef(ctx, id, req.OriginalName, spec)
-	} else {
-		opErr = d.repo.UpsertDef(ctx, id, spec)
+		return fetchkeyrpc.FetchMutateReply{}, d.repo.RenameDef(ctx, id, req.OriginalName, spec)
 	}
-	if opErr != nil {
-		return fetchkeyrpc.FetchMutateReply{Error: opErr.Error()}
-	}
-	return fetchkeyrpc.FetchMutateReply{}
+	return fetchkeyrpc.FetchMutateReply{}, d.repo.UpsertDef(ctx, id, spec)
 }
 
-func (d *fetchDashboardRPC) handleSetKey(ctx context.Context, req fetchkeyrpc.FetchKeySetRequest) fetchkeyrpc.FetchKeySetReply {
-	id, err := parseUserID(req.UserID)
-	if err != nil {
-		return fetchkeyrpc.FetchKeySetReply{Error: "invalid user_id"}
-	}
-
+func (d *fetchDashboardRPC) handleSetKey(ctx context.Context, req fetchkeyrpc.FetchKeySetRequest, id uint64) (fetchkeyrpc.FetchKeySetReply, error) {
 	last4, err := d.repo.SetKey(ctx, id, repository.KeyEntry{Label: req.Label, Value: req.Value})
 	switch {
 	case err == nil:
-		return fetchkeyrpc.FetchKeySetReply{Last4: last4}
-	case isKeyValidationErr(err):
-		return fetchkeyrpc.FetchKeySetReply{Error: err.Error()}
-	case errors.Is(err, repository.ErrCustodyUnavailable):
-		return fetchkeyrpc.FetchKeySetReply{Error: err.Error()}
+		return fetchkeyrpc.FetchKeySetReply{Last4: last4}, nil
+	case isKeyValidationErr(err), errors.Is(err, repository.ErrCustodyUnavailable):
+		return fetchkeyrpc.FetchKeySetReply{}, err
 	default:
 		// Seal/persist failure: reported without echoing any of the value.
-		return fetchkeyrpc.FetchKeySetReply{Error: "failed to store key"}
+		return fetchkeyrpc.FetchKeySetReply{Error: "failed to store key"}, nil
 	}
 }
 
-func (d *fetchDashboardRPC) handleDelete(ctx context.Context, req fetchkeyrpc.FetchDeleteRequest) fetchkeyrpc.FetchMutateReply {
-	id, err := parseUserID(req.UserID)
-	if err != nil {
-		return fetchkeyrpc.FetchMutateReply{Error: "invalid user_id"}
-	}
-
+func (d *fetchDashboardRPC) handleDelete(ctx context.Context, req fetchkeyrpc.FetchDeleteRequest, id uint64) (fetchkeyrpc.FetchMutateReply, error) {
 	switch req.Kind {
 	case "def":
-		err = d.repo.DeleteDef(ctx, id, repository.DefDelete{Name: req.Name, Force: req.Force})
+		return fetchkeyrpc.FetchMutateReply{}, d.repo.DeleteDef(ctx, id, repository.DefDelete{Name: req.Name, Force: req.Force})
 	case "key":
-		err = d.repo.DeleteKey(ctx, id, req.Label)
+		return fetchkeyrpc.FetchMutateReply{}, d.repo.DeleteKey(ctx, id, req.Label)
 	default:
-		return fetchkeyrpc.FetchMutateReply{Error: "kind must be def or key"}
+		return fetchkeyrpc.FetchMutateReply{Error: "kind must be def or key"}, nil
 	}
-	if err != nil {
-		return fetchkeyrpc.FetchMutateReply{Error: err.Error()}
-	}
-	return fetchkeyrpc.FetchMutateReply{}
 }
 
 // isKeyValidationErr reports whether err is one of the domain validation

@@ -5,8 +5,6 @@ package rpc
 
 import (
 	"context"
-	"fmt"
-	"strconv"
 
 	"go.uber.org/zap"
 
@@ -36,52 +34,29 @@ func SubscribeTokens(w Wiring, prefix string) error {
 	t := &tokensRPC{repo: w.Repo, log: w.Log}
 
 	return bus.ServeVerbs(w.Within(tokensBudget), prefix,
-		bus.At("get", t.handleGet),
-		bus.At("save", t.handleSave),
+		bus.VerbForUser[usersrpc.TokensRequest, usersrpc.TokensReply]("get", t.handleGet),
+		bus.VerbForUser[usersrpc.TokensRequest, usersrpc.TokensReply]("save", t.handleSave),
 	)
 }
 
-func (t *tokensRPC) handleGet(ctx context.Context, req usersrpc.TokensRequest) usersrpc.TokensReply {
-	id, err := parseTokensUser(req)
-	if err != nil {
-		return usersrpc.TokensReply{Error: err.Error()}
-	}
-
+func (t *tokensRPC) handleGet(ctx context.Context, _ usersrpc.TokensRequest, id uint64) (usersrpc.TokensReply, error) {
 	access, refresh, expiresAt, err := t.repo.Token(ctx, id, tokens.TypeUserToken, tokens.PlatformTwitch)
 	if err != nil {
-		return usersrpc.TokensReply{Error: err.Error()}
+		return usersrpc.TokensReply{}, err
 	}
 
 	return usersrpc.TokensReply{
 		AccessToken:          string(access),
 		RefreshToken:         string(refresh),
 		AccessTokenExpiresAt: expiresAt,
-	}
+	}, nil
 }
 
-func (t *tokensRPC) handleSave(ctx context.Context, req usersrpc.TokensRequest) usersrpc.TokensReply {
-	log := monitor.TxnLogger(ctx, t.log)
-	id, err := parseTokensUser(req)
+func (t *tokensRPC) handleSave(ctx context.Context, req usersrpc.TokensRequest, id uint64) (usersrpc.TokensReply, error) {
+	err := t.repo.UpsertToken(ctx, id, tokens.TypeUserToken, tokens.PlatformTwitch,
+		[]byte(req.AccessToken), []byte(req.RefreshToken), req.AccessTokenExpiresAt)
 	if err != nil {
-		return usersrpc.TokensReply{Error: err.Error()}
+		monitor.TxnLogger(ctx, t.log).Error("tokens save", zap.Error(err))
 	}
-
-	if err := t.repo.UpsertToken(ctx, id, tokens.TypeUserToken, tokens.PlatformTwitch,
-		[]byte(req.AccessToken), []byte(req.RefreshToken), req.AccessTokenExpiresAt); err != nil {
-		log.Error("tokens save", zap.Error(err))
-		return usersrpc.TokensReply{Error: err.Error()}
-	}
-
-	return usersrpc.TokensReply{}
-}
-
-func parseTokensUser(req usersrpc.TokensRequest) (uint64, error) {
-	if req.UserID == "" {
-		return 0, fmt.Errorf("bad request")
-	}
-	id, err := strconv.ParseUint(req.UserID, 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("user_id must be numeric")
-	}
-	return id, nil
+	return usersrpc.TokensReply{}, err
 }

@@ -397,16 +397,15 @@ func (a *adminRPC) delete(ctx context.Context, req usersrpc.AdminRequest) usersr
 }
 
 func (a *adminRPC) provision(ctx context.Context, userID string) (*ent.User, error) {
-	var id uint64
-	if _, err := fmt.Sscanf(userID, "%d", &id); err != nil {
-		return nil, fmt.Errorf("user_id must be numeric")
+	id, err := bus.UserID(userID)
+	if err != nil {
+		return nil, err
 	}
 
 	email := fmt.Sprintf("%d@unknown.invalid", id)
 	// No display name: an admin-provisioned row has no Twitch identity yet;
 	// the owner's first login fills it in.
-	err := a.repo.Register(ctx, id, fmt.Sprintf("unknown-%d", id), "", email)
-	if err != nil {
+	if err := a.repo.Register(ctx, id, fmt.Sprintf("unknown-%d", id), "", email); err != nil {
 		return nil, err
 	}
 
@@ -414,12 +413,20 @@ func (a *adminRPC) provision(ctx context.Context, userID string) (*ent.User, err
 	return a.findUser(ctx, usersrpc.AdminRequest{UserID: userID})
 }
 
+// findUser resolves the target of an admin verb. The user id is optional here
+// -- the console also looks a user up by login -- so this cannot be the
+// bind-time bus.ServeForUser guard; it calls bus.UserID directly instead, and
+// answers with the same refusal string every other verb in the fleet does.
+//
+// That parse was fmt.Sscanf("%d"), which accepts a numeric prefix: "12abc"
+// resolved to user 12 and the operator saw an unrelated account. ParseUint
+// refuses the whole string.
 func (a *adminRPC) findUser(ctx context.Context, req usersrpc.AdminRequest) (*ent.User, error) {
 	switch {
 	case req.UserID != "":
-		var uid uint64
-		if _, err := fmt.Sscanf(req.UserID, "%d", &uid); err != nil {
-			return nil, fmt.Errorf("user_id must be numeric")
+		uid, err := bus.UserID(req.UserID)
+		if err != nil {
+			return nil, err
 		}
 		return a.repo.FindUser(ctx, uid)
 	case req.Username != "":

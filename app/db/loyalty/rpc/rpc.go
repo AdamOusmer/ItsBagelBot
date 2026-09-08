@@ -76,16 +76,19 @@ type Wiring struct {
 }
 
 // parseIDs pulls the broadcaster id (required) and viewer id (optional) off a
-// request. ok=false carries the error reply. allowBotNS admits user_id "0" —
+// request. ok=false carries the error reply. The parse itself is bus.UserID,
+// so a bad id reads the same here as on every other user-scoped subject; this
+// cannot be the bind-time bus.ServeForUser guard because of the optional
+// second id and the reserved namespace. allowBotNS admits user_id "0" —
 // the reserved bot namespace the counter verbs use for admin-only bot-scope
 // counters; balance verbs always require a real broadcaster.
 func parseIDs(req loyaltyrpc.Request, allowBotNS bool) (userID, viewerID uint64, ok bool, reply loyaltyrpc.Reply) {
-	uid, err := strconv.ParseUint(req.UserID, 10, 64)
+	uid, err := bus.UserID(req.UserID)
 	if err != nil {
-		return 0, 0, false, loyaltyrpc.Reply{Error: "invalid user_id"}
+		return 0, 0, false, loyaltyrpc.Reply{Error: err.Error()}
 	}
 	if uid == 0 && !allowBotNS {
-		return 0, 0, false, loyaltyrpc.Reply{Error: "invalid user_id"}
+		return 0, 0, false, loyaltyrpc.Reply{Error: bus.ErrInvalidUserID.Error()}
 	}
 	if req.ViewerID != "" {
 		vid, err := strconv.ParseUint(req.ViewerID, 10, 64)

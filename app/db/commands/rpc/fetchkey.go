@@ -6,7 +6,6 @@ package rpc
 import (
 	"context"
 	"errors"
-	"strconv"
 
 	"ItsBagelBot/app/db/commands/repository"
 	fetchkeyrpc "ItsBagelBot/internal/domain/rpc/fetchkey"
@@ -28,25 +27,18 @@ func SubscribeFetchKey(w Wiring, subject string) error {
 	}
 
 	k := &fetchKeyRPC{repo: w.Fetches}
-	return bus.Serve(w.RPCWiring, subject, k.handleGet)
+	return bus.ServeForUser[fetchkeyrpc.KeyGetRequest, fetchkeyrpc.KeyGetReply](w.RPCWiring, subject, k.handleGet)
 }
 
 type fetchKeyRPC struct {
 	repo *repository.Fetches
 }
 
-func (k *fetchKeyRPC) handleGet(ctx context.Context, req fetchkeyrpc.KeyGetRequest) fetchkeyrpc.KeyGetReply {
-	id, err := strconv.ParseUint(req.UserID, 10, 64)
-	if err != nil {
-		return fetchkeyrpc.KeyGetReply{Error: "user_id must be numeric"}
-	}
+func (k *fetchKeyRPC) handleGet(ctx context.Context, req fetchkeyrpc.KeyGetRequest, id uint64) (fetchkeyrpc.KeyGetReply, error) {
 	key, err := k.repo.Key(ctx, id, req.Label)
-	switch {
-	case errors.Is(err, repository.ErrNoFetchKey):
+	if errors.Is(err, repository.ErrNoFetchKey) {
 		// Empty + empty means "none on file", not a failure.
-		return fetchkeyrpc.KeyGetReply{}
-	case err != nil:
-		return fetchkeyrpc.KeyGetReply{Error: err.Error()}
+		return fetchkeyrpc.KeyGetReply{}, nil
 	}
-	return fetchkeyrpc.KeyGetReply{Key: key}
+	return fetchkeyrpc.KeyGetReply{Key: key}, err
 }

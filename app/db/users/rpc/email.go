@@ -6,7 +6,6 @@ package rpc
 import (
 	"context"
 	"errors"
-	"strconv"
 
 	"ItsBagelBot/app/db/users/repository"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
@@ -20,22 +19,15 @@ import (
 // treats that as "skip the email channel".
 func SubscribeEmail(w Wiring, subject string) error {
 	repo := w.Repo
-	return bus.Serve(w.Within(emailBudget), subject,
-		func(ctx context.Context, req usersrpc.EmailGetRequest) usersrpc.EmailGetReply {
-			id, err := strconv.ParseUint(req.UserID, 10, 64)
-			if err != nil {
-				return usersrpc.EmailGetReply{Error: "user_id must be numeric"}
-			}
+	return bus.ServeForUser[usersrpc.EmailGetRequest, usersrpc.EmailGetReply](w.Within(emailBudget), subject,
+		func(ctx context.Context, _ usersrpc.EmailGetRequest, id uint64) (usersrpc.EmailGetReply, error) {
 			email, err := repo.ContactEmail(ctx, id)
-			switch {
-			case errors.Is(err, repository.ErrNoContactEmail):
-				return usersrpc.EmailGetReply{}
-			case err != nil:
-				// The error never carries the address; it is a lookup or
-				// unseal failure and safe to surface.
-				return usersrpc.EmailGetReply{Error: err.Error()}
+			if errors.Is(err, repository.ErrNoContactEmail) {
+				return usersrpc.EmailGetReply{}, nil
 			}
-			return usersrpc.EmailGetReply{Email: email}
+			// A surfaced error never carries the address; it is a lookup or
+			// unseal failure and safe for the caller to see.
+			return usersrpc.EmailGetReply{Email: email}, err
 		},
 	)
 }

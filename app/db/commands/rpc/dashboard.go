@@ -23,46 +23,31 @@ type dashboardRPC struct {
 func SubscribeDashboard(w Wiring, prefix string) error {
 	d := &dashboardRPC{repo: w.Commands, log: w.Log}
 
+	// VerbForUser, not At: the user-id guard is the whole prologue of all three
+	// handlers, so it is bound once here rather than re-derived in each.
 	return bus.ServeVerbs(w.RPCWiring, prefix,
-		bus.At("list", d.handleList),
-		bus.At("upsert", d.handleUpsert),
-		bus.At("delete", d.handleDelete),
+		bus.VerbForUser[commandsrpc.DashboardRequest, commandsrpc.DashboardReply]("list", d.handleList),
+		bus.VerbForUser[commandsrpc.DashboardRequest, commandsrpc.DashboardReply]("upsert", d.handleUpsert),
+		bus.VerbForUser[commandsrpc.DashboardRequest, commandsrpc.DashboardReply]("delete", d.handleDelete),
 	)
 }
 
-func (d *dashboardRPC) parseUserID(req commandsrpc.DashboardRequest) (uint64, bool, commandsrpc.DashboardReply) {
-	id, err := strconv.ParseUint(req.UserID, 10, 64)
-	if err != nil {
-		return 0, false, commandsrpc.DashboardReply{Error: "invalid user_id"}
-	}
-	return id, true, commandsrpc.DashboardReply{}
-}
-
-func (d *dashboardRPC) handleList(ctx context.Context, req commandsrpc.DashboardRequest) commandsrpc.DashboardReply {
-	id, ok, reply := d.parseUserID(req)
-	if !ok {
-		return reply
-	}
-
+func (d *dashboardRPC) handleList(ctx context.Context, _ commandsrpc.DashboardRequest, id uint64) (commandsrpc.DashboardReply, error) {
 	views, err := d.repo.List(ctx, id)
 	if err != nil {
-		return commandsrpc.DashboardReply{Error: err.Error()}
+		return commandsrpc.DashboardReply{}, err
 	}
-	return commandsrpc.DashboardReply{Commands: views}
+	return commandsrpc.DashboardReply{Commands: views}, nil
 }
 
-func (d *dashboardRPC) handleUpsert(ctx context.Context, req commandsrpc.DashboardRequest) commandsrpc.DashboardReply {
-	id, ok, reply := d.parseUserID(req)
-	if !ok {
-		return reply
-	}
-
-	// allowed_user_id is optional; empty/"0" means no per-user restriction.
+func (d *dashboardRPC) handleUpsert(ctx context.Context, req commandsrpc.DashboardRequest, id uint64) (commandsrpc.DashboardReply, error) {
+	// allowed_user_id is optional; empty/"0" means no per-user restriction. It
+	// is not the request's own user, so it keeps its own refusal string.
 	var allowedUserID uint64
 	if req.AllowedUserID != "" {
 		parsed, err := strconv.ParseUint(req.AllowedUserID, 10, 64)
 		if err != nil {
-			return commandsrpc.DashboardReply{Error: "invalid allowed_user_id"}
+			return commandsrpc.DashboardReply{Error: "invalid allowed_user_id"}, nil
 		}
 		allowedUserID = parsed
 	}
@@ -80,30 +65,14 @@ func (d *dashboardRPC) handleUpsert(ctx context.Context, req commandsrpc.Dashboa
 
 	// A rename updates the existing row's name field in place; a plain edit or
 	// create goes through the write-behind upsert.
-	rename := req.OriginalName != "" && req.OriginalName != req.Name
-	var opErr error
-	if rename {
-		opErr = d.repo.Rename(ctx, id, req.OriginalName, spec)
-	} else {
-		opErr = d.repo.Upsert(id, spec)
+	// A validation or conflict error from either write reaches the caller as
+	// the reply's error field, which is what the guard does with it.
+	if req.OriginalName != "" && req.OriginalName != req.Name {
+		return commandsrpc.DashboardReply{}, d.repo.Rename(ctx, id, req.OriginalName, spec)
 	}
-	if opErr != nil {
-		// Validation/conflict error: return it.
-		return commandsrpc.DashboardReply{Error: opErr.Error()}
-	}
-
-	return commandsrpc.DashboardReply{}
+	return commandsrpc.DashboardReply{}, d.repo.Upsert(id, spec)
 }
 
-func (d *dashboardRPC) handleDelete(ctx context.Context, req commandsrpc.DashboardRequest) commandsrpc.DashboardReply {
-	id, ok, reply := d.parseUserID(req)
-	if !ok {
-		return reply
-	}
-
-	if err := d.repo.Delete(ctx, id, req.Name); err != nil {
-		return commandsrpc.DashboardReply{Error: err.Error()}
-	}
-
-	return commandsrpc.DashboardReply{}
+func (d *dashboardRPC) handleDelete(ctx context.Context, req commandsrpc.DashboardRequest, id uint64) (commandsrpc.DashboardReply, error) {
+	return commandsrpc.DashboardReply{}, d.repo.Delete(ctx, id, req.Name)
 }
