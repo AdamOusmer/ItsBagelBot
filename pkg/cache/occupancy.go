@@ -19,12 +19,14 @@ type OccupancySource interface {
 	Capacity() int64
 }
 
-// LogOccupancy emits one structured line summarising the fill of every named
-// cache: its live entry count and configured ceiling. It is a point-in-time
-// snapshot with no goroutine of its own, so callers drive the cadence. Logging
+// logOccupancy emits one structured line summarising the fill of every named
+// cache: its live entry count and configured ceiling. It is the tick of
+// StartOccupancyLogger and unexported because that ticker is the only way this
+// package is ever asked for the reading; an exported point-in-time snapshot
+// had no caller outside the test that covered it. Logging
 // at info keeps the reading visible in production (where debug is dropped), which
 // is where the working set that the capacities should be tuned to actually shows.
-func LogOccupancy(log *zap.Logger, caches map[string]OccupancySource) {
+func logOccupancy(log *zap.Logger, caches map[string]OccupancySource) {
 	if log == nil || len(caches) == 0 {
 		return
 	}
@@ -58,7 +60,7 @@ func StartOccupancyLogger(ctx context.Context, log *zap.Logger, interval time.Du
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				LogOccupancy(log, caches)
+				logOccupancy(log, caches)
 			}
 		}
 	}()
