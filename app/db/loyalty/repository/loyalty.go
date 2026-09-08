@@ -19,7 +19,6 @@ import (
 	"ItsBagelBot/app/db/loyalty/ent"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/db"
-	"ItsBagelBot/pkg/monitor"
 
 	entsql "entgo.io/ent/dialect/sql"
 
@@ -44,6 +43,16 @@ const (
 	// 500 rows × ~8 columns stays far under MySQL's placeholder and packet
 	// limits while amortizing the round trip.
 	upsertChunk = 500
+
+	// flushTimeout bounds one whole flush, so a wedged DB gate or a stalled
+	// server cannot pin a flush goroutine forever (the timer paths used to
+	// pass context.Background(), which had no bound at all). It is two flush
+	// windows, and deliberately generous rather than tight: the gate is now
+	// taken per chunk (see execChunk), so no chunk waits anything like the
+	// 1060ms whole-flush wait New Relic measured on 2026-09-07. A flush that
+	// runs past this is wedged, not slow, and the deltas it was carrying are
+	// loss-tolerant.
+	flushTimeout = 30 * time.Second
 )
 
 // normalizeName mirrors the ent schema hook (and the commands service): the
@@ -114,8 +123,10 @@ type Loyalty struct {
 	ticker *time.Ticker
 	done   chan struct{}
 
-	// Single-flight guard for the overflow-triggered flush, mirroring the
-	// commands repo: a hot window must not spawn concurrent flush goroutines.
+	// Single-flight guard shared by both flush triggers (the ticker and the
+	// accumulator-overflow path), mirroring the commands repo: a hot window
+	// must not spawn concurrent flush goroutines, which would hold two DB
+	// gate slots doing the same work.
 	flushing atomic.Bool
 }
 
@@ -136,7 +147,7 @@ func NewLoyalty(client *ent.Client, driver *entsql.Driver, app *newrelic.Applica
 		for {
 			select {
 			case <-r.ticker.C:
-				r.Flush(context.Background())
+				r.tryFlush()
 			case <-r.done:
 				return
 			}
@@ -274,17 +285,34 @@ func scopeKey(userID uint64, name string, b data.CounterBumpEntry) (bumpKey, str
 
 // maybeFlush starts one early flush when an accumulator crossed its cap.
 func (r *Loyalty) maybeFlush(overflow bool) {
-	if overflow && r.flushing.CompareAndSwap(false, true) {
-		go func() {
-			defer r.flushing.Store(false)
-			r.Flush(context.Background())
-		}()
+	if overflow {
+		r.tryFlush()
 	}
 }
 
-// Flush drains both accumulators and lands them in bulk additive upserts. A
-// failed chunk is logged and dropped (loss-tolerant counters; retrying would
-// double-apply the successful chunks around it).
+// tryFlush starts one background flush unless a flush is already running.
+// Both triggers (the ticker and the overflow path) go through this guard, so
+// two flushes never run at once and never hold two DB gate slots for the same
+// work. Losing a tick to the guard is safe: the deltas stay in the
+// accumulators and the next tick, or the overflow path, lands them.
+func (r *Loyalty) tryFlush() {
+	if !r.flushing.CompareAndSwap(false, true) {
+		return
+	}
+	go func() {
+		defer r.flushing.Store(false)
+		ctx, cancel := context.WithTimeout(context.Background(), flushTimeout)
+		defer cancel()
+		r.Flush(ctx)
+	}()
+}
+
+// Flush drains both accumulators and lands them in bulk additive upserts,
+// each chunk taking its own DB gate slot (see execChunk). Ordering inside the
+// flush is kept sequential on this goroutine: the counter definition rows are
+// written before the entry buckets that reference them. A failed chunk is
+// logged and dropped (loss-tolerant counters; retrying would double-apply the
+// successful chunks around it).
 func (r *Loyalty) Flush(ctx context.Context) {
 	earn, bumps := r.drain()
 	if len(earn) == 0 && len(bumps) == 0 {
@@ -294,16 +322,9 @@ func (r *Loyalty) Flush(ctx context.Context) {
 	txn := r.app.StartTransaction("flush loyalty deltas")
 	defer txn.End()
 	ctx = newrelic.NewContext(ctx, txn)
-	log := monitor.TxnLogger(ctx, r.log)
 
-	if err := db.WithExec(ctx, func(ctx context.Context) error {
-		r.flushEarned(ctx, txn, earn)
-		r.flushBumps(ctx, txn, bumps)
-		return nil
-	}); err != nil {
-		txn.NoticeError(err)
-		log.Warn("loyalty: flush gate failed", zap.Error(err))
-	}
+	r.flushEarned(ctx, txn, earn)
+	r.flushBumps(ctx, txn, bumps)
 }
 
 // drain swaps out both accumulators under the lock.
@@ -320,31 +341,82 @@ func (r *Loyalty) drain() (map[balKey]*earnSum, map[bumpKey]*bumpSum) {
 	return earn, bumps
 }
 
-// upsertRows lands one logical bulk write: rows are chunked, each chunk is
-// rendered as "INSERT ... VALUES (...),(...) <suffix>" and executed. A failed
-// chunk is logged and dropped (loss-tolerant deltas; retrying would
-// double-apply the successful chunks around it).
-func (r *Loyalty) upsertRows(ctx context.Context, txn *newrelic.Transaction, label, insert, placeholder, suffix string, rows [][]any) {
-	for start := 0; start < len(rows); start += upsertChunk {
-		chunk := rows[start:min(start+upsertChunk, len(rows))]
+// upsertSpec is one logical bulk write's SQL shape: the INSERT prefix, one
+// row's placeholder tuple and the trailing conflict clause. label names the
+// table in logs.
+type upsertSpec struct {
+	label       string
+	insert      string
+	placeholder string
+	suffix      string
+}
 
-		var sb strings.Builder
-		sb.WriteString(insert)
-		args := make([]any, 0, len(chunk)*len(chunk[0]))
-		for i, row := range chunk {
-			if i > 0 {
-				sb.WriteByte(',')
-			}
-			sb.WriteString(placeholder)
-			args = append(args, row...)
-		}
-		sb.WriteString(suffix)
+// chunkStmt is one rendered chunk, ready to execute: assembling it costs no
+// database access, so it is built outside the gate slot execChunk takes.
+type chunkStmt struct {
+	label string
+	sql   string
+	args  []any
+	rows  int
+}
 
-		if _, err := r.sqldb.ExecContext(ctx, sb.String(), args...); err != nil {
-			txn.NoticeError(err)
-			r.log.Warn("loyalty: failed to flush "+label, zap.Int("rows", len(chunk)), zap.Error(err))
+// render assembles one chunk into "INSERT ... VALUES (...),(...) <suffix>"
+// plus its flattened args.
+func (s upsertSpec) render(chunk [][]any) chunkStmt {
+	var sb strings.Builder
+	sb.WriteString(s.insert)
+	args := make([]any, 0, len(chunk)*len(chunk[0]))
+	for i, row := range chunk {
+		if i > 0 {
+			sb.WriteByte(',')
 		}
+		sb.WriteString(s.placeholder)
+		args = append(args, row...)
 	}
+	sb.WriteString(s.suffix)
+	return chunkStmt{label: s.label, sql: sb.String(), args: args, rows: len(chunk)}
+}
+
+// upsertRows lands one logical bulk write: rows are chunked, each chunk is
+// rendered and then executed under its own gate slot. A failed chunk is
+// logged and dropped (loss-tolerant deltas; retrying would double-apply the
+// successful chunks around it) and the remaining chunks still run.
+func (r *Loyalty) upsertRows(ctx context.Context, txn *newrelic.Transaction, spec upsertSpec, rows [][]any) {
+	for start := 0; start < len(rows); start += upsertChunk {
+		stmt := spec.render(rows[start:min(start+upsertChunk, len(rows))])
+		r.execChunk(ctx, txn, stmt)
+	}
+}
+
+// execChunk runs one rendered chunk holding exactly one process DB gate slot
+// (pkg/db/gate.go).
+//
+// The slot used to wrap the whole flush. On 2026-09-07 New Relic measured the
+// "flush loyalty deltas" transaction at 1060ms while the INSERT ... ON
+// DUPLICATE KEY UPDATE inside it took 3.5ms: the other 1057ms was queuing for
+// the gate, whose size equals the pool size (8). One flush could then hold
+// that slot across up to 40 chunks per table plus their SQL assembly, so a
+// flush starved every dashboard and RPC read in the process. Taking the slot
+// per statement, with render called before the acquire, hands it back between
+// chunks.
+//
+// This is only safe because every flush statement is additive (value = value
+// + VALUES(value), or INSERT IGNORE for the definition rows): chunks from two
+// flushes may interleave and the stored total is still the sum. Do NOT keep
+// this shape if a flush statement ever becomes an absolute SET, where an
+// interleaved older chunk would overwrite a newer value.
+func (r *Loyalty) execChunk(ctx context.Context, txn *newrelic.Transaction, stmt chunkStmt) {
+	err := db.WithExec(ctx, func(ctx context.Context) error {
+		_, execErr := r.sqldb.ExecContext(ctx, stmt.sql, stmt.args...)
+		return execErr
+	})
+	if err == nil {
+		return
+	}
+	// Same level for a gate timeout as for a failed Exec: both drop this
+	// chunk's deltas, and the row count is what makes the loss countable.
+	txn.NoticeError(err)
+	r.log.Warn("loyalty: failed to flush "+stmt.label, zap.Int("rows", stmt.rows), zap.Error(err))
 }
 
 // flushEarned lands the balance deltas: one multi-row upsert per chunk with
@@ -359,16 +431,17 @@ func (r *Loyalty) flushEarned(ctx context.Context, txn *newrelic.Transaction, ea
 	for k, s := range earn {
 		rows = append(rows, []any{k.userID, k.viewerID, s.login, s.name, s.points, s.watchSeconds, now, now})
 	}
-	r.upsertRows(ctx, txn, "balances",
-		"INSERT INTO balances (user_id, viewer_id, viewer_login, viewer_name, points, watch_seconds, created_at, updated_at) VALUES ",
-		"(?, ?, ?, ?, ?, ?, ?, ?)",
-		" ON DUPLICATE KEY UPDATE"+
-			" points = points + VALUES(points),"+
-			" watch_seconds = watch_seconds + VALUES(watch_seconds),"+
-			" viewer_login = IF(VALUES(viewer_login) = '', viewer_login, VALUES(viewer_login)),"+
-			" viewer_name = IF(VALUES(viewer_name) = '', viewer_name, VALUES(viewer_name)),"+
+	r.upsertRows(ctx, txn, upsertSpec{
+		label:       "balances",
+		insert:      "INSERT INTO balances (user_id, viewer_id, viewer_login, viewer_name, points, watch_seconds, created_at, updated_at) VALUES ",
+		placeholder: "(?, ?, ?, ?, ?, ?, ?, ?)",
+		suffix: " ON DUPLICATE KEY UPDATE" +
+			" points = points + VALUES(points)," +
+			" watch_seconds = watch_seconds + VALUES(watch_seconds)," +
+			" viewer_login = IF(VALUES(viewer_login) = '', viewer_login, VALUES(viewer_login))," +
+			" viewer_name = IF(VALUES(viewer_name) = '', viewer_name, VALUES(viewer_name))," +
 			" updated_at = VALUES(updated_at)",
-		rows)
+	}, rows)
 }
 
 // flushBumps lands the counter deltas. Channel-scope bumps upsert the counter
@@ -407,11 +480,12 @@ func (r *Loyalty) flushChannelBumps(ctx context.Context, txn *newrelic.Transacti
 	for _, k := range keys {
 		rows = append(rows, []any{k.userID, k.name, bumps[k].scope, bumps[k].delta, now, now})
 	}
-	r.upsertRows(ctx, txn, "counters",
-		"INSERT INTO counters (user_id, name, scope, value, created_at, updated_at) VALUES ",
-		"(?, ?, ?, ?, ?, ?)",
-		" ON DUPLICATE KEY UPDATE value = value + VALUES(value), updated_at = VALUES(updated_at)",
-		rows)
+	r.upsertRows(ctx, txn, upsertSpec{
+		label:       "counters",
+		insert:      "INSERT INTO counters (user_id, name, scope, value, created_at, updated_at) VALUES ",
+		placeholder: "(?, ?, ?, ?, ?, ?)",
+		suffix:      " ON DUPLICATE KEY UPDATE value = value + VALUES(value), updated_at = VALUES(updated_at)",
+	}, rows)
 }
 
 // ensureEntryDefs writes one INSERT IGNORE definition row per distinct
@@ -434,11 +508,11 @@ func (r *Loyalty) ensureEntryDefs(ctx context.Context, txn *newrelic.Transaction
 	for d, scope := range defs {
 		rows = append(rows, []any{d.userID, d.name, scope, now, now})
 	}
-	r.upsertRows(ctx, txn, "counter defs",
-		"INSERT IGNORE INTO counters (user_id, name, scope, value, created_at, updated_at) VALUES ",
-		"(?, ?, ?, 0, ?, ?)",
-		"",
-		rows)
+	r.upsertRows(ctx, txn, upsertSpec{
+		label:       "counter defs",
+		insert:      "INSERT IGNORE INTO counters (user_id, name, scope, value, created_at, updated_at) VALUES ",
+		placeholder: "(?, ?, ?, 0, ?, ?)",
+	}, rows)
 }
 
 // flushEntryBumps lands the bucket deltas. Identity columns follow the
@@ -449,15 +523,16 @@ func (r *Loyalty) flushEntryBumps(ctx context.Context, txn *newrelic.Transaction
 	for _, k := range keys {
 		rows = append(rows, []any{k.userID, k.name, k.command, k.viewerID, bumps[k].login, bumps[k].name, bumps[k].delta, now})
 	}
-	r.upsertRows(ctx, txn, "counter entries",
-		"INSERT INTO counter_entries (user_id, name, command, viewer_id, viewer_login, viewer_name, value, updated_at) VALUES ",
-		"(?, ?, ?, ?, ?, ?, ?, ?)",
-		" ON DUPLICATE KEY UPDATE"+
-			" value = value + VALUES(value),"+
-			" viewer_login = IF(VALUES(viewer_login) = '', viewer_login, VALUES(viewer_login)),"+
-			" viewer_name = IF(VALUES(viewer_name) = '', viewer_name, VALUES(viewer_name)),"+
+	r.upsertRows(ctx, txn, upsertSpec{
+		label:       "counter entries",
+		insert:      "INSERT INTO counter_entries (user_id, name, command, viewer_id, viewer_login, viewer_name, value, updated_at) VALUES ",
+		placeholder: "(?, ?, ?, ?, ?, ?, ?, ?)",
+		suffix: " ON DUPLICATE KEY UPDATE" +
+			" value = value + VALUES(value)," +
+			" viewer_login = IF(VALUES(viewer_login) = '', viewer_login, VALUES(viewer_login))," +
+			" viewer_name = IF(VALUES(viewer_name) = '', viewer_name, VALUES(viewer_name))," +
 			" updated_at = VALUES(updated_at)",
-		rows)
+	}, rows)
 }
 
 // Close stops the ticker and flushes what is pending.
