@@ -41,6 +41,23 @@ type RPCWiring struct {
 	Timeout time.Duration
 }
 
+// Within returns a copy of the wiring on a different handler budget, so a
+// service names its ordinary budget once and spends the override only on the
+// verb that earns it:
+//
+//	bus.Serve(w.Within(30*time.Second), cleanupSubject, m.cleanup)
+//
+// The rejected alternative was a Timeout field on Verb. The one service that
+// actually runs verbs on three different budgets (notifications: 30s janitor
+// sweep, 5s send, 3s reads) has a distinct request and reply type on every
+// verb, so its verbs can never share one ServeVerbs table and a per-Verb field
+// would never reach them. A wiring copy covers both: a single Serve call and a
+// whole ServeVerbs table.
+func (w RPCWiring) Within(d time.Duration) RPCWiring {
+	w.Timeout = d
+	return w
+}
+
 func (w RPCWiring) timeout() time.Duration {
 	if w.Timeout == 0 {
 		return DefaultRPCTimeout
