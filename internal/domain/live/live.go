@@ -92,11 +92,26 @@ return 1`
 // confirmed, and it must still record its own recency so an OLDER online
 // redelivered afterwards loses too. KEYS: live key, ver key. ARGV: version,
 // ver ttl seconds.
+//
+// Clear's ARGV numbering deliberately differs from Set's: Clear deletes the
+// live key instead of writing it, so it has no live-key TTL slot, and the ver
+// TTL that Set reads from ARGV[3] sits at ARGV[2] here. #561 introduced the
+// versioning and copied Set's last line verbatim, leaving this script reading
+// tonumber(ARGV[3]) against two arguments. Both callers (outgress
+// LiveWriter.Write, sesame clearLiveKey) pass exactly two, so Lua saw nil and
+// the server rejected every call with "Command arguments must be strings or
+// integers script: on @user_script:7". Nothing caught it because a rejected
+// Clear is invisible from the read side: the live key still expires on its own
+// 12h TTL, so channels only looked live for longer than they were. In
+// production it surfaced as a JetStream retry storm instead, every
+// stream_status offline job failing all seven deliveries over ~90s and
+// re-spending a reserved system Helix bucket on each one. If a third argument
+// is ever added here, renumber, do not copy Set's line.
 const ClearScript = `local cur = redis.call('GET', KEYS[2])
 if cur then
   local curv = tonumber(cur)
   if curv and curv > tonumber(ARGV[1]) then return 0 end
 end
 redis.call('DEL', KEYS[1])
-redis.call('SET', KEYS[2], ARGV[1], 'EX', tonumber(ARGV[3]))
+redis.call('SET', KEYS[2], ARGV[1], 'EX', tonumber(ARGV[2]))
 return 1`

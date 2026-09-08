@@ -5,6 +5,7 @@ package worker
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"time"
 
@@ -16,14 +17,16 @@ import (
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/monitor"
 
+	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
 )
 
 // processStreamStatus resolves one broadcaster's live state from Twitch (Helix
 // Get Streams) and writes it back into the live projection. It pays the reserved
 // system Helix bucket and runs only on the system lane (where SetLiveWriter has
-// attached the write-back). A permanent Twitch rejection is dropped; transient
-// errors nack so the paced redelivery retries.
+// attached the write-back). Both the Twitch call and the projection write hand
+// their errors to streamStatusFailure, which drops the permanent ones and nacks
+// the transient ones so the paced redelivery retries.
 //
 // It calls StreamDetails rather than IsStreamLive so the same Helix response
 // also carries the title/game/viewer snapshot persistStreamInfo projects for
@@ -49,7 +52,7 @@ func (w *Worker) processStreamStatus(ctx context.Context, payload *outgress.Mess
 	}
 
 	if err := w.live.Write(ctx, payload.BroadcasterID, isLive); err != nil {
-		return err
+		return w.streamStatusFailure(ctx, payload.BroadcasterID, err)
 	}
 
 	w.persistStreamInfo(ctx, payload.BroadcasterID, isLive, details)
@@ -154,11 +157,14 @@ func (w *Worker) seedLiveStatus(ctx context.Context, broadcasterID string) {
 		zap.String("broadcaster_id", broadcasterID), zap.Bool("live", isLive))
 }
 
-// streamStatusFailure drops permanent Twitch rejections (retrying can never
-// fix them) and nacks the rest so the paced redelivery retries.
+// streamStatusFailure drops failures redelivery can never fix and nacks the
+// rest so the paced redelivery retries. Both the Twitch call and the live
+// projection write route through here so the drop rules stay in one table
+// rather than one classifier per call site.
 func (w *Worker) streamStatusFailure(ctx context.Context, broadcasterID string, err error) error {
-	if isPermanent(err) {
-		w.log.Error("dropping stream_status twitch rejected",
+	reason, drop := streamStatusDrop(err)
+	if drop {
+		w.log.Error(reason,
 			zap.String("broadcaster_id", broadcasterID), zap.Error(err))
 		noticeError(ctx, err)
 		return nil
@@ -167,6 +173,43 @@ func (w *Worker) streamStatusFailure(ctx context.Context, broadcasterID string, 
 	w.log.Warn("stream_status check failed, will retry",
 		zap.String("broadcaster_id", broadcasterID), zap.Error(err))
 	return err
+}
+
+// streamStatusDrop reports whether err is permanent for a stream_status job,
+// and the log line naming why. Permanent means ack-drop: this stream is a
+// WorkQueue, so the ack removes the job.
+//
+// A Twitch 4xx (isPermanent) is permanent for the obvious reason: the same
+// request will be rejected the same way.
+//
+// A *valkey.ValkeyError is permanent because it is a SERVER REPLY, not a
+// transport failure: Valkey parsed the request and refused it. The live write
+// sends a fixed Lua script with a fixed argument count, so a refusal is
+// deterministic and all seven deliveries fail identically. That is not free:
+// each redelivery re-spends a reserved system Helix bucket in
+// processStreamStatus BEFORE it ever reaches Valkey, so nacking buys nothing
+// and costs the scarcest budget on this path. Observed in production when
+// ClearScript read one argument too many (#561, fixed in
+// internal/domain/live): 42 of 42 offline jobs burned six retries each over
+// ~90s traces.
+//
+// Tradeoff, deliberately accepted: OOM, READONLY and MISCONF are also
+// ValkeyError, and those ARE transient, so this drops a write that a later
+// retry could have landed. stream_status is best-effort by design and the
+// worker's cold-miss escalation is the safety net that re-resolves the state
+// (see seedLiveStatus's note below), so a lost write self-heals while a retry
+// storm on a deterministic rejection does not. Transport failures (timeouts,
+// dropped connections) are not ValkeyError and still nack.
+func streamStatusDrop(err error) (string, bool) {
+	var verr *valkey.ValkeyError
+	switch {
+	case isPermanent(err):
+		return "dropping stream_status twitch rejected", true
+	case errors.As(err, &verr):
+		return "dropping stream_status valkey rejected the live write", true
+	default:
+		return "", false
+	}
 }
 
 // HandleStreamEvent reacts to a real Twitch stream.online / stream.offline

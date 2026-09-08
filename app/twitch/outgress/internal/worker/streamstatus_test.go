@@ -4,11 +4,17 @@
 package worker
 
 import (
+	"context"
+	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
 	"ItsBagelBot/app/twitch/outgress/internal/twitch"
 	"ItsBagelBot/internal/projection"
+
+	"github.com/valkey-io/valkey-go"
+	"go.uber.org/zap"
 )
 
 func TestNextStreamInfoGoLiveSeedsFromEmpty(t *testing.T) {
@@ -80,5 +86,43 @@ func TestNextStreamInfoGoLiveClearsPriorEndedAt(t *testing.T) {
 	got := nextStreamInfo(prev, true, twitch.StreamDetails{ViewerCount: 10})
 	if !got.EndedAt.IsZero() {
 		t.Fatalf("EndedAt = %v, want zero on a fresh go-live", got.EndedAt)
+	}
+}
+
+// TestStreamStatusFailureAcksPermanentRejections pins which failures ack-drop a
+// stream_status job and which nack for redelivery. It exercises the classifier
+// through streamStatusFailure rather than through processStreamStatus because
+// w.live is a concrete *LiveWriter holding a real valkey.Client: injecting a
+// failing writer would mean either an interface this code does not otherwise
+// need or a live Valkey server in unit tests, and neither buys anything the
+// classifier table does not already prove.
+//
+// The ValkeyError cases use the zero value on purpose: valkey.ValkeyError's
+// fields are unexported, so a test outside that package cannot build one
+// carrying a message. Only its TYPE matters here, which is exactly what
+// errors.As matches on.
+func TestStreamStatusFailureAcksPermanentRejections(t *testing.T) {
+	w := &Worker{log: zap.NewNop()}
+
+	tests := []struct {
+		name     string
+		err      error
+		wantNack bool
+	}{
+		{name: "valkey server rejection", err: &valkey.ValkeyError{}},
+		{name: "wrapped valkey server rejection", err: fmt.Errorf("live write: %w", &valkey.ValkeyError{})},
+		{name: "twitch 4xx", err: &twitch.StatusError{Status: http.StatusBadRequest}},
+		{name: "valkey connection timeout", err: context.DeadlineExceeded, wantNack: true},
+		{name: "twitch rate limit", err: &twitch.StatusError{Status: http.StatusTooManyRequests}, wantNack: true},
+		{name: "twitch 5xx", err: &twitch.StatusError{Status: http.StatusBadGateway}, wantNack: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := w.streamStatusFailure(context.Background(), "1234", tt.err)
+			if (got != nil) != tt.wantNack {
+				t.Fatalf("streamStatusFailure(%v) = %v, want nack=%v", tt.err, got, tt.wantNack)
+			}
+		})
 	}
 }
