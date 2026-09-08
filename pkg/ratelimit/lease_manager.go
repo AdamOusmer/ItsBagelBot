@@ -83,27 +83,26 @@ type LeaseManager struct {
 	emergencySlots *semaphore.Weighted
 }
 
-type LeaseOption func(*LeaseManager)
-
-func WithLeaseIdentity(region, podID string) LeaseOption {
-	return func(manager *LeaseManager) {
-		manager.region = region
-		manager.podID = podID
-	}
+// Identity names the pod a manager leases for. It is a required constructor
+// argument, not a functional option: the option form (WithLeaseIdentity, the
+// only option that ever existed) was passed by every caller, and a manager
+// built without it leases under the empty pod id, which no plan ever lists --
+// selfIndex stays -1, shareFor never returns a share, and the pod silently
+// falls back to the central limiter instead of its lease.
+type Identity struct {
+	Region string
+	PodID  string
 }
 
-func NewLeaseManager(central *Limiter, local *BucketStore, permit PermitBorrower, options ...LeaseOption) *LeaseManager {
+func NewLeaseManager(central *Limiter, local *BucketStore, permit PermitBorrower, id Identity) *LeaseManager {
 	if local == nil {
 		local = NewBucketStore(16)
 	}
-	manager := &LeaseManager{
+	return &LeaseManager{
 		central: central, local: local, permit: permit,
+		region: id.Region, podID: id.PodID,
 		borrowSlots: semaphore.NewWeighted(64), emergencySlots: semaphore.NewWeighted(32),
 	}
-	for _, option := range options {
-		option(manager)
-	}
-	return manager
 }
 
 // ActivatePlan maps Valkey server time onto local monotonic deadlines. It may be
