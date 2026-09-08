@@ -6,6 +6,7 @@
   import { Card, PageHead, Scroller, SaveStatus, Switch, Button, ButtonLink, InspectorSurface, ConfirmDialog, AlertBanner, DeckList, EmptyState, toast, getI18n, automodToggleDefault, moduleDef, type ModuleField, type ModuleReply, MOD } from '@bagel/shared';
   import type { SaveState } from '@bagel/shared/components/SaveStatus.svelte';
   import ReplyRow from '$lib/components/modules/ReplyRow.svelte';
+  import { createDiscardGuard } from '$lib/inspector/discard-guard.svelte';
   import ReplyEditor from '$lib/components/modules/ReplyEditor.svelte';
   import ModuleCommandList from '$lib/components/modules/ModuleCommandList.svelte';
   import TriggerRuleEditor from '$lib/components/modules/TriggerRuleEditor.svelte';
@@ -188,26 +189,7 @@
 
   // Dirty guard: close / row-switch / add all route through one confirmation so
   // an in-progress reply or trigger edit is never silently dropped.
-  let discardOpen = $state(false);
-  let afterDiscard: (() => void) | null = null;
-  function guarded(action: () => void) {
-    if (inspectorDirty) {
-      afterDiscard = action;
-      discardOpen = true;
-    } else {
-      action();
-    }
-  }
-  function confirmDiscard() {
-    discardOpen = false;
-    const a = afterDiscard;
-    afterDiscard = null;
-    a?.();
-  }
-  function cancelDiscard() {
-    discardOpen = false;
-    afterDiscard = null;
-  }
+  const discard = createDiscardGuard(() => inspectorDirty);
   // Unguarded close (after a save or delete, when there is nothing to lose).
   function doClose() {
     expanded = null;
@@ -219,13 +201,13 @@
       closeInspector();
       return;
     }
-    guarded(() => {
+    discard.guard(() => {
       editMessage = config[reply.messageKey] ?? '';
       expanded = reply.key;
     });
   }
   function closeInspector() {
-    guarded(doClose);
+    discard.guard(doClose);
   }
 
   async function saveReply() {
@@ -361,7 +343,7 @@
 
   function openRule(i: number) {
     if (expanded === `rule:${i}`) return closeInspector();
-    guarded(() => {
+    discard.guard(() => {
       const r = rules[i];
       ruleIndex = i;
       draftPhrase = r.phrase;
@@ -371,7 +353,7 @@
     });
   }
   function addRule() {
-    guarded(() => {
+    discard.guard(() => {
       ruleIndex = -1;
       draftPhrase = '';
       draftMatch = 'word';
@@ -750,14 +732,14 @@
 </section>
 
 <ConfirmDialog
-  open={discardOpen}
+  open={discard.open}
   title={t('modules.discardTitle')}
   body={t('modules.discardBody')}
   confirmLabel={t('modules.discard')}
   cancelLabel={t('modules.keepEditing')}
   danger
-  onCancel={cancelDiscard}
-  onConfirm={confirmDiscard}
+  onCancel={discard.cancel}
+  onConfirm={discard.confirm}
 />
 
 <style>

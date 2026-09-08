@@ -24,7 +24,8 @@ import { rpc } from '@bagel/shared/server/nats';
 import { POLICY } from '@bagel/shared/server/cache-keys';
 import { type GoveeOnRedeem, type GoveeDevice, type GoveeReward, type GoveeBinding, MOD } from '@bagel/shared';
 import { SUB, fabric, invalidate, publishEventSubEnsureOptional } from './services';
-import { listModules, upsertModule } from './commands-store';
+import { upsertModule } from './commands-store';
+import { readModuleBlob } from './module-blob';
 
 // Re-export the shared govee shapes so existing importers of this store keep
 // working; the definitions live in @bagel/shared for the client components too.
@@ -218,16 +219,14 @@ export function goveeStore(userId: string): GoveeStore {
   }
 
   async function read(): Promise<GoveeView> {
-    // The module blob (listModules) and the key-presence flag are independent
+    // The module blob and the key-presence flag are independent
     // reads; run them together so the page's server load is one round trip deep,
     // not two.
-    const [rows, present] = await Promise.all([listModules(userId), keyPresent()]);
-    const row = rows.find((r) => r.name === GOVEE_MODULE);
-    return {
-      enabled: row ? row.is_enabled : false,
-      keyPresent: present,
-      bindings: row ? readBindings(row.configs) : []
-    };
+    const [blob, present] = await Promise.all([
+      readModuleBlob<unknown>(userId, GOVEE_MODULE),
+      keyPresent()
+    ]);
+    return { enabled: blob.enabled, keyPresent: present, bindings: readBindings(blob.configs) };
   }
 
   // writeBindings persists the whole binding list under the module blob's

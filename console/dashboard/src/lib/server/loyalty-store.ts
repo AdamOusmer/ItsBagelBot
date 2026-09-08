@@ -13,7 +13,8 @@ import { rpc } from '@bagel/shared/server/nats';
 import type { CounterDef, CounterEntryView, CounterScope, LoyaltyConfig, LoyaltyStanding } from '@bagel/shared';
 import { blankLoyaltyConfig, COUNTER_SCOPES, MOD } from '@bagel/shared';
 import { SUB } from './services';
-import { listModules, upsertModule } from './commands-store';
+import { upsertModule } from './commands-store';
+import { readModuleBlob } from './module-blob';
 
 const LOYALTY_MODULE = MOD.loyalty;
 
@@ -81,12 +82,10 @@ function rate(v: unknown): number {
 }
 
 export async function readLoyalty(userId: string): Promise<LoyaltyView> {
-  const rows = await listModules(userId);
-  const row = rows.find((r) => r.name === LOYALTY_MODULE);
-  const raw = (row?.configs ?? {}) as Partial<LoyaltyConfig>;
+  const { enabled, configs: raw } = await readModuleBlob<Partial<LoyaltyConfig>>(userId, LOYALTY_MODULE);
   const config: LoyaltyConfig = { ...blankLoyaltyConfig(), pointsName: String(raw.pointsName ?? '') };
   for (const key of RATE_KEYS) config[key] = rate(raw[key]);
-  return { enabled: row ? row.is_enabled : false, config };
+  return { enabled, config };
 }
 
 export async function writeLoyalty(userId: string, enabled: boolean, config: LoyaltyConfig): Promise<void> {

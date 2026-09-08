@@ -10,7 +10,7 @@ import { rpc } from '@bagel/shared/server/nats';
 import { SUB } from './services';
 import { canonicalMinecraftUUID } from './minecraft-id';
 import { broadcasterPremium } from './module-gate';
-import { listModules } from './commands-store';
+import { readModuleBlob } from './module-blob';
 import { effectiveId } from './board';
 import { MOD, type ModuleDef } from '@bagel/shared';
 
@@ -46,11 +46,10 @@ const MINECRAFT_UUID_MODULES = new Set<string>([MOD.urchin, MOD.mcsr]);
 // no row, or a failed read returns ''.
 async function storedLinkedUUID(def: ModuleDef, account: string, locals: App.Locals): Promise<string> {
   try {
-    const rows = await listModules(effectiveId(locals.session));
-    const raw = rows.find((r) => r.name === def.id)?.configs as Record<string, unknown> | undefined;
-    const prevName = String(raw?.account ?? '').trim();
+    const { configs } = await readModuleBlob<Record<string, unknown>>(effectiveId(locals.session), def.id);
+    const prevName = String(configs.account ?? '').trim();
     if (prevName.toLowerCase() !== account.toLowerCase()) return '';
-    return canonicalMinecraftUUID(String(raw?.accountUuid ?? '')) ?? '';
+    return canonicalMinecraftUUID(String(configs.accountUuid ?? '')) ?? '';
   } catch {
     return '';
   }

@@ -15,6 +15,7 @@ import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
 import { getSongQueue, type SongQueueDoc } from '@bagel/shared/server/songqueue-store';
 import { gateModulePage } from '$lib/server/module-gate';
+import { moduleLoad } from '$lib/server/module-page';
 import type { Session } from '$lib/server/session';
 import { effectiveId } from '$lib/server/board';
 import { dev } from '$app/environment';
@@ -30,31 +31,7 @@ function gate(session: Session | null | undefined): void {
   gateModulePage(session, 'songqueue');
 }
 
-export const load: PageServerLoad = async ({ locals, url }) => {
-  gate(locals.session);
-  const uid = effectiveId(locals.session);
-
-  if (DEMO) {
-    const { demoSpotifyView } = await import('$lib/server/demo-data');
-    return {
-      ...demoSpotifyView(),
-      quotas: blankSpotifyQuotas(),
-      queue: {
-        current: { title: 'Mr. Brightside', artists: 'The Killers', requester: 'alice' },
-        up: [
-          { title: 'Human', artists: 'The Killers', requester: 'bob' },
-          { title: 'Somebody Told Me', artists: 'The Killers', requester: 'carol' }
-        ]
-      } as QueueView,
-      connected: true,
-      scopeGap: [] as string[],
-      app: { present: true, clientId: 'demo-client-id' },
-      redirectUri: 'https://console.example/spotify/callback',
-      justConnected: false,
-      errorSlug: ''
-    };
-  }
-
+export const load: PageServerLoad = ({ locals, url }) => {
   // OAuth round-trip notices ride query params (?connected=1 / ?e=slug); read
   // and drop them into data so the page can show a one-shot banner.
   const justConnected = url.searchParams.get('connected') === '1';
@@ -63,40 +40,63 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     ? rawSlug
     : '';
 
-  try {
-    const store = spotifyStore(uid);
-    // The module blob and the connection presence are independent reads; run
-    // them together so SSR is one round trip deep.
-    const [view, grant, app, queue] = await Promise.all([
-      store.read(),
-      store.grant(),
-      store.app(),
-      getSongQueue(uid)
-    ]);
-    // The callback URL is fleet-wide and not a secret: the page shows it so a
-    // broadcaster can register it on their own Spotify app, which Spotify then
-    // matches byte-for-byte at both ends of the flow. A missing
-    // SPOTIFY_REDIRECT_URI is a deploy gap, not a backend outage: surface it
-    // as unconfigured rather than collapsing the page behind the degraded
-    // banner (that is how a forgotten Doppler key looked like "could not
-    // reach the backend" on first ship of BYO Spotify apps).
-    //
-    // scopeGap is resolved here rather than in the browser: the scope set the
-    // flow asks for is server config (DASHBOARD_SPOTIFY_SCOPES), and the page
-    // only needs the answer: is this grant short, and of what.
-    const redirectUri = spotifyConfigured() ? spotifyRedirectURI() : '';
-    return {
-      ...view,
-      queue: shapeQueue(queue),
-      connected: grant.connected,
-      scopeGap: grant.connected ? spotifyScopeGap(grant.scopes) : [],
-      app,
-      redirectUri,
-      justConnected,
-      errorSlug: errorSlug || (!redirectUri ? 'unconfigured' : '')
-    };
-  } catch {
-    return {
+  return moduleLoad('songqueue', locals.session, {
+    demo: DEMO
+      ? async () => {
+          const { demoSpotifyView } = await import('$lib/server/demo-data');
+          return {
+            ...demoSpotifyView(),
+            quotas: blankSpotifyQuotas(),
+            queue: {
+              current: { title: 'Mr. Brightside', artists: 'The Killers', requester: 'alice' },
+              up: [
+                { title: 'Human', artists: 'The Killers', requester: 'bob' },
+                { title: 'Somebody Told Me', artists: 'The Killers', requester: 'carol' }
+              ]
+            } as QueueView,
+            connected: true,
+            scopeGap: [] as string[],
+            app: { present: true, clientId: 'demo-client-id' },
+            redirectUri: 'https://console.example/spotify/callback',
+            justConnected: false,
+            errorSlug: ''
+          };
+        }
+      : undefined,
+    read: async (uid) => {
+      const store = spotifyStore(uid);
+      // The module blob and the connection presence are independent reads; run
+      // them together so SSR is one round trip deep.
+      const [view, grant, app, queue] = await Promise.all([
+        store.read(),
+        store.grant(),
+        store.app(),
+        getSongQueue(uid)
+      ]);
+      // The callback URL is fleet-wide and not a secret: the page shows it so a
+      // broadcaster can register it on their own Spotify app, which Spotify then
+      // matches byte-for-byte at both ends of the flow. A missing
+      // SPOTIFY_REDIRECT_URI is a deploy gap, not a backend outage: surface it
+      // as unconfigured rather than collapsing the page behind the degraded
+      // banner (that is how a forgotten Doppler key looked like "could not
+      // reach the backend" on first ship of BYO Spotify apps).
+      //
+      // scopeGap is resolved here rather than in the browser: the scope set the
+      // flow asks for is server config (DASHBOARD_SPOTIFY_SCOPES), and the page
+      // only needs the answer: is this grant short, and of what.
+      const redirectUri = spotifyConfigured() ? spotifyRedirectURI() : '';
+      return {
+        ...view,
+        queue: shapeQueue(queue),
+        connected: grant.connected,
+        scopeGap: grant.connected ? spotifyScopeGap(grant.scopes) : [],
+        app,
+        redirectUri,
+        justConnected,
+        errorSlug: errorSlug || (!redirectUri ? 'unconfigured' : '')
+      };
+    },
+    blank: () => ({
       enabled: false,
       sr: blankSpotifySr(),
       redeem: blankSpotifyRedeem(),
@@ -107,10 +107,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
       app: { present: false, clientId: '' },
       redirectUri: '',
       justConnected: false,
-      errorSlug: '',
-      degraded: true
-    };
-  }
+      errorSlug: ''
+    })
+  });
 };
 
 // QueueView is the display slice of sesame's queue doc: titles, artists as

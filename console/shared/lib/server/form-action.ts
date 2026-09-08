@@ -28,9 +28,9 @@ export type MutationSpec<Ctx, E> = {
   refusal: () => MutationRefusal;
   /**
    * True only in a `vite dev` demo build. Passed in rather than read here: the
-   * canonical `const DEMO = dev && env.DEMO === '1'` gate has to live in the
-   * caller's own file for Rollup to fold it away (see the no-dev-code-in-prod
-   * gate scripts), so this module never names the key.
+   * canonical build-time demo gate has to live in the caller's own file for
+   * Rollup to fold it away (see shared/scripts/assert-demo-gated.mjs), so this
+   * module never names the env key at all.
    */
   demo: boolean;
   /** Perform the write. Returns the audit detail, or null for invalid input. */

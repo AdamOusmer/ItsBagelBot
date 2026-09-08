@@ -51,7 +51,8 @@ import type {
 } from '@bagel/shared';
 import { blankSpotifyRedeem, blankSpotifySr, blankSpotifyQuotas } from '@bagel/shared';
 import { SUB, publishEventSubEnsureOptional } from './services';
-import { listModules, upsertModule } from './commands-store';
+import { upsertModule } from './commands-store';
+import { readModuleBlob } from './module-blob';
 
 export type {
   SpotifySrConfig,
@@ -279,16 +280,14 @@ export function spotifyStore(userId: string): SpotifyStore {
   // writes can spread-and-overlay instead of clobbering keys this page does
   // not manage (the songqueueConfig message templates, maxDepth).
   async function rawConfigs(): Promise<Record<string, unknown>> {
-    const rows = await listModules(userId);
-    const row = rows.find((r) => r.name === SONGQUEUE_MODULE);
-    return row ? { ...((row.configs ?? {}) as Record<string, unknown>) } : {};
+    const { configs } = await readModuleBlob<Record<string, unknown>>(userId, SONGQUEUE_MODULE);
+    return { ...configs };
   }
 
   async function read(): Promise<SpotifyView> {
-    const rows = await listModules(userId);
-    const row = rows.find((r) => r.name === SONGQUEUE_MODULE);
-    const view = readView(row?.configs);
-    view.enabled = row ? row.is_enabled : false;
+    const { enabled, configs } = await readModuleBlob<unknown>(userId, SONGQUEUE_MODULE);
+    const view = readView(configs);
+    view.enabled = enabled;
     return view;
   }
 

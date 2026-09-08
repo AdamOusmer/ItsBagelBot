@@ -15,6 +15,7 @@ import {
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/shared/server/logger';
 import { gateModulePage } from '$lib/server/module-gate';
+import { moduleLoad } from '$lib/server/module-page';
 import type { Session } from '$lib/server/session';
 import { effectiveId } from '$lib/server/board';
 import { dev } from '$app/environment';
@@ -64,17 +65,20 @@ function actingLogin(session: Session | null | undefined): string {
   return session?.delegate_login ?? session?.login ?? 'dashboard';
 }
 
-export const load: PageServerLoad = async ({ locals }) => {
-  gate(locals.session);
-  const uid = effectiveId(locals.session);
-  if (DEMO) return (await import('$lib/server/demo-data')).demoQuotesView();
-  try {
-    const view = await readQuotes(uid);
-    return { enabled: view.enabled, addPerm: view.addPerm, editPerm: view.editPerm, quotes: view.quotes };
-  } catch {
-    return { enabled: false, addPerm: 'mod', editPerm: 'mod', quotes: [] as QuoteView[], degraded: true };
-  }
-};
+export const load: PageServerLoad = ({ locals }) =>
+  moduleLoad('quotes', locals.session, {
+    demo: DEMO ? async () => (await import('$lib/server/demo-data')).demoQuotesView() : undefined,
+    read: async (uid) => {
+      const view = await readQuotes(uid);
+      return { enabled: view.enabled, addPerm: view.addPerm, editPerm: view.editPerm, quotes: view.quotes };
+    },
+    blank: () => ({
+      enabled: false,
+      addPerm: 'mod' as QuotePerms['addPerm'],
+      editPerm: 'mod' as QuotePerms['editPerm'],
+      quotes: [] as QuoteView[]
+    })
+  });
 
 // actionContext runs the shared prologue: scope gate, effective id, auth check,
 // and form parse. DEMO runs without a session (branches short-circuit before RPC).
