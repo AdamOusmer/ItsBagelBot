@@ -6,6 +6,8 @@
 // owner). It is intentionally unavailable to dashboard/admin accounts.
 package billingrpc
 
+import "ItsBagelBot/internal/domain/rpc"
+
 import "time"
 
 type Action string
@@ -31,6 +33,6 @@ type ApplyRequest struct {
 }
 
 type ApplyReply struct {
-	Applied bool   `json:"applied"`
-	Error   string `json:"error,omitempty"`
+	Applied bool `json:"applied"`
+	rpc.Refusal
 }

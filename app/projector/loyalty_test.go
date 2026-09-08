@@ -8,6 +8,7 @@ import (
 	"errors"
 	"testing"
 
+	domainrpc "ItsBagelBot/internal/domain/rpc"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	"ItsBagelBot/pkg/codec"
 
@@ -50,7 +51,7 @@ func TestLoyaltyCountersGetNotFound(t *testing.T) {
 }
 
 func TestLoyaltyCountersGetErrorReply(t *testing.T) {
-	l := fakeRequest(t, loyaltyrpc.Reply{Error: "bad request"})
+	l := fakeRequest(t, loyaltyrpc.Reply{Refusal: domainrpc.Refused(domainrpc.CodeInvalid, "bad request")})
 	_, ok := l.get(context.Background(), "123", "mod_actions")
 	assert.False(t, ok)
 }

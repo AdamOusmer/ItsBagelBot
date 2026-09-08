@@ -15,6 +15,7 @@ import (
 	"ItsBagelBot/app/db/notifications/ent/notification"
 	"ItsBagelBot/app/db/notifications/repository"
 	"ItsBagelBot/internal/domain/invalidate"
+	domainrpc "ItsBagelBot/internal/domain/rpc"
 	notificationsrpc "ItsBagelBot/internal/domain/rpc/notifications"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/pkg/bus"
@@ -108,13 +109,13 @@ func (a *adminRPC) send(ctx context.Context, req notificationsrpc.SendRequest) n
 	log := monitor.TxnLogger(ctx, a.log)
 	params, err := parseSendRequest(req)
 	if err != nil {
-		return notificationsrpc.SendReply{Error: err.Error()}
+		return notificationsrpc.SendReply{Refusal: bus.Classify(err)}
 	}
 
 	if params.Scope == notification.ScopeDirect {
 		id, err := a.resolveTarget(ctx, req.TargetUserID, req.TargetUsername)
 		if err != nil {
-			return notificationsrpc.SendReply{Error: err.Error()}
+			return notificationsrpc.SendReply{Refusal: bus.Classify(err)}
 		}
 		params.TargetUserID = &id
 	}
@@ -129,7 +130,7 @@ func (a *adminRPC) send(ctx context.Context, req notificationsrpc.SendRequest) n
 
 	row, created, err := a.repo.Create(ctx, params)
 	if err != nil {
-		return notificationsrpc.SendReply{Error: err.Error()}
+		return notificationsrpc.SendReply{Refusal: bus.Classify(err)}
 	}
 
 	if created {
@@ -170,7 +171,7 @@ func (a *adminRPC) list(ctx context.Context, req notificationsrpc.ListAdminReque
 	page, pageSize, fetchLimit := clampAdminPage(req)
 	rows, err := a.repo.ListForAdmin(ctx, fetchLimit, (page-1)*pageSize)
 	if err != nil {
-		return notificationsrpc.ListAdminReply{Error: err.Error()}
+		return notificationsrpc.ListAdminReply{Refusal: bus.Classify(err)}
 	}
 	hasMore := page < repository.AdminMaxPages && len(rows) > pageSize
 	if hasMore {
@@ -193,10 +194,10 @@ func (a *adminRPC) list(ctx context.Context, req notificationsrpc.ListAdminReque
 
 func (a *adminRPC) delete(ctx context.Context, req notificationsrpc.DeleteRequest) notificationsrpc.DeleteReply {
 	if req.ID <= 0 {
-		return notificationsrpc.DeleteReply{Error: "id required"}
+		return notificationsrpc.DeleteReply{Refusal: domainrpc.Refused(domainrpc.CodeInvalid, "id required")}
 	}
 	if err := a.repo.Delete(ctx, int(req.ID)); err != nil {
-		return notificationsrpc.DeleteReply{Error: err.Error()}
+		return notificationsrpc.DeleteReply{Refusal: bus.Classify(err)}
 	}
 	a.invalidate(nil)
 	return notificationsrpc.DeleteReply{}

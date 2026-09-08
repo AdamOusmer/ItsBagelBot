@@ -9,6 +9,7 @@ import (
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/db/modules/repository"
+	domainrpc "ItsBagelBot/internal/domain/rpc"
 	modulesrpc "ItsBagelBot/internal/domain/rpc/modules"
 
 	"ItsBagelBot/pkg/bus"
@@ -67,7 +68,7 @@ func (d *dashboardRPC) handlePatch(ctx context.Context, req modulesrpc.Dashboard
 	partial := map[string]codec.RawMessage{}
 	if len(req.Configs) > 0 {
 		if err := codec.Unmarshal(req.Configs, &partial); err != nil {
-			return modulesrpc.DashboardReply{Error: "invalid configs"}, nil
+			return modulesrpc.DashboardReply{Refusal: domainrpc.Refused(domainrpc.CodeInvalid, "invalid configs")}, nil
 		}
 	}
 

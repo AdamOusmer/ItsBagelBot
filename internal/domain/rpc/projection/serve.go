@@ -12,18 +12,15 @@ package projection
 // projection surface, and only a bus-level home can be reached by services
 // that have no business importing a projection contract.
 //
-// What stays here is the pair of methods that make these wire types satisfy
-// the bus interfaces. They are structural, so this package still imports
-// nothing new.
+// What stays here is the request half. The reply half (Failed) now comes from
+// the rpc.Refusal each projection reply embeds, which also gives them the
+// machine-readable code beside the sentence.
 
 // Requested satisfies bus.Requesting for the shared projection request.
 func (r Request) Requested() string { return r.UserID }
 
 // Failed satisfies bus.Failing for the users projection reply.
-func (r *UserReply) Failed(message string) { r.Error = message }
 
 // Failed satisfies bus.Failing for the commands projection reply.
-func (r *CommandsReply) Failed(message string) { r.Error = message }
 
 // Failed satisfies bus.Failing for the modules projection reply.
-func (r *ModulesReply) Failed(message string) { r.Error = message }

@@ -7,6 +7,8 @@
 // set, delete) through them; the future dashboard pages ride the same verbs.
 package loyaltyrpc
 
+import "ItsBagelBot/internal/domain/rpc"
+
 // Request covers every loyalty verb; unused fields are zero-valued.
 type Request struct {
 	UserID      string `json:"user_id"`                // broadcaster Twitch id
@@ -80,6 +82,6 @@ type Reply struct {
 	// applied (true) or was refused for insufficient points (false, with
 	// Found carrying whether the viewer exists at all and Balance what they
 	// actually hold).
-	Spent bool   `json:"spent,omitempty"`
-	Error string `json:"error,omitempty"`
+	Spent bool `json:"spent,omitempty"`
+	rpc.Refusal
 }

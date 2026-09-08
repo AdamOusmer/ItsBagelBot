@@ -17,6 +17,7 @@ import (
 	"ItsBagelBot/app/db/users/ent/user"
 	"ItsBagelBot/app/db/users/repository"
 	"ItsBagelBot/internal/domain/invalidate"
+	domainrpc "ItsBagelBot/internal/domain/rpc"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/monitor"
@@ -65,7 +66,25 @@ func SubscribeAdmin(w Wiring, prefix, invalidationPrefix string) error {
 	)
 }
 
-func adminError(msg string) usersrpc.AdminReply { return usersrpc.AdminReply{Error: msg} }
+// storeRules is this service's half of the refusal classification: the two
+// repository sentinels plus ent's own miss predicate, which is a function
+// rather than a comparable error and so cannot be a plain Is rule. Everything
+// else -- a timed-out pool, an unrecognised driver error -- is classified by
+// bus.Classify exactly as it is in the other six db services.
+var storeRules = []domainrpc.Rule{
+	domainrpc.Is(repository.ErrUserNotFound, domainrpc.CodeNotFound),
+	domainrpc.Is(repository.ErrNoContactEmail, domainrpc.CodeNotFound),
+	domainrpc.When(ent.IsNotFound, domainrpc.CodeNotFound),
+}
+
+// refusal classifies one store error for this service. Named so the rules
+// table is spelled once rather than at each of the twenty-odd refusal sites.
+func refusal(err error) domainrpc.Refusal { return bus.Classify(err, storeRules...) }
+
+// adminError renders one refusal as the admin surface's reply. It takes the
+// whole refusal rather than a message so the machine-readable code cannot be
+// dropped at a call site that only had the sentence to hand.
+func adminError(r domainrpc.Refusal) usersrpc.AdminReply { return usersrpc.AdminReply{Refusal: r} }
 
 // mutation names one per-user write verb: the log line it emits, the repo
 // write it applies, the refreshed reply it returns (a user view or a token
@@ -83,10 +102,10 @@ type mutation struct {
 func (a *adminRPC) mutate(ctx context.Context, req usersrpc.AdminRequest, m mutation) usersrpc.AdminReply {
 	u, err := a.findUser(ctx, req)
 	if err != nil {
-		return adminError(err.Error())
+		return adminError(refusal(err))
 	}
 	if err := m.write(ctx, u.ID); err != nil {
-		return adminError(err.Error())
+		return adminError(refusal(err))
 	}
 	a.invalidate(u.ID)
 	a.log.Info(m.logMsg, append([]zap.Field{zap.Uint64("user", u.ID)}, m.fields...)...)
@@ -109,7 +128,7 @@ func idRequest(id uint64) usersrpc.AdminRequest {
 func (a *adminRPC) get(ctx context.Context, req usersrpc.AdminRequest) usersrpc.AdminReply {
 	u, err := a.findUser(ctx, req)
 	if err != nil {
-		return usersrpc.AdminReply{Error: err.Error()}
+		return adminError(refusal(err))
 	}
 	view := viewOf(u)
 	return usersrpc.AdminReply{User: &view}
@@ -132,7 +151,7 @@ func (a *adminRPC) list(ctx context.Context, req usersrpc.AdminRequest) usersrpc
 		Limit:  adminListLimit(req.Limit),
 	})
 	if err != nil {
-		return adminError(err.Error())
+		return adminError(refusal(err))
 	}
 	return usersrpc.AdminReply{Users: userViewsOf(rows)}
 }
@@ -153,7 +172,7 @@ func (a *adminRPC) listPage(ctx context.Context, req usersrpc.AdminRequest) user
 		Offset: (page - 1) * pageSize,
 	})
 	if err != nil {
-		return adminError(err.Error())
+		return adminError(refusal(err))
 	}
 	hasMore := page < adminUserMaxPages && len(rows) > pageSize
 	if hasMore {
@@ -184,7 +203,7 @@ func (a *adminRPC) overview(ctx context.Context, req usersrpc.AdminRequest) user
 func (a *adminRPC) stats(ctx context.Context, _ usersrpc.AdminRequest) usersrpc.AdminReply {
 	total, active, paid, vip, err := a.repo.UserStats(ctx)
 	if err != nil {
-		return usersrpc.AdminReply{Error: err.Error()}
+		return adminError(refusal(err))
 	}
 	stats := usersrpc.AdminStats{
 		TotalUsers:   total,
@@ -211,7 +230,7 @@ func (a *adminRPC) enrollment(ctx context.Context, req usersrpc.AdminRequest) us
 	}
 	series, err := a.repo.EnrollmentSeries(ctx, clamp(days, 1, enrollmentMaxDays))
 	if err != nil {
-		return adminError(err.Error())
+		return adminError(refusal(err))
 	}
 	stats := a.stats(ctx, req)
 	if stats.Error != "" {
@@ -233,19 +252,19 @@ func (a *adminRPC) setStatus(ctx context.Context, req usersrpc.AdminRequest) use
 	log := monitor.TxnLogger(ctx, a.log)
 	u, err := a.findOrProvision(ctx, req)
 	if err != nil {
-		return adminError(err.Error())
+		return adminError(refusal(err))
 	}
 
 	status := user.Status(req.Status)
 	if err := user.StatusValidator(status); err != nil {
-		return adminError("status must be free, paid or vip")
+		return adminError(domainrpc.Refused(domainrpc.CodeInvalid, "status must be free, paid or vip"))
 	}
 	expiresAt, err := parseExpiresAt(req.ExpiresAt)
 	if err != nil {
-		return adminError(err.Error())
+		return adminError(refusal(err))
 	}
 	if err := a.repo.SetAdminStatus(ctx, u.ID, status, expiresAt); err != nil {
-		return adminError(err.Error())
+		return adminError(refusal(err))
 	}
 
 	a.invalidate(u.ID)
@@ -292,11 +311,11 @@ func (a *adminRPC) setCreatorCode(ctx context.Context, req usersrpc.AdminRequest
 	log := monitor.TxnLogger(ctx, a.log)
 	u, err := a.findUser(ctx, req)
 	if err != nil {
-		return usersrpc.AdminReply{Error: err.Error()}
+		return adminError(refusal(err))
 	}
 
 	if err := a.repo.SetCreatorCode(ctx, u.ID, req.CreatorCode); err != nil {
-		return usersrpc.AdminReply{Error: err.Error()}
+		return adminError(refusal(err))
 	}
 
 	a.invalidate(u.ID)
@@ -340,7 +359,7 @@ func (a *adminRPC) reset(ctx context.Context, req usersrpc.AdminRequest) usersrp
 func (a *adminRPC) tokenSet(ctx context.Context, req usersrpc.AdminRequest) usersrpc.AdminReply {
 	u, err := a.findOrProvision(ctx, req)
 	if err != nil {
-		return adminError(err.Error())
+		return adminError(refusal(err))
 	}
 
 	// Expiry unknown: an operator-installed token has no Twitch expires_in to
@@ -349,7 +368,7 @@ func (a *adminRPC) tokenSet(ctx context.Context, req usersrpc.AdminRequest) user
 	// grant is rotated once and the refresh closure fills the expiry in.
 	if err := a.repo.UpsertToken(ctx, u.ID, tokens.TypeUserToken, tokens.PlatformTwitch,
 		[]byte(req.AccessToken), []byte(req.RefreshToken), nil); err != nil {
-		return adminError(err.Error())
+		return adminError(refusal(err))
 	}
 
 	log := monitor.TxnLogger(ctx, a.log)
@@ -361,12 +380,12 @@ func (a *adminRPC) tokenSet(ctx context.Context, req usersrpc.AdminRequest) user
 func (a *adminRPC) tokenStatus(ctx context.Context, req usersrpc.AdminRequest) usersrpc.AdminReply {
 	u, err := a.findUser(ctx, req)
 	if err != nil {
-		return adminError(err.Error())
+		return adminError(refusal(err))
 	}
 
 	present, err := a.repo.HasToken(ctx, u.ID, tokens.TypeUserToken, tokens.PlatformTwitch)
 	if err != nil {
-		return adminError(err.Error())
+		return adminError(refusal(err))
 	}
 
 	return usersrpc.AdminReply{Token: &usersrpc.AdminTokenView{Present: present}}
@@ -385,11 +404,11 @@ func (a *adminRPC) tokenClear(ctx context.Context, req usersrpc.AdminRequest) us
 func (a *adminRPC) delete(ctx context.Context, req usersrpc.AdminRequest) usersrpc.AdminReply {
 	u, err := a.findUser(ctx, req)
 	if err != nil {
-		return adminError(err.Error())
+		return adminError(refusal(err))
 	}
 
 	if err := a.repo.Delete(ctx, u.ID); err != nil {
-		return adminError(err.Error())
+		return adminError(refusal(err))
 	}
 
 	monitor.TxnLogger(ctx, a.log).Info("admin user delete", zap.Uint64("user", u.ID))

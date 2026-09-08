@@ -4,6 +4,8 @@
 // Package commandsrpc holds the shared wire types for the commands service RPC surface.
 package commandsrpc
 
+import "ItsBagelBot/internal/domain/rpc"
+
 import "ItsBagelBot/internal/domain/rpc/projection"
 
 // DashboardRequest covers all commands dashboard verbs; unused fields are zero-valued.
@@ -24,5 +26,5 @@ type DashboardRequest struct {
 // DashboardReply is the reply shape for commands dashboard verbs.
 type DashboardReply struct {
 	Commands []projection.CommandView `json:"commands"`
-	Error    string                   `json:"error,omitempty"`
+	rpc.Refusal
 }

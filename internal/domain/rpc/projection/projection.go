@@ -6,6 +6,8 @@
 // messages on the users, commands, and modules projection subjects.
 package projection
 
+import "ItsBagelBot/internal/domain/rpc"
+
 import "ItsBagelBot/pkg/codec"
 
 // Request is the common input shape for all projection lookups.
@@ -48,19 +50,19 @@ type UserReply struct {
 	IsActive bool   `json:"is_active"`
 	Banned   bool   `json:"banned"`
 	Locale   string `json:"locale,omitempty"`
-	Error    string `json:"error,omitempty"`
+	rpc.Refusal
 }
 
 // CommandsReply is the reply shape for the commands projection subject.
 type CommandsReply struct {
 	UserID   string        `json:"user_id"`
 	Commands []CommandView `json:"commands"`
-	Error    string        `json:"error,omitempty"`
+	rpc.Refusal
 }
 
 // ModulesReply is the reply shape for the modules projection subject.
 type ModulesReply struct {
 	UserID  string       `json:"user_id"`
 	Modules []ModuleView `json:"modules"`
-	Error   string       `json:"error,omitempty"`
+	rpc.Refusal
 }

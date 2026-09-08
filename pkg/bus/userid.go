@@ -126,6 +126,18 @@ var userIDRules = []rpc.Rule{
 	rpc.Is(ErrInvalidUserID, rpc.CodeInvalid),
 }
 
+// Classify turns a handler's error into a coded refusal the same way the
+// guard does, with the service's own sentinel table tried first. It is here
+// rather than in internal/domain/rpc because the two user-id sentinels live
+// here and rpc cannot import this package (this one imports it).
+//
+// Handlers that guard partway through their own logic -- an optional second
+// id, a reserved namespace id, a username fallback -- reach for this so their
+// refusal is coded identically to the bind-time one they could not use.
+func Classify(err error, rules ...rpc.Rule) rpc.Refusal {
+	return rpc.Fail(err, append(rules, userIDRules...)...)
+}
+
 // RefuseErr is Refuse for a caller that still holds the error rather than a
 // message: it writes the same sentence AND, when the reply carries a code
 // field, the machine-readable code the console branches on.
@@ -141,7 +153,7 @@ func RefuseErr[Rep any, PR interface {
 }](err error) Rep {
 	var zero Rep
 	target := PR(&zero)
-	refusal := rpc.Fail(err, userIDRules...)
+	refusal := Classify(err)
 	if coded, ok := any(target).(rpc.Refusing); ok {
 		coded.Refuse(refusal)
 		return zero

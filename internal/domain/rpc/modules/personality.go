@@ -3,6 +3,8 @@
 
 package modulesrpc
 
+import "ItsBagelBot/internal/domain/rpc"
+
 // FeedBumpRequest asks the modules service to record one "feed the bagel"
 // (bagel.rpc.modules.personality.feed): always on the permanent fleet-wide
 // counter, and on the feeding channel's own row when the caller names one. A
@@ -22,7 +24,7 @@ type FeedBumpReply struct {
 	Total   uint64 `json:"total"`
 	Channel uint64 `json:"channel,omitempty"`
 	Rank    uint64 `json:"rank,omitempty"`
-	Error   string `json:"error,omitempty"`
+	rpc.Refusal
 }
 
 // FeedBoardRequest reads the feed leaderboard
@@ -46,7 +48,7 @@ type FeedBoardReply struct {
 	Ranked  uint64 `json:"ranked"`
 	Channel uint64 `json:"channel,omitempty"`
 	Rank    uint64 `json:"rank,omitempty"`
-	Error   string `json:"error,omitempty"`
+	rpc.Refusal
 }
 
 // FeedBoardEntry is one channel's place on the feed leaderboard.
