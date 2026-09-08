@@ -106,3 +106,26 @@ func ParseDynamic(key string) (string, bool) {
 	}
 	return "", false
 }
+
+// TokenExpander maps a template token name to the accessor that renders it
+// from one reply type. Every module that answers a chat command from an
+// upstream reply had written the same closure — look the key up in my map,
+// else fall through to the dynamic vars — so the palette now carries the
+// expansion instead of each caller re-deriving it.
+//
+// It is keyed on *R rather than R because the callers decode into a local and
+// pass its address; copying a reply struct per token lookup would be the only
+// alternative.
+type TokenExpander[R any] map[string]func(*R) string
+
+// Expand renders tmpl over r: a {token} this palette knows resolves from the
+// reply, anything else falls through to the generic dynamic vars ({random},
+// {choice:…}) and is left literal when even those do not know it.
+func (t TokenExpander[R]) Expand(tmpl string, r *R) string {
+	return ExpandString(tmpl, func(key string) (string, bool) {
+		if field, ok := t[key]; ok {
+			return field(r), true
+		}
+		return ParseDynamic(key)
+	})
+}
