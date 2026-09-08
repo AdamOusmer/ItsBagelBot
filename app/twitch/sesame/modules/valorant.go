@@ -95,28 +95,28 @@ type valorantConfig struct {
 // The four empty-state overrides. Each replaces its command's template
 // entirely when the reply carries no renderable content, because every numeric
 // token would print zero.
-func valRankSpecial(r *gossiprpc.ValorantRankReply) (string, bool) {
+func valRankSpecial(_ statsCall[valorantConfig], r *gossiprpc.ValorantRankReply) (string, bool) {
 	if !r.Unranked {
 		return "", false
 	}
 	return r.Player + " " + valUnrankedText, true
 }
 
-func valMatchSpecial(r *gossiprpc.ValorantMatchesReply) (string, bool) {
+func valMatchSpecial(_ statsCall[valorantConfig], r *gossiprpc.ValorantMatchesReply) (string, bool) {
 	if !r.Empty {
 		return "", false
 	}
 	return r.Player + " " + valNoMatchesText, true
 }
 
-func valBoardSpecial(r *gossiprpc.ValorantLeaderboardReply) (string, bool) {
+func valBoardSpecial(_ statsCall[valorantConfig], r *gossiprpc.ValorantLeaderboardReply) (string, bool) {
 	if !r.Empty {
 		return "", false
 	}
 	return r.Board + " " + valEmptyBoardText, true
 }
 
-func valShopSpecial(r *gossiprpc.ValorantShopReply) (string, bool) {
+func valShopSpecial(_ statsCall[valorantConfig], r *gossiprpc.ValorantShopReply) (string, bool) {
 	if !r.Empty {
 		return "", false
 	}
@@ -222,33 +222,43 @@ type valScope struct {
 }
 
 // valRun builds one command runner: the shared skeleton with Valorant's own
-// scoping in place of the plain linked-account resolution.
+// scoping in place of the plain linked-account resolution. cmd carries the
+// half that is the common shape (route, toggle, template, palette,
+// empty-state), and the handler is assembled from it here rather than built
+// through cmd.handler and then overwritten — a strategy that is replaced the
+// line after it is set reads as if the default still applied.
 func valRun[R any](d engine.Deps, scope valScope, cmd externalCommand[valorantConfig, R]) module.RunFunc {
-	h := cmd.handler(d)
-	h.target = valTarget(scope)
-	h.request = valRequest(scope)
-	return h.run
+	return statsHandler[valorantConfig, R]{
+		d:       d,
+		enabled: cmd.enabled,
+		route:   cmd.route,
+		target:  valTarget(scope),
+		request: valRequest(scope),
+		render:  cmd.render,
+	}.run
 }
 
 // valTarget names what a failure chats about: the resolved Riot ID, or the
 // feature itself when nothing scopes the lookup.
 func valTarget(scope valScope) func(statsCall[valorantConfig]) statsSubject {
+	if scope.accountless {
+		return fixedSubject[valorantConfig]("daily rotation")
+	}
 	return func(call statsCall[valorantConfig]) statsSubject {
-		if scope.accountless {
-			return statsSubject{Display: "daily rotation"}
-		}
 		account, _, _ := valLookup(call, scope)
 		return statsSubject{Account: account, Display: account}
 	}
 }
 
-// valRequest builds the scoped lookup.
+// valRequest builds the scoped lookup. An accountless command sends the shared
+// request over the empty subject fixedSubject left it, so "nothing scopes this
+// lookup" is spelled one way here and not two.
 func valRequest(scope valScope) func(statsCall[valorantConfig], statsSubject) gossiprpc.Request {
+	if scope.accountless {
+		return accountRequest[valorantConfig]
+	}
 	return func(call statsCall[valorantConfig], _ statsSubject) gossiprpc.Request {
 		req := gossiprpc.Request{IsPremium: call.Ctx.Regress.IsPremium()}
-		if scope.accountless {
-			return req
-		}
 		req.Account, req.Region, req.Platform = valLookup(call, scope)
 		return req
 	}
