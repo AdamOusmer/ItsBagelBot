@@ -532,12 +532,11 @@ func parseRaffleID(s string) (uint64, bool) {
 }
 
 // claimExpiry takes this replica's per-key claim so one expiry fires once
-// across the fleet (the timer:claim idiom).
+// across the fleet. A claim error reads the same as a lost claim: both mean
+// this replica must not act, and the expiry is already consumed either way.
 func (s *ValkeyRaffleStore) claimExpiry(ctx context.Context, key string) bool {
-	got, err := s.client.Do(ctx, s.client.B().Set().
-		Key(key).Value("1").
-		Nx().ExSeconds(int64(raffleClaimTTL.Seconds())).Build()).ToString()
-	return err == nil && got == "OK"
+	won, _ := pkg_valkey.ClaimOnce(ctx, s.client, key, raffleClaimTTL)
+	return won
 }
 
 // and the pool's canonical form (join-time-sorted members, newline-joined).
