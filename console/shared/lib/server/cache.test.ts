@@ -2,10 +2,24 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { describe, expect, test } from 'bun:test';
-import { SwrCache } from './cache';
+import { SwrCache, type SwrCacheOptions } from './cache';
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Cache on a manual clock, so every fresh/stale transition is exact.
+ * Real sleeps raced a loaded event loop: a macrotask landing more than freshMs
+ * (5ms here) after a background revalidation committed re-staled the entry and
+ * fired an extra load, which failed `loads` intermittently in full-suite runs
+ * only. Widening the windows was rejected -- it moves the flake instead of
+ * removing it, and stops these tests from pinning the boundaries they exist to
+ * pin. `tick()` stays where the point is letting promises settle, not time.
+ */
+function make(opts: SwrCacheOptions = {}) {
+  let t = 0;
+  const cache = new SwrCache({ ...opts, now: () => t });
+  return { cache, advance: (ms: number) => (t += ms) };
+}
 
 describe('SwrCache', () => {
   test('fresh hit returns cached value without reloading', async () => {
@@ -38,7 +52,7 @@ describe('SwrCache', () => {
   // TTL'd entry, so once the entry expired a second caller started a duplicate
   // load. In-flight loads must dedupe regardless of entry expiry.
   test('single-flight survives entry expiry mid-flight', async () => {
-    const cache = new SwrCache();
+    const { cache, advance } = make();
     let loads = 0;
     let release!: () => void;
     const gate = new Promise<void>((r) => (release = r));
@@ -49,7 +63,7 @@ describe('SwrCache', () => {
     };
     // freshMs 1: the (empty) window is over well before the load resolves.
     const first = cache.getOrLoad('k', { freshMs: 1 }, load);
-    await sleep(10);
+    advance(10);
     const second = cache.getOrLoad('k', { freshMs: 1 }, load);
     release();
     expect(await first).toBe(1);
@@ -106,12 +120,12 @@ describe('SwrCache', () => {
   });
 
   test('stale-while-revalidate serves stale immediately and refreshes in background', async () => {
-    const cache = new SwrCache();
+    const { cache, advance } = make();
     let loads = 0;
     const load = async () => `v${++loads}`;
     const policy = { freshMs: 5, swrMs: 10_000 };
     expect(await cache.getOrLoad('k', policy, load)).toBe('v1');
-    await sleep(15); // past fresh, inside swr
+    advance(15); // past fresh, inside swr
     expect(await cache.getOrLoad('k', policy, load)).toBe('v1'); // stale served
     await tick(); // let the background revalidation commit
     expect(await cache.getOrLoad('k', policy, load)).toBe('v2'); // fresh now
@@ -121,10 +135,10 @@ describe('SwrCache', () => {
   test('stale-if-error serves last known value when the loader fails', async () => {
     const cache = new SwrCache();
     const masked: string[] = [];
-    const observed = new SwrCache({ onMaskedError: (_e, key) => masked.push(key) });
+    const { cache: observed, advance } = make({ onMaskedError: (_e, key) => masked.push(key) });
     const policy = { freshMs: 5, swrMs: 0, staleIfErrorMs: 10_000 };
     expect(await observed.getOrLoad('k', policy, async () => 'known')).toBe('known');
-    await sleep(15); // past fresh AND past swr (0) but inside the error window
+    advance(15); // past fresh AND past swr (0) but inside the error window
     const v = await observed.getOrLoad('k', policy, async () => {
       throw new Error('rpc down');
     });
@@ -188,10 +202,10 @@ describe('SwrCache', () => {
   });
 
   test('numeric policy behaves as a hard TTL (no swr, no stale-if-error)', async () => {
-    const cache = new SwrCache();
+    const { cache, advance } = make();
     let loads = 0;
     expect(await cache.getOrLoad('k', 5, async () => ++loads)).toBe(1);
-    await sleep(15);
+    advance(15);
     expect(await cache.getOrLoad('k', 5, async () => ++loads)).toBe(2);
     await expect(
       cache.getOrLoad('other', 5, async () => {
@@ -202,11 +216,11 @@ describe('SwrCache', () => {
 
   test('emits events for hit/stale/miss/revalidate', async () => {
     const events: string[] = [];
-    const cache = new SwrCache({ onEvent: (e) => events.push(e) });
+    const { cache, advance } = make({ onEvent: (e) => events.push(e) });
     const policy = { freshMs: 5, swrMs: 10_000 };
     await cache.getOrLoad('k', policy, async () => 1); // miss
     await cache.getOrLoad('k', policy, async () => 1); // hit
-    await sleep(15);
+    advance(15);
     await cache.getOrLoad('k', policy, async () => 2); // stale + revalidate
     expect(events).toContain('miss');
     expect(events).toContain('hit');
