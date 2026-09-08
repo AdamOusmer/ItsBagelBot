@@ -40,24 +40,71 @@ type resumeState struct {
 	// while a second pointer would have to be threaded through every
 	// function in the pump chain for one time.Time.
 	upAt time.Time
+	// opened is which of op 2 and op 6 the connection in flight sent, empty
+	// until Hello. It rides here rather than on Session because Session is
+	// copied by value into every method and this changes per connection.
+	opened openMode
+	// resumedUp records that RESUMED landed rather than READY. With opened
+	// it is the whole answer to "did the resume take": opened=resume and
+	// resumedUp=false is a resume Discord discarded, which makes the next
+	// connect spend one IDENTIFY out of 1000/day.
+	resumedUp bool
+	// lastID is the session id most recently in play, deliberately kept
+	// across invalidate(). sessionID above is what a resume may use and must
+	// be cleared when Discord refuses it; this one is read by telemetry only
+	// and never sent, so a socket-end line can still name the session that
+	// died rather than logging an empty string for every refused resume.
+	lastID string
 }
 
-// resetUp clears the clock at the start of a connection attempt.
+// sessionMark is what a finished socket's log line needs from the state: how
+// the connection opened, whether the resume took, and which session it was.
+// One value rather than three same-shaped accessors, since all three come off
+// the same lock and three sibling one-liners is what CodeScene reads as
+// duplication.
+type sessionMark struct {
+	opened    openMode
+	resumed   bool
+	sessionID string
+}
+
+// resetUp clears the per-connection state at the start of an attempt. The
+// session identity (sessionID, resumeURL, seq, lastID) deliberately survives:
+// it belongs to the session, not to the socket carrying it.
 func (r *resumeState) resetUp() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.upAt = time.Time{}
+	r.opened = ""
+	r.resumedUp = false
 }
 
 // markUp records that this connection reached READY or RESUMED. The first
 // one wins: a socket that resumes and then receives a second RESUMED is
 // still the same connection, and restamping would understate its uptime.
-func (r *resumeState) markUp(now time.Time) {
+func (r *resumeState) markUp(now time.Time, resumed bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if resumed {
+		r.resumedUp = true
+	}
 	if r.upAt.IsZero() {
 		r.upAt = now
 	}
+}
+
+// markOpened records which opcode this connection sent after Hello.
+func (r *resumeState) markOpened(mode openMode) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.opened = mode
+}
+
+// mark reports the connection's telemetry. See sessionMark.
+func (r *resumeState) mark() sessionMark {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return sessionMark{opened: r.opened, resumed: r.resumedUp, sessionID: r.lastID}
 }
 
 // upFor reports how long this connection has been up, or zero if it never
@@ -90,6 +137,7 @@ func (r *resumeState) ready(sessionID, resumeURL string) {
 	defer r.mu.Unlock()
 	r.sessionID = sessionID
 	r.resumeURL = resumeURL
+	r.lastID = sessionID
 }
 
 // sequence returns a copy of the last seen sequence, for the heartbeat.
