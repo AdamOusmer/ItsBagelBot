@@ -5,6 +5,7 @@ package gateway
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/coder/websocket"
@@ -55,6 +56,23 @@ func (w wsConn) CloseCode(err error) int {
 		return 0
 	}
 	return int(code)
+}
+
+// CloseReason reports the human text Discord attached to the close frame
+// behind err, empty when err is not a close frame at all.
+//
+// The code alone is not the fault. Discord reuses 4000 ("Unknown error") for
+// several unrelated conditions and puts the actionable half in the reason:
+// "Session is no longer valid." and "Heartbeat ACK not received." arrive as
+// the same number. The socket-end log threw this string away, which is why a
+// 24h sample of 21,575 identical socket-end lines (2026-09-07) named no
+// cause at all. See sessionEnd.
+func (w wsConn) CloseReason(err error) string {
+	var ce websocket.CloseError
+	if errors.As(err, &ce) {
+		return ce.Reason
+	}
+	return ""
 }
 
 func (w wsConn) Close() error {

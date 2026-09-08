@@ -15,6 +15,8 @@
 package main
 
 import (
+	"time"
+
 	"ItsBagelBot/app/discord/ingress/internal/botstatus"
 	"ItsBagelBot/app/discord/ingress/internal/config"
 	"ItsBagelBot/app/discord/ingress/internal/gateway"
@@ -77,11 +79,20 @@ func main() {
 
 	health.ServeSet(cfg.ListenAddr, healthSet(core, rpcConn, status))
 
+	// Every gateway line carries which process wrote it. pod alone cannot:
+	// HOSTNAME is stable across a restart of the same pod name, so a burst of
+	// reconnects reads identically whether it came from one looping process
+	// or a hundred short-lived ones. boot_id is the process's start instant,
+	// and it is what turns the 21,575 socket-end lines of 2026-09-07 into an
+	// answerable question -- see gateway.connectSeq, which numbers the
+	// attempts inside one boot_id.
+	gwLog := log.With(zap.String("pod", pod), zap.Int64("boot_id", time.Now().UnixMilli()))
+
 	sess := gateway.Session{
 		Token:  cfg.DiscordBotToken,
 		Dial:   gateway.DialWS,
 		Handle: r,
-		Log:    log,
+		Log:    gwLog,
 		Status: status,
 		// The connect window survives a restart deliberately: the loop that
 		// got this bot's token reset was a crash-loop, and a per-process

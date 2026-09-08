@@ -101,7 +101,7 @@ func heartbeatFailingConn(t *testing.T) *scriptedConn {
 // reports what it ended with. Every socket-level case below shares this exact
 // wiring; the interesting difference between them is the connection, so it is
 // the only thing they say.
-func oneSocketOver(t *testing.T, conn Conn, timeout time.Duration) (int, error) {
+func oneSocketOver(t *testing.T, conn Conn, timeout time.Duration) sessionEnd {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -123,7 +123,8 @@ func wantCloseFrame(t *testing.T, err error) {
 // token reset: the code must come back off a write error, not off the
 // generic "closed connection" the pump reads afterwards.
 func TestWriteCloseCodeReachesTheFatalPath(t *testing.T) {
-	code, err := oneSocketOver(t, heartbeatFailingConn(t), time.Second)
+	end := oneSocketOver(t, heartbeatFailingConn(t), time.Second)
+	code, err := end.code, end.err
 
 	if code != ddiscord.CloseAuthenticationFailed {
 		t.Fatalf("close code = %d, want %d off the write error", code, ddiscord.CloseAuthenticationFailed)
@@ -240,11 +241,20 @@ func (c *racingConn) CloseCode(err error) int {
 	return 0
 }
 
+func (c *racingConn) CloseReason(err error) string {
+	var ce websocket.CloseError
+	if errors.As(err, &ce) {
+		return ce.Reason
+	}
+	return ""
+}
+
 // The pump must wait for the writer rather than deciding from an empty
 // channel that a socket died codeless. Without the grace this is a 4004
 // reported as close code 0, which reconnects forever.
 func TestCodelessReadWaitsForTheWritersCloseCode(t *testing.T) {
-	code, err := oneSocketOver(t, newRacingConn(t, 50*time.Millisecond), 3*time.Second)
+	end := oneSocketOver(t, newRacingConn(t, 50*time.Millisecond), 3*time.Second)
+	code, err := end.code, end.err
 
 	if code != ddiscord.CloseAuthenticationFailed {
 		t.Fatalf("close code = %d, want %d: the read won the race and the write carried the frame",
@@ -260,7 +270,7 @@ func TestCodelessReadGivesUpAfterTheGrace(t *testing.T) {
 	conn := newRacingConn(t, writerGrace+time.Second)
 
 	start := time.Now()
-	code, _ := oneSocketOver(t, conn, 3*time.Second)
+	code := oneSocketOver(t, conn, 3*time.Second).code
 
 	if code != 0 {
 		t.Fatalf("close code = %d, want 0: no writer reported inside the grace", code)

@@ -94,9 +94,9 @@ func TestDialIsBounded(t *testing.T) {
 	}
 	sess := Session{Token: "t", Dial: dial}
 
-	_, err := sess.oneSocket(context.Background(), "ws://x", &resumeState{})
+	end := sess.oneSocket(context.Background(), "ws://x", &resumeState{})
 
-	if err == nil {
+	if end.err == nil {
 		t.Fatal("oneSocket must surface the dial error")
 	}
 	if !had {
@@ -116,7 +116,7 @@ func TestUptimeIsMeasuredFromReady(t *testing.T) {
 	sess := Session{Token: "t", Dial: func(context.Context, string) (Conn, error) { return dead, nil }}
 	ctx := context.Background()
 
-	up, _, _ := sess.connect(ctx, "ws://x", &resumeState{})
+	up := sess.connect(ctx, "ws://x", &resumeState{}).up
 	if up != 0 {
 		t.Fatalf("uptime of a socket that never reached READY = %s, want 0", up)
 	}
@@ -124,7 +124,7 @@ func TestUptimeIsMeasuredFromReady(t *testing.T) {
 	ready := readyFrame(t)
 	live := &scriptedConn{reads: [][]byte{helloFrame(t), ready}, readErr: errors.New("connection reset")}
 	sess.Dial = func(context.Context, string) (Conn, error) { return live, nil }
-	up, _, _ = sess.connect(ctx, "ws://x", &resumeState{})
+	up = sess.connect(ctx, "ws://x", &resumeState{}).up
 	if up <= 0 {
 		t.Fatalf("uptime after READY = %s, want a positive duration", up)
 	}
@@ -138,8 +138,8 @@ func TestResumeStateUptimeStampsOnce(t *testing.T) {
 	if got := st.upFor(base); got != 0 {
 		t.Fatalf("uptime before READY = %s, want 0", got)
 	}
-	st.markUp(base)
-	st.markUp(base.Add(time.Minute))
+	st.markUp(base, false)
+	st.markUp(base.Add(time.Minute), false)
 	if got := st.upFor(base.Add(2 * time.Minute)); got != 2*time.Minute {
 		t.Fatalf("uptime = %s, want 2m measured from the first READY", got)
 	}
@@ -161,7 +161,7 @@ func TestHeartbeatAckCountsAsAnEvent(t *testing.T) {
 	st := &recStatus{}
 	sess := Session{Token: "t", Dial: func(context.Context, string) (Conn, error) { return conn, nil }, Status: st}
 
-	_, _ = sess.oneSocket(context.Background(), "ws://x", &resumeState{})
+	_ = sess.oneSocket(context.Background(), "ws://x", &resumeState{})
 
 	if got := st.events(); got != 1 {
 		t.Fatalf("events = %d, want 1: the ACK must advance the liveness clock", got)

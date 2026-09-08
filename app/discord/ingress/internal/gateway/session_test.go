@@ -14,6 +14,9 @@ import (
 	"ItsBagelBot/pkg/codec"
 
 	"github.com/coder/websocket"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 type scriptedConn struct {
@@ -22,10 +25,12 @@ type scriptedConn struct {
 	wrote [][]byte
 	// readErr, when set, is what Read returns once the scripted reads run
 	// out, instead of blocking on ctx. closeCode is the code CloseCode then
-	// reports for it -- together they script a socket dying the way Discord
-	// kills one.
-	readErr   error
-	closeCode int
+	// reports for it, and closeReason the text CloseReason reports --
+	// together they script a socket dying the way Discord kills one, close
+	// frame text included.
+	readErr     error
+	closeCode   int
+	closeReason string
 	// writeErr, when set, fails Write with it. That is how Discord's fatal
 	// close frames most often surface in production: on the heartbeat's
 	// write, not on the pump's read. writeErrAfter is how many writes
@@ -109,6 +114,17 @@ func (s *scriptedConn) CloseCode(err error) int {
 	return s.closeCode
 }
 
+// CloseReason mirrors wsConn the same way CloseCode does: a real close frame
+// carries its own text, and only an error that is not one falls back to the
+// script.
+func (s *scriptedConn) CloseReason(err error) string {
+	var ce websocket.CloseError
+	if errors.As(err, &ce) {
+		return ce.Reason
+	}
+	return s.closeReason
+}
+
 // wroteSnapshot returns a lock-protected copy of what has been written so
 // far. Presence tests read this after a background heartbeat/presenceLoop
 // goroutine may still be mid-write (oneSocket returns on ctx cancellation,
@@ -144,7 +160,7 @@ func TestSessionIdentifiesAndDispatches(t *testing.T) {
 		Dial:   func(context.Context, string) (Conn, error) { return conn, nil },
 		Handle: h,
 	}
-	_, _ = sess.oneSocket(ctx, "ws://example", &resumeState{})
+	_ = sess.oneSocket(ctx, "ws://example", &resumeState{})
 	if !h.ready {
 		t.Fatal("ready not delivered")
 	}
@@ -248,7 +264,7 @@ func TestPresenceSentOnConnect(t *testing.T) {
 		Presence:         pres,
 		PresenceInterval: time.Hour,
 	}
-	_, _ = sess.oneSocket(ctx, "ws://example", &resumeState{})
+	_ = sess.oneSocket(ctx, "ws://example", &resumeState{})
 
 	names := presenceOps(t, conn.wroteSnapshot())
 	if len(names) != 1 || names[0] != "watch-1 streams" {
@@ -275,7 +291,7 @@ func TestPresenceRefreshesOnTicker(t *testing.T) {
 		Presence:         pres,
 		PresenceInterval: 20 * time.Millisecond,
 	}
-	_, _ = sess.oneSocket(ctx, "ws://example", &resumeState{})
+	_ = sess.oneSocket(ctx, "ws://example", &resumeState{})
 
 	names := presenceOps(t, conn.wroteSnapshot())
 	if len(names) < 2 {
@@ -303,9 +319,9 @@ func TestPresenceSkippedWhenSourceReportsNoChange(t *testing.T) {
 		Presence:         pres,
 		PresenceInterval: 15 * time.Millisecond,
 	}
-	_, err := sess.oneSocket(ctx, "ws://example", &resumeState{})
-	if err == nil || ctx.Err() == nil {
-		t.Fatalf("oneSocket should end on context cancellation, err=%v ctxErr=%v", err, ctx.Err())
+	end := sess.oneSocket(ctx, "ws://example", &resumeState{})
+	if end.err == nil || ctx.Err() == nil {
+		t.Fatalf("oneSocket should end on context cancellation, err=%v ctxErr=%v", end.err, ctx.Err())
 	}
 
 	if names := presenceOps(t, conn.wroteSnapshot()); len(names) != 0 {
@@ -357,7 +373,7 @@ func TestSessionIdentifiesWithoutAStoredSession(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	sess := Session{Token: "t", Dial: func(context.Context, string) (Conn, error) { return conn, nil }, Handle: &recHandler{}}
-	_, _ = sess.oneSocket(ctx, "ws://x", &resumeState{})
+	_ = sess.oneSocket(ctx, "ws://x", &resumeState{})
 	if ops := opsWritten(t, conn.wroteSnapshot()); !firstOpIs(ops, opIdentify) {
 		t.Fatalf("first frame ops = %v, want Identify (%d) first", ops, opIdentify)
 	}
@@ -380,7 +396,7 @@ func TestSessionResumesAfterReady(t *testing.T) {
 
 	first := &scriptedConn{reads: [][]byte{helloFrame(t), ready}}
 	sess := Session{Token: "t", Dial: func(context.Context, string) (Conn, error) { return first, nil }, Handle: &recHandler{}}
-	_, _ = sess.oneSocket(ctx, "ws://x", st)
+	_ = sess.oneSocket(ctx, "ws://x", st)
 
 	sessionID, resumeURL, ok := st.resumable()
 	got := resumeSnapshot{SessionID: sessionID, ResumeURL: resumeURL, OK: ok}
@@ -390,7 +406,7 @@ func TestSessionResumesAfterReady(t *testing.T) {
 
 	second := &scriptedConn{reads: [][]byte{helloFrame(t)}}
 	sess.Dial = func(context.Context, string) (Conn, error) { return second, nil }
-	_, _ = sess.oneSocket(ctx, resumeURL, st)
+	_ = sess.oneSocket(ctx, resumeURL, st)
 	if ops := opsWritten(t, second.wroteSnapshot()); !firstOpIs(ops, opResume) {
 		t.Fatalf("reconnect ops = %v, want Resume (%d) first", ops, opResume)
 	}
@@ -463,3 +479,104 @@ func TestResumeStateTracksSequence(t *testing.T) {
 }
 
 func intPtr(v int) *int { return &v }
+
+// The ordinary socket-end WARN is the line production actually reads: on
+// 2026-09-07 it fired 21,575 times in 24h carrying a close code and an error
+// and nothing else, which named neither the fault, nor the process, nor
+// whether the resume that preceded it had been honoured. Every one of those
+// facts is on the line now, and this is what keeps them there.
+func TestSocketEndWarnCarriesTheCloseTelemetry(t *testing.T) {
+	core, logs := observer.New(zapcore.DebugLevel)
+	sess := Session{Log: zap.New(core)}
+	rc := &reconnect{draw: func(d time.Duration) time.Duration { return d }}
+	// A real schedule and a session that outlived flapMinUptime: the WARN is
+	// the branch that fires when neither budget rule has anything to say.
+	bud, _ := testBudget(dailyConnectCeiling)
+
+	sess.afterSocket(context.Background(), budgetInputs{bud: bud, rc: rc}, sessionEnd{
+		up:        flapMinUptime,
+		code:      4000,
+		reason:    "Session is no longer valid.",
+		err:       errors.New("socket died"),
+		opened:    openResume,
+		sessionID: "sess-1",
+		seq:       7,
+	})
+
+	warns := logs.FilterLevelExact(zapcore.WarnLevel).All()
+	if len(warns) != 1 {
+		t.Fatalf("warn logs = %v, want exactly one socket-end line", warns)
+	}
+	wantFields(t, warns[0].ContextMap(), map[string]any{
+		"close_code":   int64(4000),
+		"close_reason": "Session is no longer valid.",
+		"uptime":       flapMinUptime,
+		"opened":       string(openResume),
+		"resumed":      false,
+		"session_id":   "sess-1",
+		"connect_seq":  int64(7),
+	})
+}
+
+// wantFields asserts every named field of a log line, so the assertions above
+// stay one map literal rather than one if per fact.
+func wantFields(t *testing.T, got, want map[string]any) {
+	t.Helper()
+	for name, value := range want {
+		if got[name] != value {
+			t.Fatalf("log field %s = %v, want %v", name, got[name], value)
+		}
+	}
+}
+
+// A refused resume is the expensive event: Discord answers op 9 d:false and
+// the next connect spends one IDENTIFY out of the 1000/day that already got
+// this token reset once. It has to be visible as itself, not inferred from a
+// close code that reads 4000 either way.
+func TestInvalidSessionLogsWhatWasRefused(t *testing.T) {
+	core, logs := observer.New(zapcore.DebugLevel)
+	sess := Session{Token: "t", Log: zap.New(core)}
+	st := &resumeState{}
+	st.ready("sess-1", "ws://resume")
+	st.markOpened(openResume)
+
+	_ = sess.onInvalidSession(packet{Op: opInvalidSession, D: mustRaw(t, false)}, st)
+
+	infos := logs.FilterLevelExact(zapcore.InfoLevel).All()
+	if len(infos) != 1 {
+		t.Fatalf("info logs = %v, want the one op 9 line", infos)
+	}
+	// session_id survives invalidate() on purpose: the line that says the
+	// session died is the one place its id still has to appear.
+	wantFields(t, infos[0].ContextMap(), map[string]any{
+		"resumable":  false,
+		"opened":     string(openResume),
+		"session_id": "sess-1",
+	})
+}
+
+// connect must report what the socket did, not what it was asked to do. A
+// resume Discord honoured and one it refused die with the same close code;
+// these fields are the only thing that separates them.
+func TestConnectReportsHowTheSocketOpened(t *testing.T) {
+	st := &resumeState{}
+	st.ready("sess-1", "ws://resume")
+	conn := &scriptedConn{
+		reads:       [][]byte{helloFrame(t), dispatchPacket(t, eventResumed, struct{}{})},
+		readErr:     errors.New("websocket closed"),
+		closeReason: "Heartbeat ACK not received.",
+	}
+	sess := Session{Token: "t", Dial: func(context.Context, string) (Conn, error) { return conn, nil }}
+
+	end := sess.connect(context.Background(), "ws://x", st)
+
+	if end.opened != openResume || !end.resumed {
+		t.Fatalf("end = %+v, want a resume that landed", end)
+	}
+	if end.sessionID != "sess-1" {
+		t.Fatalf("end session_id = %q, want sess-1", end.sessionID)
+	}
+	if end.reason != "Heartbeat ACK not received." {
+		t.Fatalf("end reason = %q, want the close frame text", end.reason)
+	}
+}

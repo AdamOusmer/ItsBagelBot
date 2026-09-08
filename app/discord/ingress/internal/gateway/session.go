@@ -6,6 +6,7 @@ package gateway
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	ddiscord "ItsBagelBot/internal/domain/discord"
@@ -44,7 +45,26 @@ type Conn interface {
 	// and the code is the entire difference between "dial again" and "a
 	// human has to fix the token" -- see discord.FatalCloseCode.
 	CloseCode(err error) int
+	// CloseReason reports the close frame's own text, empty when err is not
+	// a close frame. It hangs off the connection for the same reason
+	// CloseCode does, and it is not redundant with the code: Discord sends
+	// several unrelated faults as 4000 and separates them only here.
+	CloseReason(err error) string
 }
+
+// openMode names how one connection opened: op 6 continues a session, op 2
+// starts a fresh one. Empty means the socket died before Hello, which is
+// itself a distinct fact.
+//
+// A named type rather than a bare string so the value cannot be spelled three
+// ways in logs, and so the argument lists carrying it stay out of CodeScene's
+// string-heavy count.
+type openMode string
+
+const (
+	openIdentify openMode = "identify"
+	openResume   openMode = "resume"
+)
 
 // Up describes a gateway connection that just came up.
 type Up struct {
@@ -154,7 +174,9 @@ func (s Session) Run(ctx context.Context) error {
 	bud := s.connectBudget()
 	for {
 		bud.note()
-		up, code, err := s.connect(ctx, url, st)
+		seq := connectSeq.Add(1)
+		end := s.connect(ctx, url, st)
+		end.seq = seq
 		if ctx.Err() != nil {
 			// Report BEFORE returning. The status key has no TTL (see
 			// discord.BotStatusKey), so a pod that shut down without this
@@ -162,25 +184,62 @@ func (s Session) Run(ctx context.Context) error {
 			// green pill for a bot that no longer existed. The write needs
 			// its own context: ctx is already cancelled here, and a Valkey
 			// call under a cancelled context fails instantly.
-			s.reportFinalDown(ctx, code, err)
+			s.reportFinalDown(ctx, end.code, end.err)
 			return ctx.Err()
 		}
-		s.reportDown(ctx, code, err)
-		if ddiscord.FatalCloseCode(code) {
-			return s.parkOnFatal(ctx, code, err)
+		s.reportDown(ctx, end.code, end.err)
+		if ddiscord.FatalCloseCode(end.code) {
+			return s.parkOnFatal(ctx, end.code, end.err)
 		}
-		wait := s.afterSocket(ctx, budgetInputs{bud: bud, rc: rc}, sessionEnd{up: up, code: code, err: err})
+		wait := s.afterSocket(ctx, budgetInputs{bud: bud, rc: rc}, end)
 		if err := waitBeforeReconnect(ctx, wait); err != nil {
 			return err
 		}
 	}
 }
 
-// sessionEnd is one finished socket: how long it was up, and what killed it.
+// connectSeq numbers this process's connect attempts, starting at 1 and never
+// resetting. It is package level rather than a Session field because Session
+// is passed by value everywhere and a counter that a copy can restart answers
+// nothing.
+//
+// The question it exists to answer: on 2026-09-07 production logged 21,575
+// "socket ended; reconnecting" lines in 24h, one every 4.0s, flat, while the
+// cluster showed a single pod with zero restarts. That contradicted the
+// connect budget's own invariants (5s floor, 5-flap brake, 800/24h ceiling in
+// budget.go), so either the budget was defeated or the line was not 1:1 with
+// sockets. A run of connect_seq 1..N under one boot_id settles it: one
+// process looping counts up without gaps, many processes each restart at 1.
+var connectSeq atomic.Int64
+
+// sessionEnd is one finished socket: how long it was up, what killed it, and
+// what it was doing when it died.
+//
+// Everything past err was added for the 2026-09-07 measurement above. The old
+// line printed a close code and an error and nothing else, which could not
+// distinguish a resume Discord honoured from one it answered with op 9 -- the
+// difference between a free reconnect and one IDENTIFY out of 1000/day. It is
+// a struct rather than an argument list because afterSocket already takes two
+// other values and CodeScene bounds the third at four fields of its own.
 type sessionEnd struct {
 	up   time.Duration
 	code int
-	err  error
+	// reason is the close frame's own text; see Conn.CloseReason for why the
+	// code alone does not name the fault.
+	reason string
+	err    error
+	// opened is which of op 2 and op 6 this connection actually sent, empty
+	// when it died before Hello.
+	opened openMode
+	// resumed is whether RESUMED landed rather than READY. opened=resume
+	// with resumed=false is a refused resume, the shape that silently spends
+	// the identify allowance.
+	resumed bool
+	// sessionID is the session this socket was running, kept even after
+	// Discord invalidated it (see resumeState.lastID).
+	sessionID string
+	// seq is this attempt's number within the process; see connectSeq.
+	seq int64
 }
 
 // budgetInputs is the pair of schedulers Run carries across iterations. They
@@ -201,11 +260,11 @@ type budgetInputs struct {
 func (s Session) afterSocket(ctx context.Context, in budgetInputs, end sessionEnd) time.Duration {
 	state := in.bud.record(end.up)
 	s.reportBudget(ctx, state)
-	s.logSocketEnd(end, state)
 	wait := in.rc.next(end.up)
 	if d := in.bud.delay(); d > wait {
 		wait = d
 	}
+	s.logSocketEnd(end, state, wait)
 	return wait
 }
 
@@ -213,27 +272,42 @@ func (s Session) afterSocket(ctx context.Context, in budgetInputs, end sessionEn
 // are ERROR, not WARN: they mean this process has decided to stop trying at
 // the normal rate, which is exactly the fact nobody had when the token was
 // reset (see budget.go).
-func (s Session) logSocketEnd(end sessionEnd, state Budget) {
+func (s Session) logSocketEnd(end sessionEnd, state Budget, wait time.Duration) {
+	fields := socketEndFields(end, state, wait)
 	if state.Flapping {
-		s.log().Error("gateway flapping",
-			zap.Int("close_code", end.code),
-			zap.String("meaning", ddiscord.CloseCodeMessage(end.code)),
-			zap.Duration("uptime", end.up),
-			zap.Int("connects_in_window", state.Connects),
-			zap.Duration("wait", flapWait),
-			zap.Error(end.err))
+		s.log().Error("gateway flapping", fields...)
 		return
 	}
 	if state.AtCeiling {
-		s.log().Error("gateway connect budget exhausted; parked until the window frees",
-			zap.Int("connects_in_window", state.Connects),
-			zap.Duration("window", connectWindow),
-			zap.Int("close_code", end.code),
-			zap.Error(end.err))
+		s.log().Error("gateway connect budget exhausted; parked until the window frees", fields...)
 		return
 	}
-	s.log().Warn("discord gateway socket ended; reconnecting",
-		zap.Int("close_code", end.code), zap.Error(end.err))
+	s.log().Warn("discord gateway socket ended; reconnecting", fields...)
+}
+
+// socketEndFields is the one field set every socket-end line carries,
+// whatever its level.
+//
+// Built once rather than per branch because the branches had drifted: the
+// flap and ceiling lines named the close code, the meaning, the uptime and
+// the window, while the ordinary WARN -- the one that fired 21,575 times in
+// 24h on 2026-09-07 -- named a close code and an error and stopped there.
+// Splitting this per branch again would let the same drift back in, and three
+// sibling builders is also the shape CodeScene reads as duplication.
+func socketEndFields(end sessionEnd, state Budget, wait time.Duration) []zap.Field {
+	return []zap.Field{
+		zap.Int("close_code", end.code),
+		zap.String("close_reason", end.reason),
+		zap.String("meaning", ddiscord.CloseCodeMessage(end.code)),
+		zap.Duration("uptime", end.up),
+		zap.String("opened", string(end.opened)),
+		zap.Bool("resumed", end.resumed),
+		zap.String("session_id", end.sessionID),
+		zap.Int64("connect_seq", end.seq),
+		zap.Int("connects_in_window", state.Connects),
+		zap.Duration("wait", wait),
+		zap.Error(end.err),
+	}
 }
 
 // connectBudget is the production budget unless a test installed its own.
@@ -252,10 +326,15 @@ func (s Session) connectBudget() *connectBudget {
 // that never carried a single byte reset the backoff and hammer Discord's
 // identify budget at a steady 1s. A connection that never reached
 // READY/RESUMED reports zero uptime, which is what it earned.
-func (s Session) connect(ctx context.Context, url string, st *resumeState) (time.Duration, int, error) {
+func (s Session) connect(ctx context.Context, url string, st *resumeState) sessionEnd {
 	st.resetUp()
-	code, err := s.oneSocket(ctx, dialURLFor(url, st), st)
-	return st.upFor(time.Now()), code, err
+	end := s.oneSocket(ctx, dialURLFor(url, st), st)
+	m := st.mark()
+	end.up = st.upFor(time.Now())
+	end.opened = m.opened
+	end.resumed = m.resumed
+	end.sessionID = m.sessionID
+	return end
 }
 
 // parkOnFatal logs the one ERROR line for a fatal close and then blocks
@@ -382,17 +461,17 @@ func waitBeforeReconnect(ctx context.Context, d time.Duration) error {
 // connection that was never going to complete.
 const dialTimeout = 30 * time.Second
 
-// oneSocket dials, pumps, and reports the close code the socket died with.
-// The code is read off the connection before the deferred Close runs,
-// because Close is what replaces a peer's close frame with our own.
-func (s Session) oneSocket(ctx context.Context, url string, st *resumeState) (int, error) {
+// oneSocket dials, pumps, and reports how the socket died. The code and the
+// reason are read off the connection before the deferred Close runs, because
+// Close is what replaces a peer's close frame with our own.
+func (s Session) oneSocket(ctx context.Context, url string, st *resumeState) sessionEnd {
 	conn, err := s.dialConn(ctx, url)
 	if err != nil {
-		return 0, err
+		return sessionEnd{err: err}
 	}
 	defer func() { _ = conn.Close() }()
 	perr := s.pump(ctx, conn, st)
-	return conn.CloseCode(perr), perr
+	return sessionEnd{code: conn.CloseCode(perr), reason: conn.CloseReason(perr), err: perr}
 }
 
 // dialConn bounds the handshake and nothing else: the deadline is released
@@ -470,6 +549,17 @@ func (s Session) onInvalidSession(pkt packet, st *resumeState) error {
 	if err := codec.Unmarshal(pkt.D, &resumable); err != nil {
 		resumable = false
 	}
+	// The line that says whether the op 6 this socket sent was refused.
+	// Discord answers op 9 to a stale resume and to a rejected identify
+	// alike, and only "opened" separates them; a d:false answer to a resume
+	// means the next connect spends a full IDENTIFY out of 1000/day. None of
+	// that was visible in the 21,575 socket-end lines of 2026-09-07, which is
+	// how a reconnect loop hid inside a budget built to bound one.
+	m := st.mark()
+	s.log().Info("discord gateway invalidated session",
+		zap.Bool("resumable", resumable),
+		zap.String("opened", string(m.opened)),
+		zap.String("session_id", m.sessionID))
 	if !resumable {
 		st.invalidate()
 	}
@@ -506,8 +596,10 @@ func (s Session) onHello(ctx context.Context, sk *socket, pkt packet, st *resume
 func (s Session) openSession(ctx context.Context, conn Conn, st *resumeState) (identified bool, err error) {
 	sessionID, _, ok := st.resumable()
 	if !ok {
+		st.markOpened(openIdentify)
 		return true, writeJSON(ctx, conn, identifyBody(s.Token))
 	}
+	st.markOpened(openResume)
 	s.log().Info("discord gateway resuming session", zap.String("session_id", sessionID))
 	return false, writeJSON(ctx, conn, resumeBody(s.Token, sessionID, st.sequence()))
 }
@@ -584,7 +676,7 @@ func (s Session) onDispatch(ctx context.Context, pkt packet, st *resumeState) er
 		// socket as ordinary dispatches. Nothing to do but say so.
 		s.log().Info("discord gateway session resumed")
 		sessionID, _, _ := st.resumable()
-		st.markUp(time.Now())
+		st.markUp(time.Now(), true)
 		s.reportUp(ctx, Up{SessionID: sessionID, Resumed: true})
 		return nil
 	}
@@ -597,7 +689,7 @@ func (s Session) readyFrom(ctx context.Context, pkt packet, st *resumeState) err
 		return err
 	}
 	st.ready(ready.SessionID, ready.ResumeGatewayURL)
-	st.markUp(time.Now())
+	st.markUp(time.Now(), false)
 	s.reportUp(ctx, Up{SessionID: ready.SessionID, GuildCount: len(ready.Guilds)})
 	if s.Handle == nil {
 		return nil
