@@ -12,6 +12,8 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"math/big"
+	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
@@ -59,18 +61,29 @@ func serialOf(t *testing.T, cert *tls.Certificate) int64 {
 }
 
 func TestPairFromEnvBothSet(t *testing.T) {
-	written := writePair(t, t.TempDir(), 1)
-	t.Setenv(string(certVar), written.CertFile())
-	t.Setenv(string(keyVar), written.KeyFile())
 
-	pair, err := PairFromEnv(certVar, keyVar)
-	require.NoError(t, err)
-	assert.True(t, pair.Configured())
-	assert.Equal(t, written, pair)
+	// The padded case is not hypothetical: these values arrive from Doppler
+	// and from Secret volumes, both of which carry a trailing newline, and an
+	// untrimmed path fails as an ENOENT on a file that is plainly there.
+	for name, asMounted := range map[string]func(string) string{
+		"exact":            func(path string) string { return path },
+		"padded by mounts": func(path string) string { return "  " + path + "\n" },
+	} {
+		t.Run(name, func(t *testing.T) {
+			written := writePair(t, t.TempDir(), 1)
+			t.Setenv(string(certVar), asMounted(written.CertFile()))
+			t.Setenv(string(keyVar), asMounted(written.KeyFile()))
 
-	cert, err := pair.Load()
-	require.NoError(t, err)
-	assert.Equal(t, int64(1), serialOf(t, cert))
+			pair, err := PairFromEnv(certVar, keyVar)
+			require.NoError(t, err)
+			assert.True(t, pair.Configured())
+			assert.Equal(t, written, pair)
+
+			cert, err := pair.Load()
+			require.NoError(t, err)
+			assert.Equal(t, int64(1), serialOf(t, cert))
+		})
+	}
 }
 
 // Neither set is the pre-rollout state of every service that has not been given
@@ -150,4 +163,74 @@ func TestClosuresRereadRotatedPair(t *testing.T) {
 	cert, err = pair.GetClientCertificate(nil)
 	require.NoError(t, err)
 	assert.Equal(t, int64(2), serialOf(t, cert), "client handshake must re-read from disk")
+}
+
+// serveOn starts an HTTPS listener on a loopback port with cfg and returns its
+// address. The whole point of ServerConfig is what a real handshake presents,
+// which only a real listener can show.
+func serveOn(t *testing.T, cfg *tls.Config) string {
+	t.Helper()
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	srv := &http.Server{Handler: http.NotFoundHandler(), TLSConfig: cfg}
+	t.Cleanup(func() { _ = srv.Close() })
+	go func() { _ = srv.ServeTLS(ln, "", "") }()
+	return ln.Addr().String()
+}
+
+// presentedSerial dials addr and reports the serial of the leaf the server
+// presented. Verification is off because the pair is self-signed and the
+// identity is not what is under test; the serial is read straight off the
+// handshake, which is the assertion.
+func presentedSerial(t *testing.T, addr string) int64 {
+	t.Helper()
+
+	// codeql[go/disabled-certificate-check] -- test client, see above.
+	conn, err := tls.Dial("tcp", addr, &tls.Config{InsecureSkipVerify: true, MinVersion: tls.VersionTLS12})
+	require.NoError(t, err)
+	defer func() { _ = conn.Close() }()
+
+	leaf := conn.ConnectionState().PeerCertificates[0]
+	return leaf.SerialNumber.Int64()
+}
+
+// The listener contract: cert-manager rewrites the mounted files in place and
+// the next handshake must present the new cert, with no restart. This is what
+// ListenAndServeTLS(certFile, keyFile) cannot do, and why every listener here
+// serves ServerConfig with empty file names instead.
+func TestServerConfigPresentsRotatedCert(t *testing.T) {
+	dir := t.TempDir()
+	pair := writePair(t, dir, 1)
+
+	cfg, err := pair.ServerConfig()
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+	assert.Equal(t, uint16(tls.VersionTLS12), cfg.MinVersion)
+
+	addr := serveOn(t, cfg)
+	require.Equal(t, int64(1), presentedSerial(t, addr))
+
+	writePair(t, dir, 2)
+	assert.Equal(t, int64(2), presentedSerial(t, addr),
+		"the same running listener must present the rotated cert")
+}
+
+// An unconfigured pair is the pre-rollout state: no config, so the caller
+// serves plaintext rather than a listener with no certificate.
+func TestServerConfigUnconfiguredIsNil(t *testing.T) {
+	cfg, err := Pair{}.ServerConfig()
+	require.NoError(t, err)
+	assert.Nil(t, cfg)
+}
+
+// An unreadable pair must kill the boot rather than build a listener that only
+// fails once something handshakes with it.
+func TestServerConfigUnreadablePairErrors(t *testing.T) {
+	dir := t.TempDir()
+	pair := Pair{certFile: filepath.Join(dir, "missing.crt"), keyFile: filepath.Join(dir, "missing.key")}
+
+	cfg, err := pair.ServerConfig()
+	assert.Nil(t, cfg)
+	assert.ErrorContains(t, err, "tlsenv: load key pair")
 }

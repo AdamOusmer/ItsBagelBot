@@ -17,6 +17,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"os"
+	"strings"
 )
 
 // Var is the name of an environment variable carrying a certificate or key file
@@ -41,7 +42,15 @@ type Pair struct {
 // verify:false NATS listener being flipped, traefik gaining a ServersTransport),
 // which is the one moment nobody is watching.
 func PairFromEnv(certVar, keyVar Var) (Pair, error) {
-	pair := Pair{certFile: os.Getenv(string(certVar)), keyFile: os.Getenv(string(keyVar))}
+	// Trimmed because these values reach the process through Doppler and
+	// Secret volumes, both of which happily carry a trailing newline; an
+	// untrimmed path fails as a confusing ENOENT on a file that is plainly
+	// there, and an untrimmed value makes the both-or-neither gate below
+	// disagree with a caller that trims before using it.
+	pair := Pair{
+		certFile: strings.TrimSpace(os.Getenv(string(certVar))),
+		keyFile:  strings.TrimSpace(os.Getenv(string(keyVar))),
+	}
 	if (pair.certFile == "") != (pair.keyFile == "") {
 		return Pair{}, fmt.Errorf("tlsenv: %s and %s must both be set or both empty", certVar, keyVar)
 	}
@@ -83,6 +92,31 @@ func (p Pair) Load() (*tls.Certificate, error) {
 // matter should cache on top (see pkg/valkey's stat-gated reloader).
 func (p Pair) GetCertificate(*tls.ClientHelloInfo) (*tls.Certificate, error) {
 	return p.Load()
+}
+
+// ServerConfig builds the tls.Config a listener serves with, or (nil, nil)
+// when the pair is unconfigured — the caller then stays plaintext, which is
+// what lets the cert land on one service at a time instead of on a flag day.
+//
+// The pair is loaded once here and then re-read per handshake, and it has to be
+// both: ListenAndServeTLS(certFile, keyFile) is the load-once half only, so a
+// cert-manager renewal at day 75 never reaches the listener and every handshake
+// starts failing at day 90; a GetCertificate closure alone is the re-read half
+// only, so an unreadable or mismatched pair boots a listener that looks healthy
+// until the first handshake. Loading eagerly and serving from the closure keeps
+// a bad pair fatal at boot and a rotated pair live without a restart.
+func (p Pair) ServerConfig() (*tls.Config, error) {
+	if !p.Configured() {
+		return nil, nil
+	}
+	if _, err := p.Load(); err != nil {
+		return nil, err
+	}
+
+	// MinVersion is stated rather than left to the crypto/tls default: the
+	// floor the fleet's listeners hold is a deployment decision, and the
+	// default has moved with the Go release more than once.
+	return &tls.Config{GetCertificate: p.GetCertificate, MinVersion: tls.VersionTLS12}, nil
 }
 
 // GetClientCertificate satisfies tls.Config.GetClientCertificate: the client
