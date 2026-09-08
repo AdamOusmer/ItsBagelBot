@@ -509,3 +509,18 @@ func TestStoreCachedInfraFailureStoresNothing(t *testing.T) {
 	assert.Equal(t, payload{Name: "fetched"}, v)
 	assert.Equal(t, int32(1), fetches.Load(), "an infra failure must leave the key uncached")
 }
+
+func TestCacheID(t *testing.T) {
+	cases := []struct {
+		parts []string
+		want  string
+	}{
+		{parts: []string{"  FrOsTy  ", "6"}, want: "frosty:6"},
+		{parts: []string{"0", " Ca ", "predicted"}, want: "0:ca:predicted"},
+		{parts: []string{"", "kr", "pc"}, want: ":kr:pc"},
+		{parts: []string{"solo"}, want: "solo"},
+	}
+	for _, c := range cases {
+		assert.Equal(t, c.want, CacheID(c.parts...), "parts %q", c.parts)
+	}
+}

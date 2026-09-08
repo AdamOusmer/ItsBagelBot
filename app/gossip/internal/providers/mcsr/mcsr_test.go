@@ -489,3 +489,41 @@ func TestASCIIEqualFoldDoesNotFoldUnicode(t *testing.T) {
 		t.Fatal("length mismatch must not match")
 	}
 }
+
+// TestCacheIDBytes pins the exact id bytes mcsr lookups key on. The id is the
+// tail of a live Valkey key: changing one byte orphans every cached entry for
+// that lookup until its TTL expires, so these literals are the contract rather
+// than a restatement of the implementation.
+func TestCacheIDBytes(t *testing.T) {
+	t.Run("account", func(t *testing.T) {
+		cases := []struct {
+			account string
+			season  int
+			want    string
+		}{
+			{account: "Frosty", season: 3, want: "frosty:3"},
+			{account: "  FrOsTy  ", season: 3, want: "frosty:3"},
+			{account: "frosty", season: 0, want: "frosty:0"},
+		}
+		for _, c := range cases {
+			assert.Equal(t, c.want, mcsrCacheID(c.account, c.season), "account %q", c.account)
+		}
+	})
+
+	t.Run("leaderboard", func(t *testing.T) {
+		cases := []struct {
+			country   string
+			season    int
+			predicted bool
+			want      string
+		}{
+			{season: 0, want: "0:"},
+			{season: 2, country: "CA", want: "2:ca"},
+			{season: 2, country: " Ca ", want: "2:ca"},
+			{season: 2, country: "ca", predicted: true, want: "2:ca:predicted"},
+		}
+		for _, c := range cases {
+			assert.Equal(t, c.want, leaderboardCacheID(c.season, c.country, c.predicted), "country %q", c.country)
+		}
+	})
+}

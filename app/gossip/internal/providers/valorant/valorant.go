@@ -311,7 +311,7 @@ func riotID(req gossiprpc.Request) (provider.ID, string) {
 	}
 	return provider.ID{
 		Display: id.String(),
-		Key:     id.cacheKey() + ":" + region + ":" + platform,
+		Key:     core.CacheID(id.cacheKey(), region, platform),
 	}, ""
 }
 
@@ -331,7 +331,7 @@ func boardID(req gossiprpc.Request) (provider.ID, string) {
 	if display == "" && region == "auto" {
 		return provider.ID{}, "missing region (no account to detect it from)"
 	}
-	return provider.ID{Display: display, Key: strings.ToLower(display) + ":" + region + ":" + platform}, ""
+	return provider.ID{Display: display, Key: core.CacheID(display, region, platform)}, ""
 }
 
 // accountInfo is the v2 account subset every consumer needs. Region comes back

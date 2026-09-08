@@ -591,7 +591,7 @@ func mcsrTitleCase(s string) string {
 // different seasons of the same lookup never collide on one entry; "0"
 // stands for "current season" the same way an unset Season does on the wire.
 func mcsrCacheID(account string, season int) string {
-	return strings.ToLower(strings.TrimSpace(account)) + ":" + strconv.Itoa(season)
+	return core.CacheID(account, strconv.Itoa(season))
 }
 
 // matchSelf splits a match's two players into (self, opponent). It matches
@@ -703,7 +703,7 @@ func leaderboardQuery(season int, country string) url.Values {
 		q.Set("season", strconv.Itoa(season))
 	}
 	if country != "" {
-		q.Set("country", strings.ToLower(country))
+		q.Set("country", strings.ToLower(strings.TrimSpace(country)))
 	}
 	return q
 }
@@ -753,11 +753,11 @@ func (p *api) fetchRecordLeaderboard(ctx context.Context, season int) ([]recordE
 }
 
 func leaderboardCacheID(season int, country string, predicted bool) string {
-	id := strconv.Itoa(season) + ":" + strings.ToLower(country)
+	parts := []string{strconv.Itoa(season), country}
 	if predicted {
-		id += ":predicted"
+		parts = append(parts, "predicted")
 	}
-	return id
+	return core.CacheID(parts...)
 }
 
 func (p *api) cachedEloLeaderboard(ctx context.Context, season int, country string, isPremium bool) ([]lbUser, error) {

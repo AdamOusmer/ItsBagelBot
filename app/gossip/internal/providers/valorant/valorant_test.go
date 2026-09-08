@@ -463,3 +463,39 @@ func TestEndpointSurface(t *testing.T) {
 	}
 	assert.ElementsMatch(t, []string{"rank", "matches", "account", "leaderboard", "shop"}, names)
 }
+
+// TestCacheIDBytes pins the exact id bytes valorant lookups key on. The id is
+// the tail of a live Valkey key: changing one byte orphans every cached entry
+// for that lookup until its TTL expires, so these literals are the contract
+// rather than a restatement of the implementation.
+func TestCacheIDBytes(t *testing.T) {
+	cases := []struct {
+		name string
+		req  gossiprpc.Request
+		want string
+	}{
+		{name: "player", req: gossiprpc.Request{Account: "Frosty#EUW1", Region: "NA"}, want: "frosty#euw1:na:pc"},
+		{name: "player spaced", req: gossiprpc.Request{Account: "  FrOsTy # euw1 ", Region: " Na ", Platform: " Console "}, want: "frosty#euw1:na:console"},
+		{name: "player defaults", req: gossiprpc.Request{Account: "Frosty#EUW1"}, want: "frosty#euw1:auto:pc"},
+	}
+	for _, c := range cases {
+		id, msg := riotID(c.req)
+		assert.Empty(t, msg, c.name)
+		assert.Equal(t, c.want, id.Key, c.name)
+	}
+
+	boards := []struct {
+		name string
+		req  gossiprpc.Request
+		want string
+	}{
+		{name: "board", req: gossiprpc.Request{Account: "Frosty#EUW1", Region: "EU"}, want: "frosty#euw1:eu:pc"},
+		{name: "board spaced", req: gossiprpc.Request{Account: "  FrOsTy#EUW1  ", Region: "eu", Platform: "Console"}, want: "frosty#euw1:eu:console"},
+		{name: "board no account", req: gossiprpc.Request{Region: "kr"}, want: ":kr:pc"},
+	}
+	for _, c := range boards {
+		id, msg := boardID(c.req)
+		assert.Empty(t, msg, c.name)
+		assert.Equal(t, c.want, id.Key, c.name)
+	}
+}
