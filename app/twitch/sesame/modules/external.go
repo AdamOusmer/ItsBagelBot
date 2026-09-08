@@ -200,6 +200,21 @@ type statsCall[C any] struct {
 type statsSubject struct {
 	Account string
 	Display string
+
+	// AccountB is the other side of a lookup that compares two players
+	// (mcsr's !record). It stays empty for every single-account command and is
+	// read only by a request strategy that asks for it; resolving both sides
+	// here is what keeps the pair and the name a failure chats from being
+	// derived twice per call.
+	AccountB string
+
+	// Refusal is the line to chat instead of calling upstream, for arguments
+	// that name no answerable subject (!record with nobody to compare
+	// against). It rides the subject because resolving one is where a command
+	// first learns its arguments are unusable, and because the refusal must
+	// come after the module's own toggle has been checked — a command the
+	// broadcaster turned off answers nothing at all, usage line included.
+	Refusal string
 }
 
 // statsHandler is the shape every external-stats command shares.
@@ -237,6 +252,11 @@ func (h statsHandler[C, R]) run(ctx context.Context, c *module.Context, args str
 
 	call := statsCall[C]{Ctx: c, Cfg: cfg, Args: args}
 	subject := h.target(call)
+	if subject.Refusal != "" {
+		emitChat(c, emit, subject.Refusal)
+		return nil
+	}
+
 	var reply R
 	if err := h.d.Gossip.Call(ctx, h.route, h.request(call, subject), &reply); err != nil {
 		return gossipCallErr(c, emit, subject.Display, err)

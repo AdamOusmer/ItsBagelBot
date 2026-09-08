@@ -11,50 +11,23 @@ import (
 	"ItsBagelBot/internal/domain/i18n"
 )
 
-// This file holds the small value-rendering and token-map helpers every
-// !mcsr/!pace command's Tokens function and mcsrHandler build on: how a
-// template token map is looked up and merged, how an elo/rank/split/age
-// value is rendered for chat, and how a trailing "season:<n>" argument
-// token is parsed. Splitting these out of mcsr.go keeps that file to the
-// module's wiring and its shared dispatch shape (mcsrHandler, mcsrSeasonSpec,
-// mcsrPaceSpec's common pieces).
+// This file holds the small value-rendering helpers every !mcsr/!pace
+// command's palette builds on: the two token fragments !elo and !session
+// share, how an elo/rank/split/age value is rendered for chat, and how a
+// trailing "season:<n>" argument token is parsed. Splitting these out of
+// mcsr.go keeps that file to the module's wiring.
 
-// mcsrTokenLookup is the small dispatch every !mcsr/!pace template-token
-// resolver shares: check the reply's precomputed key/value map, falling
-// back to module.ParseDynamic for any token the reply itself doesn't
-// answer. Centralizing it here means each command's Tokens function is
-// just a map literal, not a copy of this same switch/fallback shape.
-func mcsrTokenLookup(tokens map[string]string, key string) (string, bool) {
-	if v, ok := tokens[key]; ok {
-		return v, true
-	}
-	return module.ParseDynamic(key)
-}
-
-// mcsrMergeTokens combines several token maps into one, so a Tokens function
-// can build its map out of shared fragments (mcsrPlayerEloTokens,
-// mcsrWinLossTokens below) instead of repeating their entries.
-func mcsrMergeTokens(maps ...map[string]string) map[string]string {
-	out := make(map[string]string, len(maps)*4)
-	for _, m := range maps {
-		for k, v := range m {
-			out[k] = v
-		}
-	}
-	return out
-}
-
-// mcsrPlayerEloTokens is the {player}/{elo} token pair !elo and !session
-// both answer from a player name and a live elo value.
-func mcsrPlayerEloTokens(c *module.Context, player string, elo int) map[string]string {
-	return map[string]string{
+// mcsrPlayerElo is the {player}/{elo} token pair !elo and !session both
+// answer from a player name and a live elo value.
+func mcsrPlayerElo(c *module.Context, player string, elo int) module.StringPalette {
+	return module.StringPalette{
 		"player": player,
 		"elo":    mcsrElo(c, elo),
 	}
 }
 
-// mcsrWinLossTokens is the {wins}/{losses}/{draws}/{matches} token quad !elo
-// and !session both answer from a season (or session) win/loss/played count.
+// mcsrWinLoss is the {wins}/{losses}/{draws}/{matches} token quad !elo and
+// !session both answer from a season (or session) win/loss/played count.
 //
 // {draws} is derived, not reported: MCSR's playedMatches counts matches that
 // ended with no winner (result.uuid null, forfeited both sides) while its wins
@@ -67,12 +40,12 @@ func mcsrPlayerEloTokens(c *module.Context, player string, elo int) map[string]s
 // The floor at zero covers the one case the subtraction can go negative: a
 // !session delta taken across a season rollover, where the live counters reset
 // below the stream-start snapshot.
-func mcsrWinLossTokens(wins, losses, matches int) map[string]string {
+func mcsrWinLoss(wins, losses, matches int) module.StringPalette {
 	draws := matches - wins - losses
 	if draws < 0 {
 		draws = 0
 	}
-	return map[string]string{
+	return module.StringPalette{
 		"wins":    strconv.Itoa(wins),
 		"losses":  strconv.Itoa(losses),
 		"draws":   strconv.Itoa(draws),

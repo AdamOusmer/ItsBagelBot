@@ -78,3 +78,45 @@ func (t TokenExpander[R]) Expand(tmpl string, r *R) string {
 		return ParseDynamic(key)
 	})
 }
+
+// StringPalette is a token palette whose values are already rendered strings.
+//
+// It is the non-generic sibling of TokenExpander, for replies whose tokens
+// cannot be read off the reply alone: mcsr renders {elo} as the word
+// "unrated" and {result} as a translated win/loss/draw, so its palettes are
+// built per call against the channel's locale and merged out of fragments two
+// commands share. Pushing those through TokenExpander[R] would mean inventing
+// a view type per command whose only job is to carry a locale next to the
+// reply.
+type StringPalette map[string]string
+
+// Expand renders tmpl over the palette: a {token} it holds resolves to that
+// value, anything else falls through to the generic dynamic vars ({random},
+// {choice:…}) and is left literal when even those do not know it. This is the
+// same resolution order TokenExpander uses, so a broadcaster's template
+// behaves identically whichever palette answers it.
+func (p StringPalette) Expand(tmpl string) string {
+	return ExpandString(tmpl, func(key string) (string, bool) {
+		if val, ok := p[key]; ok {
+			return val, true
+		}
+		return ParseDynamic(key)
+	})
+}
+
+// Merge folds fragment palettes into p, later entries winning, and returns the
+// combined palette. p itself is not modified: a fragment shared by two
+// commands is usually built by a helper both call, and merging in place would
+// let one command's extra tokens leak into the other's.
+func (p StringPalette) Merge(parts ...StringPalette) StringPalette {
+	out := make(StringPalette, len(p)+len(parts)*4)
+	for key, val := range p {
+		out[key] = val
+	}
+	for _, part := range parts {
+		for key, val := range part {
+			out[key] = val
+		}
+	}
+	return out
+}
