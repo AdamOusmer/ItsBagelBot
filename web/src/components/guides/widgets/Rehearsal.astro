@@ -181,6 +181,10 @@ const L = {
 </style>
 
 <script>
+    import { prefersReducedMotion } from '../../../script/motion';
+
+    import { bindOnce } from '../../../script/bind';
+
     // Bundled by Astro, so it satisfies the site's script-src 'self' CSP.
     // Token grammar mirrored from engine/vars.go + module/vars.go: see the
     // frontmatter comment above for the full list and the rationale.
@@ -252,7 +256,7 @@ const L = {
         const content = root.querySelector<HTMLElement>('[data-rh-content]');
         if (!response || !who || !args || !line || !content) return;
 
-        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const reduceMotion = prefersReducedMotion();
 
         function render(animate: boolean) {
             const segments = expand(response!.value, who!.value, args!.value, counterSample);
@@ -275,16 +279,5 @@ const L = {
         render(false);
     }
 
-    // Bound on astro:page-load as well as at load: the ClientRouter swaps the DOM
-    // on navigation, and the data-ready flag stops a second pass binding twice.
-    function setupAll() {
-        document.querySelectorAll<HTMLElement>('[data-rehearsal]').forEach((root) => {
-            if (root.dataset.ready === '1') return;
-            root.dataset.ready = '1';
-            setupRehearsal(root);
-        });
-    }
-
-    setupAll();
-    document.addEventListener('astro:page-load', setupAll);
+    bindOnce('[data-rehearsal]', setupRehearsal);
 </script>

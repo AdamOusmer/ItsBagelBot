@@ -413,11 +413,13 @@ const enterpriseFeatures = [
 </style>
 
 <script>
+    import { prefersReducedMotion } from '../../script/motion';
+
     /* Price count-up when the amount scrolls into view */
     function runCountUp(el: HTMLElement) {
         const target = parseInt(el.dataset.target ?? '0', 10);
         const suffix = el.dataset.suffix ?? '';
-        if (target === 0 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        if (target === 0 || prefersReducedMotion()) {
             el.textContent = `${target}${suffix}`;
             return;
         }

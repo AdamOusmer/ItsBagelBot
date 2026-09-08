@@ -238,6 +238,8 @@ const t = useTranslations(lang);
 </style>
 
 <script>
+    import { reduceMotion as reducedMotion } from '../../script/motion';
+
     import lenis from '../../script/scroll.js';
     import {
         buildEncryptionGeometryData,
@@ -340,7 +342,6 @@ const t = useTranslations(lang);
     let initPromise: Promise<void> | null = null;
     let cleanupScene: ((deferGpuDispose?: boolean) => void) | null = null;
     const scrollController = lenis as LenisController;
-    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
     const assistedWindow = window as WindowWithEncryptionAssist;
     const preloadRegistry = (assistedWindow.__itsbagelbotPreload ??= {});
     const previousActiveEncryption = preloadRegistry.activeEncryption;

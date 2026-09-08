@@ -407,6 +407,8 @@ const playStrings = {
 </style>
 
 <script>
+    import { reduceMotion } from '../../script/motion';
+
     /**
      * Simulated chat. All content is inserted with textContent; the only
      * markup built here is from these hardcoded literals.
@@ -446,7 +448,6 @@ const playStrings = {
         '!poll': null, // special-cased: renders the animated poll bubble
     };
 
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
     function setupPlayground(root: HTMLElement) {
         if (root.dataset.playReady === 'true') return;

@@ -474,46 +474,8 @@ const hubHref = localizePath('/guides', lang);
 </style>
 
 <script>
-    /* TOC scrollspy: same contract as LegalShell. */
-    function setupGuide(root: HTMLElement) {
-        if (root.dataset.guideReady === 'true') return;
-        root.dataset.guideReady = 'true';
+    import { scrollspy } from '../../script/scrollspy';
 
-        const sections = Array.from(root.querySelectorAll<HTMLElement>('[data-guide-section]'));
-        const links = new Map(
-            Array.from(root.querySelectorAll<HTMLAnchorElement>('[data-guide-link]'))
-                .map((a) => [a.dataset.guideLink as string, a]),
-        );
-
-        let ticking = false;
-
-        function update() {
-            ticking = false;
-
-            let currentId = sections[0]?.id;
-            for (const section of sections) {
-                if (section.getBoundingClientRect().top < window.innerHeight * 0.35) {
-                    currentId = section.id;
-                }
-            }
-            links.forEach((link, id) => link.classList.toggle('is-current', id === currentId));
-        }
-
-        function onScroll() {
-            if (ticking) return;
-            ticking = true;
-            requestAnimationFrame(update);
-        }
-
-        window.addEventListener('scroll', onScroll, { passive: true });
-        window.addEventListener('resize', onScroll, { passive: true });
-        update();
-    }
-
-    function setup() {
-        document.querySelectorAll<HTMLElement>('[data-guide]').forEach(setupGuide);
-    }
-
-    setup();
-    document.addEventListener('astro:page-load', setup);
+    /* TOC scrollspy: shared with the other long-form shell. */
+    scrollspy('guide');
 </script>

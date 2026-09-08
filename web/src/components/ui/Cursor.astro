@@ -66,6 +66,8 @@
 </style>
 
 <script>
+    import { reduceMotion as reduce } from '../../script/motion';
+
     const dot  = document.getElementById('cursor')! as HTMLDivElement;
     const ring = document.getElementById('cursorRing')! as HTMLDivElement;
 
@@ -74,7 +76,6 @@
     // Reduced-motion also disables the lerped cursor, and unlike `fine`, it
     // can flip mid-session (OS toggle), so it gates the class/loop live
     // instead of removing the elements at init.
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
     if (!fine.matches) {
         // Remove both elements so they don't take up any painting budget.
         dot.remove();

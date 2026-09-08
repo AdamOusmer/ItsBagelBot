@@ -6,9 +6,8 @@
 // Resolved from the directory so adding a screen is one new file: the name in
 // ScreenName (types.ts) must equal the file's basename.
 import type { ScreenName } from '../../../lib/guides/types';
+import { globDir } from '../../../lib/guides/dispatcher';
 
-const modules = import.meta.glob('./*.astro', { eager: true, import: 'default' });
-
-export const screens = Object.fromEntries(
-  Object.entries(modules).map(([path, component]) => [path.slice(2, -'.astro'.length), component]),
-) as Record<ScreenName, unknown>;
+export const screens = globDir<ScreenName>(
+    import.meta.glob('./*.astro', { eager: true, import: 'default' }),
+);

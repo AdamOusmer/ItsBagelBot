@@ -177,6 +177,8 @@ const classes = ["animated-button", className];
 </style>
 
 <script>
+    import { prefersReducedMotion } from '../../../script/motion';
+
     import {animate, stagger} from 'motion';
 
     type AnimationControls = { stop: () => void };
@@ -192,7 +194,7 @@ const classes = ["animated-button", className];
 
         const textWords = Array.from(button.querySelectorAll<HTMLElement>('.animated-button__text span'));
         const cloneWords = Array.from(button.querySelectorAll<HTMLElement>('.animated-button__clone span'));
-        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const reduceMotion = prefersReducedMotion();
         let activeAnimations: AnimationControls[] = [];
 
         const measureShift = () => {

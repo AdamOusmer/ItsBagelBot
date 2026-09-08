@@ -16,7 +16,7 @@
  */
 
 const finePointer = window.matchMedia("(hover: hover) and (pointer: fine)");
-const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+import { reduceMotion } from './motion';
 
 
 function setupCopy(el) {

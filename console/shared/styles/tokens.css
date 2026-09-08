@@ -2,10 +2,16 @@
    Proprietary. No license granted. See LICENSE.md. */
 
 /* ItsBagelBot: Colors & Type
- * Source of truth: web/src/styles/style.css in itsmavey/itsbagelbot
- * Brand palette is a dark canvas with deep evergreen + warm tan accents,
- * tied together with a film-grain texture overlay.
+ * The palette, the shape scale and the easing curves come from ./brand.css,
+ * shared with web/ and docs/. This file adds what is the CONSOLE's: its own
+ * self-hosted faces, the status system, the spacing scale and the layout
+ * tokens. Brand palette is a dark canvas with deep evergreen + warm tan
+ * accents, tied together with a film-grain texture overlay.
+ *
+ * The @import has to precede the @font-face rules below: CSS only honours
+ * @import at the top of a stylesheet.
  */
+@import './brand.css';
 
 /* Self-hosted fonts: no third-party origin, satisfies CSP font-src 'self'. */
 @font-face { font-family: "Syne"; font-weight: 500 800; font-display: swap; src: url("./fonts/syne-latin.woff2") format("woff2"); }
@@ -14,26 +20,6 @@
 @font-face { font-family: "DM Mono"; font-weight: 500; font-display: swap; src: url("./fonts/dm-mono-500.woff2") format("woff2"); }
 
 :root {
-  /* ────────────────────────── core palette ─────────────────────── */
-  --bb-black: #0a0a0a;          /* page canvas */
-  --bb-card-bg: #111110;        /* surfaces, cards */
-  --bb-white: #f0ece4;          /* primary text: warm off-white, never pure */
-  --bb-muted: #888077;          /* secondary text, captions */
-
-  /* greens: the "always-on" brand accent */
-  --bb-green: #2d6a4f;          /* primary green */
-  --bb-green-light: #40916c;    /* hover / active */
-  --bb-green-glow: #52b788;     /* glows, focus, success */
-
-  /* tans: warmth, bagel, sesame */
-  --bb-tan: #c9a87c;            /* secondary accent */
-  --bb-tan-light: #e0c49a;      /* highlights */
-  --bb-tan-pale: #f5e6cf;       /* cream / wash */
-
-  /* borders & strokes: tan at 15% on dark */
-  --bb-border: rgba(201, 168, 124, 0.15);
-  --bb-border-strong: rgba(201, 168, 124, 0.35);
-
   /* semantic aliases */
   --bb-fg-1: var(--bb-white);
   --bb-fg-2: var(--bb-muted);
@@ -49,6 +35,9 @@
      11.27:1 (WCAG 2.2 SC 1.4.11 needs 3:1). One token so every :focus-visible
      rule agrees. */
   --bb-focus: #e0c49a;
+
+  /* ────────────────────────── spacing ──────────────────────────── */
+  /* (the radius scale is in brand.css) */
 
   /* ────────────────────────── status system ────────────────────── */
   /* Brand-coherent semantic states. Each triad is meant to be composed as:
@@ -88,16 +77,6 @@
   --bb-tracking-body: 0em;
   --bb-tracking-eyebrow: 0.18em; /* uppercase mono labels */
 
-  /* ────────────────────────── spacing / radii ──────────────────── */
-  /* Concentric corners: inner radius = outer radius minus the gap between the
-     two edges, snapped to the 4px grid and floored at xs. True circles use 50%,
-     never a token. */
-  --bb-radius-xs: 4px;
-  --bb-radius-sm: 8px;
-  --bb-radius-md: 12px;
-  --bb-radius-lg: 16px;
-  --bb-radius-pill: 999px;
-
   --bb-space-1: 4px;
   --bb-space-2: 8px;
   --bb-space-3: 12px;
@@ -109,8 +88,7 @@
   --bb-space-9: 96px;
 
   /* ────────────────────────── motion ───────────────────────────── */
-  --bb-ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
-  --bb-ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+  /* Easing curves are in brand.css; the durations are the console's own. */
   --bb-dur-fast: 180ms;
   --bb-dur-base: 320ms;
   --bb-dur-slow: 600ms;

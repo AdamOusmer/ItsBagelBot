@@ -4,103 +4,43 @@
 /**
  * Standalone warm light-field for non-scrubbed surfaces (inner-page heroes).
  * Any `<canvas data-field>` gets the same drifting mote field the cinematic
- * scenes use, at a constant warmth. rAF gated by visibility; reduced-motion off.
+ * scenes use, at a constant warmth.
+ *
+ * The physics live in `@bagel/light-field` (console/shared/lib/light-field.ts),
+ * shared with the console's LightField.svelte so the two surfaces cannot drift
+ * apart on how the field looks. What stays here is everything Astro-shaped: the
+ * DOM scan, the ready flag, and teardown on `astro:before-swap`.
+ *
+ * This does NOT use bindOnce: a field owns a rAF loop and an
+ * IntersectionObserver, so it needs a real teardown before the ClientRouter
+ * throws the old document away, and bindOnce deliberately has no unbind.
  */
 
-const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+import { field } from '@bagel/light-field';
+
 const activeFieldCleanups = new Set();
 
 function setupField(canvas) {
-    if (canvas.dataset.fieldReady === "true") return;
-    if (reduceMotion.matches) return;
-    canvas.dataset.fieldReady = "true";
+    if (canvas.dataset.fieldReady === 'true') return;
 
-    const ctx = canvas.getContext("2d");
-    if (!ctx) {
-        canvas.removeAttribute("data-field-ready");
-        return;
-    }
-
-    let w = 0, h = 0, motes = [];
-    let dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const warmth = parseFloat(canvas.dataset.warmth) || 0.7;
-
-    function build() {
-        w = canvas.clientWidth;
-        h = canvas.clientHeight;
-        if (!w || !h) return;
-        canvas.width = Math.round(w * dpr);
-        canvas.height = Math.round(h * dpr);
-        const count = w < 700 ? 40 : 70;
-        motes = Array.from({ length: count }, () => ({
-            x: Math.random() * w,
-            y: Math.random() * h,
-            r: 0.6 + Math.random() * 2,
-            vy: -(0.05 + Math.random() * 0.2),
-            vx: (Math.random() - 0.5) * 0.1,
-            a: 0.12 + Math.random() * 0.45,
-            warm: Math.random(),
-        }));
-    }
-
-    // renderMote advances one mote and paints it, wrapping it around the
-    // viewport edges (up-and-out re-enters from the bottom at a fresh x).
-    function renderMote(m) {
-        m.y += m.vy;
-        m.x += m.vx;
-        if (m.y < -10) { m.y = h + 10; m.x = Math.random() * w; }
-        if (m.x < -10) m.x = w + 10; else if (m.x > w + 10) m.x = -10;
-        const col = m.warm < warmth ? "201, 168, 124" : "82, 183, 136";
-        ctx.beginPath();
-        ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${col}, ${m.a.toFixed(3)})`;
-        ctx.fill();
-    }
-
-    function draw() {
-        if (!w || !h || !motes.length) build();
-        if (!w || !h) return;
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        ctx.clearRect(0, 0, w, h);
-        ctx.globalCompositeOperation = "lighter";
-        for (const m of motes) renderMote(m);
-        ctx.globalCompositeOperation = "source-over";
-    }
-
-    let rafId = 0;
-    function stopLoop() {
-        if (!rafId) return;
-        cancelAnimationFrame(rafId);
-        rafId = 0;
-    }
-
-    function loop() { draw(); rafId = requestAnimationFrame(loop); }
-
-    const io = new IntersectionObserver(([e]) => {
-        if (e.isIntersecting && !rafId) rafId = requestAnimationFrame(loop);
-        else if (!e.isIntersecting) stopLoop();
-    }, { rootMargin: "150px" });
-    io.observe(canvas);
-
-    const onResize = () => { dpr = Math.min(window.devicePixelRatio || 1, 2); build(); };
-    window.addEventListener("resize", onResize, { passive: true });
+    const stop = field(canvas, { warmth: parseFloat(canvas.dataset.warmth) || 0.7 });
+    if (!stop) return;
+    canvas.dataset.fieldReady = 'true';
 
     const cleanup = () => {
-        stopLoop();
-        io.disconnect();
-        window.removeEventListener("resize", onResize);
-        canvas.removeAttribute("data-field-ready");
+        stop();
+        canvas.removeAttribute('data-field-ready');
+        // Zeroing the backing store frees the (dpr-scaled) bitmap right away
+        // instead of waiting for the detached canvas to be collected.
         canvas.width = 0;
         canvas.height = 0;
         activeFieldCleanups.delete(cleanup);
     };
     activeFieldCleanups.add(cleanup);
-
-    build();
 }
 
 function setup() {
-    document.querySelectorAll("canvas[data-field]").forEach(setupField);
+    document.querySelectorAll('canvas[data-field]').forEach(setupField);
 }
 
 function cleanupAll() {
@@ -108,6 +48,6 @@ function cleanupAll() {
 }
 
 setup();
-document.addEventListener("astro:page-load", setup);
-document.addEventListener("astro:before-swap", cleanupAll);
-window.addEventListener("pagehide", cleanupAll);
+document.addEventListener('astro:page-load', setup);
+document.addEventListener('astro:before-swap', cleanupAll);
+window.addEventListener('pagehide', cleanupAll);

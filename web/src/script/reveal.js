@@ -15,7 +15,7 @@
  */
 
 const SELECTOR = "[data-reveal]";
-const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+import { reduceMotion } from './motion';
 
 function revealAll() {
     document.querySelectorAll(SELECTOR).forEach((el) => el.classList.add("is-revealed"));

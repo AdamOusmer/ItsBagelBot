@@ -7,9 +7,8 @@
 // WidgetName (types.ts) must equal the file's basename. A name with no file
 // fails at build time in GuideBody.
 import type { WidgetName } from '../../../lib/guides/types';
+import { globDir } from '../../../lib/guides/dispatcher';
 
-const modules = import.meta.glob('./*.astro', { eager: true, import: 'default' });
-
-export const widgets = Object.fromEntries(
-  Object.entries(modules).map(([path, component]) => [path.slice(2, -'.astro'.length), component]),
-) as Record<WidgetName, unknown>;
+export const widgets = globDir<WidgetName>(
+    import.meta.glob('./*.astro', { eager: true, import: 'default' }),
+);

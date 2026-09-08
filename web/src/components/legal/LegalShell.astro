@@ -231,47 +231,8 @@ const labels = { toc: t('legal.toc'), updated: t('legal.updated'), plain: t('leg
 </style>
 
 <script>
-    /* TOC scrollspy. One shared scroll listener per page. */
-    function setupLegal(root: HTMLElement) {
-        if (root.dataset.legalReady === 'true') return;
-        root.dataset.legalReady = 'true';
+    import { scrollspy } from '../../script/scrollspy';
 
-        const sections = Array.from(root.querySelectorAll<HTMLElement>('[data-legal-section]'));
-        const links = new Map(
-            Array.from(root.querySelectorAll<HTMLAnchorElement>('[data-legal-link]'))
-                .map((a) => [a.dataset.legalLink as string, a]),
-        );
-
-        let ticking = false;
-
-        function update() {
-            ticking = false;
-
-            /* Current section: the last one whose top passed the upper third */
-            let currentId = sections[0]?.id;
-            for (const section of sections) {
-                if (section.getBoundingClientRect().top < window.innerHeight * 0.35) {
-                    currentId = section.id;
-                }
-            }
-            links.forEach((link, id) => link.classList.toggle('is-current', id === currentId));
-        }
-
-        function onScroll() {
-            if (ticking) return;
-            ticking = true;
-            requestAnimationFrame(update);
-        }
-
-        window.addEventListener('scroll', onScroll, { passive: true });
-        window.addEventListener('resize', onScroll, { passive: true });
-        update();
-    }
-
-    function setup() {
-        document.querySelectorAll<HTMLElement>('[data-legal]').forEach(setupLegal);
-    }
-
-    setup();
-    document.addEventListener('astro:page-load', setup);
+    /* TOC scrollspy: shared with the other long-form shell. */
+    scrollspy('legal');
 </script>

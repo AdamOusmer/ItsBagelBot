@@ -110,6 +110,8 @@ const t = useTranslations(lang);
 </header>
 
 <script>
+    import { prefersReducedMotion } from '../../script/motion';
+
     import { animate, stagger, cubicBezier } from "motion";
 
     // Title intro: each line's glyphs roll up out of a per-line mask with a
@@ -129,7 +131,7 @@ const t = useTranslations(lang);
         if (!h1 || h1.dataset.heroMotionReady === 'true') return;
         h1.dataset.heroMotionReady = 'true';
 
-        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        if (prefersReducedMotion()) return;
 
         h1.querySelectorAll<HTMLElement>('[data-hero-line]').forEach((line, lineIndex) => {
             const glyphs = Array.from(line.querySelectorAll<HTMLElement>('[data-hero-glyph]'));

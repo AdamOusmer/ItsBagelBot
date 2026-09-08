@@ -7,11 +7,9 @@
 // search results, answer engines and the page all tell the same story.
 import Layout from '../../layouts/Layout.astro';
 import FeatureLanding from '../../components/landing/FeatureLanding.astro';
-import { getLangFromUrl, useTranslations, locales, defaultLang, dashLoginHref, localizePath } from '../../i18n/ui';
+import { getLangFromUrl, useTranslations, dashLoginHref, localizePath, localeStaticPaths } from '../../i18n/ui';
 
-export function getStaticPaths() {
-  return locales.map((l) => ({ params: { lang: l === defaultLang ? undefined : l } }));
-}
+export const getStaticPaths = localeStaticPaths;
 
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
