@@ -5,6 +5,7 @@ package bus
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -116,14 +117,7 @@ func dispatchOne(t *testing.T, w *workerPool, gate *routinePool, dispatched *syn
 
 func waitForWorkers(t *testing.T, w *workerPool, want int) {
 	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if w.liveWorkers() == want {
-			return
-		}
-		time.Sleep(time.Millisecond)
-	}
-	t.Fatalf("live workers = %d, want %d", w.liveWorkers(), want)
+	waitFor(t, func() bool { return w.liveWorkers() == want }, fmt.Sprintf("live workers never reached %d", want))
 }
 
 // TestWorkerPoolResizeFollowsCapacity pins the cheap half of a resize: the fleet
@@ -175,9 +169,11 @@ func TestWorkerPoolShrinkFinishesCurrentMessage(t *testing.T) {
 
 	close(release)
 	waitForWorkers(t, w, 1)
-	if got := atomic.LoadInt64(&finished); got != 2 {
-		t.Fatalf("finished = %d, want 2 (both in-flight messages must run to completion)", got)
-	}
+	// The retiring worker drops the live count only after its handler returns,
+	// but the surviving worker's handler is still racing to completion at that
+	// instant; a bare read here saw finished = 1 in roughly one run in fifty.
+	waitFor(t, func() bool { return atomic.LoadInt64(&finished) == 2 },
+		"finished never reached 2 (both in-flight messages must run to completion)")
 
 	w.stop()
 	dispatched.Wait()

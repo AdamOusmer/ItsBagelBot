@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"net"
 	"os"
+
+	"ItsBagelBot/pkg/tlsenv"
 	"sync"
 	"time"
 )
@@ -47,9 +49,11 @@ func clientTLSConfig() (*tls.Config, error) {
 	// var like VALKEY_TLS_CA_PEM: that CA is public, this is a private key,
 	// and a Secret volume mount keeps it out of `kubectl describe pod`, env
 	// dumps, and any log/panic handler that serializes the process env.
-	certFile := os.Getenv("VALKEY_TLS_CLIENT_CERT_FILE")
-	keyFile := os.Getenv("VALKEY_TLS_CLIENT_KEY_FILE")
-	if certFile == "" && keyFile == "" {
+	pair, err := tlsenv.PairFromEnv("VALKEY_TLS_CLIENT_CERT_FILE", "VALKEY_TLS_CLIENT_KEY_FILE")
+	if err != nil {
+		return nil, err
+	}
+	if !pair.Configured() {
 		// Deliberately permissive: unset means "server not requiring client
 		// auth yet," which is the state every consumer is in until its own
 		// Deployment is updated with the cert volume. This is what makes the
@@ -57,16 +61,13 @@ func clientTLSConfig() (*tls.Config, error) {
 		// tls-auth-clients flip, instead of a synchronized flag day.
 		return config, nil
 	}
-	if certFile == "" || keyFile == "" {
-		return nil, fmt.Errorf("valkey: VALKEY_TLS_CLIENT_CERT_FILE and VALKEY_TLS_CLIENT_KEY_FILE must both be set or both be empty")
-	}
 	// GetClientCertificate, not Certificates: the latter is read once when
 	// this *tls.Config is built and then frozen, so a process that lives
 	// past cert-manager's day-75 rotation keeps presenting the cert issued
 	// at boot until it expires at day 90 and every handshake starts failing.
 	// GetClientCertificate is invoked by crypto/tls on every handshake,
 	// which gives the reloader below a chance to notice the rotated file.
-	reloader, err := newClientCertReloader(certFile, keyFile)
+	reloader, err := newClientCertReloader(pair.CertFile(), pair.KeyFile())
 	if err != nil {
 		return nil, fmt.Errorf("valkey: loading client cert/key: %w", err)
 	}
@@ -83,6 +84,11 @@ func clientTLSConfig() (*tls.Config, error) {
 // content hashing would catch a same-second same-size edit that this misses,
 // but that isn't a shape cert-manager rotation produces, so it isn't worth
 // reading the file on every handshake to guard against it.
+//
+// This is why the pair's own GetClientCertificate closure (pkg/tlsenv) is not
+// used here: it re-reads unconditionally, which is right for a listener whose
+// handshakes are probes, and wrong for a Valkey client that reconnects per
+// Sentinel failover and per pooled connection.
 type clientCertReloader struct {
 	certFile string
 	keyFile  string

@@ -24,6 +24,7 @@ import (
 	"ItsBagelBot/pkg/health"
 	"ItsBagelBot/pkg/svcboot"
 	"ItsBagelBot/pkg/svcboot/databoot"
+	"ItsBagelBot/pkg/tlsenv"
 
 	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/newrelic"
@@ -101,22 +102,29 @@ func main() {
 	// console-dashboard. Both or neither: unset stays plaintext exactly as
 	// before, so this can land before the cert and the traefik ServersTransport
 	// exist. A mismatched pair is a config error, not a runtime fallback.
-	tlsCertFile := env.Get("TLS_CERT_FILE", "")
-	tlsKeyFile := env.Get("TLS_KEY_FILE", "")
-	if (tlsCertFile == "") != (tlsKeyFile == "") {
-		log.Fatal("transactions tls misconfigured: TLS_CERT_FILE and TLS_KEY_FILE must both be set or both empty")
+	tlsPair, err := tlsenv.PairFromEnv("TLS_CERT_FILE", "TLS_KEY_FILE")
+	if err != nil {
+		log.Fatal("transactions tls misconfigured", zap.Error(err))
+	}
+
+	// ServerConfig loads the pair here (an unreadable cert kills the boot)
+	// and re-reads it on every handshake, so a cert-manager renewal is served
+	// without a restart. Nil when the pair is unset: plaintext, as before.
+	httpServer.TLSConfig, err = tlsPair.ServerConfig()
+	if err != nil {
+		log.Fatal("transactions tls cert unusable", zap.Error(err))
 	}
 
 	log.Info("transactions service ready",
 		zap.String("listen_addr", core.ListenAddr),
-		zap.Bool("tls_enabled", tlsCertFile != ""),
+		zap.Bool("tls_enabled", tlsPair.Configured()),
 		zap.Bool("tebex_webhook_configured", env.Get("TEBEX_WEBHOOK_SECRET", "") != ""),
 		zap.Bool("tebex_checkout_configured", checkoutConfigured),
 		zap.Bool("tebex_checkout_auth_configured", checkoutAuth),
 		zap.Bool("tebex_checkout_username_configured", env.GetBool("TEBEX_INCLUDE_USERNAME", false)),
 	)
 
-	serveHTTP(core.Ctx, listener{srv: httpServer, certFile: tlsCertFile, keyFile: tlsKeyFile}, log)
+	serveHTTP(core.Ctx, listener{srv: httpServer}, log)
 }
 
 // setupCheckout registers the dashboard basket_create RPC. Optional: without
@@ -178,20 +186,23 @@ func newMailer(dashboardOrigin string, log *zap.Logger) *mail.Mailer {
 }
 
 // serveHTTP runs the server until ctx is cancelled or the listener fails,
-// then drains in-flight requests before returning. certFile/keyFile serve TLS
-// when both are set; empty (the default) keeps plaintext HTTP.
-// listener carries the server together with the cert and key it should present.
-// They are decided together and never travel apart, so they are passed together.
+// then drains in-flight requests before returning. A configured TLSConfig
+// serves TLS; a nil one (the default) keeps plaintext HTTP.
+//
+// listener carries the server the run loop below blocks on.
 type listener struct {
-	srv      *http.Server
-	certFile string
-	keyFile  string
+	srv *http.Server
 }
 
-// serve blocks on the underlying server, choosing TLS when a pair was configured.
+// serve blocks on the underlying server, choosing TLS when a cert was configured.
+//
+// The empty file names are deliberate: ListenAndServeTLS falls back to reading
+// them only when TLSConfig carries neither Certificates nor GetCertificate, and
+// naming them here would snapshot the cert at boot and keep presenting it
+// through a cert-manager renewal (see tlsenv.Pair.ServerConfig).
 func (l listener) serve() error {
-	if l.certFile != "" && l.keyFile != "" {
-		return l.srv.ListenAndServeTLS(l.certFile, l.keyFile)
+	if l.srv.TLSConfig != nil {
+		return l.srv.ListenAndServeTLS("", "")
 	}
 	return l.srv.ListenAndServe()
 }

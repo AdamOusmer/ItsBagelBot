@@ -24,7 +24,7 @@ import (
 	"time"
 
 	"ItsBagelBot/pkg/codec"
-	"ItsBagelBot/pkg/env"
+	"ItsBagelBot/pkg/tlsenv"
 )
 
 // checkTimeout bounds one endpoint invocation end to end. Probes and uptime
@@ -347,45 +347,27 @@ func (s *Set) Handler() http.Handler {
 	return mux
 }
 
-// tlsEnvConfig reads the TLS_CERT_FILE/TLS_KEY_FILE pair and builds a config
-// that re-reads it from disk on every handshake. The files are a
-// cert-manager-managed Secret mount: kubelet swaps them in place on renewal,
-// so loading per handshake is what makes rotation need no restarts and no
-// manual step. Handshake volume here is probes plus a reused traefik
-// connection — pennies. The pair is also loaded once up front so an unreadable
-// cert fails the boot loudly instead of on the first probe.
+// tlsEnvConfig reads the TLS_CERT_FILE/TLS_KEY_FILE pair mounted from the
+// cert-manager-managed Secret. The eager load and the per-handshake re-read
+// both live in tlsenv.Pair.ServerConfig, which is also what the transactions
+// listener serves with, so the two cannot drift apart.
 //
 // Both unset returns a nil config (plaintext listener); a half-set pair is an
 // error, never a plaintext fallback.
 func tlsEnvConfig() (*tls.Config, error) {
-	certFile, keyFile := env.Get("TLS_CERT_FILE", ""), env.Get("TLS_KEY_FILE", "")
-	if (certFile == "") != (keyFile == "") {
-		return nil, errors.New("health: TLS_CERT_FILE and TLS_KEY_FILE must both be set or both empty")
-	}
-	if certFile == "" {
-		return nil, nil
-	}
-
-	load := func() (*tls.Certificate, error) {
-		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
-		if err != nil {
-			return nil, fmt.Errorf("health: load tls key pair: %w", err)
-		}
-		return &cert, nil
-	}
-	if _, err := load(); err != nil {
+	pair, err := tlsenv.PairFromEnv("TLS_CERT_FILE", "TLS_KEY_FILE")
+	if err != nil {
 		return nil, err
 	}
-	return &tls.Config{
-		GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) { return load() },
-	}, nil
+	return pair.ServerConfig()
 }
 
 // Serve starts the health endpoints on addr in a background goroutine. The
 // returned error channel yields at most one listener error.
 //
 // When the TLS_CERT_FILE/TLS_KEY_FILE pair is set (the cert-manager fleet-CA
-// cert, mirroring the transactions listener) it serves HTTPS: the fleet's
+// cert, presented per handshake exactly as the transactions listener presents
+// its own, see tlsenv.Pair.ServerConfig) it serves HTTPS: the fleet's
 // traefik->backend hops are TLS with no exceptions, and /status is routed
 // through traefik. A half-set pair is an error, never a plaintext fallback;
 // the dead listener then fails the pod's probes, which is what makes the

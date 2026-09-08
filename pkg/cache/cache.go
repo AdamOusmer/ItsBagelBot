@@ -3,14 +3,7 @@
 
 package cache
 
-import (
-	"context"
-	"math/rand/v2"
-	"time"
-
-	"github.com/Yiling-J/theine-go"
-	"golang.org/x/sync/singleflight"
-)
+import "time"
 
 // DefaultCapacity is the fallback maximum number of entries for a cache, used
 // when a caller has no reason to size the cache differently (tests, cold paths,
@@ -22,101 +15,24 @@ import (
 // not an up-front reservation.
 const DefaultCapacity int64 = 10000
 
-// Cache is an in-process TTL cache wrapper around theine-go. Concurrent misses
-// on the same key are collapsed into a single loader call through singleflight,
-// so a cold or invalidated key can never stampede the database. Expirations are
-// jittered so entries written together do not all expire together.
-type Cache[V any] struct {
-	client *theine.Cache[string, V]
-	group  singleflight.Group
+// Cache is an in-process TTL cache keyed by string: concurrent misses on the
+// same key collapse into a single loader call, and expirations are jittered so
+// entries written together do not all expire together.
+//
+// Adapter over Keyed with K = string. It used to be a second, byte-for-byte
+// copy of Keyed's body; the copy drifted (Keyed grew an allocation-free hit
+// path that Cache never got) which is exactly the failure an alias prevents.
+// An alias rather than a wrapper struct so `*cache.Cache[V]` in the ~15 call
+// sites keeps compiling and no method pays an extra indirection.
+type Cache[V any] = Keyed[string, V]
 
-	capacity int64
-	ttl      time.Duration
-	jitter   time.Duration
-}
+// identityKey is the keyFn for a string-keyed cache: singleflight already keys
+// on strings, so the key is its own flight id and no conversion is needed.
+func identityKey(key string) string { return key }
 
-// New creates a cache with a maximum capacity whose entries live for ttl plus
-// a random jitter in [0, ttl/10). Theine automatically evicts items when full or expired.
-// Call Close when the cache is no longer needed.
+// New creates a string-keyed cache with a maximum capacity whose entries live
+// for ttl plus a random jitter in [0, ttl/10). Theine automatically evicts items
+// when full or expired. Call Close when the cache is no longer needed.
 func New[V any](capacity int64, ttl time.Duration) *Cache[V] {
-	client, err := theine.NewBuilder[string, V](capacity).Build()
-	if err != nil {
-		panic("failed to build theine cache: " + err.Error())
-	}
-
-	return &Cache[V]{
-		client:   client,
-		capacity: capacity,
-		ttl:      ttl,
-		jitter:   ttl / 10,
-	}
-}
-
-// Len returns the current number of live entries in the cache. It is a
-// point-in-time occupancy reading, useful for logging how full a cache runs
-// against its capacity so the capacity can be tuned to the observed working set.
-func (c *Cache[V]) Len() int { return c.client.Len() }
-
-// Capacity returns the configured maximum number of entries (the ceiling passed
-// to New), the denominator for an occupancy ratio.
-func (c *Cache[V]) Capacity() int64 { return c.capacity }
-
-// GetOrLoad returns the cached value for key, or runs loader to fill it.
-// Only one loader runs per key at a time, regardless of how many goroutines
-// miss concurrently; the others wait and share the same result.
-func (c *Cache[V]) GetOrLoad(ctx context.Context, key string, loader func(context.Context) (V, error)) (V, error) {
-	return c.GetOrLoadTTL(ctx, key, func(ctx context.Context) (V, time.Duration, error) {
-		value, err := loader(ctx)
-		return value, c.ttl, err
-	})
-}
-
-// GetOrLoadTTL is GetOrLoad with a loader-selected TTL. It is useful when
-// positive and negative results need different freshness windows. Failed loads
-// are never cached, and concurrent misses remain singleflight-collapsed.
-func (c *Cache[V]) GetOrLoadTTL(ctx context.Context, key string, loader func(context.Context) (V, time.Duration, error)) (V, error) {
-	if value, ok := c.client.Get(key); ok {
-		return value, nil
-	}
-	result, err, _ := c.group.Do(key, func() (any, error) {
-		if value, ok := c.client.Get(key); ok {
-			return value, nil
-		}
-		value, ttl, err := loader(ctx)
-		if err != nil {
-			return value, err
-		}
-		c.SetFor(key, value, ttl)
-		return value, nil
-	})
-	if err != nil {
-		var zero V
-		return zero, err
-	}
-	return result.(V), nil
-}
-
-// Set stores value under key with a jittered TTL.
-func (c *Cache[V]) Set(key string, value V) {
-	jitteredTTL := c.ttl + rand.N(c.jitter+1)
-	c.client.SetWithTTL(key, value, 1, jitteredTTL)
-}
-
-// SetFor stores value with a caller-selected TTL and the same 0–10% expiry
-// jitter as Set.
-func (c *Cache[V]) SetFor(key string, value V, ttl time.Duration) {
-	jitter := ttl / 10
-	c.client.SetWithTTL(key, value, 1, ttl+rand.N(jitter+1))
-}
-
-// Invalidate drops key from the cache and forgets any in-flight load for it,
-// so the next read observes the new state instead of a stale flight result.
-func (c *Cache[V]) Invalidate(key string) {
-	c.group.Forget(key)
-	c.client.Delete(key)
-}
-
-// Close closes the underlying theine cache.
-func (c *Cache[V]) Close() {
-	c.client.Close()
+	return NewKeyed[string, V](capacity, ttl, identityKey)
 }
