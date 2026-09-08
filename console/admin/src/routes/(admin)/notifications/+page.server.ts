@@ -87,30 +87,53 @@ type SendForm = {
   target: string;
 };
 
+// The compose fields as posted: trimmed, capped, not yet judged. Reading and
+// validating are split so neither half carries the other's branches.
+type SendFields = Omit<SendForm, 'scope' | 'target'> & { scope: string };
+
+function sendFields(f: FormData): SendFields {
+  return {
+    scope: String(f.get('scope') ?? '').trim(),
+    targetUserId: String(f.get('target_user_id') ?? '').trim(),
+    targetUsername: String(f.get('target_username') ?? '').trim(),
+    title: String(f.get('title') ?? '')
+      .trim()
+      .slice(0, MAX_TITLE_LENGTH),
+    body: String(f.get('body') ?? '')
+      .trim()
+      .slice(0, MAX_BODY_LENGTH),
+    level: String(f.get('level') ?? 'info').trim(),
+    expiresAtRaw: String(f.get('expires_at') ?? '').trim()
+  };
+}
+
+// A direct notification needs somebody to send it to; either identifier will
+// do, and the send path resolves the username when only that is given.
+function missingDirectTarget(v: SendFields): boolean {
+  return v.scope === 'direct' && !v.targetUserId && !v.targetUsername;
+}
+
+// The first thing wrong with the form, or '' if nothing is.
+function sendFormError(v: SendFields): string {
+  if (v.scope !== 'broadcast' && v.scope !== 'direct') return 'invalid scope';
+  if (missingDirectTarget(v)) return 'target user id or username required';
+  if (!v.title || !v.body) return 'title and body are required';
+  if (!LEVELS.has(v.level)) return 'invalid level';
+  return '';
+}
+
 // parseSendForm trims/caps the compose fields and validates them. Returns the
 // parsed form, or { error } for the action to hand to fail(400).
 function parseSendForm(f: FormData): SendForm | { error: string } {
-  const scope = String(f.get('scope') ?? '').trim();
-  const targetUserId = String(f.get('target_user_id') ?? '').trim();
-  const targetUsername = String(f.get('target_username') ?? '').trim();
-  const title = String(f.get('title') ?? '')
-    .trim()
-    .slice(0, MAX_TITLE_LENGTH);
-  const body = String(f.get('body') ?? '')
-    .trim()
-    .slice(0, MAX_BODY_LENGTH);
-  const level = String(f.get('level') ?? 'info').trim();
-  const expiresAtRaw = String(f.get('expires_at') ?? '').trim();
-
-  if (scope !== 'broadcast' && scope !== 'direct') return { error: 'invalid scope' };
-  if (scope === 'direct' && !targetUserId && !targetUsername) {
-    return { error: 'target user id or username required' };
-  }
-  if (!title || !body) return { error: 'title and body are required' };
-  if (!LEVELS.has(level)) return { error: 'invalid level' };
-
-  const target = scope === 'direct' ? targetUserId || targetUsername : 'all users';
-  return { scope, targetUserId, targetUsername, title, body, level, expiresAtRaw, target };
+  const v = sendFields(f);
+  const error = sendFormError(v);
+  if (error) return { error };
+  const scope = v.scope as SendForm['scope'];
+  return {
+    ...v,
+    scope,
+    target: scope === 'direct' ? v.targetUserId || v.targetUsername : 'all users'
+  };
 }
 
 // audit records a mutating action best-effort: a logging failure must never

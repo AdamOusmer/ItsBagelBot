@@ -63,6 +63,23 @@ function chunkPattern(fixtureChunks: string[]): RegExp {
   return new RegExp(`(^|[/\\\\])(${fixtureChunks.join('|')})([.-]|[/\\\\])`);
 }
 
+/** Everything one emitted file can be guilty of, as failure lines. */
+async function scanFile(
+  file: string,
+  name: string,
+  chunks: RegExp,
+  forbidden: string[]
+): Promise<string[]> {
+  const emittedChunk = chunks.test(name) ? [`${name}: development fixture chunk was emitted`] : [];
+  if (!textExtensions.has(extname(file))) return emittedChunk;
+
+  const body = await readFile(file, 'utf8');
+  const referenced = forbidden
+    .filter((token) => body.includes(token))
+    .map((token) => `${name}: references development fixture module ${JSON.stringify(token)}`);
+  return [...emittedChunk, ...referenced];
+}
+
 export async function assertProductionClean(spec: ProductionCleanSpec): Promise<void> {
   const forbidden = [
     `${spec.app.toUpperCase()}_DEV_FIXTURE_INCLUDED_IN_PRODUCTION`,
@@ -71,22 +88,13 @@ export async function assertProductionClean(spec: ProductionCleanSpec): Promise<
     ...(spec.demoCopy ?? [])
   ];
   const chunks = chunkPattern(spec.fixtureChunks);
-
-  const failures: string[] = [];
   const files = await filesUnder(spec.buildRoot);
 
-  for (const file of files) {
-    const name = relative(spec.buildRoot, file);
-    if (chunks.test(name)) failures.push(`${name}: development fixture chunk was emitted`);
-    if (!textExtensions.has(extname(file))) continue;
-
-    const body = await readFile(file, 'utf8');
-    for (const token of forbidden) {
-      if (body.includes(token)) {
-        failures.push(`${name}: references development fixture module ${JSON.stringify(token)}`);
-      }
-    }
-  }
+  const failures = (
+    await Promise.all(
+      files.map((file) => scanFile(file, relative(spec.buildRoot, file), chunks, forbidden))
+    )
+  ).flat();
 
   if (failures.length > 0) {
     console.error(`Production ${spec.app} build contains development-only demo artifacts:`);
