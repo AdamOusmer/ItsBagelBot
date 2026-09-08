@@ -22,7 +22,8 @@ import (
 )
 
 // discordGuildAPI is the REST slice every handler in this package fires
-// through. discordrate.LimitedClient satisfies this directly.
+// through. *discapi.Client satisfies this directly; internal/discordrate
+// hands one over with the shared rate gate on its transport.
 type discordGuildAPI interface {
 	SendChat(ctx context.Context, post discapi.ChatPost) error
 	SendPanel(ctx context.Context, post discapi.EmbedPost, buttons []discapi.Button) (discapi.Message, error)
