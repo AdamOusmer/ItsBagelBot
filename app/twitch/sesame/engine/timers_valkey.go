@@ -17,6 +17,7 @@ import (
 	"ItsBagelBot/internal/moderation"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/cache"
 	"ItsBagelBot/pkg/codec"
 
 	"github.com/nats-io/nats.go"
@@ -159,7 +160,7 @@ func NewValkeyTimerStore(client valkey.Client, pub bus.Publisher, proj projectio
 }
 
 func timerKey(broadcasterID uint64, timerID string) string {
-	return timerKeyPrefix + strconv.FormatUint(broadcasterID, 10) + ":" + timerID
+	return cache.PairKey(timerKeyPrefix, broadcasterID, timerID)
 }
 
 // ArmAll SETs one Valkey key per enabled timer of an enabled "timers" module,

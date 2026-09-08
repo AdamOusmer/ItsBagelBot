@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"time"
 
+	"ItsBagelBot/pkg/cache"
+
 	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
 )
@@ -39,7 +41,7 @@ func NewValkeyGreetStore(client valkey.Client, ttl time.Duration, log *zap.Logge
 	return &ValkeyGreetStore{client: client, ttlArg: strconv.FormatInt(int64(ttl.Seconds()), 10)}
 }
 
-func greetKey(id uint64) string { return greetKeyPrefix + strconv.FormatUint(id, 10) }
+func greetKey(id uint64) string { return cache.UserKey(greetKeyPrefix, id) }
 
 func (s *ValkeyGreetStore) FirstGreet(ctx context.Context, broadcasterID uint64, chatterID string) (bool, error) {
 	key := greetKey(broadcasterID)

@@ -124,15 +124,22 @@ func NormalizeCounterName(name string) string {
 }
 
 func counterChannelKey(broadcasterID uint64, name string) string {
-	return loyalCounterChannelPrefix + strconv.FormatUint(broadcasterID, 10) + ":" + name
+	return cache.PairKey(loyalCounterChannelPrefix, broadcasterID, name)
 }
 
 func counterViewerKey(broadcasterID uint64, name string) string {
-	return loyalCounterViewerPrefix + strconv.FormatUint(broadcasterID, 10) + ":" + name
+	return cache.PairKey(loyalCounterViewerPrefix, broadcasterID, name)
 }
 
 func balanceKey(broadcasterID, viewerID uint64) string {
-	return loyalBalancePrefix + strconv.FormatUint(broadcasterID, 10) + ":" + strconv.FormatUint(viewerID, 10)
+	return cache.PairKey(loyalBalancePrefix, broadcasterID, strconv.FormatUint(viewerID, 10))
+}
+
+// counterScopeKey names one counter's cached scope. The read and the
+// invalidate had each spelled the concatenation out, one literal apart from
+// drifting; naming it means an edit cannot leave a stale entry unreachable.
+func counterScopeKey(broadcasterID uint64, name string) string {
+	return cache.PairKey("scope:", broadcasterID, name)
 }
 
 // Earn hands one accrual to the reporter (fire-and-forget; the balance cache
@@ -145,7 +152,7 @@ func (s *ValkeyLoyaltyStore) Earn(broadcasterID, viewerID uint64, login, name st
 // defaults to channel scope and materializes in the service on its first
 // flushed bump.
 func (s *ValkeyLoyaltyStore) scope(ctx context.Context, broadcasterID uint64, name string) string {
-	key := "scope:" + strconv.FormatUint(broadcasterID, 10) + ":" + name
+	key := counterScopeKey(broadcasterID, name)
 	scope, err := s.scopes.GetOrLoad(ctx, key, func(ctx context.Context) (string, error) {
 		c, found, err := s.rpc.CounterGet(ctx, broadcasterID, name, 0, "")
 		if err != nil {
@@ -365,7 +372,7 @@ func (s *ValkeyLoyaltyStore) CounterInvalidate(ctx context.Context, broadcasterI
 		s.log.Warn("loyalty: failed to invalidate counter view",
 			zap.Uint64("broadcaster_id", broadcasterID), zap.String("counter", name), zap.Error(err))
 	}
-	s.scopes.Invalidate("scope:" + strconv.FormatUint(broadcasterID, 10) + ":" + name)
+	s.scopes.Invalidate(counterScopeKey(broadcasterID, name))
 }
 
 // BalanceGet returns one viewer's standing through a short-TTL Valkey cache.

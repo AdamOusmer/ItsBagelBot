@@ -9,6 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"ItsBagelBot/pkg/cache"
+
 	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
 )
@@ -66,7 +68,7 @@ func NewValkeyCampaign(client valkey.Client, log *zap.Logger) *ValkeyCampaign {
 }
 
 func campaignKey(broadcasterID uint64, band uint64) string {
-	return "am:tmpl:" + strconv.FormatUint(broadcasterID, 10) + ":" + strconv.FormatUint(band, 16)
+	return cache.PairKey("am:tmpl:", broadcasterID, strconv.FormatUint(band, 16))
 }
 
 // simBands splits a SimHash into two 32-bit bands, exactly like the unexported
