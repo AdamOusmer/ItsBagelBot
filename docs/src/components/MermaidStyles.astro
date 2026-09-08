@@ -31,23 +31,23 @@ pre.mermaid[data-processed] {
     max-width: 100%;
     position: relative;
     padding: clamp(1.5rem, 3vw, 2.5rem) clamp(1rem, 2.5vw, 2rem);
-    border: 1px solid rgb(var(--bb-green-glow-rgb) / 0.22) !important;
+    border: 1px solid rgba(var(--bb-green-glow-rgb), 0.22) !important;
     border-radius: 14px;
     background:
         radial-gradient(
             120% 100% at 0% 0%,
-            rgb(var(--bb-green-rgb) / 0.08),
+            rgba(var(--bb-green-rgb), 0.08),
             transparent 60%
         ),
         radial-gradient(
             120% 100% at 100% 100%,
-            rgb(var(--bb-tan-rgb) / 0.05),
+            rgba(var(--bb-tan-rgb), 0.05),
             transparent 60%
         ),
         var(--bb-mermaid-panel) !important;
     box-shadow:
-        inset 0 1px 0 rgb(var(--bb-white-pure-rgb) / 0.03),
-        0 1px 0 rgb(var(--bb-shadow-rgb) / 0.4);
+        inset 0 1px 0 rgba(var(--bb-white-pure-rgb), 0.03),
+        0 1px 0 rgba(var(--bb-shadow-rgb), 0.4);
     overflow-x: auto;
     overflow-y: hidden;
     text-align: center;
@@ -72,7 +72,7 @@ pre.mermaid:not([data-processed]) {
     display: block;
     margin: 1.5rem 0;
     padding: 1.25rem;
-    border: 1px solid rgb(var(--bb-green-glow-rgb) / 0.12);
+    border: 1px solid rgba(var(--bb-green-glow-rgb), 0.12);
     border-radius: 12px;
     background: var(--bb-card-bg);
     color: var(--bb-muted);
@@ -91,7 +91,7 @@ pre.mermaid svg {
     shape-rendering: geometricPrecision;
     text-rendering: geometricPrecision;
     /* Subtle ambient lift — not so heavy that it muddies node edges */
-    filter: drop-shadow(0 4px 12px rgb(var(--bb-shadow-rgb) / 0.30));
+    filter: drop-shadow(0 4px 12px rgba(var(--bb-shadow-rgb), 0.30));
 }
 
 /* ── Edges / arrows ────────────────────────────────────────────────
@@ -138,7 +138,7 @@ pre.mermaid svg .edgeLabel {
 
 pre.mermaid svg .edgeLabel rect {
     fill: var(--bb-elev-2) !important;
-    stroke: rgb(var(--bb-tan-rgb) / 0.35) !important;
+    stroke: rgba(var(--bb-tan-rgb), 0.35) !important;
     stroke-width: 1px !important;
     rx: 6;
     ry: 6;
@@ -327,34 +327,34 @@ pre.mermaid svg .relationshipLabel tspan {
 
 /* Panel container */
 :root[data-theme="light"] pre.mermaid[data-processed] {
-    border-color: rgb(var(--bb-green-rgb) / 0.25) !important;
+    border-color: rgba(var(--bb-green-rgb), 0.25) !important;
     background:
         radial-gradient(
             120% 100% at 0% 0%,
-            rgb(var(--bb-green-rgb) / 0.06),
+            rgba(var(--bb-green-rgb), 0.06),
             transparent 60%
         ),
         radial-gradient(
             120% 100% at 100% 100%,
-            rgb(var(--bb-tan-deep-rgb) / 0.05),
+            rgba(var(--bb-tan-deep-rgb), 0.05),
             transparent 60%
         ),
         var(--bb-paper) !important;
     color: var(--bb-ink);
     box-shadow:
-        inset 0 1px 0 rgb(var(--bb-white-pure-rgb) / 0.6),
-        0 1px 2px rgb(var(--bb-ink-rgb) / 0.08);
+        inset 0 1px 0 rgba(var(--bb-white-pure-rgb), 0.6),
+        0 1px 2px rgba(var(--bb-ink-rgb), 0.08);
 }
 
 :root[data-theme="light"] pre.mermaid:not([data-processed]) {
     background: var(--bb-paper);
     color: var(--bb-ink-mid);
-    border-color: rgb(var(--bb-green-rgb) / 0.18);
+    border-color: rgba(var(--bb-green-rgb), 0.18);
 }
 
 /* SVG shadow — lighter on cream so it doesn't look muddy */
 :root[data-theme="light"] pre.mermaid svg {
-    filter: drop-shadow(0 2px 8px rgb(var(--bb-ink-rgb) / 0.10));
+    filter: drop-shadow(0 2px 8px rgba(var(--bb-ink-rgb), 0.10));
 }
 
 /* ── Light: diagram title ─────────────────────────────────────── */
@@ -388,7 +388,7 @@ pre.mermaid svg .relationshipLabel tspan {
 /* ── Light: edge labels → dark text on cream pill ─────────────── */
 :root[data-theme="light"] pre.mermaid svg .edgeLabel rect {
     fill: var(--bb-paper-sidebar) !important;
-    stroke: rgb(var(--bb-green-rgb) / 0.30) !important;
+    stroke: rgba(var(--bb-green-rgb), 0.30) !important;
 }
 
 :root[data-theme="light"] pre.mermaid svg .edgeLabel foreignObject > div {
@@ -445,12 +445,12 @@ pre.mermaid svg .relationshipLabel tspan {
 
 :root[data-theme="light"] pre.mermaid svg .labelBox {
     fill: var(--bb-paper) !important;
-    stroke: rgb(var(--bb-ink-rgb) / 0.3) !important;
+    stroke: rgba(var(--bb-ink-rgb), 0.3) !important;
 }
 
 :root[data-theme="light"] pre.mermaid svg .note {
     fill: var(--bb-paper) !important;
-    stroke: rgb(var(--bb-green-rgb) / 0.35) !important;
+    stroke: rgba(var(--bb-green-rgb), 0.35) !important;
 }
 
 :root[data-theme="light"] pre.mermaid svg .noteText,
@@ -461,14 +461,14 @@ pre.mermaid svg .relationshipLabel tspan {
 :root[data-theme="light"] pre.mermaid svg .activation0,
 :root[data-theme="light"] pre.mermaid svg .activation1,
 :root[data-theme="light"] pre.mermaid svg .activation2 {
-    fill: rgb(var(--bb-green-rgb) / 0.15) !important;
+    fill: rgba(var(--bb-green-rgb), 0.15) !important;
     stroke: var(--bb-green) !important;
 }
 
 /* ── Light: clusters / subgraphs ──────────────────────────────── */
 :root[data-theme="light"] pre.mermaid svg .cluster rect {
-    fill: rgb(var(--bb-green-rgb) / 0.06) !important;
-    stroke: rgb(var(--bb-green-rgb) / 0.30) !important;
+    fill: rgba(var(--bb-green-rgb), 0.06) !important;
+    stroke: rgba(var(--bb-green-rgb), 0.30) !important;
 }
 
 :root[data-theme="light"] pre.mermaid svg [class*="cluster"] text,
@@ -511,10 +511,10 @@ pre.mermaid[data-processed].mermaid-interactive-ready {
     transition: border-color 180ms ease, box-shadow 180ms ease;
 }
 pre.mermaid[data-processed].mermaid-interactive-ready:hover {
-    border-color: rgb(var(--bb-green-glow-rgb) / 0.45) !important;
+    border-color: rgba(var(--bb-green-glow-rgb), 0.45) !important;
     box-shadow:
-        inset 0 1px 0 rgb(var(--bb-white-pure-rgb) / 0.04),
-        0 6px 24px rgb(var(--bb-shadow-rgb) / 0.45);
+        inset 0 1px 0 rgba(var(--bb-white-pure-rgb), 0.04),
+        0 6px 24px rgba(var(--bb-shadow-rgb), 0.45);
 }
 
 /* ── Expand button — bottom-right corner of each panel ─────────── */
@@ -533,8 +533,8 @@ pre.mermaid[data-processed].mermaid-interactive-ready:hover {
     letter-spacing: 0.04em;
     text-transform: uppercase;
     color: var(--bb-tan-pale);
-    background: rgb(var(--bb-bg-rgb) / 0.72);
-    border: 1px solid rgb(var(--bb-green-glow-rgb) / 0.35);
+    background: rgba(var(--bb-bg-rgb), 0.72);
+    border: 1px solid rgba(var(--bb-green-glow-rgb), 0.35);
     border-radius: 999px;
     cursor: pointer;
     backdrop-filter: blur(6px);
@@ -554,7 +554,7 @@ pre.mermaid[data-processed]:focus-within .mermaid-fullscreen-btn,
 .mermaid-fullscreen-btn:focus-visible {
     color: var(--bb-white);
     border-color: var(--bb-green-glow);
-    background: rgb(var(--bb-green-rgb) / 0.22);
+    background: rgba(var(--bb-green-rgb), 0.22);
     outline: none;
 }
 .mermaid-fullscreen-btn svg {
@@ -565,13 +565,13 @@ pre.mermaid[data-processed]:focus-within .mermaid-fullscreen-btn,
 
 :root[data-theme="light"] .mermaid-fullscreen-btn {
     color: var(--bb-ink);
-    background: rgb(var(--bb-paper-sidebar-rgb, 243 236 219) / 0.85);
-    border-color: rgb(var(--bb-green-rgb) / 0.45);
+    background: rgba(var(--bb-paper-sidebar-rgb, 243, 236, 219), 0.85);
+    border-color: rgba(var(--bb-green-rgb), 0.45);
 }
 :root[data-theme="light"] .mermaid-fullscreen-btn:hover,
 :root[data-theme="light"] .mermaid-fullscreen-btn:focus-visible {
     color: var(--bb-ink);
-    background: rgb(var(--bb-green-rgb) / 0.14);
+    background: rgba(var(--bb-green-rgb), 0.14);
     border-color: var(--bb-green);
 }
 
@@ -601,18 +601,18 @@ pre.mermaid[data-processed]:focus-within .mermaid-fullscreen-btn,
     background:
         radial-gradient(
             70% 60% at 18% 12%,
-            rgb(var(--bb-green-rgb) / 0.42),
+            rgba(var(--bb-green-rgb), 0.42),
             transparent 65%
         ),
         radial-gradient(
             65% 55% at 82% 88%,
-            rgb(var(--bb-tan-deep-rgb) / 0.38),
+            rgba(var(--bb-tan-deep-rgb), 0.38),
             transparent 60%
         ),
         radial-gradient(
             100% 100% at 50% 50%,
-            rgb(var(--bb-mermaid-panel-rgb, 13 12 10) / 0.85),
-            rgb(var(--bb-bg-rgb) / 0.97) 75%
+            rgba(var(--bb-mermaid-panel-rgb, 13, 12, 10), 0.85),
+            rgba(var(--bb-bg-rgb), 0.97) 75%
         );
     backdrop-filter: blur(14px) saturate(160%);
     animation: bb-modal-fade 220ms ease-out;
@@ -621,18 +621,18 @@ pre.mermaid[data-processed]:focus-within .mermaid-fullscreen-btn,
     background:
         radial-gradient(
             70% 60% at 18% 12%,
-            rgb(var(--bb-green-rgb) / 0.22),
+            rgba(var(--bb-green-rgb), 0.22),
             transparent 65%
         ),
         radial-gradient(
             65% 55% at 82% 88%,
-            rgb(var(--bb-tan-deep-rgb) / 0.20),
+            rgba(var(--bb-tan-deep-rgb), 0.20),
             transparent 60%
         ),
         radial-gradient(
             100% 100% at 50% 50%,
-            rgb(var(--bb-paper-warm-rgb, 250 245 233) / 0.88),
-            rgb(var(--bb-paper-warm-rgb, 250 245 233) / 0.97) 75%
+            rgba(var(--bb-paper-warm-rgb, 250, 245, 233), 0.88),
+            rgba(var(--bb-paper-warm-rgb, 250, 245, 233), 0.97) 75%
         );
 }
 
@@ -711,17 +711,17 @@ pre.mermaid[data-processed]:focus-within .mermaid-fullscreen-btn,
     display: flex;
     gap: 0.35rem;
     padding: 0.4rem;
-    background: rgb(var(--bb-bg-rgb) / 0.82);
-    border: 1px solid rgb(var(--bb-green-glow-rgb) / 0.35);
+    background: rgba(var(--bb-bg-rgb), 0.82);
+    border: 1px solid rgba(var(--bb-green-glow-rgb), 0.35);
     border-radius: 999px;
     backdrop-filter: blur(8px);
-    box-shadow: 0 6px 24px rgb(var(--bb-shadow-rgb) / 0.45);
+    box-shadow: 0 6px 24px rgba(var(--bb-shadow-rgb), 0.45);
     animation: bb-modal-rise 220ms cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 :root[data-theme="light"] .mermaid-modal__toolbar {
-    background: rgb(var(--bb-paper-warm-rgb, 250 245 233) / 0.92);
-    border-color: rgb(var(--bb-green-rgb) / 0.4);
-    box-shadow: 0 6px 24px rgb(var(--bb-ink-rgb) / 0.15);
+    background: rgba(var(--bb-paper-warm-rgb, 250, 245, 233), 0.92);
+    border-color: rgba(var(--bb-green-rgb), 0.4);
+    box-shadow: 0 6px 24px rgba(var(--bb-ink-rgb), 0.15);
 }
 
 .mermaid-modal__toolbar button {
@@ -745,8 +745,8 @@ pre.mermaid[data-processed]:focus-within .mermaid-fullscreen-btn,
 .mermaid-modal__toolbar button:hover,
 .mermaid-modal__toolbar button:focus-visible {
     color: var(--bb-white);
-    background: rgb(var(--bb-green-rgb) / 0.22);
-    border-color: rgb(var(--bb-green-glow-rgb) / 0.55);
+    background: rgba(var(--bb-green-rgb), 0.22);
+    border-color: rgba(var(--bb-green-glow-rgb), 0.55);
     outline: none;
 }
 .mermaid-modal__toolbar button:active {
@@ -758,7 +758,7 @@ pre.mermaid[data-processed]:focus-within .mermaid-fullscreen-btn,
 :root[data-theme="light"] .mermaid-modal__toolbar button:hover,
 :root[data-theme="light"] .mermaid-modal__toolbar button:focus-visible {
     color: var(--bb-ink);
-    background: rgb(var(--bb-green-rgb) / 0.15);
+    background: rgba(var(--bb-green-rgb), 0.15);
     border-color: var(--bb-green);
 }
 
@@ -771,13 +771,13 @@ pre.mermaid[data-processed]:focus-within .mermaid-fullscreen-btn,
     font-size: 0.7rem;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: rgb(var(--bb-tan-pale-rgb) / 0.55);
+    color: rgba(var(--bb-tan-pale-rgb), 0.55);
     user-select: none;
     pointer-events: none;
     animation: bb-modal-fade 240ms ease-out;
 }
 :root[data-theme="light"] .mermaid-modal__hint {
-    color: rgb(var(--bb-ink-rgb) / 0.5);
+    color: rgba(var(--bb-ink-rgb), 0.5);
 }
 
 @keyframes bb-modal-fade {
