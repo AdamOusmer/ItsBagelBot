@@ -42,26 +42,36 @@ This site deploys as a static Cloudflare Pages project:
 
 ## Guides
 
-The guide pages under `/guides` are content, not markup. Copy lives in
-`src/content/guides/<slug>.<lang>.ts`, one file per guide per language, each
-default-exporting a `GuideContent` typed by `src/lib/guides/types.ts`. A guide
-is a list of sections, and a section is a list of blocks: `prose`, `callout`,
-`table`, `chat`, `dash`, `steps`, `cards`, `widget`. Rendering lives in
+The guide pages under `/guides` are content, not markup, and a guide is two
+things kept apart:
+
+- **Structure**, once, in `src/lib/guides/skeletons/<slug>.ts`: a
+  `GuideSkeleton` (`src/lib/guides/skeleton.ts`) holding the section ids and
+  order, the block kinds (`prose`, `callout`, `table`, `chat`, `dash`, `steps`,
+  `cards`, `widget`), which mock screen or widget each block shows, and the
+  shape of the data those widgets take. Every translatable string is a
+  `k('some.key')`.
+- **Copy**, once per language, in `src/content/guides/<slug>.<lang>.ts`: a flat
+  `GuideStrings` map from those keys to text, and nothing else.
+
+`getGuide()` hydrates the two together. Rendering lives in
 `src/components/guides/`, routing in `src/pages/[...lang]/guides/`.
 
 To add a guide:
 
-1. Write `src/content/guides/<slug>.en.ts` and `<slug>.fr.ts`.
+1. Write `src/lib/guides/skeletons/<slug>.ts` and
+   `src/content/guides/<slug>.en.ts`.
 2. Add the slug to `guideSlugs` in `src/lib/guides/slugs.ts`. Its position sets
    the hub card order, the chapter number, and the prev/next pager. The page
    route, the hub card and the hreflang pairing follow from that one line.
 
-French is not optional. Every English change needs the French twin in the same
-commit, because `assertGuideParity()` in `src/lib/guides/registry.ts` runs at
-module load and fails `bun run build` and `bun run dev` when the two drift: a
-missing file, different section ids or order, a different block sequence, a
-table with a different shape, a different number of chat lines or dashboard
-notes, or an em dash anywhere in either language.
+To add a language, copy an existing `<slug>.<lang>.ts` and translate the
+right-hand sides. There is no structure to get wrong and no second copy of it
+to keep in step; a key a language omits renders the English line rather than a
+blank. `assertGuideParity()` in `src/lib/guides/parity.ts` runs at module load
+and fails `bun run build` and `bun run dev` on a guide with no English copy, on
+a key no skeleton entry names (a typo, or a line left behind by a deleted
+block), or on an em dash anywhere in any language.
 
 Two conventions inside a section:
 
