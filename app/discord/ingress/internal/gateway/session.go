@@ -37,7 +37,13 @@ type Identity struct {
 type Conn interface {
 	Read(ctx context.Context) ([]byte, error)
 	Write(ctx context.Context, data []byte) error
+	// Close ends a socket this client means to reconnect on, leaving the
+	// Discord session resumable. See gateway.reconnectingClose for why that
+	// is not the same thing as a normal closure.
 	Close() error
+	// Shutdown ends a socket nothing will come back to, telling Discord to
+	// discard the session. Only the process stopping earns it.
+	Shutdown() error
 	// CloseCode reports the WebSocket close code carried by err, or 0 when
 	// err is not a close frame at all (a plain network drop, a decode
 	// failure, a cancelled context). It hangs off the connection because
@@ -469,9 +475,20 @@ func (s Session) oneSocket(ctx context.Context, url string, st *resumeState) ses
 	if err != nil {
 		return sessionEnd{err: err}
 	}
-	defer func() { _ = conn.Close() }()
+	defer func() { _ = endSocket(ctx, conn) }()
 	perr := s.pump(ctx, conn, st)
 	return sessionEnd{code: conn.CloseCode(perr), reason: conn.CloseReason(perr), err: perr}
+}
+
+// endSocket closes the connection the way the reason for closing demands. A
+// cancelled context is the only evidence this process has that it is stopping
+// rather than reconnecting, and that difference decides whether Discord keeps
+// the session for the next socket -- see reconnectingClose.
+func endSocket(ctx context.Context, conn Conn) error {
+	if ctx.Err() != nil {
+		return conn.Shutdown()
+	}
+	return conn.Close()
 }
 
 // dialConn bounds the handshake and nothing else: the deadline is released
