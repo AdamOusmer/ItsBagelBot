@@ -213,7 +213,7 @@
   <div class="deck {editorDraft ? 'inspecting' : ''}">
     <DeckList>
       {#if rows.length}
-        <ul class="list" aria-label={t('channelpoints.listLabel')}>
+        <ul class="bb-list" aria-label={t('channelpoints.listLabel')}>
           {#each rows as r, i (r.id)}
             <RewardRow
               reward={r}
@@ -288,6 +288,5 @@
     .deck.inspecting { grid-template-columns: minmax(0, 1fr) 420px; }
   }
 
-  .list { list-style: none; margin: 0; padding: 0; }
-  .list :global(li:last-child .row-shell) { border-bottom: none; }
+  .bb-list :global(li:last-child .row-shell) { border-bottom: none; }
 </style>

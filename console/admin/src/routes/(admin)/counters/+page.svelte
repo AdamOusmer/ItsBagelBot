@@ -79,8 +79,8 @@
   {:else if counters.length === 0}
     <p class="mut">No bot counters yet. Create one above; system modules can bump it by name.</p>
   {:else}
-    <div class="tbl-wrap">
-      <table class="tbl">
+    <div class="bb-tbl-wrap">
+      <table class="bb-tbl">
         <thead>
           <tr>
             <th scope="col">Counter</th>
@@ -133,22 +133,10 @@
 
   .mut { font-family: var(--bb-font-body); font-size: 13px; color: var(--bb-muted); }
 
-  .tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  .tbl { width: 100%; border-collapse: collapse; font-family: var(--bb-font-body); font-size: 13px; }
-  .tbl th[scope='col'] {
-    text-align: left;
-    font-size: 11px;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
-    padding: 4px 8px;
-    border-bottom: 1px solid var(--bb-border);
-    font-weight: 600;
-  }
-  .tbl td,
-  .tbl th[scope='row'] { padding: 8px; border-bottom: 1px solid rgba(240, 236, 228, 0.05); color: var(--bb-white); }
-  .tbl th[scope='row'] { text-align: left; font-weight: 600; }
-  .tbl .r { text-align: right; }
+  /* Roomier rows than the shared default: this table is short and the extra
+     pixel of leading reads better against the create form above it. */
+  .bb-tbl td,
+  .bb-tbl th[scope='row'] { padding: 8px; }
 
   .set-row { display: inline-flex; gap: 8px; align-items: center; justify-content: flex-end; }
   .num { width: 120px; }

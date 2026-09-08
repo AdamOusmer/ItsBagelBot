@@ -362,7 +362,7 @@
   <div class="deck" class:inspecting={expanded === NEW || editTarget !== null}>
     <DeckList>
       {#if rows.length}
-        <ul class="list" aria-label={t('quotes.listLabel')}>
+        <ul class="bb-list" aria-label={t('quotes.listLabel')}>
           {#each rows as quote (quote.number)}
             <QuoteRow
               {quote}
@@ -544,8 +544,7 @@
     .deck { grid-template-columns: minmax(0, 1fr) 300px; }
     .deck.inspecting { grid-template-columns: minmax(0, 1fr) 420px; }
   }
-  .list { list-style: none; margin: 0; padding: 0; }
-  .list :global(.row-shell:last-child) { border-bottom: none; }
+  .bb-list :global(.row-shell:last-child) { border-bottom: none; }
 
   .inspector {
     position: sticky;

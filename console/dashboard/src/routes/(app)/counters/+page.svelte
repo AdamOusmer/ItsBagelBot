@@ -553,8 +553,8 @@
                 {:else if (data.entries ?? []).length === 0}
                   <p class="hint">{t('counters.entriesEmpty')}</p>
                 {:else}
-                  <div class="tbl-wrap">
-                    <table class="tbl">
+                  <div class="bb-tbl-wrap">
+                    <table class="bb-tbl">
                       <caption class="sr-only">{t('counters.entriesTitle', { name: selected.name })}</caption>
                       <thead>
                         <tr>
@@ -826,31 +826,14 @@
   .hint { margin: 0; font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
   .hints { display: flex; flex-direction: column; gap: 8px; }
 
-  .tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  .tbl { width: 100%; border-collapse: collapse; font-family: var(--bb-font-body); font-size: 13px; }
-  .tbl th[scope='col'] {
-    text-align: left;
-    font-size: 11px;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
-    padding: 4px 8px;
-    border-bottom: 1px solid var(--bb-border);
-    font-weight: 600;
-  }
-  .tbl td,
-  .tbl th[scope='row'] { padding: 7px 8px; border-bottom: 1px solid rgba(240, 236, 228, 0.05); color: var(--bb-white); }
-  .tbl th[scope='row'] { text-align: left; font-weight: 600; }
-  .tbl .r { text-align: right; }
-  .tbl .mut { color: var(--bb-muted); }
   /* Fixed value column so every value cell is the same box and the right edge
      never drifts with content. */
-  .tbl th.r,
-  .tbl td.r { width: 128px; }
+  .bb-tbl th.r,
+  .bb-tbl td.r { width: 128px; }
   /* Trailing per-bucket delete column. */
-  .tbl th.act,
-  .tbl td.act { width: 32px; padding-left: 4px; padding-right: 0; text-align: right; }
-  .tbl :global(.entry-del:hover) { color: #cf8a78; }
+  .bb-tbl th.act,
+  .bb-tbl td.act { width: 32px; padding-left: 4px; padding-right: 0; text-align: right; }
+  .bb-tbl :global(.entry-del:hover) { color: #cf8a78; }
 
   /* Per-entry value cell: a 2-track grid (number box | 28px save slot). The
      save check toggles visibility inside its always-reserved slot, so the
@@ -863,15 +846,15 @@
     gap: 6px;
     justify-items: end;
   }
-  .tbl :global(.entry-num) {
+  .bb-tbl :global(.entry-num) {
     width: 90px;
     text-align: right;
     font-variant-numeric: tabular-nums;
     appearance: textfield;
     -moz-appearance: textfield;
   }
-  .tbl :global(.entry-num)::-webkit-outer-spin-button,
-  .tbl :global(.entry-num)::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .bb-tbl :global(.entry-num)::-webkit-outer-spin-button,
+  .bb-tbl :global(.entry-num)::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
   .entry-ro {
     width: 90px;
     text-align: right;
@@ -879,7 +862,7 @@
     color: var(--bb-white);
   }
   .entry-slot { width: 28px; height: 28px; }
-  .tbl :global(.entry-check.is-off) { visibility: hidden; }
+  .bb-tbl :global(.entry-check.is-off) { visibility: hidden; }
 
   /* Add a value: key fields stack full-width (the panel is only 420px, so a
      side-by-side row would cramp), then the value + Add button share the last

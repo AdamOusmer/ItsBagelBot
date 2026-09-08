@@ -486,7 +486,7 @@
   <div class="deck">
     <DeckList>
       {#if dir === null}
-        <div class="row-skeletons">
+        <div class="bb-skeletons">
           {#each [0, 1, 2, 3, 4, 5] as i (i)}<Skeleton variant="block" height="52px" />{/each}
         </div>
       {:else if visible.length}
@@ -502,7 +502,7 @@
             {/if}
           {/each}
         </div>
-        <ul class="list" aria-label="Users">
+        <ul class="bb-list" aria-label="Users">
           {#each visible as u (u.id)}
             <li>
               <!-- data-cursor="off": a row is a reading surface, not a control;
@@ -884,7 +884,6 @@
   .dir-stats .mid { color: var(--rule-strong); }
   .search-form { display: flex; gap: 8px; align-items: center; }
 
-  .row-skeletons { display: flex; flex-direction: column; gap: 8px; padding: 12px; }
 
   .deck { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
   @media (min-width: 1080px) {
@@ -916,7 +915,6 @@
   .msg-fields textarea { resize: vertical; font-family: var(--bb-font-body); }
 
   /* ── Five state colors. VIP is silver, deliberately not purple. ─────────── */
-  .list { list-style: none; margin: 0; padding: 0; }
 
   /* Header and rows share one grid template so every column lines up. */
   .user-head, .user-row {

@@ -195,11 +195,11 @@
   <div class="deck">
     <DeckList>
       {#if !rosterLoaded}
-        <div class="row-skeletons">
+        <div class="bb-skeletons">
           {#each [0, 1, 2] as i (i)}<Skeleton variant="block" height="60px" />{/each}
         </div>
       {:else if roster.length}
-        <ul class="list" aria-label="Staff">
+        <ul class="bb-list" aria-label="Staff">
           {#each roster as member (member.id)}
             <li class="staff-row">
               <span class="avatar">{member.login.slice(0, 1).toUpperCase()}</span>
@@ -341,7 +341,6 @@
   .roster-count { font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted); }
 
   .add-card { margin-bottom: 16px; }
-  .row-skeletons { display: flex; flex-direction: column; gap: 8px; padding: 12px; }
   .add-form { display: grid; grid-template-columns: repeat(4, 1fr) auto; gap: 12px; align-items: end; }
   .add-form label {
     display: flex; flex-direction: column; gap: 6px;
@@ -366,7 +365,6 @@
     .deck { grid-template-columns: minmax(0, 1fr) 320px; }
   }
 
-  .list { list-style: none; margin: 0; padding: 0; }
   .staff-row {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto auto;

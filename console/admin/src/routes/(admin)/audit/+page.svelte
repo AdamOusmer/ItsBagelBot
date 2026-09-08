@@ -135,11 +135,11 @@
 
   <DeckList>
     {#if entries === null}
-      <div class="row-skeletons">
+      <div class="bb-skeletons">
         {#each [0, 1, 2, 3, 4, 5] as i (i)}<Skeleton variant="block" height="48px" />{/each}
       </div>
     {:else if rows.length}
-      <ul class="list" aria-label="Audit entries">
+      <ul class="bb-list" aria-label="Audit entries">
         {#each rows as e (e.id)}
           <li class="audit-row">
             <span class="adot {e.ok ? '' : 'err'}"></span>
@@ -183,9 +183,7 @@
   .toolbar-search :global(.search) { width: 100%; }
   .fail-note { font-family: var(--bb-font-mono); font-size: 11px; color: #cf8a78; margin-left: 10px; }
 
-  .row-skeletons { display: flex; flex-direction: column; gap: 8px; padding: 12px; }
 
-  .list { list-style: none; margin: 0; padding: 0; }
   .audit-row {
     display: flex; align-items: flex-start; gap: 12px;
     padding: 12px 14px; border-bottom: 1px solid var(--rule);

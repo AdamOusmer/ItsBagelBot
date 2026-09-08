@@ -216,8 +216,8 @@
       {#if top.length === 0}
         <EmptyState title={t('loyalty.topEmpty')} />
       {:else}
-        <div class="tbl-wrap">
-          <table class="tbl">
+        <div class="bb-tbl-wrap">
+          <table class="bb-tbl">
             <caption class="sr-only">{t('loyalty.topCaption')}</caption>
             <thead>
               <tr>
@@ -301,26 +301,10 @@
 
   .cmd-block { margin-top: 26px; }
 
-  /* Table scrolls inside its own box so the page never scrolls sideways at 320px. */
-  .tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  .tbl { width: 100%; border-collapse: collapse; font-family: var(--bb-font-body); font-size: 13px; }
-  .tbl caption { text-align: left; }
-  .tbl th[scope='col'] {
-    text-align: left;
-    font-size: 11px;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
-    padding: 4px 8px;
-    border-bottom: 1px solid var(--bb-border);
-    font-weight: 600;
-  }
-  .tbl td,
-  .tbl th[scope='row'] { padding: 7px 8px; border-bottom: 1px solid rgba(240, 236, 228, 0.05); color: var(--bb-white); }
-  .tbl th[scope='row'] { font-weight: 600; font-family: var(--bb-font-mono); font-variant-numeric: tabular-nums; }
-  .tbl .r { text-align: right; }
-  .tbl .rank { color: var(--bb-muted); }
-  .tbl .mut { color: var(--bb-muted); }
+  /* Standings are read down the column, so the row header is the tabular
+     mono face the rest of the numeric UI uses. */
+  .bb-tbl th[scope='row'] { font-family: var(--bb-font-mono); font-variant-numeric: tabular-nums; }
+  .bb-tbl .rank { color: var(--bb-muted); }
 
   @media (max-width: 480px) {
     .actions { flex-wrap: wrap; }
