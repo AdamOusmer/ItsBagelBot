@@ -124,8 +124,14 @@ func (f *lockFake) session(c net.Conn) {
 	}
 }
 
+// respArgs is one decoded RESP command: the verb followed by its arguments,
+// or (once exec has split the verb off) the arguments alone. Named so the
+// fake's handlers say what they take rather than passing bare string slices
+// around.
+type respArgs []string
+
 // exec runs one command under the fake's lock.
-func (f *lockFake) exec(args []string) []byte {
+func (f *lockFake) exec(args respArgs) []byte {
 	if len(args) == 0 {
 		return lockErr("empty command")
 	}
@@ -151,7 +157,7 @@ func (f *lockFake) exec(args []string) []byte {
 	return lockErr(fmt.Sprintf("unknown command '%s'", cmd))
 }
 
-func (f *lockFake) execSET(args []string) []byte {
+func (f *lockFake) execSET(args respArgs) []byte {
 	if f.failSET {
 		return lockErr("SIMULATED write failure")
 	}
@@ -168,14 +174,14 @@ func (f *lockFake) execSET(args []string) []byte {
 	return lockSimple("OK")
 }
 
-func (f *lockFake) execGET(args []string) []byte {
+func (f *lockFake) execGET(args respArgs) []byte {
 	if !f.aliveLocked(args[0]) {
 		return lockNil()
 	}
 	return lockBulk(f.strs[args[0]])
 }
 
-func (f *lockFake) execDEL(args []string) []byte {
+func (f *lockFake) execDEL(args respArgs) []byte {
 	deleted := int64(0)
 	for _, key := range args {
 		if _, ok := f.strs[key]; ok {
@@ -190,7 +196,7 @@ func (f *lockFake) execDEL(args []string) []byte {
 // execEVAL implements only releaseIfOwner: DEL KEYS[1] while its value equals
 // ARGV[1]. Any other script is an error, so a caller that grows a second
 // script cannot silently get this one's behaviour.
-func (f *lockFake) execEVAL(args []string) []byte {
+func (f *lockFake) execEVAL(args respArgs) []byte {
 	script, numkeys := args[0], mustAtoi(args[1])
 	if script != releaseIfOwner || numkeys != 1 {
 		return lockErr("unsupported script in fake")
@@ -207,7 +213,7 @@ func (f *lockFake) execEVAL(args []string) []byte {
 // setOptions decodes the SET flags this fake understands. An unknown flag is
 // ignored rather than rejected: the tests assert on outcomes, and a flag that
 // changed nothing here would fail its own assertion anyway.
-func setOptions(args []string) (bool, time.Duration) {
+func setOptions(args respArgs) (bool, time.Duration) {
 	nx, ttl := false, time.Duration(0)
 	for i := 0; i < len(args); i++ {
 		switch strings.ToUpper(args[i]) {
@@ -246,12 +252,12 @@ func lockBulk(s string) []byte   { return []byte("$" + strconv.Itoa(len(s)) + "\
 func lockNil() []byte            { return []byte("$-1\r\n") }
 func lockErr(s string) []byte    { return []byte("-ERR " + s + "\r\n") }
 
-func readLockRESPArray(r *bufio.Reader) ([]string, error) {
+func readLockRESPArray(r *bufio.Reader) (respArgs, error) {
 	n, err := readLockCount(r, '*')
 	if err != nil {
 		return nil, err
 	}
-	args := make([]string, 0, n)
+	args := make(respArgs, 0, n)
 	for i := 0; i < n; i++ {
 		arg, err := readLockBulk(r)
 		if err != nil {

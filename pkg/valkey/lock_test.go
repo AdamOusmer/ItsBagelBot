@@ -11,6 +11,51 @@ import (
 
 const lockKey = "test:lock"
 
+// The three outcomes a claim can have are asserted through named helpers
+// rather than inline: each test then reads as the SEQUENCE it is about (take,
+// contend, release, retake) instead of a wall of two-clause conditions, and
+// the "a lost race is not an error" rule is stated once where it can be
+// explained once.
+
+// mustWin fails unless the caller took the key.
+func mustWin(t *testing.T, what string, won bool, err error) {
+	t.Helper()
+	if err != nil || !won {
+		t.Fatalf("%s: won=%v err=%v, want true/nil", what, won, err)
+	}
+}
+
+// mustLose fails unless the caller was cleanly told someone else holds the
+// key. valkey-go surfaces the declined NX as a Nil error, so a contended
+// acquire must still report a NIL error: passing that through would turn every
+// normal contention into a logged outage.
+func mustLose(t *testing.T, what string, won bool, err error) {
+	t.Helper()
+	if won || err != nil {
+		t.Fatalf("%s: won=%v err=%v, want false/nil", what, won, err)
+	}
+}
+
+// mustFail fails unless a backend that cannot answer was reported as such. A
+// failure must not look like a lost race: callers choose different behaviour
+// for the two (back off vs proceed uncoordinated), so collapsing them would
+// silently pick one.
+func mustFail(t *testing.T, what string, won bool, err error) {
+	t.Helper()
+	if won || err == nil {
+		t.Fatalf("%s: won=%v err=%v, want false/non-nil", what, won, err)
+	}
+}
+
+// mustHold fails unless key is present and held under owner.
+func mustHold(t *testing.T, f *lockFake, key, owner string) {
+	t.Helper()
+	got, ok := f.value(key)
+	if !ok || got != owner {
+		t.Fatalf("lock %s = %q present=%v, want held by %q", key, got, ok, owner)
+	}
+}
+
 func TestOwnerLockAcquireIsExclusive(t *testing.T) {
 	f := newLockFake(t)
 	ctx := context.Background()
@@ -18,19 +63,10 @@ func TestOwnerLockAcquireIsExclusive(t *testing.T) {
 	second := NewOwnerLock(f.client, lockKey, "pod-b")
 
 	won, err := first.Acquire(ctx, time.Minute)
-	if err != nil || !won {
-		t.Fatalf("first acquire: won=%v err=%v", won, err)
-	}
-	// The second replica must learn it lost WITHOUT an error: valkey-go
-	// surfaces the declined NX as a Nil error, and reporting that as a failure
-	// would turn every normal contention into a logged outage.
+	mustWin(t, "first acquire", won, err)
 	won, err = second.Acquire(ctx, time.Minute)
-	if won || err != nil {
-		t.Fatalf("contended acquire: won=%v err=%v, want false/nil", won, err)
-	}
-	if got, _ := f.value(lockKey); got != "pod-a" {
-		t.Fatalf("lock value = %q, want the first owner's token", got)
-	}
+	mustLose(t, "contended acquire", won, err)
+	mustHold(t, f, lockKey, "pod-a")
 }
 
 func TestOwnerLockReleaseIgnoresForeignOwner(t *testing.T) {
@@ -39,24 +75,22 @@ func TestOwnerLockReleaseIgnoresForeignOwner(t *testing.T) {
 	holder := NewOwnerLock(f.client, lockKey, "pod-a")
 	other := NewOwnerLock(f.client, lockKey, "pod-b")
 
-	if won, err := holder.Acquire(ctx, time.Minute); err != nil || !won {
-		t.Fatalf("acquire: won=%v err=%v", won, err)
-	}
+	won, err := holder.Acquire(ctx, time.Minute)
+	mustWin(t, "acquire", won, err)
+
 	// A late holder releasing a lock someone else now owns is the failure
 	// releaseIfOwner exists to prevent, so a foreign release must be a no-op
-	// AND must not report an error (it is a normal late-arrival, not a fault).
+	// AND must not report an error (a late arrival is not a fault).
 	if err := other.Release(ctx); err != nil {
 		t.Fatalf("foreign release: %v", err)
 	}
-	if got, ok := f.value(lockKey); !ok || got != "pod-a" {
-		t.Fatalf("after foreign release value=%q present=%v, want the lock intact", got, ok)
-	}
+	mustHold(t, f, lockKey, "pod-a")
+
 	if err := holder.Release(ctx); err != nil {
 		t.Fatalf("owner release: %v", err)
 	}
-	if won, err := other.Acquire(ctx, time.Minute); err != nil || !won {
-		t.Fatalf("acquire after release: won=%v err=%v", won, err)
-	}
+	won, err = other.Acquire(ctx, time.Minute)
+	mustWin(t, "acquire after release", won, err)
 }
 
 func TestOwnerLockReleaseOfAbsentKeyIsNoError(t *testing.T) {
@@ -69,13 +103,8 @@ func TestOwnerLockReleaseOfAbsentKeyIsNoError(t *testing.T) {
 func TestOwnerLockAcquireReportsBackendFailure(t *testing.T) {
 	f := newLockFake(t)
 	f.breakSET()
-	// A backend that cannot answer must NOT look like a lost race: callers
-	// choose different behaviour for the two (back off vs proceed
-	// uncoordinated), so collapsing them would silently pick one.
 	won, err := NewOwnerLock(f.client, lockKey, "pod-a").Acquire(context.Background(), time.Minute)
-	if won || err == nil {
-		t.Fatalf("acquire against a broken backend: won=%v err=%v, want false/non-nil", won, err)
-	}
+	mustFail(t, "acquire against a broken backend", won, err)
 }
 
 // Acquire arms in milliseconds (PX), not seconds: a caller with a 1500ms lease
@@ -87,17 +116,16 @@ func TestOwnerLockAcquireExpiresWithMillisecondPrecision(t *testing.T) {
 	holder := NewOwnerLock(f.client, lockKey, "pod-a")
 	other := NewOwnerLock(f.client, lockKey, "pod-b")
 
-	if won, err := holder.Acquire(ctx, 1500*time.Millisecond); err != nil || !won {
-		t.Fatalf("acquire: won=%v err=%v", won, err)
-	}
+	won, err := holder.Acquire(ctx, 1500*time.Millisecond)
+	mustWin(t, "acquire", won, err)
+
 	f.advance(time.Second)
-	if won, _ := other.Acquire(ctx, time.Minute); won {
-		t.Fatal("lock freed at 1s; a 1500ms TTL was truncated to seconds")
-	}
+	won, err = other.Acquire(ctx, time.Minute)
+	mustLose(t, "acquire at 1s of a 1500ms TTL", won, err)
+
 	f.advance(600 * time.Millisecond)
-	if won, err := other.Acquire(ctx, time.Minute); err != nil || !won {
-		t.Fatalf("acquire after expiry: won=%v err=%v", won, err)
-	}
+	won, err = other.Acquire(ctx, time.Minute)
+	mustWin(t, "acquire after expiry", won, err)
 }
 
 func TestClaimOnceHasOneWinnerPerTTL(t *testing.T) {
@@ -106,27 +134,19 @@ func TestClaimOnceHasOneWinnerPerTTL(t *testing.T) {
 	const key = "test:claim"
 
 	won, err := ClaimOnce(ctx, f.client, key, 30*time.Second)
-	if err != nil || !won {
-		t.Fatalf("first claim: won=%v err=%v", won, err)
-	}
-	// Losing is the common case (every other replica handling the same
-	// expiry), so it must stay off the error path.
+	mustWin(t, "first claim", won, err)
 	won, err = ClaimOnce(ctx, f.client, key, 30*time.Second)
-	if won || err != nil {
-		t.Fatalf("second claim: won=%v err=%v, want false/nil", won, err)
-	}
+	mustLose(t, "second claim", won, err)
+
 	// Nobody releases a claim; it lapses on its own and the next tick may win.
 	f.advance(30 * time.Second)
-	if won, err := ClaimOnce(ctx, f.client, key, 30*time.Second); err != nil || !won {
-		t.Fatalf("claim after expiry: won=%v err=%v", won, err)
-	}
+	won, err = ClaimOnce(ctx, f.client, key, 30*time.Second)
+	mustWin(t, "claim after expiry", won, err)
 }
 
 func TestClaimOnceReportsBackendFailure(t *testing.T) {
 	f := newLockFake(t)
 	f.breakSET()
 	won, err := ClaimOnce(context.Background(), f.client, "test:claim", 30*time.Second)
-	if won || err == nil {
-		t.Fatalf("claim against a broken backend: won=%v err=%v, want false/non-nil", won, err)
-	}
+	mustFail(t, "claim against a broken backend", won, err)
 }
