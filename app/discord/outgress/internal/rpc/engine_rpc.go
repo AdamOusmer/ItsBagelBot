@@ -41,7 +41,7 @@ type engineREST interface {
 // errors.Join, not a return on the first failure: main Fatals on any error
 // here, so the only thing an early return changes is that the report names one
 // broken subject instead of all of them.
-func SubscribeEngine(rest engineREST, live kv.LiveStore, wire EngineWiring) error {
+func SubscribeEngine(rest engineREST, live kv.LiveStore, wire Wiring) error {
 	h := &engineRPC{rest: rest, live: live, log: wire.Log}
 	at := func(name string) verb { return verb{Name: name, Timeout: engineHandleTimeout} }
 	return errors.Join(

@@ -141,7 +141,7 @@ func subscribeRPCs(deps rpcDeps) {
 	if err := rpc.SubscribeSetup(setupWorker, setupWiring); err != nil {
 		deps.Log.Fatal("failed to subscribe discord guild setup rpc", zap.Error(err))
 	}
-	engineWiring := rpc.EngineWiring{
+	engineWiring := rpc.Wiring{
 		NC: deps.NC, Prefix: deps.Cfg.DiscordEngineRPCPrefix, Queue: deps.Cfg.DiscordEngineRPCQueue,
 		App: deps.NRApp, Log: deps.Log.Named("engine-rpc"),
 	}

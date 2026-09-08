@@ -64,7 +64,7 @@ type TicketDeps struct {
 // SubscribeTickets wires the ticket-desk orchestrations (see
 // internal/domain/rpc/discordoutgress/ticket.go for why they are RPCs). Split
 // from SubscribeEngine so neither function is a wall of registrations.
-func SubscribeTickets(rest ticketREST, deps TicketDeps, wire EngineWiring) error {
+func SubscribeTickets(rest ticketREST, deps TicketDeps, wire Wiring) error {
 	h := &ticketRPC{rest: rest, memo: deps.Memo, botID: deps.BotID, log: wire.Log}
 	open := func(name string) verb { return verb{Name: name, Timeout: ticketOpenTimeout} }
 	return errors.Join(

@@ -26,11 +26,6 @@ type Wiring struct {
 	Log    *zap.Logger
 }
 
-// EngineWiring is Wiring under the name the engine-facing surface has always
-// used. Kept as an alias rather than a second struct so main keeps composing
-// one value for SubscribeEngine and SubscribeTickets.
-type EngineWiring = Wiring
-
 // verb is the per-subject half: the name appended to the prefix, and the
 // deadline the handler runs under. The two travel together because they are
 // the only things that differ between the registrations below, and pairing
