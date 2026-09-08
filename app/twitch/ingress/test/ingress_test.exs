@@ -4,6 +4,8 @@
 defmodule Ingress.PipelineTest do
   use ExUnit.Case, async: true
 
+  import Ingress.EnvCase
+
   alias Ingress.{JSON, LaneMessage, Pipeline}
 
   @special MapSet.new(["1001", "1002"])
@@ -106,8 +108,7 @@ defmodule Ingress.PipelineTest do
         "message" => %{"text" => "hello"}
       }
 
-      Application.put_env(:ingress, :special_user_ids, @special)
-      on_exit(fn -> Application.put_env(:ingress, :special_user_ids, MapSet.new()) end)
+      put_env(special_user_ids: @special)
 
       assert {:publish, "twitch.ingress.event.premium", %{lane: :premium}} =
                Pipeline.route(notification("channel.chat.message", event), @meta)
@@ -123,8 +124,7 @@ defmodule Ingress.PipelineTest do
         "badges" => badges
       }
 
-      Application.put_env(:ingress, :special_user_ids, @special)
-      on_exit(fn -> Application.put_env(:ingress, :special_user_ids, MapSet.new()) end)
+      put_env(special_user_ids: @special)
 
       assert {:publish, _subject, %{badges: ^badges}} =
                Pipeline.route(notification("channel.chat.message", event), @meta)

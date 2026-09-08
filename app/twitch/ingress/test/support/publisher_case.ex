@@ -16,6 +16,10 @@ defmodule Ingress.PublisherCase do
 
   Every fixture registers its own `on_exit`, so teardown unwinds in reverse:
   the shard count is erased before the config it was started under is restored.
+
+  The env save/restore and the polling probe moved to `Ingress.EnvCase`, which
+  the suites outside this template needed too; they are re-imported here so
+  publisher suites keep reaching them unqualified.
   """
 
   use ExUnit.CaseTemplate
@@ -24,30 +28,13 @@ defmodule Ingress.PublisherCase do
 
   using do
     quote do
+      import Ingress.EnvCase
       import Ingress.PublisherCase
 
       alias Ingress.FakeGnat
       alias Ingress.Nats.Publisher
     end
   end
-
-  @doc """
-  Applies `:ingress` application-env overrides for the duration of the test and
-  restores the previous values (deleting keys that were unset) afterwards.
-  """
-  @spec put_env(keyword()) :: :ok
-  def put_env(overrides) do
-    previous = Enum.map(overrides, fn {key, _} -> {key, Application.get_env(:ingress, key)} end)
-    Enum.each(overrides, fn {key, value} -> Application.put_env(:ingress, key, value) end)
-    ExUnit.Callbacks.on_exit(fn -> Enum.each(previous, &restore_env/1) end)
-    :ok
-  end
-
-  @spec restore_env(atom(), term()) :: :ok
-  def restore_env(key, nil), do: Application.delete_env(:ingress, key)
-  def restore_env(key, value), do: Application.put_env(:ingress, key, value)
-
-  defp restore_env({key, value}), do: restore_env(key, value)
 
   @doc """
   Starts a supervised `Ingress.FakeGnat` registered under `conn`. Extra opts go
@@ -106,24 +93,4 @@ defmodule Ingress.PublisherCase do
 
   defp age_row({id, :batch, entries, _ts}, expired), do: {id, :batch, entries, expired}
   defp age_row({id, :batch_hold, _ts}, expired), do: {id, :batch_hold, expired}
-
-  @doc """
-  Polls `check` on a 10ms tick until it holds, up to `attempts` times.
-  """
-  @spec eventually((-> boolean()), non_neg_integer()) :: boolean()
-  def eventually(check, attempts \\ 100)
-
-  def eventually(check, attempts) do
-    cond do
-      check.() ->
-        true
-
-      attempts == 0 ->
-        false
-
-      true ->
-        Process.sleep(10)
-        eventually(check, attempts - 1)
-    end
-  end
 end

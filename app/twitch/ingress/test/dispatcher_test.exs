@@ -4,6 +4,8 @@
 defmodule Ingress.DispatcherTest do
   use ExUnit.Case, async: true
 
+  import Ingress.EnvCase
+
   alias Ingress.Dispatcher
 
   defp start_dispatcher(opts \\ []) do
@@ -31,7 +33,7 @@ defmodule Ingress.DispatcherTest do
     ]
 
     start_supervised!({Ingress.Dispatcher.Supervisor, Keyword.merge(defaults, opts)})
-    eventually(fn -> workers(name) |> Enum.all?(&(is_pid(&1) and Process.alive?(&1))) end)
+    assert eventually(fn -> workers(name) |> Enum.all?(&(is_pid(&1) and Process.alive?(&1))) end)
     name
   end
 
@@ -56,14 +58,6 @@ defmodule Ingress.DispatcherTest do
     {admitted, bc}
   end
 
-  defp eventually(fun, attempts \\ 100) do
-    cond do
-      fun.() -> :ok
-      attempts <= 0 -> flunk("condition not met in time")
-      true -> Process.sleep(10) && eventually(fun, attempts - 1)
-    end
-  end
-
   test "admits under capacity and sends directly to a worker" do
     dispatcher = start_dispatcher()
 
@@ -71,7 +65,7 @@ defmodule Ingress.DispatcherTest do
     assert_receive {:processed, worker, %{text: "hi"}, %{broadcaster_id: "b1"}}, 500
 
     send(worker, :finish)
-    eventually(fn -> counts(dispatcher, "b1") == {0, 0} end)
+    assert eventually(fn -> counts(dispatcher, "b1") == {0, 0} end)
   end
 
   test "drops past pod-wide running plus mailbox capacity" do
@@ -112,7 +106,7 @@ defmodule Ingress.DispatcherTest do
     assert counts(dispatcher, "b1") == {1, 1}
 
     send(worker, :finish)
-    eventually(fn -> counts(dispatcher, "b1") == {0, 0} end)
+    assert eventually(fn -> counts(dispatcher, "b1") == {0, 0} end)
 
     assert Dispatcher.dispatch(%{n: 2}, meta("b1"), dispatcher) == :ok
     assert_receive {:processed, worker2, %{n: 2}, _}, 500
@@ -167,9 +161,9 @@ defmodule Ingress.DispatcherTest do
 
     Process.exit(worker, :kill)
 
-    eventually(fn ->
-      counts(dispatcher, "b1") == {0, 0} and counts(dispatcher, "b2") == {0, 0}
-    end)
+    assert eventually(fn ->
+             counts(dispatcher, "b1") == {0, 0} and counts(dispatcher, "b2") == {0, 0}
+           end)
   end
 
   test "a crash reclaims completions still buffered inside the worker" do
@@ -191,7 +185,7 @@ defmodule Ingress.DispatcherTest do
     assert counts(dispatcher, "b1") == {1, 1}
 
     Process.exit(worker, :kill)
-    eventually(fn -> counts(dispatcher, "b1") == {0, 0} end)
+    assert eventually(fn -> counts(dispatcher, "b1") == {0, 0} end)
   end
 
   test "nil broadcaster IDs use only the pod-wide bound" do
@@ -201,7 +195,7 @@ defmodule Ingress.DispatcherTest do
     assert_receive {:processed, worker, %{n: 1}, %{broadcaster_id: nil}}, 500
     send(worker, :finish)
 
-    eventually(fn -> Dispatcher.admitted_count(dispatcher) == 0 end)
+    assert eventually(fn -> Dispatcher.admitted_count(dispatcher) == 0 end)
   end
 
   test "a worker mailbox replaces the central dispatcher queue" do
@@ -226,6 +220,6 @@ defmodule Ingress.DispatcherTest do
     assert_receive {:processed, worker, %{n: 1}, _}, 500
     send(worker, :finish)
 
-    eventually(fn -> :ets.lookup(dispatcher, {:bc, "b1"}) == [] end)
+    assert eventually(fn -> :ets.lookup(dispatcher, {:bc, "b1"}) == [] end)
   end
 end
