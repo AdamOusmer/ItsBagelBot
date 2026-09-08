@@ -75,6 +75,35 @@ func (w wsConn) CloseReason(err error) string {
 	return ""
 }
 
+// reconnectingClose is the code this client sends when it closes a socket it
+// intends to come straight back on.
+//
+// It is deliberately NOT StatusNormalClosure. Discord documents 1000 and 1001
+// from a client as "terminate the session", not "the transport went away": the
+// session is discarded and the next connect must IDENTIFY. Every teardown path
+// here sent 1000 (the deferred close in oneSocket, socket.writeFailed), so the
+// op 6 RESUME that followed was answered with op 9 d:false, resumeState
+// invalidated, and a full IDENTIFY went out -- against the 1000/day allowance
+// that already got this token reset once (see budget.go). The 24h sample of
+// 2026-09-07 was 21,575 reconnects on one process, every one of them spending
+// an identify and dropping whatever Discord had buffered.
+//
+// 4000-4999 is RFC 6455's private-use range, which coder/websocket accepts
+// from Close (validWireCloseCode in close.go admits 3000-4999) and which
+// Discord treats as an abnormal transport close, leaving the session
+// resumable. CloseNow would also avoid the 1000 but sends no frame at all,
+// which leaves the peer to time the session out rather than being told.
+const reconnectingClose = websocket.StatusCode(4000)
+
+// Close ends the socket in a way that leaves the Discord session resumable.
+// It is the close every reconnect path takes; see reconnectingClose.
 func (w wsConn) Close() error {
+	return w.c.Close(reconnectingClose, "reconnecting")
+}
+
+// Shutdown ends the socket for good, with the protocol's own 1000. This is
+// the one path where telling Discord to discard the session is correct: the
+// process is stopping and nothing is coming back to resume it.
+func (w wsConn) Shutdown() error {
 	return w.c.Close(websocket.StatusNormalClosure, "")
 }

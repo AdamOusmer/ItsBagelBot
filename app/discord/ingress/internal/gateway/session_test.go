@@ -45,6 +45,10 @@ type scriptedConn struct {
 	// old behaviour.
 	closed    chan struct{}
 	closeOnce sync.Once
+	// closeSent records the code each teardown asked for, in order, mirroring
+	// wsConn: the reconnect path sends a private-range code so Discord keeps
+	// the session, and only a deliberate shutdown sends 1000.
+	closeSent []websocket.StatusCode
 }
 
 func (s *scriptedConn) Read(ctx context.Context) ([]byte, error) {
@@ -92,14 +96,29 @@ func (s *scriptedConn) Write(_ context.Context, data []byte) error {
 	return err
 }
 
-func (s *scriptedConn) Close() error {
+func (s *scriptedConn) Close() error { return s.closeWith(reconnectingClose) }
+
+func (s *scriptedConn) Shutdown() error { return s.closeWith(websocket.StatusNormalClosure) }
+
+// closeWith records which teardown ran and unblocks a parked Read, the way a
+// real socket behaves when a writer closes it out from under the pump.
+func (s *scriptedConn) closeWith(code websocket.StatusCode) error {
 	s.mu.Lock()
 	closed := s.closed
+	s.closeSent = append(s.closeSent, code)
 	s.mu.Unlock()
 	if closed != nil {
 		s.closeOnce.Do(func() { close(closed) })
 	}
 	return nil
+}
+
+// closeCodes reports the teardown codes so far, under the lock a background
+// writer goroutine may still be racing.
+func (s *scriptedConn) closeCodes() []websocket.StatusCode {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]websocket.StatusCode(nil), s.closeSent...)
 }
 
 // CloseCode mirrors wsConn: a real close frame carries its own code, and
@@ -394,9 +413,16 @@ func TestSessionResumesAfterReady(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	first := &scriptedConn{reads: [][]byte{helloFrame(t), ready}}
+	// readErr, not a parked read: this socket has to die on its own so the
+	// teardown below is the reconnect path rather than the shutdown one.
+	first := &scriptedConn{reads: [][]byte{helloFrame(t), ready}, readErr: errors.New("websocket closed")}
 	sess := Session{Token: "t", Dial: func(context.Context, string) (Conn, error) { return first, nil }, Handle: &recHandler{}}
 	_ = sess.oneSocket(ctx, "ws://x", st)
+
+	// The close code is half of what makes the resume below possible: 1000
+	// tells Discord to discard the session, and it answered every RESUME that
+	// followed with op 9. See reconnectingClose.
+	wantCloseCode(t, first.closeCodes(), reconnectingClose)
 
 	sessionID, resumeURL, ok := st.resumable()
 	got := resumeSnapshot{SessionID: sessionID, ResumeURL: resumeURL, OK: ok}
@@ -410,6 +436,32 @@ func TestSessionResumesAfterReady(t *testing.T) {
 	if ops := opsWritten(t, second.wroteSnapshot()); !firstOpIs(ops, opResume) {
 		t.Fatalf("reconnect ops = %v, want Resume (%d) first", ops, opResume)
 	}
+}
+
+// wantCloseCode asserts a socket was torn down exactly once, with want. Both
+// the reconnect and the shutdown case check this, so the length guard and the
+// comparison are named here rather than repeated inline.
+func wantCloseCode(t *testing.T, got []websocket.StatusCode, want websocket.StatusCode) {
+	t.Helper()
+	if len(got) != 1 || got[0] != want {
+		t.Fatalf("close codes = %v, want exactly one %d", got, want)
+	}
+}
+
+// The deliberate shutdown path is the one place 1000 is still right: the
+// process is stopping, and there is no next socket to resume onto.
+func TestShutdownClosesWithNormalClosure(t *testing.T) {
+	// No readErr and no closed channel: this socket sits there until the
+	// context ends, which is what a healthy connection on a draining pod
+	// looks like.
+	conn := &scriptedConn{reads: [][]byte{helloFrame(t)}}
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	sess := Session{Token: "t", Dial: func(context.Context, string) (Conn, error) { return conn, nil }}
+
+	_ = sess.oneSocket(ctx, "ws://x", &resumeState{})
+
+	wantCloseCode(t, conn.closeCodes(), websocket.StatusNormalClosure)
 }
 
 // resumeSnapshot is a resumeState.resumable() triple, named so

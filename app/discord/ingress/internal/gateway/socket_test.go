@@ -8,6 +8,9 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -68,6 +71,39 @@ func TestWSConnCloseCodeReadsRealFrames(t *testing.T) {
 	// fatal, but it is not "no code" either.
 	if got := w.CloseCode(websocket.CloseError{Code: websocket.StatusNormalClosure}); got != int(websocket.StatusNormalClosure) {
 		t.Fatalf("CloseCode(normal closure) = %d, want %d", got, websocket.StatusNormalClosure)
+	}
+}
+
+// The reconnecting close only works if the library will actually send it:
+// coder/websocket refuses close codes outside the wire-valid set, and a
+// refused Close writes no frame at all, which leaves the peer to time the
+// session out instead of being told the transport went. This dials a real
+// socket rather than reading close.go, and asserts the peer sees the private
+// -range code and not 1000.
+func TestReconnectingCloseReachesThePeer(t *testing.T) {
+	seen := make(chan websocket.StatusCode, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			return
+		}
+		_, _, rerr := c.Read(r.Context())
+		seen <- websocket.CloseStatus(rerr)
+	}))
+	defer srv.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	conn, err := DialWS(ctx, "ws"+strings.TrimPrefix(srv.URL, "http"))
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	if err := conn.Close(); err != nil {
+		t.Fatalf("reconnecting close: %v", err)
+	}
+
+	if code := <-seen; code != reconnectingClose {
+		t.Fatalf("peer saw close code %d, want %d", code, reconnectingClose)
 	}
 }
 
@@ -228,6 +264,11 @@ func (c *racingConn) Write(context.Context, []byte) error {
 }
 
 func (c *racingConn) Close() error {
+	c.unblockRead()
+	return nil
+}
+
+func (c *racingConn) Shutdown() error {
 	c.unblockRead()
 	return nil
 }
