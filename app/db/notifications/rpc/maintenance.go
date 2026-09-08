@@ -7,8 +7,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/nats-io/nats.go"
-	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/db/notifications/repository"
@@ -26,10 +24,9 @@ type maintenanceRPC struct {
 // The subject is NOT exported from the NOTIFICATIONS_RPC account, so only a
 // client holding the notifications credentials (the cron reuses them) can reach
 // it. The queue group means exactly one replica runs the sweep per cron tick.
-func SubscribeMaintenance(nc *nats.Conn, repo *repository.Notifications, subject, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
-	m := &maintenanceRPC{repo: repo, log: log}
-	return bus.QueueSubscribeJSON[notificationsrpc.CleanupRequest, notificationsrpc.CleanupReply](
-		nc, subject, queueGroup, 30*time.Second, app, log, m.cleanup)
+func SubscribeMaintenance(w Wiring, subject string) error {
+	m := &maintenanceRPC{repo: w.Repo, log: w.Log}
+	return bus.Serve(w.Within(cleanupBudget), subject, m.cleanup)
 }
 
 func (m *maintenanceRPC) cleanup(ctx context.Context, _ notificationsrpc.CleanupRequest) notificationsrpc.CleanupReply {

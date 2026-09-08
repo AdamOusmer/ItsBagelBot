@@ -67,30 +67,31 @@ func main() {
 	userGetSubject := env.Get("NATS_ADMIN_USER_SUBJECT_PREFIX", "bagel.rpc.admin.user") + ".get"
 
 	adminPrefix := env.Get("NATS_ADMIN_NOTIFICATIONS_SUBJECT_PREFIX", "bagel.rpc.admin.notifications")
+	wiring := rpc.Wiring{
+		RPCWiring: bus.RPCWiring{NC: nc, App: core.NR, Queue: queueGroup, Log: log},
+		Repo:      repo,
+	}
 	adminCfg := rpc.AdminConfig{
 		Prefix:             adminPrefix,
 		InvalidationPrefix: invalidationPrefix,
 		UserGetSubject:     userGetSubject,
-		QueueGroup:         queueGroup,
 		DefaultTTL:         defaultTTL,
 	}
-	svcboot.FatalIf(log, rpc.SubscribeAdmin(nc, repo, adminCfg, core.NR, log), "failed to subscribe admin rpc")
+	svcboot.FatalIf(log, rpc.SubscribeAdmin(wiring, adminCfg), "failed to subscribe admin rpc")
 
 	userPrefix := env.Get("NATS_NOTIFICATIONS_SUBJECT_PREFIX", "bagel.rpc.notifications")
 	userCfg := rpc.UserConfig{
 		Prefix:      userPrefix,
-		QueueGroup:  queueGroup,
 		FullReadTTL: fullReadTTL,
 		PeekTTL:     peekTTL,
 	}
-	svcboot.FatalIf(log, rpc.SubscribeUser(nc, repo, userCfg, core.NR, log), "failed to subscribe user rpc")
+	svcboot.FatalIf(log, rpc.SubscribeUser(wiring, userCfg), "failed to subscribe user rpc")
 
 	// Internal janitor verb driven by the k3s cron (see deploy/k8s). Not
 	// exported from the NATS account, so only a client with the service's own
 	// credentials can reach it.
 	cleanupSubject := env.Get("NATS_NOTIFICATIONS_CLEANUP_SUBJECT", "bagel.rpc.internal.notifications.cleanup")
-	svcboot.FatalIf(log, rpc.SubscribeMaintenance(nc, repo, cleanupSubject, queueGroup, core.NR, log),
-		"failed to subscribe maintenance rpc")
+	svcboot.FatalIf(log, rpc.SubscribeMaintenance(wiring, cleanupSubject), "failed to subscribe maintenance rpc")
 
 	// No lane check: this service consumes no event lane, only request/reply.
 	databoot.ServeHealth(databoot.Health{

@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
-	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/db/notifications/ent/notification"
@@ -34,12 +33,13 @@ type adminRPC struct {
 	log        *zap.Logger
 }
 
-// AdminConfig carries the NATS wiring for the admin RPC surface.
+// AdminConfig carries the subjects the admin RPC surface answers on and
+// speaks to. The connection, queue group, New Relic app and logger ride the
+// shared Wiring instead.
 type AdminConfig struct {
 	Prefix             string
 	InvalidationPrefix string
 	UserGetSubject     string
-	QueueGroup         string
 	// DefaultTTL bounds a notification's global life when the sender does not
 	// set an explicit expiry, so every send is eventually reachable by the
 	// cron janitor instead of living forever.
@@ -47,30 +47,26 @@ type AdminConfig struct {
 }
 
 // SubscribeAdmin registers the admin-console verbs: compose/send a
-// notification, list the sent history, and retract one.
-func SubscribeAdmin(nc *nats.Conn, repo *repository.Notifications, cfg AdminConfig, app *newrelic.Application, log *zap.Logger) error {
+// notification, list the sent history, and retract one. Send runs on its own
+// longer budget because it resolves a username over NATS before it writes.
+func SubscribeAdmin(w Wiring, cfg AdminConfig) error {
 	a := &adminRPC{
-		repo:               repo,
-		nc:                 nc,
+		repo:               w.Repo,
+		nc:                 w.NC,
 		invalidationPrefix: cfg.InvalidationPrefix,
 		userGetSubject:     cfg.UserGetSubject,
 		defaultTTL:         cfg.DefaultTTL,
-		log:                log,
+		log:                w.Log,
 	}
 
-	if err := bus.QueueSubscribeJSON[notificationsrpc.SendRequest, notificationsrpc.SendReply](
-		a.nc, cfg.Prefix+".send", cfg.QueueGroup, 5*time.Second, app, log, a.send); err != nil {
+	read := w.Within(readBudget)
+	if err := bus.Serve(w.Within(sendBudget), cfg.Prefix+".send", a.send); err != nil {
 		return err
 	}
-	if err := bus.QueueSubscribeJSON[notificationsrpc.ListAdminRequest, notificationsrpc.ListAdminReply](
-		a.nc, cfg.Prefix+".list", cfg.QueueGroup, 3*time.Second, app, log, a.list); err != nil {
+	if err := bus.Serve(read, cfg.Prefix+".list", a.list); err != nil {
 		return err
 	}
-	if err := bus.QueueSubscribeJSON[notificationsrpc.DeleteRequest, notificationsrpc.DeleteReply](
-		a.nc, cfg.Prefix+".delete", cfg.QueueGroup, 3*time.Second, app, log, a.delete); err != nil {
-		return err
-	}
-	return nil
+	return bus.Serve(read, cfg.Prefix+".delete", a.delete)
 }
 
 // parseSendRequest validates the compose form fields and renders them as
