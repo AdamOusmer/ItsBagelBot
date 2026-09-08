@@ -1,0 +1,72 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* Card atmosphere: the instrument-panel light (QuietWork Cards, variant 3a).
+   The hero's tan->green arc parked off the right edge, plus a green sheen
+   washing in from the top-right corner. Character from structure, not glow:
+   the blurred orbs an earlier version carried were two 42px-blur bitmaps per
+   card, and the sheen is one unblurred radial gradient instead, so a grid of
+   cards drops the blur rasters entirely.
+
+   Everything stays static. The arc never spins (rotating a masked layer on
+   every tile re-rasters at 60fps, the original hitch) and hover only nudges
+   opacity, which stays on the compositor.
+
+   Shared by web/src/components/ui/CardAtmosphere.astro and
+   console/shared/components/CardAtmosphere.svelte, which were byte-identical
+   for the 55 lines below and legitimately different either side of them. Each
+   component keeps its own stacking and hover rules and sets the two knobs:
+
+     --card-atmo-ease   the app's expo easing token
+     --card-atmo-glow / --card-atmo-ring   the rest/hover opacity pair
+
+   Plain CSS rather than a component: the two hosts are Astro and Svelte, and
+   the shared part is entirely style. Global rather than scoped for the same
+   reason (neither scoping mechanism can reach the other's markup); the class
+   names are namespaced under card-atmo__ so that is safe. */
+
+.card-atmo {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    /* Rest/hover pair replaces the old orb bump (0.28->0.42): the sheen's 0.12
+       alpha is authored into the gradient, so the var scales it, and 1.6 lands
+       the hover wash at ~0.19 against the card ink. */
+    --card-atmo-glow: 1;
+    --card-atmo-ring: 0.16;
+}
+
+/* Mini of the header's ring: a 1.5px tan->green arc, not a filled disc. A
+   masked conic gradient rather than an inline SVG so we never mint per-card
+   gradient ids (g1/g2 would collide across a grid). Parked half off the right
+   edge the way the hero ring sits off-canvas. */
+.card-atmo__ring {
+    position: absolute;
+    top: 42%;
+    right: -22%;
+    width: 92%;
+    aspect-ratio: 1;
+    translate: 0 -50%;
+    border-radius: 50%;
+    opacity: var(--card-atmo-ring);
+    transition: opacity 360ms var(--card-atmo-ease, cubic-bezier(0.16, 1, 0.3, 1));
+    background: conic-gradient(
+        from 210deg,
+        rgba(201, 168, 124, 0.9),
+        rgba(45, 106, 79, 0.14) 30%,
+        rgba(64, 145, 108, 0.75) 55%,
+        rgba(201, 168, 124, 0.2) 80%,
+        rgba(201, 168, 124, 0.9)
+    );
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 1.6px), #000 calc(100% - 0.4px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 1.6px), #000 calc(100% - 0.4px));
+}
+
+.card-atmo__sheen {
+    position: absolute;
+    inset: 0;
+    opacity: var(--card-atmo-glow);
+    transition: opacity 360ms var(--card-atmo-ease, cubic-bezier(0.16, 1, 0.3, 1));
+    background: radial-gradient(120% 80% at 100% 0%, rgba(82, 183, 136, 0.12), transparent 60%);
+}

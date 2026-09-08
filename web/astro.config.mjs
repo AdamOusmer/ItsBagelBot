@@ -17,6 +17,15 @@ import { fileURLToPath } from 'node:url';
 // @bagel/shared install. The catalog (sample values, bilingual copy) stays
 // local in src/i18n/builder.ts; only the logic is shared.
 const rehearsalCore = fileURLToPath(new URL('../console/shared/lib/rehearsal.ts', import.meta.url));
+// Same arrangement for the mote field: the physics are shared with the
+// console's LightField.svelte so both surfaces animate identically, and the
+// module is pure browser TS with no deps, so it bundles into the client chunk
+// with no install step. See console/shared/lib/light-field.ts for why the
+// shared files sit under console/ rather than a repo-level design/ directory.
+const lightFieldCore = fileURLToPath(new URL('../console/shared/lib/light-field.ts', import.meta.url));
+// Shared stylesheets from the same place, addressed as a prefix so a second
+// one is an import and not another config edit.
+const sharedStyles = fileURLToPath(new URL('../console/shared/styles', import.meta.url));
 // Repo root, so Vite's dev server may read the shared file that lives outside web/.
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 
@@ -97,11 +106,15 @@ export default defineConfig({
   vite: {
     resolve: {
       // Single source of truth for the rehearsal logic (see rehearsalCore above).
-      alias: { '@bagel/rehearsal': rehearsalCore },
+      alias: {
+        '@bagel/rehearsal': rehearsalCore,
+        '@bagel/light-field': lightFieldCore,
+        '@bagel/styles': sharedStyles,
+      },
     },
     server: {
       allowedHosts: true, // Bypass Vite 6's network host blocking for external devices
-      // Let the dev server serve the shared rehearsal file from the repo root.
+      // Let the dev server serve the shared files from the repo root.
       fs: { allow: [repoRoot] },
     },
     build: {
