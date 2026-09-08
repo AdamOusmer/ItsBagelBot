@@ -208,8 +208,9 @@ const t = useTranslations(lang);
 </style>
 
 <script>
+    import { reduceMotion } from '../../script/motion';
+
     /* Stamp click → sesame burst. Reuses the global .sesame-seed styles. */
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
     function sprinkle(x: number, y: number) {
         if (reduceMotion.matches) return;

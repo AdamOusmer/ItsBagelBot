@@ -181,6 +181,8 @@ const L = {
 </style>
 
 <script>
+    import { prefersReducedMotion } from '../../../script/motion';
+
     import { bindOnce } from '../../../script/bind';
 
     // Bundled by Astro, so it satisfies the site's script-src 'self' CSP.
@@ -254,7 +256,7 @@ const L = {
         const content = root.querySelector<HTMLElement>('[data-rh-content]');
         if (!response || !who || !args || !line || !content) return;
 
-        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const reduceMotion = prefersReducedMotion();
 
         function render(animate: boolean) {
             const segments = expand(response!.value, who!.value, args!.value, counterSample);

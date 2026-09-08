@@ -13,7 +13,7 @@
  */
 
 const SCRAMBLE = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#$%&*+-/<>";
-const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+import { reduceMotion } from './motion';
 
 // In-flight scramble frames + observers, tracked so a navigation can cancel
 // them instead of leaving them to run against the incoming page.

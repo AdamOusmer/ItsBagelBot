@@ -420,7 +420,8 @@
    their own type scale (the frame is a reduced-size console screenshot, so
    the 12.5px live size would read as oversized here); every other value is
    the spec's. No hover states: these are <span> mockups, not controls. */
-.df-btn {
+.df-btn,
+.df-btn--configure {
     display: inline-flex;
     align-items: center;
     gap: 9px;
@@ -435,7 +436,8 @@
     white-space: nowrap;
 }
 
-.df-btn::before {
+.df-btn::before,
+.df-btn--configure::before {
     content: "";
     flex-shrink: 0;
     box-sizing: border-box;
@@ -457,32 +459,18 @@
     transform: none;
 }
 
+/* The tile-foot "Configure" affordance is a .df-btn at label scale. It is
+   listed in the two rules above rather than given its own copy of them: it
+   carried a full duplicate of the base and the mark, which is how it kept the
+   base's border-radius but missed later edits to it. Markup stays as-is (the
+   screens print the modifier alone) so the mocks do not need touching. */
 .df-btn--configure {
-    display: inline-flex;
-    align-items: center;
-    gap: 9px;
     padding: 5px 10px 5px 8px;
-    border: 1px solid rgba(201, 168, 124, 0.28);
-    border-radius: var(--radius-sm);
-    background: transparent;
-    font-family: var(--font-mono, "DM Mono", monospace);
+    border-color: rgba(201, 168, 124, 0.28);
     font-size: 0.54rem;
     letter-spacing: 0.1em;
-    line-height: 1;
     text-transform: uppercase;
     color: var(--tan-light, #e0c49a);
-    white-space: nowrap;
-}
-
-.df-btn--configure::before {
-    content: "";
-    flex-shrink: 0;
-    box-sizing: border-box;
-    width: 4px;
-    height: 4px;
-    border: 1px solid currentColor;
-    background: transparent;
-    transform: rotate(45deg);
 }
 
 .df-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }

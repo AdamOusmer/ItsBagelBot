@@ -6,8 +6,7 @@
  * Finale: the door out. Hearth glow, a staggered title, one magnetic CTA,
  * and an honesty line instead of urgency theatrics.
  */
-import MainButton from '../ui/Buttons/MainButton.astro';
-import SecondaryButton from '../ui/Buttons/SecondaryButton.astro';
+import Button from '../ui/Buttons/Button.astro';
 import { getLangFromUrl, useTranslations, localizePath, dashLoginHref } from '../../i18n/ui';
 
 const lang = getLangFromUrl(Astro.url);
@@ -32,8 +31,8 @@ const titleWords = t('finale.title').split(' ');
             {t('finale.sub')}
         </p>
         <div class="finale__actions" data-reveal style="--reveal-i: 9">
-            <MainButton href={dashLoginHref(lang)} label={t('nav.cta')} />
-            <SecondaryButton href={localizePath('/pricing', lang)} label={t('finale.seePricing')} />
+            <Button href={dashLoginHref(lang)} label={t('nav.cta')} />
+            <Button variant="quiet" href={localizePath('/pricing', lang)} label={t('finale.seePricing')} />
         </div>
         <span class="finale__honesty" data-reveal style="--reveal-i: 10">
             {t('finale.honesty')}
