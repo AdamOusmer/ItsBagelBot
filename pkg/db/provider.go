@@ -94,43 +94,103 @@ const (
 
 	// connMaxLifetime forcibly recycles a connection regardless of use,
 	// bounding how long any single connection can live (picks up server-side
-	// config changes, cert rotation, etc. within this window). Unchanged: it
-	// is not implicated in the idle-reaping problem below, and 30 minutes is
+	// config changes, cert rotation, etc. within that window, which is now 30
+	// to 40 minutes once connMaxLifetimeJitter below is added). 30 minutes is
 	// still a reasonable recycle cadence against the fleet's measured ~150
 	// connections/day/service churn.
 	connMaxLifetime = 30 * time.Minute
 
-	// connMaxIdleTime used to be 5 minutes, far shorter than the gap between
-	// requests on most of these pods. Live evidence on 2026-08-20: only 9-12
-	// MySQL sessions open across 18 pods x 4 connections (72 possible), most
-	// pods holding zero, and one connection observed idle at 253s and gone on
-	// the next sample. A request landing on an empty pool pays TCP (1 RTT) +
-	// TLS (2 RTT) + MySQL auth (2 RTT) + the session-var round trip (1 RTT) =
-	// ~5 extra round trips, ~18ms at the measured 3.6ms pod-to-MySQL RTT,
-	// before the query's own round trip even starts. That was the dominant
-	// DB latency in this system, not query execution (0.25-0.40ms
+	// connMaxLifetimeJitter spreads the recycle clock across pods. openPool
+	// (pkg/db/pool.go) draws one offset in [0, connMaxLifetimeJitter) per
+	// process and hands SetConnMaxLifetime the sum, so a pod recycles
+	// somewhere in 30 to 40 minutes instead of all pods recycling together.
+	//
+	// Measurement (production New Relic, 2026-09-07): normal query p50 is 1.4
+	// to 4ms, but queries clump at 205 to 220ms across different pods inside
+	// the same second, for example a projector prewarm fanout hitting commands
+	// and modules simultaneously. 205ms is exactly one cold connect: 6 round
+	// trips (TCP 1, TLS 2, MySQL auth 2, session-var SET 1) at the ~34ms RTT
+	// of the public NLB path. They clump because every pod opened its pool
+	// during the same rollout, so a fixed lifetime leaves the recycle clocks
+	// phase-aligned fleet-wide and the whole fleet pays its handshakes in the
+	// same second, repeatedly, until the next rollout re-aligns them somewhere
+	// else.
+	//
+	// database/sql cannot do this itself: SetConnMaxLifetime takes one exact
+	// duration and the package exposes no jitter knob, so the spread has to be
+	// applied to the value handed in.
+	//
+	// 10 minutes is a third of the lifetime: wide enough that 18 pods land on
+	// visibly different clocks, narrow enough that the effective 30 to 40
+	// minute recycle window stays far under the wait_timeout assumed below.
+	connMaxLifetimeJitter = 10 * time.Minute
+
+	// connMaxIdleTime is 0, which tells database/sql never to close a
+	// connection for having been idle. Only the lifetime clock recycles.
+	//
+	// It used to be 5 minutes, far shorter than the gap between requests on
+	// most of these pods. Live evidence on 2026-08-20: only 9-12 MySQL
+	// sessions open across 18 pods x 4 connections (72 possible), most pods
+	// holding zero, and one connection observed idle at 253s and gone on the
+	// next sample. A request landing on an empty pool pays TCP (1 RTT) + TLS
+	// (2 RTT) + MySQL auth (2 RTT) + the session-var round trip (1 RTT) = 6
+	// round trips before the query's own round trip even starts, ~205ms over
+	// the public NLB path (see connMaxLifetimeJitter above). That is the
+	// dominant DB latency in this system, not query execution (0.25 to 0.40ms
 	// server-side, ~90% of wall time is transport).
 	//
-	// Set equal to connMaxLifetime: database/sql closes a connection on
-	// whichever of the two limits it hits first, so an idle timeout equal to
-	// the lifetime can never fire strictly before the lifetime does -
-	// idle-based reaping is effectively disabled and every connection
-	// recycles on the lifetime clock instead. This is the "remove idle
-	// reaping, rely on ConnMaxLifetime" option, chosen over just raising the
-	// idle timeout to some other number because it needs no second constant
-	// to keep in sync with connMaxLifetime by hand.
+	// It was then set equal to connMaxLifetime, on the reasoning that
+	// database/sql closes on whichever limit it hits first, so an idle timeout
+	// equal to the lifetime can never fire strictly earlier. That worked, but
+	// it had to be held equal by hand, and the lifetime is no longer a single
+	// value: it is jittered per process, so "equal to the lifetime" is not
+	// expressible as a constant any more. 0 states the intent directly,
+	// disables the idle reaper outright and cannot drift out of sync with
+	// anything.
 	//
 	// Assumption: OCI MySQL HeatWave has no custom wait_timeout configuration
-	// applied, so it is running MySQL's own default, 28800s (8h). 30 minutes
-	// is 16x under that, so a connection reused right up against
-	// connMaxLifetime is never at risk of the server closing it first. If
-	// that assumption is wrong and an operator has set a shorter
-	// wait_timeout, this needs to drop below it or connection reuse starts
-	// surfacing "MySQL server has gone away" on a stale conn instead of
-	// paying the handshake. keepAlive (pkg/db/keepalive.go) is the other
-	// half of this fix: it pings a small floor of connections often enough
-	// that they never approach either timeout in the first place.
-	connMaxIdleTime = 30 * time.Minute
+	// applied, so it is running MySQL's own default, 28800s (8h). The 30 to 40
+	// minute lifetime window is at least 12x under that, so a connection
+	// reused right up against its lifetime is never at risk of the server
+	// closing it first. If that assumption is wrong and an operator has set a
+	// shorter wait_timeout, connMaxLifetime plus connMaxLifetimeJitter needs
+	// to drop below it or connection reuse starts surfacing "MySQL server has
+	// gone away" on a stale conn instead of paying the handshake. keepAlive
+	// (pkg/db/keepalive.go) is the other half of this fix: it pings a small
+	// floor of connections often enough that they never approach either
+	// timeout in the first place.
+	connMaxIdleTime = 0
+
+	// dialTimeout, readTimeout and writeTimeout bound the network phases of a
+	// connection. All three were previously unset, which in this driver means
+	// no deadline at all.
+	//
+	// The DB path moved to a public OCI network load balancer on 2026-08-27.
+	// That NLB drops an idle flow at around 300s without sending a RST to
+	// either side, so a pooled connection can be blackholed while both ends
+	// still believe it is open. With no read deadline, the next query on such
+	// a connection blocks forever: not a slow request, a permanently stuck
+	// goroutine holding a gate slot (pkg/db/gate.go) until the pod restarts.
+	// keepAlive (pkg/db/keepalive.go) pings often enough that a pooled
+	// connection should never reach the drop; these are the backstop for when
+	// it does.
+	//
+	// 10s to dial covers the 6 round trip handshake (~205ms measured) with
+	// enormous headroom while still failing inside a request context's own
+	// patience. 30s to read or write is generous against a 1.4 to 4ms query
+	// p50.
+	//
+	// Interaction with pkg/svcboot/databoot.AutoMigrate, which runs ent schema
+	// creation at boot and is fatal on error: each migration statement now has
+	// 30s to return. Ample for this dataset (<2 MB, fully buffer-pool
+	// resident), but a future migration over a large table would hit the
+	// deadline and fail the boot. Failing closed at boot is the deliberate
+	// trade here: the alternative is a pod hanging in AutoMigrate forever with
+	// no deadline and no signal. Raise these alongside such a migration rather
+	// than removing them.
+	dialTimeout  = 10 * time.Second
+	readTimeout  = 30 * time.Second
+	writeTimeout = 30 * time.Second
 )
 
 // NewDriver opens a bounded MySQL connection pool with the session settings
@@ -139,24 +199,7 @@ const (
 // be handed to the service's own ent client via ent.Driver(...).
 func NewDriver(cfg Config) (*entsql.Driver, error) {
 
-	mc := mysql.NewConfig()
-
-	mc.Net = "tcp"
-	mc.Addr = cfg.Address
-	mc.User = cfg.Username
-	mc.Passwd = cfg.Password
-	mc.DBName = cfg.Schema
-
-	mc.ParseTime = true
-	mc.Loc = time.UTC
-	mc.Collation = "utf8mb4_unicode_ci"
-	mc.InterpolateParams = true // one round-trip per query instead of prepare+exec
-
-	mc.Params = map[string]string{
-		"transaction_isolation": "'READ-COMMITTED'",
-		"sql_mode":              "'STRICT_TRANS_TABLES,NO_ZERO_DATE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO'",
-		"time_zone":             "'+00:00'",
-	}
+	mc := newMySQLConfig(cfg)
 
 	mode, err := resolveTLSMode()
 	if err != nil {
@@ -176,11 +219,71 @@ func NewDriver(cfg Config) (*entsql.Driver, error) {
 	return entsql.OpenDB(dialect.MySQL, pool), nil
 }
 
+// newMySQLConfig builds the driver config for one service's schema, minus
+// TLS, which NewDriver attaches after resolving the mode. Kept separate from
+// NewDriver so the field set can be asserted in tests without opening a pool
+// or requiring a pinned CA in the environment.
+//
+// The timeouts here are honoured on the connector path openPool builds
+// (mysql.NewConnector in pkg/db/connector.go): they are fields of
+// mysql.Config, read by the driver itself, not DSN-only parameters.
+func newMySQLConfig(cfg Config) *mysql.Config {
+	mc := mysql.NewConfig()
+
+	mc.Net = "tcp"
+	mc.Addr = cfg.Address
+	mc.User = cfg.Username
+	mc.Passwd = cfg.Password
+	mc.DBName = cfg.Schema
+
+	mc.ParseTime = true
+	mc.Loc = time.UTC
+	mc.Collation = "utf8mb4_unicode_ci"
+	mc.InterpolateParams = true // one round-trip per query instead of prepare+exec
+
+	mc.Timeout = dialTimeout
+	mc.ReadTimeout = readTimeout
+	mc.WriteTimeout = writeTimeout
+
+	mc.Params = map[string]string{
+		"transaction_isolation": "'READ-COMMITTED'",
+		"sql_mode":              "'STRICT_TRANS_TABLES,NO_ZERO_DATE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO'",
+		"time_zone":             "'+00:00'",
+	}
+
+	return mc
+}
+
 // tlsConfigName is the key the registered tls.Config is stored under in the
 // go-sql-driver registry and referenced from the DSN. The DB endpoint is the
 // same managed HeatWave instance for every service, so one shared config is
 // enough.
 const tlsConfigName = "bagel-mysql"
+
+// tlsSessionCacheSize is the number of resumable TLS sessions kept. One entry
+// is used per server name, and there is exactly one endpoint, so 64 is far
+// more than needed; it is the smallest round number that cannot become the
+// limiting factor if a service ever talks to a second DB host.
+const tlsSessionCacheSize = 64
+
+// mysqlSessionCache is shared by both TLS modes so a reconnect can resume a
+// previous session instead of running a full handshake.
+//
+// Measurement (production New Relic, 2026-09-07): a cold connect over the
+// public NLB path is 6 round trips at ~34ms, ~205ms total, of which TLS is 2.
+// Both tls.Config paths below were built with a nil ClientSessionCache, and a
+// nil cache means Go stores no session tickets at all, so every single
+// connect, including the ones keepAlive (pkg/db/keepalive.go) opens on a quiet
+// pod, paid the full handshake. Resumption removes one of those round trips,
+// roughly 34ms off every cold connect.
+//
+// Security is unchanged. VerifyConnection, which is what enforces the pinned
+// CA in VERIFY_CA mode, was already chosen over VerifyPeerCertificate
+// precisely because it also runs on resumed sessions (see verifyCATLSConfig
+// below), so a resumed connection is checked against DB_CA_CERT exactly like a
+// full one. The cache is process-local and holds session tickets only, never
+// key material this package owns.
+var mysqlSessionCache = tls.NewLRUClientSessionCache(tlsSessionCacheSize)
 
 // TLS trust model for the managed MySQL HeatWave endpoint.
 //
@@ -330,10 +433,11 @@ func newMySQLTLSConfig(caPEM []byte, mode tlsMode, addr string) (*tls.Config, er
 	roots := x509.NewCertPool()
 	roots.AddCert(pinned)
 	return &tls.Config{
-		MinVersion:   tls.VersionTLS12,
-		RootCAs:      roots,
-		ServerName:   host,
-		Certificates: clientCerts,
+		MinVersion:         tls.VersionTLS12,
+		RootCAs:            roots,
+		ServerName:         host,
+		Certificates:       clientCerts,
+		ClientSessionCache: mysqlSessionCache,
 	}, nil
 }
 
@@ -440,6 +544,7 @@ func verifyCATLSConfig(pinned *x509.Certificate) *tls.Config {
 		// no in-band promotion of an alternate CA.
 		InsecureSkipVerify: true,
 		VerifyConnection:   verifyAgainstPinned(roots),
+		ClientSessionCache: mysqlSessionCache,
 	}
 }
 

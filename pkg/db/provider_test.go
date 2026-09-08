@@ -203,6 +203,33 @@ func TestWarnIfPinnedCANearExpiryStaysQuietOutsideWindow(t *testing.T) {
 	require.Equal(t, 0, logs.Len())
 }
 
+// TestRegisterTLSEnablesSessionResumption covers both modes in one table
+// because the cache has to be attached on both paths: a nil
+// ClientSessionCache silently disables session tickets, which costs one round
+// trip (~34ms on the public NLB path) on every connect.
+func TestRegisterTLSEnablesSessionResumption(t *testing.T) {
+	modes := []tlsMode{tlsModeVerifyCA, tlsModeVerifyIdentity}
+
+	for _, mode := range modes {
+		t.Run(string(mode), func(t *testing.T) {
+			_, _, cfg := registerTestCA(t, mode, testDBAddr)
+			require.NotNil(t, cfg.ClientSessionCache)
+			require.Same(t, mysqlSessionCache, cfg.ClientSessionCache)
+		})
+	}
+}
+
+// TestNewMySQLConfigSetsNetworkTimeouts pins the three deadlines. Without
+// them, a connection blackholed by the NLB's idle drop hangs the next query
+// forever instead of failing.
+func TestNewMySQLConfigSetsNetworkTimeouts(t *testing.T) {
+	mc := newMySQLConfig(Config{Address: testDBAddr, Schema: "bagel_test"})
+
+	require.Equal(t, dialTimeout, mc.Timeout)
+	require.Equal(t, readTimeout, mc.ReadTimeout)
+	require.Equal(t, writeTimeout, mc.WriteTimeout)
+}
+
 // captureGlobalLogs swaps zap's global logger (what zap.L() resolves to, the
 // same global pkg/logger.New wires up via zap.ReplaceGlobals in every real
 // service) for an observed logger, and restores the previous global on
