@@ -25,12 +25,14 @@
     type CounterEntryView,
     type CounterScope,
     actionPayload,
+    toastFailure,
     type ActionOk,
   } from '@bagel/shared';
   import CounterRow from '$lib/components/counters/CounterRow.svelte';
 
   let { data } = $props();
   const { t } = getI18n();
+  const failed = toastFailure(toast, t);
 
   // Local source of truth, reseeded when a fresh SSR load lands. create / set /
   // delete resync through invalidateAll (which swaps `data` and re-seeds here).
@@ -45,8 +47,6 @@
       items = data.counters ?? [];
     }
   });
-
-  const payloadOf = (result: unknown) => actionPayload(result);
 
   // --- Search + scope filter + sorted rows ------------------------------------
   let search = $state('');
@@ -186,7 +186,7 @@
     creating = true;
     return async ({ result }) => {
       creating = false;
-      if (result.type === 'success' && payloadOf(result)?.ok) {
+      if (result.type === 'success' && actionPayload(result)?.ok) {
         toast('ok', t('counters.toastCreated'));
         expanded = null;
         newName = '';
@@ -195,7 +195,7 @@
         return;
       }
       // Keep the form open with the typed name; surface the reason.
-      toast('err', payloadOf(result)?.error ?? t('counters.toastFailed'));
+      failed(actionPayload(result), 'counters.toastFailed');
     };
   };
 
@@ -204,13 +204,13 @@
     setting = true;
     return async ({ result }) => {
       setting = false;
-      if (result.type === 'success' && payloadOf(result)?.ok) {
+      if (result.type === 'success' && actionPayload(result)?.ok) {
         toast('ok', t('counters.toastSet'));
         expanded = null;
         await invalidateAll();
         return;
       }
-      toast('err', payloadOf(result)?.error ?? t('counters.toastFailed'));
+      failed(actionPayload(result), 'counters.toastFailed');
     };
   };
 
@@ -230,14 +230,14 @@
     renaming = true;
     return async ({ result }) => {
       renaming = false;
-      if (result.type === 'success' && payloadOf(result)?.ok) {
+      if (result.type === 'success' && actionPayload(result)?.ok) {
         toast('ok', t('counters.toastRenamed'));
         renameValue = '';
         closeEditor();
         await invalidateAll();
         return;
       }
-      toast('err', payloadOf(result)?.error ?? t('counters.toastFailed'));
+      failed(actionPayload(result), 'counters.toastFailed');
     };
   };
 
@@ -250,12 +250,12 @@
     return async ({ result }) => {
       resetting = false;
       resetTarget = null;
-      if (result.type === 'success' && payloadOf(result)?.ok) {
+      if (result.type === 'success' && actionPayload(result)?.ok) {
         toast('ok', t('counters.toastReset'));
         await invalidateAll();
         return;
       }
-      toast('err', payloadOf(result)?.error ?? t('counters.toastFailed'));
+      failed(actionPayload(result), 'counters.toastFailed');
     };
   };
 
@@ -276,7 +276,7 @@
     adding = true;
     return async ({ result }) => {
       adding = false;
-      if (result.type === 'success' && payloadOf(result)?.ok) {
+      if (result.type === 'success' && actionPayload(result)?.ok) {
         toast('ok', t('counters.toastAdded'));
         addUser = '';
         addCommand = '';
@@ -284,7 +284,7 @@
         await invalidateAll();
         return;
       }
-      const err = payloadOf(result)?.error;
+      const err = actionPayload(result)?.error;
       toast('err', err === 'unknown_user' ? t('counters.errUnknownUser') : (err ?? t('counters.toastFailed')));
     };
   };
@@ -331,7 +331,7 @@
       delete entryEdits[key];
       await invalidateAll();
     } else {
-      toast('err', payload?.error ?? t('counters.toastFailed'));
+      failed(payload, 'counters.toastFailed');
     }
   }
 
@@ -350,12 +350,12 @@
     return async ({ result }) => {
       entryDeleting = false;
       entryDeleteTarget = null;
-      if (result.type === 'success' && payloadOf(result)?.ok) {
+      if (result.type === 'success' && actionPayload(result)?.ok) {
         toast('ok', t('counters.toastEntryRemoved'));
         await invalidateAll();
         return;
       }
-      toast('err', payloadOf(result)?.error ?? t('counters.toastFailed'));
+      failed(actionPayload(result), 'counters.toastFailed');
     };
   };
 
@@ -374,7 +374,7 @@
     deleteTarget = null;
     return async ({ result }) => {
       deleting = false;
-      if (result.type === 'success' && payloadOf(result)?.ok) {
+      if (result.type === 'success' && actionPayload(result)?.ok) {
         toast('ok', t('counters.toastDeleted'));
         if (data.selected && snapshot && data.selected === snapshot.name) {
           await goto('/counters', { noScroll: true });
@@ -382,7 +382,7 @@
         return;
       }
       if (snapshot) items = [...items.filter((c) => c.name !== snapshot.name), snapshot];
-      toast('err', payloadOf(result)?.error ?? t('counters.toastFailed'));
+      failed(actionPayload(result), 'counters.toastFailed');
     };
   };
 </script>

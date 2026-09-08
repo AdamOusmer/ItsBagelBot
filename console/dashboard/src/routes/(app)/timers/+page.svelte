@@ -127,8 +127,6 @@
       draft = null;
     });
   }
-
-  const payloadOf = (result: unknown) => actionPayload(result);
   const failed = toastFailure(toast, t);
 
   // --- Save: immutable snapshot + request id; a late response can't cross rows -
@@ -139,7 +137,7 @@
     busy = true;
     return async ({ result }) => {
       busy = false;
-      const payload = payloadOf(result);
+      const payload = actionPayload(result);
       const ok = result.type === 'success' && payload?.ok === true;
       // applied is false when the selection moved on during the request, so a
       // late response for one timer never mutates another's editor.
@@ -167,7 +165,7 @@
       const was = tmr.enabled;
       timers = timers.map((x) => (x.id === tmr.id ? { ...x, enabled: !was } : x));
       return async ({ result }) => {
-        const payload = payloadOf(result);
+        const payload = actionPayload(result);
         if (result.type === 'success' && payload?.ok) return;
         timers = timers.map((x) => (x.id === tmr.id ? { ...x, enabled: was } : x));
         failed(payload, 'timers.toastToggleFailed');

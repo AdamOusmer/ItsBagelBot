@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 // Shared overlay stack + focus management for every modal surface (Modal,
-// ConfirmDialog, Drawer, and the coming mobile Inspector). Fixes the decentralised
+// ConfirmDialog, and the coming mobile Inspector). Fixes the decentralised
 // behaviour the audit flagged: each overlay owned its own `document.body.overflow`
 // write (nested overlays fought over it), every open overlay listened for Escape
 // on window (one keypress closed two surfaces), dialog semantics sat on the

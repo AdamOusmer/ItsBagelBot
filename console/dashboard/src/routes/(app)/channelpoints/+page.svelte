@@ -98,8 +98,6 @@
 
   type RewardActionOk = ActionOk & { missingScope?: boolean };
 
-  const payloadOf = (result: unknown) => actionPayload<RewardActionOk>(result);
-
   function failed(payload: RewardActionOk | undefined, fallbackKey: string) {
     if (payload?.missingScope) {
       missingScope = true;
@@ -117,7 +115,7 @@
     busy = true;
     return async ({ result }) => {
       busy = false;
-      const payload = payloadOf(result);
+      const payload = actionPayload<RewardActionOk>(result);
       if (result.type === 'success' && payload?.ok) {
         toast('ok', t(creating ? 'channelpoints.toastCreated' : 'channelpoints.toastSaved', { name: d.title }));
         // A create closes (no client id to keep editing); an update keeps the
@@ -137,7 +135,7 @@
       const was = r.isEnabled;
       rewards = rewards.map((x) => (x.id === r.id ? { ...x, isEnabled: !was } : x));
       return async ({ result }) => {
-        const payload = payloadOf(result);
+        const payload = actionPayload<RewardActionOk>(result);
         if (result.type === 'success' && payload?.ok) return;
         rewards = rewards.map((x) => (x.id === r.id ? { ...x, isEnabled: was } : x));
         failed(payload, 'channelpoints.toastToggleFailed');
@@ -155,7 +153,7 @@
       deleting = false;
       const target = deleteTarget;
       deleteTarget = null;
-      const payload = payloadOf(result);
+      const payload = actionPayload<RewardActionOk>(result);
       if (result.type === 'success' && payload?.ok) {
         if (target) {
           rewards = rewards.filter((x) => x.id !== target.id);

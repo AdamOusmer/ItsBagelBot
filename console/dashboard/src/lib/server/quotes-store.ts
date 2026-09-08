@@ -14,7 +14,7 @@ import { rpc } from '@bagel/shared/server/nats';
 import { MOD } from '@bagel/shared';
 import { SUB } from './services';
 import { upsertModule } from './commands-store';
-import { readModuleBlob } from './module-blob';
+import { readModuleBlob, setModuleEnabled } from './module-blob';
 
 const QUOTES_MODULE = MOD.quotes;
 
@@ -124,8 +124,7 @@ function configFor(perms: QuotePerms): Record<string, string> | undefined {
 
 // setEnabled flips the module on/off, preserving the perms.
 export async function setEnabled(userId: string, enabled: boolean): Promise<void> {
-  const state = await readModuleState(userId);
-  await upsertModule(userId, QUOTES_MODULE, enabled, configFor(state));
+  await setModuleEnabled(userId, QUOTES_MODULE, enabled);
 }
 
 // setPerm changes one chat gate (who may save, or who may edit), preserving

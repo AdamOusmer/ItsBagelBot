@@ -15,9 +15,7 @@ export { default as Cursor } from '../components/Cursor.svelte';
 export { default as RootShell } from '../components/RootShell.svelte';
 export { default as AuroraBg } from '../components/AuroraBg.svelte';
 export { default as Modal } from '../components/Modal.svelte';
-export { default as Drawer } from '../components/Drawer.svelte';
 export { default as AppShell } from '../components/AppShell.svelte';
-export { default as Sidebar } from '../components/Sidebar.svelte';
 export { default as Rail } from '../components/Rail.svelte';
 export { default as RailItem } from '../components/RailItem.svelte';
 export { default as Brand } from '../components/Brand.svelte';
@@ -25,7 +23,6 @@ export { default as NavGroup } from '../components/NavGroup.svelte';
 export { default as AccountFoot } from '../components/AccountFoot.svelte';
 export { default as Topbar } from '../components/Topbar.svelte';
 export { default as Bolota } from '../components/Bolota.svelte';
-export { default as MobileNav } from '../components/MobileNav.svelte';
 export { default as ImpersonationBanner } from '../components/ImpersonationBanner.svelte';
 export { default as PageHead } from '../components/PageHead.svelte';
 export { default as PageToolbar } from '../components/PageToolbar.svelte';
@@ -50,7 +47,6 @@ export { default as SegmentedControl } from '../components/SegmentedControl.svel
 export { default as RadioGroup } from '../components/RadioGroup.svelte';
 export { default as NotificationBell } from '../components/NotificationBell.svelte';
 export { default as SearchInput } from '../components/SearchInput.svelte';
-export { default as DataList } from '../components/DataList.svelte';
 export { default as DeckList } from '../components/DeckList.svelte';
 export { default as Scroller } from '../components/Scroller.svelte';
 

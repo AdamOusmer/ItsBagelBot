@@ -16,9 +16,12 @@
     Skeleton,
     toast,
     actionPayload,
+    adminToastFailure,
     ago,
   } from '@bagel/shared';
   import type { AdminAcct, AdminRole, AuditEntry } from '$lib/server/services';
+
+  const failed = adminToastFailure(toast);
 
   let { data } = $props();
 
@@ -63,7 +66,6 @@
     staff?: AdminAcct[];
     error?: string;
   };
-  const payloadOf = (result: unknown) => actionPayload<ActionPayload>(result);
 
   let busy = $state(false);
 
@@ -74,7 +76,7 @@
       return async ({ result, update }) => {
         busy = false;
         after?.();
-        const p = payloadOf(result);
+        const p = actionPayload<ActionPayload>(result);
         if (result.type === 'success' && p?.action?.ok) {
           toast('ok', p.action.notice);
           if (p.staff) staff = p.staff;
@@ -82,7 +84,7 @@
           return;
         }
         staff = before;
-        toast('err', p?.action?.notice ?? p?.error ?? 'roster change failed');
+        failed(p, 'roster change failed');
       };
     };
   }

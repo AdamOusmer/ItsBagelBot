@@ -31,6 +31,7 @@
     SPOTIFY_QUOTA_TIERS,
     type SpotifyQuotas,
     actionPayload,
+    toastFailure,
     type ActionOk,
   } from '@bagel/shared';
   import SpotifyRewardEditor from '$lib/components/spotify/SpotifyRewardEditor.svelte';
@@ -39,6 +40,7 @@
 
   let { data } = $props();
   const { t } = getI18n();
+  const failed = toastFailure(toast, t);
 
   // Chat-commands reference from the shared catalog so this page never drifts
   // from the generic /modules/[id] ledger (the quotes pattern).
@@ -102,7 +104,7 @@
 
   const appSubmit: SubmitFunction = () =>
     async ({ result }) => {
-      const payload = payloadOf(result);
+      const payload = actionPayload<SongQueueActionOk>(result);
       if (result.type === 'success' && payload?.ok !== false) {
         clientSecret = '';
         editingApp = false;
@@ -110,7 +112,7 @@
         await invalidateAll();
         return;
       }
-      toast('err', payload?.error ?? t('spotify.appSaveFailed'));
+      failed(payload, 'spotify.appSaveFailed');
     };
 
   async function copyRedirect() {
@@ -135,14 +137,13 @@
   });
 
   type SongQueueActionOk = ActionOk & { missingScope?: boolean };
-  const payloadOf = (result: unknown) => actionPayload<SongQueueActionOk>(result);
 
   // formResult is the shared enhance handler for simple forms: on success it
   // optionally flips an optimistic mirror, toasts, and reloads.
   function formResult(okMsg: string, failMsg: string, onOk?: () => void): SubmitFunction {
     return () =>
       async ({ result }) => {
-        const payload = payloadOf(result);
+        const payload = actionPayload<SongQueueActionOk>(result);
         if (result.type === 'success' && payload?.ok !== false) {
           onOk?.();
           toast('ok', okMsg);
@@ -168,7 +169,7 @@
     formData.set('sr_enabled', sr.enabled ? 'on' : '');
     formData.set('sr_allow_offline', sr.allowOffline ? 'on' : '');
     return async ({ result }) => {
-      const payload = payloadOf(result);
+      const payload = actionPayload<SongQueueActionOk>(result);
       if (result.type === 'success' && payload?.ok !== false) {
         toast('ok', t('spotify.srSaved'));
         await invalidateAll();
@@ -178,7 +179,7 @@
         missingScope = true;
         return;
       }
-      toast('err', payload?.error ?? t('spotify.srSaveFailed'));
+      failed(payload, 'spotify.srSaveFailed');
       await invalidateAll();
     };
   };
@@ -192,13 +193,13 @@
 
   const quotasSubmit: SubmitFunction = () =>
     async ({ result }) => {
-      const payload = payloadOf(result);
+      const payload = actionPayload<SongQueueActionOk>(result);
       if (result.type === 'success' && payload?.ok !== false) {
         toast('ok', t('spotify.quotaSaved'));
         await invalidateAll();
         return;
       }
-      toast('err', payload?.error ?? t('spotify.quotaSaveFailed'));
+      failed(payload, 'spotify.quotaSaveFailed');
       await invalidateAll();
     };
 
@@ -206,7 +207,7 @@
     formData.set('redeem_enabled', redeem.enabled ? 'on' : '');
     formData.set('redeem_allow_offline', redeem.allowOffline ? 'on' : '');
     return async ({ result }) => {
-      const payload = payloadOf(result);
+      const payload = actionPayload<SongQueueActionOk>(result);
       if (result.type === 'success' && payload?.ok !== false) {
         await invalidateAll();
         return;
@@ -215,7 +216,7 @@
         missingScope = true;
         return;
       }
-      toast('err', payload?.error ?? t('spotify.masterFail'));
+      failed(payload, 'spotify.masterFail');
       await invalidateAll();
     };
   };
@@ -235,7 +236,7 @@
     busy = true;
     return async ({ result }) => {
       busy = false;
-      const payload = payloadOf(result);
+      const payload = actionPayload<SongQueueActionOk>(result);
       if (result.type === 'success' && payload?.ok !== false) {
         toast('ok', t('spotify.toastSaved'));
         await invalidateAll();
@@ -245,7 +246,7 @@
         missingScope = true;
         return;
       }
-      toast('err', payload?.error ?? t('spotify.toastSaveFailed'));
+      failed(payload, 'spotify.toastSaveFailed');
     };
   };
 
@@ -259,7 +260,7 @@
     return async ({ result }) => {
       deleting = false;
       deletePending = false;
-      const payload = payloadOf(result);
+      const payload = actionPayload<SongQueueActionOk>(result);
       if (result.type === 'success' && payload?.ok !== false) {
         closeInspector();
         toast('ok', t('spotify.toastDeleted'));
@@ -270,7 +271,7 @@
         missingScope = true;
         return;
       }
-      toast('err', payload?.error ?? t('spotify.toastDeleteFailed'));
+      failed(payload, 'spotify.toastDeleteFailed');
     };
   };
 

@@ -11,7 +11,7 @@
 import { randomUUID } from 'node:crypto';
 import { type TimerDef, MOD } from '@bagel/shared';
 import { upsertModule } from './commands-store';
-import { readModuleBlob } from './module-blob';
+import { readModuleBlob, setModuleEnabled } from './module-blob';
 
 const TIMERS_MODULE = MOD.timers;
 
@@ -63,6 +63,5 @@ export async function deleteTimer(userId: string, timerId: string): Promise<Time
 // setTimersEnabled flips the whole module on/off (whether sesame arms any
 // timer at all) without touching the timers themselves.
 export async function setTimersEnabled(userId: string, enabled: boolean): Promise<void> {
-  const cur = await readTimers(userId);
-  await writeTimers(userId, enabled, cur.timers);
+  await setModuleEnabled(userId, TIMERS_MODULE, enabled);
 }

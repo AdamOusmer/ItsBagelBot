@@ -1,7 +1,19 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Bolota, Button, ButtonLink, Card, PageHead, ConfirmDialog, EmptyState, toast, getI18n, type Locale } from '@bagel/shared';
+  import {
+    Bolota,
+    Button,
+    ButtonLink,
+    Card,
+    PageHead,
+    ConfirmDialog,
+    EmptyState,
+    toast,
+    getI18n,
+    toastFailure,
+    type Locale
+  } from '@bagel/shared';
   import { page } from '$app/state';
   import { enhance, deserialize } from '$app/forms';
   import FetchKeyManager from '$lib/components/commands/fetches/FetchKeyManager.svelte';
@@ -14,6 +26,7 @@
   let { data, form } = $props();
 
   const { t } = getI18n();
+  const failed = toastFailure(toast, t);
 
   const notifications = $derived((data.notifications ?? []) as NotificationWire[]);
   const savedLocale = $derived((data.savedLocale ?? 'en') as Locale);
@@ -110,7 +123,7 @@
         fetchKeys = d.fetchKeys;
         return d;
       }
-      toast('err', d?.error ?? t('fetches.keySaveFailed'));
+      failed(d, 'fetches.keySaveFailed');
     } catch {
       toast('err', t('fetches.keySaveFailed'));
     } finally {

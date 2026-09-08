@@ -20,6 +20,7 @@
     getI18n,
     type GoveeDevice,
     actionPayload,
+    toastFailure,
     type ActionOk,
   } from '@bagel/shared';
   import GoveeLightRow from '$lib/components/govee/GoveeLightRow.svelte';
@@ -27,6 +28,7 @@
 
   let { data } = $props();
   const { t } = getI18n();
+  const failed = toastFailure(toast, t);
 
   // Local mirrors, reseeded on each SSR load (the /events stream re-runs the
   // loader after every confirmed write).
@@ -52,14 +54,13 @@
   let missingScope = $state(false);
 
   type GoveeActionOk = ActionOk & { missingScope?: boolean };
-  const payloadOf = (result: unknown) => actionPayload<GoveeActionOk>(result);
 
   // formResult is the shared enhance handler for the API-key forms: on success it
   // optionally flips an optimistic mirror, toasts, and reloads.
   function formResult(okMsg: string, failMsg: string, onOk?: () => void): SubmitFunction {
     return () =>
       async ({ result }) => {
-        const payload = payloadOf(result);
+        const payload = actionPayload<GoveeActionOk>(result);
         if (result.type === 'success' && payload?.ok !== false) {
           onOk?.();
           toast('ok', okMsg);
@@ -89,7 +90,7 @@
     busy = true;
     return async ({ result }) => {
       busy = false;
-      const payload = payloadOf(result);
+      const payload = actionPayload<GoveeActionOk>(result);
       if (result.type === 'success' && payload?.ok !== false) {
         toast('ok', t('govee.toastSaved'));
         // Save keeps the inspector open on the bound light; invalidateAll
@@ -102,7 +103,7 @@
         // Keep the inspector open so the draft survives the reconnect prompt.
         return;
       }
-      toast('err', payload?.error ?? t('govee.toastSaveFailed'));
+      failed(payload, 'govee.toastSaveFailed');
     };
   };
 
@@ -117,7 +118,7 @@
       deleting = false;
       const target = deleteTarget;
       deleteTarget = null;
-      const payload = payloadOf(result);
+      const payload = actionPayload<GoveeActionOk>(result);
       if (result.type === 'success' && payload?.ok !== false) {
         if (target && selected?.device === target.device) closeInspector();
         toast('ok', t('govee.toastDeleted'));
@@ -128,7 +129,7 @@
         missingScope = true;
         return;
       }
-      toast('err', payload?.error ?? t('govee.toastDeleteFailed'));
+      failed(payload, 'govee.toastDeleteFailed');
     };
   };
 

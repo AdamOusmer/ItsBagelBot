@@ -511,16 +511,6 @@ function accepts(field: RuledValue): boolean {
   return CHECKS[field.rule.kind](field);
 }
 
-export function validateDiscordConfig(config: DiscordConfig): FieldError[] {
-  const out: FieldError[] = [];
-  for (const key of DISCORD_CONFIG_KEYS) {
-    const rule = FIELD_RULES[key];
-    if (accepts({ rule, value: config[key] })) continue;
-    out.push({ field: key, code: CODES[rule.kind] });
-  }
-  return out;
-}
-
 /** The refused fields a page can actually point at, split from the ones it
  *  cannot. */
 export type RefusedFields = {

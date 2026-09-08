@@ -3,7 +3,22 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { PageHead, Card, CardHead, Button, EmptyState, ConfirmDialog, RadioGroup, Skeleton, toast } from '@bagel/shared';
+  import {
+    PageHead,
+    Card,
+    CardHead,
+    Button,
+    EmptyState,
+    ConfirmDialog,
+    RadioGroup,
+    Skeleton,
+    toast,
+    actionPayload,
+    adminToastFailure,
+    type AdminActionOk
+  } from '@bagel/shared';
+
+  const failed = adminToastFailure(toast);
   import type { NotificationWire } from '$lib/server/services';
   let { data, form } = $props();
 
@@ -71,14 +86,13 @@
     const before = notifications.map((n) => ({ ...n }));
     if (target) notifications = notifications.filter((n) => n.id !== target.id);
     return async ({ result }) => {
-      const p = (result as { type: string; data?: { action?: { ok: boolean; notice: string }; error?: string } });
-      const action = p.type === 'success' || p.type === 'failure' ? p.data?.action : undefined;
-      if (p.type === 'success' && action?.ok) {
-        toast('ok', action.notice);
+      const p = actionPayload<AdminActionOk>(result);
+      if (result.type === 'success' && p?.action?.ok) {
+        toast('ok', p.action.notice ?? 'Retracted.');
         return;
       }
       notifications = before;
-      toast('err', action?.notice ?? p.data?.error ?? 'retract failed');
+      failed(p, 'retract failed');
     };
   };
 </script>

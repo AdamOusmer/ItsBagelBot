@@ -116,6 +116,25 @@ export function containsLink(s: string): boolean {
 	return false;
 }
 
+// normalizeCounterName folds a submitted counter/command key to the form the
+// loyalty service stores: bare key, lower-cased, no leading "!", 64 chars.
+// Both consoles had a byte-identical copy (the dashboard's counters page and
+// the admin bot-counters page), and they have to agree: the two write the SAME
+// keyspace, so a name normalized one way in one console and another way in the
+// other creates two counters the broadcaster sees as one.
+//
+// Deliberately NOT merged with the importer's normalizeName: that one folds an
+// imported command name under DIFFERENT rules (it keeps case-sensitivity
+// decisions the source platform made), and folding the two would silently
+// change what an import collides with.
+export function normalizeCounterName(raw: unknown): string {
+	return String(raw ?? '')
+		.trim()
+		.replace(/^!/, '')
+		.toLowerCase()
+		.slice(0, 64);
+}
+
 // clampInt coerces a submitted form value into a bounded integer. Both the
 // timers and channel-points actions had their own copy, and both exist for the
 // same reason: the server stores the clamped value, so the page must submit

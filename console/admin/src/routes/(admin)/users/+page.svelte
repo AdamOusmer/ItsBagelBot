@@ -18,12 +18,15 @@
     Skeleton,
     toast,
     actionPayload,
+    adminToastFailure,
     ago,
     fmtDate,
     copyFlash,
   } from '@bagel/shared';
   import type { AdminUserWire, AuditEntry, ChannelSubState } from '$lib/server/services';
   import type { UserDirectory } from './+page.server';
+
+  const failed = adminToastFailure(toast);
 
   let { data } = $props();
 
@@ -216,12 +219,12 @@
     return async ({ result }) => {
       busyVerb = null;
       msgOpen = false;
-      const p = payloadOf(result);
+      const p = actionPayload<ActionPayload>(result);
       if (result.type === 'success' && p?.action?.ok) {
         toast('ok', p.action.notice);
         return;
       }
-      toast('err', p?.action?.notice ?? p?.error ?? 'send failed');
+      failed(p, 'send failed');
     };
   };
 
@@ -245,11 +248,9 @@
     error?: string;
   };
 
-  const payloadOf = (result: unknown) => actionPayload<ActionPayload>(result);
-
   const lookupSubmit: SubmitFunction = () => {
     return async ({ result }) => {
-      const p = payloadOf(result);
+      const p = actionPayload<ActionPayload>(result);
       const lk = p?.lookup;
       if (!lk || lk.error) {
         // Selection stays; the probe failed and says so.
@@ -289,7 +290,7 @@
       }
       return async ({ result }) => {
         busyVerb = null;
-        const p = payloadOf(result);
+        const p = actionPayload<ActionPayload>(result);
         if (result.type === 'success' && p?.action?.ok) {
           toast('ok', p.action.notice);
           if (p.lookup?.user) reconcileUser(p.lookup.user);
@@ -301,7 +302,7 @@
         // server refused.
         if (dir) dir.recent = before;
         detached = beforeDetached;
-        toast('err', p?.action?.notice ?? p?.error ?? `${verb} failed`);
+        failed(p, `${verb} failed`);
       };
     };
   }
@@ -318,13 +319,13 @@
     subState = null; // honest: state unknown while the reconnect queues
     return async ({ result }) => {
       busyVerb = null;
-      const p = payloadOf(result);
+      const p = actionPayload<ActionPayload>(result);
       if (result.type === 'success' && p?.action?.ok) {
         toast('ok', p.action.notice);
         subState = p.subState ?? null;
         return;
       }
-      toast('err', p?.action?.notice ?? p?.error ?? 'restart failed');
+      failed(p, 'restart failed');
     };
   };
 
@@ -335,14 +336,14 @@
       busyVerb = verb;
       return async ({ result }) => {
         busyVerb = null;
-        const p = payloadOf(result);
+        const p = actionPayload<ActionPayload>(result);
         if (result.type === 'success' && p?.action?.ok) {
           toast('ok', p.action.notice);
           tokenPresent = false;
           if (p.lookup?.user) reconcileUser(p.lookup.user);
           return;
         }
-        toast('err', p?.action?.notice ?? p?.error ?? `${verb} failed`);
+        failed(p, `${verb} failed`);
       };
     };
   }
@@ -375,14 +376,14 @@
     return async ({ result }) => {
       busyVerb = null;
       deleteOpen = false;
-      const p = payloadOf(result);
+      const p = actionPayload<ActionPayload>(result);
       if (result.type === 'success' && p?.action?.ok) {
         toast('ok', p.action.notice);
         if (dir && selectedId) dir.recent = dir.recent.filter((r) => String(r.id) !== selectedId);
         closeInspector();
         return;
       }
-      toast('err', p?.action?.notice ?? p?.error ?? 'delete failed');
+      failed(p, 'delete failed');
     };
   };
 

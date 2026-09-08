@@ -12,12 +12,8 @@ import {
   setChannelPointsEnabled,
   type RewardResult
 } from '$lib/server/channelpoints-store';
-import { auditDashboardImpersonation } from '$lib/server/services';
-import { logger } from '@bagel/shared/server/logger';
-import { gateModulePage } from '$lib/server/module-gate';
 import { moduleLoad } from '$lib/server/module-page';
-import type { Session } from '$lib/server/session';
-import { effectiveId } from '$lib/server/board';
+import { moduleAction, type ModuleMutation } from '$lib/server/module-action';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { fail } from '@sveltejs/kit';
@@ -25,12 +21,6 @@ import { fail } from '@sveltejs/kit';
 // Gated on the build-time `dev` constant first, so Rollup erases every demo
 // branch (and the dynamic demo-data import inside it) from production builds.
 const DEMO = dev && env.DEMO === '1';
-
-// Delegate scope comes from the channelpoints catalog def (its own grant, not
-// the blanket 'modules' one, see module-gate.ts).
-function gate(session: Session | null | undefined): void {
-  gateModulePage(session, 'channelpoints');
-}
 
 export const load: PageServerLoad = ({ locals }) =>
   moduleLoad('channelpoints', locals.session, {
@@ -95,95 +85,46 @@ function parseReward(raw: string): ChannelPointReward | null {
 
 // resultFail maps a store RewardResult failure to a SvelteKit fail(): a
 // missing-scope rejection carries a flag so the page shows the reconnect CTA.
+// Returned from the verb rather than thrown: it is a reason the broadcaster
+// acts on, not a fault, so it must not become moduleAction's generic line.
 function resultFail(r: Extract<RewardResult, { ok: false }>) {
   if (r.missingScope) return fail(403, { ok: false, missingScope: true });
   return fail(400, { ok: false, error: r.error ?? 'failed' });
 }
 
+// mutate binds one POST action to the module write skeleton
+// ($lib/server/module-action): delegate gate, form, demo short-circuit, error
+// mapping, audit. Each verb below is only its own parse plus its store call.
+function mutate(op: string, invalid: string, run: ModuleMutation) {
+  return moduleAction('channelpoints', op, run, { demo: DEMO, invalid });
+}
+
 export const actions: Actions = {
-  create: async ({ request, locals }) => {
-    gate(locals.session);
-    if (!DEMO && !locals.session) return fail(401, { ok: false, error: 'Not signed in.' });
-    const uid = effectiveId(locals.session);
-
-    const f = await request.formData();
+  create: mutate('create', 'Invalid reward.', async (uid, f) => {
     const draft = parseReward(String(f.get('reward') ?? ''));
-    if (!draft) return fail(400, { ok: false, error: 'Invalid reward.' });
-    if (DEMO) return { ok: true };
+    if (!draft) return null;
+    const res = await createReward(uid, draft);
+    return res.ok ? draft.title : resultFail(res);
+  }),
 
-    let res: RewardResult;
-    try {
-      res = await createReward(uid, draft);
-    } catch (e) {
-      logger.error({ err: e }, '[channelpoints] create failed');
-      return fail(400, { ok: false, error: 'create failed' });
-    }
-    if (!res.ok) return resultFail(res);
-    auditDashboardImpersonation(locals.session, 'channelpoints:create', draft.title);
-    return { ok: true };
-  },
-
-  update: async ({ request, locals }) => {
-    gate(locals.session);
-    if (!DEMO && !locals.session) return fail(401, { ok: false, error: 'Not signed in.' });
-    const uid = effectiveId(locals.session);
-
-    const f = await request.formData();
+  update: mutate('update', 'Invalid reward.', async (uid, f) => {
     const draft = parseReward(String(f.get('reward') ?? ''));
-    if (!draft || !draft.id) return fail(400, { ok: false, error: 'Invalid reward.' });
-    if (DEMO) return { ok: true };
+    if (!draft || !draft.id) return null;
+    const res = await updateReward(uid, draft);
+    return res.ok ? draft.title : resultFail(res);
+  }),
 
-    let res: RewardResult;
-    try {
-      res = await updateReward(uid, draft);
-    } catch (e) {
-      logger.error({ err: e }, '[channelpoints] update failed');
-      return fail(400, { ok: false, error: 'update failed' });
-    }
-    if (!res.ok) return resultFail(res);
-    auditDashboardImpersonation(locals.session, 'channelpoints:update', draft.title);
-    return { ok: true };
-  },
-
-  delete: async ({ request, locals }) => {
-    gate(locals.session);
-    if (!DEMO && !locals.session) return fail(401, { ok: false, error: 'Not signed in.' });
-    const uid = effectiveId(locals.session);
-
-    const f = await request.formData();
+  delete: mutate('delete', 'Missing reward id.', async (uid, f) => {
     const id = String(f.get('id') ?? '');
-    if (!id) return fail(400, { ok: false, error: 'Missing reward id.' });
-    if (DEMO) return { ok: true };
-
-    let res: RewardResult;
-    try {
-      res = await deleteReward(uid, id);
-    } catch (e) {
-      logger.error({ err: e }, '[channelpoints] delete failed');
-      return fail(400, { ok: false, error: 'delete failed' });
-    }
-    if (!res.ok) return resultFail(res);
-    auditDashboardImpersonation(locals.session, 'channelpoints:delete', id);
-    return { ok: true };
-  },
+    if (!id) return null;
+    const res = await deleteReward(uid, id);
+    return res.ok ? id : resultFail(res);
+  }),
 
   // Master on/off for whether the bot acts on redemptions at all.
-  toggle: async ({ request, locals }) => {
-    gate(locals.session);
-    if (!DEMO && !locals.session) return fail(401, { ok: false, error: 'Not signed in.' });
-    const uid = effectiveId(locals.session);
-
-    const f = await request.formData();
+  toggle: mutate('toggle', 'Invalid reward.', async (uid, f) => {
     const enabled = f.get('is_enabled') === 'on';
-    if (DEMO) return { ok: true, enabled };
-
-    try {
-      await setChannelPointsEnabled(uid, enabled);
-    } catch (e) {
-      logger.error({ err: e }, '[channelpoints] toggle failed');
-      return fail(400, { ok: false });
-    }
-    auditDashboardImpersonation(locals.session, 'channelpoints:toggle', String(enabled));
-    return { ok: true, enabled };
-  }
+    await setChannelPointsEnabled(uid, enabled);
+    return String(enabled);
+  })
 };
