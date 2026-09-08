@@ -12,14 +12,16 @@
       "The site speaks search now. Long-tail landing pages, head-to-head comparisons, a song-requests page, an IndexNow key, and a changelog URL for every release, this one included.",
       "Minecraft accounts link by uuid and stay linked. Link once and the ranked boards keep recognizing the account, instead of matching names from scratch every time.",
       "Valorant data is as fresh as the source allows. Rank and match lookups align their cache with the provider's own five-minute window, so answers stay current without hammering the API.",
-      "Polish across the board. Every button sits on one Mark system, corners share a single concentric radius scale, Spotify copy is bring-your-own-app everywhere, and the game trademark notices moved into the terms."
+      "Polish across the board. Every button sits on one Mark system, corners share a single concentric radius scale, Spotify copy is bring-your-own-app everywhere, and the game trademark notices moved into the terms.",
+      "The Discord companion is hardened. Ticket panels and desk actions are gated to their guild, ticket deadlines and closes are paired and locked, config writes take a real optimistic lock, and the gateway remembers its connect window across restarts."
     ],
     "fr": [
       "Les guides deviennent des outils interactifs. Toute la bibliothèque est réécrite sur le modèle de contenu : un hub plus calme, un vrai bouton sur chaque ligne, et un builder qui s'ouvre prérempli depuis le guide que vous lisez, dans les deux langues avec parité garantie.",
       "Le site parle le langage de la recherche. Des pages d'atterrissage longue traîne, des comparatifs directs, une page demandes de chansons, une clé IndexNow, et une URL de changelog pour chaque version, celle-ci comprise.",
       "Les comptes Minecraft se lient par uuid et le restent. Liez le compte une fois et les classements continuent de le reconnaître, au lieu de faire correspondre les noms à chaque fois.",
       "Les données Valorant sont aussi fraîches que la source le permet. Les recherches de rang et de matchs alignent leur cache sur la fenêtre de cinq minutes du fournisseur, pour des réponses à jour sans marteler l'API.",
-      "Du soin partout. Chaque bouton repose sur un seul système Mark, les coins partagent une même échelle de rayons concentriques, les textes Spotify assument partout votre propre application, et les mentions de marques des jeux ont rejoint les conditions."
+      "Du soin partout. Chaque bouton repose sur un seul système Mark, les coins partagent une même échelle de rayons concentriques, les textes Spotify assument partout votre propre application, et les mentions de marques des jeux ont rejoint les conditions.",
+      "Le compagnon Discord est durci. Les panneaux de tickets et les actions du guichet sont limités à leur serveur, les échéances et les fermetures de tickets sont appariées et verrouillées, les écritures de configuration prennent un vrai verrou optimiste, et la passerelle retient sa fenêtre de connexion entre les redémarrages."
     ]
   },
   "github": "https://github.com/AdamOusmer/ItsBagelBot/releases/tag/v0.1.6-beta"
