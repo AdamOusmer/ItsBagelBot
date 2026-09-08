@@ -4,7 +4,7 @@
   import { enhance } from '$app/forms';
   import { onMount, untrack } from 'svelte';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { PageHead, AlertBanner, Skeleton, toast } from '@bagel/shared';
+  import { PageHead, AlertBanner, Skeleton, toast, actionPayload } from '@bagel/shared';
   import type { Shard, ShardSnapshot } from '@bagel/shared';
   import {
     barWidth,
@@ -164,10 +164,7 @@
 
   // ── Actions: apply the echoed snapshot; autoscale flips optimistically ─────
   type ActionPayload = { action?: { ok: boolean; notice: string }; snapshot?: ShardSnapshot; error?: string };
-  function payloadOf(result: unknown): ActionPayload | undefined {
-    const r = result as { type: string; data?: ActionPayload };
-    return r.type === 'success' || r.type === 'failure' ? r.data : undefined;
-  }
+  const payloadOf = (result: unknown) => actionPayload<ActionPayload>(result);
 
   let busy = $state(false);
 

@@ -3,7 +3,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
-  import { PageHead, PageToolbar, AlertBanner, Skeleton } from '@bagel/shared';
+  import { PageHead, PageToolbar, AlertBanner, Skeleton, fmtUtcDay as fmtDate } from '@bagel/shared';
   import EnrollmentChart from '$lib/components/EnrollmentChart.svelte';
   import type { ServiceHealth } from '$lib/server/services';
   import type { AnalyticsBundle } from './+page.server';
@@ -102,14 +102,6 @@
       .slice(0, 5);
   });
 
-  function fmtDate(iso: string): string {
-    const [y, m, d] = iso.split('-').map(Number);
-    return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      timeZone: 'UTC'
-    });
-  }
 </script>
 
 <section class="screen active">

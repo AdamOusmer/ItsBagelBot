@@ -8,7 +8,7 @@
   import { enhance } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Button, PageHead, AlertBanner, ConfirmDialog, Skeleton, toast } from '@bagel/shared';
+  import { Button, PageHead, AlertBanner, ConfirmDialog, Skeleton, toast, actionPayload } from '@bagel/shared';
   import type { BotCountersBundle } from './+page.server';
 
   let { data } = $props();
@@ -41,17 +41,13 @@
   let deleteTarget = $state<string | null>(null);
   let deleteForm = $state<HTMLFormElement | null>(null);
 
-  type ActionResult = { ok?: boolean; error?: string };
   function submitAs(key: string, okNotice: string): SubmitFunction {
     return () => {
       busyKey = key;
       return async ({ result }) => {
         busyKey = null;
         deleteTarget = null;
-        const payload =
-          result.type === 'success' || result.type === 'failure'
-            ? (result.data as ActionResult | undefined)
-            : undefined;
+        const payload = actionPayload(result);
         if (result.type === 'success' && payload?.ok) {
           toast('ok', okNotice);
           newName = '';

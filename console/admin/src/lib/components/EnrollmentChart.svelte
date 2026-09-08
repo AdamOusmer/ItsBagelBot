@@ -5,6 +5,7 @@
   // x-axis: bars for signups per UTC day (magnitude), a line for the
   // registered-users total derived backwards from today's count. Two panels
   // (never a dual axis) because the measures live on different scales.
+  import { fmtUtcDay as fmtDate } from '@bagel/shared';
   import type { EnrollmentWire } from '$lib/server/services';
 
   let { enrollment }: { enrollment: EnrollmentWire } = $props();
@@ -87,16 +88,6 @@
     )
   );
 
-  // Days are UTC buckets; render them as UTC too, or the label drifts a day
-  // for anyone west of Greenwich.
-  function fmtDate(iso: string): string {
-    const [y, m, d] = iso.split('-').map(Number);
-    return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      timeZone: 'UTC'
-    });
-  }
 
   // ── Hover layer ────────────────────────────────────────────────────────────
   let hover = $state<number | null>(null);

@@ -16,7 +16,11 @@
     ConfirmDialog,
     Scroller,
     Skeleton,
-    toast
+    toast,
+    actionPayload,
+    ago,
+    fmtDate,
+    copyFlash,
   } from '@bagel/shared';
   import type { AdminUserWire, AuditEntry, ChannelSubState } from '$lib/server/services';
   import type { UserDirectory } from './+page.server';
@@ -241,10 +245,7 @@
     error?: string;
   };
 
-  function payloadOf(result: unknown): ActionPayload | undefined {
-    const r = result as { type: string; data?: ActionPayload };
-    return r.type === 'success' || r.type === 'failure' ? r.data : undefined;
-  }
+  const payloadOf = (result: unknown) => actionPayload<ActionPayload>(result);
 
   const lookupSubmit: SubmitFunction = () => {
     return async ({ result }) => {
@@ -404,34 +405,7 @@
     return qs ? `/users?${qs}` : '/users';
   }
 
-  async function copyViewAs() {
-    try {
-      await navigator.clipboard.writeText(viewAsUrl);
-      viewAsCopied = true;
-      setTimeout(() => (viewAsCopied = false), 1500);
-    } catch {
-      viewAsCopied = false;
-    }
-  }
-
-  function ago(iso?: string): string {
-    if (!iso) return '-';
-    const mins = Math.max(Math.round((Date.now() - new Date(iso).getTime()) / 60e3), 0);
-    if (mins < 1) return 'now';
-    if (mins < 60) return `${mins}m ago`;
-    const hours = Math.round(mins / 60);
-    if (hours < 48) return `${hours}h ago`;
-    return `${Math.round(hours / 24)}d ago`;
-  }
-
-  function fmtDate(iso?: string): string {
-    if (!iso) return 'unknown';
-    return new Date(iso).toLocaleDateString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  }
+  const copyViewAs = () => copyFlash(viewAsUrl, (on) => (viewAsCopied = on));
 
   const subTone = $derived.by(() => {
     switch (subState?.state) {

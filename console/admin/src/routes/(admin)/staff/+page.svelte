@@ -14,7 +14,9 @@
     ConfirmDialog,
     Scroller,
     Skeleton,
-    toast
+    toast,
+    actionPayload,
+    ago,
   } from '@bagel/shared';
   import type { AdminAcct, AdminRole, AuditEntry } from '$lib/server/services';
 
@@ -61,10 +63,7 @@
     staff?: AdminAcct[];
     error?: string;
   };
-  function payloadOf(result: unknown): ActionPayload | undefined {
-    const r = result as { type: string; data?: ActionPayload };
-    return r.type === 'success' || r.type === 'failure' ? r.data : undefined;
-  }
+  const payloadOf = (result: unknown) => actionPayload<ActionPayload>(result);
 
   let busy = $state(false);
 
@@ -132,14 +131,6 @@
     historyFor = null;
     history = null;
     historyError = '';
-  }
-
-  function ago(iso: string): string {
-    const mins = Math.max(Math.round((Date.now() - new Date(iso).getTime()) / 60e3), 0);
-    if (mins < 60) return `${mins}m ago`;
-    const hours = Math.round(mins / 60);
-    if (hours < 48) return `${hours}h ago`;
-    return `${Math.round(hours / 24)}d ago`;
   }
 
   function onKey(e: KeyboardEvent) {

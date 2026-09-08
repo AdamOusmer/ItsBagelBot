@@ -15,7 +15,8 @@
     EmptyState,
     ConfirmDialog,
     Skeleton,
-    toast
+    toast,
+    actionPayload,
   } from '@bagel/shared';
   import type { LaneView, LanesResult } from '$lib/server/lanes';
 
@@ -117,10 +118,7 @@
   }
 
   type LaneActionPayload = { ok?: boolean; notice?: string; error?: string };
-  function payloadOf(r: unknown): LaneActionPayload | undefined {
-    const res = r as { type: string; data?: LaneActionPayload };
-    return res.type === 'success' || res.type === 'failure' ? res.data : undefined;
-  }
+  const payloadOf = (r: unknown) => actionPayload<LaneActionPayload>(r);
 
   const renameSubmit: SubmitFunction = () => {
     return async ({ result: r }) => {

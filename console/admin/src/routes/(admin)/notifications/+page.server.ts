@@ -14,17 +14,12 @@ import {
   type NotificationWire
 } from '$lib/server/services';
 import { requireAdmin, type AdminIdentity } from '$lib/server/access';
+import { parsePage } from '$lib/server/paging';
 
 const LEVELS = new Set(['info', 'success', 'warning', 'critical']);
 const MAX_TITLE_LENGTH = 120;
 const MAX_BODY_LENGTH = 2000;
 const DEMO = dev && process.env.DEMO === '1';
-
-function parsePage(raw: string | null): number {
-  const page = Number(raw ?? '1');
-  if (!Number.isFinite(page)) return 1;
-  return Math.min(Math.max(Math.trunc(page), 1), NOTIFICATIONS_MAX_PAGES);
-}
 
 export type HistoryBundle = {
   notifications: NotificationWire[];
@@ -72,7 +67,7 @@ async function loadHistory(page: number): Promise<HistoryBundle> {
 // Streamed: compose renders immediately; the sent history hydrates when the
 // notifications RPC lands.
 export const load: PageServerLoad = ({ url }) => {
-  const page = parsePage(url.searchParams.get('page'));
+  const page = parsePage(url.searchParams.get('page'), NOTIFICATIONS_MAX_PAGES);
   const history: Promise<HistoryBundle> = DEMO
     ? import('$lib/server/demo-data').then(({ sampleNotifications }) =>
         demoPage(page, sampleNotifications)
