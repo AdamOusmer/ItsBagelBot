@@ -70,6 +70,7 @@ type UserView struct {
 type Users struct {
 	client  *ent.Client
 	views   *cache.Cache[UserView]
+	stats   *cache.Cache[userStatsRow]
 	packer  domaincrypto.Packer
 	pub     bus.Publisher
 	batcher *batch.Batcher[prefKey, prefWrite]
@@ -86,6 +87,7 @@ func NewUsers(client *ent.Client, packer domaincrypto.Packer, pub bus.Publisher,
 	r := &Users{
 		client: client,
 		views:  cache.New[UserView](userCacheCapacity, userCacheTTL),
+		stats:  cache.New[userStatsRow](userStatsCapacity, userStatsTTL),
 		packer: packer,
 		pub:    pub,
 		app:    app,
@@ -371,6 +373,7 @@ func (r *Users) Invalidate(id uint64) {
 func (r *Users) Close(ctx context.Context) {
 	r.batcher.Close(ctx)
 	r.views.Close()
+	r.stats.Close()
 }
 
 // publishChanged refreshes the local cache view and announces the full new
