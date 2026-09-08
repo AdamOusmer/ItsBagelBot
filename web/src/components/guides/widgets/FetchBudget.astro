@@ -95,6 +95,8 @@ const made = Math.min(wanted, 6);
 </style>
 
 <script>
+    import { bindOnce } from '../../../script/bind';
+
     // Bundled by Astro, so it satisfies the site's script-src 'self' CSP.
     // A cached answer lives 30 s, so one definition sends at most 2 requests a
     // minute; the channel is capped at 6 across all of its definitions.
@@ -130,17 +132,5 @@ const made = Math.min(wanted, 6);
         update();
     }
 
-    // The site runs the ClientRouter, so a guide can arrive by DOM swap as
-    // well as by a full load. Wiring on astro:page-load covers both, and the
-    // data-ready flag keeps a second pass from binding the same widget twice.
-    function setupAll() {
-        document.querySelectorAll<HTMLElement>('[data-fetchbudget]').forEach((root) => {
-            if (root.dataset.ready === '1') return;
-            root.dataset.ready = '1';
-            setupFetchBudget(root);
-        });
-    }
-
-    setupAll();
-    document.addEventListener('astro:page-load', setupAll);
+    bindOnce('[data-fetchbudget]', setupFetchBudget);
 </script>

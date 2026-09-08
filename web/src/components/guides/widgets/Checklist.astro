@@ -101,6 +101,8 @@ const storageKey = typeof props.storageKey === 'string' ? props.storageKey : 'gu
 </style>
 
 <script>
+    import { bindOnce } from '../../../script/bind';
+
     // Bundled by Astro, so it satisfies the site's script-src 'self' CSP.
     function setupChecklist(root: HTMLElement) {
         const key = root.dataset.key ?? 'guides.checklist';
@@ -143,16 +145,5 @@ const storageKey = typeof props.storageKey === 'string' ? props.storageKey : 'gu
         });
     }
 
-    // Bound on astro:page-load as well as at load: the ClientRouter swaps the DOM
-    // on navigation, and the data-ready flag stops a second pass binding twice.
-    function setupAll() {
-        document.querySelectorAll<HTMLElement>('[data-checklist]').forEach((root) => {
-            if (root.dataset.ready === '1') return;
-            root.dataset.ready = '1';
-            setupChecklist(root);
-        });
-    }
-
-    setupAll();
-    document.addEventListener('astro:page-load', setupAll);
+    bindOnce('[data-checklist]', setupChecklist);
 </script>

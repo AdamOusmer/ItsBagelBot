@@ -100,6 +100,8 @@ const outcomes = (Array.isArray(props.outcomes) ? props.outcomes : []) as Outcom
 </style>
 
 <script>
+    import { bindOnce } from '../../../script/bind';
+
     // Bundled by Astro, so it satisfies the site's script-src 'self' CSP.
     function setupFetchOutcomes(root: HTMLElement) {
         const tabs = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-go-tab]'));
@@ -130,17 +132,5 @@ const outcomes = (Array.isArray(props.outcomes) ? props.outcomes : []) as Outcom
         });
     }
 
-    // The site runs the ClientRouter, so a guide can arrive by DOM swap as
-    // well as by a full load. Wiring on astro:page-load covers both, and the
-    // data-ready flag keeps a second pass from binding the same widget twice.
-    function setupAll() {
-        document.querySelectorAll<HTMLElement>('[data-fetchoutcomes]').forEach((root) => {
-            if (root.dataset.ready === '1') return;
-            root.dataset.ready = '1';
-            setupFetchOutcomes(root);
-        });
-    }
-
-    setupAll();
-    document.addEventListener('astro:page-load', setupAll);
+    bindOnce('[data-fetchoutcomes]', setupFetchOutcomes);
 </script>

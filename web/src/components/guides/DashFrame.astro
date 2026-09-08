@@ -154,6 +154,8 @@ const { path = '/', notes = [], caption } = Astro.props;
 </style>
 
 <script>
+    import { bindOnce } from '../../script/bind';
+
     // Legend line -> element in the frame. Each screen leaves an invisible
     // <i class="df-mark" data-note="N"> inside the element it describes; the
     // matching legend line lights that element's parent while hovered or
@@ -174,14 +176,5 @@ const { path = '/', notes = [], caption } = Astro.props;
         });
     }
 
-    function setupAll() {
-        document.querySelectorAll<HTMLElement>('.dframe').forEach((frame) => {
-            if (frame.dataset.ready === '1') return;
-            frame.dataset.ready = '1';
-            setupFrame(frame);
-        });
-    }
-
-    setupAll();
-    document.addEventListener('astro:page-load', setupAll);
+    bindOnce('.dframe', setupFrame);
 </script>

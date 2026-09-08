@@ -176,6 +176,8 @@ const haystack = (m: Module) => `${m.name} ${m.tagline} ${m.commands ?? ''}`.toL
 </style>
 
 <script>
+    import { bindOnce } from '../../../script/bind';
+
     // Bundled by Astro, so it satisfies the site's script-src 'self' CSP.
     function setupCatalog(root: HTMLElement) {
         const bar = root.querySelector<HTMLElement>('[data-mcat-bar]');
@@ -230,16 +232,5 @@ const haystack = (m: Module) => `${m.name} ${m.tagline} ${m.commands ?? ''}`.toL
         if (bar) bar.hidden = false;
     }
 
-    // Bound on astro:page-load as well as at load: the ClientRouter swaps the DOM
-    // on navigation, and the data-ready flag stops a second pass binding twice.
-    function setupAll() {
-        document.querySelectorAll<HTMLElement>('[data-mcat]').forEach((root) => {
-            if (root.dataset.ready === '1') return;
-            root.dataset.ready = '1';
-            setupCatalog(root);
-        });
-    }
-
-    setupAll();
-    document.addEventListener('astro:page-load', setupAll);
+    bindOnce('[data-mcat]', setupCatalog);
 </script>

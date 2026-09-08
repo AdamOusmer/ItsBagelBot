@@ -142,6 +142,8 @@ const start = typeof props.start === 'number' ? props.start : 12;
 </style>
 
 <script>
+    import { bindOnce } from '../../../script/bind';
+
     // Bundled by Astro, so it satisfies the site's script-src 'self' CSP.
     function setupCounterPlay(root: HTMLElement) {
         const start = Number(root.dataset.start ?? '0');
@@ -180,16 +182,5 @@ const start = typeof props.start === 'number' ? props.start : 12;
         });
     }
 
-    // Bound on astro:page-load as well as at load: the ClientRouter swaps the DOM
-    // on navigation, and the data-ready flag stops a second pass binding twice.
-    function setupAll() {
-        document.querySelectorAll<HTMLElement>('[data-counter-play]').forEach((root) => {
-            if (root.dataset.ready === '1') return;
-            root.dataset.ready = '1';
-            setupCounterPlay(root);
-        });
-    }
-
-    setupAll();
-    document.addEventListener('astro:page-load', setupAll);
+    bindOnce('[data-counter-play]', setupCounterPlay);
 </script>
