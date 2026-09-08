@@ -3,6 +3,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import HomeLightField from '../home/HomeLightField.astro';
+import { getLangFromUrl, useTranslations, localizePath } from '../../i18n/ui';
 
 interface Props {
     status: number;
@@ -13,13 +14,16 @@ interface Props {
     actionHref?: string;
 }
 
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+
 const {
     status,
     eyebrow,
     title,
     description,
-    actionLabel = 'Back to home',
-    actionHref = '/',
+    actionLabel = t('error.home'),
+    actionHref = localizePath('/', lang),
 } = Astro.props;
 ---
 
@@ -40,19 +44,23 @@ const {
 
         <div class="error-scene__actions">
             <a class="error-action error-action--primary" href={actionHref}>{actionLabel}</a>
-            <button class="error-action error-action--quiet" type="button" data-error-back>Go back</button>
+            <button class="error-action error-action--quiet" type="button" data-error-back={actionHref}>{t('error.back')}</button>
         </div>
 
-        <p class="error-scene__aside">The oven is still warm. Everything else is right where you left it.</p>
+        <p class="error-scene__aside">{t('error.aside')}</p>
     </div>
 </section>
 
 <script>
     document.addEventListener('click', (event) => {
         const target = event.target;
-        if (!(target instanceof Element) || !target.closest('[data-error-back]')) return;
+        if (!(target instanceof Element)) return;
+        const back = target.closest<HTMLElement>('[data-error-back]');
+        if (!back) return;
+        // The home fallback comes off the button so it lands in the locale the
+        // visitor was reading, not always at the English root.
         if (window.history.length > 1) window.history.back();
-        else window.location.assign('/');
+        else window.location.assign(back.dataset.errorBack || '/');
     });
 </script>
 

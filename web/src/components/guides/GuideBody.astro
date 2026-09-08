@@ -34,7 +34,7 @@ const { blocks } = Astro.props;
     if (block.kind === 'steps') return <Steps items={block.items} />;
     if (block.kind === 'cards') return <Cards columns={block.columns} items={block.items} />;
     if (block.kind === 'dash') {
-        const Screen = screens[block.screen] as any;
+        const Screen = screens[block.screen];
         if (!Screen) throw new Error(`guides: no screen component for "${block.screen}" (add screens/${block.screen}.astro)`);
         return (
             <DashFrame path={block.path} caption={block.caption} notes={block.notes}>
@@ -42,7 +42,7 @@ const { blocks } = Astro.props;
             </DashFrame>
         );
     }
-    const Widget = widgets[block.name] as any;
+    const Widget = widgets[block.name];
     if (!Widget) throw new Error(`guides: no widget component for "${block.name}" (add widgets/${block.name}.astro)`);
     return <Widget labels={block.labels} props={block.props} />;
 })}

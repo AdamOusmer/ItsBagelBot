@@ -1,11 +1,11 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// The "counters" guide in fr. Copy only: the structure it fills lives in
-// src/lib/guides/skeletons/counters.ts, and every key below is one k('...')
-// there. Adding a language is this file translated, with no structure to get
-// wrong; a key this locale omits falls back to English.
-import type { GuideStrings } from '../../lib/guides/skeleton';
+// The "counters" guide in fr. Copy only: the structure it fills is the
+// English guide, counters.en.ts, and every id below names one string in it
+// (lib/guides/translate.ts derives the ids from where the strings sit).
+// Adding a language is this file translated, with no structure to get wrong.
+import type { GuideStrings } from '../../lib/guides/translate';
 
 const strings: GuideStrings = {
     'basics.b0.html': `

@@ -1,0 +1,24 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Per-locale for the same reason as 404.astro.
+import Layout from '../../layouts/Layout.astro';
+import ErrorScene from '../../components/errors/ErrorScene.astro';
+import { getLangFromUrl, useTranslations, localeStaticPaths } from '../../i18n/ui';
+
+export const getStaticPaths = localeStaticPaths;
+
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+---
+
+<Layout title={t('error.500.metaTitle')} description={t('error.500.metaDesc')} noindex>
+    <ErrorScene
+        status={500}
+        eyebrow={t('error.500.eyebrow')}
+        title={t('error.500.title')}
+        description={t('error.500.desc')}
+        actionLabel={t('error.500.action')}
+    />
+</Layout>

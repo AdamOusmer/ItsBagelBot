@@ -61,6 +61,7 @@ const isActive = (href: string) =>
 
 <script>
     import {animate, cubicBezier} from "motion";
+    import { bindOnce } from '../../script/bind';
 
     const MENU_VIEWPORT_QUERY = '(max-width: 1023px)';
 
@@ -252,24 +253,19 @@ const isActive = (href: string) =>
         }
     }
 
-    function setupNav(): void {
-        const ham = document.querySelector<HTMLButtonElement>('[data-menu-toggle]');
+    function setupNav(ham: HTMLElement): void {
         const menu = document.querySelector<HTMLDivElement>('[data-mobile-menu]');
         const curvePath = document.querySelector<SVGPathElement>('[data-menu-curve-path]');
 
-        if (!ham || !menu || !curvePath || ham.dataset.navReady === 'true') return;
+        if (!menu || !curvePath) return;
 
-        ham.dataset.navReady = 'true';
-        new TopDownMenuAnimator(ham, menu, curvePath);
+        new TopDownMenuAnimator(ham as HTMLButtonElement, menu, curvePath);
     }
 
-    function setupLogoHomeLink(): void {
-        const logo = document.querySelector<HTMLAnchorElement>('[data-home-logo]');
-        if (!logo || logo.dataset.homeLogoReady === 'true') return;
-
-        logo.dataset.homeLogoReady = 'true';
+    function setupLogoHomeLink(logo: HTMLElement): void {
+        const href = (logo as HTMLAnchorElement).href;
         logo.addEventListener('click', (event) => {
-            const target = new URL(logo.href, window.location.href);
+            const target = new URL(href, window.location.href);
             const isSameHomePath =
                 target.origin === window.location.origin &&
                 target.pathname === window.location.pathname;
@@ -286,12 +282,8 @@ const isActive = (href: string) =>
         });
     }
 
-    setupNav();
-    setupLogoHomeLink();
-    document.addEventListener('astro:page-load', () => {
-        setupNav();
-        setupLogoHomeLink();
-    });
+    bindOnce('[data-menu-toggle]', setupNav);
+    bindOnce('[data-home-logo]', setupLogoHomeLink);
 </script>
 
 <style>

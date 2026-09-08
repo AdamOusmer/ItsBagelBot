@@ -7,6 +7,7 @@
  * components under src/components/guides render them and hold no copy of their
  * own. Type-only import of Lang so a content file never pulls the i18n runtime.
  */
+import type { AstroComponentFactory } from 'astro/runtime/server/index.js';
 import type { Lang } from '../../i18n/ui';
 import type { GuideSlug } from './slugs';
 
@@ -40,6 +41,14 @@ export type ScreenName =
   | 'RewardCounter'
   | 'DataSourceModal'
   | 'DataSourcePicker';
+
+/**
+ * A screen or widget component, as the two dispatchers hold it. Astro exports
+ * a component factory from a .astro module; naming it here is what lets the
+ * dispatchers stay typed maps instead of `Record<string, unknown>` that
+ * GuideBody has to cast element by element.
+ */
+export type GuideComponent = AstroComponentFactory;
 
 /** Interactive widgets. Resolved through src/components/guides/widgets/index.ts. */
 export type WidgetName =

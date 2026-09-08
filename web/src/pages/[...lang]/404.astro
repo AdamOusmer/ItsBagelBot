@@ -1,0 +1,25 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Built once per locale so Cloudflare Pages can serve /fr/404.html to a
+// visitor who mistyped a French URL; the un-prefixed build is still the
+// site-wide 404.html.
+import Layout from '../../layouts/Layout.astro';
+import ErrorScene from '../../components/errors/ErrorScene.astro';
+import { getLangFromUrl, useTranslations, localeStaticPaths } from '../../i18n/ui';
+
+export const getStaticPaths = localeStaticPaths;
+
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+---
+
+<Layout title={t('error.404.metaTitle')} description={t('error.404.metaDesc')} noindex>
+    <ErrorScene
+        status={404}
+        eyebrow={t('error.404.eyebrow')}
+        title={t('error.404.title')}
+        description={t('error.404.desc')}
+    />
+</Layout>
