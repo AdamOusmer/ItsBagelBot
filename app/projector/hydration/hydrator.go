@@ -269,77 +269,111 @@ func (h *Hydrator) fill(ctx context.Context, j job, state projection.HydrationSt
 	wg.Wait()
 }
 
-func (h *Hydrator) fillUser(ctx context.Context, j job) {
-	reply, err := fetchWithRetry(ctx, h.log, "users", j.userID, func(ctx context.Context) (rpcprojection.UserReply, error) {
-		reply, err := h.fetch.user(ctx, j.userID)
-		if err == nil && reply.Error != "" {
-			err = errors.New(reply.Error)
-		}
-		return reply, err
+// section is one hydrated section's variable half: the label it logs under,
+// its RPC fetch, its reply's in-band error accessor, and its store write.
+//
+// replyErr is a function rather than an interface constraint because the reply
+// types are plain wire DTOs in internal/domain/rpc/projection and a Go
+// constraint cannot require a FIELD — satisfying one would mean adding an
+// accessor method to a contract package purely to serve this caller.
+type section[T any] struct {
+	name     string
+	fetch    func(context.Context, uint64) (T, error)
+	replyErr func(T) string
+	write    func(context.Context, T) error
+}
+
+// fillSection is the skeleton all three sections share: fetch with retry, then
+// write. Template Method — the retry, the in-band error folding and the two
+// failure logs are fixed; sec supplies the hooks.
+//
+// STORE WRITE FAILURES ARE NOT RETRIED, and that is deliberate: they are a
+// different failure mode (Valkey, not the go-live NATS/RPC blip fetchWithRetry
+// exists for), and the section already holds a freshly fetched reply that a
+// later EnsureAsync/RefreshAsync run can re-fetch and write cleanly, so a
+// second write attempt would not add much.
+func fillSection[T any](ctx context.Context, h *Hydrator, j job, sec section[T]) {
+	reply, err := fetchWithRetry(ctx, h.log, sec.name, j.userID, func(ctx context.Context) (T, error) {
+		reply, err := sec.fetch(ctx, j.userID)
+		return unwrapReplyErr(reply, err, sec.replyErr)
 	})
 	if err != nil {
-		h.logFailure("users", j.userID, err)
+		h.logFailure(sec.name, j.userID, err)
 		return
 	}
-	if err := h.store.SetUserWithTTL(ctx, j.userID, projection.UserProjection{
-		Status:   reply.Status,
-		IsActive: reply.IsActive,
-		Banned:   reply.Banned,
-		Locale:   reply.Locale,
-	}, j.ttl); err != nil {
-		// Store write failures are not retried here: they are a different
-		// failure mode (Valkey, not the go-live NATS/RPC blip this retry
-		// exists for) and the section already holds a freshly fetched
-		// reply that a later EnsureAsync/RefreshAsync run can re-fetch and
-		// write cleanly, so a second write attempt would not add much.
-		h.logFailure("users write", j.userID, err)
+	if err := sec.write(ctx, reply); err != nil {
+		h.logFailure(sec.name+" write", j.userID, err)
 	}
 }
 
+// unwrapReplyErr folds a reply's in-band Error field into the transport error.
+// A reply that arrives carrying a service-level error is a FAILED fetch, so
+// the retry loop has to see it as one; without this it would be handed back as
+// a success and written to the projection as an empty section.
+func unwrapReplyErr[T any](reply T, err error, replyErr func(T) string) (T, error) {
+	if err != nil {
+		return reply, err
+	}
+	if msg := replyErr(reply); msg != "" {
+		return reply, errors.New(msg)
+	}
+	return reply, nil
+}
+
+func (h *Hydrator) fillUser(ctx context.Context, j job) {
+	fillSection(ctx, h, j, section[rpcprojection.UserReply]{
+		name:     "users",
+		fetch:    h.fetch.user,
+		replyErr: func(r rpcprojection.UserReply) string { return r.Error },
+		write: func(ctx context.Context, r rpcprojection.UserReply) error {
+			return h.store.SetUserWithTTL(ctx, j.userID, projection.UserProjection{
+				Status:   r.Status,
+				IsActive: r.IsActive,
+				Banned:   r.Banned,
+				Locale:   r.Locale,
+			}, j.ttl)
+		},
+	})
+}
+
 func (h *Hydrator) fillModules(ctx context.Context, j job) {
+	write := func(ctx context.Context, mods []projection.ModuleView) error {
+		return h.store.SetModulesWithTTL(ctx, j.userID, mods, j.ttl)
+	}
 	if j.seed.ModulesKnown {
-		if err := h.store.SetModulesWithTTL(ctx, j.userID, j.seed.Modules, j.ttl); err != nil {
+		if err := write(ctx, j.seed.Modules); err != nil {
 			h.logFailure("modules write", j.userID, err)
 		}
 		return
 	}
-	reply, err := fetchWithRetry(ctx, h.log, "modules", j.userID, func(ctx context.Context) (rpcprojection.ModulesReply, error) {
-		reply, err := h.fetch.modules(ctx, j.userID)
-		if err == nil && reply.Error != "" {
-			err = errors.New(reply.Error)
-		}
-		return reply, err
+	fillSection(ctx, h, j, section[rpcprojection.ModulesReply]{
+		name:     "modules",
+		fetch:    h.fetch.modules,
+		replyErr: func(r rpcprojection.ModulesReply) string { return r.Error },
+		write: func(ctx context.Context, r rpcprojection.ModulesReply) error {
+			return write(ctx, r.Modules)
+		},
 	})
-	if err != nil {
-		h.logFailure("modules", j.userID, err)
-		return
-	}
-	if err := h.store.SetModulesWithTTL(ctx, j.userID, reply.Modules, j.ttl); err != nil {
-		h.logFailure("modules write", j.userID, err)
-	}
 }
 
 func (h *Hydrator) fillCommands(ctx context.Context, j job) {
+	write := func(ctx context.Context, cmds []projection.CommandView) error {
+		return h.store.SetCommandsWithTTL(ctx, j.userID, cmds, j.ttl)
+	}
 	if j.seed.CommandsKnown {
-		if err := h.store.SetCommandsWithTTL(ctx, j.userID, j.seed.Commands, j.ttl); err != nil {
+		if err := write(ctx, j.seed.Commands); err != nil {
 			h.logFailure("commands write", j.userID, err)
 		}
 		return
 	}
-	reply, err := fetchWithRetry(ctx, h.log, "commands", j.userID, func(ctx context.Context) (rpcprojection.CommandsReply, error) {
-		reply, err := h.fetch.commands(ctx, j.userID)
-		if err == nil && reply.Error != "" {
-			err = errors.New(reply.Error)
-		}
-		return reply, err
+	fillSection(ctx, h, j, section[rpcprojection.CommandsReply]{
+		name:     "commands",
+		fetch:    h.fetch.commands,
+		replyErr: func(r rpcprojection.CommandsReply) string { return r.Error },
+		write: func(ctx context.Context, r rpcprojection.CommandsReply) error {
+			return write(ctx, r.Commands)
+		},
 	})
-	if err != nil {
-		h.logFailure("commands", j.userID, err)
-		return
-	}
-	if err := h.store.SetCommandsWithTTL(ctx, j.userID, reply.Commands, j.ttl); err != nil {
-		h.logFailure("commands write", j.userID, err)
-	}
 }
 
 // fetchWithRetry runs fetch up to hydrationRetryAttempts times, pausing
