@@ -21,6 +21,14 @@ import (
 
 type ModuleView = contract.ModuleView
 
+// moduleFieldPrefix keys both hash fields of one module row (:enabled and
+// :config); modulesMarkerField is the section's completeness marker, plural so
+// it falls outside that prefix (the fetchesMarkerField convention).
+const (
+	moduleFieldPrefix  = "module:"
+	modulesMarkerField = "modules:projected"
+)
+
 // SetModule projects one module row of one user. It deliberately does NOT set
 // the modules:projected marker: a single-row event landing on a cold hash must
 // not make a partial module list read as complete. Only the full-section
@@ -81,7 +89,12 @@ func (v *Store) SetModulesWithTTL(ctx context.Context, userID uint64, modules []
 			rows = append(rows, [2]string{"module:" + mod.Name + ":config", string(mod.Configs)})
 		}
 	}
-	return v.replaceSection(ctx, userID, sectionWrite{prefix: "module:", marker: "modules:projected", ttl: ttl, rows: rows})
+	return v.replaceSection(ctx, userID, sectionWrite{
+		prefixes: []string{moduleFieldPrefix},
+		marker:   modulesMarkerField,
+		ttl:      ttl,
+		rows:     rows,
+	})
 }
 
 // GetModules returns the user's module rows keyed by name. By-name is the shape
@@ -106,7 +119,7 @@ func (v *Store) GetModules(ctx context.Context, userID uint64) (map[string]Modul
 	// projected trusts the marker alone: module rows written by single-module
 	// events (SetModule) never set it, so a partial hash correctly reads as
 	// not-yet-projected and the caller falls through to the full hydration.
-	projected := fields["modules:projected"] == "1"
+	projected := fields[modulesMarkerField] == "1"
 	// Sized from the hash: two fields (enabled + config) per module, plus the
 	// section markers, so len(fields)/2 is a close upper bound that skips the
 	// rehash the zero-sized literal paid on every read.

@@ -120,21 +120,28 @@ func (v *Store) GetUser(ctx context.Context, userID uint64) (string, bool, bool,
 	return status, active, banned, locale, nil
 }
 
-// sectionWrite is one full-section replacement: clear everything under
-// prefix, then write the projected marker plus rows in one HSET, refreshing
-// the TTL. The marker rides the SAME write as the rows on purpose — the
-// projection-marker trust rule (markers may only ever come from full-section
-// writes) is enforced by this being the only path that writes one.
+// sectionWrite is one full-section replacement: clear everything under every
+// prefix the section owns, then write the projected marker plus rows in one
+// HSET, refreshing the TTL. The marker rides the SAME write as the rows on
+// purpose — the projection-marker trust rule (markers may only ever come from
+// full-section writes) is enforced by this being the only path that writes one.
+//
+// prefixes is a list rather than a single string because the command section
+// owns two disjoint field families (command:<name> bodies and cmdalias:<alias>
+// pointers). Before it was widened, SetCommandsWithTTL re-implemented this
+// whole clear-then-marker-then-rows sequence inline just to clear both, which
+// put a second writer of a :projected marker in the tree — exactly what the
+// trust rule above forbids.
 type sectionWrite struct {
-	prefix string
-	marker string
-	ttl    time.Duration
-	rows   [][2]string
+	prefixes []string
+	marker   string
+	ttl      time.Duration
+	rows     [][2]string
 }
 
 func (v *Store) replaceSection(ctx context.Context, userID uint64, sec sectionWrite) error {
 	key := cache.UserKey(settingsKeyPrefix, userID)
-	if err := v.clearProjectionFields(ctx, key, sec.prefix); err != nil {
+	if err := v.clearProjectionFields(ctx, key, sec.prefixes...); err != nil {
 		return err
 	}
 	fields := v.client.B().Hset().
@@ -180,6 +187,47 @@ func decodeJSONField[T any](res valkey.ValkeyResult) (T, bool, error) {
 	return view, true, nil
 }
 
+// sectionRead names the two hash fields a section's whole-list read needs: the
+// prefix its rows are keyed under and the completeness marker.
+type sectionRead struct {
+	prefix string
+	marker string
+}
+
+// getSection reads one section's complete row list off a single HGETALL. Both
+// list readers (GetCommands, GetFetches) were the same nine lines apart from
+// the row type, so the shape lives here once: the marker alone decides
+// projected (per-row event writes never set it, so a partial hash falls
+// through to full hydration), and an unparseable row is skipped rather than
+// failing the read — a corrupt or legacy field must not hide the rest of a
+// user's section. GetModules is deliberately NOT folded in: its one logical
+// row spans two hash fields (:enabled and :config) and it returns a by-name
+// map, so it decodes field-by-field instead of body-by-body.
+func getSection[T any](ctx context.Context, v *Store, userID uint64, sec sectionRead) ([]T, bool, error) {
+	defer segment(ctx, "HGETALL")()
+
+	key := cache.UserKey(settingsKeyPrefix, userID)
+	fields, err := v.client.Do(ctx, v.client.B().Hgetall().Key(key).Build()).AsStrMap()
+	if err != nil {
+		return nil, false, err
+	}
+
+	projected := fields[sec.marker] == "1"
+	out := make([]T, 0)
+	for field, value := range fields {
+		name, ok := strings.CutPrefix(field, sec.prefix)
+		if !ok || name == "" {
+			continue
+		}
+		var row T
+		if codec.Unmarshal([]byte(value), &row) != nil {
+			continue
+		}
+		out = append(out, row)
+	}
+	return out, projected, nil
+}
+
 // HydrationState describes which complete sections exist in a user's settings
 // hash. The projected markers distinguish an intentionally empty collection
 // from a cold cache miss.
@@ -202,8 +250,8 @@ func (v *Store) GetHydrationState(ctx context.Context, userID uint64) (Hydration
 	key := cache.UserKey(settingsKeyPrefix, userID)
 	fields, err := v.client.Do(ctx, v.client.B().Hmget().Key(key).
 		Field("status").
-		Field("modules:projected").
-		Field("commands:projected").
+		Field(modulesMarkerField).
+		Field(commandsMarkerField).
 		Build()).AsStrSlice()
 	if err != nil {
 		return HydrationState{}, err
