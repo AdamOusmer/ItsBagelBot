@@ -55,6 +55,16 @@ export interface SwrCacheOptions {
   onEvent?: (event: CacheEvent, key: string) => void;
   /** Called when a loader failure is masked by stale-serving (observability). */
   onMaskedError?: (err: unknown, key: string) => void;
+  /**
+   * Clock override for tests. Milliseconds, defaults to Date.now.
+   * The fresh/stale windows are wall-clock, so a test that steps them with real
+   * sleeps races the event loop: under a loaded full-suite run a macrotask can
+   * land more than freshMs after a background revalidation committed, so the
+   * value is stale again and an extra revalidation fires. Widening the test's
+   * windows was rejected -- it moves the flake rather than removing it, and
+   * stops the test from pinning the boundary it exists to pin.
+   */
+  now?: () => number;
 }
 
 interface Entry {
@@ -84,11 +94,13 @@ export class SwrCache {
   private readonly capacity: number;
   private readonly onEvent?: (event: CacheEvent, key: string) => void;
   private readonly onMaskedError?: (err: unknown, key: string) => void;
+  private readonly now: () => number;
 
   constructor(opts: SwrCacheOptions = {}) {
     this.capacity = opts.capacity ?? 5000;
     this.onEvent = opts.onEvent;
     this.onMaskedError = opts.onMaskedError;
+    this.now = opts.now ?? Date.now;
   }
 
   /**
@@ -99,7 +111,7 @@ export class SwrCache {
    */
   async getOrLoad<T>(key: string, policy: CachePolicy | number, load: () => Promise<T>): Promise<T> {
     const p = normalize(policy);
-    const now = Date.now();
+    const now = this.now();
     const entry = this.store.get(key);
 
     if (entry && now < entry.freshUntil) {
@@ -199,7 +211,7 @@ export class SwrCache {
         return value;
       } catch (err) {
         const cur = this.store.get(key);
-        if (cur && Date.now() < cur.errorUntil) {
+        if (cur && this.now() < cur.errorUntil) {
           this.emit('error_served_stale', key);
           this.onMaskedError?.(err, key);
           return cur.value as T;
@@ -230,7 +242,7 @@ export class SwrCache {
   }
 
   private commit(key: string, value: unknown, p: Required<CachePolicy>): void {
-    const now = Date.now();
+    const now = this.now();
     this.insert(key, {
       value,
       freshUntil: now + p.freshMs,
