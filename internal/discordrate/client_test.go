@@ -230,10 +230,19 @@ func TestLimitedClientGatesEveryMethod(t *testing.T) {
 		})
 	}
 
+	assertTableCoversEveryMethod(t, covered)
+}
+
+// assertTableCoversEveryMethod is the half of the table test that catches what
+// the cases themselves cannot: a method added to LimitedClient and never added
+// here, which would otherwise pass every test in this package while never
+// paying the gate.
+func assertTableCoversEveryMethod(t *testing.T, covered map[string]bool) {
+	t.Helper()
 	limited := reflect.TypeOf((*LimitedClient)(nil))
 	for i := range limited.NumMethod() {
 		if name := limited.Method(i).Name; !covered[name] {
-			t.Errorf("%s is not in this table: every exported method must pay the gate", name)
+			t.Errorf("%s is not in the gate table: every exported method must pay the gate", name)
 		}
 	}
 }
