@@ -5,11 +5,6 @@ package rpc
 
 import (
 	"context"
-	"time"
-
-	"github.com/nats-io/nats.go"
-	"github.com/newrelic/go-agent/v3/newrelic"
-	"go.uber.org/zap"
 
 	"ItsBagelBot/app/db/modules/repository"
 	modulesrpc "ItsBagelBot/internal/domain/rpc/modules"
@@ -17,56 +12,44 @@ import (
 	"ItsBagelBot/pkg/bus"
 )
 
-// PersonalityWiring bundles what SubscribePersonality needs, mirroring the
-// quotes wiring.
-type PersonalityWiring struct {
-	NC         *nats.Conn
-	Repo       *repository.Personality
-	Prefix     string // subject prefix, e.g. "bagel.rpc.modules.personality"
-	QueueGroup string
-	App        *newrelic.Application
-	Log        *zap.Logger
-}
-
-// SubscribePersonality answers the personality verbs under w.Prefix: feed,
+// SubscribePersonality answers the personality verbs under prefix: feed,
 // which records one feeding on the fleet-wide counter and the feeding
 // channel's row, and feed.board, the read-only leaderboard. They ride the
 // MODULES_RPC account export like the quote verbs, but sesame's WORKER_RPC
 // imports are scoped per subtree, so each verb needs its own import line in
 // nats-auth.conf (a bare export is not enough for the request to cross
 // accounts).
-func SubscribePersonality(w PersonalityWiring) error {
-	if err := subscribeFeedBump(w); err != nil {
+//
+// The two verbs carry different request and reply types, so they cannot share
+// one ServeVerbs table; each is bound on its own through the same wiring.
+func SubscribePersonality(w bus.RPCWiring, repo *repository.Personality, prefix string) error {
+	if err := bus.Serve(w, prefix+".feed", feedBump(repo)); err != nil {
 		return err
 	}
-	return subscribeFeedBoard(w)
+	return bus.Serve(w, prefix+".feed.board", feedBoard(repo))
 }
 
-// subscribeFeedBump answers the write verb: one feeding, both counters.
-func subscribeFeedBump(w PersonalityWiring) error {
-	handler := func(ctx context.Context, req modulesrpc.FeedBumpRequest) modulesrpc.FeedBumpReply {
-		totals, err := w.Repo.FeedBump(ctx, req.BroadcasterID, req.Name)
+// feedBump answers the write verb: one feeding, both counters.
+func feedBump(repo *repository.Personality) func(context.Context, modulesrpc.FeedBumpRequest) modulesrpc.FeedBumpReply {
+	return func(ctx context.Context, req modulesrpc.FeedBumpRequest) modulesrpc.FeedBumpReply {
+		totals, err := repo.FeedBump(ctx, req.BroadcasterID, req.Name)
 		if err != nil {
 			return modulesrpc.FeedBumpReply{Error: err.Error()}
 		}
 		return modulesrpc.FeedBumpReply{Total: totals.Total, Channel: totals.Channel, Rank: totals.Rank}
 	}
-	subject := w.Prefix + ".feed"
-	return bus.QueueSubscribeJSON[modulesrpc.FeedBumpRequest, modulesrpc.FeedBumpReply](w.NC, subject, w.QueueGroup, 2*time.Second, w.App, w.Log, handler)
 }
 
-// subscribeFeedBoard answers the read verb: the leaderboard, plus the asking
-// channel's own standing when it named itself.
-func subscribeFeedBoard(w PersonalityWiring) error {
-	handler := func(ctx context.Context, req modulesrpc.FeedBoardRequest) modulesrpc.FeedBoardReply {
-		reply, err := readFeedBoard(ctx, w.Repo, req)
+// feedBoard answers the read verb: the leaderboard, plus the asking channel's
+// own standing when it named itself.
+func feedBoard(repo *repository.Personality) func(context.Context, modulesrpc.FeedBoardRequest) modulesrpc.FeedBoardReply {
+	return func(ctx context.Context, req modulesrpc.FeedBoardRequest) modulesrpc.FeedBoardReply {
+		reply, err := readFeedBoard(ctx, repo, req)
 		if err != nil {
 			return modulesrpc.FeedBoardReply{Error: err.Error()}
 		}
 		return reply
 	}
-	subject := w.Prefix + ".feed.board"
-	return bus.QueueSubscribeJSON[modulesrpc.FeedBoardRequest, modulesrpc.FeedBoardReply](w.NC, subject, w.QueueGroup, 2*time.Second, w.App, w.Log, handler)
 }
 
 // readFeedBoard collects the three reads a leaderboard answer needs, keeping

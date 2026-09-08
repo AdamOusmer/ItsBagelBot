@@ -160,26 +160,13 @@ func subscribeRPCs(w rpcWiring) string {
 	}
 
 	// Channel-quotes verbs (the sesame quotes module's store).
-	if err := rpc.SubscribeQuotes(rpc.QuotesWiring{
-		NC:         w.nc,
-		Repo:       w.quotes,
-		Prefix:     dashboardSubject + ".quote",
-		QueueGroup: queueGroup,
-		App:        w.app,
-		Log:        w.log,
-	}); err != nil {
+	if err := rpc.SubscribeQuotes(wiring.RPCWiring, w.quotes, dashboardSubject+".quote"); err != nil {
 		w.log.Fatal("failed to subscribe quotes rpc", zap.Error(err))
 	}
 
 	// Personality verbs (the sesame personality module's permanent feed counter).
-	if err := rpc.SubscribePersonality(rpc.PersonalityWiring{
-		NC:         w.nc,
-		Repo:       repository.NewPersonality(w.client),
-		Prefix:     dashboardSubject + ".personality",
-		QueueGroup: queueGroup,
-		App:        w.app,
-		Log:        w.log,
-	}); err != nil {
+	personality := repository.NewPersonality(w.client)
+	if err := rpc.SubscribePersonality(wiring.RPCWiring, personality, dashboardSubject+".personality"); err != nil {
 		w.log.Fatal("failed to subscribe personality rpc", zap.Error(err))
 	}
 	return projectionSubject

@@ -40,10 +40,10 @@ func SubscribeDashboard(w Wiring, prefix string) error {
 	// surface, wired here so main keeps a single subscribe call. A no-op when
 	// key custody is disabled (no keyset). wireSpotify rides the same split
 	// for the connected-account refresh tokens.
-	if err := wireGovee(goveeWiring{nc: w.NC, creds: w.Repo.Govee(), queueGroup: w.Queue, app: w.App, log: w.Log}); err != nil {
+	if err := wireGovee(w.RPCWiring, w.Repo.Govee()); err != nil {
 		return err
 	}
-	return wireSpotify(spotifyWiring{nc: w.NC, creds: w.Repo.Spotify(), queueGroup: w.Queue, app: w.App, log: w.Log})
+	return wireSpotify(w.RPCWiring, w.Repo.Spotify())
 }
 
 func (d *dashboardRPC) parseUserID(req modulesrpc.DashboardRequest) (uint64, bool, modulesrpc.DashboardReply) {
