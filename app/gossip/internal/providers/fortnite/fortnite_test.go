@@ -57,13 +57,13 @@ func (s *memStore) Del(_ context.Context, key string) error {
 	return nil
 }
 
-func (s *memStore) SetNX(_ context.Context, key string, val []byte, _ time.Duration) (bool, error) {
+func (s *memStore) SetNX(_ context.Context, key string, _ time.Duration) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.m[key]; ok {
 		return false, nil
 	}
-	s.m[key] = append([]byte(nil), val...)
+	s.m[key] = []byte("1")
 	return true, nil
 }
 

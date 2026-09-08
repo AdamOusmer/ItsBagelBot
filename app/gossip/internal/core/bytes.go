@@ -174,7 +174,7 @@ func (c *Cache) refreshBytes(key string, admit func(context.Context) error, buil
 		defer c.refreshing.Delete(key)
 		ctx, cancel := context.WithTimeout(context.Background(), swrRefreshTimeout)
 		defer cancel()
-		if won, err := c.store.SetNX(ctx, key+":swr", []byte("1"), swrRefreshTimeout); err != nil || !won {
+		if won, err := c.store.SetNX(ctx, key+":swr", swrRefreshTimeout); err != nil || !won {
 			// Lost claim: another replica is refreshing. Claim error: leave the
 			// stale entry serving; the next read retries the claim.
 			return
