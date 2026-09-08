@@ -429,20 +429,7 @@ func (r *Registry) AcquireModCheckLock(ctx context.Context, broadcasterID, owner
 }
 
 func (r *Registry) acquireLock(ctx context.Context, key, owner string, ttl time.Duration) (bool, error) {
-
-	res := r.client.Do(ctx,
-		r.client.B().Set().Key(key).Value(owner).Nx().PxMilliseconds(ttl.Milliseconds()).Build(),
-	)
-	// SET NX returns a bulk-string "OK" on success or a nil bulk-string on failure.
-	// rueidis/valkey-go represents the nil bulk as a Nil error on ToString.
-	str, err := res.ToString()
-	if err != nil {
-		if valkey.IsValkeyNil(err) {
-			return false, nil
-		}
-		return false, err
-	}
-	return str == "OK", nil
+	return pkg_valkey.NewOwnerLock(r.client, key, owner).Acquire(ctx, ttl)
 }
 
 // ReleaseEnrollLock deletes the lock key only when its value matches owner,
@@ -456,11 +443,7 @@ func (r *Registry) ReleaseModCheckLock(ctx context.Context, broadcasterID, owner
 }
 
 func (r *Registry) releaseLock(ctx context.Context, key, owner string) error {
-
-	const luaDel = `if redis.call('get',KEYS[1])==ARGV[1] then return redis.call('del',KEYS[1]) else return 0 end`
-	return r.client.Do(ctx,
-		r.client.B().Eval().Script(luaDel).Numkeys(1).Key(key).Arg(owner).Build(),
-	).Error()
+	return pkg_valkey.NewOwnerLock(r.client, key, owner).Release(ctx)
 }
 
 // List returns every registered channel.
