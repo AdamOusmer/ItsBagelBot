@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+ # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 
 # warp - Cloudflare WARP client image for the gossip untrusted-egress sidecar

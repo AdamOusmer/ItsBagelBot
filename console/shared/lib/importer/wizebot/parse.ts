@@ -376,8 +376,17 @@ function permissionLabels(html: string): string[] {
 }
 
 function cleanLabel(raw: string): string {
-  const text = decodeEntities(raw.replace(/<[^>]*>/g, '')).trim();
-  return text.replace(FOLLOWER_QUALIFIER, '').trim();
+  // Markup is stripped to a fixpoint rather than in one pass: a single pass
+  // leaves "<scr<span>ipt>" reading as "<script>", which CodeQL flags
+  // (js/incomplete-multi-character-sanitization) even though this text is chat
+  // prose that is never rendered as markup. The loop cannot spin, since every
+  // pass shortens the string or ends it.
+  let text = raw;
+  for (let prev = ''; prev !== text; ) {
+    prev = text;
+    text = text.replace(/<[^>]*>/g, '');
+  }
+  return decodeEntities(text).trim().replace(FOLLOWER_QUALIFIER, '').trim();
 }
 
 // mostPermissive picks the widest audience of the tiers a command allows. No
