@@ -201,3 +201,25 @@ func TestTierRoomsRoundTripsThroughParse(t *testing.T) {
 		t.Fatalf("rooms = %+v, want %+v", got, want)
 	}
 }
+
+func TestParseHexColor(t *testing.T) {
+	cases := []struct {
+		in   string
+		want int
+		ok   bool
+	}{
+		{"#ffffff", 0xffffff, true},
+		{"  #0A0b0C ", 0x0a0b0c, true},
+		{"#000000", 0, true},
+		{"#fff", 0, false},
+		{"ffffff", 0, false},
+		{"#1ffffff", 0, false},
+		{"#gggggg", 0, false},
+	}
+	for _, c := range cases {
+		got, ok := ParseHexColor(c.in)
+		if got != c.want || ok != c.ok {
+			t.Errorf("ParseHexColor(%q) = (%#x, %v), want (%#x, %v)", c.in, got, ok, c.want, c.ok)
+		}
+	}
+}

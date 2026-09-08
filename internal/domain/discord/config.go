@@ -333,7 +333,11 @@ func ParseHexColor(s string) (int, bool) {
 	if len(t) != 7 || t[0] != '#' {
 		return 0, false
 	}
-	n, err := strconv.ParseUint(t[1:], 16, 32)
+	// bitSize 24: six hex digits are exactly 24 bits, so the length check
+	// above already bounds n. Stating it here keeps the int(n) below provably
+	// in range on any int width (CodeQL go/incorrect-integer-conversion
+	// flagged the previous bitSize 32 for a 32-bit int it can never reach).
+	n, err := strconv.ParseUint(t[1:], 16, 24)
 	if err != nil {
 		return 0, false
 	}
