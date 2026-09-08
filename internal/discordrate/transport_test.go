@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"ItsBagelBot/internal/discordapi"
+	api "ItsBagelBot/internal/discordapi"
 )
 
 // fakeGate is a Gate that counts calls and can be told to refuse them.
@@ -46,19 +46,25 @@ func (t *countingTransport) RoundTrip(req *http.Request) (*http.Response, error)
 	}, nil
 }
 
-// gatedClient wires a real *discordapi.Client through the gate onto a counting
+// gatedClient wires a real *api.Client through the gate onto a counting
 // transport. It bypasses NewClient only to substitute the network; the gating
 // half under test is the same value NewClient installs.
-func gatedClient(gate Gate) (*discordapi.Client, *countingTransport) {
+func gatedClient(gate Gate) (*api.Client, *countingTransport) {
 	next := &countingTransport{}
-	client := discordapi.NewClient("test-token")
+	client := api.NewClient("test-token")
 	client.SetTransport(gatedTransport{gate: gate, next: next})
 	return client, next
 }
 
 type restCall struct {
 	name string
-	call func(context.Context, *discordapi.Client) error
+	call func(context.Context, *api.Client) error
+}
+
+// ret adapts a value-returning REST method to restCall.call. These tests
+// assert what reached the wire, so the value is deliberately dropped.
+func ret[T any](call func(context.Context, *api.Client) (T, error)) func(context.Context, *api.Client) error {
+	return func(ctx context.Context, c *api.Client) error { _, err := call(ctx, c); return err }
 }
 
 // restCalls is every REST method the two Discord services call, driven through
@@ -68,128 +74,80 @@ type restCall struct {
 // more -- the transport gates whatever the client sends -- so this table now
 // proves the weaker but sufficient thing, that these calls really do go out
 // over the gated transport rather than around it.
+//
+// ModifyGuild carries a real field because an empty patch sends no request at
+// all: that is exactly the call the old wrapper charged a token for and this
+// one does not.
 func restCalls() []restCall {
-	verification := 1
+	level := 1
 	return []restCall{
-		{"SendChat", func(ctx context.Context, c *discordapi.Client) error {
-			return c.SendChat(ctx, discordapi.ChatPost{})
+		{"SendChat", func(ctx context.Context, c *api.Client) error { return c.SendChat(ctx, api.ChatPost{}) }},
+		{"SendFile", ret(func(ctx context.Context, c *api.Client) (api.Message, error) {
+			return c.SendFile(ctx, api.FileUpload{})
+		})},
+		{"ListMessagesFull", ret(func(ctx context.Context, c *api.Client) ([]api.FullMessage, error) {
+			return c.ListMessagesFull(ctx, api.MessagePage{})
+		})},
+		{"SendEmbed", ret(func(ctx context.Context, c *api.Client) (api.Message, error) {
+			return c.SendEmbed(ctx, api.EmbedPost{})
+		})},
+		{"SendPanel", ret(func(ctx context.Context, c *api.Client) (api.Message, error) {
+			return c.SendPanel(ctx, api.EmbedPost{}, nil)
+		})},
+		{"EditMessage", func(ctx context.Context, c *api.Client) error {
+			return c.EditMessage(ctx, api.Message{}, api.MessagePatch{})
 		}},
-		{"SendFile", func(ctx context.Context, c *discordapi.Client) error {
-			_, err := c.SendFile(ctx, discordapi.FileUpload{})
-			return err
+		{"DeleteMessage", func(ctx context.Context, c *api.Client) error { return c.DeleteMessage(ctx, api.Message{}) }},
+		{"CreateChannel", ret(func(ctx context.Context, c *api.Client) (api.Snowflake, error) {
+			return c.CreateChannel(ctx, api.GuildChannel{})
+		})},
+		{"DeleteChannel", func(ctx context.Context, c *api.Client) error { return c.DeleteChannel(ctx, api.Snowflake{}) }},
+		{"CreateRole", ret(func(ctx context.Context, c *api.Client) (api.Snowflake, error) {
+			return c.CreateRole(ctx, api.GuildRole{})
+		})},
+		{"AddMemberRole", func(ctx context.Context, c *api.Client) error { return c.AddMemberRole(ctx, api.MemberRole{}) }},
+		{"ModifyCurrentMember", func(ctx context.Context, c *api.Client) error { return c.ModifyCurrentMember(ctx, api.CurrentMember{}) }},
+		{"RemoveMemberRole", func(ctx context.Context, c *api.Client) error { return c.RemoveMemberRole(ctx, api.MemberRole{}) }},
+		{"RemoveMemberRoleWithReason", func(ctx context.Context, c *api.Client) error {
+			return c.RemoveMemberRoleWithReason(ctx, api.MemberRole{}, "raid")
 		}},
-		{"ListMessagesFull", func(ctx context.Context, c *discordapi.Client) error {
-			_, err := c.ListMessagesFull(ctx, discordapi.MessagePage{})
-			return err
+		{"MoveMember", func(ctx context.Context, c *api.Client) error { return c.MoveMember(ctx, api.VoiceMove{}) }},
+		{"ModifyChannel", func(ctx context.Context, c *api.Client) error { return c.ModifyChannel(ctx, api.ChannelPatch{}) }},
+		{"TimeoutMember", func(ctx context.Context, c *api.Client) error { return c.TimeoutMember(ctx, api.MemberTimeout{}) }},
+		{"KickMember", func(ctx context.Context, c *api.Client) error { return c.KickMember(ctx, api.GuildMember{}) }},
+		{"BanMember", func(ctx context.Context, c *api.Client) error { return c.BanMember(ctx, api.GuildMember{}) }},
+		{"BulkDeleteMessages", func(ctx context.Context, c *api.Client) error { return c.BulkDeleteMessages(ctx, api.Purge{}) }},
+		{"ListMessages", ret(func(ctx context.Context, c *api.Client) ([]api.Snowflake, error) {
+			return c.ListMessages(ctx, api.MessageQuery{})
+		})},
+		{"ListGuildChannels", ret(func(ctx context.Context, c *api.Client) ([]api.Snowflake, error) {
+			return c.ListGuildChannels(ctx, api.Guild{})
+		})},
+		{"ListGuildRoles", ret(func(ctx context.Context, c *api.Client) ([]api.Snowflake, error) {
+			return c.ListGuildRoles(ctx, api.Guild{})
+		})},
+		{"GetGuild", ret(func(ctx context.Context, c *api.Client) (api.Snowflake, error) { return c.GetGuild(ctx, api.Guild{}) })},
+		{"GetGuildWithCounts", ret(func(ctx context.Context, c *api.Client) (api.GuildInfo, error) {
+			return c.GetGuildWithCounts(ctx, api.Guild{})
+		})},
+		{"InteractionCallback", func(ctx context.Context, c *api.Client) error { return c.InteractionCallback(ctx, api.Callback{}) }},
+		{"InteractionFollowup", func(ctx context.Context, c *api.Client) error { return c.InteractionFollowup(ctx, api.Followup{}) }},
+		{"BulkOverwriteCommands", func(ctx context.Context, c *api.Client) error {
+			return c.BulkOverwriteCommands(ctx, api.CommandCatalog{})
 		}},
-		{"SendEmbed", func(ctx context.Context, c *discordapi.Client) error {
-			_, err := c.SendEmbed(ctx, discordapi.EmbedPost{})
-			return err
+		{"GetCurrentApplication", ret(func(ctx context.Context, c *api.Client) (api.Snowflake, error) { return c.GetCurrentApplication(ctx) })},
+		{"GetInvite", ret(func(ctx context.Context, c *api.Client) (api.Invite, error) { return c.GetInvite(ctx, "code") })},
+		{"GetGuildMember", ret(func(ctx context.Context, c *api.Client) (api.GuildMemberInfo, error) {
+			return c.GetGuildMember(ctx, api.GuildMember{})
+		})},
+		{"ListGuildChannelsFull", ret(func(ctx context.Context, c *api.Client) ([]api.ChannelInfo, error) {
+			return c.ListGuildChannelsFull(ctx, api.Guild{})
+		})},
+		{"ModifyGuild", func(ctx context.Context, c *api.Client) error {
+			return c.ModifyGuild(ctx, api.GuildPatch{VerificationLevel: &level})
 		}},
-		{"SendPanel", func(ctx context.Context, c *discordapi.Client) error {
-			_, err := c.SendPanel(ctx, discordapi.EmbedPost{}, nil)
-			return err
-		}},
-		{"EditMessage", func(ctx context.Context, c *discordapi.Client) error {
-			return c.EditMessage(ctx, discordapi.Message{}, discordapi.MessagePatch{})
-		}},
-		{"DeleteMessage", func(ctx context.Context, c *discordapi.Client) error {
-			return c.DeleteMessage(ctx, discordapi.Message{})
-		}},
-		{"CreateChannel", func(ctx context.Context, c *discordapi.Client) error {
-			_, err := c.CreateChannel(ctx, discordapi.GuildChannel{})
-			return err
-		}},
-		{"DeleteChannel", func(ctx context.Context, c *discordapi.Client) error {
-			return c.DeleteChannel(ctx, discordapi.Snowflake{})
-		}},
-		{"CreateRole", func(ctx context.Context, c *discordapi.Client) error {
-			_, err := c.CreateRole(ctx, discordapi.GuildRole{})
-			return err
-		}},
-		{"AddMemberRole", func(ctx context.Context, c *discordapi.Client) error {
-			return c.AddMemberRole(ctx, discordapi.MemberRole{})
-		}},
-		{"ModifyCurrentMember", func(ctx context.Context, c *discordapi.Client) error {
-			return c.ModifyCurrentMember(ctx, discordapi.CurrentMember{})
-		}},
-		{"RemoveMemberRole", func(ctx context.Context, c *discordapi.Client) error {
-			return c.RemoveMemberRole(ctx, discordapi.MemberRole{})
-		}},
-		{"RemoveMemberRoleWithReason", func(ctx context.Context, c *discordapi.Client) error {
-			return c.RemoveMemberRoleWithReason(ctx, discordapi.MemberRole{}, "raid")
-		}},
-		{"MoveMember", func(ctx context.Context, c *discordapi.Client) error {
-			return c.MoveMember(ctx, discordapi.VoiceMove{})
-		}},
-		{"ModifyChannel", func(ctx context.Context, c *discordapi.Client) error {
-			return c.ModifyChannel(ctx, discordapi.ChannelPatch{})
-		}},
-		{"TimeoutMember", func(ctx context.Context, c *discordapi.Client) error {
-			return c.TimeoutMember(ctx, discordapi.MemberTimeout{})
-		}},
-		{"KickMember", func(ctx context.Context, c *discordapi.Client) error {
-			return c.KickMember(ctx, discordapi.GuildMember{})
-		}},
-		{"BanMember", func(ctx context.Context, c *discordapi.Client) error {
-			return c.BanMember(ctx, discordapi.GuildMember{})
-		}},
-		{"BulkDeleteMessages", func(ctx context.Context, c *discordapi.Client) error {
-			return c.BulkDeleteMessages(ctx, discordapi.Purge{})
-		}},
-		{"ListMessages", func(ctx context.Context, c *discordapi.Client) error {
-			_, err := c.ListMessages(ctx, discordapi.MessageQuery{})
-			return err
-		}},
-		{"ListGuildChannels", func(ctx context.Context, c *discordapi.Client) error {
-			_, err := c.ListGuildChannels(ctx, discordapi.Guild{})
-			return err
-		}},
-		{"ListGuildRoles", func(ctx context.Context, c *discordapi.Client) error {
-			_, err := c.ListGuildRoles(ctx, discordapi.Guild{})
-			return err
-		}},
-		{"GetGuild", func(ctx context.Context, c *discordapi.Client) error {
-			_, err := c.GetGuild(ctx, discordapi.Guild{})
-			return err
-		}},
-		{"GetGuildWithCounts", func(ctx context.Context, c *discordapi.Client) error {
-			_, err := c.GetGuildWithCounts(ctx, discordapi.Guild{})
-			return err
-		}},
-		{"InteractionCallback", func(ctx context.Context, c *discordapi.Client) error {
-			return c.InteractionCallback(ctx, discordapi.Callback{})
-		}},
-		{"InteractionFollowup", func(ctx context.Context, c *discordapi.Client) error {
-			return c.InteractionFollowup(ctx, discordapi.Followup{})
-		}},
-		{"BulkOverwriteCommands", func(ctx context.Context, c *discordapi.Client) error {
-			return c.BulkOverwriteCommands(ctx, discordapi.CommandCatalog{})
-		}},
-		{"GetCurrentApplication", func(ctx context.Context, c *discordapi.Client) error {
-			_, err := c.GetCurrentApplication(ctx)
-			return err
-		}},
-		{"GetInvite", func(ctx context.Context, c *discordapi.Client) error {
-			_, err := c.GetInvite(ctx, "code")
-			return err
-		}},
-		{"GetGuildMember", func(ctx context.Context, c *discordapi.Client) error {
-			_, err := c.GetGuildMember(ctx, discordapi.GuildMember{})
-			return err
-		}},
-		{"ListGuildChannelsFull", func(ctx context.Context, c *discordapi.Client) error {
-			_, err := c.ListGuildChannelsFull(ctx, discordapi.Guild{})
-			return err
-		}},
-		// ModifyGuild carries a real field because an empty patch sends no
-		// request at all, which is exactly the call the old wrapper charged a
-		// token for and this one does not.
-		{"ModifyGuild", func(ctx context.Context, c *discordapi.Client) error {
-			return c.ModifyGuild(ctx, discordapi.GuildPatch{VerificationLevel: &verification})
-		}},
-		{"SetChannelOverwrite", func(ctx context.Context, c *discordapi.Client) error {
-			return c.SetChannelOverwrite(ctx, discordapi.ChannelOverwrite{})
+		{"SetChannelOverwrite", func(ctx context.Context, c *api.Client) error {
+			return c.SetChannelOverwrite(ctx, api.ChannelOverwrite{})
 		}},
 	}
 }
@@ -226,7 +184,7 @@ func TestRefusedCallNeverReachesDiscord(t *testing.T) {
 // above bypass to substitute the network.
 func TestNewClientInstallsTheGate(t *testing.T) {
 	gate := &fakeGate{deny: true}
-	if err := NewClient("test-token", gate).SendChat(context.Background(), discordapi.ChatPost{}); !errors.Is(err, ErrRateLimited) {
+	if err := NewClient("test-token", gate).SendChat(context.Background(), api.ChatPost{}); !errors.Is(err, ErrRateLimited) {
 		t.Fatalf("err = %v, want ErrRateLimited", err)
 	}
 	if gate.calls != 1 {
