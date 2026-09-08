@@ -18,6 +18,7 @@ import (
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
+	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/nats-io/nats.go"
 	"github.com/valkey-io/valkey-go"
@@ -231,8 +232,7 @@ func (s *ValkeyTimerStore) StartReconciler(ctx context.Context) {
 // broadcaster's timers. RearmIfLive re-checks live state and NX-arms, so an
 // already-armed timer is left counting down and only a stalled one restarts.
 func (s *ValkeyTimerStore) reconcile(ctx context.Context) {
-	got, err := s.client.Do(ctx, s.client.B().Set().Key(reconcileClaimKey).Value("1").Nx().ExSeconds(int64(reconcileClaimTTL.Seconds())).Build()).ToString()
-	if err != nil || got != "OK" {
+	if won, err := pkg_valkey.ClaimOnce(ctx, s.client, reconcileClaimKey, reconcileClaimTTL); err != nil || !won {
 		return // another replica owns this tick, or the claim write failed
 	}
 	for _, id := range s.liveBroadcasters(ctx) {
@@ -449,8 +449,7 @@ func (s *ValkeyTimerStore) onExpired(ctx context.Context, key string) {
 
 	// One replica per expiry fires the timer.
 	claimKey := timerClaimPrefix + parts[0] + ":" + timerID
-	got, err := s.client.Do(ctx, s.client.B().Set().Key(claimKey).Value("1").Nx().ExSeconds(int64(timerClaimTTL.Seconds())).Build()).ToString()
-	if err != nil || got != "OK" {
+	if won, err := pkg_valkey.ClaimOnce(ctx, s.client, claimKey, timerClaimTTL); err != nil || !won {
 		return
 	}
 

@@ -8,6 +8,7 @@ package core
 
 import (
 	"ItsBagelBot/pkg/codec"
+	pkg_valkey "ItsBagelBot/pkg/valkey"
 	"context"
 	"errors"
 	"fmt"
@@ -28,11 +29,12 @@ type Store interface {
 	// retain it (the valkey client serializes within the call; an in-memory
 	// test store must copy).
 	Set(ctx context.Context, key string, val []byte, ttl time.Duration) error
-	// SetNX writes val under key for ttl only when the key is absent and
-	// reports whether this caller won the claim. It is the fleet-wide mutual
-	// exclusion primitive: coordination lives in the shared store, never in
-	// pod-local state, so replicas cannot each make the same decision.
-	SetNX(ctx context.Context, key string, val []byte, ttl time.Duration) (bool, error)
+	// SetNX claims key for ttl only when it is absent and reports whether this
+	// caller won. It is the fleet-wide mutual exclusion primitive: coordination
+	// lives in the shared store, never in pod-local state, so replicas cannot
+	// each make the same decision. It takes no value — presence alone is the
+	// claim, and every caller was writing the same one-byte placeholder.
+	SetNX(ctx context.Context, key string, ttl time.Duration) (bool, error)
 	// Del removes key.
 	Del(ctx context.Context, key string) error
 }
@@ -62,18 +64,19 @@ func (s *ValkeyStore) Set(ctx context.Context, key string, val []byte, ttl time.
 	return s.c.Do(ctx, s.c.B().Set().Key(key).Value(valkey.BinaryString(val)).Ex(ttl).Build()).Error()
 }
 
-// SetNX claims key with SET NX EX. A lost claim answers as a Valkey nil reply,
-// which is a normal outcome, not an error. Writes route to the Sentinel-elected
-// master, so the claim is authoritative fleet-wide.
-func (s *ValkeyStore) SetNX(ctx context.Context, key string, val []byte, ttl time.Duration) (bool, error) {
-	res := s.c.Do(ctx, s.c.B().Set().Key(key).Value(valkey.BinaryString(val)).Nx().Ex(ttl).Build())
-	if err := res.Error(); err != nil {
-		if valkey.IsValkeyNil(err) {
-			return false, nil
-		}
-		return false, err
-	}
-	return true, nil
+// SetNX claims key with SET NX EX through the shared primitive. A lost claim
+// answers as a Valkey nil reply, which is a normal outcome, not an error;
+// writes route to the Sentinel-elected master, so the claim is authoritative
+// fleet-wide.
+//
+// It is NOT pkg/idempotency.Store, which is the other SET NX claim in this
+// repo: that one is a consumer-side duplicate guard and fails OPEN, reporting
+// "not seen" when Valkey is unreachable so the event still gets handled. Under
+// that polarity a Valkey blip here would tell EVERY replica it won the refresh
+// claim, which is the fleet-wide stampede this claim exists to prevent. This
+// one stays fail-closed: an error means "did not win".
+func (s *ValkeyStore) SetNX(ctx context.Context, key string, ttl time.Duration) (bool, error) {
+	return pkg_valkey.ClaimOnce(ctx, s.c, key, ttl)
 }
 
 func (s *ValkeyStore) Del(ctx context.Context, key string) error {
@@ -302,7 +305,7 @@ func (f envelopeFlight[T]) refresh() {
 		defer f.cache.refreshing.Delete(f.key)
 		ctx, cancel := context.WithTimeout(context.Background(), swrRefreshTimeout)
 		defer cancel()
-		if won, err := f.cache.store.SetNX(ctx, f.key+":swr", []byte("1"), swrRefreshTimeout); err != nil || !won {
+		if won, err := f.cache.store.SetNX(ctx, f.key+":swr", swrRefreshTimeout); err != nil || !won {
 			return
 		}
 		if err := spend(ctx, f.admit); err != nil {
@@ -397,5 +400,5 @@ func (c *Cache) Exists(ctx context.Context, key string) (bool, error) {
 // circuit fleet-wide — coordination lives in the shared store, never in
 // pod-local state, the same discipline refreshBytes' SWR claim follows.
 func (c *Cache) Claim(ctx context.Context, key string, ttl time.Duration) (bool, error) {
-	return c.store.SetNX(ctx, key, []byte("1"), ttl)
+	return c.store.SetNX(ctx, key, ttl)
 }

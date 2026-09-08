@@ -18,6 +18,7 @@ import (
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
+	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/nats-io/nats.go"
 	"github.com/valkey-io/valkey-go"
@@ -293,9 +294,7 @@ func (s *ValkeyLoyaltyClock) StartReconciler(ctx context.Context) {
 }
 
 func (s *ValkeyLoyaltyClock) reconcile(ctx context.Context) {
-	got, err := s.client.Do(ctx, s.client.B().Set().Key(loyaltyReconcileClaimKey).Value("1").Nx().
-		ExSeconds(int64(loyaltyReconcileClaimTTL.Seconds())).Build()).ToString()
-	if err != nil || got != "OK" {
+	if won, err := pkg_valkey.ClaimOnce(ctx, s.client, loyaltyReconcileClaimKey, loyaltyReconcileClaimTTL); err != nil || !won {
 		return // another replica owns this tick, or the claim write failed
 	}
 	for _, id := range s.liveBroadcasters(ctx) {
@@ -358,9 +357,7 @@ func (s *ValkeyLoyaltyClock) onExpired(ctx context.Context, key string) {
 // stream — but re-arms short when the cause may be gone (see settle).
 func (s *ValkeyLoyaltyClock) fire(ctx context.Context, broadcasterID uint64) {
 	claimKey := loyaltyTickClaimPrefix + strconv.FormatUint(broadcasterID, 10)
-	got, err := s.client.Do(ctx, s.client.B().Set().Key(claimKey).Value("1").Nx().
-		ExSeconds(int64(loyaltyTickClaimTTL.Seconds())).Build()).ToString()
-	if err != nil || got != "OK" {
+	if won, err := pkg_valkey.ClaimOnce(ctx, s.client, claimKey, loyaltyTickClaimTTL); err != nil || !won {
 		return
 	}
 

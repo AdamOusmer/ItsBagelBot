@@ -32,15 +32,7 @@ func NewValkeyBatchStore(client valkey.Client) *ValkeyBatchStore {
 }
 
 func (s *ValkeyBatchStore) Acquire(ctx context.Context, lease BatchLease, ttl time.Duration) (bool, error) {
-	res := s.client.Do(ctx, s.client.B().Set().Key(batchLockKey(lease.ID)).Value(lease.Owner).Nx().Px(ttl).Build())
-	value, err := res.ToString()
-	if err != nil {
-		if valkey.IsValkeyNil(err) {
-			return false, nil
-		}
-		return false, err
-	}
-	return value == "OK", nil
+	return s.lock(lease).Acquire(ctx, ttl)
 }
 
 func (s *ValkeyBatchStore) Next(ctx context.Context, batchID string) (int, error) {
@@ -60,9 +52,14 @@ func (s *ValkeyBatchStore) SaveNext(ctx context.Context, batchID string, next in
 }
 
 func (s *ValkeyBatchStore) Release(ctx context.Context, lease BatchLease) error {
-	const releaseIfOwner = `if redis.call('get',KEYS[1])==ARGV[1] then return redis.call('del',KEYS[1]) else return 0 end`
-	return s.client.Do(ctx, s.client.B().Eval().Script(releaseIfOwner).
-		Numkeys(1).Key(batchLockKey(lease.ID)).Arg(lease.Owner).Build()).Error()
+	return s.lock(lease).Release(ctx)
+}
+
+// lock is the batch's slice of the shared owner-scoped lock primitive: the
+// lease names both the key and the owner token, so Acquire and Release derive
+// the same lock from the same lease rather than each spelling the key out.
+func (s *ValkeyBatchStore) lock(lease BatchLease) pkg_valkey.OwnerLock {
+	return pkg_valkey.NewOwnerLock(s.client, batchLockKey(lease.ID), lease.Owner)
 }
 
 func batchLockKey(batchID string) string     { return batchKeyPrefix + batchID + ":lock" }
