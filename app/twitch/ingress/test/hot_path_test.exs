@@ -4,6 +4,8 @@
 defmodule Ingress.HotPathTest do
   use ExUnit.Case, async: false
 
+  import Ingress.EnvCase
+
   alias Ingress.{Config, JSON}
 
   test "native JSON preserves Elixir nil and atom-key wire semantics" do
@@ -16,31 +18,25 @@ defmodule Ingress.HotPathTest do
   end
 
   test "hot configuration is one immutable persistent-term snapshot" do
-    previous_special = Application.get_env(:ingress, :special_user_ids)
-    previous_max = Application.get_env(:ingress, :max_chat_text_bytes)
-    previous_standard = Application.get_env(:ingress, :lane_subject_standard)
+    put_env(
+      special_user_ids: MapSet.new(["before"]),
+      max_chat_text_bytes: 321,
+      lane_subject_standard: "lane.before"
+    )
 
-    on_exit(fn ->
-      Config.uninstall_hot_path()
-      restore_env(:special_user_ids, previous_special)
-      restore_env(:max_chat_text_bytes, previous_max)
-      restore_env(:lane_subject_standard, previous_standard)
-    end)
-
-    Application.put_env(:ingress, :special_user_ids, MapSet.new(["before"]))
-    Application.put_env(:ingress, :max_chat_text_bytes, 321)
-    Application.put_env(:ingress, :lane_subject_standard, "lane.before")
+    # Registered after put_env/1, so it unwinds first: the snapshot is gone
+    # before the config it was taken from is restored.
+    on_exit(&Config.uninstall_hot_path/0)
     Config.install_hot_path()
 
-    Application.put_env(:ingress, :special_user_ids, MapSet.new(["after"]))
-    Application.put_env(:ingress, :max_chat_text_bytes, 999)
-    Application.put_env(:ingress, :lane_subject_standard, "lane.after")
+    put_env(
+      special_user_ids: MapSet.new(["after"]),
+      max_chat_text_bytes: 999,
+      lane_subject_standard: "lane.after"
+    )
 
     assert Config.hot_special_user_ids() == MapSet.new(["before"])
     assert Config.hot_max_chat_text_bytes() == 321
     assert Config.hot_lane_subject(:standard) == "lane.before"
   end
-
-  defp restore_env(key, nil), do: Application.delete_env(:ingress, key)
-  defp restore_env(key, value), do: Application.put_env(:ingress, key, value)
 end

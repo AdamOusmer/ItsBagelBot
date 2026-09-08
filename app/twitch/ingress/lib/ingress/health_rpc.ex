@@ -18,14 +18,14 @@ defmodule Ingress.HealthRpc do
 
   use Ingress.RpcServer, log: "health rpc"
 
-  alias Ingress.Health
+  alias Ingress.{Health, JSON}
 
   @impl true
   def request(%{body: _body}) do
     report = Health.report()
 
     {:reply,
-     Jason.encode!(%{
+     JSON.encode(%{
        service: report.service,
        ok: Health.up?(report),
        status: report.status,

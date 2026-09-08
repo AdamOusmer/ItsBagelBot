@@ -19,8 +19,11 @@ defmodule Ingress.Squash.Pool do
   end
 
   @impl true
-  def init(opts) do
-    count = Keyword.get(opts, :partitions, SquashConfig.partitions())
+  def init(_opts) do
+    # Partition count comes from config only. The `:partitions` start option it
+    # used to accept had no caller, and two ways to set the same number is how
+    # a pool ends up sized differently from the `persistent_term` it publishes.
+    count = SquashConfig.partitions()
 
     names =
       0..(count - 1)

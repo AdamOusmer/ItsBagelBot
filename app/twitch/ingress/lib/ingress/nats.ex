@@ -36,8 +36,7 @@ defmodule Ingress.Nats do
       {:ok, json} ->
         case Process.whereis(@connection) do
           nil ->
-            Metrics.count("Nats/PublishDropped")
-            Metrics.count("Nats/PublishNotConnected")
+            Metrics.count_drop("Nats/PublishDropped", :not_connected)
             {:error, :not_connected}
 
           _pid ->
@@ -48,8 +47,7 @@ defmodule Ingress.Nats do
         # Status/telemetry is fire-and-forget: an unencodable payload must never
         # crash the shard that emitted it. A DateTime tuple field once raised here
         # and cascaded into a shard restart storm that wedged the whole rollout.
-        Metrics.count("Nats/PublishDropped")
-        Metrics.count("Nats/PublishEncodeError")
+        Metrics.count_drop("Nats/PublishDropped", :encode_error)
         {:error, {:encode, reason}}
     end
   end
@@ -101,17 +99,18 @@ defmodule Ingress.Nats do
         :ok
 
       {:error, :overloaded} = error ->
-        Metrics.count("Nats/PublishDropped")
-        Metrics.count("Nats/PublishOverloaded")
+        Metrics.count_drop("Nats/PublishDropped", :overloaded)
         error
 
       {:error, :not_connected} = error ->
-        Metrics.count("Nats/PublishDropped")
-        Metrics.count("Nats/PublishNotConnected")
+        Metrics.count_drop("Nats/PublishDropped", :not_connected)
         error
 
+      # Publisher.enqueue/3 only ever returns the two reasons above, so this
+      # clause is the defensive tail; it carries a fixed label rather than the
+      # raw term, which would make the metric name unbounded.
       {:error, _reason} = error ->
-        Metrics.count("Nats/PublishDropped")
+        Metrics.count_drop("Nats/PublishDropped", :enqueue_error)
         error
     end
   end

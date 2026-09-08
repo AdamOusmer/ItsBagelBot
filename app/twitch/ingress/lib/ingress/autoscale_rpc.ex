@@ -26,6 +26,8 @@ defmodule Ingress.AutoscaleRpc do
 
   use Ingress.RpcServer, log: "autoscale rpc"
 
+  import Ingress.RpcServer, only: [decode_field: 3, scaler_reply: 1]
+
   alias Ingress.{AdminRpc, JSON, ShardScaler}
 
   @impl Gnat.Server
