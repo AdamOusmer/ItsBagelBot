@@ -12,10 +12,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/nats-io/nats.go"
-	"github.com/newrelic/go-agent/v3/newrelic"
-	"go.uber.org/zap"
-
 	"ItsBagelBot/app/db/discord/ent"
 	"ItsBagelBot/app/db/discord/repository"
 	ddiscord "ItsBagelBot/internal/domain/discord"
@@ -74,20 +70,22 @@ type Store interface {
 }
 
 // Wiring is everything Subscribe needs, travelling as one value so Prefix and
-// QueueGroup -- both strings, both plausible in either position -- cannot be
-// transposed at a call site.
+// the queue group -- both strings, both plausible in either position -- cannot
+// be transposed at a call site. The shared handle set is embedded rather than
+// re-declared so this package's helpers can hand it straight to pkg/bus.
 type Wiring struct {
-	NC         *nats.Conn
-	Repo       Store
-	Prefix     string
-	QueueGroup string
-	App        *newrelic.Application
-	Log        *zap.Logger
+	bus.RPCWiring
+	Repo   Store
+	Prefix string
 }
 
 // Subscribe registers every verb of the service. Fatal-on-error is the
-// caller's job; this returns the first failure.
+// caller's job; this returns the first failure. The handler bound is set here
+// rather than left to the caller: requestTimeout is a property of these verbs,
+// not of whoever wires them up.
 func Subscribe(w Wiring) error {
+	w.Timeout = requestTimeout
+
 	if err := subscribeBindings(w); err != nil {
 		return err
 	}
@@ -105,10 +103,11 @@ func (w Wiring) subject(verb string) string { return w.Prefix + "." + verb }
 
 // serve registers one verb with the wiring every verb shares. The subscribe
 // functions used to spell the seven-argument QueueSubscribeJSON call out per
-// verb, eight times in a row for the ticket desk alone; a generic wrapper
-// keeps the queue group, timeout and logger in one place.
+// verb, eight times in a row for the ticket desk alone; this local wrapper now
+// only adds the prefix, and bus.Serve keeps the queue group, timeout and
+// logger in one place for every service.
 func serve[Req, Rep any](w Wiring, verb string, h func(context.Context, Req) Rep) error {
-	return bus.QueueSubscribeJSON[Req, Rep](w.NC, w.subject(verb), w.QueueGroup, requestTimeout, w.App, w.Log, h)
+	return bus.Serve(w.RPCWiring, w.subject(verb), h)
 }
 
 // failure maps a repository error onto the reply's (error, code) pair. The

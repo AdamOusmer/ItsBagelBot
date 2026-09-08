@@ -7,10 +7,7 @@ import (
 	"context"
 	"errors"
 	"strconv"
-	"time"
 
-	"github.com/nats-io/nats.go"
-	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/db/modules/repository"
@@ -19,67 +16,46 @@ import (
 	"ItsBagelBot/pkg/env"
 )
 
-// spotifyRPCTimeout bounds one custody handler. Every verb here answers from
-// this service's own database with no upstream hop, so the budget is the same
-// on all of them.
-const spotifyRPCTimeout = 3 * time.Second
-
-// spotifyWiring bundles what wireSpotify needs beyond the subject prefixes
-// (which it reads from the environment itself): the RPC connection, the token
-// store, the shared queue group, and the New Relic app + logger.
-type spotifyWiring struct {
-	nc         *nats.Conn
-	creds      *repository.SpotifyCreds
-	queueGroup string
-	app        *newrelic.Application
-	log        *zap.Logger
-}
-
 // wireSpotify subscribes the Spotify refresh-token custody RPCs: the spotify
 // twin of wireGovee. The dashboard verbs (set/clear/status) never echo the
 // token; the internal decrypt verb is account-scoped to gossip, the one
 // service that exchanges the token against accounts.spotify.com. It is a
 // no-op when token custody is disabled (nil store).
-func wireSpotify(w spotifyWiring) error {
-	if w.creds == nil {
-		return nil
-	}
-	dash := env.Get("NATS_MODULES_SPOTIFY_SUBJECT_PREFIX", "bagel.rpc.modules.spotify")
-	internal := env.Get("NATS_INTERNAL_SPOTIFY_KEY_SUBJECT_PREFIX", "bagel.rpc.internal.spotify.key")
-	s := &spotifyRPC{creds: w.creds, log: w.log}
-
-	// One binding per verb, each deferred so the subject/handler pair is all
-	// that varies: the connection, queue group, timeout, New Relic app and
-	// logger are identical on every subject here, and repeating them per verb
-	// is how one of them ends up subscribed to the wrong group.
-	for _, bind := range []func() error{
-		func() error { return subscribeSpotify(w, dash+".set", s.handleSet) },
-		func() error { return subscribeSpotify(w, dash+".clear", s.handleClear) },
-		func() error { return subscribeSpotify(w, dash+".status", s.handleStatus) },
-		func() error { return subscribeSpotify(w, dash+".app.set", s.handleAppSet) },
-		func() error { return subscribeSpotify(w, dash+".app.clear", s.handleAppClear) },
-		func() error { return subscribeSpotify(w, dash+".app.status", s.handleAppStatus) },
-		func() error { return subscribeSpotify(w, internal+".get", s.handleGet) },
-		func() error { return subscribeSpotify(w, internal+".rotate", s.handleRotate) },
-	} {
-		if err := bind(); err != nil {
-			return err
-		}
-	}
-	w.log.Info("spotify token custody enabled", zap.String("dashboard_prefix", dash))
-	return nil
-}
-
-// subscribeSpotify binds one verb of the custody RPC. The request and reply
-// types come from the handler, so a verb is a subject plus a method and
-// nothing else.
 //
 // The application verbs (app.set/clear/status) sit on the dashboard prefix
 // beside set/clear/status because the console is what collects them; the
 // client secret only ever comes back out on the internal key.get subject that
 // gossip imports, never on those.
-func subscribeSpotify[Req any, Reply any](w spotifyWiring, subject string, h func(context.Context, Req) Reply) error {
-	return bus.QueueSubscribeJSON[Req, Reply](w.nc, subject, w.queueGroup, spotifyRPCTimeout, w.app, w.log, h)
+func wireSpotify(w bus.RPCWiring, creds *repository.SpotifyCreds) error {
+	if creds == nil {
+		return nil
+	}
+	dash := env.Get("NATS_MODULES_SPOTIFY_SUBJECT_PREFIX", "bagel.rpc.modules.spotify")
+	internal := env.Get("NATS_INTERNAL_SPOTIFY_KEY_SUBJECT_PREFIX", "bagel.rpc.internal.spotify.key")
+	s := &spotifyRPC{creds: creds, log: w.Log}
+
+	// One binding per verb, each deferred because the eight verbs carry eight
+	// different request and reply types and so cannot share one ServeVerbs
+	// table. The subject and handler are all that varies; the wiring and its
+	// custody budget are bound once, which is what stops one of them ending up
+	// on the wrong queue group.
+	custody := w.Within(custodyBudget)
+	for _, bind := range []func() error{
+		func() error { return bus.Serve(custody, dash+".set", s.handleSet) },
+		func() error { return bus.Serve(custody, dash+".clear", s.handleClear) },
+		func() error { return bus.Serve(custody, dash+".status", s.handleStatus) },
+		func() error { return bus.Serve(custody, dash+".app.set", s.handleAppSet) },
+		func() error { return bus.Serve(custody, dash+".app.clear", s.handleAppClear) },
+		func() error { return bus.Serve(custody, dash+".app.status", s.handleAppStatus) },
+		func() error { return bus.Serve(custody, internal+".get", s.handleGet) },
+		func() error { return bus.Serve(custody, internal+".rotate", s.handleRotate) },
+	} {
+		if err := bind(); err != nil {
+			return err
+		}
+	}
+	w.Log.Info("spotify token custody enabled", zap.String("dashboard_prefix", dash))
+	return nil
 }
 
 type spotifyRPC struct {

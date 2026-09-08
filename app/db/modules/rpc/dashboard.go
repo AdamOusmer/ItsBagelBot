@@ -6,10 +6,7 @@ package rpc
 import (
 	"context"
 	"strconv"
-	"time"
 
-	"github.com/nats-io/nats.go"
-	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/db/modules/repository"
@@ -24,26 +21,18 @@ type dashboardRPC struct {
 	log  *zap.Logger
 }
 
-// SubscribeDashboard wires the modules dashboard verbs (list, upsert) under
-// prefix, mirroring the commands service so the console manages modules the same
-// way it manages commands.
-func SubscribeDashboard(nc *nats.Conn, repo *repository.Modules, prefix, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
-	d := &dashboardRPC{repo: repo, log: log}
+// SubscribeDashboard wires the modules dashboard verbs (list, upsert, patch)
+// under prefix, mirroring the commands service so the console manages modules
+// the same way it manages commands.
+func SubscribeDashboard(w Wiring, prefix string) error {
+	d := &dashboardRPC{repo: w.Repo, log: w.Log}
 
-	verbs := []struct {
-		verb    string
-		handler func(context.Context, modulesrpc.DashboardRequest) modulesrpc.DashboardReply
-	}{
-		{"list", d.handleList},
-		{"upsert", d.handleUpsert},
-		{"patch", d.handlePatch},
-	}
-
-	for _, v := range verbs {
-		subject := prefix + "." + v.verb
-		if err := bus.QueueSubscribeJSON[modulesrpc.DashboardRequest, modulesrpc.DashboardReply](nc, subject, queueGroup, 2*time.Second, app, log, v.handler); err != nil {
-			return err
-		}
+	if err := bus.ServeVerbs(w.RPCWiring, prefix,
+		bus.At("list", d.handleList),
+		bus.At("upsert", d.handleUpsert),
+		bus.At("patch", d.handlePatch),
+	); err != nil {
+		return err
 	}
 
 	// The Govee key-custody verbs (set/clear/status for the dashboard, plus the
@@ -51,10 +40,10 @@ func SubscribeDashboard(nc *nats.Conn, repo *repository.Modules, prefix, queueGr
 	// surface, wired here so main keeps a single subscribe call. A no-op when
 	// key custody is disabled (no keyset). wireSpotify rides the same split
 	// for the connected-account refresh tokens.
-	if err := wireGovee(goveeWiring{nc: nc, creds: repo.Govee(), queueGroup: queueGroup, app: app, log: log}); err != nil {
+	if err := wireGovee(w.RPCWiring, w.Repo.Govee()); err != nil {
 		return err
 	}
-	return wireSpotify(spotifyWiring{nc: nc, creds: repo.Spotify(), queueGroup: queueGroup, app: app, log: log})
+	return wireSpotify(w.RPCWiring, w.Repo.Spotify())
 }
 
 func (d *dashboardRPC) parseUserID(req modulesrpc.DashboardRequest) (uint64, bool, modulesrpc.DashboardReply) {

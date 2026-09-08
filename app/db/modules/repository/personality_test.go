@@ -11,6 +11,8 @@ import (
 	"ItsBagelBot/app/db/modules/ent/enttest"
 	"ItsBagelBot/app/db/modules/repository"
 
+	"ItsBagelBot/internal/testdb"
+
 	_ "github.com/mattn/go-sqlite3" // Required for the in-memory DB
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,8 +21,7 @@ import (
 func setupPersonality(t *testing.T) (*ent.Client, *repository.Personality) {
 	t.Helper()
 
-	client := enttest.Open(t, "sqlite3", "file:modpersonalityent?mode=memory&cache=shared&_fk=1")
-	t.Cleanup(func() { _ = client.Close() })
+	client := testdb.Open(t, "modpersonalityent", func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
 
 	return client, repository.NewPersonality(client)
 }

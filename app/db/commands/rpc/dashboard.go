@@ -6,10 +6,7 @@ package rpc
 import (
 	"context"
 	"strconv"
-	"time"
 
-	"github.com/nats-io/nats.go"
-	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/db/commands/repository"
@@ -22,25 +19,15 @@ type dashboardRPC struct {
 	log  *zap.Logger
 }
 
-func SubscribeDashboard(nc *nats.Conn, repo *repository.Commands, prefix, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
-	d := &dashboardRPC{repo: repo, log: log}
+// SubscribeDashboard wires the console's command verbs under prefix.
+func SubscribeDashboard(w Wiring, prefix string) error {
+	d := &dashboardRPC{repo: w.Commands, log: w.Log}
 
-	verbs := []struct {
-		verb    string
-		handler func(context.Context, commandsrpc.DashboardRequest) commandsrpc.DashboardReply
-	}{
-		{"list", d.handleList},
-		{"upsert", d.handleUpsert},
-		{"delete", d.handleDelete},
-	}
-
-	for _, v := range verbs {
-		subject := prefix + "." + v.verb
-		if err := bus.QueueSubscribeJSON[commandsrpc.DashboardRequest, commandsrpc.DashboardReply](nc, subject, queueGroup, 2*time.Second, app, log, v.handler); err != nil {
-			return err
-		}
-	}
-	return nil
+	return bus.ServeVerbs(w.RPCWiring, prefix,
+		bus.At("list", d.handleList),
+		bus.At("upsert", d.handleUpsert),
+		bus.At("delete", d.handleDelete),
+	)
 }
 
 func (d *dashboardRPC) parseUserID(req commandsrpc.DashboardRequest) (uint64, bool, commandsrpc.DashboardReply) {

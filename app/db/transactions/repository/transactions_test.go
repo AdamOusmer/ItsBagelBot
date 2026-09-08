@@ -11,6 +11,8 @@ import (
 	"ItsBagelBot/app/db/transactions/ent/tebexwebhookevents"
 	"ItsBagelBot/app/db/transactions/repository"
 
+	"ItsBagelBot/internal/testdb"
+
 	_ "github.com/mattn/go-sqlite3" // Required for the in-memory DB
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,7 +20,7 @@ import (
 
 func TestSaveWebhookEventUpsertsState(t *testing.T) {
 
-	client := enttest.Open(t, "sqlite3", "file:webhook-events?mode=memory&cache=shared&_fk=1")
+	client := enttest.Open(t, testdb.Driver, testdb.MemDSN("webhook-events"))
 	t.Cleanup(func() { _ = client.Close() })
 
 	repo := repository.NewTransactions(client)

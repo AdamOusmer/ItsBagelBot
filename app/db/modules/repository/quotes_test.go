@@ -12,6 +12,8 @@ import (
 	"ItsBagelBot/app/db/modules/ent/enttest"
 	"ItsBagelBot/app/db/modules/repository"
 
+	"ItsBagelBot/internal/testdb"
+
 	_ "github.com/mattn/go-sqlite3" // Required for the in-memory DB
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,7 +24,7 @@ import (
 func setupQuotes(t *testing.T) *repository.Quotes {
 	t.Helper()
 
-	client := enttest.Open(t, "sqlite3", "file:modquotesent?mode=memory&cache=shared&_fk=1")
+	client := enttest.Open(t, testdb.Driver, testdb.MemDSN("modquotesent"))
 	t.Cleanup(func() { _ = client.Close() })
 
 	return repository.NewQuotes(client, zap.NewNop())

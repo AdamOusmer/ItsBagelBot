@@ -13,13 +13,15 @@ import (
 	"ItsBagelBot/app/db/notifications/ent/notificationread"
 	"ItsBagelBot/app/db/notifications/repository"
 
+	"ItsBagelBot/internal/testdb"
+
 	_ "github.com/mattn/go-sqlite3" // Required for the in-memory DB
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestBroadcastVisibleToEveryUser(t *testing.T) {
-	client := enttest.Open(t, "sqlite3", "file:notifbroadcast?mode=memory&cache=shared&_fk=1")
+	client := enttest.Open(t, testdb.Driver, testdb.MemDSN("notifbroadcast"))
 	t.Cleanup(func() { _ = client.Close() })
 
 	repo := repository.New(client)
@@ -39,7 +41,7 @@ func TestBroadcastVisibleToEveryUser(t *testing.T) {
 }
 
 func TestDirectNotificationScopedToTarget(t *testing.T) {
-	client := enttest.Open(t, "sqlite3", "file:notifdirect?mode=memory&cache=shared&_fk=1")
+	client := enttest.Open(t, testdb.Driver, testdb.MemDSN("notifdirect"))
 	t.Cleanup(func() { _ = client.Close() })
 
 	repo := repository.New(client)
@@ -59,7 +61,7 @@ func TestDirectNotificationScopedToTarget(t *testing.T) {
 }
 
 func TestMarkReadIsIdempotentAndPerUser(t *testing.T) {
-	client := enttest.Open(t, "sqlite3", "file:notifread?mode=memory&cache=shared&_fk=1")
+	client := enttest.Open(t, testdb.Driver, testdb.MemDSN("notifread"))
 	t.Cleanup(func() { _ = client.Close() })
 
 	repo := repository.New(client)
@@ -82,7 +84,7 @@ func TestMarkReadIsIdempotentAndPerUser(t *testing.T) {
 }
 
 func TestExpiredNotificationExcluded(t *testing.T) {
-	client := enttest.Open(t, "sqlite3", "file:notifexpiry?mode=memory&cache=shared&_fk=1")
+	client := enttest.Open(t, testdb.Driver, testdb.MemDSN("notifexpiry"))
 	t.Cleanup(func() { _ = client.Close() })
 
 	repo := repository.New(client)
@@ -103,7 +105,7 @@ func TestExpiredNotificationExcluded(t *testing.T) {
 }
 
 func TestDeleteCascadesReads(t *testing.T) {
-	client := enttest.Open(t, "sqlite3", "file:notifdelete?mode=memory&cache=shared&_fk=1")
+	client := enttest.Open(t, testdb.Driver, testdb.MemDSN("notifdelete"))
 	t.Cleanup(func() { _ = client.Close() })
 
 	repo := repository.New(client)
@@ -123,7 +125,7 @@ func TestDeleteCascadesReads(t *testing.T) {
 }
 
 func TestMarkReadCutoffHidesAfterExpiry(t *testing.T) {
-	client := enttest.Open(t, "sqlite3", "file:notifreadcutoff?mode=memory&cache=shared&_fk=1")
+	client := enttest.Open(t, testdb.Driver, testdb.MemDSN("notifreadcutoff"))
 	t.Cleanup(func() { _ = client.Close() })
 
 	repo := repository.New(client)
@@ -146,7 +148,7 @@ func TestMarkReadCutoffHidesAfterExpiry(t *testing.T) {
 }
 
 func TestMarkPeekedAcknowledgesWithoutClobberingFullRead(t *testing.T) {
-	client := enttest.Open(t, "sqlite3", "file:notifpeek?mode=memory&cache=shared&_fk=1")
+	client := enttest.Open(t, testdb.Driver, testdb.MemDSN("notifpeek"))
 	t.Cleanup(func() { _ = client.Close() })
 
 	repo := repository.New(client)
@@ -186,7 +188,7 @@ func TestMarkPeekedAcknowledgesWithoutClobberingFullRead(t *testing.T) {
 }
 
 func TestDeleteExpiredSweepsGloballyExpired(t *testing.T) {
-	client := enttest.Open(t, "sqlite3", "file:notifsweep?mode=memory&cache=shared&_fk=1")
+	client := enttest.Open(t, testdb.Driver, testdb.MemDSN("notifsweep"))
 	t.Cleanup(func() { _ = client.Close() })
 
 	repo := repository.New(client)
@@ -213,7 +215,7 @@ func TestDeleteExpiredSweepsGloballyExpired(t *testing.T) {
 }
 
 func TestCreateIsIdempotentByRequestID(t *testing.T) {
-	client := enttest.Open(t, "sqlite3", "file:notifidempotency?mode=memory&cache=shared&_fk=1")
+	client := enttest.Open(t, testdb.Driver, testdb.MemDSN("notifidempotency"))
 	t.Cleanup(func() { _ = client.Close() })
 
 	repo := repository.New(client)

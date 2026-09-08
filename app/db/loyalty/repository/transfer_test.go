@@ -14,6 +14,8 @@ import (
 	_ "ItsBagelBot/app/db/loyalty/ent/runtime"
 	loyaltyrepo "ItsBagelBot/app/db/loyalty/repository"
 
+	"ItsBagelBot/internal/testdb"
+
 	_ "github.com/mattn/go-sqlite3" // Required for the in-memory DB
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,7 +30,7 @@ import (
 // its bulk flush statements run through.
 func newLoyaltyRepo(t *testing.T) (*loyaltyrepo.Loyalty, *ent.Client) {
 	t.Helper()
-	db, err := sql.Open("sqlite3", "file:loyaltytransfer?mode=memory&cache=shared&_fk=1")
+	db, err := sql.Open(testdb.Driver, testdb.MemDSN("loyaltytransfer"))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
 	drv := entsql.OpenDB("sqlite3", db)

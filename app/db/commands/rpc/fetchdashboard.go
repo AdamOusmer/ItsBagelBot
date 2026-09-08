@@ -7,11 +7,6 @@ import (
 	"context"
 	"errors"
 	"strconv"
-	"time"
-
-	"github.com/nats-io/nats.go"
-	"github.com/newrelic/go-agent/v3/newrelic"
-	"go.uber.org/zap"
 
 	"ItsBagelBot/app/db/commands/repository"
 	fetchkeyrpc "ItsBagelBot/internal/domain/rpc/fetchkey"
@@ -25,35 +20,15 @@ import (
 // material — lists carry label+last4 metadata only, set replies the last4
 // derived from the just-submitted value once. The audit zap line per mutate
 // lives in the repository; values are never logged.
-// FetchDashboardWiring bundles what SubscribeFetchDashboard needs beyond the
-// handlers themselves: the RPC connection, the store, the subject prefix and
-// queue group, and the New Relic app + logger — the spotifyWiring shape.
-type FetchDashboardWiring struct {
-	NC         *nats.Conn
-	Repo       *repository.Fetches
-	Prefix     string
-	QueueGroup string
-	App        *newrelic.Application
-	Log        *zap.Logger
-}
+func SubscribeFetchDashboard(w Wiring, prefix string) error {
+	d := &fetchDashboardRPC{repo: w.Fetches}
 
-func SubscribeFetchDashboard(w FetchDashboardWiring) error {
-	d := &fetchDashboardRPC{repo: w.Repo}
-
-	if err := bus.QueueSubscribeJSON[fetchkeyrpc.FetchListRequest, fetchkeyrpc.FetchListReply](
-		w.NC, w.Prefix+".fetch_list", w.QueueGroup, 2*time.Second, w.App, w.Log, d.handleList); err != nil {
-		return err
-	}
-	if err := bus.QueueSubscribeJSON[fetchkeyrpc.FetchDefSetRequest, fetchkeyrpc.FetchMutateReply](
-		w.NC, w.Prefix+".fetch_set_def", w.QueueGroup, 2*time.Second, w.App, w.Log, d.handleSetDef); err != nil {
-		return err
-	}
-	if err := bus.QueueSubscribeJSON[fetchkeyrpc.FetchKeySetRequest, fetchkeyrpc.FetchKeySetReply](
-		w.NC, w.Prefix+".fetch_set_key", w.QueueGroup, 2*time.Second, w.App, w.Log, d.handleSetKey); err != nil {
-		return err
-	}
-	return bus.QueueSubscribeJSON[fetchkeyrpc.FetchDeleteRequest, fetchkeyrpc.FetchMutateReply](
-		w.NC, w.Prefix+".fetch_delete", w.QueueGroup, 2*time.Second, w.App, w.Log, d.handleDelete)
+	return errors.Join(
+		bus.Serve(w.RPCWiring, prefix+".fetch_list", d.handleList),
+		bus.Serve(w.RPCWiring, prefix+".fetch_set_def", d.handleSetDef),
+		bus.Serve(w.RPCWiring, prefix+".fetch_set_key", d.handleSetKey),
+		bus.Serve(w.RPCWiring, prefix+".fetch_delete", d.handleDelete),
+	)
 }
 
 type fetchDashboardRPC struct {

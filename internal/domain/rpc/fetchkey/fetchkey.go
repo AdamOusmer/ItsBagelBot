@@ -62,6 +62,14 @@ type FetchListReply struct {
 	Error   string      `json:"error,omitempty"`
 }
 
+// Requested and Failed let this pair ride projection.ServeProjection, which
+// owns the user-id guard chain the fetch fallback verb shares with the three
+// projection verbs. Structural, so this package still imports nothing new.
+func (r FetchListRequest) Requested() string { return r.UserID }
+
+// Failed records a refusal on the reply.
+func (r *FetchListReply) Failed(message string) { r.Error = message }
+
 // FetchDefSetRequest upserts one definition. OriginalName, when set and
 // different from Name, makes the write a rename of that existing row (the
 // commands upsert convention). JSONPath segments arrive pre-split on dots.

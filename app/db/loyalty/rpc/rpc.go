@@ -11,10 +11,7 @@ import (
 	"context"
 	"errors"
 	"strconv"
-	"time"
 
-	"github.com/nats-io/nats.go"
-	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/db/loyalty/ent"
@@ -22,8 +19,6 @@ import (
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	"ItsBagelBot/pkg/bus"
 )
-
-const handleTimeout = 2 * time.Second
 
 type loyaltyRPC struct {
 	repo *repository.Loyalty
@@ -50,37 +45,34 @@ type loyaltyRPC struct {
 //
 // Counter verbs accept user_id "0": the reserved bot namespace holding the
 // admin-only bot-scope counters. Balance verbs always require a broadcaster.
-func Subscribe(nc *nats.Conn, repo *repository.Loyalty, prefix, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
-	l := &loyaltyRPC{repo: repo, log: log}
+func Subscribe(w Wiring, prefix string) error {
+	l := &loyaltyRPC{repo: w.Repo, log: w.Log}
 
-	verbs := []struct {
-		verb    string
-		handler func(context.Context, loyaltyrpc.Request) loyaltyrpc.Reply
-	}{
-		{"balance.get", l.handleBalanceGet},
-		{"balance.set", l.handleBalanceSet},
-		{"balance.add", l.handleBalanceAdd},
-		{"balance.spend", l.handleBalanceSpend},
-		{"balance.transfer", l.handleBalanceTransfer},
-		{"top.get", l.handleTopGet},
-		{"counter.get", l.handleCounterGet},
-		{"counter.create", l.handleCounterCreate},
-		{"counter.set", l.handleCounterSet},
-		{"counter.rename", l.handleCounterRename},
-		{"counter.delete", l.handleCounterDelete},
-		{"counter.entry.delete", l.handleCounterEntryDelete},
-		{"counter.list", l.handleCounterList},
-		{"counter.board", l.handleCounterBoard},
-		{"counter.entries", l.handleCounterEntries},
-	}
+	return bus.ServeVerbs(w.RPCWiring, prefix,
+		bus.At("balance.get", l.handleBalanceGet),
+		bus.At("balance.set", l.handleBalanceSet),
+		bus.At("balance.add", l.handleBalanceAdd),
+		bus.At("balance.spend", l.handleBalanceSpend),
+		bus.At("balance.transfer", l.handleBalanceTransfer),
+		bus.At("top.get", l.handleTopGet),
+		bus.At("counter.get", l.handleCounterGet),
+		bus.At("counter.create", l.handleCounterCreate),
+		bus.At("counter.set", l.handleCounterSet),
+		bus.At("counter.rename", l.handleCounterRename),
+		bus.At("counter.delete", l.handleCounterDelete),
+		bus.At("counter.entry.delete", l.handleCounterEntryDelete),
+		bus.At("counter.list", l.handleCounterList),
+		bus.At("counter.board", l.handleCounterBoard),
+		bus.At("counter.entries", l.handleCounterEntries),
+	)
+}
 
-	for _, v := range verbs {
-		subject := prefix + "." + v.verb
-		if err := bus.QueueSubscribeJSON[loyaltyrpc.Request, loyaltyrpc.Reply](nc, subject, queueGroup, handleTimeout, app, log, v.handler); err != nil {
-			return err
-		}
-	}
-	return nil
+// Wiring is everything Subscribe needs. It replaces the
+// (nc, repo, prefix, queueGroup, app, log) positional form, whose two
+// adjacent strings were transposable without a compile error.
+type Wiring struct {
+	bus.RPCWiring
+	Repo *repository.Loyalty
 }
 
 // parseIDs pulls the broadcaster id (required) and viewer id (optional) off a

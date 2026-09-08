@@ -15,6 +15,8 @@ import (
 	"ItsBagelBot/app/db/users/repository"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 
+	"ItsBagelBot/internal/testdb"
+
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,8 +26,7 @@ import (
 func setupAdminRPCTest(t *testing.T) (*adminRPC, *ent.Client) {
 	t.Helper()
 
-	client := enttest.Open(t, "sqlite3", "file:adminrpc?mode=memory&cache=shared&_fk=1")
-	t.Cleanup(func() { _ = client.Close() })
+	client := testdb.Open(t, "adminrpc", func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
 
 	// packer and pub are nil because the list/search tests do not exercise
 	// write or token paths that would call them.

@@ -7,10 +7,7 @@ import (
 	"context"
 	"errors"
 	"strconv"
-	"time"
 
-	"github.com/nats-io/nats.go"
-	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/db/modules/repository"
@@ -19,47 +16,36 @@ import (
 	"ItsBagelBot/pkg/env"
 )
 
-// goveeWiring bundles what wireGovee needs beyond the subject prefixes (which it
-// reads from the environment itself): the RPC connection, the credential store,
-// the shared queue group, and the New Relic app + logger.
-type goveeWiring struct {
-	nc         *nats.Conn
-	creds      *repository.GoveeCreds
-	queueGroup string
-	app        *newrelic.Application
-	log        *zap.Logger
-}
-
 // wireGovee subscribes the Govee API-key custody RPCs. The dashboard verbs
 // (set/clear/status) never echo the key; the internal decrypt verb is
 // account-scoped to gossip, the one service that dials Govee — the same
 // split the users service uses for tokens and contact email. It is a no-op when
 // key custody is disabled (nil store).
-func wireGovee(w goveeWiring) error {
-	if w.creds == nil {
+//
+// The four verbs carry different request and reply types, so they cannot share
+// one ServeVerbs table; each is bound on its own through the same wiring.
+func wireGovee(w bus.RPCWiring, creds *repository.GoveeCreds) error {
+	if creds == nil {
 		return nil
 	}
 	dash := env.Get("NATS_MODULES_GOVEE_SUBJECT_PREFIX", "bagel.rpc.modules.govee")
 	internal := env.Get("NATS_INTERNAL_GOVEE_KEY_SUBJECT_PREFIX", "bagel.rpc.internal.govee.key")
-	g := &goveeRPC{creds: w.creds, log: w.log}
+	g := &goveeRPC{creds: creds, log: w.Log}
 
-	if err := bus.QueueSubscribeJSON[goveerpc.KeySetRequest, goveerpc.KeyMutateReply](
-		w.nc, dash+".set", w.queueGroup, 3*time.Second, w.app, w.log, g.handleSet); err != nil {
+	custody := w.Within(custodyBudget)
+	if err := bus.Serve(custody, dash+".set", g.handleSet); err != nil {
 		return err
 	}
-	if err := bus.QueueSubscribeJSON[goveerpc.KeyClearRequest, goveerpc.KeyMutateReply](
-		w.nc, dash+".clear", w.queueGroup, 3*time.Second, w.app, w.log, g.handleClear); err != nil {
+	if err := bus.Serve(custody, dash+".clear", g.handleClear); err != nil {
 		return err
 	}
-	if err := bus.QueueSubscribeJSON[goveerpc.KeyStatusRequest, goveerpc.KeyStatusReply](
-		w.nc, dash+".status", w.queueGroup, 3*time.Second, w.app, w.log, g.handleStatus); err != nil {
+	if err := bus.Serve(custody, dash+".status", g.handleStatus); err != nil {
 		return err
 	}
-	if err := bus.QueueSubscribeJSON[goveerpc.KeyGetRequest, goveerpc.KeyGetReply](
-		w.nc, internal+".get", w.queueGroup, 3*time.Second, w.app, w.log, g.handleGet); err != nil {
+	if err := bus.Serve(custody, internal+".get", g.handleGet); err != nil {
 		return err
 	}
-	w.log.Info("govee key custody enabled", zap.String("dashboard_prefix", dash))
+	w.Log.Info("govee key custody enabled", zap.String("dashboard_prefix", dash))
 	return nil
 }
 

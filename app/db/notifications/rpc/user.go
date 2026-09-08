@@ -9,8 +9,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/nats-io/nats.go"
-	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/db/notifications/repository"
@@ -28,10 +26,11 @@ type userRPC struct {
 	log         *zap.Logger
 }
 
-// UserConfig carries the NATS wiring for the dashboard-facing RPC surface.
+// UserConfig carries the subject prefix and the TTL tiers for the
+// dashboard-facing RPC surface. The connection, queue group, New Relic app and
+// logger ride the shared Wiring instead.
 type UserConfig struct {
-	Prefix     string
-	QueueGroup string
+	Prefix string
 	// FullReadTTL is how long a fully-read notification lingers for a user
 	// before it drops out of their list; PeekTTL is the (longer) reduced life a
 	// dropdown peek grants an as-yet-unread one.
@@ -42,22 +41,17 @@ type UserConfig struct {
 // SubscribeUser registers the dashboard-facing verbs: list what a user can
 // see (broadcast + direct, newest first), fully read one, and soft-acknowledge
 // (peek) all of them when the bell dropdown opens.
-func SubscribeUser(nc *nats.Conn, repo *repository.Notifications, cfg UserConfig, app *newrelic.Application, log *zap.Logger) error {
-	u := &userRPC{repo: repo, fullReadTTL: cfg.FullReadTTL, peekTTL: cfg.PeekTTL, log: log}
+func SubscribeUser(w Wiring, cfg UserConfig) error {
+	u := &userRPC{repo: w.Repo, fullReadTTL: cfg.FullReadTTL, peekTTL: cfg.PeekTTL, log: w.Log}
 
-	if err := bus.QueueSubscribeJSON[notificationsrpc.UserListRequest, notificationsrpc.UserListReply](
-		nc, cfg.Prefix+".list", cfg.QueueGroup, 3*time.Second, app, log, u.list); err != nil {
+	read := w.Within(readBudget)
+	if err := bus.Serve(read, cfg.Prefix+".list", u.list); err != nil {
 		return err
 	}
-	if err := bus.QueueSubscribeJSON[notificationsrpc.MarkReadRequest, notificationsrpc.MarkReadReply](
-		nc, cfg.Prefix+".mark_read", cfg.QueueGroup, 3*time.Second, app, log, u.markRead); err != nil {
+	if err := bus.Serve(read, cfg.Prefix+".mark_read", u.markRead); err != nil {
 		return err
 	}
-	if err := bus.QueueSubscribeJSON[notificationsrpc.MarkPeekedRequest, notificationsrpc.MarkPeekedReply](
-		nc, cfg.Prefix+".mark_peeked", cfg.QueueGroup, 3*time.Second, app, log, u.markPeeked); err != nil {
-		return err
-	}
-	return nil
+	return bus.Serve(read, cfg.Prefix+".mark_peeked", u.markPeeked)
 }
 
 func (u *userRPC) list(ctx context.Context, req notificationsrpc.UserListRequest) notificationsrpc.UserListReply {

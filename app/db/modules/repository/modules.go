@@ -404,6 +404,15 @@ func (r *Modules) Close(ctx context.Context) {
 // flush lands one window of coalesced changes, then invalidates the local
 // cache and announces every landed change on the bus. It runs detached from
 // any request, so it reports as its own background transaction.
+//
+// The commands service runs the same skeleton (background txn, one bulk
+// upsert, per-item fallback, then invalidate + publish per landed row) and is
+// deliberately not shared with it: commands re-reads every landed row and
+// publishes database truth, because a command row carries a counter (uses)
+// that the queued edit never held and event-carried state transfer must not
+// regress it. A module row is fully described by the edit, so there is
+// nothing to re-read. Merging the two would mean a reload hook with exactly
+// one caller, which is more indirection than the ~20 shared lines buy.
 func (r *Modules) flush(ctx context.Context, items []data.ModuleChangedDTO) error {
 
 	txn := r.app.StartTransaction("flush modules")

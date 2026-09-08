@@ -15,6 +15,8 @@ import (
 	loyaltyrepo "ItsBagelBot/app/db/loyalty/repository"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 
+	"ItsBagelBot/internal/testdb"
+
 	_ "github.com/mattn/go-sqlite3" // Required for the in-memory DB
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,7 +30,7 @@ import (
 // viewer 8 ("receiver") holds 100.
 func newTransferHarness(t *testing.T) *loyaltyRPC {
 	t.Helper()
-	db, err := sql.Open("sqlite3", "file:loyaltytransferrpc?mode=memory&cache=shared&_fk=1")
+	db, err := sql.Open(testdb.Driver, testdb.MemDSN("loyaltytransferrpc"))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
 	drv := entsql.OpenDB("sqlite3", db)

@@ -12,6 +12,8 @@ import (
 	"ItsBagelBot/app/db/modules/ent/spotifycredential"
 	"ItsBagelBot/app/db/modules/repository"
 
+	"ItsBagelBot/internal/testdb"
+
 	_ "github.com/mattn/go-sqlite3" // in-memory DB
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,8 +21,7 @@ import (
 
 func spotifySetup(t *testing.T) (*ent.Client, *repository.SpotifyCreds) {
 	t.Helper()
-	client := enttest.Open(t, "sqlite3", "file:spotifycreds?mode=memory&cache=shared&_fk=1")
-	t.Cleanup(func() { _ = client.Close() })
+	client := testdb.Open(t, "spotifycreds", func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
 	return client, repository.NewSpotifyCreds(client, newPacker(t))
 }
 

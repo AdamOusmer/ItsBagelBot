@@ -17,8 +17,8 @@ import (
 	"ItsBagelBot/app/db/loyalty/repository"
 	"ItsBagelBot/app/db/loyalty/rpc"
 	"ItsBagelBot/internal/domain/event/data"
-	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/bus/consumers"
 	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/monitor"
@@ -83,26 +83,11 @@ func recordBumps(repo *repository.Loyalty, log *zap.Logger) func(*bus.Message) e
 	}
 }
 
-// deleteAllForUser removes every loyalty row of a deleted account. Malformed
-// or invalid payloads are dropped; a DB failure is returned for retry.
+// deleteAllForUser removes every loyalty row of a deleted account. The
+// payload guards and the log line are shared with the other data services;
+// only the sweep is this service's own.
 func deleteAllForUser(repo *repository.Loyalty, log *zap.Logger) func(*bus.Message) error {
-	return func(msg *bus.Message) error {
-		log := monitor.TxnLogger(msg.Context(), log)
-		var dto data.UserDeletedDTO
-		if err := codec.Unmarshal(msg.Payload, &dto); err != nil {
-			log.Warn("loyalty: bad user_deleted payload", zap.Error(err))
-			return nil
-		}
-		if err := validate.UserID(dto.UserID); err != nil {
-			log.Warn("loyalty: invalid user_id in user_deleted", zap.Error(err))
-			return nil
-		}
-		if err := repo.DeleteAllForUser(msg.Context(), dto.UserID); err != nil {
-			return err
-		}
-		log.Info("loyalty: deleted all for user", zap.Uint64("user_id", dto.UserID))
-		return nil
-	}
+	return consumers.OnUserDeleted(serviceName, log, repo.DeleteAllForUser)
 }
 
 func main() {
@@ -132,7 +117,10 @@ func main() {
 	svcboot.FatalIf(log, registerConsumers(core.Ctx, core.NR, repo, grouped, log), "failed to subscribe to events")
 
 	loyaltyPrefix := env.Get("NATS_LOYALTY_SUBJECT_PREFIX", "bagel.rpc.loyalty")
-	svcboot.FatalIf(log, rpc.Subscribe(nc, repo, loyaltyPrefix, queueGroup, core.NR, log),
+	svcboot.FatalIf(log, rpc.Subscribe(rpc.Wiring{
+		RPCWiring: bus.RPCWiring{NC: nc, App: core.NR, Queue: queueGroup, Log: log},
+		Repo:      repo,
+	}, loyaltyPrefix),
 		"failed to subscribe loyalty rpc")
 	// The lane check covers the durable group folding data.loyalty.earned,
 	// data.loyalty.counters and data.users.deleted. Its verdict is hard, not

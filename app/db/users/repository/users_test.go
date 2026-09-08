@@ -20,6 +20,8 @@ import (
 	"ItsBagelBot/pkg/bus/bustest"
 	"ItsBagelBot/pkg/crypto"
 
+	"ItsBagelBot/internal/testdb"
+
 	_ "github.com/mattn/go-sqlite3" // Required for the in-memory DB
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -49,8 +51,7 @@ func newPacker(t *testing.T) *crypto.Crypto {
 func setup(t *testing.T) (*ent.Client, *bustest.Publisher, *repository.Users) {
 	t.Helper()
 
-	client := enttest.Open(t, "sqlite3", "file:usersent?mode=memory&cache=shared&_fk=1")
-	t.Cleanup(func() { _ = client.Close() })
+	client := testdb.Open(t, "usersent", func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
 
 	pub := bustest.NewPublisher()
 

@@ -16,9 +16,8 @@ import (
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/internal/moderation"
 	"ItsBagelBot/pkg/bus"
-	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/bus/consumers"
 	"ItsBagelBot/pkg/env"
-	"ItsBagelBot/pkg/monitor"
 	"ItsBagelBot/pkg/svcboot"
 	"ItsBagelBot/pkg/svcboot/databoot"
 
@@ -95,16 +94,8 @@ type eventsWiring struct {
 // on the broadcast subscriber, reprojection and account deletion on the
 // durable group. Fatal on any subscribe failure, matching main's boot style.
 func consumeEvents(ctx context.Context, w eventsWiring) {
-	if err := bus.Consume(ctx, w.app, w.broadcast, data.SubjectModuleChanged, func(msg *bus.Message) error {
-
-		var dto data.ModuleChangedDTO
-		if err := codec.Unmarshal(msg.Payload, &dto); err != nil {
-			return err
-		}
-
-		w.repo.Invalidate(dto.UserID)
-		return nil
-	}, w.log); err != nil {
+	invalidate := consumers.OnChangeInvalidate(changedUserID, w.repo.Invalidate)
+	if err := bus.Consume(ctx, w.app, w.broadcast, data.SubjectModuleChanged, invalidate, w.log); err != nil {
 		w.log.Fatal("failed to subscribe to module changes", zap.Error(err))
 	}
 
@@ -114,39 +105,26 @@ func consumeEvents(ctx context.Context, w eventsWiring) {
 		w.log.Fatal("failed to subscribe to reproject requests", zap.Error(err))
 	}
 
-	if err := bus.Consume(ctx, w.app, w.grouped, data.SubjectUserDeleted, func(msg *bus.Message) error {
-		return deleteUser(msg, w)
-	}, w.log); err != nil {
+	if err := bus.Consume(ctx, w.app, w.grouped, data.SubjectUserDeleted, deleteUser(w), w.log); err != nil {
 		w.log.Fatal("failed to subscribe to user deleted events", zap.Error(err))
 	}
 }
 
-// deleteUser handles one user_deleted event: validate the payload, then sweep
-// the account's module rows and quote book. Malformed payloads are logged and
-// dropped (returning an error would only redeliver them).
-func deleteUser(msg *bus.Message, w eventsWiring) error {
-	log := monitor.TxnLogger(msg.Context(), w.log)
-	var dto data.UserDeletedDTO
-	if err := codec.Unmarshal(msg.Payload, &dto); err != nil {
-		log.Warn("modules: bad user_deleted payload", zap.Error(err))
-		return nil
-	}
+// changedUserID reads the account off a module change event. Go cannot reach
+// a field through a type parameter, so the shared invalidation consumer takes
+// this accessor rather than a reflective one.
+func changedUserID(dto data.ModuleChangedDTO) uint64 { return dto.UserID }
 
-	if err := validate.UserID(dto.UserID); err != nil {
-		log.Warn("modules: invalid user_id in user_deleted", zap.Error(err))
-		return nil
-	}
-
-	if err := w.repo.DeleteAllForUser(msg.Context(), dto.UserID); err != nil {
-		return err
-	}
-
-	if err := w.quotes.DeleteAllForUser(msg.Context(), dto.UserID); err != nil {
-		return err
-	}
-
-	log.Info("modules: deleted all for user", zap.Uint64("user_id", dto.UserID))
-	return nil
+// deleteUser sweeps a deleted account's module rows and quote book. The
+// payload guards and the log line are shared with the other data services;
+// only the two sweeps are this service's own.
+func deleteUser(w eventsWiring) func(*bus.Message) error {
+	return consumers.OnUserDeleted(serviceName, w.log, func(ctx context.Context, userID uint64) error {
+		if err := w.repo.DeleteAllForUser(ctx, userID); err != nil {
+			return err
+		}
+		return w.quotes.DeleteAllForUser(ctx, userID)
+	})
 }
 
 // rpcWiring bundles what subscribeRPCs needs, mirroring eventsWiring.
@@ -164,39 +142,31 @@ type rpcWiring struct {
 // personality verbs. Returns the projection subject for the ready banner.
 // Fatal on any subscribe failure, matching main's boot style.
 func subscribeRPCs(w rpcWiring) string {
+	wiring := rpc.Wiring{
+		RPCWiring: bus.RPCWiring{NC: w.nc, App: w.app, Queue: queueGroup, Log: w.log},
+		Repo:      w.repo,
+	}
+
 	projectionSubject := env.Get("NATS_INTERNAL_PROJECTION_MODULES_SUBJECT", "bagel.rpc.internal.projection.modules.get")
-	if err := rpc.SubscribeProjection(w.nc, w.repo, projectionSubject, queueGroup, w.app, w.log); err != nil {
+	if err := rpc.SubscribeProjection(wiring, projectionSubject); err != nil {
 		w.log.Fatal("failed to subscribe projection rpc", zap.Error(err))
 	}
 
 	// Dashboard verbs (list, upsert): the console toggles/configures modules the
 	// same way it manages commands.
 	dashboardSubject := env.Get("NATS_MODULES_SUBJECT_PREFIX", "bagel.rpc.modules")
-	if err := rpc.SubscribeDashboard(w.nc, w.repo, dashboardSubject, queueGroup, w.app, w.log); err != nil {
+	if err := rpc.SubscribeDashboard(wiring, dashboardSubject); err != nil {
 		w.log.Fatal("failed to subscribe dashboard rpc", zap.Error(err))
 	}
 
 	// Channel-quotes verbs (the sesame quotes module's store).
-	if err := rpc.SubscribeQuotes(rpc.QuotesWiring{
-		NC:         w.nc,
-		Repo:       w.quotes,
-		Prefix:     dashboardSubject + ".quote",
-		QueueGroup: queueGroup,
-		App:        w.app,
-		Log:        w.log,
-	}); err != nil {
+	if err := rpc.SubscribeQuotes(wiring.RPCWiring, w.quotes, dashboardSubject+".quote"); err != nil {
 		w.log.Fatal("failed to subscribe quotes rpc", zap.Error(err))
 	}
 
 	// Personality verbs (the sesame personality module's permanent feed counter).
-	if err := rpc.SubscribePersonality(rpc.PersonalityWiring{
-		NC:         w.nc,
-		Repo:       repository.NewPersonality(w.client),
-		Prefix:     dashboardSubject + ".personality",
-		QueueGroup: queueGroup,
-		App:        w.app,
-		Log:        w.log,
-	}); err != nil {
+	personality := repository.NewPersonality(w.client)
+	if err := rpc.SubscribePersonality(wiring.RPCWiring, personality, dashboardSubject+".personality"); err != nil {
 		w.log.Fatal("failed to subscribe personality rpc", zap.Error(err))
 	}
 	return projectionSubject
