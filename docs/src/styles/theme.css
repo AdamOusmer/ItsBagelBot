@@ -12,9 +12,10 @@
 
 /* Brand primitives: the palette, the shape scale and the easing curve come
    from the one shared definition (web/ and console/ read the same file), so
-   this theme can no longer drift away from the product's colours. Everything
-   this file adds below is genuinely the docs': the paper/light-mode surfaces,
-   the Starlight gray ramps, the mermaid palette and the *-rgb triplets. */
+   this theme can no longer drift away from the product's colours, including
+   the RGB triplets those colours are used through. Everything this file adds
+   below is genuinely the docs': the paper/light-mode surfaces, the Starlight
+   gray ramps and the mermaid palette. */
 @import "../../../console/shared/styles/brand.css";
 
 /* ════════════════════════════════════════════════════════════════════
@@ -94,17 +95,13 @@
     /* ── Semantic ───────────────────────────────────────────────── */
     --bb-danger: #e07a7a;
 
-    /* ── RGB-component tokens for alpha math ────────────────────── */
-    --bb-tan-rgb: 201, 168, 124;
-    --bb-tan-light-rgb: 224, 196, 154;
-    --bb-tan-pale-rgb: 245, 230, 207;
+    /* ── RGB-component tokens for alpha math ──────────────────────
+       Only the docs' own colours are here. The brand roles (tan, green,
+       black, card-bg, white, muted) ship their triplets from brand.css,
+       because a triplet re-typed from a hex is a copy nothing checks. */
     --bb-tan-deep-rgb: 138, 106, 62;
-    --bb-green-rgb: 45, 106, 79;
-    --bb-green-light-rgb: 64, 145, 108;
-    --bb-green-glow-rgb: 82, 183, 136;
     --bb-mint-glow-rgb: 167, 243, 208; /* hero orb-1 core glow */
     --bb-ink-rgb: 20, 17, 12;
-    --bb-bg-rgb: 10, 10, 10;
     --bb-white-pure-rgb: 255, 255, 255;
     --bb-shadow-rgb: 0, 0, 0;
     --bb-danger-rgb: 220, 90, 90;
@@ -157,7 +154,7 @@
     --sl-color-hairline-shade: rgba(var(--bb-tan-rgb), 0.08);
 
     /* Backdrops */
-    --sl-color-backdrop-overlay: rgba(var(--bb-bg-rgb), 0.78);
+    --sl-color-backdrop-overlay: rgba(var(--bb-black-rgb), 0.78);
 
     /* Fonts */
     --sl-font: var(--bb-font-body);

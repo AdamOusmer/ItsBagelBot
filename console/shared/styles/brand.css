@@ -48,6 +48,21 @@
     --bb-border: rgba(201, 168, 124, 0.15);
     --bb-border-strong: rgba(201, 168, 124, 0.35);
 
+    /* ── the same palette as RGB channels, for alpha math ──────────
+       `rgba(var(--bb-tan-rgb), 0.15)`. Shipped here rather than left to
+       each app because docs/ used to re-type the channels of these exact
+       hexes, and a hand-typed triplet is a copy of a colour that no tool
+       can check: docs' --bb-danger-rgb is still 220, 90, 90 while its
+       --bb-danger is #e07a7a. Only roles this file already names AND some
+       app actually uses get a triplet; an app's own colour keeps its own
+       triplet next to it. Comma-separated on purpose (see above). */
+    --bb-black-rgb: 10, 10, 10;
+    --bb-green-rgb: 45, 106, 79;
+    --bb-green-light-rgb: 64, 145, 108;
+    --bb-green-glow-rgb: 82, 183, 136;
+    --bb-tan-rgb: 201, 168, 124;
+    --bb-tan-pale-rgb: 245, 230, 207;
+
     /* ── shape scale ───────────────────────────────────────────── */
     /* Concentric corners: inner radius = outer radius minus the gap between
        the two edges, snapped to the 4px grid and floored at xs. True circles
