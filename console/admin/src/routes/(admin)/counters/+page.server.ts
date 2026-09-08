@@ -3,6 +3,7 @@
 
 import type { Actions, PageServerLoad } from './$types';
 import { fail, redirect } from '@sveltejs/kit';
+import { mutateAction } from '@bagel/shared/server/form-action';
 import { dev } from '$app/environment';
 import { requireAdmin, isManager, type AdminIdentity } from '$lib/server/access';
 import {
@@ -53,30 +54,33 @@ function audit(admin: AdminIdentity, line: AuditLine): void {
   auditAppend({ actor_id: admin.id, actor_login: admin.login, ...line }).catch(() => {});
 }
 
-// mutate wraps one POST action with the shared boilerplate: manager gate, demo
-// short-circuit, error mapping and the audit line. run returns the audit detail,
-// or null for a validation failure.
+// mutate binds one POST action to the shared write skeleton
+// (@bagel/shared/server/form-action): gate, form, demo short-circuit, error
+// mapping, audit. The manager identity is this page's actor context; `run`
+// returns the audit detail, or null for a validation failure.
 type Mutation = (f: FormData) => Promise<string | null>;
 
 function mutate(op: string, run: Mutation) {
-  return async ({ request, locals }: Parameters<NonNullable<Actions[string]>>[0]) => {
-    const admin = await requireAdmin(locals.session);
-    if (!admin || !isManager(admin.role)) return fail(403, { ok: false, error: 'forbidden' });
-
-    const f = await request.formData();
-    if (DEMO) return { ok: true };
-    let detail: string | null;
-    try {
-      detail = await run(f);
-    } catch (e) {
+  const action = `bot_counter_${op}`;
+  return mutateAction<AdminIdentity, Parameters<NonNullable<Actions[string]>>[0]>({
+    gate: async ({ locals }) => {
+      const admin = await requireAdmin(locals.session);
+      return admin && isManager(admin.role) ? admin : null;
+    },
+    refusal: () => fail(403, { ok: false, error: 'forbidden' }),
+    demo: DEMO,
+    run: (_admin, f) => run(f),
+    // A failed write is audited too, with the name it was attempted on: a
+    // rejected bot-counter change is exactly the kind of thing the trail is
+    // read for afterwards.
+    failed: (e, f, admin) => {
       const error = (e as Error).message;
-      audit(admin, { action: `bot_counter_${op}`, target: 'bot', detail: String(f.get('name') ?? ''), ok: false, error });
+      audit(admin, { action, target: 'bot', detail: String(f.get('name') ?? ''), ok: false, error });
       return fail(400, { ok: false, error });
-    }
-    if (detail === null) return fail(400, { ok: false, error: 'Invalid counter.' });
-    audit(admin, { action: `bot_counter_${op}`, target: 'bot', detail, ok: true });
-    return { ok: true };
-  };
+    },
+    audited: (admin, detail) => audit(admin, { action, target: 'bot', detail, ok: true }),
+    invalid: 'Invalid counter.'
+  });
 }
 
 export const actions: Actions = {
