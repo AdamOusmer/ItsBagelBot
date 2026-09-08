@@ -50,45 +50,31 @@ func New(nc *nats.Conn, prefix string) *Client {
 func (c *Client) subject(name string) string { return c.prefix + "." + name }
 
 func (c *Client) CreateChannel(ctx context.Context, req discordoutgress.ChannelCreateRequest) (discordoutgress.ChannelCreateReply, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-	return bus.RequestJSON[discordoutgress.ChannelCreateReply](ctx, c.nc, c.subject("channel.create"), req)
+	return bus.RequestJSONTimeout[discordoutgress.ChannelCreateReply](ctx, c.nc, c.subject("channel.create"), req, timeout)
 }
 
 func (c *Client) DeleteChannel(ctx context.Context, req discordoutgress.ChannelDeleteRequest) (discordoutgress.ChannelDeleteReply, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-	return bus.RequestJSON[discordoutgress.ChannelDeleteReply](ctx, c.nc, c.subject("channel.delete"), req)
+	return bus.RequestJSONTimeout[discordoutgress.ChannelDeleteReply](ctx, c.nc, c.subject("channel.delete"), req, timeout)
 }
 
 func (c *Client) ModifyChannel(ctx context.Context, req discordoutgress.ChannelModifyRequest) (discordoutgress.ChannelModifyReply, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-	return bus.RequestJSON[discordoutgress.ChannelModifyReply](ctx, c.nc, c.subject("channel.modify"), req)
+	return bus.RequestJSONTimeout[discordoutgress.ChannelModifyReply](ctx, c.nc, c.subject("channel.modify"), req, timeout)
 }
 
 func (c *Client) MoveMember(ctx context.Context, req discordoutgress.MemberMoveRequest) (discordoutgress.MemberMoveReply, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-	return bus.RequestJSON[discordoutgress.MemberMoveReply](ctx, c.nc, c.subject("member.move"), req)
+	return bus.RequestJSONTimeout[discordoutgress.MemberMoveReply](ctx, c.nc, c.subject("member.move"), req, timeout)
 }
 
 func (c *Client) Purge(ctx context.Context, req discordoutgress.PurgeRequest) (discordoutgress.PurgeReply, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-	return bus.RequestJSON[discordoutgress.PurgeReply](ctx, c.nc, c.subject("channel.purge"), req)
+	return bus.RequestJSONTimeout[discordoutgress.PurgeReply](ctx, c.nc, c.subject("channel.purge"), req, timeout)
 }
 
 func (c *Client) LiveOnline(ctx context.Context, req discordoutgress.LiveOnlineRequest) (discordoutgress.LiveOnlineReply, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-	return bus.RequestJSON[discordoutgress.LiveOnlineReply](ctx, c.nc, c.subject("live.online"), req)
+	return bus.RequestJSONTimeout[discordoutgress.LiveOnlineReply](ctx, c.nc, c.subject("live.online"), req, timeout)
 }
 
 func (c *Client) LiveOffline(ctx context.Context, req discordoutgress.LiveOfflineRequest) (discordoutgress.LiveOfflineReply, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-	return bus.RequestJSON[discordoutgress.LiveOfflineReply](ctx, c.nc, c.subject("live.offline"), req)
+	return bus.RequestJSONTimeout[discordoutgress.LiveOfflineReply](ctx, c.nc, c.subject("live.offline"), req, timeout)
 }
 
 // ResolveInvite calls bagel.rpc.discord-outgress.invite.resolve (see
@@ -99,30 +85,22 @@ func (c *Client) LiveOffline(ctx context.Context, req discordoutgress.LiveOfflin
 // itself has no notion of "only sometimes call me", it always makes the
 // round trip.
 func (c *Client) ResolveInvite(ctx context.Context, req discordoutgress.InviteResolveRequest) (discordoutgress.InviteResolveReply, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-	return bus.RequestJSON[discordoutgress.InviteResolveReply](ctx, c.nc, c.subject("invite.resolve"), req)
+	return bus.RequestJSONTimeout[discordoutgress.InviteResolveReply](ctx, c.nc, c.subject("invite.resolve"), req, timeout)
 }
 
 // TicketOpen creates the ticket channel and posts the opening card. See
 // internal/domain/rpc/discordoutgress/ticket.go for why the desk's three
 // steps are RPCs rather than Commands.
 func (c *Client) TicketOpen(ctx context.Context, req discordoutgress.TicketOpenRequest) (discordoutgress.TicketOpenReply, error) {
-	ctx, cancel := context.WithTimeout(ctx, ticketOpenTimeout)
-	defer cancel()
-	return bus.RequestJSON[discordoutgress.TicketOpenReply](ctx, c.nc, c.subject("ticket.open"), req)
+	return bus.RequestJSONTimeout[discordoutgress.TicketOpenReply](ctx, c.nc, c.subject("ticket.open"), req, ticketOpenTimeout)
 }
 
 func (c *Client) TicketClaim(ctx context.Context, req discordoutgress.TicketClaimRequest) (discordoutgress.TicketClaimReply, error) {
-	ctx, cancel := context.WithTimeout(ctx, ticketOpenTimeout)
-	defer cancel()
-	return bus.RequestJSON[discordoutgress.TicketClaimReply](ctx, c.nc, c.subject("ticket.claim"), req)
+	return bus.RequestJSONTimeout[discordoutgress.TicketClaimReply](ctx, c.nc, c.subject("ticket.claim"), req, ticketOpenTimeout)
 }
 
 func (c *Client) TicketAddMember(ctx context.Context, req discordoutgress.TicketMemberAddRequest) (discordoutgress.TicketMemberAddReply, error) {
-	ctx, cancel := context.WithTimeout(ctx, ticketOpenTimeout)
-	defer cancel()
-	return bus.RequestJSON[discordoutgress.TicketMemberAddReply](ctx, c.nc, c.subject("ticket.add"), req)
+	return bus.RequestJSONTimeout[discordoutgress.TicketMemberAddReply](ctx, c.nc, c.subject("ticket.add"), req, ticketOpenTimeout)
 }
 
 // TicketClose runs the whole close sequence on outgress. It gets its own,
@@ -131,9 +109,7 @@ func (c *Client) TicketAddMember(ctx context.Context, req discordoutgress.Ticket
 // cover. The interaction has already been deferred by ingress, so the user is
 // looking at a "thinking" state, not a dropped command.
 func (c *Client) TicketClose(ctx context.Context, req discordoutgress.TicketCloseRequest) (discordoutgress.TicketCloseReply, error) {
-	ctx, cancel := context.WithTimeout(ctx, ticketCloseTimeout)
-	defer cancel()
-	return bus.RequestJSON[discordoutgress.TicketCloseReply](ctx, c.nc, c.subject("ticket.close"), req)
+	return bus.RequestJSONTimeout[discordoutgress.TicketCloseReply](ctx, c.nc, c.subject("ticket.close"), req, ticketCloseTimeout)
 }
 
 // TicketPanel posts the persistent desk panel and returns its message id. It
@@ -141,7 +117,5 @@ func (c *Client) TicketClose(ctx context.Context, req discordoutgress.TicketClos
 // the id is the whole point: without it the desk pointer has nothing a repost
 // can delete. See discordoutgress.TicketPanelRequest.
 func (c *Client) TicketPanel(ctx context.Context, req discordoutgress.TicketPanelRequest) (discordoutgress.TicketPanelReply, error) {
-	ctx, cancel := context.WithTimeout(ctx, ticketOpenTimeout)
-	defer cancel()
-	return bus.RequestJSON[discordoutgress.TicketPanelReply](ctx, c.nc, c.subject("ticket.panel"), req)
+	return bus.RequestJSONTimeout[discordoutgress.TicketPanelReply](ctx, c.nc, c.subject("ticket.panel"), req, ticketOpenTimeout)
 }
