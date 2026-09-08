@@ -123,23 +123,35 @@ func NormalizeCounterName(name string) string {
 	return strings.ToLower(strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(name), "!")))
 }
 
-func counterChannelKey(broadcasterID uint64, name string) string {
-	return cache.PairKey(loyalCounterChannelPrefix, broadcasterID, name)
+// counterRef names one channel's counter: the (broadcaster, counter name)
+// pair every key this store builds is derived from. A named pair rather than
+// two parameters threaded through three builders — the two carry no meaning
+// apart, and spelling them out at each call is what made this file's argument
+// lists primitive-heavy.
+type counterRef struct {
+	broadcasterID uint64
+	name          string
 }
 
-func counterViewerKey(broadcasterID uint64, name string) string {
-	return cache.PairKey(loyalCounterViewerPrefix, broadcasterID, name)
+// channelKey is the channel-scoped counter's value key.
+func (r counterRef) channelKey() string {
+	return cache.PairKey(loyalCounterChannelPrefix, r.broadcasterID, r.name)
+}
+
+// viewerKey is the per-viewer counter's hash key.
+func (r counterRef) viewerKey() string {
+	return cache.PairKey(loyalCounterViewerPrefix, r.broadcasterID, r.name)
+}
+
+// scopeKey names the counter's cached scope. The read and the invalidate had
+// each spelled this concatenation out, one literal apart from drifting; naming
+// it means an edit cannot leave a stale entry unreachable.
+func (r counterRef) scopeKey() string {
+	return cache.PairKey("scope:", r.broadcasterID, r.name)
 }
 
 func balanceKey(broadcasterID, viewerID uint64) string {
 	return cache.PairKey(loyalBalancePrefix, broadcasterID, strconv.FormatUint(viewerID, 10))
-}
-
-// counterScopeKey names one counter's cached scope. The read and the
-// invalidate had each spelled the concatenation out, one literal apart from
-// drifting; naming it means an edit cannot leave a stale entry unreachable.
-func counterScopeKey(broadcasterID uint64, name string) string {
-	return cache.PairKey("scope:", broadcasterID, name)
 }
 
 // Earn hands one accrual to the reporter (fire-and-forget; the balance cache
@@ -152,7 +164,7 @@ func (s *ValkeyLoyaltyStore) Earn(broadcasterID, viewerID uint64, login, name st
 // defaults to channel scope and materializes in the service on its first
 // flushed bump.
 func (s *ValkeyLoyaltyStore) scope(ctx context.Context, broadcasterID uint64, name string) string {
-	key := counterScopeKey(broadcasterID, name)
+	key := counterRef{broadcasterID, name}.scopeKey()
 	scope, err := s.scopes.GetOrLoad(ctx, key, func(ctx context.Context) (string, error) {
 		c, found, err := s.rpc.CounterGet(ctx, broadcasterID, name, 0, "")
 		if err != nil {
@@ -272,7 +284,7 @@ func (s *ValkeyLoyaltyStore) CounterBump(ctx context.Context, b CounterBump) (in
 // call to seed it; the seed race across replicas is benign and every delta is
 // still applied exactly once.
 func (s *ValkeyLoyaltyStore) bumpChannel(ctx context.Context, broadcasterID uint64, name string, delta int64) (int64, error) {
-	key := counterChannelKey(broadcasterID, name)
+	key := counterRef{broadcasterID, name}.channelKey()
 	deltaArg := strconv.FormatInt(delta, 10)
 
 	value, err := bumpChannelScript.Exec(ctx, s.client, []string{key}, []string{"", deltaArg, counterTTLArg}).AsInt64()
@@ -296,7 +308,7 @@ func (s *ValkeyLoyaltyStore) bumpChannel(ctx context.Context, broadcasterID uint
 // TTL refresh are one atomic master call, while a cold field is seeded from
 // the loyalty service before the caller's delta is applied.
 func (s *ValkeyLoyaltyStore) bumpEntry(ctx context.Context, broadcasterID uint64, name, field string, viewerID uint64, command string, delta int64) (int64, error) {
-	key := counterViewerKey(broadcasterID, name)
+	key := counterRef{broadcasterID, name}.viewerKey()
 	deltaArg := strconv.FormatInt(delta, 10)
 
 	value, err := bumpEntryScript.Exec(ctx, s.client, []string{key}, []string{field, "", deltaArg, counterTTLArg}).AsInt64()
@@ -344,11 +356,12 @@ func (s *ValkeyLoyaltyStore) peekView(ctx context.Context, broadcasterID uint64,
 		v   int64
 		err error
 	)
+	ref := counterRef{broadcasterID, name}
 	if viewScope, viewViewer, viewCmd := bumpTarget(scope, viewerID, command); !rowScoped(viewScope) {
 		field := entryField(viewScope, viewViewer, viewCmd)
-		v, err = s.primary.Do(ctx, s.primary.B().Hget().Key(counterViewerKey(broadcasterID, name)).Field(field).Build()).AsInt64()
+		v, err = s.primary.Do(ctx, s.primary.B().Hget().Key(ref.viewerKey()).Field(field).Build()).AsInt64()
 	} else {
-		v, err = s.primary.Do(ctx, s.primary.B().Get().Key(counterChannelKey(broadcasterID, name)).Build()).AsInt64()
+		v, err = s.primary.Do(ctx, s.primary.B().Get().Key(ref.channelKey()).Build()).AsInt64()
 	}
 	if err != nil {
 		if !valkey.IsValkeyNil(err) {
@@ -366,13 +379,14 @@ func (s *ValkeyLoyaltyStore) CounterInvalidate(ctx context.Context, broadcasterI
 	if name == "" {
 		return
 	}
+	ref := counterRef{broadcasterID, name}
 	if err := s.client.Do(ctx, s.client.B().Del().
-		Key(counterChannelKey(broadcasterID, name), counterViewerKey(broadcasterID, name)).
+		Key(ref.channelKey(), ref.viewerKey()).
 		Build()).Error(); err != nil {
 		s.log.Warn("loyalty: failed to invalidate counter view",
 			zap.Uint64("broadcaster_id", broadcasterID), zap.String("counter", name), zap.Error(err))
 	}
-	s.scopes.Invalidate(counterScopeKey(broadcasterID, name))
+	s.scopes.Invalidate(ref.scopeKey())
 }
 
 // BalanceGet returns one viewer's standing through a short-TTL Valkey cache.
