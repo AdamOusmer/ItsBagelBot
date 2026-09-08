@@ -8,7 +8,8 @@
  */
 import { defaultLang, localizePath, type Lang } from '../../i18n/ui';
 import { guideSlugs, guideLocalizedPaths, isGuideSlug, type GuideSlug } from './slugs';
-import { contentKey, lookup } from './content';
+import { contentKey, lookup, skeleton, strings } from './content';
+import { hydrate, type GuideStrings } from './skeleton';
 import { assertGuideParity } from './parity';
 import type { GuideContent, HubContent } from './types';
 
@@ -21,11 +22,15 @@ export function toGuideSlug(value: string): GuideSlug {
   return value;
 }
 
-/** One guide in one locale. Falls back to English so a half-translated locale still renders. */
+/**
+ * One guide in one locale: the slug's structure filled with that locale's copy.
+ * English is the per-key fallback, so a half-translated locale renders English
+ * for the lines it is missing instead of a blank or a raw key.
+ */
 export function getGuide(slug: GuideSlug, lang: Lang): GuideContent {
-  const found = lookup(contentKey(slug, lang)) ?? lookup(contentKey(slug, defaultLang));
-  if (!found) throw new Error(`guides registry: no content for "${slug}" in any locale`);
-  return found as GuideContent;
+  const english = strings(slug, defaultLang);
+  if (!english) throw new Error(`guides registry: no ${defaultLang} copy for "${slug}"`);
+  return hydrate(skeleton(slug), strings(slug, lang) ?? (english as GuideStrings), english);
 }
 
 /** The hub page in one locale, same English fallback. */

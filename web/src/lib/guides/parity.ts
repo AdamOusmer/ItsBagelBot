@@ -2,36 +2,38 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 /**
- * The build-time parity guard: every guide has the same sections, in the same
- * order, with the same block shapes in every locale, and no em dash anywhere.
- * The registry calls it at module load, so `astro build` and `astro dev` fail
- * loudly instead of shipping a French guide that quietly lost a section.
+ * The build-time guard on guide copy. The registry calls it at module load, so
+ * `astro build` and `astro dev` fail loudly rather than shipping a broken guide.
+ *
+ * It used to compare two whole locales against each other section by section
+ * and block by block, because each locale carried its own copy of the guide's
+ * structure and could lose a section or change a block kind. That cannot happen
+ * now: the structure is one skeleton per guide (lib/guides/skeletons), and a
+ * locale file is a flat map of strings. So the checks that remain are the ones
+ * that still describe a way to be wrong:
+ *
+ *  - a key in a locale file that the skeleton does not name. That is a typo, a
+ *    rename that only reached one language, or a line left behind by a deleted
+ *    block, and it renders as nothing at all with no other symptom.
+ *  - a guide with no English copy, since English is every other locale's
+ *    per-key fallback.
+ *  - an em dash anywhere, in a guide or in the hub.
+ *
+ * A key the skeleton names and a locale omits is NOT an error: the dashboard
+ * mocks carry their own English labels, so an English guide legitimately
+ * supplies no `labels` and a French one overrides every line of them.
  */
 import { locales, defaultLang, type Lang } from '../../i18n/ui';
-import { guideSlugs } from './slugs';
-import { contentKey, lookup } from './content';
-import type { Block, GuideContent, HubContent, Section } from './types';
+import { guideSlugs, type GuideSlug } from './slugs';
+import { contentKey, lookup, skeleton, strings } from './content';
+import { skeletonKeys } from './skeleton';
 
 // Written as an escape, not the character: the repo greps its own sources for a
 // literal em dash and this guard would be the one false positive.
 const EM_DASH = '\u2014';
 
-/**
- * The slug and locale under test, bound once. Every check below reports through
- * this instead of threading the pair (and the section label) through each call:
- * passing them as loose strings is what made the block checker a six-argument
- * function that no caller could read.
- */
-interface Parity {
-  fail(where: string, reason: string): never;
-}
-
-function parityFor(slug: string, lang: Lang): Parity {
-  return {
-    fail(where: string, reason: string): never {
-      throw new Error(`guides parity: ${slug} ${lang} ${where} ${reason}`);
-    },
-  };
+function fail(what: string, reason: string): never {
+  throw new Error(`guides parity: ${what} ${reason}`);
 }
 
 /**
@@ -61,97 +63,35 @@ function findEmDash(value: unknown, trail: string): string | undefined {
   return undefined;
 }
 
-/** A drift report, or undefined when the two sides agree. */
-type Drift = string | undefined;
-
-type BlockOf<K extends Block['kind']> = Extract<Block, { kind: K }>;
-
-/**
- * One comparator per block kind, each returning what drifted rather than
- * throwing. Written as a table because the alternative -- one `if (a.kind ===
- * 'x' && b.kind === 'x')` arm per kind in a single function -- re-narrows both
- * sides on every arm and grows a branch with every kind the content model gains.
- */
-type BlockChecks = { [K in Block['kind']]?: (a: BlockOf<K>, b: BlockOf<K>) => Drift };
-
-function countDrift(label: string, a: readonly unknown[], b: readonly unknown[]): Drift {
-  return a.length === b.length ? undefined : `has ${b.length} ${label}, English has ${a.length}`;
+function assertNoEmDash(what: string, value: unknown): void {
+  const hit = findEmDash(value, '');
+  if (hit !== undefined) fail(what, `${hit || 'content'} contains an em dash`);
 }
 
-function firstDefined(drifts: readonly Drift[]): Drift {
-  return drifts.find((drift) => drift !== undefined);
+function assertGuideLocale(slug: GuideSlug, lang: Lang, named: ReadonlySet<string>): void {
+  const copy = strings(slug, lang);
+  if (!copy) return; // A locale with no file at all falls back to English wholesale.
+  assertNoEmDash(`${slug} ${lang}`, copy);
+  const orphan = Object.keys(copy).find((key) => !named.has(key));
+  if (orphan) fail(`${slug} ${lang}`, `has key "${orphan}", which no skeleton entry names`);
 }
 
-const blockChecks: BlockChecks = {
-  table: (a, b) =>
-    countDrift('table columns', a.head, b.head) ??
-    countDrift('table rows', a.rows, b.rows) ??
-    firstDefined(a.rows.map((row, r) => countDrift(`cells in table row ${r}`, row, b.rows[r]))),
-  dash: (a, b) =>
-    (a.screen === b.screen ? undefined : `screen is "${b.screen}", English has "${a.screen}"`) ??
-    countDrift('notes', a.notes ?? [], b.notes ?? []),
-  chat: (a, b) =>
-    countDrift('chat lines', a.lines, b.lines) ??
-    firstDefined(
-      a.lines.map((line, l) =>
-        line.who === b.lines[l].who
-          ? undefined
-          : `chat line ${l} is "${b.lines[l].who}", English has "${line.who}"`,
-      ),
-    ),
-  widget: (a, b) => (a.name === b.name ? undefined : `widget is "${b.name}", English has "${a.name}"`),
-  cards: (a, b) => countDrift('cards', a.items, b.items),
-  steps: (a, b) => countDrift('steps', a.items, b.items),
-};
-
-function blockDrift(a: Block, b: Block): Drift {
-  // The table keys off the kind the pair already share, so the two sides are the
-  // same variant by construction; the cast is what the index signature cannot say.
-  const check = blockChecks[a.kind] as ((x: Block, y: Block) => Drift) | undefined;
-  return check?.(a, b);
+function assertGuide(slug: GuideSlug): void {
+  if (!strings(slug, defaultLang)) fail(`${slug} ${defaultLang}`, 'copy is missing');
+  const named = new Set(skeletonKeys(skeleton(slug)));
+  for (const lang of locales) assertGuideLocale(slug, lang, named);
 }
 
-function assertBlockParity(p: Parity, where: string, a: Block, b: Block): void {
-  if (a.kind !== b.kind) p.fail(where, `kind is "${b.kind}", English has "${a.kind}"`);
-  const drift = blockDrift(a, b);
-  if (drift) p.fail(where, drift);
+function assertHubLocale(lang: Lang): void {
+  const hub = lookup(contentKey('hub', lang));
+  if (hub) return assertNoEmDash(`hub ${lang}`, hub);
+  // A translated hub may be absent (it falls back to English wholesale); the
+  // English one may not, since it is what everything else falls back to.
+  if (lang === defaultLang) fail(`hub ${defaultLang}`, 'file is missing');
 }
 
-function assertSectionParity(p: Parity, a: Section[], b: Section[]): void {
-  const count = countDrift('sections', a, b);
-  if (count) p.fail('sections', count);
-  for (let s = 0; s < a.length; s += 1) assertOneSection(p, s, a[s], b[s]);
-}
-
-function assertOneSection(p: Parity, s: number, a: Section, b: Section): void {
-  if (a.id !== b.id) p.fail(`section ${s}`, `id is "${b.id}", English has "${a.id}"`);
-  const count = countDrift('blocks', a.blocks, b.blocks);
-  if (count) p.fail(a.id, count);
-  for (let i = 0; i < a.blocks.length; i += 1) {
-    assertBlockParity(p, `${a.id} block ${i}`, a.blocks[i], b.blocks[i]);
-  }
-}
-
-function assertLocaleParity(slug: string, lang: Lang, reference: GuideContent | HubContent): void {
-  const p = parityFor(slug, lang);
-  const candidate = lookup(contentKey(slug, lang));
-  if (!candidate) p.fail('file', 'missing');
-  const emDash = findEmDash(candidate, '');
-  if (emDash !== undefined) p.fail(emDash || 'content', 'contains an em dash');
-  // The hub has no sections, and English is the reference it would be compared to.
-  if (lang === defaultLang || slug === 'hub') return;
-  assertSectionParity(p, (reference as GuideContent).sections, (candidate as GuideContent).sections);
-}
-
-/**
- * Every guide, every locale: same sections in the same order, same block shapes,
- * and no em dash anywhere. Called once at module load, so a mismatch stops the
- * build instead of reaching a reader.
- */
+/** Every guide and the hub, every locale. Called once at module load. */
 export function assertGuideParity(): void {
-  for (const slug of ['hub', ...guideSlugs]) {
-    const reference = lookup(contentKey(slug, defaultLang));
-    if (!reference) throw new Error(`guides parity: ${slug} ${defaultLang} file missing`);
-    for (const lang of locales) assertLocaleParity(slug, lang, reference);
-  }
+  for (const slug of guideSlugs) assertGuide(slug);
+  for (const lang of locales) assertHubLocale(lang);
 }

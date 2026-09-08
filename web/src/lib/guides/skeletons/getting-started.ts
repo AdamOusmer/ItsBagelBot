@@ -1,0 +1,223 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// The structure of the "getting-started" guide: section order and ids, block kinds,
+// which mock screen or widget each block shows, and the shape of the data
+// those widgets take. Every k('...') names one line of copy in
+// src/content/guides/getting-started.<lang>.ts.
+import { k, type GuideSkeleton } from '../skeleton';
+
+const skeleton: GuideSkeleton = {
+    slug: 'getting-started',
+    meta: {
+        title: k('meta.title'),
+        description: k('meta.description'),
+        eyebrow: k('meta.eyebrow'),
+        heading: k('meta.heading'),
+        lead: k('meta.lead'),
+        minutes: k('meta.minutes'),
+        card: {
+            title: k('meta.card.title'),
+            description: k('meta.card.description'),
+            meta: k('meta.card.meta'),
+            chips: [k('meta.card.chips.0'), k('meta.card.chips.1'), k('meta.card.chips.2')],
+        },
+    },
+    sections: [
+        {
+            id: 'connect',
+            heading: k('connect.heading'),
+            note: k('connect.note'),
+            blocks: [
+                { kind: 'prose', html: k('connect.b0.html') },
+                { kind: 'prose', html: k('connect.b1.html') },
+                {
+                    kind: 'chat',
+                    title: k('connect.b2.title'),
+                    caption: k('connect.b2.caption'),
+                    lines: [
+                        { who: 'system', text: k('connect.b2.lines.0.text') },
+                        {
+                            who: 'viewer',
+                            name: k('connect.b2.lines.1.name'),
+                            text: k('connect.b2.lines.1.text'),
+                        },
+                    ],
+                },
+                { kind: 'callout', tone: 'tip', html: k('connect.b3.html') },
+            ],
+        },
+        {
+            id: 'tour',
+            heading: k('tour.heading'),
+            note: k('tour.note'),
+            blocks: [
+                { kind: 'prose', html: k('tour.b0.html') },
+                {
+                    kind: 'dash',
+                    screen: 'DashboardHome',
+                    path: '/',
+                    caption: k('tour.b1.caption'),
+                    notes: [
+                        { n: 1, text: k('tour.b1.notes.0.text') },
+                        { n: 2, text: k('tour.b1.notes.1.text') },
+                        { n: 3, text: k('tour.b1.notes.2.text') },
+                        { n: 4, text: k('tour.b1.notes.3.text') },
+                    ],
+                    labels: {
+                        dockOverview: k('tour.b1.labels.dockOverview'),
+                        dockCommands: k('tour.b1.labels.dockCommands'),
+                        dockModules: k('tour.b1.labels.dockModules'),
+                        dockDiscord: k('tour.b1.labels.dockDiscord'),
+                        dockBilling: k('tour.b1.labels.dockBilling'),
+                        dockSettings: k('tour.b1.labels.dockSettings'),
+                        account: k('tour.b1.labels.account'),
+                        crumbPage: k('tour.b1.labels.crumbPage'),
+                        eyebrow: k('tour.b1.labels.eyebrow'),
+                        titleHtml: k('tour.b1.labels.titleHtml'),
+                        statusState: k('tour.b1.labels.statusState'),
+                        statusNote: k('tour.b1.labels.statusNote'),
+                        restart: k('tour.b1.labels.restart'),
+                        disconnect: k('tour.b1.labels.disconnect'),
+                        quickActions: k('tour.b1.labels.quickActions'),
+                        newCommand: k('tour.b1.labels.newCommand'),
+                        manageModules: k('tour.b1.labels.manageModules'),
+                        topCommands: k('tour.b1.labels.topCommands'),
+                        cmd1Response: k('tour.b1.labels.cmd1Response'),
+                        cmd1Count: k('tour.b1.labels.cmd1Count'),
+                        cmd2Response: k('tour.b1.labels.cmd2Response'),
+                        uses: k('tour.b1.labels.uses'),
+                    },
+                },
+                { kind: 'prose', html: k('tour.b2.html') },
+            ],
+        },
+        {
+            id: 'first-command',
+            heading: k('first-command.heading'),
+            note: k('first-command.note'),
+            blocks: [
+                { kind: 'prose', html: k('first-command.b0.html') },
+                {
+                    kind: 'dash',
+                    screen: 'CommandsList',
+                    path: '/commands',
+                    caption: k('first-command.b1.caption'),
+                    notes: [
+                        { n: 1, text: k('first-command.b1.notes.0.text') },
+                        { n: 2, text: k('first-command.b1.notes.1.text') },
+                        { n: 3, text: k('first-command.b1.notes.2.text') },
+                        { n: 4, text: k('first-command.b1.notes.3.text') },
+                    ],
+                    labels: {
+                        dockOverview: k('first-command.b1.labels.dockOverview'),
+                        dockCommands: k('first-command.b1.labels.dockCommands'),
+                        dockModules: k('first-command.b1.labels.dockModules'),
+                        dockDiscord: k('first-command.b1.labels.dockDiscord'),
+                        dockBilling: k('first-command.b1.labels.dockBilling'),
+                        dockSettings: k('first-command.b1.labels.dockSettings'),
+                        account: k('first-command.b1.labels.account'),
+                        crumbPage: k('first-command.b1.labels.crumbPage'),
+                        eyebrow: k('first-command.b1.labels.eyebrow'),
+                        titleHtml: k('first-command.b1.labels.titleHtml'),
+                        filterAll: k('first-command.b1.labels.filterAll'),
+                        filterActive: k('first-command.b1.labels.filterActive'),
+                        filterCustom: k('first-command.b1.labels.filterCustom'),
+                        searchPlaceholder: k('first-command.b1.labels.searchPlaceholder'),
+                        newCommand: k('first-command.b1.labels.newCommand'),
+                        builtIn: k('first-command.b1.labels.builtIn'),
+                        row1Meta: k('first-command.b1.labels.row1Meta'),
+                        row2Text: k('first-command.b1.labels.row2Text'),
+                        row2Meta: k('first-command.b1.labels.row2Meta'),
+                        panelHead: k('first-command.b1.labels.panelHead'),
+                        fieldName: k('first-command.b1.labels.fieldName'),
+                        fieldResponse: k('first-command.b1.labels.fieldResponse'),
+                        responseValue: k('first-command.b1.labels.responseValue'),
+                        chatTag: k('first-command.b1.labels.chatTag'),
+                        cancel: k('first-command.b1.labels.cancel'),
+                        create: k('first-command.b1.labels.create'),
+                    },
+                },
+                {
+                    kind: 'chat',
+                    title: k('first-command.b2.title'),
+                    caption: k('first-command.b2.caption'),
+                    lines: [
+                        {
+                            who: 'viewer',
+                            name: k('first-command.b2.lines.0.name'),
+                            text: k('first-command.b2.lines.0.text'),
+                        },
+                        { who: 'bot', text: k('first-command.b2.lines.1.text') },
+                    ],
+                },
+                { kind: 'prose', html: k('first-command.b3.html') },
+            ],
+        },
+        {
+            id: 'first-module',
+            heading: k('first-module.heading'),
+            note: k('first-module.note'),
+            blocks: [
+                { kind: 'prose', html: k('first-module.b0.html') },
+                {
+                    kind: 'dash',
+                    screen: 'ModulesGrid',
+                    path: '/modules',
+                    caption: k('first-module.b1.caption'),
+                    labels: {
+                        dot3: k('first-module.b1.labels.dot3'),
+                        dot4: k('first-module.b1.labels.dot4'),
+                        dot5: k('first-module.b1.labels.dot5'),
+                        dot6: k('first-module.b1.labels.dot6'),
+                        dockOverview: k('first-module.b1.labels.dockOverview'),
+                        dockCommands: k('first-module.b1.labels.dockCommands'),
+                        dockModules: k('first-module.b1.labels.dockModules'),
+                        dockDiscord: k('first-module.b1.labels.dockDiscord'),
+                        dockBilling: k('first-module.b1.labels.dockBilling'),
+                        dockSettings: k('first-module.b1.labels.dockSettings'),
+                        account: k('first-module.b1.labels.account'),
+                        eyebrow: k('first-module.b1.labels.eyebrow'),
+                        titleHtml: k('first-module.b1.labels.titleHtml'),
+                        sub: k('first-module.b1.labels.sub'),
+                        searchPlaceholder: k('first-module.b1.labels.searchPlaceholder'),
+                        configure: k('first-module.b1.labels.configure'),
+                    },
+                    notes: [
+                        { n: 1, text: k('first-module.b1.notes.0.text') },
+                        { n: 2, text: k('first-module.b1.notes.1.text') },
+                    ],
+                },
+                { kind: 'prose', html: k('first-module.b2.html') },
+            ],
+        },
+        {
+            id: 'go-live',
+            heading: k('go-live.heading'),
+            note: k('go-live.note'),
+            blocks: [
+                { kind: 'prose', html: k('go-live.b0.html') },
+                { kind: 'callout', tone: 'tip', html: k('go-live.b1.html') },
+                {
+                    kind: 'widget',
+                    name: 'Checklist',
+                    labels: { heading: k('go-live.b2.labels.heading'), reset: k('go-live.b2.labels.reset') },
+                    props: {
+                        storageKey: 'guides.getting-started.checklist',
+                        items: [
+                            k('go-live.b2.props.items.0'),
+                            k('go-live.b2.props.items.1'),
+                            k('go-live.b2.props.items.2'),
+                            k('go-live.b2.props.items.3'),
+                            k('go-live.b2.props.items.4'),
+                            k('go-live.b2.props.items.5'),
+                            k('go-live.b2.props.items.6'),
+                        ],
+                    },
+                },
+            ],
+        },
+    ],
+};
+
+export default skeleton;
