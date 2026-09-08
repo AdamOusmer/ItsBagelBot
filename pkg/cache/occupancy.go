@@ -11,9 +11,9 @@ import (
 )
 
 // OccupancySource reports how full a cache runs: its live entry count against
-// the ceiling it was built with. Both *Cache and *Keyed satisfy it, so a service
-// can log occupancy across a mix of caches without caring about their element
-// types.
+// the ceiling it was built with. Every *Keyed satisfies it (so does *Cache,
+// which is one), so a service can log occupancy across a mix of caches without
+// caring about their key or element types.
 type OccupancySource interface {
 	Len() int
 	Capacity() int64
