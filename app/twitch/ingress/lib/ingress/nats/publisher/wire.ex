@@ -23,15 +23,6 @@ defmodule Ingress.Nats.Publisher.Wire do
       for the whole cohort, so an R3 stream pays quorum latency once per cohort
       instead of once per event. Falls back to `Single` when the broker
       definitely rejects the batch.
-    * `Wire.FastIngest` — **not implemented, seam only.** NATS 2.14
-      flow-controlled batches: a header-plus-reply-inbox protocol shaped like
-      `Atomic`, but the broker flow-acks every N messages instead of only at
-      the end, and an explicit end-of-batch message commits. It needs client
-      support Gnat does not have (the flow-ack window has to be tracked and
-      respected mid-batch), so it stays deferred; when Gnat gains it, it lands
-      as a third module behind these same three callbacks plus its own
-      `AckPath` tag — and, if it ever populates the reserved `from` slot, under
-      the reply-exactly-once rule spelled out on `t:entry/0`.
 
   ## Dedup is structurally absent
 
@@ -55,8 +46,8 @@ defmodule Ingress.Nats.Publisher.Wire do
   `from` is **reserved and always `nil` today**: every shipped enqueue path is
   a `GenServer.cast`, so no caller is ever waiting on a wire. The slot is kept
   because a wire that acquires a synchronous caller must not change the entry
-  shape underneath the collector. The rule any future wire (`Wire.FastIngest`)
-  has to follow if it starts populating it: `reply/2` exactly once per entry,
+  shape underneath the collector. The rule any future wire has to follow if it
+  starts populating it: `reply/2` exactly once per entry,
   on *every* terminal path — send error, definite rejection after the attempt
   budget, sweep expiry, and success — or a populated `from` deadlocks its
   caller for that caller's full call timeout. `reply/2` already no-ops on
