@@ -268,7 +268,7 @@ func valLookup(call statsCall[valorantConfig], scope valScope) (account, region,
 	}
 	region, platform = orDefault(region, cfg.Region), orDefault(platform, cfg.Platform)
 	if scope.noBroadcasterFallback {
-		return firstNonEmpty(argAccount, cfg.Account), region, platform
+		return orDefault(argAccount, cfg.Account), region, platform
 	}
 	account = resolveAccount(accountSources{Arg: argAccount, Linked: cfg.Account, BroadcasterLogin: call.Ctx.Env.BroadcasterUserLogin})
 	return account, region, platform

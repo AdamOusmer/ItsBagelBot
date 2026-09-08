@@ -45,7 +45,7 @@ func newChatReplier(c *module.Context) chatReplier { return chatReplier{c: c} }
 // newGameReplier is the wager games' voice: the same lines plus {points}. An
 // unset currency name falls back to plain "points".
 func newGameReplier(c *module.Context, pointsName string) chatReplier {
-	return chatReplier{c: c, points: firstNonEmpty(strings.TrimSpace(pointsName), "points")}
+	return chatReplier{c: c, points: orDefault(strings.TrimSpace(pointsName), "points")}
 }
 
 // reply emits one chat line. override is the broadcaster's customized template
@@ -59,45 +59,28 @@ func (g chatReplier) reply(emit module.Emit, override string, key replyKey, kv .
 	if tmpl == "" {
 		tmpl = i18n.T(g.c.Locale, string(key))
 	}
+	text := module.ExpandString(tmpl, func(k string) (string, bool) {
+		// kv is the variadic list this one call was given (never more than a
+		// handful), so the scan is shorter than building a map would be — and
+		// the map would be rebuilt for every reply anyway.
+		for i := 0; i+1 < len(kv); i += 2 {
+			if kv[i] == k {
+				return kv[i+1], true
+			}
+		}
+		switch {
+		case k == "user":
+			return g.c.Env.ChatterUserLogin, true
+		case k == "points" && g.points != "":
+			return g.points, true
+		}
+		return module.ParseDynamic(k)
+	})
 	emit(&module.Output{
 		Type:          outgress.TypeChat,
 		BroadcasterID: g.c.Env.BroadcasterUserID,
-		Text:          g.expand(tmpl, kv),
+		Text:          text,
 	})
-}
-
-// expand renders one template over this call's tokens.
-func (g chatReplier) expand(tmpl string, kv []string) string {
-	return module.ExpandString(tmpl, func(k string) (string, bool) {
-		if v, ok := lookupKV(kv, k); ok {
-			return v, true
-		}
-		return g.constant(k)
-	})
-}
-
-// lookupKV scans the {token},value pairs this one call was given. Never more
-// than a handful, so the scan is shorter than building a map would be — and
-// the map would be rebuilt for every reply anyway.
-func lookupKV(kv []string, key string) (string, bool) {
-	for i := 0; i+1 < len(kv); i += 2 {
-		if kv[i] == key {
-			return kv[i+1], true
-		}
-	}
-	return "", false
-}
-
-// constant resolves the tokens every line gets without asking for them, then
-// falls through to the generic dynamic vars.
-func (g chatReplier) constant(k string) (string, bool) {
-	switch {
-	case k == "user":
-		return g.c.Env.ChatterUserLogin, true
-	case k == "points" && g.points != "":
-		return g.points, true
-	}
-	return module.ParseDynamic(k)
 }
 
 // loyaltyVoice is the currency word the wager games speak, and the runtime
@@ -113,18 +96,11 @@ func (g chatReplier) constant(k string) (string, bool) {
 // cannot drift from the ledger word.
 func loyaltyVoice(ctx context.Context, d engine.Deps, c *module.Context, fallback string) (name string, ok bool) {
 	if d.Proj == nil {
-		return firstNonEmpty(strings.TrimSpace(fallback), "points"), true
+		return orDefault(strings.TrimSpace(fallback), "points"), true
 	}
 	cfg, on := engine.ReadLoyaltyConfig(ctx, d.Proj, c.BroadcasterID)
 	if !on {
 		return "", false
 	}
 	return cfg.Name(), true
-}
-
-func firstNonEmpty(a, b string) string {
-	if a != "" {
-		return a
-	}
-	return b
 }
