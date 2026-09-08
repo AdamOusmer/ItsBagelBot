@@ -46,6 +46,7 @@
     "./importer/nightbot": "./lib/importer/nightbot/index.ts",
     "./importer/caps": "./lib/importer/caps.ts",
     "./importer/types": "./lib/importer/types.ts",
+    "./importer/strategy": "./lib/importer/strategy.ts",
     "./importer/validate": "./lib/importer/validate.ts",
     "./importer/streamelements": "./lib/importer/streamelements.ts",
     "./importer/streamlabs-desktop": "./lib/importer/streamlabs-desktop/index.ts",

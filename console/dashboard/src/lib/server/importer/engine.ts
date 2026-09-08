@@ -6,12 +6,11 @@
 // driving the same owning services' subjects the dashboard already talks to.
 // There is no bagel.rpc.importer.* anymore and no importer pod.
 //
-//   preview: streamelements   → kappa v2 API fetch + parse (shared TS port)
-//            nightbot          → REST API fetch with the OAuth token the
-//                                connect flow parked in a cookie, then parse
-//            moobot            → manifest arrives pre-parsed by the browser
-//            streamlabs_desktop → Chatbot.db parsed here (sql.js, see module)
-//          …then validateManifest + collision lookup against live commands.
+//   preview: one source's fetch/parse leg (./sources/*, reached through
+//            SERVER_STRATEGIES) turns that source's input into a manifest, or
+//            the browser posts one it parsed itself (Moobot) and the leg is
+//            skipped …then validateManifest + collision lookup against live
+//            commands.
 //
 //   commit : re-validates the posted manifest, skips items carrying an
 //          error-severity diagnostic or a collision (unless overwrite), then
@@ -23,10 +22,13 @@
 //
 // Identity rule (C3, carried over unchanged): user_id ALWAYS comes from the
 // authenticated Session here and never from caller-supplied data.
+//
+// Source dispatch lives in ./strategy, which imports ./sources/*, which import
+// the refusal helpers back out of this module. That cycle is deliberate and
+// safe: every cross-edge is read inside a function body, never while a module
+// initializes, so import order cannot leave a binding undefined.
 import { randomUUID } from 'node:crypto';
-import { fetchStreamElements, parseStreamElements } from '@bagel/shared/importer/streamelements';
-import { fetchNightbot, parseNightbot } from '@bagel/shared/importer/nightbot';
-import { parseStreamLabsDesktop } from '@bagel/shared/importer/streamlabs-desktop';
+import { SERVER_STRATEGIES } from './strategy';
 import {
   CODE,
   FailedItems,
@@ -39,11 +41,11 @@ import {
   MAX_AUTOMOD_TERMS,
   MIN_TIMER_INTERVAL_SECONDS
 } from '@bagel/shared/importer/validate';
-import type { Session } from './session';
-import { invalidate, SUB } from './services';
-import { listCommands, listModules, upsertCommand } from './commands-store';
-import { addQuote } from './quotes-store';
-import { createCounter, setCounter } from './loyalty-store';
+import type { Session } from '../session';
+import { invalidate, SUB } from '../services';
+import { listCommands, listModules, upsertCommand } from '../commands-store';
+import { addQuote } from '../quotes-store';
+import { createCounter, setCounter } from '../loyalty-store';
 import { rpc } from '@bagel/shared/server/nats';
 import { logger } from '@bagel/shared/server/logger';
 import type {
@@ -57,11 +59,6 @@ import type {
   PreviewResponse,
   TimerDef
 } from '@bagel/shared';
-
-// Server-side backstop on uploaded files (was the RPC handler's gate). The
-// form action refuses >20MB before encoding; this holds for any future caller
-// of this module and bounds what the SQLite parser ever materializes.
-const MAX_DECODED_FILE_BYTES = 25 << 20;
 
 // How many command upserts commit sends before moving to the next chunk.
 // Within a chunk requests stay sequential: the commands upsert path is
@@ -95,28 +92,28 @@ export type ImportCommitRequest = {
   overwrite: boolean;
 };
 
-function emptyStats(): ImportStats {
+export function emptyStats(): ImportStats {
   return { commands: 0, timers: 0, triggers: 0, quotes: 0, counters: 0 };
 }
 
-function errorDiag(item_index: number, code: string, message: string): ImportDiagnostic {
+export function errorDiag(item_index: number, code: string, message: string): ImportDiagnostic {
   return { severity: 'error', item_index, code, message };
 }
 
 // ParseOutcome is one source's fetch/parse leg: either the translated
 // manifest with its diagnostics, or a full refusal response explaining why
 // nothing could be previewed.
-type ParseOutcome =
+export type ParseOutcome =
   | { manifest: ImportManifest; diags: ImportDiagnostic[] }
   | { refusal: PreviewResponse };
 
 // RefusalDiag names the code+prose pair a preview refusal is built from.
-interface RefusalDiag {
+export interface RefusalDiag {
   code: string;
   message: string;
 }
 
-function refused(diag: RefusalDiag): ParseOutcome {
+export function refused(diag: RefusalDiag): ParseOutcome {
   return {
     refusal: {
       stats: emptyStats(),
@@ -125,14 +122,6 @@ function refused(diag: RefusalDiag): ParseOutcome {
     }
   };
 }
-
-// SOURCE_LEGS holds one fetch+parse function per API/file-backed source. The
-// browser-parsed Moobot flow posts its manifest directly and has no leg here.
-const SOURCE_LEGS: Partial<Record<ImportSource, (req: ImportPreviewRequest) => Promise<ParseOutcome>>> = {
-  streamelements: streamelementsLeg,
-  nightbot: nightbotLeg,
-  streamlabs_desktop: streamlabsDesktopLeg
-};
 
 // previewImport translates a source config into a reviewable manifest. A
 // failed preview (bad token, undecodable upload) comes back as
@@ -144,7 +133,9 @@ export async function previewImport(s: Session, req: ImportPreviewRequest): Prom
   if (req.manifest) {
     outcome = preParsedManifest(req.manifest);
   } else {
-    const leg = SOURCE_LEGS[req.source as ImportSource];
+    // A source with no leg is either unknown (a hand-made post) or
+    // browser-parsed and missing its manifest: both are the same refusal.
+    const leg = SERVER_STRATEGIES[req.source as ImportSource]?.leg;
     outcome = leg ? await leg(req) : unsupportedSource(String(req.source));
   }
 
@@ -158,59 +149,6 @@ function preParsedManifest(manifest: ImportManifest): ParseOutcome {
   // like any other input: validateManifest below still runs, including the
   // per-collection caps.
   return { manifest, diags: [] };
-}
-
-async function streamelementsLeg(req: ImportPreviewRequest): Promise<ParseOutcome> {
-  let envelope: string;
-  try {
-    const fetched = await fetchStreamElements(req.credential ?? '');
-    envelope = JSON.stringify({ commands: fetched.commands ?? [], timers: fetched.timers ?? [] });
-  } catch (err) {
-    return refused({ code: CODE.fetchFailed, message: (err as Error).message });
-  }
-  const parsed = parseStreamElements(envelope);
-  return { manifest: parsed.manifest, diags: [...parsed.diagnostics] };
-}
-
-// nightbotLeg pulls the account's config over the Nightbot REST API with the
-// OAuth access token (req.credential: the form action reads it off the
-// HttpOnly cookie the callback route set, never off user paste) and feeds the
-// stapled envelope through the shared parser.
-async function nightbotLeg(req: ImportPreviewRequest): Promise<ParseOutcome> {
-  let envelope: Uint8Array;
-  try {
-    const fetched = await fetchNightbot(req.credential ?? '');
-    envelope = new TextEncoder().encode(JSON.stringify(fetched));
-  } catch (err) {
-    return refused({ code: CODE.fetchFailed, message: (err as Error).message });
-  }
-  try {
-    const parsed = parseNightbot(envelope);
-    return { manifest: parsed.manifest, diags: [...parsed.diagnostics] };
-  } catch (err) {
-    return refused({ code: CODE.parseFailed, message: (err as Error).message });
-  }
-}
-
-async function streamlabsDesktopLeg(req: ImportPreviewRequest): Promise<ParseOutcome> {
-  if (!req.file_b64) {
-    return refused({ code: CODE.fileRequired, message: 'upload your Chatbot.db file' });
-  }
-
-  const file = Buffer.from(req.file_b64, 'base64');
-  if (file.byteLength > MAX_DECODED_FILE_BYTES) {
-    return refused({
-      code: CODE.fileTooLarge,
-      message: `file is ${file.byteLength} bytes; the limit is ${MAX_DECODED_FILE_BYTES}`
-    });
-  }
-
-  try {
-    const parsed = await parseStreamLabsDesktop(file);
-    return { manifest: parsed.manifest, diags: [...parsed.diagnostics] };
-  } catch (err) {
-    return refused({ code: CODE.parseFailed, message: (err as Error).message });
-  }
 }
 
 function unsupportedSource(source: string): ParseOutcome {

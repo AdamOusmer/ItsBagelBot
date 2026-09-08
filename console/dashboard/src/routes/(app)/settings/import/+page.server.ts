@@ -5,15 +5,17 @@ import type { Actions, PageServerLoad } from './$types';
 import { dev } from '$app/environment';
 import { fail, redirect } from '@sveltejs/kit';
 import type { Cookies } from '@sveltejs/kit';
-import { previewImport, commitImport } from '$lib/server/importer';
-import { NB_COOKIE_PATH, NB_TOKEN_COOKIE } from '$lib/server/nightbot-oauth';
+import { previewImport, commitImport, SERVER_STRATEGIES } from '$lib/server/importer';
+import type { SourceInput } from '$lib/server/importer';
+import { IMPORT_STRATEGIES, isImportSource } from '@bagel/shared/importer/strategy';
 import { ValkeyRateLimiter } from '@bagel/shared/server/rate-limit';
 import type { Session } from '$lib/server/session';
-import type {
-  CommitResponse,
-  ImportManifest,
-  ImportSource,
-  PreviewResponse
+import {
+  IMPORT_SOURCES,
+  type CommitResponse,
+  type ImportManifest,
+  type ImportSource,
+  type PreviewResponse
 } from '@bagel/shared';
 
 // Upload ceiling for the file-based sources that still cross the wire.
@@ -29,10 +31,6 @@ const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 // to IMPORT_ITEM_CAPS before sending (~1MB worst case at full caps), so this
 // is a hostile-input backstop, not an expected shape.
 const MAX_MANIFEST_JSON_BYTES = 8 * 1024 * 1024;
-
-// Shape-check ceiling on a pasted StreamElements JWT (three dot-separated
-// base64url segments, <=4KB), mirroring the shared parser's own gate.
-const MAX_CREDENTIAL_LEN = 4096;
 
 // Per-session budget just for preview/commit, tighter than hooks.server.ts's
 // global write tier (30 burst / 0.5/s fleet-wide) which already applies to
@@ -83,18 +81,6 @@ async function importGate(locals: App.Locals): Promise<GateVerdict> {
   return { ok: true, session: s };
 }
 
-const SOURCES: readonly ImportSource[] = [
-  'streamelements',
-  'fossabot',
-  'moobot',
-  'nightbot',
-  'streamlabs_desktop'
-];
-
-function isSource(v: string): v is ImportSource {
-  return (SOURCES as readonly string[]).includes(v);
-}
-
 // requireOwner resolves the acting session (the DEMO fixture identity when
 // DEMO=1) or null; importGate owns the policy reasoning above it.
 async function requireOwner(locals: App.Locals): Promise<Session | null> {
@@ -110,74 +96,24 @@ async function requireOwner(locals: App.Locals): Promise<Session | null> {
 export const load: PageServerLoad = async ({ locals, cookies }) => {
   const s = await requireOwner(locals);
   if (!s) throw redirect(302, '/');
-  // Connected = the OAuth callback parked a token cookie that has not expired
-  // or been consumed by a commit yet. DEMO reads connected so the wizard is
-  // walkable without a real Nightbot app registration.
-  return { nightbotConnected: DEMO || !!cookies.get(NB_TOKEN_COOKIE) };
+  return { connected: connectedSources(cookies) };
 };
 
-// SourceInput carries the three form-borne inputs a preview may use: a pasted
-// credential (StreamElements), an uploaded export (StreamLabs .db), or an
-// already-parsed manifest (Moobot, the browser decoded its own export so the
-// raw file never crosses the wire). Nightbot carries nothing on the form: its
-// credential is the OAuth token cookie, resolved in the action itself.
-interface SourceInput {
-  credential: string;
-  fileB64: string;
-  preManifest?: ImportManifest;
+// connectedSources reports, per source, whether its connect step has been
+// completed: a source declaring connected() (Nightbot today) is connected when
+// the OAuth callback parked a token cookie that has not expired or been
+// consumed by a commit yet; a source without one never is. DEMO reads
+// connected so the wizard is walkable without a real app registration.
+function connectedSources(cookies: Cookies): Record<ImportSource, boolean> {
+  const out = {} as Record<ImportSource, boolean>;
+  for (const id of IMPORT_SOURCES) out[id] = sourceConnected(id, cookies);
+  return out;
 }
 
-// InputRefusal is one input-level rejection, or null when the source's inputs
-// are acceptable.
-type InputRefusal = { status: number; error: string } | null;
-
-// JWT_SHAPE mirrors @bagel/shared/importer/streamelements: three
-// dot-separated base64url segments. Failing here gives a readable message
-// before any fetch is attempted and guarantees no credential with interior
-// whitespace or control chars reaches the transport.
-const JWT_SHAPE = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
-
-// SOURCE_INPUT_RULES decides per source whether the extracted inputs are
-// acceptable; the action body stays guard → resolve → execute. The credential
-// shape check runs for every source that kept one, exactly as before.
-const SOURCE_INPUT_RULES: Record<Exclude<ImportSource, 'fossabot'>, (input: SourceInput) => InputRefusal> = {
-  streamelements: (input) =>
-    missingAnyInput(input, 'Paste your StreamElements JWT first.') ?? jwtShapeRefusal(input.credential),
-  moobot: withJwtShapeCheck('Choose a file to upload.'),
-  // Nightbot posts no form inputs at all: the OAuth connect flow parked the
-  // access token in an HttpOnly cookie and nightbotCredential resolves it.
-  nightbot: () => null,
-  streamlabs_desktop: withJwtShapeCheck('Choose a file to upload.')
-};
-
-function withJwtShapeCheck(missingError: string): (input: SourceInput) => InputRefusal {
-  return (input) => missingAnyInput(input, missingError) ?? jwtShapeRefusal(input.credential);
-}
-
-function missingAnyInput(input: SourceInput, error: string): InputRefusal {
-  if (hasAnyInput(input)) return null;
-  return { status: 400, error };
-}
-
-// hasAnyInput reports whether the post carried at least one of the three
-// inputs a preview can consume.
-function hasAnyInput(input: SourceInput): boolean {
-  if (input.preManifest !== undefined) return true;
-  return [input.credential, input.fileB64].some(nonEmpty);
-}
-
-function nonEmpty(v: string): boolean {
-  return v !== '';
-}
-
-function jwtShapeRefusal(credential: string): InputRefusal {
-  if (credential === '') return null;
-  if (credential.length <= MAX_CREDENTIAL_LEN && JWT_SHAPE.test(credential)) return null;
-  return {
-    status: 400,
-    error:
-      'That does not look like a StreamElements JWT. Copy the whole token: three segments separated by dots, no spaces.'
-  };
+function sourceConnected(id: ImportSource, cookies: Cookies): boolean {
+  const isConnected = SERVER_STRATEGIES[id].connected;
+  if (!isConnected) return false;
+  return DEMO || isConnected(cookies);
 }
 
 // decodePreManifest parses an optional posted manifest. It is untrusted input:
@@ -230,7 +166,7 @@ async function readUpload(form: FormData): Promise<
 // applies the source's acceptance rule.
 async function readSourceInput(
   form: FormData,
-  source: Exclude<ImportSource, 'fossabot'>
+  source: ImportSource
 ): Promise<{ ok: true; input: SourceInput } | { ok: false; status: number; error: string }> {
   const pre = decodePreManifest(form);
   if (!pre.ok) return { ok: false, status: pre.status, error: pre.error };
@@ -245,31 +181,33 @@ async function readSourceInput(
     fileB64: up.fileB64,
     credential: up.uploaded ? '' : String(form.get('credential') ?? '').trim()
   };
-  const refusal = SOURCE_INPUT_RULES[source](input);
+  const refusal = SERVER_STRATEGIES[source].acceptInput(input);
   if (refusal) return { ok: false, ...refusal };
   return { ok: true, input };
 }
 
 // usableSource maps the posted source onto one preview can serve, or the
-// refusal prose. Unknown strings and Fossabot (its parser is unregistered and
-// its OAuth connect flow unbuilt since the importer folded into the dashboard;
-// the card is disabled client-side, this rejects direct posts) collapse into
-// one branch at the call site.
-function usableSource(v: string): Exclude<ImportSource, 'fossabot'> | { error: string } {
-  if (!isSource(v)) return { error: 'Pick a source to import from.' };
-  if (v === 'fossabot') return { error: 'Fossabot import is not available yet.' };
+// refusal prose. Unknown strings and a source whose input is not built yet
+// (its tile ships disabled client-side, this rejects direct posts) collapse
+// into one branch at the call site. Both messages are the ones this route has
+// always given; the source's own name comes off its strategy so nothing here
+// hard-codes one.
+function usableSource(v: string): ImportSource | { error: string } {
+  if (!isImportSource(v)) return { error: 'Pick a source to import from.' };
+  const strategy = IMPORT_STRATEGIES[v];
+  if (!strategy.available) return { error: `${strategy.label} import is not available yet.` };
   return v;
 }
 
-// resolveCredential picks the credential a preview fetches with. Nightbot's
-// never rides the form: the OAuth callback parked the access token in an
-// HttpOnly cookie and this is the only reader: null means the account is not
-// connected (no cookie, or it expired) and the action refuses with the
+// resolveCredential picks the credential a preview fetches with. A source with
+// a connect step resolves its own (Nightbot reads the HttpOnly cookie its
+// OAuth callback parked, so a token never rides the form): null from that hook
+// means the account is not connected and the action refuses with the
 // connect-first prose. Every other source uses whatever the form carried.
 function resolveCredential(source: ImportSource, input: SourceInput, cookies: Cookies): string | null {
-  if (source !== 'nightbot') return input.credential;
-  const token = cookies.get(NB_TOKEN_COOKIE) ?? '';
-  return token === '' ? null : token;
+  const strategy = SERVER_STRATEGIES[source];
+  if (!strategy.credential) return input.credential;
+  return strategy.credential(input, cookies);
 }
 
 export const actions: Actions = {
@@ -294,7 +232,10 @@ preview: async ({ request, locals, cookies }) => {
 
     const credential = resolveCredential(source, read.input, cookies);
     if (credential === null)
-      return fail(400, { error: 'Connect your Nightbot account first.', step: 'preview' });
+      return fail(400, {
+        error: `Connect your ${IMPORT_STRATEGIES[source].label} account first.`,
+        step: 'preview'
+      });
 
     let preview: PreviewResponse;
     try {
@@ -349,7 +290,7 @@ preview: async ({ request, locals, cookies }) => {
     let commit: CommitResponse;
     try {
       commit = await commitImport(gate.session, {
-        source: isSource(source) ? source : '',
+        source: isImportSource(source) ? source : '',
         manifest,
         overwrite
       });
@@ -360,10 +301,9 @@ preview: async ({ request, locals, cookies }) => {
     if (commit.error)
       return fail(502, { error: commit.error, step: 'commit' });
 
-    // The Nightbot token was needed for exactly one preview→commit round
-    // trip; drop it as soon as the import lands rather than waiting out the
-    // cookie's own 15-minute TTL.
-    if (source === 'nightbot') cookies.delete(NB_TOKEN_COOKIE, { path: NB_COOKIE_PATH });
+    // Post-commit cleanup the source owns (Nightbot burns the OAuth token
+    // cookie it was handed for this one preview→commit round trip).
+    if (isImportSource(source)) SERVER_STRATEGIES[source].afterCommit?.(cookies);
 
     return { ok: true, step: 'commit', commit };
   }
