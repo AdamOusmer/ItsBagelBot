@@ -128,3 +128,9 @@ func (c *Context) Reset() {
 	c.emoteCodes = nil
 	c.emotesBuilt = false
 }
+
+// BID is the broadcaster-id log field a module attaches to every warn or error
+// it logs. It lives here rather than as a helper per command type because four
+// of them (quotes, queue, raffle, songqueue) had each grown a byte-identical
+// bid() for it, and a free function would have to be handed the id anyway.
+func (c *Context) BID() zap.Field { return zap.Uint64("broadcaster_id", c.BroadcasterID) }

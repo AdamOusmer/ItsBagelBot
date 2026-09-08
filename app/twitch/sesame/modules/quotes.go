@@ -204,7 +204,7 @@ func (qc quotesCmd) add(ctx context.Context, body string, emit module.Emit) erro
 	}
 	saved, err := qc.q.QuoteAdd(ctx, qc.c.BroadcasterID, body, strings.ToLower(qc.c.Env.ChatterUserLogin))
 	if err != nil {
-		qc.log.Warn("quotes: add failed", qc.bid(), zap.Error(err))
+		qc.log.Warn("quotes: add failed", qc.c.BID(), zap.Error(err))
 		return err
 	}
 	qc.reply(emit, "quote.added", "num", strconv.FormatUint(saved.Number, 10))
@@ -265,7 +265,7 @@ func (qc quotesCmd) readAndShow(ctx context.Context, emit module.Emit, r quoteRe
 	}
 	quote, found, err := r.fetch(ctx)
 	if err != nil {
-		qc.log.Warn("quotes: "+r.label+" failed", qc.bid(), zap.Error(err))
+		qc.log.Warn("quotes: "+r.label+" failed", qc.c.BID(), zap.Error(err))
 		return err
 	}
 	if !found {
@@ -289,7 +289,7 @@ func (qc quotesCmd) edit(ctx context.Context, args string, emit module.Emit) err
 	}
 	_, found, err := qc.q.QuoteEdit(ctx, qc.c.BroadcasterID, number, body)
 	if err != nil {
-		qc.log.Warn("quotes: edit failed", zap.Uint64("number", number), qc.bid(), zap.Error(err))
+		qc.log.Warn("quotes: edit failed", zap.Uint64("number", number), qc.c.BID(), zap.Error(err))
 		return err
 	}
 	key := "quote.edited"
@@ -310,7 +310,7 @@ func (qc quotesCmd) remove(ctx context.Context, args string, emit module.Emit) e
 	}
 	found, err := qc.q.QuoteRemove(ctx, qc.c.BroadcasterID, number)
 	if err != nil {
-		qc.log.Warn("quotes: remove failed", zap.Uint64("number", number), qc.bid(), zap.Error(err))
+		qc.log.Warn("quotes: remove failed", zap.Uint64("number", number), qc.c.BID(), zap.Error(err))
 		return err
 	}
 	key := "quote.removed"
@@ -365,6 +365,3 @@ func (qc quotesCmd) reply(emit module.Emit, key string, kv ...string) {
 		Text:          text,
 	})
 }
-
-// bid is the broadcaster-id log field, shared by every handler's warn path.
-func (qc quotesCmd) bid() zap.Field { return zap.Uint64("broadcaster_id", qc.c.BroadcasterID) }

@@ -107,7 +107,7 @@ func cmdAdd(ctx context.Context, c *module.Context, d engine.Deps, args string, 
 	}
 
 	if err := d.Commands.Upsert(ctx, c.Env.BroadcasterUserID, name, response); err != nil {
-		log.Warn("cmd: add failed", zap.String("name", name), zap.Uint64("broadcaster_id", c.BroadcasterID), zap.Error(err))
+		log.Warn("cmd: add failed", zap.String("name", name), c.BID(), zap.Error(err))
 		return
 	}
 	reply(c, emit, i18n.T(c.Locale, "cmd.added"), c.Env.ChatterName(), name)
@@ -134,7 +134,7 @@ func cmdEdit(ctx context.Context, c *module.Context, d engine.Deps, args string,
 	}
 
 	if err := d.Commands.Upsert(ctx, c.Env.BroadcasterUserID, name, response); err != nil {
-		log.Warn("cmd: edit failed", zap.String("name", name), zap.Uint64("broadcaster_id", c.BroadcasterID), zap.Error(err))
+		log.Warn("cmd: edit failed", zap.String("name", name), c.BID(), zap.Error(err))
 		return
 	}
 	reply(c, emit, i18n.T(c.Locale, "cmd.modified"), c.Env.ChatterName(), name)
@@ -150,7 +150,7 @@ func cmdRemove(ctx context.Context, c *module.Context, d engine.Deps, args strin
 
 	name = strings.TrimPrefix(strings.ToLower(name), "!")
 	if err := d.Commands.Delete(ctx, c.Env.BroadcasterUserID, name); err != nil {
-		log.Warn("cmd: remove failed", zap.String("name", name), zap.Uint64("broadcaster_id", c.BroadcasterID), zap.Error(err))
+		log.Warn("cmd: remove failed", zap.String("name", name), c.BID(), zap.Error(err))
 		return
 	}
 	reply(c, emit, i18n.T(c.Locale, "cmd.removed"), c.Env.ChatterName(), name)

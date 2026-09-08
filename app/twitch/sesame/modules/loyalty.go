@@ -301,7 +301,7 @@ func (lc loyaltyCmd) pointsAdjust(ctx context.Context, target, amount string, ab
 
 	bal, found, err := lc.d.Loyalty.BalanceAdjust(ctx, lc.c.BroadcasterID, login, value, absolute)
 	if err != nil {
-		lc.log.Warn("loyalty: balance adjust failed", zap.Uint64("broadcaster_id", lc.c.BroadcasterID), zap.Error(err))
+		lc.log.Warn("loyalty: balance adjust failed", lc.c.BID(), zap.Error(err))
 		lc.reply("loyalty.counter.err")
 		return nil
 	}
@@ -357,7 +357,7 @@ func (lc loyaltyCmd) pointsGive(ctx context.Context, target, amount string, enab
 	}
 	bal, found, moved, err := lc.d.Loyalty.BalanceTransfer(ctx, lc.c.BroadcasterID, senderID, login, value)
 	if err != nil {
-		lc.log.Warn("loyalty: balance transfer failed", zap.Uint64("broadcaster_id", lc.c.BroadcasterID), zap.Error(err))
+		lc.log.Warn("loyalty: balance transfer failed", lc.c.BID(), zap.Error(err))
 		lc.reply("loyalty.counter.err")
 		return nil
 	}
@@ -407,7 +407,7 @@ func (lc loyaltyCmd) leaderboardShow(ctx context.Context, args string) error {
 	}
 	top, err := lc.d.Loyalty.Top(ctx, lc.c.BroadcasterID, limit)
 	if err != nil {
-		lc.log.Warn("loyalty: top read failed", zap.Uint64("broadcaster_id", lc.c.BroadcasterID), zap.Error(err))
+		lc.log.Warn("loyalty: top read failed", lc.c.BID(), zap.Error(err))
 		lc.reply("loyalty.counter.err")
 		return nil
 	}
@@ -460,7 +460,7 @@ func (lc loyaltyCmd) pointsShow(ctx context.Context) error {
 	}
 	bal, err := lc.d.Loyalty.BalanceGet(ctx, lc.c.BroadcasterID, viewerID)
 	if err != nil {
-		lc.log.Warn("loyalty: balance read failed", zap.Uint64("broadcaster_id", lc.c.BroadcasterID), zap.Error(err))
+		lc.log.Warn("loyalty: balance read failed", lc.c.BID(), zap.Error(err))
 		return nil
 	}
 	var cfg engine.LoyaltyModuleConfig
@@ -711,7 +711,7 @@ func (lc loyaltyCmd) counterShow(ctx context.Context, name, command string) erro
 // fail logs the failure and posts the generic error line; the error is
 // swallowed (the pipeline would only drop it anyway).
 func (lc loyaltyCmd) fail(op string, err error) error {
-	lc.log.Warn("loyalty: counter "+op+" failed", zap.Uint64("broadcaster_id", lc.c.BroadcasterID), zap.Error(err))
+	lc.log.Warn("loyalty: counter "+op+" failed", lc.c.BID(), zap.Error(err))
 	lc.reply("loyalty.counter.err")
 	return nil
 }

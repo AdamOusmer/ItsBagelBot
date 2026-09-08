@@ -198,7 +198,7 @@ func splitChallenge(first, rest string) challengeReq {
 func (dc duelCmd) status(ctx context.Context, emit module.Emit) error {
 	st, err := dc.s.Status(ctx, dc.c.BroadcasterID)
 	if err != nil {
-		dc.log.Warn("duel: status failed", dc.bid(), zap.Error(err))
+		dc.log.Warn("duel: status failed", dc.c.BID(), zap.Error(err))
 		return err
 	}
 	if !st.Open {
@@ -232,7 +232,7 @@ func (dc duelCmd) stake(ctx context.Context, login, raw string, emit module.Emit
 
 	res, err := dc.s.Join(ctx, dc.c.BroadcasterID, login, stake)
 	if err != nil {
-		dc.log.Warn("duel: join failed", dc.bid(), zap.Error(err))
+		dc.log.Warn("duel: join failed", dc.c.BID(), zap.Error(err))
 		return err
 	}
 	switch {
@@ -301,7 +301,7 @@ func (dc duelCmd) openPot(ctx context.Context, login string, stake int64, emit m
 		PotSeconds: dc.t.PotSeconds,
 	})
 	if err != nil {
-		dc.log.Warn("duel: open failed", dc.bid(), zap.Error(err))
+		dc.log.Warn("duel: open failed", dc.c.BID(), zap.Error(err))
 		return err
 	}
 	dc.replyOpen(emit, res, func() {
@@ -335,7 +335,7 @@ func (dc duelCmd) challenge(ctx context.Context, login string, req challengeReq,
 		ChallengeSeconds: dc.t.ChallengeSeconds,
 	})
 	if err != nil {
-		dc.log.Warn("duel: challenge failed", dc.bid(), zap.Error(err))
+		dc.log.Warn("duel: challenge failed", dc.c.BID(), zap.Error(err))
 		return err
 	}
 	dc.replyOpen(emit, res, func() {
@@ -352,7 +352,7 @@ func (dc duelCmd) challenge(ctx context.Context, login string, req challengeReq,
 func (dc duelCmd) accept(ctx context.Context, login string, emit module.Emit) error {
 	res, err := dc.s.Accept(ctx, dc.c.BroadcasterID, login)
 	if err != nil {
-		dc.log.Warn("duel: accept failed", dc.bid(), zap.Error(err))
+		dc.log.Warn("duel: accept failed", dc.c.BID(), zap.Error(err))
 		return err
 	}
 	switch {
@@ -393,7 +393,7 @@ func (dc duelCmd) replySettled(res engine.DuelAcceptResult, emit module.Emit) {
 func (dc duelCmd) decline(ctx context.Context, login string, emit module.Emit) error {
 	res, err := dc.s.Decline(ctx, dc.c.BroadcasterID, login)
 	if err != nil {
-		dc.log.Warn("duel: decline failed", dc.bid(), zap.Error(err))
+		dc.log.Warn("duel: decline failed", dc.c.BID(), zap.Error(err))
 		return err
 	}
 	switch {
@@ -417,7 +417,7 @@ func (dc duelCmd) cancel(ctx context.Context, login string, emit module.Emit) er
 	mod := dc.c.Chatter().Allows(module.RoleModerator)
 	res, err := dc.s.Cancel(ctx, dc.c.BroadcasterID, login, mod)
 	if err != nil {
-		dc.log.Warn("duel: cancel failed", dc.bid(), zap.Error(err))
+		dc.log.Warn("duel: cancel failed", dc.c.BID(), zap.Error(err))
 		return err
 	}
 	switch {
@@ -472,5 +472,3 @@ func (dc duelCmd) refuseReply(emit module.Emit, refused stakeRefusal) {
 		dc.reply(emit, "", key)
 	}
 }
-
-func (dc duelCmd) bid() zap.Field { return zap.Uint64("broadcaster_id", dc.c.BroadcasterID) }

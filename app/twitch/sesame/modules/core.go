@@ -89,7 +89,7 @@ func bagelGreet(d engine.Deps) module.EventHandler {
 
 		live, err := d.Live.IsLive(ctx, c.BroadcasterID)
 		if err != nil {
-			log.Warn("core: live check failed for bagel", zap.Uint64("broadcaster_id", c.BroadcasterID), zap.Error(err))
+			log.Warn("core: live check failed for bagel", c.BID(), zap.Error(err))
 			return nil
 		}
 		if !live {
@@ -98,7 +98,7 @@ func bagelGreet(d engine.Deps) module.EventHandler {
 
 		first, err := d.Greet.FirstGreet(ctx, c.BroadcasterID, c.Env.ChatterUserID)
 		if err != nil {
-			log.Warn("core: greet check failed", zap.Uint64("broadcaster_id", c.BroadcasterID), zap.Error(err))
+			log.Warn("core: greet check failed", c.BID(), zap.Error(err))
 			return nil
 		}
 		if !first {
@@ -107,7 +107,7 @@ func bagelGreet(d engine.Deps) module.EventHandler {
 
 		log.Debug("bagel greet",
 			zap.String("chatter_id", c.Env.ChatterUserID),
-			zap.Uint64("broadcaster_id", c.BroadcasterID),
+			c.BID(),
 		)
 		for i := 0; i < bagelCount; i++ {
 			emit(&module.Output{

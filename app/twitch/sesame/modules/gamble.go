@@ -117,7 +117,7 @@ func (gc gambleCmd) run(ctx context.Context, arg string, emit module.Emit) error
 
 	bal, err := gc.d.Loyalty.BalanceGet(ctx, gc.c.BroadcasterID, gc.viewerID())
 	if err != nil {
-		gc.log.Warn("gamble: balance read failed", gc.bid(), zap.Error(err))
+		gc.log.Warn("gamble: balance read failed", gc.c.BID(), zap.Error(err))
 		return err
 	}
 	gc.balance = bal.Points
@@ -151,7 +151,7 @@ func (gc gambleCmd) run(ctx context.Context, arg string, emit module.Emit) error
 func (gc gambleCmd) settle(ctx context.Context, login string, wager wagerOutcome, emit module.Emit) error {
 	roll, err := engine.RollGamble()
 	if err != nil {
-		gc.log.Warn("gamble: roll failed", gc.bid(), zap.Error(err))
+		gc.log.Warn("gamble: roll failed", gc.c.BID(), zap.Error(err))
 		return err
 	}
 	wager.roll = roll
@@ -173,7 +173,7 @@ func (gc gambleCmd) escrow(ctx context.Context, login string, bet int64, emit mo
 	newBal, found, spent, err := gc.d.Loyalty.BalanceSpend(ctx, gc.c.BroadcasterID, login, bet)
 	switch {
 	case err != nil:
-		gc.log.Warn("gamble: stake debit failed", gc.bid(), zap.Error(err))
+		gc.log.Warn("gamble: stake debit failed", gc.c.BID(), zap.Error(err))
 		return 0, false, err
 	case !found:
 		gc.reply(emit, "", "gamble.unknown")
@@ -236,7 +236,7 @@ func (gc gambleCmd) claimCooldown(ctx context.Context, login string) (bool, erro
 		gambleCooldownKey(gc.c.BroadcasterID, login),
 		engine.GambleCooldown(gc.cfg.CooldownSeconds))
 	if err != nil {
-		gc.log.Warn("gamble: cooldown check failed", gc.bid(), zap.Error(err))
+		gc.log.Warn("gamble: cooldown check failed", gc.c.BID(), zap.Error(err))
 		return false, err
 	}
 	return allowed, nil
@@ -247,7 +247,7 @@ func (gc gambleCmd) settleWin(ctx context.Context, login string, wager wagerOutc
 	// The stake is already escrowed: a win returns it with its match on top.
 	newBal, found, err := gc.d.Loyalty.BalanceAdjust(ctx, gc.c.BroadcasterID, login, wager.bet*2, false)
 	if err != nil {
-		gc.log.Warn("gamble: win credit failed", gc.bid(), zap.Error(err))
+		gc.log.Warn("gamble: win credit failed", gc.c.BID(), zap.Error(err))
 		return err
 	}
 	if !found {
@@ -278,5 +278,3 @@ func (gc gambleCmd) viewerID() uint64 {
 	id, _ := strconv.ParseUint(gc.c.Env.ChatterUserID, 10, 64)
 	return id
 }
-
-func (gc gambleCmd) bid() zap.Field { return zap.Uint64("broadcaster_id", gc.c.BroadcasterID) }

@@ -193,7 +193,7 @@ func bumpRewardCounter(ctx context.Context, d engine.Deps, c *module.Context, b 
 	if err != nil {
 		if d.Log != nil {
 			d.Log.Warn("channelpoints: counter bump failed",
-				zap.Uint64("broadcaster_id", c.BroadcasterID),
+				c.BID(),
 				zap.String("counter", b.Counter),
 				zap.Error(err),
 			)

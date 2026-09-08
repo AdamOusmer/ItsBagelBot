@@ -168,7 +168,7 @@ func raffleDispatch(d engine.Deps, log *zap.Logger) module.RunFunc {
 func (rc raffleCmd) status(ctx context.Context, emit module.Emit) error {
 	st, err := rc.r.Status(ctx, rc.c.BroadcasterID)
 	if err != nil {
-		rc.log.Warn("raffle: status failed", rc.bid(), zap.Error(err))
+		rc.log.Warn("raffle: status failed", rc.c.BID(), zap.Error(err))
 		return err
 	}
 	if st.Open {
@@ -229,7 +229,7 @@ func (rc raffleCmd) open(ctx context.Context, args string, emit module.Emit) err
 		Remind:   remind,
 	})
 	if err != nil {
-		rc.log.Warn("raffle: open failed", rc.bid(), zap.Error(err))
+		rc.log.Warn("raffle: open failed", rc.c.BID(), zap.Error(err))
 		return err
 	}
 	if ok {
@@ -249,7 +249,7 @@ func (rc raffleCmd) join(ctx context.Context, emit module.Emit) error {
 	}
 	entry, err := rc.r.Join(ctx, rc.c.BroadcasterID, login)
 	if err != nil {
-		rc.log.Warn("raffle: join failed", rc.bid(), zap.Error(err))
+		rc.log.Warn("raffle: join failed", rc.c.BID(), zap.Error(err))
 		return err
 	}
 	count := strconv.FormatInt(entry.Entrants, 10)
@@ -273,7 +273,7 @@ func (rc raffleCmd) draw(ctx context.Context, arg string, emit module.Emit) erro
 	}
 	res, err := rc.r.Draw(ctx, rc.c.BroadcasterID, override)
 	if err != nil {
-		rc.log.Warn("raffle: draw failed", rc.bid(), zap.Error(err))
+		rc.log.Warn("raffle: draw failed", rc.c.BID(), zap.Error(err))
 		return err
 	}
 	if res == nil {
@@ -288,7 +288,7 @@ func (rc raffleCmd) draw(ctx context.Context, arg string, emit module.Emit) erro
 func (rc raffleCmd) cancel(ctx context.Context, emit module.Emit) error {
 	ok, err := rc.r.Cancel(ctx, rc.c.BroadcasterID)
 	if err != nil {
-		rc.log.Warn("raffle: cancel failed", rc.bid(), zap.Error(err))
+		rc.log.Warn("raffle: cancel failed", rc.c.BID(), zap.Error(err))
 		return err
 	}
 	if ok {
@@ -304,7 +304,7 @@ func (rc raffleCmd) cancel(ctx context.Context, emit module.Emit) error {
 func (rc raffleCmd) last(ctx context.Context, emit module.Emit) error {
 	res, found, err := rc.r.LastResult(ctx, rc.c.BroadcasterID)
 	if err != nil {
-		rc.log.Warn("raffle: last failed", rc.bid(), zap.Error(err))
+		rc.log.Warn("raffle: last failed", rc.c.BID(), zap.Error(err))
 		return err
 	}
 	switch {
@@ -336,7 +336,7 @@ func (rc raffleCmd) claimConfirm(ctx context.Context, emit module.Emit) error {
 	}
 	outcome, err := rc.r.Claim(ctx, rc.c.BroadcasterID, login)
 	if err != nil {
-		rc.log.Warn("raffle: claim failed", rc.bid(), zap.Error(err))
+		rc.log.Warn("raffle: claim failed", rc.c.BID(), zap.Error(err))
 		return err
 	}
 	switch outcome {
@@ -405,6 +405,3 @@ func (rc raffleCmd) reply(emit module.Emit, override, key string, kv ...string) 
 		Text:          text,
 	})
 }
-
-// bid is the broadcaster-id log field, shared by every handler's warn path.
-func (rc raffleCmd) bid() zap.Field { return zap.Uint64("broadcaster_id", rc.c.BroadcasterID) }

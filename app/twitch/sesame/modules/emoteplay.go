@@ -92,7 +92,7 @@ func emotePlayOnChat(d engine.Deps) module.EventHandler {
 func logBumpFailure(c *module.Context, err error) {
 	if c.Log != nil {
 		c.Log.Debug("emoteplay: bump failed",
-			zap.Uint64("broadcaster_id", c.BroadcasterID), zap.Error(err))
+			c.BID(), zap.Error(err))
 	}
 }
 
