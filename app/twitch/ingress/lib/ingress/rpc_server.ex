@@ -19,6 +19,11 @@ defmodule Ingress.RpcServer do
   string and the scaler call stay at the call site: they are the only things
   that actually differ, and inlining them there keeps each handler's contract
   readable in one screen.
+
+  Those two are imported by the handlers that use them, not by `__using__`.
+  Injecting them made four of the six handlers carry names they never call, and
+  an import a reader cannot see at the call site is exactly the thing `use`
+  should not be smuggling in.
   """
 
   alias Ingress.JSON
@@ -29,8 +34,6 @@ defmodule Ingress.RpcServer do
     quote do
       use Gnat.Server
       require Logger
-
-      import Ingress.RpcServer, only: [decode_field: 3, scaler_reply: 1]
 
       @impl Gnat.Server
       def error(_message, error) do
