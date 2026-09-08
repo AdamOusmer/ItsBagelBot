@@ -70,7 +70,8 @@ const MANIFEST_SOURCE: Record<FetchSlugSource, ImportSource> = {
   se: 'streamelements',
   moobot: 'moobot',
   nightbot: 'nightbot',
-  fossabot: 'fossabot'
+  fossabot: 'fossabot',
+  wizebot: 'wizebot'
 };
 
 // makeFetchSlotSink allocates definition slugs for ONE command over the

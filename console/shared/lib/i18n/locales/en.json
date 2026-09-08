@@ -920,7 +920,7 @@
     "dropHint": "Click to choose a file, or drop it here",
     "errFileMissing": "Choose a file to upload.",
     "errGeneric": "Import failed. Try again.",
-    "errHandleMissing": "Enter your Fossabot channel name first.",
+    "errHandleMissing": "Enter your channel name first.",
     "errHandleShape": "That does not look like a channel name. Use the name from your Fossabot page address, nothing else.",
     "errJwtMissing": "Paste your StreamElements JWT first.",
     "errNbConfig": "Nightbot import isn't configured on this server yet.",
@@ -970,6 +970,12 @@
       "Open its data folder:",
       "Windows: %APPDATA%\\AnkhBot\\Twitch\\  ·  macOS: ~/Library/Application Support/AnkhBot/Twitch/",
       "Locate Chatbot.db and upload it below to continue."
+    ],
+    "instrWizebot": [
+      "In your Wizebot panel, open the Streaming Website section and turn it on if it is off. Your command list is only published while that site is enabled.",
+      "Your channel login is the subdomain of that site: in yourchannel.streaming.lv, it is yourchannel.",
+      "Type that login below to continue.",
+      "Only commands that post chat text come over. Screen animations and sound-only commands are skipped, and when a command carries a public description, Wizebot publishes that instead of its chat message, so check the review step."
     ],
     "jwtFieldAria": "StreamElements JWT",
     "jwtHint": "Open the StreamElements dashboard while signed in, then copy the JWT your browser sends to api.streamelements.com (any request's <code>Authorization</code> header, the part after “Bearer ”).",
@@ -1021,7 +1027,8 @@
     "stepInstructions": "2 · How to get your export from {source}",
     "stepPick": "1 · Choose a source",
     "tileCta": "Pick this source",
-    "toastApplied": "Import applied."
+    "toastApplied": "Import applied.",
+    "wizebotDesc": "Type your channel name and the commands published on your Wizebot streaming website come over."
   },
   "install": {
     "cta": "Install app",

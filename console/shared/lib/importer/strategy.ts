@@ -117,6 +117,14 @@ const MAX_JWT_LEN = 4096;
 export const FOSSABOT_HANDLE_SHAPE = /^[A-Za-z0-9_.-]{1,64}$/;
 export const MAX_HANDLE_LEN = 64;
 
+// WIZEBOT_HANDLE_SHAPE mirrors HANDLE_SHAPE in ./wizebot/fetch, restated here
+// rather than imported so the picker's client bundle never pulls in a
+// server-only fetch layer. It is the subdomain of the channel's streaming
+// website (<login>.streaming.lv), which is a Twitch login with "-" where the
+// login has "_": 25 characters at most, no leading dash.
+const WIZEBOT_HANDLE_SHAPE = /^[A-Za-z0-9][A-Za-z0-9-]{0,24}$/;
+const MAX_WIZEBOT_HANDLE_LEN = 25;
+
 // Browser-side ceiling on a Moobot export, mirrored by the server's own
 // MAX_UPLOAD_BYTES: 10 MiB of JSON is already an order of magnitude past the
 // largest real export, and refusing here means a hostile file is never read.
@@ -222,6 +230,26 @@ export const IMPORT_STRATEGIES: Record<ImportSource, ImportSourceStrategy> = {
       kind: 'file',
       accept: '.db,application/octet-stream',
       maxBytes: MAX_STREAMLABS_BYTES
+    }
+  },
+  wizebot: {
+    id: 'wizebot',
+    label: 'Wizebot',
+    initials: 'WZ',
+    chip: 'handle',
+    available: true,
+    i18n: { desc: 'import.wizebotDesc', instr: 'import.instrWizebot' },
+    input: {
+      kind: 'text',
+      secret: false,
+      shape: WIZEBOT_HANDLE_SHAPE,
+      maxLen: MAX_WIZEBOT_HANDLE_LEN,
+      placeholder: 'yourchannel',
+      i18n: {
+        field: 'import.handleFieldAria',
+        errMissing: 'import.errHandleMissing',
+        errShape: 'import.errHandleShape'
+      }
     }
   }
 };

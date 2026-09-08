@@ -18,6 +18,7 @@ import { fossabotSource } from './sources/fossabot';
 import { moobotSource } from './sources/moobot';
 import { nightbotSource } from './sources/nightbot';
 import { streamlabsDesktopSource } from './sources/streamlabs-desktop';
+import { wizebotSource } from './sources/wizebot';
 
 // SourceInput carries the three form-borne inputs a preview may use: a pasted
 // credential (StreamElements), an uploaded export (StreamLabs .db), or an
@@ -63,7 +64,8 @@ export const SERVER_STRATEGIES: Record<ImportSource, ServerSourceStrategy> = {
   fossabot: fossabotSource,
   moobot: moobotSource,
   nightbot: nightbotSource,
-  streamlabs_desktop: streamlabsDesktopSource
+  streamlabs_desktop: streamlabsDesktopSource,
+  wizebot: wizebotSource
 };
 
 // missingAnyInput refuses a post that carried none of the inputs a preview can
