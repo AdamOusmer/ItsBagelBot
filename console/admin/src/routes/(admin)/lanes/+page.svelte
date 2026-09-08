@@ -118,11 +118,10 @@
   }
 
   type LaneActionPayload = { ok?: boolean; notice?: string; error?: string };
-  const payloadOf = (r: unknown) => actionPayload<LaneActionPayload>(r);
 
   const renameSubmit: SubmitFunction = () => {
     return async ({ result: r }) => {
-      const p = payloadOf(r);
+      const p = actionPayload<LaneActionPayload>(r);
       if (p?.ok) {
         toast('ok', p.notice ?? 'renamed');
         pendingRenameRollback = null;
@@ -148,7 +147,7 @@
       return async ({ result: r }) => {
         busy = false;
         close();
-        const p = payloadOf(r);
+        const p = actionPayload<LaneActionPayload>(r);
         if (p?.ok) {
           toast('ok', p.notice ?? 'done');
           poll();

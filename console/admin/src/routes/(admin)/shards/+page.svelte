@@ -164,7 +164,6 @@
 
   // ── Actions: apply the echoed snapshot; autoscale flips optimistically ─────
   type ActionPayload = { action?: { ok: boolean; notice: string }; snapshot?: ShardSnapshot; error?: string };
-  const payloadOf = (result: unknown) => actionPayload<ActionPayload>(result);
 
   let busy = $state(false);
 
@@ -174,7 +173,7 @@
     return async ({ result, update }) => {
       busy = false;
       fastUntil = Date.now() + 30_000;
-      const p = payloadOf(result);
+      const p = actionPayload<ActionPayload>(result);
       if (result.type === 'success' && p?.action?.ok) {
         if (p.snapshot) snap = p.snapshot;
         toast('ok', p.action.notice);
@@ -192,7 +191,7 @@
     return async ({ result, update }) => {
       busy = false;
       fastUntil = Date.now() + 30_000;
-      const p = payloadOf(result);
+      const p = actionPayload<ActionPayload>(result);
       if (result.type === 'success' && p?.action?.ok) {
         if (p.snapshot) snap = p.snapshot;
         toast('ok', p.action.notice);

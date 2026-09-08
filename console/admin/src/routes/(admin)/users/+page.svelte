@@ -216,7 +216,7 @@
     return async ({ result }) => {
       busyVerb = null;
       msgOpen = false;
-      const p = payloadOf(result);
+      const p = actionPayload<ActionPayload>(result);
       if (result.type === 'success' && p?.action?.ok) {
         toast('ok', p.action.notice);
         return;
@@ -245,11 +245,9 @@
     error?: string;
   };
 
-  const payloadOf = (result: unknown) => actionPayload<ActionPayload>(result);
-
   const lookupSubmit: SubmitFunction = () => {
     return async ({ result }) => {
-      const p = payloadOf(result);
+      const p = actionPayload<ActionPayload>(result);
       const lk = p?.lookup;
       if (!lk || lk.error) {
         // Selection stays; the probe failed and says so.
@@ -289,7 +287,7 @@
       }
       return async ({ result }) => {
         busyVerb = null;
-        const p = payloadOf(result);
+        const p = actionPayload<ActionPayload>(result);
         if (result.type === 'success' && p?.action?.ok) {
           toast('ok', p.action.notice);
           if (p.lookup?.user) reconcileUser(p.lookup.user);
@@ -318,7 +316,7 @@
     subState = null; // honest: state unknown while the reconnect queues
     return async ({ result }) => {
       busyVerb = null;
-      const p = payloadOf(result);
+      const p = actionPayload<ActionPayload>(result);
       if (result.type === 'success' && p?.action?.ok) {
         toast('ok', p.action.notice);
         subState = p.subState ?? null;
@@ -335,7 +333,7 @@
       busyVerb = verb;
       return async ({ result }) => {
         busyVerb = null;
-        const p = payloadOf(result);
+        const p = actionPayload<ActionPayload>(result);
         if (result.type === 'success' && p?.action?.ok) {
           toast('ok', p.action.notice);
           tokenPresent = false;
@@ -375,7 +373,7 @@
     return async ({ result }) => {
       busyVerb = null;
       deleteOpen = false;
-      const p = payloadOf(result);
+      const p = actionPayload<ActionPayload>(result);
       if (result.type === 'success' && p?.action?.ok) {
         toast('ok', p.action.notice);
         if (dir && selectedId) dir.recent = dir.recent.filter((r) => String(r.id) !== selectedId);

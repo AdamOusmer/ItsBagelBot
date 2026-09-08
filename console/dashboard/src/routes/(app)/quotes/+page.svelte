@@ -82,8 +82,6 @@
 
   type QuoteActionOk = ActionOk & { quote?: QuoteView; number?: number };
   type QuoteDraft = { text: string; quoteDate: string };
-
-  const payloadOf = (result: unknown) => actionPayload<QuoteActionOk>(result);
   const failed = toastFailure(toast, t);
 
   function todayInput(): string {
@@ -162,7 +160,7 @@
     adding = true;
     return async ({ result }) => {
       adding = false;
-      const payload = payloadOf(result);
+      const payload = actionPayload<QuoteActionOk>(result);
       if (result.type === 'success' && payload?.ok) {
         closeInspector();
         toast('ok', t('quotes.toastAdded'));
@@ -178,7 +176,7 @@
     adding = true;
     return async ({ result }) => {
       adding = false;
-      const payload = payloadOf(result);
+      const payload = actionPayload<QuoteActionOk>(result);
       if (result.type === 'success' && payload?.ok && payload.quote) {
         const updated = payload.quote;
         quotes = quotes.map((quote) => (quote.number === updated.number ? updated : quote));
@@ -197,7 +195,7 @@
     return () => {
       const was = get();
       return async ({ result }) => {
-        const payload = payloadOf(result);
+        const payload = actionPayload<QuoteActionOk>(result);
         if (result.type === 'success' && payload?.ok) return;
         set(was);
         failed(payload, 'quotes.toastPermFailed');
@@ -232,7 +230,7 @@
       deleting = false;
       const target = deleteTarget;
       deleteTarget = null;
-      const payload = payloadOf(result);
+      const payload = actionPayload<QuoteActionOk>(result);
       if (result.type === 'success' && payload?.ok) {
         if (target) {
           quotes = quotes.filter((quote) => quote.number !== target.number);

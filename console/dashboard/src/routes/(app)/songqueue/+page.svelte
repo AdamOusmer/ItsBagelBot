@@ -102,7 +102,7 @@
 
   const appSubmit: SubmitFunction = () =>
     async ({ result }) => {
-      const payload = payloadOf(result);
+      const payload = actionPayload<SongQueueActionOk>(result);
       if (result.type === 'success' && payload?.ok !== false) {
         clientSecret = '';
         editingApp = false;
@@ -135,14 +135,13 @@
   });
 
   type SongQueueActionOk = ActionOk & { missingScope?: boolean };
-  const payloadOf = (result: unknown) => actionPayload<SongQueueActionOk>(result);
 
   // formResult is the shared enhance handler for simple forms: on success it
   // optionally flips an optimistic mirror, toasts, and reloads.
   function formResult(okMsg: string, failMsg: string, onOk?: () => void): SubmitFunction {
     return () =>
       async ({ result }) => {
-        const payload = payloadOf(result);
+        const payload = actionPayload<SongQueueActionOk>(result);
         if (result.type === 'success' && payload?.ok !== false) {
           onOk?.();
           toast('ok', okMsg);
@@ -168,7 +167,7 @@
     formData.set('sr_enabled', sr.enabled ? 'on' : '');
     formData.set('sr_allow_offline', sr.allowOffline ? 'on' : '');
     return async ({ result }) => {
-      const payload = payloadOf(result);
+      const payload = actionPayload<SongQueueActionOk>(result);
       if (result.type === 'success' && payload?.ok !== false) {
         toast('ok', t('spotify.srSaved'));
         await invalidateAll();
@@ -192,7 +191,7 @@
 
   const quotasSubmit: SubmitFunction = () =>
     async ({ result }) => {
-      const payload = payloadOf(result);
+      const payload = actionPayload<SongQueueActionOk>(result);
       if (result.type === 'success' && payload?.ok !== false) {
         toast('ok', t('spotify.quotaSaved'));
         await invalidateAll();
@@ -206,7 +205,7 @@
     formData.set('redeem_enabled', redeem.enabled ? 'on' : '');
     formData.set('redeem_allow_offline', redeem.allowOffline ? 'on' : '');
     return async ({ result }) => {
-      const payload = payloadOf(result);
+      const payload = actionPayload<SongQueueActionOk>(result);
       if (result.type === 'success' && payload?.ok !== false) {
         await invalidateAll();
         return;
@@ -235,7 +234,7 @@
     busy = true;
     return async ({ result }) => {
       busy = false;
-      const payload = payloadOf(result);
+      const payload = actionPayload<SongQueueActionOk>(result);
       if (result.type === 'success' && payload?.ok !== false) {
         toast('ok', t('spotify.toastSaved'));
         await invalidateAll();
@@ -259,7 +258,7 @@
     return async ({ result }) => {
       deleting = false;
       deletePending = false;
-      const payload = payloadOf(result);
+      const payload = actionPayload<SongQueueActionOk>(result);
       if (result.type === 'success' && payload?.ok !== false) {
         closeInspector();
         toast('ok', t('spotify.toastDeleted'));

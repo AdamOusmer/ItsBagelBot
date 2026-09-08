@@ -52,14 +52,13 @@
   let missingScope = $state(false);
 
   type GoveeActionOk = ActionOk & { missingScope?: boolean };
-  const payloadOf = (result: unknown) => actionPayload<GoveeActionOk>(result);
 
   // formResult is the shared enhance handler for the API-key forms: on success it
   // optionally flips an optimistic mirror, toasts, and reloads.
   function formResult(okMsg: string, failMsg: string, onOk?: () => void): SubmitFunction {
     return () =>
       async ({ result }) => {
-        const payload = payloadOf(result);
+        const payload = actionPayload<GoveeActionOk>(result);
         if (result.type === 'success' && payload?.ok !== false) {
           onOk?.();
           toast('ok', okMsg);
@@ -89,7 +88,7 @@
     busy = true;
     return async ({ result }) => {
       busy = false;
-      const payload = payloadOf(result);
+      const payload = actionPayload<GoveeActionOk>(result);
       if (result.type === 'success' && payload?.ok !== false) {
         toast('ok', t('govee.toastSaved'));
         // Save keeps the inspector open on the bound light; invalidateAll
@@ -117,7 +116,7 @@
       deleting = false;
       const target = deleteTarget;
       deleteTarget = null;
-      const payload = payloadOf(result);
+      const payload = actionPayload<GoveeActionOk>(result);
       if (result.type === 'success' && payload?.ok !== false) {
         if (target && selected?.device === target.device) closeInspector();
         toast('ok', t('govee.toastDeleted'));

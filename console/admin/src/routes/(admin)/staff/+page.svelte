@@ -63,7 +63,6 @@
     staff?: AdminAcct[];
     error?: string;
   };
-  const payloadOf = (result: unknown) => actionPayload<ActionPayload>(result);
 
   let busy = $state(false);
 
@@ -74,7 +73,7 @@
       return async ({ result, update }) => {
         busy = false;
         after?.();
-        const p = payloadOf(result);
+        const p = actionPayload<ActionPayload>(result);
         if (result.type === 'success' && p?.action?.ok) {
           toast('ok', p.action.notice);
           if (p.staff) staff = p.staff;
