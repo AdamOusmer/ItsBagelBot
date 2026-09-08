@@ -19,7 +19,10 @@
     PageToolbar,
     AlertBanner,
     DeckList,
-    EmptyState
+    EmptyState,
+    actionPayload,
+    toastFailure,
+    type ActionOk,
   } from '@bagel/shared';
   import { untrack } from 'svelte';
   import { createInspector } from '$lib/inspector/inspector.svelte';
@@ -125,14 +128,8 @@
     });
   }
 
-  type ActionResult = { ok?: boolean; error?: string };
-  function payloadOf(result: unknown): ActionResult | undefined {
-    const r = result as { type: string; data?: ActionResult };
-    return r.type === 'success' || r.type === 'failure' ? r.data : undefined;
-  }
-  function failed(payload: ActionResult | undefined, fallbackKey: string) {
-    toast('err', payload?.error ?? t(fallbackKey));
-  }
+  const payloadOf = (result: unknown) => actionPayload(result);
+  const failed = toastFailure(toast, t);
 
   // --- Save: immutable snapshot + request id; a late response can't cross rows -
   const saveSubmit: SubmitFunction = () => {
@@ -178,14 +175,9 @@
     };
 
   // --- Delete: optimistic remove + Undo (timers are locally recreatable) ------
-  function postAction(action: string, body: FormData): Promise<ActionResult | null> {
+  function postAction(action: string, body: FormData): Promise<ActionOk | null> {
     return fetch(`?/${action}`, { method: 'POST', body })
-      .then(async (res) => {
-        const result = deserialize(await res.text());
-        return result.type === 'success' || result.type === 'failure'
-          ? ((result.data as ActionResult | undefined) ?? null)
-          : null;
-      })
+      .then(async (res) => actionPayload(deserialize(await res.text())) ?? null)
       .catch(() => null);
   }
 

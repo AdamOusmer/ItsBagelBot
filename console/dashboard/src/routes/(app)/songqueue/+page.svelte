@@ -29,7 +29,9 @@
     blankSpotifyRedeem,
     blankSpotifyQuotas,
     SPOTIFY_QUOTA_TIERS,
-    type SpotifyQuotas
+    type SpotifyQuotas,
+    actionPayload,
+    type ActionOk,
   } from '@bagel/shared';
   import SpotifyRewardEditor from '$lib/components/spotify/SpotifyRewardEditor.svelte';
   import SpotifyRewardRow from '$lib/components/spotify/SpotifyRewardRow.svelte';
@@ -132,11 +134,8 @@
     return () => clearInterval(poll);
   });
 
-  type ActionResult = { ok?: boolean; missingScope?: boolean; error?: string };
-  function payloadOf(result: unknown): ActionResult | undefined {
-    const r = result as { type: string; data?: ActionResult };
-    return r.type === 'success' || r.type === 'failure' ? r.data : undefined;
-  }
+  type SongQueueActionOk = ActionOk & { missingScope?: boolean };
+  const payloadOf = (result: unknown) => actionPayload<SongQueueActionOk>(result);
 
   // formResult is the shared enhance handler for simple forms: on success it
   // optionally flips an optimistic mirror, toasts, and reloads.

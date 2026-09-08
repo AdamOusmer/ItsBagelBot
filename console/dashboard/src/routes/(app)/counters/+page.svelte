@@ -23,7 +23,9 @@
     COUNTER_SCOPES,
     type CounterDef,
     type CounterEntryView,
-    type CounterScope
+    type CounterScope,
+    actionPayload,
+    type ActionOk,
   } from '@bagel/shared';
   import CounterRow from '$lib/components/counters/CounterRow.svelte';
 
@@ -44,10 +46,7 @@
     }
   });
 
-  type ActionResult = { ok?: boolean; error?: string };
-  function payloadOf(result: { type: string; data?: unknown }): ActionResult | undefined {
-    return result.type === 'success' || result.type === 'failure' ? (result.data as ActionResult) : undefined;
-  }
+  const payloadOf = (result: unknown) => actionPayload(result);
 
   // --- Search + scope filter + sorted rows ------------------------------------
   let search = $state('');
@@ -80,17 +79,14 @@
     name: string,
     value: number,
     target?: { viewerId?: string; command?: string }
-  ): Promise<ActionResult | null> {
+  ): Promise<ActionOk | null> {
     const body = new FormData();
     body.set('name', name);
     body.set('value', String(value));
     if (target?.viewerId && target.viewerId !== '0') body.set('viewer_id', target.viewerId);
     if (target?.command) body.set('command', target.command);
     return fetch('?/set', { method: 'POST', body })
-      .then(async (res) => {
-        const r = deserialize(await res.text());
-        return r.type === 'success' || r.type === 'failure' ? ((r.data as ActionResult | undefined) ?? null) : null;
-      })
+      .then(async (res) => actionPayload(deserialize(await res.text())) ?? null)
       .catch(() => null);
   }
 

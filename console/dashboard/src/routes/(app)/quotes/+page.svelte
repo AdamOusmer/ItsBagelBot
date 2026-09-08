@@ -19,7 +19,10 @@
     Card,
     DeckList,
     EmptyState,
-    moduleDef
+    moduleDef,
+    actionPayload,
+    toastFailure,
+    type ActionOk,
   } from '@bagel/shared';
   import type { QuoteView } from '$lib/server/quotes-store';
   import QuoteRow from '$lib/components/quotes/QuoteRow.svelte';
@@ -77,17 +80,11 @@
       .toSorted((a, b) => b.number - a.number)
   );
 
-  type ActionResult = { ok?: boolean; error?: string; quote?: QuoteView; number?: number };
+  type QuoteActionOk = ActionOk & { quote?: QuoteView; number?: number };
   type QuoteDraft = { text: string; quoteDate: string };
 
-  function payloadOf(result: unknown): ActionResult | undefined {
-    const r = result as { type: string; data?: ActionResult };
-    return r.type === 'success' || r.type === 'failure' ? r.data : undefined;
-  }
-
-  function failed(payload: ActionResult | undefined, fallbackKey: string) {
-    toast('err', payload?.error ?? t(fallbackKey));
-  }
+  const payloadOf = (result: unknown) => actionPayload<QuoteActionOk>(result);
+  const failed = toastFailure(toast, t);
 
   function todayInput(): string {
     const now = new Date();
