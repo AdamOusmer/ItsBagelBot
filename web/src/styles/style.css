@@ -1,18 +1,26 @@
 /* Copyright (c) 2026 Adam Ousmer. All rights reserved.
    Proprietary. No license granted. See LICENSE.md. */
 
+/* Brand primitives (palette, shape scale, easing) come from the one shared
+   definition, so the console and the docs cannot drift away from this site's
+   values the way they had. The site's own short names are aliases onto them:
+   every rule below and every component style says var(--tan), not
+   var(--bb-tan), and renaming ~900 uses to buy nothing would be the change
+   that actually risks something. */
+@import '../../../console/shared/styles/brand.css';
+
 :root {
-    --black: #0a0a0a;
-    --green: #2d6a4f;
-    --green-light: #40916c;
-    --green-glow: #52b788;
-    --tan: #c9a87c;
-    --tan-light: #e0c49a;
-    --tan-pale: #f5e6cf;
-    --white: #f0ece4;
-    --muted: #888077;
-    --card-bg: #111110;
-    --border: rgba(201, 168, 124, 0.15);
+    --black: var(--bb-black);
+    --green: var(--bb-green);
+    --green-light: var(--bb-green-light);
+    --green-glow: var(--bb-green-glow);
+    --tan: var(--bb-tan);
+    --tan-light: var(--bb-tan-light);
+    --tan-pale: var(--bb-tan-pale);
+    --white: var(--bb-white);
+    --muted: var(--bb-muted);
+    --card-bg: var(--bb-card-bg);
+    --border: var(--bb-border);
 
     /* "* Variable" are the self-hosted Fontsource variable-font family names
        (see Layout.astro); the plain names stay as fallbacks for any cached
@@ -26,16 +34,16 @@
     /* Visual nav band (--nav-height) plus the iOS notch inset above it. Fixed
        nav grows into the safe area; content offsets clear the whole thing. */
     --nav-offset: calc(var(--nav-height) + env(safe-area-inset-top, 0px));
-    --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
-    --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --ease-out-expo: var(--bb-ease-out-expo);
+    --ease-out-back: var(--bb-ease-out-back);
 
     /* Shape scale. Concentric corners: inner = outer minus the gap between
        them, on a 4px grid, floored at xs. True circles use 50%, not a token. */
-    --radius-xs: 4px;
-    --radius-sm: 8px;
-    --radius-md: 12px;
-    --radius-lg: 16px;
-    --radius-pill: 999px;
+    --radius-xs: var(--bb-radius-xs);
+    --radius-sm: var(--bb-radius-sm);
+    --radius-md: var(--bb-radius-md);
+    --radius-lg: var(--bb-radius-lg);
+    --radius-pill: var(--bb-radius-pill);
 
     /* Spacing rhythm (shared by every section) */
     --space-section: clamp(72px, 10vw, 120px);
