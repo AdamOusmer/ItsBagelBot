@@ -214,6 +214,9 @@ func mcsrRecordRun(d engine.Deps) module.RunFunc {
 // module's linked account, the "how do I stack up against them" shorthand
 // the command promises. Zero typed usernames has nothing to compare, so both
 // come back empty and the caller sends the usage line instead of a call.
+// Linked-only keeps the shorthand and drops the two-name form: a head-to-head
+// needs an opponent by definition, so the broadcaster stays side A and the
+// first typed name is always who they are compared against.
 // displayA is side A's chat name for error lines: the typed name, or the
 // linked username when side A is the stored uuid.
 func mcsrRecordAccounts(args string, cfg mcsrConfig, c *module.Context) (a, b, displayA string) {
@@ -222,7 +225,7 @@ func mcsrRecordAccounts(args string, cfg mcsrConfig, c *module.Context) (a, b, d
 		return "", "", ""
 	}
 	first := strings.TrimPrefix(fields[0], "@")
-	if len(fields) == 1 {
+	if len(fields) == 1 || explicitOn(cfg.LinkedOnly) {
 		self, selfDisplay := resolveLinked(c, accountSources{
 			Linked: cfg.Account, LinkedUUID: cfg.AccountUUID, PreferUUID: true,
 		})

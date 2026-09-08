@@ -45,7 +45,7 @@ type alertsConfig struct {
 	RaidEnabled   string `json:"raidEnabled"`
 	RaidMessage   string `json:"raidMessage"`
 	// AdsEnabled is the one default-OFF toggle in the module: unlike the
-	// alerts above, it fires only on an explicit "on" (see adAlertOn), so
+	// alerts above, it fires only on an explicit "on" (see explicitOn), so
 	// enabling the module never starts announcing ad breaks by surprise.
 	AdsEnabled string `json:"adsEnabled"`
 	AdsMessage string `json:"adsMessage"`
@@ -55,9 +55,11 @@ type alertsConfig struct {
 // disables it; empty (never set) and "on" both fire, so each alert defaults on.
 func alertOn(v string) bool { return v != "off" }
 
-// adAlertOn is the inverse posture for the ads alert: it stays silent until
-// the broadcaster explicitly turns it on, so only "on" fires.
-func adAlertOn(v string) bool { return v == "on" }
+// explicitOn is the inverse posture for opt-in toggles: off until the
+// broadcaster explicitly turns it on, so only "on" counts. Used by the ads
+// alert, the native shoutout and the lookup modules' linkedOnly toggle, all
+// of which must not change behaviour for a channel that never saw the switch.
+func explicitOn(v string) bool { return v == "on" }
 
 // followAlertWindow is how long a channel remembers that it already thanked a
 // follower. Twitch re-sends channel.follow on every re-follow, so without this
@@ -314,7 +316,7 @@ func Alerts(d engine.Deps) module.Module {
 		}))
 
 	m.On("channel.ad_break.begin", onAlert(
-		func(cfg alertsConfig) (bool, string) { return adAlertOn(cfg.AdsEnabled), cfg.AdsMessage },
+		func(cfg alertsConfig) (bool, string) { return explicitOn(cfg.AdsEnabled), cfg.AdsMessage },
 		defaultAdsTemplate,
 		func(_ context.Context, ev adBreakEvent) (alertLine, bool) {
 			if ev.BroadcasterUserID == "" {

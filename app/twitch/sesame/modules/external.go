@@ -32,15 +32,21 @@ type accountSources struct {
 	// MCSR Ranked accept one). PaceMan is name-keyed, so those commands leave
 	// this false and keep the typed username.
 	PreferUUID bool
+	// LinkedOnly drops Arg so a viewer cannot point the command at another
+	// player: the broadcaster's "only look up my linked account" toggle. The
+	// ignore is silent by design (the viewer gets the broadcaster's stats
+	// rather than a refusal line), so no i18n key exists for it.
+	LinkedOnly bool
 }
 
 // resolveAccount picks the account a stats command targets, in priority order:
 // an explicit argument typed after the command (first word, '@' stripped), the
 // module's configured linked account (uuid when PreferUUID and one is stored),
 // then the broadcaster's own Twitch login (the "default linked account per
-// user" — most streamers use the same handle).
+// user" — most streamers use the same handle). LinkedOnly skips the first
+// step entirely.
 func resolveAccount(s accountSources) string {
-	if first, _, _ := strings.Cut(strings.TrimSpace(s.Arg), " "); first != "" {
+	if first, _, _ := strings.Cut(strings.TrimSpace(s.Arg), " "); first != "" && !s.LinkedOnly {
 		return strings.TrimPrefix(first, "@")
 	}
 	if linked := linkedAccount(s); linked != "" {

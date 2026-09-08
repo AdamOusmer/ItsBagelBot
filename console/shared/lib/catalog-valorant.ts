@@ -6,6 +6,7 @@
 // make it one of the longest MODULE_CATALOG entries, and its token palettes
 // mirror app/twitch/sesame/modules/valorant.go (same config keys, same defaults).
 import type { ModuleDef } from './types';
+import { LINKED_ONLY_FIELD } from './catalog/linked-only';
 
 export const VALORANT_MODULE_DEF: ModuleDef = {
   // All five !val views are gossip lookups, so their token palettes below
@@ -118,6 +119,7 @@ export const VALORANT_MODULE_DEF: ModuleDef = {
         { value: 'console', label: 'Console' }
       ],
       help: 'Ranks and leaderboards are tracked as separate ladders per platform; blank means PC.'
-    }
+    },
+    LINKED_ONLY_FIELD
   ]
 };

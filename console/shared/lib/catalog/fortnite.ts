@@ -2,6 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { ModuleDef } from './module-def';
+import { LINKED_ONLY_FIELD } from './linked-only';
 import { FN_SESSION_SAMPLES, FN_SESSION_TOKENS, FN_STATS_SAMPLES, FN_STATS_TOKENS } from './rehearsal-tokens';
 
 export const FORTNITE_MODULE: ModuleDef = 
@@ -109,6 +110,7 @@ export const FORTNITE_MODULE: ModuleDef =
         { value: 'xbl', label: 'Xbox Live (coming later)' }
       ],
       help: 'Only Epic display names resolve right now; PlayStation and Xbox lookups come later. Console players: your Epic display name works.'
-    }
+    },
+    LINKED_ONLY_FIELD
   ]
 };

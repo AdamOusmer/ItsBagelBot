@@ -229,6 +229,18 @@ func TestMcsrRecordSingleArgUsesLinkedUUID(t *testing.T) {
 	assert.Equal(t, "lowk3y_", call.req.AccountB)
 }
 
+// Under linkedOnly the two-name form collapses to self vs the first typed
+// name: the broadcaster is always side A.
+func TestMcsrRecordLinkedOnlyPinsSelf(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{
+		"mcsr.versus": gossiprpc.McsrRecordReply{PlayerA: "Feinberg", PlayerB: "lowk3y_"},
+	}}
+	runMcsrCmd(t, gw, mcsrCmdCall{"record", `{"account":"Feinberg","linkedOnly":"on"}`, "lowk3y_ Couriway"})
+	call := gw.lastCall(t)
+	assert.Equal(t, "Feinberg", call.req.Account)
+	assert.Equal(t, "lowk3y_", call.req.AccountB)
+}
+
 func TestMcsrRecordNoArgsShowsUsage(t *testing.T) {
 	gw := &fakeGossip{replies: map[string]any{"mcsr.versus": gossiprpc.McsrRecordReply{}}}
 	col := runMcsrCmd(t, gw, mcsrCmdCall{"record", "", ""})

@@ -44,7 +44,8 @@ const clashroyaleUnrankedText = "has no Path of Legends record this season"
 // matching the alerts module's semantics — and each *Message is a customized
 // template (blank = default).
 type clashroyaleConfig struct {
-	Account string `json:"account"`
+	Account    string `json:"account"`
+	LinkedOnly string `json:"linkedOnly"`
 
 	StatsEnabled  string `json:"statsEnabled"`
 	StatsMessage  string `json:"statsMessage"`
@@ -152,7 +153,9 @@ func clashRun(d engine.Deps, cmd clashCommand) module.RunFunc {
 			return nil
 		}
 
-		tag := resolveAccount(accountSources{Arg: args, Linked: cfg.Account, BroadcasterLogin: c.Env.BroadcasterUserLogin})
+		tag := resolveAccount(accountSources{
+			Arg: args, Linked: cfg.Account, BroadcasterLogin: c.Env.BroadcasterUserLogin, LinkedOnly: explicitOn(cfg.LinkedOnly),
+		})
 		req := gossiprpc.Request{Account: tag, IsPremium: c.Regress.IsPremium()}
 		reply := cmd.newReply()
 		route := engine.GossipRoute{Provider: "clashroyale", Endpoint: cmd.endpoint}

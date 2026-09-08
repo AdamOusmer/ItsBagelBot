@@ -51,3 +51,41 @@ func TestResolveAccountFallsBackToNameWithoutUUID(t *testing.T) {
 		t.Fatalf("no uuid stored: got %q", got)
 	}
 }
+
+// The broadcaster's linked-only toggle drops the typed name silently: the
+// viewer gets the linked account, not a refusal.
+func TestResolveAccountLinkedOnlyIgnoresArg(t *testing.T) {
+	got := resolveAccount(accountSources{
+		Arg:              "@Other extra",
+		Linked:           "Feinberg",
+		BroadcasterLogin: "streamer",
+		LinkedOnly:       true,
+	})
+	if got != "Feinberg" {
+		t.Fatalf("linked only: got %q", got)
+	}
+}
+
+// Linked-only with no linked account still lands on the broadcaster's own
+// login, never on the typed name.
+func TestResolveAccountLinkedOnlyFallsBackToBroadcaster(t *testing.T) {
+	got := resolveAccount(accountSources{
+		Arg:              "Other",
+		BroadcasterLogin: "streamer",
+		LinkedOnly:       true,
+	})
+	if got != "streamer" {
+		t.Fatalf("linked only, nothing linked: got %q", got)
+	}
+}
+
+func TestExplicitOnDefaultsOff(t *testing.T) {
+	for _, v := range []string{"", "off", "yes"} {
+		if explicitOn(v) {
+			t.Fatalf("%q should not count as on", v)
+		}
+	}
+	if !explicitOn("on") {
+		t.Fatal(`"on" should count as on`)
+	}
+}
