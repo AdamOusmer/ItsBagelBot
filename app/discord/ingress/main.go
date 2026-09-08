@@ -20,7 +20,6 @@ import (
 	"ItsBagelBot/app/discord/ingress/internal/gateway"
 	"ItsBagelBot/app/discord/ingress/internal/presence"
 	"ItsBagelBot/app/discord/ingress/internal/relay"
-	"ItsBagelBot/internal/discordapi"
 	"ItsBagelBot/internal/discordboot"
 	"ItsBagelBot/internal/discordrate"
 	"ItsBagelBot/pkg/bus"
@@ -54,7 +53,7 @@ func main() {
 	// pays the fleet-wide bucket outgress's calls pay, because Discord's
 	// global limit is per bot token and ingress+outgress share one. See
 	// internal/discordrate's package doc.
-	rest := discordrate.NewLimitedClient(discordapi.NewClient(cfg.DiscordBotToken), discordrate.New(valkeyClient))
+	rest := discordrate.NewClient(cfg.DiscordBotToken, discordrate.New(valkeyClient))
 
 	pub, err := bus.NewPublisher(cfg.NATSURL, log)
 	svcboot.FatalIf(log, err, "failed to connect publisher")

@@ -56,7 +56,7 @@ func TestLocalSharesPreserveGlobalBudget(t *testing.T) {
 
 func TestFixedSystemBucketWarmsBeforeFirstBurst(t *testing.T) {
 	store := NewBucketStore(16)
-	manager := NewLeaseManager(nil, store, nil, WithLeaseIdentity("local", "pod-a"))
+	manager := NewLeaseManager(nil, store, nil, Identity{Region: "local", PodID: "pod-a"})
 	plan, now := activeTestPlan(t, []Member{{PodID: "pod-a", Region: "local"}}, 31)
 	if err := manager.ActivatePlan(plan, now, now, 0); err != nil {
 		t.Fatal(err)
@@ -76,7 +76,7 @@ func TestFixedSystemBucketWarmsBeforeFirstBurst(t *testing.T) {
 
 func TestFixedHelixBucketsRenewWithoutTraffic(t *testing.T) {
 	store := NewBucketStore(16)
-	manager := NewLeaseManager(nil, store, nil, WithLeaseIdentity("local", "pod-a"))
+	manager := NewLeaseManager(nil, store, nil, Identity{Region: "local", PodID: "pod-a"})
 	base := time.Now()
 	var original *LocalBucket
 
@@ -140,7 +140,7 @@ func TestStandardDenialDoesNotConsumeEitherBucket(t *testing.T) {
 
 func TestPremiumCreatedBucketCanServeStandardTraffic(t *testing.T) {
 	store := NewBucketStore(16)
-	manager := NewLeaseManager(nil, store, nil, WithLeaseIdentity("local", "pod-a"))
+	manager := NewLeaseManager(nil, store, nil, Identity{Region: "local", PodID: "pod-a"})
 	plan, now := activeTestPlan(t, []Member{{PodID: "pod-a", Region: "local"}}, 12)
 	if err := manager.ActivatePlan(plan, now, now, 0); err != nil {
 		t.Fatal(err)
@@ -160,7 +160,7 @@ func TestPremiumCreatedBucketCanServeStandardTraffic(t *testing.T) {
 
 func TestColdChatBucketSkipsPeerBorrowOnce(t *testing.T) {
 	borrower := &countingBorrower{}
-	manager := NewLeaseManager(nil, NewBucketStore(16), borrower, WithLeaseIdentity("local", "pod-a"))
+	manager := NewLeaseManager(nil, NewBucketStore(16), borrower, Identity{Region: "local", PodID: "pod-a"})
 	plan, now := activeTestPlan(t, []Member{
 		{PodID: "pod-a", Region: "local"},
 		{PodID: "pod-b", Region: "remote"},
@@ -189,7 +189,7 @@ func TestColdChatBucketSkipsPeerBorrowOnce(t *testing.T) {
 
 func TestCachedBucketReconfiguresWhenProfileChanges(t *testing.T) {
 	store := NewBucketStore(16)
-	manager := NewLeaseManager(nil, store, nil, WithLeaseIdentity("local", "pod-a"))
+	manager := NewLeaseManager(nil, store, nil, Identity{Region: "local", PodID: "pod-a"})
 	plan, now := activeTestPlan(t, []Member{{PodID: "pod-a", Region: "local"}}, 13)
 	if err := manager.ActivatePlan(plan, now, now, 0); err != nil {
 		t.Fatal(err)
@@ -211,7 +211,7 @@ func TestCachedBucketReconfiguresWhenProfileChanges(t *testing.T) {
 }
 
 func TestPodOutsidePlanCanBorrowButCannotGrant(t *testing.T) {
-	manager := NewLeaseManager(nil, NewBucketStore(16), nil, WithLeaseIdentity("local", "pod-new"))
+	manager := NewLeaseManager(nil, NewBucketStore(16), nil, Identity{Region: "local", PodID: "pod-new"})
 	plan, now := activeTestPlan(t, []Member{{PodID: "pod-a", Region: "local"}}, 14)
 	if err := manager.ActivatePlan(plan, now, now, 0); err != nil {
 		t.Fatalf("stateless non-holder could not install plan: %v", err)
@@ -229,7 +229,7 @@ func TestPodOutsidePlanCanBorrowButCannotGrant(t *testing.T) {
 }
 
 func TestExpiredPlanFailsClosed(t *testing.T) {
-	manager := NewLeaseManager(nil, NewBucketStore(16), nil, WithLeaseIdentity("local", "pod-a"))
+	manager := NewLeaseManager(nil, NewBucketStore(16), nil, Identity{Region: "local", PodID: "pod-a"})
 	now := time.Now()
 	plan := Plan{
 		Version: planVersion, Epoch: 1, Generation: 15,
@@ -249,7 +249,7 @@ func TestExpiredPlanFailsClosed(t *testing.T) {
 }
 
 func TestGuardRetryAfterCoversBothSidesOfEpochBoundary(t *testing.T) {
-	manager := NewLeaseManager(nil, NewBucketStore(16), nil, WithLeaseIdentity("local", "pod-a"))
+	manager := NewLeaseManager(nil, NewBucketStore(16), nil, Identity{Region: "local", PodID: "pod-a"})
 	serverNow := time.Now()
 	localNow := serverNow
 	guard := 250 * time.Millisecond
@@ -282,7 +282,7 @@ func TestGuardRetryAfterCoversBothSidesOfEpochBoundary(t *testing.T) {
 
 func TestLocalFastPathAllocatesNothing(t *testing.T) {
 	store := NewBucketStore(16)
-	manager := NewLeaseManager(nil, store, nil, WithLeaseIdentity("local", "pod-a"))
+	manager := NewLeaseManager(nil, store, nil, Identity{Region: "local", PodID: "pod-a"})
 	plan, now := activeTestPlan(t, []Member{{PodID: "pod-a", Region: "local"}}, 11)
 	if err := manager.ActivatePlan(plan, now, now, 0); err != nil {
 		t.Fatal(err)

@@ -11,7 +11,7 @@ import (
 
 func BenchmarkLeaseManagerLocalPremium(b *testing.B) {
 	buckets := NewBucketStore(16)
-	manager := NewLeaseManager(nil, buckets, nil, WithLeaseIdentity("local", "pod-a"))
+	manager := NewLeaseManager(nil, buckets, nil, Identity{Region: "local", PodID: "pod-a"})
 	now := time.Now()
 	plan := Plan{
 		Version: planVersion, Epoch: 1, Generation: 1,
@@ -48,7 +48,7 @@ func BenchmarkLeaseManagerLocalPremium(b *testing.B) {
 
 func BenchmarkLeaseManagerLocalStandard(b *testing.B) {
 	buckets := NewBucketStore(16)
-	manager := NewLeaseManager(nil, buckets, nil, WithLeaseIdentity("local", "pod-a"))
+	manager := NewLeaseManager(nil, buckets, nil, Identity{Region: "local", PodID: "pod-a"})
 	now := time.Now()
 	plan := Plan{
 		Version: planVersion, Epoch: 1, Generation: 1,

@@ -54,7 +54,7 @@ func main() {
 	valkeyClient := svcboot.MustValkey(core)
 	defer valkeyClient.Close()
 
-	rest := discordrate.NewLimitedClient(discordapi.NewClient(cfg.DiscordBotToken), discordrate.New(valkeyClient))
+	rest := discordrate.NewClient(cfg.DiscordBotToken, discordrate.New(valkeyClient))
 	liveStore := kv.New(valkeyClient)
 	reauth := kv.NewReauthStore(valkeyClient)
 	botStatus := kv.NewBotStatusReader(valkeyClient)
@@ -103,7 +103,7 @@ func ensureOutgressStream(ctx context.Context, cfg config.Config, log *zap.Logge
 // catalog or a missing application id degrades interaction followups and
 // re-registration, it does not stop the mod/default lanes from draining.
 // Retried next rollout.
-func registerSlashCommands(ctx context.Context, rest *discordrate.LimitedClient, log *zap.Logger) string {
+func registerSlashCommands(ctx context.Context, rest *discordapi.Client, log *zap.Logger) string {
 	applicationID, err := bootstrap.Register(ctx, rest)
 	if err != nil {
 		log.Warn("discord slash-command bootstrap failed", zap.Error(err))
@@ -117,7 +117,7 @@ func registerSlashCommands(ctx context.Context, rest *discordrate.LimitedClient,
 type rpcDeps struct {
 	NC            *nats.Conn
 	Cfg           config.Config
-	Rest          *discordrate.LimitedClient
+	Rest          *discordapi.Client
 	Store         discordstore.Store
 	ApplicationID string
 	LiveStore     kv.LiveStore
@@ -141,7 +141,7 @@ func subscribeRPCs(deps rpcDeps) {
 	if err := rpc.SubscribeSetup(setupWorker, setupWiring); err != nil {
 		deps.Log.Fatal("failed to subscribe discord guild setup rpc", zap.Error(err))
 	}
-	engineWiring := rpc.EngineWiring{
+	engineWiring := rpc.Wiring{
 		NC: deps.NC, Prefix: deps.Cfg.DiscordEngineRPCPrefix, Queue: deps.Cfg.DiscordEngineRPCQueue,
 		App: deps.NRApp, Log: deps.Log.Named("engine-rpc"),
 	}
@@ -161,7 +161,7 @@ func subscribeRPCs(deps rpcDeps) {
 type consumerDeps struct {
 	Ctx           context.Context
 	Cfg           config.Config
-	Rest          *discordrate.LimitedClient
+	Rest          *discordapi.Client
 	ApplicationID string
 	Reauth        kv.ReauthStore
 	Lockdowns     kv.LockdownStore

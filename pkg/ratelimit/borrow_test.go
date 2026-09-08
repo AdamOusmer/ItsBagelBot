@@ -30,7 +30,7 @@ func TestPermitService(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer service.Close()
-	manager := NewLeaseManager(nil, store, service, WithLeaseIdentity("local", "pod-a"))
+	manager := NewLeaseManager(nil, store, service, Identity{Region: "local", PodID: "pod-a"})
 	service.SetGrantor(manager)
 
 	now := time.Now()

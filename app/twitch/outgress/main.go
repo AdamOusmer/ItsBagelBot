@@ -359,7 +359,7 @@ func (d *deps) newLeaseLimiter(ctx context.Context) (ratelimit.Manager, func()) 
 	svcboot.FatalIf(d.log, err, "failed to initialize permit service")
 
 	limiter := ratelimit.NewLeaseManager(ratelimit.New(d.valkey), buckets, permitSvc,
-		ratelimit.WithLeaseIdentity(d.cfg.RateRegion, d.host))
+		ratelimit.Identity{Region: d.cfg.RateRegion, PodID: d.host})
 	permitSvc.SetGrantor(limiter)
 
 	coordinator := ratelimit.NewLeaseCoordinator(d.valkey, limiter, d.cfg.RateRegion, d.host,
