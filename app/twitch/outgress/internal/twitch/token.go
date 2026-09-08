@@ -971,11 +971,69 @@ func (s *Source) runBackgroundRefresh(ctx context.Context) {
 // to warm the cache and the pooled connection (see tokenIdleConnTimeout)
 // before a real caller needs either. Errors are intentionally not surfaced;
 // see StartBackgroundRefresh.
+//
+// It refuses to do any work at all for a Source that is not refreshable
+// (below): no token on file, or a token that has already expired. Those are
+// minted lazily instead, never on a schedule.
 func (s *Source) refreshIfDue(ctx context.Context) {
+	if !s.refreshable(time.Now()) {
+		return
+	}
 	if _, ok := s.cached(refreshMargin); ok {
 		return
 	}
 	_, _ = s.singleflightRefresh(ctx)
+}
+
+// refreshable reports whether this Source holds a token that is still alive,
+// which is the only state the background sweep acts on. Note the deliberate
+// asymmetry with cached: cached asks "is this token good for another
+// refreshMargin", this asks the weaker "is there a live token here at all",
+// and refreshIfDue needs both. Live but inside the margin is the one state
+// worth a background refresh.
+//
+// MEASUREMENT THAT FORCED THIS SKIP (New Relic, 24h to 2026-09-07): users-svc
+// served 21,857 RPCs a day on the tokens.get verb, a flat 15/min around the
+// clock, roughly 99% of everything that service handled. All of it came from
+// BroadcasterTokens' refresh sweep (broadcaster.go), and none of it could
+// ever succeed. Without this check, cached alone decides, and cached reports
+// "not due" only for a Source that actually holds a token: a broadcaster
+// whose grant was revoked or never granted has an empty token and is
+// therefore due on EVERY pass, forever. Each pass then ran the full refresh
+// (io.Load, one tokens.get RPC and a users-svc row read) only to fail the
+// same way it had failed two minutes earlier. The arithmetic matches the
+// meter: ~10 broken channels x 3 outgress replicas x 720 passes/day
+// (broadcasterSweepInterval, 2m) = 21,600, against 21,857 observed.
+//
+// Nothing is lost by skipping them, because the sweep was never the thing
+// that mints a first token. Both lazy paths still do. On a real send,
+// Client.do (client.go) calls Source.Token, which mints through
+// singleflightRefresh whenever the token is missing or inside the margin;
+// Token deliberately does NOT consult refreshable, so a broadcaster that
+// re-authorizes is served by its very next send. On a go-live, the
+// projector's token-warm fan-out reaches Worker.warmBroadcasterToken
+// (internal/worker/tokenwarm.go), whose /helix/users probe runs through
+// callTwitch into that same Client.do then Source.Token mint.
+//
+// So a token only gets minted for an account something is actually sending
+// to, and the sweep's remaining job is the one it was written for: refresh a
+// live token before it expires, so a live send never pays mint latency.
+//
+// REJECTED, so it does not get re-proposed: exponential backoff on failure
+// (base one sweep interval, doubling to a 1h cap) was built first and
+// dropped. It cuts the waste ~30x but keeps the wrong shape, still spending
+// background RPCs on accounts nobody is sending to, and its floor is per
+// Source, so the residue grows with the number of dead accounts as users
+// scale. The lazy paths above bound the cost to accounts in use instead,
+// which does not grow with the dead ones at all.
+//
+// ALSO REJECTED: dropping a repeatedly failing Source from the cache. The
+// token-warm fan-out re-seeds it into all three replicas on the next
+// go-live, so the sweep would simply start over at full rate.
+func (s *Source) refreshable(now time.Time) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.token != "" && now.Before(s.expires)
 }
 
 func (s *Source) cached(margin time.Duration) (string, bool) {

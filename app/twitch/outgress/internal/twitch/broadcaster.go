@@ -13,6 +13,18 @@ import (
 // grow the map for the life of the process. Evicting a Source is safe: the
 // refresh token lives in the users service, so a rebuilt Source resumes from
 // the stored grant on its next renewal.
+//
+// sourceIdleTTL was dead code in production until 2026-09-08. evictLocked ran
+// from exactly one place, Get, and only once len(cache) had reached
+// maxBroadcasterSources (2048); the live fleet sits nowhere near that cap, so
+// nothing ever aged out. Every Source the projector's stream.online
+// token-warm fan-out (internal/worker/tokenwarm.go) planted stayed resident
+// for the life of the pod and kept being swept every 2 minutes, which is half
+// of why the sweep hammered users-svc (see refreshBackoffBase, token.go, for
+// the measurement). sweepTick below now runs the idle pass on every tick, so
+// the TTL applies below the cap as its name always implied. Get keeps the
+// cap-driven path unchanged: an insert into a full map must still make room
+// even when nothing is idle.
 const (
 	maxBroadcasterSources = 2048
 	sourceIdleTTL         = time.Hour
@@ -62,8 +74,20 @@ func (b *BroadcasterTokens) Get(broadcasterID string) *Source {
 // evictLocked drops every source idle past sourceIdleTTL, falling back to the
 // least recently used one so an insert never grows the map past the cap. A
 // caller already holding an evicted *Source keeps using it safely; only the
-// cache slot is released.
+// cache slot is released. This is the cap-driven half, reached from Get only
+// when the map is full; the TTL half runs on every sweep tick as well, see
+// evictIdle.
 func (b *BroadcasterTokens) evictLocked(now time.Time) {
+	oldestID := b.evictIdleLocked(now)
+	if len(b.cache) >= maxBroadcasterSources && oldestID != "" {
+		delete(b.cache, oldestID)
+	}
+}
+
+// evictIdleLocked deletes every entry past sourceIdleTTL and returns the
+// least recently used id among the survivors, which evictLocked uses as its
+// at-cap fallback victim.
+func (b *BroadcasterTokens) evictIdleLocked(now time.Time) string {
 	var oldestID string
 	var oldestUse time.Time
 	for id, e := range b.cache {
@@ -75,9 +99,18 @@ func (b *BroadcasterTokens) evictLocked(now time.Time) {
 			oldestID, oldestUse = id, e.lastUsed
 		}
 	}
-	if len(b.cache) >= maxBroadcasterSources && oldestID != "" {
-		delete(b.cache, oldestID)
-	}
+	return oldestID
+}
+
+// evictIdle applies sourceIdleTTL below the cap, which nothing did before
+// (see the const block above). It is cheap enough to run on every sweep
+// tick: one map walk under mu, no I/O. It genuinely ages entries out because
+// snapshotSources deliberately leaves lastUsed alone, so being swept is not
+// use and an hour without a real send really is an hour idle.
+func (b *BroadcasterTokens) evictIdle(now time.Time) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.evictIdleLocked(now)
 }
 
 // broadcasterSweepInterval is how often StartRefreshSweep walks the cache
@@ -144,9 +177,17 @@ func (b *BroadcasterTokens) runRefreshSweep(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			b.sweepOnce(ctx)
+			b.sweepTick(ctx)
 		}
 	}
+}
+
+// sweepTick is one pass of the sweeper: age idle entries out first, then
+// refresh whatever is left. Ordering matters only in that a Source dropped
+// on this tick is not worth an RPC on its way out of the cache.
+func (b *BroadcasterTokens) sweepTick(ctx context.Context) {
+	b.evictIdle(time.Now())
+	b.sweepOnce(ctx)
 }
 
 // broadcasterSweepBudget bounds how long a single sweepOnce pass may run
