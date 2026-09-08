@@ -80,24 +80,60 @@ func NewProjector(d Deps) *Projector {
 	}
 }
 
-func (p *Projector) HandleUserChanged(msg *bus.Message) error {
-
-	var dto data.UserChangedDTO
+// foldEvent is the skeleton every projection handler is: decode the payload,
+// validate it, then apply it. Template Method — decode/validate/drop is the
+// fixed part, apply is the hook.
+//
+// It exists because the drop policy is a correctness rule, not boilerplate: a
+// malformed or invalid event is LOGGED AND ACKED, never nacked, because
+// redelivering a poison message forever helps no one, while a failure inside
+// apply (Valkey down) IS returned so the bus redelivers it. Spelled out per
+// handler that rule lived in nine identical blocks, and nine copies is nine
+// chances for one of them to nack a poison message by accident.
+//
+// A free function rather than a Projector method because Go does not allow a
+// method to carry its own type parameter, and each handler decodes a different
+// DTO. Same reason as hydration.fetchWithRetry.
+func foldEvent[T any](p *Projector, msg *bus.Message, fold eventFold[T]) error {
+	var dto T
 	if err := codec.Unmarshal(msg.Payload, &dto); err != nil {
-		p.drop(msg, data.SubjectUserChanged, err)
+		p.drop(msg, fold.subject, err)
 		return nil
 	}
+	if err := fold.validate(dto); err != nil {
+		p.drop(msg, fold.subject, err)
+		return nil
+	}
+	return fold.apply(msg.Context(), dto)
+}
 
+// eventFold is one handler's half of foldEvent: the subject it logs a drop
+// under, its field guards, and the store write plus invalidation fan-out that
+// follow. Grouped into a struct rather than passed as three arguments so
+// foldEvent stays inside the argument-count budget.
+type eventFold[T any] struct {
+	subject  string
+	validate func(T) error
+	apply    func(context.Context, T) error
+}
+
+func (p *Projector) HandleUserChanged(msg *bus.Message) error {
+	return foldEvent(p, msg, eventFold[data.UserChangedDTO]{
+		subject:  data.SubjectUserChanged,
+		validate: validateUserChanged,
+		apply:    p.applyUserChanged,
+	})
+}
+
+func validateUserChanged(dto data.UserChangedDTO) error {
 	if err := validate.UserID(dto.UserID); err != nil {
-		p.drop(msg, data.SubjectUserChanged, err)
-		return nil
+		return err
 	}
-	if err := validate.Status(dto.Status); err != nil {
-		p.drop(msg, data.SubjectUserChanged, err)
-		return nil
-	}
+	return validate.Status(dto.Status)
+}
 
-	if err := p.store.SetUser(msg.Context(), dto.UserID, projection.UserProjection{
+func (p *Projector) applyUserChanged(ctx context.Context, dto data.UserChangedDTO) error {
+	if err := p.store.SetUser(ctx, dto.UserID, projection.UserProjection{
 		Status:   dto.Status,
 		IsActive: dto.IsActive,
 		Banned:   dto.Banned,
@@ -110,19 +146,19 @@ func (p *Projector) HandleUserChanged(msg *bus.Message) error {
 }
 
 func (p *Projector) HandleUserDeleted(msg *bus.Message) error {
+	return foldEvent(p, msg, eventFold[data.UserDeletedDTO]{
+		subject:  data.SubjectUserDeleted,
+		validate: validateUserDeleted,
+		apply:    p.applyUserDeleted,
+	})
+}
 
-	var dto data.UserDeletedDTO
-	if err := codec.Unmarshal(msg.Payload, &dto); err != nil {
-		p.drop(msg, data.SubjectUserDeleted, err)
-		return nil
-	}
+func validateUserDeleted(dto data.UserDeletedDTO) error {
+	return validate.UserID(dto.UserID)
+}
 
-	if err := validate.UserID(dto.UserID); err != nil {
-		p.drop(msg, data.SubjectUserDeleted, err)
-		return nil
-	}
-
-	if err := p.store.DeleteUser(msg.Context(), dto.UserID); err != nil {
+func (p *Projector) applyUserDeleted(ctx context.Context, dto data.UserDeletedDTO) error {
+	if err := p.store.DeleteUser(ctx, dto.UserID); err != nil {
 		return err
 	}
 	p.broadcastInvalidate(dto.UserID)
@@ -161,27 +197,25 @@ func (p *Projector) broadcastInvalidate(userID uint64) {
 }
 
 func (p *Projector) HandleModuleChanged(msg *bus.Message) error {
+	return foldEvent(p, msg, eventFold[data.ModuleChangedDTO]{
+		subject:  data.SubjectModuleChanged,
+		validate: validateModuleChanged,
+		apply:    p.applyModuleChanged,
+	})
+}
 
-	var dto data.ModuleChangedDTO
-	if err := codec.Unmarshal(msg.Payload, &dto); err != nil {
-		p.drop(msg, data.SubjectModuleChanged, err)
-		return nil
-	}
-
+func validateModuleChanged(dto data.ModuleChangedDTO) error {
 	if err := validate.UserID(dto.UserID); err != nil {
-		p.drop(msg, data.SubjectModuleChanged, err)
-		return nil
+		return err
 	}
 	if err := validate.ModuleName(dto.Name); err != nil {
-		p.drop(msg, data.SubjectModuleChanged, err)
-		return nil
+		return err
 	}
-	if err := validate.ConfigsJSON(dto.Configs); err != nil {
-		p.drop(msg, data.SubjectModuleChanged, err)
-		return nil
-	}
+	return validate.ConfigsJSON(dto.Configs)
+}
 
-	if err := p.store.SetModule(msg.Context(), dto.UserID, projection.ModuleView{
+func (p *Projector) applyModuleChanged(ctx context.Context, dto data.ModuleChangedDTO) error {
+	if err := p.store.SetModule(ctx, dto.UserID, projection.ModuleView{
 		Name:      dto.Name,
 		IsEnabled: dto.IsEnabled,
 		Configs:   dto.Configs,
@@ -193,18 +227,15 @@ func (p *Projector) HandleModuleChanged(msg *bus.Message) error {
 }
 
 func (p *Projector) HandleCommandChanged(msg *bus.Message) error {
-	var dto data.CommandChangedDTO
-	if err := codec.Unmarshal(msg.Payload, &dto); err != nil {
-		p.drop(msg, data.SubjectCommandChanged, err)
-		return nil
-	}
+	return foldEvent(p, msg, eventFold[data.CommandChangedDTO]{
+		subject:  data.SubjectCommandChanged,
+		validate: validateCommandChanged,
+		apply:    p.applyCommandChanged,
+	})
+}
 
-	if err := validateCommandChanged(dto); err != nil {
-		p.drop(msg, data.SubjectCommandChanged, err)
-		return nil
-	}
-
-	if err := p.store.SetCommand(msg.Context(), dto); err != nil {
+func (p *Projector) applyCommandChanged(ctx context.Context, dto data.CommandChangedDTO) error {
+	if err := p.store.SetCommand(ctx, dto); err != nil {
 		return err
 	}
 	// Carry the command name and every alias so each worker evicts exactly the
