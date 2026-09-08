@@ -18,10 +18,10 @@
 // Lives here rather than in @bagel/shared/lib alongside the pure
 // inspector-machine because it holds `$state`: shared/lib is framework-free by
 // its own header (that is what lets the machine be unit-tested without a
-// component harness), and only the dashboard has inspector pages. The machine's
-// own pendingIntent/confirmDiscard pair is the same idea expressed as a closed
-// set of intents (close/select/navigate); these pages park an arbitrary
-// callback, which is why they cannot use it.
+// component harness), and only the dashboard has inspector pages. The machine
+// once carried the same idea as a closed set of intents
+// (close/select/navigate); nothing used it, because these pages park an
+// arbitrary callback, so that half is gone and this is the only parker.
 
 export type DiscardGuard = {
   /** Whether the confirmation dialog is showing. */

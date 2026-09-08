@@ -8,12 +8,6 @@ import {
 	edit,
 	requestSave,
 	resolveSave,
-	requestClose,
-	requestSelect,
-	confirmDiscard,
-	cancelIntent,
-	externalUpdate,
-	resolveConflict,
 	type InspectorState
 } from './inspector-machine';
 
@@ -37,34 +31,6 @@ describe('inspector-machine', () => {
 		expect(s.dirty).toBe(true);
 		s = edit(s, { ...A }); // back to original value
 		expect(s.dirty).toBe(false);
-	});
-
-	test('requestClose on a dirty draft parks a discard intent instead of losing it', () => {
-		let s = openClean('a', A);
-		s = edit(s, { ...A, response: 'x' });
-		s = requestClose(s);
-		expect(s.pendingIntent).toEqual({ kind: 'close' });
-		expect(s.draft?.response).toBe('x'); // draft preserved
-	});
-
-	test('requestClose on a clean draft closes immediately', () => {
-		const s = requestClose(openClean('a', A));
-		expect(s.selectedId).toBeNull();
-	});
-
-	test('dirty row switch is guarded; cancel keeps editing, confirm resumes intent', () => {
-		let s = openClean('a', A);
-		s = edit(s, { ...A, response: 'x' });
-		s = requestSelect(s, 'b');
-		expect(s.pendingIntent).toEqual({ kind: 'select', id: 'b' });
-		// keep editing
-		const kept = cancelIntent(s);
-		expect(kept.pendingIntent).toBeUndefined();
-		expect(kept.draft?.response).toBe('x');
-		// or discard and resume
-		const { state, intent } = confirmDiscard(s);
-		expect(intent).toEqual({ kind: 'select', id: 'b' });
-		expect(state.selectedId).toBeNull(); // caller now loads 'b'
 	});
 
 	// THE core guard: a delayed response for A must not touch selected B.
@@ -117,38 +83,6 @@ describe('inspector-machine', () => {
 		expect(s.status).toBe('error');
 		expect(s.dirty).toBe(true);
 		expect(s.draft?.response).toBe('x');
-	});
-
-	test('external update rebases a clean selection, conflicts a dirty one', () => {
-		// clean → rebase
-		let clean = openClean('a', A);
-		clean = externalUpdate(clean, 'a', { ...A, response: 'server' });
-		expect(clean.draft?.response).toBe('server');
-		expect(clean.status).toBe('idle');
-
-		// dirty → conflict, draft untouched
-		let dirty = edit(openClean('a', A), { ...A, response: 'mine' });
-		dirty = externalUpdate(dirty, 'a', { ...A, response: 'server' });
-		expect(dirty.status).toBe('conflict');
-		expect(dirty.draft?.response).toBe('mine');
-	});
-
-	test('external update for a different item is ignored', () => {
-		const s = edit(openClean('a', A), { ...A, response: 'mine' });
-		const after = externalUpdate(s, 'b', B);
-		expect(after).toBe(s);
-	});
-
-	test('conflict resolution: take adopts server, keep stays dirty on new base', () => {
-		let s = edit(openClean('a', A), { ...A, response: 'mine' });
-		s = externalUpdate(s, 'a', { ...A, response: 'server' });
-		const took = resolveConflict(s, 'take');
-		expect(took.draft?.response).toBe('server');
-		expect(took.dirty).toBe(false);
-		const kept = resolveConflict(s, 'keep');
-		expect(kept.draft?.response).toBe('mine');
-		expect(kept.dirty).toBe(true);
-		expect(kept.committed?.response).toBe('server');
 	});
 
 	test('requestSave is a no-op when nothing is dirty', () => {

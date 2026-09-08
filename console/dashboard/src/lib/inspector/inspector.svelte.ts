@@ -1,26 +1,22 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Reactive Svelte wrapper over the pure inspector-machine. Holds the machine
-// state in $state and exposes intent methods; every route inspector (timers
-// first, then commands/modules/channel points/govee) drives selection, dirty
-// tracking, and stale-safe saves through one of these instead of hand-rolling
-// its own. The safety logic lives in the machine (unit-tested); this is only the
-// reactive shell + request-id minting.
+// Reactive Svelte wrapper over the pure inspector-machine: holds the machine
+// state in $state, mints the request ids, and exposes the intents. The safety
+// logic lives in the machine (unit-tested there); this is only the shell.
+//
+// One route drives an inspector through this (timers). The other draft pages
+// keep their own $state and park interrupted actions in createDiscardGuard,
+// which is why the guarded-navigation methods this used to expose went with
+// the machine halves behind them.
 import {
   initial,
   openClean,
   edit as mEdit,
   requestSave,
   resolveSave,
-  requestClose,
-  requestSelect,
-  cancelIntent,
-  confirmDiscard,
-  externalUpdate,
   type InspectorState,
-  type SaveOutcome,
-  type PendingIntent
+  type SaveOutcome
 } from '@bagel/shared';
 
 export function createInspector<T>() {
@@ -46,10 +42,6 @@ export function createInspector<T>() {
     get isOpen() {
       return state.selectedId !== null;
     },
-    get pendingIntent(): PendingIntent | undefined {
-      return state.pendingIntent;
-    },
-
     open(id: string, committed: T) {
       state = openClean(id, committed);
     },
@@ -58,25 +50,6 @@ export function createInspector<T>() {
     },
     reset() {
       state = initial<T>();
-    },
-
-    // Guarded navigation. Each returns the parked intent (truthy => the caller
-    // should raise a discard confirmation instead of proceeding).
-    requestClose(): PendingIntent | undefined {
-      state = requestClose(state);
-      return state.pendingIntent;
-    },
-    requestSelect(id: string): PendingIntent | undefined {
-      state = requestSelect(state, id);
-      return state.pendingIntent;
-    },
-    cancelIntent() {
-      state = cancelIntent(state);
-    },
-    confirmDiscard(): PendingIntent | null {
-      const r = confirmDiscard(state);
-      state = r.state;
-      return r.intent;
     },
 
     // Begin a save: mints a request id and captures the immutable snapshot.
@@ -96,9 +69,6 @@ export function createInspector<T>() {
       const before = state;
       state = resolveSave(state, requestId, outcome);
       return state !== before;
-    },
-    externalUpdate(id: string, committed: T) {
-      state = externalUpdate(state, id, committed);
     }
   };
 }

@@ -1,26 +1,26 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Pure master-detail inspector state machine. Five routes each reimplemented an
-// inspector with subtly different, unsafe behaviour: drafts were dropped on
-// close/Escape/row-switch, async save callbacks read the *current* global
-// selection (so saving A then opening B let A's response mutate or close B), and
-// an external update could silently clobber an in-progress edit. This encodes one
-// contract, framework-free so it can be unit-tested exhaustively; a thin Svelte
-// wrapper holds it in $state for the components.
+// Pure master-detail inspector state machine, framework-free so it can be
+// unit-tested without a component harness; a thin Svelte wrapper
+// (dashboard/src/lib/inspector/inspector.svelte.ts) holds it in $state for the
+// components.
 //
-// The core safety property lives in resolveSave: a response is applied only if
-// its requestId still matches the in-flight submission. Anything else (a stale
-// response for a since-abandoned or since-switched selection) is a no-op.
+// What it is FOR is the stale-response guard in resolveSave: an inspector's
+// async save callback used to read the CURRENT global selection, so saving row
+// A and then opening row B let A's response mutate or close B. Here a response
+// is applied only while its requestId still matches the submission in flight;
+// a response for a since-abandoned or since-switched selection is a no-op.
+//
+// It was built for five routes and one adopted it (timers); the other four keep
+// their drafts in $state with their own isDirty and park interrupted actions in
+// createDiscardGuard, which holds an arbitrary callback rather than the closed
+// set of intents this used to model. So the intent-parking and external-update
+// halves went, unused, along with the 'conflict' status they fed: the pages
+// that would raise one do not poll. Re-add them WITH the caller that needs
+// them; what stays is the part that had a bug to prevent.
 
-export type InspectorStatus = 'idle' | 'saving' | 'saved' | 'error' | 'conflict';
-
-// Captured when a dirty draft interrupts navigation, so the discard guard can
-// resume exactly where the user was headed once they choose.
-export type PendingIntent =
-  | { kind: 'close' }
-  | { kind: 'select'; id: string }
-  | { kind: 'navigate'; to: string };
+export type InspectorStatus = 'idle' | 'saving' | 'saved' | 'error';
 
 export type InspectorState<T> = {
   selectedId: string | null;
@@ -32,16 +32,11 @@ export type InspectorState<T> = {
   // was submitted. A late response is matched against requestId and ignored if it
   // no longer applies.
   submitted?: { resourceId: string; requestId: string; snapshot: T };
-  // Set when a dirty draft blocks a close/select/navigate until the user decides.
-  pendingIntent?: PendingIntent;
-  // Set when an external update arrives for the selected item while it is dirty.
-  conflictWith?: T;
 };
 
 export type SaveOutcome<T> =
   | { type: 'success'; committed?: T } // server truth, if it differs from the snapshot
-  | { type: 'error' }
-  | { type: 'conflict'; committed?: T };
+  | { type: 'error' };
 
 // Drafts are plain JSON data, but at runtime they arrive wrapped in Svelte 5
 // $state proxies, which structuredClone rejects (DataCloneError: a Proxy has no
@@ -91,10 +86,7 @@ function submittable<T>(state: InspectorState<T>): boolean {
 
 // Begin a save. No-op unless there is a dirty selection. Captures the immutable
 // (resourceId, requestId, snapshot) so the response can be matched later.
-export function requestSave<T>(
-  state: InspectorState<T>,
-  requestId: string
-): InspectorState<T> {
+export function requestSave<T>(state: InspectorState<T>, requestId: string): InspectorState<T> {
   if (!submittable(state)) {
     return state;
   }
@@ -132,70 +124,6 @@ export function resolveSave<T>(
       submitted: undefined
     };
   }
-  if (outcome.type === 'conflict') {
-    return { ...state, status: 'conflict', conflictWith: outcome.committed, submitted: undefined };
-  }
   // error: keep the draft, surface the failure.
   return { ...state, status: 'error', submitted: undefined };
-}
-
-// Guarded navigation. If the draft is dirty, capture the intent and let the caller
-// raise a discard confirmation; otherwise the caller may proceed immediately.
-export function requestClose<T>(state: InspectorState<T>): InspectorState<T> {
-  if (state.dirty) return { ...state, pendingIntent: { kind: 'close' } };
-  return initial<T>();
-}
-
-export function requestSelect<T>(state: InspectorState<T>, id: string): InspectorState<T> {
-  if (state.dirty && id !== state.selectedId) {
-    return { ...state, pendingIntent: { kind: 'select', id } };
-  }
-  return state; // caller loads committed for `id` and calls openClean
-}
-
-export function requestNavigate<T>(state: InspectorState<T>, to: string): InspectorState<T> {
-  if (state.dirty) return { ...state, pendingIntent: { kind: 'navigate', to } };
-  return state;
-}
-
-// User kept editing: drop the pending intent, leave the draft untouched.
-export function cancelIntent<T>(state: InspectorState<T>): InspectorState<T> {
-  return { ...state, pendingIntent: undefined };
-}
-
-// User confirmed discard: returns the resumed intent for the caller to execute
-// (close the panel, load another row, leave the page) plus the cleared state.
-export function confirmDiscard<T>(
-  state: InspectorState<T>
-): { state: InspectorState<T>; intent: PendingIntent | null } {
-  const intent = state.pendingIntent ?? null;
-  return { state: initial<T>(), intent };
-}
-
-// An external update (SSE/poll) for some item. If it is not the selected item, or
-// the selection is clean, rebase onto it. If the selected item is dirty, raise a
-// conflict rather than clobbering the user's edit.
-export function externalUpdate<T>(
-  state: InspectorState<T>,
-  id: string,
-  committed: T
-): InspectorState<T> {
-  if (state.selectedId !== id) return state;
-  if (!state.dirty) return { ...state, committed, draft: clone(committed) };
-  return { ...state, status: 'conflict', conflictWith: committed };
-}
-
-// Resolve a conflict: 'take' adopts the external version (discards the local
-// edit); 'keep' keeps editing against the new committed base (still dirty).
-export function resolveConflict<T>(
-  state: InspectorState<T>,
-  choice: 'take' | 'keep'
-): InspectorState<T> {
-  const incoming = state.conflictWith;
-  if (incoming === undefined) return { ...state, status: 'idle' };
-  if (choice === 'take') {
-    return { ...state, committed: incoming, draft: clone(incoming), dirty: false, status: 'idle', conflictWith: undefined };
-  }
-  const dirty = state.draft === null || !same(state.draft, incoming);
-  return { ...state, committed: incoming, dirty, status: 'idle', conflictWith: undefined };
 }
