@@ -6,8 +6,6 @@ package main
 import (
 	"context"
 	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	"ItsBagelBot/app/twitch/outgress/internal/channels"
@@ -22,11 +20,8 @@ import (
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/env"
-	"ItsBagelBot/pkg/health"
-	"ItsBagelBot/pkg/logger"
-	"ItsBagelBot/pkg/monitor"
 	"ItsBagelBot/pkg/ratelimit"
-	pkg_valkey "ItsBagelBot/pkg/valkey"
+	"ItsBagelBot/pkg/svcboot"
 
 	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/newrelic"
@@ -35,7 +30,10 @@ import (
 	"go.uber.org/zap"
 )
 
-const serviceName = "outgress"
+const (
+	serviceName = "outgress"
+	queueGroup  = "outgress-rpc"
+)
 
 // A failed command is retried three times at one-second intervals. The
 // work-queue stream also has a five-second MaxAge, so it cannot survive a
@@ -53,18 +51,10 @@ const (
 	systemMaxRedeliveries = 6
 )
 
-// fatalIf aborts startup on err: outgress cannot run degraded without any of
-// its core dependencies, so a failed step must crash the pod for Kubernetes to
-// restart it.
-func fatalIf(log *zap.Logger, err error, msg string) {
-	if err != nil {
-		log.Fatal(msg, zap.Error(err))
-	}
-}
-
 // deps carries the process-wide handles main assembles once and every later
 // wiring step reads from.
 type deps struct {
+	core   svcboot.Core
 	cfg    *config.Config
 	log    *zap.Logger
 	nrApp  *newrelic.Application
@@ -74,16 +64,9 @@ type deps struct {
 }
 
 func main() {
-	log := logger.New(env.Get("APP_ENV", "development")).Named(serviceName)
-	defer func() { _ = log.Sync() }()
-
-	nrApp, err := monitor.New(serviceName, log)
-	fatalIf(log, err, "failed to start new relic")
-	log = monitor.WrapLogger(log, nrApp)
-	defer monitor.Shutdown(nrApp)
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
+	core, done := svcboot.NewCore(serviceName)
+	defer done()
+	log, ctx, nrApp := core.Log, core.Ctx, core.NR
 
 	cfg := config.Load()
 	warnStartupFallbacks(cfg, log)
@@ -95,11 +78,10 @@ func main() {
 	// FIRST, so adding the system stream cannot overlap it. The chat lanes are
 	// perishable work-queue (5s); the control lane keeps a longer lifetime so an
 	// EventSub enroll survives a rollout gap instead of being purged.
-	fatalIf(log, bus.EnsureStreams(ctx, cfg.NATSURL, []bus.StreamSpec{bus.OutgressStream, bus.OutgressSystemStream}, log),
+	svcboot.FatalIf(log, bus.EnsureStreams(ctx, cfg.NATSURL, []bus.StreamSpec{bus.OutgressStream, bus.OutgressSystemStream}, log),
 		"failed to provision outgress streams")
 
-	valkeyClient, err := pkg_valkey.NewClient(cfg.ValkeyAddr, cfg.ValkeyPassword)
-	fatalIf(log, err, "failed to connect to valkey")
+	valkeyClient := svcboot.MustValkey(core)
 	defer valkeyClient.Close()
 
 	// Real Overview activity sink: the modactions.go/redemption.go Emit call
@@ -109,10 +91,9 @@ func main() {
 
 	registry := channels.New(valkeyClient)
 
-	nc, err := bus.Connect(cfg.NATSRPCURL, serviceName)
-	fatalIf(log, err, "failed to connect to nats")
+	nc := svcboot.MustRPCConn(core, cfg.NATSRPCURL)
 	defer nc.Close()
-	fatalIf(log, registry.StartInvalidationListener(nc, cfg.CacheInvalidatePrefix, log.Named("channels")),
+	svcboot.FatalIf(log, registry.StartInvalidationListener(nc, cfg.CacheInvalidatePrefix, log.Named("channels")),
 		"failed to subscribe channel cache invalidation")
 	defer registry.Close()
 
@@ -122,7 +103,7 @@ func main() {
 	// separate connection pool from nc above (request-reply/RPC) because
 	// bus.Publisher batches and pools independently of core-NATS requests.
 	pub, err := bus.NewPublisher(cfg.NATSURL, log)
-	fatalIf(log, err, "failed to connect publisher")
+	svcboot.FatalIf(log, err, "failed to connect publisher")
 	defer func() { _ = pub.Close() }()
 
 	host := podIdentity(log)
@@ -132,7 +113,7 @@ func main() {
 	// hostname (the pod) is the dev fallback.
 	worker.SetNodeIdentity(cfg.RateRegion, env.Get("NODE_NAME", host))
 
-	d := &deps{cfg: cfg, log: log, nrApp: nrApp, nc: nc, valkey: valkeyClient, host: host}
+	d := &deps{core: core, cfg: cfg, log: log, nrApp: nrApp, nc: nc, valkey: valkeyClient, host: host}
 
 	tw := d.newTwitchClient(ctx)
 	defer tw.CloseIdleConnections()
@@ -187,26 +168,23 @@ func main() {
 	defer closeAuthzLane()
 	go system.EnsureClientEventSubs(ctx)
 
-	fatalIf(log, rpc.SubscribeManage(nc, registry, tw, cfg.RPCPrefix, "outgress-rpc", nrApp, log.Named("rpc")),
+	svcboot.FatalIf(log, rpc.SubscribeManage(nc, registry, tw, cfg.RPCPrefix, queueGroup, nrApp, log.Named("rpc")),
 		"failed to subscribe management rpc")
 
 	// Channel-points reward management (create/edit/delete custom rewards under
 	// each broadcaster's own token), driven synchronously by the dashboard tab.
-	if err := rpc.SubscribeChannelPoints(nc, tw, cfg.RPCPrefix, "outgress-rpc", nrApp, log.Named("rpc")); err != nil {
-		log.Fatal("failed to subscribe channel-points rpc", zap.Error(err))
-	}
+	svcboot.FatalIf(log, rpc.SubscribeChannelPoints(nc, tw, cfg.RPCPrefix, queueGroup, nrApp, log.Named("rpc")),
+		"failed to subscribe channel-points rpc")
 
 	// Chatter listing (Helix Get Chatters under the bot's user token), driven by
 	// sesame's loyalty watch tick: one call per live channel per tick.
-	fatalIf(log, rpc.SubscribeChatters(nc, tw, cfg.TwitchBotUserID, cfg.RPCPrefix, "outgress-rpc", nrApp, log.Named("rpc")),
+	svcboot.FatalIf(log, rpc.SubscribeChatters(nc, tw, cfg.TwitchBotUserID, cfg.RPCPrefix, queueGroup, nrApp, log.Named("rpc")),
 		"failed to subscribe chatters rpc")
 	d.serveHealth(premiumSub, standardSub, systemSub)
 
 	d.logReady(tw)
 
-	<-ctx.Done()
-
-	log.Info("outgress shutting down")
+	core.Await()
 }
 
 // warnStartupFallbacks surfaces the degradable startup conditions. The
@@ -405,7 +383,7 @@ func (d *deps) newLeaseLimiter(ctx context.Context) (ratelimit.Manager, func()) 
 	buckets := ratelimit.NewBucketStore(2048)
 
 	permitSvc, err := ratelimit.NewPermitService(d.nc, d.cfg.RateRegion, d.host, buckets)
-	fatalIf(d.log, err, "failed to initialize permit service")
+	svcboot.FatalIf(d.log, err, "failed to initialize permit service")
 
 	limiter := ratelimit.NewLeaseManager(ratelimit.New(d.valkey), buckets, permitSvc,
 		ratelimit.WithLeaseIdentity(d.cfg.RateRegion, d.host))
@@ -416,7 +394,7 @@ func (d *deps) newLeaseLimiter(ctx context.Context) (ratelimit.Manager, func()) 
 			Epoch: d.cfg.LeaseEpoch, Guard: d.cfg.LeaseGuard, MinMembers: d.cfg.LeaseMinMembers,
 			Replicas: d.cfg.LeaseReplicas, ReplicaTimeout: d.cfg.LeaseReplicaTimeout,
 		}, d.log.Named("leases"))
-	fatalIf(d.log, coordinator.Start(ctx), "failed to initialize lease coordinator")
+	svcboot.FatalIf(d.log, coordinator.Start(ctx), "failed to initialize lease coordinator")
 
 	return limiter, func() {
 		coordinator.Close()
@@ -471,19 +449,19 @@ func (d *deps) laneSubscribers() (premiumSub, standardSub, systemSub bus.Subscri
 		URL: d.cfg.NATSURL, Stream: bus.OutgressStream.Name, Subject: d.cfg.PremiumSubject,
 		Group: "outgress-premium", NakDelay: nakDelay, MaxRedeliveries: maxRedeliveries,
 	}, d.log)
-	fatalIf(d.log, err, "failed to connect premium subscriber")
+	svcboot.FatalIf(d.log, err, "failed to connect premium subscriber")
 
 	standardSub, err = bus.NewLaneSubscriber(bus.LaneConfig{
 		URL: d.cfg.NATSURL, Stream: bus.OutgressStream.Name, Subject: d.cfg.StandardSubject,
 		Group: "outgress-standard", NakDelay: nakDelay, MaxRedeliveries: maxRedeliveries,
 	}, d.log)
-	fatalIf(d.log, err, "failed to connect standard subscriber")
+	svcboot.FatalIf(d.log, err, "failed to connect standard subscriber")
 
 	systemSub, err = bus.NewLaneSubscriber(bus.LaneConfig{
 		URL: d.cfg.NATSURL, Stream: bus.OutgressSystemStream.Name, Subject: d.cfg.SystemSubject,
 		Group: "outgress-system", NakDelay: systemNakDelay, MaxRedeliveries: systemMaxRedeliveries,
 	}, d.log)
-	fatalIf(d.log, err, "failed to connect system subscriber")
+	svcboot.FatalIf(d.log, err, "failed to connect system subscriber")
 
 	return premiumSub, standardSub, systemSub, func() {
 		_ = systemSub.Close()
@@ -509,20 +487,13 @@ func (d *deps) laneSubscribers() (premiumSub, standardSub, systemSub bus.Subscri
 // (EventSub enroll, go-live beacon) is a different page from chat output
 // stopping.
 func (d *deps) serveHealth(premiumSub, standardSub, systemSub bus.Subscriber) {
-	set := health.NewSet(serviceName,
-		health.NATS("nats", d.nc),
+	svcboot.ServeHealth(svcboot.Health{
+		Log: d.log, NC: d.nc, Service: serviceName, QueueGroup: queueGroup, ListenAddr: d.core.ListenAddr,
+	},
 		bus.LaneCheck("premium", premiumSub),
 		bus.LaneCheck("standard", standardSub),
 		bus.LaneCheck("system", systemSub),
 	)
-	// Registered after the Set exists, then added back into it: the returned
-	// check watches the subscription this call just made, which a NATS
-	// permission violation kills asynchronously while the pod keeps running
-	// and every other check stays green.
-	rpcCheck, err := bus.SubscribeRPCHealth(d.nc, serviceName, "outgress-rpc", set)
-	fatalIf(d.log, err, "failed to subscribe rpc health")
-	set.Add(rpcCheck)
-	health.ServeSet(env.Get("LISTEN_ADDR", ":8080"), set)
 }
 
 // startChatLanes runs premium and standard on one central weighted consumer: a
@@ -536,7 +507,7 @@ func (d *deps) startChatLanes(ctx context.Context, lanes []bus.WeightedLane) {
 		ScaleUpAfter:   d.cfg.ScaleUpAfter,
 		ScaleDownAfter: d.cfg.ScaleDownAfter,
 	}, d.log)
-	fatalIf(d.log, err, "failed to consume premium/standard lanes")
+	svcboot.FatalIf(d.log, err, "failed to consume premium/standard lanes")
 }
 
 // startSystemLane keeps the system lane on its own independent consumer, off
@@ -550,7 +521,7 @@ func (d *deps) startSystemLane(ctx context.Context, sub bus.Subscriber, system *
 		MaxRoutines:  d.cfg.SystemWorkers,
 		MaxConsumers: 1,
 	}, d.log)
-	fatalIf(d.log, err, "failed to consume system lane")
+	svcboot.FatalIf(d.log, err, "failed to consume system lane")
 }
 
 // startTokenWarmListener binds this replica's own core-NATS (non-queue)
@@ -564,7 +535,7 @@ func (d *deps) startSystemLane(ctx context.Context, sub bus.Subscriber, system *
 // takeSystemHelix budget the warm's Helix call spends from.
 func (d *deps) startTokenWarmListener(system *worker.Worker) func() {
 	sub, err := system.SubscribeTokenWarm(d.nc, d.cfg.CacheInvalidatePrefix)
-	fatalIf(d.log, err, "failed to subscribe token-warm fan-out")
+	svcboot.FatalIf(d.log, err, "failed to subscribe token-warm fan-out")
 	return func() { _ = sub.Unsubscribe() }
 }
 
@@ -580,9 +551,9 @@ func (d *deps) startTokenWarmListener(system *worker.Worker) func() {
 // only re-verifies, never writes live state (that is the projector's job).
 func (d *deps) startStreamLane(ctx context.Context, system *worker.Worker) func() {
 	streamSub, err := bus.NewSubscriber(d.cfg.NATSURL, serviceName, d.log)
-	fatalIf(d.log, err, "failed to connect stream-lane subscriber")
+	svcboot.FatalIf(d.log, err, "failed to connect stream-lane subscriber")
 
-	fatalIf(d.log, bus.Consume(ctx, d.nrApp, streamSub, d.cfg.StreamLaneSubject, system.HandleStreamEvent, d.log),
+	svcboot.FatalIf(d.log, bus.Consume(ctx, d.nrApp, streamSub, d.cfg.StreamLaneSubject, system.HandleStreamEvent, d.log),
 		"failed to consume stream lane")
 
 	return func() { _ = streamSub.Close() }
@@ -597,7 +568,7 @@ func (d *deps) startStreamLane(ctx context.Context, system *worker.Worker) func(
 // on a wildcard.
 func (d *deps) startAuthzLane(ctx context.Context, system *worker.Worker) func() {
 	authzSub, err := bus.NewSubscriber(d.cfg.NATSURL, serviceName, d.log)
-	fatalIf(d.log, err, "failed to connect authz subscriber")
+	svcboot.FatalIf(d.log, err, "failed to connect authz subscriber")
 
 	lanes := map[string]func(*bus.Message) error{
 		d.cfg.AuthzGrantedSubject:    system.HandleAuthzGranted,
@@ -605,7 +576,7 @@ func (d *deps) startAuthzLane(ctx context.Context, system *worker.Worker) func()
 		d.cfg.AuthzSubRevokedSubject: system.HandleAuthzSubRevoked,
 	}
 	for subject, handle := range lanes {
-		fatalIf(d.log, bus.Consume(ctx, d.nrApp, authzSub, subject, handle, d.log),
+		svcboot.FatalIf(d.log, bus.Consume(ctx, d.nrApp, authzSub, subject, handle, d.log),
 			"failed to consume authz subject "+subject)
 	}
 

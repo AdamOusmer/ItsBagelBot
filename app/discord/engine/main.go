@@ -12,9 +12,6 @@ package main
 
 import (
 	"context"
-	"os"
-	"os/signal"
-	"syscall"
 
 	"ItsBagelBot/app/discord/engine/internal/config"
 	"ItsBagelBot/app/discord/engine/internal/dispatch"
@@ -31,11 +28,8 @@ import (
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
-	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/health"
-	"ItsBagelBot/pkg/logger"
-	"ItsBagelBot/pkg/monitor"
-	pkg_valkey "ItsBagelBot/pkg/valkey"
+	"ItsBagelBot/pkg/svcboot"
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nuid"
@@ -69,18 +63,9 @@ var ingressSubjects = []string{
 }
 
 func main() {
-	log := logger.New(env.Get("APP_ENV", "development")).Named(serviceName)
-	defer func() { _ = log.Sync() }()
-
-	nrApp, err := monitor.New(serviceName, log)
-	if err != nil {
-		log.Fatal("failed to start new relic", zap.Error(err))
-	}
-	log = monitor.WrapLogger(log, nrApp)
-	defer monitor.Shutdown(nrApp)
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
+	core, done := svcboot.NewCore(serviceName)
+	defer done()
+	log, ctx, nrApp := core.Log, core.Ctx, core.NR
 
 	cfg := config.Load()
 
@@ -88,14 +73,10 @@ func main() {
 	// (see pkg/bus.DiscordIngressStream's doc); it never provisions
 	// DISCORD_OUTGRESS, the stream it only ever publishes onto -- that is
 	// app/discord/outgress's job, as the consumer on that side.
-	if err := bus.EnsureStreams(ctx, cfg.NATSURL, []bus.StreamSpec{bus.DiscordIngressStream}, log); err != nil {
-		log.Fatal("failed to provision the DISCORD_INGRESS stream", zap.Error(err))
-	}
+	svcboot.FatalIf(log, bus.EnsureStreams(ctx, cfg.NATSURL, []bus.StreamSpec{bus.DiscordIngressStream}, log),
+		"failed to provision the DISCORD_INGRESS stream")
 
-	valkeyClient, err := pkg_valkey.NewClient(cfg.ValkeyAddr, cfg.ValkeyPassword)
-	if err != nil {
-		log.Fatal("failed to connect to valkey", zap.Error(err))
-	}
+	valkeyClient := svcboot.MustValkey(core)
 	defer valkeyClient.Close()
 	projStore := projection.NewStore(valkeyClient)
 	// linkguard.New panics on a nil client (deliberately -- see its own
@@ -104,10 +85,7 @@ func main() {
 	// to modules.All where a nil would be easy to pass by accident.
 	guard := linkguard.New(valkeyClient)
 
-	nc, err := bus.Connect(cfg.NATSRPCURL, serviceName)
-	if err != nil {
-		log.Fatal("failed to connect to nats", zap.Error(err))
-	}
+	nc := svcboot.MustRPCConn(core, cfg.NATSRPCURL)
 	defer nc.Close()
 
 	// The store is discord-data-backed, not pure Valkey: bindings, per-guild
@@ -117,9 +95,7 @@ func main() {
 	store := discordstore.NewRPC(nc, cfg.DiscordDataRPCPrefix, valkeyClient, log)
 
 	pub, err := bus.NewPublisher(cfg.NATSURL, log)
-	if err != nil {
-		log.Fatal("failed to connect publisher", zap.Error(err))
-	}
+	svcboot.FatalIf(log, err, "failed to connect publisher")
 	defer func() { _ = pub.Close() }()
 	publish := confirmedPublisher(pub)
 
@@ -155,28 +131,14 @@ func main() {
 	})
 	defer closeTwitch()
 
-	health.ServeSet(cfg.ListenAddr, healthSet(nc, ingressSub, twitchSub, log))
+	svcboot.ServeHealth(svcboot.Health{
+		Log: log, NC: nc, Service: serviceName, QueueGroup: serviceName + "-rpc", ListenAddr: cfg.ListenAddr,
+	}, verticalChecks(nc, ingressSub, twitchSub)...)
 	log.Info("discord engine ready", zap.Strings("ingress_subjects", ingressSubjects))
 
-	<-ctx.Done()
-	log.Info("discord engine shutting down")
+	core.Await()
 }
 
-// healthSet is the whole Discord vertical's health surface, not just this
-// process's. health.itsbagelbot.com/discord terminates in engine, so this Set
-// has to answer for ingress and outgress too: neither of them is routed from
-// outside, and a vertical that reported only its middle process would call the
-// whole thing healthy with the gateway session dead.
-//
-// The two HealthProbe checks are deliberately not wrapped in health.Degrades.
-// HealthProbe already carries the downstream's own verdict -- a down sibling
-// fails this check, a degraded one degrades it -- so degrading it again here
-// would flatten a real outage on ingress or outgress into an impairment and
-// leave this pod in rotation answering for a vertical that cannot act.
-//
-// The RPC responder is registered onto this same Set rather than a freshly
-// built one, so /status and the health RPC cannot disagree about this pod at
-// the same instant.
 // confirmedPublisher emits one Command and waits for the broker's own
 // verdict on it.
 //
@@ -211,9 +173,19 @@ func confirmedPublisher(pub bus.Publisher) modules.Publish {
 	}
 }
 
-func healthSet(nc *nats.Conn, ingressSub, twitchSub bus.Subscriber, log *zap.Logger) *health.Set {
-	set := health.NewSet(serviceName,
-		health.NATS("nats", nc),
+// verticalChecks is the whole Discord vertical's health surface, not just this
+// process's. health.itsbagelbot.com/discord terminates in engine, so this Set
+// has to answer for ingress and outgress too: neither of them is routed from
+// outside, and a vertical that reported only its middle process would call the
+// whole thing healthy with the gateway session dead.
+//
+// The two HealthProbe checks are deliberately not wrapped in health.Degrades.
+// HealthProbe already carries the downstream's own verdict -- a down sibling
+// fails this check, a degraded one degrades it -- so degrading it again here
+// would flatten a real outage on ingress or outgress into an impairment and
+// leave this pod in rotation answering for a vertical that cannot act.
+func verticalChecks(nc *nats.Conn, ingressSub, twitchSub bus.Subscriber) []health.Check {
+	return []health.Check{
 		// One check per durable, named for the lane rather than rolled into
 		// one boolean: either group can be bound and failing to fetch while
 		// the connection stays green, and that is the silent failure the
@@ -222,19 +194,13 @@ func healthSet(nc *nats.Conn, ingressSub, twitchSub bus.Subscriber, log *zap.Log
 		bus.LaneCheck("twitch", twitchSub),
 		bus.HealthProbe(nc, ingressService),
 		bus.HealthProbe(nc, outgressService),
-	)
-	rpcCheck, err := bus.SubscribeRPCHealth(nc, serviceName, serviceName+"-rpc", set)
-	if err != nil {
-		log.Fatal("failed to subscribe rpc health", zap.Error(err))
 	}
-	set.Add(rpcCheck)
-	return set
 }
 
 // startIngressConsumers binds one durable consumer per DiscordIngressStream
 // subject, all sharing the one dispatcher.
 //
-// The subscriber comes back alongside the close func because healthSet needs
+// The subscriber comes back alongside the close func because verticalChecks needs
 // it: the close func alone says nothing about whether these consumers are
 // still fetching.
 func startIngressConsumers(ctx context.Context, cfg config.Config, nrApp *newrelic.Application, log *zap.Logger, handle func(*bus.Message) error) (bus.Subscriber, func()) {
@@ -274,7 +240,7 @@ type twitchDeps struct {
 // shared subscriber -- the same "one Subscriber spans both inputs" pattern
 // app/projector and the old dingress egress role already use. It is returned
 // with the close func for the same reason startIngressConsumers returns its
-// own: healthSet checks it.
+// own: verticalChecks checks it.
 func startTwitchConsumers(deps twitchDeps) (bus.Subscriber, func()) {
 	live := &modules.Live{
 		Resolve:    deps.Resolver.ByBroadcaster,
