@@ -21,10 +21,7 @@ import (
 	"ItsBagelBot/internal/discordstore"
 	ddiscord "ItsBagelBot/internal/domain/discord"
 	outgressrpc "ItsBagelBot/internal/domain/rpc/outgress"
-	"ItsBagelBot/pkg/bus"
 
-	"github.com/nats-io/nats.go"
-	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 )
 
@@ -83,13 +80,11 @@ const configHandleTimeout = 3 * time.Second
 // handleGuildsList's partial reply.
 const guildsHandleTimeout = 7 * time.Second
 
-// SetupWiring is what SubscribeSetup needs from main: the connection, the
-// subject prefix and queue group, and the observability handles.
+// SetupWiring is what SubscribeSetup needs from main: the shared connection
+// block every registration uses, plus the two optional readers only this
+// surface consults.
 type SetupWiring struct {
-	NC     *nats.Conn
-	Prefix string
-	Queue  string
-	App    *newrelic.Application
+	Wiring
 	// Reauth reports guilds whose bot role predates CHANGE_NICKNAME so the
 	// dashboard can prompt a re-authorization. Optional; nil simply never
 	// raises the prompt.
@@ -98,7 +93,6 @@ type SetupWiring struct {
 	// Optional; nil reports the bot as offline with no close code, which is
 	// honest -- outgress genuinely does not know.
 	Status botStatusReader
-	Log    *zap.Logger
 }
 
 // SubscribeSetup wires guild setup, layout listing, unbind, and the
@@ -112,28 +106,20 @@ func SubscribeSetup(w *setup.Worker, wire SetupWiring) error {
 		return nil
 	}
 	d := &discordRPC{w: w, reauth: wire.Reauth, status: wire.Status, log: wire.Log}
-	if err := bus.QueueSubscribeJSON[outgressrpc.DiscordSetupRequest, outgressrpc.DiscordSetupReply](
-		wire.NC, wire.Prefix+".discord.setup", wire.Queue, setupHandleTimeout, wire.App, wire.Log, d.handleSetup); err != nil {
-		return err
-	}
-	if err := bus.QueueSubscribeJSON[outgressrpc.DiscordLayoutRequest, outgressrpc.DiscordLayoutReply](
-		wire.NC, wire.Prefix+".discord.layout", wire.Queue, layoutHandleTimeout, wire.App, wire.Log, d.handleLayout); err != nil {
-		return err
-	}
-	if err := bus.QueueSubscribeJSON[outgressrpc.DiscordUnbindRequest, outgressrpc.DiscordUnbindReply](
-		wire.NC, wire.Prefix+".discord.unbind", wire.Queue, handleTimeout, wire.App, wire.Log, d.handleUnbind); err != nil {
-		return err
-	}
-	if err := bus.QueueSubscribeJSON[outgressrpc.DiscordStatusRequest, outgressrpc.DiscordStatusReply](
-		wire.NC, wire.Prefix+".discord.status", wire.Queue, statusHandleTimeout, wire.App, wire.Log, d.handleStatus); err != nil {
-		return err
-	}
-	if err := bus.QueueSubscribeJSON[outgressrpc.DiscordDeskRepostRequest, outgressrpc.DiscordDeskRepostReply](
-		wire.NC, wire.Prefix+".discord.desk.repost", wire.Queue, deskRepostTimeout, wire.App, wire.Log, d.handleDeskRepost); err != nil {
-		return err
-	}
-	if err := bus.QueueSubscribeJSON[outgressrpc.DiscordPostRequest, outgressrpc.DiscordPostReply](
-		wire.NC, wire.Prefix+".discord.post", wire.Queue, handleTimeout, wire.App, wire.Log, d.handlePost); err != nil {
+	if err := errors.Join(
+		register[outgressrpc.DiscordSetupRequest, outgressrpc.DiscordSetupReply](
+			wire.Wiring, verb{Name: "discord.setup", Timeout: setupHandleTimeout}, d.handleSetup),
+		register[outgressrpc.DiscordLayoutRequest, outgressrpc.DiscordLayoutReply](
+			wire.Wiring, verb{Name: "discord.layout", Timeout: layoutHandleTimeout}, d.handleLayout),
+		register[outgressrpc.DiscordUnbindRequest, outgressrpc.DiscordUnbindReply](
+			wire.Wiring, verb{Name: "discord.unbind", Timeout: handleTimeout}, d.handleUnbind),
+		register[outgressrpc.DiscordStatusRequest, outgressrpc.DiscordStatusReply](
+			wire.Wiring, verb{Name: "discord.status", Timeout: statusHandleTimeout}, d.handleStatus),
+		register[outgressrpc.DiscordDeskRepostRequest, outgressrpc.DiscordDeskRepostReply](
+			wire.Wiring, verb{Name: "discord.desk.repost", Timeout: deskRepostTimeout}, d.handleDeskRepost),
+		register[outgressrpc.DiscordPostRequest, outgressrpc.DiscordPostReply](
+			wire.Wiring, verb{Name: "discord.post", Timeout: handleTimeout}, d.handlePost),
+	); err != nil {
 		return err
 	}
 	return subscribeGuildConfig(d, wire)
@@ -508,16 +494,14 @@ func (d *discordRPC) reauthFlag(ctx context.Context, guildID kv.GuildID) (flag, 
 // loads and saves, and the list of servers the picker offers. Split from
 // SubscribeSetup so neither function carries every verb.
 func subscribeGuildConfig(d *discordRPC, wire SetupWiring) error {
-	if err := bus.QueueSubscribeJSON[outgressrpc.DiscordConfigGetRequest, outgressrpc.DiscordConfigGetReply](
-		wire.NC, wire.Prefix+".discord.config.get", wire.Queue, configGetHandleTimeout, wire.App, wire.Log, d.handleConfigGet); err != nil {
-		return err
-	}
-	if err := bus.QueueSubscribeJSON[outgressrpc.DiscordConfigSetRequest, outgressrpc.DiscordConfigSetReply](
-		wire.NC, wire.Prefix+".discord.config.set", wire.Queue, configHandleTimeout, wire.App, wire.Log, d.handleConfigSet); err != nil {
-		return err
-	}
-	return bus.QueueSubscribeJSON[outgressrpc.DiscordGuildsListRequest, outgressrpc.DiscordGuildsListReply](
-		wire.NC, wire.Prefix+".discord.guilds.list", wire.Queue, guildsHandleTimeout, wire.App, wire.Log, d.handleGuildsList)
+	return errors.Join(
+		register[outgressrpc.DiscordConfigGetRequest, outgressrpc.DiscordConfigGetReply](
+			wire.Wiring, verb{Name: "discord.config.get", Timeout: configGetHandleTimeout}, d.handleConfigGet),
+		register[outgressrpc.DiscordConfigSetRequest, outgressrpc.DiscordConfigSetReply](
+			wire.Wiring, verb{Name: "discord.config.set", Timeout: configHandleTimeout}, d.handleConfigSet),
+		register[outgressrpc.DiscordGuildsListRequest, outgressrpc.DiscordGuildsListReply](
+			wire.Wiring, verb{Name: "discord.guilds.list", Timeout: guildsHandleTimeout}, d.handleGuildsList),
+	)
 }
 
 func (d *discordRPC) handleConfigGet(ctx context.Context, req outgressrpc.DiscordConfigGetRequest) outgressrpc.DiscordConfigGetReply {

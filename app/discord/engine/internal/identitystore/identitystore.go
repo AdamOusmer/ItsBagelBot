@@ -21,6 +21,8 @@ import (
 	"context"
 	"time"
 
+	pkg_valkey "ItsBagelBot/pkg/valkey"
+
 	"github.com/valkey-io/valkey-go"
 )
 
@@ -34,7 +36,7 @@ const TTL = 7 * 24 * time.Hour
 
 // Store is the Valkey-backed guild -> applied-appearance record.
 type Store struct {
-	client valkey.Client
+	kv pkg_valkey.KV
 }
 
 // New builds the store. Like invitecache.New and linkguard.New, it does not
@@ -42,7 +44,7 @@ type Store struct {
 // nil, and a defensive check here would hide that invariant breaking rather
 // than surface it.
 func New(client valkey.Client) *Store {
-	return &Store{client: client}
+	return &Store{kv: pkg_valkey.NewKV(client)}
 }
 
 func key(guildID string) string { return "discord:identity:" + guildID }
@@ -52,11 +54,7 @@ func key(guildID string) string { return "discord:identity:" + guildID }
 // an unknown guild and a guild known to be on the default appearance need
 // different actions, and only one of them is a no-op.
 func (s *Store) Applied(ctx context.Context, guildID string) (string, bool) {
-	raw, err := s.client.Do(ctx, s.client.B().Get().Key(key(guildID)).Build()).ToString()
-	if err != nil || raw == "" {
-		return "", false
-	}
-	return raw, true
+	return s.kv.GetString(ctx, key(guildID))
 }
 
 // Record stores the fingerprint now applied to guildID.
@@ -67,5 +65,5 @@ func (s *Store) Applied(ctx context.Context, guildID string) (string, bool) {
 // failed REST call nacks onto the work queue and is redelivered there. Both
 // halves retry, each at its own layer.
 func (s *Store) Record(ctx context.Context, guildID, fingerprint string) error {
-	return s.client.Do(ctx, s.client.B().Set().Key(key(guildID)).Value(fingerprint).Ex(TTL).Build()).Error()
+	return s.kv.Set(ctx, pkg_valkey.Key{Name: key(guildID), TTL: TTL}, fingerprint)
 }

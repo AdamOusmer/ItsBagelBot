@@ -6,6 +6,7 @@ package discordrate
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 
 	"ItsBagelBot/internal/discordapi"
@@ -149,14 +150,26 @@ func TestLimitedClientRefusesWithoutCallingRest(t *testing.T) {
 }
 
 // TestLimitedClientGatesEveryMethod is a table test rather than one function
-// per method: 30 near-identical "call X, assert the gate paid" cases would
-// otherwise be 21 near-identical test functions.
+// per method: 34 near-identical "call X, assert the gate paid" cases would
+// otherwise be 34 near-identical test functions.
+//
+// The reflection sweep at the end is the half that matters now that every
+// method delegates to gated0/gated1: a new method that forgets the helper
+// compiles and passes every other test in this package, and only a table
+// checked against the actual method set catches it. Adding a method therefore
+// means adding a case here.
 func TestLimitedClientGatesEveryMethod(t *testing.T) {
 	ctx := context.Background()
 	cases := []struct {
 		name string
 		call func(*LimitedClient) error
 	}{
+		{"SendChat", func(c *LimitedClient) error { return c.SendChat(ctx, discordapi.ChatPost{}) }},
+		{"SendFile", func(c *LimitedClient) error { _, err := c.SendFile(ctx, discordapi.FileUpload{}); return err }},
+		{"ListMessagesFull", func(c *LimitedClient) error {
+			_, err := c.ListMessagesFull(ctx, discordapi.MessagePage{})
+			return err
+		}},
 		{"SendEmbed", func(c *LimitedClient) error { _, err := c.SendEmbed(ctx, discordapi.EmbedPost{}); return err }},
 		{"SendPanel", func(c *LimitedClient) error { _, err := c.SendPanel(ctx, discordapi.EmbedPost{}, nil); return err }},
 		{"EditMessage", func(c *LimitedClient) error {
@@ -202,7 +215,9 @@ func TestLimitedClientGatesEveryMethod(t *testing.T) {
 		}},
 	}
 
+	covered := make(map[string]bool, len(cases))
 	for _, tc := range cases {
+		covered[tc.name] = true
 		t.Run(tc.name, func(t *testing.T) {
 			gate := &fakeGate{deny: true}
 			c := NewLimitedClient(&fakeRest{}, gate)
@@ -213,6 +228,22 @@ func TestLimitedClientGatesEveryMethod(t *testing.T) {
 				t.Fatalf("%s: gate calls = %d, want 1", tc.name, gate.calls)
 			}
 		})
+	}
+
+	assertTableCoversEveryMethod(t, covered)
+}
+
+// assertTableCoversEveryMethod is the half of the table test that catches what
+// the cases themselves cannot: a method added to LimitedClient and never added
+// here, which would otherwise pass every test in this package while never
+// paying the gate.
+func assertTableCoversEveryMethod(t *testing.T, covered map[string]bool) {
+	t.Helper()
+	limited := reflect.TypeOf((*LimitedClient)(nil))
+	for i := range limited.NumMethod() {
+		if name := limited.Method(i).Name; !covered[name] {
+			t.Errorf("%s is not in the gate table: every exported method must pay the gate", name)
+		}
 	}
 }
 

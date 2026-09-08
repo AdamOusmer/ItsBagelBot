@@ -12,10 +12,7 @@ import (
 	discapi "ItsBagelBot/internal/discordapi"
 	ddiscord "ItsBagelBot/internal/domain/discord"
 	discordoutgress "ItsBagelBot/internal/domain/rpc/discordoutgress"
-	"ItsBagelBot/pkg/bus"
 
-	"github.com/nats-io/nats.go"
-	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 )
 
@@ -37,50 +34,34 @@ type engineREST interface {
 	GetInvite(ctx context.Context, code string) (discapi.Invite, error)
 }
 
-// EngineWiring is what SubscribeEngine needs from main.
-type EngineWiring struct {
-	NC     *nats.Conn
-	Prefix string
-	Queue  string
-	App    *newrelic.Application
-	Log    *zap.Logger
-}
-
 // SubscribeEngine wires the internal channel-management and go-live RPC
 // engine calls for the operations internal/domain/rpc/discordoutgress
 // exists to cover (see that package's doc).
+//
+// errors.Join, not a return on the first failure: main Fatals on any error
+// here, so the only thing an early return changes is that the report names one
+// broken subject instead of all of them.
 func SubscribeEngine(rest engineREST, live kv.LiveStore, wire EngineWiring) error {
 	h := &engineRPC{rest: rest, live: live, log: wire.Log}
-	if err := bus.QueueSubscribeJSON[discordoutgress.ChannelCreateRequest, discordoutgress.ChannelCreateReply](
-		wire.NC, wire.Prefix+".channel.create", wire.Queue, engineHandleTimeout, wire.App, wire.Log, h.handleCreate); err != nil {
-		return err
-	}
-	if err := bus.QueueSubscribeJSON[discordoutgress.ChannelDeleteRequest, discordoutgress.ChannelDeleteReply](
-		wire.NC, wire.Prefix+".channel.delete", wire.Queue, engineHandleTimeout, wire.App, wire.Log, h.handleDelete); err != nil {
-		return err
-	}
-	if err := bus.QueueSubscribeJSON[discordoutgress.ChannelModifyRequest, discordoutgress.ChannelModifyReply](
-		wire.NC, wire.Prefix+".channel.modify", wire.Queue, engineHandleTimeout, wire.App, wire.Log, h.handleModify); err != nil {
-		return err
-	}
-	if err := bus.QueueSubscribeJSON[discordoutgress.MemberMoveRequest, discordoutgress.MemberMoveReply](
-		wire.NC, wire.Prefix+".member.move", wire.Queue, engineHandleTimeout, wire.App, wire.Log, h.handleMove); err != nil {
-		return err
-	}
-	if err := bus.QueueSubscribeJSON[discordoutgress.PurgeRequest, discordoutgress.PurgeReply](
-		wire.NC, wire.Prefix+".channel.purge", wire.Queue, engineHandleTimeout, wire.App, wire.Log, h.handlePurge); err != nil {
-		return err
-	}
-	if err := bus.QueueSubscribeJSON[discordoutgress.LiveOnlineRequest, discordoutgress.LiveOnlineReply](
-		wire.NC, wire.Prefix+".live.online", wire.Queue, engineHandleTimeout, wire.App, wire.Log, h.handleLiveOnline); err != nil {
-		return err
-	}
-	if err := bus.QueueSubscribeJSON[discordoutgress.LiveOfflineRequest, discordoutgress.LiveOfflineReply](
-		wire.NC, wire.Prefix+".live.offline", wire.Queue, engineHandleTimeout, wire.App, wire.Log, h.handleLiveOffline); err != nil {
-		return err
-	}
-	return bus.QueueSubscribeJSON[discordoutgress.InviteResolveRequest, discordoutgress.InviteResolveReply](
-		wire.NC, wire.Prefix+".invite.resolve", wire.Queue, engineHandleTimeout, wire.App, wire.Log, h.handleInviteResolve)
+	at := func(name string) verb { return verb{Name: name, Timeout: engineHandleTimeout} }
+	return errors.Join(
+		register[discordoutgress.ChannelCreateRequest, discordoutgress.ChannelCreateReply](
+			wire, at("channel.create"), h.handleCreate),
+		register[discordoutgress.ChannelDeleteRequest, discordoutgress.ChannelDeleteReply](
+			wire, at("channel.delete"), h.handleDelete),
+		register[discordoutgress.ChannelModifyRequest, discordoutgress.ChannelModifyReply](
+			wire, at("channel.modify"), h.handleModify),
+		register[discordoutgress.MemberMoveRequest, discordoutgress.MemberMoveReply](
+			wire, at("member.move"), h.handleMove),
+		register[discordoutgress.PurgeRequest, discordoutgress.PurgeReply](
+			wire, at("channel.purge"), h.handlePurge),
+		register[discordoutgress.LiveOnlineRequest, discordoutgress.LiveOnlineReply](
+			wire, at("live.online"), h.handleLiveOnline),
+		register[discordoutgress.LiveOfflineRequest, discordoutgress.LiveOfflineReply](
+			wire, at("live.offline"), h.handleLiveOffline),
+		register[discordoutgress.InviteResolveRequest, discordoutgress.InviteResolveReply](
+			wire, at("invite.resolve"), h.handleInviteResolve),
+	)
 }
 
 type engineRPC struct {

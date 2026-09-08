@@ -5,13 +5,13 @@ package rpc
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	discapi "ItsBagelBot/internal/discordapi"
 	ddiscord "ItsBagelBot/internal/domain/discord"
 	discordoutgress "ItsBagelBot/internal/domain/rpc/discordoutgress"
 	outgressrpc "ItsBagelBot/internal/domain/rpc/outgress"
-	"ItsBagelBot/pkg/bus"
 
 	"go.uber.org/zap"
 )
@@ -66,24 +66,21 @@ type TicketDeps struct {
 // from SubscribeEngine so neither function is a wall of registrations.
 func SubscribeTickets(rest ticketREST, deps TicketDeps, wire EngineWiring) error {
 	h := &ticketRPC{rest: rest, memo: deps.Memo, botID: deps.BotID, log: wire.Log}
-	if err := bus.QueueSubscribeJSON[discordoutgress.TicketOpenRequest, discordoutgress.TicketOpenReply](
-		wire.NC, wire.Prefix+".ticket.open", wire.Queue, ticketOpenTimeout, wire.App, wire.Log, h.open); err != nil {
-		return err
-	}
-	if err := bus.QueueSubscribeJSON[discordoutgress.TicketClaimRequest, discordoutgress.TicketClaimReply](
-		wire.NC, wire.Prefix+".ticket.claim", wire.Queue, ticketOpenTimeout, wire.App, wire.Log, h.claim); err != nil {
-		return err
-	}
-	if err := bus.QueueSubscribeJSON[discordoutgress.TicketMemberAddRequest, discordoutgress.TicketMemberAddReply](
-		wire.NC, wire.Prefix+".ticket.add", wire.Queue, ticketOpenTimeout, wire.App, wire.Log, h.add); err != nil {
-		return err
-	}
-	if err := bus.QueueSubscribeJSON[discordoutgress.TicketPanelRequest, discordoutgress.TicketPanelReply](
-		wire.NC, wire.Prefix+".ticket.panel", wire.Queue, ticketOpenTimeout, wire.App, wire.Log, h.panel); err != nil {
-		return err
-	}
-	return bus.QueueSubscribeJSON[discordoutgress.TicketCloseRequest, discordoutgress.TicketCloseReply](
-		wire.NC, wire.Prefix+".ticket.close", wire.Queue, ticketCloseTimeout, wire.App, wire.Log, h.close)
+	open := func(name string) verb { return verb{Name: name, Timeout: ticketOpenTimeout} }
+	return errors.Join(
+		register[discordoutgress.TicketOpenRequest, discordoutgress.TicketOpenReply](
+			wire, open("ticket.open"), h.open),
+		register[discordoutgress.TicketClaimRequest, discordoutgress.TicketClaimReply](
+			wire, open("ticket.claim"), h.claim),
+		register[discordoutgress.TicketMemberAddRequest, discordoutgress.TicketMemberAddReply](
+			wire, open("ticket.add"), h.add),
+		register[discordoutgress.TicketPanelRequest, discordoutgress.TicketPanelReply](
+			wire, open("ticket.panel"), h.panel),
+		// The close runs the whole transcript sequence, so it gets the longer
+		// deadline of the pair; see discordoutgress's timeout table.
+		register[discordoutgress.TicketCloseRequest, discordoutgress.TicketCloseReply](
+			wire, verb{Name: "ticket.close", Timeout: ticketCloseTimeout}, h.close),
+	)
 }
 
 // add grants one member VIEW|SEND|READ_HISTORY on the ticket channel.

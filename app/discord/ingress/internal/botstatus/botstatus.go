@@ -22,6 +22,7 @@ import (
 	"ItsBagelBot/app/discord/ingress/internal/gateway"
 	ddiscord "ItsBagelBot/internal/domain/discord"
 	"ItsBagelBot/pkg/health"
+	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
@@ -64,9 +65,14 @@ type Reporter struct {
 	// gateway session it did not have.
 	everUp bool
 
-	client valkey.Client
-	log    *zap.Logger
-	now    func() time.Time
+	kv pkg_valkey.KV
+	// publishes is false when New got no client (tests, a deploy with no
+	// Valkey): the reporter then keeps every transition in memory and writes
+	// nothing. It is a flag rather than a nil check on kv because KV is a
+	// value over the client and has no "absent" state of its own.
+	publishes bool
+	log       *zap.Logger
+	now       func() time.Time
 }
 
 // New builds a Reporter. A nil client keeps every transition in memory and
@@ -77,10 +83,11 @@ func New(client valkey.Client, pod string, log *zap.Logger) *Reporter {
 		log = zap.NewNop()
 	}
 	return &Reporter{
-		cur:    ddiscord.BotStatus{Pod: pod},
-		client: client,
-		log:    log,
-		now:    time.Now,
+		cur:       ddiscord.BotStatus{Pod: pod},
+		kv:        pkg_valkey.NewKV(client),
+		publishes: client != nil,
+		log:       log,
+		now:       time.Now,
 	}
 }
 
@@ -218,7 +225,7 @@ func (r *Reporter) apply(fn func(s *ddiscord.BotStatus, now time.Time)) ddiscord
 }
 
 func (r *Reporter) write(ctx context.Context, s ddiscord.BotStatus) {
-	if r.client == nil {
+	if !r.publishes {
 		return
 	}
 	raw, err := ddiscord.EncodeBotStatus(s)
@@ -226,10 +233,11 @@ func (r *Reporter) write(ctx context.Context, s ddiscord.BotStatus) {
 		r.log.Warn("discord bot status encode failed", zap.Error(err))
 		return
 	}
-	cmd := r.client.B().Set().Key(ddiscord.BotStatusKey).Value(string(raw)).Build()
 	wctx, cancel := context.WithTimeout(ctx, writeTimeout)
 	defer cancel()
-	if err := r.client.Do(wctx, cmd).Error(); err != nil {
+	// No TTL: the key is the fleet's current gateway session, and an expiring
+	// one would read as "no bot" on the dashboard between heartbeats.
+	if err := r.kv.Set(wctx, pkg_valkey.Key{Name: ddiscord.BotStatusKey}, string(raw)); err != nil {
 		// Warn, not error: the key is a publication. Losing a write costs
 		// the dashboard one stale reading, and the health verdict below is
 		// computed from memory either way.

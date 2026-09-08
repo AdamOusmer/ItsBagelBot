@@ -21,6 +21,7 @@ import (
 	"ItsBagelBot/app/discord/outgress/internal/rpc"
 	"ItsBagelBot/app/discord/outgress/internal/setup"
 	"ItsBagelBot/internal/discordapi"
+	"ItsBagelBot/internal/discordboot"
 	"ItsBagelBot/internal/discordrate"
 	"ItsBagelBot/internal/discordstore"
 	"ItsBagelBot/pkg/bus"
@@ -43,10 +44,8 @@ func main() {
 	log, ctx, nrApp := core.Log, core.Ctx, core.NR
 
 	cfg := config.Load()
-	if cfg.DiscordBotToken == "" {
-		log.Info("DISCORD_BOT_TOKEN unset; discord outgress idle")
-		health.Serve(cfg.ListenAddr, serviceName)
-		core.Await()
+	idle := discordboot.Service{Name: serviceName, Token: cfg.DiscordBotToken, Listen: cfg.ListenAddr}
+	if discordboot.IdleIfNoToken(core, idle) {
 		return
 	}
 
@@ -132,10 +131,14 @@ type rpcDeps struct {
 // engine-facing channel-management/live RPC onto the same connection.
 func subscribeRPCs(deps rpcDeps) {
 	setupWorker := setup.New(setup.Config{Discord: deps.Rest, Store: deps.Store, Log: deps.Log.Named("setup")})
-	if err := rpc.SubscribeSetup(setupWorker, rpc.SetupWiring{
-		NC: deps.NC, Prefix: deps.Cfg.RPCPrefix, Queue: deps.Cfg.RPCQueue, App: deps.NRApp,
-		Reauth: deps.Reauth, Status: deps.BotStatus, Log: deps.Log.Named("rpc"),
-	}); err != nil {
+	setupWiring := rpc.SetupWiring{
+		Wiring: rpc.Wiring{
+			NC: deps.NC, Prefix: deps.Cfg.RPCPrefix, Queue: deps.Cfg.RPCQueue,
+			App: deps.NRApp, Log: deps.Log.Named("rpc"),
+		},
+		Reauth: deps.Reauth, Status: deps.BotStatus,
+	}
+	if err := rpc.SubscribeSetup(setupWorker, setupWiring); err != nil {
 		deps.Log.Fatal("failed to subscribe discord guild setup rpc", zap.Error(err))
 	}
 	engineWiring := rpc.EngineWiring{
