@@ -77,9 +77,6 @@ export type ChipKind = 'token' | 'file' | 'connect' | 'handle';
 
 // CHIP_LABEL_KEYS translates a chip kind for an AVAILABLE source; an
 // unavailable one renders import.chipSoon instead and never reaches this map.
-// import.chipHandle has no string yet on purpose: the only 'handle' source
-// today is Fossabot, whose tile is disabled, so the layer that turns a handle
-// source on is the one that writes that copy.
 export const CHIP_LABEL_KEYS: Record<ChipKind, MessageKey> = {
   token: 'import.chipToken',
   file: 'import.chipFile',
@@ -112,11 +109,13 @@ export interface ImportSourceStrategy {
 const JWT_SHAPE = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
 const MAX_JWT_LEN = 4096;
 
-// FOSSABOT_HANDLE_SHAPE is a placeholder gate for a disabled tile: Fossabot
-// has no input surface yet (see available: false), so nothing reads it. The
-// layer that turns the source on brings the real slug gate, the copy behind
-// these keys, and the fetch leg together.
-const FOSSABOT_HANDLE_SHAPE = /^[A-Za-z0-9_]{1,64}$/;
+// FOSSABOT_HANDLE_SHAPE mirrors the slug gate in importer/fossabot/fetch.ts
+// (applied there after trim().toLowerCase(), hence the case-insensitive
+// spelling here): a Twitch login plus the dotted/hyphenated aliases Fossabot
+// accepts. Exported because the server's acceptInput checks the same shape,
+// and one regex in two files is one regex that drifts.
+export const FOSSABOT_HANDLE_SHAPE = /^[A-Za-z0-9_.-]{1,64}$/;
+export const MAX_HANDLE_LEN = 64;
 
 // Browser-side ceiling on a Moobot export, mirrored by the server's own
 // MAX_UPLOAD_BYTES: 10 MiB of JSON is already an order of magnitude past the
@@ -162,15 +161,15 @@ export const IMPORT_STRATEGIES: Record<ImportSource, ImportSourceStrategy> = {
     label: 'Fossabot',
     initials: 'F',
     chip: 'handle',
-    // No parser, no connect flow: the tile renders disabled and the form
-    // action refuses a direct post with the same prose it always has.
-    available: false,
-    i18n: { desc: 'import.fossabotDesc' },
+    // The input is a public channel name, not a secret: the parser reads the
+    // same commands directory any viewer can open at fossabot.com/<login>.
+    available: true,
+    i18n: { desc: 'import.fossabotDesc', instr: 'import.instrFossabot' },
     input: {
       kind: 'text',
       secret: false,
       shape: FOSSABOT_HANDLE_SHAPE,
-      maxLen: 64,
+      maxLen: MAX_HANDLE_LEN,
       placeholder: 'yourchannel',
       i18n: {
         field: 'import.handleFieldAria',

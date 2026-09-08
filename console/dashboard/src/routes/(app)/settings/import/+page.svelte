@@ -274,13 +274,19 @@
   ]);
 
   // The second rail line reports what the picked source actually takes: the
-  // pasted token for a text source, the chosen file for everything else (a
+  // typed value for a text source, the chosen file for everything else (a
   // connect-first source has neither, and reads as a pending file exactly as
   // it did before this line stopped naming StreamElements).
   function inputDetail(): string {
-    if (inputSpec?.kind === 'text')
-      return credential ? t('import.railTokenSet') : t('import.railTokenPending');
+    if (inputSpec?.kind === 'text') return textInputDetail(inputSpec);
     return uploadFile ? uploadFile.name : t('import.railFilePending');
+  }
+
+  // A secret and a public channel name are not the same promise to the reader,
+  // so the rail names what it is holding rather than calling a handle a token.
+  function textInputDetail(spec: TextInputSpec): string {
+    if (spec.secret) return credential ? t('import.railTokenSet') : t('import.railTokenPending');
+    return credential ? t('import.railHandleSet') : t('import.railHandlePending');
   }
 
   // Count tiles on the done panel: only collections that actually landed.
@@ -655,15 +661,32 @@
           </p>
         {/if}
         <div class="cred">
-          <textarea
-            rows="3"
-            placeholder={spec.placeholder}
-            bind:value={credential}
-            spellcheck="false"
-            autocomplete="off"
-            autocapitalize="off"
-            aria-label={t(spec.i18n.field)}
-          ></textarea>
+          <!-- A secret is pasted (a JWT wraps over several lines and wants the
+               room), a public handle is typed: one short word, where a
+               textarea reads as "paste something big here" and accepts a
+               newline the gate then refuses. Same binding either way. -->
+          {#if spec.secret}
+            <textarea
+              rows="3"
+              placeholder={spec.placeholder}
+              bind:value={credential}
+              spellcheck="false"
+              autocomplete="off"
+              autocapitalize="off"
+              aria-label={t(spec.i18n.field)}
+            ></textarea>
+          {:else}
+            <input
+              type="text"
+              placeholder={spec.placeholder}
+              bind:value={credential}
+              maxlength={spec.maxLen}
+              spellcheck="false"
+              autocomplete="off"
+              autocapitalize="off"
+              aria-label={t(spec.i18n.field)}
+            />
+          {/if}
           {#if spec.i18n.hint}
             <p class="hint">
               {@html t(spec.i18n.hint)}
@@ -1273,7 +1296,8 @@
     color: var(--bb-green, #7dc98f);
     font-size: 13px;
   }
-  .cred textarea {
+  .cred textarea,
+  .cred input[type='text'] {
     width: 100%;
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid var(--glass-border);

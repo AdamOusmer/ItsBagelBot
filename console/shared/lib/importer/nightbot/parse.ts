@@ -206,7 +206,7 @@ function commandPermission(src: NbCommand, notes: Notes): ManifestCommand['permi
 // synthesizing urlfetch definitions on the way. An empty result carries an error
 // diagnostic so commit skips the command instead of writing a mute one.
 function commandResponses(src: NbCommand, notes: Notes): string[] {
-  const sink = makeFetchSlotSink(src.name, notes.state.fetchDefs, notes.state.diags);
+  const sink = makeFetchSlotSink('nightbot', src.name, notes.state.fetchDefs, notes.state.diags);
   const translated = translateVariables(src.message, sink);
   for (const tok of translated.warns) {
     notes.add(CODE.variableUnmapped, `response uses ${tok}, which has no equivalent; left as literal text`);
