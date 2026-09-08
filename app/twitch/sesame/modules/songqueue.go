@@ -195,10 +195,10 @@ func SongQueue(d engine.Deps) module.Module {
 // songQueueCmd bundles the per-invocation state every handler shares, built
 // once by newSongQueueCmd, the same shape as queueCmd.
 type songQueueCmd struct {
+	chatReplier
 	store    engine.SongQueueStore
 	gossip   engine.GossipCaller
 	live     engine.IsLiveChecker
-	c        *module.Context
 	cfg      songqueueConfig
 	log      *zap.Logger
 	maxDepth int
@@ -208,7 +208,7 @@ func newSongQueueCmd(d engine.Deps, c *module.Context, log *zap.Logger) (qc song
 	if d.SongQueue == nil {
 		return songQueueCmd{}, false
 	}
-	qc = songQueueCmd{store: d.SongQueue, gossip: d.Gossip, live: d.Live, c: c, log: log}
+	qc = songQueueCmd{chatReplier: newChatReplier(c), store: d.SongQueue, gossip: d.Gossip, live: d.Live, log: log}
 	_ = c.Decode(&qc.cfg)
 	qc.maxDepth = qc.cfg.MaxDepth
 	if qc.maxDepth <= 0 {
@@ -271,7 +271,7 @@ func (qc songQueueCmd) current(ctx context.Context, emit module.Emit) error {
 		"artist", strings.Join(track.Artists, ", "),
 		"url", track.URL,
 	}
-	key := "songqueue.current.ok"
+	key := replyKey("songqueue.current.ok")
 	if req := qc.requesterOf(ctx, track.ID); req != "" {
 		kv = append(kv, "req", req)
 		key = "songqueue.current.req"
@@ -497,7 +497,7 @@ func (qc songQueueCmd) request(ctx context.Context, query string, emit module.Em
 // stays open so channels that only ever flipped the master toggle keep
 // working; an explicit false closes adds while the view and the mod verbs
 // still run.
-func (qc songQueueCmd) srRefusal() string {
+func (qc songQueueCmd) srRefusal() replyKey {
 	if qc.cfg.Sr == nil {
 		return ""
 	}
@@ -836,25 +836,4 @@ func (qc songQueueCmd) emitChat(emit module.Emit, text string) {
 		BroadcasterID: qc.c.Env.BroadcasterUserID,
 		Text:          text,
 	})
-}
-
-// reply emits one chat line from a customizable override or the localized
-// default: the queue module's mechanism, shared verbatim.
-func (qc songQueueCmd) reply(emit module.Emit, override, key string, kv ...string) {
-	tmpl := override
-	if tmpl == "" {
-		tmpl = i18n.T(qc.c.Locale, key)
-	}
-	text := module.ExpandString(tmpl, func(k string) (string, bool) {
-		for i := 0; i+1 < len(kv); i += 2 {
-			if kv[i] == k {
-				return kv[i+1], true
-			}
-		}
-		if k == "user" {
-			return qc.c.Env.ChatterUserLogin, true
-		}
-		return module.ParseDynamic(k)
-	})
-	qc.emitChat(emit, text)
 }

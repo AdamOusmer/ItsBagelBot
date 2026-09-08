@@ -11,8 +11,6 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
-	"ItsBagelBot/internal/domain/i18n"
-	"ItsBagelBot/internal/domain/outgress"
 
 	"go.uber.org/zap"
 )
@@ -83,8 +81,8 @@ func Queue(d engine.Deps) module.Module {
 // is a method taking only its own arguments instead of threading the same five
 // values through every call. It is built once per command by newQueueCmd.
 type queueCmd struct {
+	chatReplier
 	q   engine.QueueStore
-	c   *module.Context
 	cfg queueConfig
 	log *zap.Logger
 }
@@ -96,7 +94,7 @@ func newQueueCmd(d engine.Deps, c *module.Context, log *zap.Logger) (qc queueCmd
 	if d.Queue == nil {
 		return queueCmd{}, false
 	}
-	qc = queueCmd{q: d.Queue, c: c, log: log}
+	qc = queueCmd{chatReplier: newChatReplier(c), q: d.Queue, log: log}
 	_ = c.Decode(&qc.cfg)
 	return qc, true
 }
@@ -178,7 +176,7 @@ func (qc queueCmd) status(ctx context.Context, emit module.Emit) error {
 	if err != nil {
 		return err
 	}
-	key := "queue.status.closed"
+	key := replyKey("queue.status.closed")
 	if open {
 		key = "queue.status.open"
 	}
@@ -340,33 +338,4 @@ func (qc queueCmd) list(ctx context.Context, emit module.Emit) error {
 		qc.reply(emit, "", "queue.list", "list", b.String())
 	}
 	return nil
-}
-
-// reply emits one chat line. override is the broadcaster's customized template
-// for this reply ("" for the fixed system lines, or an uncustomized
-// customizable one); when empty the localized default for key is used. kv are
-// {token},value pairs (token names without braces); {user} (the invoking
-// chatter) and the generic dynamic vars ({random}, {choice:…}) are always
-// available, so a customized template can use them too.
-func (qc queueCmd) reply(emit module.Emit, override, key string, kv ...string) {
-	tmpl := override
-	if tmpl == "" {
-		tmpl = i18n.T(qc.c.Locale, key)
-	}
-	text := module.ExpandString(tmpl, func(k string) (string, bool) {
-		for i := 0; i+1 < len(kv); i += 2 {
-			if kv[i] == k {
-				return kv[i+1], true
-			}
-		}
-		if k == "user" {
-			return qc.c.Env.ChatterUserLogin, true
-		}
-		return module.ParseDynamic(k)
-	})
-	emit(&module.Output{
-		Type:          outgress.TypeChat,
-		BroadcasterID: qc.c.Env.BroadcasterUserID,
-		Text:          text,
-	})
 }

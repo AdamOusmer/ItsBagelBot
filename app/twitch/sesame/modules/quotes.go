@@ -11,8 +11,6 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
-	"ItsBagelBot/internal/domain/i18n"
-	"ItsBagelBot/internal/domain/outgress"
 	modulesrpc "ItsBagelBot/internal/domain/rpc/modules"
 
 	"go.uber.org/zap"
@@ -115,12 +113,12 @@ func newQuotesCmd(d engine.Deps, c *module.Context, log *zap.Logger) quotesCmd {
 	var cfg quotesConfig
 	_ = c.Decode(&cfg)
 	return quotesCmd{
-		q:        d.Quotes,
-		c:        c,
-		cd:       d.Cooldown,
-		addRole:  quotePermRole(cfg.AddPerm),
-		editRole: quotePermRole(cfg.EditPerm),
-		log:      log,
+		chatReplier: newChatReplier(c),
+		q:           d.Quotes,
+		cd:          d.Cooldown,
+		addRole:     quotePermRole(cfg.AddPerm),
+		editRole:    quotePermRole(cfg.EditPerm),
+		log:         log,
 	}
 }
 
@@ -188,8 +186,8 @@ func unquote(s string) (body string, ok bool) {
 
 // quotesCmd bundles the per-invocation state the handlers share.
 type quotesCmd struct {
+	chatReplier
 	q        engine.QuotesStore
-	c        *module.Context
 	cd       engine.CooldownStore
 	addRole  module.Role
 	editRole module.Role
@@ -199,7 +197,7 @@ type quotesCmd struct {
 // add saves the quote and confirms with its assigned number.
 func (qc quotesCmd) add(ctx context.Context, body string, emit module.Emit) error {
 	if body == "" {
-		qc.reply(emit, "quote.err.usage")
+		qc.reply(emit, "", "quote.err.usage")
 		return nil
 	}
 	saved, err := qc.q.QuoteAdd(ctx, qc.c.BroadcasterID, body, strings.ToLower(qc.c.Env.ChatterUserLogin))
@@ -207,7 +205,7 @@ func (qc quotesCmd) add(ctx context.Context, body string, emit module.Emit) erro
 		qc.log.Warn("quotes: add failed", qc.c.BID(), zap.Error(err))
 		return err
 	}
-	qc.reply(emit, "quote.added", "num", strconv.FormatUint(saved.Number, 10))
+	qc.reply(emit, "", "quote.added", "num", strconv.FormatUint(saved.Number, 10))
 	return nil
 }
 
@@ -215,7 +213,7 @@ func (qc quotesCmd) add(ctx context.Context, body string, emit module.Emit) erro
 // and a label for the failure log. get and random differ only in these.
 type quoteRead struct {
 	fetch   func(context.Context) (modulesrpc.Quote, bool, error)
-	missKey string
+	missKey replyKey
 	missKV  []string
 	label   string
 }
@@ -269,7 +267,7 @@ func (qc quotesCmd) readAndShow(ctx context.Context, emit module.Emit, r quoteRe
 		return err
 	}
 	if !found {
-		qc.reply(emit, r.missKey, r.missKV...)
+		qc.reply(emit, "", r.missKey, r.missKV...)
 		return nil
 	}
 	qc.show(emit, quote)
@@ -284,7 +282,7 @@ func (qc quotesCmd) edit(ctx context.Context, args string, emit module.Emit) err
 	number, err := strconv.ParseUint(target, 10, 64)
 	body, _ := unquote(rest)
 	if err != nil || body == "" {
-		qc.reply(emit, "quote.edit.usage")
+		qc.reply(emit, "", "quote.edit.usage")
 		return nil
 	}
 	_, found, err := qc.q.QuoteEdit(ctx, qc.c.BroadcasterID, number, body)
@@ -292,11 +290,11 @@ func (qc quotesCmd) edit(ctx context.Context, args string, emit module.Emit) err
 		qc.log.Warn("quotes: edit failed", zap.Uint64("number", number), qc.c.BID(), zap.Error(err))
 		return err
 	}
-	key := "quote.edited"
+	key := replyKey("quote.edited")
 	if !found {
 		key = "quote.not_found"
 	}
-	qc.reply(emit, key, "num", strconv.FormatUint(number, 10))
+	qc.reply(emit, "", key, "num", strconv.FormatUint(number, 10))
 	return nil
 }
 
@@ -305,7 +303,7 @@ func (qc quotesCmd) remove(ctx context.Context, args string, emit module.Emit) e
 	target, _ := splitFirst(args)
 	number, err := strconv.ParseUint(target, 10, 64)
 	if err != nil {
-		qc.reply(emit, "quote.remove.usage")
+		qc.reply(emit, "", "quote.remove.usage")
 		return nil
 	}
 	found, err := qc.q.QuoteRemove(ctx, qc.c.BroadcasterID, number)
@@ -313,11 +311,11 @@ func (qc quotesCmd) remove(ctx context.Context, args string, emit module.Emit) e
 		qc.log.Warn("quotes: remove failed", zap.Uint64("number", number), qc.c.BID(), zap.Error(err))
 		return err
 	}
-	key := "quote.removed"
+	key := replyKey("quote.removed")
 	if !found {
 		key = "quote.not_found"
 	}
-	qc.reply(emit, key, "num", strconv.FormatUint(number, 10))
+	qc.reply(emit, "", key, "num", strconv.FormatUint(number, 10))
 	return nil
 }
 
@@ -338,30 +336,9 @@ func (qc quotesCmd) show(emit module.Emit, quote modulesrpc.Quote) {
 	if t, err := time.Parse(time.RFC3339, quote.CreatedAt); err == nil {
 		date = t.UTC().Format("2006-01-02")
 	}
-	qc.reply(emit, "quote.show",
+	qc.reply(emit, "", "quote.show",
 		"num", strconv.FormatUint(quote.Number, 10),
 		"text", quote.Text,
 		"date", date,
 	)
-}
-
-// reply emits one localized chat line. kv are {token},value pairs; {user} (the
-// invoking chatter) is always available.
-func (qc quotesCmd) reply(emit module.Emit, key string, kv ...string) {
-	text := module.ExpandString(i18n.T(qc.c.Locale, key), func(k string) (string, bool) {
-		for i := 0; i+1 < len(kv); i += 2 {
-			if kv[i] == k {
-				return kv[i+1], true
-			}
-		}
-		if k == "user" {
-			return qc.c.Env.ChatterUserLogin, true
-		}
-		return module.ParseDynamic(k)
-	})
-	emit(&module.Output{
-		Type:          outgress.TypeChat,
-		BroadcasterID: qc.c.Env.BroadcasterUserID,
-		Text:          text,
-	})
 }

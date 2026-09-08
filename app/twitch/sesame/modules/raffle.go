@@ -11,8 +11,6 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
-	"ItsBagelBot/internal/domain/i18n"
-	"ItsBagelBot/internal/domain/outgress"
 
 	"go.uber.org/zap"
 )
@@ -87,8 +85,8 @@ type raffleConfig struct {
 // method taking only its own arguments instead of threading the same five
 // values through every call.
 type raffleCmd struct {
+	chatReplier
 	r   engine.RaffleStore
-	c   *module.Context
 	cfg raffleConfig
 	log *zap.Logger
 }
@@ -100,7 +98,7 @@ func newRaffleCmd(d engine.Deps, c *module.Context, log *zap.Logger) (rc raffleC
 	if d.Raffle == nil {
 		return raffleCmd{}, false
 	}
-	rc = raffleCmd{r: d.Raffle, c: c, log: log}
+	rc = raffleCmd{chatReplier: newChatReplier(c), r: d.Raffle, log: log}
 	_ = c.Decode(&rc.cfg)
 	return rc, true
 }
@@ -373,35 +371,4 @@ func mentionTargets(winners []string) string {
 		prefixed[i] = "@" + w
 	}
 	return strings.Join(prefixed, ", ")
-}
-
-// reply emits one localized system line. kv are {token},value pairs; {user}
-// (the invoking chatter) is always available.
-// reply emits one chat line. override is the broadcaster's customized template
-// for this reply ("" for the fixed system lines, or an uncustomized
-// customizable one); when empty the localized default for key is used. kv are
-// {token},value pairs (token names without braces); {user} (the invoking
-// chatter) and the generic dynamic vars ({random}, {choice:…}) are always
-// available, so a customized template can use them too.
-func (rc raffleCmd) reply(emit module.Emit, override, key string, kv ...string) {
-	tmpl := override
-	if tmpl == "" {
-		tmpl = i18n.T(rc.c.Locale, key)
-	}
-	text := module.ExpandString(tmpl, func(k string) (string, bool) {
-		for i := 0; i+1 < len(kv); i += 2 {
-			if kv[i] == k {
-				return kv[i+1], true
-			}
-		}
-		if k == "user" {
-			return rc.c.Env.ChatterUserLogin, true
-		}
-		return module.ParseDynamic(k)
-	})
-	emit(&module.Output{
-		Type:          outgress.TypeChat,
-		BroadcasterID: rc.c.Env.BroadcasterUserID,
-		Text:          text,
-	})
 }

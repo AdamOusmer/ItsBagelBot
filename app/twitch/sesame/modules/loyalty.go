@@ -13,8 +13,6 @@ import (
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/event/data"
-	"ItsBagelBot/internal/domain/i18n"
-	"ItsBagelBot/internal/domain/outgress"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	"ItsBagelBot/pkg/codec"
 
@@ -185,7 +183,7 @@ func loyaltyRun(d engine.Deps, log *zap.Logger, fn func(loyaltyCmd, context.Cont
 		if d.Loyalty == nil {
 			return nil
 		}
-		return fn(loyaltyCmd{d, c, emit, log}, ctx, args)
+		return fn(loyaltyCmd{newChatReplier(c), d, emit, log}, ctx, args)
 	}
 }
 
@@ -251,8 +249,8 @@ func (lc loyaltyCmd) owner() bool {
 }
 
 type loyaltyCmd struct {
+	chatReplier
 	d    engine.Deps
-	c    *module.Context
 	emit module.Emit
 	log  *zap.Logger
 }
@@ -700,7 +698,7 @@ func (lc loyaltyCmd) counterShow(ctx context.Context, name, command string) erro
 		lc.reply("loyalty.counter.not_found", "counter", engine.NormalizeCounterName(name))
 		return nil
 	}
-	key := "loyalty.counter.show"
+	key := replyKey("loyalty.counter.show")
 	if counter.Scope == data.CounterScopeViewer || counter.Scope == data.CounterScopeViewerCommand {
 		key = "loyalty.counter.show.viewer"
 	}
@@ -716,23 +714,10 @@ func (lc loyaltyCmd) fail(op string, err error) error {
 	return nil
 }
 
-// reply emits one localized chat line. kv are {token},value pairs; {user}
-// (the invoking chatter) and the dynamic vars are always available.
-func (lc loyaltyCmd) reply(key string, kv ...string) {
-	text := module.ExpandString(i18n.T(lc.c.Locale, key), func(k string) (string, bool) {
-		for i := 0; i+1 < len(kv); i += 2 {
-			if kv[i] == k {
-				return kv[i+1], true
-			}
-		}
-		if k == "user" {
-			return lc.c.Env.ChatterUserLogin, true
-		}
-		return module.ParseDynamic(k)
-	})
-	lc.emit(&module.Output{
-		Type:          outgress.TypeChat,
-		BroadcasterID: lc.c.Env.BroadcasterUserID,
-		Text:          text,
-	})
+// reply posts one localized system line. loyalty binds emit for the whole
+// invocation and has no customizable templates, so it hands the shared
+// replier those two fixed arguments rather than repeating them at 40 call
+// sites.
+func (lc loyaltyCmd) reply(key replyKey, kv ...string) {
+	lc.chatReplier.reply(lc.emit, "", key, kv...)
 }
