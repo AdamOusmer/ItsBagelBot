@@ -5,12 +5,10 @@ package modules
 
 import (
 	"context"
-	"strconv"
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
-	"ItsBagelBot/internal/domain/outgress"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 
 	"go.uber.org/zap"
@@ -24,9 +22,6 @@ const mcsrModuleName = "mcsr"
 // replies (the MCSR API allows 500 requests / 10 min fleet-wide), so this only
 // shields chat from spam.
 const mcsrCooldown = 10 * time.Second
-
-// mcsrSnapshotTimeout bounds the fire-and-forget stream-start snapshot call.
-const mcsrSnapshotTimeout = 10 * time.Second
 
 const (
 	defaultMcsrEloTemplate     = "{player}: {elo} elo · rank #{rank} · {wins}W {losses}L this season"
@@ -70,9 +65,12 @@ const (
 // so Ranked/Hypixel-style lookups skip the name hop and survive a rename.
 // Toggle/message semantics match the urchin module.
 type mcsrConfig struct {
-	Account     string `json:"account"`
-	AccountUUID string `json:"accountUuid"`
-	LinkedOnly  string `json:"linkedOnly"`
+	// linkedAccountConfig carries account/accountUuid/linkedOnly: the linked
+	// MCSR Ranked account (blank = the broadcaster's own Twitch login), the
+	// Mojang uuid stored next to it when the resolve succeeds (so
+	// Ranked/Hypixel-style lookups skip the name hop and survive a rename),
+	// and the "only my linked account" toggle.
+	linkedAccountConfig
 
 	EloEnabled     string `json:"eloEnabled"`
 	EloMessage     string `json:"eloMessage"`
@@ -161,68 +159,40 @@ func Mcsr(d engine.Deps) module.Module {
 		m.Command(reg.name).Everyone().Cooldown(mcsrCooldown).Aliases(reg.aliases...).Run(reg.run)
 	}
 
-	// Snapshot the linked account's standing the moment the stream goes online.
-	// The pipeline only runs this when the module is enabled, and it wires the
-	// module config in, so the snapshot targets the linked account. Fire and
-	// forget on a Background-derived context (the consumer's ctx is acked and
-	// may cancel the moment the handler returns), mirroring the live module's
-	// write discipline.
-	m.On("stream.online", func(_ context.Context, c *module.Context, _ module.Emit) error {
-		if d.Gossip == nil {
-			return nil
-		}
-		var cfg mcsrConfig
-		_ = c.Decode(&cfg)
-		account, _ := resolveLinked(c, accountSources{
-			Linked: cfg.Account, LinkedUUID: cfg.AccountUUID, PreferUUID: true,
-		})
-		channelID := strconv.FormatUint(c.BroadcasterID, 10)
-		seqOrGo(d.Seq, c.BroadcasterID, log, func() {
-			wctx, cancel := context.WithTimeout(context.Background(), mcsrSnapshotTimeout)
-			defer cancel()
-			var reply gossiprpc.McsrSnapshotReply
-			if err := d.Gossip.Call(wctx, engine.GossipRoute{Provider: "mcsr", Endpoint: "session_start"}, gossiprpc.Request{Account: account, ChannelID: channelID, IsPremium: c.Regress.IsPremium()}, &reply); err != nil {
-				log.Warn("mcsr: stream-start snapshot failed",
-					zap.String("channel_id", channelID), zap.String("account", account), zap.Error(err))
-				return
-			}
-			log.Debug("mcsr: stream-start snapshot stored",
-				zap.String("channel_id", channelID), zap.String("account", account), zap.Int("elo", reply.Elo))
-		})
-		return nil
+	// Snapshot the linked account's standing the moment the stream goes online
+	// so !session has a baseline, and clear it when the stream ends — a rapid
+	// stop/restart cycle (#561) must not leave !session diffing the new stream
+	// against the old one's snapshot. The pipeline only runs these for an
+	// enabled module and wires the module config in, so the snapshot targets
+	// the linked account.
+	online, offline := snapshotHandlers(d, snapshotSpec[mcsrConfig, gossiprpc.McsrSnapshotReply]{
+		provider: "mcsr",
+		enabled:  func(mcsrConfig) bool { return true },
+		request:  mcsrSnapshotRequest,
+		stored:   func(r *gossiprpc.McsrSnapshotReply) zap.Field { return zap.Int("elo", r.Elo) },
 	})
-
-	// Stream ended: clear the session-start baseline so a rapid stop/restart
-	// cycle (#561) cannot leave !session diffing the new stream against the old
-	// one's snapshot. Sequenced behind the online snapshot like every other
-	// lifecycle effect. Gossip deployments without the provider (or in shop-only
-	// mode) answer no-responder — an expected miss, hence Debug.
-	m.On("stream.offline", func(_ context.Context, c *module.Context, _ module.Emit) error {
-		if d.Gossip == nil {
-			return nil
-		}
-		channelID := strconv.FormatUint(c.BroadcasterID, 10)
-		seqOrGo(d.Seq, c.BroadcasterID, log, func() {
-			wctx, cancel := context.WithTimeout(context.Background(), mcsrSnapshotTimeout)
-			defer cancel()
-			var reply gossiprpc.McsrSnapshotReply
-			if err := d.Gossip.Call(wctx, engine.GossipRoute{Provider: "mcsr", Endpoint: "session_end"}, gossiprpc.Request{ChannelID: channelID}, &reply); err != nil {
-				log.Debug("mcsr: stream-end snapshot clear failed",
-					zap.String("channel_id", channelID), zap.Error(err))
-			}
-		})
-		return nil
-	})
+	m.On("stream.online", online)
+	m.On("stream.offline", offline)
 
 	return m.Build()
 }
 
-// mcsrHandler is the shape every !mcsr and !pace command shares: decode the
-// module config, check its toggle, resolve the account, call gossip, chat
-// an upstream error, and — on success — render a reply into chat text. Each
-// command builds one of these (see mcsr_ranked.go / mcsr_pace.go) instead of
-// copy-pasting that sequence, which is what CodeScene's duplication finding
-// flagged.
+// mcsrSnapshotRequest builds the stream-start call: the linked account (never
+// a typed one — nobody types at a lifecycle event) and the channel the
+// baseline is filed under.
+func mcsrSnapshotRequest(c *module.Context, cfg mcsrConfig, channelID string) gossiprpc.Request {
+	account, _ := resolveLinked(c, accountSources{
+		Linked: cfg.Account, LinkedUUID: cfg.AccountUUID, PreferUUID: true,
+	})
+	return gossiprpc.Request{Account: account, ChannelID: channelID, IsPremium: c.Regress.IsPremium()}
+}
+
+// mcsrHandler binds the shared statsHandler (external.go) to this module:
+// mcsrConfig for the config, the linked Minecraft account for the target, and
+// the account-shaped request/reply hooks every !mcsr and !pace command writes.
+// It is a named binding rather than a statsHandler literal at each of the five
+// construction sites because the two hook adapters below would otherwise be
+// spelled out at every one of them.
 type mcsrHandler[R any] struct {
 	d engine.Deps
 
@@ -245,33 +215,25 @@ type mcsrHandler[R any] struct {
 // that need to pre-process their typed args (peeling off a "season:<n>" or
 // window token) call it directly with the trimmed args instead.
 func (h mcsrHandler[R]) run(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
-	var cfg mcsrConfig
-	_ = c.Decode(&cfg)
-	if !alertOn(h.enabled(cfg)) || h.d.Gossip == nil {
-		return nil
-	}
-
-	account, display := resolveLinked(c, accountSources{
-		Arg: args, Linked: cfg.Account, LinkedUUID: cfg.AccountUUID, PreferUUID: !h.preferName,
-		LinkedOnly: explicitOn(cfg.LinkedOnly),
-	})
-	var reply R
-	if err := h.d.Gossip.Call(ctx, h.route, h.request(c, account, cfg), &reply); err != nil {
-		if chatReplyError(c, emit, display, err) {
-			return nil
-		}
-		return err
-	}
-
-	mcsrEmit(c, emit, h.reply(c, cfg, reply))
-	return nil
+	return h.handler().run(ctx, c, args, emit)
 }
 
-// mcsrEmit sends text as a chat Output — the one shape every !mcsr/!pace
-// reply resolves to, whether it came from an expanded template or a plain
-// i18n line.
-func mcsrEmit(c *module.Context, emit module.Emit, text string) {
-	emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: text})
+// handler adapts this module's hooks onto the shared skeleton. The mcsr
+// commands never vary by what the viewer typed beyond the account itself, so
+// the request hook is handed the resolved account rather than the raw call.
+func (h mcsrHandler[R]) handler() statsHandler[mcsrConfig, R] {
+	return statsHandler[mcsrConfig, R]{
+		d:       h.d,
+		enabled: h.enabled,
+		route:   h.route,
+		target:  linkedTarget[mcsrConfig](!h.preferName),
+		request: func(call statsCall[mcsrConfig], subject statsSubject) gossiprpc.Request {
+			return h.request(call.Ctx, subject.Account, call.Cfg)
+		},
+		render: func(call statsCall[mcsrConfig], reply *R) string {
+			return h.reply(call.Ctx, call.Cfg, *reply)
+		},
+	}
 }
 
 // mcsrSimpleRequest builds a gossip request carrying only the resolved

@@ -4,14 +4,12 @@
 package modules
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
-	"ItsBagelBot/internal/domain/outgress"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 
 	"go.uber.org/zap"
@@ -46,9 +44,11 @@ const (
 // module's semantics — and each *Message is a customized template (blank =
 // default).
 type urchinConfig struct {
-	Account     string `json:"account"`
-	AccountUUID string `json:"accountUuid"`
-	LinkedOnly  string `json:"linkedOnly"`
+	// linkedAccountConfig carries account/accountUuid/linkedOnly: the linked
+	// Minecraft account, the Mojang uuid stored next to it when the resolve
+	// succeeds (so Hypixel and Coral lookups skip the name hop and survive a
+	// rename), and the "only my linked account" toggle.
+	linkedAccountConfig
 
 	DailyEnabled          string `json:"dailyEnabled"`
 	DailyMessage          string `json:"dailyMessage"`
@@ -84,11 +84,11 @@ func Urchin(d engine.Deps) module.Module {
 
 	m := module.NewModule(urchinModuleName, module.KindOptIn)
 	m.Command("daily").Everyone().Cooldown(urchinCooldown).Aliases("bwdaily").
-		Run(urchinSessionRun(d, "daily"))
+		Run(urchinSessionRun(d, urchinDailyWindow))
 	m.Command("weekly").Everyone().Cooldown(urchinCooldown).Aliases("bwweekly").
-		Run(urchinSessionRun(d, "weekly"))
+		Run(urchinSessionRun(d, urchinWeeklyWindow))
 	m.Command("monthly").Everyone().Cooldown(urchinCooldown).Aliases("bwmonthly").
-		Run(urchinSessionRun(d, "monthly"))
+		Run(urchinSessionRun(d, urchinMonthlyWindow))
 	m.Command("bwstats").Everyone().Cooldown(urchinCooldown).Aliases("bedwars").
 		Run(urchinStatsRun(d))
 	m.Command("sniper").Everyone().Cooldown(urchinCooldown).Aliases("urchin").
@@ -100,149 +100,160 @@ func Urchin(d engine.Deps) module.Module {
 	return m.Build()
 }
 
-// urchinToggle returns one command's (enabled, template, default) triple from
-// the decoded config.
-func urchinToggle(cfg urchinConfig, endpoint string) (enabled bool, tmpl string) {
-	switch endpoint {
-	case "daily":
-		return alertOn(cfg.DailyEnabled), orDefault(cfg.DailyMessage, defaultUrchinDailyTemplate)
-	case "weekly":
-		return alertOn(cfg.WeeklyEnabled), orDefault(cfg.WeeklyMessage, defaultUrchinWeeklyTemplate)
-	case "monthly":
-		return alertOn(cfg.MonthlyEnabled), orDefault(cfg.MonthlyMessage, defaultUrchinMonthlyTemplate)
-	case "stats":
-		return alertOn(cfg.StatsEnabled), orDefault(cfg.StatsMessage, defaultUrchinStatsTemplate)
-	case "sniper":
-		return alertOn(cfg.SniperEnabled), orDefault(cfg.SniperMessage, defaultUrchinSniperTemplate)
-	case "tags":
-		return alertOn(cfg.TagsEnabled), orDefault(cfg.TagsMessage, defaultUrchinTagsTemplate)
-	case "tagdescription":
-		return alertOn(cfg.TagDescriptionEnabled), orDefault(cfg.TagDescriptionMessage, defaultUrchinTagDescriptionTemplate)
-	default:
-		return false, ""
-	}
+// urchinRoute names one gossip provider/endpoint pair. Most commands ride the
+// urchin.gg Coral API; !bwstats rides the hypixel provider instead, a separate
+// external system with its own key and budget (Coral cannot serve lifetime
+// stats on our key). Which provider answers is not a dashboard concern, so
+// both stay on the one urchin module page.
+func urchinRoute(provider, endpoint string) engine.GossipRoute {
+	return engine.GossipRoute{Provider: provider, Endpoint: endpoint}
 }
 
-// gatewayCommand names one urchin command's wiring: the config toggle key and
-// the gossip provider/endpoint it calls.
-type gatewayCommand struct {
-	toggle   string
-	provider string
+// urchinWindow is one session command's binding: the Coral endpoint it asks
+// and where its toggle and template live in the config blob. !daily, !weekly
+// and !monthly differ in nothing else, so they come from these three values
+// rather than three near-identical constructors.
+type urchinWindow struct {
 	endpoint string
+	enabled  func(urchinConfig) string
+	message  func(urchinConfig) string
+	fallback string
 }
 
-// runUrchinCommand is the shared skeleton every urchin command runs: decode
-// the channel config, check the command's toggle, resolve the target account,
-// call gossip, then expand the reply's tokens into the template. tokens
-// maps a template key to its reply field; unknown keys fall through to the
-// dynamic palette.
-func runUrchinCommand[R any](d engine.Deps, cmd gatewayCommand, tokens map[string]func(*R) string) module.RunFunc {
-	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
-		var cfg urchinConfig
-		_ = c.Decode(&cfg)
-		enabled, tmpl := urchinToggle(cfg, cmd.toggle)
-		if !enabled || d.Gossip == nil {
-			return nil
-		}
-
-		account, display := resolveLinked(c, accountSources{
-			Arg: args, Linked: cfg.Account, LinkedUUID: cfg.AccountUUID, PreferUUID: true,
-			LinkedOnly: explicitOn(cfg.LinkedOnly),
-		})
-		var reply R
-		if err := d.Gossip.Call(ctx, engine.GossipRoute{Provider: cmd.provider, Endpoint: cmd.endpoint}, gossiprpc.Request{Account: account, IsPremium: c.Regress.IsPremium()}, &reply); err != nil {
-			if chatReplyError(c, emit, display, err) {
-				return nil
-			}
-			return err
-		}
-
-		msg := module.ExpandString(tmpl, func(key string) (string, bool) {
-			if field, ok := tokens[key]; ok {
-				return field(&reply), true
-			}
-			return module.ParseDynamic(key)
-		})
-		emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: msg})
-		return nil
+var (
+	urchinDailyWindow = urchinWindow{
+		endpoint: "daily",
+		enabled:  func(c urchinConfig) string { return c.DailyEnabled },
+		message:  func(c urchinConfig) string { return c.DailyMessage },
+		fallback: defaultUrchinDailyTemplate,
 	}
-}
+	urchinWeeklyWindow = urchinWindow{
+		endpoint: "weekly",
+		enabled:  func(c urchinConfig) string { return c.WeeklyEnabled },
+		message:  func(c urchinConfig) string { return c.WeeklyMessage },
+		fallback: defaultUrchinWeeklyTemplate,
+	}
+	urchinMonthlyWindow = urchinWindow{
+		endpoint: "monthly",
+		enabled:  func(c urchinConfig) string { return c.MonthlyEnabled },
+		message:  func(c urchinConfig) string { return c.MonthlyMessage },
+		fallback: defaultUrchinMonthlyTemplate,
+	}
+)
 
 // urchinSessionRun answers !daily / !weekly / !monthly with the period's Bed
 // Wars delta. Template tokens: {player} {wins} {losses} {finals} {finaldeaths}
 // {beds} {games} {levels} {fkdr}.
-func urchinSessionRun(d engine.Deps, endpoint string) module.RunFunc {
+func urchinSessionRun(d engine.Deps, w urchinWindow) module.RunFunc {
 	type reply = gossiprpc.UrchinSessionReply
-	return runUrchinCommand(d, gatewayCommand{endpoint, "urchin", endpoint}, map[string]func(*reply) string{
-		"player":      func(r *reply) string { return r.Player },
-		"wins":        func(r *reply) string { return i64(r.Wins) },
-		"losses":      func(r *reply) string { return i64(r.Losses) },
-		"finals":      func(r *reply) string { return i64(r.FinalKills) },
-		"finaldeaths": func(r *reply) string { return i64(r.FinalDeaths) },
-		"beds":        func(r *reply) string { return i64(r.BedsBroken) },
-		"games":       func(r *reply) string { return i64(r.GamesPlayed) },
-		"levels":      func(r *reply) string { return i64(r.Levels) },
-		"fkdr":        func(r *reply) string { return ratio(r.FinalKills, r.FinalDeaths) },
-	})
+	return externalCommand[urchinConfig, reply]{
+		route:    urchinRoute("urchin", w.endpoint),
+		enabled:  w.enabled,
+		message:  w.message,
+		fallback: w.fallback,
+		tokens: module.TokenExpander[reply]{
+			"player":      func(r *reply) string { return r.Player },
+			"wins":        func(r *reply) string { return i64(r.Wins) },
+			"losses":      func(r *reply) string { return i64(r.Losses) },
+			"finals":      func(r *reply) string { return i64(r.FinalKills) },
+			"finaldeaths": func(r *reply) string { return i64(r.FinalDeaths) },
+			"beds":        func(r *reply) string { return i64(r.BedsBroken) },
+			"games":       func(r *reply) string { return i64(r.GamesPlayed) },
+			"levels":      func(r *reply) string { return i64(r.Levels) },
+			"fkdr":        func(r *reply) string { return ratio(r.FinalKills, r.FinalDeaths) },
+		},
+	}.run(d)
 }
 
 // urchinStatsRun answers !bwstats with lifetime Bed Wars stats. Template
 // tokens: {player} {stars} {wins} {losses} {finals} {finaldeaths} {beds}
 // {fkdr} {wlr}.
-//
-// The data rides gossip's hypixel provider — a separate external system
-// with its own key and budget (Coral cannot serve lifetime stats on our key) —
-// but the command stays on the one urchin module page: gossip provider layout
-// is not a dashboard concern.
 func urchinStatsRun(d engine.Deps) module.RunFunc {
 	type reply = gossiprpc.HypixelStatsReply
-	return runUrchinCommand(d, gatewayCommand{"stats", "hypixel", "stats"}, map[string]func(*reply) string{
-		"player":      func(r *reply) string { return r.Player },
-		"stars":       func(r *reply) string { return i64(r.Stars) },
-		"wins":        func(r *reply) string { return i64(r.Wins) },
-		"losses":      func(r *reply) string { return i64(r.Losses) },
-		"finals":      func(r *reply) string { return i64(r.FinalKills) },
-		"finaldeaths": func(r *reply) string { return i64(r.FinalDeaths) },
-		"beds":        func(r *reply) string { return i64(r.BedsBroken) },
-		"fkdr":        func(r *reply) string { return ratio(r.FinalKills, r.FinalDeaths) },
-		"wlr":         func(r *reply) string { return ratio(r.Wins, r.Losses) },
-	})
+	return externalCommand[urchinConfig, reply]{
+		route:    urchinRoute("hypixel", "stats"),
+		enabled:  func(c urchinConfig) string { return c.StatsEnabled },
+		message:  func(c urchinConfig) string { return c.StatsMessage },
+		fallback: defaultUrchinStatsTemplate,
+		tokens: module.TokenExpander[reply]{
+			"player":      func(r *reply) string { return r.Player },
+			"stars":       func(r *reply) string { return i64(r.Stars) },
+			"wins":        func(r *reply) string { return i64(r.Wins) },
+			"losses":      func(r *reply) string { return i64(r.Losses) },
+			"finals":      func(r *reply) string { return i64(r.FinalKills) },
+			"finaldeaths": func(r *reply) string { return i64(r.FinalDeaths) },
+			"beds":        func(r *reply) string { return i64(r.BedsBroken) },
+			"fkdr":        func(r *reply) string { return ratio(r.FinalKills, r.FinalDeaths) },
+			"wlr":         func(r *reply) string { return ratio(r.Wins, r.Losses) },
+		},
+	}.run(d)
 }
 
 // urchinSniperRun answers !sniper with the Urchin (Cubelify overlay) score.
 // Template tokens: {player} {score} {mode} {tagcount}.
 func urchinSniperRun(d engine.Deps) module.RunFunc {
 	type reply = gossiprpc.UrchinSniperReply
-	return runUrchinCommand(d, gatewayCommand{"sniper", "urchin", "sniper"}, map[string]func(*reply) string{
-		"player":   func(r *reply) string { return r.Player },
-		"score":    func(r *reply) string { return trimScore(r.Score) },
-		"mode":     func(r *reply) string { return r.Mode },
-		"tagcount": func(r *reply) string { return i64(int64(r.TagCount)) },
-	})
+	return externalCommand[urchinConfig, reply]{
+		route:    urchinRoute("urchin", "sniper"),
+		enabled:  func(c urchinConfig) string { return c.SniperEnabled },
+		message:  func(c urchinConfig) string { return c.SniperMessage },
+		fallback: defaultUrchinSniperTemplate,
+		tokens: module.TokenExpander[reply]{
+			"player":   func(r *reply) string { return r.Player },
+			"score":    func(r *reply) string { return trimScore(r.Score) },
+			"mode":     func(r *reply) string { return r.Mode },
+			"tagcount": func(r *reply) string { return i64(int64(r.TagCount)) },
+		},
+	}.run(d)
 }
 
 // urchinTagsRun answers !tag with the player's active blacklist tags (display
 // names only, no reason). Template tokens: {player} {tags} {tagcount}.
 func urchinTagsRun(d engine.Deps) module.RunFunc {
-	return runUrchinCommand(d, gatewayCommand{"tags", "urchin", "tags"}, tagTokens(formatUrchinTags))
+	return urchinTagRun(d, urchinTagCommand{
+		enabled:  func(c urchinConfig) string { return c.TagsEnabled },
+		message:  func(c urchinConfig) string { return c.TagsMessage },
+		fallback: defaultUrchinTagsTemplate,
+		format:   formatUrchinTags,
+	})
 }
 
-// urchinTagDescriptionRun answers !tagdescription with the player's active
-// blacklist tags including the reason (the cleanup version).
-// Template tokens: {player} {tags} {tagcount}.
+// urchinTagDescriptionRun answers !tagdescription with the same tags including
+// the reason (the cleanup version). Template tokens: {player} {tags}
+// {tagcount}.
 func urchinTagDescriptionRun(d engine.Deps) module.RunFunc {
-	return runUrchinCommand(d, gatewayCommand{"tagdescription", "urchin", "tags"}, tagTokens(formatUrchinTagDescriptions))
+	return urchinTagRun(d, urchinTagCommand{
+		enabled:  func(c urchinConfig) string { return c.TagDescriptionEnabled },
+		message:  func(c urchinConfig) string { return c.TagDescriptionMessage },
+		fallback: defaultUrchinTagDescriptionTemplate,
+		format:   formatUrchinTagDescriptions,
+	})
 }
 
-// tagTokens builds the token set both tag commands share; format renders the
-// tag list (with or without reasons).
-func tagTokens(format func([]gossiprpc.UrchinTag) string) map[string]func(*gossiprpc.UrchinTagsReply) string {
+// urchinTagCommand is what the two tag commands differ in: their own toggle
+// and template, and whether the rendered list carries the reason. Both ask the
+// same Coral endpoint.
+type urchinTagCommand struct {
+	enabled  func(urchinConfig) string
+	message  func(urchinConfig) string
+	fallback string
+	format   func([]gossiprpc.UrchinTag) string
+}
+
+// urchinTagRun builds either tag command.
+func urchinTagRun(d engine.Deps, cmd urchinTagCommand) module.RunFunc {
 	type reply = gossiprpc.UrchinTagsReply
-	return map[string]func(*reply) string{
-		"player":   func(r *reply) string { return r.Player },
-		"tags":     func(r *reply) string { return format(r.Tags) },
-		"tagcount": func(r *reply) string { return i64(int64(len(r.Tags))) },
-	}
+	return externalCommand[urchinConfig, reply]{
+		route:    urchinRoute("urchin", "tags"),
+		enabled:  cmd.enabled,
+		message:  cmd.message,
+		fallback: cmd.fallback,
+		tokens: module.TokenExpander[reply]{
+			"player":   func(r *reply) string { return r.Player },
+			"tags":     func(r *reply) string { return cmd.format(r.Tags) },
+			"tagcount": func(r *reply) string { return i64(int64(len(r.Tags))) },
+		},
+	}.run(d)
 }
 
 // displayTagType maps a Coral API tag_type to a human-readable display name.
