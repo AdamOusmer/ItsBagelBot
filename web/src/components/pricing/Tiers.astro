@@ -413,6 +413,7 @@ const enterpriseFeatures = [
 </style>
 
 <script>
+    import { bindOnce } from '../../script/bind';
     import { prefersReducedMotion } from '../../script/motion';
 
     /* Price count-up when the amount scrolls into view */
@@ -434,22 +435,13 @@ const enterpriseFeatures = [
         requestAnimationFrame(tick);
     }
 
-    function setupCountUp() {
-        const els = document.querySelectorAll<HTMLElement>('[data-count-up]');
-        if (!els.length) return;
-        const obs = new IntersectionObserver((entries) => {
-            entries.forEach((entry) => {
-                if (!entry.isIntersecting) return;
-                const el = entry.target as HTMLElement;
-                if (el.dataset.counted) return;
-                el.dataset.counted = 'true';
-                obs.unobserve(el);
-                runCountUp(el);
-            });
-        }, { threshold: 0.2 });
-        els.forEach((el) => obs.observe(el));
-    }
+    const inView = new IntersectionObserver((entries, obs) => {
+        entries.forEach((entry) => {
+            if (!entry.isIntersecting) return;
+            obs.unobserve(entry.target);
+            runCountUp(entry.target as HTMLElement);
+        });
+    }, { threshold: 0.2 });
 
-    setupCountUp();
-    document.addEventListener('astro:page-load', setupCountUp);
+    bindOnce('[data-count-up]', (el) => inView.observe(el));
 </script>

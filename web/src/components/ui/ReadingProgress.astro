@@ -37,8 +37,11 @@
 </style>
 
 <script>
+    import { bindOnce } from '../../script/bind';
+
     /* One shared scroll listener for the lifetime of the tab; the fill element
-       is re-queried on astro:page-load because the router swaps the DOM. */
+       is re-bound after a router swap by bindOnce, which fires on every
+       astro:page-load and skips a bar that survived the swap. */
     let fill: HTMLElement | null = null;
     let ticking = false;
 
@@ -57,13 +60,11 @@
         requestAnimationFrame(update);
     }
 
-    function setup() {
-        fill = document.querySelector<HTMLElement>('[data-reading-progress]');
-        update();
-    }
-
     window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', onScroll, { passive: true });
-    setup();
-    document.addEventListener('astro:page-load', setup);
+
+    bindOnce('[data-reading-progress]', (root) => {
+        fill = root;
+        update();
+    });
 </script>

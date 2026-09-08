@@ -528,21 +528,17 @@ const t = useTranslations(lang);
 </style>
 
 <script>
+    import { bindOnce } from '../../script/bind';
     import { reduceMotion } from '../../script/motion';
 
     /* Poll bars fill the first time the card scrolls into view */
-    function setupPolls() {
-        const polls = document.querySelectorAll<HTMLElement>('[data-qw-poll]');
-        if (!polls.length) return;
-        const io = new IntersectionObserver((entries, obs) => {
-            entries.forEach((entry) => {
-                if (!entry.isIntersecting) return;
-                entry.target.classList.add('is-live');
-                obs.unobserve(entry.target);
-            });
-        }, { threshold: 0.4 });
-        polls.forEach((el) => io.observe(el));
-    }
+    const pollsIn = new IntersectionObserver((entries, obs) => {
+        entries.forEach((entry) => {
+            if (!entry.isIntersecting) return;
+            entry.target.classList.add('is-live');
+            obs.unobserve(entry.target);
+        });
+    }, { threshold: 0.4 });
 
     /* Giveaway name shuffles, then lands. Loops slowly while visible. */
     const NAMES = ['night_owl_77', 'gg_beans', 'moth_lamp', 'soupdream', 'tiny_cactus', 'pixel_pal'];
@@ -564,37 +560,28 @@ const t = useTranslations(lang);
         requestAnimationFrame(tick);
     }
 
-    function setupWinners() {
-        document.querySelectorAll<HTMLElement>('[data-qw-winner]').forEach((el) => {
-            if (el.dataset.qwReady === 'true') return;
-            el.dataset.qwReady = 'true';
-            if (reduceMotion.matches) return;
+    function setupWinner(el: HTMLElement) {
+        if (reduceMotion.matches) return;
 
-            let visible = false;
-            let i = 0;
-            let timer = 0;
+        let visible = false;
+        let i = 0;
+        let timer = 0;
 
-            function loop() {
-                window.clearTimeout(timer);
-                if (!visible || document.hidden) return;
-                shuffleTo(el, NAMES[i++ % NAMES.length]);
-                timer = window.setTimeout(loop, 4200);
-            }
+        function loop() {
+            window.clearTimeout(timer);
+            if (!visible || document.hidden) return;
+            shuffleTo(el, NAMES[i++ % NAMES.length]);
+            timer = window.setTimeout(loop, 4200);
+        }
 
-            const io = new IntersectionObserver(([entry]) => {
-                visible = entry.isIntersecting;
-                if (visible) loop();
-                else window.clearTimeout(timer);
-            }, { rootMargin: '40px' });
-            io.observe(el);
-        });
+        const io = new IntersectionObserver(([entry]) => {
+            visible = entry.isIntersecting;
+            if (visible) loop();
+            else window.clearTimeout(timer);
+        }, { rootMargin: '40px' });
+        io.observe(el);
     }
 
-    function setup() {
-        setupPolls();
-        setupWinners();
-    }
-
-    setup();
-    document.addEventListener('astro:page-load', setup);
+    bindOnce('[data-qw-poll]', (el) => pollsIn.observe(el));
+    bindOnce('[data-qw-winner]', setupWinner);
 </script>

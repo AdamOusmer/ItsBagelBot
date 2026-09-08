@@ -191,6 +191,8 @@ const t = useTranslations(lang);
 </style>
 
 <script>
+    import { bindOnce } from '../../script/bind';
+
     /* Clicking the cue is the same gesture as scrolling one viewport: it hands
        off to the shared Lenis instance so the smooth-scroll easing matches a
        real wheel scroll, and falls back to native scrolling if Lenis has not
@@ -212,12 +214,5 @@ const t = useTranslations(lang);
         window.scrollTo({ top, behavior: 'smooth' });
     }
 
-    function setup() {
-        document
-            .querySelectorAll<HTMLElement>('[data-scroll-cue]')
-            .forEach((el) => el.addEventListener('click', onClick));
-    }
-
-    setup();
-    document.addEventListener('astro:page-load', setup);
+    bindOnce('[data-scroll-cue]', (el) => el.addEventListener('click', onClick));
 </script>

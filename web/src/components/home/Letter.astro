@@ -208,6 +208,7 @@ const t = useTranslations(lang);
 </style>
 
 <script>
+    import { bindOnce } from '../../script/bind';
     import { reduceMotion } from '../../script/motion';
 
     /* Stamp click → sesame burst. Reuses the global .sesame-seed styles. */
@@ -226,19 +227,12 @@ const t = useTranslations(lang);
         }
     }
 
-    function setup() {
-        document.querySelectorAll<HTMLButtonElement>('[data-letter-stamp]').forEach((stamp) => {
-            if (stamp.dataset.stampReady === 'true') return;
-            stamp.dataset.stampReady = 'true';
-            stamp.addEventListener('click', (event) => {
-                stamp.classList.remove('is-stamped');
-                void stamp.offsetWidth; /* restart the press animation */
-                stamp.classList.add('is-stamped');
-                sprinkle(event.clientX || 0, event.clientY || 0);
-            });
+    bindOnce('[data-letter-stamp]', (stamp) => {
+        stamp.addEventListener('click', (event) => {
+            stamp.classList.remove('is-stamped');
+            void stamp.offsetWidth; /* restart the press animation */
+            stamp.classList.add('is-stamped');
+            sprinkle(event.clientX || 0, event.clientY || 0);
         });
-    }
-
-    setup();
-    document.addEventListener('astro:page-load', setup);
+    });
 </script>

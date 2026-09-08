@@ -177,6 +177,7 @@ const classes = ["animated-button", className];
 </style>
 
 <script>
+    import { bindOnce } from '../../../script/bind';
     import { prefersReducedMotion } from '../../../script/motion';
 
     import {animate, stagger} from 'motion';
@@ -189,9 +190,6 @@ const classes = ["animated-button", className];
     const cleanups: Array<() => void> = [];
 
     function setupAnimatedButton(button: HTMLElement) {
-        if (button.dataset.animatedButtonReady === 'true') return;
-        button.dataset.animatedButtonReady = 'true';
-
         const textWords = Array.from(button.querySelectorAll<HTMLElement>('.animated-button__text span'));
         const cloneWords = Array.from(button.querySelectorAll<HTMLElement>('.animated-button__clone span'));
         const reduceMotion = prefersReducedMotion();
@@ -270,15 +268,13 @@ const classes = ["animated-button", className];
         button.addEventListener('blur', () => setActive(false));
     }
 
-    function setupAnimatedButtons() {
-        document.querySelectorAll<HTMLElement>('[data-animated-button]').forEach(setupAnimatedButton);
-    }
-
+    // Teardown of our own: each button parks a hover-animation stopper in
+    // `cleanups`, and those must run before the router tears the DOM down.
+    // bindOnce deliberately owns no unbind, so this listener stays.
     document.addEventListener('astro:before-preparation', () => {
         cleanups.forEach(fn => fn());
         cleanups.length = 0;
     });
 
-    setupAnimatedButtons();
-    document.addEventListener('astro:page-load', setupAnimatedButtons);
+    bindOnce('[data-animated-button]', setupAnimatedButton);
 </script>
