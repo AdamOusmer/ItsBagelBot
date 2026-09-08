@@ -29,22 +29,15 @@ defmodule Ingress.AdminRpc do
   broadcaster concentrated on one shard even when aggregate load looks fine.
   """
 
-  use Gnat.Server
-  require Logger
+  use Ingress.RpcServer, log: "admin rpc"
 
-  alias Ingress.{Capacity, JSON, ShardInventory, ShardScaler}
+  alias Ingress.{Capacity, JSON, ShardInventory, ShardScaler, Singleton}
 
   @call_timeout_ms 2_000
 
   @impl true
   def request(%{body: _body}) do
     {:reply, JSON.encode(snapshot())}
-  end
-
-  @impl true
-  def error(_message, error) do
-    Logger.error("admin rpc error: #{inspect(error)}")
-    :ok
   end
 
   def snapshot do
@@ -115,18 +108,15 @@ defmodule Ingress.AdminRpc do
     do: %{shard_id: shard_id, state: "unregistered", managed: false}
 
   defp manager_status do
-    case Horde.Registry.lookup(Ingress.Registry, :conduit_manager) do
-      [{pid, _}] ->
-        try do
-          pid
-          |> GenServer.call(:status, @call_timeout_ms)
-          |> Map.put(:state, "running")
-        catch
-          :exit, _ -> %{state: "unresponsive", node: node(pid)}
-        end
-
-      [] ->
-        %{state: "down"}
+    case Singleton.call(:conduit_manager, :status, @call_timeout_ms, &manager_silence/1) do
+      %{state: _reported} = silence -> silence
+      status -> Map.put(status, :state, "running")
     end
   end
+
+  # A name nobody holds and a name whose owner will not answer are different
+  # states to an operator: the first is a handover or a missing node, the
+  # second is a wedged process on a node worth naming.
+  defp manager_silence(:down), do: %{state: "down"}
+  defp manager_silence({:unresponsive, pid}), do: %{state: "unresponsive", node: node(pid)}
 end

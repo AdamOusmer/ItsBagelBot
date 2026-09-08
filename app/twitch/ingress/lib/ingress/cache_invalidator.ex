@@ -13,8 +13,7 @@ defmodule Ingress.CacheInvalidator do
     * a bare broadcaster ID as the message body
   """
 
-  use Gnat.Server
-  require Logger
+  use Ingress.RpcServer, log: "cache invalidator"
 
   alias Ingress.{BroadcasterCache, JSON}
 
@@ -38,12 +37,6 @@ defmodule Ingress.CacheInvalidator do
         end
     end
 
-    :ok
-  end
-
-  @impl true
-  def error(_message, error) do
-    Logger.error("cache invalidator error: #{inspect(error)}")
     :ok
   end
 end

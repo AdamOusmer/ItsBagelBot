@@ -138,7 +138,7 @@ defmodule Ingress.Squash do
     # The sweep may have closed this generation after observe/3 read the ETS
     # row but before this cast arrived. Emit that sender as a one-item cohort
     # instead of creating an orphan that can never be swept.
-    if current_generation?(state.table, key, generation) do
+    if current?(state.table, key, :any, generation) do
       collect_duplicate(cohort_key, key, generation, base, sender, state)
     else
       emit(%{base: base, senders: [sender], count: 1}, state)
@@ -205,7 +205,7 @@ defmodule Ingress.Squash do
       Enum.reduce(expired, state.cohorts, fn {key, expires_at, generation}, acc ->
         # The exact generation check prevents an old sweep result from erasing
         # a newer window installed while the select was running.
-        if current_entry?(state.table, key, expires_at, generation) do
+        if current?(state.table, key, expires_at, generation) do
           :ets.delete(state.table, key)
 
           case Map.pop(acc, {key, generation}) do
@@ -343,17 +343,15 @@ defmodule Ingress.Squash do
     {base, sender}
   end
 
-  defp current_generation?(table, key, generation) do
+  # Is the row under `key` still the one the caller staged? `:any` accepts the
+  # live generation whatever its expiry (the cast path, which never saw one);
+  # a concrete stamp pins the exact window (the sweep path, so a stale select
+  # result cannot erase a newer window installed while it ran). One lookup with
+  # an optional pin, rather than two that differ by one pattern variable.
+  defp current?(table, key, expires_at, generation) do
     case :ets.lookup(table, key) do
-      [{^key, _expires_at, ^generation}] -> true
-      _ -> false
-    end
-  end
-
-  defp current_entry?(table, key, expires_at, generation) do
-    case :ets.lookup(table, key) do
-      [{^key, ^expires_at, ^generation}] -> true
-      _ -> false
+      [{^key, stored, ^generation}] -> expires_at == :any or stored == expires_at
+      _stale_or_absent -> false
     end
   end
 

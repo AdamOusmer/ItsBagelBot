@@ -4,7 +4,7 @@
 defmodule Ingress.Nats.Publisher.WireTest do
   # async: false — a wire context owns a named ETS table, and these cases drive
   # the same shard fixtures the collector suites use.
-  use ExUnit.Case, async: false
+  use Ingress.PublisherCase, async: false
 
   alias Ingress.Config.Publish, as: PublishConfig
   alias Ingress.Nats.CohortSender
@@ -16,38 +16,9 @@ defmodule Ingress.Nats.Publisher.WireTest do
   @rejected ~s({"error":{"code":503,"description":"no responders"}})
   @malformed "truncated"
 
-  # Both fake connections a wire is exercised against, told apart by one option
-  # rather than by a second copy of the GenServer boilerplate:
-  #
-  #   * the default answers every publish and forwards it to the test process;
-  #   * `stalled: true` is alive, connected, and never answers — the wedged
-  #     socket write (TLS renegotiation, a full kernel send buffer, the
-  #     server's slow-consumer write deadline) that Gnat's own 5s call default
-  #     would sit through. It forwards nothing, so a stalled connection cannot
-  #     put a message in a mailbox a later refute_receive reads.
-  defmodule FakeGnat do
-    use GenServer
-
-    def start_link(opts),
-      do: GenServer.start_link(__MODULE__, opts, name: Keyword.fetch!(opts, :name))
-
-    @impl true
-    def init(opts),
-      do: {:ok, %{test: Keyword.get(opts, :test), stalled: Keyword.get(opts, :stalled, false)}}
-
-    @impl true
-    def handle_call({:pub, _topic, _message, _opts}, _from, %{stalled: true} = state),
-      do: {:noreply, state}
-
-    def handle_call({:pub, topic, message, opts}, _from, state) do
-      send(state.test, {:pub, topic, message, opts})
-      {:reply, :ok, state}
-    end
-  end
-
   setup do
     conn = :gnat_bus_pub_wire_test
-    start_supervised!({FakeGnat, [name: conn, test: self()]})
+    start_fake_gnat(conn)
 
     {token, prefix} = AckPath.new_inbox()
     senders = CohortSender.start(2)
@@ -100,7 +71,7 @@ defmodule Ingress.Nats.Publisher.WireTest do
       conn = :gnat_bus_pub_wire_stalled
       # Own child id: the answering connection from setup is already supervised
       # under the module's default one.
-      start_supervised!({FakeGnat, [name: conn, stalled: true]}, id: :stalled_gnat)
+      start_fake_gnat(conn, mode: :stalled, id: :stalled_gnat)
 
       started = System.monotonic_time(:millisecond)
       opts = [reply_to: AckPath.single(wire.prefix, 1), headers: [{"traceparent", "00-a-b-01"}]]
@@ -510,8 +481,8 @@ defmodule Ingress.Nats.Publisher.WireTest do
   # of the batch or dedup headers the atomic wire stamps.
   defp require_dedup_free_single(opts) do
     assert Keyword.fetch!(opts, :reply_to) =~ ".s."
-    refute headers(opts)["nats-batch-id"]
-    refute headers(opts)["nats-msg-id"]
+    refute headers_map(opts)["nats-batch-id"]
+    refute headers_map(opts)["nats-msg-id"]
   end
 
   # Every dedup-free drop resolves the same way, whichever wire and whichever
@@ -550,11 +521,4 @@ defmodule Ingress.Nats.Publisher.WireTest do
 
   defp tagged?(nil, _tag), do: false
   defp tagged?(reply, tag), do: String.contains?(reply, tag)
-
-  # Gnat preps headers into cowlib iodata before the connection call.
-  defp headers(opts) do
-    for [key, ": ", value, "\r\n"] <- Keyword.get(opts, :headers, []), into: %{} do
-      {String.downcase(key), IO.iodata_to_binary(value)}
-    end
-  end
 end

@@ -11,7 +11,7 @@ defmodule Ingress.ConduitManagerTest do
       pid = self()
 
       assert {:started, ^pid} =
-               ConduitManager.start_until_free(fn -> {:started, pid} end, deadline(1_000), 5)
+               ConduitManager.start_until_free(fn -> {:started, pid} end, 1_000, fake_clock())
     end
 
     test "retries a blocked start until the released name has propagated" do
@@ -26,7 +26,7 @@ defmodule Ingress.ConduitManagerTest do
         if :counters.get(calls, 1) < 3, do: :blocked, else: {:started, pid}
       end
 
-      assert {:started, ^pid} = ConduitManager.start_until_free(start_fun, deadline(1_000), 5)
+      assert {:started, ^pid} = ConduitManager.start_until_free(start_fun, 1_000, fake_clock())
       assert :counters.get(calls, 1) == 3
     end
 
@@ -39,11 +39,24 @@ defmodule Ingress.ConduitManagerTest do
       end
 
       assert {:error, :name_release_timeout} =
-               ConduitManager.start_until_free(start_fun, deadline(30), 5)
+               ConduitManager.start_until_free(start_fun, 30, fake_clock())
 
-      assert :counters.get(calls, 1) > 1
+      # 30 ms window polled every 5 ms: attempts at 0..30 inclusive.
+      assert :counters.get(calls, 1) == 7
     end
   end
 
-  defp deadline(ms), do: System.monotonic_time(:millisecond) + ms
+  # The retry loop is a race against wall-clock, so under real time a loaded
+  # machine can blow the whole window on the first attempt and the give-up test
+  # sees a single call. This clock only advances when the loop sleeps, which
+  # makes the attempt count a pure function of window / poll interval.
+  defp fake_clock do
+    ticks = :counters.new(1, [])
+
+    [
+      poll_ms: 5,
+      now_fun: fn -> :counters.get(ticks, 1) end,
+      sleep_fun: fn ms -> :counters.add(ticks, 1, ms) end
+    ]
+  end
 end

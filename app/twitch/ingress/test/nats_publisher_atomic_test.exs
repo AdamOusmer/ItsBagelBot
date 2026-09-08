@@ -5,55 +5,20 @@ defmodule Ingress.Nats.PublisherAtomicTest do
   # async: false — the publisher uses a named process, a named ETS table and a
   # global persistent_term context, so it cannot share the VM with a parallel
   # instance of itself.
-  use ExUnit.Case, async: false
-
-  alias Ingress.Nats.Publisher
-
-  defmodule FakeGnat do
-    use GenServer
-
-    def start_link(opts),
-      do: GenServer.start_link(__MODULE__, opts, name: Keyword.fetch!(opts, :name))
-
-    def init(opts), do: {:ok, %{test: Keyword.fetch!(opts, :test), sid: 0}}
-
-    def handle_call({:sub, _receiver, _topic, _opts}, _from, state) do
-      {:reply, {:ok, state.sid + 1}, %{state | sid: state.sid + 1}}
-    end
-
-    def handle_call({:pub, topic, message, opts}, _from, state) do
-      send(state.test, {:pub, topic, message, opts})
-      {:reply, :ok, state}
-    end
-  end
+  use Ingress.PublisherCase, async: false
 
   setup do
     conn = :gnat_bus_pub_atomic_test
 
-    overrides = [
+    put_env(
       publish_wire: :atomic,
       publish_batch_size: 3,
       publish_batch_wait_ms: 50,
       publish_batch_inflight: 4
-    ]
+    )
 
-    previous = Enum.map(overrides, fn {key, _} -> {key, Application.get_env(:ingress, key)} end)
-    Enum.each(overrides, fn {key, value} -> Application.put_env(:ingress, key, value) end)
-
-    start_supervised!({FakeGnat, [name: conn, test: self()]})
-    start_supervised!({Publisher, [index: 0, conn: conn]})
-    :persistent_term.put({Publisher, :n}, 1)
-
-    on_exit(fn ->
-      :persistent_term.erase({Publisher, :n})
-
-      Enum.each(previous, fn
-        {key, nil} -> Application.delete_env(:ingress, key)
-        {key, value} -> Application.put_env(:ingress, key, value)
-      end)
-    end)
-
-    %{publisher: Publisher.process_name(0), ctx: :persistent_term.get({Publisher, :ctx, 0})}
+    start_fake_gnat(conn)
+    start_publisher(conn)
   end
 
   defp enqueue_cohort do
@@ -69,14 +34,6 @@ defmodule Ingress.Nats.PublisherAtomicTest do
     for _ <- 1..3 do
       assert_receive {:pub, _topic, _json, opts}, 500
       opts
-    end
-  end
-
-  # Gnat preps headers into cowlib iodata before the connection call; decode
-  # them the same way the single-wire publisher test does.
-  defp headers_map(opts) do
-    for [key, ": ", value, "\r\n"] <- Keyword.get(opts, :headers, []), into: %{} do
-      {String.downcase(key), IO.iodata_to_binary(value)}
     end
   end
 

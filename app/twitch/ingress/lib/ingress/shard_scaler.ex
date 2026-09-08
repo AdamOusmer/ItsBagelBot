@@ -40,11 +40,17 @@ defmodule Ingress.ShardScaler do
   require Logger
 
   alias Ingress.Config.Twitch, as: TwitchConfig
-  alias Ingress.Metrics
+  alias Ingress.{Metrics, Singleton}
   # --- tunables ---------------------------------------------------------------
 
   # How often the autoscaler evaluates load.
   @autoscale_interval_ms 30_000
+  # Every caller here is a console round-trip or a convergence tick, both of
+  # which prefer the config-floor fallback over waiting on a wedged singleton.
+  @call_timeout_ms 2_000
+  # A shard answers its own status; the sample already runs under a 1.5s task
+  # timeout, so this is the tighter of the two.
+  @shard_timeout_ms 1_000
   # --- public API ------------------------------------------------------------
 
   def start_link(_opts) do
@@ -78,16 +84,9 @@ defmodule Ingress.ShardScaler do
   """
   @spec fetch_desired() :: {:ok, non_neg_integer(), pid()} | :error
   def fetch_desired do
-    case Horde.Registry.lookup(Ingress.Registry, :shard_scaler) do
-      [{pid, _}] ->
-        try do
-          {:ok, GenServer.call(pid, :desired, 2_000), pid}
-        catch
-          :exit, _ -> :error
-        end
-
-      [] ->
-        :error
+    with {:ok, pid} <- Singleton.lookup(:shard_scaler),
+         {:ok, count} <- Singleton.safe_call(pid, :desired, @call_timeout_ms) do
+      {:ok, count, pid}
     end
   end
 
@@ -112,17 +111,7 @@ defmodule Ingress.ShardScaler do
   """
   @spec status() :: map()
   def status do
-    case Horde.Registry.lookup(Ingress.Registry, :shard_scaler) do
-      [{pid, _}] ->
-        try do
-          GenServer.call(pid, :status, 2_000)
-        catch
-          :exit, _ -> fallback_status()
-        end
-
-      [] ->
-        fallback_status()
-    end
+    Singleton.call(:shard_scaler, :status, @call_timeout_ms, fn _reason -> fallback_status() end)
   end
 
   # --- GenServer callbacks ---------------------------------------------------
@@ -200,17 +189,7 @@ defmodule Ingress.ShardScaler do
   # --- private ---------------------------------------------------------------
 
   defp call_singleton(msg) do
-    case Horde.Registry.lookup(Ingress.Registry, :shard_scaler) do
-      [{pid, _}] ->
-        try do
-          GenServer.call(pid, msg, 2_000)
-        catch
-          :exit, _ -> {:error, :not_running}
-        end
-
-      [] ->
-        {:error, :not_running}
-    end
+    Singleton.call(:shard_scaler, msg, @call_timeout_ms, fn _reason -> {:error, :not_running} end)
   end
 
   # min_shards: one per node currently visible in the cluster (self + peers).
@@ -308,20 +287,7 @@ defmodule Ingress.ShardScaler do
       per_shard_results =
         shard_ids
         |> Task.async_stream(
-          fn shard_id ->
-            case Horde.Registry.lookup(Ingress.Registry, {:shard, shard_id}) do
-              [{pid, _}] ->
-                try do
-                  status = Ingress.ShardSession.status(pid, 1_000)
-                  {:ok, Map.get(status, :load, 0)}
-                catch
-                  :exit, _ -> :error
-                end
-
-              [] ->
-                :error
-            end
-          end,
+          &sample_shard/1,
           max_concurrency: 8,
           timeout: 1_500,
           on_timeout: :kill_task
@@ -333,6 +299,15 @@ defmodule Ingress.ShardScaler do
         end)
 
       Ingress.ShardScaler.Policy.summarize_sample(expected, per_shard_results)
+    end
+  end
+
+  # `:error` is both "no such shard" and "the shard did not answer": the policy
+  # counts either as an unresponsive slot.
+  defp sample_shard(shard_id) do
+    case Singleton.call({:shard, shard_id}, :status, @shard_timeout_ms, fn _reason -> :error end) do
+      %{} = status -> {:ok, Map.get(status, :load, 0)}
+      :error -> :error
     end
   end
 

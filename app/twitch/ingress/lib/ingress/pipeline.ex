@@ -114,11 +114,7 @@ defmodule Ingress.Pipeline do
     # watching chat/follows/subs/cheers also see the channel go live without
     # subscribing to the live lane. The stream lane is unconditional; the event
     # lane is whatever the broadcaster's status resolves to.
-    event_lane =
-      case broadcaster_id(event) do
-        nil -> :standard
-        id -> BroadcasterCache.lane(id)
-      end
+    event_lane = event_lane(event)
 
     # Both copies of a live event are the same document but for `lane`, so the
     # shared members are encoded once here and each copy prefixes its own lane.
@@ -167,11 +163,7 @@ defmodule Ingress.Pipeline do
   end
 
   defp do_route(%{"subscription" => %{"type" => type}, "event" => event}, meta, hot) do
-    lane =
-      case broadcaster_id(event) do
-        nil -> :standard
-        id -> BroadcasterCache.lane(id)
-      end
+    lane = event_lane(event)
 
     case lane do
       :drop ->
@@ -205,6 +197,15 @@ defmodule Ingress.Pipeline do
       chatter_id != nil and chatter_id in special_user_ids -> :special
       String.starts_with?(String.trim_leading(text), "!") -> :command
       true -> :chat
+    end
+  end
+
+  # The broadcaster's own lane. An event that names no broadcaster cannot be
+  # resolved to one, and rides the standard lane rather than being dropped.
+  defp event_lane(event) do
+    case broadcaster_id(event) do
+      nil -> :standard
+      id -> BroadcasterCache.lane(id)
     end
   end
 
