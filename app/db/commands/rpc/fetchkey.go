@@ -7,11 +7,6 @@ import (
 	"context"
 	"errors"
 	"strconv"
-	"time"
-
-	"github.com/nats-io/nats.go"
-	"github.com/newrelic/go-agent/v3/newrelic"
-	"go.uber.org/zap"
 
 	"ItsBagelBot/app/db/commands/repository"
 	fetchkeyrpc "ItsBagelBot/internal/domain/rpc/fetchkey"
@@ -26,31 +21,14 @@ import (
 // Unpack failure is terminal and logged with user_id+label only. A no-op when
 // key custody is disabled (nil packer): the reply would always be an error,
 // so the subject simply does not exist.
-// FetchKeySubscription bundles everything the fetch-key RPC subscription
-// needs: the transport, the custody-backed repo answering it, and the wire
-// coordinates. One struct beats six positional arguments that only ever
-// travel together.
-type FetchKeySubscription struct {
-	NC         *nats.Conn
-	Repo       *repository.Fetches
-	Subject    string
-	QueueGroup string
-	App        *newrelic.Application
-	Log        *zap.Logger
-}
-
-// SubscribeFetchKey serves the internal decrypt RPC gossip calls just before
-// each keyed fetch. Custody-disabled is a quiet no-op: without a keyset the
-// subject simply does not exist.
-func SubscribeFetchKey(s FetchKeySubscription) error {
-	if s.Repo == nil || !s.Repo.CustodyEnabled() {
-		s.Log.Warn("fetch key rpc disabled: key custody unavailable")
+func SubscribeFetchKey(w Wiring, subject string) error {
+	if w.Fetches == nil || !w.Fetches.CustodyEnabled() {
+		w.Log.Warn("fetch key rpc disabled: key custody unavailable")
 		return nil
 	}
 
-	k := &fetchKeyRPC{repo: s.Repo}
-	return bus.QueueSubscribeJSON[fetchkeyrpc.KeyGetRequest, fetchkeyrpc.KeyGetReply](
-		s.NC, s.Subject, s.QueueGroup, 2*time.Second, s.App, s.Log, k.handleGet)
+	k := &fetchKeyRPC{repo: w.Fetches}
+	return bus.Serve(w.RPCWiring, subject, k.handleGet)
 }
 
 type fetchKeyRPC struct {

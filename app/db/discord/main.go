@@ -51,12 +51,9 @@ func main() {
 
 	prefix := env.Get("NATS_DISCORD_DATA_SUBJECT_PREFIX", "bagel.rpc.discord-data")
 	err := rpc.Subscribe(rpc.Wiring{
-		NC:         nc,
-		Repo:       repository.New(client, driver.Dialect()),
-		Prefix:     prefix,
-		QueueGroup: queueGroup,
-		App:        core.NR,
-		Log:        log,
+		RPCWiring: bus.RPCWiring{NC: nc, App: core.NR, Queue: queueGroup, Log: log},
+		Repo:      repository.New(client, driver.Dialect()),
+		Prefix:    prefix,
 	})
 	if err != nil {
 		log.Fatal("failed to subscribe discord-data rpc", zap.Error(err))

@@ -20,6 +20,7 @@ import (
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/internal/moderation"
 	"ItsBagelBot/pkg/bus"
+	"ItsBagelBot/pkg/bus/consumers"
 	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/monitor"
@@ -46,8 +47,8 @@ func registerConsumers(ctx context.Context, nrApp *newrelic.Application, repo *r
 		subject string
 		handle  func(*bus.Message) error
 	}{
-		{"command changes", broadcast, data.SubjectCommandChanged, invalidateOnChange(repo)},
-		{"fetch changes", broadcast, data.SubjectFetchChanged, invalidateFetchOnChange(fetches)},
+		{"command changes", broadcast, data.SubjectCommandChanged, consumers.OnChangeInvalidate(changedUserID, repo.Invalidate)},
+		{"fetch changes", broadcast, data.SubjectFetchChanged, consumers.OnChangeInvalidate(fetchChangedUserID, fetches.Invalidate)},
 		{"command used events", grouped, data.SubjectCommandUsed, recordUse(repo, log)},
 		{"user deleted events", grouped, data.SubjectUserDeleted, deleteAllForUser(repo, fetches, log)},
 	}
@@ -59,29 +60,12 @@ func registerConsumers(ctx context.Context, nrApp *newrelic.Application, repo *r
 	return nil
 }
 
-// invalidateOnChange drops the cached view of the changed user.
-func invalidateOnChange(repo *repository.Commands) func(*bus.Message) error {
-	return func(msg *bus.Message) error {
-		var dto data.CommandChangedDTO
-		if err := codec.Unmarshal(msg.Payload, &dto); err != nil {
-			return err
-		}
-		repo.Invalidate(dto.UserID)
-		return nil
-	}
-}
+// changedUserID and fetchChangedUserID read the account off a change event.
+// Go cannot reach a field through a type parameter, so the shared
+// invalidation consumer takes these instead of one reflective accessor.
+func changedUserID(dto data.CommandChangedDTO) uint64 { return dto.UserID }
 
-// invalidateFetchOnChange drops the cached fetch view of the changed user.
-func invalidateFetchOnChange(repo *repository.Fetches) func(*bus.Message) error {
-	return func(msg *bus.Message) error {
-		var dto data.FetchChangedDTO
-		if err := codec.Unmarshal(msg.Payload, &dto); err != nil {
-			return err
-		}
-		repo.Invalidate(dto.UserID)
-		return nil
-	}
-}
+func fetchChangedUserID(dto data.FetchChangedDTO) uint64 { return dto.UserID }
 
 // recordUse folds a worker use-counter event into the repo's accumulator. A
 // malformed payload is dropped (nil), not retried.
@@ -99,29 +83,15 @@ func recordUse(repo *repository.Commands, log *zap.Logger) func(*bus.Message) er
 }
 
 // deleteAllForUser removes every command, fetch definition and sealed key of
-// a deleted account. Malformed or invalid payloads are dropped; a DB failure
-// is returned for retry.
+// a deleted account. The payload guards and the log line are shared with the
+// other data services; only the two sweeps are this service's own.
 func deleteAllForUser(repo *repository.Commands, fetches *repository.Fetches, log *zap.Logger) func(*bus.Message) error {
-	return func(msg *bus.Message) error {
-		log := monitor.TxnLogger(msg.Context(), log)
-		var dto data.UserDeletedDTO
-		if err := codec.Unmarshal(msg.Payload, &dto); err != nil {
-			log.Warn("commands: bad user_deleted payload", zap.Error(err))
-			return nil
-		}
-		if err := validate.UserID(dto.UserID); err != nil {
-			log.Warn("commands: invalid user_id in user_deleted", zap.Error(err))
-			return nil
-		}
-		if err := repo.DeleteAllForUser(msg.Context(), dto.UserID); err != nil {
+	return consumers.OnUserDeleted(serviceName, log, func(ctx context.Context, userID uint64) error {
+		if err := repo.DeleteAllForUser(ctx, userID); err != nil {
 			return err
 		}
-		if err := fetches.DeleteAllForUser(msg.Context(), dto.UserID); err != nil {
-			return err
-		}
-		log.Info("commands: deleted all for user", zap.Uint64("user_id", dto.UserID))
-		return nil
-	}
+		return fetches.DeleteAllForUser(ctx, userID)
+	})
 }
 
 func main() {
@@ -157,35 +127,32 @@ func main() {
 		log.Fatal("failed to subscribe to events", zap.Error(err))
 	}
 
+	wiring := rpc.Wiring{
+		RPCWiring: bus.RPCWiring{NC: n.RPC, App: core.NR, Queue: queueGroup, Log: log},
+		Commands:  repo,
+		Fetches:   fetches,
+	}
+
 	projectionSubject := env.Get("NATS_INTERNAL_PROJECTION_COMMANDS_SUBJECT", "bagel.rpc.internal.projection.commands.get")
-	if err := rpc.SubscribeProjection(n.RPC, repo, projectionSubject, queueGroup, core.NR, log); err != nil {
+	if err := rpc.SubscribeProjection(wiring, projectionSubject); err != nil {
 		log.Fatal("failed to subscribe projection rpc", zap.Error(err))
 	}
 
 	fetchesProjectionSubject := env.Get("NATS_INTERNAL_PROJECTION_COMMANDS_FETCHES_SUBJECT", "bagel.rpc.internal.projection.commands.fetches.get")
-	if err := rpc.SubscribeFetchProjection(n.RPC, fetches, fetchesProjectionSubject, queueGroup, core.NR, log); err != nil {
+	if err := rpc.SubscribeFetchProjection(wiring, fetchesProjectionSubject); err != nil {
 		log.Fatal("failed to subscribe fetches projection rpc", zap.Error(err))
 	}
 
 	commandsPrefix := env.Get("NATS_COMMANDS_SUBJECT_PREFIX", "bagel.rpc.commands")
-	if err := rpc.SubscribeDashboard(n.RPC, repo, commandsPrefix, queueGroup, core.NR, log); err != nil {
+	if err := rpc.SubscribeDashboard(wiring, commandsPrefix); err != nil {
 		log.Fatal("failed to subscribe dashboard rpc", zap.Error(err))
 	}
-	if err := rpc.SubscribeFetchDashboard(rpc.FetchDashboardWiring{
-		NC: n.RPC, Repo: fetches, Prefix: commandsPrefix, QueueGroup: queueGroup, App: core.NR, Log: log,
-	}); err != nil {
+	if err := rpc.SubscribeFetchDashboard(wiring, commandsPrefix); err != nil {
 		log.Fatal("failed to subscribe fetch dashboard rpc", zap.Error(err))
 	}
 
 	fetchKeySubject := env.Get("NATS_INTERNAL_FETCH_KEY_SUBJECT_PREFIX", "bagel.rpc.internal.commands.fetchkey") + ".get"
-	if err := rpc.SubscribeFetchKey(rpc.FetchKeySubscription{
-		NC:         n.RPC,
-		Repo:       fetches,
-		Subject:    fetchKeySubject,
-		QueueGroup: queueGroup,
-		App:        core.NR,
-		Log:        log,
-	}); err != nil {
+	if err := rpc.SubscribeFetchKey(wiring, fetchKeySubject); err != nil {
 		log.Fatal("failed to subscribe fetch key rpc", zap.Error(err))
 	}
 

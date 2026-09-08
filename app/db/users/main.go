@@ -19,7 +19,7 @@ import (
 	"ItsBagelBot/app/db/users/rpc"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/bus"
-	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/bus/consumers"
 	"ItsBagelBot/pkg/crypto"
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/svcboot"
@@ -66,7 +66,10 @@ func main() {
 
 	go expireSubscriptions(ctx, repo, log)
 
-	wiring := rpc.Wiring{NC: nc, Repo: repo, App: core.NR, Queue: queueGroup, Log: log}
+	wiring := rpc.Wiring{
+		RPCWiring: bus.RPCWiring{NC: nc, App: core.NR, Queue: queueGroup, Log: log},
+		Repo:      repo,
+	}
 	subjects := subscribeRPCs(ctx, wiring, client, log)
 	// No lane check: both event subscribers live inside startConsumers, which
 	// hands back only a cleanup func.
@@ -120,7 +123,7 @@ func connectBus(core svcboot.Core) (*nats.Conn, bus.Publisher) {
 func startConsumers(ctx context.Context, natsURL string, repo *repository.Users, log *zap.Logger) func() {
 	broadcast, err := bus.NewSubscriber(natsURL, "", log)
 	svcboot.FatalIf(log, err, "failed to connect broadcast subscriber")
-	svcboot.FatalIf(log, bus.Consume(ctx, nil, broadcast, data.SubjectUserChanged, invalidateOnUserChange(repo), log),
+	svcboot.FatalIf(log, bus.Consume(ctx, nil, broadcast, data.SubjectUserChanged, consumers.OnChangeInvalidate(changedUserID, repo.Invalidate), log),
 		"failed to subscribe to user changes")
 
 	grouped, err := bus.NewSubscriber(natsURL, serviceName, log)
@@ -135,17 +138,10 @@ func startConsumers(ctx context.Context, natsURL string, repo *repository.Users,
 	}
 }
 
-// invalidateOnUserChange drops the local cached view for a changed user.
-func invalidateOnUserChange(repo *repository.Users) func(*bus.Message) error {
-	return func(msg *bus.Message) error {
-		var dto data.UserChangedDTO
-		if err := codec.Unmarshal(msg.Payload, &dto); err != nil {
-			return err
-		}
-		repo.Invalidate(dto.UserID)
-		return nil
-	}
-}
+// changedUserID reads the account off a user change event. Go cannot reach a
+// field through a type parameter, so the shared invalidation consumer takes
+// this accessor rather than a reflective one.
+func changedUserID(dto data.UserChangedDTO) uint64 { return dto.UserID }
 
 // rpcSubjects records the subjects the RPC surfaces bound to, for the ready log.
 type rpcSubjects struct {

@@ -61,6 +61,13 @@ type Verb[Req, Rep any] struct {
 	Handle func(context.Context, Req) Rep
 }
 
+// At names one verb's handler. It exists so a verb table reads as a list of
+// (name, handler) pairs with the request and reply types inferred from the
+// handler, instead of repeating the pair of type arguments on every entry.
+func At[Req, Rep any](name string, h func(context.Context, Req) Rep) Verb[Req, Rep] {
+	return Verb[Req, Rep]{Name: name, Handle: h}
+}
+
 // ServeVerbs is the Registry: a service declares its verb table once and this
 // binds every entry under prefix, instead of each service spelling out its own
 // loop over an anonymous struct slice plus the seven-argument subscribe call.
