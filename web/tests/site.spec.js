@@ -298,19 +298,19 @@ test.describe('ItsBagelBot site', () => {
 
     test('active nav route is marked', async ({ page }) => {
         await page.goto('/pricing');
-        await expect(page.locator('nav a.nav-link.is-active[href="/pricing"]')).toHaveCount(1);
+        await expect(page.locator('nav a.nav-link.is-active[href="/pricing/"]')).toHaveCount(1);
     });
 
     test('client route changes always start at the top', async ({ page }) => {
         await page.goto('/');
         await jumpDown(page);
 
-        await page.locator('nav a.nav-link[href="/pricing"]').click();
+        await page.locator('nav a.nav-link[href="/pricing/"]').click();
         await expect(page).toHaveURL(/\/pricing\/?$/);
         await expectPageTop(page);
 
         await jumpDown(page);
-        await page.locator('nav a.nav-link[href="/contact"]').click();
+        await page.locator('nav a.nav-link[href="/contact/"]').click();
         await expect(page).toHaveURL(/\/contact\/?$/);
         await expectPageTop(page);
 
@@ -322,7 +322,7 @@ test.describe('ItsBagelBot site', () => {
     test('decode text animates after client route swaps', async ({ page }) => {
         await page.goto('/');
 
-        await page.locator('nav a.nav-link[href="/pricing"]').click();
+        await page.locator('nav a.nav-link[href="/pricing/"]').click();
         await expect(page).toHaveURL(/\/pricing\/?$/);
 
         await page.waitForFunction(() => {
@@ -345,7 +345,7 @@ test.describe('ItsBagelBot site', () => {
 
         const firstSceneId = await page.evaluate(() => window.__itsbagelbotPreload.activeEncryption.id);
 
-        await page.locator('nav a.nav-link[href="/pricing"]').click();
+        await page.locator('nav a.nav-link[href="/pricing/"]').click();
         await expect(page).toHaveURL(/\/pricing\/?$/);
         await expect(page.locator('#enc-canvas')).toHaveCount(0);
 
@@ -374,12 +374,12 @@ test.describe('guides & command builder', () => {
 
         await expect(page.locator('.phero__title')).toContainText('Learn the bot.');
         await expect(page.locator('.gcard')).toHaveCount(5);
-        await expect(page.locator('.gcard').first()).toHaveAttribute('href', '/guides/getting-started');
-        await expect(page.locator('.gcard').nth(2)).toHaveAttribute('href', '/guides/data-sources');
+        await expect(page.locator('.gcard').first()).toHaveAttribute('href', '/guides/getting-started/');
+        await expect(page.locator('.gcard').nth(2)).toHaveAttribute('href', '/guides/data-sources/');
         await expect(page.locator('.ghub__tool')).toHaveAttribute('href', '/command-builder');
 
         // The Guides nav entry is live and marked active.
-        await expect(page.locator('nav a.nav-link[href="/guides"]')).toHaveAttribute('aria-current', 'page');
+        await expect(page.locator('nav a.nav-link[href="/guides/"]')).toHaveAttribute('aria-current', 'page');
     });
 
     test('guide pages render toc, visuals, and pager', async ({ page }) => {
@@ -395,7 +395,7 @@ test.describe('guides & command builder', () => {
 
         // Pager walks the handbook in both directions; data sources sits after commands.
         await expect(page.locator('.gshell__pager-card')).toHaveCount(2);
-        await expect(page.locator('.gshell__pager-card--next')).toHaveAttribute('href', '/guides/data-sources');
+        await expect(page.locator('.gshell__pager-card--next')).toHaveAttribute('href', '/guides/data-sources/');
     });
 
     test('the response rehearsal expands tokens as you type', async ({ page }) => {
@@ -446,7 +446,7 @@ test.describe('guides & command builder', () => {
         await expect(page.locator('.lang-switch a[hreflang="en"]').first()).toHaveAttribute('href', '/guides/data-sources');
 
         await page.goto('/guides');
-        await expect(page.locator('.lang-switch a[hreflang="fr"]').first()).toHaveAttribute('href', '/fr/guides');
+        await expect(page.locator('.lang-switch a[hreflang="fr"]').first()).toHaveAttribute('href', '/fr/guides/');
     });
 
     test('builder composes a command end to end', async ({ page }) => {
