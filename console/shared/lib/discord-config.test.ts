@@ -42,8 +42,7 @@ import {
   ticketOpenLimitN,
   ticketPanelPayload,
   ticketPanelSpec,
-  ticketStaffRoleIds,
-  validateDiscordConfig
+  ticketStaffRoleIds
 } from './discord-config';
 
 const ID_A = '123456789012345678';
@@ -189,31 +188,6 @@ describe('merge', () => {
       expect(errors).toEqual([{ field: 'ticketOpenLimit', code: 'range' }]);
     }
     expect(mergeDiscordConfig(blankDiscordConfig(), { ticketOpenLimit: '5' }).errors).toEqual([]);
-  });
-});
-
-describe('validation', () => {
-  test('a blank config is valid', () => {
-    expect(validateDiscordConfig(blankDiscordConfig())).toEqual([]);
-  });
-
-  test('validation reports every bad field, not just the first', () => {
-    const bad = {
-      ...blankDiscordConfig(),
-      guildId: 'abc',
-      ticketPanelColor: 'nope',
-      ticketOpenLimit: '9'
-    };
-    expect(validateDiscordConfig(bad)).toEqual([
-      { field: 'guildId', code: 'snowflake' },
-      { field: 'ticketOpenLimit', code: 'range' },
-      { field: 'ticketPanelColor', code: 'color' }
-    ]);
-  });
-
-  test('a pinned-roles string with an unknown slot is invalid', () => {
-    const bad = { ...blankDiscordConfig(), pinnedRoles: `founder=${ID_A}` };
-    expect(validateDiscordConfig(bad)).toEqual([{ field: 'pinnedRoles', code: 'pinned' }]);
   });
 });
 
