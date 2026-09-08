@@ -5,6 +5,7 @@ package gateway
 
 import (
 	"context"
+	"slices"
 	"sync"
 	"time"
 
@@ -80,7 +81,9 @@ const (
 // Valkey being unreachable degrades to the in-memory window rather than
 // blocking a connect: an ingress that cannot reach Valkey must still be able
 // to hold a gateway session, and a budget that is merely per-process is
-// exactly what shipped before this. It says so once, at WARN.
+// exactly what shipped before this. It says so at WARN, and keeps saying it
+// on a schedule for as long as it is true (see degradedWarnEvery): a notice
+// printed once at boot is gone from every window an operator later reads.
 
 // ConnectLog persists the rolling connect window outside this process. The
 // gateway package deliberately knows nothing about Valkey -- handing it a
@@ -153,10 +156,11 @@ type connectBudget struct {
 	// store is the shared window, nil when nothing persists it.
 	store ConnectLog
 	log   *zap.Logger
-	// warnOnce keeps the degraded-to-memory notice to one line. Valkey
-	// failing means it fails on every note and every record, and a per-call
-	// WARN would bury the gateway's own logs under bookkeeping noise.
-	warnOnce sync.Once
+	// warnedAt is when the degraded-to-memory notice last went out, zero
+	// before the first. Valkey failing means it fails on every note and every
+	// record, so the notice is paced rather than printed per call; see
+	// degradedWarnEvery for why it repeats at all.
+	warnedAt time.Time
 
 	// last is when the most recent socket was opened, zero before the first.
 	last time.Time
@@ -180,10 +184,8 @@ func newConnectBudget(store ConnectLog, log *zap.Logger) *connectBudget {
 	return b
 }
 
-// reload replaces the in-memory window with the shared one. It is
-// best-effort in both directions: a store that answers nothing leaves the
-// window exactly as it was, so a Valkey outage can only ever lose history,
-// never invent it.
+// reload folds the shared window into the in-memory one. A store that answers
+// nothing can only ever add history, never delete it.
 func (b *connectBudget) reload() {
 	if b.store == nil {
 		return
@@ -198,8 +200,54 @@ func (b *connectBudget) reload() {
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.attempts = seen
+	b.attempts = mergeWindow(b.attempts, seen)
 	b.prune(now)
+}
+
+// mergeWindow unions the shared window with the local one, oldest first.
+//
+// A union, not a replacement. reload used to overwrite the local window with
+// whatever the store returned, and the comment above it claimed an outage
+// could only lose history. It lost the local half -- the half that bounds the
+// ceiling. A store that answers an honest nothing while still answering (a
+// ZADD that failed under a Valkey failover while Load succeeded, an evicted
+// key) wiped this process's own attempts on every record, so the 800-in-24h
+// ceiling never had a count to trip on. Measured 2026-09-07: 21,575 connects
+// in 24 hours from one process, zero restarts, against that ceiling.
+//
+// The merge is keyed on the millisecond, because that is the resolution the
+// store round trips through (botstatus.ConnectLog scores by UnixMilli), and
+// it keeps the LARGER count on each millisecond rather than one entry per
+// millisecond. Two pods can genuinely connect inside the same millisecond --
+// the accident this whole budget exists to survive -- and the shared set
+// records both under distinct <unixms>-<pod> members, so collapsing a
+// millisecond to one attempt would undercount exactly the case that matters
+// most.
+func mergeWindow(local, shared []time.Time) []time.Time {
+	unmatched := countByMilli(local)
+	for _, at := range shared {
+		unmatched[at.UnixMilli()]--
+	}
+	out := append([]time.Time(nil), shared...)
+	for _, at := range local {
+		ms := at.UnixMilli()
+		if unmatched[ms] <= 0 {
+			continue
+		}
+		unmatched[ms]--
+		out = append(out, at)
+	}
+	slices.SortFunc(out, func(a, b time.Time) int { return a.Compare(b) })
+	return out
+}
+
+// countByMilli tallies how many attempts landed on each millisecond.
+func countByMilli(stamps []time.Time) map[int64]int {
+	n := make(map[int64]int, len(stamps))
+	for _, at := range stamps {
+		n[at.UnixMilli()]++
+	}
+	return n
 }
 
 // persist writes one attempt through to the shared window.
@@ -214,13 +262,40 @@ func (b *connectBudget) persist(at time.Time) {
 	}
 }
 
-// degraded says, once, that the ceiling is now only as good as this
-// process's own memory.
+// degradedWarnEvery paces the degraded-to-memory notice.
+//
+// Once per process was what shipped, and it is not enough. The notice is the
+// only evidence that the ceiling has stopped being shared, and a pod that
+// logged it during boot and then ran for 16 hours left an operator reading a
+// 24h window of connect counts with nothing in that window saying the number
+// was per process rather than per token. 5 minutes is often enough to appear
+// in any window worth reading and rare enough not to bury the gateway's own
+// lines: a failing Valkey fails on every note and every record, which on a
+// reconnect loop is several calls a second.
+const degradedWarnEvery = 5 * time.Minute
+
+// degraded says that the ceiling is now only as good as this process's own
+// memory, and keeps saying it for as long as that stays true.
 func (b *connectBudget) degraded(err error) {
-	b.warnOnce.Do(func() {
-		b.logger().Warn("discord connect budget is not persisted; counting this process only",
-			zap.String("key", ddiscord.BotConnectsKey), zap.Error(err))
-	})
+	if !b.warningDue() {
+		return
+	}
+	b.logger().Warn("discord connect budget is not persisted; counting this process only",
+		zap.String("key", ddiscord.BotConnectsKey), zap.Error(err))
+}
+
+// warningDue reports whether the degraded notice is due, stamping it when it
+// is. Split out so the lock is released before the log write, and so degraded
+// itself stays a single decision followed by a single statement.
+func (b *connectBudget) warningDue() bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	now := b.now()
+	if !b.warnedAt.IsZero() && now.Sub(b.warnedAt) < degradedWarnEvery {
+		return false
+	}
+	b.warnedAt = now
+	return true
 }
 
 func (b *connectBudget) logger() *zap.Logger {
