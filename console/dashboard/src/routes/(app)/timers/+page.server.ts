@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { Actions, PageServerLoad } from './$types';
-import type { TimerDef } from '@bagel/shared';
+import { clampInt, type TimerDef } from '@bagel/shared';
 import {
   readTimers,
   createTimer,
@@ -39,13 +39,6 @@ export const load: PageServerLoad = ({ locals }) =>
     },
     blank: () => ({ enabled: false, timers: [] as TimerDef[] })
   });
-
-// clampInt coerces a form value into a bounded integer.
-function clampInt(raw: unknown, min: number, max: number, dflt: number): number {
-  const n = Math.trunc(Number(raw));
-  if (!Number.isFinite(n)) return dflt;
-  return Math.min(max, Math.max(min, n));
-}
 
 // parseTimer validates and normalizes the posted timer JSON into a full
 // TimerDef. Returns null on anything malformed. The interval is clamped to

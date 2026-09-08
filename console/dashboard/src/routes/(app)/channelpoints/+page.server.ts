@@ -3,7 +3,7 @@
 
 import type { Actions, PageServerLoad } from './$types';
 import type { ChannelPointReward, CounterScope, RewardActionKind, RewardOnRedeem } from '@bagel/shared';
-import { COUNTER_SCOPES, REWARD_ACTIONS, REWARD_ON_REDEEM } from '@bagel/shared';
+import { clampInt, COUNTER_SCOPES, REWARD_ACTIONS, REWARD_ON_REDEEM } from '@bagel/shared';
 import {
   readRewards,
   createReward,
@@ -43,13 +43,6 @@ export const load: PageServerLoad = ({ locals }) =>
     },
     blank: () => ({ enabled: false, rewards: [] as ChannelPointReward[] })
   });
-
-// clampInt coerces a form value into a bounded integer.
-function clampInt(raw: unknown, min: number, max: number, dflt: number): number {
-  const n = Math.trunc(Number(raw));
-  if (!Number.isFinite(n)) return dflt;
-  return Math.min(max, Math.max(min, n));
-}
 
 // parseReward validates and normalizes the posted reward JSON into a full
 // ChannelPointReward. Returns null on anything malformed; the action strings are

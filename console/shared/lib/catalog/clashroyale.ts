@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { ModuleDef } from './module-def';
-import { LINKED_ONLY_FIELD } from './linked-only';
+import { LINKED_ONLY_FIELD } from './shared-fields';
 
 export const CLASHROYALE_MODULE: ModuleDef = 
 {
