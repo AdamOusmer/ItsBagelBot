@@ -5,10 +5,11 @@ package rpc
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"testing"
+
+	"ItsBagelBot/pkg/codec"
 )
 
 var errSentinel = errors.New("bound elsewhere")
@@ -93,16 +94,16 @@ func TestSuccessOmitsBothFields(t *testing.T) {
 
 func mustEncode(t *testing.T, v any) string {
 	t.Helper()
-	raw, err := json.Marshal(v)
+	raw, err := codec.MarshalToString(v)
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
-	return string(raw)
+	return raw
 }
 
 func decode(t *testing.T, raw string, into any) {
 	t.Helper()
-	if err := json.Unmarshal([]byte(raw), into); err != nil {
+	if err := codec.UnmarshalFromString(raw, into); err != nil {
 		t.Fatalf("unmarshal %s: %v", raw, err)
 	}
 }
