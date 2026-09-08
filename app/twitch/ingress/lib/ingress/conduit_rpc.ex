@@ -26,34 +26,26 @@ defmodule Ingress.ConduitRpc do
 
   use Ingress.RpcServer, log: "conduit rpc"
 
-  alias Ingress.JSON
+  alias Ingress.{JSON, Singleton}
 
   @call_timeout_ms 5_000
 
   @impl true
   def request(%{body: _body}) do
     reply =
-      case Horde.Registry.lookup(Ingress.Registry, :conduit_manager) do
-        [{pid, _}] ->
-          try do
-            case GenServer.call(pid, :status, @call_timeout_ms) do
-              %{conduit_id: id} when is_binary(id) ->
-                %{conduit_id: id}
-
-              %{conduit_id: nil} ->
-                %{error: "conduit not ready"}
-
-              _other ->
-                %{error: "conduit not ready"}
-            end
-          catch
-            :exit, _ -> %{error: "conduit manager unresponsive"}
-          end
-
-        [] ->
-          %{error: "conduit manager down"}
-      end
+      :conduit_manager
+      |> Singleton.call(:status, @call_timeout_ms, &unreachable/1)
+      |> conduit_reply()
 
     {:reply, JSON.encode(reply)}
   end
+
+  defp unreachable(:down), do: %{error: "conduit manager down"}
+  defp unreachable({:unresponsive, _pid}), do: %{error: "conduit manager unresponsive"}
+
+  # The fallbacks above are already replies, so they pass through untouched;
+  # anything else is a manager answer whose conduit id is not usable yet.
+  defp conduit_reply(%{conduit_id: id}) when is_binary(id), do: %{conduit_id: id}
+  defp conduit_reply(%{error: _reason} = reply), do: reply
+  defp conduit_reply(_not_ready), do: %{error: "conduit not ready"}
 end

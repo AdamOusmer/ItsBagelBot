@@ -30,6 +30,7 @@ defmodule Ingress.ConduitManager do
   alias Ingress.ShardInventory
   alias Ingress.ShardScaler
   alias Ingress.ShardSession
+  alias Ingress.Singleton
   alias Ingress.Twitch.Api
 
   # Also the shard-health poll cadence: worst-case blackhole detection is one
@@ -105,8 +106,8 @@ defmodule Ingress.ConduitManager do
   end
 
   defp singleton_status(state) do
-    case Horde.Registry.lookup(Ingress.Registry, :conduit_manager) do
-      [{pid, _}] when pid != self() -> {:standby, enter_standby(state)}
+    case Singleton.lookup(:conduit_manager) do
+      {:ok, pid} when pid != self() -> {:standby, enter_standby(state)}
       _ours_or_lagging -> {:active, leave_standby(state)}
     end
   end
