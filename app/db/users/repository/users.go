@@ -12,6 +12,7 @@ import (
 	"unicode/utf8"
 
 	"ItsBagelBot/app/db/users/ent"
+	"ItsBagelBot/app/db/users/ent/predicate"
 	"ItsBagelBot/app/db/users/ent/tokens"
 	"ItsBagelBot/app/db/users/ent/user"
 	domaincrypto "ItsBagelBot/internal/domain/crypto"
@@ -22,6 +23,7 @@ import (
 	"ItsBagelBot/pkg/cache"
 	"ItsBagelBot/pkg/db"
 
+	entsql "entgo.io/ent/dialect/sql"
 	"github.com/newrelic/go-agent/v3/newrelic"
 
 	"go.uber.org/zap"
@@ -481,7 +483,7 @@ func (r *Users) UpsertToken(ctx context.Context, userID uint64, tokenType tokens
 				Where(
 					tokens.TypeEQ(tokenType),
 					tokens.PlatformEQ(platform),
-					tokens.HasUserWith(user.IDEQ(userID)),
+					tokenOwner(userID).match(),
 				).
 				Only(ctx)
 
@@ -504,7 +506,7 @@ func (r *Users) UpsertToken(ctx context.Context, userID uint64, tokenType tokens
 							Where(
 								tokens.TypeEQ(tokenType),
 								tokens.PlatformEQ(platform),
-								tokens.HasUserWith(user.IDEQ(userID)),
+								tokenOwner(userID).match(),
 							).
 							Only(ctx)
 						if err != nil {
@@ -535,6 +537,27 @@ func (r *Users) UpsertToken(ctx context.Context, userID uint64, tokenType tokens
 	})
 }
 
+// tokenOwner is a user id in its role as the owner of token rows: match
+// selects that user's rows by their foreign key directly, instead of the
+// generated edge predicate
+// tokens.HasUserWith(user.IDEQ(userID)) every token query here used to carry.
+// The edge predicate compiles to a subquery against `users` for what is a
+// plain equality on a column `tokens` already holds, which is why these reads
+// showed up in the slow log as SELECT ... FROM users. Volume that made it
+// worth changing: the outgress broadcaster refresh sweep alone drove ~21,600
+// of these reads a day (New Relic, 24h, a flat 15/min on the tokens.get RPC
+// verb, ~99% of all users-svc traffic). The FK is not a schema field, so ent
+// generates no tokens.UserIDEQ; tokens.UserColumn is the generated name of
+// that column, so this stays in step with the schema without hand-written
+// SQL strings.
+type tokenOwner uint64
+
+func (o tokenOwner) match() predicate.Tokens {
+	return predicate.Tokens(func(s *entsql.Selector) {
+		s.Where(entsql.EQ(s.C(tokens.UserColumn), uint64(o)))
+	})
+}
+
 // Token decrypts and returns the stored OAuth token, refresh token, and the
 // access token's expiry. Plaintext is returned to the caller and
 // deliberately never cached.
@@ -551,7 +574,7 @@ func (r *Users) Token(ctx context.Context, userID uint64, tokenType tokens.Type,
 			Where(
 				tokens.TypeEQ(tokenType),
 				tokens.PlatformEQ(platform),
-				tokens.HasUserWith(user.IDEQ(userID)),
+				tokenOwner(userID).match(),
 			).
 			Only(ctx)
 	})
