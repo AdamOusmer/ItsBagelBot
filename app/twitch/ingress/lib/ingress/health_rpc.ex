@@ -16,8 +16,7 @@ defmodule Ingress.HealthRpc do
   means "not down" — the same line /readyz draws.
   """
 
-  use Gnat.Server
-  require Logger
+  use Ingress.RpcServer, log: "health rpc"
 
   alias Ingress.Health
 
@@ -32,11 +31,5 @@ defmodule Ingress.HealthRpc do
        status: report.status,
        checks: report.checks
      })}
-  end
-
-  @impl true
-  def error(_message, error) do
-    Logger.error("health rpc error: #{inspect(error)}")
-    :ok
   end
 end

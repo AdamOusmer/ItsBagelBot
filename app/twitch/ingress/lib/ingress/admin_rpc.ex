@@ -29,8 +29,7 @@ defmodule Ingress.AdminRpc do
   broadcaster concentrated on one shard even when aggregate load looks fine.
   """
 
-  use Gnat.Server
-  require Logger
+  use Ingress.RpcServer, log: "admin rpc"
 
   alias Ingress.{Capacity, JSON, ShardInventory, ShardScaler}
 
@@ -39,12 +38,6 @@ defmodule Ingress.AdminRpc do
   @impl true
   def request(%{body: _body}) do
     {:reply, JSON.encode(snapshot())}
-  end
-
-  @impl true
-  def error(_message, error) do
-    Logger.error("admin rpc error: #{inspect(error)}")
-    :ok
   end
 
   def snapshot do

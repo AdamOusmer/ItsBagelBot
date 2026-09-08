@@ -24,40 +24,21 @@ defmodule Ingress.AutoscaleRpc do
   The handler never crashes on malformed requests.
   """
 
-  use Gnat.Server
-  require Logger
+  use Ingress.RpcServer, log: "autoscale rpc"
 
   alias Ingress.{AdminRpc, JSON, ShardScaler}
 
-  @impl true
+  @impl Gnat.Server
   def request(%{body: body}) do
     reply =
-      with {:ok, %{"enabled" => enabled}} when is_boolean(enabled) <- JSON.decode(body),
+      with {:ok, enabled} <- decode_field(body, "enabled", &is_boolean/1),
            :ok <- ShardScaler.set_autoscale(enabled) do
         AdminRpc.snapshot()
       else
-        {:ok, _other} ->
-          %{error: "body must be {\"enabled\": <boolean>}"}
-
-        # `Ingress.JSON.decode/1` reports the caught kind/reason (or trailing
-        # data) as a pair, which is what separates a decode failure from the
-        # scaler's own atom errors below.
-        {:error, {_kind, _reason} = decode_error} ->
-          %{error: "json decode error: #{inspect(decode_error)}"}
-
-        {:error, :not_running} ->
-          %{error: "shard_scaler not running"}
-
-        {:error, reason} ->
-          %{error: inspect(reason)}
+        :invalid -> %{error: ~s(body must be {"enabled": <boolean>})}
+        error -> scaler_reply(error)
       end
 
     {:reply, JSON.encode(reply)}
-  end
-
-  @impl true
-  def error(_message, error) do
-    Logger.error("autoscale rpc error: #{inspect(error)}")
-    :ok
   end
 end

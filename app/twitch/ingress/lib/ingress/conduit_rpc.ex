@@ -24,8 +24,7 @@ defmodule Ingress.ConduitRpc do
     * `"conduit manager unresponsive"` - GenServer.call timed out or crashed.
   """
 
-  use Gnat.Server
-  require Logger
+  use Ingress.RpcServer, log: "conduit rpc"
 
   alias Ingress.JSON
 
@@ -56,11 +55,5 @@ defmodule Ingress.ConduitRpc do
       end
 
     {:reply, JSON.encode(reply)}
-  end
-
-  @impl true
-  def error(_message, error) do
-    Logger.error("conduit rpc error: #{inspect(error)}")
-    :ok
   end
 end
