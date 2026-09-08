@@ -32,6 +32,15 @@ const (
 	aliasFieldPrefix   = "cmdalias:"
 )
 
+// commandsMarkerField is the command section's completeness marker. Plural, so
+// it shares neither commandFieldPrefix nor aliasFieldPrefix and is therefore
+// never cleared or overwritten by a row write (see fetchesMarkerField for the
+// bug that convention exists to prevent).
+const commandsMarkerField = "commands:projected"
+
+// commandsSection is the pair of field names the command list reader needs.
+var commandsSection = sectionRead{prefix: commandFieldPrefix, marker: commandsMarkerField}
+
 type CommandView = contract.CommandView
 
 func commandViewFromEvent(dto data.CommandChangedDTO) CommandView {
@@ -170,7 +179,7 @@ func (v *Store) GetCommand(ctx context.Context, userID uint64, name string) (vie
 	res := v.client.DoMulti(ctx,
 		v.client.B().Hget().Key(key).Field(commandFieldPrefix+lname).Build(),
 		v.client.B().Hget().Key(key).Field(aliasFieldPrefix+lname).Build(),
-		v.client.B().Hget().Key(key).Field("commands:projected").Build(),
+		v.client.B().Hget().Key(key).Field(commandsMarkerField).Build(),
 	)
 
 	projected, err = markerProjected(res[2])
@@ -224,54 +233,37 @@ func (v *Store) SetCommands(ctx context.Context, userID uint64, commands []Comma
 func (v *Store) SetCommandsWithTTL(ctx context.Context, userID uint64, commands []CommandView, ttl time.Duration) error {
 	defer segment(ctx, "HSET")()
 
-	key := cache.UserKey(settingsKeyPrefix, userID)
-	if err := v.clearProjectionFields(ctx, key, commandFieldPrefix, aliasFieldPrefix); err != nil {
+	rows, err := commandRows(commands)
+	if err != nil {
 		return err
 	}
+	return v.replaceSection(ctx, userID, sectionWrite{
+		prefixes: []string{commandFieldPrefix, aliasFieldPrefix},
+		marker:   commandsMarkerField,
+		ttl:      ttl,
+		rows:     rows,
+	})
+}
 
-	fields := v.client.B().Hset().
-		Key(key).
-		FieldValue().
-		FieldValue("commands:projected", "1")
-
+// commandRows flattens the list into the hash rows one full-section write
+// stores: a command:<name> body per command plus a cmdalias:<alias> pointer
+// per alias, both keyed lower-case so a viewer's casing never matters.
+func commandRows(commands []CommandView) ([][2]string, error) {
+	rows := make([][2]string, 0, len(commands))
 	for _, cmd := range commands {
 		body, err := codec.Marshal(cmd)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		name := strings.ToLower(cmd.Name)
-		fields = fields.FieldValue(commandFieldPrefix+name, string(body))
+		rows = append(rows, [2]string{commandFieldPrefix + name, string(body)})
 		for _, a := range cmd.Aliases {
-			fields = fields.FieldValue(aliasFieldPrefix+strings.ToLower(a), name)
+			rows = append(rows, [2]string{aliasFieldPrefix + strings.ToLower(a), name})
 		}
 	}
-
-	return v.pipelineWithTTL(ctx, key, ttl, fields.Build())
+	return rows, nil
 }
 
 func (v *Store) GetCommands(ctx context.Context, userID uint64) ([]CommandView, bool, error) {
-	defer segment(ctx, "HGETALL")()
-
-	key := cache.UserKey(settingsKeyPrefix, userID)
-	fields, err := v.client.Do(ctx, v.client.B().Hgetall().Key(key).Build()).AsStrMap()
-	if err != nil {
-		return nil, false, err
-	}
-
-	// projected trusts the marker alone (see GetModules): per-command event
-	// rows never set it, so a partial hash falls through to full hydration.
-	projected := fields["commands:projected"] == "1"
-	out := make([]CommandView, 0)
-	for field, value := range fields {
-		name, ok := strings.CutPrefix(field, "command:")
-		if !ok || name == "" {
-			continue
-		}
-		var cmd CommandView
-		if err := codec.Unmarshal([]byte(value), &cmd); err != nil {
-			continue
-		}
-		out = append(out, cmd)
-	}
-	return out, projected, nil
+	return getSection[CommandView](ctx, v, userID, commandsSection)
 }

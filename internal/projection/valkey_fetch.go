@@ -112,7 +112,12 @@ func (v *Store) SetFetchesWithTTL(ctx context.Context, userID uint64, fetches []
 		}
 		rows = append(rows, [2]string{fetchFieldPrefix + strings.ToLower(f.Name), string(body)})
 	}
-	return v.replaceSection(ctx, userID, sectionWrite{prefix: fetchFieldPrefix, marker: fetchesMarkerField, ttl: ttl, rows: rows})
+	return v.replaceSection(ctx, userID, sectionWrite{
+		prefixes: []string{fetchFieldPrefix},
+		marker:   fetchesMarkerField,
+		ttl:      ttl,
+		rows:     rows,
+	})
 }
 
 // GetFetch reads one definition by name in a single round trip. found reports
@@ -142,46 +147,20 @@ func (v *Store) GetFetch(ctx context.Context, userID uint64, name string) (view 
 	return view, found, projected, nil
 }
 
-// fetchRowName extracts the definition name from a hash field: "" for
-// anything that is not a fetch row. Every fetch:<name> field is now a row:
-// the section marker moved out of this prefix (see fetchesMarkerField), so the
-// guard that used to drop name == "projected" is gone with it. Keeping it
-// would have made a definition a user legitimately named "projected"
-// permanently invisible in GetFetches — the same bug moved one field over.
-// Hashes written before the rename still carry fetch:projected = "1"; "1" is
-// not a FetchView, so GetFetches' unmarshal skips it like any other corrupt
-// row, and the next full-section write clears it with the rest of the prefix.
-func fetchRowName(field string) string {
-	name, ok := strings.CutPrefix(field, fetchFieldPrefix)
-	if !ok {
-		return ""
-	}
-	return name
-}
+// fetchesSection is the pair of field names the definition list reader needs.
+// Every fetch:<name> field is a row: the section marker moved out of this
+// prefix (see fetchesMarkerField), so the guard that used to drop
+// name == "projected" is gone with it. Keeping it would have made a definition
+// a user legitimately named "projected" permanently invisible in GetFetches —
+// the same bug moved one field over. Hashes written before the rename still
+// carry fetch:projected = "1"; "1" is not a FetchView, so getSection's
+// unmarshal skips it like any other corrupt row, and the next full-section
+// write clears it with the rest of the prefix.
+var fetchesSection = sectionRead{prefix: fetchFieldPrefix, marker: fetchesMarkerField}
 
 // GetFetches reads the complete projected definition list of one user,
 // mirroring GetCommands: the fetches:projected marker alone decides whether a
 // missing row means "none" or "not yet hydrated".
 func (v *Store) GetFetches(ctx context.Context, userID uint64) ([]FetchView, bool, error) {
-	defer segment(ctx, "HGETALL")()
-
-	key := cache.UserKey(settingsKeyPrefix, userID)
-	fields, err := v.client.Do(ctx, v.client.B().Hgetall().Key(key).Build()).AsStrMap()
-	if err != nil {
-		return nil, false, err
-	}
-
-	projected := fields[fetchesMarkerField] == "1"
-	out := make([]FetchView, 0)
-	for field, value := range fields {
-		if fetchRowName(field) == "" {
-			continue
-		}
-		var f FetchView
-		if err := codec.Unmarshal([]byte(value), &f); err != nil {
-			continue
-		}
-		out = append(out, f)
-	}
-	return out, projected, nil
+	return getSection[FetchView](ctx, v, userID, fetchesSection)
 }
