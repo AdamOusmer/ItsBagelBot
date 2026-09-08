@@ -3,6 +3,10 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import '../styles/style.css';
+// Side-effect import: the build-time guards on src/content and the locale
+// catalogs. Here because every page renders through this layout, so there is
+// no page that can skip them.
+import '../lib/contentGuards';
 
 // Fonts are self-hosted (Fontsource) instead of loaded from Google Fonts.
 // The old <link href="fonts.googleapis.com/css2?..."> was a render-blocking
