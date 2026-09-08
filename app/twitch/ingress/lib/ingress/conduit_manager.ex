@@ -467,33 +467,54 @@ defmodule Ingress.ConduitManager do
   @doc false
   # Retry policy for a blocked start. Public so it can be exercised without a
   # running Horde cluster.
-  def start_until_free(start_fun, deadline, poll_ms \\ @rebalance_poll_interval_ms) do
-    case start_fun.() do
-      {:started, pid} ->
-        {:started, pid}
+  #
+  # Clock and poll come in through `opts` (defaults = production behaviour)
+  # instead of being read from `System`/`Process` here. The give-up branch is a
+  # wall-clock race against the deadline, so on a loaded machine a single
+  # attempt can outrun a short test deadline and the retry assertion flakes
+  # (~25% of full-suite runs). Rejected widening the test deadline (same race,
+  # rarer) and asserting `>= 1` attempt (stops proving the loop retries at all);
+  # a clock the test ticks makes the policy deterministic instead.
+  def start_until_free(start_fun, deadline, opts \\ []) do
+    timing = %{
+      poll_ms: Keyword.get(opts, :poll_ms, @rebalance_poll_interval_ms),
+      now: Keyword.get(opts, :now_fun, &monotonic_ms/0),
+      sleep: Keyword.get(opts, :sleep_fun, &Process.sleep/1)
+    }
 
-      :blocked ->
-        if System.monotonic_time(:millisecond) >= deadline do
-          {:error, :name_release_timeout}
-        else
-          Process.sleep(poll_ms)
-          start_until_free(start_fun, deadline, poll_ms)
-        end
+    retry_until_free(start_fun, deadline, timing)
+  end
+
+  defp retry_until_free(start_fun, deadline, timing) do
+    case start_fun.() do
+      {:started, pid} -> {:started, pid}
+      :blocked -> retry_blocked_start(start_fun, deadline, timing)
     end
   end
 
+  defp retry_blocked_start(start_fun, deadline, timing) do
+    if timing.now.() >= deadline do
+      {:error, :name_release_timeout}
+    else
+      timing.sleep.(timing.poll_ms)
+      retry_until_free(start_fun, deadline, timing)
+    end
+  end
+
+  defp monotonic_ms, do: System.monotonic_time(:millisecond)
+
   defp name_release_deadline,
-    do: System.monotonic_time(:millisecond) + @rebalance_name_release_timeout_ms
+    do: monotonic_ms() + @rebalance_name_release_timeout_ms
 
   defp rebalance_deadline,
-    do: System.monotonic_time(:millisecond) + @rebalance_handoff_timeout_ms
+    do: monotonic_ms() + @rebalance_handoff_timeout_ms
 
   defp await_bound(pid, deadline) do
     cond do
       match?(%{bound: true}, probe_shard(pid)) ->
         :ok
 
-      System.monotonic_time(:millisecond) >= deadline ->
+      monotonic_ms() >= deadline ->
         {:error, :bind_timeout}
 
       true ->
