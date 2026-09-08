@@ -55,6 +55,7 @@ export { default as DeckList } from '../components/DeckList.svelte';
 export { default as Scroller } from '../components/Scroller.svelte';
 
 export { initLenis, magnetic, countUp } from './actions';
+export { copyFlash } from './clipboard';
 export { icons, type IconName } from './icons';
 export { customCursor } from './cursor';
 
@@ -87,3 +88,5 @@ export * from './commands-validate';
 export * from './uses';
 export * from './rehearsal';
 export * from './validation';
+export * from './action-result';
+export * from './format';
