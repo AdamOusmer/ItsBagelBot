@@ -143,6 +143,12 @@ type Client struct {
 	commands *cache.Cache[commandEntry]
 	fetches  *cache.Cache[fetchEntry]
 
+	// The two per-name lookups are built once in NewClient rather than per
+	// call: their hooks are the only allocation the shared skeleton adds, and
+	// this is the chat hot path.
+	commandLookup perName[CommandView, commandEntry]
+	fetchLookup   perName[FetchView, fetchEntry]
+
 	rpcTimeout      time.Duration
 	invalidationSub *nats.Subscription
 }
@@ -159,7 +165,7 @@ type Config struct {
 }
 
 func NewClient(cfg Config) *Client {
-	return &Client{
+	c := &Client{
 		store:      cfg.Store,
 		nc:         cfg.NC,
 		subjects:   cfg.Subjects,
@@ -170,6 +176,21 @@ func NewClient(cfg Config) *Client {
 		fetches:    cache.New[fetchEntry](fetchesCacheCapacity, cfg.TTL),
 		rpcTimeout: 1500 * time.Millisecond,
 	}
+	c.commandLookup = perName[CommandView, commandEntry]{
+		entries: c.commands,
+		key:     cmdKey,
+		local:   c.store.GetCommand,
+		entry:   commandEntryOf,
+		remote:  c.commandsRPC,
+	}
+	c.fetchLookup = perName[FetchView, fetchEntry]{
+		entries: c.fetches,
+		key:     fetchKey,
+		local:   c.store.GetFetch,
+		entry:   fetchEntryOf,
+		remote:  c.fetchesRPC,
+	}
+	return c
 }
 
 // Close releases the in-process caches and any active invalidation subscription.
@@ -337,82 +358,79 @@ func (c *Client) Module(ctx context.Context, userID uint64, name string) (Module
 	return view, ok, nil
 }
 
-// Command resolves one custom command by the name (or alias) a viewer typed.
-// The hot path is a single per-command cache entry backed by one Valkey HGET;
-// only a cold (not-yet-projected) user falls through to the projector RPC,
-// which still returns the whole list (rare, per-user-once). Negative results
-// are cached too, so unknown "!word" spam never reaches Valkey twice.
-func (c *Client) Command(ctx context.Context, userID uint64, name string) (Command, bool, error) {
+// perName is the complete per-name projection lookup both Command and
+// FetchDefs are, and the one place the rules it encodes are written down:
+//
+//   - an empty name is a clean miss and never touches the cache;
+//   - the typed name is lower-cased once, so a viewer's casing never matters;
+//   - PROJECTED decides, not found. A Valkey answer is authoritative only when
+//     the section marker says the section is complete; a read error or an
+//     unprojected section falls through to the whole-list RPC (rare, per user
+//     once, since the projector's miss path hydrates the section);
+//   - a projected miss is a real answer, cached like any other, so repeated
+//     unknown "!word" spam never reaches Valkey twice;
+//   - an RPC failure yields a NEGATIVE ENTRY, not an error: remote returns E
+//     alone, because a projector blip must not propagate into the pipeline.
+//
+// Template Method: the tiering above is fixed; entries/key/local/entry/remote
+// are the hooks. Before this, Command, FetchDefs, loadCommand and loadFetch
+// were four functions carrying two copies of all five rules.
+type perName[V, E any] struct {
+	entries *cache.Cache[E]
+	key     func(uint64, string) string
+	// local is tier 2: the Valkey per-name read (view, found, projected, err).
+	local func(context.Context, uint64, string) (V, bool, bool, error)
+	// entry turns a tier-2 answer into the cached entry, misses included.
+	entry func(V, bool) E
+	// remote is tier 3: the whole-list RPC, already reduced to the entry for
+	// the name being resolved.
+	remote func(context.Context, uint64, string) E
+}
+
+func (l perName[V, E]) get(ctx context.Context, userID uint64, name string) (E, error) {
+	var zero E
 	if name == "" {
-		return Command{}, false, nil
+		return zero, nil
 	}
 	lname := strings.ToLower(name)
-
-	entry, err := c.commands.GetOrLoad(ctx, cmdKey(userID, lname), func(ctx context.Context) (commandEntry, error) {
-		return c.loadCommand(ctx, userID, lname)
+	return l.entries.GetOrLoad(ctx, l.key(userID, lname), func(ctx context.Context) (E, error) {
+		if view, found, projected, err := l.local(ctx, userID, lname); err == nil && projected {
+			return l.entry(view, found), nil
+		}
+		return l.remote(ctx, userID, lname), nil
 	})
+}
+
+// Command resolves one custom command by the name (or alias) a viewer typed.
+// The hot path is a single per-command cache entry backed by one Valkey HGET;
+// see perName for the tiering and the negative-caching rules.
+func (c *Client) Command(ctx context.Context, userID uint64, name string) (Command, bool, error) {
+	entry, err := c.commandLookup.get(ctx, userID, name)
 	if err != nil {
 		return Command{}, false, err
 	}
 	return entry.cmd, entry.found, nil
 }
 
-// loadCommand resolves one command from the Valkey projection (tier 2), falling
-// back to the projector RPC's whole list for a cold, not-yet-projected user
-// (tier 3). A negative result is a valid cached entry, not an error.
-func (c *Client) loadCommand(ctx context.Context, userID uint64, lname string) (commandEntry, error) {
-	return tieredLoad[CommandView, commandEntry]{
-		local: func(ctx context.Context) (CommandView, bool, bool, error) {
-			return c.store.GetCommand(ctx, userID, lname)
-		},
-		entry: func(view CommandView, found bool) commandEntry {
-			if !found {
-				return commandEntry{found: false}
-			}
-			return commandEntry{cmd: commandFromView(view), found: true}
-		},
-		remote: func(ctx context.Context) commandEntry {
-			reply, err := bus.RequestJSONTimeout[struct {
-				Commands []Command `json:"commands"`
-			}](ctx, c.nc, c.subjects.Commands, projectionRequest(userID), c.rpcTimeout)
-			if err != nil {
-				return commandEntry{found: false}
-			}
-			return findCommand(reply.Commands, lname)
-		},
-	}.load(ctx)
-}
-
-// tieredLoad is the tier-2 -> tier-3 skeleton both per-name lookups share, and
-// the one place the three rules that skeleton encodes are written down:
-//
-//   - PROJECTED decides, not found. A Valkey answer is authoritative only when
-//     the section marker says the section is complete; a read error or an
-//     unprojected section falls through to the RPC.
-//   - a projected miss is a real answer. entry() is called for found=false too,
-//     so "no such command" is cached like any other result and repeated unknown
-//     "!word" spam never reaches Valkey twice.
-//   - an RPC failure is a negative entry, never an error. remote() returns E
-//     alone: a projector blip must not propagate into the chat pipeline.
-//
-// Template Method: the tiering above is fixed, local/entry/remote are the
-// hooks. This is the chat hot path, so the closure cost was measured before
-// committing to it (Apple M1 Pro, -benchmem -count=6): warm cache hit
-// 80 B/op 3 allocs/op, cold command load 64 allocs/op, cold fetch load
-// 45 allocs/op — identical to the two hand-written loaders it replaced. The
-// tieredLoad value never escapes load(), so escape analysis stack-allocates
-// the hooks. Re-measure before adding a hook that captures anything heavier.
-type tieredLoad[V, E any] struct {
-	local  func(context.Context) (V, bool, bool, error)
-	entry  func(V, bool) E
-	remote func(context.Context) E
-}
-
-func (l tieredLoad[V, E]) load(ctx context.Context) (E, error) {
-	if view, found, projected, err := l.local(ctx); err == nil && projected {
-		return l.entry(view, found), nil
+// commandEntryOf caches the projected view as the pipeline's Command shape. A
+// projected miss keeps the zero command so the negative entry stays cheap.
+func commandEntryOf(view CommandView, found bool) commandEntry {
+	if !found {
+		return commandEntry{found: false}
 	}
-	return l.remote(ctx), nil
+	return commandEntry{cmd: commandFromView(view), found: true}
+}
+
+// commandsRPC is tier 3 for commands: the projector's dashboard get verb,
+// which returns the whole list and hydrates the projection as a side effect.
+func (c *Client) commandsRPC(ctx context.Context, userID uint64, lname string) commandEntry {
+	reply, err := bus.RequestJSONTimeout[struct {
+		Commands []Command `json:"commands"`
+	}](ctx, c.nc, c.subjects.Commands, projectionRequest(userID), c.rpcTimeout)
+	if err != nil {
+		return commandEntry{found: false}
+	}
+	return findCommand(reply.Commands, lname)
 }
 
 // findCommand picks the command whose name or an alias matches lname (already
@@ -458,47 +476,31 @@ func projectionRequest(userID uint64) map[string]string {
 }
 
 // FetchDefs resolves one $(urlfetch) definition by name, the exact tiering of
-// Command: a short-TTL per-definition cache entry (with negative caching) in
-// front of one Valkey HGET, falling through to the commands service's fetch
-// list RPC for a cold, not-yet-projected user. Keys never appear here — the
-// view carries key_label only; plaintext stays on the one-call key RPC.
+// Command (see perName). Keys never appear here — the view carries key_label
+// only; plaintext stays on the one-call key RPC.
 func (c *Client) FetchDefs(ctx context.Context, userID uint64, name string) (FetchView, bool, error) {
-	if name == "" {
-		return FetchView{}, false, nil
-	}
-	lname := strings.ToLower(name)
-
-	entry, err := c.fetches.GetOrLoad(ctx, fetchKey(userID, lname), func(ctx context.Context) (fetchEntry, error) {
-		return c.loadFetch(ctx, userID, lname)
-	})
+	entry, err := c.fetchLookup.get(ctx, userID, name)
 	if err != nil {
 		return FetchView{}, false, err
 	}
 	return entry.fetch, entry.found, nil
 }
 
-// loadFetch resolves one definition from the Valkey projection (tier 2),
-// falling back to the commands service's whole list for a cold,
-// not-yet-projected user (tier 3). A negative result is a valid cached entry,
-// not an error.
-func (c *Client) loadFetch(ctx context.Context, userID uint64, lname string) (fetchEntry, error) {
-	return tieredLoad[FetchView, fetchEntry]{
-		local: func(ctx context.Context) (FetchView, bool, bool, error) {
-			return c.store.GetFetch(ctx, userID, lname)
-		},
-		entry: func(view FetchView, found bool) fetchEntry {
-			return fetchEntry{fetch: view, found: found}
-		},
-		remote: func(ctx context.Context) fetchEntry {
-			reply, err := bus.RequestJSONTimeout[struct {
-				Fetches []FetchView `json:"fetches"`
-			}](ctx, c.nc, c.subjects.Fetches, projectionRequest(userID), c.rpcTimeout)
-			if err != nil {
-				return fetchEntry{found: false}
-			}
-			return findFetch(reply.Fetches, lname)
-		},
-	}.load(ctx)
+// fetchEntryOf caches the projected view as-is: a definition's projected shape
+// is already the shape callers consume, so a miss is simply the zero view.
+func fetchEntryOf(view FetchView, found bool) fetchEntry {
+	return fetchEntry{fetch: view, found: found}
+}
+
+// fetchesRPC is tier 3 for definitions: the commands service's fetch list.
+func (c *Client) fetchesRPC(ctx context.Context, userID uint64, lname string) fetchEntry {
+	reply, err := bus.RequestJSONTimeout[struct {
+		Fetches []FetchView `json:"fetches"`
+	}](ctx, c.nc, c.subjects.Fetches, projectionRequest(userID), c.rpcTimeout)
+	if err != nil {
+		return fetchEntry{found: false}
+	}
+	return findFetch(reply.Fetches, lname)
 }
 
 // findFetch picks the definition whose name matches lname (already
