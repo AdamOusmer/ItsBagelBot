@@ -118,7 +118,7 @@ spec:
       priorityClassName: bagel-service
       containers:
         - name: projector
-          image: ghcr.io/adamousmer/itsbagelbot/projector:main-1788522822-f1c3dba6e74d@sha256:9368926e0acc073b0491daa298d36a2ebc55a10351a66b74178e36d7742f0f87
+          image: ghcr.io/adamousmer/itsbagelbot/projector:main-1788793122-8afab4358b2a@sha256:ee8d5ece998bcfc6a30fe0ff5637b1529c68b3bb4b222b9936ecba7d70229d71
           imagePullPolicy: IfNotPresent
           env:
             # The lane catalog is partition-gated; the projector reconciles the
