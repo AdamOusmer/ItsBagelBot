@@ -5,6 +5,7 @@ package gateway
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync/atomic"
 	"time"
@@ -540,6 +541,7 @@ func (s Session) handlePacket(ctx context.Context, sk *socket, pkt packet, st *r
 		// and it is the only traffic a bot in a quiet guild sees. It counts
 		// as an event so the liveness clock (discord.BotEventMaxAge)
 		// measures "is this socket delivering", not "is this guild busy".
+		sk.noteAck()
 		s.noteEvent(ctx)
 		return nil
 	case opReconnect:
@@ -736,8 +738,43 @@ func (s Session) heartbeat(ctx context.Context, sk *socket, intervalMS int, st *
 	if intervalMS <= 0 {
 		return
 	}
-	t := time.NewTicker(time.Duration(intervalMS) * time.Millisecond)
+	interval := time.Duration(intervalMS) * time.Millisecond
+	if !waitJitter(ctx, sk, interval) {
+		return
+	}
+	s.beatLoop(ctx, sk, interval, st)
+}
+
+// waitJitter delays the heartbeat schedule by a random fraction of one
+// interval before it starts, which is what Discord's Hello asks every client
+// to do. Without it every session opened during one gateway roll beats in
+// lockstep for the rest of its life, and the roll's own thundering herd is
+// reproduced on Discord's side once per interval forever. It reuses
+// reconnect.go's fullJitter so there is one jitter shape in this package.
+//
+// It reports false when the socket ended during the wait, so a connection
+// that dies inside the first interval does not go on to start a ticker
+// nothing will ever stop.
+func waitJitter(ctx context.Context, sk *socket, interval time.Duration) bool {
+	t := time.NewTimer(fullJitter(interval))
 	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-sk.stop:
+		return false
+	case <-t.C:
+		return true
+	}
+}
+
+// beatLoop sends one heartbeat per interval and ends the socket when Discord
+// stops answering them. beats is how many have gone out, which is what
+// socket.stale compares the ACK count against.
+func (s Session) beatLoop(ctx context.Context, sk *socket, interval time.Duration, st *resumeState) {
+	t := time.NewTicker(interval)
+	defer t.Stop()
+	beats := int64(0)
 	for {
 		select {
 		case <-ctx.Done():
@@ -745,19 +782,39 @@ func (s Session) heartbeat(ctx context.Context, sk *socket, intervalMS int, st *
 		case <-sk.stop:
 			return
 		case <-t.C:
-			// The last received sequence, not nil. Discord compares this
-			// against what it sent to notice a client has fallen behind;
-			// a permanent null claims nothing was ever received.
-			// socket.write funnels the error to the pump. Returning silently
-			// here was the bug: this goroutine is where a fatal close frame
-			// most often lands, and dropping the error left the pump to
-			// report a codeless "connection closed" that reconnected
-			// forever. See socket.firstError.
-			if err := sk.write(ctx, heartbeatBody(st.sequence())); err != nil {
+			if !s.beat(ctx, sk, st, beats) {
 				return
 			}
+			beats++
 		}
 	}
+}
+
+// errZombie is what a socket that stopped answering heartbeats dies of.
+//
+// It goes back through socket.writeFailed rather than a bare Close so the
+// pump reports this as the cause: the Close makes the pump's parked Read
+// return a generic "use of closed network connection" microseconds later, and
+// without routing the real reason through fail that is the string an operator
+// would read on the socket-end line. See socket.firstError.
+var errZombie = errors.New("discord ingress: gateway stopped acknowledging heartbeats")
+
+// beat sends one heartbeat unless the previous one went unanswered, and
+// reports whether the loop should keep going.
+func (s Session) beat(ctx context.Context, sk *socket, st *resumeState, sent int64) bool {
+	if sk.stale(sent) {
+		sk.writeFailed(errZombie)
+		return false
+	}
+	// The last received sequence, not nil. Discord compares this against what
+	// it sent to notice a client has fallen behind; a permanent null claims
+	// nothing was ever received.
+	//
+	// socket.write funnels the error to the pump. Returning silently here was
+	// the bug: this goroutine is where a fatal close frame most often lands,
+	// and dropping the error left the pump to report a codeless "connection
+	// closed" that reconnected forever. See socket.firstError.
+	return sk.write(ctx, heartbeatBody(st.sequence())) == nil
 }
 
 func (s Session) log() *zap.Logger {

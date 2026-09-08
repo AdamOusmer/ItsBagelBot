@@ -203,6 +203,48 @@ func fastHello() ([]byte, error) {
 	return codec.Marshal(packet{Op: opHello, D: d})
 }
 
+// ackingConn is a socket that answers op 11 acks times and then goes quiet
+// without ever closing -- the zombie shape. A live TCP connection that
+// Discord has stopped serving reads forever, so this fake never returns an
+// error either: only the heartbeat's own ACK accounting can end it.
+func ackingConn(t *testing.T, acks int) *scriptedConn {
+	t.Helper()
+	hello, err := fastHello()
+	if err != nil {
+		t.Fatalf("marshal hello: %v", err)
+	}
+	ack, err := codec.Marshal(packet{Op: opHeartbeatAck})
+	if err != nil {
+		t.Fatalf("marshal ack: %v", err)
+	}
+	reads := [][]byte{hello}
+	for range acks {
+		reads = append(reads, ack)
+	}
+	return &scriptedConn{reads: reads, closed: make(chan struct{})}
+}
+
+// A gateway that stops answering heartbeats leaves a socket that is open,
+// readable and delivering nothing. Before this the pump sat in Read for the
+// life of the process with the status key still claiming the bot was up.
+func TestHeartbeatEndsASocketThatStopsAcking(t *testing.T) {
+	end := oneSocketOver(t, ackingConn(t, 0), 2*time.Second)
+
+	if !errors.Is(end.err, errZombie) {
+		t.Fatalf("socket ended with %v, want the unacknowledged-heartbeat error", end.err)
+	}
+}
+
+// And a socket that does answer must be left alone: the ACK accounting is
+// only allowed to kill a connection Discord has actually abandoned.
+func TestHeartbeatKeepsASocketThatAcks(t *testing.T) {
+	end := oneSocketOver(t, ackingConn(t, 50), 200*time.Millisecond)
+
+	if !errors.Is(end.err, context.DeadlineExceeded) {
+		t.Fatalf("socket ended with %v, want it still up at the deadline", end.err)
+	}
+}
+
 // racingConn reproduces the interleaving socket.writerGrace exists for: the
 // pump's Read fails FIRST, with a generic codeless error, while the
 // heartbeat's Write is still inside Discord's close frame and has not
