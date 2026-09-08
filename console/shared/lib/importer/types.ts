@@ -25,13 +25,15 @@ export type ImportSource =
   | 'fossabot'
   | 'moobot'
   | 'nightbot'
-  | 'streamlabs_desktop';
+  | 'streamlabs_desktop'
+  | 'wizebot';
 export const IMPORT_SOURCES: readonly ImportSource[] = [
   'streamelements',
   'fossabot',
   'moobot',
   'nightbot',
-  'streamlabs_desktop'
+  'streamlabs_desktop',
+  'wizebot'
 ];
 
 // ImportDiagnostic is one translation/validation finding. item_index addresses

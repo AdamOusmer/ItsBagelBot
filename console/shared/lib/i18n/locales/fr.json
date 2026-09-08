@@ -920,7 +920,7 @@
     "dropHint": "Cliquez pour choisir un fichier, ou déposez-le ici",
     "errFileMissing": "Choisissez un fichier à téléverser.",
     "errGeneric": "L’import a échoué. Réessayez.",
-    "errHandleMissing": "Saisissez d’abord le nom de votre chaîne Fossabot.",
+    "errHandleMissing": "Saisissez d’abord le nom de votre chaîne.",
     "errHandleShape": "Cela ne ressemble pas à un nom de chaîne. Reprenez le nom tel qu’il apparaît dans l’adresse de votre page Fossabot, rien d’autre.",
     "errJwtMissing": "Collez d’abord votre JWT StreamElements.",
     "errNbConfig": "L’import Nightbot n’est pas encore configuré sur ce serveur.",
@@ -970,6 +970,12 @@
       "Ouvrez son dossier de données :",
       "Windows : %APPDATA%\\AnkhBot\\Twitch\\  ·  macOS : ~/Library/Application Support/AnkhBot/Twitch/",
       "Repérez Chatbot.db et téléversez-le ci-dessous pour continuer."
+    ],
+    "instrWizebot": [
+      "Dans votre panneau Wizebot, ouvrez la section Site de streaming et activez-la si elle est désactivée : votre liste de commandes n’est publiée que si ce site est actif.",
+      "Le login de votre chaîne est le sous-domaine de ce site : dans votrechaine.streaming.lv, c’est votrechaine.",
+      "Saisissez ce login ci-dessous pour continuer.",
+      "Seules les commandes qui écrivent dans le chat sont reprises. Les animations à l’écran et les commandes sonores sont ignorées, et lorsqu’une commande porte une description publique, Wizebot publie celle-ci à la place de son message de chat : vérifiez donc l’étape de révision."
     ],
     "jwtFieldAria": "JWT StreamElements",
     "jwtHint": "Ouvrez le tableau de bord StreamElements en étant connecté, puis copiez le JWT que votre navigateur envoie à api.streamelements.com (l’en-tête <code>Authorization</code> d’une requête, la partie après « Bearer »).",
@@ -1021,7 +1027,8 @@
     "stepInstructions": "2 · Comment récupérer votre export de {source}",
     "stepPick": "1 · Choisissez une source",
     "tileCta": "Choisir cette source",
-    "toastApplied": "Import appliqué."
+    "toastApplied": "Import appliqué.",
+    "wizebotDesc": "Indiquez le nom de votre chaîne : les commandes publiées sur votre site de streaming Wizebot arrivent ici."
   },
   "install": {
     "cta": "Installer l’app",

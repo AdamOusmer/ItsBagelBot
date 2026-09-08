@@ -164,9 +164,10 @@ function chatLine(piece: string, itemIndex: number, diags: ImportDiagnostic[]): 
 
 // PERM_TIERS is the tier order, least to most privileged. Exported because a
 // source can grant one command to SEVERAL roles at once (Fossabot lists role
-// ids per command, any of which may trigger it), and resolving that onto one
-// tier means comparing tiers, which needs this order rather than a second copy
-// of it in the parser.
+// ids per command, Wizebot publishes "Subscribers VIPs Moderators" on one
+// command, any of which may trigger it), and resolving that onto the one tier
+// this bot stores means comparing tiers, which needs this order rather than a
+// second copy of it in each parser.
 export const PERM_TIERS: readonly Perm[] = ['everyone', 'sub', 'vip', 'mod', 'lead_mod', 'broadcaster'];
 
 // permissionAliases maps one external bot's permission labels onto this bot's
@@ -302,7 +303,11 @@ const MAX_FETCH_SLUG_SUFFIX = 5;
 // let any caller invent a prefix the 32-byte budget was never sized for (and
 // would read as one more anonymous string argument at the call site); the
 // union keeps both the budget and the meaning checked.
-export type FetchSlugSource = 'se' | 'moobot' | 'nightbot' | 'fossabot';
+// 'wizebot' is reserved here rather than used: its published command text
+// carries no urlfetch-shaped tag (the streaming website shows resolved text),
+// so v1 of that source synthesizes no definitions. The prefix is claimed now
+// so the 32-byte budget above is sized for it the day one appears.
+export type FetchSlugSource = 'se' | 'moobot' | 'nightbot' | 'fossabot' | 'wizebot';
 
 // fetchDefSlug builds one legal definition name from a short source prefix and
 // a command name: `<source>_<slugified command>`.

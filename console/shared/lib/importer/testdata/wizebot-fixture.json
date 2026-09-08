@@ -1,0 +1,264 @@
+{
+ "data": [
+  [
+   "!acheron",
+   "3320481",
+   "Fiche guide de Acheron : https://zupimages.net/viewer.php?id=24/09/hqhb.jpg",
+   "-",
+   "<span class=\"label label-default\">Followers (0 J.)</span>",
+   "SAY",
+   0,
+   "d41d8cd98f00b204e9800998ecf8427e"
+  ],
+  [
+   "!alohomora",
+   "3169859",
+   "serveur : Anomora",
+   "-",
+   "",
+   "SAY",
+   1,
+   "d41d8cd98f00b204e9800998ecf8427e"
+  ],
+  [
+   "!annonce",
+   "2412547",
+   "   https://clips.twitch.tv/ImpartialFineMilkKeepo-tIFvtRor3YFIj_Yi",
+   "-",
+   "<span class=\"label label-primary\">Moderators</span>",
+   "ACTION",
+   0,
+   "d41d8cd98f00b204e9800998ecf8427e"
+  ],
+  [
+   "!archondivin  !bayadou",
+   "2448826",
+   "",
+   "-",
+   "<span class=\"label label-warning\">VIPs</span>",
+   "SCREEN",
+   0,
+   "d41d8cd98f00b204e9800998ecf8427e"
+  ],
+  [
+   "!box",
+   "2497712",
+   " &quot; Il faut chiffoner la BOX &quot; https://clips.twitch.tv/SilkyCuteZebraMoreCowbell-fIN6ipIXxL8HHu4D",
+   "-",
+   "",
+   "ACTION",
+   0,
+   "d41d8cd98f00b204e9800998ecf8427e"
+  ],
+  [
+   "!cappuccino",
+   "3501451",
+   "",
+   "-",
+   "<span class=\"label label-warning\">Subscribers</span> <span class=\"label label-warning\">VIPs</span> <span class=\"label label-primary\">Moderators</span>",
+   "SCREEN",
+   0,
+   "d41d8cd98f00b204e9800998ecf8427e"
+  ],
+  [
+   "!d&eacute;gage",
+   "2296276",
+   "",
+   "-",
+   "<span class=\"label label-primary\">Moderators</span>",
+   "SAY",
+   1,
+   "d41d8cd98f00b204e9800998ecf8427e"
+  ],
+  [
+   "!dj",
+   "2640712",
+   "Dj petitsbiscuits au platine",
+   "-",
+   "<span class=\"label label-warning\">User(s)</span>",
+   "SAY",
+   1,
+   "d41d8cd98f00b204e9800998ecf8427e"
+  ],
+  [
+   "!dlblbl",
+   "3883601",
+   "",
+   "-",
+   "<span class=\"label label-warning\">VIPs</span> ",
+   "ONLY_SOUND",
+   1,
+   "d41d8cd98f00b204e9800998ecf8427e"
+  ],
+  [
+   "!furina  !fo&ccedil;alors  !focalors",
+   "3130199",
+   "",
+   "-",
+   "<span class=\"label label-default\">Followers (0 J.)</span>",
+   "SCREEN",
+   0,
+   "d41d8cd98f00b204e9800998ecf8427e"
+  ],
+  [
+   "!gneu",
+   "2967009",
+   "",
+   "-",
+   "<span class=\"label label-default\">Followers (0 J.)</span>",
+   "SAY",
+   1,
+   "d41d8cd98f00b204e9800998ecf8427e"
+  ],
+  [
+   "!horloge",
+   "2309208",
+   "  On as pas besoin d'horloge parlante, merci !",
+   "-",
+   "<span class=\"label label-primary\">Moderators</span>",
+   "ACTION",
+   0,
+   "d41d8cd98f00b204e9800998ecf8427e"
+  ],
+  [
+   "!izu",
+   "3058129",
+   "",
+   "-",
+   "<span class=\"label label-warning\">Subscribers</span> <span class=\"label label-warning\">VIPs</span> <span class=\"label label-primary\">Moderators</span> ",
+   "SCREEN",
+   0,
+   "d41d8cd98f00b204e9800998ecf8427e"
+  ],
+  [
+   "!nul",
+   "2122683",
+   "",
+   "-",
+   "",
+   "ONLY_SOUND",
+   1,
+   "d41d8cd98f00b204e9800998ecf8427e"
+  ],
+  [
+   "!Ouf",
+   "2146820",
+   "",
+   "-",
+   "<span class=\"label label-warning\">Subscribers</span>",
+   "SCREEN",
+   0,
+   "d41d8cd98f00b204e9800998ecf8427e"
+  ],
+  [
+   "!psg",
+   "2669519",
+   "ICI C'EST PARIS ! ",
+   "-",
+   "<span class=\"label label-warning\">Subscribers</span>",
+   "SAY_RANDOM",
+   1,
+   "d41d8cd98f00b204e9800998ecf8427e"
+  ],
+  [
+   "!pub",
+   "2799418",
+   "La minute pub &quot;bruit de criquet&quot;",
+   "-",
+   "<span class=\"label label-primary\">Moderators</span>",
+   "SAY",
+   1,
+   "d41d8cd98f00b204e9800998ecf8427e"
+  ],
+  [
+   "!backseat  !bs",
+   "2103576",
+   "Annonce de pr&eacute;vention sur le backseat",
+   "-",
+   "",
+   "SAY",
+   0,
+   "a82be0f551b8708bc08eb33cd9ded0cf"
+  ],
+  [
+   "!honteux",
+   "1987206",
+   "Ce qui vient de ce passer est honteux !",
+   "-",
+   "<span class=\"label label-warning\">VIPs</span>",
+   "SAY",
+   0,
+   "920512255f2fca0002224b067b939a35"
+  ],
+  [
+   "!nospoil",
+   "2179919",
+   "⛔️ Merci de ne pas spoil la MSQ de Endwalker, Nawiel profite de la MSQ actuellement en off et toute personne contrevenant &agrave; cette r&egrave;gle sera perma-ban. Merci pour votre compr&eacute;hension",
+   "-",
+   "",
+   "SAY",
+   0,
+   "d41d8cd98f00b204e9800998ecf8427e"
+  ],
+  [
+   "!Plava  !Plavastation",
+   "2138076",
+   "Retrouves Plasatation le sp&eacute;cialiste es guide de Youtube &amp; guest star de Square Enix sur sa cha&icirc;ne Twitch: https://www.twitch.tv/plavastation mais &eacute;galement sur Youtube: https://www.youtube.com/c/PlavaStation",
+   "-",
+   "",
+   "SAY",
+   0,
+   "d41d8cd98f00b204e9800998ecf8427e"
+  ],
+  [
+   "!pll",
+   "2138065",
+   "La Liveletter ou en fran&ccedil;ais Lettre Live du Producteur est une &eacute;mission r&eacute;alis&eacute; par l'&eacute;quipe qui travail sur Final Fantasy XIV. Cette &eacute;mission est pr&eacute;sent&eacute; par Yoshi-P en personne, accompagn&eacute; de Foxclon et ils y abordent ensemble l'actualit&eacute; du jeu et ses futurs mise &agrave; jour. ",
+   "-",
+   "",
+   "SAY",
+   0,
+   "d41d8cd98f00b204e9800998ecf8427e"
+  ],
+  [
+   "!so  !shoutout",
+   "2355133",
+   "",
+   "-",
+   "",
+   "SAY",
+   0,
+   "d41d8cd98f00b204e9800998ecf8427e"
+  ],
+  [
+   "!zeta",
+   "9999001",
+   "Hey $(nick), stream up $(uptime) &amp; counting",
+   "C100",
+   "<span class=\"label label-default\">Followers (0 J.)</span>",
+   "SAY",
+   0,
+   "d41d8cd98f00b204e9800998ecf8427e"
+  ],
+  [
+   "!zbold  !zb",
+   "9999002",
+   "[b]Bold[/b] hello",
+   "B50",
+   "",
+   "SAY",
+   1,
+   "d41d8cd98f00b204e9800998ecf8427e"
+  ],
+  [
+   "!zrandom",
+   "9999003",
+   "premi&egrave;re ligne\r\ndeuxi&egrave;me ligne\r\ntroisi&egrave;me ligne",
+   "-",
+   "<span class=\"label label-warning\">Subscribers</span> <span class=\"label label-primary\">Moderators</span>",
+   "SAY_RANDOM",
+   0,
+   "d41d8cd98f00b204e9800998ecf8427e"
+  ]
+ ]
+}

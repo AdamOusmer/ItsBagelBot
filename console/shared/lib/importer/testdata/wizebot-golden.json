@@ -1,0 +1,249 @@
+{
+  "manifest": {
+    "commands": [
+      {
+        "name": "acheron",
+        "responses": [
+          "Fiche guide de Acheron : https://zupimages.net/viewer.php?id=24/09/hqhb.jpg"
+        ],
+        "permission": "everyone"
+      },
+      {
+        "name": "alohomora",
+        "responses": [
+          "serveur : Anomora"
+        ],
+        "permission": "everyone",
+        "warnings": [
+          "command \"!alohomora\" also played a sound on stream; only its chat text is imported"
+        ]
+      },
+      {
+        "name": "backseat",
+        "responses": [
+          "Annonce de prévention sur le backseat"
+        ],
+        "permission": "everyone",
+        "aliases": [
+          "bs"
+        ]
+      },
+      {
+        "name": "dj",
+        "responses": [
+          "Dj petitsbiscuits au platine"
+        ],
+        "permission": "everyone",
+        "warnings": [
+          "command \"!dj\" also played a sound on stream; only its chat text is imported",
+          "command \"!dj\" was limited to \"User(s)\" upstream, which has no equivalent here; widened to everyone"
+        ]
+      },
+      {
+        "name": "honteux",
+        "responses": [
+          "Ce qui vient de ce passer est honteux !"
+        ],
+        "permission": "vip"
+      },
+      {
+        "name": "nospoil",
+        "responses": [
+          "⛔️ Merci de ne pas spoil la MSQ de Endwalker, Nawiel profite de la MSQ actuellement en off et toute personne contrevenant à cette règle sera perma-ban. Merci pour votre compréhension"
+        ],
+        "permission": "everyone"
+      },
+      {
+        "name": "plava",
+        "responses": [
+          "Retrouves Plasatation le spécialiste es guide de Youtube & guest star de Square Enix sur sa chaîne Twitch: https://www.twitch.tv/plavastation mais également sur Youtube: https://www.youtube.com/c/PlavaStation"
+        ],
+        "permission": "everyone",
+        "aliases": [
+          "plavastation"
+        ]
+      },
+      {
+        "name": "pll",
+        "responses": [
+          "La Liveletter ou en français Lettre Live du Producteur est une émission réalisé par l'équipe qui travail sur Final Fantasy XIV. Cette émission est présenté par Yoshi-P en personne, accompagné de Foxclon et ils y abordent ensemble l'actualité du jeu et ses futurs mise à jour."
+        ],
+        "permission": "everyone"
+      },
+      {
+        "name": "psg",
+        "responses": [
+          "ICI C'EST PARIS !"
+        ],
+        "permission": "sub",
+        "warnings": [
+          "command \"!psg\" also played a sound on stream; only its chat text is imported"
+        ]
+      },
+      {
+        "name": "pub",
+        "responses": [
+          "La minute pub \"bruit de criquet\""
+        ],
+        "permission": "mod",
+        "warnings": [
+          "command \"!pub\" also played a sound on stream; only its chat text is imported"
+        ]
+      },
+      {
+        "name": "zbold",
+        "responses": [
+          "Bold hello"
+        ],
+        "permission": "everyone",
+        "aliases": [
+          "zb"
+        ],
+        "warnings": [
+          "command \"!zbold\" cost 50 bits upstream; imported commands are free to run",
+          "command \"!zbold\" also played a sound on stream; only its chat text is imported"
+        ]
+      },
+      {
+        "name": "zeta",
+        "responses": [
+          "Hey {user}, stream up $(uptime) & counting"
+        ],
+        "permission": "everyone",
+        "warnings": [
+          "response uses $(uptime), which has no equivalent here; left as literal text",
+          "command \"!zeta\" cost 100 channel currency upstream; imported commands are free to run"
+        ]
+      },
+      {
+        "name": "zrandom",
+        "responses": [
+          "première ligne",
+          "deuxième ligne",
+          "troisième ligne"
+        ],
+        "permission": "sub",
+        "warnings": [
+          "command \"!zrandom\" picked one of its 3 lines at random upstream; all of them are posted here"
+        ]
+      }
+    ]
+  },
+  "diagnostics": [
+    {
+      "severity": "warn",
+      "item_index": -1,
+      "code": "command_type_unsupported_skipped"
+    },
+    {
+      "severity": "warn",
+      "item_index": -1,
+      "code": "command_type_unsupported_skipped"
+    },
+    {
+      "severity": "warn",
+      "item_index": -1,
+      "code": "command_type_unsupported_skipped"
+    },
+    {
+      "severity": "warn",
+      "item_index": -1,
+      "code": "command_type_unsupported_skipped"
+    },
+    {
+      "severity": "warn",
+      "item_index": -1,
+      "code": "command_type_unsupported_skipped"
+    },
+    {
+      "severity": "warn",
+      "item_index": -1,
+      "code": "command_type_unsupported_skipped"
+    },
+    {
+      "severity": "warn",
+      "item_index": -1,
+      "code": "command_type_unsupported_skipped"
+    },
+    {
+      "severity": "warn",
+      "item_index": -1,
+      "code": "command_type_unsupported_skipped"
+    },
+    {
+      "severity": "warn",
+      "item_index": -1,
+      "code": "command_type_unsupported_skipped"
+    },
+    {
+      "severity": "warn",
+      "item_index": -1,
+      "code": "command_type_unsupported_skipped"
+    },
+    {
+      "severity": "warn",
+      "item_index": 1,
+      "code": "command_sound_dropped"
+    },
+    {
+      "severity": "warn",
+      "item_index": 3,
+      "code": "command_sound_dropped"
+    },
+    {
+      "severity": "warn",
+      "item_index": 3,
+      "code": "command_permission_unmapped"
+    },
+    {
+      "severity": "warn",
+      "item_index": -1,
+      "code": "command_response_empty"
+    },
+    {
+      "severity": "warn",
+      "item_index": -1,
+      "code": "command_response_empty"
+    },
+    {
+      "severity": "warn",
+      "item_index": 8,
+      "code": "command_sound_dropped"
+    },
+    {
+      "severity": "warn",
+      "item_index": 9,
+      "code": "command_sound_dropped"
+    },
+    {
+      "severity": "warn",
+      "item_index": -1,
+      "code": "command_response_empty"
+    },
+    {
+      "severity": "warn",
+      "item_index": 10,
+      "code": "command_cost_dropped"
+    },
+    {
+      "severity": "warn",
+      "item_index": 10,
+      "code": "command_sound_dropped"
+    },
+    {
+      "severity": "warn",
+      "item_index": 11,
+      "code": "command_variable_unmapped"
+    },
+    {
+      "severity": "warn",
+      "item_index": 11,
+      "code": "command_cost_dropped"
+    },
+    {
+      "severity": "warn",
+      "item_index": 12,
+      "code": "command_random_lines_flattened"
+    }
+  ]
+}
