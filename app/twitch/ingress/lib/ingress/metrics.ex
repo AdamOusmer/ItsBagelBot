@@ -32,6 +32,26 @@ defmodule Ingress.Metrics do
     ArgumentError -> :ok
   end
 
+  @doc """
+  Counts one drop twice: the `total` every dashboard alerts on, and the
+  per-reason counter under it that says which drop it was.
+
+  The pair was written out by hand at every drop site and had already come
+  apart — one publish path incremented the total with no reason counter at all,
+  so a drop spike there could not be attributed. Deriving the reason counter
+  from the total also keeps the two names in one namespace, which the older
+  hand-written pairs did not (`Nats/PublishDropped` next to
+  `Nats/PublishOverloaded`).
+
+  `reason` must come from a closed set the caller controls — a raw error term
+  would put unbounded cardinality into a metric name.
+  """
+  @spec count_drop(String.t(), atom() | String.t()) :: :ok
+  def count_drop(total, reason) do
+    count(total)
+    count("#{total}/#{reason}")
+  end
+
   @doc "Reports a rare lifecycle event immediately."
   @spec event(String.t(), map()) :: :ok
   def event(name, attributes \\ %{}) do

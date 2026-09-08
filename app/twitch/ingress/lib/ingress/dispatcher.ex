@@ -191,10 +191,7 @@ defmodule Ingress.Dispatcher do
     :ets.update_counter(table, {:bc, broadcaster_id}, {2, -count})
   end
 
-  defp drop(_meta, reason) do
-    Metrics.count("Dispatcher/Dropped")
-    Metrics.count("Dispatcher/Dropped/#{reason}")
-  end
+  defp drop(_meta, reason), do: Metrics.count_drop("Dispatcher/Dropped", reason)
 
   @impl true
   def init(opts) do

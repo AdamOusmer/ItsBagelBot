@@ -125,7 +125,8 @@ stored the cohort as ordinary publishes because it never read the
 New Relic via the official `new_relic_agent`. With `NEW_RELIC_LICENSE_KEY` unset the agent is disabled and every
 instrumentation call is a no-op (dev and test run unchanged). Counters land under `Custom/Ingress/*`:
 `Published/<lane>`, `Dropped`, `Shard/Reconnects`, `Shard/ZombieTimeouts`, `Shard/SessionReconnects`,
-`Cache/Loads`, `Cache/LoadErrors`, `Nats/PublishDropped`. Shard lifecycle is queryable as the `IngressEvent`
+`Cache/Loads`, `Cache/LoadErrors`, `Nats/PublishDropped`. Every drop total also emits a `<total>/<reason>`
+sibling (`Dispatcher/Dropped/capacity`, `Nats/PublishDropped/overloaded`). Shard lifecycle is queryable as the `IngressEvent`
 custom event type (`ShardUp` / `ShardDown` with `shard_id`, `node`, `reason`). BEAM VM metrics (run queues, memory,
 GC) are collected automatically by the agent.
 
