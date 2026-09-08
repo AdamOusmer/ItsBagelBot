@@ -266,3 +266,84 @@ func TestSweepOnceDoesNotHoldLockDuringRefresh(t *testing.T) {
 		t.Fatal("sweepOnce deadlocked: b.mu was still held while refresh ran")
 	}
 }
+
+// mintingSource builds a Source with no cached token and a refresh that
+// always succeeds, so a test can seed whatever cached state it wants on top
+// and then count how many times the sweep actually reached the wire.
+func mintingSource(calls *int32) *Source {
+	return &Source{refresh: func(context.Context) (string, time.Duration, error) {
+		atomic.AddInt32(calls, 1)
+		return "fresh", time.Hour, nil
+	}}
+}
+
+// sweepPassesUnderTest is more than one on purpose: the states this test
+// asserts are skipped are exactly the states that used to be due forever, so
+// a single pass would not tell a skip apart from a coincidence.
+const sweepPassesUnderTest = 3
+
+// TestSweepRefreshesOnlyLiveTokens pins the rule in Source.refreshable
+// (token.go), where the New Relic finding behind it is written up: the sweep
+// renews a live token before it expires and does nothing else. A broadcaster
+// whose grant was revoked or never given has no token, and one whose token
+// already lapsed is no cheaper to renew than to mint, so both are left to
+// the lazy paths (Source.Token, from a real send or from the go-live warm in
+// internal/worker/tokenwarm.go) rather than retried on a schedule.
+//
+// Multi-pass counterpart to TestSweepOnceRefreshesOrSkipsSource above, which
+// covers the same near-expiry renewal for a single pass alongside the
+// evicted-entry case.
+func TestSweepRefreshesOnlyLiveTokens(t *testing.T) {
+	cases := []struct {
+		name      string
+		token     string
+		expiresIn time.Duration
+		wantCalls int32
+	}{
+		{name: "grant revoked or never given", token: "", expiresIn: refreshMargin - time.Second, wantCalls: 0},
+		{name: "token already expired", token: "lapsed", expiresIn: -time.Minute, wantCalls: 0},
+		{name: "live token inside the margin", token: "stale", expiresIn: refreshMargin - time.Second, wantCalls: 1},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var calls int32
+			s := mintingSource(&calls)
+			s.token = tc.token
+			s.expires = time.Now().Add(tc.expiresIn)
+
+			b := NewBroadcasterTokens(func(string) *Source { return s })
+			b.Get("chan-a")
+			for range sweepPassesUnderTest {
+				b.sweepOnce(context.Background())
+			}
+
+			got := atomic.LoadInt32(&calls)
+			if got != tc.wantCalls {
+				t.Fatalf("refresh calls across %d passes = %d, want %d", sweepPassesUnderTest, got, tc.wantCalls)
+			}
+		})
+	}
+}
+
+// itself, with the cache nowhere near its cap.
+func TestSweepTickEvictsIdleSourceBelowCap(t *testing.T) {
+	// A real refresh func, unlike countingBuild's bare &Source{}, so this
+	// tick exercises the same sources a production tick would sweep.
+	b := NewBroadcasterTokens(func(string) *Source { return mintingSource(new(int32)) })
+	b.Get("idle")
+	b.Get("active")
+	b.cache["idle"].lastUsed = time.Now().Add(-sourceIdleTTL - time.Minute)
+
+	b.sweepTick(context.Background())
+
+	if len(b.cache) >= maxBroadcasterSources {
+		t.Fatalf("cache size %d is at the cap, so this proves nothing about the TTL", len(b.cache))
+	}
+	if _, ok := b.cache["idle"]; ok {
+		t.Error("source idle past sourceIdleTTL survived a sweep tick")
+	}
+	if _, ok := b.cache["active"]; !ok {
+		t.Error("source used within sourceIdleTTL was evicted by a sweep tick")
+	}
+}
