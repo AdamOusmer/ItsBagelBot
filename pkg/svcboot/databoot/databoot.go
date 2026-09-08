@@ -30,14 +30,21 @@ import (
 // MustEntDriver opens the MySQL driver from the fleet's env conventions
 // (DB_ADDR, DB_USER, DB_PASS, DB_SCHEMA). Fatal on failure: a data service
 // without its database can only crashloop later anyway.
-func MustEntDriver(log *zap.Logger, defaultSchema string) *entsql.Driver {
+//
+// It takes the whole Core rather than the logger alone so pkg/db also receives
+// core.NR, the only route by which the connection pool's own statistics can
+// reach New Relic: the pool is opened here, long before any transaction
+// exists, so unlike query and connect instrumentation the sampler cannot pick
+// the application up off a request context (see pkg/db/stats.go).
+func MustEntDriver(core svcboot.Core, defaultSchema string) *entsql.Driver {
 	driver, err := db.NewDriver(db.Config{
 		Address:  env.Get("DB_ADDR", "127.0.0.1:3306"),
 		Username: env.MustGet("DB_USER"),
 		Password: env.MustGet("DB_PASS"),
 		Schema:   env.Get("DB_SCHEMA", defaultSchema),
+		Monitor:  core.NR,
 	})
-	svcboot.FatalIf(log, err, "failed to open database")
+	svcboot.FatalIf(core.Log, err, "failed to open database")
 	return driver
 }
 

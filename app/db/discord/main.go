@@ -40,7 +40,7 @@ func main() {
 	// -> rpc -> health. The health Set reports on the pool, so it cannot be
 	// built before the pool exists, and the RPC surface must not answer before
 	// the schema it queries is there.
-	driver := databoot.MustEntDriver(log, defaultSchema)
+	driver := databoot.MustEntDriver(core, defaultSchema)
 	client := ent.NewClient(ent.Driver(driver))
 	defer func() { _ = client.Close() }()
 

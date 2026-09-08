@@ -21,13 +21,15 @@ import (
 	"ItsBagelBot/pkg/tlsenv"
 
 	"github.com/go-sql-driver/mysql"
+	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
-
-	// Registers the "nrmysql" driver: the MySQL driver wrapped with New
-	// Relic datastore instrumentation. Queries report as segments of the
-	// transaction carried by the context; without one it is a no-op.
-	_ "github.com/newrelic/go-agent/v3/integrations/nrmysql"
 )
+
+// The nrmysql integration is no longer imported. It exists only to register a
+// driver name, and openPool now builds the pool from an instrumented
+// connector instead (pkg/db/connector.go), which is what lets the connect
+// handshake be timed at all. datastoreSegmentBuilder replicates the segment
+// builder nrmysql installed, so query and exec segments are unchanged.
 
 // Config carries everything needed to reach the MySQL schema owned by one
 // service. Each service connects to its own schema and never to another's,
@@ -41,6 +43,14 @@ type Config struct {
 	// MaxConns bounds the pool. Keep it small: every service shares the same
 	// 8 GB HeatWave instance and MySQL connections are not free.
 	MaxConns int
+
+	// Monitor is the service's APM application, used only to report pool
+	// statistics (pkg/db/stats.go). Optional: nil disables that sampler and
+	// changes nothing else, which is what keeps local development and the
+	// tests in this package working without an agent. Query, exec and connect
+	// instrumentation does not go through here: those hang off the
+	// transaction carried by the caller's context.
+	Monitor *newrelic.Application
 }
 
 const (
@@ -158,7 +168,7 @@ func NewDriver(cfg Config) (*entsql.Driver, error) {
 	}
 	mc.TLSConfig = tlsName
 
-	pool, err := openPool(mc.FormatDSN(), cfg.MaxConns)
+	pool, err := openPool(mc, cfg)
 	if err != nil {
 		return nil, err
 	}
