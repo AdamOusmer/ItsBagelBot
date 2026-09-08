@@ -698,3 +698,23 @@ func BenchmarkStatsLegacyMapAggregate(b *testing.B) {
 		_, _ = aggregate(mapResp.Stats)
 	}
 }
+
+// TestStatsCacheIDBytes pins the exact id bytes stats lookups key on. The id is
+// the tail of a live Valkey key: changing one byte orphans every cached entry
+// for that lookup until its TTL expires, so these literals are the contract
+// rather than a restatement of the implementation.
+func TestStatsCacheIDBytes(t *testing.T) {
+	cases := []struct {
+		window  string
+		account string
+		want    string
+	}{
+		{window: "season", account: "Ninja", want: "season:ninja"},
+		{window: " SeAsOn ", account: "  NiNjA  ", want: "season:ninja"},
+		{window: "", account: "ninja", want: "lifetime:ninja"},
+		{window: "career", account: "ninja", want: "lifetime:ninja"},
+	}
+	for _, c := range cases {
+		assert.Equal(t, c.want, statsCacheID(c.window, c.account), "window %q account %q", c.window, c.account)
+	}
+}

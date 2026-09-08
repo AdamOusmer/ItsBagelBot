@@ -323,3 +323,22 @@ func TestMissingAccount(t *testing.T) {
 func jsonFloat(f float64) string {
 	return strconv.FormatFloat(f, 'f', -1, 64)
 }
+
+// TestCacheAccountKeyBytes pins the exact id bytes account-scoped lookups key
+// on. The id is the tail of a live Valkey key: changing one byte orphans every
+// cached entry for that lookup until its TTL expires, so these literals are the
+// contract rather than a restatement of the implementation.
+func TestCacheAccountKeyBytes(t *testing.T) {
+	cases := []struct {
+		account string
+		hours   int
+		want    string
+	}{
+		{account: "Frosty", hours: 6, want: "frosty:6"},
+		{account: "  FrOsTy  ", hours: 6, want: "frosty:6"},
+		{account: "frosty", hours: 0, want: "frosty:0"},
+	}
+	for _, c := range cases {
+		assert.Equal(t, c.want, cacheAccount(c.account, c.hours), "account %q", c.account)
+	}
+}
