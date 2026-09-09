@@ -21,11 +21,12 @@ import {
   restartUserEventSub,
   publishUserEventSub,
   channelSubState,
-  auditAppend,
+  isForbidden,
   type AdminUserWire,
   type ChannelSubState
 } from '$lib/server/services';
-import { requireAdmin, type AdminIdentity } from '$lib/server/access';
+import { requireRole, type AccessKey } from '$lib/server/access';
+import { audit } from '$lib/server/audit';
 import { signViewAs } from '@bagel/shared/server/impersonation';
 import { env } from '$env/dynamic/private';
 import { EMPTY_USER_STATS } from '$lib/server/fallback';
@@ -91,9 +92,14 @@ export type UserDirectory = {
   degraded: boolean;
 };
 
-async function loadDirectory(page: number, search: string, state: string): Promise<UserDirectory> {
+async function loadDirectory(
+  actorId: string,
+  page: number,
+  search: string,
+  state: string
+): Promise<UserDirectory> {
   try {
-    const overview = await userOverview(page, search, state);
+    const overview = await userOverview(actorId, page, search, state);
     return {
       recent: overview.users,
       stats: overview.stats,
@@ -118,14 +124,15 @@ async function loadDirectory(page: number, search: string, state: string): Promi
 
 // Streamed: the shell (toolbar, headers) renders immediately; the directory
 // hydrates when the users RPC lands instead of blocking SSR on NATS.
-export const load: PageServerLoad = ({ url }) => {
+export const load: PageServerLoad = async ({ url, parent }) => {
+  const { id } = await parent();
   const page = parsePage(url.searchParams.get('page'), USER_MAX_PAGES);
   const search = normalizeSearch(url.searchParams.get('q'));
   const state = parseState(url.searchParams.get('state'));
 
   const directory: Promise<UserDirectory> = DEMO
     ? import('$lib/server/demo-data').then((fixtures) => demoPage(page, search, state, fixtures))
-    : loadDirectory(page, search, state);
+    : loadDirectory(id, page, search, state);
 
   return { directory, page, search, state };
 };
@@ -138,30 +145,6 @@ function dashboardOrigin(url: URL): string {
   if (configured) return configured;
   if (dev) return url.origin;
   throw new Error('DASHBOARD_PUBLIC_ORIGIN not set');
-}
-
-type AuditOutcome = {
-  action: string;
-  target: string;
-  detail?: string;
-  ok: boolean;
-  error?: string;
-};
-
-// audit records a mutating action best-effort: a logging failure must never
-// block or fail the operator action it describes. Skipped in demo (synthetic
-// non-numeric actor id).
-function audit(admin: AdminIdentity, outcome: AuditOutcome): void {
-  if (DEMO) return;
-  auditAppend({
-    actor_id: admin.id,
-    actor_login: admin.login,
-    action: outcome.action,
-    target: outcome.target,
-    detail: outcome.detail ?? '',
-    ok: outcome.ok,
-    error: outcome.error
-  }).catch(() => {});
 }
 
 const unknownSubState: ChannelSubState = { state: 'unknown', error: '', checkedAt: null };
@@ -180,10 +163,13 @@ function demoLookup(q: string, sampleUsers: AdminUserWire[]) {
 
 // probeUser fetches the row plus its token/enroll state; allSettled keeps a
 // slow or down responder from failing the whole lookup.
-async function probeUser(q: string) {
-  const user = await userLookup(q);
+async function probeUser(actorId: string, q: string) {
+  const user = await userLookup(actorId, q);
   const uid = String(user.id);
-  const [tokenRes, subRes] = await Promise.allSettled([tokenStatus(uid), channelSubState(uid)]);
+  const [tokenRes, subRes] = await Promise.allSettled([
+    tokenStatus(actorId, uid),
+    channelSubState(uid)
+  ]);
   return {
     user,
     tokenPresent: tokenRes.status === 'fulfilled' ? tokenRes.value.present : false,
@@ -216,15 +202,24 @@ function parsePaidGrant(f: FormData): { expiresAt: string; detail: string } | { 
 // inspector panel updates), or null for row-less mutations.
 type UserActionSpec = {
   name: string; // audit action id
+  key: AccessKey; // least role that may run it (ROLE_FOR)
   demoNotice: string;
   notice: (user: AdminUserWire | null) => string;
   detail?: (f: FormData) => string;
-  run: (userId: string, f: FormData) => Promise<AdminUserWire | null>;
+  run: (actorId: string, userId: string, f: FormData) => Promise<AdminUserWire | null>;
 };
+
+// refused turns a service's own role refusal into the same 403 the console's
+// table produces. The two ladders agree today; if they ever drift, the
+// operator must see the service's answer as a refusal, not as a retryable
+// notice.
+function refused(e: unknown) {
+  return fail(403, { error: (e as Error).message });
+}
 
 function userAction(spec: UserActionSpec) {
   return async ({ request, locals }: { request: Request; locals: App.Locals }) => {
-    const admin = await requireAdmin(locals.session);
+    const admin = await requireRole({ locals }, spec.key);
     if (!admin) return fail(403, { error: 'forbidden' });
     const f = await request.formData();
     const userId = String(f.get('user_id') ?? '').trim();
@@ -233,12 +228,13 @@ function userAction(spec: UserActionSpec) {
 
     const detail = spec.detail?.(f) ?? '';
     try {
-      const user = await spec.run(userId, f);
+      const user = await spec.run(admin.id, userId, f);
       audit(admin, { action: spec.name, target: userId, detail, ok: true });
       const reply = { action: { ok: true, notice: spec.notice(user) } };
       return user ? { ...reply, lookup: { user } } : reply;
     } catch (e) {
       audit(admin, { action: spec.name, target: userId, detail, ok: false, error: (e as Error).message });
+      if (isForbidden(e)) return refused(e);
       return { action: { ok: false, notice: (e as Error).message } };
     }
   };
@@ -278,7 +274,8 @@ async function withEnrollmentSync<T extends AdminUserWire | null>(
 
 export const actions: Actions = {
   lookup: async ({ request, locals }) => {
-    if (!(await requireAdmin(locals.session))) return fail(403, { error: 'forbidden' });
+    const admin = await requireRole({ locals }, 'users.read');
+    if (!admin) return fail(403, { error: 'forbidden' });
     const q = String((await request.formData()).get('q') ?? '').trim();
     if (!q) return fail(400, { error: 'query required' });
     if (q.length > 128) return fail(400, { error: 'query too long' });
@@ -287,14 +284,15 @@ export const actions: Actions = {
       return demoLookup(q, sampleUsers);
     }
     try {
-      return { lookup: await probeUser(q) };
+      return { lookup: await probeUser(admin.id, q) };
     } catch (e) {
+      if (isForbidden(e)) return refused(e);
       return { lookup: { error: (e as Error).message, q } };
     }
   },
 
   setStatus: async ({ request, locals }) => {
-    const admin = await requireAdmin(locals.session);
+    const admin = await requireRole({ locals }, 'users.grant');
     if (!admin) return fail(403, { error: 'forbidden' });
     const f = await request.formData();
     const userId = String(f.get('user_id') ?? '').trim();
@@ -311,7 +309,7 @@ export const actions: Actions = {
 
     if (DEMO) return { action: { ok: true, notice: `status set to ${status} (demo)` } };
     try {
-      const user: AdminUserWire = await userSetStatus(userId, status, expiresAt);
+      const user: AdminUserWire = await userSetStatus(admin.id, userId, status, expiresAt);
       audit(admin, { action: 'set_status', target: userId, detail, ok: true });
       const until = user.subscription_expires_at
         ? ` until ${user.subscription_expires_at.slice(0, 10)}`
@@ -319,38 +317,42 @@ export const actions: Actions = {
       return { action: { ok: true, notice: `status set to ${user.status}${until}` }, lookup: { user } };
     } catch (e) {
       audit(admin, { action: 'set_status', target: userId, detail, ok: false, error: (e as Error).message });
+      if (isForbidden(e)) return refused(e);
       return { action: { ok: false, notice: (e as Error).message } };
     }
   },
 
   reset: userAction({
     name: 'reset',
+    key: 'users.grant',
     demoNotice: DEMO ? 'user reset (demo)' : '',
     notice: () => 'user reset',
-    run: (userId) => userReset(userId)
+    run: (actorId, userId) => userReset(actorId, userId)
   }),
 
   clearToken: userAction({
     name: 'clear_token',
+    key: 'users.token',
     demoNotice: DEMO ? 'token cleared (demo)' : '',
     notice: () => 'token cleared',
-    run: async (userId) => {
-      await tokenClear(userId);
+    run: async (actorId, userId) => {
+      await tokenClear(actorId, userId);
       return null;
     }
   }),
 
   setActive: userAction({
     name: 'set_active',
+    key: 'users.grant',
     demoNotice: DEMO ? 'active set (demo)' : '',
     notice: (user) => `active=${user?.is_active}`,
     detail: (f) => String(formActive(f)),
-    run: (userId, f) => {
+    run: (actorId, userId, f) => {
       const active = formActive(f);
       return withEnrollmentSync({
         userId,
         sync: active ? 'enroll-after' : 'unenroll-first',
-        mutate: () => userSetActive(userId, active)
+        mutate: () => userSetActive(actorId, userId, active)
       });
     }
   }),
@@ -358,7 +360,7 @@ export const actions: Actions = {
   // Creator code carries its own length validation and demo-lookup shaping, so
   // it stays hand-written rather than going through userAction.
   setCreatorCode: async ({ request, locals }) => {
-    const admin = await requireAdmin(locals.session);
+    const admin = await requireRole({ locals }, 'users.grant');
     if (!admin) return fail(403, { error: 'forbidden' });
     const f = await request.formData();
     const userId = String(f.get('user_id') ?? '').trim();
@@ -378,7 +380,7 @@ export const actions: Actions = {
       };
     }
     try {
-      const user: AdminUserWire = await userSetCreatorCode(userId, creatorCode);
+      const user: AdminUserWire = await userSetCreatorCode(admin.id, userId, creatorCode);
       audit(admin, { action: 'set_creator_code', target: userId, detail, ok: true });
       return {
         action: { ok: true, notice: user.creator_code ? `creator code set to ${user.creator_code}` : 'creator code cleared' },
@@ -386,28 +388,31 @@ export const actions: Actions = {
       };
     } catch (e) {
       audit(admin, { action: 'set_creator_code', target: userId, detail, ok: false, error: (e as Error).message });
+      if (isForbidden(e)) return refused(e);
       return { action: { ok: false, notice: (e as Error).message } };
     }
   },
 
   ban: userAction({
     name: 'ban',
+    key: 'users.ban',
     demoNotice: DEMO ? 'user banned (demo)' : '',
     notice: () => 'user banned',
-    run: (userId) =>
-      withEnrollmentSync({ userId, sync: 'unenroll-first', mutate: () => userBan(userId) })
+    run: (actorId, userId) =>
+      withEnrollmentSync({ userId, sync: 'unenroll-first', mutate: () => userBan(actorId, userId) })
   }),
 
   unban: userAction({
     name: 'unban',
+    key: 'users.ban',
     demoNotice: DEMO ? 'user unbanned (demo)' : '',
     notice: () => 'user unbanned',
-    run: (userId) =>
-      withEnrollmentSync({ userId, sync: 'enroll-after', mutate: () => userUnban(userId) })
+    run: (actorId, userId) =>
+      withEnrollmentSync({ userId, sync: 'enroll-after', mutate: () => userUnban(actorId, userId) })
   }),
 
   restart: async ({ request, locals }) => {
-    const admin = await requireAdmin(locals.session);
+    const admin = await requireRole({ locals }, 'users.restart');
     if (!admin) return fail(403, { error: 'forbidden' });
     const userId = String((await request.formData()).get('user_id') ?? '').trim();
     if (!userId) return fail(400, { error: 'user_id required' });
@@ -432,7 +437,7 @@ export const actions: Actions = {
   // dashboard. The signed token (5 min TTL) carries the actor so every write
   // during the impersonated session is attributed back to this admin.
   impersonate: async ({ request, locals, url }) => {
-    const admin = await requireAdmin(locals.session);
+    const admin = await requireRole({ locals }, 'users.impersonate');
     if (!admin) return fail(403, { error: 'forbidden' });
     const userId = String((await request.formData()).get('user_id') ?? '').trim();
     if (!userId) return fail(400, { error: 'user_id required' });
@@ -453,7 +458,7 @@ export const actions: Actions = {
       return { action: { ok: true, notice: 'view-as link minted (demo)' }, viewAsUrl: `${origin}/auth/impersonate?t=${token}` };
     }
     try {
-      const user = await userLookup(userId);
+      const user = await userLookup(admin.id, userId);
       const token = signViewAs({
         sub: String(user.id),
         login: user.username,
@@ -468,20 +473,22 @@ export const actions: Actions = {
       };
     } catch (e) {
       audit(admin, { action: 'impersonate', target: userId, ok: false, error: (e as Error).message });
+      if (isForbidden(e)) return refused(e);
       return { action: { ok: false, notice: (e as Error).message } };
     }
   },
 
   delete: userAction({
     name: 'delete',
+    key: 'users.delete',
     demoNotice: DEMO ? 'user deleted (demo only, no real data removed)' : '',
     notice: () => 'user deleted',
-    run: (userId) =>
+    run: (actorId, userId) =>
       withEnrollmentSync({
         userId,
         sync: 'unenroll-first',
         mutate: async () => {
-          await userDelete(userId);
+          await userDelete(actorId, userId);
           return null;
         }
       })

@@ -4,7 +4,7 @@
 import type { RequestHandler } from './$types';
 import { json, error } from '@sveltejs/kit';
 import { dev } from '$app/environment';
-import { requireAdmin, isManager } from '$lib/server/access';
+import { requireRole } from '$lib/server/access';
 import {
   auditPage,
   AUDIT_MAX_PAGES,
@@ -43,8 +43,8 @@ function demoPage(page: number, search: string, sampleAudit: AuditEntry[]) {
 }
 
 export const GET: RequestHandler = async ({ url, locals }) => {
-  const admin = await requireAdmin(locals.session);
-  if (!admin || !isManager(admin.role)) throw error(403, 'forbidden');
+  const admin = await requireRole({ locals }, 'audit.read');
+  if (!admin) throw error(403, 'forbidden');
 
   const page = parsePage(url.searchParams.get('page'), AUDIT_MAX_PAGES);
   const search = normalizeSearch(url.searchParams.get('q'));

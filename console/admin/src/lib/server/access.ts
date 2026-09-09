@@ -34,6 +34,49 @@ export function isManager(role: AdminRole): boolean {
   return role === 'admin' || role === 'owner';
 }
 
+// ROLE_FOR is this console's whole authorization policy: one row per operator
+// action, naming the least role that may perform it. A table rather than an
+// `isManager(...)` call scattered through nine route files, because scattered
+// checks are how three mutations (shard scale, lane delete, impersonate) ended
+// up gated only by "is staff at all".
+//
+// Where the backing service enforces the same ladder (every users.* row below
+// maps onto admin.go's minRole table), this is defense in depth and the answer
+// still comes from the service. Where it does not -- the ingress, the JetStream
+// lane store, notifications, loyalty counters -- this table IS the enforcement,
+// which is why those rows are not optional.
+export const ROLE_FOR = {
+  // users service (mirrors app/db/users/rpc/admin.go)
+  'users.read': 'moderator',
+  'users.ban': 'moderator',
+  'users.grant': 'admin',
+  'users.token': 'admin',
+  'users.delete': 'owner',
+  // console-only surfaces
+  'users.impersonate': 'admin',
+  'users.restart': 'admin',
+  'shards.scale': 'admin',
+  'lanes.mutate': 'admin',
+  'notifications.send': 'admin',
+  'counters.manage': 'owner',
+  'staff.manage': 'admin',
+  'audit.read': 'admin',
+  'secrets.manage': 'admin',
+  // The bot-account OAuth consent flow installs a live Twitch token for the
+  // account the bot speaks as. Owner-only, and no lower: it is the one flow
+  // that mints credentials from an unauthenticated-looking URL.
+  'bot.token': 'owner'
+} as const satisfies Record<string, AdminRole>;
+
+export type AccessKey = keyof typeof ROLE_FOR;
+
+// allows answers the ladder question for a role already in hand (a layout load
+// that resolved the identity through parent()), so a page gate and an action
+// gate cannot disagree about what a key means.
+export function allows(role: AdminRole, key: AccessKey): boolean {
+  return RANK[role] >= RANK[ROLE_FOR[key]];
+}
+
 // canManage decides whether an actor may modify/remove a target staff row.
 // Owners may manage anyone; admins may manage moderators and admins but never
 // an owner. Mirrors the users-service enforcement (defense in depth).
@@ -74,4 +117,17 @@ export async function requireAdmin(session: Session | null): Promise<AdminIdenti
     // unverified session.
     return null;
   }
+}
+
+// requireRole is requireAdmin plus the ROLE_FOR ladder: it resolves the staff
+// identity for the request and returns it only when that identity may perform
+// `key`. Null means refuse -- callers answer with fail(403), never by falling
+// through to the mutation.
+export async function requireRole(
+  event: { locals: { session: Session | null } },
+  key: AccessKey
+): Promise<AdminIdentity | null> {
+  const admin = await requireAdmin(event.locals.session);
+  if (!admin) return null;
+  return allows(admin.role, key) ? admin : null;
 }

@@ -8,12 +8,13 @@ import {
   notificationsList,
   notificationSend,
   notificationDelete,
-  auditAppend,
+  isForbidden,
   NOTIFICATIONS_PAGE_SIZE,
   NOTIFICATIONS_MAX_PAGES,
   type NotificationWire
 } from '$lib/server/services';
-import { requireAdmin, type AdminIdentity } from '$lib/server/access';
+import { requireRole } from '$lib/server/access';
+import { audit } from '$lib/server/audit';
 import { parsePage } from '$lib/server/paging';
 
 const LEVELS = new Set(['info', 'success', 'warning', 'critical']);
@@ -136,26 +137,9 @@ function parseSendForm(f: FormData): SendForm | { error: string } {
   };
 }
 
-// audit records a mutating action best-effort: a logging failure must never
-// block or fail the operator action it describes. Skipped in demo (synthetic
-// non-numeric actor id).
-function audit(
-  admin: AdminIdentity,
-  action: string,
-  target: string,
-  detail: string,
-  ok: boolean,
-  error?: string
-): void {
-  if (DEMO) return;
-  auditAppend({ actor_id: admin.id, actor_login: admin.login, action, target, detail, ok, error }).catch(
-    () => {}
-  );
-}
-
 export const actions: Actions = {
   send: async ({ request, locals }) => {
-    const admin = await requireAdmin(locals.session);
+    const admin = await requireRole({ locals }, 'notifications.send');
     if (!admin) return fail(403, { error: 'forbidden' });
 
     const parsed = parseSendForm(await request.formData());
@@ -178,16 +162,23 @@ export const actions: Actions = {
         actorId: admin.id,
         actorLogin: admin.login
       });
-      audit(admin, 'send_notification', target, title, true);
+      audit(admin, { action: 'send_notification', target, detail: title, ok: true });
       return { action: { ok: true, notice: `notification sent to ${target}` } };
     } catch (e) {
-      audit(admin, 'send_notification', target, title, false, (e as Error).message);
+      audit(admin, {
+        action: 'send_notification',
+        target,
+        detail: title,
+        ok: false,
+        error: (e as Error).message
+      });
+      if (isForbidden(e)) return fail(403, { error: (e as Error).message });
       return { action: { ok: false, notice: (e as Error).message } };
     }
   },
 
   delete: async ({ request, locals }) => {
-    const admin = await requireAdmin(locals.session);
+    const admin = await requireRole({ locals }, 'notifications.send');
     if (!admin) return fail(403, { error: 'forbidden' });
     const id = Number(String((await request.formData()).get('id') ?? ''));
     if (!Number.isFinite(id) || id <= 0) return fail(400, { error: 'id required' });
@@ -196,10 +187,16 @@ export const actions: Actions = {
 
     try {
       await notificationDelete(id);
-      audit(admin, 'delete_notification', String(id), '', true);
+      audit(admin, { action: 'delete_notification', target: String(id), ok: true });
       return { action: { ok: true, notice: 'notification retracted' } };
     } catch (e) {
-      audit(admin, 'delete_notification', String(id), '', false, (e as Error).message);
+      audit(admin, {
+        action: 'delete_notification',
+        target: String(id),
+        ok: false,
+        error: (e as Error).message
+      });
+      if (isForbidden(e)) return fail(403, { error: (e as Error).message });
       return { action: { ok: false, notice: (e as Error).message } };
     }
   }

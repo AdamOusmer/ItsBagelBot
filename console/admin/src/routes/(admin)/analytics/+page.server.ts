@@ -23,7 +23,8 @@ function parseWindow(raw: string | null): number {
 export type AnalyticsBundle = { enrollment: EnrollmentWire; degraded: boolean };
 
 // Streamed: the shell renders immediately; the enrollment series hydrates in.
-export const load: PageServerLoad = ({ url }) => {
+export const load: PageServerLoad = async ({ url, parent }) => {
+  const { id } = await parent();
   const days = parseWindow(url.searchParams.get('window'));
 
   const bundle: Promise<AnalyticsBundle> = DEMO
@@ -31,7 +32,7 @@ export const load: PageServerLoad = ({ url }) => {
         enrollment: demoEnrollment(days),
         degraded: false
       }))
-    : userEnrollment(days)
+    : userEnrollment(id, days)
         .then((enrollment) => ({ enrollment, degraded: false }))
         .catch(() => ({ enrollment: emptyEnrollment(days), degraded: true }));
 

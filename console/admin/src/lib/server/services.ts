@@ -4,7 +4,8 @@
 // Admin-facing RPC wrappers over the shared NATS client. Subjects come from env
 // with the same defaults as the retired Go admin tier. Page callers degrade to
 // neutral zero/empty shapes so SSR can render without inventing live state.
-import { rpc, publish } from '@bagel/shared/server/nats';
+import { rpc, publish, RpcError } from '@bagel/shared/server/nats';
+import { codeReader } from '@bagel/shared/server/rpc-code';
 import { defineRead, defineWrite } from '@bagel/shared/server/service';
 import { createCacheFabric } from '@bagel/shared/server/cache-fabric';
 import { POLICY, type CachePolicy } from '@bagel/shared/server/cache-keys';
@@ -150,7 +151,37 @@ export const shardAutoscale = defineWrite({
   after: (snapshot) => setCached('shards:snapshot', snapshot, POLICY.live)
 });
 
+// ── Refusal codes ───────────────────────────────────────────────────────────
+
+// A role-ladder refusal from a Go service arrives as `code: "forbidden"`
+// (internal/domain/rpc/code.go) and reaches a route action as a thrown
+// RpcError. It is the one refusal a page must turn into an HTTP status rather
+// than a notice: 403 says "you may not do this", where a notice reads as "it
+// did not work this time" and invites the operator to retry forever.
+//
+// The reader is built on this module's OWN known set, not the whole
+// vocabulary, per rpc-code's contract: a code nothing here branches on must be
+// read as no code at all.
+const readRefusal = codeReader(['forbidden'] as const);
+
+/** True when the error is a service refusing the caller's role. */
+export function isForbidden(e: unknown): boolean {
+  if (!(e instanceof RpcError)) return false;
+  return readRefusal({ code: e.code, error: e.message }) === 'forbidden';
+}
+
 // ── Users ───────────────────────────────────────────────────────────────────
+//
+// Every bagel.rpc.admin.user.* call carries `actor_id`: the users service reads
+// the caller's role from its own staff table and refuses the verb when the
+// ladder says no (app/db/users/rpc/admin.go). The console's ROLE_FOR table is
+// the same policy applied a request earlier; this field is what makes the
+// service, not the console, the source of truth.
+//
+// Read caches below are keyed WITHOUT the actor on purpose. The rows are
+// identical whoever asks -- the ladder decides whether you may ask at all, not
+// what you see -- and keying per actor would multiply every entry by the size
+// of the staff roster for no difference in content.
 
 function isDigits(s: string): boolean {
   return /^[0-9]+$/.test(s);
@@ -159,8 +190,8 @@ function isDigits(s: string): boolean {
 // Dual-key lookup (numeric id vs. login) plus a write-through side-set of the
 // canonical user:<id> key on a login hit: the factory's single cache-key shape
 // doesn't fit this cleanly, so it stays hand-written.
-export async function userLookup(q: string): Promise<AdminUserWire> {
-  const req = isDigits(q) ? { user_id: q } : { username: q };
+export async function userLookup(actorId: string, q: string): Promise<AdminUserWire> {
+  const req = isDigits(q) ? { actor_id: actorId, user_id: q } : { actor_id: actorId, username: q };
   const key = isDigits(q) ? `user:${q}` : `user-login:${q.toLowerCase()}`;
   return cached(key, POLICY.adminRead, async () => {
     const r = await rpc<{ user: AdminUserWire }>(`${SUB.user}.get`, req);
@@ -171,18 +202,18 @@ export async function userLookup(q: string): Promise<AdminUserWire> {
 
 export const userList = defineRead({
   subject: `${SUB.user}.list`,
-  request: (limit = 20) => ({ limit }),
+  request: (actorId: string, limit = 20) => ({ actor_id: actorId, limit }),
   map: (reply: { users: AdminUserWire[] }) => reply.users ?? [],
   cache: {
     fabric,
-    key: (limit = 20) => `users:list:${limit}`,
+    key: (_actorId: string, limit = 20) => `users:list:${limit}`,
     policy: POLICY.adminPage
   }
 });
 
 export const userStats = defineRead({
   subject: `${SUB.user}.stats`,
-  request: () => ({}),
+  request: (actorId: string) => ({ actor_id: actorId }),
   map: (reply: { stats: UserStats }) => reply.stats,
   cache: {
     fabric,
@@ -207,11 +238,11 @@ export const ENROLLMENT_WINDOW_DAYS = 30;
 
 export const userEnrollment = defineRead({
   subject: `${SUB.user}.enrollment`,
-  request: (days = ENROLLMENT_WINDOW_DAYS) => ({ days }),
+  request: (actorId: string, days = ENROLLMENT_WINDOW_DAYS) => ({ actor_id: actorId, days }),
   map: (reply: { enrollment: EnrollmentWire }) => reply.enrollment,
   cache: {
     fabric,
-    key: (days = ENROLLMENT_WINDOW_DAYS) => `users:enrollment:${days}`,
+    key: (_actorId: string, days = ENROLLMENT_WINDOW_DAYS) => `users:enrollment:${days}`,
     policy: POLICY.adminPage
   }
 });
@@ -246,11 +277,16 @@ function pageMetaOf(reply: PageMetaWire, page: number, pageSize: number, maxPage
 
 // Hand-written, not defineRead: the fallback needs the request args, and
 // defineRead's `map` only sees the reply.
-export async function userOverview(page = 1, search = '', state = ''): Promise<UserPage> {
+export async function userOverview(
+  actorId: string,
+  page = 1,
+  search = '',
+  state = ''
+): Promise<UserPage> {
   return cached(`users:overview:${page}:${search}:${state}`, POLICY.adminPage, async () => {
     const r = await rpc<PageMetaWire & { users?: AdminUserWire[]; stats: UserStats }>(
       `${SUB.user}.overview`,
-      { page, limit: USER_PAGE_SIZE, search, state }
+      { actor_id: actorId, page, limit: USER_PAGE_SIZE, search, state }
     );
     return {
       users: r.users ?? [],
@@ -264,13 +300,14 @@ export const userSetStatus = defineWrite({
   subject: `${SUB.user}.set_status`,
   // expiresAt (ISO timestamp) is required by the users service when status is
   // "paid": every operator grant carries the day it ends.
-  request: (userId: string, status: string, expiresAt?: string) => ({
+  request: (actorId: string, userId: string, status: string, expiresAt?: string) => ({
+    actor_id: actorId,
     user_id: userId,
     status,
     ...(expiresAt ? { expires_at: expiresAt } : {})
   }),
   map: (reply: { user: AdminUserWire }) => reply.user,
-  after: (user, userId) => {
+  after: (user, _actorId, userId) => {
     invalidateUser(userId);
     setCached(`user:${user.id}`, user, POLICY.adminRead);
   }
@@ -278,9 +315,9 @@ export const userSetStatus = defineWrite({
 
 export const userReset = defineWrite({
   subject: `${SUB.user}.reset`,
-  request: (userId: string) => ({ user_id: userId }),
+  request: (actorId: string, userId: string) => ({ actor_id: actorId, user_id: userId }),
   map: (reply: { user: AdminUserWire }) => reply.user,
-  after: (user, userId) => {
+  after: (user, _actorId, userId) => {
     invalidateUser(userId);
     setCached(`user:${user.id}`, user, POLICY.adminRead);
   }
@@ -288,44 +325,52 @@ export const userReset = defineWrite({
 
 export const tokenStatus = defineRead({
   subject: `${SUB.user}.token_status`,
-  request: (userId: string) => ({ user_id: userId }),
+  request: (actorId: string, userId: string) => ({ actor_id: actorId, user_id: userId }),
   map: (reply: { token: TokenStatus }) => reply.token ?? { present: false },
   cache: {
     fabric,
-    key: (userId: string) => `token:${userId}`,
+    key: (_actorId: string, userId: string) => `token:${userId}`,
     policy: POLICY.adminRead
   }
 });
 
 export const tokenSet = defineWrite({
   subject: `${SUB.user}.token_set`,
-  request: (userId: string, accessToken: string, refreshToken: string) => ({
+  request: (actorId: string, userId: string, accessToken: string, refreshToken: string) => ({
+    actor_id: actorId,
     user_id: userId,
     access_token: accessToken,
     refresh_token: refreshToken
   }),
   map: (reply: { token: TokenStatus }) => reply.token ?? { present: false },
-  after: (token, userId) => setCached(`token:${userId}`, token, POLICY.adminRead)
+  after: (token, _actorId, userId) => setCached(`token:${userId}`, token, POLICY.adminRead)
 });
 
 export const tokenClear = defineWrite({
   subject: `${SUB.user}.token_clear`,
-  request: (userId: string) => ({ user_id: userId }),
+  request: (actorId: string, userId: string) => ({ actor_id: actorId, user_id: userId }),
   map: (reply: { token: TokenStatus }) => reply.token ?? { present: false },
-  after: (token, userId) => setCached(`token:${userId}`, token, POLICY.adminRead)
+  after: (token, _actorId, userId) => setCached(`token:${userId}`, token, POLICY.adminRead)
 });
 
-export async function userDelete(userId: string): Promise<void> {
-  const r = await rpc<{ error?: string }>(`${SUB.user}.delete`, { user_id: userId });
+export async function userDelete(actorId: string, userId: string): Promise<void> {
+  const r = await rpc<{ error?: string }>(`${SUB.user}.delete`, {
+    actor_id: actorId,
+    user_id: userId
+  });
   if (r.error) throw new Error(r.error);
   invalidateUser(userId);
 }
 
 export const userSetActive = defineWrite({
   subject: `${SUB.user}.set_active`,
-  request: (userId: string, active: boolean) => ({ user_id: userId, active }),
+  request: (actorId: string, userId: string, active: boolean) => ({
+    actor_id: actorId,
+    user_id: userId,
+    active
+  }),
   map: (reply: { user: AdminUserWire }) => reply.user,
-  after: (user, userId) => {
+  after: (user, _actorId, userId) => {
     invalidateUser(userId);
     setCached(`user:${user.id}`, user, POLICY.adminRead);
   }
@@ -333,12 +378,13 @@ export const userSetActive = defineWrite({
 
 export const userSetCreatorCode = defineWrite({
   subject: `${SUB.user}.set_creator_code`,
-  request: (userId: string, creatorCode: string) => ({
+  request: (actorId: string, userId: string, creatorCode: string) => ({
+    actor_id: actorId,
     user_id: userId,
     creator_code: creatorCode
   }),
   map: (reply: { user: AdminUserWire }) => reply.user,
-  after: (user, userId) => {
+  after: (user, _actorId, userId) => {
     invalidateUser(userId);
     setCached(`user:${user.id}`, user, POLICY.adminRead);
   }
@@ -346,9 +392,9 @@ export const userSetCreatorCode = defineWrite({
 
 export const userBan = defineWrite({
   subject: `${SUB.user}.ban`,
-  request: (userId: string) => ({ user_id: userId }),
+  request: (actorId: string, userId: string) => ({ actor_id: actorId, user_id: userId }),
   map: (reply: { user: AdminUserWire }) => reply.user,
-  after: (user, userId) => {
+  after: (user, _actorId, userId) => {
     invalidateUser(userId);
     setCached(`user:${user.id}`, user, POLICY.adminRead);
   }
@@ -356,9 +402,9 @@ export const userBan = defineWrite({
 
 export const userUnban = defineWrite({
   subject: `${SUB.user}.unban`,
-  request: (userId: string) => ({ user_id: userId }),
+  request: (actorId: string, userId: string) => ({ actor_id: actorId, user_id: userId }),
   map: (reply: { user: AdminUserWire }) => reply.user,
-  after: (user, userId) => {
+  after: (user, _actorId, userId) => {
     invalidateUser(userId);
     setCached(`user:${user.id}`, user, POLICY.adminRead);
   }
