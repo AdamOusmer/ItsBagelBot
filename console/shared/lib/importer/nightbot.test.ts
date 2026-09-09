@@ -129,18 +129,26 @@ describe('commands', () => {
   test('unmappable variables stay literal and are reported once each', () => {
     const { manifest, diagnostics } = parseNightbot(
       bytes({
-        commands: [command({ message: '$(count) $(count) $(querystring) $(eval 1+1) $(31)' })]
+        commands: [command({ message: '$(count) $(count) $(eval 1+1) $(31)' })]
       })
     );
-    expect(manifest.commands?.[0].responses).toEqual([
-      '$(count) $(count) $(querystring) $(eval 1+1) $(31)'
-    ]);
+    expect(manifest.commands?.[0].responses).toEqual(['$(count) $(count) $(eval 1+1) $(31)']);
     expect(codesOf(diagnostics)).toEqual([
-      CODE.variableUnmapped,
       CODE.variableUnmapped,
       CODE.variableUnmapped,
       CODE.variableUnmapped
     ]);
+  });
+
+  test('$(querystring) translates to {querystring}, not to {args}', () => {
+    // Both sides URL-encode the arguments, so a definition URL built from the
+    // translated response requests the same bytes Nightbot requested. Folding
+    // it onto {args} would quietly change the request.
+    const { manifest, diagnostics } = parseNightbot(
+      bytes({ commands: [command({ message: 'https://x.test/?q=$(querystring)' })] })
+    );
+    expect(manifest.commands?.[0].responses).toEqual(['https://x.test/?q={querystring}']);
+    expect(codesOf(diagnostics)).toEqual([]);
   });
 
   test('word numbers map onto the positional tokens', () => {

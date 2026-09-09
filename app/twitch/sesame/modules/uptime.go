@@ -39,7 +39,7 @@ func Uptime(d engine.Deps) module.Module {
 				if !res.Live {
 					return i18n.T(c.Locale, "uptime.offline")
 				}
-				return fmt.Sprintf(i18n.T(c.Locale, "uptime"), humanizeDuration(c.Locale, time.Since(res.StartedAt)))
+				return fmt.Sprintf(i18n.T(c.Locale, "uptime"), i18n.HumanizeDuration(c.Locale, time.Since(res.StartedAt)))
 			},
 		}.run()
 		emitLookup(c, text, emit)

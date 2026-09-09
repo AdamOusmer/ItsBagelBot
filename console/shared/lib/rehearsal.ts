@@ -40,6 +40,7 @@
 //   leading slash-verb routes the same way.
 
 import { RESPONSE_MAX_LINES, responseLines } from './commands-validate';
+import { queryEscape, resolveComputedUtil, UTIL_NAMES } from './pure';
 import { lex, resolveToken, type VarToken } from './tmpl';
 
 export type SegKind = 'plain' | 'sample' | 'unknown';
@@ -117,7 +118,8 @@ const MESSAGE_NAMES = new Set([
   'channel',
   'userid',
   'user.login',
-  'command'
+  'command',
+  'querystring'
 ]);
 
 /** The highest word a template may address, matching scope.MaxPositional.
@@ -130,6 +132,14 @@ const MAX_POSITIONAL = 30;
  * every keystroke. */
 const RANDOM_SAMPLE = '57';
 const COUNTER_SAMPLE = '42';
+
+/** {countdown}/{countup} read the wall clock, so the preview shows a fixed,
+ * plausible span instead of a live one: a value that ticks while the
+ * broadcaster types would redraw the rehearsal on a timer and still not be
+ * the value chat sees, since chat sees it whenever the command runs. The
+ * wording matches the bot's shared humanizer (the same one !uptime prints
+ * through, internal/domain/i18n HumanizeDuration). */
+const COUNTDOWN_SAMPLE = '3 days, 4 hours';
 
 /** Rehearse a custom command response: expand, split into messages, then
  * route each line's leading slash-verb (the same order as emitResponse).
@@ -216,15 +226,18 @@ function chainResolver(chain: readonly SampleScope[]): Resolve {
   };
 }
 
-/** commandChain's mirror: the dice, the triggering line, then the counter
- * store. Order is precedence, exactly as in the engine. */
+/** commandChain's mirror: the dice and the payload utilities (one Go scope,
+ * scope.Pure), the triggering line, then the counter store. Order is
+ * precedence, exactly as in the engine. */
 function commandChain(samples: Samples): SampleScope[] {
-  return [PURE_SCOPE, messageScope(samples), COUNTER_SCOPE];
+  return [PURE_SCOPE, UTIL_SCOPE, messageScope(samples), COUNTER_SCOPE];
 }
 
 /** A module reply resolves only its own token map, plus the dynamic set when
- * that module falls back to ParseDynamic. There is no message or counter
- * scope: a module reply is not a custom command. */
+ * that module falls back to ParseDynamic. There is no message, counter or
+ * utility scope: a module reply is not a custom command, and the Go side
+ * expands it through module.ParseDynamic rather than through scope.Pure — so
+ * {math:…} and friends stay literal there, exactly as they do in chat. */
 function replyChain(samples: Samples, opts: ReplyOptions): SampleScope[] {
   const own: SampleScope = {
     owns: () => true,
@@ -255,6 +268,47 @@ function randomSample(token: Token): string | null {
   return max < min ? null : String(Math.floor((min + max) / 2));
 }
 
+/** The rest of scope.Pure: the utilities that take a payload. The computed
+ * ones ({math:…}, {queryescape:…}, {pathescape:…}, {repeat:n:phrase}) are
+ * evaluated for real by ./pure, so the preview prints the bytes chat will
+ * print; the clock ones show a fixed sample. A utility with no payload names
+ * nothing to work on ({math} is not the token) and stays literal.
+ *
+ * It is a second scope here while Go has one, because the Go split falls the
+ * other way: scope.Pure is mounted only on custom commands, while the dice
+ * below are ALSO the module-reply palette (module.ParseDynamic), so PURE_SCOPE
+ * has to be mountable on its own. */
+const UTIL_SCOPE: SampleScope = {
+  owns: (name) => UTIL_NAMES.has(name),
+  get: utilSample
+};
+
+function utilSample(token: Token): string | null {
+  if (token.payload === null) return null;
+  if (token.name === 'countdown' || token.name === 'countup') return countdownSample(token.payload);
+  return resolveComputedUtil(token);
+}
+
+/** A parseable date previews as a fixed span; anything else resolves to the
+ * empty string (not null), so the span's fallback renders exactly as it would
+ * in chat when the bot fails to read the date. */
+function countdownSample(payload: string): string {
+  return isInstant(payload) ? COUNTDOWN_SAMPLE : '';
+}
+
+/** The two spellings scope.parseInstant accepts: RFC3339, or a bare
+ * YYYY-MM-DD read as UTC midnight. The shape is checked before Date.parse so
+ * the preview does not accept the many other formats JavaScript will
+ * ("Dec 25 2026", "2026/12/25") and the bot will not. */
+const RFC3339 = /^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(\.\d+)?([Zz]|[+-]\d{2}:\d{2})$/;
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+function isInstant(payload: string): boolean {
+  const text = payload.trim();
+  if (!RFC3339.test(text) && !DATE_ONLY.test(text)) return false;
+  return !Number.isNaN(Date.parse(text));
+}
+
 /** scope.Message's mirror: the identity and argument tokens the chat line
  * already carries. A payload is declined rather than ignored ({user:bob} is
  * not a token), matching Message.Get — except on a positional name, where
@@ -269,6 +323,11 @@ function messageScope(samples: Samples): SampleScope {
 function messageSample(token: Token, samples: Samples): string | null {
   if (positionalIndex(token.name) !== null) return positionalSample(token, samples);
   if (token.payload !== null) return null;
+  // {querystring} is derived from the args sample rather than carried as one,
+  // for the same reason the positional words are: a surface that overrides
+  // {args} must not get a URL-encoded preview that disagrees with the {args}
+  // beside it. It runs through the same encoder as {queryescape:…}.
+  if (token.name === 'querystring') return queryEscape(samples.args ?? '');
   const name = COMMAND_ALIASES[token.name] ?? token.name;
   return name in samples ? samples[name] : null;
 }

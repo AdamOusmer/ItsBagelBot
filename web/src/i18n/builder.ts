@@ -90,6 +90,26 @@ const DYNAMIC: VarDef[] = [
   v('{choice:yes,no,maybe}', 'maybe', { en: 'Random choice', fr: 'Choix aléatoire' }, { en: 'Picks one of your comma-separated options. Replace the words.', fr: 'Choisit une option de votre liste séparée par des virgules. Remplacez les mots.' }),
 ];
 
+// The pure utilities (app/twitch/sesame/engine/scope/pure.go). Unlike DYNAMIC
+// these are offered on the custom-command surface ONLY: the engine mounts the
+// pure scope when it expands a command, while a module reply is expanded
+// through module.ParseDynamic, which has never carried them. Offering them on
+// an alert would promise a token that stays literal in chat.
+//
+// The samples are what the preview COMPUTES for these payloads, not
+// decoration: the shared rehearsal evaluates {math:…}, the escapes and
+// {repeat:…} for real, so a sample that disagreed with the payload beside it
+// would be visibly wrong the moment the builder rendered it.
+const UTILITIES: VarDef[] = [
+  v('{math:1+2*3}', '7', { en: 'Arithmetic', fr: 'Calcul' }, { en: 'Works out a small sum. Whole numbers, + - * / and parentheses; nothing else.', fr: 'Résout une petite opération. Nombres entiers, + - * / et parenthèses; rien d’autre.' }),
+  v('{querystring}', 'alex+good+luck', { en: 'Arguments, URL-encoded', fr: 'Arguments encodés pour une URL' }, { en: 'Everything typed after the command, encoded so it can be dropped into a data source URL.', fr: 'Tout le texte tapé après la commande, encodé pour être placé dans l’URL d’une source de données.' }),
+  v('{queryescape:hello world}', 'hello+world', { en: 'URL-encode text', fr: 'Encoder du texte pour une URL' }, { en: 'Encodes your own text for the query part of a URL. Replace the words.', fr: 'Encode votre propre texte pour la partie requête d’une URL. Remplacez les mots.' }),
+  v('{pathescape:hello world}', 'hello%20world', { en: 'URL-encode a path', fr: 'Encoder un chemin d’URL' }, { en: 'The same, for the path part of a URL, where a space is not a plus.', fr: 'La même chose, pour la partie chemin d’une URL, où un espace n’est pas un plus.' }),
+  v('{repeat:3:bagel}', 'bagel bagel bagel', { en: 'Repeat a phrase', fr: 'Répéter une phrase' }, { en: 'Repeats your phrase, space separated. Up to 20 times, and it has to fit one chat line.', fr: 'Répète votre phrase, séparée par des espaces. 20 fois au maximum, et le tout doit tenir sur une ligne de chat.' }),
+  v('{countdown:2026-12-25}', '3 days, 4 hours', { en: 'Time until a date', fr: 'Temps avant une date' }, { en: 'How long until that date. Write it as YYYY-MM-DD, or as a full timestamp. Nothing once the date has passed.', fr: 'Le temps restant avant cette date. Écrivez-la AAAA-MM-JJ, ou en horodatage complet. Plus rien une fois la date passée.' }),
+  v('{countup:2020-01-01}', '3 days, 4 hours', { en: 'Time since a date', fr: 'Temps depuis une date' }, { en: 'How long since that date, in the same wording as !uptime.', fr: 'Le temps écoulé depuis cette date, formulé comme !uptime.' }),
+];
+
 const USER_VIEWER = v('{user}', 'maya_live', { en: 'Viewer name', fr: 'Nom du spectateur' }, { en: 'Whoever used the command. {sender} works too.', fr: 'La personne qui a utilisé la commande. {sender} fonctionne aussi.' });
 
 export const SURFACES: SurfaceDef[] = [
@@ -124,6 +144,7 @@ export const SURFACES: SurfaceDef[] = [
         scopes: COUNTER_SCOPES,
       },
       ...DYNAMIC,
+      ...UTILITIES,
     ],
   },
   {

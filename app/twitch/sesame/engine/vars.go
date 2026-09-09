@@ -27,7 +27,7 @@ import (
 // args is the RAW argument string: the counter scope resolves a mention from
 // it, and that resolution has to see the same bytes the chatter typed.
 func (p *Pipeline) commandChain(run commandRun) scope.Chain {
-	chain := scope.Chain{scope.Pure{}, messageVars(run)}
+	chain := scope.Chain{scope.Pure{Locale: run.c.Locale}, messageVars(run)}
 	if p.loyalty != nil {
 		chain = append(chain, scope.Store{Counters: newCounterBumps(p, run)})
 	}
