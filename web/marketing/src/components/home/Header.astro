@@ -39,8 +39,8 @@ const t = useTranslations(lang);
             </svg>
         </div>
 
-        <div class="orb orb-1"></div>
-        <div class="orb orb-2"></div>
+        <div class="bb-orb bb-orb--halo bb-orb--green orb orb-1"></div>
+        <div class="bb-orb bb-orb--halo bb-orb--tan orb orb-2"></div>
     </div>
 
 
@@ -272,37 +272,21 @@ const t = useTranslations(lang);
         animation-play-state: var(--hero-animation-state, running);
     }
 
+    /* The circle, the blur, the pulsing halo and the two glow colours are
+       @bagel/ui/styles/orbs.css (.bb-orb--halo--green/--tan). What stays here
+       is the part that is this hero's and no one else's: where each orb sits,
+       and its coupling to --hero-p, the scroll progress script/scroll.js
+       writes on :root. That coupling is expressed as VALUES for the shared
+       contract's custom properties, not as a second copy of its rules — the
+       docs site made the copy, then quietly lost the movement. */
     .orb {
-        position: absolute;
-        border-radius: 50%;
-        filter: blur(80px);
         --orb-scroll-glow: min(calc(var(--hero-p, 0) * 0.24), calc((1 - var(--hero-p, 0)) * 0.28));
-        opacity: max(0, calc(0.16 - var(--hero-p, 0) * 0.16), var(--orb-scroll-glow));
-        transform: translate3d(var(--orb-shift-x), var(--orb-shift-y), 0) scale(calc(1 - var(--hero-p, 0) * 0.82));
-        transform-origin: center;
-        will-change: var(--hero-orb-will-change, opacity, transform);
-    }
-
-    .orb::before {
-        content: "";
-        position: absolute;
-        inset: 0;
-        border-radius: inherit;
-        background: inherit;
-        animation: pulse 5s ease-in-out infinite;
-        animation-play-state: var(--hero-animation-state, running);
-    }
-
-    .orb::after {
-        content: "";
-        position: absolute;
-        inset: 8%;
-        border-radius: inherit;
-        background: radial-gradient(circle, var(--orb-glow-core) 0 24%, var(--orb-glow-soft) 48%, transparent 72%);
-        opacity: min(calc(var(--hero-p, 0) * 1.2), calc((1 - var(--hero-p, 0)) * 1.1));
-        transform: scale(calc(0.42 + var(--hero-p, 0) * 1.35));
-        transform-origin: center;
-        will-change: opacity, transform;
+        --bb-orb-opacity: max(0, calc(0.16 - var(--hero-p, 0) * 0.16), var(--orb-scroll-glow));
+        --bb-orb-transform: translate3d(var(--orb-shift-x), var(--orb-shift-y), 0) scale(calc(1 - var(--hero-p, 0) * 0.82));
+        --bb-orb-will-change: var(--hero-orb-will-change, opacity, transform);
+        --bb-orb-core-opacity: min(calc(var(--hero-p, 0) * 1.2), calc((1 - var(--hero-p, 0)) * 1.1));
+        --bb-orb-core-scale: calc(0.42 + var(--hero-p, 0) * 1.35);
+        --bb-orb-play-state: var(--hero-animation-state, running);
     }
 
     /* 2b: glows trade corners: green rides top-right above the ring, tan
@@ -311,33 +295,20 @@ const t = useTranslations(lang);
     .orb-1 {
         width: 500px;
         height: 500px;
-        background: var(--green);
         top: -120px;
         right: -60px;
-        --orb-glow-core: rgba(167, 243, 208, 0.85);
-        --orb-glow-soft: rgba(82, 183, 136, 0.34);
         --orb-shift-x: calc(var(--hero-p, 0) * (-50vw + 190px));
         --orb-shift-y: calc(var(--hero-p, 0) * (50vh - 130px));
-    }
-
-    .orb-1::before {
-        animation-delay: 0s;
     }
 
     .orb-2 {
         width: 400px;
         height: 400px;
-        background: var(--tan);
         bottom: -100px;
         left: -80px;
-        --orb-glow-core: rgba(245, 230, 207, 0.78);
-        --orb-glow-soft: rgba(201, 168, 124, 0.32);
         --orb-shift-x: calc(var(--hero-p, 0) * (50vw - 120px));
         --orb-shift-y: calc(var(--hero-p, 0) * (-50vh + 100px));
-    }
-
-    .orb-2::before {
-        animation-delay: 400ms;
+        --bb-orb-pulse-delay: 400ms;
     }
 
 
@@ -347,17 +318,6 @@ const t = useTranslations(lang);
         }
         to {
             transform: rotate(360deg);
-        }
-    }
-
-    @keyframes pulse {
-        0%, 100% {
-            opacity: 0.55;
-            transform: scale(1);
-        }
-        50% {
-            opacity: 1;
-            transform: scale(1.1);
         }
     }
 

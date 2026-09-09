@@ -1,0 +1,73 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* One entrance rhythm, two mechanisms.
+ *
+ * The marketing site reveals on scroll: an IntersectionObserver adds
+ * `.is-revealed` to `[data-reveal]` elements, so the entrance is a
+ * TRANSITION from a resting hidden state and can be re-driven by JS.
+ * The console reveals on load: `.reveal` with `style="--i: n"` plays a
+ * one-shot KEYFRAME, because nothing there scrolls into view late and an
+ * observer per row would be a scheduler for an animation that always runs
+ * exactly once.
+ *
+ * Both are kept, because swapping either for the other changes when the
+ * animation fires, not just how it looks. What is unified is the rhythm:
+ * 24px of travel, 760ms, 80ms per step. Those three numbers were already
+ * identical in both files (the console copy carried a comment saying it
+ * matched the marketing site) and they are the thing that would drift,
+ * since nothing checked them.
+ *
+ * Why 24px/760ms/80ms: the travel has to be visible at a glance without
+ * reading as a slide-in, and the step has to let ~8 elements finish inside
+ * one second, since a longer cascade means the last row of a section is
+ * still arriving after the reader's eye has reached it. The clamp at 14
+ * steps is the same guard: past that the stagger stops being a rhythm and
+ * becomes a wait.
+ */
+
+@layer bb.base {
+    /* Scroll reveal: resting state, plus the class an observer adds. */
+    [data-reveal] {
+        opacity: 0;
+        transform: translateY(var(--bb-reveal-distance, 24px));
+        transition:
+            opacity var(--bb-reveal-duration, 760ms) var(--bb-ease-out-expo),
+            transform var(--bb-reveal-duration, 760ms) var(--bb-ease-out-expo);
+        transition-delay: calc(var(--reveal-i, 0) * var(--bb-reveal-step, 80ms));
+        will-change: opacity, transform;
+    }
+
+    [data-reveal].is-revealed {
+        opacity: 1;
+        transform: none;
+        will-change: auto;
+    }
+
+    /* Load reveal: staggered rise-ins keyed by --i. Apply .reveal to any
+       element and set style="--i: n": rows, strips and cards enter like a
+       channel check, top to bottom. One well-timed entrance, then the UI
+       stays still. */
+    .reveal {
+        animation: bb-rise-in var(--bb-reveal-duration, 760ms) var(--bb-ease-out-expo) both;
+        animation-delay: calc(min(var(--i, 0), 14) * var(--bb-reveal-step, 80ms));
+    }
+
+    @keyframes bb-rise-in {
+        from { opacity: 0; transform: translateY(var(--bb-reveal-distance, 24px)); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* The scroll variant needs its own reduced-motion rule: it rests at
+       opacity 0 and only a class it may never receive turns it on, so the
+       global kill switch in a11y.css (which only shortens durations) would
+       leave the page blank. The keyframe variant is fine there, because a
+       0.01ms `both`-filled animation lands on its `to` frame. */
+    @media (prefers-reduced-motion: reduce) {
+        [data-reveal] {
+            opacity: 1;
+            transform: none;
+            transition: none;
+        }
+    }
+}

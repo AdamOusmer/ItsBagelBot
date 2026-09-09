@@ -2,7 +2,7 @@
    Proprietary. No license granted. See LICENSE.md. */
 
 @import '@bagel/kit/styles/tokens.css';
-@import '@bagel/kit/styles/app.css';
+@import '@bagel/kit/styles/console.css';
 
 /* Mobile-first page-content overrides for the dashboard.
    The app shell (.app grid, sidebar, topbar, canvas, mobile nav) is now owned by

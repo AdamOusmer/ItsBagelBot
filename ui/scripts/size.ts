@@ -71,6 +71,38 @@ const ENTRIES: {
   },
 ];
 
+/* The CSS contracts. Measured directly rather than through a synthetic
+ * consumer: a stylesheet has no tree-shaking to defeat, so the file IS what
+ * ships, minified, once per surface bundle that imports it.
+ *
+ * These rows exist for a different reason than the JS ones. Every element
+ * contract that lands in this library arrives by DELETING two or three
+ * copies of itself from the surfaces, so the number that matters is not "did
+ * this file grow" but "did it grow by more than the copies it replaced". A
+ * row here turns the second half of that into a build failure: a contract
+ * that quietly acquires a surface's one-off rules instead of exposing a
+ * custom property for them shows up as bytes.
+ *
+ * Same budget arithmetic as above: measured + ~150 B for CI's linux/x64 gzip
+ * delta, then ~10% of room, rounded.
+ */
+const CSS_ENTRIES: { name: string; budget: number }[] = [
+  // Labels, tags, marks, sweeps and chips. Was ~120 lines in the marketing
+  // style.css and ~110 in the console app.css; both are deleted.
+  // Measured 2026-09-09 (macOS/arm64): 1336 B gzip. 1336 + 150 = 1486, +10%.
+  { name: "tags", budget: 1640 },
+  // The 24px/760ms/80ms entrance, both the scroll transition and the load
+  // keyframe. Measured 2026-09-09: 307 B gzip. 307 + 150 = 457, +10%.
+  { name: "reveal", budget: 520 },
+  // Ambient orbs: shape, halo, washes and drifts, replacing four copies.
+  // Measured 2026-09-09: 744 B gzip. 744 + 150 = 894, +10%.
+  { name: "orbs", budget: 1000 },
+  // Reduced motion, focus ring, scrollbar. The smallest of the four and the
+  // one most likely to become a dumping ground for "global-ish" rules, which
+  // is what this row is for. Measured 2026-09-09: 348 B gzip.
+  { name: "a11y", budget: 560 },
+];
+
 let failed = false;
 rmSync(DIR, { recursive: true, force: true });
 mkdirSync(DIR, { recursive: true });
@@ -98,6 +130,28 @@ for (const entry of ENTRIES) {
   const room = entry.budget - gz;
   console.log(
     `${ok ? "✓" : "✗"} ${entry.name}: ${gz} B gzip (budget ${entry.budget}, ${room >= 0 ? `${room} B room` : `${-room} B OVER`})`,
+  );
+  if (!ok) failed = true;
+}
+
+for (const entry of CSS_ENTRIES) {
+  const build = await Bun.build({
+    entrypoints: [new URL(`../styles/${entry.name}.css`, import.meta.url).pathname],
+    minify: true,
+  });
+  if (!build.success) {
+    console.error(`✗ ${entry.name}.css: build failed`);
+    for (const log of build.logs) console.error(String(log));
+    failed = true;
+    continue;
+  }
+
+  const css = await build.outputs[0].arrayBuffer();
+  const gz = Bun.gzipSync(new Uint8Array(css)).byteLength;
+  const ok = gz <= entry.budget;
+  const room = entry.budget - gz;
+  console.log(
+    `${ok ? "✓" : "✗"} ${entry.name}.css: ${gz} B gzip (budget ${entry.budget}, ${room >= 0 ? `${room} B room` : `${-room} B OVER`})`,
   );
   if (!ok) failed = true;
 }

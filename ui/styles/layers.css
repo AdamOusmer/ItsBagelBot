@@ -24,7 +24,11 @@
    app, not by out-specifying it. Unlayered CSS beats every layer, so anything
    an app leaves outside `bb.app` still wins; the layer is what lets an app
    override with a LOWER-specificity selector than the contract uses. Either
-   way `!important` is never the answer here, and no rule in this package
-   uses it. */
+   way `!important` is never the answer here. Exactly one rule in this
+   package uses it, and only because layers cannot express what it needs:
+   a11y.css's reduced-motion kill switch has to outrank author animations
+   that may be declared unlayered or inline, and an `!important` in the
+   weakest layer is the only declaration that does. Its comment says so at
+   the rule. Anything else reaching for it is a cascade bug. */
 
 @layer bb.tokens, bb.base, bb.elements, bb.app;

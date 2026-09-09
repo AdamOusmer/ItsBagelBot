@@ -13,6 +13,9 @@
  * Both @imports have to stay at the top: CSS only honours @import before any
  * other rule, so a declaration added above them silently disables them.
  */
+/* layers.css goes first of all: it only declares the @layer order, and that
+   order is fixed by whichever declaration the browser sees first. */
+@import '@bagel/ui/styles/layers.css';
 @import '@bagel/ui/styles/brand.css';
 
 /* Self-hosted fonts: no third-party origin, satisfies CSP font-src 'self'.

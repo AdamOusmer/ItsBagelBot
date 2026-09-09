@@ -422,7 +422,7 @@
   }
 
   /* margin-top:0 stands in for web's `* { margin: 0 }` reset (style.css), which
-     web/kit/styles/app.css does not ship. Without it the UA's
+     web/kit/styles/console.css does not ship. Without it the UA's
      `h1 { margin-block-start: 0.67em }` survives (58.85px at the 87.84px
      desktop size) and grew the grid row past the title, so `align-items: end`
      bottom-aligned the title 59px below its eyebrow. Same reset gap as .lede
@@ -467,7 +467,7 @@
 
   /* margin-top:0 is load-bearing, not tidiness. web/marketing/src/styles/style.css
      resets `* { margin: 0 }`, so the hero's `p` rule only ever sets a bottom
-     margin; web/kit/styles/app.css has no such reset, so the UA's
+     margin; web/kit/styles/console.css has no such reset, so the UA's
      `p { margin: 1em 0 }` survived here and added a measured 15.68px above
      the lede that the hero does not have. Same story for .consent below. */
   .lede {
