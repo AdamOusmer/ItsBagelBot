@@ -94,7 +94,7 @@ func (l *countingLoyalty) CounterBump(_ context.Context, _ CounterBump) (int64, 
 	return l.value, nil
 }
 
-func (l *countingLoyalty) CounterPeek(context.Context, uint64, string, uint64, string) (loyaltyrpc.Counter, bool, error) {
+func (l *countingLoyalty) CounterPeek(context.Context, CounterTarget) (loyaltyrpc.Counter, bool, error) {
 	l.peekCalls++
 	return loyaltyrpc.Counter{Name: "deaths", Value: l.value}, true, nil
 }

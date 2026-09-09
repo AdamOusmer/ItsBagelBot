@@ -11,7 +11,7 @@
 //	$(query)                         → {args}
 //	$(querystring)                   → {querystring}
 //	$(1) $(2) … $(30)                → {1} {2} … {30}
-//	$(count)                         → literal + warn  (mutates upstream)
+//	$(count)                         → literal + warn  (mutates, and unnamed)
 //	$(urlfetch URL) / $(customapi …) → {urlfetch:nightbot_<cmd>} + def
 //	$(eval …) $(twitch …) $(time …)  → literal + warn  (no equivalent)
 //
@@ -30,15 +30,26 @@
 // (space to '+', everything outside the unreserved set percent-encoded), so a
 // translated response builds the byte-identical request.
 //
-// $(count) mutates (increments, then returns) while {counter:*} only reads, so
-// translating it would silently drop the increment, a behavior change, not a
-// translation. The viewer lookups this bot grew ({followage}, {accountage},
-// {points}) have no counterpart to map here either: Nightbot spells follow age
+// $(count) mutates (increments, then returns), and so does this bot's
+// {counter:<name>} — but Nightbot's is per-command and UNNAMED while ours is a
+// named channel counter, so a translation would have to invent a name and
+// silently bind the imported command to a bucket the broadcaster never chose.
+// The read-only {count:<name>} this bot grew is not the answer either: mapping
+// a mutating variable onto a read would drop the increment, a behavior change
+// rather than a translation. $(count) therefore keeps the literal+warn path,
+// and the warning is what sends the broadcaster to pick a counter name
+// themselves. The viewer lookups ({followage}, {accountage}, {points}) and the
+// module facts ({quote}, {time}, {song}) have no counterpart to map here
+// either: Nightbot spells follow age
 // as $(twitch $(touser) "…{{followed}}…"), a format-string call whose interior
 // is a template of its own rather than a variable, and it has no points
 // variable at all (its loyalty lives outside the command language). Inventing
 // a mapping from a format string would translate a sentence into a token and
 // silently drop everything the broadcaster wrote around it.
+// $(time <timezone>) and $(twitch … "{{song}}") stay literal for the same
+// shape of reason as $(twitch …) above: both take an argument this bot's
+// {time} / {song} do not (a per-call timezone, a format string), because both
+// read the broadcaster's own module configuration instead.
 // $(countdown …) stays literal for a narrower reason: this bot
 // has a {countdown:…}, but Nightbot's takes a free-form date string
 // ("Dec 25 2026 12:00:00 PST") that {countdown:…} does not read, so the

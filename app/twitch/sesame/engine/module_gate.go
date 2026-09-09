@@ -118,3 +118,22 @@ func (g ModuleGate) BuiltinEnabled(ctx context.Context) bool {
 	// against ModuleOff rather than for ModuleOn.
 	return state != ModuleOff
 }
+
+// OptInView resolves a dashboard-configured (opt-in) module's row and
+// reports whether it is on for this broadcaster, handing back the view so the
+// caller can decode its config blob.
+//
+// It is the opposite polarity to BuiltinEnabled and the difference is the
+// whole point of having both: a built-in ships enabled, so a missing row is ON,
+// while an opt-in module has nothing to run without its row, so a missing row —
+// and an unreadable one — is OFF. The {quote}, {time} and {song} response
+// tokens are gated by exactly the same rows as !quote, !time and !song, and a
+// token reading those rows under its own polarity would leave one channel where
+// the command runs and the token does not. log may be nil.
+func (g ModuleGate) OptInView(ctx context.Context) (projection.ModuleView, bool) {
+	view, state, err := ModuleLookup{Proj: g.Proj, BroadcasterID: g.BroadcasterID, Name: g.Name, Absent: ModuleOff}.Resolve(ctx)
+	if err != nil && g.Log != nil {
+		g.Log.Warn(g.Name+": module state read failed, token stays literal", module.BIDField(g.BroadcasterID), zap.Error(err))
+	}
+	return view, state == ModuleOn
+}

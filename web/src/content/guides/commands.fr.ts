@@ -156,13 +156,13 @@ const strings: GuideStrings = {
     'meta.card.chips.2': '{counter:…}',
     'meta.card.chips.3': '!cmd',
     'meta.card.description': 'Créez des commandes qui saluent les gens par leur nom, lancent des dés et comptent vos victoires. Toutes les variables du bot, expliquées avec des exemples de chat.',
-    'meta.card.meta': '12 min · 10 étapes',
+    'meta.card.meta': '13 min · 11 étapes',
     'meta.card.title': 'Commandes et variables',
     'meta.description': "Maîtrisez les commandes personnalisées d'ItsBagelBot: toutes les variables supportées ({user}, {random}, {counter} et plus), réponses multilignes, actions de chat, délais et niveaux d'accès.",
     'meta.eyebrow': 'Guide',
     'meta.heading': 'Commandes et variables',
     'meta.lead': 'Des commandes qui saluent les gens par leur nom, lancent des dés et comptent vos victoires. Pas de code: juste des accolades.',
-    'meta.minutes': '12 min de lecture',
+    'meta.minutes': '13 min de lecture',
     'meta.title': 'Commandes et variables - Guides ItsBagelBot',
     'fallbacks.b0.html': `
             <p>
@@ -342,6 +342,56 @@ const strings: GuideStrings = {
                 <a href="/fr/command-builder">constructeur</a>, qui ne propose que de vraies variables).`,
     'variables.heading': 'Les variables: les parties intelligentes',
     'variables.note': 'Les accolades sont des espaces réservés. Le bot les remplit au moment de répondre.',
+    'modulefacts.b0.html': `
+            <p>
+                Trois modules répondent déjà au chat avec un seul fait: le recueil de citations,
+                votre horloge locale et le morceau en cours sur Spotify. Ces variables vous donnent
+                ce fait sous forme de texte, pour que vous le disiez à votre façon plutôt que
+                d'envoyer la ligne du module. Il y a aussi une deuxième variable de compteur ici:
+                celle qui lit un total sans l'incrémenter.
+            </p>`,
+    'modulefacts.b1.head.0': 'Variable',
+    'modulefacts.b1.head.1': 'Devient',
+    'modulefacts.b1.head.2': 'Exemple',
+    'modulefacts.b1.rows.0.0': '<code>&#123;quote&#125;</code>',
+    'modulefacts.b1.rows.0.1': "Une citation au hasard de votre recueil, formulée exactement comme <code>!quote</code> la dit. <code>&#123;quote:12&#125;</code> choisit la citation 12, et un numéro inutilisé ne renvoie rien. Deux <code>&#123;quote&#125;</code> dans une même réponse donnent deux citations différentes.",
+    'modulefacts.b1.rows.0.2': 'Citation n°12 : les bagels ne sont que des beignes salés (2026-01-31)',
+    'modulefacts.b1.rows.1.0': '<code>&#123;time&#125;</code>',
+    'modulefacts.b1.rows.1.1': "L'heure chez vous, selon le fuseau horaire et le format d'horloge enregistrés dans le module Heure locale.",
+    'modulefacts.b1.rows.1.2': '15:04',
+    'modulefacts.b1.rows.2.0': '<code>&#123;song&#125;</code>',
+    'modulefacts.b1.rows.2.1': "Le morceau en cours sur Spotify. <code>&#123;song.title&#125;</code> et <code>&#123;song.artist&#125;</code> donnent les deux moitiés séparément, quand vous voulez formuler la liaison vous-même.",
+    'modulefacts.b1.rows.2.2': 'Everything In Its Right Place par Radiohead',
+    'modulefacts.b1.rows.3.0': '<code>&#123;count:chutes&#125;</code>',
+    'modulefacts.b1.rows.3.1': "Le total actuel d'un compteur, lu sans y toucher. Mêmes compteurs et mêmes noms que <code>&#123;counter:chutes&#125;</code>, qui est celle qui ajoute 1.",
+    'modulefacts.b1.rows.3.2': '128',
+    'modulefacts.b2.caption': 'Deux totaux: un incrémenté, un seulement lu.',
+    'modulefacts.b2.lines.0.name': 'maya_live',
+    'modulefacts.b2.lines.0.text': '!chute',
+    'modulefacts.b2.lines.1.text': 'Encore une! Ça fait 129 chutes aujourd’hui, 412 depuis le début.',
+    'modulefacts.b2.lines.2.name': 'alex',
+    'modulefacts.b2.lines.2.text': '!ambiance',
+    'modulefacts.b2.lines.3.text': 'Il est 15:04 et on écoute Everything In Its Right Place par Radiohead 🥯',
+    'modulefacts.b2.title': '#votre_chaine',
+    'modulefacts.b3.html': `
+                <b>D'abord l'incrément, ensuite la lecture</b>
+                Mettez <code>&#123;counter:chutes&#125;</code> et <code>&#123;count:chutes&#125;</code>
+                dans la même réponse et les deux affichent le total <i>après</i> le +1, peu importe
+                l'ordre où vous les avez tapés. Une commande ajoute une chute, jamais deux, et les
+                deux nombres de votre phrase sont toujours d'accord. Utilisez
+                <code>&#123;count:…&#125;</code> seule pour une commande qui ne fait qu'annoncer.`,
+    'modulefacts.b4.html': `
+                <b>Chacune a besoin de son module</b>
+                <code>&#123;quote&#125;</code> nécessite le module Citations,
+                <code>&#123;time&#125;</code> le module Heure locale (avec un fuseau enregistré),
+                <code>&#123;song&#125;</code> le module Requêtes musicales, et les compteurs le module
+                Points de fidélité. Module éteint, le bot laisse la variable dans le message telle
+                que vous l'avez tapée, accolades comprises. Module allumé mais rien à dire (un
+                recueil vide, pas encore de fuseau, un lecteur en pause), la variable revient vide,
+                et c'est exactement à ça que sert une valeur par défaut:
+                <code>&#123;song|rien pour l'instant&#125;</code>.`,
+    'modulefacts.heading': 'Un fait d’un module, dans votre propre phrase',
+    'modulefacts.note': 'Une citation enregistrée, votre heure locale et ce qui joue en ce moment.',
     'viewer.b0.html': `
             <p>
                 Le bot répond déjà à <code>!followage</code>, <code>!accountage</code> et

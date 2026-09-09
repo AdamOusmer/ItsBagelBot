@@ -127,6 +127,20 @@ const VIEWER: VarDef[] = [
   v('{watchtime}', '2 hours, 30 minutes', { en: 'Time watched', fr: 'Temps de visionnage' }, { en: 'How long they have watched while the loyalty clock was running. {watchtime:alex} asks about someone else. Needs the Loyalty Points module.', fr: 'Le temps qu’ils ont passé à regarder pendant que l’horloge de fidélité tournait. {watchtime:alex} interroge quelqu’un d’autre. Nécessite le module Points de fidélité.' }),
 ];
 
+// The module facts (app/twitch/sesame/engine/scope/modules.go). Each is
+// answered by an opt-in module, so with Quotes, Local Time or Song Requests
+// switched off the bot leaves the variable visible in chat instead of
+// answering it — which is what the descriptions say out loud.
+//
+// The samples match the shared rehearsal's stand-ins exactly (QUOTE_SAMPLE and
+// friends): the preview substitutes those, so a different value here would
+// contradict the line right beside it.
+const MODULE_FACTS: VarDef[] = [
+  v('{quote}', 'Quote #12: bagels are just savoury donuts (2026-01-31)', { en: 'A saved quote', fr: 'Une citation enregistrée' }, { en: 'A random quote from your quote book, worded exactly as !quote says it. {quote:12} picks a numbered one, and a number nobody has used comes back empty. Two {quote} in one response are two different quotes. Needs the Quotes module.', fr: 'Une citation au hasard de votre recueil, formulée exactement comme !quote la dit. {quote:12} choisit une citation numérotée, et un numéro inutilisé ne renvoie rien. Deux {quote} dans une même réponse donnent deux citations différentes. Nécessite le module Citations.' }),
+  v('{time}', '3:04 PM', { en: 'Your local time', fr: 'Votre heure locale' }, { en: 'The time where you are, on the timezone and clock face you set on the Local time module. Needs that module, with a timezone saved.', fr: 'L’heure chez vous, selon le fuseau et le format d’horloge choisis dans le module Heure locale. Nécessite ce module, avec un fuseau enregistré.' }),
+  v('{song}', 'Everything In Its Right Place by Radiohead', { en: 'Now playing', fr: 'En cours de lecture' }, { en: 'The track playing on Spotify right now. {song.title} and {song.artist} give the two halves separately. Nothing playing comes back empty. Needs the Song requests module.', fr: 'Le morceau en cours sur Spotify. {song.title} et {song.artist} donnent les deux moitiés séparément. Rien en lecture ne renvoie rien. Nécessite le module Requêtes musicales.' }),
+];
+
 const USER_VIEWER = v('{user}', 'maya_live', { en: 'Viewer name', fr: 'Nom du spectateur' }, { en: 'Whoever used the command. {sender} works too.', fr: 'La personne qui a utilisé la commande. {sender} fonctionne aussi.' });
 
 export const SURFACES: SurfaceDef[] = [
@@ -160,9 +174,22 @@ export const SURFACES: SurfaceDef[] = [
         ),
         scopes: COUNTER_SCOPES,
       },
+      {
+        ...v(
+          '{count:falls}',
+          '128',
+          { en: 'Counter (read only)', fr: 'Compteur (lecture seule)' },
+          {
+            en: 'Shows a counter without adding to it, so a command can report a total it does not change. Same counter, same name, same scopes as {counter:…}.',
+            fr: 'Affiche un compteur sans l’incrémenter, pour qu’une commande puisse annoncer un total sans le modifier. Même compteur, même nom et mêmes portées que {counter:…}.',
+          },
+        ),
+        scopes: COUNTER_SCOPES,
+      },
       ...DYNAMIC,
       ...UTILITIES,
       ...VIEWER,
+      ...MODULE_FACTS,
     ],
   },
   {

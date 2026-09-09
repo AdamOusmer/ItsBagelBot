@@ -293,7 +293,7 @@ type LoyaltyStore interface {
 	CounterBump(ctx context.Context, b CounterBump) (int64, error)
 	// CounterPeek reads a counter without bumping it; found=false means it
 	// does not exist.
-	CounterPeek(ctx context.Context, broadcasterID uint64, name string, viewerID uint64, command string) (loyaltyrpc.Counter, bool, error)
+	CounterPeek(ctx context.Context, target CounterTarget) (loyaltyrpc.Counter, bool, error)
 	// BalanceGet returns one viewer's standing (zero-valued when unseen).
 	BalanceGet(ctx context.Context, broadcasterID, viewerID uint64) (loyaltyrpc.Balance, error)
 	// BalanceAdjust writes a viewer's points by login (mod grants): absolute

@@ -258,6 +258,54 @@ describe('viewer scope (engine/scope/viewer.go mirror)', () => {
   });
 });
 
+describe('module scope (engine/scope/modules.go mirror)', () => {
+  test('the module facts preview with a stand-in', () => {
+    const [line] = rehearseCommand('{quote} / {time} / {song}');
+    expect(textOf(line.segments)).toBe(
+      'Quote #12: bagels are just savoury donuts (2026-01-31) / 3:04 PM / Everything In Its Right Place by Radiohead'
+    );
+    expect(line.segments.every((seg) => seg.kind !== 'unknown')).toBe(true);
+  });
+
+  test('the song halves preview as the halves of the whole', () => {
+    const [line] = rehearseCommand('{song.title} — {song.artist}');
+    expect(textOf(line.segments)).toBe('Everything In Its Right Place — Radiohead');
+  });
+
+  test('a numbered quote previews the same stand-in as the random draw', () => {
+    // The preview cannot know what quote #7 says, and inventing a second fake
+    // quote for it would suggest that it could.
+    const [line] = rehearseCommand('{quote:7}');
+    expect(textOf(line.segments)).toBe('Quote #12: bagels are just savoury donuts (2026-01-31)');
+  });
+
+  test('a payload the Go scope refuses stays literal', () => {
+    for (const span of ['{quote:}', '{quote:seven}', '{quote:0}', '{time:America/Toronto}', '{song:2}']) {
+      const [line] = rehearseCommand(span);
+      expect(line.segments).toEqual([{ text: span, kind: 'unknown' }]);
+    }
+  });
+});
+
+describe('read-only counters (engine/scope/store.go mirror)', () => {
+  test('{count:name} previews like {counter:name}', () => {
+    const [line] = rehearseCommand('{counter:deaths} deaths, {count:Deaths} today');
+    expect(textOf(line.segments)).toBe('42 deaths, 42 today');
+  });
+
+  test('the read spelling refuses the same payloads the bump does', () => {
+    for (const span of ['{count}', '{count:}', '{count:target:}', '{count:bot:feeds}']) {
+      const [line] = rehearseCommand(span);
+      expect(line.segments).toEqual([{ text: span, kind: 'unknown' }]);
+    }
+  });
+
+  test('a target-addressed read previews like the bump', () => {
+    const [line] = rehearseCommand('{count:target:shutups}');
+    expect(textOf(line.segments)).toBe('42');
+  });
+});
+
 describe('rehearseReply', () => {
   test('substitutes only the given samples; command tokens stay unknown', () => {
     const [line] = rehearseReply('{user} {args}', { user: 'sam' });

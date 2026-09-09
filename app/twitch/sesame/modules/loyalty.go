@@ -733,7 +733,12 @@ func (lc loyaltyCmd) counterList(ctx context.Context) error {
 
 func (lc loyaltyCmd) counterShow(ctx context.Context, name, command string) error {
 	viewerID, _ := strconv.ParseUint(lc.c.Env.ChatterUserID, 10, 64)
-	counter, found, err := lc.d.Loyalty.CounterPeek(ctx, lc.c.BroadcasterID, name, viewerID, command)
+	counter, found, err := lc.d.Loyalty.CounterPeek(ctx, engine.CounterTarget{
+		BroadcasterID: lc.c.BroadcasterID,
+		Name:          name,
+		ViewerID:      viewerID,
+		Command:       command,
+	})
 	if err != nil {
 		return lc.fail("show", err)
 	}

@@ -174,7 +174,7 @@ type CounterTarget struct {
 // value a REPLAYED bump should render instead of double-incrementing. Empty when
 // unknown, which renders the same as an unbound counter token.
 func CounterPeekValue(ctx context.Context, s LoyaltyStore, target CounterTarget) string {
-	c, found, err := s.CounterPeek(ctx, target.BroadcasterID, target.Name, target.ViewerID, target.Command)
+	c, found, err := s.CounterPeek(ctx, target)
 	if err != nil || !found {
 		return ""
 	}

@@ -96,6 +96,13 @@ type Pipeline struct {
 	// customFetch resolves {urlfetch:...} response tokens through gossip's
 	// custom.fetch endpoint. nil leaves them visible (unknown-token convention).
 	customFetch UrlFetchCaller
+	// quotes and gossip answer the module-fact response tokens: {quote} reads
+	// the same quote book !quote does, and {song} the same live player !song
+	// does. Both are the very instances the modules use, so a token and its
+	// command can never read two different sources. nil leaves those tokens
+	// literal.
+	quotes QuotesStore
+	gossip GossipCaller
 	// roster remembers who this replica has seen speak, so a target-addressed
 	// counter token ({counter:target:...}) can key its bump on the mentioned
 	// viewer. Pure in-process memory; see chatterRoster.
@@ -155,6 +162,8 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 		followage:         d.Followage,
 		accountAge:        d.AccountAge,
 		customFetch:       d.CustomFetch,
+		quotes:            d.Quotes,
+		gossip:            d.Gossip,
 		botID:             cfg.BotID,
 		outgressPremium:   cfg.OutgressPremium,
 		outgressStandard:  cfg.OutgressStandard,

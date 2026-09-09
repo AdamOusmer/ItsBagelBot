@@ -12,12 +12,12 @@ const guide: GuideContent = {
     eyebrow: 'Guide',
     heading: 'Commands & variables',
     lead: 'Commands that greet people by name, roll dice, and count your wins. No code: just braces.',
-    minutes: '12 min read',
+    minutes: '13 min read',
     card: {
       title: 'Commands & variables',
       description:
         'Build commands that greet people by name, roll dice, and count wins. Every variable the bot understands, explained with live-looking chat examples.',
-      meta: '12 min · 10 steps',
+      meta: '13 min · 11 steps',
       chips: ['{user}', '{random}', '{counter:…}', '!cmd'],
     },
   },
@@ -368,6 +368,67 @@ const guide: GuideContent = {
                 module is on but there is nothing to say (a viewer who does not follow, somebody your
                 channel has never seen speak), the variable comes back empty, which is what a default
                 is for: <code>&#123;followage|not yet&#125;</code>.`,
+        },
+      ],
+    },
+    {
+      id: 'modulefacts',
+      heading: 'One fact from a module, inside your own sentence',
+      note: 'A saved quote, your local time, and whatever is playing right now.',
+      blocks: [
+        {
+          kind: 'prose',
+          html: `
+            <p>
+                Three modules already answer chat with a single fact: the quote book, your local
+                clock, and the track playing on Spotify. These variables hand you that fact as text
+                so you can say it your way instead of sending the module's own line. There is also a
+                second counter variable here: one that reads a total without adding to it.
+            </p>`,
+        },
+        {
+          kind: 'table',
+          head: ['Variable', 'Becomes', 'Example'],
+          rows: [
+            ['<code>&#123;quote&#125;</code>', 'A random quote from your quote book, worded exactly as <code>!quote</code> says it. <code>&#123;quote:12&#125;</code> picks quote 12, and a number nobody has used comes back empty. Two <code>&#123;quote&#125;</code> in one response are two different quotes.', 'Quote #12: bagels are just savoury donuts (2026-01-31)'],
+            ['<code>&#123;time&#125;</code>', 'The time where you are, using the timezone and the clock face you saved on the Local time module.', '3:04 PM'],
+            ['<code>&#123;song&#125;</code>', 'The track playing on Spotify right now. <code>&#123;song.title&#125;</code> and <code>&#123;song.artist&#125;</code> give the two halves on their own, for when you want to word the join yourself.', 'Everything In Its Right Place by Radiohead'],
+            ['<code>&#123;count:falls&#125;</code>', 'A counter\'s current total, read without touching it. Same counters, same names as <code>&#123;counter:falls&#125;</code>, which is the one that adds 1.', '128'],
+          ],
+        },
+        {
+          kind: 'chat',
+          title: '#your_channel',
+          caption: 'Two totals, one bumped and one only read.',
+          lines: [
+            { who: 'viewer', name: 'maya_live', text: '!fall' },
+            { who: 'bot', text: 'Down again! That is 129 falls today, 412 all time.' },
+            { who: 'viewer', name: 'alex', text: '!vibe' },
+            { who: 'bot', text: 'It is 3:04 PM and we are listening to Everything In Its Right Place by Radiohead 🥯' },
+          ],
+        },
+        {
+          kind: 'callout',
+          tone: 'warn',
+          html: `
+                <b>Read, then bump, in that order</b>
+                Put <code>&#123;counter:falls&#125;</code> and <code>&#123;count:falls&#125;</code> in the
+                same response and both show the total <i>after</i> the +1, wherever you typed them.
+                One command adds one fall, never two, and the two numbers in your sentence always
+                agree. Use <code>&#123;count:…&#125;</code> on its own for a command that only reports.`,
+        },
+        {
+          kind: 'callout',
+          tone: 'warn',
+          html: `
+                <b>Each one needs its module switched on</b>
+                <code>&#123;quote&#125;</code> needs the Quotes module, <code>&#123;time&#125;</code> the
+                Local time module (with a timezone saved), <code>&#123;song&#125;</code> the Song
+                requests module, and the counters the Loyalty Points module. With the module off the
+                bot leaves the variable in the message exactly as you typed it, braces and all. With
+                it on but nothing to say (an empty quote book, no timezone yet, a paused player), the
+                variable comes back empty, which is what a default is for:
+                <code>&#123;song|nothing right now&#125;</code>.`,
         },
       ],
     },

@@ -352,13 +352,14 @@ func (s *ValkeyLoyaltyStore) bumpEntry(ctx context.Context, broadcasterID uint64
 // CounterPeek reads a counter without bumping it: the live Valkey view when
 // present, the service otherwise. found=false means the counter exists
 // nowhere. command selects the bucket of a viewer+command counter.
-func (s *ValkeyLoyaltyStore) CounterPeek(ctx context.Context, broadcasterID uint64, name string, viewerID uint64, command string) (loyaltyrpc.Counter, bool, error) {
-	name = NormalizeCounterName(name)
+func (s *ValkeyLoyaltyStore) CounterPeek(ctx context.Context, target CounterTarget) (loyaltyrpc.Counter, bool, error) {
+	name := NormalizeCounterName(target.Name)
 	if name == "" {
 		return loyaltyrpc.Counter{}, false, nil
 	}
+	broadcasterID, viewerID := target.BroadcasterID, target.ViewerID
 	scope := s.scope(ctx, broadcasterID, name)
-	command = NormalizeCounterName(command)
+	command := NormalizeCounterName(target.Command)
 
 	if v, ok := s.peekView(ctx, broadcasterID, name, scope, viewerID, command); ok {
 		return loyaltyrpc.Counter{Name: name, Scope: scope, Value: v}, true, nil
