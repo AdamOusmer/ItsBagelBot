@@ -12,12 +12,12 @@ const guide: GuideContent = {
     eyebrow: 'Guide',
     heading: 'Commands & variables',
     lead: 'Commands that greet people by name, roll dice, and count your wins. No code: just braces.',
-    minutes: '13 min read',
+    minutes: '14 min read',
     card: {
       title: 'Commands & variables',
       description:
         'Build commands that greet people by name, roll dice, and count wins. Every variable the bot understands, explained with live-looking chat examples.',
-      meta: '13 min · 11 steps',
+      meta: '14 min · 12 steps',
       chips: ['{user}', '{random}', '{counter:…}', '!cmd'],
     },
   },
@@ -429,6 +429,62 @@ const guide: GuideContent = {
                 it on but nothing to say (an empty quote book, no timezone yet, a paused player), the
                 variable comes back empty, which is what a default is for:
                 <code>&#123;song|nothing right now&#125;</code>.`,
+        },
+      ],
+    },
+    {
+      id: 'chatroom',
+      heading: 'The room: how many, and who',
+      note: 'Count the people talking, or pull one of their names out of the hat.',
+      blocks: [
+        {
+          kind: 'prose',
+          html: `
+            <p>
+                Two variables talk about the room instead of the person who used the command:
+                one counts the people chatting, the other picks one of them at random. Neither
+                needs a module switched on, and neither asks Twitch anything: the bot already
+                sees every message, so it answers from the people it has watched talk.
+            </p>`,
+        },
+        {
+          kind: 'table',
+          head: ['Variable', 'Becomes', 'Example'],
+          rows: [
+            ['<code>&#123;chatters&#125;</code>', 'How many people have talked in chat recently. A channel where nobody has said anything comes back as <code>0</code>.', '37'],
+            ['<code>&#123;random.chatter&#125;</code>', 'The name of one of them, picked at random. Never you and never the bot. Two of them in one response are two separate picks, so they can land on the same person, just like two dice rolls.', 'maya_live'],
+          ],
+        },
+        {
+          kind: 'chat',
+          title: '#your_channel',
+          caption: 'A command that hands the mic to somebody else.',
+          lines: [
+            { who: 'viewer', name: 'maya_live', text: '!question' },
+            { who: 'bot', text: '37 of us in here. @alex, you are up: what is the worst bagel flavour? 🥯' },
+          ],
+        },
+        {
+          kind: 'callout',
+          tone: 'info',
+          html: `
+                <b>It counts talkers, not watchers</b>
+                The bot builds this list from the messages it sees, so it is the people who have
+                said something recently, not everybody with your stream open. Lurkers are not in
+                it. Someone who said hello and then went quiet for a long while eventually drops
+                out of it too. That makes it a good "who is talking right now" and a poor
+                "how many people are watching me", which is a different number entirely.`,
+        },
+        {
+          kind: 'callout',
+          tone: 'warn',
+          html: `
+                <b>A quiet channel comes back empty</b>
+                If nobody but you and the bot has spoken, there is nobody to pick, and
+                <code>&#123;random.chatter&#125;</code> comes back empty. Give it a default so the
+                line still reads: <code>&#123;random.chatter|somebody&#125;</code>.
+                <code>&#123;chatters&#125;</code> answers <code>0</code> rather than nothing, so it
+                never needs one.`,
         },
       ],
     },

@@ -745,6 +745,8 @@
     "tokQuote": "une citation enregistrée au hasard, ou {quote:12} pour une citation précise (module Citations)",
     "tokTime": "votre heure locale, sur le format d’horloge que vous avez choisi (module Heure locale)",
     "tokSong": "le morceau en cours, ou {song.title} / {song.artist} (Requêtes musicales)",
+    "tokChatters": "combien de personnes ont parlé récemment dans le chat",
+    "tokRandomChatter": "l’une d’elles, choisie au hasard (jamais vous, jamais le bot)",
     "fallbackHint": "Ajoutez | et du texte dans n’importe quelle variable pour une valeur par défaut quand elle revient vide: {touser|tout le monde}.",
     "access": "Accès",
     "cooldownS": "Délai (s)",

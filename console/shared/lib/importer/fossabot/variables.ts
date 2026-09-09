@@ -53,6 +53,14 @@
 // literal+warn path; a mapping can be added the day a real directory carries
 // one to check against.
 //
+// The chat room ({chatters}, {random.chatter}) gains no mapping either, and
+// for the plainest reason of all: the table above is this file's record of
+// what Fossabot's variable language contains, and it carries no chatter count
+// and no random-viewer variable to map. Nothing here was rewritten from a
+// guess at what the source might spell them; the day one is observed in a
+// real directory it can be added and checked, and until then a response that
+// wanted one keeps the literal+warn path that sends it to review.
+//
 // $(user) and $(sender) both fold onto {user}: Fossabot's own docs describe
 // them as the same person (sender is the older spelling), so keeping them apart
 // would invent a distinction the source never had. $(count.increment …),

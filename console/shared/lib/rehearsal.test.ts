@@ -258,6 +258,28 @@ describe('viewer scope (engine/scope/viewer.go mirror)', () => {
   });
 });
 
+describe('chatter scope (engine/scope/chatters.go mirror)', () => {
+  test('the room previews with a stand-in', () => {
+    const [line] = rehearseCommand('{chatters} here, hi {random.chatter}');
+    expect(textOf(line.segments)).toBe('37 here, hi maya_live');
+    expect(line.segments.every((seg) => seg.kind !== 'unknown')).toBe(true);
+  });
+
+  test('two draws preview as the same name', () => {
+    // Chat draws independently per span; the preview holds one name still for
+    // the reason it does not re-roll {random} on every keystroke.
+    const [line] = rehearseCommand('{random.chatter} and {random.chatter}');
+    expect(textOf(line.segments)).toBe('maya_live and maya_live');
+  });
+
+  test('neither token takes a payload', () => {
+    for (const span of ['{chatters:5}', '{random.chatter:mods}', '{chatter}']) {
+      const [line] = rehearseCommand(span);
+      expect(line.segments).toEqual([{ text: span, kind: 'unknown' }]);
+    }
+  });
+});
+
 describe('module scope (engine/scope/modules.go mirror)', () => {
   test('the module facts preview with a stand-in', () => {
     const [line] = rehearseCommand('{quote} / {time} / {song}');

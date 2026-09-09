@@ -6,7 +6,7 @@
 // Go engine, keep them in lockstep:
 //
 //   - token lexing:          pkg/tmpl/tmpl.go (Lex, Token.Resolve), ported to ./tmpl
-//   - scope chain:           app/twitch/sesame/engine/scope (Chain, Pure, Message, Viewer, Modules, Store)
+//   - scope chain:           app/twitch/sesame/engine/scope (Chain, Pure, Message, Chatters, Viewer, Modules, Store)
 //   - chain wiring per run:  app/twitch/sesame/engine/vars.go (commandChain)
 //   - counter normalization: app/twitch/sesame/engine/scope/store.go (NormalizeName)
 //   - slash-verb routing:    internal/domain/outgress/slash.go (CutSlash)
@@ -168,6 +168,21 @@ const TIME_SAMPLE = '3:04 PM';
 const SONG_TITLE_SAMPLE = 'Everything In Its Right Place';
 const SONG_ARTIST_SAMPLE = 'Radiohead';
 
+/** Stand-ins for the chat room (scope.Chatters): how many people the bot has
+ * watched speak recently, and one of their names. Neither is gated by a
+ * module, but neither is knowable from a response being typed in a dashboard
+ * either, so the preview shows a plausible room rather than a live one.
+ *
+ * Chat draws a DIFFERENT name for each {random.chatter} span (they are
+ * independent draws); the preview shows the same one every time, for the
+ * reason it does not re-roll {random} on every keystroke — a preview that
+ * changed under the cursor would be read as the bot being indecisive, and a
+ * second invented name would suggest the dashboard knows who is in the room.
+ * The count is a plausible small room rather than a round number, so nobody
+ * reads it as a placeholder the bot failed to fill. */
+const CHATTERS_SAMPLE = '37';
+const RANDOM_CHATTER_SAMPLE = 'maya_live';
+
 /** Rehearse a custom command response: expand, split into messages, then
  * route each line's leading slash-verb (the same order as emitResponse).
  * (Expansion per line equals whole-template expansion: no token value can
@@ -254,10 +269,19 @@ function chainResolver(chain: readonly SampleScope[]): Resolve {
 }
 
 /** commandChain's mirror: the dice and the payload utilities (one Go scope,
- * scope.Pure), the triggering line, the viewer lookups, the module facts,
- * then the counter store. Order is precedence, exactly as in the engine. */
+ * scope.Pure), the triggering line, the chat room, the viewer lookups, the
+ * module facts, then the counter store. Order is precedence, exactly as in
+ * the engine. */
 function commandChain(samples: Samples): SampleScope[] {
-  return [PURE_SCOPE, UTIL_SCOPE, messageScope(samples), VIEWER_SCOPE, MODULE_SCOPE, COUNTER_SCOPE];
+  return [
+    PURE_SCOPE,
+    UTIL_SCOPE,
+    messageScope(samples),
+    CHATTER_SCOPE,
+    VIEWER_SCOPE,
+    MODULE_SCOPE,
+    COUNTER_SCOPE
+  ];
 }
 
 /** A module reply resolves only its own token map, plus the dynamic set when
@@ -424,6 +448,30 @@ function viewerSample(token: Token): string | null {
   if (token.payload !== null && token.payload.trim().replace(/^@/, '') === '') return null;
   return VIEWER_SAMPLES[token.name];
 }
+
+/** scope.Chatters' mirror: {chatters}, the size of the room, and
+ * {random.chatter}, one name from it.
+ *
+ * This is the one scope in the chain that is mounted unconditionally in CHAT
+ * as well as here: no module gates it, because the bot reads the chatters it
+ * has watched speak rather than asking Twitch. So unlike the viewer lookups
+ * and the module facts, a token previewed here can never be one that stays
+ * literal in chat — an unknown room is the count "0" and an empty draw, both
+ * real answers. What DOES differ is the wording: chat draws from recently
+ * active chatters, not from everyone with the page open, which the guide says
+ * and a preview cannot show.
+ *
+ * Neither token takes a payload, so a span carrying one stays literal,
+ * matching the Go scope. */
+const CHATTER_SAMPLES: Samples = {
+  chatters: CHATTERS_SAMPLE,
+  'random.chatter': RANDOM_CHATTER_SAMPLE
+};
+
+const CHATTER_SCOPE: SampleScope = {
+  owns: (name) => name in CHATTER_SAMPLES,
+  get: (token) => (token.payload === null ? CHATTER_SAMPLES[token.name] : null)
+};
 
 /** scope.Modules' mirror: the tokens whose value is a single fact an opt-in
  * module already holds — {quote} / {quote:n}, {time}, and the {song} family.

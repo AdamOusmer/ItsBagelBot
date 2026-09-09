@@ -33,9 +33,16 @@ import (
 // template actually names, so a command mentioning none of them costs no
 // projection read. The module scope also counts the template's bare {quote}
 // spans there, because each is an independent draw and the chain would hand it
-// only one distinct span.
+// only one distinct span. The chatter scope counts its own bare
+// {random.chatter} spans there for the same reason, but mounts either way:
+// nothing gates it, so a broadcaster who spelled it right never sees it stay
+// literal.
 func (p *Pipeline) commandChain(ctx context.Context, run commandRun, toks []tmpl.Token) scope.Chain {
-	chain := scope.Chain{scope.Pure{Locale: run.c.Locale}, messageVars(run)}
+	chain := scope.Chain{
+		scope.Pure{Locale: run.c.Locale},
+		messageVars(run),
+		p.chattersScope(run.c, toks),
+	}
 	if viewer, mounted := p.viewerScope(ctx, run.c, toks); mounted {
 		chain = append(chain, viewer)
 	}
