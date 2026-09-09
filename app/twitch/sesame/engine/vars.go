@@ -28,6 +28,13 @@ import (
 // args is the RAW argument string: the counter scope resolves a mention from
 // it, and that resolution has to see the same bytes the chatter typed.
 //
+// cc is the command row that matched, not just its name: the row already
+// carries the lifetime use counter the commands service maintains, so {uses}
+// is answered from the lookup runCustom has already done rather than from a
+// second store. Everything else reads cc.Name, the canonical key an alias
+// resolves to, so {command}, the counter bumps and the use counter all agree
+// on one name.
+//
 // toks is the lexed template, which the channel, viewer and module scopes need
 // BEFORE they mount: their module rows are read only for the token families the
 // template actually names, so a command mentioning none of them costs no
@@ -41,6 +48,7 @@ func (p *Pipeline) commandChain(ctx context.Context, run commandRun, toks []tmpl
 	chain := scope.Chain{
 		scope.Pure{Locale: run.c.Locale},
 		messageVars(run),
+		scope.Uses{Count: run.uses},
 		p.chattersScope(run.c, toks),
 	}
 	if channel, mounted := p.channelScope(ctx, run.c, toks); mounted {
@@ -77,6 +85,12 @@ type commandRun struct {
 	c       *module.Context
 	command string
 	args    string
+
+	// uses is the durable count the commands service has already summed for
+	// this command, carried on the run rather than read here: {uses} renders
+	// the value the projection row arrived with, so the token never costs a
+	// second read and never disagrees with the row the gate matched on.
+	uses uint64
 }
 
 // messageVars reads the triggering chat line's identity tokens.

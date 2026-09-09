@@ -726,6 +726,7 @@ export type KnownMessageKey =
   | 'commandEditor.tokUser'
   | 'commandEditor.tokUserId'
   | 'commandEditor.tokUserLogin'
+  | 'commandEditor.tokUses'
   | 'commandEditor.tokWatchTime'
   | 'commandEditor.tokWord'
   | 'commandEditor.tokWordsFrom'

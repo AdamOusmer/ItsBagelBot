@@ -129,15 +129,27 @@ describe('commands', () => {
   test('unmappable variables stay literal and are reported once each', () => {
     const { manifest, diagnostics } = parseNightbot(
       bytes({
-        commands: [command({ message: '$(count) $(count) $(eval 1+1) $(31)' })]
+        commands: [command({ message: '$(eval 1+1) $(eval 1+1) $(twitch x) $(31)' })]
       })
     );
-    expect(manifest.commands?.[0].responses).toEqual(['$(count) $(count) $(eval 1+1) $(31)']);
+    expect(manifest.commands?.[0].responses).toEqual(['$(eval 1+1) $(eval 1+1) $(twitch x) $(31)']);
     expect(codesOf(diagnostics)).toEqual([
       CODE.variableUnmapped,
       CODE.variableUnmapped,
       CODE.variableUnmapped
     ]);
+  });
+
+  test('$(count) translates to {uses}, the per-command run count', () => {
+    // Nightbot's $(count) is the unnamed per-command counter, which is the one
+    // thing {uses} is. It maps without a warning: no name has to be invented
+    // and no increment is dropped, because the bot counts every custom
+    // command's runs whether or not the response prints the number.
+    const { manifest, diagnostics } = parseNightbot(
+      bytes({ commands: [command({ message: 'hugged $(count) times' })] })
+    );
+    expect(manifest.commands?.[0].responses).toEqual(['hugged {uses} times']);
+    expect(codesOf(diagnostics)).toEqual([]);
   });
 
   test('$(querystring) translates to {querystring}, not to {args}', () => {

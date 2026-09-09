@@ -56,6 +56,11 @@
     // is what tells a broadcaster that one of them adds 1 and the other does
     // not, which no amount of hint text on a single chip can.
     { token: '{count:deaths}', hint: 'commandEditor.tokCount' },
+    // {uses} sits beside the counters because that is where a broadcaster
+    // looks for it, and the hint has to carry the two things the chip cannot
+    // show: it is this command's own run count (nothing to name, nothing to
+    // bump) and it is approximate, because the bot batches the ticks.
+    { token: '{uses}', hint: 'commandEditor.tokUses' },
     // The module facts. Each is answered by an opt-in module, so a chip
     // inserts a token that stays visible in chat while that module is off —
     // the hints name the module for exactly that reason.

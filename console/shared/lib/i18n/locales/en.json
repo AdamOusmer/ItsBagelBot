@@ -742,6 +742,7 @@
     "tokPointsName": "your channel’s name for its points (Loyalty)",
     "tokWatchTime": "how long they have watched, in the same words as !uptime (Loyalty)",
     "tokCount": "reads a counter without adding to it, unlike {counter:…} (Loyalty)",
+    "tokUses": "how many times this command has been used, not counting this one (approximate)",
     "tokQuote": "a random saved quote, or {quote:12} for a numbered one (Quotes module)",
     "tokTime": "your local time, on the clock face you set (Local time module)",
     "tokSong": "the track playing right now, or {song.title} / {song.artist} (Song requests)",

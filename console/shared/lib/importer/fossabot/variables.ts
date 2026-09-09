@@ -43,6 +43,15 @@
 // into a bare token would drop everything the broadcaster wrote around it, so
 // both keep the literal+warn path.
 //
+// The command's own use count ({uses}) gains no mapping, and that is a
+// checked answer rather than an omission: the table above is this file's
+// record of Fossabot's variable language, and the only counter spellings in it
+// are $(count.get <name>) and $(count.increment <name>) — both NAMED channel
+// counters, neither one "how many times this command has run". Fossabot has no
+// per-command usage variable to map, so nothing here translates into {uses}.
+// (The Nightbot layer does map its $(count), which is exactly that unnamed
+// per-command variable; see ../nightbot/variables.)
+//
 // The module facts ({quote}, {time}, {song}) and the read-only counter
 // ({count:<name>}) gain no mapping for the same reason plus one of their own.
 // $(count.get <name>) is the one inbound variable that means what {count:…}
