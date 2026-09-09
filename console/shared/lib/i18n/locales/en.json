@@ -736,6 +736,7 @@
     "tokRepeat": "repeats a phrase n times (up to 20, one chat line)",
     "tokCountdown": "how long until that date (YYYY-MM-DD, or a full timestamp)",
     "tokCountup": "how long since that date",
+    "tokIf": "one text or another: {if:name:when it has something:when it does not}, or {if:name=value:…:…} for an exact match. Variables do not work inside the two texts",
     "tokFollowage": "how long they have followed the channel (Followage module)",
     "tokAccountAge": "how old their Twitch account is (Account age module)",
     "tokPoints": "their points balance, or {points:login} for someone else (Loyalty)",

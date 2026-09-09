@@ -69,6 +69,16 @@
 // shape of reason as $(twitch …) above: both take an argument this bot's
 // {time} / {song} do not (a per-call timezone, a format string), because both
 // read the broadcaster's own module configuration instead.
+// The conditional ({if:cond:then:else}) gains no mapping either, and it is
+// the most tempting one to invent: Nightbot writes a conditional as
+// $(eval …), a JavaScript expression evaluated over the other variables, and
+// $(eval) is already in the table above on the literal+warn path. It stays
+// there. Mapping it would mean parsing JavaScript and re-emitting whatever
+// subset of it {if:…} can express (one variable, empty-or-equals, two literal
+// texts), so every expression outside that subset would translate into a
+// conditional that tests something else and STILL looks like it worked. A
+// warning the broadcaster reads beats a reply that quietly says the wrong
+// half. Nightbot has no non-eval conditional variable to map instead.
 // The emote catalog ({7tvemotes}, {bttvemotes}, {ffzemotes},
 // {random.emote}) has none either: the table at the top of this file is the
 // record of Nightbot's variable language, and it carries no emote-list

@@ -66,7 +66,48 @@ func vals(pairs ...string) map[string]string {
 func goldenRows() []goldenRow {
 	rows := append(braceRows(), nameRows()...)
 	rows = append(rows, fallbackRows()...)
-	return append(rows, argumentRows()...)
+	rows = append(rows, argumentRows()...)
+	return append(rows, condRows()...)
+}
+
+// condRows pin the {if:cond:then:else} grammar added in issue #909: where the
+// cond ends, what makes it true, and what a false test with no else leaves
+// behind.
+//
+// These are the rows that keep the two languages honest about a token whose
+// value is not printed but READ: a resolver is asked for the cond's key
+// ("user", "count:deaths"), never for the "if:…" span itself, and only the
+// chosen branch reaches the output. The branches are literal text — the
+// "{user}" inside one comes out as braces, which is the no-nesting rule
+// stated as an assertion rather than as a sentence in a guide.
+func condRows() []goldenRow {
+	vals := vals(
+		"user", "bob", "touser", "bob", "1", "", "2", "",
+		"count:deaths", "0", "game", "Chess",
+	)
+	return []goldenRow{
+		{"a true test renders its then branch", "{if:user:hi}", vals, "hi"},
+		{"a false test with no else renders nothing", "[{if:1:hi}]", vals, "[]"},
+		{"a true test picks then over else", "{if:user:yes:no}", vals, "yes"},
+		{"a false test picks else", "{if:1:yes:no}", vals, "no"},
+		{"equality is case-sensitive and exact", "{if:touser=bob:yes:no}", vals, "yes"},
+		{"equality against a different literal is false", "{if:touser=alex:yes:no}", vals, "no"},
+		{"equality against a case-folded literal is false", "{if:game=chess:yes:no}", vals, "no"},
+		{"an empty value is non-empty-false but can be matched", "{if:1=:empty:full}", vals, "empty"},
+		{"a value of \"0\" is text, so the bare test holds", "{if:count:deaths:some:none}", vals, "some"},
+		{"the cond keeps its own payload, then and else are the last two parts",
+			"{if:count:deaths=0:none yet:some}", vals, "none yet"},
+		{"an unknown cond leaves the whole span literal", "{if:missing:x}", vals, "{if:missing:x}"},
+		{"an unknown cond is not rescued by an else", "{if:missing:x:y}", vals, "{if:missing:x:y}"},
+		{"a payload cond with no else needs the empty one spelled", "[{if:count:deaths=1:hit:}]", vals, "[]"},
+		{"a branch is literal text: no token expands inside it", "{if:user:hi {user}}", vals, "hi {user}"},
+		{"a half-written conditional stays literal", "{if:user}", vals, "{if:user}"},
+		{"a bare {if} stays literal", "{if}", vals, "{if}"},
+		// The line itself is left empty here: dropping a blank line is the
+		// EMITTER's job (engine emitResponse, mirrored by the rehearsal), not
+		// the lexer's, and each is pinned on its own side.
+		{"a false test can empty a whole line", "one\n{if:1:two}\nthree", vals, "one\n\nthree"},
+	}
 }
 
 // braceRows pin the brace grammar: what closes a span, what never opens one.

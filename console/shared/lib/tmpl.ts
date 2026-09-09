@@ -19,6 +19,9 @@
 //     is data ({choice:Hi,Yo} must be able to offer "Hi")
 //   - fallback = the text after the span's LAST '|', rendered when the name
 //     resolves to an empty value
+//   - a conditional ({if:cond:then:else}) reads the token its cond NAMES and
+//     renders one of two literal branches; see parseCond below and
+//     pkg/tmpl/cond.go for where the three fields split
 //
 // There is no nesting in v1, but this is a real tokenizer rather than a
 // find-and-replace so one level can be added later without any caller
@@ -135,6 +138,95 @@ export function resolveToken(token: VarToken, value: string | null): string {
  * rehearsal needs per-token segments instead and walks lex() itself. */
 export function expand(template: string, resolve: (token: VarToken) => string | null): string {
   return lex(template)
-    .map((token) => (token.kind === 'literal' ? token.text : resolveToken(token, resolve(token))))
+    .map((token) => (token.kind === 'literal' ? token.text : renderSpan(token, resolve)))
     .join('');
+}
+
+/** One span's worth of rendering: a conditional reads the token its cond
+ * names, anything else resolves its own key (pkg/tmpl appendSpan). */
+function renderSpan(token: VarToken, resolve: (token: VarToken) => string | null): string {
+  const cond = parseCond(token);
+  if (cond === null) return resolveToken(token, resolve(token));
+  return condText(token, cond, resolve(cond.ref));
+}
+
+// --- conditionals (pkg/tmpl/cond.go) --------------------------------------
+
+/** The span name that opens a conditional. */
+const COND_NAME = 'if';
+
+/** One "{if:cond:then:else}" span, split into the parts a renderer needs.
+ * The mirror of pkg/tmpl's Cond — read cond.go for the reasoning. */
+export interface Cond {
+  /** The token the test READS: a synthetic span for the cond's key, so
+   * "count:deaths" reaches a resolver exactly like a written
+   * {count:deaths} would. Its `raw` is never rendered — an unresolvable cond
+   * renders the whole {if:…} span literally instead. */
+  ref: VarToken;
+  /** The literal the value is compared against ("name=lit" form), or null for
+   * the bare non-empty test. Comparison is case-SENSITIVE, byte for byte. */
+  want: string | null;
+  /** Rendered when the test holds / does not. `els` is '' for the two-part
+   * form, which is what makes a false test with no else render nothing. */
+  then: string;
+  els: string;
+}
+
+/**
+ * Split one span into a conditional, or null when it is not one.
+ *
+ * The split is anchored on the RIGHT: then and else are the LAST two ':'
+ * segments and everything before them is the cond key, so a cond may carry
+ * its own payload ({if:count:deaths:none:some}) at the cost of a ':' inside
+ * then/else being read as part of the cond. pkg/tmpl's cutCond carries the
+ * decision record for why the ambiguity is spent that way round.
+ *
+ * A payload with no ':' in it is not a conditional: {if}, {if:} and {if:x}
+ * fall through to the ordinary path and stay literal, so a half-written
+ * conditional is visible to its author rather than quietly rendering nothing.
+ */
+export function parseCond(token: VarToken): Cond | null {
+  if (token.name !== COND_NAME || token.payload === null) return null;
+  const parts = token.payload.split(':');
+  const last = parts.length - 1;
+  if (last < 1) return null;
+  const key = last === 1 ? parts[0] : parts.slice(0, last - 1).join(':');
+  const then = last === 1 ? parts[1] : parts[last - 1];
+  const els = last === 1 ? '' : parts[last];
+  const eq = key.indexOf('=');
+  if (eq < 0) return { ref: refToken(key), want: null, then, els };
+  return { ref: refToken(key.slice(0, eq)), want: key.slice(eq + 1), then, els };
+}
+
+/** Build the synthetic span a cond key names, with the same name/payload
+ * split a written {…} produces. `raw` stays empty: a ref is never rendered. */
+function refToken(key: string): VarToken {
+  const colon = key.indexOf(':');
+  if (colon < 0) {
+    const name = key.toLowerCase();
+    return { kind: 'var', name, payload: null, fallback: null, raw: '', key: name };
+  }
+  const name = key.slice(0, colon).toLowerCase();
+  const payload = key.slice(colon + 1);
+  return { kind: 'var', name, payload, fallback: null, raw: '', key: `${name}:${payload}` };
+}
+
+/** Whether a cond holds for its referenced token's value. The bare form tests
+ * NON-EMPTINESS rather than truthiness: every value here is text, and "0" is
+ * a perfectly good thing for a token to say. */
+export function condHolds(cond: Cond, value: string): boolean {
+  return cond.want === null ? value !== '' : value === cond.want;
+}
+
+/**
+ * Render one conditional span from its ref's looked-up value.
+ *
+ * A null value — nothing in reach resolves the referenced name — renders the
+ * whole span literally, braces and all, exactly like any other unknown token:
+ * a cond on a name the bot cannot answer is a typo or a module that is off,
+ * and silently taking the else branch would hide both.
+ */
+export function condText(token: VarToken, cond: Cond, value: string | null): string {
+  if (value === null) return token.raw;
+  return condHolds(cond, value) ? cond.then : cond.els;
 }

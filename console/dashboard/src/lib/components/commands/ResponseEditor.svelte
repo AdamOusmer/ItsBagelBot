@@ -44,6 +44,13 @@
     { token: '{repeat:3:hi}', hint: 'commandEditor.tokRepeat' },
     { token: '{countdown:2026-12-25}', hint: 'commandEditor.tokCountdown' },
     { token: '{countup:2026-12-25}', hint: 'commandEditor.tokCountup' },
+    // The conditional. One chip, in the two-branch form with a plain name:
+    // every other shape ({if:name=value:…:…}, the one-branch form, a cond
+    // carrying its own payload) is a small edit away from this one, and four
+    // chips of the same shape would crowd out the rest of the palette. The
+    // hint carries the rule a chip cannot show — the branches are plain text,
+    // no variable expands inside them.
+    { token: '{if:touser:hi there:hi everyone}', hint: 'commandEditor.tokIf' },
     // The viewer lookups. Each is answered by an opt-in module, so a chip
     // inserts a token that stays visible in chat while that module is off —
     // the hints name the module for exactly that reason.

@@ -286,7 +286,7 @@ const guide: GuideContent = {
     {
       id: 'utilities',
       heading: 'Small jobs the reply can do itself',
-      note: 'Arithmetic, countdowns, repeats, and encoding text so it survives a URL.',
+      note: 'Arithmetic, countdowns, repeats, one answer or another, and encoding text so it survives a URL.',
       blocks: [
         {
           kind: 'prose',
@@ -307,6 +307,7 @@ const guide: GuideContent = {
             ['<code>&#123;repeat:3:bagel&#125;</code>', 'Your phrase, that many times, separated by spaces. Up to 20 times, and the whole run has to fit inside one chat line.', 'bagel bagel bagel'],
             ['<code>&#123;querystring&#125;</code>', 'Everything typed after the command, encoded so it can sit inside a web address. This is the one to put in a <a href="/guides/data-sources">data source</a> URL.', 'alex+good+luck'],
             ['<code>&#123;queryescape:hello world&#125;</code>', 'The same encoding, applied to text you write yourself. <code>&#123;pathescape:…&#125;</code> is its sibling for the path part of a URL, where a space becomes <code>%20</code> instead of <code>+</code>.', 'hello+world'],
+            ['<code>&#123;if:touser:hi there:hi everyone&#125;</code>', 'One of two texts, chosen by whether the variable you name has anything in it. Name it without braces. <code>&#123;if:game=Chess:…:…&#125;</code> tests an exact value instead, upper and lower case included.', 'hi there'],
           ],
         },
         {
@@ -330,6 +331,44 @@ const guide: GuideContent = {
                 rather than the number and comes back empty. Anything these cannot work out comes
                 back empty too, which is exactly when a default earns its keep:
                 <code>&#123;math:1/0|no idea&#125;</code>.`,
+        },
+        {
+          kind: 'prose',
+          html: `
+            <p>
+                <code>&#123;if:…&#125;</code> is the one that reads another variable, so it is worth
+                a closer look. It takes three parts separated by colons: the variable to test, the
+                text to say when the test passes, and the text to say when it does not.
+                <code>&#123;if:1:you said {1}:say something!&#125;</code> is wrong on one count only:
+                the two texts are plain text, and no variable expands inside them. Write
+                <code>&#123;if:1:got it:say something!&#125;</code> and put the
+                <code>&#123;1&#125;</code> outside the braces.
+            </p>
+            <p>
+                You can leave the second text out: <code>&#123;if:touser:for @{touser}&#125;</code>
+                says nothing at all when nobody was mentioned. You can name a variable that has a
+                colon in it (<code>&#123;if:count:deaths:so far:none yet&#125;</code> tests the
+                deaths counter) because the LAST two parts are the two texts and everything before
+                them is the variable. That is also the one thing to know about colons: a colon
+                inside your text would be read as part of the variable name, so keep them out
+                (a dash reads fine). If you name a variable with a colon and want no second text,
+                write the empty one: <code>&#123;if:count:deaths:so far:&#125;</code>.
+            </p>`,
+        },
+        {
+          kind: 'callout',
+          tone: 'tip',
+          html: `
+                <b>An empty line is skipped, not sent</b>
+                When a test fails and you wrote no second text, the variable becomes nothing. If
+                that leaves the whole line empty, the bot skips that line instead of sending a
+                blank message, and the rest of your response is sent exactly as written. So a
+                five-line reply where the second line is
+                <code>&#123;if:1:you asked about something&#125;</code> sends four lines on a bare
+                <code>!command</code> and five when somebody types a word after it. A variable the
+                bot does not know still stays visible, braces and all: if chat is reading
+                <code>&#123;if:…&#125;</code> back at you, check the variable you named inside it,
+                or the module behind it.`,
         },
       ],
     },

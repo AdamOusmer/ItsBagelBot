@@ -81,6 +81,15 @@ func TestRenderCommandTokens(t *testing.T) {
 		{"user id", "id {userid}", "id 999"},
 		{"login is not the display name", "{user} is {user.login}", "alice is alice_login"},
 		{"canonical command name", "!{command}", "!hug"},
+		// Conditionals (#909). The cond names a token this chain owns; then
+		// and else are literal text.
+		{"a named viewer picks then", "{if:touser:hi there:hi nobody}", "hi there"},
+		{"a missing word picks else", "{if:4:word four:no fourth word}", "no fourth word"},
+		{"a missing word with no else says nothing", "[{if:4:word four}]", "[]"},
+		{"equality against the command name", "{if:command=hug:hugs:waves}", "hugs"},
+		{"equality is case-sensitive", "{if:command=HUG:hugs:waves}", "waves"},
+		{"a cond on a token this chain does not own stays literal", "{if:points:rich:poor}", "{if:points:rich:poor}"},
+		{"the cond keeps its own payload", "{if:2:=rest here:exact:other}", "exact"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

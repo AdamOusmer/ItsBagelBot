@@ -708,6 +708,7 @@ export type KnownMessageKey =
   | 'commandEditor.tokEmoteList'
   | 'commandEditor.tokFollowage'
   | 'commandEditor.tokGame'
+  | 'commandEditor.tokIf'
   | 'commandEditor.tokMath'
   | 'commandEditor.tokPathEscape'
   | 'commandEditor.tokPoints'

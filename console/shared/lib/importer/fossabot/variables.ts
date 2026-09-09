@@ -64,6 +64,14 @@
 // literal+warn path; a mapping can be added the day a real directory carries
 // one to check against.
 //
+// The conditional ({if:cond:then:else}) gains no mapping, and that is a
+// checked answer rather than an omission: the table above is this file's
+// record of Fossabot's variable language, cross-checked against the live myth
+// directory, and it carries no conditional variable at all. There is no
+// $(if …) to fold onto {if:…}, and nothing was invented from a guess at a
+// spelling nobody has observed. A response that wanted one keeps the
+// literal+warn path that sends it to review.
+//
 // The emote catalog ({7tvemotes}, {bttvemotes}, {ffzemotes},
 // {random.emote}) gains no mapping for the same checked reason: the table
 // above carries no emote-list variable at all. Fossabot's own emote handling

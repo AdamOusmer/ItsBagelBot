@@ -304,15 +304,16 @@ for (const surface of data.surfaces) {
         // exactly as the dashboard does. The viewer lookups ({followage},
         // {points}, …), the module facts ({quote}, {time}, {song}), the chat
         // room ({chatters}, {random.chatter}), the emote catalog ({7tvemotes},
-        // {random.emote}), the command's own {uses} and the channel ({uptime},
-        // {title}, {game}, {channel.viewers}) are left out for the same
+        // {random.emote}), the conditional ({if:…}, which resolves through the
+        // token its cond names), the command's own {uses} and the channel
+        // ({uptime}, {title}, {game}, {channel.viewers}) are left out for the same
         // reason: the core carries one stand-in per family, and the spellings
         // within a family must preview alike. The
         // positional words ({1}, {2:}) are left out for the same reason and
         // one more: the core derives them from the {args} sample, so a
         // preview can never show a {1} that contradicts the {args} beside it.
         const RESOLVED_BY_CORE =
-            /^(random(:|$|\.chatter$|\.emote$)|choice:|count(er)?:|chatters$|(7tv|bttv|ffz)emotes$|channel\.viewers$|[0-9]|math:|queryescape:|pathescape:|repeat:|countdown:|countup:|querystring$|uses$|followage|accountage|points|watchtime|quote|time$|song|uptime(:|$)|title(:|$)|game(:|$))/;
+            /^(random(:|$|\.chatter$|\.emote$)|choice:|count(er)?:|chatters$|(7tv|bttv|ffz)emotes$|channel\.viewers$|[0-9]|math:|queryescape:|pathescape:|repeat:|countdown:|countup:|if:|querystring$|uses$|followage|accountage|points|watchtime|quote|time$|song|uptime(:|$)|title(:|$)|game(:|$))/;
 
         function sampleMap(): Record<string, string> {
             const samples: Record<string, string> = {};
