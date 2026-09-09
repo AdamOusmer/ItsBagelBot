@@ -61,11 +61,8 @@ type authzSubRevoked struct {
 // subscriptions are never dropped and recreated.
 func (w *Worker) HandleAuthzGranted(msg *bus.Message) error {
 	ctx := msg.Context()
-	log := monitor.TxnLogger(ctx, w.log)
-
-	var ev authzUser
-	if err := codec.Unmarshal(msg.Payload, &ev); err != nil || ev.UserID == "" {
-		log.Error("dropping malformed authz.granted event", zap.Error(err))
+	ev, ok := decodeAuthzUser(ctx, w.log, msg, "authz.granted")
+	if !ok {
 		return nil
 	}
 
@@ -86,18 +83,36 @@ func (w *Worker) HandleAuthzGranted(msg *bus.Message) error {
 	if !reenrollableSubState(ch.SubState) {
 		return nil
 	}
+	return w.reenrollAfterGrant(ctx, ev, ch.SubState)
+}
+
+// decodeAuthzUser unmarshals an authz.granted / authz.revoked payload. A
+// malformed or empty event is logged and dropped (ok=false), never nakked:
+// redelivery cannot repair bad bytes.
+func decodeAuthzUser(ctx context.Context, log *zap.Logger, msg *bus.Message, subject string) (authzUser, bool) {
+	var ev authzUser
+	if err := codec.Unmarshal(msg.Payload, &ev); err != nil || ev.UserID == "" {
+		monitor.TxnLogger(ctx, log).Error("dropping malformed "+subject+" event", zap.Error(err))
+		return authzUser{}, false
+	}
+	return ev, true
+}
+
+// reenrollAfterGrant is the repair half of HandleAuthzGranted: reactivate a
+// channel blockChannel deactivated, then run the create-only enroll.
+func (w *Worker) reenrollAfterGrant(ctx context.Context, ev authzUser, priorState string) error {
 	// blockChannel deactivated the row; consent is back, so the channel is
 	// served again from here whatever the enroll below reports. A channel the
 	// streamer disconnected on purpose has an empty state and never reaches
 	// this line, so their choice is not overridden.
-	if blockedState(ch.SubState) {
+	if blockedState(priorState) {
 		w.setChannelActive(ctx, ev.UserID, true)
 	}
 
-	log.Info("authorization granted, re-enrolling eventsubs",
+	monitor.TxnLogger(ctx, w.log).Info("authorization granted, re-enrolling eventsubs",
 		zap.String("broadcaster_id", ev.UserID),
 		zap.String("user_login", ev.UserLogin),
-		zap.String("prior_sub_state", ch.SubState))
+		zap.String("prior_sub_state", priorState))
 
 	conduitID, err := w.conduit.Get(ctx)
 	if err != nil {
@@ -130,18 +145,15 @@ func reenrollableSubState(state string) bool {
 // beacon.
 func (w *Worker) HandleAuthzRevoked(msg *bus.Message) error {
 	ctx := msg.Context()
-	log := monitor.TxnLogger(ctx, w.log)
-
-	var ev authzUser
-	if err := codec.Unmarshal(msg.Payload, &ev); err != nil || ev.UserID == "" {
-		log.Error("dropping malformed authz.revoked event", zap.Error(err))
+	ev, ok := decodeAuthzUser(ctx, w.log, msg, "authz.revoked")
+	if !ok {
 		return nil
 	}
 
 	if ev.UserID == w.botID {
 		// The bot account's own grant died: every channel's chat is affected
 		// and no per-channel state captures that. Scream for the operator.
-		log.Error("BOT ACCOUNT authorization revoked, chat send and chat reads will fail until the bot re-authorizes",
+		monitor.TxnLogger(ctx, w.log).Error("BOT ACCOUNT authorization revoked, chat send and chat reads will fail until the bot re-authorizes",
 			zap.String("bot_id", w.botID))
 		noticeError(ctx, errBotAuthRevoked)
 		return nil
