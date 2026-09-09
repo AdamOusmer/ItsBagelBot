@@ -9,7 +9,7 @@ import (
 )
 
 // consoleDeadlines are the dashboard's own client timeouts, copied by hand
-// from console/dashboard/src/lib/server/discord-store.ts (SETUP_TIMEOUT_MS,
+// from web/dashboard/src/lib/server/discord-store.ts (SETUP_TIMEOUT_MS,
 // LAYOUT_TIMEOUT_MS, STATUS_TIMEOUT_MS, REPOST_TIMEOUT_MS, UNBIND_TIMEOUT_MS,
 // CONFIG_GET_TIMEOUT_MS, CONFIG_SET_TIMEOUT_MS, GUILDS_TIMEOUT_MS).
 //

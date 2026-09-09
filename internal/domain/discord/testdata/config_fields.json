@@ -1,5 +1,5 @@
 {
-  "_comment": "The Discord per-guild config field names, as they appear on the wire. Pinned here because Go's ddiscord.Config and the console's DiscordConfig are the same JSON object seen from two languages, and nothing else forces them to agree: a field added on one side alone type-checks, tests green, and is silently dropped by the other. Sorted, because the two declaration orders differ on purpose and only the SET is contractual. Changing this file is a deliberate act: add the field to internal/domain/discord/config.go AND console/shared/lib/discord-config.ts, then add the name here.",
+  "_comment": "The Discord per-guild config field names, as they appear on the wire. Pinned here because Go's ddiscord.Config and the console's DiscordConfig are the same JSON object seen from two languages, and nothing else forces them to agree: a field added on one side alone type-checks, tests green, and is silently dropped by the other. Sorted, because the two declaration orders differ on purpose and only the SET is contractual. Changing this file is a deliberate act: add the field to internal/domain/discord/config.go AND web/kit/lib/discord-config.ts, then add the name here.",
   "fields": [
     "autoRoleEnabled",
     "categoryAllow",

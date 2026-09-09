@@ -22,7 +22,7 @@ const (
 
 	// defaultTimeTemplate is the built-in !time reply, used when the broadcaster
 	// leaves the message blank. Mirrored as the catalog defaultMessage in
-	// console/shared/lib/types.ts.
+	// web/kit/lib/types.ts.
 	defaultTimeTemplate = "It is currently {time} for the streamer."
 
 	// timeUnsetReply answers !time on an enabled but unconfigured module, telling

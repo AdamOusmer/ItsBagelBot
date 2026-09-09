@@ -1,99 +1,218 @@
 <!-- Copyright (c) 2026 Adam Ousmer. All rights reserved.
      Proprietary. No license granted. See LICENSE.md. -->
-# ItsBagelBot marketing site
+[forks-shield]: https://img.shields.io/github/forks/AdamOusmer/ItsBagelBot.svg?style=for-the-badge
 
-Static Astro site for [itsbagelbot.com](https://itsbagelbot.com): landing page,
-pricing, guides, changelog, command builder, and legal pages, in English and French
-(`/fr/` routes).
+[forks-url]: https://github.com/AdamOusmer/ItsBagelBot/network/members
 
-## Structure
+[stars-shield]: https://img.shields.io/github/stars/AdamOusmer/ItsBagelBot.svg?style=for-the-badge
 
-```text
-web/
-├── public/          # favicons, logos, robots.txt, _headers (all brand assets are ours)
-├── src/
-│   ├── assets/      # build-time assets
-│   ├── components/  # Astro components
-│   ├── content/     # legal pages, changelog JSON collection, guides/ copy
-│   ├── i18n/        # EN/FR catalogs
-│   ├── layouts/     # Layout.astro (head, CSP, icons, LOCALIZED sets)
-│   ├── lib/         # guides/ content model, slug list and parity check
-│   ├── pages/       # [...lang]/ routes: index, pricing, guides, changelog, builder, legal
-│   ├── script/      # client scripts
-│   └── styles/      # global styles + dashframe.css (the df-* mock library)
-└── tests/           # Playwright tests
-```
+[stars-url]: https://github.com/AdamOusmer/ItsBagelBot/stargazers
 
-## Commands
+[issues-shield]: https://img.shields.io/github/issues/AdamOusmer/ItsBagelBot.svg?style=for-the-badge
 
-| Command           | Action                                    |
-| :---------------- | :---------------------------------------- |
-| `bun install`     | Install dependencies                      |
-| `bun run dev`     | Dev server at `localhost:4321`            |
-| `bun run build`   | Production build to `./dist/`             |
-| `bun run preview` | Preview the production build locally      |
+[issues-url]: https://github.com/AdamOusmer/ItsBagelBot/issues
 
-## Cloudflare Pages
+[license-shield]: https://img.shields.io/badge/License-Proprietary-red.svg?style=for-the-badge
 
-This site deploys as a static Cloudflare Pages project:
+[license-url]: ../LICENSE.md
 
-- Build command: `bun run build`
-- Build output directory: `dist`
 
-## Guides
+<!-- PROJECT LOGO -->
+<div align="center">
 
-The guide pages under `/guides` are content, not markup, and a guide is two
-things kept apart:
+[![Forks][forks-shield]][forks-url]
+[![Stargazers][stars-shield]][stars-url]
+[![Issues][issues-shield]][issues-url]
+[![Personal][license-shield]][license-url]
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/Q8P121QNHK)
 
-- **Structure**, once, in `src/lib/guides/skeletons/<slug>.ts`: a
-  `GuideSkeleton` (`src/lib/guides/skeleton.ts`) holding the section ids and
-  order, the block kinds (`prose`, `callout`, `table`, `chat`, `dash`, `steps`,
-  `cards`, `widget`), which mock screen or widget each block shows, and the
-  shape of the data those widgets take. Every translatable string is a
-  `k('some.key')`.
-- **Copy**, once per language, in `src/content/guides/<slug>.<lang>.ts`: a flat
-  `GuideStrings` map from those keys to text, and nothing else.
+  <a href="https://github.com/AdamOusmer/ItsBagelBot">
+    <img src="../.github/assets/logo.png" alt="Logo" width="200" height="200">
+  </a>
 
-`getGuide()` hydrates the two together. Rendering lives in
-`src/components/guides/`, routing in `src/pages/[...lang]/guides/`.
+<h3 align="center">ItsBagelBot - Web</h3>
 
-To add a guide:
+  <p align="center">
+    One bun workspace for every front end: the marketing site, the docs site, the SvelteKit dashboard and admin apps, and the shared UI/server kit they all draw from.
+    <br />
+    Because a monolith wasn't complicated enough.
+    <br />
+    <br />
+    <a href="https://github.com/AdamOusmer/ItsBagelBot"><strong>Explore the docs »</strong></a>
+    <br />
+    <a href="https://github.com/AdamOusmer/ItsBagelBot/issues/new?labels=bug&template=bug-report---.md">Report Bug</a>
+    &middot;
+    <a href="https://github.com/AdamOusmer/ItsBagelBot/issues/new?labels=enhancement&template=feature-request---.md">Request Feature</a>
+    <br />
+    <br />
+    </p>
 
-1. Write `src/lib/guides/skeletons/<slug>.ts` and
-   `src/content/guides/<slug>.en.ts`.
-2. Add the slug to `guideSlugs` in `src/lib/guides/slugs.ts`. Its position sets
-   the hub card order, the chapter number, and the prev/next pager. The page
-   route, the hub card and the hreflang pairing follow from that one line.
+[![CodeScene Hotspot Code Health](https://codescene.io/projects/73601/status-badges/hotspot-code-health)](https://codescene.io/projects/73601)
+[![CodeScene Average Code Health](https://codescene.io/projects/73601/status-badges/average-code-health)](https://codescene.io/projects/73601)
+[![CodeScene System Mastery](https://codescene.io/projects/73601/status-badges/system-mastery)](https://codescene.io/projects/73601)
 
-To add a language, copy an existing `<slug>.<lang>.ts` and translate the
-right-hand sides. There is no structure to get wrong and no second copy of it
-to keep in step; a key a language omits renders the English line rather than a
-blank. `assertGuideParity()` in `src/lib/guides/parity.ts` runs at module load
-and fails `bun run build` and `bun run dev` on a guide with no English copy, on
-a key no skeleton entry names (a typo, or a line left behind by a deleted
-block), or on an em dash anywhere in any language.
+<br />
 
-Two conventions inside a section:
+[![Email](https://img.shields.io/badge/contact%40adam--ousmer.dev-D14836?style=for-the-badge&logo=gmail&logoColor=white)](mailto:contact@adam-ousmer.dev)
+[![GitHub](https://img.shields.io/badge/AdamOusmer-%23121011.svg?style=for-the-badge&logo=github&logoColor=white)](https://github.com/AdamOusmer)
 
-- **Screens** (`src/components/guides/screens/`) are the hand-built dashboard
-  mocks a `dash` block renders. One component per distinct screen, built from
-  the `df-*` classes in `src/styles/dashframe.css`. Every visible string is a
-  `labels` key with the English text as the default, so a locale passes only
-  what differs and never edits the markup.
-- **Widgets** (`src/components/guides/widgets/`) are blocks that do something in
-  the browser: `Checklist` (first-hour tasks kept in `localStorage`),
-  `Rehearsal` (expands the response tokens as you type), `PathPicker`,
-  `FetchBudget` and `FetchOutcomes` (data sources), `ModuleCatalog` (filterable
-  module grid) and `CounterPlay` (replays `!counter`). Same `labels` rule. Client
-  code is an Astro `<script>` (the CSP has no inline allowance) that binds on
-  `astro:page-load` behind a `data-ready` guard, so the page transition router
-  re-wires a widget after a navigation without binding it twice.
 
-Screens and widgets register by file name: the basename must equal a member of
-`ScreenName` or `WidgetName` in `src/lib/guides/types.ts`, and the dispatch maps
-in `screens/index.ts` and `widgets/index.ts` glob the directory. A name with no
-file fails the build in `GuideBody.astro`.
+</div>
 
-Glyphs go through `src/components/ui/Icon.astro` (Lucide, generated into
-`src/lib/icons.ts`); the mocks draw no text arrows or ticks. The "Guide 0N"
-eyebrow is computed from the slug order, so content files carry only the word.
+***
+
+<!-- TABLE OF CONTENTS -->
+<details>
+  <summary>Table of Contents</summary>
+  <ol>
+    <li><a href="#about-the-project">About The Project</a></li>
+    <li><a href="#what-the-app-does">What the App Does</a></li>
+    <li><a href="#development">Development</a></li>
+    <li><a href="#documentation">Documentation</a></li>
+    <li><a href="#contributors">Contributors</a></li>
+    <li><a href="#contributing">Contributing</a></li>
+    <li><a href="#license">License</a></li>
+    <li><a href="#contact">Contact</a></li>
+    <li><a href="#acknowledgements">Acknowledgements</a></li>
+  </ol>
+</details>
+
+***
+
+## About The Project
+
+There are thousands of Twitch bots out there, yet none that quite fit my needs. ItsBagelBot is my attempt at creating a
+bot that is.
+
+The Console application is a part of the ItsBagelBot ecosystem, designed to handle specific responsibilities within the architecture. It is designed to be modular, so I can easily add or remove features as needed.
+
+After years of research on making my stream better, I have finally decided to share my creation with the world.
+ItsBagelBot is the culmination of all my knowledge and experience in the Twitch community.
+All this in a single cloud-native, zero-downtime, microservices-based Twitch bot.
+
+Some might say it's over-engineered for a Twitch bot. It is.
+
+The reason? Because I can.
+
+And because I want to learn more and apply modern software engineering practices to a fun project while showcasing my
+capabilities.
+
+The entirety of the bot is hosted on Oracle Cloud Infrastructure's in Canadian region. The location was chosen for higher
+availability of the resources I need, as well as the advantages of data sovereignty and Canadian privacy laws. Moreover, the 
+data centers are located in a region where hydroelectric power is abundant, making it an environmentally conscious choice.
+
+***
+
+## What the App Does
+
+The web workspace is an integral part of the multi-tenant Twitch automation platform, specifically focusing on:
+
+- `marketing/` — the public Astro site (Cloudflare Pages).
+- `docs/` — the Astro Starlight documentation site (Cloudflare Pages).
+- `dashboard/` — the broadcaster-facing SvelteKit SSR console (`console-dashboard` image).
+- `admin/` — the operator-facing SvelteKit SSR console (`console-admin` image).
+- `kit/` — `@bagel/shared`: the server code, catalog, i18n, nav registries, Go-engine mirrors, styles and Svelte components the four apps share.
+
+The project is under active development. It is currently operated as a complete cloud deployment rather than distributed as a turnkey, single-container bot.
+
+***
+
+## Development
+
+One lockfile (`bun.lock`) covers all five packages, and `bunfig.toml` selects
+bun's hoisted linker so the SSR images can ship a self-contained flat
+`node_modules` by copying the workspace root.
+
+### Two versions of `cookie`, on purpose
+
+The workspace root declares `cookie` at `^0.7.0` even though nothing in the root
+imports it, and `marketing/` and `docs/` each declare `^2.0.1`. That is a
+deliberate three-part arrangement, not drift:
+
+- adapter-node leaves `cookie` external, and the runtime image contains only
+  `/app/build` and `/app/node_modules`, so the version the console resolves at
+  runtime is whatever sits in the HOISTED root `node_modules`. `@sveltejs/kit`
+  imports `{ parse, serialize }`, which `cookie@2` removed in favour of
+  `parseCookie`/`stringifySetCookie`. Root must therefore be 0.7.x, and the
+  root declaration is what pins the hoist.
+- `@sveltejs/kit` asks for `^0.6.0`, and 0.6.0 carries CVE-2024-47764, so the
+  `overrides` entry raises just kit's request to `^0.7.0`. It is scoped to kit
+  rather than global (which is what it was while the console was its own bun
+  project) because a global override would drag Astro down to 0.7 as well.
+- Astro emits a prerender entry into `<site>/dist/.prerender/` that imports
+  `cookie` and is resolved from the SITE directory, not from `node_modules/astro`.
+  Without the per-site declaration each static build dies with "Named export
+  'parseCookie' not found ... 'cookie' is a CommonJS module". The declaration
+  gives each site a nested `node_modules/cookie` at 2.x.
+
+`renovate.json` holds the root entry below 1.0 for the same reason; the two site
+entries float.
+
+The whole production topology is intentionally not reproduced by a single local command. Most work can be verified at the service or package level, while integration work requires the relevant infrastructure and environment variables.
+
+Some integration tests detect optional environment variables such as `NATS_URL` or `VALKEY_TEST_ADDR` and skip when their dependency is unavailable. Never commit credentials: production secrets are injected at runtime rather than stored in the repository.
+
+### Server-side L1 cache capacity
+
+The dashboard and admin each own a process-local `SwrCache`. Their limits are
+configured independently so the smaller admin working set does not retain the
+same warmed-at-rest footprint as the public dashboard.
+
+| Application | Environment variable | Default | Rationale |
+| --- | --- | ---: | --- |
+| Dashboard | `DASHBOARD_L1_CACHE_CAPACITY` | 1,000 | Allows roughly a dozen key families per active board while bounding per-replica RSS. |
+| Admin | `ADMIN_L1_CACHE_CAPACITY` | 250 | Covers operator snapshots and short-lived user/page reads without using the shared 5,000-entry default. |
+
+Both values must be positive decimal integers. Changing a capacity only changes
+LRU retention; push invalidation, stale-while-revalidate, single-flight, and
+stale-if-error behavior are unchanged.
+
+***
+
+## Documentation
+
+The detailed documentation lives in [`docs/`](./docs/). Useful starting points include:
+
+- [Current system state](./docs/src/content/docs/reference/system-overview.md): the authoritative running shape, data plane, and request flow.
+- [Architecture overview](./docs/src/content/docs/architecture/index.md): system context and external dependencies.
+- [Service registry](./docs/src/content/docs/microservices/index.md): service ownership and communication boundaries.
+- [RPC contracts](./docs/src/content/docs/reference/rpc-contracts.md): the NATS request-reply surface.
+- [Architecture decisions](./docs/src/content/docs/adr/index.md): why the major technical choices were made.
+
+***
+
+## Contributors
+
+This project exists thanks to the people who contribute.
+
+<a href="https://github.com/AdamOusmer/ItsBagelBot/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=AdamOusmer/ItsBagelBot" />
+</a>
+
+***
+
+## Contributing
+
+If you have suggestions for how ItsBagelBot could be improved, or want to report a bug, please open an issue! I'd love
+to hear your ideas and help you fix any problems.
+
+For contributing code, please contact me directly at [contact@adam-ousmer.dev](mailto:contact@adam-ousmer.dev) before making
+any changes or submitting a pull request.
+
+***
+
+## License
+
+This project is licensed under the Proprietary License Agreement - see the [LICENSE](../LICENSE.md) file for details.
+
+***
+
+## Contact
+
+Adam Ousmer - [GitHub](https://github.com/AdamOusmer) - [Email](mailto:contact@adam-ousmer.dev)
+
+***
+
+## Acknowledgements
+
+README template inspired by [othneildrew/Best-README-Template](https://github.com/othneildrew/Best-README-Template)

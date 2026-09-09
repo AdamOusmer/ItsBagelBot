@@ -20,7 +20,7 @@ import (
 )
 
 // emoteplayModuleName is the ModuleView key; it matches the console
-// MODULE_CATALOG entry id (console/shared/lib/types.ts).
+// MODULE_CATALOG entry id (web/kit/lib/types.ts).
 const emoteplayModuleName = "emoteplay"
 
 // maxPyramidWidth caps how wide a line the tracker will even look at. A line

@@ -10,10 +10,10 @@ Every user-facing string lives in plain data files: JSON for interface text and 
 | --- | --- | --- |
 | Master locale list (backend validation) | `internal/domain/i18n/locales.json` | JSON array of codes, e.g. `["en", "fr"]` |
 | Chat replies + notification copy (Go services) | `internal/domain/i18n/locales/<code>.json` | Flat JSON: `"key": "template"` |
-| Dashboard + admin console | `console/shared/lib/i18n/locales/<code>.json` | Nested JSON tree, leaves are strings or arrays of strings |
-| Marketing site | `web/src/i18n/locales/<code>.json` | Flat JSON with dotted keys |
-| Legal pages (terms, privacy, creator terms) | `web/src/content/legal/<doc>/<code>/` | `meta.json` + one Markdown file per section |
-| Changelog (`/changelog`) | `web/src/content/changelog/*.json` | One JSON file per release; `title` / `description` are a string or `{ "en": "...", "<code>": "..." }` |
+| Dashboard + admin console | `web/kit/lib/i18n/locales/<code>.json` | Nested JSON tree, leaves are strings or arrays of strings |
+| Marketing site | `web/marketing/src/i18n/locales/<code>.json` | Flat JSON with dotted keys |
+| Legal pages (terms, privacy, creator terms) | `web/marketing/src/content/legal/<doc>/<code>/` | `meta.json` + one Markdown file per section |
+| Changelog (`/changelog`) | `web/marketing/src/content/changelog/*.json` | One JSON file per release; `title` / `description` are a string or `{ "en": "...", "<code>": "..." }` |
 | Guides (`/guides/*`) | not yet data-driven | Still duplicated `.astro` pages per locale; ask a developer |
 
 English (`en`) is the source of truth everywhere. A key missing from your language falls back to English at runtime, so a partial translation is safe to ship: builds never fail on missing translations, only on invalid files.
@@ -23,9 +23,9 @@ English (`en`) is the source of truth everywhere. A key missing from your langua
 1. Add `"es"` to `internal/domain/i18n/locales.json`.
 2. Copy each `en` file to `es` and translate the values (never the keys):
    - `internal/domain/i18n/locales/en.json` → `es.json`
-   - `console/shared/lib/i18n/locales/en.json` → `es.json`
-   - `web/src/i18n/locales/en.json` → `es.json`
-   - `web/src/content/legal/terms/en/` → `terms/es/` (same for `privacy` and `creator-terms`)
+   - `web/kit/lib/i18n/locales/en.json` → `es.json`
+   - `web/marketing/src/i18n/locales/en.json` → `es.json`
+   - `web/marketing/src/content/legal/terms/en/` → `terms/es/` (same for `privacy` and `creator-terms`)
 3. Open a pull request.
 
 That is the whole process. The dashboard language switcher, the site's `/es/` routes, hreflang tags, and backend validation all pick the new locale up automatically. You can start with just the console and site files; anything you have not translated yet shows English.
@@ -53,7 +53,7 @@ Locale codes are lowercase base tags (`es`, `pt-br`), maximum 8 characters.
 
 ## Rules for changelog JSON
 
-- One file per GitHub release: `web/src/content/changelog/<version>.json`. Name it after the git tag (`v0.1.0-beta.json`).
+- One file per GitHub release: `web/marketing/src/content/changelog/<version>.json`. Name it after the git tag (`v0.1.0-beta.json`).
 - Required fields: `tag` (`alpha`, `beta`, `prerelease`, or `release`), `version` (the git tag shown on the page), `date` (ISO, used for sort and display), `title`, `description`, `github` (the GitHub release URL).
 - `title` and `description` are either a plain English string or a locale map with `en` required. Add your language as another key (`"fr": "..."`). Missing locales fall back to English; do not rename keys.
 

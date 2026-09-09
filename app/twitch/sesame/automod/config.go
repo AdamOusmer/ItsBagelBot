@@ -135,7 +135,7 @@ type Config struct {
 
 // wireConfig is the JSON shape stored in the automod ModuleView.Configs blob.
 // The dashboard module form writes flat string values (one field per key, see
-// MODULE_CATALOG id "automod" in console/shared/lib/types.ts): level is the
+// MODULE_CATALOG id "automod" in web/kit/lib/types.ts): level is the
 // preset select, the section keys are "on"/"off" toggles (empty = follow the
 // level), and the term lists are comma- or newline-separated strings. The
 // legacy "profile" key from the first config shape is honored as a level

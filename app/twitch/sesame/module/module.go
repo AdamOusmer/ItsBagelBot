@@ -164,7 +164,7 @@ type Module struct {
 	// it on the standard lane exactly as if its ModuleView were disabled, so a
 	// broadcaster who enabled it while paid keeps the row and silently resumes
 	// on re-upgrade or when the beta ends. The console mirrors this flag on the
-	// catalog ModuleDef (console/shared/lib/catalog/module-def.ts, `beta`);
+	// catalog ModuleDef (web/kit/lib/catalog/module-def.ts, `beta`);
 	// both must flip in the same PR, there is no shared source between Go and
 	// TS. Ending a beta is deleting the flag in both places, no data migration.
 	Beta bool

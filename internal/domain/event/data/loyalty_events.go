@@ -43,7 +43,7 @@ const (
 // CounterCommandsAnswered and CounterModActionsTaken are reserved the same
 // way as the pair above, for the Overview's per-stream counter panel (see
 // internal/projection/valkey.go's StreamCounters and
-// console/dashboard/src/lib/server/stream-counters.ts). Sesame's bot_stats.go
+// web/dashboard/src/lib/server/stream-counters.ts). Sesame's bot_stats.go
 // flushes both per channel from the same window as messages/events; a channel
 // that has not been flushed yet reads as an honest 0 through counter.get's
 // found:false.

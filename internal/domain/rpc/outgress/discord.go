@@ -67,7 +67,7 @@ const (
 	//
 	// Kept as its own value rather than folded into the shared
 	// CodeUnavailable: the console's DISCORD_CODES set (see
-	// console/dashboard/src/lib/server/discord-store.ts) lists "timeout"
+	// web/dashboard/src/lib/server/discord-store.ts) lists "timeout"
 	// and maps it to its own message key, and a code outside that set reads
 	// as the empty code, which the page renders as success. Renaming the
 	// wire value would therefore turn a timed-out setup into a silent

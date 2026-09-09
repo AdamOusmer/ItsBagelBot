@@ -368,7 +368,7 @@ func isGoLiveEdge(wasLive, isLive bool) bool {
 
 // snapshotCounterBaseline seeds the Overview's per-stream counters (see
 // internal/projection/valkey.go's StreamCounters/SetStreamCounterBaseline,
-// and console/dashboard/src/lib/server/stream-counters.ts which diffs
+// and web/dashboard/src/lib/server/stream-counters.ts which diffs
 // against them) with loyalty's current lifetime totals for this channel, the
 // instant its stream goes live. HandleStreamEvent calls this only on the
 // false->true transition — every other stream event on an already-live
