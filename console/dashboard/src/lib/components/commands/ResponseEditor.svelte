@@ -19,13 +19,21 @@
   // callers (e.g. module replies) can pass their own with a plain `label` title.
   type PaletteToken = { token: string; hint?: string; label?: string };
 
-  // Mirrors the set sesame's expandCommand + ParseDynamic actually expand
-  // (app/twitch/sesame/engine/vars.go): a token offered here must render in chat.
+  // Mirrors the set the sesame scope chain actually expands
+  // (app/twitch/sesame/engine/scope): a token offered here must render in chat.
+  // The positional pair is offered as {1} and {2:} rather than as an abstract
+  // {n}: a chip inserts literal text, so it has to be a spelling that works
+  // the moment it lands in the field.
   const DEFAULT_TOKENS: PaletteToken[] = [
     { token: '{user}', hint: 'commandEditor.tokUser' },
     { token: '{target}', hint: 'commandEditor.tokTarget' },
     { token: '{args}', hint: 'commandEditor.tokArgs' },
+    { token: '{1}', hint: 'commandEditor.tokWord' },
+    { token: '{2:}', hint: 'commandEditor.tokWordsFrom' },
     { token: '{channel}', hint: 'commandEditor.tokChannel' },
+    { token: '{userid}', hint: 'commandEditor.tokUserId' },
+    { token: '{user.login}', hint: 'commandEditor.tokUserLogin' },
+    { token: '{command}', hint: 'commandEditor.tokCommand' },
     { token: '{counter:name}', hint: 'commandEditor.tokCounter' },
     { token: '{random}', hint: 'commandEditor.tokRandom' },
     { token: '{choice:a,b,c}', hint: 'commandEditor.tokChoice' }
@@ -210,10 +218,24 @@
   {/if}
 </div>
 
+{#if pickerOn}
+  <!-- The fallback pipe has no chip of its own: it is a suffix on a variable
+       already in the field, not something to insert on its own, so it is
+       documented here instead. -->
+  <p class="palette-note">{i18n.t('commandEditor.fallbackHint')}</p>
+{/if}
+
 <!-- The rendered reply lives in ChatPreview (chat rehearsal), owned by the editor. -->
 
 <style>
   .resp-wrap { position: relative; flex: 1; min-width: 0; }
+
+  .palette-note {
+    margin: 6px 0 0;
+    font-size: 0.78rem;
+    line-height: 1.4;
+    color: var(--bb-muted);
+  }
 
   .resp-area {
     width: 100%;

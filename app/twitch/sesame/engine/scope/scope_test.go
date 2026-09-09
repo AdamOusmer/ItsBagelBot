@@ -112,6 +112,49 @@ func TestMessageRejectsPayloads(t *testing.T) {
 	assert.Equal(t, "everyone", render(t, "{args|everyone}", chain, nil), "empty args fall back")
 }
 
+// argsChain is the message scope with three argument words in hand, the shape
+// engine.messageVars builds after sanitizing each word.
+func argsChain() Chain {
+	return Chain{Message{
+		User: "sam", Sender: "sam",
+		Args: "kim good luck", Words: []string{"kim", "good", "luck"},
+		Touser: "kim", Channel: "bakery",
+		UserID: "4242", Login: "sam_login", Command: "hug",
+	}}
+}
+
+func TestMessagePositionalWords(t *testing.T) {
+	chain := argsChain()
+	tests := []struct{ tmpl, want string }{
+		{"{1}", "kim"},
+		{"{3}", "luck"},
+		{"{2:}", "good luck"},
+		{"{1:}", "kim good luck"},
+		{"[{4}]", "[]"},
+		{"[{4:}]", "[]"},
+		{"{4|nobody}", "nobody"},
+		{"{30}", ""},
+	}
+	for _, tt := range tests {
+		assert.Equal(t, tt.want, render(t, tt.tmpl, chain, nil), tt.tmpl)
+	}
+}
+
+// A span that only looks like a word number is left alone: the cap, a signed
+// or padded number and the {n:m} slice all stay literal so a typo (or a plain
+// number in prose) is visible rather than silently empty.
+func TestMessageLeavesNonWordNumbersLiteral(t *testing.T) {
+	chain := argsChain()
+	for _, in := range []string{"{0}", "{31}", "{+1}", "{01}", "{1:2}", "{999}"} {
+		assert.Equal(t, in, render(t, in, chain, nil), in)
+	}
+}
+
+func TestMessageIdentityTokens(t *testing.T) {
+	assert.Equal(t, "4242 sam_login hug",
+		render(t, "{userid} {user.login} {command}", argsChain(), nil))
+}
+
 // countingCounters answers every bump with the name it was given, recording
 // the order and addressing so the grammar's edges are visible.
 type countingCounters struct {

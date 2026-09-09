@@ -383,6 +383,150 @@
         "user": "bob"
       },
       "want": "{1|one"
+    },
+    {
+      "name": "a word number is a name like any other",
+      "tmpl": "hug {1}",
+      "values": {
+        "1": "kim",
+        "2": "",
+        "2:": "good luck",
+        "3:": "",
+        "command": "hug",
+        "touser": "",
+        "urlfetch:x": "",
+        "user.login": "sam_login",
+        "userid": "4242"
+      },
+      "want": "hug kim"
+    },
+    {
+      "name": "a trailing colon is an empty payload, not a bare name",
+      "tmpl": "{2:}",
+      "values": {
+        "1": "kim",
+        "2": "",
+        "2:": "good luck",
+        "3:": "",
+        "command": "hug",
+        "touser": "",
+        "urlfetch:x": "",
+        "user.login": "sam_login",
+        "userid": "4242"
+      },
+      "want": "good luck"
+    },
+    {
+      "name": "the same number without the colon is a different key",
+      "tmpl": "{2}",
+      "values": {
+        "1": "kim",
+        "2": "",
+        "2:": "good luck",
+        "3:": "",
+        "command": "hug",
+        "touser": "",
+        "urlfetch:x": "",
+        "user.login": "sam_login",
+        "userid": "4242"
+      },
+      "want": ""
+    },
+    {
+      "name": "an empty rest-of-args renders nothing",
+      "tmpl": "[{3:}]",
+      "values": {
+        "1": "kim",
+        "2": "",
+        "2:": "good luck",
+        "3:": "",
+        "command": "hug",
+        "touser": "",
+        "urlfetch:x": "",
+        "user.login": "sam_login",
+        "userid": "4242"
+      },
+      "want": "[]"
+    },
+    {
+      "name": "a missing word falls back",
+      "tmpl": "hug {2|none}",
+      "values": {
+        "1": "kim",
+        "2": "",
+        "2:": "good luck",
+        "3:": "",
+        "command": "hug",
+        "touser": "",
+        "urlfetch:x": "",
+        "user.login": "sam_login",
+        "userid": "4242"
+      },
+      "want": "hug none"
+    },
+    {
+      "name": "a named viewer falls back",
+      "tmpl": "shout out to {touser|nobody}",
+      "values": {
+        "1": "kim",
+        "2": "",
+        "2:": "good luck",
+        "3:": "",
+        "command": "hug",
+        "touser": "",
+        "urlfetch:x": "",
+        "user.login": "sam_login",
+        "userid": "4242"
+      },
+      "want": "shout out to nobody"
+    },
+    {
+      "name": "an empty external value falls back",
+      "tmpl": "temp is {urlfetch:x|down}",
+      "values": {
+        "1": "kim",
+        "2": "",
+        "2:": "good luck",
+        "3:": "",
+        "command": "hug",
+        "touser": "",
+        "urlfetch:x": "",
+        "user.login": "sam_login",
+        "userid": "4242"
+      },
+      "want": "temp is down"
+    },
+    {
+      "name": "a fallback never rescues a typo",
+      "tmpl": "{unknown|x}",
+      "values": {
+        "1": "kim",
+        "2": "",
+        "2:": "good luck",
+        "3:": "",
+        "command": "hug",
+        "touser": "",
+        "urlfetch:x": "",
+        "user.login": "sam_login",
+        "userid": "4242"
+      },
+      "want": "{unknown|x}"
+    },
+    {
+      "name": "identity names resolve like any other",
+      "tmpl": "{userid} {user.login} !{command}",
+      "values": {
+        "1": "kim",
+        "2": "",
+        "2:": "good luck",
+        "3:": "",
+        "command": "hug",
+        "touser": "",
+        "urlfetch:x": "",
+        "user.login": "sam_login",
+        "userid": "4242"
+      },
+      "want": "4242 sam_login !hug"
     }
   ]
 }

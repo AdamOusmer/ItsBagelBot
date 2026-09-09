@@ -65,7 +65,8 @@ func vals(pairs ...string) map[string]string {
 // is adding a case here and rerunning the flag rather than editing JSON.
 func goldenRows() []goldenRow {
 	rows := append(braceRows(), nameRows()...)
-	return append(rows, fallbackRows()...)
+	rows = append(rows, fallbackRows()...)
+	return append(rows, argumentRows()...)
 }
 
 // braceRows pin the brace grammar: what closes a span, what never opens one.
@@ -123,6 +124,33 @@ func fallbackRows() []goldenRow {
 		{"a payload keeping its only pipe needs no fallback", "{choice:a|b}", arg, "{choice:a|b}"},
 		{"two fallbacks in one template", "{1|one} and {user|two}", arg, "one and bob"},
 		{"fallback inside an unclosed brace is literal", "{1|one", arg, "{1|one"},
+	}
+}
+
+// argumentRows pin the spans the argument and identity palette is written in
+// (issues #883/#885) against the lexer, and the four fallback shapes issue
+// #884 documents on every surface.
+//
+// The lexer knows no token names — a row's values map IS the palette — so
+// these rows pin the SPLIT, not the palette: that {2:} keys on "2:" while {2}
+// keys on "2", that a dotted name is one key, and that each of those spans
+// falls back or stays literal by the same three-way rule as any other.
+func argumentRows() []goldenRow {
+	args := vals(
+		"1", "kim", "2", "", "2:", "good luck", "3:", "",
+		"touser", "", "userid", "4242", "user.login", "sam_login",
+		"command", "hug", "urlfetch:x", "",
+	)
+	return []goldenRow{
+		{"a word number is a name like any other", "hug {1}", args, "hug kim"},
+		{"a trailing colon is an empty payload, not a bare name", "{2:}", args, "good luck"},
+		{"the same number without the colon is a different key", "{2}", args, ""},
+		{"an empty rest-of-args renders nothing", "[{3:}]", args, "[]"},
+		{"a missing word falls back", "hug {2|none}", args, "hug none"},
+		{"a named viewer falls back", "shout out to {touser|nobody}", args, "shout out to nobody"},
+		{"an empty external value falls back", "temp is {urlfetch:x|down}", args, "temp is down"},
+		{"a fallback never rescues a typo", "{unknown|x}", args, "{unknown|x}"},
+		{"identity names resolve like any other", "{userid} {user.login} !{command}", args, "4242 sam_login !hug"},
 	}
 }
 

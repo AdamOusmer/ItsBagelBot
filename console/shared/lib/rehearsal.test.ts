@@ -48,8 +48,37 @@ describe('token expansion (module/vars.go Expand mirror)', () => {
 describe('rehearseCommand', () => {
   test('substitutes exactly the expandCommand token set', () => {
     const [line] = rehearseCommand('{user} {target} {args} {channel}');
-    expect(textOf(line.segments)).toBe('sesame_sam ferret_king aaaa bagel_bakery');
+    expect(textOf(line.segments)).toBe(
+      'sesame_sam ferret_king ferret_king good luck bagel_bakery'
+    );
     expect(line.segments.filter((s) => s.kind === 'sample')).toHaveLength(4);
+  });
+
+  test('the identity tokens substitute too', () => {
+    const [line] = rehearseCommand('{userid} {user.login} !{command}');
+    expect(textOf(line.segments)).toBe('48291057 sesame_sam !hug');
+    expect(line.segments.filter((s) => s.kind === 'sample')).toHaveLength(3);
+  });
+
+  test('positional words come from the {args} sample, so the two agree', () => {
+    const [line] = rehearseCommand('{1} / {2} / {2:} / {1:}');
+    expect(textOf(line.segments)).toBe('ferret_king / good / good luck / ferret_king good luck');
+  });
+
+  test('an override of {args} moves the positional samples with it', () => {
+    const [line] = rehearseCommand('{1} then {2:}', { args: 'alex two three' });
+    expect(textOf(line.segments)).toBe('alex then two three');
+  });
+
+  test('a word past the end renders its fallback, or nothing', () => {
+    const [line] = rehearseCommand('[{9}] {9|nobody}');
+    expect(textOf(line.segments)).toBe('[] nobody');
+  });
+
+  test('a span that only looks like a word number stays literal', () => {
+    const [line] = rehearseCommand('{0} {31} {01} {+1} {1:2}');
+    expect(textOf(line.segments)).toBe('{0} {31} {01} {+1} {1:2}');
+    expect(line.segments.every((s) => s.kind !== 'sample')).toBe(true);
   });
 
   test('{sender}/{target} are aliases; an override of the canonical covers them', () => {

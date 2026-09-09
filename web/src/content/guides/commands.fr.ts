@@ -156,14 +156,46 @@ const strings: GuideStrings = {
     'meta.card.chips.2': '{counter:…}',
     'meta.card.chips.3': '!cmd',
     'meta.card.description': 'Créez des commandes qui saluent les gens par leur nom, lancent des dés et comptent vos victoires. Toutes les variables du bot, expliquées avec des exemples de chat.',
-    'meta.card.meta': '9 min · 7 étapes',
+    'meta.card.meta': '10 min · 8 étapes',
     'meta.card.title': 'Commandes et variables',
     'meta.description': "Maîtrisez les commandes personnalisées d'ItsBagelBot: toutes les variables supportées ({user}, {random}, {counter} et plus), réponses multilignes, actions de chat, délais et niveaux d'accès.",
     'meta.eyebrow': 'Guide',
     'meta.heading': 'Commandes et variables',
     'meta.lead': 'Des commandes qui saluent les gens par leur nom, lancent des dés et comptent vos victoires. Pas de code: juste des accolades.',
-    'meta.minutes': '9 min de lecture',
+    'meta.minutes': '10 min de lecture',
     'meta.title': 'Commandes et variables - Guides ItsBagelBot',
+    'fallbacks.b0.html': `
+            <p>
+                <code>Va voir &#123;1&#125;!</code> se lit mal quand personne n’a tapé de nom: le chat
+                voit <em>Va voir !</em>. Ajoutez une barre verticale et du texte dans les accolades, et
+                ce texte prend le relais dès que la variable revient vide:
+                <code>Va voir &#123;1|tout le monde&#125;!</code>.
+            </p>
+            <p>
+                Ça marche avec n’importe quelle variable, y compris une qui <em>semble</em> remplie sans
+                l’être: une <a href="/fr/guides/data-sources">source de données</a> qui a répondu vide
+                (<code>&#123;urlfetch:temp|hors ligne&#125;</code>), ou un spectateur mentionné que
+                personne n’a nommé (<code>&#123;touser|le chat&#125;</code>). Le texte après la barre est
+                du texte simple, pas une autre variable.
+            </p>`,
+    'fallbacks.b1.caption': 'La même commande, avec et sans nom après elle.',
+    'fallbacks.b1.lines.0.name': 'maya_live',
+    'fallbacks.b1.lines.0.text': '!shoutout alex',
+    'fallbacks.b1.lines.1.text': 'Allez donner de l’amour à alex 💛',
+    'fallbacks.b1.lines.2.name': 'maya_live',
+    'fallbacks.b1.lines.2.text': '!shoutout',
+    'fallbacks.b1.lines.3.text': 'Allez donner de l’amour à tout le monde 💛',
+    'fallbacks.b1.title': '#votre_chaine',
+    'fallbacks.b2.html': `
+                <b>Une valeur par défaut ne rattrape pas une faute de frappe</b>
+                La barre verticale ne couvre qu’une valeur <em>vide</em>. Une variable que le bot ne
+                reconnaît pas reste telle quelle, barre comprise: écrivez
+                <code>&#123;touser|le chat&#125;</code> et le chat voit un nom, écrivez
+                <code>&#123;tousr|le chat&#125;</code> et le chat voit
+                <code>&#123;tousr|le chat&#125;</code>. C’est voulu: une faute reste visible au lieu de
+                se cacher derrière sa propre valeur par défaut pour toujours.`,
+    'fallbacks.heading': 'Valeurs par défaut, quand un mot manque',
+    'fallbacks.note': 'Une barre verticale dans une variable lui donne quelque chose à dire quand elle revient vide.',
     'multiline.b0.html': `
             <p>
                 Une réponse peut contenir jusqu'à <strong>5 lignes</strong>, et chaque ligne est envoyée
@@ -228,13 +260,28 @@ const strings: GuideStrings = {
     'variables.b1.rows.1.2': 'alex',
     'variables.b1.rows.2.0': '<code>&#123;args&#125;</code>',
     'variables.b1.rows.2.1': "Tout le texte tapé après la commande, en une seule chaîne. Vide si rien n'a été tapé.",
-    'variables.b1.rows.2.2': 'bonne chance!',
-    'variables.b1.rows.3.0': '<code>&#123;channel&#125;</code>',
-    'variables.b1.rows.3.1': "Le nom d'affichage de votre chaîne.",
-    'variables.b1.rows.3.2': 'votre_chaine',
-    'variables.b1.rows.4.0': '<code>&#123;urlfetch:name&#125;</code>',
-    'variables.b1.rows.4.1': 'Une valeur récupérée d’une API web enregistrée comme source de données. Expliqué dans le <a href="/fr/guides/data-sources">guide des sources de données</a>.',
-    'variables.b1.rows.4.2': '22',
+    'variables.b1.rows.2.2': 'alex bonne chance pour l’examen',
+    'variables.b1.rows.3.0': '<code>&#123;1&#125;</code>, <code>&#123;2&#125;</code>, …',
+    'variables.b1.rows.3.1': 'Un mot à la fois: <code>&#123;1&#125;</code> est le premier mot tapé après la commande, <code>&#123;2&#125;</code> le deuxième, jusqu’à <code>&#123;30&#125;</code>. Un mot que personne n’a tapé revient vide.',
+    'variables.b1.rows.3.2': 'alex',
+    'variables.b1.rows.4.0': '<code>&#123;2:&#125;</code>',
+    'variables.b1.rows.4.1': 'Ce mot jusqu’à la fin, en une seule chaîne. Changez le numéro pour commencer ailleurs; <code>&#123;1:&#125;</code> reprend tout.',
+    'variables.b1.rows.4.2': 'bonne chance pour l’examen',
+    'variables.b1.rows.5.0': '<code>&#123;userid&#125;</code>',
+    'variables.b1.rows.5.1': 'L’ID utilisateur Twitch du spectateur. Il ne change jamais, même s’il change de nom.',
+    'variables.b1.rows.5.2': '48291057',
+    'variables.b1.rows.6.0': '<code>&#123;user.login&#125;</code>',
+    'variables.b1.rows.6.1': 'Son identifiant en minuscules, qui peut différer du nom d’affichage montré par <code>&#123;user&#125;</code>.',
+    'variables.b1.rows.6.2': 'maya_live',
+    'variables.b1.rows.7.0': '<code>&#123;command&#125;</code>',
+    'variables.b1.rows.7.1': 'Le nom de la commande qui a répondu, sans le «!». Les autres noms rapportent tous le nom principal.',
+    'variables.b1.rows.7.2': 'calin',
+    'variables.b1.rows.8.0': '<code>&#123;channel&#125;</code>',
+    'variables.b1.rows.8.1': "Le nom d'affichage de votre chaîne.",
+    'variables.b1.rows.8.2': 'votre_chaine',
+    'variables.b1.rows.9.0': '<code>&#123;urlfetch:name&#125;</code>',
+    'variables.b1.rows.9.1': 'Une valeur récupérée d’une API web enregistrée comme source de données. Expliqué dans le <a href="/fr/guides/data-sources">guide des sources de données</a>.',
+    'variables.b1.rows.9.2': '22',
     'variables.b2.caption': 'Une commande, deux phrases très différentes: !calin seul vs !calin alex.',
     'variables.b2.lines.0.name': 'maya_live',
     'variables.b2.lines.0.text': '!calin',

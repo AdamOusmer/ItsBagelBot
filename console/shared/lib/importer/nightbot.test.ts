@@ -129,14 +129,34 @@ describe('commands', () => {
   test('unmappable variables stay literal and are reported once each', () => {
     const { manifest, diagnostics } = parseNightbot(
       bytes({
-        commands: [command({ message: '$(count) $(count) $(querystring) $(eval 1+1) $(1)' })]
+        commands: [command({ message: '$(count) $(count) $(querystring) $(eval 1+1) $(31)' })]
       })
     );
     expect(manifest.commands?.[0].responses).toEqual([
-      '$(count) $(count) $(querystring) $(eval 1+1) $(1)'
+      '$(count) $(count) $(querystring) $(eval 1+1) $(31)'
     ]);
     expect(codesOf(diagnostics)).toEqual([
       CODE.variableUnmapped,
+      CODE.variableUnmapped,
+      CODE.variableUnmapped,
+      CODE.variableUnmapped
+    ]);
+  });
+
+  test('word numbers map onto the positional tokens', () => {
+    const { manifest, diagnostics } = parseNightbot(
+      bytes({ commands: [command({ message: '$(1) hugs $(2), $(30) last' })] })
+    );
+    expect(manifest.commands?.[0].responses).toEqual(['{1} hugs {2}, {30} last']);
+    expect(codesOf(diagnostics)).toEqual([]);
+  });
+
+  test('a word number past the cap stays literal rather than becoming a dead span', () => {
+    const { manifest, diagnostics } = parseNightbot(
+      bytes({ commands: [command({ message: '$(31) $(0) $(1x)' })] })
+    );
+    expect(manifest.commands?.[0].responses).toEqual(['$(31) $(0) $(1x)']);
+    expect(codesOf(diagnostics)).toEqual([
       CODE.variableUnmapped,
       CODE.variableUnmapped,
       CODE.variableUnmapped

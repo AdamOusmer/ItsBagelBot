@@ -104,8 +104,13 @@ export const SURFACES: SurfaceDef[] = [
     vars: [
       USER_VIEWER,
       v('{touser}', 'alex', { en: 'Named person', fr: 'Personne nommée' }, { en: 'The first word typed after the command ("@" removed); the viewer themself when blank. {target} works too.', fr: 'Le premier mot tapé après la commande (sans «@»); le spectateur lui-même si vide. {target} fonctionne aussi.' }),
-      v('{args}', 'good luck!', { en: 'Everything typed after', fr: 'Tout le texte tapé après' }, { en: 'All text after the command, as one string.', fr: 'Tout le texte après la commande, en une seule chaîne.' }),
+      v('{args}', 'alex good luck', { en: 'Everything typed after', fr: 'Tout le texte tapé après' }, { en: 'All text after the command, as one string.', fr: 'Tout le texte après la commande, en une seule chaîne.' }),
+      v('{1}', 'alex', { en: 'One word', fr: 'Un seul mot' }, { en: 'Word 1 typed after the command. {2} is the next one, and so on up to {30}. Empty when that word was not typed.', fr: 'Le mot 1 tapé après la commande. {2} est le suivant, et ainsi de suite jusqu’à {30}. Vide si ce mot n’a pas été tapé.' }),
+      v('{2:}', 'good luck', { en: 'From a word to the end', fr: 'D’un mot jusqu’à la fin' }, { en: 'Word 2 through to the end, as one string. Change the number to start elsewhere; {1:} is the whole thing.', fr: 'Du mot 2 jusqu’à la fin, en une seule chaîne. Changez le numéro pour commencer ailleurs; {1:} reprend tout.' }),
       v('{channel}', 'your_channel', { en: 'Channel name', fr: 'Nom de la chaîne' }, { en: "Your channel's display name.", fr: 'Le nom d’affichage de votre chaîne.' }),
+      v('{userid}', '48291057', { en: 'Viewer ID', fr: 'ID du spectateur' }, { en: "The viewer's Twitch user ID. It never changes, even after a rename.", fr: 'L’ID utilisateur Twitch du spectateur. Il ne change jamais, même après un changement de nom.' }),
+      v('{user.login}', 'maya_live', { en: 'Viewer login', fr: 'Identifiant du spectateur' }, { en: 'Their lowercase login, which can differ from the display name {user} shows.', fr: 'Son identifiant en minuscules, qui peut différer du nom d’affichage montré par {user}.' }),
+      v('{command}', 'welcome', { en: 'Command name', fr: 'Nom de la commande' }, { en: 'The name of the command that ran, without the "!". Alternate names all report the main one.', fr: 'Le nom de la commande qui a répondu, sans le «!». Les autres noms rapportent tous le nom principal.' }),
       {
         ...v(
           '{counter:falls}',
@@ -648,8 +653,8 @@ const UI = {
   counterScopeAria: { en: 'Counter scope', fr: 'Portée du compteur' },
   bracesSummary: { en: 'What do the braces mean?', fr: 'Que signifient les accolades?' },
   bracesBody: {
-    en: 'A variable is a placeholder. Write "Hello {user}", and if Maya uses it, the bot says "Hello Maya". Keep both braces exactly as shown; an unknown variable is left as literal text.',
-    fr: 'Une variable est un espace réservé. Écrivez «Bonjour {user}» et si Maya l’utilise, le bot dit «Bonjour Maya». Gardez les deux accolades telles quelles; une variable inconnue reste du texte littéral.',
+    en: 'A variable is a placeholder. Write "Hello {user}", and if Maya uses it, the bot says "Hello Maya". Keep both braces exactly as shown; an unknown variable is left as literal text. Add a "|" and some text inside any variable for a default when it comes back empty: {touser|everyone} says "everyone" when nobody was named.',
+    fr: 'Une variable est un espace réservé. Écrivez «Bonjour {user}» et si Maya l’utilise, le bot dit «Bonjour Maya». Gardez les deux accolades telles quelles; une variable inconnue reste du texte littéral. Ajoutez un «|» et du texte dans n’importe quelle variable pour une valeur par défaut quand elle revient vide: {touser|tout le monde} affiche «tout le monde» si personne n’est nommé.',
   },
   previewTitle: { en: 'Live rehearsal', fr: 'Répétition en direct' },
   // Rehearsal chrome: word-for-word the dashboard's chatPreview catalog
