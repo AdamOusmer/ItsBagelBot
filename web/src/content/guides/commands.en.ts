@@ -12,12 +12,12 @@ const guide: GuideContent = {
     eyebrow: 'Guide',
     heading: 'Commands & variables',
     lead: 'Commands that greet people by name, roll dice, and count your wins. No code: just braces.',
-    minutes: '10 min read',
+    minutes: '11 min read',
     card: {
       title: 'Commands & variables',
       description:
         'Build commands that greet people by name, roll dice, and count wins. Every variable the bot understands, explained with live-looking chat examples.',
-      meta: '10 min · 8 steps',
+      meta: '11 min · 9 steps',
       chips: ['{user}', '{random}', '{counter:…}', '!cmd'],
     },
   },
@@ -265,6 +265,56 @@ const guide: GuideContent = {
         {
           kind: 'widget',
           name: 'Rehearsal',
+        },
+      ],
+    },
+    {
+      id: 'utilities',
+      heading: 'Small jobs the reply can do itself',
+      note: 'Arithmetic, countdowns, repeats, and encoding text so it survives a URL.',
+      blocks: [
+        {
+          kind: 'prose',
+          html: `
+            <p>
+                A handful of variables work on what you type inside them rather than on who ran
+                the command. They need no module and no setup: write one, and the bot works it
+                out at the moment it replies.
+            </p>`,
+        },
+        {
+          kind: 'table',
+          head: ['Variable', 'Becomes', 'Example'],
+          rows: [
+            ['<code>&#123;math:1+2*3&#125;</code>', 'The answer to a small sum. Whole numbers with <code>+</code>, <code>-</code>, <code>*</code>, <code>/</code> and parentheses; multiplication and division go first, as in school. Division rounds toward zero, and dividing by zero comes back empty.', '7'],
+            ['<code>&#123;countdown:2026-12-25&#125;</code>', 'How long until that date, in the same words as <code>!uptime</code>. Write the date as YYYY-MM-DD, or as a full timestamp with a time and a zone. Once it has passed, the count stops instead of turning around.', '3 days, 4 hours'],
+            ['<code>&#123;countup:2020-01-01&#125;</code>', 'How long since that date. The same clock, read the other way.', '2 years, 3 months'],
+            ['<code>&#123;repeat:3:bagel&#125;</code>', 'Your phrase, that many times, separated by spaces. Up to 20 times, and the whole run has to fit inside one chat line.', 'bagel bagel bagel'],
+            ['<code>&#123;querystring&#125;</code>', 'Everything typed after the command, encoded so it can sit inside a web address. This is the one to put in a <a href="/guides/data-sources">data source</a> URL.', 'alex+good+luck'],
+            ['<code>&#123;queryescape:hello world&#125;</code>', 'The same encoding, applied to text you write yourself. <code>&#123;pathescape:…&#125;</code> is its sibling for the path part of a URL, where a space becomes <code>%20</code> instead of <code>+</code>.', 'hello+world'],
+          ],
+        },
+        {
+          kind: 'chat',
+          title: '#your_channel',
+          caption: 'A countdown and a sum, in two ordinary commands.',
+          lines: [
+            { who: 'viewer', name: 'maya_live', text: '!launch' },
+            { who: 'bot', text: 'The new season drops in 3 days, 4 hours 🥯' },
+            { who: 'viewer', name: 'alex', text: '!deaths' },
+            { who: 'bot', text: 'That is 128 deaths, or 8 per hour. Flawless.' },
+          ],
+        },
+        {
+          kind: 'callout',
+          tone: 'warn',
+          html: `
+                <b>They read what you typed, not what a variable holds</b>
+                <code>&#123;math:&#123;counter:deaths&#125;+1&#125;</code> does not work: a variable
+                inside another variable is not part of the language yet, so the sum sees the braces
+                rather than the number and comes back empty. Anything these cannot work out comes
+                back empty too, which is exactly when a default earns its keep:
+                <code>&#123;math:1/0|no idea&#125;</code>.`,
         },
       ],
     },

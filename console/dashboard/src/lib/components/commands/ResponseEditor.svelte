@@ -36,7 +36,14 @@
     { token: '{command}', hint: 'commandEditor.tokCommand' },
     { token: '{counter:name}', hint: 'commandEditor.tokCounter' },
     { token: '{random}', hint: 'commandEditor.tokRandom' },
-    { token: '{choice:a,b,c}', hint: 'commandEditor.tokChoice' }
+    { token: '{choice:a,b,c}', hint: 'commandEditor.tokChoice' },
+    { token: '{math:1+1}', hint: 'commandEditor.tokMath' },
+    { token: '{querystring}', hint: 'commandEditor.tokQueryString' },
+    { token: '{queryescape:text}', hint: 'commandEditor.tokQueryEscape' },
+    { token: '{pathescape:text}', hint: 'commandEditor.tokPathEscape' },
+    { token: '{repeat:3:hi}', hint: 'commandEditor.tokRepeat' },
+    { token: '{countdown:2026-12-25}', hint: 'commandEditor.tokCountdown' },
+    { token: '{countup:2026-12-25}', hint: 'commandEditor.tokCountup' }
   ];
 
   let {

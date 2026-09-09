@@ -296,14 +296,17 @@ for (const surface of data.surfaces) {
         };
 
         // --- Sample values handed to the shared rehearsal ---------------------
-        // The catalog's own tokens, keyed without braces. Dynamic and
-        // {counter:…} forms are deliberately left out: the shared logic
-        // resolves those itself (deterministically, so the preview doesn't
-        // re-roll on every keystroke), exactly as the dashboard does. The
+        // The catalog's own tokens, keyed without braces. Dynamic, {counter:…}
+        // and the pure utilities are deliberately left out: the shared logic
+        // resolves those itself — the dice deterministically (so the preview
+        // doesn't re-roll on every keystroke), the utilities by actually
+        // computing them, and {querystring} by encoding the {args} sample —
+        // exactly as the dashboard does. The
         // positional words ({1}, {2:}) are left out for the same reason and
         // one more: the core derives them from the {args} sample, so a
         // preview can never show a {1} that contradicts the {args} beside it.
-        const RESOLVED_BY_CORE = /^(random(:|$)|choice:|counter:|[0-9])/;
+        const RESOLVED_BY_CORE =
+            /^(random(:|$)|choice:|counter:|[0-9]|math:|queryescape:|pathescape:|repeat:|countdown:|countup:|querystring$)/;
 
         function sampleMap(): Record<string, string> {
             const samples: Record<string, string> = {};

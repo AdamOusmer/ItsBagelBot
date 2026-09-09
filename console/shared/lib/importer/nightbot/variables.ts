@@ -9,7 +9,7 @@
 //
 //	$(user) / $(touser) / $(channel) → {user} / {touser} / {channel}
 //	$(query)                         → {args}
-//	$(querystring)                   → literal + warn  (URL-encoded upstream)
+//	$(querystring)                   → {querystring}
 //	$(1) $(2) … $(30)                → {1} {2} … {30}
 //	$(count)                         → literal + warn  (mutates upstream)
 //	$(urlfetch URL) / $(customapi …) → {urlfetch:nightbot_<cmd>} + def
@@ -23,12 +23,20 @@
 // literal in chat — a warning the broadcaster sees beats a brace they discover
 // live.
 //
-// $(querystring) is deliberately NOT folded onto {args}: it URL-encodes, and
-// its whole reason to exist is being pasted inside a URL, where handing over
-// raw args produces a different request rather than a lossy one. $(count)
-// mutates (increments, then returns) while {counter:*} only reads, so
+// $(querystring) maps onto {querystring} and is still deliberately NOT folded
+// onto {args}: it URL-encodes, and its whole reason to exist is being pasted
+// inside a URL, where handing over raw args produces a different request
+// rather than a lossy one. Both sides encode the query component the same way
+// (space to '+', everything outside the unreserved set percent-encoded), so a
+// translated response builds the byte-identical request.
+//
+// $(count) mutates (increments, then returns) while {counter:*} only reads, so
 // translating it would silently drop the increment, a behavior change, not a
-// translation.
+// translation. $(countdown …) stays literal for a narrower reason: this bot
+// has a {countdown:…}, but Nightbot's takes a free-form date string
+// ("Dec 25 2026 12:00:00 PST") that {countdown:…} does not read, so the
+// translation would produce a token that renders empty in chat. A warning the
+// broadcaster sees beats a silent blank.
 
 import { parseFetchArgs } from './fetchdefs';
 import type { FetchSlotSink } from './fetchdefs';
@@ -60,7 +68,8 @@ const SIMPLE_TOKENS: Record<string, string> = {
   user: '{user}',
   touser: '{touser}',
   channel: '{channel}',
-  query: '{args}'
+  query: '{args}',
+  querystring: '{querystring}'
 };
 
 const FETCH_HEADS = new Set(['urlfetch', 'customapi']);
@@ -90,7 +99,7 @@ function classify(token: Token, sink?: FetchSlotSink): TokenResult {
   const word = positionalToken(token);
   if (word) return { repl: word, warned: false };
   if (FETCH_HEADS.has(token.head)) return fetchToken(token, sink);
-  // querystring, count, eval, twitch, time, countdown, weather, …
+  // count, eval, twitch, time, countdown, weather, …
   return literal(token);
 }
 

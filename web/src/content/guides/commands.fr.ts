@@ -156,13 +156,13 @@ const strings: GuideStrings = {
     'meta.card.chips.2': '{counter:…}',
     'meta.card.chips.3': '!cmd',
     'meta.card.description': 'Créez des commandes qui saluent les gens par leur nom, lancent des dés et comptent vos victoires. Toutes les variables du bot, expliquées avec des exemples de chat.',
-    'meta.card.meta': '10 min · 8 étapes',
+    'meta.card.meta': '11 min · 9 étapes',
     'meta.card.title': 'Commandes et variables',
     'meta.description': "Maîtrisez les commandes personnalisées d'ItsBagelBot: toutes les variables supportées ({user}, {random}, {counter} et plus), réponses multilignes, actions de chat, délais et niveaux d'accès.",
     'meta.eyebrow': 'Guide',
     'meta.heading': 'Commandes et variables',
     'meta.lead': 'Des commandes qui saluent les gens par leur nom, lancent des dés et comptent vos victoires. Pas de code: juste des accolades.',
-    'meta.minutes': '10 min de lecture',
+    'meta.minutes': '11 min de lecture',
     'meta.title': 'Commandes et variables - Guides ItsBagelBot',
     'fallbacks.b0.html': `
             <p>
@@ -243,6 +243,50 @@ const strings: GuideStrings = {
     'rules.b1.rows.5.1': "Verrouillez une commande sur un seul compte Twitch; cela remplace entièrement le niveau d'accès. Parfait pour la commande personnelle d'un ami.",
     'rules.heading': 'Les règles du jeu',
     'rules.note': "Noms, limites, délais et niveaux d'accès. Tout ce que l'éditeur accepte et refuse.",
+    'utilities.b0.html': `
+            <p>
+                Quelques variables travaillent sur ce que vous écrivez à l'intérieur, plutôt que
+                sur la personne qui a lancé la commande. Elles ne demandent ni module ni réglage:
+                écrivez-en une, et le bot la calcule au moment de répondre.
+            </p>`,
+    'utilities.b1.head.0': 'Variable',
+    'utilities.b1.head.1': 'Devient',
+    'utilities.b1.head.2': 'Exemple',
+    'utilities.b1.rows.0.0': '<code>&#123;math:1+2*3&#125;</code>',
+    'utilities.b1.rows.0.1': "Le résultat d'une petite opération. Des nombres entiers avec <code>+</code>, <code>-</code>, <code>*</code>, <code>/</code> et des parenthèses; la multiplication et la division passent d'abord, comme à l'école. La division arrondit vers zéro, et une division par zéro revient vide.",
+    'utilities.b1.rows.0.2': '7',
+    'utilities.b1.rows.1.0': '<code>&#123;countdown:2026-12-25&#125;</code>',
+    'utilities.b1.rows.1.1': "Le temps restant avant cette date, dans les mêmes mots que <code>!uptime</code>. Écrivez la date AAAA-MM-JJ, ou en horodatage complet avec une heure et un fuseau. Une fois la date passée, le compte s'arrête au lieu de repartir à l'envers.",
+    'utilities.b1.rows.1.2': '3 jours, 4 heures',
+    'utilities.b1.rows.2.0': '<code>&#123;countup:2020-01-01&#125;</code>',
+    'utilities.b1.rows.2.1': "Le temps écoulé depuis cette date. La même horloge, lue dans l'autre sens.",
+    'utilities.b1.rows.2.2': '2 ans, 3 mois',
+    'utilities.b1.rows.3.0': '<code>&#123;repeat:3:bagel&#125;</code>',
+    'utilities.b1.rows.3.1': "Votre phrase, autant de fois, séparée par des espaces. 20 fois au maximum, et l'ensemble doit tenir sur une seule ligne de chat.",
+    'utilities.b1.rows.3.2': 'bagel bagel bagel',
+    'utilities.b1.rows.4.0': '<code>&#123;querystring&#125;</code>',
+    'utilities.b1.rows.4.1': "Tout le texte tapé après la commande, encodé pour tenir dans une adresse web. C'est celle à mettre dans l'URL d'une <a href=\"/fr/guides/data-sources\">source de données</a>.",
+    'utilities.b1.rows.4.2': 'alex+good+luck',
+    'utilities.b1.rows.5.0': '<code>&#123;queryescape:hello world&#125;</code>',
+    'utilities.b1.rows.5.1': "Le même encodage, appliqué à un texte que vous écrivez vous-même. <code>&#123;pathescape:…&#125;</code> en est la jumelle pour la partie chemin d'une URL, où l'espace devient <code>%20</code> au lieu de <code>+</code>.",
+    'utilities.b1.rows.5.2': 'hello+world',
+    'utilities.b2.caption': 'Un compte à rebours et un calcul, dans deux commandes ordinaires.',
+    'utilities.b2.lines.0.name': 'maya_live',
+    'utilities.b2.lines.0.text': '!sortie',
+    'utilities.b2.lines.1.text': 'La nouvelle saison arrive dans 3 jours, 4 heures 🥯',
+    'utilities.b2.lines.2.name': 'alex',
+    'utilities.b2.lines.2.text': '!morts',
+    'utilities.b2.lines.3.text': 'Ça fait 128 morts, soit 8 par heure. Sans faute.',
+    'utilities.b2.title': '#votre_chaine',
+    'utilities.b3.html': `
+                <b>Elles lisent ce que vous avez tapé, pas ce qu'une variable contient</b>
+                <code>&#123;math:&#123;counter:morts&#125;+1&#125;</code> ne marche pas: une variable
+                dans une autre variable ne fait pas encore partie du langage, donc le calcul voit les
+                accolades au lieu du nombre et revient vide. Tout ce qu'elles ne savent pas calculer
+                revient vide aussi, et c'est exactement là qu'une valeur par défaut sert:
+                <code>&#123;math:1/0|aucune idée&#125;</code>.`,
+    'utilities.heading': 'Les petits calculs que la réponse fait elle-même',
+    'utilities.note': "Calculs, comptes à rebours, répétitions, et l'encodage d'un texte pour qu'il survive à une URL.",
     'variables.b0.html': `
             <p>
                 Écrivez <code>&#123;user&#125;</code> dans une réponse et le bot le remplace par le nom

@@ -177,6 +177,52 @@ describe('scope chain (engine/scope mirror)', () => {
     expect(textOf(line.segments)).toBe('57');
   });
 
+  test('the utility scope computes {math:…} for real', () => {
+    // A stand-in would teach the broadcaster the wrong answer; the preview
+    // runs the same grammar the bot does (pinned by pure.test.ts).
+    const [line] = rehearseCommand('that is {math:(1+2)*3} bagels');
+    expect(textOf(line.segments)).toBe('that is 9 bagels');
+  });
+
+  test('a refused expression renders its fallback, like chat', () => {
+    const [line] = rehearseCommand('{math:1/0|no idea}');
+    expect(textOf(line.segments)).toBe('no idea');
+  });
+
+  test('the URL encoders show the bytes the request will carry', () => {
+    const [line] = rehearseCommand('{queryescape:a b&c} {pathescape:a b&c}');
+    expect(textOf(line.segments)).toBe('a+b%26c a%20b&c');
+  });
+
+  test('{querystring} is the args sample, URL-encoded', () => {
+    const [line] = rehearseCommand('?q={querystring}', { args: 'bagel & lox' });
+    expect(textOf(line.segments)).toBe('?q=bagel+%26+lox');
+  });
+
+  test('{repeat:…} honours both caps', () => {
+    expect(textOf(rehearseCommand('{repeat:3:yay}')[0].segments)).toBe('yay yay yay');
+    expect(textOf(rehearseCommand('{repeat:21:x|too many}')[0].segments)).toBe('too many');
+  });
+
+  test('the clock tokens show a fixed sample, and nothing for a bad date', () => {
+    expect(textOf(rehearseCommand('{countdown:2026-12-25}')[0].segments)).toBe('3 days, 4 hours');
+    expect(textOf(rehearseCommand('{countup:2020-01-01T00:00:00Z}')[0].segments)).toBe('3 days, 4 hours');
+    expect(textOf(rehearseCommand('{countdown:next tuesday|soon}')[0].segments)).toBe('soon');
+  });
+
+  test('a utility with no payload stays literal', () => {
+    // {math} names no expression, so it is not the token.
+    const [line] = rehearseCommand('{math} {repeat}');
+    expect(line.segments.filter((s) => s.kind === 'unknown').length).toBe(2);
+  });
+
+  test('a module reply mounts no utility scope either', () => {
+    // The Go side expands a module reply through module.ParseDynamic, which
+    // has never carried the utilities, so they stay literal there.
+    const [line] = rehearseReply('{math:1+1}', {});
+    expect(line.segments).toEqual([{ text: '{math:1+1}', kind: 'unknown' }]);
+  });
+
   test('a module reply mounts no message or counter scope', () => {
     // Only a custom command has {args} and {counter:…}; a reply that names
     // them is naming tokens its module does not have.

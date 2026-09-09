@@ -163,7 +163,7 @@ func (r lookupReply) followage(result engine.FollowageResult) string {
 	if !result.Following {
 		return fmt.Sprintf(i18n.T(r.locale, "followage.not_following"), r.targetName)
 	}
-	return fmt.Sprintf(i18n.T(r.locale, "followage.followed"), r.targetName, humanizeDuration(r.locale, time.Since(result.FollowedAt)))
+	return fmt.Sprintf(i18n.T(r.locale, "followage.followed"), r.targetName, i18n.HumanizeDuration(r.locale, time.Since(result.FollowedAt)))
 }
 
 // accountAge renders the !accountage result.
@@ -171,39 +171,7 @@ func (r lookupReply) accountAge(result engine.AccountAgeResult) string {
 	if !result.UserFound {
 		return fmt.Sprintf(i18n.T(r.locale, "lookup.not_user"), r.targetName)
 	}
-	return fmt.Sprintf(i18n.T(r.locale, "accountage.age"), r.targetName, humanizeDuration(r.locale, time.Since(result.CreatedAt)))
-}
-
-// humanizeDuration renders a span as the two largest non-zero units (e.g.
-// "2 years, 3 months"), used by both !followage and !accountage. Unit names are
-// localized; a plural count reads the "<unit>s" key ("time.year" -> "time.years").
-func humanizeDuration(locale string, d time.Duration) string {
-	if d < 0 {
-		d = 0
-	}
-	minutes := int64(d / time.Minute)
-	if minutes < 1 {
-		return i18n.T(locale, "time.less_than_minute")
-	}
-	units := []struct {
-		minutes int64
-		key     string
-	}{{365 * 24 * 60, "time.year"}, {30 * 24 * 60, "time.month"}, {24 * 60, "time.day"}, {60, "time.hour"}, {1, "time.minute"}}
-	parts := make([]string, 0, 2)
-	for _, unit := range units {
-		if n := minutes / unit.minutes; n > 0 {
-			key := unit.key
-			if n != 1 {
-				key += "s"
-			}
-			parts = append(parts, fmt.Sprintf("%d %s", n, i18n.T(locale, key)))
-			minutes %= unit.minutes
-			if len(parts) == 2 {
-				break
-			}
-		}
-	}
-	return strings.Join(parts, ", ")
+	return fmt.Sprintf(i18n.T(r.locale, "accountage.age"), r.targetName, i18n.HumanizeDuration(r.locale, time.Since(result.CreatedAt)))
 }
 
 // moduleLog returns the module logger, or a no-op when Deps carries none.

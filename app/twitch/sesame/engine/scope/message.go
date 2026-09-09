@@ -5,6 +5,7 @@ package scope
 
 import (
 	"context"
+	"net/url"
 	"strings"
 )
 
@@ -79,6 +80,17 @@ var messageFields = map[string]func(Message) string{
 	"userid":     func(m Message) string { return m.UserID },
 	"user.login": func(m Message) string { return m.Login },
 	"command":    func(m Message) string { return m.Command },
+	// {querystring} is {args}, URL-encoded. It is a thin alias of the
+	// {queryescape:…} encoder (scope.Pure), never a second one: the two must
+	// escape the same bytes the same way, because the whole point of the
+	// spelling is pasting it inside a saved {urlfetch:…} URL.
+	//
+	// It lives here rather than in the pure scope because its INPUT is the
+	// chat line, not the span: a pure token is a function of its own payload,
+	// and this one reads the arguments. That also makes it the token every
+	// importer wants — Nightbot's $(querystring) is exactly this — while
+	// {queryescape:…} stays the general form for literal text.
+	"querystring": func(m Message) string { return url.QueryEscape(m.Args) },
 }
 
 // Owns claims the fixed identity/argument palette plus {1}..{30}.
