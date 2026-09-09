@@ -61,7 +61,13 @@
     // the hints name the module for exactly that reason.
     { token: '{quote}', hint: 'commandEditor.tokQuote' },
     { token: '{time}', hint: 'commandEditor.tokTime' },
-    { token: '{song}', hint: 'commandEditor.tokSong' }
+    { token: '{song}', hint: 'commandEditor.tokSong' },
+    // The chat room. These two are the only lookups in this list with no
+    // module behind them, so their hints name no module to switch on — what
+    // they need saying instead is that the bot counts and draws from people
+    // who have SPOKEN recently, not from everyone watching.
+    { token: '{chatters}', hint: 'commandEditor.tokChatters' },
+    { token: '{random.chatter}', hint: 'commandEditor.tokRandomChatter' }
   ];
 
   let {

@@ -745,6 +745,8 @@
     "tokQuote": "a random saved quote, or {quote:12} for a numbered one (Quotes module)",
     "tokTime": "your local time, on the clock face you set (Local time module)",
     "tokSong": "the track playing right now, or {song.title} / {song.artist} (Song requests)",
+    "tokChatters": "how many people have talked in chat recently",
+    "tokRandomChatter": "one of them, picked at random (never you, never the bot)",
     "fallbackHint": "Add | and some text inside any variable for a default when it comes back empty: {touser|everyone}.",
     "access": "Access",
     "cooldownS": "Cooldown (s)",

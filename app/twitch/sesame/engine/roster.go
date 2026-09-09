@@ -147,6 +147,29 @@ func (r *chatterRoster) Resolve(broadcasterID uint64, login string) (Viewer, boo
 	return v, ok
 }
 
+// Snapshot copies this channel's remembered chatters out from under the lock,
+// for the {chatters} count and the {random.chatter} draw to read without
+// holding it while they render.
+//
+// A copy rather than a callback under the read lock: the caller is a template
+// render, and running broadcaster-authored work while every chat line for this
+// channel waits to record its speaker is a lock held for an unbounded reason.
+// The copy is bounded by rosterCapacityPerChannel and paid only by a command
+// whose response actually names one of the two tokens.
+func (r *chatterRoster) Snapshot(broadcasterID uint64) []Viewer {
+	if r == nil || broadcasterID == 0 {
+		return nil
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	chanViewers := r.chans[broadcasterID]
+	out := make([]Viewer, 0, len(chanViewers))
+	for _, v := range chanViewers {
+		out = append(out, v)
+	}
+	return out
+}
+
 // evictOne drops one arbitrary entry to make room for an insert. Go map range
 // order is randomized, so "arbitrary" is uniform-ish — good enough because
 // identities are stable and eviction only costs re-learning on the victim's

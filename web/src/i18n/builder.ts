@@ -141,6 +141,19 @@ const MODULE_FACTS: VarDef[] = [
   v('{song}', 'Everything In Its Right Place by Radiohead', { en: 'Now playing', fr: 'En cours de lecture' }, { en: 'The track playing on Spotify right now. {song.title} and {song.artist} give the two halves separately. Nothing playing comes back empty. Needs the Song requests module.', fr: 'Le morceau en cours sur Spotify. {song.title} et {song.artist} donnent les deux moitiés séparément. Rien en lecture ne renvoie rien. Nécessite le module Requêtes musicales.' }),
 ];
 
+// The chat room (app/twitch/sesame/engine/scope/chatters.go). No module gates
+// these two — the bot answers them from the chatters it has watched speak,
+// never from a Twitch lookup — so the descriptions say what that changes
+// instead: it counts and draws from people who have TALKED recently.
+//
+// The samples match the shared rehearsal's stand-ins exactly (CHATTERS_SAMPLE
+// and RANDOM_CHATTER_SAMPLE): the preview substitutes those, so a different
+// value here would contradict the line right beside it.
+const CHAT_ROOM: VarDef[] = [
+  v('{chatters}', '37', { en: 'People in chat', fr: 'Personnes dans le chat' }, { en: 'How many people have talked in chat recently. It counts chatters the bot has seen speak, not everyone with the page open, and a quiet channel comes back as 0.', fr: 'Combien de personnes ont parlé récemment dans le chat. Cela compte les personnes que le bot a vues parler, pas tous ceux qui ont la page ouverte, et une chaîne silencieuse renvoie 0.' }),
+  v('{random.chatter}', 'maya_live', { en: 'A random chatter', fr: 'Un spectateur au hasard' }, { en: 'The name of one person who has talked recently, picked at random. Never you and never the bot. Two of them in one response are two separate picks, and a silent channel comes back empty.', fr: 'Le nom d’une personne ayant parlé récemment, choisie au hasard. Jamais vous ni le bot. Deux dans une même réponse font deux tirages distincts, et une chaîne silencieuse ne renvoie rien.' }),
+];
+
 const USER_VIEWER = v('{user}', 'maya_live', { en: 'Viewer name', fr: 'Nom du spectateur' }, { en: 'Whoever used the command. {sender} works too.', fr: 'La personne qui a utilisé la commande. {sender} fonctionne aussi.' });
 
 export const SURFACES: SurfaceDef[] = [
@@ -188,6 +201,7 @@ export const SURFACES: SurfaceDef[] = [
       },
       ...DYNAMIC,
       ...UTILITIES,
+      ...CHAT_ROOM,
       ...VIEWER,
       ...MODULE_FACTS,
     ],

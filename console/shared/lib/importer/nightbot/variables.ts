@@ -50,6 +50,12 @@
 // shape of reason as $(twitch …) above: both take an argument this bot's
 // {time} / {song} do not (a per-call timezone, a format string), because both
 // read the broadcaster's own module configuration instead.
+// The chat room ({chatters}, {random.chatter}) has no inbound counterpart at
+// all: the table at the top of this file is the record of what Nightbot's
+// variable language contains, and it carries neither a chatter count nor a
+// random-viewer variable. Nothing was invented from a guess at what the source
+// might spell them; a mapping can be added the day one is observed and can be
+// checked against a real directory.
 // $(countdown …) stays literal for a narrower reason: this bot
 // has a {countdown:…}, but Nightbot's takes a free-form date string
 // ("Dec 25 2026 12:00:00 PST") that {countdown:…} does not read, so the

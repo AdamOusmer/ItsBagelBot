@@ -302,14 +302,15 @@ for (const surface of data.surfaces) {
         // doesn't re-roll on every keystroke), the utilities by actually
         // computing them, and {querystring} by encoding the {args} sample —
         // exactly as the dashboard does. The viewer lookups ({followage},
-        // {points}, …) and the module facts ({quote}, {time}, {song}) are left
-        // out for the same reason: the core carries one stand-in per family,
-        // and the spellings within a family must preview alike. The
+        // {points}, …), the module facts ({quote}, {time}, {song}) and the
+        // chat room ({chatters}, {random.chatter}) are left out for the same
+        // reason: the core carries one stand-in per family, and the spellings
+        // within a family must preview alike. The
         // positional words ({1}, {2:}) are left out for the same reason and
         // one more: the core derives them from the {args} sample, so a
         // preview can never show a {1} that contradicts the {args} beside it.
         const RESOLVED_BY_CORE =
-            /^(random(:|$)|choice:|count(er)?:|[0-9]|math:|queryescape:|pathescape:|repeat:|countdown:|countup:|querystring$|followage|accountage|points|watchtime|quote|time$|song)/;
+            /^(random(:|$|\.chatter$)|choice:|count(er)?:|chatters$|[0-9]|math:|queryescape:|pathescape:|repeat:|countdown:|countup:|querystring$|followage|accountage|points|watchtime|quote|time$|song)/;
 
         function sampleMap(): Record<string, string> {
             const samples: Record<string, string> = {};

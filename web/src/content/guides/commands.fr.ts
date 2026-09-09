@@ -156,13 +156,13 @@ const strings: GuideStrings = {
     'meta.card.chips.2': '{counter:…}',
     'meta.card.chips.3': '!cmd',
     'meta.card.description': 'Créez des commandes qui saluent les gens par leur nom, lancent des dés et comptent vos victoires. Toutes les variables du bot, expliquées avec des exemples de chat.',
-    'meta.card.meta': '13 min · 11 étapes',
+    'meta.card.meta': '14 min · 12 étapes',
     'meta.card.title': 'Commandes et variables',
     'meta.description': "Maîtrisez les commandes personnalisées d'ItsBagelBot: toutes les variables supportées ({user}, {random}, {counter} et plus), réponses multilignes, actions de chat, délais et niveaux d'accès.",
     'meta.eyebrow': 'Guide',
     'meta.heading': 'Commandes et variables',
     'meta.lead': 'Des commandes qui saluent les gens par leur nom, lancent des dés et comptent vos victoires. Pas de code: juste des accolades.',
-    'meta.minutes': '13 min de lecture',
+    'meta.minutes': '14 min de lecture',
     'meta.title': 'Commandes et variables - Guides ItsBagelBot',
     'fallbacks.b0.html': `
             <p>
@@ -392,6 +392,45 @@ const strings: GuideStrings = {
                 <code>&#123;song|rien pour l'instant&#125;</code>.`,
     'modulefacts.heading': 'Un fait d’un module, dans votre propre phrase',
     'modulefacts.note': 'Une citation enregistrée, votre heure locale et ce qui joue en ce moment.',
+    'chatroom.b0.html': `
+            <p>
+                Deux variables parlent de la salle plutôt que de la personne qui a lancé la
+                commande: l'une compte les gens qui discutent, l'autre en choisit une au hasard.
+                Aucune des deux ne nécessite de module, et aucune ne demande quoi que ce soit à
+                Twitch: le bot voit déjà tous les messages, il répond donc à partir des personnes
+                qu'il a vues parler.
+            </p>`,
+    'chatroom.b1.head.0': 'Variable',
+    'chatroom.b1.head.1': 'Devient',
+    'chatroom.b1.head.2': 'Exemple',
+    'chatroom.b1.rows.0.0': '<code>&#123;chatters&#125;</code>',
+    'chatroom.b1.rows.0.1': "Combien de personnes ont parlé récemment dans le chat. Une chaîne où personne n'a rien dit renvoie <code>0</code>.",
+    'chatroom.b1.rows.0.2': '37',
+    'chatroom.b1.rows.1.0': '<code>&#123;random.chatter&#125;</code>',
+    'chatroom.b1.rows.1.1': "Le nom de l'une d'elles, choisi au hasard. Jamais vous, jamais le bot. Deux dans une même réponse font deux tirages distincts: ils peuvent donc tomber sur la même personne, comme deux lancers de dés.",
+    'chatroom.b1.rows.1.2': 'maya_live',
+    'chatroom.b2.caption': 'Une commande qui passe le micro à quelqu’un d’autre.',
+    'chatroom.b2.lines.0.name': 'maya_live',
+    'chatroom.b2.lines.0.text': '!question',
+    'chatroom.b2.lines.1.text': 'On est 37 ici. @alex, à toi: quel est le pire parfum de bagel? 🥯',
+    'chatroom.b2.title': '#votre_chaine',
+    'chatroom.b3.html': `
+                <b>Ça compte ceux qui parlent, pas ceux qui regardent</b>
+                Le bot construit cette liste à partir des messages qu'il voit: ce sont donc les
+                personnes ayant dit quelque chose récemment, pas tous ceux qui ont votre stream
+                ouvert. Les lurkers n'y sont pas. Quelqu'un qui a dit bonjour puis s'est tu
+                longtemps finit aussi par en sortir. C'est donc un bon "qui parle en ce moment" et
+                un mauvais "combien de personnes me regardent", qui est un tout autre nombre.`,
+    'chatroom.b4.html': `
+                <b>Une chaîne silencieuse ne renvoie rien</b>
+                Si personne d'autre que vous et le bot n'a parlé, il n'y a personne à choisir et
+                <code>&#123;random.chatter&#125;</code> revient vide. Donnez-lui une valeur par
+                défaut pour que la phrase tienne quand même:
+                <code>&#123;random.chatter|quelqu'un&#125;</code>.
+                <code>&#123;chatters&#125;</code> répond <code>0</code> plutôt que rien, elle n'en a
+                donc jamais besoin.`,
+    'chatroom.heading': 'La salle: combien, et qui',
+    'chatroom.note': 'Comptez les gens qui parlent, ou tirez au sort l’un de leurs noms.',
     'viewer.b0.html': `
             <p>
                 Le bot répond déjà à <code>!followage</code>, <code>!accountage</code> et
