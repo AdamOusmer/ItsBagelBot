@@ -7,6 +7,8 @@ import (
 	"context"
 	"errors"
 	"strconv"
+
+	"ItsBagelBot/internal/domain/rpc"
 )
 
 // The two refusals every user-scoped RPC verb in the fleet can answer with.
@@ -76,11 +78,11 @@ func ForUser[Req Requesting, Rep any, PR interface {
 	return func(ctx context.Context, req Req) Rep {
 		id, err := UserID(req.Requested())
 		if err != nil {
-			return Refuse[Rep, PR](err.Error())
+			return RefuseErr[Rep, PR](err)
 		}
 		reply, err := load(ctx, req, id)
 		if err != nil {
-			return Refuse[Rep, PR](err.Error())
+			return RefuseErr[Rep, PR](err)
 		}
 		return reply
 	}
@@ -113,5 +115,49 @@ func Refuse[Rep any, PR interface {
 }](message string) Rep {
 	var zero Rep
 	PR(&zero).Failed(message)
+	return zero
+}
+
+// userIDRules maps the guard's own two sentinels onto the shared vocabulary.
+// The guard rejects a request it can see is unusable before any store is
+// touched, so both are CodeInvalid: retrying the same user_id cannot help.
+var userIDRules = []rpc.Rule{
+	rpc.Is(ErrNoUserID, rpc.CodeInvalid),
+	rpc.Is(ErrInvalidUserID, rpc.CodeInvalid),
+}
+
+// Classify turns a handler's error into a coded refusal the same way the
+// guard does, with the service's own sentinel table tried first. It is here
+// rather than in internal/domain/rpc because the two user-id sentinels live
+// here and rpc cannot import this package (this one imports it).
+//
+// Handlers that guard partway through their own logic -- an optional second
+// id, a reserved namespace id, a username fallback -- reach for this so their
+// refusal is coded identically to the bind-time one they could not use.
+func Classify(err error, rules ...rpc.Rule) rpc.Refusal {
+	return rpc.Fail(err, append(rules, userIDRules...)...)
+}
+
+// RefuseErr is Refuse for a caller that still holds the error rather than a
+// message: it writes the same sentence AND, when the reply carries a code
+// field, the machine-readable code the console branches on.
+//
+// It is a second helper instead of a change to Refuse because Failing is
+// message-only and a dozen replies outside the code vocabulary still
+// implement exactly that; widening the contract would have meant editing all
+// of them for no gain. A reply that has not adopted rpc.Refusal falls through
+// to Failed and answers byte-identically to before.
+func RefuseErr[Rep any, PR interface {
+	*Rep
+	Failing
+}](err error) Rep {
+	var zero Rep
+	target := PR(&zero)
+	refusal := Classify(err)
+	if coded, ok := any(target).(rpc.Refusing); ok {
+		coded.Refuse(refusal)
+		return zero
+	}
+	target.Failed(refusal.Error)
 	return zero
 }

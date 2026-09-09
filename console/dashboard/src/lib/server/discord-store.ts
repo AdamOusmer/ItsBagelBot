@@ -14,6 +14,7 @@
 // discord-config so they can be unit-tested (the console runner only executes
 // shared/**); this file is the transport half.
 import { rpc } from '@bagel/shared/server/nats';
+import { codeReader, type CodedReply } from '@bagel/shared/server/rpc-code';
 import {
   MOD,
   droppedPinNotice,
@@ -89,22 +90,11 @@ export const DISCORD_CODES = [
 
 export type DiscordCode = (typeof DISCORD_CODES)[number] | '';
 
-const BOUND_ELSEWHERE_TEXT = 'already linked to another Twitch channel';
-
-const CODE_SET: ReadonlySet<string> = new Set(DISCORD_CODES);
-
-type CodedReply = { code?: string; error?: string };
-
-export function replyCode(r: CodedReply): DiscordCode {
-  const code = (r.code ?? '').trim();
-  if (CODE_SET.has(code)) return code as DiscordCode;
-  return messageCode(r.error ?? '');
-}
-
-function messageCode(error: string): DiscordCode {
-  if (error.includes(BOUND_ELSEWHERE_TEXT)) return 'bound_elsewhere';
-  return '';
-}
+// The reader (code first, the pre-code sentence as a dying fallback) is
+// @bagel/shared/server/rpc-code, shared with every other surface that reads a
+// refusal. This page keeps only its own vocabulary: three of these codes are
+// discord-specific and the shared set deliberately does not carry them.
+export const replyCode: (r: CodedReply) => DiscordCode = codeReader(DISCORD_CODES);
 
 // The module row: the master switch and the Twitch login, plus every guild
 // this broadcaster has bound. No channel or role ids: those are per guild.

@@ -6,6 +6,8 @@
 // reference a single, import-friendly package without pulling in the full service.
 package usersrpc
 
+import "ItsBagelBot/internal/domain/rpc"
+
 import "time"
 
 // AdminRequest covers all admin verbs; unused fields are zero-valued.
@@ -84,7 +86,7 @@ type AdminReply struct {
 	PageSize   int                  `json:"page_size,omitempty"`
 	MaxPages   int                  `json:"max_pages,omitempty"`
 	HasMore    bool                 `json:"has_more,omitempty"`
-	Error      string               `json:"error,omitempty"`
+	rpc.Refusal
 }
 
 // AuthRequest covers all adminauth verbs.
@@ -153,7 +155,7 @@ type AuthReply struct {
 	PageSize    int             `json:"page_size,omitempty"`
 	MaxPages    int             `json:"max_pages,omitempty"`
 	HasMore     bool            `json:"has_more,omitempty"`
-	Error       string          `json:"error,omitempty"`
+	rpc.Refusal
 }
 
 // UpsertUserRequest is the payload for the dashboard upsert_user verb.
@@ -181,7 +183,7 @@ type LoginResolveRequest struct {
 type LoginResolveReply struct {
 	UserID   string `json:"user_id"`
 	Username string `json:"username"`
-	Error    string `json:"error,omitempty"`
+	rpc.Refusal
 }
 
 // EmailGetRequest asks for a user's decrypted contact email. Internal-only:
@@ -195,7 +197,7 @@ type EmailGetRequest struct {
 // with empty Error means the user has none on record yet.
 type EmailGetReply struct {
 	Email string `json:"email,omitempty"`
-	Error string `json:"error,omitempty"`
+	rpc.Refusal
 }
 
 // CountsRequest asks for the public enrollment counts. Empty: unlike the
@@ -210,9 +212,9 @@ type CountsRequest struct{}
 // PremiumUsers/VIPUsers/PaidUsers -- see bagel.rpc.internal.users.counts.get's
 // doc for why those stay behind the admin-authenticated stats verb.
 type CountsReply struct {
-	TotalUsers  int    `json:"total_users"`
-	ActiveUsers int    `json:"active_users"`
-	Error       string `json:"error,omitempty"`
+	TotalUsers  int `json:"total_users"`
+	ActiveUsers int `json:"active_users"`
+	rpc.Refusal
 }
 
 // GrantSaveRequest is the payload for the dashboard grant_save verb.
@@ -257,7 +259,7 @@ type StateGetReply struct {
 	Status    string `json:"status"`
 	Onboarded bool   `json:"onboarded"`
 	Locale    string `json:"locale"`
-	Error     string `json:"error,omitempty"`
+	rpc.Refusal
 }
 
 // OnboardedSetRequest is the payload for the dashboard onboarded_set verb.
@@ -353,5 +355,5 @@ type TokensReply struct {
 	AccessToken          string     `json:"access_token,omitempty"`
 	RefreshToken         string     `json:"refresh_token,omitempty"`
 	AccessTokenExpiresAt *time.Time `json:"access_token_expires_at,omitempty"`
-	Error                string     `json:"error,omitempty"`
+	rpc.Refusal
 }

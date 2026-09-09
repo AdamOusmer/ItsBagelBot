@@ -24,7 +24,7 @@ func SubscribeBilling(w Wiring, subject, invalidationPrefix string) error {
 			log := monitor.TxnLogger(ctx, log)
 			applied, err := repo.ApplyBilling(ctx, req)
 			if err != nil {
-				return billingrpc.ApplyReply{Error: err.Error()}
+				return billingrpc.ApplyReply{Refusal: refusal(err)}
 			}
 			if applied {
 				if err := invalidate.Publish(nc, invalidationPrefix, "status", fmt.Sprint(req.UserID)); err != nil {

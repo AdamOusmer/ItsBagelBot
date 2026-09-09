@@ -16,6 +16,7 @@ import (
 
 	"ItsBagelBot/app/db/loyalty/ent"
 	"ItsBagelBot/app/db/loyalty/repository"
+	domainrpc "ItsBagelBot/internal/domain/rpc"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	"ItsBagelBot/pkg/bus"
 )
@@ -75,6 +76,14 @@ type Wiring struct {
 	Repo *repository.Loyalty
 }
 
+// refuse builds one coded refusal. Named here so the code travels with the
+// message at every site instead of being appended as an afterthought: this
+// service answers a single Reply type for every verb, so an uncoded refusal
+// would be indistinguishable from a coded one on the wire.
+func refuse(code domainrpc.Code, message string) loyaltyrpc.Reply {
+	return loyaltyrpc.Reply{Refusal: domainrpc.Refused(code, message)}
+}
+
 // parseIDs pulls the broadcaster id (required) and viewer id (optional) off a
 // request. ok=false carries the error reply. The parse itself is bus.UserID,
 // so a bad id reads the same here as on every other user-scoped subject; this
@@ -85,15 +94,15 @@ type Wiring struct {
 func parseIDs(req loyaltyrpc.Request, allowBotNS bool) (userID, viewerID uint64, ok bool, reply loyaltyrpc.Reply) {
 	uid, err := bus.UserID(req.UserID)
 	if err != nil {
-		return 0, 0, false, loyaltyrpc.Reply{Error: err.Error()}
+		return 0, 0, false, refuse(domainrpc.CodeInvalid, err.Error())
 	}
 	if uid == 0 && !allowBotNS {
-		return 0, 0, false, loyaltyrpc.Reply{Error: bus.ErrInvalidUserID.Error()}
+		return 0, 0, false, refuse(domainrpc.CodeInvalid, bus.ErrInvalidUserID.Error())
 	}
 	if req.ViewerID != "" {
 		vid, err := strconv.ParseUint(req.ViewerID, 10, 64)
 		if err != nil {
-			return 0, 0, false, loyaltyrpc.Reply{Error: "invalid viewer_id"}
+			return 0, 0, false, refuse(domainrpc.CodeInvalid, "invalid viewer_id")
 		}
 		viewerID = vid
 	}
@@ -104,10 +113,10 @@ func parseIDs(req loyaltyrpc.Request, allowBotNS bool) (userID, viewerID uint64,
 // anything else is logged and masked.
 func (l *loyaltyRPC) fail(op string, err error) loyaltyrpc.Reply {
 	if errors.Is(err, repository.ErrInvalidInput) {
-		return loyaltyrpc.Reply{Error: err.Error()}
+		return refuse(domainrpc.CodeInvalid, err.Error())
 	}
 	l.log.Warn(op+" failed", zap.Error(err))
-	return loyaltyrpc.Reply{Error: "loyalty request failed"}
+	return refuse(domainrpc.CodeInternal, "loyalty request failed")
 }
 
 func balanceView(row *ent.Balance) *loyaltyrpc.Balance {
@@ -126,7 +135,7 @@ func (l *loyaltyRPC) handleBalanceGet(ctx context.Context, req loyaltyrpc.Reques
 		return reply
 	}
 	if viewerID == 0 {
-		return loyaltyrpc.Reply{Error: "invalid viewer_id"}
+		return refuse(domainrpc.CodeInvalid, "invalid viewer_id")
 	}
 	row, found, err := l.repo.BalanceGet(ctx, userID, viewerID)
 	if err != nil {
@@ -196,7 +205,7 @@ func (l *loyaltyRPC) handleBalanceTransfer(ctx context.Context, req loyaltyrpc.R
 		return reply
 	}
 	if viewerID == 0 {
-		return loyaltyrpc.Reply{Error: "invalid viewer_id"}
+		return refuse(domainrpc.CodeInvalid, "invalid viewer_id")
 	}
 	out, found, err := l.repo.BalanceTransfer(ctx, repository.Transfer{UserID: userID, FromViewerID: viewerID, TargetLogin: req.ViewerLogin, Amount: req.Value})
 	if err != nil {

@@ -5,6 +5,7 @@
 // reused across requests (connection setup is the expensive part; a warm conn
 // keeps request/reply in the low-ms range, which is what the p99 budget needs).
 import newrelic from 'newrelic';
+import { rpcCode, type RpcCode } from './rpc-code';
 import {
   connect,
   type ConnectionOptions,
@@ -304,7 +305,20 @@ export async function ready(timeoutMs = 750): Promise<boolean> {
   }
 }
 
-export class RpcError extends Error {}
+/**
+ * A reply that carried an `error` field. `code` is the machine-readable half
+ * of that refusal (see rpc-code.ts); it is '' when the answering service has
+ * not shipped codes yet, so a caller must treat '' as "unclassified", never
+ * as "no failure" -- the throw itself is what says a failure happened.
+ */
+export class RpcError extends Error {
+  readonly code: RpcCode | '';
+
+  constructor(message: string, code: RpcCode | '' = '') {
+    super(message);
+    this.code = code;
+  }
+}
 
 /**
  * Core NATS request/reply with a JSON body. Rejects on transport failure, on a
@@ -324,7 +338,7 @@ export async function rpc<T>(subject: string, payload: unknown = {}, timeoutMs =
       nc.request(routedSubject, data, { timeout: timeoutMs })
     );
     const reply = msg.json<T & { error?: string }>();
-    if (reply && typeof reply === 'object' && reply.error) throw new RpcError(reply.error);
+    if (reply && typeof reply === 'object' && reply.error) throw new RpcError(reply.error, rpcCode(reply));
     return reply as T;
   });
 }

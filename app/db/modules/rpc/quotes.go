@@ -10,6 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/db/modules/repository"
+	domainrpc "ItsBagelBot/internal/domain/rpc"
 	modulesrpc "ItsBagelBot/internal/domain/rpc/modules"
 
 	"ItsBagelBot/pkg/bus"
@@ -67,7 +68,7 @@ func parseQuoteDate(raw string) (time.Time, bool) {
 func (q *quotesRPC) handleAdd(ctx context.Context, req modulesrpc.QuoteRequest, id uint64) (modulesrpc.QuoteReply, error) {
 	createdAt, ok := parseQuoteDate(req.CreatedAt)
 	if !ok {
-		return modulesrpc.QuoteReply{Error: "invalid quote date"}, nil
+		return modulesrpc.QuoteReply{Refusal: domainrpc.Refused(domainrpc.CodeInvalid, "invalid quote date")}, nil
 	}
 	draft := repository.QuoteDraft{Text: req.Text, AddedBy: req.AddedBy, CreatedAt: createdAt}
 	view, err := q.repo.Add(ctx, id, draft)
@@ -92,7 +93,7 @@ func (q *quotesRPC) handleSearch(ctx context.Context, req modulesrpc.QuoteReques
 func (q *quotesRPC) handleEdit(ctx context.Context, req modulesrpc.QuoteRequest, id uint64) (modulesrpc.QuoteReply, error) {
 	createdAt, ok := parseQuoteDate(req.CreatedAt)
 	if !ok {
-		return modulesrpc.QuoteReply{Error: "invalid quote date"}, nil
+		return modulesrpc.QuoteReply{Refusal: domainrpc.Refused(domainrpc.CodeInvalid, "invalid quote date")}, nil
 	}
 	view, found, err := q.repo.Update(ctx, id, req.Number, repository.QuoteUpdate{Text: req.Text, CreatedAt: createdAt})
 	return modulesrpc.QuoteReply{Quote: view, Found: found}, err

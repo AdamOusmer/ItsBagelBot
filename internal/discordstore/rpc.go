@@ -14,6 +14,7 @@ import (
 	"go.uber.org/zap"
 
 	ddiscord "ItsBagelBot/internal/domain/discord"
+	"ItsBagelBot/internal/domain/rpc"
 	"ItsBagelBot/internal/domain/rpc/discorddata"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
@@ -94,8 +95,7 @@ func numericBroadcasterID(b Broadcaster) (uint64, error) {
 // fields DO get read -- config.set's version, ticket.open's count -- keeps its
 // own reply type and its own body.
 type ackReply struct {
-	Error string `json:"error,omitempty"`
-	Code  string `json:"code,omitempty"`
+	rpc.Refusal
 }
 
 // ack runs a verb whose only answer is whether it worked, and classifies the
@@ -423,7 +423,7 @@ func (s *rpcStore) Rank(ctx context.Context, m Member) (int, int) {
 
 // replyError turns a reply's (error, code) pair into a Go error, mapping the
 // one code callers branch on onto its sentinel.
-func replyError(message, code string) error {
+func replyError(message string, code rpc.Code) error {
 	switch {
 	case code == discorddata.CodeBoundElsewhere:
 		return ErrBoundElsewhere

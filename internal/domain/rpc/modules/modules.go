@@ -6,6 +6,8 @@
 package modulesrpc
 
 import (
+	"ItsBagelBot/internal/domain/rpc"
+
 	"ItsBagelBot/internal/domain/rpc/projection"
 	"ItsBagelBot/pkg/codec"
 )
@@ -32,6 +34,6 @@ type DashboardReply struct {
 	Rev int `json:"rev,omitempty"`
 	// Conflict (patch reply): the write was rejected because ExpectedRev was stale;
 	// the client should refetch and retry.
-	Conflict bool   `json:"conflict,omitempty"`
-	Error    string `json:"error,omitempty"`
+	Conflict bool `json:"conflict,omitempty"`
+	rpc.Refusal
 }

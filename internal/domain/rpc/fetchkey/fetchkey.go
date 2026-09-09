@@ -9,6 +9,8 @@
 // once per upstream call — never cached, never projected.
 package fetchkey
 
+import "ItsBagelBot/internal/domain/rpc"
+
 import "time"
 
 // KeyGetRequest is the internal decrypt request gossip makes before dialing a
@@ -22,8 +24,8 @@ type KeyGetRequest struct {
 // empty Error means no key is on file for that label (the caller treats that
 // as "definition runs keyless", not a failure).
 type KeyGetReply struct {
-	Key   string `json:"key,omitempty"`
-	Error string `json:"error,omitempty"`
+	Key string `json:"key,omitempty"`
+	rpc.Refusal
 }
 
 // FetchView is the canonical wire shape of one definition as stored in the
@@ -59,16 +61,13 @@ type FetchListReply struct {
 	UserID  string      `json:"user_id,omitempty"`
 	Fetches []FetchView `json:"fetches"`
 	Keys    []KeyView   `json:"keys"`
-	Error   string      `json:"error,omitempty"`
+	rpc.Refusal
 }
 
-// Requested and Failed let this pair ride bus.ServeForUser, which owns the
-// user-id guard the fetch fallback verb shares with every other user-scoped
-// verb. Structural, so this package still imports nothing new.
+// Requested lets this pair ride bus.ServeForUser, which owns the user-id
+// guard the fetch fallback verb shares with every other user-scoped verb; the
+// reply half (Failed) comes from the embedded rpc.Refusal.
 func (r FetchListRequest) Requested() string { return r.UserID }
-
-// Failed records a refusal on the reply.
-func (r *FetchListReply) Failed(message string) { r.Error = message }
 
 // FetchDefSetRequest upserts one definition. OriginalName, when set and
 // different from Name, makes the write a rename of that existing row (the
@@ -95,7 +94,7 @@ type FetchKeySetRequest struct {
 // the console can confirm which credential is stored without any decrypt.
 type FetchKeySetReply struct {
 	Last4 string `json:"last4,omitempty"`
-	Error string `json:"error,omitempty"`
+	rpc.Refusal
 }
 
 // FetchDeleteRequest removes one object: Kind "def" deletes the named
@@ -112,5 +111,5 @@ type FetchDeleteRequest struct {
 
 // FetchMutateReply is the bare ack envelope for def mutations and deletes.
 type FetchMutateReply struct {
-	Error string `json:"error,omitempty"`
+	rpc.Refusal
 }

@@ -8,6 +8,7 @@ import (
 	"errors"
 
 	"ItsBagelBot/app/db/commands/repository"
+	domainrpc "ItsBagelBot/internal/domain/rpc"
 	fetchkeyrpc "ItsBagelBot/internal/domain/rpc/fetchkey"
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/pkg/bus"
@@ -76,7 +77,7 @@ func (d *fetchDashboardRPC) handleSetKey(ctx context.Context, req fetchkeyrpc.Fe
 		return fetchkeyrpc.FetchKeySetReply{}, err
 	default:
 		// Seal/persist failure: reported without echoing any of the value.
-		return fetchkeyrpc.FetchKeySetReply{Error: "failed to store key"}, nil
+		return fetchkeyrpc.FetchKeySetReply{Refusal: domainrpc.Refused(domainrpc.CodeInternal, "failed to store key")}, nil
 	}
 }
 
@@ -87,7 +88,7 @@ func (d *fetchDashboardRPC) handleDelete(ctx context.Context, req fetchkeyrpc.Fe
 	case "key":
 		return fetchkeyrpc.FetchMutateReply{}, d.repo.DeleteKey(ctx, id, req.Label)
 	default:
-		return fetchkeyrpc.FetchMutateReply{Error: "kind must be def or key"}, nil
+		return fetchkeyrpc.FetchMutateReply{Refusal: domainrpc.Refused(domainrpc.CodeInvalid, "kind must be def or key")}, nil
 	}
 }
 

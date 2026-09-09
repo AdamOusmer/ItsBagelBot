@@ -10,6 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/db/commands/repository"
+	domainrpc "ItsBagelBot/internal/domain/rpc"
 	commandsrpc "ItsBagelBot/internal/domain/rpc/commands"
 	"ItsBagelBot/pkg/bus"
 )
@@ -47,7 +48,7 @@ func (d *dashboardRPC) handleUpsert(ctx context.Context, req commandsrpc.Dashboa
 	if req.AllowedUserID != "" {
 		parsed, err := strconv.ParseUint(req.AllowedUserID, 10, 64)
 		if err != nil {
-			return commandsrpc.DashboardReply{Error: "invalid allowed_user_id"}, nil
+			return commandsrpc.DashboardReply{Refusal: domainrpc.Refused(domainrpc.CodeInvalid, "invalid allowed_user_id")}, nil
 		}
 		allowedUserID = parsed
 	}

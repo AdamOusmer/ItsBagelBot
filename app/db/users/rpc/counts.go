@@ -30,7 +30,7 @@ func SubscribeCounts(w Wiring, subject string) error {
 		func(ctx context.Context, _ usersrpc.CountsRequest) usersrpc.CountsReply {
 			total, active, _, _, err := repo.UserStats(ctx)
 			if err != nil {
-				return usersrpc.CountsReply{Error: err.Error()}
+				return usersrpc.CountsReply{Refusal: refusal(err)}
 			}
 			return usersrpc.CountsReply{TotalUsers: total, ActiveUsers: active}
 		},

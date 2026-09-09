@@ -34,7 +34,7 @@ func (m *maintenanceRPC) cleanup(ctx context.Context, _ notificationsrpc.Cleanup
 	deleted, err := m.repo.DeleteExpired(ctx, time.Now())
 	if err != nil {
 		log.Warn("notification cleanup failed", zap.Error(err))
-		return notificationsrpc.CleanupReply{Error: err.Error()}
+		return notificationsrpc.CleanupReply{Refusal: bus.Classify(err)}
 	}
 	if deleted > 0 {
 		log.Info("notification cleanup swept expired rows", zap.Int("deleted", deleted))

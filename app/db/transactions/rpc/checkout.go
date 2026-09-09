@@ -15,6 +15,7 @@ import (
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/db/transactions/tebex"
+	domainrpc "ItsBagelBot/internal/domain/rpc"
 	transactionsrpc "ItsBagelBot/internal/domain/rpc/transactions"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/internal/domain/validate"
@@ -66,11 +67,11 @@ func (c *checkoutRPC) basketCreate(ctx context.Context, req transactionsrpc.Bask
 	// meaningless, and that extra rejection has to ride the same refusal.
 	buyerID, err := bus.UserID(req.UserID)
 	if err != nil || buyerID == 0 {
-		return transactionsrpc.BasketCreateReply{Error: bus.ErrInvalidUserID.Error()}
+		return transactionsrpc.BasketCreateReply{Refusal: domainrpc.Refused(domainrpc.CodeInvalid, bus.ErrInvalidUserID.Error())}
 	}
 	packageType, ok := normalizePackageType(req.PackageType)
 	if !ok {
-		return transactionsrpc.BasketCreateReply{Error: "package_type must be single or subscription"}
+		return transactionsrpc.BasketCreateReply{Refusal: domainrpc.Refused(domainrpc.CodeInvalid, "package_type must be single or subscription")}
 	}
 
 	b := buyer{id: buyerID, login: clampLogin(req.Username)}
@@ -82,7 +83,7 @@ func (c *checkoutRPC) basketCreate(ctx context.Context, req transactionsrpc.Bask
 	if !normalizeLogin(req.RecipientUsername).empty() {
 		giftSpec, recipient, errReply := c.buildGiftSpec(ctx, req, b)
 		if errReply != "" {
-			return transactionsrpc.BasketCreateReply{Error: errReply}
+			return transactionsrpc.BasketCreateReply{Refusal: domainrpc.Refused(domainrpc.CodeInvalid, errReply)}
 		}
 		spec, recipientLogin = giftSpec, recipient
 	}
@@ -91,7 +92,7 @@ func (c *checkoutRPC) basketCreate(ctx context.Context, req transactionsrpc.Bask
 	if err != nil {
 		log.Warn("tebex basket create failed",
 			zap.Uint64("user_id", spec.UserID), zap.Uint64("gifted_by", spec.GiftedByID), zap.Error(err))
-		return transactionsrpc.BasketCreateReply{Error: "checkout is unavailable right now"}
+		return transactionsrpc.BasketCreateReply{Refusal: domainrpc.Refused(domainrpc.CodeUnavailable, "checkout is unavailable right now")}
 	}
 
 	return transactionsrpc.BasketCreateReply{

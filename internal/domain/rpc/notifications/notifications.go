@@ -6,6 +6,8 @@
 // consumers can reference them without pulling in the full service.
 package notificationsrpc
 
+import "ItsBagelBot/internal/domain/rpc"
+
 import "time"
 
 // NotificationView is a single notification row on the wire.
@@ -40,7 +42,7 @@ type SendRequest struct {
 
 type SendReply struct {
 	Notification *NotificationView `json:"notification,omitempty"`
-	Error        string            `json:"error,omitempty"`
+	rpc.Refusal
 }
 
 // ListAdminRequest pages through every notification for the admin console.
@@ -55,7 +57,7 @@ type ListAdminReply struct {
 	PageSize      int                `json:"page_size,omitempty"`
 	MaxPages      int                `json:"max_pages,omitempty"`
 	HasMore       bool               `json:"has_more,omitempty"`
-	Error         string             `json:"error,omitempty"`
+	rpc.Refusal
 }
 
 type DeleteRequest struct {
@@ -63,7 +65,7 @@ type DeleteRequest struct {
 }
 
 type DeleteReply struct {
-	Error string `json:"error,omitempty"`
+	rpc.Refusal
 }
 
 // UserListRequest is the payload for the user-facing list verb.
@@ -74,7 +76,7 @@ type UserListRequest struct {
 type UserListReply struct {
 	Notifications []NotificationView `json:"notifications,omitempty"`
 	UnreadCount   int                `json:"unread_count"`
-	Error         string             `json:"error,omitempty"`
+	rpc.Refusal
 }
 
 // MarkReadRequest is the payload for the user-facing mark_read verb.
@@ -84,7 +86,7 @@ type MarkReadRequest struct {
 }
 
 type MarkReadReply struct {
-	Error string `json:"error,omitempty"`
+	rpc.Refusal
 }
 
 // MarkPeekedRequest is the payload for the user-facing mark_peeked verb, fired
@@ -98,8 +100,8 @@ type MarkPeekedRequest struct {
 type MarkPeekedReply struct {
 	// Peeked is how many previously-unacknowledged notifications this call
 	// newly marked; 0 means everything was already read or peeked.
-	Peeked int    `json:"peeked"`
-	Error  string `json:"error,omitempty"`
+	Peeked int `json:"peeked"`
+	rpc.Refusal
 }
 
 // CleanupRequest is the payload for the internal maintenance cleanup verb the
@@ -110,6 +112,6 @@ type CleanupRequest struct{}
 type CleanupReply struct {
 	// Deleted is the number of globally-expired notifications swept (their read
 	// receipts cascade).
-	Deleted int    `json:"deleted"`
-	Error   string `json:"error,omitempty"`
+	Deleted int `json:"deleted"`
+	rpc.Refusal
 }

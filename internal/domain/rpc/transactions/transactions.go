@@ -6,6 +6,8 @@
 // full service.
 package transactionsrpc
 
+import "ItsBagelBot/internal/domain/rpc"
+
 // BasketCreateRequest asks the transactions service to mint a Tebex Headless
 // basket for the premium package. UserID/Username identify the signed-in buyer.
 // When RecipientUsername is set the purchase is a gift: the service resolves
@@ -35,5 +37,5 @@ type BasketCreateReply struct {
 	CheckoutURL string `json:"checkout_url,omitempty"`
 	// RecipientLogin echoes the resolved gift recipient (gift baskets only).
 	RecipientLogin string `json:"recipient_login,omitempty"`
-	Error          string `json:"error,omitempty"`
+	rpc.Refusal
 }

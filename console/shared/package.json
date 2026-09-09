@@ -20,6 +20,7 @@
     "./server/hooks": "./lib/server/hooks.ts",
     "./server/boot": "./lib/server/boot.ts",
     "./server/nats": "./lib/server/nats.ts",
+    "./server/rpc-code": "./lib/server/rpc-code.ts",
     "./server/oauth": "./lib/server/oauth.ts",
     "./server/oauth-state": "./lib/server/oauth-state.ts",
     "./server/service": "./lib/server/service.ts",

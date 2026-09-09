@@ -15,7 +15,10 @@
 // that changes whenever a log line is reworded.
 package discorddata
 
-import ddiscord "ItsBagelBot/internal/domain/discord"
+import (
+	ddiscord "ItsBagelBot/internal/domain/discord"
+	"ItsBagelBot/internal/domain/rpc"
+)
 
 // Subject verbs, appended to the service prefix (default
 // "bagel.rpc.discord-data"). Kept here so the server's subscriptions and the
@@ -45,29 +48,33 @@ const (
 	VerbXPTop   = "xp.top"
 )
 
-// Reply codes. The empty string is success; every other value names one
-// refusal a caller can act on differently from a generic failure.
+// Reply codes. The generic four are the fleet vocabulary, named here so a
+// caller reads discorddata.CodeNotFound beside discorddata.CodeNotBound
+// instead of switching packages mid-switch; the three below them are
+// distinctions only this service makes, which is why the shared set stays
+// small rather than absorbing them.
 const (
 	// CodeOK is the zero value: the call did what it was asked to.
-	CodeOK = ""
+	CodeOK = rpc.CodeOK
+	// CodeNotFound: the ticket or transcript the caller addressed is absent.
+	CodeNotFound = rpc.CodeNotFound
+	// CodeInvalid: the request itself is malformed (missing id, bad limit).
+	CodeInvalid = rpc.CodeInvalid
+	// CodeConflict: config.set carried a version the stored row has moved
+	// past. The caller must re-read and re-apply rather than retry.
+	CodeConflict = rpc.CodeConflict
+	// CodeInternal: the store failed. The Error field carries the detail.
+	CodeInternal = rpc.CodeInternal
+
 	// CodeBoundElsewhere: the guild is already bound to a different
 	// broadcaster. The unique index on guild_bindings.guild_id makes this a
 	// database invariant, not a race. A broadcaster owning several guilds is
 	// ordinary and never raises this.
-	CodeBoundElsewhere = "bound_elsewhere"
+	CodeBoundElsewhere rpc.Code = "bound_elsewhere"
 	// CodeNotBound: no binding row exists for the guild the caller named.
-	CodeNotBound = "not_bound"
+	CodeNotBound rpc.Code = "not_bound"
 	// CodeLimit: the opener already holds OpenLimit tickets in this guild.
-	CodeLimit = "limit"
-	// CodeNotFound: the ticket or transcript the caller addressed is absent.
-	CodeNotFound = "not_found"
-	// CodeInvalid: the request itself is malformed (missing id, bad limit).
-	CodeInvalid = "invalid"
-	// CodeConflict: config.set carried a version the stored row has moved
-	// past. The caller must re-read and re-apply rather than retry.
-	CodeConflict = "conflict"
-	// CodeInternal: the store failed. The Error field carries the detail.
-	CodeInternal = "internal"
+	CodeLimit rpc.Code = "limit"
 )
 
 // Ticket status values, mirroring the ent enum on the tickets table.
@@ -87,10 +94,10 @@ type BindingGetRequest struct {
 // Error) when the guild has no binding, which is an ordinary state, not a
 // failure.
 type BindingGetReply struct {
-	BroadcasterID uint64 `json:"broadcaster_id"`
-	Found         bool   `json:"found"`
-	Error         string `json:"error,omitempty"`
-	Code          string `json:"code,omitempty"`
+	BroadcasterID uint64   `json:"broadcaster_id"`
+	Found         bool     `json:"found"`
+	Error         string   `json:"error,omitempty"`
+	Code          rpc.Code `json:"code,omitempty"`
 }
 
 // BindingSetRequest binds a guild to a broadcaster. Re-binding the same pair
@@ -105,8 +112,8 @@ type BindingSetRequest struct {
 
 // BindingSetReply reports whether the binding now holds.
 type BindingSetReply struct {
-	Error string `json:"error,omitempty"`
-	Code  string `json:"code,omitempty"`
+	Error string   `json:"error,omitempty"`
+	Code  rpc.Code `json:"code,omitempty"`
 }
 
 // BindingDeleteRequest unbinds a guild. BroadcasterID, when non-zero, guards
@@ -119,8 +126,8 @@ type BindingDeleteRequest struct {
 
 // BindingDeleteReply reports whether the guild is now unbound.
 type BindingDeleteReply struct {
-	Error string `json:"error,omitempty"`
-	Code  string `json:"code,omitempty"`
+	Error string   `json:"error,omitempty"`
+	Code  rpc.Code `json:"code,omitempty"`
 }
 
 // BindingListByBroadcasterRequest is the reverse lookup: every guild this
@@ -135,7 +142,7 @@ type BindingListByBroadcasterRequest struct {
 type BindingListByBroadcasterReply struct {
 	Guilds []Binding `json:"guilds"`
 	Error  string    `json:"error,omitempty"`
-	Code   string    `json:"code,omitempty"`
+	Code   rpc.Code  `json:"code,omitempty"`
 }
 
 // Binding is one guild-to-broadcaster link as the dashboard and the engine
@@ -160,7 +167,7 @@ type ConfigGetReply struct {
 	Version int             `json:"version"`
 	Found   bool            `json:"found"`
 	Error   string          `json:"error,omitempty"`
-	Code    string          `json:"code,omitempty"`
+	Code    rpc.Code        `json:"code,omitempty"`
 }
 
 // ConfigSetRequest writes one guild's settings. ExpectedVersion is the version
@@ -180,7 +187,7 @@ type ConfigSetReply struct {
 	Version int      `json:"version"`
 	Fields  []string `json:"fields,omitempty"`
 	Error   string   `json:"error,omitempty"`
-	Code    string   `json:"code,omitempty"`
+	Code    rpc.Code `json:"code,omitempty"`
 }
 
 // TicketOpenRequest records a newly created ticket channel. OpenLimit is the
@@ -203,14 +210,11 @@ type TicketOpenRequest struct {
 // Refusal is the error half every ticket and transcript reply carries. It is
 // embedded so the JSON stays flat (`error`, `code` at the top level, exactly
 // as before) while the handlers build it in one place instead of eight.
-type Refusal struct {
-	Error string `json:"error,omitempty"`
-	Code  string `json:"code,omitempty"`
-}
-
-// Refuse stamps the refusal onto a reply that embeds it, which lets a
-// handler build any of those replies through one generic helper.
-func (r *Refusal) Refuse(v Refusal) { *r = v }
+//
+// An alias rather than its own struct: this was the first copy of the shape
+// and the shared one is now the same fields with the same tags, so keeping a
+// second declaration would only invite the two to drift.
+type Refusal = rpc.Refusal
 
 type TicketOpenReply struct {
 	TicketID  int `json:"ticket_id"`
@@ -355,12 +359,12 @@ type XPGetRequest struct {
 // has never earned any; XP and Level are then zero, which is the same answer
 // the caller wants to render.
 type XPGetReply struct {
-	XPValue         int64  `json:"xp"`
-	Level           int    `json:"level"`
-	LastDailyUnixMs int64  `json:"last_daily_unix_ms,omitempty"`
-	Found           bool   `json:"found"`
-	Error           string `json:"error,omitempty"`
-	Code            string `json:"code,omitempty"`
+	XPValue         int64    `json:"xp"`
+	Level           int      `json:"level"`
+	LastDailyUnixMs int64    `json:"last_daily_unix_ms,omitempty"`
+	Found           bool     `json:"found"`
+	Error           string   `json:"error,omitempty"`
+	Code            rpc.Code `json:"code,omitempty"`
 }
 
 // XPAddRequest credits Delta XP to one member. The cooldown that decides
@@ -376,11 +380,11 @@ type XPAddRequest struct {
 // delta crossed a level boundary, so the caller announces a level-up exactly
 // once even if it retries the read.
 type XPAddReply struct {
-	XPValue   int64  `json:"xp"`
-	Level     int    `json:"level"`
-	LeveledUp bool   `json:"leveled_up"`
-	Error     string `json:"error,omitempty"`
-	Code      string `json:"code,omitempty"`
+	XPValue   int64    `json:"xp"`
+	Level     int      `json:"level"`
+	LeveledUp bool     `json:"leveled_up"`
+	Error     string   `json:"error,omitempty"`
+	Code      rpc.Code `json:"code,omitempty"`
 }
 
 // XPDailyRequest claims one member's daily bonus.
@@ -393,12 +397,12 @@ type XPDailyRequest struct {
 // XPDailyReply reports the claim. Granted is false when the member is still
 // inside the 24h window; NextUnixMs is then when they may claim again.
 type XPDailyReply struct {
-	Granted    bool   `json:"granted"`
-	XPValue    int64  `json:"xp"`
-	Level      int    `json:"level"`
-	NextUnixMs int64  `json:"next_unix_ms,omitempty"`
-	Error      string `json:"error,omitempty"`
-	Code       string `json:"code,omitempty"`
+	Granted    bool     `json:"granted"`
+	XPValue    int64    `json:"xp"`
+	Level      int      `json:"level"`
+	NextUnixMs int64    `json:"next_unix_ms,omitempty"`
+	Error      string   `json:"error,omitempty"`
+	Code       rpc.Code `json:"code,omitempty"`
 }
 
 // XPTopRequest reads one guild's leaderboard, highest first.
@@ -409,9 +413,9 @@ type XPTopRequest struct {
 
 // XPTopReply carries the leaderboard page.
 type XPTopReply struct {
-	Rows  []XPRow `json:"rows"`
-	Error string  `json:"error,omitempty"`
-	Code  string  `json:"code,omitempty"`
+	Rows  []XPRow  `json:"rows"`
+	Error string   `json:"error,omitempty"`
+	Code  rpc.Code `json:"code,omitempty"`
 }
 
 // XPRow is one member's place on the leaderboard.

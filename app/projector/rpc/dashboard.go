@@ -11,6 +11,7 @@ import (
 
 	"ItsBagelBot/app/projector/hydration"
 	"ItsBagelBot/internal/domain/invalidate"
+	domainrpc "ItsBagelBot/internal/domain/rpc"
 	rpcprojection "ItsBagelBot/internal/domain/rpc/projection"
 	projectorrpc "ItsBagelBot/internal/domain/rpc/projector"
 	"ItsBagelBot/internal/projection"
@@ -99,11 +100,19 @@ func SubscribeDashboard(
 	return bus.QueueSubscribeJSON[projectorrpc.DashboardRequest, rpcprojection.ModulesReply](nc, prefix+".modules.replace", queueGroup, 2*time.Second, app, log, d.handleModulesReplace)
 }
 
+// unreachable codes a fallback-load failure. The fill path only fails when the
+// owning db service did not answer inside the 1.5s budget or the request's own
+// deadline expired, so it is CodeUnavailable rather than CodeInternal: the same
+// request a moment later may well be served from the projection.
+func unreachable(message string) domainrpc.Refusal {
+	return domainrpc.Refused(domainrpc.CodeUnavailable, message)
+}
+
 func (d *Dashboard) handleCommandsGet(ctx context.Context, req projectorrpc.DashboardRequest) rpcprojection.CommandsReply {
 	log := monitor.TxnLogger(ctx, d.log)
 	userID, err := parseUserID(req.UserID)
 	if err != nil {
-		return rpcprojection.CommandsReply{Error: err.Error()}
+		return rpcprojection.CommandsReply{Refusal: bus.Classify(err)}
 	}
 
 	commands, projected, err := d.store.GetCommands(ctx, userID)
@@ -118,7 +127,7 @@ func (d *Dashboard) handleCommandsGet(ctx context.Context, req projectorrpc.Dash
 	fill := d.loadCommands(ctx, userID, req)
 	if fill.err != "" {
 		d.hydrator.EnsureAsync(userID, hydration.Seed{})
-		return rpcprojection.CommandsReply{UserID: req.UserID, Error: fill.err}
+		return rpcprojection.CommandsReply{UserID: req.UserID, Refusal: unreachable(fill.err)}
 	}
 	d.hydrator.EnsureAsync(userID, hydration.CommandsSeed(fill.commands))
 	return rpcprojection.CommandsReply{UserID: req.UserID, Commands: fill.commands}
@@ -127,7 +136,7 @@ func (d *Dashboard) handleCommandsGet(ctx context.Context, req projectorrpc.Dash
 func (d *Dashboard) handleCommandsReplace(ctx context.Context, req projectorrpc.DashboardRequest) rpcprojection.CommandsReply {
 	userID, err := parseUserID(req.UserID)
 	if err != nil {
-		return rpcprojection.CommandsReply{Error: err.Error()}
+		return rpcprojection.CommandsReply{Refusal: bus.Classify(err)}
 	}
 	d.writeCommandsAsync(userID, req.Commands)
 	return rpcprojection.CommandsReply{UserID: req.UserID, Commands: req.Commands}
@@ -137,7 +146,7 @@ func (d *Dashboard) handleModulesGet(ctx context.Context, req projectorrpc.Dashb
 	log := monitor.TxnLogger(ctx, d.log)
 	userID, err := parseUserID(req.UserID)
 	if err != nil {
-		return rpcprojection.ModulesReply{Error: err.Error()}
+		return rpcprojection.ModulesReply{Refusal: bus.Classify(err)}
 	}
 
 	// GetModules hands back the by-name map every read path wants; this reply is
@@ -157,7 +166,7 @@ func (d *Dashboard) handleModulesGet(ctx context.Context, req projectorrpc.Dashb
 	fill := d.loadModules(ctx, userID, req)
 	if fill.err != "" {
 		d.hydrator.EnsureAsync(userID, hydration.Seed{})
-		return rpcprojection.ModulesReply{UserID: req.UserID, Error: fill.err}
+		return rpcprojection.ModulesReply{UserID: req.UserID, Refusal: unreachable(fill.err)}
 	}
 	d.hydrator.EnsureAsync(userID, hydration.ModulesSeed(fill.modules))
 	return rpcprojection.ModulesReply{UserID: req.UserID, Modules: fill.modules}
@@ -166,7 +175,7 @@ func (d *Dashboard) handleModulesGet(ctx context.Context, req projectorrpc.Dashb
 func (d *Dashboard) handleModulesReplace(ctx context.Context, req projectorrpc.DashboardRequest) rpcprojection.ModulesReply {
 	userID, err := parseUserID(req.UserID)
 	if err != nil {
-		return rpcprojection.ModulesReply{Error: err.Error()}
+		return rpcprojection.ModulesReply{Refusal: bus.Classify(err)}
 	}
 	d.writeModulesAsync(userID, req.Modules)
 	return rpcprojection.ModulesReply{UserID: req.UserID, Modules: req.Modules}

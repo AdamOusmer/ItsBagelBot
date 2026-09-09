@@ -11,6 +11,7 @@ import (
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/db/notifications/repository"
+	domainrpc "ItsBagelBot/internal/domain/rpc"
 	notificationsrpc "ItsBagelBot/internal/domain/rpc/notifications"
 	"ItsBagelBot/pkg/bus"
 )
@@ -56,12 +57,12 @@ func SubscribeUser(w Wiring, cfg UserConfig) error {
 func (u *userRPC) list(ctx context.Context, req notificationsrpc.UserListRequest) notificationsrpc.UserListReply {
 	userID, err := parseUserID(req.UserID)
 	if err != nil {
-		return notificationsrpc.UserListReply{Error: err.Error()}
+		return notificationsrpc.UserListReply{Refusal: bus.Classify(err)}
 	}
 
 	rows, read, err := u.repo.ListForUser(ctx, userID, repository.UserListLimit)
 	if err != nil {
-		return notificationsrpc.UserListReply{Error: err.Error()}
+		return notificationsrpc.UserListReply{Refusal: bus.Classify(err)}
 	}
 
 	views := make([]notificationsrpc.NotificationView, 0, len(rows))
@@ -80,14 +81,14 @@ func (u *userRPC) list(ctx context.Context, req notificationsrpc.UserListRequest
 func (u *userRPC) markRead(ctx context.Context, req notificationsrpc.MarkReadRequest) notificationsrpc.MarkReadReply {
 	userID, err := parseUserID(req.UserID)
 	if err != nil {
-		return notificationsrpc.MarkReadReply{Error: err.Error()}
+		return notificationsrpc.MarkReadReply{Refusal: bus.Classify(err)}
 	}
 	notifID, err := strconv.Atoi(req.NotificationID)
 	if err != nil {
-		return notificationsrpc.MarkReadReply{Error: "notification_id must be numeric"}
+		return notificationsrpc.MarkReadReply{Refusal: domainrpc.Refused(domainrpc.CodeInvalid, "notification_id must be numeric")}
 	}
 	if err := u.repo.MarkRead(ctx, notifID, userID, time.Now().Add(u.fullReadTTL)); err != nil {
-		return notificationsrpc.MarkReadReply{Error: err.Error()}
+		return notificationsrpc.MarkReadReply{Refusal: bus.Classify(err)}
 	}
 	return notificationsrpc.MarkReadReply{}
 }
@@ -99,11 +100,11 @@ func (u *userRPC) markRead(ctx context.Context, req notificationsrpc.MarkReadReq
 func (u *userRPC) markPeeked(ctx context.Context, req notificationsrpc.MarkPeekedRequest) notificationsrpc.MarkPeekedReply {
 	userID, err := parseUserID(req.UserID)
 	if err != nil {
-		return notificationsrpc.MarkPeekedReply{Error: err.Error()}
+		return notificationsrpc.MarkPeekedReply{Refusal: bus.Classify(err)}
 	}
 	peeked, err := u.repo.MarkPeeked(ctx, userID, time.Now().Add(u.peekTTL))
 	if err != nil {
-		return notificationsrpc.MarkPeekedReply{Error: err.Error()}
+		return notificationsrpc.MarkPeekedReply{Refusal: bus.Classify(err)}
 	}
 	return notificationsrpc.MarkPeekedReply{Peeked: peeked}
 }

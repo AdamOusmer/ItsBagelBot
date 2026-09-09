@@ -15,6 +15,7 @@ import (
 	"ItsBagelBot/app/db/users/ent/adminaudit"
 	"ItsBagelBot/app/db/users/ent/adminuser"
 	"ItsBagelBot/app/db/users/ent/predicate"
+	domainrpc "ItsBagelBot/internal/domain/rpc"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/pkg/bus"
 	dbgate "ItsBagelBot/pkg/db"
@@ -85,7 +86,9 @@ func rank(r adminuser.Role) int {
 
 func isManager(r adminuser.Role) bool { return r == adminuser.RoleAdmin || r == adminuser.RoleOwner }
 
-func authError(msg string) usersrpc.AuthReply { return usersrpc.AuthReply{Error: msg} }
+// authError renders one refusal as the staff-auth surface's reply, taking the
+// whole refusal for the same reason adminError does.
+func authError(r domainrpc.Refusal) usersrpc.AuthReply { return usersrpc.AuthReply{Refusal: r} }
 
 // check resolves whether the Twitch subject is active staff. When login/
 // display_name are supplied (sign-in path), it refreshes them so the allowlist
@@ -93,14 +96,14 @@ func authError(msg string) usersrpc.AuthReply { return usersrpc.AuthReply{Error:
 func (a *adminAuthRPC) check(ctx context.Context, req usersrpc.AuthRequest) usersrpc.AuthReply {
 	id, err := parseID(req.UserID)
 	if err != nil {
-		return authError(err.Error())
+		return authError(refusal(err))
 	}
 	row, err := a.findStaff(ctx, id)
 	if ent.IsNotFound(err) {
 		return usersrpc.AuthReply{Admin: false}
 	}
 	if err != nil {
-		return authError(err.Error())
+		return authError(refusal(err))
 	}
 	if !row.Active {
 		return usersrpc.AuthReply{Admin: false}
@@ -160,7 +163,7 @@ func (a *adminAuthRPC) listStaff(ctx context.Context, _ usersrpc.AuthRequest) us
 			All(ctx)
 	})
 	if err != nil {
-		return authError(err.Error())
+		return authError(refusal(err))
 	}
 	out := make([]usersrpc.AdminAcctView, 0, len(rows))
 	for _, r := range rows {
@@ -177,7 +180,7 @@ func (a *adminAuthRPC) upsertStaff(ctx context.Context, req usersrpc.AuthRequest
 	log := monitor.TxnLogger(ctx, a.log)
 	id, newRole, errMsg := a.validateUpsert(ctx, req)
 	if errMsg != "" {
-		return authError(errMsg)
+		return authError(domainrpc.Refused(domainrpc.CodeInvalid, errMsg))
 	}
 
 	addedBy, _ := parseID(req.ActorID)
@@ -187,7 +190,7 @@ func (a *adminAuthRPC) upsertStaff(ctx context.Context, req usersrpc.AuthRequest
 	}
 	row := staffRow{id: id, login: req.Login, display: display, role: newRole, addedBy: addedBy}
 	if err := upsertStaffRow(ctx, a.db, row); err != nil {
-		return authError(err.Error())
+		return authError(refusal(err))
 	}
 	log.Info("staff upsert", zap.Uint64("id", id), zap.String("role", string(newRole)), zap.Uint64("by", addedBy))
 	return a.listStaff(ctx, usersrpc.AuthRequest{})
@@ -293,13 +296,13 @@ func (a *adminAuthRPC) removeStaff(ctx context.Context, req usersrpc.AuthRequest
 	log := monitor.TxnLogger(ctx, a.log)
 	id, errMsg := a.validateRemove(ctx, req)
 	if errMsg != "" {
-		return authError(errMsg)
+		return authError(domainrpc.Refused(domainrpc.CodeInvalid, errMsg))
 	}
 
 	if err := dbgate.WithExec(ctx, func(ctx context.Context) error {
 		return a.db.AdminUser.UpdateOneID(id).SetActive(false).Exec(ctx)
 	}); err != nil {
-		return authError(err.Error())
+		return authError(refusal(err))
 	}
 	actorID, _ := parseID(req.ActorID)
 	log.Info("staff removed", zap.Uint64("id", id), zap.Uint64("by", actorID))
@@ -371,10 +374,10 @@ func (a *adminAuthRPC) guardOwnerRemoval(ctx context.Context, actorRole adminuse
 func (a *adminAuthRPC) auditAppend(ctx context.Context, req usersrpc.AuthRequest) usersrpc.AuthReply {
 	actorID, err := parseID(req.ActorID)
 	if err != nil {
-		return authError("actor_id: " + err.Error())
+		return authError(domainrpc.Refused(domainrpc.CodeInvalid, "actor_id: "+err.Error()))
 	}
 	if req.ActorLogin == "" || req.Action == "" {
-		return authError("actor_login and action required")
+		return authError(domainrpc.Refused(domainrpc.CodeInvalid, "actor_login and action required"))
 	}
 	_, err = dbgate.WithQuery(ctx, func(ctx context.Context) (*ent.AdminAudit, error) {
 		return a.db.AdminAudit.Create().
@@ -388,7 +391,7 @@ func (a *adminAuthRPC) auditAppend(ctx context.Context, req usersrpc.AuthRequest
 			Save(ctx)
 	})
 	if err != nil {
-		return authError(err.Error())
+		return authError(refusal(err))
 	}
 	return usersrpc.AuthReply{}
 }
@@ -400,7 +403,7 @@ func (a *adminAuthRPC) auditList(ctx context.Context, req usersrpc.AuthRequest) 
 	if req.ActorFilter != "" {
 		aid, err := parseID(req.ActorFilter)
 		if err != nil {
-			return authError("actor_filter: " + err.Error())
+			return authError(domainrpc.Refused(domainrpc.CodeInvalid, "actor_filter: "+err.Error()))
 		}
 		q = q.Where(adminaudit.ActorIDEQ(aid))
 	}
@@ -427,7 +430,7 @@ func (a *adminAuthRPC) auditListAll(ctx context.Context, q *ent.AdminAuditQuery,
 		return q.Limit(auditListLimit(limit)).All(ctx)
 	})
 	if err != nil {
-		return authError(err.Error())
+		return authError(refusal(err))
 	}
 	return usersrpc.AuthReply{Entries: auditViewsOf(rows)}
 }
@@ -445,7 +448,7 @@ func (a *adminAuthRPC) auditListPage(ctx context.Context, q *ent.AdminAuditQuery
 		return q.Offset((page - 1) * pageSize).Limit(fetchLimit).All(ctx)
 	})
 	if err != nil {
-		return authError(err.Error())
+		return authError(refusal(err))
 	}
 	hasMore := page < auditMaxPages && len(rows) > pageSize
 	if hasMore {

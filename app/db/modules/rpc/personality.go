@@ -34,7 +34,7 @@ func feedBump(repo *repository.Personality) func(context.Context, modulesrpc.Fee
 	return func(ctx context.Context, req modulesrpc.FeedBumpRequest) modulesrpc.FeedBumpReply {
 		totals, err := repo.FeedBump(ctx, req.BroadcasterID, req.Name)
 		if err != nil {
-			return modulesrpc.FeedBumpReply{Error: err.Error()}
+			return modulesrpc.FeedBumpReply{Refusal: bus.Classify(err)}
 		}
 		return modulesrpc.FeedBumpReply{Total: totals.Total, Channel: totals.Channel, Rank: totals.Rank}
 	}
@@ -46,7 +46,7 @@ func feedBoard(repo *repository.Personality) func(context.Context, modulesrpc.Fe
 	return func(ctx context.Context, req modulesrpc.FeedBoardRequest) modulesrpc.FeedBoardReply {
 		reply, err := readFeedBoard(ctx, repo, req)
 		if err != nil {
-			return modulesrpc.FeedBoardReply{Error: err.Error()}
+			return modulesrpc.FeedBoardReply{Refusal: bus.Classify(err)}
 		}
 		return reply
 	}

@@ -3,6 +3,8 @@
 
 package modulesrpc
 
+import "ItsBagelBot/internal/domain/rpc"
+
 // Quote is one saved channel quote as the quote verbs return it. Number is the
 // channel-local id chat refers to (!quote 12); CreatedAt is the save date in
 // RFC 3339 so the bot can append it to the readout.
@@ -31,5 +33,5 @@ type QuoteReply struct {
 	Quote  *Quote  `json:"quote,omitempty"`
 	Quotes []Quote `json:"quotes,omitempty"`
 	Found  bool    `json:"found,omitempty"`
-	Error  string  `json:"error,omitempty"`
+	rpc.Refusal
 }
