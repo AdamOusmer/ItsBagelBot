@@ -9,9 +9,6 @@ import { allows, requireRole, type AdminIdentity } from '$lib/server/access';
 import { audit } from '$lib/server/audit';
 import {
   credentialStatuses,
-  listServiceTokens,
-  mintServiceToken,
-  revokeServiceToken,
   revokeCredential,
   rotateCredential,
   scopeReport,
@@ -20,37 +17,23 @@ import {
   setCredential,
   type DbCredentialStatus,
   type ScopeReport,
-  type SecretServiceId,
-  type ServiceTokenView
+  type SecretServiceId
 } from '$lib/server/secrets';
 
 export type SecretsBundle = {
   services: DbCredentialStatus[];
-  tokens: Record<string, ServiceTokenView[]>;
   scope: ScopeReport;
 };
 
 const DEMO = dev && process.env.DEMO === '1';
 
 async function loadBundle(): Promise<SecretsBundle> {
-  const [services, scope, tokenLists] = await Promise.all([
-    credentialStatuses(),
-    scopeReport(),
-    Promise.all(
-      serviceIds().map(async (id) => {
-        try {
-          return [id, await listServiceTokens(id)] as const;
-        } catch {
-          return [id, []] as const;
-        }
-      })
-    )
-  ]);
-  return { services, scope, tokens: Object.fromEntries(tokenLists) };
+  const [services, scope] = await Promise.all([credentialStatuses(), scopeReport()]);
+  return { services, scope };
 }
 
-// Streamed: the shell renders immediately; the Doppler round trips (statuses,
-// scope probe, token lists, all parallel) hydrate in.
+// Streamed: the shell renders immediately; the two Doppler round trips
+// (statuses, scope probe, in parallel) hydrate in.
 export const load: PageServerLoad = async ({ parent }) => {
   const layout = await parent();
   if (!allows(layout.role, 'secrets.manage')) throw redirect(302, '/');
@@ -76,12 +59,7 @@ function serviceFromForm(f: FormData): SecretServiceId {
 // secretAction wraps the shared shape of every mutation here: manager gate,
 // service parse, type-to-confirm phrase check, demo short-circuit, the write,
 // and the audit trail.
-type SecretActionName =
-  | 'db_credential_rotate'
-  | 'db_credential_set'
-  | 'db_credential_revoke'
-  | 'doppler_token_mint'
-  | 'doppler_token_revoke';
+type SecretActionName = 'db_credential_rotate' | 'db_credential_set' | 'db_credential_revoke';
 
 type SecretSpec = {
   name: SecretActionName; // audit action id
@@ -89,7 +67,7 @@ type SecretSpec = {
   run: (
     service: SecretServiceId,
     f: FormData
-  ) => Promise<{ notice: string; mintedKey?: string; target?: string }>;
+  ) => Promise<{ notice: string; target?: string }>;
 };
 
 function secretAction(spec: SecretSpec) {
@@ -112,10 +90,7 @@ function secretAction(spec: SecretSpec) {
 
       const out = await spec.run(service, f);
       audit(admin, { action: spec.name, target: `${service}:${out.target ?? ''}`, ok: true });
-      return {
-        action: { ok: true, notice: out.notice },
-        ...(out.mintedKey ? { mintedKey: out.mintedKey } : {})
-      };
+      return { action: { ok: true, notice: out.notice } };
     } catch (e) {
       const message = (e as Error).message;
       audit(admin, { action: spec.name, target: String(service ?? ''), ok: false, error: message });
@@ -154,33 +129,6 @@ export const actions: Actions = {
         dbUser: String(f.get('db_user') ?? '').trim()
       });
       return { notice: `${result.dbUser} revoked`, target: result.dbUser };
-    }
-  }),
-
-  mintToken: secretAction({
-    name: 'doppler_token_mint',
-    confirm: (s) => `mint ${s}`,
-    run: async (service, f) => {
-      const expireDays = Number(f.get('expire_days') ?? '0');
-      const result = await mintServiceToken(service, {
-        name: String(f.get('name') ?? '').trim(),
-        expireDays: Number.isFinite(expireDays) ? expireDays : 0
-      });
-      return {
-        notice: `read-only token "${result.token.name}" minted for ${service}/prd`,
-        mintedKey: result.key,
-        target: result.token.name
-      };
-    }
-  }),
-
-  revokeToken: secretAction({
-    name: 'doppler_token_revoke',
-    confirm: (s) => `revoke ${s} token`,
-    run: async (service, f) => {
-      const slug = String(f.get('slug') ?? '').trim();
-      await revokeServiceToken(service, { slug });
-      return { notice: 'service token revoked', target: slug };
     }
   })
 };

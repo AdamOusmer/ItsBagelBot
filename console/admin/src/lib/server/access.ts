@@ -14,6 +14,10 @@
 import type { Session } from './session';
 import { adminCheck, type AdminRole } from './services';
 import { dev } from '$app/environment';
+// The ladder is shared, not local: the nav registry decides which sections to
+// OFFER from the same numbers this table uses to decide who may act. When they
+// were separate, the rail offered moderators three links every route bounced.
+import { STAFF_RANK as RANK } from '@bagel/shared/staff-role';
 
 export interface AdminIdentity {
   id: string;
@@ -26,8 +30,6 @@ export interface AdminIdentity {
 // helper call is not folded across SvelteKit's split server entries; this form
 // removes the import edge before adapter-node assembles the final image graph.
 const DEMO = dev && process.env.DEMO === '1';
-
-const RANK: Record<AdminRole, number> = { moderator: 1, admin: 2, owner: 3 };
 
 // Managers (admin/owner) may view + manage the staff roster. Moderators cannot.
 export function isManager(role: AdminRole): boolean {

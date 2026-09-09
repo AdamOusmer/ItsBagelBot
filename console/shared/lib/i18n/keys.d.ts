@@ -7,6 +7,23 @@
 // while MessageKey stays open via (string & {}) so dynamically built keys and
 // not-yet-generated additions never hard-fail the type check.
 export type KnownMessageKey =
+  | 'admin.roleAdmin'
+  | 'admin.roleModerator'
+  | 'admin.roleOwner'
+  | 'admin.title'
+  | 'adminNav.access'
+  | 'adminNav.accounts'
+  | 'adminNav.audit'
+  | 'adminNav.counters'
+  | 'adminNav.events'
+  | 'adminNav.lanes'
+  | 'adminNav.notifications'
+  | 'adminNav.operate'
+  | 'adminNav.overview'
+  | 'adminNav.secrets'
+  | 'adminNav.shards'
+  | 'adminNav.staff'
+  | 'adminNav.users'
   | 'banner.exit'
   | 'banner.sharedPost'
   | 'banner.sharedPre'

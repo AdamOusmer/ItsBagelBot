@@ -607,12 +607,6 @@ export function startInvalidationListener(): void {
   fabric.start();
 }
 
-// ── Derived helpers ───────────────────────────────────────────────────────────
-
-export function tierOf(status: string): 'premium' | 'standard' {
-  return status === 'paid' || status === 'vip' ? 'premium' : 'standard';
-}
-
 // ── Admin auth + audit ────────────────────────────────────────────────────────
 // DB-backed (users service) replacement for the old static ADMIN_USER_IDS env
 // allowlist. auth.check decides who may operate; audit.* records what they did.

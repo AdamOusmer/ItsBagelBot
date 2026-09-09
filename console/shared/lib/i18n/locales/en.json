@@ -1,4 +1,25 @@
 {
+  "admin": {
+    "title": "Admin",
+    "roleModerator": "Moderator",
+    "roleAdmin": "Admin",
+    "roleOwner": "Owner"
+  },
+  "adminNav": {
+    "operate": "Operate",
+    "accounts": "Accounts",
+    "access": "Access",
+    "overview": "Overview",
+    "shards": "Shards",
+    "lanes": "Lanes",
+    "events": "Ingress feed",
+    "users": "Users",
+    "notifications": "Notifications",
+    "staff": "Staff",
+    "audit": "Audit",
+    "secrets": "Secrets",
+    "counters": "Bot counters"
+  },
   "banner": {
     "sharedPre": "Shared access to ",
     "sharedPost": "'s dashboard ({sections})",
