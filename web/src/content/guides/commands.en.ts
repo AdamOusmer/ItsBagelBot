@@ -12,12 +12,12 @@ const guide: GuideContent = {
     eyebrow: 'Guide',
     heading: 'Commands & variables',
     lead: 'Commands that greet people by name, roll dice, and count your wins. No code: just braces.',
-    minutes: '14 min read',
+    minutes: '15 min read',
     card: {
       title: 'Commands & variables',
       description:
         'Build commands that greet people by name, roll dice, and count wins. Every variable the bot understands, explained with live-looking chat examples.',
-      meta: '14 min · 12 steps',
+      meta: '15 min · 13 steps',
       chips: ['{user}', '{random}', '{counter:…}', '!cmd'],
     },
   },
@@ -473,7 +473,9 @@ const guide: GuideContent = {
                 said something recently, not everybody with your stream open. Lurkers are not in
                 it. Someone who said hello and then went quiet for a long while eventually drops
                 out of it too. That makes it a good "who is talking right now" and a poor
-                "how many people are watching me", which is a different number entirely.`,
+                "how many people are watching me", which is a different number entirely. If you
+                want that one, it has its own variable:
+                <code>&#123;channel.viewers&#125;</code>, further down.`,
         },
         {
           kind: 'callout',
@@ -485,6 +487,70 @@ const guide: GuideContent = {
                 line still reads: <code>&#123;random.chatter|somebody&#125;</code>.
                 <code>&#123;chatters&#125;</code> answers <code>0</code> rather than nothing, so it
                 never needs one.`,
+        },
+      ],
+    },
+    {
+      id: 'stream',
+      heading: 'Your stream: title, category, uptime, viewers',
+      note: 'Say what you are playing, how long you have been at it, and how many are watching.',
+      blocks: [
+        {
+          kind: 'prose',
+          html: `
+            <p>
+                Four variables read the stream itself. They are the same facts
+                <code>!title</code>, <code>!game</code> and <code>!uptime</code> already print,
+                so a command can now put them inside your own sentence instead of a separate
+                reply. Add a login after a colon and you get somebody else's channel instead:
+                that is what turns a shoutout into "go watch them, they are playing X".
+            </p>`,
+        },
+        {
+          kind: 'table',
+          head: ['Variable', 'Becomes', 'Example'],
+          rows: [
+            ['<code>&#123;uptime&#125;</code>', 'How long you have been live, in the same words <code>!uptime</code> uses. Offline comes back empty, so give it a default.', '2 hours, 15 minutes'],
+            ['<code>&#123;title&#125;</code>', 'Your current stream title. It works while you are offline too.', 'bagel baking and chill'],
+            ['<code>&#123;game&#125;</code>', 'The category you are streaming. Offline, it is the one you are set to.', 'Just Chatting'],
+            ['<code>&#123;channel.viewers&#125;</code>', 'How many people are watching right now. Offline it is <code>0</code>. Plain <code>&#123;channel&#125;</code> is still your channel name.', '128'],
+          ],
+        },
+        {
+          kind: 'chat',
+          title: '#your_channel',
+          caption: 'One command that answers three questions at once.',
+          lines: [
+            { who: 'viewer', name: 'maya_live', text: '!whatsup' },
+            { who: 'bot', text: 'bagel baking and chill - Just Chatting - live 2 hours, 15 minutes for 128 of you 🥯' },
+          ],
+        },
+        {
+          kind: 'callout',
+          tone: 'info',
+          html: `
+                <b>Point at somebody else's channel</b>
+                <code>&#123;title:login&#125;</code>, <code>&#123;game:login&#125;</code> and
+                <code>&#123;uptime:login&#125;</code> read the channel you name instead of yours,
+                which is what a shoutout wants:
+                <code>Go follow @friend, they play &#123;game:friend|great stuff&#125;</code>.
+                Write the login out; a variable cannot go inside another one yet. One response
+                can name up to three other channels, and a fourth comes back empty, because
+                every name is one more question asked of Twitch.`,
+        },
+        {
+          kind: 'callout',
+          tone: 'warn',
+          html: `
+                <b>Off switches and offline streams</b>
+                <code>&#123;uptime&#125;</code>, <code>&#123;title&#125;</code> and
+                <code>&#123;game&#125;</code> follow the same switches as the
+                <code>!uptime</code>, <code>!title</code> and <code>!game</code> commands on your
+                Commands page: switch one off and its variable stops expanding and shows up in
+                chat as written. When you are offline, <code>&#123;uptime&#125;</code> comes back
+                empty, so write it as <code>&#123;uptime|not right now&#125;</code>;
+                <code>&#123;channel.viewers&#125;</code> answers <code>0</code> instead, which
+                needs no default.`,
         },
       ],
     },

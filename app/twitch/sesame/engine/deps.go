@@ -69,7 +69,13 @@ type Deps struct {
 	Followage   FollowageLookup
 	AccountAge  AccountAgeLookup
 	Uptime      UptimeLookup
-	Log         *zap.Logger
+	// StreamInfo is the cached channel reader behind the {uptime}, {title},
+	// {game} and {channel.viewers} response tokens. It is separate from Uptime
+	// because the reply is a superset (title, category, viewer count) that
+	// !uptime has no use for, and one endpoint answering the whole token
+	// family is what keeps a response naming three of them at one round trip.
+	StreamInfo StreamInfoLookup
+	Log        *zap.Logger
 	// Timers arms/disarms a broadcaster's repeating chat-message timers for the
 	// length of one stream; ValkeyTimerStore is the default. nil disables it (the
 	// live module's stream.online/offline hooks skip the calls).

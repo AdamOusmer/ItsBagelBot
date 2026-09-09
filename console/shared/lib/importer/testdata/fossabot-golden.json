@@ -160,12 +160,9 @@
       {
         "name": "uptime",
         "responses": [
-          "@{user}, $(uptime)"
+          "@{user}, {uptime}"
         ],
-        "permission": "everyone",
-        "warnings": [
-          "response uses $(uptime), which has no equivalent; left as literal text"
-        ]
+        "permission": "everyone"
       },
       {
         "name": "vintagestory",
@@ -288,11 +285,6 @@
     {
       "severity": "warn",
       "item_index": 15,
-      "code": "command_variable_unmapped"
-    },
-    {
-      "severity": "warn",
-      "item_index": 16,
       "code": "command_variable_unmapped"
     },
     {

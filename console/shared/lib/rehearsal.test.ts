@@ -280,6 +280,33 @@ describe('chatter scope (engine/scope/chatters.go mirror)', () => {
   });
 });
 
+describe('channel scope (engine/scope/channel.go mirror)', () => {
+  test('the channel facts preview with a stand-in', () => {
+    const [line] = rehearseCommand('{title} / {game} / {channel.viewers} / {uptime}');
+    expect(textOf(line.segments)).toBe(
+      'bagel baking and chill / Just Chatting / 128 / 2 hours, 15 minutes'
+    );
+    expect(line.segments.every((seg) => seg.kind !== 'unknown')).toBe(true);
+  });
+
+  test('a named channel previews with the same stand-in', () => {
+    const [line] = rehearseCommand('go watch {game:@Pokimane}');
+    expect(textOf(line.segments)).toBe('go watch Just Chatting');
+  });
+
+  test('bare {channel} is still the display name', () => {
+    const [line] = rehearseCommand('{channel} plays {game}');
+    expect(textOf(line.segments)).toBe('bagel_bakery plays Just Chatting');
+  });
+
+  test('a span addressing nobody stays literal', () => {
+    for (const span of ['{title:}', '{channel.viewers:pokimane}', '{channel.followers}']) {
+      const [line] = rehearseCommand(span);
+      expect(line.segments).toEqual([{ text: span, kind: 'unknown' }]);
+    }
+  });
+});
+
 describe('module scope (engine/scope/modules.go mirror)', () => {
   test('the module facts preview with a stand-in', () => {
     const [line] = rehearseCommand('{quote} / {time} / {song}');

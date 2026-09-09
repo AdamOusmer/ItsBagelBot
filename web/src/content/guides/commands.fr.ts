@@ -156,13 +156,13 @@ const strings: GuideStrings = {
     'meta.card.chips.2': '{counter:…}',
     'meta.card.chips.3': '!cmd',
     'meta.card.description': 'Créez des commandes qui saluent les gens par leur nom, lancent des dés et comptent vos victoires. Toutes les variables du bot, expliquées avec des exemples de chat.',
-    'meta.card.meta': '14 min · 12 étapes',
+    'meta.card.meta': '15 min · 13 étapes',
     'meta.card.title': 'Commandes et variables',
     'meta.description': "Maîtrisez les commandes personnalisées d'ItsBagelBot: toutes les variables supportées ({user}, {random}, {counter} et plus), réponses multilignes, actions de chat, délais et niveaux d'accès.",
     'meta.eyebrow': 'Guide',
     'meta.heading': 'Commandes et variables',
     'meta.lead': 'Des commandes qui saluent les gens par leur nom, lancent des dés et comptent vos victoires. Pas de code: juste des accolades.',
-    'meta.minutes': '14 min de lecture',
+    'meta.minutes': '15 min de lecture',
     'meta.title': 'Commandes et variables - Guides ItsBagelBot',
     'fallbacks.b0.html': `
             <p>
@@ -420,7 +420,9 @@ const strings: GuideStrings = {
                 personnes ayant dit quelque chose récemment, pas tous ceux qui ont votre stream
                 ouvert. Les lurkers n'y sont pas. Quelqu'un qui a dit bonjour puis s'est tu
                 longtemps finit aussi par en sortir. C'est donc un bon "qui parle en ce moment" et
-                un mauvais "combien de personnes me regardent", qui est un tout autre nombre.`,
+                un mauvais "combien de personnes me regardent", qui est un tout autre nombre. Si
+                c'est ce dernier que vous voulez, il a sa propre variable:
+                <code>&#123;channel.viewers&#125;</code>, plus bas.`,
     'chatroom.b4.html': `
                 <b>Une chaîne silencieuse ne renvoie rien</b>
                 Si personne d'autre que vous et le bot n'a parlé, il n'y a personne à choisir et
@@ -431,6 +433,56 @@ const strings: GuideStrings = {
                 donc jamais besoin.`,
     'chatroom.heading': 'La salle: combien, et qui',
     'chatroom.note': 'Comptez les gens qui parlent, ou tirez au sort l’un de leurs noms.',
+    'stream.b0.html': `
+            <p>
+                Quatre variables lisent le direct lui-même. Ce sont les mêmes informations que
+                <code>!title</code>, <code>!game</code> et <code>!uptime</code> affichent déjà:
+                une commande peut donc les placer dans votre propre phrase plutôt que dans une
+                réponse séparée. Ajoutez un pseudo après deux-points et vous obtenez la chaîne de
+                quelqu'un d'autre: c'est ce qui transforme un shoutout en «allez la voir, elle
+                joue à X».
+            </p>`,
+    'stream.b1.head.0': 'Variable',
+    'stream.b1.head.1': 'Devient',
+    'stream.b1.head.2': 'Exemple',
+    'stream.b1.rows.0.0': '<code>&#123;uptime&#125;</code>',
+    'stream.b1.rows.0.1': "Depuis combien de temps vous êtes en direct, dans les mêmes mots que <code>!uptime</code>. Hors ligne, la variable revient vide: donnez-lui une valeur par défaut.",
+    'stream.b1.rows.0.2': '2 heures, 15 minutes',
+    'stream.b1.rows.1.0': '<code>&#123;title&#125;</code>',
+    'stream.b1.rows.1.1': 'Le titre actuel de votre direct. Fonctionne aussi quand vous êtes hors ligne.',
+    'stream.b1.rows.1.2': 'bagel baking and chill',
+    'stream.b1.rows.2.0': '<code>&#123;game&#125;</code>',
+    'stream.b1.rows.2.1': 'La catégorie que vous diffusez. Hors ligne, c\'est celle sur laquelle vous êtes réglé.',
+    'stream.b1.rows.2.2': 'Just Chatting',
+    'stream.b1.rows.3.0': '<code>&#123;channel.viewers&#125;</code>',
+    'stream.b1.rows.3.1': "Combien de personnes regardent en ce moment. Hors ligne, c'est <code>0</code>. <code>&#123;channel&#125;</code> seul reste le nom de votre chaîne.",
+    'stream.b1.rows.3.2': '128',
+    'stream.b2.caption': 'Une seule commande qui répond à trois questions.',
+    'stream.b2.lines.0.name': 'maya_live',
+    'stream.b2.lines.0.text': '!quoideneuf',
+    'stream.b2.lines.1.text': 'bagel baking and chill - Just Chatting - en direct depuis 2 heures, 15 minutes pour 128 d’entre vous 🥯',
+    'stream.b2.title': '#votre_chaine',
+    'stream.b3.html': `
+                <b>Pointer vers la chaîne de quelqu'un d'autre</b>
+                <code>&#123;title:pseudo&#125;</code>, <code>&#123;game:pseudo&#125;</code> et
+                <code>&#123;uptime:pseudo&#125;</code> lisent la chaîne que vous nommez plutôt que
+                la vôtre, ce que veut un shoutout:
+                <code>Allez suivre @ami, il joue à &#123;game:ami|des trucs bien&#125;</code>.
+                Écrivez le pseudo en toutes lettres: une variable ne peut pas encore en contenir
+                une autre. Une réponse peut nommer jusqu'à trois autres chaînes; la quatrième
+                revient vide, car chaque nom est une question de plus posée à Twitch.`,
+    'stream.b4.html': `
+                <b>Interrupteurs et directs hors ligne</b>
+                <code>&#123;uptime&#125;</code>, <code>&#123;title&#125;</code> et
+                <code>&#123;game&#125;</code> suivent les mêmes interrupteurs que les commandes
+                <code>!uptime</code>, <code>!title</code> et <code>!game</code> sur votre page
+                Commandes: si vous en coupez un, sa variable cesse de s'étendre et apparaît telle
+                quelle dans le chat. Hors ligne, <code>&#123;uptime&#125;</code> revient vide:
+                écrivez-la <code>&#123;uptime|pas en ce moment&#125;</code>.
+                <code>&#123;channel.viewers&#125;</code> répond <code>0</code>, elle n'a donc
+                besoin d'aucune valeur par défaut.`,
+    'stream.heading': 'Votre direct: titre, catégorie, durée, spectateurs',
+    'stream.note': 'Dites à quoi vous jouez, depuis combien de temps, et combien de personnes regardent.',
     'viewer.b0.html': `
             <p>
                 Le bot répond déjà à <code>!followage</code>, <code>!accountage</code> et

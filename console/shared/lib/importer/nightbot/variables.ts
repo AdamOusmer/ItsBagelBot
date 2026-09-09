@@ -56,6 +56,16 @@
 // random-viewer variable. Nothing was invented from a guess at what the source
 // might spell them; a mapping can be added the day one is observed and can be
 // checked against a real directory.
+// The channel facts ({uptime}, {title}, {game}, {channel.viewers}) gain no
+// mapping here, and for the reason $(twitch …) already has: Nightbot has no
+// bare $(uptime) or $(title) variable at all. It spells every one of them as
+// $(twitch $(channel) "{{uptime}}") — a format-string call whose interior is a
+// template of its own, wrapped in whatever sentence the broadcaster wrote
+// around it. Translating that into a bare token would keep the fact and throw
+// the sentence away, which is a rewrite rather than a translation, so it keeps
+// the literal+warn path that sends it to review. (The Fossabot table does map
+// its $(uptime) and $(title): those are bare, argument-less variables its own
+// documented table lists.)
 // $(countdown …) stays literal for a narrower reason: this bot
 // has a {countdown:…}, but Nightbot's takes a free-form date string
 // ("Dec 25 2026 12:00:00 PST") that {countdown:…} does not read, so the

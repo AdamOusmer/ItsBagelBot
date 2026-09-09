@@ -154,6 +154,25 @@ const CHAT_ROOM: VarDef[] = [
   v('{random.chatter}', 'maya_live', { en: 'A random chatter', fr: 'Un spectateur au hasard' }, { en: 'The name of one person who has talked recently, picked at random. Never you and never the bot. Two of them in one response are two separate picks, and a silent channel comes back empty.', fr: 'Le nom d’une personne ayant parlé récemment, choisie au hasard. Jamais vous ni le bot. Deux dans une même réponse font deux tirages distincts, et une chaîne silencieuse ne renvoie rien.' }),
 ];
 
+// The channel itself (app/twitch/sesame/engine/scope/channel.go). One Twitch
+// read answers all four, so a response naming three of them costs one round
+// trip. {uptime}, {title} and {game} are each gated by the same per-command
+// toggle as !uptime / !title / !game, which the descriptions say because a
+// broadcaster who switched one off would otherwise see the variable stay
+// visible in chat with no explanation; {channel.viewers} has no toggle
+// because no command prints it.
+//
+// The samples match the shared rehearsal's stand-ins exactly (UPTIME_SAMPLE,
+// TITLE_SAMPLE, GAME_SAMPLE and CHANNEL_VIEWERS_SAMPLE): the preview
+// substitutes those, so a different value here would contradict the line
+// right beside it.
+const CHANNEL_FACTS: VarDef[] = [
+  v('{uptime}', '2 hours, 15 minutes', { en: 'Stream uptime', fr: 'Durée du direct' }, { en: 'How long the stream has been live, worded the way !uptime words it. Offline comes back empty, so give it a default. {uptime:someone} does the same for another channel. Follows the !uptime toggle.', fr: 'Depuis combien de temps le direct dure, formulé comme !uptime. Hors ligne renvoie du vide: donnez-lui une valeur par défaut. {uptime:quelquun} fait de même pour une autre chaîne. Suit l’interrupteur !uptime.' }),
+  v('{title}', 'bagel baking and chill', { en: 'Stream title', fr: 'Titre du direct' }, { en: 'The current stream title, the same one !title shows. It works offline too. {title:someone} gives another channel’s. Follows the !title toggle.', fr: 'Le titre actuel du direct, celui qu’affiche !title. Fonctionne aussi hors ligne. {title:quelquun} donne celui d’une autre chaîne. Suit l’interrupteur !title.' }),
+  v('{game}', 'Just Chatting', { en: 'Stream category', fr: 'Catégorie du direct' }, { en: 'The category being streamed, the same one !game shows. It works offline too. {game:someone} gives another channel’s, which is what a shoutout command wants. Follows the !game toggle.', fr: 'La catégorie diffusée, celle qu’affiche !game. Fonctionne aussi hors ligne. {game:quelquun} donne celle d’une autre chaîne, ce que veut une commande de shoutout. Suit l’interrupteur !game.' }),
+  v('{channel.viewers}', '128', { en: 'Viewers watching', fr: 'Spectateurs' }, { en: 'How many people are watching right now, straight from Twitch. An offline channel comes back as 0. Bare {channel} stays your channel name.', fr: 'Combien de personnes regardent en ce moment, directement depuis Twitch. Une chaîne hors ligne renvoie 0. {channel} seul reste le nom de votre chaîne.' }),
+];
+
 const USER_VIEWER = v('{user}', 'maya_live', { en: 'Viewer name', fr: 'Nom du spectateur' }, { en: 'Whoever used the command. {sender} works too.', fr: 'La personne qui a utilisé la commande. {sender} fonctionne aussi.' });
 
 export const SURFACES: SurfaceDef[] = [
@@ -202,6 +221,7 @@ export const SURFACES: SurfaceDef[] = [
       ...DYNAMIC,
       ...UTILITIES,
       ...CHAT_ROOM,
+      ...CHANNEL_FACTS,
       ...VIEWER,
       ...MODULE_FACTS,
     ],

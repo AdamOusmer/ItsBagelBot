@@ -6,7 +6,7 @@
 // Go engine, keep them in lockstep:
 //
 //   - token lexing:          pkg/tmpl/tmpl.go (Lex, Token.Resolve), ported to ./tmpl
-//   - scope chain:           app/twitch/sesame/engine/scope (Chain, Pure, Message, Chatters, Viewer, Modules, Store)
+//   - scope chain:           app/twitch/sesame/engine/scope (Chain, Pure, Message, Chatters, Channel, Viewer, Modules, Store)
 //   - chain wiring per run:  app/twitch/sesame/engine/vars.go (commandChain)
 //   - counter normalization: app/twitch/sesame/engine/scope/store.go (NormalizeName)
 //   - slash-verb routing:    internal/domain/outgress/slash.go (CutSlash)
@@ -183,6 +183,25 @@ const SONG_ARTIST_SAMPLE = 'Radiohead';
 const CHATTERS_SAMPLE = '37';
 const RANDOM_CHATTER_SAMPLE = 'maya_live';
 
+/** Stand-ins for the channel itself (scope.Channel): the live title, the
+ * category, how long the stream has been up and how many people are watching.
+ * All four come from one Twitch read the dashboard cannot make while a
+ * response is being typed, so the preview shows a plausible LIVE channel.
+ *
+ * Live is the choice worth naming: an offline channel previews as an uptime
+ * of nothing and a viewer count of 0, which would show a broadcaster four
+ * variables and two blanks, and blanks read as a bot that does not work. The
+ * chip hints and the guide carry the offline behaviour instead.
+ *
+ * The uptime is worded by the bot's shared humanizer, the same one !uptime
+ * prints through. A named channel ({game:pokimane}) previews with the same
+ * stand-in as the bare spelling, for the reason the viewer lookups do: what
+ * somebody else is playing is exactly what a preview cannot know. */
+const UPTIME_SAMPLE = '2 hours, 15 minutes';
+const TITLE_SAMPLE = 'bagel baking and chill';
+const GAME_SAMPLE = 'Just Chatting';
+const CHANNEL_VIEWERS_SAMPLE = '128';
+
 /** Rehearse a custom command response: expand, split into messages, then
  * route each line's leading slash-verb (the same order as emitResponse).
  * (Expansion per line equals whole-template expansion: no token value can
@@ -269,15 +288,16 @@ function chainResolver(chain: readonly SampleScope[]): Resolve {
 }
 
 /** commandChain's mirror: the dice and the payload utilities (one Go scope,
- * scope.Pure), the triggering line, the chat room, the viewer lookups, the
- * module facts, then the counter store. Order is precedence, exactly as in
- * the engine. */
+ * scope.Pure), the triggering line, the chat room, the channel, the viewer
+ * lookups, the module facts, then the counter store. Order is precedence,
+ * exactly as in the engine. */
 function commandChain(samples: Samples): SampleScope[] {
   return [
     PURE_SCOPE,
     UTIL_SCOPE,
     messageScope(samples),
     CHATTER_SCOPE,
+    CHANNEL_SCOPE,
     VIEWER_SCOPE,
     MODULE_SCOPE,
     COUNTER_SCOPE
@@ -472,6 +492,42 @@ const CHATTER_SCOPE: SampleScope = {
   owns: (name) => name in CHATTER_SAMPLES,
   get: (token) => (token.payload === null ? CHATTER_SAMPLES[token.name] : null)
 };
+
+/** scope.Channel's mirror: {uptime}, {title}, {game} and {channel.viewers},
+ * the four facts about the channel rather than the person who ran the
+ * command. Bare is this channel, a payload names somebody else's, and the
+ * preview shows the same stand-in either way.
+ *
+ * Mounted unconditionally here, as the viewer lookups and module facts are,
+ * and with the same caveat: in chat {uptime}, {title} and {game} are each
+ * gated by the same per-broadcaster toggle as the command that prints them
+ * (!uptime, !title, !game), so a broadcaster who switched one off sees a
+ * token here that stays literal there. The chip hints say which. Only
+ * {channel.viewers} has no toggle at all, because no command prints it.
+ *
+ * {channel.viewers} takes no payload — it counts this channel — so a span
+ * carrying one stays literal, and so does an empty payload on the other
+ * three, matching loginOf in the Go scope. Bare {channel} stays the display
+ * name, and is answered by the message scope well before this one. */
+const CHANNEL_SAMPLES: Samples = {
+  uptime: UPTIME_SAMPLE,
+  title: TITLE_SAMPLE,
+  game: GAME_SAMPLE,
+  'channel.viewers': CHANNEL_VIEWERS_SAMPLE
+};
+
+const CHANNEL_SCOPE: SampleScope = {
+  owns: (name) => name in CHANNEL_SAMPLES,
+  get: channelSample
+};
+
+function channelSample(token: Token): string | null {
+  if (token.payload === null) return CHANNEL_SAMPLES[token.name];
+  if (token.name === 'channel.viewers') return null;
+  // A payload is the named-channel form; an empty one names nobody, exactly
+  // as an empty login does in the engine.
+  return token.payload.trim().replace(/^@/, '') === '' ? null : CHANNEL_SAMPLES[token.name];
+}
 
 /** scope.Modules' mirror: the tokens whose value is a single fact an opt-in
  * module already holds — {quote} / {quote:n}, {time}, and the {song} family.

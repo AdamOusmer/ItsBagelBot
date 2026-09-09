@@ -129,16 +129,30 @@ describe('commands', () => {
 
   test('unmappable variables stay literal and are reported once each', () => {
     const { manifest, diagnostics } = parseFossabot(
-      feed([command({ response: '$(uptime) $(uptime) $(time America/Los_Angeles) $(count.increment died 1)' })])
+      feed([command({ response: '$(setgame) $(setgame) $(time America/Los_Angeles) $(count.increment died 1)' })])
     );
     expect(manifest.commands?.[0].responses).toEqual([
-      '$(uptime) $(uptime) $(time America/Los_Angeles) $(count.increment died 1)'
+      '$(setgame) $(setgame) $(time America/Los_Angeles) $(count.increment died 1)'
     ]);
     expect(codesOf(diagnostics)).toEqual([
       CODE.variableUnmapped,
       CODE.variableUnmapped,
       CODE.variableUnmapped
     ]);
+  });
+
+  // The two channel facts Fossabot spells as bare variables map straight
+  // across; a category or a viewer count does not, because its documented
+  // variable table has neither and inventing a spelling is how an importer
+  // silently produces the wrong text.
+  test('the bare channel facts map, and only those', () => {
+    const { manifest, diagnostics } = parseFossabot(
+      feed([command({ response: 'live $(uptime) with $(title) - $(game) $(stream.title)' })])
+    );
+    expect(manifest.commands?.[0].responses).toEqual([
+      'live {uptime} with {title} - $(game) $(stream.title)'
+    ]);
+    expect(codesOf(diagnostics)).toEqual([CODE.variableUnmapped, CODE.variableUnmapped]);
   });
 
   test('a chat-action prefix is dropped and the text kept', () => {
