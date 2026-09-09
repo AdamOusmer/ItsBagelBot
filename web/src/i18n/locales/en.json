@@ -383,5 +383,6 @@
   "error.500.desc": "A tray tipped over behind the scenes. Give us a moment, then try the page again.",
   "error.500.action": "Back to safety",
   "skip.toContent": "Skip to content",
-  "games.legalTermsLabel": "Terms of Service"
+  "games.legalTermsLabel": "Terms of Service",
+  "eco.ch": "eco · idle"
 }
