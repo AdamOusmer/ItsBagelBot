@@ -57,6 +57,14 @@ const inerted: Element[] = [];
 function acquireLock(): void {
   prevOverflow = document.body.style.overflow;
   document.body.style.overflow = 'hidden';
+  // Reached through the `window.__lenis` global rather than through
+  // `getSmoothScroll()` from @bagel/ui/lib/lenis, which would be the tidier
+  // read. That module statically imports `lenis` (~20 KB), and this file is
+  // pulled in by every modal surface, so the import would land the library in
+  // the console's main chunk — exactly what `initLenis`'s dynamic import in
+  // lib/actions.ts exists to avoid. `overflow: hidden` alone does not freeze
+  // the page: lenis keeps its own scroll position and keeps animating toward
+  // it behind the overlay.
   (window as unknown as { __lenis?: { stop(): void } }).__lenis?.stop();
   for (const child of Array.from(document.body.children)) {
     if (child.hasAttribute('data-overlay')) continue;

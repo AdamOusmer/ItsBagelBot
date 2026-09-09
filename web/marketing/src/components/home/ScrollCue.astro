@@ -204,7 +204,7 @@ const t = useTranslations(lang);
        is also exactly where --hero-p reaches 1 and the hero has fully faded. */
     function onClick() {
         const top = window.scrollY + window.innerHeight;
-        const lenis = (window as any).lenis;
+        const lenis = (window as any).__lenis;
 
         if (lenis?.scrollTo) {
             lenis.scrollTo(top, { duration: 1.1 });

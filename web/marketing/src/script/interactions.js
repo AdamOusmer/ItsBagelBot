@@ -15,8 +15,7 @@
  *                          Fine pointer + motion-allowed only.
  */
 
-const finePointer = window.matchMedia("(hover: hover) and (pointer: fine)");
-import { reduceMotion } from './motion';
+import { finePointer, reduceMotion } from './motion';
 
 
 function setupCopy(el) {

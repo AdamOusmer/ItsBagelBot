@@ -48,8 +48,23 @@ const ENTRIES: {
     // web/kit into the standalone library: 851 B gzip, unchanged bytes — the
     // file moved, it did not grow. Budget 1100, not the 934 a flat +10% would
     // give: 851 + 150 B for CI's linux/x64 gzip delta = 1001, +10% -> 1100.
+    //
+    // RAISED 2026-09-09 to 1400: 851 -> 1124 B gzip when the field stopped
+    // owning its requestAnimationFrame loop and its inline reduced-motion
+    // matchMedia call and started importing lib/raf-loop (345 B measured
+    // standalone) and lib/motion-query (225 B). 1124 + 150 B linux/x64 delta
+    // = 1274, +10% -> 1400.
+    //
+    // The row grew and the PAGE shrank, which is the one case where a raised
+    // budget is not drift. This gate builds a synthetic single-entry consumer,
+    // so every shared module the entry pulls in is charged to it in full. In a
+    // real page the scheduler is imported once and shared by the mote field,
+    // the smooth scroll, the magnetic action and (from PR7) the cursor; the
+    // marketing home page used to ship four private rAF loops and two
+    // matchMedia helpers. Watch this row for growth in the field's OWN
+    // physics: ~570 B of the 1124 is now shared modules.
     name: "light-field",
-    budget: 1100,
+    budget: 1400,
     external: [],
     source: `import { field } from "../../lib/light-field";
              globalThis.x = field;`,
@@ -68,6 +83,57 @@ const ENTRIES: {
     external: [],
     source: `import { copyFlash } from "../../lib/clipboard";
              globalThis.x = copyFlash;`,
+  },
+  {
+    // The two media queries every motion decision is made from. The floor of
+    // the motion stack: raf-loop, lenis, the cursor and the mote field all
+    // import it, so this row is charged into three of the rows below and above
+    // as well. It should never move again — it is two matchMedia calls and a
+    // server-side stub.
+    //
+    // Initial measurement 2026-09-09 (macOS/arm64): 225 B gzip. Budget 420:
+    // 225 + 150 B for CI's linux/x64 gzip delta = 375, +10% -> 412, rounded.
+    name: "motion-query",
+    budget: 420,
+    external: [],
+    source: `import { prefersReducedMotion, finePointer } from "../../lib/motion-query";
+             globalThis.x = [prefersReducedMotion, finePointer];`,
+  },
+  {
+    // The single page-wide rAF scheduler. Budgeted tightly on purpose: it is
+    // shared by every animated entry in this package, so anything that lands
+    // here is paid for by all of them at once. If this row jumps, the thing
+    // that grew is almost certainly a convenience (a priority queue, an FPS
+    // cap, per-subscriber timing) that belongs in the engine that wanted it.
+    //
+    // Initial measurement 2026-09-09 (macOS/arm64): 345 B gzip. That is the
+    // loop, the two Sets and the visibilitychange listener alone — the
+    // scheduler imports nothing at all, motion-query included, and that is
+    // deliberate: whether an effect
+    // may run is the effect's decision, not the clock's. Budget 550:
+    // 345 + 150 B for CI's linux/x64 gzip delta = 495, +10% -> 545, rounded.
+    name: "raf-loop",
+    budget: 550,
+    external: [],
+    source: `import { subscribe, wake } from "../../lib/raf-loop";
+             globalThis.x = [subscribe, wake];`,
+  },
+  {
+    // Smooth scroll. `lenis` itself is EXTERNAL here, which is the only row in
+    // this file that externalises anything, and the reason is that measuring it
+    // bundled would measure the vendor library (~20 KB) and drown the thing
+    // this gate is actually watching: the wrapper. The wrapper is what can grow
+    // by accident — an easing table, a scroll-restoration cache, a per-route
+    // options map. Consumers pay for lenis once whatever this row says.
+    //
+    // Initial measurement 2026-09-09 (macOS/arm64): 615 B gzip, lenis external,
+    // motion-query and raf-loop bundled in (570 B of the 615). Budget 850:
+    // 615 + 150 B for CI's linux/x64 gzip delta = 765, +10% -> 842, rounded.
+    name: "lenis",
+    budget: 850,
+    external: ["lenis"],
+    source: `import { createSmoothScroll, getSmoothScroll } from "../../lib/lenis";
+             globalThis.x = [createSmoothScroll, getSmoothScroll];`,
   },
 ];
 

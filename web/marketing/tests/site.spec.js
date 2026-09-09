@@ -37,7 +37,7 @@ test.describe('ItsBagelBot site', () => {
         await page.evaluate(() => {
             const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
             const target = Math.min(Math.max(window.innerHeight * 1.4, 700), maxScroll);
-            window.lenis?.scrollTo?.(target, { immediate: true, force: true });
+            window.__lenis?.scrollTo?.(target, { immediate: true, force: true });
             window.scrollTo({ top: target, behavior: 'instant' });
         });
         await page.waitForFunction(() => window.scrollY > 500);
@@ -45,7 +45,7 @@ test.describe('ItsBagelBot site', () => {
 
     async function expectPageTop(page) {
         await page.waitForFunction(() => {
-            const lenis = window.lenis;
+            const lenis = window.__lenis;
             const lenisScroll = typeof lenis?.scroll === 'number' ? lenis.scroll : 0;
             const lenisTarget = typeof lenis?.targetScroll === 'number' ? lenis.targetScroll : 0;
             const savedScroll = typeof history.state?.scrollY === 'number' ? history.state.scrollY : 0;

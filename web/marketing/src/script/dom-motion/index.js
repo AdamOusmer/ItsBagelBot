@@ -20,6 +20,9 @@
  * and resumes on the next pointer event.
  */
 
+import {finePointer, reduceMotion} from "@bagel/ui/lib/motion-query";
+import {subscribe, wake} from "@bagel/ui/lib/raf-loop";
+
 import {Pointer} from "./pointer.js";
 import {Parallax} from "./parallax.js";
 
@@ -27,10 +30,18 @@ const INSTANCE_KEY = "__itsBagelBotDomMotion";
 const STYLE_ID = "itsbagelbot-dom-motion-style";
 const ACTIVE_CLASS = "is-dom-motion-active";
 
-const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
-const FINE_POINTER_QUERY = "(hover: hover) and (pointer: fine)";
-
 const POINTER_EASE = 0.07;
+
+/**
+ * How long after the pointer stops moving the parallax keeps easing before the
+ * shared scheduler is allowed to drop it. The pointer eases at 0.07 per frame,
+ * which is slow on purpose (the drift is meant to read as the page having
+ * weight), and at that rate the last visible tenth of a pixel of travel lands
+ * roughly 40 frames after the final pointermove. Settling on distance alone cut
+ * the tail off visibly; 700ms outlasts it with room, and the cost of being
+ * wrong in this direction is a handful of no-op frames rather than a visible
+ * stop.
+ */
 const SETTLE_DELAY_MS = 700;
 
 const MOTION_CSS = `
@@ -72,49 +83,43 @@ function onMediaChange(mediaQueryList, callback) {
 
 function createDomMotion() {
     const root = document.documentElement;
-    const reducedMotion = window.matchMedia(REDUCED_MOTION_QUERY);
-    const finePointer = window.matchMedia(FINE_POINTER_QUERY);
     const cleanupCallbacks = [];
 
     const pointer = new Pointer();
     const parallax = new Parallax(pointer, root);
 
     let active = false;
-    let rafId = 0;
+    let unsubscribe = null;
 
     function canAnimate() {
-        return finePointer.matches && !reducedMotion.matches && !document.hidden;
+        return finePointer.matches && !reduceMotion.matches && !document.hidden;
     }
 
+    // Ticked by @bagel/ui's shared scheduler. The settle protocol is the same
+    // one this file invented and the reason it exists: return false and the
+    // scheduler drops this subscriber, and once every subscriber has settled
+    // the page schedules no frames at all. The difference is that the parallax
+    // now settles into the SAME loop the mote field and the smooth scroller
+    // run in, rather than being one of four.
     function tick(now) {
-        if (!active || !canAnimate()) {
-            rafId = 0;
-            return;
-        }
+        if (!active || !canAnimate()) return false;
 
         pointer.step(POINTER_EASE);
         parallax.apply();
 
-        const settled =
-            pointer.isSettled() && now - pointer.lastMoveAt > SETTLE_DELAY_MS;
-
-        if (settled) {
-            rafId = 0;
-            return;
-        }
-
-        rafId = requestAnimationFrame(tick);
+        return !(pointer.isSettled() && now - pointer.lastMoveAt > SETTLE_DELAY_MS);
     }
 
     function start() {
-        if (rafId || !active) return;
-        rafId = requestAnimationFrame(tick);
+        if (!active) return;
+        if (unsubscribe) wake(tick);
+        else unsubscribe = subscribe(tick);
     }
 
     function stop() {
-        if (!rafId) return;
-        cancelAnimationFrame(rafId);
-        rafId = 0;
+        if (!unsubscribe) return;
+        unsubscribe();
+        unsubscribe = null;
     }
 
     function activate() {
@@ -151,7 +156,7 @@ function createDomMotion() {
     installStyle();
 
     cleanupCallbacks.push(
-        onMediaChange(reducedMotion, syncState),
+        onMediaChange(reduceMotion, syncState),
         onMediaChange(finePointer, syncState),
     );
 

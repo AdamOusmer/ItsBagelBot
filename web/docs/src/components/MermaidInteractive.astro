@@ -33,11 +33,12 @@
 <script>
   import panzoom, { type PanZoom } from 'panzoom';
 
-  // Lenis exposes itself on `window.lenis` from SmoothScroll.astro. Mirror
-  // the (minimal) shape we use here so TS is happy without re-importing.
+  // The scroller publishes itself on `window.__lenis` (see SmoothScroll.astro
+  // and the naming record in ui/lib/lenis.ts). Mirror the minimal shape used
+  // here so TS is happy without importing the library into this island.
   declare global {
     interface Window {
-      lenis?: { stop: () => void; start: () => void };
+      __lenis?: { stop: () => void; start: () => void };
     }
   }
 
@@ -154,7 +155,7 @@
     m.classList.add(MODAL_OPEN);
     document.documentElement.style.overflow = 'hidden';
     // Stop Lenis so wheel-to-zoom doesn't also smooth-scroll the page.
-    window.lenis?.stop();
+    window.__lenis?.stop();
 
     instance?.dispose();
     instance = panzoom(host, {
@@ -173,7 +174,7 @@
     if (!modal) return;
     modal.classList.remove(MODAL_OPEN);
     document.documentElement.style.overflow = '';
-    window.lenis?.start();
+    window.__lenis?.start();
     instance?.dispose();
     instance = null;
     target = null;

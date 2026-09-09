@@ -3,104 +3,55 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 /**
- * Lenis smooth scroll — ported from web/marketing/src/script/scroll.js so the
- * docs feel exactly like the marketing site.
+ * Smooth scroll for the docs, on the shared scroller.
  *
- * Key config (same as web):
- *   lerp:        0.1     (smoother than the older duration+easing pair)
- *   smoothWheel: true
- *   syncTouch:   false
+ * This component used to carry its own copy of the marketing site's scroll.js —
+ * the same three Lenis options, its own rAF loop parked on `window.__bbLenisRaf`
+ * and its own visibilitychange gating — under a comment that said "ported from
+ * web/marketing/src/script/scroll.js so the docs feel exactly like the
+ * marketing site". A port is a promise that holds only until one of the two is
+ * edited. The construction, the tick and the reduced-motion guard now live in
+ * @bagel/ui/lib/lenis; what is left here is the one thing that is genuinely
+ * docs-specific, the `prevent` predicate for Starlight's nested scroll panes.
  *
- * Extras vs. web (because docs is an SPA via Astro ClientRouter):
- *   - visibilitychange gating so RAF stops in background tabs
- *   - astro:after-swap hard-resets scroll so Lenis doesn't smooth
- *     between two unrelated pages
- *   - reduced-motion users get the browser's native scroll
+ * The global it publishes changed name with the move: `window.lenis` ->
+ * `window.__lenis`, which is what the console already used. See the record in
+ * ui/lib/lenis.ts for why the prefixed one won.
  */
 ---
 
 <script>
-    import Lenis from "lenis";
+    import { createSmoothScroll, getSmoothScroll } from "@bagel/ui/lib/lenis";
 
-    type LenisInstance = InstanceType<typeof Lenis>;
+    // Lenis hijacks wheel and touch at the document level and preventDefaults
+    // them, which kills native overflow scrolling inside every nested pane.
+    // Exempt Starlight's own scroll containers (left sidebar, right TOC, mobile
+    // menu) and any dialog so those scroll normally. Called per node up the
+    // event's composed path — return true to hand the gesture back to the
+    // browser. `data-lenis-prevent` stays supported for one-offs.
+    const PANES =
+        "#starlight__sidebar, .right-sidebar, mobile-starlight-toc, dialog, [data-lenis-prevent]";
 
-    declare global {
-        interface Window {
-            lenis?: LenisInstance;
-            __bbLenisRaf?: number;
-        }
-    }
+    // Idempotent in the library: ClientRouter re-runs this script after a swap,
+    // and a second call adopts the live instance rather than building a second
+    // scroller over the same document.
+    createSmoothScroll({
+        prevent: (node) =>
+            typeof node.closest === "function" && node.closest(PANES) !== null,
+    });
 
-    function loaderOwnsViewport() {
-        // Docs has no boot loader — kept as a hook in case one is added later.
-        return false;
-    }
-
-    function startRaf(lenis: LenisInstance) {
-        if (window.__bbLenisRaf) return;
-        const raf = (time: number) => {
-            lenis.raf(time);
-            window.__bbLenisRaf = requestAnimationFrame(raf);
-        };
-        window.__bbLenisRaf = requestAnimationFrame(raf);
-    }
-
-    function stopRaf() {
-        if (!window.__bbLenisRaf) return;
-        cancelAnimationFrame(window.__bbLenisRaf);
-        window.__bbLenisRaf = 0;
-    }
-
-    function init() {
-        if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-        if (window.lenis) return;
-
-        const lenis = new Lenis({
-            lerp: 0.1,
-            smoothWheel: true,
-            syncTouch: false,
-            // Lenis hijacks wheel/touch at the document level and
-            // preventDefaults it, which kills native overflow scrolling
-            // inside any nested pane. Exempt Starlight's own scroll
-            // containers (left sidebar / TOC / mobile menu) and modals so
-            // the menu scrolls normally. Called per node up the event's
-            // composed path — return true to hand the gesture back to the
-            // browser. `data-lenis-prevent` stays supported for one-offs.
-            prevent: (node) =>
-                typeof node.closest === "function" &&
-                node.closest(
-                    "#starlight__sidebar, .right-sidebar, mobile-starlight-toc, dialog, [data-lenis-prevent]"
-                ) !== null,
-        });
-
-        window.lenis = lenis;
-
-        document.addEventListener("visibilitychange", () => {
-            if (document.hidden) {
-                stopRaf();
-            } else if (!loaderOwnsViewport()) {
-                startRaf(lenis);
-            }
-        });
-
-        if (!loaderOwnsViewport()) startRaf(lenis);
-    }
-
-    init();
-
-    // ClientRouter persists `<body>` across navigations. Two perf
-    // considerations:
-    //   1. Lenis's RAF keeps applying scroll transforms during the
-    //      view transition snapshot — that fights the compositor and
-    //      causes the lag the user reported. Pause it for the swap.
-    //   2. Snap scroll to 0 so the new page doesn't smooth-animate
-    //      from the previous page's offset.
+    // ClientRouter persists <body> across navigations. Two considerations:
+    //   1. Lenis's rAF keeps applying scroll transforms while the view
+    //      transition snapshot is taken, which fights the compositor and is the
+    //      lag the user reported. Pause it for the swap.
+    //   2. Snap to 0 afterwards so the new page does not smooth-animate from
+    //      the previous page's offset.
     document.addEventListener("astro:before-preparation", () => {
-        window.lenis?.stop();
+        getSmoothScroll()?.stop();
     });
 
     document.addEventListener("astro:after-swap", () => {
-        const lenis = window.lenis;
+        const lenis = getSmoothScroll();
         if (!lenis) return;
         lenis.scrollTo(0, { immediate: true, force: true });
         lenis.start();
