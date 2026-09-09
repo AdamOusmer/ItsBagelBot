@@ -133,6 +133,38 @@ export function resolveToken(token: VarToken, value: string | null): string {
   return value;
 }
 
+/**
+ * Build one "{name}" / "{name:payload}" span, or null when it would not
+ * survive this lexer intact.
+ *
+ * Every surface that MINTS a span out of a string it did not write — an
+ * importer translating another product's variable, a palette built from a
+ * catalog of token names — goes through here. Those strings can carry the two
+ * bytes the grammar spends: a '}' closes the span at the first one (amputating
+ * the rest) and a '|' re-reads the tail as a fallback. Either byte yields a
+ * token that reads correctly wherever it is displayed and resolves to
+ * something else in chat, which is the one class of bug the person who caused
+ * it cannot see.
+ *
+ * The check is a round trip through lex() rather than a character denylist, so
+ * it cannot fall out of step with the grammar it protects: exactly one var
+ * token, the name asked for (already lower-case — a name this lexer would fold
+ * is refused, because emitting it would make the round trip a lie), the
+ * payload byte for byte, and no fallback nobody asked for.
+ */
+export function intactSpan(name: string, payload: string | null): string | null {
+  const span = payload === null ? `{${name}}` : `{${name}:${payload}}`;
+  // The round trip is written here rather than in a helper beside it: the
+  // check and the span it guards have to move together, and a helper taking
+  // the same name and payload a second time is one more place they can drift.
+  const tokens = lex(span);
+  if (tokens.length !== 1) return null;
+  const token = tokens[0];
+  if (token.kind !== 'var') return null;
+  if (token.name !== name || token.payload !== payload) return null;
+  return token.fallback === null ? span : null;
+}
+
 /** Expand a template with a resolver, returning null from the resolver for a
  * name it does not know. The string-only sibling of pkg/tmpl's Expand; the
  * rehearsal needs per-token segments instead and walks lex() itself. */

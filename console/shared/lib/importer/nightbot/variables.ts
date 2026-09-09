@@ -106,6 +106,7 @@
 // translation would produce a token that renders empty in chat. A warning the
 // broadcaster sees beats a silent blank.
 
+import { intactSpan } from '../validate';
 import { parseFetchArgs } from './fetchdefs';
 import type { FetchSlotSink } from './fetchdefs';
 import { nextToken } from './scan';
@@ -151,9 +152,13 @@ const POSITIONAL = /^([1-9]|[12][0-9]|30)$/;
 // positionalToken translates $(n) into "{n}", or returns null when the token
 // is not a word number this bot can spell. Shared with the Fossabot layer,
 // which writes the same family in the same syntax.
+// The head is interpolated into a span, so it goes out through intactSpan
+// like every other minted token: POSITIONAL already proves it is one or two
+// digits, and the round trip is what keeps that proof next to the emission
+// instead of two screens above it.
 export function positionalToken(token: Token): string | null {
   if (token.rest !== '' || !POSITIONAL.test(token.head)) return null;
-  return `{${token.head}}`;
+  return intactSpan(token.head, null);
 }
 
 const literal = (token: Token): TokenResult => ({ repl: token.raw, warned: true });
@@ -185,7 +190,9 @@ function fetchToken(token: Token, sink?: FetchSlotSink): TokenResult {
   if (!args) return literal(token);
   const key = sink.acquire(args.url);
   if (key === null) return literal(token);
-  return { repl: `{urlfetch:${key}}`, warned: false, jsonFetch: args.json };
+  const span = intactSpan('urlfetch', key);
+  if (span === null) return literal(token);
+  return { repl: span, warned: false, jsonFetch: args.json };
 }
 
 // Warnings collects the distinct tokens a translation could not map, in

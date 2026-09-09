@@ -8,7 +8,7 @@
 
 // --- tag translation (ported from tags.go) ----------------------------------
 
-import { fetchDefSlug } from '../validate';
+import { fetchDefSlug, intactSpan } from '../validate';
 import type { ManifestFetch } from '../types';
 import { IMPORT_ITEM_CAPS } from '../types';
 
@@ -119,12 +119,38 @@ function usableRandomRange(s: number | undefined, e: number | undefined): boolea
   return s >= -(2 ** 63) && e <= 2 ** 63 - 1;
 }
 
+// SPAN_BYTES are the two bytes an option may not carry into a {choice:…}
+// payload: '}' closes the span at the first one, amputating every option after
+// it, and '|' re-reads the tail as the span's fallback.
+const SPAN_BYTES = /[|}]/g;
+
+// choiceKey renders one Moobot random-text list as {choice:a,b,c}.
+//
+// Decision record: a comma REFUSES the tag (returns '', the source-defined
+// no-op) while the two span bytes are STRIPPED, because the two damages differ
+// in kind. A comma is {choice}'s own option separator, so an option carrying
+// one silently turns three options into four and changes what the command can
+// say; there is no repair that preserves the author's intent, so the tag is
+// dropped. '|' and '}' carry no meaning inside an option — they only end the
+// span early — so removing the byte keeps every option and its order and
+// costs one piece of punctuation, which is strictly better than importing a
+// command that says half of what it used to.
+//
+// The result is round-tripped through intactSpan rather than trusted: if the
+// grammar ever spends a third byte, this emits nothing instead of emitting a
+// token that resolves to something the review screen never showed.
 function choiceKey(opts: TextOption[] | undefined): string {
   if (!opts || opts.length === 0) return '';
   for (const o of opts) {
     if (typeof o?.text === 'string' && o.text.includes(',')) return '';
   }
-  return '{choice:' + opts.map((o) => o.text).join(',') + '}';
+  return intactSpan('choice', opts.map(optionText).join(',')) ?? '';
+}
+
+// optionText is one option's payload text: non-string bodies read as empty,
+// matching what Array.join already did with them.
+function optionText(o: TextOption): string {
+  return typeof o?.text === 'string' ? o.text.replace(SPAN_BYTES, '') : '';
 }
 
 // TAG_RENDERERS renders one insertable tag to its canonical replacement.
@@ -141,7 +167,10 @@ const TAG_RENDERERS: Record<string, (ctx: TagContext) => string> = {
   'random.number': randomNumberKey,
   // Moobot counters are per-command; ours are named channel-scope values,
   // keyed by the command's normalized name.
-  counter: (ctx) => `{counter:${ctx.name}}`,
+  // A command name is printable ASCII, which includes the two bytes that end
+  // a span early, so this goes out through intactSpan too; the tag vanishes
+  // (like an unknown tag) rather than shipping an amputated {counter:…}.
+  counter: (ctx) => intactSpan('counter', ctx.name) ?? '',
   'channel.name': () => '{channel}'
 };
 for (let i = 1; i <= 3; i++) TAG_RENDERERS[`random.text.${i}`] = (ctx) => choiceKey(ctx.randomTexts[i - 1]);
@@ -220,8 +249,13 @@ function renderUrlfetchTag(render: TagRender, tag: string, slot: number | null):
     noteUnmappedTag(render, tag);
     return `<${tag}>`;
   }
+  const span = intactSpan('urlfetch', key);
+  if (span === null) {
+    noteUnmappedTag(render, tag);
+    return `<${tag}>`;
+  }
   if (!render.res.fetchRefs.some((r) => r.tag === tag)) render.res.fetchRefs.push({ tag, key });
-  return `{urlfetch:${key}}`;
+  return span;
 }
 
 // noteUnmappedTag records a first-of-kind warning for a known-but-unmappable

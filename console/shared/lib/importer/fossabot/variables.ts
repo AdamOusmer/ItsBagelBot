@@ -110,6 +110,7 @@
 // differently, or randomizes, and a wrong mapping is worse than visible
 // untranslated text the broadcaster can fix in review.
 
+import { intactSpan } from '../validate';
 import { parseFetchArgs } from '../nightbot/fetchdefs';
 import type { FetchSlotSink } from '../nightbot/fetchdefs';
 import { nextToken } from '../nightbot/scan';
@@ -202,7 +203,9 @@ function fetchToken(token: Token, sink?: FetchSlotSink): TokenResult {
   if (!args) return literal(token);
   const key = sink.acquire(args.url);
   if (key === null) return literal(token);
-  return { repl: `{urlfetch:${key}}`, warned: false };
+  const span = intactSpan('urlfetch', key);
+  if (span === null) return literal(token);
+  return { repl: span, warned: false };
 }
 
 // expandReferences inlines $(references other) with the referenced command's

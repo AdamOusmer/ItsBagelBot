@@ -359,6 +359,65 @@ function commandChain(samples: Samples): SampleScope[] {
   ];
 }
 
+/**
+ * Whether any scope on the custom-command chain claims `name` (lower-cased,
+ * as ./tmpl folds it).
+ *
+ * This is the one published answer to "does the core already resolve this
+ * token?", so a palette chip, a builder catalog entry or a guide example can
+ * be ASSERTED against the chain instead of being matched by a hand-written
+ * regex that has to be kept in step with it. The marketing site's command
+ * builder carried such a regex and it had already drifted: it missed
+ * {pointsname}, which VIEWER_SCOPE has owned since the loyalty tokens landed,
+ * so the builder shipped a sample value for a token the core resolves.
+ *
+ * COMMAND_SAMPLES is passed because messageScope takes its sample map, but no
+ * scope's `owns` reads it: ownership is a fact about the name, values are not.
+ *
+ * The conditional is owned without being a scope: {if:…} is resolved by the
+ * renderer (segFor -> parseCond), one level above the chain, because it reads
+ * the value of the token its cond NAMES rather than one of its own. It belongs
+ * in this answer all the same — a surface must not hand the core a sample
+ * value for "if".
+ */
+export function ownedByCore(name: string): boolean {
+  if (name === COND_TOKEN_NAME) return true;
+  return commandChain(COMMAND_SAMPLES).some((scope) => scope.owns(name));
+}
+
+/** The span name ./tmpl's parseCond claims. */
+const COND_TOKEN_NAME = 'if';
+
+/** Which chain a surface rehearses against: a custom command's full scope
+ * chain, or a module reply's (the dice plus that reply's own token map). */
+export type ChainKind = 'command' | 'reply';
+
+/**
+ * Whether the core answers `name` from a stand-in of ITS OWN on that chain —
+ * i.e. whether a sample value a surface hands in for it would simply never be
+ * read.
+ *
+ * This is the question a surface building a sample map actually has, and it is
+ * NOT the same as ownedByCore. Two scopes read the caller's values rather than
+ * carrying their own:
+ *
+ *   - the message scope, on the command chain: rehearseCommand's overrides are
+ *     exactly its values, so a surface that wants its own {user} gets it.
+ *   - the reply chain's own token map, which is the caller's map entire; only
+ *     the dice (scope.Pure, mounted ahead of it) answer for themselves there.
+ *
+ * The marketing builder asked this with a hand-written 40-branch regex over
+ * token text, which is why {pointsname} shipped a sample the viewer scope then
+ * ignored, and why {time} and {points} were suppressed on module-reply
+ * surfaces that DO resolve them — the regex could not tell the two chains
+ * apart, and a name that means one thing on one chain means another on the
+ * other.
+ */
+export function resolvedWithoutSample(name: string, kind: ChainKind): boolean {
+  if (kind === 'reply') return PURE_SCOPE.owns(name);
+  return !messageOwns(name) && ownedByCore(name);
+}
+
 /** A module reply resolves only its own token map, plus the dynamic set when
  * that module falls back to ParseDynamic. There is no message, counter or
  * utility scope: a module reply is not a custom command, and the Go side
@@ -441,9 +500,16 @@ function isInstant(payload: string): boolean {
  * the empty payload is the rest-of-args form. */
 function messageScope(samples: Samples): SampleScope {
   return {
-    owns: (name) => MESSAGE_NAMES.has(name) || positionalIndex(name) !== null,
+    owns: messageOwns,
     get: (token) => messageSample(token, samples)
   };
+}
+
+/** The message scope's ownership, as a plain predicate: it is asked outside
+ * the chain too (see resolvedWithoutSample), because this is the ONE scope
+ * whose values a caller supplies. */
+function messageOwns(name: string): boolean {
+  return MESSAGE_NAMES.has(name) || positionalIndex(name) !== null;
 }
 
 function messageSample(token: Token, samples: Samples): string | null {

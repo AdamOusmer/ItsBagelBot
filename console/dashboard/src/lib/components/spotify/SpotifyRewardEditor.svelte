@@ -121,9 +121,13 @@
   <Field label={t('spotify.fieldReply')} tag={t('common.optional')}>
     <ResponseEditor bind:value={replyMessage} name="replyMessage" tokens={REPLY_TOKENS} placeholder={DEFAULT_REPLY} />
   </Field>
-  <!-- kind="reply" + dynamic={false}: the spotify reply is a bare
-       {user}/{track}/{input} string replacer: nothing else ever expands. -->
-  <ChatPreview kind="reply" dynamic={false} response={replyMessage || DEFAULT_REPLY} showViewer={false} tag={t('spotify.previewTag')} samples={replySamples} />
+  <!-- kind="reply": the song-queue redeem substitutes {user}/{track}/{input}
+       plus the dynamic set ({random}/{choice:…}), like every other reward
+       reply. It used to carry dynamic={false} because this surface fell
+       through to a bare string replacer while the channel-points reply
+       expanded the dice; the engine now resolves dynamics on EVERY reward
+       surface, so the preview does too. -->
+  <ChatPreview kind="reply" response={replyMessage || DEFAULT_REPLY} showViewer={false} tag={t('spotify.previewTag')} samples={replySamples} />
 
   <Field label={t('spotify.afterTitle')}>
     <select class="input" name="onRedeem" bind:value={onRedeem}>

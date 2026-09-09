@@ -154,6 +154,39 @@ describe('urlfetch token scanning', () => {
     ]);
   });
 
+  // The hand scanner these two functions replaced looked for the literal bytes
+  // '{urlfetch' and the next '}'. It was wrong about the shipped grammar in
+  // two ways; both are pinned here by name so a revert fails loudly.
+  test('a fallback belongs to the span, not to the definition name', () => {
+    // Old behaviour: name "weather|n/a", and the span reported as malformed.
+    expect(urlFetchNames('temp is {urlfetch:weather|n/a}')).toEqual(['weather']);
+    expect(malformedUrlFetchTokens('temp is {urlfetch:weather|n/a}')).toEqual([]);
+    // Only the LAST pipe splits, so a payload keeping one is still refused.
+    expect(malformedUrlFetchTokens('{urlfetch:a|b|c}')).toEqual(['{urlfetch:a|b|c}']);
+  });
+
+  test('token names are case-insensitive, as the lexer folds them', () => {
+    // Old behaviour: both invisible to the console while sesame planned them.
+    expect(urlFetchNames('{URLFETCH:Weather}')).toEqual(['weather']);
+    expect(malformedUrlFetchTokens('{UrlFetch:}')).toEqual(['{UrlFetch:}']);
+  });
+
+  test('distinct definitions are counted the way scope.External keys them', () => {
+    // Spellings of ONE definition collapse: case, the leading "!", surrounding
+    // space and a fallback are all folded away before the dedupe.
+    expect(urlFetchNames('{urlfetch:w} {URLFETCH:W} {urlfetch: w } {urlfetch:!w} {urlfetch:w|-}')).toEqual(['w']);
+    // Distinct dotted paths are distinct fetches, not one.
+    expect(urlFetchNames('{urlfetch:w.temp} {urlfetch:w.hum}')).toEqual(['w.temp', 'w.hum']);
+  });
+
+  test('the urlfetch cap counts definitions, not spans', () => {
+    const fields = { ...validFields, name: 'weather' };
+    const repeated = '{urlfetch:w} {URLFETCH:w} {urlfetch:w|-} {urlfetch:w.a}';
+    expect(validateCommand({ ...fields, response: repeated }).response).toBeUndefined();
+    const four = '{urlfetch:a} {urlfetch:b} {urlfetch:c} {urlfetch:d}';
+    expect(validateCommand({ ...fields, response: four }).response).toContain('at most');
+  });
+
   test('dotted path parse/build round-trip', () => {
     expect(buildJsonPath(['forecast', 'current', 'temp_f'])).toBe('forecast.current.temp_f');
     expect(parseJsonPath('forecast.current.temp_f')).toEqual(['forecast', 'current', 'temp_f']);

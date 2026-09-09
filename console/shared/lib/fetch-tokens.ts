@@ -5,6 +5,7 @@
 // building/parsing, and the response scanners the editor and validators share.
 
 import { FETCH_NAME_MAX, PATH_SEGMENT_RE } from './fetch-validate';
+import { lex, type VarToken } from './tmpl';
 
 /** The bare trigger discipline of normName applied to a def slug: trim,
  * lower-case, fold every non-grammar rune run to "_", trim "_" edges. Empty
@@ -48,66 +49,92 @@ export function parseJsonPath(dotted: string): string[] | null {
   return segments;
 }
 
+/** The token name the fetch family answers to, as ./tmpl folds it. */
+const URLFETCH = 'urlfetch';
+
 /**
- * Distinct `{urlfetch:<payload>}` payloads in first-appearance order: the
- * byte-for-byte twin of sesame's urlFetchNames scan (fast-path Contains, then
- * Index('{urlfetch:') / IndexByte('}')). Payloads fold to lower-case because
- * def names are stored bare/lower-case; repeats collapse so one definition
- * referenced three times still costs one fetch, exactly as the engine dedupes.
+ * Fold one span's payload into the definition key the engine plans against:
+ * scope.NormalizeName — trim, strip ONE leading "!", trim, lower-case — over
+ * the WHOLE payload, dotted path included, because scope.External keys its
+ * fetched values by exactly that string ({urlfetch:w.temp} and
+ * {urlfetch:w.hum} are two distinct fetches, `{urlfetch:Temp}` and
+ * `{URLFETCH:temp}` are one).
+ *
+ * '' means the span names no definition ({urlfetch} / {urlfetch:}), which the
+ * engine leaves literal.
+ */
+export function fetchDefKey(payload: string | null): string {
+  if (payload === null) return '';
+  return payload.trim().replace(/^!/, '').trim().toLowerCase();
+}
+
+/**
+ * Every `{urlfetch…}` span, in first-appearance order, as the SHARED lexer
+ * reads them.
+ *
+ * Decision record: this used to hand-scan for the literal bytes '{urlfetch',
+ * then for the next '}'. That scan was wrong about the grammar it claimed to
+ * mirror in two ways the engine has never shared: it was case-SENSITIVE (so
+ * `{URLFETCH:weather}` was invisible here while sesame planned it, because
+ * tmpl lower-cases every token name), and it read the fallback as part of the
+ * payload (so `{urlfetch:weather|n/a}` yielded the bogus definition name
+ * "weather|n/a" and was reported to the author as malformed, while the bot
+ * fetched "weather" and printed "n/a" on an empty answer). Going through lex()
+ * is what makes those two impossible rather than merely fixed.
+ */
+function fetchSpans(response: string): VarToken[] {
+  if (!response.includes('{')) return [];
+  return lex(response).filter((t): t is VarToken => t.kind === 'var' && t.name === URLFETCH);
+}
+
+/**
+ * Distinct definition keys a response references, in first-appearance order.
+ * Repeats collapse so one definition referenced three times still costs one
+ * fetch, exactly as scope.External's fetchNames dedupes.
  */
 export function urlFetchNames(response: string): string[] {
-  if (!response.includes('{urlfetch')) return [];
   const out: string[] = [];
   const seen = new Set<string>();
-  for (const s of fetchSpans(response).spans) {
-    const name = (s.payload ?? '').toLowerCase();
-    if (name !== '' && !seen.has(name)) {
-      seen.add(name);
-      out.push(name);
-    }
+  for (const span of fetchSpans(response)) {
+    const name = fetchDefKey(span.payload);
+    if (name === '' || seen.has(name)) continue;
+    seen.add(name);
+    out.push(name);
   }
   return out;
 }
 
+function malformedFetchSpan(span: VarToken): boolean {
+  const key = fetchDefKey(span.payload);
+  if (key === '') return true;
+  if (key.includes(':')) return true;
+  return parseJsonPath(key) === null;
+}
+
 /**
- * `{urlfetch…` spans that can never resolve: unclosed brace, empty payload,
+ * An unterminated "{urlfetch…" tail, or null.
+ *
+ * The lexer deliberately opens NO span for a '{' with no '}' after it — the
+ * rest of the template is one literal run, which is exactly what chat prints —
+ * so this tail cannot come out of lex() and is recognised here instead of
+ * pretending the lexer produced a span for it.
+ */
+function danglingFetchSpan(response: string): string | null {
+  const open = response.lastIndexOf('{');
+  if (open < 0 || response.includes('}', open)) return null;
+  const tail = response.slice(open);
+  return tail.slice(1, 1 + URLFETCH.length).toLowerCase() === URLFETCH ? tail : null;
+}
+
+/**
+ * `{urlfetch…}` spans that can never resolve: unclosed brace, empty payload,
  * or a payload failing the name/path grammar. The source view flags these
  * verbatim (mark.unknown treatment): typos stay visible, matching the
  * engine's leave-unknown-tokens-literal rule.
  */
-
-interface FetchSpan {
-  span: string;
-  /** Text after the first ':' inside the braces; null when the token has none. */
-  payload: string | null;
-}
-
-// fetchSpans walks every '{urlfetch'-prefixed span; dangling carries an
-// unclosed trailing token verbatim.
-function fetchSpans(response: string): { spans: FetchSpan[]; dangling: string | null } {
-  const spans: FetchSpan[] = [];
-  let i = response.indexOf('{urlfetch');
-  while (i >= 0) {
-    const end = response.indexOf('}', i + 1);
-    if (end < 0) return { spans, dangling: response.slice(i) };
-    const span = response.slice(i, end + 1);
-    const body = span.slice(1, -1);
-    const colon = body.indexOf(':');
-    spans.push({ span, payload: colon < 0 ? null : body.slice(colon + 1) });
-    i = response.indexOf('{urlfetch', end);
-  }
-  return { spans, dangling: null };
-}
-
-function malformedFetchSpan(s: FetchSpan): boolean {
-  if (s.payload === null || s.payload === '') return true;
-  if (s.payload.includes(':')) return true;
-  return parseJsonPath(s.payload.toLowerCase()) === null;
-}
-
 export function malformedUrlFetchTokens(response: string): string[] {
-  const { spans, dangling } = fetchSpans(response);
-  const bad = spans.filter(malformedFetchSpan).map((s) => s.span);
+  const bad = fetchSpans(response).filter(malformedFetchSpan).map((span) => span.raw);
+  const dangling = danglingFetchSpan(response);
   if (dangling !== null) bad.push(dangling);
   return bad;
 }
