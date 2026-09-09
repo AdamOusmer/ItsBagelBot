@@ -2,16 +2,26 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { page } from '$app/state';
-  import { AuroraBg, LightField } from '@bagel/shared';
+  import AuroraBg from '@bagel/shared/components/AuroraBg.svelte';
+  import LightField from '@bagel/shared/components/LightField.svelte';
+  import { getI18n } from '@bagel/shared/i18n/context';
 
-  const err = $derived(page.url.searchParams.get('e'));
-  const messages: Record<string, string> = {
-    denied: 'That Twitch account is not on the staff allowlist.',
-    state: 'Sign-in expired or was tampered with. Try again.',
-    oauth: 'Twitch rejected the sign-in. Try again.',
-    scope: 'Missing required permission.'
-  };
-  const notice = $derived(err ? messages[err] : undefined);
+  const { t } = getI18n();
+
+  // The `e` query parameter is written by the OAuth callback, which is where
+  // these four cases are decided. A table rather than a chain: the callback can
+  // grow a fifth reason, and an unrecognised one must fall through to no notice
+  // rather than to the wrong one.
+  const MESSAGES = {
+    denied: 'admin.login.errDenied',
+    state: 'admin.login.errState',
+    oauth: 'admin.login.errOauth',
+    scope: 'admin.login.errScope'
+  } as const;
+
+  const err = $derived(page.url.searchParams.get('e') ?? '');
+  const noticeKey = $derived(MESSAGES[err as keyof typeof MESSAGES]);
+  const notice = $derived(noticeKey ? t(noticeKey) : undefined);
 </script>
 
 <AuroraBg />
@@ -19,11 +29,11 @@
 
 <main class="login">
   <div class="panel">
-    <img src="/logo.png" alt="ItsBagelBot" />
-    <div class="name">ItsBagelBot</div>
-    <div class="sub">Admin Console</div>
+    <img src="/logo.png" alt={t('common.appName')} />
+    <div class="name">{t('common.appName')}</div>
+    <div class="sub">{t('admin.login.sub')}</div>
     {#if notice}<p class="notice">{notice}</p>{/if}
-    <p class="lede">Operator access. Sign in with the Twitch account on the staff allowlist.</p>
+    <p class="lede">{t('admin.login.lede')}</p>
     <a href="/auth/login" class="btn primary twitch">
       <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
         <path
@@ -31,7 +41,7 @@
           d="M4 3h17v11l-5 5h-4l-3 3H6v-3H2V7l2-4Zm15 10V5H6v11h4v3l3-3h6l0-3Zm-4-5h2v5h-2V8Zm-5 0h2v5h-2V8Z"
         />
       </svg>
-      Sign in with Twitch
+      {t('admin.login.cta')}
     </a>
   </div>
 </main>
