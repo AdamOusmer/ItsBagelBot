@@ -14,6 +14,7 @@ import (
 	"ItsBagelBot/internal/activity"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/tmpl"
 
 	"go.uber.org/zap"
 )
@@ -174,7 +175,7 @@ func onAlert[T any](pick func(alertsConfig) (bool, string), fallback string, ren
 	return func(ctx context.Context, c *module.Context, emit module.Emit) error {
 		var cfg alertsConfig
 		_ = c.Decode(&cfg)
-		enabled, tmpl := pick(cfg)
+		enabled, text := pick(cfg)
 		if !enabled || len(c.Env.Event) == 0 {
 			return nil
 		}
@@ -186,14 +187,14 @@ func onAlert[T any](pick func(alertsConfig) (bool, string), fallback string, ren
 		if !ok {
 			return nil
 		}
-		if tmpl == "" {
-			tmpl = fallback
+		if text == "" {
+			text = fallback
 		}
-		msg := module.ExpandString(tmpl, func(key string) (string, bool) {
-			if v, found := line.tokens[key]; found {
+		msg := module.ExpandString(text, func(tok tmpl.Token) (string, bool) {
+			if v, found := line.tokens[tok.Key()]; found {
 				return v, true
 			}
-			return module.ParseDynamic(key)
+			return tmpl.Dynamic(tok)
 		})
 		emit(&module.Output{
 			Type:          outgress.TypeChat,

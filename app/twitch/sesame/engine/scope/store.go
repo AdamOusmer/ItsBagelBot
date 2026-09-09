@@ -6,6 +6,8 @@ package scope
 import (
 	"context"
 	"strings"
+
+	"ItsBagelBot/pkg/tmpl"
 )
 
 // The two tokens this scope answers. {counter:deaths} bumps the broadcaster's
@@ -40,13 +42,16 @@ const botCounterPrefix = "bot:"
 const targetCounterPrefix = "target:"
 
 // NormalizeName folds a counter name the way the loyalty store does: trim,
-// drop one leading '!', trim again, lower-case. It lives here rather than in
-// the engine because the token grammar has to fold a payload BEFORE the store
-// is reached (so "{COUNTER:Deaths}" and "{counter:deaths}" are one bump, not
-// two), and engine.NormalizeCounterName delegates to it so the two can never
-// answer differently.
+// drop one leading '!', trim again, lower-case.
+//
+// The fold itself moved to tmpl.NormalizeName, because it is part of the
+// token grammar and the command repository (app/db) has to apply the same one
+// to answer "which commands reference this urlfetch definition" — and app/db
+// may not import sesame. This name stays as the spelling every scope and
+// engine.NormalizeCounterName already reads, delegating so the three can
+// never answer differently.
 func NormalizeName(name string) string {
-	return strings.ToLower(strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(name), "!")))
+	return tmpl.NormalizeName(name)
 }
 
 // Counters is the bump the store scope delegates to. The engine implements it

@@ -3,57 +3,29 @@
 
 package module
 
-import (
-	"math/rand/v2"
-	"strconv"
-	"strings"
+import "ItsBagelBot/pkg/tmpl"
 
-	"ItsBagelBot/pkg/tmpl"
-)
-
-// Expand performs a single-pass {key} substitution over s, appending the
+// Expand performs a single-pass {token} substitution over s, appending the
 // result into dst and returning the grown slice. It allocates nothing of its
 // own: the caller passes a pooled scratch buffer (see GetBuf) as dst.
 //
 // It is a thin delegation to pkg/tmpl, which owns the scanner and documents
 // its brace, case and unknown-token rules. The name stays here because every
-// module and the engine's own variable expansion speak in terms of it, and
-// because a module's repl closure is what adds the ParseDynamic fallthrough
-// the shared scanner deliberately knows nothing about.
-func Expand(dst []byte, s string, repl func(key string) (val string, ok bool)) []byte {
+// module and the engine's own variable expansion speak in terms of it.
+//
+// repl is handed the lexed tmpl.Token, not a key string: a module that wants
+// the whole "name:payload" lookup calls tok.Key(), and one that wants the
+// payload alone reads tok.Payload instead of splitting the key back apart.
+// That is the point of the type — no surface outside pkg/tmpl re-parses a
+// span.
+func Expand(dst []byte, s string, repl func(tok tmpl.Token) (val string, ok bool)) []byte {
 	return tmpl.Append(dst, s, repl)
 }
 
 // ExpandString wraps Expand for callers who do not pool their own buffers,
 // returning a newly allocated string.
-func ExpandString(s string, repl func(key string) (val string, ok bool)) string {
+func ExpandString(s string, repl func(tok tmpl.Token) (val string, ok bool)) string {
 	return tmpl.Expand(s, repl)
-}
-
-// ParseDynamic evaluates generic dynamic variables like {random}, {random:min-max},
-// or {choice:a,b,c}. Callers can fall back to this in their repl callbacks.
-func ParseDynamic(key string) (string, bool) {
-	if key == "random" {
-		return strconv.Itoa(rand.IntN(100) + 1), true
-	}
-	if strings.HasPrefix(key, "random:") {
-		parts := strings.SplitN(strings.TrimPrefix(key, "random:"), "-", 2)
-		if len(parts) == 2 {
-			min, err1 := strconv.Atoi(parts[0])
-			max, err2 := strconv.Atoi(parts[1])
-			if err1 == nil && err2 == nil && max >= min {
-				return strconv.Itoa(rand.IntN(max-min+1) + min), true
-			}
-		}
-		return "", false
-	}
-	if strings.HasPrefix(key, "choice:") {
-		choices := strings.Split(strings.TrimPrefix(key, "choice:"), ",")
-		if len(choices) > 0 {
-			return choices[rand.IntN(len(choices))], true
-		}
-	}
-	return "", false
 }
 
 // TokenExpander maps a template token name to the accessor that renders it
@@ -68,14 +40,14 @@ func ParseDynamic(key string) (string, bool) {
 type TokenExpander[R any] map[string]func(*R) string
 
 // Expand renders tmpl over r: a {token} this palette knows resolves from the
-// reply, anything else falls through to the generic dynamic vars ({random},
+// reply, anything else falls through to the generic dynamic spans ({random},
 // {choice:…}) and is left literal when even those do not know it.
-func (t TokenExpander[R]) Expand(tmpl string, r *R) string {
-	return ExpandString(tmpl, func(key string) (string, bool) {
-		if field, ok := t[key]; ok {
+func (t TokenExpander[R]) Expand(text string, r *R) string {
+	return ExpandString(text, func(tok tmpl.Token) (string, bool) {
+		if field, ok := t[tok.Key()]; ok {
 			return field(r), true
 		}
-		return ParseDynamic(key)
+		return tmpl.Dynamic(tok)
 	})
 }
 
@@ -95,12 +67,12 @@ type StringPalette map[string]string
 // {choice:…}) and is left literal when even those do not know it. This is the
 // same resolution order TokenExpander uses, so a broadcaster's template
 // behaves identically whichever palette answers it.
-func (p StringPalette) Expand(tmpl string) string {
-	return ExpandString(tmpl, func(key string) (string, bool) {
-		if val, ok := p[key]; ok {
+func (p StringPalette) Expand(text string) string {
+	return ExpandString(text, func(tok tmpl.Token) (string, bool) {
+		if val, ok := p[tok.Key()]; ok {
 			return val, true
 		}
-		return ParseDynamic(key)
+		return tmpl.Dynamic(tok)
 	})
 }
 

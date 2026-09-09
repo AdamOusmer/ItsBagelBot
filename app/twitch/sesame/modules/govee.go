@@ -14,6 +14,7 @@ import (
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/tmpl"
 
 	"go.uber.org/zap"
 )
@@ -188,20 +189,27 @@ const defaultGoveeReply = "@{user} set the lights to {color}!"
 // renderGoveeReply fills the reply template's {user} and {color} tokens for one
 // redemption, falling back to defaultGoveeReply when the template is blank.
 // Expansion goes through module.ExpandString so token names are
-// case-insensitive; anything else stays literal (no dynamic tokens here).
-func renderGoveeReply(tmpl string, ev redemptionEvent, color string) string {
-	if strings.TrimSpace(tmpl) == "" {
-		tmpl = defaultGoveeReply
+// case-insensitive.
+//
+// The dynamic fallthrough ({random}, {choice:a,b}) is deliberate and is a
+// behaviour CHANGE, pinned by TestGoveeReplyResolvesDynamic. This surface and
+// songqueue_redeem were the only two reward templates that ended their switch
+// in `return "", false` instead of the dynamic vars, so the same template
+// behaved differently depending on which reward it was pasted into. See the
+// longer record on renderSongqueueRedeemReply.
+func renderGoveeReply(text string, ev redemptionEvent, color string) string {
+	if strings.TrimSpace(text) == "" {
+		text = defaultGoveeReply
 	}
 	user := strings.TrimPrefix(displayName(ev.UserName, ev.UserLogin), "@")
-	return module.ExpandString(tmpl, func(key string) (string, bool) {
-		switch key {
+	return module.ExpandString(text, func(tok tmpl.Token) (string, bool) {
+		switch tok.Key() {
 		case "user":
 			return user, true
 		case "color":
 			return color, true
 		default:
-			return "", false
+			return tmpl.Dynamic(tok)
 		}
 	})
 }

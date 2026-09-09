@@ -492,6 +492,12 @@ func findTimer(timers []timerDef, id string) (timerDef, bool) {
 // checked at save time; this only covers drift), then whichever premium/
 // standard lane the broadcaster's own tier resolves to.
 func (s *ValkeyTimerStore) fire(ctx context.Context, broadcasterID uint64, td timerDef) {
+	// td.Message is posted RAW: a timer expands no tokens. There is no chatter,
+	// no command args and no message context behind a timer tick, so the
+	// message half of the palette has nothing to resolve against, and the
+	// scope chain is built per command run rather than per tick. Anyone
+	// adding {token} chips to the timers editor has to wire a chain here
+	// first — pasting the chip list in without one would print braces in chat.
 	if term, hit := moderation.CheckFloor(td.Message); hit {
 		s.log.Warn("timers: suppressed message carrying floor content",
 			module.BIDField(broadcasterID), zap.String("timer_id", td.ID), zap.String("term", term))

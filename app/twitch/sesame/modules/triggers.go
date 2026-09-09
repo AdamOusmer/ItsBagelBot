@@ -14,6 +14,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/tmpl"
 )
 
 // maxTriggers caps how many trigger rules the module evaluates per message. A
@@ -295,11 +296,11 @@ func (l triggerLine) firstReply(rules []triggerWord) (string, bool) {
 		if !tw.matches(text) {
 			continue
 		}
-		msg := module.ExpandString(tw.Response, func(key string) (string, bool) {
-			if key == "user" {
+		msg := module.ExpandString(tw.Response, func(tok tmpl.Token) (string, bool) {
+			if tok.Key() == "user" {
 				return l.user, true
 			}
-			return module.ParseDynamic(key)
+			return tmpl.Dynamic(tok)
 		})
 		if msg == "" {
 			return "", false

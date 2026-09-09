@@ -55,7 +55,7 @@ func TestCondNeedsTwoParts(t *testing.T) {
 		if _, ok := Lex(in)[0].Cond(); ok {
 			t.Errorf("Cond(%q) = a conditional, want literal passthrough", in)
 		}
-		if got := Expand(in, func(string) (string, bool) { return "", false }); got != in {
+		if got := Expand(in, func(Token) (string, bool) { return "", false }); got != in {
 			t.Errorf("Expand(%q) = %q, want it literal", in, got)
 		}
 	}
@@ -64,8 +64,8 @@ func TestCondNeedsTwoParts(t *testing.T) {
 // TestCondBranchIsLiteral pins the no-nesting rule: a reference is one level
 // deep, so a token spelled inside then or else is text and nothing expands it.
 func TestCondBranchIsLiteral(t *testing.T) {
-	repl := func(key string) (string, bool) {
-		val, ok := map[string]string{"user": "bob", "touser": ""}[key]
+	repl := func(tok Token) (string, bool) {
+		val, ok := map[string]string{"user": "bob", "touser": ""}[tok.Key()]
 		return val, ok
 	}
 	if got := Expand("{if:user:hi bob:hi nobody}", repl); got != "hi bob" {
@@ -113,7 +113,7 @@ func splitsAs(tok Token, name, payload string) bool {
 // something nothing resolves is a typo or a module that is off, and taking the
 // else branch would hide both.
 func TestCondUnknownStaysLiteral(t *testing.T) {
-	repl := func(string) (string, bool) { return "", false }
+	repl := func(Token) (string, bool) { return "", false }
 	for _, in := range []string{"{if:missing:x}", "{if:missing:x:y}", "{if:missing=1:x:y}"} {
 		if got := Expand(in, repl); got != in {
 			t.Errorf("Expand(%q) = %q, want it literal", in, got)

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"ItsBagelBot/app/twitch/sesame/module"
+	"ItsBagelBot/pkg/tmpl"
 )
 
 // Pure answers the tokens that depend on nothing outside the span itself:
@@ -21,12 +21,12 @@ import (
 // It is always mounted — there is no dependency to be missing — and is first
 // in the chain so a later scope can never shadow the dice.
 //
-// The utilities are NOT part of module.ParseDynamic, and that split is
-// deliberate: ParseDynamic is the fallback palette every module REPLY template
-// resolves against (alerts, rewards, trigger words), and those templates are
-// one line of copy, not a place to compute. Keeping the utilities in the
-// command scope means "the palette a custom command has" is one list in one
-// place, and a module reply keeps the small, obvious palette it always had.
+// The utilities are NOT part of tmpl.Dynamic, and that split is deliberate:
+// Dynamic is the fallback palette every module REPLY template resolves
+// against (alerts, rewards, trigger words), and those templates are one line
+// of copy, not a place to compute. Keeping the utilities in the command scope
+// means "the palette a custom command has" is one list in one place, and a
+// module reply keeps the small, obvious palette it always had.
 type Pure struct {
 	// Now is the clock {countdown}/{countup} measure against. A nil Now means
 	// time.Now; a test pins it so a rendered span is an assertion rather than
@@ -56,7 +56,7 @@ var pureUtils = map[string]func(Pure, string) string{
 func (p Pure) countdownUtil(payload string) string { return p.countdown(payload) }
 func (p Pure) countupUtil(payload string) string   { return p.countup(payload) }
 
-// Owns claims the two generic dynamic names module.ParseDynamic answers, plus
+// Owns claims the two generic dynamic names tmpl.Dynamic answers, plus
 // the payload utilities above.
 func (Pure) Owns(name string) bool {
 	if name == "random" || name == "choice" {
@@ -86,7 +86,7 @@ type pureValues struct{ p Pure }
 func (v pureValues) Get(tok Var) (string, bool) {
 	util, ok := pureUtils[tok.Name]
 	if !ok {
-		return module.ParseDynamic(tok.Key())
+		return tmpl.Dynamic(tok)
 	}
 	// A utility with no payload names nothing to work on: {math} is not the
 	// token, {math:1+1} is. It stays literal (ok=false) like any other name

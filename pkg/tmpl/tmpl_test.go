@@ -63,7 +63,8 @@ func TestExpandPinsLegacyBehaviour(t *testing.T) {
 	}
 }
 
-func pinRepl(key string) (string, bool) {
+func pinRepl(tok Token) (string, bool) {
+	key := tok.Key()
 	v, ok := pinTokens[key]
 	return v, ok
 }

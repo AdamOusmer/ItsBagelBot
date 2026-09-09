@@ -7,11 +7,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"ItsBagelBot/pkg/tmpl"
 )
 
 func TestExpandGenericRepl(t *testing.T) {
-	repl := func(key string) (string, bool) {
-		switch key {
+	repl := func(tok tmpl.Token) (string, bool) {
+		switch tok.Key() {
 		case "raider":
 			return "CoolStreamer", true
 		case "viewers":
@@ -25,8 +27,8 @@ func TestExpandGenericRepl(t *testing.T) {
 }
 
 func TestExpandString(t *testing.T) {
-	repl := func(key string) (string, bool) {
-		switch key {
+	repl := func(tok tmpl.Token) (string, bool) {
+		switch tok.Key() {
 		case "raider":
 			return "CoolStreamer", true
 		case "viewers":
@@ -40,9 +42,9 @@ func TestExpandString(t *testing.T) {
 }
 
 func TestExpandKeyCaseInsensitive(t *testing.T) {
-	repl := func(key string) (string, bool) {
+	repl := func(tok tmpl.Token) (string, bool) {
 		// Keys arrive with the name lowercased; the payload keeps its case.
-		switch {
+		switch key := tok.Key(); {
 		case key == "user":
 			return "sam", true
 		case key == "choice:Hi,Yo":
@@ -55,11 +57,10 @@ func TestExpandKeyCaseInsensitive(t *testing.T) {
 	assert.Equal(t, "sam says Hi to sam", got)
 }
 
-func TestParseDynamicCaseInsensitiveViaExpand(t *testing.T) {
-	// {Random:5-5} normalizes to random:5-5 before ParseDynamic sees it.
-	got := ExpandString("{Random:5-5}", func(key string) (string, bool) {
-		return ParseDynamic(key)
-	})
+func TestDynamicCaseInsensitiveViaExpand(t *testing.T) {
+	// {Random:5-5} lexes to name "random", payload "5-5" before Dynamic sees
+	// it, so the fold is the lexer's and not repeated here.
+	got := ExpandString("{Random:5-5}", tmpl.Dynamic)
 	assert.Equal(t, "5", got)
 }
 

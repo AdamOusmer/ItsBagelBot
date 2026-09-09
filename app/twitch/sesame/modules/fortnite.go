@@ -13,6 +13,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/i18n"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
+	"ItsBagelBot/pkg/tmpl"
 
 	"go.uber.org/zap"
 )
@@ -216,8 +217,8 @@ func fortniteSessionText(cfg fortniteConfig, reply *gossiprpc.FortniteSessionRep
 	if !reply.HasSnapshot {
 		return reply.Player + ": session tracking just started, come back after a few games!"
 	}
-	return module.ExpandString(orDefault(cfg.SessionMessage, defaultFortniteSessionTemplate), func(key string) (string, bool) {
-		switch key {
+	return module.ExpandString(orDefault(cfg.SessionMessage, defaultFortniteSessionTemplate), func(tok tmpl.Token) (string, bool) {
+		switch tok.Key() {
 		case "player":
 			return reply.Player, true
 		case "wins":
@@ -231,7 +232,7 @@ func fortniteSessionText(cfg fortniteConfig, reply *gossiprpc.FortniteSessionRep
 		case "winrate":
 			return trimScore(reply.WinRate), true
 		}
-		return module.ParseDynamic(key)
+		return tmpl.Dynamic(tok)
 	})
 }
 
@@ -280,8 +281,8 @@ func fortniteStoreRun(d engine.Deps) module.RunFunc {
 			// {items} needs the channel's locale for its "+N more" tail, which
 			// a TokenExpander palette has no way to reach, so this command
 			// renders its own template rather than declaring one.
-			return module.ExpandString(orDefault(call.Cfg.StoreMessage, defaultFortniteStoreTemplate), func(key string) (string, bool) {
-				switch key {
+			return module.ExpandString(orDefault(call.Cfg.StoreMessage, defaultFortniteStoreTemplate), func(tok tmpl.Token) (string, bool) {
+				switch tok.Key() {
 				case "date":
 					return r.Date, true
 				case "count":
@@ -289,7 +290,7 @@ func fortniteStoreRun(d engine.Deps) module.RunFunc {
 				case "items":
 					return formatShopEntries(call.Ctx.Locale, r.Entries), true
 				}
-				return module.ParseDynamic(key)
+				return tmpl.Dynamic(tok)
 			})
 		},
 	}.run

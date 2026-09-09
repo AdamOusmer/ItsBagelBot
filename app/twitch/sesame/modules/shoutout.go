@@ -12,6 +12,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/tmpl"
 )
 
 const defaultShoutoutTemplate = "Massive shoutout to {raider} for the raid with {viewers} viewers! Check them out at twitch.tv/{raider.login}"
@@ -56,17 +57,17 @@ func Shoutout(_ engine.Deps) module.Module {
 
 		var cfg shoutoutConfig
 		_ = c.Decode(&cfg)
-		tmpl := defaultShoutoutTemplate
+		text := defaultShoutoutTemplate
 		if cfg.Message != "" {
-			tmpl = cfg.Message
+			text = cfg.Message
 		}
 
 		raider := ev.FromBroadcasterUserName
 		if raider == "" {
 			raider = ev.FromBroadcasterUserLogin
 		}
-		msg := module.ExpandString(tmpl, func(key string) (string, bool) {
-			switch key {
+		msg := module.ExpandString(text, func(tok tmpl.Token) (string, bool) {
+			switch tok.Key() {
 			case "raider":
 				return strings.TrimPrefix(raider, "@"), true
 			case "raider.login":
@@ -74,7 +75,7 @@ func Shoutout(_ engine.Deps) module.Module {
 			case "viewers":
 				return strconv.Itoa(ev.Viewers), true
 			default:
-				return module.ParseDynamic(key)
+				return tmpl.Dynamic(tok)
 			}
 		})
 
