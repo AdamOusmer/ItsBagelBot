@@ -84,6 +84,10 @@
     pending: 'connecting',
     failing: 'degraded',
     revoked: 'reauth_required',
+    // Twitch chat banned the bot account: the grant is intact, so this is NOT
+    // reauth_required. It maps to the shared 'bot_banned' kind, which tones as
+    // an error because the bot is not serving chat until it is unbanned.
+    chat_banned: 'bot_banned',
     unknown: 'sub_unknown'
   } as const;
   const subTone = $derived<StatusTone>(
