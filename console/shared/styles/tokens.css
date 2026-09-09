@@ -67,6 +67,40 @@
   --bb-status-info-bg: #0f1e28;
   --bb-status-info-border: #3f6d86;    /* 3.53:1 vs canvas / 3.37:1 vs card */
 
+  /* ────────────────────────── account tiers ────────────────────── */
+  /* One triad per account tier, composed the same way as the status system
+     above: the base is the text/icon colour, -bg the subtle fill, -border the
+     hairline. Both consoles label the same account in their own vocabulary
+     (the dashboard's perm badges, the admin console's status chips) and each
+     had spelled the rgba out by hand, which is how VIP once shipped purple
+     (#d9aaff) on one surface: VIP is SILVER here and never purple.
+     Two deliberate reuses rather than new colours: banned IS the error state
+     of an account, so it takes the error triad wholesale, and inactive is
+     plain muted foreground -- an account that is doing nothing should not be
+     louder than one that is.
+     Alphas are consolidated on the dashboard's badge values where the two apps
+     had drifted (VIP hairline 0.34 vs 0.40, paid 0.40 vs 0.38); the drift was
+     the reason for the tokens, so it is closed here rather than preserved. */
+  --bb-tier-free: var(--bb-green-glow);
+  --bb-tier-free-bg: rgba(82, 183, 136, 0.12);
+  --bb-tier-free-border: rgba(82, 183, 136, 0.35);
+
+  --bb-tier-paid: var(--bb-tan-light);
+  --bb-tier-paid-bg: rgba(201, 168, 124, 0.12);
+  --bb-tier-paid-border: rgba(201, 168, 124, 0.40);
+
+  --bb-tier-vip: #dfe4e9;
+  --bb-tier-vip-bg: rgba(217, 222, 228, 0.12);
+  --bb-tier-vip-border: rgba(217, 222, 228, 0.34);
+
+  --bb-tier-banned: var(--bb-status-error);
+  --bb-tier-banned-bg: var(--bb-status-error-bg);
+  --bb-tier-banned-border: var(--bb-status-error-border);
+
+  --bb-tier-inactive: var(--bb-fg-2);
+  --bb-tier-inactive-bg: rgba(255, 255, 255, 0.04);
+  --bb-tier-inactive-border: rgba(201, 168, 124, 0.20);
+
   /* ────────────────────────── typography ───────────────────────── */
   --bb-font-display: "Syne", "Inter Tight", sans-serif;
   --bb-font-body:    "DM Sans", "Inter", system-ui, sans-serif;

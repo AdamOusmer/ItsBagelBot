@@ -5,7 +5,7 @@
   import { deserialize } from '$app/forms';
   import { replaceState } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { createDiscardGuard } from '$lib/inspector/discard-guard.svelte';
+  import { createDiscardGuard } from '@bagel/shared/discard-guard';
   import {
     Icon,
     PageHead,

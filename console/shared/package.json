@@ -38,6 +38,7 @@
     "./server/shared-snapshot": "./lib/server/shared-snapshot.ts",
     "./server/session-revocation": "./lib/server/session-revocation.ts",
     "./server/form-action": "./lib/server/form-action.ts",
+    "./server/best-effort": "./lib/server/best-effort.ts",
     "./validation": "./lib/validation.ts",
     "./i18n": "./lib/i18n/messages.ts",
     "./styles/tokens.css": "./styles/tokens.css",
@@ -62,7 +63,11 @@
     "./connection-state": "./lib/connection-state.ts",
     "./overlay-stack": "./lib/overlay-stack.ts",
     "./types": "./lib/types.ts",
-    "./nav": "./lib/nav.ts"
+    "./nav": "./lib/nav.ts",
+    "./status-tone": "./lib/status-tone.ts",
+    "./live-poll": "./lib/live-poll.ts",
+    "./inspector": "./lib/inspector.svelte.ts",
+    "./discard-guard": "./lib/discard-guard.svelte.ts"
   },
   "dependencies": {
     "@luzir/bolota": "0.1.6",

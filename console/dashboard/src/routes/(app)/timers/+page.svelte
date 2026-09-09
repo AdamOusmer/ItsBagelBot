@@ -25,7 +25,7 @@
     type ActionOk,
   } from '@bagel/shared';
   import { untrack } from 'svelte';
-  import { createInspector } from '$lib/inspector/inspector.svelte';
+  import { createInspector } from '@bagel/shared/inspector';
   import TimerRow from '$lib/components/timers/TimerRow.svelte';
   import TimerEditor from '$lib/components/timers/TimerEditor.svelte';
 

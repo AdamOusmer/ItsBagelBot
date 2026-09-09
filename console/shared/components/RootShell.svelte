@@ -7,6 +7,7 @@
   import { afterNavigate, beforeNavigate } from '$app/navigation';
   import { updated } from '$app/state';
   import Cursor from './Cursor.svelte';
+  import BackgroundOrbs from './BackgroundOrbs.svelte';
   import { customCursor } from '../lib/cursor';
   import { initLenis } from '../lib/actions';
   import { setI18n } from '../lib/i18n/context';
@@ -15,8 +16,15 @@
   let {
     children,
     locale = DEFAULT_LOCALE,
-    cursorEnabled = true
-  }: { children: Snippet; locale?: Locale; cursorEnabled?: boolean } = $props();
+    cursorEnabled = true,
+    orbs = true
+  }: {
+    children: Snippet;
+    locale?: Locale;
+    cursorEnabled?: boolean;
+    /** The ambient backdrop. On by default; a page that paints its own says so. */
+    orbs?: boolean;
+  } = $props();
 
   // Publish the i18n translator to the whole render tree. Apps that don't pass a
   // locale (admin) get the default-locale translator, so nothing breaks. Reading
@@ -66,5 +74,6 @@
   });
 </script>
 
+{#if orbs}<BackgroundOrbs />{/if}
 <Cursor />
 {@render children()}
