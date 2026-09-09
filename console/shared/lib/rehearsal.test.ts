@@ -327,6 +327,30 @@ describe('channel scope (engine/scope/channel.go mirror)', () => {
   });
 });
 
+describe('emote scope (engine/scope/emotes.go mirror)', () => {
+  test('each provider list previews with its own stand-in', () => {
+    const [line] = rehearseCommand('{7tvemotes} / {bttvemotes} / {ffzemotes}');
+    expect(textOf(line.segments)).toBe(
+      'PagMan Clap peepoHappy / KEKW monkaS catJAM / LUL ZULUL AYAYA'
+    );
+    expect(line.segments.every((seg) => seg.kind !== 'unknown')).toBe(true);
+  });
+
+  test('two draws preview as the same code', () => {
+    // Chat draws independently per span; the preview holds one code still for
+    // the reason it does not re-roll {random} on every keystroke.
+    const [line] = rehearseCommand('{random.emote} {random.emote}');
+    expect(textOf(line.segments)).toBe('KEKW KEKW');
+  });
+
+  test('none of them takes a payload', () => {
+    for (const span of ['{7tvemotes:100}', '{random.emote:7tv}', '{twitchemotes}']) {
+      const [line] = rehearseCommand(span);
+      expect(line.segments).toEqual([{ text: span, kind: 'unknown' }]);
+    }
+  });
+});
+
 describe('module scope (engine/scope/modules.go mirror)', () => {
   test('the module facts preview with a stand-in', () => {
     const [line] = rehearseCommand('{quote} / {time} / {song}');

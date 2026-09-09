@@ -114,13 +114,24 @@ func main() {
 		guard.SetExtraEmotes(automod.NewVocab())
 		guard.SetBaseline(automod.NewBaseline(automod.DefaultCeiling()))
 	}
+	// emotes is the shared third-party emote catalog. ONE fetcher serves both
+	// readers: the gate's false-positive suppression set and the {7tvemotes}
+	// family of response tokens, which read the snapshot its hourly refresh
+	// leaves behind rather than fetching anything on the command lane. Built
+	// here rather than inside the refresher so the tokens and the gate can
+	// never end up on two different fetches; nil when the refresher is off, and
+	// then the tokens stay literal because that process will never hold a code.
+	var emotes *automod.EmoteFetcher
+	if cfg.EmotesEnabled {
+		emotes = automod.NewEmoteFetcher(nil, automod.DefaultEmoteEndpoints)
+	}
 	deps := buildDeps(w, engineRuntime{
 		proj: proj, live: live, timers: timers, guard: guard, loyalty: loyalty, tick: loyaltyTick,
-		stats: loyaltyReporter, raffle: raffle, duel: duel,
+		stats: loyaltyReporter, raffle: raffle, duel: duel, emotes: emotes,
 		seq: engine.NewSequencer(),
 	})
 	registry := engine.NewRegistry(log, modules.All(deps)...)
-	startRefreshers(ctx, guard, cfg, log)
+	startRefreshers(w, guard, emotes)
 
 	pipe := newPipeline(deps, registry, cfg)
 	defer pipe.Close() // flushes pending use-counter ticks on shutdown
@@ -173,15 +184,18 @@ func serveHealth(w wireCtx) {
 // startRefreshers launches the background automod refreshers that feed the
 // shared gate: the third-party emote sets (caps false-positive suppression),
 // the optional lexicon override directory, and the dynamic link-safety checker.
-func startRefreshers(ctx context.Context, guard *automod.Gate, cfg *config.Config, log *zap.Logger) {
-	if cfg.EmotesEnabled {
-		go refreshEmotes(ctx, guard, log)
+// It takes the same wireCtx the store constructors do, so the lifecycle
+// context, config and logger travel as one value rather than as three more
+// parameters beside the two gate pieces.
+func startRefreshers(w wireCtx, guard *automod.Gate, emotes *automod.EmoteFetcher) {
+	if emotes != nil {
+		go refreshEmotes(w.ctx, emotes, guard, w.log)
 	}
 	if dir := env.Get("SESAME_AUTOMOD_LEXICON_DIR", ""); dir != "" {
-		go reloadLexicon(ctx, dir, guard, log)
+		go reloadLexicon(w.ctx, dir, guard, w.log)
 	}
-	if cfg.LinkCheckEnabled {
-		go runLinkCheck(ctx, guard, cfg, log)
+	if w.cfg.LinkCheckEnabled {
+		go runLinkCheck(w.ctx, guard, w.cfg, w.log)
 	}
 }
 
@@ -259,13 +273,17 @@ func reloadLexicon(ctx context.Context, dir string, guard *automod.Gate, log *za
 	}
 }
 
-// refreshEmotes keeps the automod's third-party emote set current: it installs the
-// global BTTV/FFZ/7TV codes once at startup, then re-fetches on a slow ticker. A
-// fetch failure is logged and the previous set is kept; it never blocks the gate,
-// which treats an absent set as "suppress nothing" (the pre-emote behavior).
-func refreshEmotes(ctx context.Context, guard *automod.Gate, log *zap.Logger) {
-	fetcher := automod.NewEmoteFetcher(nil, automod.DefaultEmoteEndpoints)
-
+// refreshEmotes keeps the shared third-party emote catalog current: it installs
+// the global BTTV/FFZ/7TV codes once at startup, then re-fetches on a slow
+// ticker. A fetch failure is logged and the previous set is kept; it never
+// blocks the gate, which treats an absent set as "suppress nothing" (the
+// pre-emote behavior).
+//
+// This is also the ONLY thing that loads the codes the {7tvemotes} family of
+// response tokens prints: they read the fetcher's snapshot, so a channel whose
+// command names one pays no upstream call and a channel that never names one
+// costs this ticker nothing extra.
+func refreshEmotes(ctx context.Context, fetcher *automod.EmoteFetcher, guard *automod.Gate, log *zap.Logger) {
 	load := func() {
 		n, err := fetcher.Refresh(ctx, guard)
 		if err != nil {

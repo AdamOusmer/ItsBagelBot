@@ -43,13 +43,18 @@ import (
 // only one distinct span. The chatter scope counts its own bare
 // {random.chatter} spans there for the same reason, but mounts either way:
 // nothing gates it, so a broadcaster who spelled it right never sees it stay
-// literal.
+// literal. The emote scope counts its own bare {random.emote} spans there and
+// mounts on nothing but its source being wired, for the same reason: no module
+// sits behind the emote catalog either.
 func (p *Pipeline) commandChain(ctx context.Context, run commandRun, toks []tmpl.Token) scope.Chain {
 	chain := scope.Chain{
 		scope.Pure{Locale: run.c.Locale},
 		messageVars(run),
 		scope.Uses{Count: run.uses},
 		p.chattersScope(run.c, toks),
+	}
+	if emotes, mounted := p.emotesScope(toks); mounted {
+		chain = append(chain, emotes)
 	}
 	if channel, mounted := p.channelScope(ctx, run.c, toks); mounted {
 		chain = append(chain, channel)

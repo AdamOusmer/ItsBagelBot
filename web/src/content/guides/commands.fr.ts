@@ -172,13 +172,13 @@ const strings: GuideStrings = {
     'meta.card.chips.2': '{counter:…}',
     'meta.card.chips.3': '!cmd',
     'meta.card.description': 'Créez des commandes qui saluent les gens par leur nom, lancent des dés et comptent vos victoires. Toutes les variables du bot, expliquées avec des exemples de chat.',
-    'meta.card.meta': '15 min · 13 étapes',
+    'meta.card.meta': '16 min · 14 étapes',
     'meta.card.title': 'Commandes et variables',
     'meta.description': "Maîtrisez les commandes personnalisées d'ItsBagelBot: toutes les variables supportées ({user}, {random}, {counter} et plus), réponses multilignes, actions de chat, délais et niveaux d'accès.",
     'meta.eyebrow': 'Guide',
     'meta.heading': 'Commandes et variables',
     'meta.lead': 'Des commandes qui saluent les gens par leur nom, lancent des dés et comptent vos victoires. Pas de code: juste des accolades.',
-    'meta.minutes': '15 min de lecture',
+    'meta.minutes': '16 min de lecture',
     'meta.title': 'Commandes et variables - Guides ItsBagelBot',
     'fallbacks.b0.html': `
             <p>
@@ -449,6 +449,50 @@ const strings: GuideStrings = {
                 donc jamais besoin.`,
     'chatroom.heading': 'La salle: combien, et qui',
     'chatroom.note': 'Comptez les gens qui parlent, ou tirez au sort l’un de leurs noms.',
+    'emotes.b0.html': `
+            <p>
+                Le bot garde déjà en mémoire les codes des émotes globales: il en a besoin pour
+                distinguer un mur d'émotes de quelqu'un qui crie. Quatre variables permettent à
+                une commande de les afficher, pour que <code>!emotes</code> réponde avec les codes
+                eux-mêmes plutôt qu'avec un lien.
+            </p>`,
+    'emotes.b1.head.0': 'Variable',
+    'emotes.b1.head.1': 'Devient',
+    'emotes.b1.head.2': 'Exemple',
+    'emotes.b1.rows.0.0': '<code>&#123;7tvemotes&#125;</code>',
+    'emotes.b1.rows.0.1': 'Tous les codes des émotes 7TV globales, séparés par des espaces.',
+    'emotes.b1.rows.0.2': 'PagMan Clap peepoHappy',
+    'emotes.b1.rows.1.0': '<code>&#123;bttvemotes&#125;</code>',
+    'emotes.b1.rows.1.1': 'La même chose pour les codes BetterTTV globaux.',
+    'emotes.b1.rows.1.2': 'KEKW monkaS catJAM',
+    'emotes.b1.rows.2.0': '<code>&#123;ffzemotes&#125;</code>',
+    'emotes.b1.rows.2.1': 'La même chose pour les codes FrankerFaceZ globaux.',
+    'emotes.b1.rows.2.2': 'LUL ZULUL AYAYA',
+    'emotes.b1.rows.3.0': '<code>&#123;random.emote&#125;</code>',
+    'emotes.b1.rows.3.1': "Un code choisi au hasard parmi toutes ces listes. Deux dans une même réponse font deux tirages distincts: ils peuvent donc tomber sur la même émote, comme deux lancers de dés.",
+    'emotes.b1.rows.3.2': 'KEKW',
+    'emotes.b2.caption': 'Une commande qui répond à la question que l’on vous pose chaque stream.',
+    'emotes.b2.lines.0.name': 'maya_live',
+    'emotes.b2.lines.0.text': '!emotes',
+    'emotes.b2.lines.1.text': 'BTTV globales: KEKW monkaS catJAM PogU Sadge Madge peepoLeave …',
+    'emotes.b2.title': '#votre_chaine',
+    'emotes.b3.html': `
+                <b>Ce sont les listes globales, pas celles de votre chaîne</b>
+                Toutes les chaînes Twitch peuvent utiliser les émotes ci-dessus, quelles que
+                soient celles que vous avez ajoutées à la vôtre. Le bot charge les listes globales
+                une fois par heure pour son filtre anti-spam et ces variables lisent cette même
+                liste: c'est pour cela qu'elles ne coûtent rien. Les émotes de votre chaîne n'y
+                sont pas.`,
+    'emotes.b4.html': `
+                <b>Une liste est coupée pour tenir sur une ligne</b>
+                Il existe des centaines de codes globaux et un message Twitch fait environ 500
+                caractères: la liste s'arrête donc au dernier code qui tient et laisse de la place
+                pour vos propres mots. Placez la variable à la fin de votre réponse, pas au milieu
+                d'une phrase que vous voulez faire lire. Et si le bot vient de démarrer, rien
+                n'est encore chargé et la liste revient vide: donnez-lui une valeur par défaut,
+                <code>&#123;random.emote|🥯&#125;</code>.`,
+    'emotes.heading': 'Listes d’émotes, et une au hasard',
+    'emotes.note': 'Affichez les codes 7TV, BTTV ou FFZ globaux, ou tirez-en un seul au hasard.',
     'stream.b0.html': `
             <p>
                 Quatre variables lisent le direct lui-même. Ce sont les mêmes informations que

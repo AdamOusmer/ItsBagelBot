@@ -6,7 +6,7 @@
 // Go engine, keep them in lockstep:
 //
 //   - token lexing:          pkg/tmpl/tmpl.go (Lex, Token.Resolve), ported to ./tmpl
-//   - scope chain:           app/twitch/sesame/engine/scope (Chain, Pure, Message, Chatters, Channel, Viewer, Modules, Store)
+//   - scope chain:           app/twitch/sesame/engine/scope (Chain, Pure, Message, Chatters, Emotes, Channel, Viewer, Modules, Store)
 //   - chain wiring per run:  app/twitch/sesame/engine/vars.go (commandChain)
 //   - counter normalization: app/twitch/sesame/engine/scope/store.go (NormalizeName)
 //   - slash-verb routing:    internal/domain/outgress/slash.go (CutSlash)
@@ -189,6 +189,23 @@ const SONG_ARTIST_SAMPLE = 'Radiohead';
 const CHATTERS_SAMPLE = '37';
 const RANDOM_CHATTER_SAMPLE = 'maya_live';
 
+/** Stand-ins for the emote catalog (scope.Emotes): the global 7TV, BTTV and
+ * FFZ code lists the bot already keeps loaded, and one code drawn from them.
+ *
+ * A few plausible codes rather than the real sets, which run to hundreds of
+ * codes and are truncated to one chat line before they are sent: a preview
+ * that filled the editor with 480 bytes of emote names would bury the
+ * response being written, and the dashboard has no catalog of its own to be
+ * honest with anyway. The guide is where the real length is described.
+ *
+ * Repeated {random.emote} spans draw independently in chat; the preview shows
+ * the same code every time, for the reason it does not re-roll {random} on
+ * every keystroke. */
+const SEVENTV_EMOTES_SAMPLE = 'PagMan Clap peepoHappy';
+const BTTV_EMOTES_SAMPLE = 'KEKW monkaS catJAM';
+const FFZ_EMOTES_SAMPLE = 'LUL ZULUL AYAYA';
+const RANDOM_EMOTE_SAMPLE = 'KEKW';
+
 /** Stand-ins for the channel itself (scope.Channel): the live title, the
  * category, how long the stream has been up and how many people are watching.
  * All four come from one Twitch read the dashboard cannot make while a
@@ -294,9 +311,9 @@ function chainResolver(chain: readonly SampleScope[]): Resolve {
 }
 
 /** commandChain's mirror: the dice and the payload utilities (one Go scope,
- * scope.Pure), the triggering line, the chat room, the channel, the viewer
- * lookups, the module facts, then the counter store. Order is precedence,
- * exactly as in the engine. */
+ * scope.Pure), the triggering line, the chat room, the emote catalog, the
+ * channel, the viewer lookups, the module facts, then the counter store. Order
+ * is precedence, exactly as in the engine. */
 function commandChain(samples: Samples): SampleScope[] {
   return [
     PURE_SCOPE,
@@ -304,6 +321,7 @@ function commandChain(samples: Samples): SampleScope[] {
     messageScope(samples),
     USES_SCOPE,
     CHATTER_SCOPE,
+    EMOTE_SCOPE,
     CHANNEL_SCOPE,
     VIEWER_SCOPE,
     MODULE_SCOPE,
@@ -519,6 +537,34 @@ const CHATTER_SAMPLES: Samples = {
 const CHATTER_SCOPE: SampleScope = {
   owns: (name) => name in CHATTER_SAMPLES,
   get: (token) => (token.payload === null ? CHATTER_SAMPLES[token.name] : null)
+};
+
+/** scope.Emotes' mirror: the three provider lists and {random.emote}.
+ *
+ * Mounted here always, and in chat whenever the service loads the catalog at
+ * all — no module gates these, because the codes are refreshed for the
+ * automod's false-positive suppression rather than for a feature a
+ * broadcaster switches on. So a token previewed here stays literal in chat
+ * only on a deployment that loads no codes.
+ *
+ * Two things the preview cannot show and the guide says instead: these are
+ * the GLOBAL sets every channel has, not the emotes a broadcaster added to
+ * their own channel, and the real lists are truncated to fit one chat line.
+ * A catalog that has not loaded yet renders empty rather than literal, so a
+ * fallback speaks.
+ *
+ * None of the four takes a payload, so a span carrying one stays literal,
+ * matching the Go scope. */
+const EMOTE_SAMPLES: Samples = {
+  '7tvemotes': SEVENTV_EMOTES_SAMPLE,
+  bttvemotes: BTTV_EMOTES_SAMPLE,
+  ffzemotes: FFZ_EMOTES_SAMPLE,
+  'random.emote': RANDOM_EMOTE_SAMPLE
+};
+
+const EMOTE_SCOPE: SampleScope = {
+  owns: (name) => name in EMOTE_SAMPLES,
+  get: (token) => (token.payload === null ? EMOTE_SAMPLES[token.name] : null)
 };
 
 /** scope.Channel's mirror: {uptime}, {title}, {game} and {channel.viewers},

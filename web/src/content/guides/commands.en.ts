@@ -12,12 +12,12 @@ const guide: GuideContent = {
     eyebrow: 'Guide',
     heading: 'Commands & variables',
     lead: 'Commands that greet people by name, roll dice, and count your wins. No code: just braces.',
-    minutes: '15 min read',
+    minutes: '16 min read',
     card: {
       title: 'Commands & variables',
       description:
         'Build commands that greet people by name, roll dice, and count wins. Every variable the bot understands, explained with live-looking chat examples.',
-      meta: '15 min · 13 steps',
+      meta: '16 min · 14 steps',
       chips: ['{user}', '{random}', '{counter:…}', '!cmd'],
     },
   },
@@ -502,6 +502,63 @@ const guide: GuideContent = {
                 line still reads: <code>&#123;random.chatter|somebody&#125;</code>.
                 <code>&#123;chatters&#125;</code> answers <code>0</code> rather than nothing, so it
                 never needs one.`,
+        },
+      ],
+    },
+    {
+      id: 'emotes',
+      heading: 'Emote lists, and one at random',
+      note: 'Dump the global 7TV, BTTV or FFZ codes, or pull a single one out of the pile.',
+      blocks: [
+        {
+          kind: 'prose',
+          html: `
+            <p>
+                The bot already keeps the global emote codes loaded: it needs them to tell an
+                emote wall apart from someone shouting. Four variables let a command print them,
+                so <code>!emotes</code> can answer with the codes themselves instead of a link.
+            </p>`,
+        },
+        {
+          kind: 'table',
+          head: ['Variable', 'Becomes', 'Example'],
+          rows: [
+            ['<code>&#123;7tvemotes&#125;</code>', 'Every global 7TV emote code, separated by spaces.', 'PagMan Clap peepoHappy'],
+            ['<code>&#123;bttvemotes&#125;</code>', 'The same for the global BetterTTV codes.', 'KEKW monkaS catJAM'],
+            ['<code>&#123;ffzemotes&#125;</code>', 'The same for the global FrankerFaceZ codes.', 'LUL ZULUL AYAYA'],
+            ['<code>&#123;random.emote&#125;</code>', 'One code picked at random out of all of them. Two of them in one response are two separate picks, so they can land on the same emote, just like two dice rolls.', 'KEKW'],
+          ],
+        },
+        {
+          kind: 'chat',
+          title: '#your_channel',
+          caption: 'A command that answers the question you get every stream.',
+          lines: [
+            { who: 'viewer', name: 'maya_live', text: '!emotes' },
+            { who: 'bot', text: 'Global BTTV: KEKW monkaS catJAM PogU Sadge Madge peepoLeave …' },
+          ],
+        },
+        {
+          kind: 'callout',
+          tone: 'info',
+          html: `
+                <b>These are the global sets, not your channel's</b>
+                Every Twitch channel can use the emotes above, whichever ones you added to your
+                own channel. The bot loads the global lists once an hour for its spam filter and
+                these variables read that same list, which is why they cost nothing to use. Your
+                own channel emotes are not in them.`,
+        },
+        {
+          kind: 'callout',
+          tone: 'warn',
+          html: `
+                <b>A list is cut to fit one line</b>
+                There are hundreds of global codes and a Twitch message holds about 500
+                characters, so the list stops at the last code that fits and leaves room for your
+                own words around it. Put the variable at the end of your response, not in the
+                middle of a sentence you want people to read. And if the bot has only just
+                started up, nothing is loaded yet and the list comes back empty: give it a
+                default, <code>&#123;random.emote|🥯&#125;</code>.`,
         },
       ],
     },

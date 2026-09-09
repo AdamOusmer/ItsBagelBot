@@ -64,6 +64,13 @@
 // literal+warn path; a mapping can be added the day a real directory carries
 // one to check against.
 //
+// The emote catalog ({7tvemotes}, {bttvemotes}, {ffzemotes},
+// {random.emote}) gains no mapping for the same checked reason: the table
+// above carries no emote-list variable at all. Fossabot's own emote handling
+// is a moderation setting, not something a response can print, so there is
+// nothing here to fold onto these tokens and nothing was invented from a guess
+// at a spelling.
+//
 // The chat room ({chatters}, {random.chatter}) gains no mapping either, and
 // for the plainest reason of all: the table above is this file's record of
 // what Fossabot's variable language contains, and it carries no chatter count
