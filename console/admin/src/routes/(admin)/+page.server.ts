@@ -46,7 +46,7 @@ async function loadOverview(actorId: string, withAudit: boolean): Promise<Overvi
   const [enrollment, snapshot, token, recentAudit] = await Promise.all([
     orFallback(userEnrollment(actorId), emptyEnrollment()),
     orFallback(shardSnapshot(), emptyShardSnapshot()),
-    orFallback(botId ? tokenStatus(actorId, botId) : Promise.resolve({ present: false }), {
+    orFallback(botId ? tokenStatus({ actorId, userId: botId }) : Promise.resolve({ present: false }), {
       present: false
     }),
     orFallback(withAudit ? auditList(AUDIT_PEEK) : Promise.resolve([]), [])

@@ -82,6 +82,14 @@ function invalidateUser(userId: string) {
   invalidate('users:', `user:${userId}`, `token:${userId}`);
 }
 
+// The cache upkeep every write that echoes a refreshed row performs: drop the
+// user's derived entries, then write the fresh row straight back so the
+// inspector panel that triggered the write does not re-fetch it.
+function refreshUser(user: AdminUserWire, ref: UserRef) {
+  invalidateUser(ref.userId);
+  setCached(`user:${user.id}`, user, POLICY.adminRead);
+}
+
 // Fire-and-forget cross-replica cache-invalidation publish. Local invalidation
 // already ran synchronously; this just tells OTHER replicas to evict their
 // own in-process caches for the same scope.
@@ -89,6 +97,19 @@ function broadcastInvalidate(scope: string, broadcasterId: string) {
   void publish(`${getServerConfig().cacheInvalidationPrefix}.${scope}`, {
     broadcaster_id: broadcasterId
   }).catch(() => {});
+}
+
+// UserRef names the pair every per-user admin verb needs: who is asking, and
+// whom they are asking about.
+//
+// Bundled rather than passed as two adjacent strings because both are Twitch
+// numeric ids, so `f(userId, actorId)` type-checks exactly as well as the
+// correct order does. A transposition here does not fail: it authorizes the
+// target and mutates the operator, and the audit row records the swap as
+// fact. The named fields make that class of bug a compile error.
+export interface UserRef {
+  actorId: string;
+  userId: string;
 }
 
 // AdminUserWire mirrors the users service's admin wire format (broadcaster-data):
@@ -300,114 +321,96 @@ export const userSetStatus = defineWrite({
   subject: `${SUB.user}.set_status`,
   // expiresAt (ISO timestamp) is required by the users service when status is
   // "paid": every operator grant carries the day it ends.
-  request: (actorId: string, userId: string, status: string, expiresAt?: string) => ({
-    actor_id: actorId,
-    user_id: userId,
+  request: (ref: UserRef, status: string, expiresAt?: string) => ({
+    actor_id: ref.actorId,
+    user_id: ref.userId,
     status,
     ...(expiresAt ? { expires_at: expiresAt } : {})
   }),
   map: (reply: { user: AdminUserWire }) => reply.user,
-  after: (user, _actorId, userId) => {
-    invalidateUser(userId);
-    setCached(`user:${user.id}`, user, POLICY.adminRead);
-  }
+  after: (user, ref) => refreshUser(user, ref)
 });
 
 export const userReset = defineWrite({
   subject: `${SUB.user}.reset`,
-  request: (actorId: string, userId: string) => ({ actor_id: actorId, user_id: userId }),
+  request: (ref: UserRef) => ({ actor_id: ref.actorId, user_id: ref.userId }),
   map: (reply: { user: AdminUserWire }) => reply.user,
-  after: (user, _actorId, userId) => {
-    invalidateUser(userId);
-    setCached(`user:${user.id}`, user, POLICY.adminRead);
-  }
+  after: (user, ref) => refreshUser(user, ref)
 });
 
 export const tokenStatus = defineRead({
   subject: `${SUB.user}.token_status`,
-  request: (actorId: string, userId: string) => ({ actor_id: actorId, user_id: userId }),
+  request: (ref: UserRef) => ({ actor_id: ref.actorId, user_id: ref.userId }),
   map: (reply: { token: TokenStatus }) => reply.token ?? { present: false },
   cache: {
     fabric,
-    key: (_actorId: string, userId: string) => `token:${userId}`,
+    key: (ref: UserRef) => `token:${ref.userId}`,
     policy: POLICY.adminRead
   }
 });
 
 export const tokenSet = defineWrite({
   subject: `${SUB.user}.token_set`,
-  request: (actorId: string, userId: string, accessToken: string, refreshToken: string) => ({
-    actor_id: actorId,
-    user_id: userId,
+  request: (ref: UserRef, accessToken: string, refreshToken: string) => ({
+    actor_id: ref.actorId,
+    user_id: ref.userId,
     access_token: accessToken,
     refresh_token: refreshToken
   }),
   map: (reply: { token: TokenStatus }) => reply.token ?? { present: false },
-  after: (token, _actorId, userId) => setCached(`token:${userId}`, token, POLICY.adminRead)
+  after: (token, ref) => setCached(`token:${ref.userId}`, token, POLICY.adminRead)
 });
 
 export const tokenClear = defineWrite({
   subject: `${SUB.user}.token_clear`,
-  request: (actorId: string, userId: string) => ({ actor_id: actorId, user_id: userId }),
+  request: (ref: UserRef) => ({ actor_id: ref.actorId, user_id: ref.userId }),
   map: (reply: { token: TokenStatus }) => reply.token ?? { present: false },
-  after: (token, _actorId, userId) => setCached(`token:${userId}`, token, POLICY.adminRead)
+  after: (token, ref) => setCached(`token:${ref.userId}`, token, POLICY.adminRead)
 });
 
-export async function userDelete(actorId: string, userId: string): Promise<void> {
+export async function userDelete(ref: UserRef): Promise<void> {
   const r = await rpc<{ error?: string }>(`${SUB.user}.delete`, {
-    actor_id: actorId,
-    user_id: userId
+    actor_id: ref.actorId,
+    user_id: ref.userId
   });
   if (r.error) throw new Error(r.error);
-  invalidateUser(userId);
+  invalidateUser(ref.userId);
 }
 
 export const userSetActive = defineWrite({
   subject: `${SUB.user}.set_active`,
-  request: (actorId: string, userId: string, active: boolean) => ({
-    actor_id: actorId,
-    user_id: userId,
+  request: (ref: UserRef, active: boolean) => ({
+    actor_id: ref.actorId,
+    user_id: ref.userId,
     active
   }),
   map: (reply: { user: AdminUserWire }) => reply.user,
-  after: (user, _actorId, userId) => {
-    invalidateUser(userId);
-    setCached(`user:${user.id}`, user, POLICY.adminRead);
-  }
+  after: (user, ref) => refreshUser(user, ref)
 });
 
 export const userSetCreatorCode = defineWrite({
   subject: `${SUB.user}.set_creator_code`,
-  request: (actorId: string, userId: string, creatorCode: string) => ({
-    actor_id: actorId,
-    user_id: userId,
+  request: (ref: UserRef, creatorCode: string) => ({
+    actor_id: ref.actorId,
+    user_id: ref.userId,
     creator_code: creatorCode
   }),
   map: (reply: { user: AdminUserWire }) => reply.user,
-  after: (user, _actorId, userId) => {
-    invalidateUser(userId);
-    setCached(`user:${user.id}`, user, POLICY.adminRead);
-  }
+  after: (user, ref) => refreshUser(user, ref)
 });
 
 export const userBan = defineWrite({
   subject: `${SUB.user}.ban`,
-  request: (actorId: string, userId: string) => ({ actor_id: actorId, user_id: userId }),
+  request: (ref: UserRef) => ({ actor_id: ref.actorId, user_id: ref.userId }),
   map: (reply: { user: AdminUserWire }) => reply.user,
-  after: (user, _actorId, userId) => {
-    invalidateUser(userId);
-    setCached(`user:${user.id}`, user, POLICY.adminRead);
-  }
+  after: (user, ref) => refreshUser(user, ref)
 });
 
 export const userUnban = defineWrite({
   subject: `${SUB.user}.unban`,
-  request: (actorId: string, userId: string) => ({ actor_id: actorId, user_id: userId }),
+  request: (ref: UserRef) => ({ actor_id: ref.actorId, user_id: ref.userId }),
   map: (reply: { user: AdminUserWire }) => reply.user,
-  after: (user, _actorId, userId) => {
-    invalidateUser(userId);
-    setCached(`user:${user.id}`, user, POLICY.adminRead);
-  }
+  after: (user, ref) => refreshUser(user, ref)
 });
 
 export async function restartUserEventSub(userId: string): Promise<void> {

@@ -62,7 +62,7 @@ export const GET: RequestHandler = async ({ url, cookies, locals }) => {
     const tokens = await botTwitch(url.origin).validateAuthorizationCode(code);
     assertBotIdentity({ claims: tokens.claims(), configuredId: botId });
 
-    await tokenSet(owner.id, botId, tokens.accessToken(), tokens.refreshToken());
+    await tokenSet({ actorId: owner.id, userId: botId }, tokens.accessToken(), tokens.refreshToken());
   } catch (e) {
     if (e instanceof ResponseBodyError) throw redirect(302, '/auth/bot/done?e=oauth');
     throw e;

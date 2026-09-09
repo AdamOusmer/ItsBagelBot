@@ -8,13 +8,18 @@ import {
   notificationsList,
   notificationSend,
   notificationDelete,
-  isForbidden,
   NOTIFICATIONS_PAGE_SIZE,
   NOTIFICATIONS_MAX_PAGES,
   type NotificationWire
 } from '$lib/server/services';
-import { requireRole } from '$lib/server/access';
-import { audit } from '$lib/server/audit';
+import { requireRole, type AdminIdentity } from '$lib/server/access';
+import {
+  audited,
+  badRequest,
+  okReply,
+  refusalReply,
+  type ParseResult
+} from '$lib/server/admin-action';
 import { parsePage } from '$lib/server/paging';
 
 const LEVELS = new Set(['info', 'success', 'warning', 'critical']);
@@ -114,90 +119,112 @@ function missingDirectTarget(v: SendFields): boolean {
   return v.scope === 'direct' && !v.targetUserId && !v.targetUsername;
 }
 
+// The compose rules, in the order the operator should hear about them: scope
+// first (it decides whether the target fields matter at all), then the target,
+// then the content. A table rather than a chain of ifs so adding a rule is a
+// row and the walk that reports the first failure stays one line.
+const SEND_RULES: { bad: (v: SendFields) => boolean; error: string }[] = [
+  { bad: (v) => v.scope !== 'broadcast' && v.scope !== 'direct', error: 'invalid scope' },
+  { bad: missingDirectTarget, error: 'target user id or username required' },
+  { bad: (v) => !v.title || !v.body, error: 'title and body are required' },
+  { bad: (v) => !LEVELS.has(v.level), error: 'invalid level' }
+];
+
 // The first thing wrong with the form, or '' if nothing is.
 function sendFormError(v: SendFields): string {
-  if (v.scope !== 'broadcast' && v.scope !== 'direct') return 'invalid scope';
-  if (missingDirectTarget(v)) return 'target user id or username required';
-  if (!v.title || !v.body) return 'title and body are required';
-  if (!LEVELS.has(v.level)) return 'invalid level';
-  return '';
+  return SEND_RULES.find((rule) => rule.bad(v))?.error ?? '';
 }
 
-// parseSendForm trims/caps the compose fields and validates them. Returns the
-// parsed form, or { error } for the action to hand to fail(400).
-function parseSendForm(f: FormData): SendForm | { error: string } {
+// parseSendForm trims/caps the compose fields and validates them.
+function parseSendForm(f: FormData): ParseResult<SendForm> {
   const v = sendFields(f);
   const error = sendFormError(v);
-  if (error) return { error };
+  if (error) return badRequest(error);
   const scope = v.scope as SendForm['scope'];
   return {
-    ...v,
-    scope,
-    target: scope === 'direct' ? v.targetUserId || v.targetUsername : 'all users'
+    value: {
+      ...v,
+      scope,
+      target: scope === 'direct' ? v.targetUserId || v.targetUsername : 'all users'
+    }
+  };
+}
+
+function parseDeleteId(f: FormData): ParseResult<number> {
+  const id = Number(String(f.get('id') ?? ''));
+  if (!Number.isFinite(id) || id <= 0) return badRequest('id required');
+  return { value: id };
+}
+
+// sendPayload turns the validated form into the wire request. The target
+// identifiers are dropped on a broadcast rather than sent empty: the
+// notifications service treats a present-but-blank target_user_id as a direct
+// send to nobody, which silently swallows the notification.
+function sendPayload(v: SendForm, admin: AdminIdentity) {
+  const direct = v.scope === 'direct';
+  return {
+    scope: v.scope,
+    targetUserId: direct ? v.targetUserId : undefined,
+    targetUsername: direct ? v.targetUsername : undefined,
+    title: v.title,
+    body: v.body,
+    level: v.level,
+    expiresAt: v.expiresAtRaw ? new Date(v.expiresAtRaw).toISOString() : undefined,
+    actorId: admin.id,
+    actorLogin: admin.login
+  };
+}
+
+// Both compose actions run the same spine: gate on notifications.send, parse
+// the form, short-circuit under DEMO, run one RPC, audit the outcome. Spelling
+// that out twice is what made send and delete structurally identical, so the
+// spine lives here once and each verb is a spec -- the same shape the users
+// route takes.
+type NotifActionSpec<P> = {
+  name: string; // audit action id
+  parse: (f: FormData) => ParseResult<P>;
+  target: (payload: P) => string;
+  detail?: (payload: P) => string;
+  demoNotice: (payload: P) => string;
+  notice: (payload: P) => string;
+  run: (payload: P, admin: AdminIdentity) => Promise<unknown>;
+};
+
+function notifAction<P>(spec: NotifActionSpec<P>) {
+  return async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+    const admin = await requireRole({ locals }, 'notifications.send');
+    if (!admin) return fail(403, { error: 'forbidden' });
+
+    const parsed = spec.parse(await request.formData());
+    if ('refuse' in parsed) return refusalReply(parsed);
+    const payload = parsed.value;
+
+    if (DEMO) return okReply(spec.demoNotice(payload));
+    return audited(
+      { admin, action: spec.name, target: spec.target(payload), detail: spec.detail?.(payload) },
+      () => spec.run(payload, admin),
+      () => okReply(spec.notice(payload))
+    );
   };
 }
 
 export const actions: Actions = {
-  send: async ({ request, locals }) => {
-    const admin = await requireRole({ locals }, 'notifications.send');
-    if (!admin) return fail(403, { error: 'forbidden' });
+  send: notifAction<SendForm>({
+    name: 'send_notification',
+    parse: parseSendForm,
+    target: (v) => v.target,
+    detail: (v) => v.title,
+    demoNotice: (v) => `notification sent to ${v.target} (demo)`,
+    notice: (v) => `notification sent to ${v.target}`,
+    run: (v, admin) => notificationSend(sendPayload(v, admin))
+  }),
 
-    const parsed = parseSendForm(await request.formData());
-    if ('error' in parsed) return fail(400, { error: parsed.error });
-    const { scope, targetUserId, targetUsername, title, body, level, expiresAtRaw, target } = parsed;
-
-    if (DEMO) {
-      return { action: { ok: true, notice: `notification sent to ${target} (demo)` } };
-    }
-
-    try {
-      await notificationSend({
-        scope,
-        targetUserId: scope === 'direct' ? targetUserId : undefined,
-        targetUsername: scope === 'direct' ? targetUsername : undefined,
-        title,
-        body,
-        level,
-        expiresAt: expiresAtRaw ? new Date(expiresAtRaw).toISOString() : undefined,
-        actorId: admin.id,
-        actorLogin: admin.login
-      });
-      audit(admin, { action: 'send_notification', target, detail: title, ok: true });
-      return { action: { ok: true, notice: `notification sent to ${target}` } };
-    } catch (e) {
-      audit(admin, {
-        action: 'send_notification',
-        target,
-        detail: title,
-        ok: false,
-        error: (e as Error).message
-      });
-      if (isForbidden(e)) return fail(403, { error: (e as Error).message });
-      return { action: { ok: false, notice: (e as Error).message } };
-    }
-  },
-
-  delete: async ({ request, locals }) => {
-    const admin = await requireRole({ locals }, 'notifications.send');
-    if (!admin) return fail(403, { error: 'forbidden' });
-    const id = Number(String((await request.formData()).get('id') ?? ''));
-    if (!Number.isFinite(id) || id <= 0) return fail(400, { error: 'id required' });
-
-    if (DEMO) return { action: { ok: true, notice: 'notification retracted (demo)' } };
-
-    try {
-      await notificationDelete(id);
-      audit(admin, { action: 'delete_notification', target: String(id), ok: true });
-      return { action: { ok: true, notice: 'notification retracted' } };
-    } catch (e) {
-      audit(admin, {
-        action: 'delete_notification',
-        target: String(id),
-        ok: false,
-        error: (e as Error).message
-      });
-      if (isForbidden(e)) return fail(403, { error: (e as Error).message });
-      return { action: { ok: false, notice: (e as Error).message } };
-    }
-  }
+  delete: notifAction<number>({
+    name: 'delete_notification',
+    parse: parseDeleteId,
+    target: (id) => String(id),
+    demoNotice: () => 'notification retracted (demo)',
+    notice: () => 'notification retracted',
+    run: (id) => notificationDelete(id)
+  })
 };

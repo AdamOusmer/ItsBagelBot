@@ -117,12 +117,24 @@ const (
 	adminUserMaxSearchLen = repository.AdminUserMaxSearchLen
 )
 
-func SubscribeAdmin(w Wiring, db *ent.Client, prefix, internalGetSubject, invalidationPrefix string) error {
+// AdminConfig carries the subjects the admin RPC surface answers on and
+// speaks to. The connection, queue group, New Relic app and logger ride the
+// shared Wiring instead. Same shape as the notifications service's
+// AdminConfig: subjects bundle, everything else on Wiring.
+type AdminConfig struct {
+	Prefix string
+	// InternalGetSubject is the ungated twin of the get verb, for service
+	// callers that have no operator identity to authorize.
+	InternalGetSubject string
+	InvalidationPrefix string
+}
+
+func SubscribeAdmin(w Wiring, db *ent.Client, cfg AdminConfig) error {
 	a := &adminRPC{
 		repo:               w.Repo,
 		gate:               staffGate{db: db},
 		nc:                 w.NC,
-		invalidationPrefix: invalidationPrefix,
+		invalidationPrefix: cfg.InvalidationPrefix,
 		log:                w.Log,
 	}
 
@@ -134,7 +146,7 @@ func SubscribeAdmin(w Wiring, db *ent.Client, prefix, internalGetSubject, invali
 	for _, v := range table {
 		bound = append(bound, bus.At(v.name, a.guarded(v)))
 	}
-	if err := bus.ServeVerbs(w.Within(adminBudget), prefix, bound...); err != nil {
+	if err := bus.ServeVerbs(w.Within(adminBudget), cfg.Prefix, bound...); err != nil {
 		return err
 	}
 
@@ -143,7 +155,7 @@ func SubscribeAdmin(w Wiring, db *ent.Client, prefix, internalGetSubject, invali
 	// notifications resolving a target username) have no operator identity to
 	// authorize, so they get their own subject rather than an actor-less
 	// exemption on the admin verb, which stays fail-closed for the console.
-	return bus.Serve(w.Within(adminBudget), internalGetSubject, a.get)
+	return bus.Serve(w.Within(adminBudget), cfg.InternalGetSubject, a.get)
 }
 
 // storeRules is this service's half of the refusal classification: the two
