@@ -16,7 +16,7 @@
    the RGB triplets those colours are used through. Everything this file adds
    below is genuinely the docs': the paper/light-mode surfaces, the Starlight
    gray ramps and the mermaid palette. */
-@import "../../../kit/styles/brand.css";
+@import "@bagel/ui/styles/brand.css";
 
 /* ════════════════════════════════════════════════════════════════════
    Design tokens — every color the theme uses lives here.
@@ -45,7 +45,7 @@
    because they finally carry their intended alpha.
 
    Why rgba(var(...), a) and not space-separated triplets plus the slash
-   form: web/kit/styles/brand.css, the one shared definition of the
+   form: @bagel/ui/styles/brand.css, the one shared definition of the
    palette, writes its literals as `rgba(201, 168, 124, 0.15)`. Keeping the
    comma grammar here means a value can be moved between the two files
    verbatim. Rejected: switching every *-rgb triplet to space-separated.

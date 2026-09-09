@@ -19,8 +19,14 @@ export default defineConfig({
   // (bundling it would break it and create a second, uninstrumented instance).
   // `pino` stays external so the New Relic agent's require-hook wraps the real
   // module at runtime and local-decorates its log lines (bundling defeats the hook).
-  ssr: { noExternal: ['@bagel/kit'], external: ['mysql2', 'newrelic', 'iovalkey', 'pino'] },
-  server: { port: 5174 },
+  ssr: { noExternal: ['@bagel/kit', '@bagel/ui'], external: ['mysql2', 'newrelic', 'iovalkey', 'pino'] },
+  // fs.allow: same reason as the dashboard's (see web/dashboard/vite.config.ts)
+  // -- kit's tokens.css and the woff2 files it @font-faces out of the linked
+  // design library both sit outside every directory SvelteKit's plugin allows,
+  // so in dev the fonts 403 and Syne falls back to sans-serif. Scoped to the
+  // two directories rather than '..' or '../..', which would serve the sibling
+  // apps and the Go tree respectively over /@fs.
+  server: { port: 5174, fs: { allow: ['../kit', '../../ui'] } },
   build: {
     minify: 'terser'
   }

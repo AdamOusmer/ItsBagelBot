@@ -171,14 +171,16 @@ jobs:
             },
             {
               "image": "console-dashboard",
-              "context": "web",
+              "context": ".",
               "containerfile": "web/dashboard/Containerfile",
+              "ignorefile": "web/dashboard/Containerfile.ignore",
               "description": "ItsBagelBot console dashboard (SvelteKit SSR)"
             },
             {
               "image": "console-admin",
-              "context": "web",
+              "context": ".",
               "containerfile": "web/admin/Containerfile",
+              "ignorefile": "web/admin/Containerfile.ignore",
               "description": "ItsBagelBot console admin (SvelteKit SSR)"
             }
           ]'
@@ -299,7 +301,7 @@ jobs:
               app/warp/*)
                 add "warp"
                 ;;
-              web/kit/*|web/bunfig.toml|web/bun.lock|web/package.json|web/tsconfig.base.json|web/sorted-readdir.mjs|web/serve-node.js|web/.containerignore)
+              ui/*|web/kit/*|web/bunfig.toml|web/bun.lock|web/package.json|web/tsconfig.base.json|web/sorted-readdir.mjs|web/serve-node.js)
                 add "console-dashboard"
                 add "console-admin"
                 ;;
@@ -451,6 +453,7 @@ jobs:
           TAGS: ${{ steps.meta.outputs.tags }}
           CONTEXT: ${{ matrix.context }}
           CONTAINERFILE: ${{ matrix.containerfile }}
+          IGNOREFILE: ${{ matrix.ignorefile }}
           PLATFORM: ${{ matrix.platform }}
           DESCRIPTION: ${{ matrix.description }}
         run: |
@@ -460,6 +463,17 @@ jobs:
           for tag in $TAGS; do
             tag_args+=(-t "${IMAGE}:${tag}")
           done
+
+          # Only the two console images set `ignorefile` in the matrix. They
+          # build from the repository root (the standalone ui/ design library
+          # has to be inside their context) and each needs its OWN whitelist of
+          # that root, which the shared .containerignore cannot express: one
+          # file, two different trees to admit. Every other image leaves the key
+          # unset and falls through to the root .containerignore.
+          ignore_args=()
+          if [[ -n "${IGNOREFILE:-}" ]]; then
+            ignore_args+=(--ignorefile "$IGNOREFILE")
+          fi
 
           buildah bud \
             --platform "$PLATFORM" \
@@ -471,6 +485,7 @@ jobs:
             --label "org.opencontainers.image.revision=${{ github.sha }}" \
             --label "org.opencontainers.image.licenses=LicenseRef-Proprietary" \
             -f "$CONTAINERFILE" \
+            "${ignore_args[@]}" \
             "${tag_args[@]}" \
             "$CONTEXT"
 

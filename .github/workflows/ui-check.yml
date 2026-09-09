@@ -1,0 +1,61 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+# @bagel/ui is a standalone package with its own lockfile, so it gets its own
+# job rather than a step inside the console typecheck. That is the point of the
+# split: the library has to stay green on its own terms (framework-free domain,
+# adapter parity, size budgets) whether or not any consumer is passing, and it
+# has to keep doing so the day it is lifted into its own repository.
+#
+# console-check.yml also watches ui/**, because a change here can break the
+# consumers without breaking the library.
+name: UI Library Check
+
+on:
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - 'ui/**'
+      - '.github/workflows/ui-check.yml'
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'ui/**'
+      - '.github/workflows/ui-check.yml'
+
+jobs:
+  check:
+    name: check + test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.2
+
+      # Not --production: the parity test needs the svelte and astro compilers
+      # this package keeps as devDependencies. The console images install the
+      # same lockfile WITH --production, which is what keeps those compilers out
+      # of a shipped image.
+      - name: Install dependencies
+        working-directory: ui
+        run: bun install --frozen-lockfile
+
+      - name: Check
+        working-directory: ui
+        run: bun run check
+
+      # Adapter parity plus the per-entry gzip budgets. The budgets are measured
+      # on macOS/arm64 and this runner is linux/x64, which gzips the same bytes
+      # ~100-150 B larger; the budgets in ui/scripts/size.ts carry that delta
+      # explicitly rather than as a percentage, because on rows this small it is
+      # the larger of the two.
+      - name: Test
+        working-directory: ui
+        run: bun run test

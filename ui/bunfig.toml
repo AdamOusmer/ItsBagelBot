@@ -1,0 +1,16 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+[test]
+# The parity test renders the same markup through both adapters, so the test
+# runner has to be able to import a .svelte and a .astro file. Bun compiles
+# neither: it falls back to the `file` loader and the import resolves to the
+# PATH as a string, which fails later and confusingly ("component is not a
+# function", pointing at svelte's renderer rather than at the loader). The
+# preload registers an onLoad plugin per extension.
+#
+# It must be here rather than on the command line: `bun --preload x test` is
+# parsed as `bun run --preload x` and silently runs the package script instead
+# of the test runner, so the plugin never registers and the failure looks
+# identical to having no plugin at all.
+preload = ["./test/loaders.ts"]

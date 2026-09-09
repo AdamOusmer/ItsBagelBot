@@ -5,7 +5,7 @@
 /**
  * Card atmosphere: the instrument-panel light (QuietWork Cards, variant 3a).
  * The ring and sheen geometry is shared with the console's CardAtmosphere.svelte
- * (web/kit/styles/card-atmosphere.css) so the two surfaces cannot drift
+ * (@bagel/ui/styles/card-atmosphere.css) so the two surfaces cannot drift
  * apart on a look that is meant to be the same material in both places.
  *
  * What is genuinely this site's, and stays below: the layer sits at z-index 0
@@ -18,7 +18,7 @@
  *
  * The card itself still owns the border and lift.
  */
-import '@bagel/styles/card-atmosphere.css';
+import '@bagel/ui/styles/card-atmosphere.css';
 ---
 
 <div class="card-atmo" aria-hidden="true">

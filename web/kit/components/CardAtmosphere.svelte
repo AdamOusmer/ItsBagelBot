@@ -3,7 +3,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
   // Card atmosphere: the instrument-panel light (QuietWork Cards, variant 3a).
   // The ring and sheen geometry is shared verbatim with the marketing site's
-  // CardAtmosphere.astro (../styles/card-atmosphere.css) so console surfaces
+  // CardAtmosphere.astro (@bagel/ui/styles/card-atmosphere.css) so console surfaces
   // read as the same material as itsbagelbot.com instead of as a port that
   // slowly stops matching.
   //
@@ -19,7 +19,7 @@
   // 2. Hover. Only interactive cards brighten. The console stacks dense
   //    non-interactive panels, so the site's unconditional :hover would make
   //    the whole page twitch.
-  import '../styles/card-atmosphere.css';
+  import '@bagel/ui/styles/card-atmosphere.css';
 </script>
 
 <div class="card-atmo" aria-hidden="true">

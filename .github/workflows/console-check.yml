@@ -8,11 +8,17 @@ on:
     branches: [ "main" ]
     paths:
       - 'web/**'
+      # The console bundles @bagel/ui as source (ssr.noExternal), so a change
+      # in the library is a change to both apps' type surface even when nothing
+      # under web/ moved. ui-check.yml proves the library is green on its own;
+      # this proves the consumers still compile against it.
+      - 'ui/**'
       - '.github/workflows/console-check.yml'
   push:
     branches: [ "main" ]
     paths:
       - 'web/**'
+      - 'ui/**'
       - '.github/workflows/console-check.yml'
 
 jobs:

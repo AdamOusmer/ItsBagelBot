@@ -14,18 +14,20 @@
  * leaks into the other. Pure browser APIs, no imports, so both bundlers inline
  * it with no install step.
  *
- * Lives under web/kit rather than beside the console app that first drew it
- * because the console images build with `web/` as their whole context
- * (publish-images.yml); anything above that line is simply not in the image
- * build. marketing/ and docs/ build from a full checkout and reach in by
- * relative path, which is already how marketing/ imports rehearsal.ts.
+ * Lives in the standalone @bagel/ui library at the repo root, not in web/kit,
+ * because it is a design primitive with no bot knowledge in it and kit is the
+ * bot-specific glue. Every consumer reaches it the same way now -- as the
+ * package import `@bagel/ui/lib/light-field` -- where it used to be a Vite
+ * alias for marketing and a relative path for the console.
  *
- * web/kit is a way station, not the address. This file is a design primitive
- * with no bot knowledge in it, and kit is the bot-specific glue, so it moves to
- * the standalone repo-level ui/ library (@bagel/ui) in the ui-library PR, at
- * which point the image build context widens to the repo root behind a
- * whitelist ignorefile. It sits here for now only so the workspace relocation
- * stays a pure rename with nothing to review but paths.
+ * That cost the console images their narrow build context: they built with
+ * `web/` as the whole context, and nothing above that line can be COPYed. They
+ * now build from the repo root behind a per-image whitelist ignorefile
+ * (web/dashboard/Containerfile.ignore) that admits `ui` and the parts of `web`
+ * the SSR image needs, and nothing else -- the Go tree included. The whitelist
+ * is the price of the library being extractable to its own repo later; a
+ * `ui/` nested inside `web/` would have kept the old context and given up the
+ * separate lockfile, the separate CI job and the clean lift-out.
  */
 
 /** One drifting speck. */
