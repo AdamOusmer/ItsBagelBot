@@ -325,6 +325,12 @@ describe('game-stat scope (engine/scope/games.go mirror)', () => {
     expect(line.segments.every((seg) => seg.kind !== 'unknown')).toBe(true);
   });
 
+  test('the Clash Royale families keep their trophies apart', () => {
+    const [line] = rehearseCommand('{cr.pol.trophies} in PoL, {cr.road.trophies} on the road');
+    expect(textOf(line.segments)).toBe('2100 in PoL, 9123 on the road');
+    expect(line.segments.every((seg) => seg.kind !== 'unknown')).toBe(true);
+  });
+
   test('an unknown field under a known prefix stays literal', () => {
     const [line] = rehearseCommand('{val.teir}');
     expect(line.segments).toEqual([{ text: '{val.teir}', kind: 'unknown' }]);

@@ -38,10 +38,11 @@ import (
 // varies per run (the gossip caller, the broadcaster's config row, the chat
 // context) reaches it through engine.GameMount when the engine mounts it.
 func GameFamilies() []engine.GameFamilySpec {
-	return []engine.GameFamilySpec{
+	specs := []engine.GameFamilySpec{
 		valFamily(),
 		fnFamily(),
 	}
+	return append(specs, crFamilies()...)
 }
 
 // gameFamily is one prefixed family: which palette renders it, who a bare span

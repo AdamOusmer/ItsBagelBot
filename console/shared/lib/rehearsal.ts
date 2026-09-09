@@ -246,6 +246,46 @@ const FN_SAMPLES: Samples = {
   'fn.squadkd': '2.97'
 };
 
+/** Stand-ins for the three Clash Royale families (scope.Games): the lifetime
+ * profile ({cr.…}), the Path of Legends standing ({cr.pol.…}) and the trophy
+ * road ({cr.road.…}), each its own command's palette.
+ *
+ * The two trophy counts are deliberately far apart in the preview. They are
+ * different numbers — a Path of Legends rating that resets every season, and a
+ * trophy-road total that does not — and a preview that showed them close
+ * together would suggest they are two readings of one thing. */
+const CR_SAMPLES: Samples = {
+  'cr.player': 'Bagel',
+  'cr.tag': '#P2LQ0GR',
+  'cr.level': '62',
+  'cr.wins': '4820',
+  'cr.losses': '3110',
+  'cr.draws': '210',
+  'cr.battles': '8140',
+  'cr.winrate': '59.2',
+  'cr.crowns': '1204',
+  'cr.challengemax': '12',
+  'cr.donations': '184',
+  'cr.totaldonations': '21903',
+  'cr.clan': 'Bakery',
+  'cr.favcard': 'Knight',
+  'cr.pol.player': 'Bagel',
+  'cr.pol.tag': '#P2LQ0GR',
+  'cr.pol.league': '10',
+  'cr.pol.trophies': '2100',
+  'cr.pol.rank': '321',
+  'cr.pol.prevleague': '9',
+  'cr.pol.prevtrophies': '1840',
+  'cr.pol.bestleague': '10',
+  'cr.pol.besttrophies': '2400',
+  'cr.pol.bestrank': '42',
+  'cr.road.player': 'Bagel',
+  'cr.road.tag': '#P2LQ0GR',
+  'cr.road.trophies': '9123',
+  'cr.road.besttrophies': '9345',
+  'cr.road.arena': 'Legendary Arena'
+};
+
 /** Rehearse a custom command response: expand, split into messages, then
  * route each line's leading slash-verb (the same order as emitResponse).
  * (Expansion per line equals whole-template expansion: no token value can
@@ -654,7 +694,8 @@ function counterSample(token: Token): string | null {
  * typed. */
 const GAME_SAMPLES: Samples = {
   ...VAL_SAMPLES,
-  ...FN_SAMPLES
+  ...FN_SAMPLES,
+  ...CR_SAMPLES
 };
 
 const GAME_SCOPE: SampleScope = {

@@ -627,6 +627,17 @@ const guide: GuideContent = {
             ['Also', '<code>&#123;fn.kills&#125;</code>, <code>&#123;fn.winrate&#125;</code>, <code>&#123;fn.window&#125;</code>, and the same numbers per mode: <code>&#123;fn.solowins&#125;</code>, <code>&#123;fn.solomatches&#125;</code>, <code>&#123;fn.solokd&#125;</code>, and the <code>duo</code> and <code>squad</code> spellings of all three.', 'Needs the Fortnite module'],
           ],
         },
+        {
+          kind: 'table',
+          head: ['Variable', 'Becomes', 'Example'],
+          rows: [
+            ['<code>&#123;cr.pol.trophies&#125;</code>', 'Path of Legends trophies, with <code>&#123;cr.pol.league&#125;</code>, <code>&#123;cr.pol.rank&#125;</code>, <code>&#123;cr.pol.besttrophies&#125;</code>, <code>&#123;cr.pol.bestleague&#125;</code>, <code>&#123;cr.pol.bestrank&#125;</code> and the <code>prev</code> pair.', '2100'],
+            ['<code>&#123;cr.road.trophies&#125;</code>', 'Trophy-road trophies, a different count, with <code>&#123;cr.road.besttrophies&#125;</code> and <code>&#123;cr.road.arena&#125;</code>.', '9123'],
+            ['<code>&#123;cr.level&#125;</code>', 'King level, from the lifetime profile.', '62'],
+            ['<code>&#123;cr.clan&#125;</code>', 'Your clan, or "no clan".', 'Bakery'],
+            ['Also', 'The rest of the lifetime profile: <code>&#123;cr.wins&#125;</code>, <code>&#123;cr.losses&#125;</code>, <code>&#123;cr.draws&#125;</code>, <code>&#123;cr.battles&#125;</code>, <code>&#123;cr.winrate&#125;</code>, <code>&#123;cr.crowns&#125;</code>, <code>&#123;cr.challengemax&#125;</code>, <code>&#123;cr.donations&#125;</code>, <code>&#123;cr.totaldonations&#125;</code>, <code>&#123;cr.favcard&#125;</code>. Each of the three groups is its own <code>&#123;cr.player&#125;</code> and <code>&#123;cr.tag&#125;</code>.', 'Needs the Clash Royale module'],
+          ],
+        },
       ],
     },
     {

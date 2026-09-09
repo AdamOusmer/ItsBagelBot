@@ -143,6 +143,48 @@ func clashRankedSpecial(_ statsCall[clashroyaleConfig], r *gossiprpc.ClashRoyale
 	return unrankedText(r.Player), true
 }
 
+// The three {cr.…} custom-command token families.
+//
+// Three prefixes and not one, because two of the views disagree about what a
+// number means: !crranked and !crroad both answer a {trophies} and a
+// {besttrophies}, and they are different trophies (a Path of Legends rating,
+// reset every season, against a trophy-road total that is not). Folding them
+// would have made "{cr.trophies}" mean whichever view happened to answer it,
+// which is the mistake the game prefixes exist to prevent, one level down.
+// Three prefixes also keep the cost honest: each is its own lookup, so a
+// template that names only the lifetime profile pays for the lifetime profile.
+//
+// All three ride gossip's one shared player profile cache, exactly as the four
+// commands do, so a response reading two of them spends a single upstream
+// request per five minutes.
+const (
+	crTokenPrefix     = "cr."
+	crRankedPrefix    = "cr.pol."
+	crRoadTokenPrefix = "cr.road."
+)
+
+// crFamilies is Clash Royale's contribution: the lifetime profile, the Path of
+// Legends standing and the trophy road.
+//
+// The deck view is not among them. Its {cards} is eight card names joined with
+// commas, a list that is the whole message when !crdecks prints it and has no
+// room left inside a broadcaster's own sentence, which is the same reason
+// !valmatches has no token family.
+//
+// Clash Royale is tag-keyed (a player tag IS the identity, and there is no name
+// lookup upstream), so every family passes preferUUID=false for the reason the
+// commands pass preferName.
+func crFamilies() []engine.GameFamilySpec {
+	return []engine.GameFamilySpec{
+		linkedGameFamily[clashroyaleConfig](
+			crTokenPrefix, clashroyaleModuleName, clashRoute("stats"), clashStatsTokens(), false).spec(),
+		linkedGameFamily[clashroyaleConfig](
+			crRankedPrefix, clashroyaleModuleName, clashRoute("ranked"), clashRankedTokens(), false).spec(),
+		linkedGameFamily[clashroyaleConfig](
+			crRoadTokenPrefix, clashroyaleModuleName, clashRoute("trophy_road"), clashRoadTokens(), false).spec(),
+	}
+}
+
 // clashStatsTokens is the !crstats template palette over the gossip reply.
 func clashStatsTokens() module.TokenExpander[gossiprpc.ClashRoyaleStatsReply] {
 	type reply = gossiprpc.ClashRoyaleStatsReply

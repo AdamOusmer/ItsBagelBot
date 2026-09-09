@@ -84,7 +84,8 @@
     // here would be a hundred chips over a text box. Each is gated by its own
     // opt-in module, like the module facts above.
     { token: '{val.tier}', hint: 'commandEditor.tokVal' },
-    { token: '{fn.kd}', hint: 'commandEditor.tokFn' }
+    { token: '{fn.kd}', hint: 'commandEditor.tokFn' },
+    { token: '{cr.pol.trophies}', hint: 'commandEditor.tokCr' }
   ];
 
   let {

@@ -9,6 +9,7 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/engine/scope"
+	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -163,4 +164,52 @@ func TestFnFamilyKeepsTheLinkedName(t *testing.T) {
 
 	require.True(t, found)
 	assert.Equal(t, "Ninja", gw.lastCall(t).req.Account)
+}
+
+// The three {cr.…} families are the three views' own palettes, and they stay
+// apart: the ranked and trophy-road spellings of {trophies} are different
+// numbers, which is the whole reason for the extra prefix segment.
+func TestCrFamiliesMirrorTheirPalettes(t *testing.T) {
+	stats := familyByPrefix(t, crTokenPrefix)
+	ranked := familyByPrefix(t, crRankedPrefix)
+	road := familyByPrefix(t, crRoadTokenPrefix)
+
+	assert.Equal(t, clashroyaleModuleName, stats.Module)
+	assert.Equal(t, paletteFields(clashStatsTokens()), stats.Fields)
+	assert.Equal(t, paletteFields(clashRankedTokens()), ranked.Fields)
+	assert.Equal(t, paletteFields(clashRoadTokens()), road.Fields)
+	assert.NotContains(t, stats.Fields, "trophies", "the lifetime profile reports no trophies")
+}
+
+func TestCrFamiliesRenderTheCommandsValues(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{
+		"clashroyale.stats": clashStatsReply(),
+		"clashroyale.ranked": gossiprpc.ClashRoyaleRankedReply{
+			Player: "Bagel", Tag: "#P2LQ0GR",
+			Current: gossiprpc.ClashRoyaleRankedResult{LeagueNumber: 10, Trophies: 2100, Rank: 321},
+			Best:    gossiprpc.ClashRoyaleRankedResult{LeagueNumber: 10, Trophies: 2400, Rank: 42},
+		},
+		"clashroyale.trophy_road": gossiprpc.ClashRoyaleTrophyRoadReply{
+			Player: "Bagel", Tag: "#P2LQ0GR", Trophies: 9123, BestTrophies: 9345,
+			Arena: gossiprpc.ClashRoyaleArena{Name: "Legendary Arena"},
+		},
+	}}
+	const linked = `{"account":"#P2LQ0GR"}`
+
+	stats, found := lookOne(t, familyByPrefix(t, crTokenPrefix), gameMount(gw, linked), "")
+	require.True(t, found)
+	assert.Equal(t, "62", stats["level"])
+	assert.Equal(t, "Bakery", stats["clan"])
+
+	ranked, found := lookOne(t, familyByPrefix(t, crRankedPrefix), gameMount(gw, linked), "")
+	require.True(t, found)
+	assert.Equal(t, "2100", ranked["trophies"])
+	assert.Equal(t, "321", ranked["rank"])
+
+	road, found := lookOne(t, familyByPrefix(t, crRoadTokenPrefix), gameMount(gw, linked), "")
+	require.True(t, found)
+	assert.Equal(t, "9123", road["trophies"], "the trophy road counts different trophies")
+	assert.Equal(t, "Legendary Arena", road["arena"])
+
+	assert.Equal(t, "#P2LQ0GR", gw.lastCall(t).req.Account)
 }
