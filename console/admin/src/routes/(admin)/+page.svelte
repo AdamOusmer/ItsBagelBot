@@ -1,261 +1,90 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { onMount } from 'svelte';
-  import { StatTile, PageHead, CardHead, Card, Button, Skeleton, AlertBanner, ago, copyFlash } from '@bagel/shared';
-  import type { ShardSnapshot } from '@bagel/shared';
-  import EnrollmentChart from '$lib/components/EnrollmentChart.svelte';
-  import type { AuditEntry } from '$lib/server/services';
+  // Operator overview on the shared OverviewGrid: one wide column for the two
+  // panels an operator reads first (growth, then the fleet), a rail for the
+  // reads that only matter when something is wrong.
+  //
+  // Every panel is its own `{#await}` over its own streamed promise. The page
+  // shell (head, grid, headings) is therefore never behind NATS, and a slow
+  // responder costs one skeleton rather than the whole board -- which is what
+  // the previous single-bundle load did.
+  import { goto } from '$app/navigation';
+  import SkeletonStack from '@bagel/shared/components/SkeletonStack.svelte';
+  import Skeleton from '@bagel/shared/components/Skeleton.svelte';
+  import OverviewGrid from '@bagel/shared/components/OverviewGrid.svelte';
+  import PageHead from '@bagel/shared/components/PageHead.svelte';
+  import AlertBanner from '@bagel/shared/components/AlertBanner.svelte';
+  import { getI18n } from '@bagel/shared/i18n/context';
+  import EnrollmentPanel from '$lib/components/overview/EnrollmentPanel.svelte';
+  import FleetPanel from '$lib/components/overview/FleetPanel.svelte';
+  import HealthPanel from '$lib/components/overview/HealthPanel.svelte';
+  import AuditPeek from '$lib/components/overview/AuditPeek.svelte';
+  import QuickActions from '$lib/components/overview/QuickActions.svelte';
+  import BotCard from '$lib/components/overview/BotCard.svelte';
+  import type { EnrollmentWindow } from '$lib/enrollment-window';
 
   let { data } = $props();
 
-  // Absolute URL of the bot-authorization route. The operator opens it in the
-  // browser signed into the bot account; that browser gets the state cookie and
-  // the callback validates it there, so the link works across the browser switch.
-  let botLink = $state('');
-  let copied = $state(false);
-  onMount(() => {
-    botLink = `${location.origin}/auth/bot/login`;
-  });
+  const { t } = getI18n();
 
-  async function copyLink() {
-    if (!botLink) return;
-    await copyFlash(botLink, (on) => (copied = on));
-  }
-
-  function shardSummary(snap: ShardSnapshot) {
-    const connected = snap.shards.filter((s) => s.state === 'connected').length;
-    const total = snap.shard_count || snap.shards.length;
-    return { connected, total, healthy: total > 0 && total - connected <= 0 };
-  }
-
-  // Week-over-week signups from the enrollment buckets: last 7 days vs the 7
-  // before. Shown only when the window actually covers both weeks.
-  function weekDelta(days: { count: number }[]): string | null {
-    if (days.length < 14) return null;
-    const sum = (from: number, to: number) => days.slice(from, to).reduce((s, d) => s + d.count, 0);
-    const thisWeek = sum(days.length - 7, days.length);
-    const lastWeek = sum(days.length - 14, days.length - 7);
-    if (lastWeek === 0) return `+${thisWeek} this week`;
-    const pct = Math.round(((thisWeek - lastWeek) / lastWeek) * 100);
-    return `+${thisWeek} this week (${pct >= 0 ? '+' : ''}${pct}% wow)`;
-  }
-
-  function auditLine(e: AuditEntry): string {
-    const target = e.target ? ` → ${e.target}` : '';
-    return `${e.action}${target}`;
+  // The window lives in the URL (see +page.server.ts). keepFocus so the segment
+  // the operator just pressed keeps the ring; the panel re-renders around it.
+  function setWindow(days: EnrollmentWindow) {
+    goto(days === 30 ? '/' : `/?days=${days}`, { keepFocus: true, noScroll: true });
   }
 </script>
 
 <section class="screen active">
-  <PageHead eyebrow="Operator overview" description="Growth, fleet, and bot status at a glance.">
-    Live <em>control plane</em>
+  <PageHead
+    eyebrow={t('admin.overview.eyebrow')}
+    description={t('admin.overview.description')}
+  >
+    {t('admin.overview.titlePre')}<em>{t('admin.overview.titleEm')}</em>
   </PageHead>
 
-  {#await data.overview}
-    <div class="stat-grid">
-      <StatTile label="Registered users" value="-" unit="total" delta="loading…" flat />
-      <StatTile label="Premium users" value="-" unit="premium" delta="loading…" flat />
-      <StatTile label="Shards" value="-" unit="up" delta="loading…" flat />
-      <StatTile label="Conduit" value="…" unit="" delta="loading…" flat />
-    </div>
-    <div class="growth-card card">
-      <div class="card-head"><h3>Enrollment</h3></div>
-      <Skeleton variant="block" height="300px" />
-    </div>
-    <div class="grid-2">
-      <Card>
-        <CardHead title="Fleet" />
-        <div class="skeleton-list">
-          {#each [0, 1, 2, 3] as i (i)}<Skeleton variant="block" height="34px" />{/each}
-        </div>
-      </Card>
-      <Card>
-        <CardHead title="Bot account" />
-        <div class="skeleton-list">
-          <Skeleton variant="pill" />
-          <Skeleton variant="text" lines={2} width="70%" />
-          <Skeleton variant="block" height="40px" />
-        </div>
-      </Card>
-    </div>
-  {:then o}
-    {@const sum = shardSummary(o.snapshot)}
-    {@const stats = o.enrollment.stats}
-    {@const growth = weekDelta(o.enrollment.days)}
-    {#if o.degraded}
-      <AlertBanner>Some live data is unavailable; affected panels show neutral zero or empty values.</AlertBanner>
-    {/if}
-
-    <div class="stat-grid">
-      <StatTile
-        label="Registered users"
-        value={stats.total_users.toLocaleString()}
-        unit="total"
-        delta={growth ?? `${stats.active_users.toLocaleString()} active`}
-        flat={growth === null}
-      />
-      <StatTile
-        label="Premium users"
-        value={stats.premium_users.toLocaleString()}
-        unit="premium"
-        delta={`${stats.vip_users} VIP · ${stats.paid_users} paid`}
-        flat
-      />
-      <StatTile
-        label="Shards"
-        value={`${sum.connected}/${sum.total}`}
-        unit="up"
-        delta={`${o.snapshot.nodes.length} nodes · ${sum.healthy ? 'healthy' : 'degraded'}`}
-        flat={sum.healthy}
-      />
-      <StatTile
-        label="Conduit"
-        value={o.snapshot.conduit_manager?.state ?? 'unknown'}
-        unit=""
-        delta={`node ${o.snapshot.conduit_manager?.node ?? '-'}`}
-        flat
-      />
-    </div>
-
-    <div class="growth-card card">
-      <div class="card-head">
-        <h3>Enrollment: last {o.enrollment.days.length} days</h3>
-        <a class="more" href="/users">All users →</a>
-      </div>
-      <EnrollmentChart enrollment={o.enrollment} />
-    </div>
-
-    <div class="grid-2">
-      <Card>
-        <CardHead title="Fleet">
-          {#snippet action()}<a class="more" href="/shards">All shards →</a>{/snippet}
-        </CardHead>
-        <div class="node-list">
-          {#each o.snapshot.shards as s (s.shard_id)}
-            <div class="node-row">
-              <span class="nd {s.state === 'connected' ? '' : 'warn'}"></span>
-              <span class="nm">shard {s.shard_id}</span>
-              <span class="sv">{s.state} · {s.host || 'unknown-host'}</span>
-              <span class="pg">{s.attempts ?? 0} att</span>
-            </div>
-          {/each}
-        </div>
-      </Card>
-
-      <Card>
-        <CardHead title="Bot account" />
-        <div class="bot-body">
-          <div class="bot-row">
-            <div class="botmark"><img src="/logo.png" alt="" /></div>
-            <div>
-              <div class="live" class:off={!o.botPresent}>
-                <span class="dot"></span>
-                {o.botPresent ? 'Token stored' : 'No token stored'}
-              </div>
-              <div class="bot-meta">
-                {o.botPresent ? 'Authorized · OAuth token present' : 'Awaiting authorization'}
-              </div>
-            </div>
-            <a class="btn ghost" href="/auth/bot/login">
-              {o.botPresent ? 'Re-authorize' : 'Authorize'}
-            </a>
-          </div>
-
-          {#if botLink}
-            <div class="botlink">
-              <p class="hint">Open this in the browser signed into the bot account:</p>
-              <div class="botlink-row">
-                <input class="botlink-url" type="text" readonly value={botLink} />
-                <Button variant="ghost" type="button" onclick={copyLink}>
-                  {copied ? 'Copied' : 'Copy'}
-                </Button>
-              </div>
-            </div>
-          {/if}
-        </div>
-      </Card>
-    </div>
-
-    {#if data.isManager}
-      <div class="card audit-card">
-        <div class="card-head">
-          <h3>Recent operator actions</h3>
-          <a class="more" href="/audit">Full audit →</a>
-        </div>
-        {#if o.recentAudit.length === 0}
-          <p class="audit-empty">No actions recorded yet.</p>
-        {:else}
-          <div class="node-list">
-            {#each o.recentAudit as e (e.id)}
-              <div class="node-row">
-                <span class="nd {e.ok ? '' : 'err'}"></span>
-                <span class="nm">@{e.actor_login}</span>
-                <span class="sv mono">{auditLine(e)}</span>
-                {#if !e.ok}<span class="audit-err">{e.error || 'failed'}</span>{/if}
-                <span class="pg">{ago(e.created_at)}</span>
-              </div>
-            {/each}
-          </div>
+  <OverviewGrid>
+    {#snippet main()}
+      {#await data.enrollment}
+        <SkeletonStack rows={1} height="420px" />
+      {:then p}
+        {#if !p.ok}
+          <AlertBanner>{t('admin.overview.degraded')}</AlertBanner>
         {/if}
-      </div>
-    {/if}
-  {/await}
+        <EnrollmentPanel enrollment={p.value} days={data.days} onWindow={setWindow} />
+      {/await}
+
+      {#await data.fleet}
+        <SkeletonStack rows={1} height="260px" />
+      {:then p}
+        <FleetPanel snapshot={p.value} ok={p.ok} />
+      {/await}
+    {/snippet}
+
+    {#snippet side()}
+      {#await data.health}
+        <SkeletonStack rows={1} height="240px" />
+      {:then p}
+        <HealthPanel probes={p.value} ok={p.ok} />
+      {/await}
+
+      {#if data.canReadAudit}
+        {#await data.audit}
+          <SkeletonStack rows={1} height="220px" />
+        {:then p}
+          <AuditPeek entries={p.value} />
+        {/await}
+      {/if}
+
+      <QuickActions canNotify={data.canNotify} />
+
+      {#if data.canLinkBot}
+        {#await data.bot}
+          <Skeleton variant="block" height="160px" />
+        {:then p}
+          <BotCard present={p.value} />
+        {/await}
+      {/if}
+    {/snippet}
+  </OverviewGrid>
 </section>
-
-<style>
-  .growth-card { margin-top: var(--row-gap); }
-
-  .skeleton-list { display: flex; flex-direction: column; gap: 10px; padding: 14px; }
-
-  .node-row .sv.mono { font-family: var(--bb-font-mono); font-size: 12px; }
-  .node-row .nd.err { background: #cf8a78; box-shadow: 0 0 8px rgba(176, 90, 70, 0.6); }
-
-  .audit-card { margin-top: var(--row-gap); }
-
-  .audit-empty { font-family: var(--bb-font-body); font-size: 13px; color: var(--bb-muted); margin: 0; }
-  .audit-err {
-    font-family: var(--bb-font-mono); font-size: 10.5px; color: #cf8a78;
-    background: rgba(176, 90, 70, 0.1); border: 1px solid rgba(176, 90, 70, 0.28);
-    border-radius: var(--bb-radius-pill); padding: 2px 8px;
-    max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  }
-
-  .bot-body { display: flex; flex-direction: column; gap: 14px; }
-  .bot-row { display: flex; align-items: center; gap: 14px; }
-  .bot-row .botmark {
-    width: 48px; height: 48px; border-radius: 50%; flex: none;
-    background: rgba(82, 183, 136, 0.07); border: 1px solid rgba(82, 183, 136, 0.3);
-    display: flex; align-items: center; justify-content: center;
-  }
-  .bot-row .botmark img { width: 32px; height: 32px; border-radius: 50%; }
-  .bot-row .live {
-    display: inline-flex; align-items: center; gap: 8px;
-    font-family: var(--bb-font-mono); font-size: 11px; letter-spacing: 0.12em;
-    text-transform: uppercase; color: var(--bb-green-glow); margin-bottom: 4px;
-  }
-  .bot-row .live .dot {
-    width: 7px; height: 7px; border-radius: 50%;
-    background: var(--bb-green-glow); box-shadow: 0 0 8px var(--bb-green-glow);
-  }
-  .bot-row .live.off { color: var(--bb-tan-light); }
-  .bot-row .live.off .dot { background: var(--bb-tan); box-shadow: 0 0 8px var(--bb-tan); }
-  .bot-row .bot-meta { font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted); }
-  .bot-row .btn { margin-left: auto; white-space: nowrap; }
-
-  .botlink .hint { margin: 0 0 6px; font-size: 0.8rem; color: var(--bb-muted); font-family: var(--bb-font-body); }
-  .botlink-row { display: flex; gap: 8px; align-items: center; }
-  .botlink-url {
-    flex: 1; min-width: 0; padding: 7px 10px;
-    font-family: var(--bb-font-mono, monospace); font-size: 12px;
-    border: 1px solid var(--bb-border, #333); border-radius: var(--bb-radius-sm);
-    background: var(--bb-bg-1, #1a1a1a); color: var(--bb-white, #eee);
-  }
-
-  @media (max-width: 760px) {
-    :global(.stat-grid) { grid-template-columns: 1fr 1fr; }
-    .bot-row { flex-wrap: wrap; }
-    .bot-row .btn { margin-left: 0; width: 100%; justify-content: center; }
-    .audit-err { display: none; }
-  }
-</style>
