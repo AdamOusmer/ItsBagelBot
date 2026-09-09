@@ -197,9 +197,21 @@ func closeBrace(s string, from int) int {
 }
 
 // appendSpan resolves one "{...}" span and appends whatever it renders.
+//
+// A conditional ({if:cond:then:else}, see cond.go) asks repl for the token its
+// cond NAMES rather than for its own key, and renders one of its two literal
+// branches. It is resolved here, on the same repl every other span uses, so
+// the one-lexer property holds: a surface that expands templates through
+// Append gets conditionals without knowing they exist, and cannot disagree
+// with scope.Chain.Render about what one means.
 func appendSpan(dst []byte, raw string, repl func(key string) (val string, ok bool)) []byte {
 	tok := parseSpan(raw)
-	return append(dst, tok.Resolve(repl(tok.Key()))...)
+	cond, isCond := tok.Cond()
+	if !isCond {
+		return append(dst, tok.Resolve(repl(tok.Key()))...)
+	}
+	val, known := repl(cond.Ref.Key())
+	return append(dst, tok.CondText(cond, val, known)...)
 }
 
 // parseSpan splits one "{...}" span (braces included) into its parts.

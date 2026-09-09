@@ -107,9 +107,29 @@ func (c Chain) Render(dst []byte, toks []Var, values Values) []byte {
 			dst = append(dst, tok.Text...)
 			continue
 		}
-		dst = append(dst, tok.Resolve(values.Get(tok))...)
+		dst = append(dst, renderSpan(tok, values)...)
 	}
 	return dst
+}
+
+// renderSpan is the one span's worth of work Render does: an ordinary token
+// resolves to its own planned value, a conditional ({if:cond:then:else}) to
+// one of its two literal branches, chosen from the planned value of the token
+// its cond names.
+//
+// The conditional lives here rather than in a scope, and that is the point:
+// it decides between two texts the broadcaster already wrote, from values
+// that are already in memory. A scope would give it a Plan with a ctx, which
+// is the one thing a branch must never have — the test would then be able to
+// run I/O per span, and which spans run would depend on what an earlier span
+// resolved to.
+func renderSpan(tok Var, values Values) string {
+	cond, ok := tok.Cond()
+	if !ok {
+		return tok.Resolve(values.Get(tok))
+	}
+	val, known := values.Get(cond.Ref)
+	return tok.CondText(cond, val, known)
 }
 
 // group buckets the template's vars by their owning scope, in first-appearance
@@ -118,21 +138,37 @@ func (c Chain) Render(dst []byte, toks []Var, values Values) []byte {
 // The dedup is by raw key, so {counter:Deaths} and {counter:deaths} still
 // reach Plan as two wants; collapsing spellings that mean the same thing is
 // the owning scope's job, because only it knows how its payload folds.
+//
+// A conditional span contributes the token its cond READS rather than itself
+// (no scope owns the name "if"): "{if:followage:welcome back:hi}" plans
+// {followage} so Render has a value to test. It is one level deep and cannot
+// recurse — a cond's ref is a key, not a span, so it cannot itself be an
+// {if} — and it dedups against the plainly written spans, so naming the same
+// token in a cond and in the reply costs one lookup, not two.
 func (c Chain) group(toks []Var) [][]Var {
 	wants := make([][]Var, len(c))
 	seen := make(map[string]struct{}, len(toks))
 	for _, tok := range toks {
-		owner, ok := c.ownerOf(tok)
-		if !ok {
-			continue
+		c.want(wants, seen, tok)
+		if cond, ok := tok.Cond(); ok {
+			c.want(wants, seen, cond.Ref)
 		}
-		if _, dup := seen[tok.Key()]; dup {
-			continue
-		}
-		seen[tok.Key()] = struct{}{}
-		wants[owner] = append(wants[owner], tok)
 	}
 	return wants
+}
+
+// want buckets one var under its owning scope, unless nothing owns it or an
+// earlier span already asked for the same key.
+func (c Chain) want(wants [][]Var, seen map[string]struct{}, tok Var) {
+	owner, ok := c.ownerOf(tok)
+	if !ok {
+		return
+	}
+	if _, dup := seen[tok.Key()]; dup {
+		return
+	}
+	seen[tok.Key()] = struct{}{}
+	wants[owner] = append(wants[owner], tok)
 }
 
 // ownerOf returns the index of the first scope that owns tok's name.

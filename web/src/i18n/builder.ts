@@ -108,6 +108,14 @@ const UTILITIES: VarDef[] = [
   v('{repeat:3:bagel}', 'bagel bagel bagel', { en: 'Repeat a phrase', fr: 'Répéter une phrase' }, { en: 'Repeats your phrase, space separated. Up to 20 times, and it has to fit one chat line.', fr: 'Répète votre phrase, séparée par des espaces. 20 fois au maximum, et le tout doit tenir sur une ligne de chat.' }),
   v('{countdown:2026-12-25}', '3 days, 4 hours', { en: 'Time until a date', fr: 'Temps avant une date' }, { en: 'How long until that date. Write it as YYYY-MM-DD, or as a full timestamp. Nothing once the date has passed.', fr: 'Le temps restant avant cette date. Écrivez-la AAAA-MM-JJ, ou en horodatage complet. Plus rien une fois la date passée.' }),
   v('{countup:2020-01-01}', '3 days, 4 hours', { en: 'Time since a date', fr: 'Temps depuis une date' }, { en: 'How long since that date, in the same wording as !uptime.', fr: 'Le temps écoulé depuis cette date, formulé comme !uptime.' }),
+  // The conditional (app/twitch/sesame/engine/scope/scope.go renderSpan). It
+  // is offered in one shape rather than four: the entry a broadcaster clicks
+  // has to be editable into whatever they meant, and the two-branch form with
+  // a plain name is the one every other shape is a small edit away from. The
+  // description spends its words on the two rules a sample cannot show — the
+  // branches are plain text, and an empty branch takes its line with it —
+  // because both are what a first {if} gets wrong.
+  v('{if:touser:hi there:hi everyone}', 'hi there', { en: 'Say one thing or another', fr: 'Dire une chose ou une autre' }, { en: 'Picks the first text when the variable you name has something in it, the second when it does not. Name it without braces, and write {if:game=Chess:…:…} to test an exact value instead. Variables do not work inside the two texts. Leave the second one out and a false test says nothing at all — if that empties the whole line, the bot skips that line rather than sending a blank message.', fr: 'Affiche le premier texte quand la variable que vous nommez contient quelque chose, le second sinon. Nommez-la sans accolades, et écrivez {if:game=Chess:…:…} pour tester une valeur exacte. Les variables ne fonctionnent pas dans les deux textes. Omettez le second et un test faux n’affiche rien du tout: si la ligne se vide, le bot passe la ligne au lieu d’envoyer un message vide.' }),
 ];
 
 // The viewer lookups (app/twitch/sesame/engine/scope/viewer.go). Like the

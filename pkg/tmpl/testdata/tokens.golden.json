@@ -527,6 +527,227 @@
         "userid": "4242"
       },
       "want": "4242 sam_login !hug"
+    },
+    {
+      "name": "a true test renders its then branch",
+      "tmpl": "{if:user:hi}",
+      "values": {
+        "1": "",
+        "2": "",
+        "count:deaths": "0",
+        "game": "Chess",
+        "touser": "bob",
+        "user": "bob"
+      },
+      "want": "hi"
+    },
+    {
+      "name": "a false test with no else renders nothing",
+      "tmpl": "[{if:1:hi}]",
+      "values": {
+        "1": "",
+        "2": "",
+        "count:deaths": "0",
+        "game": "Chess",
+        "touser": "bob",
+        "user": "bob"
+      },
+      "want": "[]"
+    },
+    {
+      "name": "a true test picks then over else",
+      "tmpl": "{if:user:yes:no}",
+      "values": {
+        "1": "",
+        "2": "",
+        "count:deaths": "0",
+        "game": "Chess",
+        "touser": "bob",
+        "user": "bob"
+      },
+      "want": "yes"
+    },
+    {
+      "name": "a false test picks else",
+      "tmpl": "{if:1:yes:no}",
+      "values": {
+        "1": "",
+        "2": "",
+        "count:deaths": "0",
+        "game": "Chess",
+        "touser": "bob",
+        "user": "bob"
+      },
+      "want": "no"
+    },
+    {
+      "name": "equality is case-sensitive and exact",
+      "tmpl": "{if:touser=bob:yes:no}",
+      "values": {
+        "1": "",
+        "2": "",
+        "count:deaths": "0",
+        "game": "Chess",
+        "touser": "bob",
+        "user": "bob"
+      },
+      "want": "yes"
+    },
+    {
+      "name": "equality against a different literal is false",
+      "tmpl": "{if:touser=alex:yes:no}",
+      "values": {
+        "1": "",
+        "2": "",
+        "count:deaths": "0",
+        "game": "Chess",
+        "touser": "bob",
+        "user": "bob"
+      },
+      "want": "no"
+    },
+    {
+      "name": "equality against a case-folded literal is false",
+      "tmpl": "{if:game=chess:yes:no}",
+      "values": {
+        "1": "",
+        "2": "",
+        "count:deaths": "0",
+        "game": "Chess",
+        "touser": "bob",
+        "user": "bob"
+      },
+      "want": "no"
+    },
+    {
+      "name": "an empty value is non-empty-false but can be matched",
+      "tmpl": "{if:1=:empty:full}",
+      "values": {
+        "1": "",
+        "2": "",
+        "count:deaths": "0",
+        "game": "Chess",
+        "touser": "bob",
+        "user": "bob"
+      },
+      "want": "empty"
+    },
+    {
+      "name": "a value of \"0\" is text, so the bare test holds",
+      "tmpl": "{if:count:deaths:some:none}",
+      "values": {
+        "1": "",
+        "2": "",
+        "count:deaths": "0",
+        "game": "Chess",
+        "touser": "bob",
+        "user": "bob"
+      },
+      "want": "some"
+    },
+    {
+      "name": "the cond keeps its own payload, then and else are the last two parts",
+      "tmpl": "{if:count:deaths=0:none yet:some}",
+      "values": {
+        "1": "",
+        "2": "",
+        "count:deaths": "0",
+        "game": "Chess",
+        "touser": "bob",
+        "user": "bob"
+      },
+      "want": "none yet"
+    },
+    {
+      "name": "an unknown cond leaves the whole span literal",
+      "tmpl": "{if:missing:x}",
+      "values": {
+        "1": "",
+        "2": "",
+        "count:deaths": "0",
+        "game": "Chess",
+        "touser": "bob",
+        "user": "bob"
+      },
+      "want": "{if:missing:x}"
+    },
+    {
+      "name": "an unknown cond is not rescued by an else",
+      "tmpl": "{if:missing:x:y}",
+      "values": {
+        "1": "",
+        "2": "",
+        "count:deaths": "0",
+        "game": "Chess",
+        "touser": "bob",
+        "user": "bob"
+      },
+      "want": "{if:missing:x:y}"
+    },
+    {
+      "name": "a payload cond with no else needs the empty one spelled",
+      "tmpl": "[{if:count:deaths=1:hit:}]",
+      "values": {
+        "1": "",
+        "2": "",
+        "count:deaths": "0",
+        "game": "Chess",
+        "touser": "bob",
+        "user": "bob"
+      },
+      "want": "[]"
+    },
+    {
+      "name": "a branch is literal text: no token expands inside it",
+      "tmpl": "{if:user:hi {user}}",
+      "values": {
+        "1": "",
+        "2": "",
+        "count:deaths": "0",
+        "game": "Chess",
+        "touser": "bob",
+        "user": "bob"
+      },
+      "want": "hi {user}"
+    },
+    {
+      "name": "a half-written conditional stays literal",
+      "tmpl": "{if:user}",
+      "values": {
+        "1": "",
+        "2": "",
+        "count:deaths": "0",
+        "game": "Chess",
+        "touser": "bob",
+        "user": "bob"
+      },
+      "want": "{if:user}"
+    },
+    {
+      "name": "a bare {if} stays literal",
+      "tmpl": "{if}",
+      "values": {
+        "1": "",
+        "2": "",
+        "count:deaths": "0",
+        "game": "Chess",
+        "touser": "bob",
+        "user": "bob"
+      },
+      "want": "{if}"
+    },
+    {
+      "name": "a false test can empty a whole line",
+      "tmpl": "one\n{if:1:two}\nthree",
+      "values": {
+        "1": "",
+        "2": "",
+        "count:deaths": "0",
+        "game": "Chess",
+        "touser": "bob",
+        "user": "bob"
+      },
+      "want": "one\n\nthree"
     }
   ]
 }

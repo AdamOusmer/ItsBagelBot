@@ -164,6 +164,45 @@ func TestCustomMultiLineSkipsEmptyLines(t *testing.T) {
 	assert.Equal(t, "two", got[0].Items[1].Text)
 }
 
+// TestCustomIfEmptiedLineIsDropped proves the half of the conditional rule
+// that lives on the emit side (#909): a line a false {if:…} leaves with
+// nothing visible on it is dropped, and its siblings are sent. A multi-line
+// reply must never collapse whole because one of its lines went quiet.
+func TestCustomIfEmptiedLineIsDropped(t *testing.T) {
+	p := customPipeline("hi {user}\n{if:1: you said something}\nlast line", "everyone")
+	c := chatCtx("!so", "")
+	c.Env.MsgID = "event-message-if"
+	got := collectDispatch(p, c)
+	require.Len(t, got, 1)
+	require.Len(t, got[0].Items, 2, "the emptied line is dropped, the other two are not")
+	assert.Equal(t, "hi alice", got[0].Items[0].Text)
+	assert.Equal(t, "last line", got[0].Items[1].Text)
+}
+
+// TestCustomIfEmptiedLineDoesNotEatTheCap proves the drop happens BEFORE the
+// MaxResponseLines count: five written lines with one gone quiet still send
+// four, not three.
+func TestCustomIfEmptiedLineDoesNotEatTheCap(t *testing.T) {
+	p := customPipeline("one\n{if:1:two}\nthree\nfour\nfive", "everyone")
+	got := collectDispatch(p, chatCtx("!so", ""))
+	require.Len(t, got, 1)
+	require.Len(t, got[0].Items, 4)
+	assert.Equal(t, "five", got[0].Items[3].Text)
+}
+
+// TestCustomIfWholeReplyNeverCollapses is the footgun this token was allowed
+// to ship without: a false conditional suppresses its own line, never the
+// reply, and a single-line reply that empties itself simply says nothing.
+func TestCustomIfWholeReplyNeverCollapses(t *testing.T) {
+	p := customPipeline("{if:1:you said something}", "everyone")
+	assert.Empty(t, collectDispatch(p, chatCtx("!so", "")))
+
+	withArg := customPipeline("{if:1:you said one:you said nothing}", "everyone")
+	got := collectDispatch(withArg, chatCtx("!so", ""))
+	require.Len(t, got, 1)
+	assert.Equal(t, "you said nothing", got[0].Text)
+}
+
 func TestCustomMultiLineSuppressionDoesNotLeaveSequenceGap(t *testing.T) {
 	p := customPipeline("grabify.link/bad\nsafe line", "everyone")
 	c := chatCtx("!so", "")

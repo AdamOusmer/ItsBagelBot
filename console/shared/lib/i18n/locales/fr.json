@@ -736,6 +736,7 @@
     "tokRepeat": "répète une phrase n fois (20 au maximum, une ligne de chat)",
     "tokCountdown": "le temps restant jusqu’à cette date (AAAA-MM-JJ, ou un horodatage complet)",
     "tokCountup": "le temps écoulé depuis cette date",
+    "tokIf": "un texte ou l’autre: {if:nom:quand la variable contient quelque chose:sinon}, ou {if:nom=valeur:…:…} pour une correspondance exacte. Les variables ne fonctionnent pas dans les deux textes",
     "tokFollowage": "depuis combien de temps la personne suit la chaîne (module Followage)",
     "tokAccountAge": "l’âge de son compte Twitch (module Âge du compte)",
     "tokPoints": "son solde de points, ou {points:login} pour quelqu’un d’autre (Fidélité)",

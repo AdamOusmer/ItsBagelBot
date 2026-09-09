@@ -4,7 +4,16 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { expand, lex, resolveToken, type VarToken } from './tmpl';
+import {
+  type Cond,
+  condHolds,
+  condText,
+  expand,
+  lex,
+  parseCond,
+  resolveToken,
+  type VarToken
+} from './tmpl';
 
 // The golden fixture is Go's, read at run time rather than imported, so the
 // TypeScript build never has to reach outside console/ for a module and
@@ -121,6 +130,68 @@ describe('lex', () => {
 
   test('an unclosed brace opens no span', () => {
     expect(lex('oops {user')).toEqual([{ kind: 'literal', text: 'oops {user' }]);
+  });
+});
+
+describe('parseCond (pkg/tmpl/cond.go mirror)', () => {
+  function cond(span: string) {
+    return parseCond(lex(span)[0] as VarToken);
+  }
+
+  test('the last two parts are then and else, the rest is the cond key', () => {
+    expect(cond('{if:user:hi}')).toEqual({
+      ref: { kind: 'var', name: 'user', payload: null, fallback: null, raw: '', key: 'user' },
+      want: null,
+      then: 'hi',
+      els: ''
+    });
+    expect(cond('{if:count:deaths:none:some}')).toMatchObject({
+      ref: { name: 'count', payload: 'deaths', key: 'count:deaths' },
+      want: null,
+      then: 'none',
+      els: 'some'
+    });
+    expect(cond('{if:touser=bob:yes:no}')).toMatchObject({
+      ref: { key: 'touser' },
+      want: 'bob',
+      then: 'yes',
+      els: 'no'
+    });
+    expect(cond('{if:count:deaths=0:clean:messy}')).toMatchObject({
+      ref: { key: 'count:deaths' },
+      want: '0',
+      then: 'clean',
+      els: 'messy'
+    });
+  });
+
+  test('a span with fewer than two payload parts is not a conditional', () => {
+    for (const span of ['{if}', '{if:}', '{if:user}', '{iffy:user:hi}']) {
+      expect(cond(span)).toBeNull();
+    }
+  });
+
+  test('the name folds, the branches keep their case', () => {
+    expect(cond('{IF:User:Hi There}')).toMatchObject({ ref: { key: 'user' }, then: 'Hi There' });
+  });
+
+  test('an unknown cond renders the whole span literally', () => {
+    const token = lex('{if:missing:x:y}')[0] as VarToken;
+    expect(condText(token, parseCond(token) as Cond, null)).toBe('{if:missing:x:y}');
+  });
+
+  test('the bare test is non-emptiness, so "0" and "false" are true', () => {
+    const c = cond('{if:count:yes:no}') as Cond;
+    expect(condHolds(c, '0')).toBe(true);
+    expect(condHolds(c, 'false')).toBe(true);
+    expect(condHolds(c, '')).toBe(false);
+  });
+
+  test('equality is exact and case-sensitive', () => {
+    const c = cond('{if:game=Chess:yes:no}') as Cond;
+    expect(condHolds(c, 'Chess')).toBe(true);
+    expect(condHolds(c, 'chess')).toBe(false);
+    expect(condHolds(c, 'Chess Boxing')).toBe(false);
   });
 });
 

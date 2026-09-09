@@ -41,7 +41,7 @@
 
 import { RESPONSE_MAX_LINES, responseLines } from './commands-validate';
 import { queryEscape, resolveComputedUtil, UTIL_NAMES } from './pure';
-import { lex, resolveToken, type VarToken } from './tmpl';
+import { condText, type Cond, lex, parseCond, resolveToken, type VarToken } from './tmpl';
 
 export type SegKind = 'plain' | 'sample' | 'unknown';
 
@@ -232,8 +232,20 @@ const CHANNEL_VIEWERS_SAMPLE = '128';
 export function rehearseCommand(response: string, overrides?: Samples): RehearsedLine[] {
   const resolve = chainResolver(commandChain({ ...COMMAND_SAMPLES, ...(overrides ?? {}) }));
   return responseLines(response)
+    .map((line) => expandSegments(line, resolve))
+    .filter((segments) => !isBlankLine(segments))
     .slice(0, RESPONSE_MAX_LINES)
-    .map((line) => rehearseLine(line, resolve));
+    .map(routeLine);
+}
+
+/** Whether an expanded line has nothing visible left on it, which a false
+ * {if:…} with no else can do to a line that was written with words on it.
+ * The engine drops such a line BEFORE counting it against the five-message
+ * cap (engine/dispatch.go blankLine), so this filter runs before the slice
+ * for the same reason: a reply must not lose its last line because an earlier
+ * one went quiet. */
+function isBlankLine(segments: Seg[]): boolean {
+  return segments.every((seg) => seg.text.trim() === '');
 }
 
 /** Rehearse a module reply: one message, the module's own tokens plus
@@ -262,7 +274,13 @@ export interface ReplyOptions {
  * the EXPANDED text (the engine's order), so a verb minted by a token (e.g.
  * {choice:/pin a,/pin b}) still routes. */
 function rehearseLine(line: string, resolve: Resolve): RehearsedLine {
-  const segments = expandSegments(line, resolve);
+  return routeLine(expandSegments(line, resolve));
+}
+
+/** The slash-verb half of rehearseLine, over segments that are already
+ * expanded: the command rehearsal drops the lines a conditional emptied
+ * before routing what is left, so it expands first and routes after. */
+function routeLine(segments: Seg[]): RehearsedLine {
   const action = parseSlash(segments.map((seg) => seg.text).join(''));
   return {
     mode: action.mode,
@@ -294,9 +312,21 @@ export function expandSegments(text: string, resolve: Resolve): Seg[] {
   return out.filter((seg) => seg.text !== '');
 }
 
-function segFor(token: Token, resolve: Resolve): Seg {
+function segFor(token: VarToken, resolve: Resolve): Seg {
+  const cond = parseCond(token);
+  if (cond !== null) return condSeg(token, cond, resolve);
   const value = resolve(token);
   return { text: resolveToken(token, value), kind: value === null ? 'unknown' : 'sample' };
+}
+
+/** A conditional's segment: the branch its cond chose, from the sample value
+ * of the token the cond NAMES (scope.Chain.Render's renderSpan). Nothing in
+ * reach owning that name leaves the whole span literal and marked unknown,
+ * exactly as chat would print it, so a cond naming a module that is off is
+ * visible here rather than silently taking the else branch. */
+function condSeg(token: VarToken, cond: Cond, resolve: Resolve): Seg {
+  const value = resolve(cond.ref);
+  return { text: condText(token, cond, value), kind: value === null ? 'unknown' : 'sample' };
 }
 
 // --- scopes (engine/scope) ------------------------------------------------

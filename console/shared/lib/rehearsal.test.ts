@@ -117,6 +117,56 @@ describe('rehearseCommand', () => {
     expect(rehearseCommand('a\nb\nc\nd\ne\nf')).toHaveLength(5);
   });
 
+  test('a conditional picks a branch from the sample of the token it names', () => {
+    const [line] = rehearseCommand('{if:touser:hi you:hi everyone} - {touser}');
+    expect(textOf(line.segments)).toBe('hi you - ferret_king');
+  });
+
+  test('a conditional tests emptiness, and equality with "="', () => {
+    const cases: [string, string][] = [
+      ['{if:9:word nine:no ninth word}', 'no ninth word'],
+      ['{if:command=hug:hugs:waves}', 'hugs'],
+      ['{if:command=HUG:hugs:waves}', 'waves'],
+      ['{if:count:deaths:some deaths:none}', 'some deaths'],
+      ['{if:count:deaths=42:exactly 42:something else}', 'exactly 42']
+    ];
+    for (const [template, want] of cases) {
+      const [line] = rehearseCommand(template);
+      expect(textOf(line.segments)).toBe(want);
+    }
+  });
+
+  test('a cond naming something no scope owns keeps the whole span', () => {
+    for (const span of ['{if:missing:x}', '{if:missing:x:y}', '{if}', '{if:user}']) {
+      const [line] = rehearseCommand(span);
+      expect(line.segments).toEqual([{ text: span, kind: 'unknown' }]);
+    }
+  });
+
+  test('a branch is literal text: no token expands inside it', () => {
+    const [line] = rehearseCommand('{if:user:hi {user}}');
+    expect(textOf(line.segments)).toBe('hi {user}');
+  });
+
+  test('a line a false conditional empties is dropped, its siblings are not', () => {
+    // engine/dispatch.go blankLine: the drop happens before the 5-message cap,
+    // so a multi-line reply never collapses and never loses its last line.
+    const lines = rehearseCommand('hi {user}\n{if:9: and word nine}\nlast line');
+    expect(lines).toHaveLength(2);
+    expect(textOf(lines[0].segments)).toBe('hi sesame_sam');
+    expect(textOf(lines[1].segments)).toBe('last line');
+  });
+
+  test('an emptied line does not eat a slot in the 5-message cap', () => {
+    const lines = rehearseCommand('one\n{if:9:two}\nthree\nfour\nfive');
+    expect(lines.map((line) => textOf(line.segments))).toEqual([
+      'one',
+      'three',
+      'four',
+      'five'
+    ]);
+  });
+
   test('routes each line its own slash verb', () => {
     const [a, b] = rehearseCommand('/announcegreen go {user}!\n/me waves');
     expect(a.mode).toBe('announce');

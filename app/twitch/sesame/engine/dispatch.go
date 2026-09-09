@@ -103,8 +103,13 @@ func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, name, args 
 	// each with its own slash-verb translation. A line left with no payload (an
 	// "/announce" with no text, a "/shoutout" with no target) is dropped; the
 	// run counts once if anything was emitted.
+	// The chain mounts per token family from the token list, so it is built
+	// from the template PLUS the tokens the {if:…} conds read: a cond names a
+	// token that may be the only mention of its family in the response, and a
+	// scope that never mounted would leave the conditional unresolvable
+	// (literal) instead of testing the value it was written about.
 	toks := tmpl.Lex(cc.Response)
-	chain := p.commandChain(ctx, commandRun{c: c, command: cc.Name, args: args, uses: cc.Uses}, toks)
+	chain := p.commandChain(ctx, commandRun{c: c, command: cc.Name, args: args, uses: cc.Uses}, tmpl.WithCondRefs(toks))
 	values := chain.Plan(ctx, toks, p.logScopeFailure(c))
 	emitted, err := p.emitResponse(c, toks, chain, values, emit)
 	if err != nil {
@@ -151,7 +156,7 @@ func (p *Pipeline) emitResponse(c *module.Context, toks []tmpl.Token, chain scop
 	outputs := make([]module.Output, 0, validate.MaxResponseLines)
 	lines := 0
 	for line := range strings.SplitSeq(expanded, "\n") {
-		if line == "" {
+		if blankLine(line) {
 			continue
 		}
 		lines++
@@ -168,6 +173,23 @@ func (p *Pipeline) emitResponse(c *module.Context, toks []tmpl.Token, chain scop
 		PutOutput(out)
 	}
 	return p.emitPreparedResponse(c, outputs, emit)
+}
+
+// blankLine reports whether an expanded line has nothing left to say.
+//
+// Whitespace-only counts as blank, not just empty, and that is what a
+// conditional needs: "{if:2:and {2}}" on a one-word invocation renders a line
+// holding one space, and a space is not a chat message. The drop happens
+// BEFORE the line is counted against validate.MaxResponseLines, so a response
+// whose middle line vanishes still sends every line the broadcaster wrote —
+// the alternative (count then drop) would silently eat the fifth line of a
+// five-line reply the moment one of the first four went quiet.
+//
+// It is the same reason the blank-line skip existed before conditionals: a
+// stored response with a double newline in it must not publish an empty chat
+// message. This only widens "empty" to "nothing visible".
+func blankLine(line string) bool {
+	return strings.TrimSpace(line) == ""
 }
 
 func (p *Pipeline) emitPreparedResponse(c *module.Context, outputs []module.Output, emit module.Emit) (bool, error) {

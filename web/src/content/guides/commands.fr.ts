@@ -286,6 +286,9 @@ const strings: GuideStrings = {
     'utilities.b1.rows.5.0': '<code>&#123;queryescape:hello world&#125;</code>',
     'utilities.b1.rows.5.1': "Le même encodage, appliqué à un texte que vous écrivez vous-même. <code>&#123;pathescape:…&#125;</code> en est la jumelle pour la partie chemin d'une URL, où l'espace devient <code>%20</code> au lieu de <code>+</code>.",
     'utilities.b1.rows.5.2': 'hello+world',
+    'utilities.b1.rows.6.0': '<code>&#123;if:touser:salut toi:salut tout le monde&#125;</code>',
+    'utilities.b1.rows.6.1': "L'un des deux textes, choisi selon que la variable que vous nommez contient quelque chose ou non. Nommez-la sans accolades. <code>&#123;if:game=Chess:…:…&#125;</code> teste plutôt une valeur exacte, majuscules et minuscules comprises.",
+    'utilities.b1.rows.6.2': 'salut toi',
     'utilities.b2.caption': 'Un compte à rebours et un calcul, dans deux commandes ordinaires.',
     'utilities.b2.lines.0.name': 'maya_live',
     'utilities.b2.lines.0.text': '!sortie',
@@ -301,8 +304,40 @@ const strings: GuideStrings = {
                 accolades au lieu du nombre et revient vide. Tout ce qu'elles ne savent pas calculer
                 revient vide aussi, et c'est exactement là qu'une valeur par défaut sert:
                 <code>&#123;math:1/0|aucune idée&#125;</code>.`,
+    'utilities.b4.html': `
+            <p>
+                <code>&#123;if:…&#125;</code> est la seule qui lit une autre variable, elle mérite
+                donc un mot de plus. Elle prend trois parties séparées par des deux-points: la
+                variable à tester, le texte à dire quand le test passe, et le texte à dire sinon.
+                <code>&#123;if:1:tu as dit {1}:dis quelque chose!&#125;</code> se trompe sur un seul
+                point: les deux textes sont du texte brut, et aucune variable ne s'y développe.
+                Écrivez <code>&#123;if:1:c'est noté:dis quelque chose!&#125;</code> et mettez le
+                <code>&#123;1&#125;</code> en dehors des accolades.
+            </p>
+            <p>
+                Vous pouvez omettre le second texte: <code>&#123;if:touser:pour @{touser}&#125;</code>
+                ne dit rien du tout quand personne n'est mentionné. Vous pouvez nommer une variable
+                qui contient un deux-points (<code>&#123;if:count:morts:jusqu'ici:aucune encore&#125;</code>
+                teste le compteur de morts) parce que les DEUX DERNIÈRES parties sont les deux
+                textes et que tout ce qui précède est la variable. C'est aussi la seule chose à
+                savoir sur les deux-points: un deux-points dans votre texte serait lu comme faisant
+                partie du nom de la variable, alors évitez-les (un tiret passe très bien). Si vous
+                nommez une variable à deux-points et ne voulez pas de second texte, écrivez-le vide:
+                <code>&#123;if:count:morts:jusqu'ici:&#125;</code>.
+            </p>`,
+    'utilities.b5.html': `
+                <b>Une ligne vide est sautée, pas envoyée</b>
+                Quand un test échoue et que vous n'avez écrit aucun second texte, la variable ne
+                donne rien. Si la ligne entière se retrouve vide, le bot saute cette ligne au lieu
+                d'envoyer un message vide, et le reste de votre réponse part exactement comme vous
+                l'avez écrit. Une réponse de cinq lignes dont la deuxième est
+                <code>&#123;if:1:tu as demandé quelque chose&#125;</code> envoie donc quatre lignes
+                sur un <code>!commande</code> tout seul, et cinq quand quelqu'un tape un mot après.
+                Une variable que le bot ne connaît pas reste visible, accolades comprises: si le
+                chat vous relit <code>&#123;if:…&#125;</code>, vérifiez la variable que vous avez
+                nommée dedans, ou le module qui la fournit.`,
     'utilities.heading': 'Les petits calculs que la réponse fait elle-même',
-    'utilities.note': "Calculs, comptes à rebours, répétitions, et l'encodage d'un texte pour qu'il survive à une URL.",
+    'utilities.note': "Calculs, comptes à rebours, répétitions, une réponse ou une autre, et l'encodage d'un texte pour qu'il survive à une URL.",
     'variables.b0.html': `
             <p>
                 Écrivez <code>&#123;user&#125;</code> dans une réponse et le bot le remplace par le nom
