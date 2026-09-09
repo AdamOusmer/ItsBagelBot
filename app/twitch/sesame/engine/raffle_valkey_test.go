@@ -103,3 +103,20 @@ func TestMentionListAndTokens(t *testing.T) {
 	assert.Equal(t, "@x won 2/9", out)
 	assert.Equal(t, "{unknown} stays", expandTokens("{unknown} stays"))
 }
+
+// TestExpandTokensReadsTheSpanGrammar pins the two behaviours the raffle
+// announcer gained when its strings.NewReplacer was replaced by tmpl.Expand.
+// Both are intentional; neither can change a shipped line, because every
+// raffle string in the i18n catalog is lower-case and pipe-free and the rows
+// above still pin the old outputs byte for byte.
+func TestExpandTokensReadsTheSpanGrammar(t *testing.T) {
+	// Token names fold. The replacer matched "{targets}" byte for byte, so a
+	// broadcaster who capitalised a token got braces printed in chat.
+	assert.Equal(t, "@x won", expandTokens("{TARGETS} won", "targets", "@x"))
+	assert.Equal(t, "@x won", expandTokens("{Targets} won", "targets", "@x"))
+	// The '|' fallback shipped with the args PR; the replacer was the last
+	// surface that did not honour it.
+	assert.Equal(t, "nobody won", expandTokens("{targets|nobody} won", "targets", ""))
+	// A fallback still does not rescue an unknown name.
+	assert.Equal(t, "{missing|x}", expandTokens("{missing|x}"))
+}

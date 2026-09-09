@@ -12,6 +12,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/event/lane"
 	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/pkg/tmpl"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -269,11 +270,11 @@ func TestPersonalitySpecificReactionBeatsMentionFact(t *testing.T) {
 
 // expandFor renders a pack line the way packReply would for the test chatter.
 func expandFor(line string) string {
-	return module.ExpandString(line, func(key string) (string, bool) {
-		if key == "user" {
+	return module.ExpandString(line, func(tok tmpl.Token) (string, bool) {
+		if tok.Key() == "user" {
 			return "Bob", true
 		}
-		return module.ParseDynamic(key)
+		return tmpl.Dynamic(tok)
 	})
 }
 

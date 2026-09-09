@@ -11,6 +11,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/pkg/tmpl"
 )
 
 // replyKey names one localized line. A named type over the i18n key keeps the
@@ -55,26 +56,27 @@ func newGameReplier(c *module.Context, pointsName string) chatReplier {
 // dynamic vars ({random}, {choice:…}) are always available, so a customized
 // template can use them too.
 func (g chatReplier) reply(emit module.Emit, override string, key replyKey, kv ...string) {
-	tmpl := override
-	if tmpl == "" {
-		tmpl = i18n.T(g.c.Locale, string(key))
+	line := override
+	if line == "" {
+		line = i18n.T(g.c.Locale, string(key))
 	}
-	text := module.ExpandString(tmpl, func(k string) (string, bool) {
+	text := module.ExpandString(line, func(tok tmpl.Token) (string, bool) {
+		name := tok.Key()
 		// kv is the variadic list this one call was given (never more than a
 		// handful), so the scan is shorter than building a map would be — and
 		// the map would be rebuilt for every reply anyway.
 		for i := 0; i+1 < len(kv); i += 2 {
-			if kv[i] == k {
+			if kv[i] == name {
 				return kv[i+1], true
 			}
 		}
 		switch {
-		case k == "user":
+		case name == "user":
 			return g.c.Env.ChatterUserLogin, true
-		case k == "points" && g.points != "":
+		case name == "points" && g.points != "":
 			return g.points, true
 		}
-		return module.ParseDynamic(k)
+		return tmpl.Dynamic(tok)
 	})
 	emit(&module.Output{
 		Type:          outgress.TypeChat,

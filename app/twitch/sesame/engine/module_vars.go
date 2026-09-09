@@ -190,8 +190,8 @@ func (q quoteReads) render(quote modulesrpc.Quote, found bool, err error) string
 // is read from the shared catalog rather than rebuilt here, so a channel that
 // reads !quote in French reads {quote} in French too.
 func quoteLine(locale string, q modulesrpc.Quote) string {
-	return module.ExpandString(i18n.T(locale, "quote.show"), func(key string) (string, bool) {
-		switch key {
+	return module.ExpandString(i18n.T(locale, "quote.show"), func(tok tmpl.Token) (string, bool) {
+		switch tok.Key() {
 		case "num":
 			return strconv.FormatUint(q.Number, 10), true
 		case "text":

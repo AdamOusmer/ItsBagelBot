@@ -14,6 +14,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/pkg/tmpl"
 
 	"go.uber.org/zap"
 )
@@ -103,8 +104,8 @@ func logBumpFailure(c *module.Context, err error) {
 func emotePlayAnnounce(c *module.Context, emit module.Emit, emote string, res engine.EmotePlayResult) {
 	switch {
 	case res.PyramidDone:
-		text := module.ExpandString(i18n.T(c.Locale, "emoteplay.pyramid"), func(key string) (string, bool) {
-			switch key {
+		text := module.ExpandString(i18n.T(c.Locale, "emoteplay.pyramid"), func(tok tmpl.Token) (string, bool) {
+			switch tok.Key() {
 			case "user":
 				return strings.TrimPrefix(c.Env.ChatterName(), "@"), true
 			case "emote":
@@ -112,19 +113,19 @@ func emotePlayAnnounce(c *module.Context, emit module.Emit, emote string, res en
 			case "height":
 				return strconv.Itoa(res.Apex), true
 			default:
-				return module.ParseDynamic(key)
+				return tmpl.Dynamic(tok)
 			}
 		})
 		emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: text})
 	case res.StreakMilestone:
-		text := module.ExpandString(i18n.T(c.Locale, "emoteplay.streak"), func(key string) (string, bool) {
-			switch key {
+		text := module.ExpandString(i18n.T(c.Locale, "emoteplay.streak"), func(tok tmpl.Token) (string, bool) {
+			switch tok.Key() {
 			case "emote":
 				return emote, true
 			case "count":
 				return strconv.Itoa(res.Streak), true
 			default:
-				return module.ParseDynamic(key)
+				return tmpl.Dynamic(tok)
 			}
 		})
 		emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: text})

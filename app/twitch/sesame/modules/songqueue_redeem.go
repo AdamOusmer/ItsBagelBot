@@ -13,6 +13,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/tmpl"
 
 	"go.uber.org/zap"
 )
@@ -165,13 +166,25 @@ const defaultSongqueueRedeemReply = "@{user} queued {track}, position #{pos}."
 
 // renderSongqueueRedeemReply fills {user}/{track}/{input}/{pos} from the
 // redemption, falling back to defaultSongqueueRedeemReply when blank.
-func renderSongqueueRedeemReply(tmpl string, ev redemptionEvent, track string, pos int) string {
-	if strings.TrimSpace(tmpl) == "" {
-		tmpl = defaultSongqueueRedeemReply
+//
+// The dynamic fallthrough ({random}, {choice:a,b}) is deliberate and is a
+// behaviour CHANGE, pinned by TestSongqueueRedeemReplyResolvesDynamic.
+//
+// Every other reward-template surface (channelpoints, alerts, shoutout,
+// timeofday, emoteplay) already ended its switch in the dynamic vars; this
+// one and govee ended in `return "", false`, so a broadcaster who wrote
+// "{choice:nice,cool} pick, @{user}" into the song-request reward saw the
+// braces in chat while the identical template worked one reward over. The
+// drift was invisible enough that the web command builder encodes it by hand
+// as a per-surface exception. Making the two agree deletes that exception:
+// {random} and {choice:} now resolve on ALL reward surfaces.
+func renderSongqueueRedeemReply(text string, ev redemptionEvent, track string, pos int) string {
+	if strings.TrimSpace(text) == "" {
+		text = defaultSongqueueRedeemReply
 	}
 	user := strings.TrimPrefix(displayName(ev.UserName, ev.UserLogin), "@")
-	return module.ExpandString(tmpl, func(key string) (string, bool) {
-		switch key {
+	return module.ExpandString(text, func(tok tmpl.Token) (string, bool) {
+		switch tok.Key() {
 		case "user":
 			return user, true
 		case "track":
@@ -181,7 +194,7 @@ func renderSongqueueRedeemReply(tmpl string, ev redemptionEvent, track string, p
 		case "pos":
 			return strconv.Itoa(pos), true
 		default:
-			return "", false
+			return tmpl.Dynamic(tok)
 		}
 	})
 }

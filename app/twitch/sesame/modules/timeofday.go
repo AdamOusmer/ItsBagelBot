@@ -11,6 +11,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/pkg/tmpl"
 
 	"go.uber.org/zap"
 )
@@ -78,12 +79,12 @@ func timeReply(log *zap.Logger, c *module.Context, now time.Time) string {
 // expandTimeTemplate fills the reply template's tokens for the broadcaster's
 // local instant, falling back to defaultTimeTemplate on a blank template.
 func expandTimeTemplate(cfg timeConfig, local time.Time, c *module.Context) string {
-	tmpl := strings.TrimSpace(cfg.Message)
-	if tmpl == "" {
-		tmpl = defaultTimeTemplate
+	text := strings.TrimSpace(cfg.Message)
+	if text == "" {
+		text = defaultTimeTemplate
 	}
-	return module.ExpandString(tmpl, func(key string) (string, bool) {
-		switch key {
+	return module.ExpandString(text, func(tok tmpl.Token) (string, bool) {
+		switch tok.Key() {
 		case "time":
 			return engine.FormatClock(local, cfg.Format), true
 		case "date":
@@ -93,7 +94,7 @@ func expandTimeTemplate(cfg timeConfig, local time.Time, c *module.Context) stri
 		case "user":
 			return strings.TrimPrefix(c.Env.ChatterName(), "@"), true
 		default:
-			return module.ParseDynamic(key)
+			return tmpl.Dynamic(tok)
 		}
 	})
 }

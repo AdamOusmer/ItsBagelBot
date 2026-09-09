@@ -268,13 +268,23 @@ func clipExpand(meta clipMeta, clipURL string) string {
 	return expandTokens(strings.TrimSpace(meta.Reply), tokens)
 }
 
-// expandTokens renders tmpl over a fixed token map. The scanner itself lives
-// in pkg/tmpl: this file and sesame's module.Expand had each grown their own
+// expandTokens renders t over a fixed token map. The scanner itself lives in
+// pkg/tmpl: this file and sesame's module.Expand had each grown their own
 // copy of it, free to drift on brace and case edge cases, and pkg/tmpl is now
 // the single one both call (its pinning table records what each used to do).
+//
+// A name the map does not hold falls through to tmpl.Dynamic, so {random} and
+// {choice:a,b} work in a clip or stream reply exactly as they do in a sesame
+// reward template. That is a behaviour CHANGE, pinned by
+// TestExpandTokensResolvesDynamic: outgress could not reach the dynamic vars
+// before because they lived in sesame's module package, which outgress must
+// not import (internal/buildguard). Moving them to pkg/tmpl removed the only
+// reason the two surfaces differed.
 func expandTokens(t string, tokens map[string]string) string {
-	return tmpl.Expand(t, func(key string) (string, bool) {
-		val, ok := tokens[key]
-		return val, ok
+	return tmpl.Expand(t, func(tok tmpl.Token) (string, bool) {
+		if val, ok := tokens[tok.Key()]; ok {
+			return val, true
+		}
+		return tmpl.Dynamic(tok)
 	})
 }

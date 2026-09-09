@@ -149,16 +149,23 @@ func appendLiteral(out []Token, text string) []Token {
 // hot path (TestAppendKeepsCallerBuffer pins zero allocations). The span
 // grammar itself is not duplicated — both go through parseSpan.
 //
-// Literal runs are copied verbatim. On a "{key}" span, repl is asked for the
-// key's value and Token.Resolve turns the answer into bytes: an unknown key
+// Literal runs are copied verbatim. On a "{...}" span, repl is handed the
+// lexed Token and Token.Resolve turns the answer into bytes: an unknown span
 // keeps its literal "{key}" (braces included), an empty value renders the
 // span's fallback. A '{' with no matching '}' is copied literally to the end.
 //
-// Token names are case-insensitive: the key's name — everything before the
-// first ':' — is lowercased before repl sees it, so {User} and {USER} resolve
-// like {user}. A payload after the ':' keeps its case ({choice:Hi,Yo} offers
+// repl takes a Token rather than a key string so that no caller has to split
+// a span back apart to read its payload: Name, Payload and HasPayload are
+// already separated, and Token.Key() rebuilds the "name:payload" lookup
+// string for the resolvers that match on it. A repl that re-derived those by
+// hand would be a second parser of the same grammar, which is the exact drift
+// this package exists to end.
+//
+// Token names are case-insensitive: Name — everything before the first ':' —
+// is lowercased before repl sees it, so {User} and {USER} resolve like
+// {user}. A payload after the ':' keeps its case ({choice:Hi,Yo} offers
 // "Hi"), so every repl matches against lowercase names only.
-func Append(dst []byte, s string, repl func(key string) (val string, ok bool)) []byte {
+func Append(dst []byte, s string, repl func(tok Token) (val string, ok bool)) []byte {
 	for i := 0; i < len(s); {
 		if s[i] != '{' {
 			dst = append(dst, s[i])
@@ -178,7 +185,7 @@ func Append(dst []byte, s string, repl func(key string) (val string, ok bool)) [
 
 // Expand wraps Append for callers who do not pool their own buffers,
 // returning a newly allocated string.
-func Expand(s string, repl func(key string) (val string, ok bool)) string {
+func Expand(s string, repl func(tok Token) (val string, ok bool)) string {
 	if s == "" {
 		return ""
 	}
@@ -204,13 +211,13 @@ func closeBrace(s string, from int) int {
 // the one-lexer property holds: a surface that expands templates through
 // Append gets conditionals without knowing they exist, and cannot disagree
 // with scope.Chain.Render about what one means.
-func appendSpan(dst []byte, raw string, repl func(key string) (val string, ok bool)) []byte {
+func appendSpan(dst []byte, raw string, repl func(tok Token) (val string, ok bool)) []byte {
 	tok := parseSpan(raw)
 	cond, isCond := tok.Cond()
 	if !isCond {
-		return append(dst, tok.Resolve(repl(tok.Key()))...)
+		return append(dst, tok.Resolve(repl(tok))...)
 	}
-	val, known := repl(cond.Ref.Key())
+	val, known := repl(cond.Ref)
 	return append(dst, tok.CondText(cond, val, known)...)
 }
 
@@ -222,7 +229,7 @@ func appendSpan(dst []byte, raw string, repl func(key string) (val string, ok bo
 // the trailing, optional part of the grammar an author reads left to right
 // ("this token, or else that text"); first-wins would make every pipe inside
 // a payload silently amputate it. {choice} itself is unaffected either way:
-// its option separator is ',' (see module.ParseDynamic), never '|'.
+// its option separator is ',' (see Dynamic), never '|'.
 func parseSpan(raw string) Token {
 	body := raw[1 : len(raw)-1]
 	tok := Token{Kind: KindVar, Raw: raw}

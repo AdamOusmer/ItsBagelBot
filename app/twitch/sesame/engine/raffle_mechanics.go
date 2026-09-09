@@ -12,6 +12,7 @@ import (
 
 	"ItsBagelBot/pkg/cache"
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/tmpl"
 )
 
 // Pure raffle mechanics: key building, open-request clamping, the random
@@ -129,10 +130,30 @@ func mentionList(winners []string) string {
 
 // expandTokens substitutes {token} placeholders with values; unknown tokens
 // pass through untouched.
-func expandTokens(tmpl string, kv ...string) string {
-	pairs := make([]string, 0, len(kv))
+//
+// It used to build a strings.NewReplacer over "{name}" literals, which is not
+// the token grammar — it is a substring rewrite that happens to agree with it
+// on the spans the raffle copy uses today. Routing it through tmpl.Expand
+// makes the raffle read the same grammar as every other surface, and pulls in
+// two behaviours the replacer could not have:
+//
+//   - Case folding. {Targets} and {TARGETS} now resolve; the replacer matched
+//     "{targets}" byte for byte, so a broadcaster who capitalised a token in
+//     their raffle copy got the braces printed in chat.
+//   - Fallbacks. {count|0} renders "0" for an empty value instead of being an
+//     unknown span. The '|' grammar shipped with the args PR and the replacer
+//     was the last surface that did not honour it.
+//
+// Neither can change an existing raffle line: TestMentionListAndTokens pins
+// the pre-change outputs, including the unknown-token passthrough, and every
+// raffle string in the i18n catalog is lower-case and pipe-free.
+func expandTokens(text string, kv ...string) string {
+	values := make(map[string]string, len(kv)/2)
 	for i := 0; i+1 < len(kv); i += 2 {
-		pairs = append(pairs, "{"+kv[i]+"}", kv[i+1])
+		values[kv[i]] = kv[i+1]
 	}
-	return strings.NewReplacer(pairs...).Replace(tmpl)
+	return tmpl.Expand(text, func(tok tmpl.Token) (string, bool) {
+		val, ok := values[tok.Key()]
+		return val, ok
+	})
 }

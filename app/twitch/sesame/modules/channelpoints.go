@@ -12,6 +12,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/tmpl"
 
 	"go.uber.org/zap"
 )
@@ -257,9 +258,9 @@ func emitRedemptionResolution(b rewardBinding, ev redemptionEvent, emit module.E
 // the point cost, {channel} the broadcaster login, {counter} the bound
 // counter's new value (when the binding has one), {points} the loyalty points
 // the binding awards (when positive), plus the dynamic set.
-func expandReward(tmpl string, ev redemptionEvent, counterValue string, points int64) string {
-	return module.ExpandString(tmpl, func(key string) (string, bool) {
-		switch key {
+func expandReward(text string, ev redemptionEvent, counterValue string, points int64) string {
+	return module.ExpandString(text, func(tok tmpl.Token) (string, bool) {
+		switch tok.Key() {
 		case "user":
 			return strings.TrimPrefix(displayName(ev.UserName, ev.UserLogin), "@"), true
 		case "input":
@@ -280,7 +281,7 @@ func expandReward(tmpl string, ev redemptionEvent, counterValue string, points i
 		case "points":
 			return strconv.FormatInt(points, 10), points > 0
 		default:
-			return module.ParseDynamic(key)
+			return tmpl.Dynamic(tok)
 		}
 	})
 }

@@ -212,9 +212,9 @@ func TestTokenGolden(t *testing.T) {
 }
 
 // rowRepl is the row's values map as a resolver: absent means unknown.
-func rowRepl(row goldenRow) func(string) (string, bool) {
-	return func(key string) (string, bool) {
-		val, ok := row.Values[key]
+func rowRepl(row goldenRow) func(Token) (string, bool) {
+	return func(tok Token) (string, bool) {
+		val, ok := row.Values[tok.Key()]
 		return val, ok
 	}
 }

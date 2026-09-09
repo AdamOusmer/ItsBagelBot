@@ -24,6 +24,7 @@ import (
 	"ItsBagelBot/pkg/env"
 
 	domaincrypto "ItsBagelBot/internal/domain/crypto"
+	"ItsBagelBot/pkg/tmpl"
 
 	"go.uber.org/zap"
 )
@@ -382,10 +383,39 @@ func (r *Fetches) DeleteDef(ctx context.Context, userID uint64, del DefDelete) e
 	})
 }
 
-// ReferencingCommands scans the broadcaster's own command responses for the
-// {urlfetch:<name>} token (with or without a dot-path before the closing
-// brace). Chat folds the name lower-case before lookup, so the scan matches
-// case-insensitively.
+// urlFetchTokenName is the span name a command response uses to read a fetch
+// definition. It is spelled again here rather than imported from
+// app/twitch/sesame/engine/scope, which owns the resolving side: this package
+// is the data tier and sesame is a read-only consumer of the projection, so
+// the import would run the dependency backwards (and internal/buildguard
+// would not catch it, because the guard it does have is the other direction).
+//
+// Nothing in the type system holds the two spellings together. What does is
+// TestReferencesFetch below: its table is written in the spans a broadcaster
+// actually types, so a rename on the sesame side that this constant missed
+// shows up as a command that stops reporting as a referrer.
+const urlFetchTokenName = "urlfetch"
+
+// ReferencingCommands lists the broadcaster's own commands whose response
+// spells {urlfetch:<name>} — with or without a dot-path tail, in any case,
+// with or without a "|fallback". It is what makes deleting a definition
+// report the commands it would break instead of silently breaking them.
+//
+// The scan is the shared lexer's, not a substring search. The hand-rolled one
+// it replaces looked for the literal "{urlfetch:" + name in a lower-cased
+// response and accepted only '}' or '.' after it, which got two live
+// spellings wrong:
+//
+//   - {urlfetch:weather|n/a} — the fallback grammar ends the payload at '|',
+//     which the needle scan did not know about, so a definition every
+//     fallback-using command depended on reported ZERO referrers and deleted
+//     clean. That is the bug this rewrite exists for.
+//   - {URLFETCH:Weather} — the haystack was folded but the caller's name was
+//     not, so a mixed-case argument matched nothing.
+//
+// Folding through tmpl.NormalizeName is the same fold scope.External applies
+// before the fetch, so "referenced" here and "resolved" at render time cannot
+// disagree.
 func (r *Fetches) ReferencingCommands(ctx context.Context, userID uint64, name string) ([]string, error) {
 	rows, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.Commands, error) {
 		return r.client.Commands.Query().
@@ -396,42 +426,46 @@ func (r *Fetches) ReferencingCommands(ctx context.Context, userID uint64, name s
 		return nil, err
 	}
 
+	want := tmpl.NormalizeName(name)
+	if want == "" {
+		return nil, nil
+	}
 	var referrers []string
 	for _, row := range rows {
-		if (fetchTokenScan{haystack: strings.ToLower(row.Response), needle: "{urlfetch:" + name}).referenced() {
+		if referencesFetch(row.Response, want) {
 			referrers = append(referrers, row.Name)
 		}
 	}
 	return referrers, nil
 }
 
-// fetchTokenScan is one definition name's needle over one lowered response.
-type fetchTokenScan struct {
-	haystack string
-	needle   string
-}
-
-func (t fetchTokenScan) referenced() bool {
-	for at := 0; at < len(t.haystack); {
-		idx := strings.Index(t.haystack[at:], t.needle)
-		if idx < 0 {
-			return false
-		}
-		at += idx + len(t.needle)
-		if at >= len(t.haystack) {
-			return false
-		}
-		// The needle must terminate a token: '}' closes it, '.' opens the
-		// dot-path tail — without this "weather" would match
-		// "{urlfetch:weather2}".
-		if t.haystack[at] == '}' {
-			return true
-		}
-		if t.haystack[at] == '.' {
+// referencesFetch reports whether one response has a {urlfetch:…} span naming
+// the definition want (already folded).
+func referencesFetch(response, want string) bool {
+	for _, tok := range tmpl.Lex(response) {
+		if namesFetchDef(tok, want) {
 			return true
 		}
 	}
 	return false
+}
+
+// namesFetchDef reports whether one span is a {urlfetch:…} naming the
+// definition want. Named so the scan above reads as one question per span.
+func namesFetchDef(tok tmpl.Token, want string) bool {
+	return tok.Kind == tmpl.KindVar && tok.Name == urlFetchTokenName && fetchDefName(tok) == want
+}
+
+// fetchDefName folds one {urlfetch:…} span's payload down to the definition it
+// names: "Weather.a" is the definition "weather" with a dot-path selector, so
+// the tail is dropped. A span with no payload ({urlfetch}) names nothing and
+// answers "", which never matches a caller's non-empty name.
+func fetchDefName(tok tmpl.Token) string {
+	if !tok.HasPayload {
+		return ""
+	}
+	def, _, _ := strings.Cut(tmpl.NormalizeName(tok.Payload), ".")
+	return def
 }
 
 // DeleteAllForUser removes every definition and key of a deleted account.
