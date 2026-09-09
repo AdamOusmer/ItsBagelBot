@@ -3,7 +3,7 @@
 
 // Pure master-detail inspector state machine, framework-free so it can be
 // unit-tested without a component harness; a thin Svelte wrapper
-// (dashboard/src/lib/inspector/inspector.svelte.ts) holds it in $state for the
+// (./inspector.svelte.ts) holds it in $state for the
 // components.
 //
 // What it is FOR is the stale-response guard in resolveSave: an inspector's

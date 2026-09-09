@@ -11,6 +11,8 @@
   import ButtonLink from '@bagel/shared/components/ButtonLink.svelte';
   import Modal from '@bagel/shared/components/Modal.svelte';
   import Skeleton from '@bagel/shared/components/Skeleton.svelte';
+  import SkeletonStack from '@bagel/shared/components/SkeletonStack.svelte';
+  import OverviewGrid from '@bagel/shared/components/OverviewGrid.svelte';
   import { getI18n } from '@bagel/shared/i18n/context';
   import { connectionUiState, type ConnSignals, type ConnUi } from '@bagel/shared/connection-state';
   import { toast } from '@bagel/shared/toast';
@@ -26,6 +28,7 @@
   import StreamSection from '$lib/components/overview/StreamSection.svelte';
   import ActivityLog from '$lib/components/overview/ActivityLog.svelte';
   import AnsweredTonight from '$lib/components/overview/AnsweredTonight.svelte';
+  import { livePoll } from '@bagel/shared/live-poll';
   import {
     CONNECTION_POLL_FAST_MS,
     CONNECTION_POLL_TIMEOUT_MS,
@@ -177,15 +180,15 @@
   // overrides the server snapshot.
   let sub = $state<{ state: string; error: string } | null>(null);
   let actionBusy = $state(false);
-  let pollTimer: ReturnType<typeof setTimeout> | null = null;
-  let pollRun = 0;
+  // The running poll's stop handle, or null when nothing is polling. The loop
+  // itself (backoff, deadline, cancellation) is livePoll's; what stays here is
+  // the only interesting part, the settled predicate below.
+  let stopPoll: (() => void) | null = null;
 
   function stopPolling(clearBusy = true) {
-    pollRun += 1;
-    if (pollTimer) {
-      clearTimeout(pollTimer);
-      pollTimer = null;
-    }
+    const stop = stopPoll;
+    stopPoll = null;
+    stop?.();
     if (clearBusy) actionBusy = false;
   }
 
@@ -208,28 +211,28 @@
   function startPolling(goal: ConnectionPollGoal) {
     stopPolling(false);
     actionBusy = true;
-    const run = ++pollRun;
     const started = Date.now();
     let sawUnsettled = false;
 
-    const tick = async () => {
-      const state = await refreshSub();
-      if (run !== pollRun) return;
-
-      const elapsed = Date.now() - started;
-      if (state === 'pending' || state === 'unenrolled') sawUnsettled = true;
-      if (
-        connectionPollSettled(goal, state, elapsed, sawUnsettled) ||
-        elapsed >= CONNECTION_POLL_TIMEOUT_MS
-      ) {
-        pollTimer = null;
-        actionBusy = false;
-        return;
+    // Elapsed is read AFTER the read lands, not before it: a slow /substate is
+    // itself part of the wait, and settling on the pre-fetch clock let a poll
+    // run one tick past its deadline.
+    stopPoll = livePoll(
+      async () => {
+        const state = await refreshSub();
+        if (state === 'pending' || state === 'unenrolled') sawUnsettled = true;
+        return connectionPollSettled(goal, state, Date.now() - started, sawUnsettled);
+      },
+      {
+        firstDelayMs: CONNECTION_POLL_FAST_MS,
+        delayMs: connectionPollDelay,
+        timeoutMs: CONNECTION_POLL_TIMEOUT_MS,
+        onDone: () => {
+          stopPoll = null;
+          actionBusy = false;
+        }
       }
-      pollTimer = setTimeout(tick, connectionPollDelay(elapsed));
-    };
-
-    pollTimer = setTimeout(tick, CONNECTION_POLL_FAST_MS);
+    );
   }
 
   // Mark reconnecting immediately on user action, then poll to the outcome.
@@ -323,9 +326,7 @@
   {#await Promise.all([data.stream, data.counters, data.volume])}
     <section class="ov-loading" aria-busy="true" aria-label={t('overview.checking')}>
       <span class="sr-only">{t('overview.checking')}</span>
-      <div class="ov-loading__stack" aria-hidden="true">
-        <Skeleton variant="block" height="260px" />
-      </div>
+      <SkeletonStack rows={1} height="260px" />
     </section>
   {:then [meta, counters, volume]}
     <StreamSection
@@ -338,16 +339,16 @@
 
   <!-- 4. The working row: what the bot just did, beside the smaller reads that
        answer "and is anything wrong". -->
-  <div class="ov-row">
-    <div class="ov-row__main">
+  <OverviewGrid>
+    {#snippet main()}
       {#await data.feed}
         <Skeleton variant="block" height="420px" />
       {:then feed}
         <ActivityLog feed={live?.feed ?? feed} />
       {/await}
-    </div>
+    {/snippet}
 
-    <div class="ov-row__side">
+    {#snippet side()}
       {#await data.answered}
         <Skeleton variant="block" height="260px" />
       {:then answered}
@@ -368,9 +369,7 @@
 
       <!-- Each item a real link naming its count + destination. -->
       {#await Promise.all([data.commands, data.modules, data.conn, data.shares])}
-        <div class="ov-loading__grid" aria-hidden="true">
-          {#each [0, 1, 2, 3] as i (i)}<Skeleton variant="block" height="56px" />{/each}
-        </div>
+        <SkeletonStack rows={4} height="56px" columns={2} />
       {:then [cd, md, c, sh]}
         <LinkedSummary
           active={cd.active}
@@ -382,8 +381,8 @@
           sharesOk={sh.ok}
         />
       {/await}
-    </div>
-  </div>
+    {/snippet}
+  </OverviewGrid>
 
   <!-- 5. Quick actions: New command is the page's single primary CTA. -->
   {#await data.conn}
@@ -397,9 +396,7 @@
   {#await Promise.all([data.commands, data.conn, data.modules])}
     <section class="ov-loading" aria-busy="true" aria-label={t('overview.checking')}>
       <span class="sr-only">{t('overview.checking')}</span>
-      <div class="ov-loading__stack" aria-hidden="true">
-        {#each [0, 1, 2] as i (i)}<Skeleton variant="block" height="52px" />{/each}
-      </div>
+      <SkeletonStack rows={3} height="52px" />
     </section>
   {:then [cd, c, md]}
     {#if !cd.ok}
@@ -449,54 +446,11 @@
 </Modal>
 
 <style>
-  /* The working row: activity log carries the weight, the smaller reads stack
-     beside it. Collapses to one column before the log's rows start truncating. */
-  .ov-row {
-    display: grid;
-    grid-template-columns: 1.4fr 1fr;
-    gap: var(--row-gap);
-    align-items: start;
-    margin-bottom: var(--row-gap);
-  }
-  .ov-row__main,
-  .ov-row__side {
-    min-width: 0;
-  }
-  .ov-row__side {
-    display: flex;
-    flex-direction: column;
-    gap: var(--row-gap);
-  }
-  /* NeedsAttention and LinkedSummary each carry their own bottom margin from
-     when the page was one vertical stack. Inside the rail that margin adds to
-     the flex gap and every second slot ends up double-spaced (measured 28px
-     then 56px), so the rail owns the spacing and the children contribute none. */
-  .ov-row__side > :global(section) {
-    margin-bottom: 0;
-  }
-  @media (max-width: 900px) {
-    .ov-row {
-      grid-template-columns: 1fr;
-    }
-  }
-
+  /* The working row (grid, rail spacing, collapse point) is OverviewGrid's, and
+     the loading runs are SkeletonStack's; what is left here is the margin that
+     keeps a streamed section on the page's own vertical rhythm while it waits. */
   .ov-loading {
     margin-bottom: var(--row-gap);
-  }
-  .ov-loading__grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
-  }
-  .ov-loading__stack {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-  @media (max-width: 560px) {
-    .ov-loading__grid {
-      grid-template-columns: 1fr;
-    }
   }
 
   /* Commands-unavailable notice shares the section heading rhythm with the

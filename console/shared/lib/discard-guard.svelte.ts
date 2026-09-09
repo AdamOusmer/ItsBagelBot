@@ -15,11 +15,13 @@
 // is usually an open, which can itself re-enter the guard, and a stale
 // `afterDiscard` at that moment replays the previous intent a second time.
 //
-// Lives here rather than in @bagel/shared/lib alongside the pure
-// inspector-machine because it holds `$state`: shared/lib is framework-free by
-// its own header (that is what lets the machine be unit-tested without a
-// component harness), and only the dashboard has inspector pages. The machine
-// once carried the same idea as a closed set of intents
+// Lives in shared/lib beside the pure inspector-machine. It holds `$state`,
+// which is why it carries the .svelte.ts suffix: that keeps the plain .ts
+// files around it framework-free (what lets the machine be unit-tested without
+// a component harness) while the guard still compiles as a runes module. It
+// moved out of the dashboard's $lib when the admin console picked up the same
+// draft pages -- a second copy of this skeleton is exactly what drifts. The
+// machine once carried the same idea as a closed set of intents
 // (close/select/navigate); nothing used it, because these pages park an
 // arbitrary callback, so that half is gone and this is the only parker.
 

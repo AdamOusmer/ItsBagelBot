@@ -5,6 +5,12 @@
 // state in $state, mints the request ids, and exposes the intents. The safety
 // logic lives in the machine (unit-tested there); this is only the shell.
 //
+// Lives beside the machine in shared/lib rather than in one app's $lib: the
+// admin console's draft pages need the same shell, and a copy of a state
+// machine's wrapper is exactly the thing that drifts. The .svelte.ts suffix
+// marks it as a runes module, so the plain .ts files around it stay
+// framework-free and unit-testable without a component harness.
+//
 // One route drives an inspector through this (timers). The other draft pages
 // keep their own $state and park interrupted actions in createDiscardGuard,
 // which is why the guarded-navigation methods this used to expose went with
@@ -17,7 +23,7 @@ import {
   resolveSave,
   type InspectorState,
   type SaveOutcome
-} from '@bagel/shared';
+} from './inspector-machine';
 
 export function createInspector<T>() {
   let state = $state<InspectorState<T>>(initial<T>());

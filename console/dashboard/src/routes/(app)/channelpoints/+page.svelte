@@ -23,7 +23,7 @@
     actionPayload,
     type ActionOk,
   } from '@bagel/shared';
-  import { createDiscardGuard } from '$lib/inspector/discard-guard.svelte';
+  import { createDiscardGuard } from '@bagel/shared/discard-guard';
   import RewardRow from '$lib/components/channelpoints/RewardRow.svelte';
   import RewardEditor from '$lib/components/channelpoints/RewardEditor.svelte';
 

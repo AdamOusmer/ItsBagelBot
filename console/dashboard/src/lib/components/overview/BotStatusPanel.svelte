@@ -26,7 +26,7 @@
   import Skeleton from '@bagel/shared/components/Skeleton.svelte';
   import { getI18n } from '@bagel/shared/i18n/context';
   import type { ConnUi } from '@bagel/shared/connection-state';
-  import { statusTone } from './status';
+  import { statusTone } from '@bagel/shared/status-tone';
 
   const { t } = getI18n();
 

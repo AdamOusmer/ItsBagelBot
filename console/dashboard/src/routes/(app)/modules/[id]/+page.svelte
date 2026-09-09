@@ -6,7 +6,7 @@
   import { Card, PageHead, Scroller, SaveStatus, Switch, Button, ButtonLink, InspectorSurface, ConfirmDialog, AlertBanner, DeckList, EmptyState, toast, getI18n, automodToggleDefault, moduleDef, type ModuleField, type ModuleReply, MOD } from '@bagel/shared';
   import type { SaveState } from '@bagel/shared/components/SaveStatus.svelte';
   import ReplyRow from '$lib/components/modules/ReplyRow.svelte';
-  import { createDiscardGuard } from '$lib/inspector/discard-guard.svelte';
+  import { createDiscardGuard } from '@bagel/shared/discard-guard';
   import ReplyEditor from '$lib/components/modules/ReplyEditor.svelte';
   import ModuleCommandList from '$lib/components/modules/ModuleCommandList.svelte';
   import TriggerRuleEditor from '$lib/components/modules/TriggerRuleEditor.svelte';

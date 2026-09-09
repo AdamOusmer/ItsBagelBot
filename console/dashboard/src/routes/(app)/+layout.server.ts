@@ -5,6 +5,7 @@ import { redirect } from '@sveltejs/kit';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import type { LayoutServerLoad } from './$types';
+import { bestEffort } from '@bagel/shared/server/best-effort';
 import type { Session } from '$lib/server/session';
 import { accountState, notificationsForUser, delegationAccess, type AccountState, type NotificationWire } from '$lib/server/services';
 
@@ -30,15 +31,11 @@ async function loadBellPeek(s: Session): Promise<{ unreadCount: number; notifica
   }
   if (s.delegate_of) return { unreadCount: 0, notifications: [] };
 
-  let unreadCount = 0;
-  let notifications: NotificationWire[] = [];
-  await notificationsForUser(s.user_id)
-    .then((r) => {
-      notifications = r.notifications;
-      unreadCount = r.unreadCount;
-    })
-    .catch(() => {});
-  return { unreadCount, notifications: cap(notifications) };
+  const peek = await bestEffort(notificationsForUser(s.user_id), {
+    unreadCount: 0,
+    notifications: [] as NotificationWire[]
+  });
+  return { unreadCount: peek.unreadCount, notifications: cap(peek.notifications) };
 }
 
 // loadAuthorizedDashboards lists the boards shared with this user, for the
@@ -48,12 +45,10 @@ async function loadBellPeek(s: Session): Promise<{ unreadCount: number; notifica
 async function loadAuthorizedDashboards(s: Session): Promise<{ href: string; name: string }[]> {
   if (DEMO) return (await import('$lib/server/demo-data')).demoAuthorizedDashboards;
   if (s.delegate_of) return [];
-  try {
-    const grants = await delegationAccess(s.user_id);
-    return grants.map((g) => ({ href: `/delegate/enter?owner=${g.owner_user_id}`, name: g.owner_login }));
-  } catch {
-    return [];
-  }
+  const listed = delegationAccess(s.user_id).then((grants) =>
+    grants.map((g) => ({ href: `/delegate/enter?owner=${g.owner_user_id}`, name: g.owner_login }))
+  );
+  return bestEffort(listed, []);
 }
 
 // loadAccountState resolves the shell's account read, in the same named-loader
@@ -68,7 +63,7 @@ async function loadAuthorizedDashboards(s: Session): Promise<{ href: string; nam
 async function loadAccountState(locals: App.Locals, s: Session): Promise<AccountState | null> {
   if (DEMO) return (await import('$lib/server/demo-data')).demoAccountState;
   const gateRead = locals.accountState;
-  if (!gateRead) return accountState(s.user_id).catch(() => null);
+  if (!gateRead) return bestEffort<AccountState | null>(accountState(s.user_id), null);
   return 'value' in gateRead ? gateRead.value : null;
 }
 

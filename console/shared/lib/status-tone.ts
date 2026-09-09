@@ -1,13 +1,15 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Shared status vocabulary for the Overview page. The connection state itself is
-// owned by main's honest state machine (`connectionUiState` in @bagel/shared),
-// which resolves every backend permutation to exactly one `ConnKind`. This module
-// only layers the page's VISUAL tone on top of that kind, so the status panel and
-// its dot/colour never disagree with the word they sit beside. Colour is always
-// decoration on top of the textual state, never the only signal.
-import type { ConnKind } from '@bagel/shared/connection-state';
+// Shared status vocabulary for the connection panels. The connection state
+// itself is owned by main's honest state machine (`connectionUiState`), which
+// resolves every backend permutation to exactly one `ConnKind`. This module
+// only layers the VISUAL tone on top of that kind, so a status panel and its
+// dot/colour never disagree with the word they sit beside. Colour is always
+// decoration on top of the textual state, never the only signal. It sits in
+// shared because both consoles render the same connection verdict and a second
+// tone table would let them disagree about what 'degraded' looks like.
+import type { ConnKind } from './connection-state';
 
 export type StatusTone = 'success' | 'warning' | 'error' | 'neutral';
 

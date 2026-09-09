@@ -279,7 +279,8 @@
   }
 
   /* Login paints its own orbs; the shell's ambient pair would muddy them. The
-     orbs live in app.html, so hiding them takes a :global rule, but route CSS
+     shell renders that pair (RootShell -> BackgroundOrbs), outside this route's
+     component tree, so hiding them takes a :global rule, but route CSS
      stays in the document after a client-side navigation, and an unqualified
      :global(.bg-orb) kept them hidden on every page visited afterwards (reach
      /login from the error page's sign-in link, then go Back). Gating on the

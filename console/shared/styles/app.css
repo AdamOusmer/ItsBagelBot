@@ -71,20 +71,9 @@ body {
   min-height: 100vh;
 }
 
-/* ── ambient: a faint evergreen field low in the frame.
-   Restrained on purpose: the rules and type do the talking. ── */
-.bg-orb {
-  position: fixed; pointer-events: none; z-index: 0;
-  top: auto; bottom: -30%; left: -10%; width: min(900px, 90vw); aspect-ratio: 1.6; border-radius: 50%;
-  filter: blur(110px); opacity: 0.16;
-  background: radial-gradient(ellipse at 40% 60%, rgba(45,106,79,0.55), transparent 65%);
-  animation: none;
-}
-.bg-orb.two {
-  top: -25%; bottom: auto; left: auto; right: -8%; width: min(640px, 70vw);
-  background: radial-gradient(circle at 50% 50%, rgba(201,168,124,0.28), transparent 60%);
-  opacity: 0.1;
-}
+/* The ambient orb pair (`.bg-orb`) moved into components/BackgroundOrbs.svelte
+   with its markup; RootShell renders it. Only the login page still names the
+   class here, to hide the shell pair behind its own. */
 /* ── the corner-bracket motif: the console's signature focus mark.
    Apply `.bracket` to any interactive rectangle; brackets draw in on hover. ── */
 .bracket { position: relative; }
@@ -333,10 +322,13 @@ kbd.hint {
 /* Perm badges: the pill and its tint are gone (base shape is the label shim
    above); the hairline now carries the tone. House palette: steel for
    everyone, tan for subs, SILVER for VIP (it shipped purple #d9aaff by
-   mistake; VIP is never purple here), green deepening with mod authority. */
-.badge.everyone { color: var(--bb-fg-2); border-bottom-color: rgba(201,168,124,0.20); }
-.badge.sub { color: var(--bb-tan-light); border-bottom-color: rgba(201,168,124,0.40); }
-.badge.vip { color: #dfe4e9; border-bottom-color: rgba(217,222,228,0.34); }
+   mistake; VIP is never purple here), green deepening with mod authority.
+   The first three read the account-tier tokens (tokens.css) so they cannot
+   drift from the same tiers spelled elsewhere; the mod ramp keeps its own
+   alphas because it encodes authority depth, not a tier. */
+.badge.everyone { color: var(--bb-tier-inactive); border-bottom-color: var(--bb-tier-inactive-border); }
+.badge.sub { color: var(--bb-tier-paid); border-bottom-color: var(--bb-tier-paid-border); }
+.badge.vip { color: var(--bb-tier-vip); border-bottom-color: var(--bb-tier-vip-border); }
 .badge.mod { color: var(--bb-green-glow); border-bottom-color: rgba(82,183,136,0.30); }
 .badge.lead_mod { color: var(--bb-green-glow); border-bottom-style: dashed; border-bottom-color: rgba(82,183,136,0.45); }
 .badge.broadcaster { color: var(--bb-green-glow); border-bottom-color: rgba(82,183,136,0.60); }
