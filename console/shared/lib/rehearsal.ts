@@ -5,11 +5,19 @@
 // routes a response template. Every rule here corresponds to one place in the
 // Go engine, keep them in lockstep:
 //
-//   - token expansion:       app/twitch/sesame/module/vars.go (Expand, ParseDynamic)
-//   - command tokens:        app/twitch/sesame/engine/vars.go (expandCommand)
-//   - counter normalization: app/twitch/sesame/engine/loyalty_valkey.go (NormalizeCounterName)
+//   - token lexing:          pkg/tmpl/tmpl.go (Lex, Token.Resolve), ported to ./tmpl
+//   - scope chain:           app/twitch/sesame/engine/scope (Chain, Pure, Message, Store)
+//   - chain wiring per run:  app/twitch/sesame/engine/vars.go (commandChain)
+//   - counter normalization: app/twitch/sesame/engine/scope/store.go (NormalizeName)
 //   - slash-verb routing:    internal/domain/outgress/slash.go (CutSlash)
 //   - emit order + line cap: app/twitch/sesame/engine/dispatch.go (emitResponse)
+//
+// The engine resolves a template through an ordered chain of scopes: the first
+// scope that owns a token name answers it, a scope whose dependency is missing
+// is simply absent from the chain, and a name no mounted scope owns stays
+// literal. This file mirrors that shape with sample-value scopes, so "which
+// tokens light up in the preview" is decided by the same mechanism that
+// decides it in chat, rather than by a parallel if-chain that can drift.
 //
 // The marketing site's command builder imports this module too (aliased
 // @bagel/rehearsal), so it stays pure: plain data in, plain data out, no DOM
@@ -19,7 +27,7 @@
 // rehearsals. Slash-verbs route on EVERY path: the pipeline's emit (and
 // outgress's sendBotLine for the clip reply) translates a leading /announce,
 // /shoutout, /pin after expansion, so both rehearsals render the native
-// action; they differ only in tokens and fan-out:
+// action; they differ only in which scopes are mounted and in fan-out:
 //
 //   rehearseCommand: custom "!command" responses. The engine expands the
 //   whole template first, then splits it into lines (cap 5, one chat message
@@ -32,6 +40,7 @@
 //   leading slash-verb routes the same way.
 
 import { RESPONSE_MAX_LINES, responseLines } from './commands-validate';
+import { lex, resolveToken, type VarToken } from './tmpl';
 
 export type SegKind = 'plain' | 'sample' | 'unknown';
 
@@ -56,31 +65,28 @@ export interface RehearsedLine {
   segments: Seg[];
 }
 
-/** Sample values, keyed the way Token.key is built. */
+/** Sample values, keyed the way VarToken.key is built: "name", or
+ * "name:payload". */
 export type Samples = Readonly<Record<string, string>>;
 
-/**
- * One "{…}" span, split the way module.Expand reads it. The name is
- * lower-cased (token names are case-insensitive) while the payload after the
- * first ':' keeps its case, so {CHOICE:Hi,Yo} still offers "Hi".
- *
- * payload is null when the span carries no ':' at all; the engine draws a
- * real distinction there: {choice} is unknown and stays literal, while
- * {choice:} is an (empty) option list that resolves.
- */
-export interface Token {
-  /** The span exactly as written, braces included. */
-  span: string;
-  name: string;
-  payload: string | null;
-  /** "name", or "name:payload": what a sample map is keyed by. */
-  key: string;
-}
+/** One "{…}" span, as ./tmpl lexes it: a lower-cased name, a case-preserved
+ * payload (null when the span carries no ':' at all), an optional fallback,
+ * the raw span and the "name"/"name:payload" lookup key. */
+export type Token = VarToken;
 
 /** Resolve one token to its rehearsed value; null leaves it literal. */
 export type Resolve = (token: Token) => string | null;
 
-/** Sample values for the canonical tokens expandCommand resolves, nothing
+/** One family of tokens and the sample values that stand in for it — the
+ * preview's mirror of a Go scope.Scope. A scope that does not own a name
+ * declines it, and the chain moves on; a name nobody owns stays literal,
+ * which is exactly what the bot does with a token no mounted scope answers. */
+export interface SampleScope {
+  owns(name: string): boolean;
+  get(token: Token): string | null;
+}
+
+/** Sample values for the canonical tokens the message scope resolves, nothing
  * more, so the rehearsal never substitutes a token the bot would leave
  * literal. {sender} and {target} are absent on purpose: they are aliases
  * (see COMMAND_ALIASES), so overriding the canonical token covers both. */
@@ -91,13 +97,16 @@ export const COMMAND_SAMPLES: Samples = {
   channel: 'bagel_bakery'
 };
 
-/** expandCommand resolves each pair to one value ({user}/{sender} are both the
- * chatter, {touser}/{target} both the mentioned name), so the alias
+/** The message scope resolves each pair to one value ({user}/{sender} are both
+ * the chatter, {touser}/{target} both the mentioned name), so the alias
  * canonicalizes before lookup and a single override covers its partner. */
 const COMMAND_ALIASES: Samples = { sender: 'user', target: 'touser' };
 
-/** Deterministic stand-ins for values the bot rolls at run time, so the
- * rehearsal shows something the bot could produce without re-rolling on
+/** The names the message scope owns, matching scope.Message.Owns. */
+const MESSAGE_NAMES = new Set(['user', 'sender', 'args', 'touser', 'target', 'channel']);
+
+/** Deterministic stand-ins for values the bot rolls or reads at run time, so
+ * the rehearsal shows something the bot could produce without re-rolling on
  * every keystroke. */
 const RANDOM_SAMPLE = '57';
 const COUNTER_SAMPLE = '42';
@@ -107,7 +116,7 @@ const COUNTER_SAMPLE = '42';
  * (Expansion per line equals whole-template expansion: no token value can
  * carry a newline, so line boundaries never move.) */
 export function rehearseCommand(response: string, overrides?: Samples): RehearsedLine[] {
-  const resolve = commandResolver({ ...COMMAND_SAMPLES, ...(overrides ?? {}) });
+  const resolve = chainResolver(commandChain({ ...COMMAND_SAMPLES, ...(overrides ?? {}) }));
   return responseLines(response)
     .slice(0, RESPONSE_MAX_LINES)
     .map((line) => rehearseLine(line, resolve));
@@ -124,7 +133,7 @@ export function rehearseReply(
 ): RehearsedLine[] {
   const text = responseLines(response).join(' ');
   if (text === '') return [];
-  return [rehearseLine(text, replyResolver(samples, opts.dynamic ?? true))];
+  return [rehearseLine(text, chainResolver(replyChain(samples, opts.dynamic ?? true)))];
 }
 
 /** One chat message: expand tokens, then route the leading slash-verb over
@@ -142,107 +151,116 @@ function rehearseLine(line: string, resolve: Resolve): RehearsedLine {
   };
 }
 
-// --- token expansion (module/vars.go Expand) ------------------------------
+// --- token expansion (pkg/tmpl Lex + scope.Chain.Render) ------------------
 
-/** Single-pass {key} scan mirroring Go's Expand: any text up to the next '}'
- * is the token, and a '{' with no closing brace is copied literally through
- * to the end. A resolved token becomes a highlighted sample; an unresolved
- * one stays literal (braces and all), marked unknown. */
+/** Lex the text and turn each token into a segment: a resolved token becomes
+ * a highlighted sample (its fallback text when it resolves to empty, exactly
+ * like Token.Resolve), an unresolved one stays literal — braces, payload and
+ * fallback included — marked unknown so a typo is visible.
+ *
+ * Exported because a surface may want to rehearse against its own resolver
+ * rather than one of the two chains below. */
 export function expandSegments(text: string, resolve: Resolve): Seg[] {
   const out: Seg[] = [];
-  let plainFrom = 0;
-  let i = 0;
-  while (i < text.length) {
-    if (text[i] !== '{') {
-      i++;
+  for (const token of lex(text)) {
+    if (token.kind === 'literal') {
+      out.push({ text: token.text, kind: 'plain' });
       continue;
     }
-    const end = text.indexOf('}', i + 1);
-    if (end < 0) break; // no closing brace: the rest is literal
-    pushPlain(out, text.slice(plainFrom, i));
-    out.push(segFor(parseToken(text.slice(i, end + 1)), resolve));
-    plainFrom = i = end + 1;
+    out.push(segFor(token, resolve));
   }
-  pushPlain(out, text.slice(plainFrom));
   return out.filter((seg) => seg.text !== '');
-}
-
-function pushPlain(out: Seg[], text: string): void {
-  if (text !== '') out.push({ text, kind: 'plain' });
 }
 
 function segFor(token: Token, resolve: Resolve): Seg {
   const value = resolve(token);
-  if (value === null) return { text: token.span, kind: 'unknown' };
-  return { text: value, kind: 'sample' };
+  return { text: resolveToken(token, value), kind: value === null ? 'unknown' : 'sample' };
 }
 
-/** Split a "{…}" span into its case-folded name and case-preserved payload. */
-function parseToken(span: string): Token {
-  const body = span.slice(1, -1);
-  const colon = body.indexOf(':');
-  if (colon < 0) {
-    const name = body.toLowerCase();
-    return { span, name, payload: null, key: name };
-  }
-  const name = body.slice(0, colon).toLowerCase();
-  const payload = body.slice(colon + 1);
-  return { span, name, payload, key: `${name}:${payload}` };
-}
+// --- scopes (engine/scope) ------------------------------------------------
 
-// --- resolvers ------------------------------------------------------------
-
-/** expandCommand's lookup order: named tokens (aliases folded in), then
- * {counter:…}, then the dynamic set. */
-function commandResolver(samples: Samples): Resolve {
+/** Walk a chain the way scope.Chain does: the first scope that owns the name
+ * answers it, and a name nobody owns is left literal. */
+function chainResolver(chain: readonly SampleScope[]): Resolve {
   return (token) => {
-    const name = COMMAND_ALIASES[token.name] ?? token.name;
-    const key = token.payload === null ? name : `${name}:${token.payload}`;
-    if (key in samples) return samples[key];
-    // A bare {counter} is not the counter form: it falls through like any
-    // other unknown name, exactly as CutPrefix does in the engine.
-    if (token.name === 'counter' && token.payload !== null) return counterSample(token);
-    return dynamicSample(token);
+    const scope = chain.find((s) => s.owns(token.name));
+    return scope ? scope.get(token) : null;
   };
+}
+
+/** commandChain's mirror: the dice, the triggering line, then the counter
+ * store. Order is precedence, exactly as in the engine. */
+function commandChain(samples: Samples): SampleScope[] {
+  return [PURE_SCOPE, messageScope(samples), COUNTER_SCOPE];
 }
 
 /** A module reply resolves only its own token map, plus the dynamic set when
- * that module falls back to ParseDynamic. */
-function replyResolver(samples: Samples, dynamic: boolean): Resolve {
-  return (token) => {
-    if (token.key in samples) return samples[token.key];
-    return dynamic ? dynamicSample(token) : null;
+ * that module falls back to ParseDynamic. There is no message or counter
+ * scope: a module reply is not a custom command. */
+function replyChain(samples: Samples, dynamic: boolean): SampleScope[] {
+  const own: SampleScope = {
+    owns: () => true,
+    get: (token) => (token.key in samples ? samples[token.key] : null)
   };
+  return dynamic ? [PURE_SCOPE, own] : [own];
 }
 
-/** {counter:<name>} bumps and renders the counter. The name normalizes like
- * NormalizeCounterName (trim, drop one leading '!', trim, lower-case).
- * A {counter:target:<name>} spelling keys the bump on the mentioned viewer
- * instead of the sender (issue #479); it rehearses the same way once the
- * addressing prefix comes off. Bot-scope counters (bot:…) are admin-only and
- * an empty name never resolves, so both stay literal, exactly like the engine. */
-function counterSample(token: Token): string | null {
-  const name = (token.payload ?? '').trim().replace(/^!/, '').trim().toLowerCase();
-  if (name === '') return null;
-  const base = name.startsWith('target:') ? name.slice('target:'.length) : name;
-  if (base === '' || base.startsWith('bot:')) return null;
-  return COUNTER_SAMPLE;
-}
-
-/** ParseDynamic mirror: {random} → a fixed stand-in, {random:min-max} → the
+/** scope.Pure's mirror: {random} → a fixed stand-in, {random:min-max} → the
  * range midpoint (an invalid range stays literal), {choice:a,b,c} → the first
- * option. */
-function dynamicSample(token: Token): string | null {
-  if (token.name === 'choice') {
-    return token.payload === null ? null : token.payload.split(',')[0];
-  }
-  if (token.name !== 'random') return null;
+ * option. A bare {choice} names no options and stays literal, like
+ * ParseDynamic returning ok=false. */
+const PURE_SCOPE: SampleScope = {
+  owns: (name) => name === 'random' || name === 'choice',
+  get: (token) => (token.name === 'choice' ? choiceSample(token) : randomSample(token))
+};
+
+function choiceSample(token: Token): string | null {
+  return token.payload === null ? null : token.payload.split(',')[0];
+}
+
+function randomSample(token: Token): string | null {
   if (token.payload === null) return RANDOM_SAMPLE;
   const bounds = token.payload.match(/^(\d+)-(\d+)$/);
   if (!bounds) return null;
   const min = Number(bounds[1]);
   const max = Number(bounds[2]);
   return max < min ? null : String(Math.floor((min + max) / 2));
+}
+
+/** scope.Message's mirror: the identity and argument tokens the chat line
+ * already carries. A payload is declined rather than ignored ({user:bob} is
+ * not a token), matching Message.Get. */
+function messageScope(samples: Samples): SampleScope {
+  return {
+    owns: (name) => MESSAGE_NAMES.has(name),
+    get: (token) => {
+      if (token.payload !== null) return null;
+      const name = COMMAND_ALIASES[token.name] ?? token.name;
+      return name in samples ? samples[name] : null;
+    }
+  };
+}
+
+/** scope.Store's mirror: {counter:<name>} bumps and renders the counter. The
+ * name normalizes like NormalizeName (trim, drop one leading '!', trim,
+ * lower-case). A {counter:target:<name>} spelling keys the bump on the
+ * mentioned viewer instead of the sender (issue #479); it rehearses the same
+ * way once the addressing prefix comes off. Bot-scope counters (bot:…) are
+ * admin-only and an empty name never resolves, so both stay literal, exactly
+ * like the engine. */
+const COUNTER_SCOPE: SampleScope = {
+  owns: (name) => name === 'counter',
+  get: counterSample
+};
+
+function counterSample(token: Token): string | null {
+  // A bare {counter} is not the counter form: with no payload it names no
+  // counter and falls through literal, exactly as HasPayload does in the
+  // engine.
+  const name = (token.payload ?? '').trim().replace(/^!/, '').trim().toLowerCase();
+  const base = name.startsWith('target:') ? name.slice('target:'.length) : name;
+  if (base === '' || base.startsWith('bot:')) return null;
+  return COUNTER_SAMPLE;
 }
 
 // --- slash-verb routing (outgress/slash.go CutSlash) ----------------------

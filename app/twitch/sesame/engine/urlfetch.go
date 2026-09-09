@@ -4,9 +4,7 @@
 package engine
 
 import (
-	"ItsBagelBot/internal/projection"
 	"context"
-	"strings"
 	"sync"
 
 	"ItsBagelBot/app/twitch/sesame/module"
@@ -15,13 +13,11 @@ import (
 	"go.uber.org/zap"
 )
 
-// urlFetchTokenPrefix marks the external-fetch substitution inside a response
-// template: {urlfetch:name} renders the value gossip's custom.fetch endpoint
-// extracted for the broadcaster-authored definition "name" ({urlfetch:name.a.b}
-// selects a dotted path into the fetched document). Nothing is mutated — the
-// token is a pure read — but it rides the counters' pre-expansion shape because
-// module.Expand's repl callback is synchronous and ctx-free: the network call
-// must happen before expansion, never inside it.
+// urlFetchTokenPrefix namespaces one {urlfetch:name} fetch's redelivery claim,
+// so a replayed command line cannot burn the broadcaster's fetch quota twice.
+// The token grammar itself lives in scope.External; this is only the effect
+// key, kept spelled the same way so a claim written before the scope split is
+// still recognised after it.
 const urlFetchTokenPrefix = "urlfetch:"
 
 // maxUrlFetchTokens caps how many distinct {urlfetch:...} payloads one
@@ -45,45 +41,12 @@ const (
 	urlFetchTimeoutText     = "[source timed out]"   // timeout / transport failure
 )
 
-// urlFetchNames scans a response template for {urlfetch:<name>} tokens and
-// returns the distinct normalized payloads, in first-appearance order — the
-// byte-for-byte mirror of counterTokenNames: the same strings.Contains fast
-// path, the same Index/IndexByte zero-alloc scan over the brace grammar
-// module.Expand re-parses later, and the same NormalizeCounterName fold (so
-// "{URLFETCH:Temp}" scans as "temp" AND expands by looking up "temp"). The
-// first-appearance dedup is literally shared (appendDistinctName) rather than
-// mirrored, so the two scanners cannot drift on what "distinct" means. nil
-// when the template references none — the fast path for every ordinary command.
-func urlFetchNames(tmpl string) []string {
-	var (
-		names []string
-		seen  map[string]struct{}
-	)
-	rest := tmpl
-	for {
-		i := strings.Index(rest, "{"+urlFetchTokenPrefix)
-		if i < 0 {
-			return names
-		}
-		rest = rest[i+len(urlFetchTokenPrefix)+1:]
-		end := strings.IndexByte(rest, '}')
-		if end < 0 {
-			return names
-		}
-		name := NormalizeCounterName(rest[:end])
-		rest = rest[end+1:]
-		if name != "" {
-			names, seen = appendDistinctName(names, seen, name)
-		}
-	}
-}
-
-// fetchUrlTokens resolves a response's {urlfetch:<name>} tokens: each distinct
-// payload fans out one custom.fetch request to gossip, concurrently, and the
-// rendered values come back keyed by the normalized payload expandCommand
-// looks up. Runs beside bumpCounterTokens in runCustom, AFTER the gate has
-// claimed the command's cooldown — so even a definition that fails every time
-// cannot be hot-looped faster than its cooldown window.
+// fetchUrlValues resolves a response's {urlfetch:<name>} payloads: each
+// distinct name — already folded and capped by scope.External — fans out one
+// custom.fetch request to gossip, concurrently, and the rendered values come
+// back keyed by that name. It is the external scope's Plan, so it runs AFTER
+// the gate has claimed the command's cooldown — even a definition that fails
+// every time cannot be hot-looped faster than its cooldown window.
 //
 // errgroup-style cancellation: the first failing token cancels the batch while
 // every completed result still lands in the map — a sibling cancelled
@@ -99,23 +62,12 @@ func urlFetchNames(tmpl string) []string {
 // fallback text — a replay must never burn the broadcaster's fetch quota
 // twice. A fetch that produced no fresh value releases its claim so a
 // quorum-loss redelivery retries it.
-func (p *Pipeline) fetchUrlTokens(ctx context.Context, c *module.Context, cc projection.Command) map[string]string {
-	if p.customFetch == nil || !strings.Contains(cc.Response, "{"+urlFetchTokenPrefix) {
-		return nil
-	}
-	names := urlFetchNames(cc.Response)
-	if len(names) == 0 {
-		return nil
-	}
-	if len(names) > maxUrlFetchTokens {
-		names = names[:maxUrlFetchTokens]
-	}
-
+func (p *Pipeline) fetchUrlValues(ctx context.Context, c *module.Context, command string, names []string) map[string]string {
 	// One segment per fan-out; the event/command/broadcaster identity rides as
 	// attributes, never in the span name.
 	seg := startStage(ctx, "sesame.urlfetch")
 	if seg != nil {
-		seg.AddAttribute("command", cc.Name)
+		seg.AddAttribute("command", command)
 		seg.AddAttribute("broadcaster_id", c.BroadcasterID)
 	}
 

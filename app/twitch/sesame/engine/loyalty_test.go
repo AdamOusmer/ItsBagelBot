@@ -7,6 +7,7 @@ import (
 	"context"
 	"testing"
 
+	"ItsBagelBot/app/twitch/sesame/engine/scope"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/codec"
 
@@ -15,29 +16,27 @@ import (
 	"go.uber.org/zap"
 )
 
-func TestCounterTokenNames(t *testing.T) {
-	assert.Nil(t, counterTokenNames("no tokens here {user}"))
-	assert.Equal(t, []string{"deaths"}, counterTokenNames("we died {counter:deaths} times"))
+func TestCounterScopePlanNames(t *testing.T) {
+	assert.Empty(t, planCounters(t, "no tokens here {user}").asked)
+	assert.Equal(t, []string{"deaths"}, planCounters(t, "we died {counter:deaths} times").asked)
 	// Dedup, normalization and multiple names in first-appearance order.
 	assert.Equal(t, []string{"deaths", "wins"},
-		counterTokenNames("{counter:Deaths} {counter:wins} {counter:deaths}"))
-	// Unclosed token contributes nothing.
-	assert.Nil(t, counterTokenNames("{counter:deaths"))
+		planCounters(t, "{counter:Deaths} {counter:wins} {counter:deaths}").asked)
+	// Unclosed token opens no span, so it names no counter.
+	assert.Empty(t, planCounters(t, "{counter:deaths").asked)
 	// Empty name skipped.
-	assert.Nil(t, counterTokenNames("{counter:}"))
-	// A bot-scope reference parses with its prefix intact; the dispatch path
-	// skips it for broadcaster commands so the token stays visible.
-	assert.Equal(t, []string{"bot:feeds"}, counterTokenNames("{counter:Bot:Feeds}"))
+	assert.Empty(t, planCounters(t, "{counter:}").asked)
+	// Bot-scope counters are admin-only: broadcaster commands never bump them,
+	// so the token stays visible.
+	assert.Empty(t, planCounters(t, "{counter:Bot:Feeds}").asked)
 }
 
-func TestExpandCommandCounterToken(t *testing.T) {
-	out := string(expandCommand(nil, "died {counter:deaths} times", tokens{
-		counters: map[string]string{"deaths": "42"},
-	}))
+func TestRenderCounterToken(t *testing.T) {
+	out := renderScopes(nil, "died {counter:deaths} times", scope.Store{Counters: &recordCounters{}})
 	assert.Equal(t, "died 42 times", out)
 
 	// No resolved value: the token stays visible, matching unknown tokens.
-	out = string(expandCommand(nil, "died {counter:deaths} times", tokens{}))
+	out = renderScopes(nil, "died {counter:deaths} times", scope.Store{Counters: emptyCounters{}})
 	assert.Equal(t, "died {counter:deaths} times", out)
 }
 

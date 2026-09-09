@@ -7,9 +7,11 @@ import (
 	"context"
 	"testing"
 
+	"ItsBagelBot/app/twitch/sesame/engine/scope"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/tmpl"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -53,19 +55,54 @@ func counterPipeline(t *testing.T, response string) (*Pipeline, *captureLoyalty)
 	return NewPipeline(d, NewRegistry(zap.NewNop()), Config{OutgressPremium: premiumSubj, OutgressStandard: standardSubj}), loyalty
 }
 
-// TestCounterTokenNamesTargetAddressing pins the parse side of the
-// {counter:target:<name>} grammar: normalization keeps the prefix, dedup works
-// per spelling, and an empty base still parses so the bump side can skip it.
-func TestCounterTokenNamesTargetAddressing(t *testing.T) {
-	assert.Equal(t, []string{"target:shutups"},
-		counterTokenNames("{counter:target:shutups}"))
-	assert.Equal(t, []string{"target:shutups"},
-		counterTokenNames("{counter:Target:Shutups}"), "case-folded like any name")
-	assert.Equal(t, []string{"target:a", "b"},
-		counterTokenNames("{counter:target:a} {counter:b} {counter:target:a}"),
-		"addressed and sender-keyed spellings are distinct tokens")
-	assert.Equal(t, []string{"target:"},
-		counterTokenNames("{counter:target:}"))
+// recordCounters is a scope.Counters that records what the store scope asked
+// for and answers every bump with the same value.
+type recordCounters struct {
+	asked []string
+	addr  []bool
+}
+
+func (r *recordCounters) Bump(_ context.Context, name string, addressed bool) string {
+	r.asked = append(r.asked, name)
+	r.addr = append(r.addr, addressed)
+	return "42"
+}
+
+// planCounters plans template through a store scope and reports the bumps it
+// asked for, in order.
+func planCounters(t *testing.T, template string) *recordCounters {
+	t.Helper()
+	rec := &recordCounters{}
+	toks := tmpl.Lex(template)
+	chain := scope.Chain{scope.Store{Counters: rec}}
+	chain.Plan(context.Background(), toks, nil)
+	return rec
+}
+
+// TestCounterScopePlansTargetAddressing pins the parse side of the
+// {counter:target:<name>} grammar: the addressing prefix folds like any name
+// but never reaches the store, dedup is per folded spelling, and the
+// degenerate spellings ask for no bump at all.
+func TestCounterScopePlansTargetAddressing(t *testing.T) {
+	rec := planCounters(t, "{counter:target:shutups}")
+	assert.Equal(t, []string{"shutups"}, rec.asked)
+	assert.Equal(t, []bool{true}, rec.addr)
+
+	rec = planCounters(t, "{counter:Target:Shutups}")
+	assert.Equal(t, []string{"shutups"}, rec.asked, "case-folded like any name")
+	assert.Equal(t, []bool{true}, rec.addr)
+
+	rec = planCounters(t, "{counter:target:a} {counter:b} {counter:target:a}")
+	assert.Equal(t, []string{"a", "b"}, rec.asked,
+		"addressed and sender-keyed spellings are distinct tokens; repeats bump once")
+	assert.Equal(t, []bool{true, false}, rec.addr)
+
+	rec = planCounters(t, "{counter:Deaths} {counter:deaths}")
+	assert.Equal(t, []string{"deaths"}, rec.asked, "two spellings of one counter bump once")
+
+	for _, degenerate := range []string{"{counter:target:}", "{counter:}", "{counter}", "{counter:bot:feeds}"} {
+		assert.Empty(t, planCounters(t, degenerate).asked, degenerate)
+	}
 }
 
 // TestCounterBumpKeysOnMentionedViewer proves the #479 fix end to end: a
@@ -151,18 +188,25 @@ func TestCounterBumpTargetEmptyBaseStaysVisible(t *testing.T) {
 	assert.Empty(t, loyalty.bumps)
 }
 
-// TestCounterTokenExpansionUnresolvedLeavesVisible pins expansion parity for
-// the addressed spelling when no value was resolved: the raw token survives,
+// TestCounterRenderUnresolvedLeavesVisible pins render parity for the
+// addressed spelling when no value was resolved: the raw token survives,
 // exactly like every other unknown token.
-func TestCounterTokenExpansionUnresolvedLeavesVisible(t *testing.T) {
-	out := string(expandCommand(nil, "{counter:target:shutups}", tokens{}))
-	assert.Equal(t, "{counter:target:shutups}", out)
+func TestCounterRenderUnresolvedLeavesVisible(t *testing.T) {
+	assert.Equal(t, "{counter:target:shutups}",
+		renderScopes(nil, "{counter:target:shutups}", scope.Store{Counters: emptyCounters{}}))
+	assert.Equal(t, "42",
+		renderScopes(nil, "{counter:target:shutups}", scope.Store{Counters: &recordCounters{}}))
 
-	out = string(expandCommand(nil, "{counter:target:shutups}", tokens{
-		counters: map[string]string{"target:shutups": "5"},
-	}))
-	assert.Equal(t, "5", out)
+	// With no loyalty store the scope is not mounted at all, which is the same
+	// literal outcome by a different route.
+	assert.Equal(t, "{counter:deaths}", renderScopes(nil, "{counter:deaths}"))
 }
+
+// emptyCounters answers every bump with "no value" — a failed bump, or a
+// counter this caller may not read.
+type emptyCounters struct{}
+
+func (emptyCounters) Bump(context.Context, string, bool) string { return "" }
 
 // TestProcessFeedsRosterFromChatLines proves the feed point: any eligible chat
 // line teaches the roster its speaker, which is what lets a later command

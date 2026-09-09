@@ -119,6 +119,43 @@ describe('rehearseCommand', () => {
   });
 });
 
+describe('scope chain (engine/scope mirror)', () => {
+  test('the pipe fallback renders when a token resolves to empty', () => {
+    const [line] = rehearseCommand('shout out to {args|everyone}', { args: '' });
+    expect(textOf(line.segments)).toBe('shout out to everyone');
+    expect(line.segments.at(-1)?.kind).toBe('sample');
+  });
+
+  test('a present value ignores its fallback', () => {
+    const [line] = rehearseCommand('hi {user|everyone}');
+    expect(textOf(line.segments)).toBe('hi sesame_sam');
+  });
+
+  test('a fallback never rescues a name no scope owns', () => {
+    // Treating the fallback as proof the token exists would hide the typo
+    // forever, which is the whole reason unknown spans stay literal.
+    const [line] = rehearseCommand('{typo|rescued}');
+    expect(line.segments).toEqual([{ text: '{typo|rescued}', kind: 'unknown' }]);
+  });
+
+  test('an identity token with a payload stays literal, like Message.Get', () => {
+    const [line] = rehearseCommand('{user:bob}');
+    expect(line.segments).toEqual([{ text: '{user:bob}', kind: 'unknown' }]);
+  });
+
+  test('the pure scope answers first, so a sample cannot shadow the dice', () => {
+    const [line] = rehearseCommand('{random}', { random: 'nope' });
+    expect(textOf(line.segments)).toBe('57');
+  });
+
+  test('a module reply mounts no message or counter scope', () => {
+    // Only a custom command has {args} and {counter:…}; a reply that names
+    // them is naming tokens its module does not have.
+    const [line] = rehearseReply('{args} {counter:deaths}', {});
+    expect(line.segments.every((s) => s.kind === 'unknown' || s.text === ' ')).toBe(true);
+  });
+});
+
 describe('rehearseReply', () => {
   test('substitutes only the given samples; command tokens stay unknown', () => {
     const [line] = rehearseReply('{user} {args}', { user: 'sam' });
