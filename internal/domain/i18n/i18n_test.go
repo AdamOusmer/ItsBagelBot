@@ -108,7 +108,7 @@ func TestDashboardTokenRemoved(t *testing.T) {
 // TestDashboardURLExpanded verifies every message that used to concatenate the
 // dashboard URL now contains the real URL loaded from the catalog.
 func TestDashboardURLExpanded(t *testing.T) {
-	urlKeys := []string{KeyReauthRevokedBody, KeyReauthRevokedChat, KeyGrantDeadChat}
+	urlKeys := []string{KeyReauthRevokedBody, KeyReauthRevokedChat, KeyGrantDeadChat, KeyBotBannedBody}
 	for _, locale := range Locales() {
 		for _, key := range urlKeys {
 			if !strings.Contains(T(locale, key), DashboardURL) {
@@ -125,6 +125,7 @@ func TestSharedKeysResolve(t *testing.T) {
 	keys := []string{
 		KeyReauthRevokedTitle, KeyReauthRevokedBody, KeyReauthRevokedChat,
 		KeyGrantDeadTitle, KeyGrantDeadBody, KeyGrantDeadChat,
+		KeyBotBannedTitle, KeyBotBannedBody,
 	}
 
 	for _, locale := range Locales() {

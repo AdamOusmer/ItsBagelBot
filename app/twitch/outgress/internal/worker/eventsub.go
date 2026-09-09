@@ -48,6 +48,15 @@ const (
 	// chat) are deliberately kept alive. Cleared by the authorization-grant
 	// re-enroll or an explicit disconnect.
 	subStateRevoked = "revoked"
+	// subStateBanned ("chat_banned", named apart from the users-table ban the
+	// admin console applies) means the broadcaster's chat banned the bot account:
+	// Twitch revoked channel.chat.message with chat_user_banned, or its create
+	// was the only 403 of an enroll (isChatBanned). Consent is intact, so the
+	// scoped subscriptions and the app-token beacon stay alive; only chat is
+	// dead. Unlike revoked it is NOT skipped by enable/reconnect, because the
+	// fix (the streamer unbans the bot) needs no Twitch event we could wait
+	// for: the streamer presses Enable on the dashboard afterwards.
+	subStateBanned = "chat_banned"
 )
 
 // enrollment identifies one channel's EventSub enrollment on our conduit: the
@@ -293,24 +302,24 @@ func (w *Worker) enableEventSubs(ctx context.Context, e enrollment) error {
 }
 
 // recordEnrollFailure persists why an enroll could not complete. A create
-// rejected for missing authorization means Twitch revoked the broadcaster's
-// consent: that is the revoked state (user action required, retrying is
-// pointless), and the streamer is notified. Everything else stays failing
-// (bot-side, the restart path applies).
+// rejected for missing authorization is streamer-fixable and retrying is
+// pointless: on the chat subscription alone it means the bot is banned from
+// that chat (banned), anywhere else it means Twitch revoked the broadcaster's
+// consent (revoked); both block the channel and notify the streamer with the
+// matching remedy. Everything else stays failing (bot-side, the restart path
+// applies).
 func (w *Worker) recordEnrollFailure(ctx context.Context, e enrollment, op string, err error) {
-	if isAuthRevoked(err) {
-		_ = w.registry.SetSubState(ctx, e.broadcasterID, subStateRevoked, err.Error())
-		w.log.Warn(op+": twitch reports the broadcaster authorization revoked",
+	switch {
+	case isChatBanned(err):
+		_ = w.blockChannel(ctx, e.broadcasterID, blockBanned.because(op+": "+err.Error()))
+	case isAuthRevoked(err):
+		_ = w.blockChannel(ctx, e.broadcasterID, blockRevoked.because(op+": "+err.Error()))
+	default:
+		_ = w.registry.SetSubState(ctx, e.broadcasterID, subStateFailing, err.Error())
+		w.log.Error(op+": eventsubs not fully accepted, marked failing",
 			zap.String("broadcaster_id", e.broadcasterID),
 			zap.Error(err))
-		w.notifyReauthNeeded(ctx, e.broadcasterID)
-		return
 	}
-
-	_ = w.registry.SetSubState(ctx, e.broadcasterID, subStateFailing, err.Error())
-	w.log.Error(op+": eventsubs not fully accepted, marked failing",
-		zap.String("broadcaster_id", e.broadcasterID),
-		zap.Error(err))
 }
 
 // disableChannel deletes all of a channel's eventsub subscriptions with the same
@@ -469,7 +478,7 @@ func (w *Worker) createAllEventSubs(ctx context.Context, e enrollment) error {
 		}
 		if err := w.twitch.CreateEventSub(ctx, spec, e.conduitID); err != nil {
 			w.conduit.Invalidate()
-			return fmt.Errorf("create %s: %w", spec.Type, err)
+			return &createError{subType: spec.Type, err: err}
 		}
 	}
 
@@ -563,4 +572,32 @@ func isAuthRevoked(err error) bool {
 		return false
 	}
 	return strings.Contains(se.Body, "subscription missing proper authorization")
+}
+
+// createError carries which subscription type a create rejected, so the
+// enroll outcome can be classified on position (see isChatBanned) without
+// parsing the message text.
+type createError struct {
+	subType string
+	err     error
+}
+
+func (e *createError) Error() string { return "create " + e.subType + ": " + e.err.Error() }
+func (e *createError) Unwrap() error { return e.err }
+
+// isChatBanned reports whether err is the missing-authorization 403 on
+// channel.chat.message specifically. Twitch answers the same body for a lost
+// consent and for a bot user banned from the chat; the two are told apart by
+// position, which twitch.ChannelSubscriptions pins: chat.message is created
+// LAST, after every broadcaster-scoped subscription was accepted, so consent
+// is provably intact and the only authorization left to fail is the bot's own
+// seat in that chat. Incident 2026-09-09 (chat_user_banned at 19:53, restart
+// 403 at 02:53) was filed as revoked and told the streamer to re-consent,
+// which cannot undo a ban.
+func isChatBanned(err error) bool {
+	var ce *createError
+	if !errors.As(err, &ce) || ce.subType != twitch.ChatMessageType {
+		return false
+	}
+	return isAuthRevoked(err)
 }

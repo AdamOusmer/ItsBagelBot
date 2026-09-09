@@ -414,6 +414,7 @@
         return 'green';
       case 'failing':
       case 'revoked':
+      case 'chat_banned': // outgress: Twitch chat banned the bot; NOT the user-level ban above
         return 'err';
       default:
         return 'warn';
