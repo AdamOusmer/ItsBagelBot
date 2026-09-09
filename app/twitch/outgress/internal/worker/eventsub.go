@@ -311,9 +311,9 @@ func (w *Worker) enableEventSubs(ctx context.Context, e enrollment) error {
 func (w *Worker) recordEnrollFailure(ctx context.Context, e enrollment, op string, err error) {
 	switch {
 	case isChatBanned(err):
-		_ = w.blockChannel(ctx, e.broadcasterID, blockBanned, op+": "+err.Error())
+		_ = w.blockChannel(ctx, e.broadcasterID, blockBanned.because(op+": "+err.Error()))
 	case isAuthRevoked(err):
-		_ = w.blockChannel(ctx, e.broadcasterID, blockRevoked, op+": "+err.Error())
+		_ = w.blockChannel(ctx, e.broadcasterID, blockRevoked.because(op+": "+err.Error()))
 	default:
 		_ = w.registry.SetSubState(ctx, e.broadcasterID, subStateFailing, err.Error())
 		w.log.Error(op+": eventsubs not fully accepted, marked failing",

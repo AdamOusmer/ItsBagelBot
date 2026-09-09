@@ -62,16 +62,16 @@ func TestCreateErrorKeepsTypeAndCause(t *testing.T) {
 
 func TestBlockedStates(t *testing.T) {
 	for _, s := range []string{subStateRevoked, subStateBanned} {
-		if !blockedState(s) {
-			t.Errorf("blockedState(%q) = false", s)
+		if !blockedChannel(manage.Channel{SubState: s}) {
+			t.Errorf("blockedChannel(%q) = false", s)
 		}
 		if !reenrollableSubState(s) {
 			t.Errorf("reenrollableSubState(%q) = false: a grant event must repair it", s)
 		}
 	}
 	for _, s := range []string{subStateOK, subStateFailing, subStatePending, ""} {
-		if blockedState(s) {
-			t.Errorf("blockedState(%q) = true", s)
+		if blockedChannel(manage.Channel{SubState: s}) {
+			t.Errorf("blockedChannel(%q) = true", s)
 		}
 	}
 }
@@ -80,25 +80,33 @@ func TestBlockedStates(t *testing.T) {
 // revoked never downgrades to banned, banned upgrades to revoked.
 func TestAlreadyBlocked(t *testing.T) {
 	tests := []struct {
-		name  string
-		ch    manage.Channel
-		found bool
-		state string
-		want  bool
+		name string
+		ch   manage.Channel
+		b    blockade
+		want bool
 	}{
-		{"unknown channel", manage.Channel{}, false, subStateBanned, true},
-		{"fresh pending", manage.Channel{SubState: subStatePending}, true, subStateBanned, false},
-		{"already banned", manage.Channel{SubState: subStateBanned}, true, subStateBanned, true},
-		{"already revoked", manage.Channel{SubState: subStateRevoked}, true, subStateRevoked, true},
-		{"revoked stays over banned", manage.Channel{SubState: subStateRevoked}, true, subStateBanned, true},
-		{"banned upgrades to revoked", manage.Channel{SubState: subStateBanned}, true, subStateRevoked, false},
+		{"fresh pending", manage.Channel{SubState: subStatePending}, blockBanned, false},
+		{"already banned", manage.Channel{SubState: subStateBanned}, blockBanned, true},
+		{"already revoked", manage.Channel{SubState: subStateRevoked}, blockRevoked, true},
+		{"revoked stays over banned", manage.Channel{SubState: subStateRevoked}, blockBanned, true},
+		{"banned upgrades to revoked", manage.Channel{SubState: subStateBanned}, blockRevoked, false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := alreadyBlocked(tc.ch, tc.found, tc.state); got != tc.want {
+			if got := alreadyBlocked(tc.ch, tc.b); got != tc.want {
 				t.Errorf("alreadyBlocked = %v, want %v", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestBlockadeBecauseKeepsIdentity(t *testing.T) {
+	b := blockBanned.because("chat_user_banned: channel.chat.message")
+	if b.state != subStateBanned || b.notice != noticeBanned || b.reason == "" {
+		t.Errorf("because() lost a field: %+v", b)
+	}
+	if blockBanned.reason != "" {
+		t.Error("because() mutated the shared blockade value")
 	}
 }
 
