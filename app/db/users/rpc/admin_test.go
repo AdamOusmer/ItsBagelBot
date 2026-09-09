@@ -319,3 +319,25 @@ func TestAdminVerbsCoverEverySubject(t *testing.T) {
 		"delete":           adminuser.RoleOwner,
 	}, got)
 }
+
+// TestInternalGetAnswersWithoutActor pins the pair SubscribeAdmin binds: the
+// `get` verb refuses a caller that names no operator, and the same handler on
+// bagel.rpc.internal.users.get answers it. The service callers (transactions'
+// gift recipient vetting, notifications' target resolution) send no actor_id
+// at all, so a regression that gated the internal subject would break them
+// silently -- the broker would return the refusal, not an error.
+func TestInternalGetAnswersWithoutActor(t *testing.T) {
+	a, _ := staffedAdminRPC(t)
+	req := usersrpc.AdminRequest{UserID: absentTarget}
+
+	guarded := handlerFor(t, a, "get")(context.Background(), req)
+	assert.Equal(t, domainrpc.CodeForbidden, guarded.Code)
+
+	// a.get is what SubscribeAdmin binds to the internal subject, unwrapped by
+	// guarded(): no role is consulted, so the reply is the store's answer for
+	// a user that does not exist rather than a refusal to ask.
+	internal := a.get(context.Background(), req)
+	assert.NotEqual(t, domainrpc.CodeForbidden, internal.Code)
+	assert.Equal(t, domainrpc.CodeNotFound, internal.Code)
+	assert.Nil(t, internal.User)
+}

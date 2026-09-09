@@ -52,16 +52,6 @@ type adminVerb struct {
 // enumerate the entire customer base, and token_status reports whether an
 // operator token is installed. A caller with no staff row must not be able to
 // ask, so the gate is on the verb, not on whether the verb writes.
-//
-// KNOWN GAP, must be closed before this ships: two fleet services call `get`
-// service-to-service with no operator behind them and are now refused --
-// app/db/transactions/rpc/checkout.go resolveRecipient (gift recipient
-// lookup) and app/db/notifications/rpc/admin.go resolveTarget (direct
-// notification by username). deploy/messaging/nats-auth.conf grants those two
-// accounts exactly `bagel.rpc.admin.user.get` and nothing else, so the fix is
-// to give them an internal lookup subject of their own (beside
-// bagel.rpc.internal.users.email.get) rather than to punch a hole in this
-// table: an actor-less exemption on `get` would apply to the console too.
 func (a *adminRPC) verbs() []adminVerb {
 	const (
 		mod   = adminuser.RoleModerator
@@ -127,7 +117,7 @@ const (
 	adminUserMaxSearchLen = repository.AdminUserMaxSearchLen
 )
 
-func SubscribeAdmin(w Wiring, db *ent.Client, prefix, invalidationPrefix string) error {
+func SubscribeAdmin(w Wiring, db *ent.Client, prefix, internalGetSubject, invalidationPrefix string) error {
 	a := &adminRPC{
 		repo:               w.Repo,
 		gate:               staffGate{db: db},
@@ -144,7 +134,16 @@ func SubscribeAdmin(w Wiring, db *ent.Client, prefix, invalidationPrefix string)
 	for _, v := range table {
 		bound = append(bound, bus.At(v.name, a.guarded(v)))
 	}
-	return bus.ServeVerbs(w.Within(adminBudget), prefix, bound...)
+	if err := bus.ServeVerbs(w.Within(adminBudget), prefix, bound...); err != nil {
+		return err
+	}
+
+	// The same get handler again, ungated, on an import-gated internal
+	// subject: service callers (transactions vetting a gift recipient,
+	// notifications resolving a target username) have no operator identity to
+	// authorize, so they get their own subject rather than an actor-less
+	// exemption on the admin verb, which stays fail-closed for the console.
+	return bus.Serve(w.Within(adminBudget), internalGetSubject, a.get)
 }
 
 // storeRules is this service's half of the refusal classification: the two

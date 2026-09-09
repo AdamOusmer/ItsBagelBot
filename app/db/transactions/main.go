@@ -155,7 +155,7 @@ func setupCheckout(nc *nats.Conn, nrApp *newrelic.Application, dashboardOrigin s
 		log.Fatal("failed to build tebex client", zap.Error(err))
 	}
 
-	userGetSubject := env.Get("NATS_ADMIN_USER_SUBJECT_PREFIX", "bagel.rpc.admin.user") + ".get"
+	userGetSubject := env.Get("NATS_INTERNAL_USERS_GET_SUBJECT", "bagel.rpc.internal.users.get")
 	prefix := env.Get("NATS_TRANSACTIONS_SUBJECT_PREFIX", "bagel.rpc.transactions")
 	if err := rpc.SubscribeCheckout(
 		bus.RPCWiring{NC: nc, App: nrApp, Queue: queueGroup, Log: log},

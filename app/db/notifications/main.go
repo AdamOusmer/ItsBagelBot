@@ -64,7 +64,7 @@ func main() {
 
 	// Cross-service lookup so an admin can target a direct notification by
 	// username, not just numeric id.
-	userGetSubject := env.Get("NATS_ADMIN_USER_SUBJECT_PREFIX", "bagel.rpc.admin.user") + ".get"
+	userGetSubject := env.Get("NATS_INTERNAL_USERS_GET_SUBJECT", "bagel.rpc.internal.users.get")
 
 	adminPrefix := env.Get("NATS_ADMIN_NOTIFICATIONS_SUBJECT_PREFIX", "bagel.rpc.admin.notifications")
 	wiring := rpc.Wiring{
