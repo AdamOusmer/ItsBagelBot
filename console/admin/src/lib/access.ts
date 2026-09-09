@@ -52,7 +52,7 @@ export const ROLE_FOR = {
   'counters.manage': 'owner',
   'staff.manage': 'admin',
   'audit.read': 'admin',
-  'secrets.manage': 'admin',
+  'secrets.manage': 'owner',
   // The bot-account OAuth consent flow installs a live Twitch token for the
   // account the bot speaks as. Owner-only, and no lower: it is the one flow
   // that mints credentials from an unauthenticated-looking URL.

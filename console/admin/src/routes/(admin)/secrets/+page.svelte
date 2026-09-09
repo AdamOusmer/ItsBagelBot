@@ -1,24 +1,47 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+  // Runtime database credentials, one Card per service.
+  //
+  // No deck and no inspector here, unlike the other management pages: there are
+  // four services and each verb needs its own typed confirmation, so a
+  // master-detail split would put a click in front of a card that already fits
+  // on screen whole. What DID change is that the three dialogs became one table
+  // (SECRET_DIALOGS) instead of three parallel `pending.kind ===` branches
+  // spread across the title, the CTA, the danger flag, the fields and the form
+  // action -- five places that had to be edited in step to add a fourth verb.
+  //
+  // The action names (`rotate`, `set`, `revoke`) are the server's and are not
+  // renamed -- the audit trail keys off them.
   import { enhance } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import {
-    Button,
-    PageHead,
-    ConfirmDialog,
-    Skeleton,
-    toast,
-    copyFlash,
-    adminToastFailure,
-  } from '@bagel/shared';
+  import PageHead from '@bagel/shared/components/PageHead.svelte';
+  import Card from '@bagel/shared/components/Card.svelte';
+  import CardHead from '@bagel/shared/components/CardHead.svelte';
+  import Button from '@bagel/shared/components/Button.svelte';
+  import Chip from '@bagel/shared/components/Chip.svelte';
+  import Field from '@bagel/shared/components/Field.svelte';
+  import ConfirmDialog from '@bagel/shared/components/ConfirmDialog.svelte';
+  import SkeletonStack from '@bagel/shared/components/SkeletonStack.svelte';
+  import { toast } from '@bagel/shared/toast';
+  import { actionPayload, adminToastFailure, copyFlash } from '@bagel/shared';
+  import { getI18n } from '@bagel/shared/i18n/context';
+  import { allows } from '$lib/access';
   import type { DbCredentialStatus } from '$lib/server/secrets';
+  import StatePill from '$lib/components/StatePill.svelte';
+  import ServiceCard from '$lib/components/secrets/ServiceCard.svelte';
+  import { SECRET_DIALOGS, type SecretVerb } from '$lib/components/secrets/secret-dialogs';
   import type { SecretsBundle } from './+page.server';
 
   let { data } = $props();
 
-  // Streamed bundle -> local state; refreshed via invalidateAll after writes.
+  const { t } = getI18n();
+  const failed = adminToastFailure(toast);
+  const canManage = $derived(allows(data.role, 'secrets.manage'));
+
+  // Streamed bundle -> local state; refreshed via invalidateAll after writes,
+  // because only Doppler knows what the credential became.
   let bundle = $state<SecretsBundle | null>(null);
   $effect(() => {
     let alive = true;
@@ -31,244 +54,207 @@
   });
 
   const services = $derived(bundle?.services ?? []);
-  const scope = $derived(bundle?.scope ?? null);
 
-  // ── Dialog state machine ───────────────────────────────────────────────────
-  type PendingKind = 'rotate' | 'set' | 'revoke';
-  type Pending = { kind: PendingKind; svc: DbCredentialStatus };
-  let pending = $state<Pending | null>(null);
-
+  // ── Dialog state ───────────────────────────────────────────────────────────
+  let pendingVerb = $state<SecretVerb | null>(null);
+  let pendingService = $state<DbCredentialStatus | null>(null);
   let confirmText = $state('');
   let dbUser = $state('');
   let dbPass = $state('');
   let busy = $state(false);
+  let dialogForm = $state<HTMLFormElement | null>(null);
 
-  function open(kind: PendingKind, svc: DbCredentialStatus) {
-    pending = { kind, svc };
+  const dialog = $derived(pendingVerb ? SECRET_DIALOGS[pendingVerb] : null);
+  const phrase = $derived(dialog && pendingService ? dialog.phrase(pendingService, dbUser) : '');
+  // The server checks this too, and its answer is the one that counts; matching
+  // here only stops the operator submitting a form that would be refused.
+  const phraseMatches = $derived(confirmText.trim() === phrase && phrase !== '');
+
+  function open(verb: SecretVerb, service: DbCredentialStatus) {
+    pendingVerb = verb;
+    pendingService = service;
     confirmText = '';
     dbUser = '';
     dbPass = '';
   }
 
   function close() {
-    pending = null;
+    pendingVerb = null;
+    pendingService = null;
   }
-
-  const phrase = $derived.by(() => {
-    if (!pending) return '';
-    switch (pending.kind) {
-      case 'rotate':
-        return `rotate ${pending.svc.id}`;
-      case 'set':
-        return `set ${pending.svc.id}`;
-      case 'revoke':
-        return `revoke ${dbUser.trim()}`;
-    }
-  });
-
-  const DIALOG_META: Record<PendingKind, { title: string; action: string; danger: boolean; cta: string }> = {
-    rotate: { title: 'Rotate database credential', action: '?/rotate', danger: false, cta: 'Rotate' },
-    set: { title: 'Set database credential', action: '?/set', danger: false, cta: 'Set credential' },
-    revoke: { title: 'Revoke database user', action: '?/revoke', danger: true, cta: 'Revoke' }
-  };
-
-  let dialogForm = $state<HTMLFormElement | null>(null);
-
-  const failed = adminToastFailure(toast);
-
-  type ActionPayload = {
-    action?: { ok: boolean; notice: string };
-    error?: string;
-  };
 
   const dialogSubmit: SubmitFunction = () => {
     busy = true;
     return async ({ result }) => {
       busy = false;
-      const r = result as { type: string; data?: ActionPayload };
-      const p = r.type === 'success' || r.type === 'failure' ? r.data : undefined;
-      if (r.type === 'success' && p?.action?.ok) {
+      const p = actionPayload<{ action?: { ok: boolean; notice: string }; error?: string }>(result);
+      if (result.type === 'success' && p?.action?.ok) {
         toast('ok', p.action.notice);
         close();
-        // Reconcile with Doppler's view rather than guessing locally.
+        // Reconcile with Doppler's view rather than guessing locally: a rotate
+        // mints a user name only the server saw.
         bundle = null;
         await invalidateAll();
         return;
       }
-      failed(p, 'action failed');
+      failed(p, t('admin.secrets.actionFailed'));
     };
   };
 
   // ── Local secret generator (never leaves the browser) ─────────────────────
-  type GenKind = 'base64' | 'hex' | 'password';
+  const GEN_KINDS = ['base64', 'hex', 'password'] as const;
+  type GenKind = (typeof GEN_KINDS)[number];
+
+  const GEN_LABEL = {
+    base64: 'admin.secrets.genBase64',
+    hex: 'admin.secrets.genHex',
+    password: 'admin.secrets.genPassword'
+  } as const satisfies Record<GenKind, string>;
+
+  // No characters that need escaping in a MySQL connection string or a shell
+  // one-liner: a generated password is going to be pasted into both.
+  const PASSWORD_ALPHABET =
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~!*';
+  const BYTES = 32;
+  const PASSWORD_LENGTH = 40;
+
   let genKind = $state<GenKind>('base64');
   let generated = $state('');
   let genCopied = $state(false);
 
-  const PASSWORD_ALPHABET =
-    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~!*';
+  function randomBytes(n: number): Uint8Array {
+    return crypto.getRandomValues(new Uint8Array(n));
+  }
+
+  function generateValue(kind: GenKind): string {
+    if (kind === 'password') {
+      return [...randomBytes(PASSWORD_LENGTH)]
+        .map((b) => PASSWORD_ALPHABET[b % PASSWORD_ALPHABET.length])
+        .join('');
+    }
+    const bytes = randomBytes(BYTES);
+    if (kind === 'hex') return [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
+    return btoa(String.fromCharCode(...bytes));
+  }
 
   function generate() {
-    const bytes = crypto.getRandomValues(new Uint8Array(32));
-    if (genKind === 'base64') {
-      generated = btoa(String.fromCharCode(...bytes));
-    } else if (genKind === 'hex') {
-      generated = [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
-    } else {
-      const idx = crypto.getRandomValues(new Uint8Array(40));
-      generated = [...idx].map((b) => PASSWORD_ALPHABET[b % PASSWORD_ALPHABET.length]).join('');
-    }
+    generated = generateValue(genKind);
     genCopied = false;
   }
 
-  const copyGenerated = () => copyFlash(generated, (on) => (genCopied = on));
-
-  const SOURCE_META: Record<string, { label: string; cls: string }> = {
-    scoped: { label: 'scoped token', cls: 'ok' },
-    legacy: { label: 'legacy broad token', cls: 'warn' },
-    missing: { label: 'no token', cls: 'err' }
-  };
+  const copyGenerated = () => copyFlash(generated, (on: boolean) => (genCopied = on));
 </script>
 
 <section class="screen active">
-  <PageHead
-    eyebrow="Access control"
-    description="Runtime database users, provisioned least-privileged per service."
-  >
-    Service <em>secrets</em>
+  <PageHead eyebrow={t('admin.secrets.eyebrow')} description={t('admin.secrets.description')}>
+    {t('admin.secrets.titlePre')}<em>{t('admin.secrets.titleEm')}</em>
   </PageHead>
 
   {#if bundle === null}
-    <div class="loading-stack">
-      <Skeleton variant="block" height="60px" />
-      <Skeleton variant="block" height="200px" />
-      <Skeleton variant="block" height="200px" />
-    </div>
+    <SkeletonStack rows={4} height="220px" columns={2} />
   {:else}
-    {#if scope}
-      <p class="scope-ok">
-        Every service resolves a per-project scoped Doppler token.
-      </p>
-    {/if}
-
-    <div class="svc-grid">
-      {#each services as svc (svc.id)}
-        {@const src = SOURCE_META[svc.tokenSource] ?? SOURCE_META.missing}
-        <div class="card svc-card">
-          <div class="card-head">
-            <h3>{svc.label}</h3>
-            <span class="src-badge {src.cls}">{src.label}</span>
-          </div>
-
-          <dl class="svc-facts">
-            <div><dt>Doppler</dt><dd>{svc.project}/{svc.config}</dd></div>
-            <div><dt>Schema</dt><dd>{svc.schema}</dd></div>
-            <div>
-              <dt>DB user</dt>
-              <dd class:missing={!svc.dbUser}>
-                {#if svc.canReadDoppler}{svc.dbUser || 'not set'}{:else}unreadable (token?){/if}
-              </dd>
-            </div>
-            <div>
-              <dt>Auto-migrate (Doppler)</dt>
-              <dd title="Doppler's value. deploy/k8s/*.yaml pins DB_AUTO_MIGRATE as a pod env var, which outranks this, so production may differ.">
-                {svc.autoMigrate || '-'}
-              </dd>
-            </div>
-          </dl>
-
-          <div class="svc-actions">
-            <Button variant="ghost" onclick={() => open('rotate', svc)}>Rotate</Button>
-            <Button variant="ghost" onclick={() => open('set', svc)}>Set…</Button>
-            <Button variant="ghost" class="danger" onclick={() => open('revoke', svc)}>Revoke user…</Button>
-          </div>
-        </div>
+    <div class="grid">
+      {#each services as service (service.id)}
+        <ServiceCard
+          {service}
+          {canManage}
+          onRotate={() => open('rotate', service)}
+          onSet={() => open('set', service)}
+          onRevoke={() => open('revoke', service)}
+        />
       {/each}
 
       <!-- Local generator: strong random material without any server round trip. -->
-      <div class="card svc-card gen-card">
-        <div class="card-head">
-          <h3>Secret generator</h3>
-          <span class="src-badge ok">local only</span>
-        </div>
-        <p class="gen-note">
-          Generated with your browser's CSPRNG; nothing here is sent to any server.
-        </p>
-        <div class="gen-kinds">
-          {#each ['base64', 'hex', 'password'] as k (k)}
-            <button type="button" class="chip" class:on={genKind === k} onclick={() => (genKind = k as GenKind)}>
-              {k === 'base64' ? '32B base64' : k === 'hex' ? '32B hex' : '40-char password'}
-            </button>
+      <Card class="gen-card">
+        <CardHead title={t('admin.secrets.genTitle')}>
+          {#snippet action()}
+            <StatePill tone="free">{t('admin.secrets.genLocal')}</StatePill>
+          {/snippet}
+        </CardHead>
+        <p class="note">{t('admin.secrets.genNote')}</p>
+        <div class="kinds">
+          {#each GEN_KINDS as kind (kind)}
+            <Chip on={genKind === kind} onclick={() => (genKind = kind)}>
+              {t(GEN_LABEL[kind])}
+            </Chip>
           {/each}
         </div>
         <div class="gen-row">
-          <Button variant="primary" onclick={generate}>Generate</Button>
+          <Button variant="primary" onclick={generate}>{t('admin.secrets.generate')}</Button>
           {#if generated}
-            <input class="text-input mono" type="text" readonly value={generated} />
-            <Button variant="ghost" onclick={copyGenerated}>{genCopied ? 'Copied' : 'Copy'}</Button>
+            <input class="text-input" type="text" readonly value={generated} />
+            <Button variant="ghost" onclick={copyGenerated}>
+              {genCopied ? t('common.copied') : t('common.copy')}
+            </Button>
           {/if}
         </div>
-      </div>
+      </Card>
     </div>
   {/if}
 </section>
 
 <!-- One dialog for every secret mutation; the phrase check mirrors the server's. -->
 <ConfirmDialog
-  open={pending !== null}
-  title={pending ? DIALOG_META[pending.kind].title : ''}
-  confirmLabel={pending ? DIALOG_META[pending.kind].cta : 'Confirm'}
-  cancelLabel="Cancel"
-  danger={pending ? DIALOG_META[pending.kind].danger : false}
-  busy={busy}
+  open={dialog !== null}
+  title={dialog ? t(dialog.title) : ''}
+  confirmLabel={dialog ? t(dialog.cta) : t('common.done')}
+  cancelLabel={t('common.cancel')}
+  danger={dialog?.danger ?? false}
+  {busy}
   onCancel={close}
   onConfirm={() => dialogForm?.requestSubmit()}
 >
-  {#if pending}
-    <div class="dialog-fields">
-      {#if pending.kind === 'rotate'}
-        <p class="dialog-note">
-          Provisions a fresh MySQL user for <b>{pending.svc.schema}</b>, writes it to Doppler
-          ({pending.svc.project}/{pending.svc.config}), and lets the operator reload pick it up.
-          The old user stays until you revoke it.
-        </p>
-      {:else if pending.kind === 'set'}
-        <p class="dialog-note">
-          Provisions the named MySQL user with data-only grants on <b>{pending.svc.schema}</b> and
-          writes it to Doppler with auto-migrate on.
-        </p>
-        <label>Database user
-          <input class="text-input mono" type="text" bind:value={dbUser} placeholder="{pending.svc.expectedUserPrefix}_…" />
-        </label>
-        <label>Password (32-128 chars)
-          <input class="text-input mono" type="password" bind:value={dbPass} autocomplete="new-password" />
-        </label>
-      {:else if pending.kind === 'revoke'}
-        <p class="dialog-note">
-          Drops the MySQL user and every grant it holds. Revoke only retired users: the service
-          crashes if you drop the one in Doppler.
-        </p>
-        <label>Database user to revoke
-          <input class="text-input mono" type="text" bind:value={dbUser} placeholder="{pending.svc.expectedUserPrefix}_…" />
-        </label>
+  {#if dialog && pendingService}
+    <div class="fields">
+      <p class="note">
+        {t(dialog.body, {
+          schema: pendingService.schema,
+          project: pendingService.project,
+          config: pendingService.config,
+          service: pendingService.label
+        })}
+      </p>
+
+      {#if dialog.needsUser}
+        <Field label={t('admin.secrets.fieldDbUser')}>
+          <input
+            class="text-input"
+            type="text"
+            autocomplete="off"
+            placeholder={`${pendingService.expectedUserPrefix}_…`}
+            bind:value={dbUser}
+          />
+        </Field>
       {/if}
 
-      <label>Type <b class="mono">{phrase}</b> to confirm
-        <input class="text-input mono" type="text" bind:value={confirmText} autocomplete="off" />
-      </label>
+      {#if dialog.needsPassword}
+        <!-- A password field, not a text one: this dialog is opened on a shared
+             operator screen often enough that the value should not be shoulder-
+             readable, and the generator above is where it comes from anyway. -->
+        <Field label={t('admin.secrets.fieldDbPass')}>
+          <input class="text-input" type="password" autocomplete="new-password" bind:value={dbPass} />
+        </Field>
+      {/if}
+
+      <Field label={t('admin.secrets.fieldConfirm', { phrase })}>
+        <input class="text-input" type="text" autocomplete="off" bind:value={confirmText} />
+      </Field>
+      {#if !phraseMatches}
+        <p class="note quiet">{t('admin.secrets.confirmHint')}</p>
+      {/if}
     </div>
   {/if}
 </ConfirmDialog>
 
-{#if pending}
+{#if dialog && pendingService}
   <form
     method="POST"
-    action={DIALOG_META[pending.kind].action}
+    action={dialog.action}
     use:enhance={dialogSubmit}
     bind:this={dialogForm}
     hidden
   >
-    <input type="hidden" name="service" value={pending.svc.id} />
+    <input type="hidden" name="service" value={pendingService.id} />
     <input type="hidden" name="confirm" value={confirmText} />
     <input type="hidden" name="db_user" value={dbUser} />
     <input type="hidden" name="db_pass" value={dbPass} />
@@ -276,70 +262,49 @@
 {/if}
 
 <style>
-  .loading-stack { display: flex; flex-direction: column; gap: 14px; }
-
-  .scope-ok {
-    display: inline-flex; align-items: center; gap: 8px;
-    font-family: var(--bb-font-body); font-size: 13px; color: var(--bb-green-glow);
-    margin: 0 0 16px;
-  }
-  .scope-ok :global(svg) { stroke: currentColor; fill: none; }
-
-  .svc-grid {
+  .grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
     gap: 16px;
   }
-  .svc-card { display: flex; flex-direction: column; gap: 14px; }
 
-  .src-badge {
-    font-family: var(--bb-font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
-    padding: 2px 9px; border-radius: var(--bb-radius-pill); border: 1px solid transparent; white-space: nowrap;
+  .note {
+    font-family: var(--bb-font-body);
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: var(--bb-muted);
+    margin: 0 0 12px;
   }
-  .src-badge.ok { color: var(--bb-green-glow); background: rgba(82, 183, 136, 0.1); border-color: rgba(82, 183, 136, 0.3); }
-  .src-badge.warn { color: var(--bb-tan-light); background: rgba(201, 168, 124, 0.1); border-color: rgba(201, 168, 124, 0.3); }
-  .src-badge.err { color: #cf8a78; background: rgba(176, 90, 70, 0.1); border-color: rgba(176, 90, 70, 0.3); }
-
-  .svc-facts { display: flex; flex-direction: column; gap: 8px; margin: 0; }
-  .svc-facts div { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
-  .svc-facts dt { font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
-  .svc-facts dd {
-    margin: 0; font-family: var(--bb-font-mono); font-size: 12px; color: var(--bb-tan-light);
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  .note.quiet {
+    opacity: 0.75;
+    margin: 0;
   }
-  .svc-facts dd.missing { color: #cf8a78; }
 
-  .svc-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-  .svc-actions :global(.danger) { color: #cf8a78; border-color: rgba(176, 90, 70, 0.4); }
-
-  .gen-card { border-style: dashed; }
-  .gen-note { font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted); margin: 0; }
-  .gen-kinds { display: flex; gap: 6px; flex-wrap: wrap; }
-  .chip {
-    font-family: var(--bb-font-mono); font-size: 11px; letter-spacing: 0.06em;
-    padding: 7px 14px; border-radius: var(--bb-radius-pill); white-space: nowrap;
-    background: rgba(255, 255, 255, 0.03); border: 1px solid var(--glass-border);
-    color: var(--bb-muted); cursor: pointer;
+  .kinds {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
   }
-  .chip:hover { color: var(--bb-white); border-color: var(--bb-border-strong); }
-  .chip.on { color: var(--bb-white); background: var(--ui-accent-soft); border-color: var(--bb-border-strong); }
-  .gen-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-
-  .text-input {
-    flex: 1; min-width: 0; padding: 8px 11px;
-    font-family: var(--bb-font-body); font-size: 13px;
-    border: 1px solid var(--rule); border-radius: var(--bb-radius-sm);
-    background: var(--bb-bg-1, #16130f); color: var(--bb-white);
+  .gen-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
   }
-  .text-input.mono { font-family: var(--bb-font-mono); font-size: 12px; }
-  .text-input:focus { outline: none; border-color: var(--bb-border-strong); }
-
-  .dialog-fields { display: flex; flex-direction: column; gap: 12px; margin: 12px 0 4px; }
-  .dialog-fields label {
-    display: flex; flex-direction: column; gap: 6px;
-    font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted);
+  .gen-row .text-input {
+    flex: 1;
+    min-width: 140px;
   }
-  .dialog-note { font-family: var(--bb-font-body); font-size: 13px; line-height: 1.55; color: var(--bb-muted); margin: 0; }
-  .dialog-note b { color: var(--bb-white); font-weight: 600; }
-  .mono { font-family: var(--bb-font-mono); }
+
+  :global(.gen-card) {
+    border-style: dashed;
+  }
+
+  .fields {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 12px 0 4px;
+  }
 </style>

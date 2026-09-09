@@ -31,6 +31,7 @@
   import UserInspector from '$lib/components/users/UserInspector.svelte';
   import MessageDialog from '$lib/components/users/MessageDialog.svelte';
   import { usersCsv } from '$lib/components/users/csv';
+  import { downloadCsv } from '$lib/csv';
   import { USER_STATES, USER_STATE_LABEL, type UserStateFilter } from '$lib/components/users/user-state';
   import { USER_ACTIONS, type UserActionDef } from '$lib/components/users/user-actions';
   import type { UserDirectory } from './+page.server';
@@ -316,12 +317,7 @@
   };
 
   function exportCsv() {
-    const blob = new Blob([usersCsv(rows)], { type: 'text/csv' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `users-page${dir?.page ?? 1}.csv`;
-    a.click();
-    URL.revokeObjectURL(a.href);
+    downloadCsv(`users-page${dir?.page ?? 1}.csv`, usersCsv(rows));
   }
 </script>
 

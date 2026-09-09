@@ -1,26 +1,37 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { page } from '$app/stores';
+  // The landing page the Twitch bot-account consent flow redirects back to. It
+  // is outside the (admin) group on purpose: the operator arrives here in
+  // whatever tab Twitch opened, which may not carry an admin session, so this
+  // page renders an outcome and nothing else.
+  import { page } from '$app/state';
+  import { getI18n } from '@bagel/shared/i18n/context';
 
-  const ok = $derived($page.url.searchParams.get('ok') === '1');
-  const err = $derived($page.url.searchParams.get('e'));
+  const { t } = getI18n();
 
-  const MSG: Record<string, string> = {
-    state: 'The authorization link expired or was invalid. Generate a new one from the admin console.',
-    oauth: 'Twitch rejected the authorization. Please try again.',
-    account: 'That Twitch account is not the configured bot account.',
-    config: 'Bot authorization is disabled until ADMIN_BOT_USER_ID is configured.'
-  };
+  // Written by the callback in $lib/server/oauth. A table rather than a chain,
+  // for the same reason the sign-in page's is one: an unrecognised reason must
+  // fall through to the generic line, not to the wrong specific one.
+  const MESSAGES = {
+    state: 'admin.botAuth.errState',
+    oauth: 'admin.botAuth.errOauth',
+    account: 'admin.botAuth.errAccount',
+    config: 'admin.botAuth.errConfig'
+  } as const;
+
+  const ok = $derived(page.url.searchParams.get('ok') === '1');
+  const err = $derived(page.url.searchParams.get('e') ?? '');
+  const reasonKey = $derived(MESSAGES[err as keyof typeof MESSAGES]);
 </script>
 
 <main>
   {#if ok}
-    <h1>Bot authorized</h1>
-    <p>The bot account token was stored. You can close this tab.</p>
+    <h1>{t('admin.botAuth.okTitle')}</h1>
+    <p>{t('admin.botAuth.okBody')}</p>
   {:else}
-    <h1>Authorization failed</h1>
-    <p>{(err && MSG[err]) ?? 'Something went wrong. Generate a new link and try again.'}</p>
+    <h1>{t('admin.botAuth.failTitle')}</h1>
+    <p>{reasonKey ? t(reasonKey) : t('admin.botAuth.errGeneric')}</p>
   {/if}
 </main>
 
@@ -32,6 +43,12 @@
     font-family: var(--bb-font-body, system-ui, sans-serif);
     text-align: center;
   }
-  h1 { font-size: 1.4rem; margin: 0 0 8px; }
-  p { color: var(--bb-muted, #888); margin: 0; }
+  h1 {
+    font-size: 1.4rem;
+    margin: 0 0 8px;
+  }
+  p {
+    color: var(--bb-muted, #888);
+    margin: 0;
+  }
 </style>

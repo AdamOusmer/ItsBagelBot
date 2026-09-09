@@ -75,7 +75,7 @@ export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
   // minRole is what keeps the link from being offered in the first place.
   { id: 'staff', group: 'access', labelKey: 'adminNav.staff', icon: 'moderation', href: '/staff', match: ['/staff'], minRole: 'admin' },
   { id: 'audit', group: 'access', labelKey: 'adminNav.audit', icon: 'audit', href: '/audit', match: ['/audit'], minRole: 'admin' },
-  { id: 'secrets', group: 'access', labelKey: 'adminNav.secrets', icon: 'lock', href: '/secrets', match: ['/secrets'], minRole: 'admin' },
+  { id: 'secrets', group: 'access', labelKey: 'adminNav.secrets', icon: 'lock', href: '/secrets', match: ['/secrets'], minRole: 'owner' },
   { id: 'counters', group: 'access', labelKey: 'adminNav.counters', icon: 'list', href: '/counters', match: ['/counters'], minRole: 'owner' }
 ];
 
