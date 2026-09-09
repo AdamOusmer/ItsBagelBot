@@ -82,3 +82,92 @@ func TestAppendKeepsCallerBuffer(t *testing.T) {
 		t.Errorf("Append allocated %v times per run, want 0", allocs)
 	}
 }
+
+// TestLexRoundTrips pins the lexer's structural invariant: concatenating every
+// token's literal Text and span Raw reproduces the input exactly. It is what
+// lets a caller plan work off the token list and still render the original
+// bytes for anything it did not resolve.
+func TestLexRoundTrips(t *testing.T) {
+	for _, in := range []string{
+		"", "plain", "{user}", "hi {user}!", "{user}{title}", "a{b}c{user}d",
+		"{user", "{{user}}", "{}", "}{user}", "{user}}", "{1|everyone}",
+		"{choice:a|b|c}", "{so:Name|nobody} and {x}",
+	} {
+		var got string
+		for _, tok := range Lex(in) {
+			if tok.Kind == KindLiteral {
+				got += tok.Text
+				continue
+			}
+			got += tok.Raw
+		}
+		if got != in {
+			t.Errorf("Lex(%q) round-trips to %q", in, got)
+		}
+	}
+}
+
+// TestLexSplitsSpanParts pins the parts a scope chain plans against: a
+// lowercased name, a case-preserved payload that knows whether it exists at
+// all, and a fallback cut at the LAST pipe.
+func TestLexSplitsSpanParts(t *testing.T) {
+	// The parts only mean anything together, so the expectation is one
+	// comparable value and the assertion is one equality. Comparing the six
+	// fields one at a time made this loop complex enough to trip the health
+	// gate, and the per-field messages said less than a %+v diff does.
+	type parts struct {
+		name, payload, fallback string
+		hasPayload, hasFallback bool
+		key                     string
+	}
+	cases := []struct {
+		in   string
+		want parts
+	}{
+		{"{User}", parts{name: "user", key: "user"}},
+		{"{choice}", parts{name: "choice", key: "choice"}},
+		{"{choice:}", parts{name: "choice", hasPayload: true, key: "choice:"}},
+		{"{CHOICE:Hi,Yo}", parts{name: "choice", payload: "Hi,Yo", hasPayload: true, key: "choice:Hi,Yo"}},
+		{"{1|everyone}", parts{name: "1", fallback: "everyone", hasFallback: true, key: "1"}},
+		{"{1|}", parts{name: "1", hasFallback: true, key: "1"}},
+		{"{so:Name|nobody}", parts{name: "so", payload: "Name", fallback: "nobody", hasPayload: true, hasFallback: true, key: "so:Name"}},
+		{"{choice:a|b|c}", parts{name: "choice", payload: "a|b", fallback: "c", hasPayload: true, hasFallback: true, key: "choice:a|b"}},
+	}
+	for _, tc := range cases {
+		toks := Lex(tc.in)
+		if len(toks) != 1 || toks[0].Kind != KindVar {
+			t.Fatalf("Lex(%q) = %#v, want one var token", tc.in, toks)
+		}
+		tok := toks[0]
+		got := parts{
+			name:        tok.Name,
+			payload:     tok.Payload,
+			fallback:    tok.Fallback,
+			hasPayload:  tok.HasPayload,
+			hasFallback: tok.HasFallback,
+			key:         tok.Key(),
+		}
+		if got != tc.want {
+			t.Errorf("Lex(%q) parts = %+v, want %+v", tc.in, got, tc.want)
+		}
+	}
+}
+
+// TestResolveThreeWay pins the render rule every surface shares: an unknown
+// name keeps its braces, an empty value falls back, anything else renders.
+func TestResolveThreeWay(t *testing.T) {
+	tok := Lex("{1|everyone}")[0]
+	if got := tok.Resolve("", false); got != "{1|everyone}" {
+		t.Errorf("unknown name resolved to %q", got)
+	}
+	if got := tok.Resolve("", true); got != "everyone" {
+		t.Errorf("empty value resolved to %q", got)
+	}
+	if got := tok.Resolve("bob", true); got != "bob" {
+		t.Errorf("value resolved to %q", got)
+	}
+	bare := Lex("{1}")[0]
+	if got := bare.Resolve("", true); got != "" {
+		t.Errorf("empty value with no fallback resolved to %q", got)
+	}
+}
