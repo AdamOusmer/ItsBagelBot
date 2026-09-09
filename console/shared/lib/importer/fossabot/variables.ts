@@ -78,6 +78,13 @@
 // spell them is exactly the class of mistake this file exists to avoid. The day
 // one is observed in a real directory it can be added and checked against it.
 //
+// The game-stat families ({val.…}, {fn.…}, {cr.…}, {mcsr.…}, {bw.…},
+// {urchin.…}) get nothing for the same reason as {game}, only more so: the
+// table above lists no Valorant, Fortnite, Clash Royale, MCSR Ranked or Bed
+// Wars variable, because Fossabot has none. A channel that printed those
+// numbers reached an API through $(customapi …), which imports as the
+// {urlfetch:…} definition it already is.
+//
 // $(user) and $(sender) both fold onto {user}: Fossabot's own docs describe
 // them as the same person (sender is the older spelling), so keeping them apart
 // would invent a distinction the source never had. $(count.increment …),

@@ -156,13 +156,13 @@ const strings: GuideStrings = {
     'meta.card.chips.2': '{counter:…}',
     'meta.card.chips.3': '!cmd',
     'meta.card.description': 'Créez des commandes qui saluent les gens par leur nom, lancent des dés et comptent vos victoires. Toutes les variables du bot, expliquées avec des exemples de chat.',
-    'meta.card.meta': '15 min · 13 étapes',
+    'meta.card.meta': '16 min · 14 étapes',
     'meta.card.title': 'Commandes et variables',
     'meta.description': "Maîtrisez les commandes personnalisées d'ItsBagelBot: toutes les variables supportées ({user}, {random}, {counter} et plus), réponses multilignes, actions de chat, délais et niveaux d'accès.",
     'meta.eyebrow': 'Guide',
     'meta.heading': 'Commandes et variables',
     'meta.lead': 'Des commandes qui saluent les gens par leur nom, lancent des dés et comptent vos victoires. Pas de code: juste des accolades.',
-    'meta.minutes': '15 min de lecture',
+    'meta.minutes': '16 min de lecture',
     'meta.title': 'Commandes et variables - Guides ItsBagelBot',
     'fallbacks.b0.html': `
             <p>
@@ -433,6 +433,58 @@ const strings: GuideStrings = {
                 donc jamais besoin.`,
     'chatroom.heading': 'La salle: combien, et qui',
     'chatroom.note': 'Comptez les gens qui parlent, ou tirez au sort l’un de leurs noms.',
+    'gamestats.b0.html': `
+            <p>
+                Les modules de jeu répondent déjà à <code>!valrank</code>, <code>!fnstats</code>
+                et compagnie. Ces variables donnent les mêmes chiffres: une commande que vous
+                écrivez vous-même peut donc les dire avec vos mots plutôt qu'avec ceux du module.
+                Chaque jeu a son propre préfixe pour éviter toute collision: Valorant, c'est
+                <code>&#123;val.&#8230;&#125;</code>, et chaque champ est celui que la commande de
+                ce jeu affiche déjà.
+            </p>`,
+    'gamestats.b1.html': `
+                <b>Quel compte, et combien</b>
+                Sans rien après le nom, c'est le compte que vous avez lié sur la page du module de
+                ce jeu, résolu exactement comme le fait la commande du jeu. Ajoutez un compte
+                après deux-points pour quelqu'un d'autre:
+                <code>&#123;val.tier:Frosty#EUW1&#125;</code>. Une réponse peut nommer deux
+                joueurs différents par jeu, car chacun est une question posée aux serveurs du jeu;
+                le troisième revient vide.`,
+    'gamestats.b2.html': `
+                <b>Interrupteurs et joueurs inconnus</b>
+                Chaque famille suit l'interrupteur de son module: jeu coupé, ses variables cessent
+                de s'étendre et apparaissent dans le chat telles que vous les avez écrites. Si le
+                module est actif mais que le joueur est inconnu du jeu, ou que la recherche
+                n'aboutit pas, tous les champs de ce jeu reviennent vides: écrivez une valeur par
+                défaut là où un blanc se lirait mal,
+                <code>&#123;val.tier|non classé&#125;</code>. Un champ mal orthographié
+                (<code>&#123;val.teir&#125;</code>) apparaît aussi tel quel, ce qui permet de le
+                repérer.`,
+    'gamestats.b3.head.0': 'Variable',
+    'gamestats.b3.head.1': 'Devient',
+    'gamestats.b3.head.2': 'Exemple',
+    'gamestats.b3.rows.0.0': '<code>&#123;val.tier&#125;</code>',
+    'gamestats.b3.rows.0.1': 'Votre rang Valorant actuel.',
+    'gamestats.b3.rows.0.2': 'Ascendant 2',
+    'gamestats.b3.rows.1.0': '<code>&#123;val.rr&#125;</code>',
+    'gamestats.b3.rows.1.1': 'Les points de rang dans ce palier.',
+    'gamestats.b3.rows.1.2': '51',
+    'gamestats.b3.rows.2.0': '<code>&#123;val.peaktier&#125;</code>',
+    'gamestats.b3.rows.2.1': 'Le rang le plus haut que vous ayez atteint.',
+    'gamestats.b3.rows.2.2': 'Immortal 1',
+    'gamestats.b3.rows.3.0': '<code>&#123;val.player&#125;</code>',
+    'gamestats.b3.rows.3.1': 'Le Riot ID concerné par la réponse.',
+    'gamestats.b3.rows.3.2': 'Bagel#EUW',
+    'gamestats.b3.rows.4.0': 'Aussi',
+    'gamestats.b3.rows.4.1': "<code>&#123;val.elo&#125;</code>, <code>&#123;val.lastchange&#125;</code> (les RR du dernier match, signés), <code>&#123;val.region&#125;</code>, <code>&#123;val.placement&#125;</code> (place au classement, 0 en dehors).",
+    'gamestats.b3.rows.4.2': 'Nécessite le module Valorant',
+    'gamestats.b4.caption': 'Une commande !rank avec vos mots, pas ceux du module.',
+    'gamestats.b4.lines.0.name': 'maya_live',
+    'gamestats.b4.lines.0.text': '!rank',
+    'gamestats.b4.lines.1.text': 'ça grind à Ascendant 2 (51 RR) - record: Immortal 1 🥯',
+    'gamestats.b4.title': '#votre_chaine',
+    'gamestats.heading': 'Stats de jeu: votre rang, dans votre propre phrase',
+    'gamestats.note': 'Tous les chiffres de vos commandes de jeu, utilisables dans une commande que vous écrivez.',
     'stream.b0.html': `
             <p>
                 Quatre variables lisent le direct lui-même. Ce sont les mêmes informations que

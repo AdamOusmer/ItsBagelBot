@@ -17,6 +17,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/internal/config"
 	"ItsBagelBot/app/twitch/sesame/internal/consumer"
+	"ItsBagelBot/app/twitch/sesame/modules"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/idempotency"
@@ -94,15 +95,19 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 	// endpoint (CustomFetch).
 	gossipRPC := engine.NewGossipRPC(in.nc, cfg.GossipRPCPrefix)
 	return engine.Deps{
-		Proj:        rt.proj,
-		Live:        rt.live,
-		Greet:       engine.NewValkeyGreetStore(in.vc, cfg.LiveTTL, log),
-		Cooldown:    engine.NewValkeyCooldown(in.vc),
-		Special:     engine.NewSpecialSet(cfg.SpecialUserIDs),
-		Pub:         in.pub,
-		Commands:    engine.NewCommandsRPC(in.nc, cfg.CommandsDashboardPrefix),
-		Quotes:      engine.NewQuotesRPC(in.nc, cfg.ModulesRPCPrefix),
-		Gossip:      gossipRPC,
+		Proj:     rt.proj,
+		Live:     rt.live,
+		Greet:    engine.NewValkeyGreetStore(in.vc, cfg.LiveTTL, log),
+		Cooldown: engine.NewValkeyCooldown(in.vc),
+		Special:  engine.NewSpecialSet(cfg.SpecialUserIDs),
+		Pub:      in.pub,
+		Commands: engine.NewCommandsRPC(in.nc, cfg.CommandsDashboardPrefix),
+		Quotes:   engine.NewQuotesRPC(in.nc, cfg.ModulesRPCPrefix),
+		Gossip:   gossipRPC,
+		// The game-stat token families ({val.tier}, …). They are palettes, not
+		// commands, so they are wired here beside the caller that answers them
+		// rather than discovered from the registry.
+		Games:       modules.GameFamilies(),
 		CustomFetch: gossipRPC,
 		Followage:   engine.NewFollowageRPC(in.nc, cfg.OutgressRPCPrefix),
 		AccountAge:  engine.NewAccountAgeRPC(in.nc, cfg.OutgressRPCPrefix),

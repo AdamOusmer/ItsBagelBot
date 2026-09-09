@@ -77,7 +77,13 @@
     { token: '{uptime}', hint: 'commandEditor.tokUptime' },
     { token: '{title}', hint: 'commandEditor.tokTitle' },
     { token: '{game}', hint: 'commandEditor.tokGame' },
-    { token: '{channel.viewers}', hint: 'commandEditor.tokChannelViewers' }
+    { token: '{channel.viewers}', hint: 'commandEditor.tokChannelViewers' },
+    // The game stats. Each family is one game module's own command palette
+    // under a prefix, so the chip carries the headline field and the hint
+    // points at the guide for the rest: listing every field of every game
+    // here would be a hundred chips over a text box. Each is gated by its own
+    // opt-in module, like the module facts above.
+    { token: '{val.tier}', hint: 'commandEditor.tokVal' }
   ];
 
   let {

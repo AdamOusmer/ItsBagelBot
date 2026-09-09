@@ -66,6 +66,13 @@ type Deps struct {
 	// narrow interface). nil leaves every such token visible, like any other
 	// unresolved token.
 	CustomFetch UrlFetchCaller
+	// Games are the prefixed game-stat token families ({val.tier}, {fn.kd}, …)
+	// the game modules contribute. They are wired here rather than discovered
+	// from the registry because a family is a PALETTE, not a command: the
+	// engine expands the tokens itself, and the modules package — which owns
+	// every gossip reply shape — is the only place that can say what a field is
+	// worth. Empty leaves every such token literal, like any unknown one.
+	Games       []GameFamilySpec
 	Followage   FollowageLookup
 	AccountAge  AccountAgeLookup
 	Uptime      UptimeLookup

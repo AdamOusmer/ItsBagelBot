@@ -66,6 +66,12 @@
 // the literal+warn path that sends it to review. (The Fossabot table does map
 // its $(uptime) and $(title): those are bare, argument-less variables its own
 // documented table lists.)
+// The game-stat families ({val.…}, {fn.…}, {cr.…}, {mcsr.…}, {bw.…},
+// {urchin.…}) gain no mapping either, and could not: Nightbot's variable
+// language has no Valorant, Fortnite, Clash Royale, MCSR Ranked or Bed Wars
+// variable at all. A channel that showed those numbers did it through
+// $(urlfetch …) against somebody's API, which already imports as the
+// {urlfetch:…} definition it is.
 // $(countdown …) stays literal for a narrower reason: this bot
 // has a {countdown:…}, but Nightbot's takes a free-form date string
 // ("Dec 25 2026 12:00:00 PST") that {countdown:…} does not read, so the

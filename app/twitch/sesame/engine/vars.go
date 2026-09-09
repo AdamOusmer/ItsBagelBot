@@ -28,10 +28,10 @@ import (
 // args is the RAW argument string: the counter scope resolves a mention from
 // it, and that resolution has to see the same bytes the chatter typed.
 //
-// toks is the lexed template, which the channel, viewer and module scopes need
-// BEFORE they mount: their module rows are read only for the token families the
-// template actually names, so a command mentioning none of them costs no
-// projection read. The module scope also counts the template's bare {quote}
+// toks is the lexed template, which the channel, viewer, module and game-stat
+// scopes need BEFORE they mount: their module rows are read only for the token
+// families the template actually names, so a command mentioning none of them
+// costs no projection read. The module scope also counts the template's bare {quote}
 // spans there, because each is an independent draw and the chain would hand it
 // only one distinct span. The chatter scope counts its own bare
 // {random.chatter} spans there for the same reason, but mounts either way:
@@ -51,6 +51,9 @@ func (p *Pipeline) commandChain(ctx context.Context, run commandRun, toks []tmpl
 	}
 	if mods, mounted := p.moduleScope(ctx, run.c, toks); mounted {
 		chain = append(chain, mods)
+	}
+	if games, mounted := p.gamesScope(ctx, run.c, toks); mounted {
+		chain = append(chain, games)
 	}
 	if p.loyalty != nil {
 		counters := newCounterBumps(p, run)

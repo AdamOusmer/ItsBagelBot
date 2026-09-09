@@ -751,6 +751,7 @@
     "tokTitle": "your current stream title, or {title:someone} for another channel (!title toggle)",
     "tokGame": "the category you are streaming, or {game:someone} for another channel (!game toggle)",
     "tokChannelViewers": "how many people are watching right now, 0 when you are offline",
+    "tokVal": "your Valorant rank, plus {val.rr} {val.peaktier} {val.player} and more (Valorant)",
     "fallbackHint": "Add | and some text inside any variable for a default when it comes back empty: {touser|everyone}.",
     "access": "Access",
     "cooldownS": "Cooldown (s)",

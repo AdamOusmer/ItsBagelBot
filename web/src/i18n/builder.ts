@@ -173,6 +173,22 @@ const CHANNEL_FACTS: VarDef[] = [
   v('{channel.viewers}', '128', { en: 'Viewers watching', fr: 'Spectateurs' }, { en: 'How many people are watching right now, straight from Twitch. An offline channel comes back as 0. Bare {channel} stays your channel name.', fr: 'Combien de personnes regardent en ce moment, directement depuis Twitch. Une chaîne hors ligne renvoie 0. {channel} seul reste le nom de votre chaîne.' }),
 ];
 
+// The game stats (app/twitch/sesame/engine/scope/games.go). Each family is one
+// game module's own command palette under a prefix, so {val.tier} renders
+// byte-for-byte what !valrank prints as {tier}. Only the headline field of each
+// game is catalogued here, with the rest named in its description and laid out
+// in the commands guide: a builder that listed every field of every game would
+// be a hundred rows of numbers between the reader and the four variables they
+// came for.
+//
+// Every one is gated by its own opt-in module, which the descriptions say for
+// the reason the module facts do: a broadcaster who has not enabled the game
+// would otherwise see the variable stay visible in chat with no explanation.
+// The samples match the shared rehearsal's stand-ins exactly.
+const GAME_STATS: VarDef[] = [
+  v('{val.tier}', 'Ascendant 2', { en: 'Valorant rank', fr: 'Rang Valorant' }, { en: 'Your current Valorant rank, the same one !valrank prints. The rest of the palette comes with it: {val.rr}, {val.peaktier}, {val.player}, {val.elo}, {val.lastchange}, {val.region} and {val.placement}. Add a Riot ID after a colon for somebody else, {val.tier:Frosty#EUW1}. Needs the Valorant module.', fr: 'Votre rang Valorant actuel, celui qu’affiche !valrank. Le reste de la palette suit: {val.rr}, {val.peaktier}, {val.player}, {val.elo}, {val.lastchange}, {val.region} et {val.placement}. Ajoutez un Riot ID après deux-points pour quelqu’un d’autre, {val.tier:Frosty#EUW1}. Nécessite le module Valorant.' }),
+];
+
 const USER_VIEWER = v('{user}', 'maya_live', { en: 'Viewer name', fr: 'Nom du spectateur' }, { en: 'Whoever used the command. {sender} works too.', fr: 'La personne qui a utilisé la commande. {sender} fonctionne aussi.' });
 
 export const SURFACES: SurfaceDef[] = [
@@ -224,6 +240,7 @@ export const SURFACES: SurfaceDef[] = [
       ...CHANNEL_FACTS,
       ...VIEWER,
       ...MODULE_FACTS,
+      ...GAME_STATS,
     ],
   },
   {

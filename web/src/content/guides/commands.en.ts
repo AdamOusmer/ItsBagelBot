@@ -12,12 +12,12 @@ const guide: GuideContent = {
     eyebrow: 'Guide',
     heading: 'Commands & variables',
     lead: 'Commands that greet people by name, roll dice, and count your wins. No code: just braces.',
-    minutes: '15 min read',
+    minutes: '16 min read',
     card: {
       title: 'Commands & variables',
       description:
         'Build commands that greet people by name, roll dice, and count wins. Every variable the bot understands, explained with live-looking chat examples.',
-      meta: '15 min · 13 steps',
+      meta: '16 min · 14 steps',
       chips: ['{user}', '{random}', '{counter:…}', '!cmd'],
     },
   },
@@ -551,6 +551,70 @@ const guide: GuideContent = {
                 empty, so write it as <code>&#123;uptime|not right now&#125;</code>;
                 <code>&#123;channel.viewers&#125;</code> answers <code>0</code> instead, which
                 needs no default.`,
+        },
+      ],
+    },
+    {
+      id: 'gamestats',
+      heading: 'Game stats: your rank, inside your own sentence',
+      note: 'Every number your game commands print, usable in a command you write yourself.',
+      blocks: [
+        {
+          kind: 'prose',
+          html: `
+            <p>
+                The game modules already answer <code>!valrank</code>, <code>!fnstats</code> and
+                friends. These variables are the same numbers, so a command you write yourself
+                can say them in your words instead of the module's. Each game has its own prefix
+                so nothing collides: Valorant is <code>&#123;val.&#8230;&#125;</code>, and every
+                field is the one that game's own command already prints.
+            </p>`,
+        },
+        {
+          kind: 'callout',
+          tone: 'info',
+          html: `
+                <b>Whose account, and how many</b>
+                With nothing after the name it is the account you linked on that game's module
+                page, resolved exactly the way the game's own command resolves it. Add an account
+                after a colon for somebody else:
+                <code>&#123;val.tier:Frosty#EUW1&#125;</code>. One response can name two
+                different players per game, because every one of them is a question asked of the
+                game's own servers; a third comes back empty.`,
+        },
+        {
+          kind: 'callout',
+          tone: 'warn',
+          html: `
+                <b>Off switches and unknown players</b>
+                Each family follows its own module switch: with the game switched off, its
+                variables stop expanding and show up in chat as written, exactly as you typed
+                them. When the module is on but the player is one the game does not know, or the
+                lookup does not come back, every field of that game comes back empty instead, so
+                write a default where a blank would read badly:
+                <code>&#123;val.tier|unranked&#125;</code>. A misspelled field
+                (<code>&#123;val.teir&#125;</code>) also shows up as written, which is how you
+                spot it.`,
+        },
+        {
+          kind: 'table',
+          head: ['Variable', 'Becomes', 'Example'],
+          rows: [
+            ['<code>&#123;val.tier&#125;</code>', 'Your current Valorant rank.', 'Ascendant 2'],
+            ['<code>&#123;val.rr&#125;</code>', 'Rank rating in that tier.', '51'],
+            ['<code>&#123;val.peaktier&#125;</code>', 'The highest rank you have held.', 'Immortal 1'],
+            ['<code>&#123;val.player&#125;</code>', 'The Riot ID the answer is about.', 'Bagel#EUW'],
+            ['Also', '<code>&#123;val.elo&#125;</code>, <code>&#123;val.lastchange&#125;</code> (last game\'s RR, signed), <code>&#123;val.region&#125;</code>, <code>&#123;val.placement&#125;</code> (leaderboard place, 0 outside it).', 'Needs the Valorant module'],
+          ],
+        },
+        {
+          kind: 'chat',
+          title: '#your_channel',
+          caption: 'A !rank command in your own words, not the module\'s.',
+          lines: [
+            { who: 'viewer', name: 'maya_live', text: '!rank' },
+            { who: 'bot', text: 'grinding at Ascendant 2 (51 RR) - peak was Immortal 1 🥯' },
+          ],
         },
       ],
     },

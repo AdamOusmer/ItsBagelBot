@@ -6,7 +6,7 @@
 // Go engine, keep them in lockstep:
 //
 //   - token lexing:          pkg/tmpl/tmpl.go (Lex, Token.Resolve), ported to ./tmpl
-//   - scope chain:           app/twitch/sesame/engine/scope (Chain, Pure, Message, Chatters, Channel, Viewer, Modules, Store)
+//   - scope chain:           app/twitch/sesame/engine/scope (Chain, Pure, Message, Chatters, Channel, Viewer, Modules, Games, Store)
 //   - chain wiring per run:  app/twitch/sesame/engine/vars.go (commandChain)
 //   - counter normalization: app/twitch/sesame/engine/scope/store.go (NormalizeName)
 //   - slash-verb routing:    internal/domain/outgress/slash.go (CutSlash)
@@ -202,6 +202,26 @@ const TITLE_SAMPLE = 'bagel baking and chill';
 const GAME_SAMPLE = 'Just Chatting';
 const CHANNEL_VIEWERS_SAMPLE = '128';
 
+/** Stand-ins for the Valorant family (scope.Games, the {val.…} prefix):
+ * !valrank's own palette, which is where the field names come from. The
+ * numbers are one plausible competitive standing rather than a round set, so
+ * nobody reads them as placeholders the bot failed to fill.
+ *
+ * {val.lastchange} keeps the explicit sign the command renders it with ("+12"
+ * / "-12" / "±0"), because "gained 12" and "lost 12" must never read the same,
+ * and {val.placement} is only meaningful in the top ranks — it previews as a
+ * real leaderboard place, and a player outside it sees 0 in chat. */
+const VAL_SAMPLES: Samples = {
+  'val.player': 'Bagel#EUW',
+  'val.region': 'eu',
+  'val.tier': 'Ascendant 2',
+  'val.elo': '1751',
+  'val.rr': '51',
+  'val.lastchange': '+18',
+  'val.peaktier': 'Immortal 1',
+  'val.placement': '0'
+};
+
 /** Rehearse a custom command response: expand, split into messages, then
  * route each line's leading slash-verb (the same order as emitResponse).
  * (Expansion per line equals whole-template expansion: no token value can
@@ -289,8 +309,8 @@ function chainResolver(chain: readonly SampleScope[]): Resolve {
 
 /** commandChain's mirror: the dice and the payload utilities (one Go scope,
  * scope.Pure), the triggering line, the chat room, the channel, the viewer
- * lookups, the module facts, then the counter store. Order is precedence,
- * exactly as in the engine. */
+ * lookups, the module facts, the game stats, then the counter store. Order is
+ * precedence, exactly as in the engine. */
 function commandChain(samples: Samples): SampleScope[] {
   return [
     PURE_SCOPE,
@@ -300,6 +320,7 @@ function commandChain(samples: Samples): SampleScope[] {
     CHANNEL_SCOPE,
     VIEWER_SCOPE,
     MODULE_SCOPE,
+    GAME_SCOPE,
     COUNTER_SCOPE
   ];
 }
@@ -590,6 +611,31 @@ function counterSample(token: Token): string | null {
   if (base === '' || base.startsWith('bot:')) return null;
   return COUNTER_SAMPLE;
 }
+
+/** scope.Games' mirror: the prefixed game-stat families. Each is one game
+ * module's own command palette under a prefix — {val.tier} is what !valrank
+ * prints as {tier} — so the field names here are that palette's, and a name it
+ * does not carry stays literal exactly as it does in chat.
+ *
+ * Mounted unconditionally here, as the viewer lookups and module facts are,
+ * and with the same caveat: in chat each family is gated by its own opt-in
+ * module, so a broadcaster with Valorant off sees a token here that stays
+ * visible there. The chip hints and the guide say so.
+ *
+ * A payload is another player, and it previews with the SAME stand-in as the
+ * bare spelling, for the reason the named-channel lookups do: whose account it
+ * names is exactly what a dashboard cannot know. In chat a response is held to
+ * two distinct players per family; the preview does not model the cap, because
+ * it would show a broadcaster a blank they cannot explain from the text they
+ * typed. */
+const GAME_SAMPLES: Samples = {
+  ...VAL_SAMPLES
+};
+
+const GAME_SCOPE: SampleScope = {
+  owns: (name) => name in GAME_SAMPLES,
+  get: (token) => GAME_SAMPLES[token.name] ?? null
+};
 
 // --- slash-verb routing (outgress/slash.go CutSlash) ----------------------
 

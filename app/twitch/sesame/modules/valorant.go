@@ -307,6 +307,37 @@ func parseValArgs(args string) (account, region, platform string) {
 	return account, region, platform
 }
 
+// valTokenPrefix spells the {val.…} custom-command token family.
+const valTokenPrefix = "val."
+
+// valFamily is the {val.…} custom-command token family: !valrank's palette,
+// under a prefix, resolved through the very scoping !val applies to a typed id.
+//
+// The rank palette and no other. !valmatches, !valaccount, !vallb and !valshop
+// each answer a whole sentence a broadcaster would drop into the middle of their
+// own ({matches} is five games joined with commas, {entries} ten leaderboard
+// rows), and the shop is not about a player at all — so those stay commands,
+// where their line is the whole message. What a custom "!rank" needs is the
+// standing, which is exactly what this palette holds.
+//
+// target and request are !val's own, not the shared linked-account pair: a
+// payload therefore peels shard and ladder words off the same way the command
+// does ({val.tier:eu Frosty#EUW1}), a linked-only channel ignores a typed id
+// here for the same reason it ignores one there, and a bare span falls back
+// through argument, linked Riot ID, broadcaster login in that order.
+func valFamily() engine.GameFamilySpec {
+	tokens := valRankTokens()
+	return gameFamily[valorantConfig, gossiprpc.ValorantRankReply]{
+		prefix:     valTokenPrefix,
+		moduleName: valModuleName,
+		route:      valRoute("rank"),
+		fields:     paletteFields(tokens),
+		palette:    expandedPalette[valorantConfig](tokens),
+		target:     valTarget(valScope{}),
+		request:    valRequest(valScope{}),
+	}.spec()
+}
+
 // valRankTokens is the !valrank template palette over the gossip reply.
 func valRankTokens() module.TokenExpander[gossiprpc.ValorantRankReply] {
 	type reply = gossiprpc.ValorantRankReply

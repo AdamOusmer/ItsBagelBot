@@ -110,6 +110,11 @@ type Pipeline struct {
 	// literal.
 	quotes QuotesStore
 	gossip GossipCaller
+	// games are the game-stat token families ({val.tier}, {fn.kd}, …) the game
+	// modules contributed, each gated by its own opt-in module row and
+	// answered through the very gossip caller its own chat command uses. Empty
+	// leaves every such token literal.
+	games []GameFamilySpec
 	// roster remembers who this replica has seen speak, so a target-addressed
 	// counter token ({counter:target:...}) can key its bump on the mentioned
 	// viewer. Pure in-process memory; see chatterRoster.
@@ -172,6 +177,7 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 		customFetch:       d.CustomFetch,
 		quotes:            d.Quotes,
 		gossip:            d.Gossip,
+		games:             d.Games,
 		botID:             cfg.BotID,
 		outgressPremium:   cfg.OutgressPremium,
 		outgressStandard:  cfg.OutgressStandard,

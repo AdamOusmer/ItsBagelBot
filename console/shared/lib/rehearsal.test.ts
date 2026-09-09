@@ -307,6 +307,24 @@ describe('channel scope (engine/scope/channel.go mirror)', () => {
   });
 });
 
+describe('game-stat scope (engine/scope/games.go mirror)', () => {
+  test('the Valorant family previews with a stand-in', () => {
+    const [line] = rehearseCommand('{val.player} · {val.tier} · {val.rr} RR · peak {val.peaktier}');
+    expect(textOf(line.segments)).toBe('Bagel#EUW · Ascendant 2 · 51 RR · peak Immortal 1');
+    expect(line.segments.every((seg) => seg.kind !== 'unknown')).toBe(true);
+  });
+
+  test('a named player previews with the same stand-in', () => {
+    const [line] = rehearseCommand('{val.tier} vs {val.tier:Frosty#EUW1}');
+    expect(textOf(line.segments)).toBe('Ascendant 2 vs Ascendant 2');
+  });
+
+  test('an unknown field under a known prefix stays literal', () => {
+    const [line] = rehearseCommand('{val.teir}');
+    expect(line.segments).toEqual([{ text: '{val.teir}', kind: 'unknown' }]);
+  });
+});
+
 describe('module scope (engine/scope/modules.go mirror)', () => {
   test('the module facts preview with a stand-in', () => {
     const [line] = rehearseCommand('{quote} / {time} / {song}');
