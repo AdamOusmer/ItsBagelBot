@@ -10,9 +10,11 @@ import (
 	"time"
 
 	"ItsBagelBot/app/db/users/ent"
+	"ItsBagelBot/app/db/users/ent/adminuser"
 	"ItsBagelBot/app/db/users/ent/enttest"
 	"ItsBagelBot/app/db/users/ent/user"
 	"ItsBagelBot/app/db/users/repository"
+	domainrpc "ItsBagelBot/internal/domain/rpc"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 
 	"ItsBagelBot/internal/testdb"
@@ -207,4 +209,113 @@ func TestAdminUserListFiltersByState(t *testing.T) {
 	all := a.list(ctx, usersrpc.AdminRequest{Page: 1, Limit: adminUserPageSize, State: "nope"})
 	require.Empty(t, all.Error)
 	assert.Len(t, all.Users, len(seed))
+}
+
+// ── Role ladder ─────────────────────────────────────────────────────────────
+
+// staffedAdminRPC is the admin surface wired to a real staff table, which the
+// role tests need and the list/search tests do not.
+func staffedAdminRPC(t *testing.T) (*adminRPC, *ent.Client) {
+	t.Helper()
+	a, client := setupAdminRPCTest(t)
+	a.gate = staffGate{db: client}
+	return a, client
+}
+
+const (
+	modActor     = uint64(7001)
+	adminActor   = uint64(7002)
+	ownerActor   = uint64(7003)
+	inactiveMod  = uint64(7004)
+	absentTarget = "999999"
+)
+
+// handlerFor returns the guarded handler bound to one verb name, i.e. exactly
+// what SubscribeAdmin binds to the subject, guard included.
+func handlerFor(t *testing.T, a *adminRPC, verb string) func(context.Context, usersrpc.AdminRequest) usersrpc.AdminReply {
+	t.Helper()
+	for _, v := range a.verbs() {
+		if v.name == verb {
+			return a.guarded(v)
+		}
+	}
+	t.Fatalf("no admin verb named %q", verb)
+	return nil
+}
+
+// TestAdminVerbRoleLadder drives every guarded verb through the ladder.
+//
+// The allowed cases address a user id that does not exist, so the assertion is
+// "the guard let this through" (not_found from the handler) rather than
+// "the write succeeded": the write paths publish over a nil bus in this
+// harness, and what is under test here is authorization, not persistence.
+func TestAdminVerbRoleLadder(t *testing.T) {
+	a, client := staffedAdminRPC(t)
+	createStaff(t, client, staffFixture{id: modActor, role: adminuser.RoleModerator, active: true})
+	createStaff(t, client, staffFixture{id: adminActor, role: adminuser.RoleAdmin, active: true})
+	createStaff(t, client, staffFixture{id: ownerActor, role: adminuser.RoleOwner, active: true})
+	createStaff(t, client, staffFixture{id: inactiveMod, role: adminuser.RoleModerator, active: false})
+
+	cases := []struct {
+		name    string
+		verb    string
+		actor   string
+		allowed bool
+	}{
+		{"moderator may ban", "ban", fmt.Sprint(modActor), true},
+		{"moderator may read", "get", fmt.Sprint(modActor), true},
+		{"moderator may not set status", "set_status", fmt.Sprint(modActor), false},
+		{"moderator may not delete", "delete", fmt.Sprint(modActor), false},
+		{"admin may set status", "set_status", fmt.Sprint(adminActor), true},
+		{"admin may not delete", "delete", fmt.Sprint(adminActor), false},
+		{"owner may delete", "delete", fmt.Sprint(ownerActor), true},
+		{"missing actor is refused", "get", "", false},
+		{"unknown actor is refused", "get", "424242", false},
+		{"inactive actor is refused", "get", fmt.Sprint(inactiveMod), false},
+		{"non-numeric actor is refused", "ban", "not-an-id", false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			reply := handlerFor(t, a, tc.verb)(context.Background(), usersrpc.AdminRequest{
+				ActorID: tc.actor,
+				UserID:  absentTarget,
+				Status:  "paid",
+			})
+			if tc.allowed {
+				assert.NotEqual(t, domainrpc.CodeForbidden, reply.Code, "guard refused an allowed call: %s", reply.Error)
+				return
+			}
+			assert.Equal(t, domainrpc.CodeForbidden, reply.Code)
+			assert.NotEmpty(t, reply.Error)
+		})
+	}
+}
+
+// TestAdminVerbsCoverEverySubject pins the registry: a verb added without a
+// role row cannot exist (the struct requires one), and this asserts the set of
+// subjects the console depends on is still bound.
+func TestAdminVerbsCoverEverySubject(t *testing.T) {
+	a, _ := staffedAdminRPC(t)
+	got := make(map[string]adminuser.Role, len(a.verbs()))
+	for _, v := range a.verbs() {
+		got[v.name] = v.min
+	}
+	assert.Equal(t, map[string]adminuser.Role{
+		"get":              adminuser.RoleModerator,
+		"list":             adminuser.RoleModerator,
+		"stats":            adminuser.RoleModerator,
+		"enrollment":       adminuser.RoleModerator,
+		"overview":         adminuser.RoleModerator,
+		"token_status":     adminuser.RoleModerator,
+		"ban":              adminuser.RoleModerator,
+		"unban":            adminuser.RoleModerator,
+		"set_status":       adminuser.RoleAdmin,
+		"set_active":       adminuser.RoleAdmin,
+		"set_creator_code": adminuser.RoleAdmin,
+		"reset":            adminuser.RoleAdmin,
+		"token_set":        adminuser.RoleAdmin,
+		"token_clear":      adminuser.RoleAdmin,
+		"delete":           adminuser.RoleOwner,
+	}, got)
 }

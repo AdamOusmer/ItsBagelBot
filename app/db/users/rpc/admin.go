@@ -13,6 +13,7 @@ import (
 	"go.uber.org/zap"
 
 	"ItsBagelBot/app/db/users/ent"
+	"ItsBagelBot/app/db/users/ent/adminuser"
 	"ItsBagelBot/app/db/users/ent/tokens"
 	"ItsBagelBot/app/db/users/ent/user"
 	"ItsBagelBot/app/db/users/repository"
@@ -25,9 +26,99 @@ import (
 
 type adminRPC struct {
 	repo               *repository.Users
+	gate               staffGate
 	nc                 *nats.Conn
 	invalidationPrefix string
 	log                *zap.Logger
+}
+
+// adminVerb is one row of the admin user surface's registry: the subject
+// suffix, the least staff role allowed to call it, and the handler.
+//
+// The role lives in the same row as the handler on purpose. When the ladder
+// was a separate map keyed by verb name, adding a verb meant remembering to
+// add a second entry somewhere else, and a forgotten entry is an unguarded
+// verb. Here the compiler will not let a row exist without a role.
+type adminVerb struct {
+	name   string
+	min    adminuser.Role
+	handle func(context.Context, usersrpc.AdminRequest) usersrpc.AdminReply
+}
+
+// verbs is the registry AND the whole authorization policy for
+// bagel.rpc.admin.user.*: one place, as data, minimum role per verb.
+//
+// Read verbs carry a role too. They are not "safe": list and overview
+// enumerate the entire customer base, and token_status reports whether an
+// operator token is installed. A caller with no staff row must not be able to
+// ask, so the gate is on the verb, not on whether the verb writes.
+//
+// KNOWN GAP, must be closed before this ships: two fleet services call `get`
+// service-to-service with no operator behind them and are now refused --
+// app/db/transactions/rpc/checkout.go resolveRecipient (gift recipient
+// lookup) and app/db/notifications/rpc/admin.go resolveTarget (direct
+// notification by username). deploy/messaging/nats-auth.conf grants those two
+// accounts exactly `bagel.rpc.admin.user.get` and nothing else, so the fix is
+// to give them an internal lookup subject of their own (beside
+// bagel.rpc.internal.users.email.get) rather than to punch a hole in this
+// table: an actor-less exemption on `get` would apply to the console too.
+func (a *adminRPC) verbs() []adminVerb {
+	const (
+		mod   = adminuser.RoleModerator
+		admin = adminuser.RoleAdmin
+		owner = adminuser.RoleOwner
+	)
+	return []adminVerb{
+		{"get", mod, a.get},
+		{"list", mod, a.list},
+		{"stats", mod, a.stats},
+		{"enrollment", mod, a.enrollment},
+		{"overview", mod, a.overview},
+		{"token_status", mod, a.tokenStatus},
+		// Moderation is the moderator's job; it is reversible by unban.
+		{"ban", mod, a.ban},
+		{"unban", mod, a.unban},
+		// Everything below moves money, serving state, or credentials.
+		{"set_status", admin, a.setStatus},
+		{"set_active", admin, a.setActive},
+		{"set_creator_code", admin, a.setCreatorCode},
+		{"reset", admin, a.reset},
+		{"token_set", admin, a.tokenSet},
+		{"token_clear", admin, a.tokenClear},
+		// Deleting a user destroys rows no other verb can restore.
+		{"delete", owner, a.delete},
+	}
+}
+
+// authorize resolves the caller from the staff table and compares its
+// persisted role against the verb's minimum.
+//
+// The role is read from the database, never from the request, for the same
+// reason the roster surface does it (see resolveActiveActor): a caller must
+// not be able to elevate itself by forging request metadata. A caller that
+// names no actor, or one that is not active staff, is refused here rather
+// than reaching a handler.
+func (a *adminRPC) authorize(ctx context.Context, actorID string, min adminuser.Role) domainrpc.Refusal {
+	actor, errMsg := a.gate.resolveActiveActor(ctx, actorID)
+	if errMsg != "" {
+		return domainrpc.Refused(domainrpc.CodeForbidden, errMsg)
+	}
+	if rank(actor.Role) < rank(min) {
+		return domainrpc.Refused(domainrpc.CodeForbidden, "forbidden: "+string(min)+" role or higher required")
+	}
+	return domainrpc.Refusal{}
+}
+
+// guarded wraps one verb's handler in its role check, so no handler in this
+// file carries an authorization branch of its own and the internal refresh
+// calls handlers make (get after a write, say) are not re-checked.
+func (a *adminRPC) guarded(v adminVerb) func(context.Context, usersrpc.AdminRequest) usersrpc.AdminReply {
+	return func(ctx context.Context, req usersrpc.AdminRequest) usersrpc.AdminReply {
+		if r := a.authorize(ctx, req.ActorID, v.min); r.Code != domainrpc.CodeOK {
+			return adminError(r)
+		}
+		return v.handle(ctx, req)
+	}
 }
 
 const (
@@ -36,9 +127,10 @@ const (
 	adminUserMaxSearchLen = repository.AdminUserMaxSearchLen
 )
 
-func SubscribeAdmin(w Wiring, prefix, invalidationPrefix string) error {
+func SubscribeAdmin(w Wiring, db *ent.Client, prefix, invalidationPrefix string) error {
 	a := &adminRPC{
 		repo:               w.Repo,
+		gate:               staffGate{db: db},
 		nc:                 w.NC,
 		invalidationPrefix: invalidationPrefix,
 		log:                w.Log,
@@ -47,23 +139,12 @@ func SubscribeAdmin(w Wiring, prefix, invalidationPrefix string) error {
 	// An ordered table, not the map-and-loop this replaced: Go randomises map
 	// iteration, so the fifteen subjects bound in a different order every boot
 	// and a partial bind failure named a different verb each time.
-	return bus.ServeVerbs(w.Within(adminBudget), prefix,
-		bus.At("get", a.get),
-		bus.At("list", a.list),
-		bus.At("stats", a.stats),
-		bus.At("enrollment", a.enrollment),
-		bus.At("overview", a.overview),
-		bus.At("set_status", a.setStatus),
-		bus.At("set_active", a.setActive),
-		bus.At("set_creator_code", a.setCreatorCode),
-		bus.At("ban", a.ban),
-		bus.At("unban", a.unban),
-		bus.At("reset", a.reset),
-		bus.At("token_set", a.tokenSet),
-		bus.At("token_status", a.tokenStatus),
-		bus.At("token_clear", a.tokenClear),
-		bus.At("delete", a.delete),
-	)
+	table := a.verbs()
+	bound := make([]bus.Verb[usersrpc.AdminRequest, usersrpc.AdminReply], 0, len(table))
+	for _, v := range table {
+		bound = append(bound, bus.At(v.name, a.guarded(v)))
+	}
+	return bus.ServeVerbs(w.Within(adminBudget), prefix, bound...)
 }
 
 // storeRules is this service's half of the refusal classification: the two
