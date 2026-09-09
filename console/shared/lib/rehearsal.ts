@@ -320,6 +320,57 @@ const MCSR_SAMPLES: Samples = {
   'mcsr.last.ago': '15m'
 };
 
+/** Stand-ins for the Bed Wars families (scope.Games): the lifetime profile
+ * ({bw.…}), the three period deltas ({bw.daily.…}, {bw.weekly.…},
+ * {bw.monthly.…}) and the Urchin overlay score ({urchin.…}).
+ *
+ * The period samples grow with the window they cover, so a preview printing
+ * the daily beside the weekly reads as one player's month rather than three
+ * unrelated numbers. The overlay score keeps its own prefix because it is a
+ * reputation rather than a Bed Wars statistic. */
+const BW_SAMPLES: Samples = {
+  'bw.player': 'bagel_bakery',
+  'bw.stars': '402',
+  'bw.wins': '4120',
+  'bw.losses': '1980',
+  'bw.finals': '9004',
+  'bw.finaldeaths': '2501',
+  'bw.beds': '3877',
+  'bw.fkdr': '3.60',
+  'bw.wlr': '2.08',
+  'bw.daily.player': 'bagel_bakery',
+  'bw.daily.wins': '5',
+  'bw.daily.losses': '2',
+  'bw.daily.finals': '21',
+  'bw.daily.finaldeaths': '3',
+  'bw.daily.beds': '9',
+  'bw.daily.games': '7',
+  'bw.daily.levels': '1',
+  'bw.daily.fkdr': '7.00',
+  'bw.weekly.player': 'bagel_bakery',
+  'bw.weekly.wins': '31',
+  'bw.weekly.losses': '14',
+  'bw.weekly.finals': '146',
+  'bw.weekly.finaldeaths': '38',
+  'bw.weekly.beds': '61',
+  'bw.weekly.games': '45',
+  'bw.weekly.levels': '6',
+  'bw.weekly.fkdr': '3.84',
+  'bw.monthly.player': 'bagel_bakery',
+  'bw.monthly.wins': '128',
+  'bw.monthly.losses': '61',
+  'bw.monthly.finals': '602',
+  'bw.monthly.finaldeaths': '171',
+  'bw.monthly.beds': '254',
+  'bw.monthly.games': '189',
+  'bw.monthly.levels': '24',
+  'bw.monthly.fkdr': '3.52',
+  'urchin.player': 'bagel_bakery',
+  'urchin.score': '7.5',
+  'urchin.mode': 'strict',
+  'urchin.tagcount': '0'
+};
+
 /** Rehearse a custom command response: expand, split into messages, then
  * route each line's leading slash-verb (the same order as emitResponse).
  * (Expansion per line equals whole-template expansion: no token value can
@@ -730,7 +781,8 @@ const GAME_SAMPLES: Samples = {
   ...VAL_SAMPLES,
   ...FN_SAMPLES,
   ...CR_SAMPLES,
-  ...MCSR_SAMPLES
+  ...MCSR_SAMPLES,
+  ...BW_SAMPLES
 };
 
 const GAME_SCOPE: SampleScope = {

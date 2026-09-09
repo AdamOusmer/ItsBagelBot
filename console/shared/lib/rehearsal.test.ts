@@ -337,6 +337,12 @@ describe('game-stat scope (engine/scope/games.go mirror)', () => {
     expect(line.segments.every((seg) => seg.kind !== 'unknown')).toBe(true);
   });
 
+  test('the Bed Wars families preview the lifetime profile and a period', () => {
+    const [line] = rehearseCommand('{bw.stars}✫ · {bw.fkdr} FKDR · {bw.daily.finals} finals today');
+    expect(textOf(line.segments)).toBe('402✫ · 3.60 FKDR · 21 finals today');
+    expect(line.segments.every((seg) => seg.kind !== 'unknown')).toBe(true);
+  });
+
   test('an unknown field under a known prefix stays literal', () => {
     const [line] = rehearseCommand('{val.teir}');
     expect(line.segments).toEqual([{ text: '{val.teir}', kind: 'unknown' }]);

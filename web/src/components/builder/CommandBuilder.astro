@@ -304,7 +304,7 @@ for (const surface of data.surfaces) {
         // exactly as the dashboard does. The viewer lookups ({followage},
         // {points}, …), the module facts ({quote}, {time}, {song}), the chat
         // room ({chatters}, {random.chatter}), the channel ({uptime},
-        // {title}, {game}, {channel.viewers}) and the game stats ({val.…}, {fn.…}, {cr.…}, {mcsr.…})
+        // {title}, {game}, {channel.viewers}) and the game stats ({val.…}, {fn.…}, {cr.…}, {mcsr.…}, {bw.…})
         // are left out for the same
         // reason: the core carries one stand-in per family, and the spellings
         // within a family must preview alike. The
@@ -312,7 +312,7 @@ for (const surface of data.surfaces) {
         // one more: the core derives them from the {args} sample, so a
         // preview can never show a {1} that contradicts the {args} beside it.
         const RESOLVED_BY_CORE =
-            /^(random(:|$|\.chatter$)|choice:|count(er)?:|chatters$|channel\.viewers$|[0-9]|math:|queryescape:|pathescape:|repeat:|countdown:|countup:|querystring$|followage|accountage|points|watchtime|quote|time$|song|uptime(:|$)|title(:|$)|game(:|$)|val\.|fn\.|cr\.|mcsr\.)/;
+            /^(random(:|$|\.chatter$)|choice:|count(er)?:|chatters$|channel\.viewers$|[0-9]|math:|queryescape:|pathescape:|repeat:|countdown:|countup:|querystring$|followage|accountage|points|watchtime|quote|time$|song|uptime(:|$)|title(:|$)|game(:|$)|val\.|fn\.|cr\.|mcsr\.|bw\.|urchin\.)/;
 
         function sampleMap(): Record<string, string> {
             const samples: Record<string, string> = {};

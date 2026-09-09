@@ -696,6 +696,7 @@ export type KnownMessageKey =
   | 'commandEditor.saving'
   | 'commandEditor.tokAccountAge'
   | 'commandEditor.tokArgs'
+  | 'commandEditor.tokBw'
   | 'commandEditor.tokChannel'
   | 'commandEditor.tokChannelViewers'
   | 'commandEditor.tokChatters'

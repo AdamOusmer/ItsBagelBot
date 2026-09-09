@@ -12,12 +12,12 @@ const guide: GuideContent = {
     eyebrow: 'Guide',
     heading: 'Commands & variables',
     lead: 'Commands that greet people by name, roll dice, and count your wins. No code: just braces.',
-    minutes: '16 min read',
+    minutes: '17 min read',
     card: {
       title: 'Commands & variables',
       description:
         'Build commands that greet people by name, roll dice, and count wins. Every variable the bot understands, explained with live-looking chat examples.',
-      meta: '16 min · 14 steps',
+      meta: '17 min · 14 steps',
       chips: ['{user}', '{random}', '{counter:…}', '!cmd'],
     },
   },
@@ -647,6 +647,17 @@ const guide: GuideContent = {
             ['<code>&#123;mcsr.last.opponent&#125;</code>', 'Who you last played, with <code>&#123;mcsr.last.result&#125;</code>, <code>&#123;mcsr.last.time&#125;</code>, <code>&#123;mcsr.last.elochange&#125;</code>, <code>&#123;mcsr.last.seed&#125;</code>, <code>&#123;mcsr.last.structure&#125;</code>, <code>&#123;mcsr.last.ago&#125;</code>.', 'Priffin'],
             ['<code>&#123;mcsr.player&#125;</code>', 'The Minecraft name the answer is about. Each of the three groups has its own.', 'bagel_bakery'],
             ['Note', 'Before your first match of a stream there is nothing to compare against, and a brand-new player has no last match, so those groups come back empty rather than as zeros. Give them a default.', 'Needs the MCSR Ranked module'],
+          ],
+        },
+        {
+          kind: 'table',
+          head: ['Variable', 'Becomes', 'Example'],
+          rows: [
+            ['<code>&#123;bw.stars&#125;</code>', 'Your Bed Wars star level, with the rest of the lifetime profile: <code>&#123;bw.wins&#125;</code>, <code>&#123;bw.losses&#125;</code>, <code>&#123;bw.finals&#125;</code>, <code>&#123;bw.finaldeaths&#125;</code>, <code>&#123;bw.beds&#125;</code>, <code>&#123;bw.wlr&#125;</code>, <code>&#123;bw.player&#125;</code>.', '402'],
+            ['<code>&#123;bw.fkdr&#125;</code>', 'Final kills per final death, all time.', '3.60'],
+            ['<code>&#123;bw.daily.finals&#125;</code>', 'The same numbers over a period: swap <code>daily</code> for <code>weekly</code> or <code>monthly</code>. Each period also has <code>&#123;bw.daily.games&#125;</code> and <code>&#123;bw.daily.levels&#125;</code>, which the lifetime profile has no equivalent of.', '21'],
+            ['<code>&#123;urchin.score&#125;</code>', 'Your Urchin overlay score, with <code>&#123;urchin.mode&#125;</code> and <code>&#123;urchin.tagcount&#125;</code>. It keeps its own name because it is a reputation, not a Bed Wars number.', '7.5'],
+            ['Note', 'Every one of these is a separate question asked of Hypixel or Urchin, so name only the ones your sentence says out loud. All of them come from the one Bed Wars module.', 'Needs the Bed Wars module'],
           ],
         },
       ],

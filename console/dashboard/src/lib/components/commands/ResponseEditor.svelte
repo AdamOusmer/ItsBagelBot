@@ -86,7 +86,8 @@
     { token: '{val.tier}', hint: 'commandEditor.tokVal' },
     { token: '{fn.kd}', hint: 'commandEditor.tokFn' },
     { token: '{cr.pol.trophies}', hint: 'commandEditor.tokCr' },
-    { token: '{mcsr.elo}', hint: 'commandEditor.tokMcsr' }
+    { token: '{mcsr.elo}', hint: 'commandEditor.tokMcsr' },
+    { token: '{bw.fkdr}', hint: 'commandEditor.tokBw' }
   ];
 
   let {

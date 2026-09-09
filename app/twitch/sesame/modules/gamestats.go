@@ -43,7 +43,8 @@ func GameFamilies() []engine.GameFamilySpec {
 		fnFamily(),
 	}
 	specs = append(specs, crFamilies()...)
-	return append(specs, mcsrFamilies()...)
+	specs = append(specs, mcsrFamilies()...)
+	return append(specs, urchinFamilies()...)
 }
 
 // gameFamily is one prefixed family: which palette renders it, who a bare span

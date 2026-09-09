@@ -755,6 +755,7 @@
     "tokFn": "your all-time Fortnite K/D, plus {fn.wins} {fn.kills} {fn.matches} and more (Fortnite)",
     "tokCr": "your Path of Legends trophies, plus {cr.level} {cr.road.trophies} and more (Clash Royale)",
     "tokMcsr": "your MCSR Ranked elo, plus {mcsr.rank} {mcsr.session.elochange} {mcsr.last.result} and more (MCSR Ranked)",
+    "tokBw": "your lifetime Bed Wars FKDR, plus {bw.stars} {bw.daily.finals} {urchin.score} and more (Bed Wars)",
     "fallbackHint": "Add | and some text inside any variable for a default when it comes back empty: {touser|everyone}.",
     "access": "Access",
     "cooldownS": "Cooldown (s)",

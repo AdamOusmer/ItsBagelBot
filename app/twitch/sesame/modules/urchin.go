@@ -5,6 +5,7 @@ package modules
 
 import (
 	"fmt"
+	"maps"
 	"strings"
 	"time"
 
@@ -145,66 +146,156 @@ var (
 // Wars delta. Template tokens: {player} {wins} {losses} {finals} {finaldeaths}
 // {beds} {games} {levels} {fkdr}.
 func urchinSessionRun(d engine.Deps, w urchinWindow) module.RunFunc {
-	type reply = gossiprpc.UrchinSessionReply
-	return externalCommand[urchinConfig, reply]{
+	return externalCommand[urchinConfig, gossiprpc.UrchinSessionReply]{
 		route:    urchinRoute("urchin", w.endpoint),
 		enabled:  w.enabled,
 		message:  w.message,
 		fallback: w.fallback,
-		tokens: module.TokenExpander[reply]{
-			"player":      func(r *reply) string { return r.Player },
-			"wins":        func(r *reply) string { return i64(r.Wins) },
-			"losses":      func(r *reply) string { return i64(r.Losses) },
-			"finals":      func(r *reply) string { return i64(r.FinalKills) },
-			"finaldeaths": func(r *reply) string { return i64(r.FinalDeaths) },
-			"beds":        func(r *reply) string { return i64(r.BedsBroken) },
-			"games":       func(r *reply) string { return i64(r.GamesPlayed) },
-			"levels":      func(r *reply) string { return i64(r.Levels) },
-			"fkdr":        func(r *reply) string { return ratio(r.FinalKills, r.FinalDeaths) },
-		},
+		tokens:   urchinSessionTokens(),
 	}.run(d)
+}
+
+// bedWarsCore is the Bed Wars slice the period delta and the lifetime profile
+// hold in common. The two replies are separate wires (one is Coral's, one is
+// Hypixel's) and Go cannot read a field off a type parameter, so the shared
+// counters travel as this record instead of as two copies of the same palette
+// — a second copy is free to drift, e.g. print {fkdr} to a different precision
+// than the command beside it.
+type bedWarsCore struct {
+	player      string
+	wins        int64
+	losses      int64
+	finals      int64
+	finalDeaths int64
+	beds        int64
+}
+
+// bedWarsTokens is the palette both Bed Wars replies share; callers add the
+// tokens only their own reply carries.
+func bedWarsTokens[R any](core func(*R) bedWarsCore, extra module.TokenExpander[R]) module.TokenExpander[R] {
+	t := module.TokenExpander[R]{
+		"player":      func(r *R) string { return core(r).player },
+		"wins":        func(r *R) string { return i64(core(r).wins) },
+		"losses":      func(r *R) string { return i64(core(r).losses) },
+		"finals":      func(r *R) string { return i64(core(r).finals) },
+		"finaldeaths": func(r *R) string { return i64(core(r).finalDeaths) },
+		"beds":        func(r *R) string { return i64(core(r).beds) },
+		"fkdr":        func(r *R) string { c := core(r); return ratio(c.finals, c.finalDeaths) },
+	}
+	maps.Copy(t, extra)
+	return t
+}
+
+// sessionBedWars and statsBedWars read the shared counters off each wire. Go
+// cannot reach a field through a type parameter, so the two replies hand them
+// over as a record rather than the palette being written twice.
+func sessionBedWars(r *gossiprpc.UrchinSessionReply) bedWarsCore {
+	return bedWarsCore{r.Player, r.Wins, r.Losses, r.FinalKills, r.FinalDeaths, r.BedsBroken}
+}
+
+func statsBedWars(r *gossiprpc.HypixelStatsReply) bedWarsCore {
+	return bedWarsCore{r.Player, r.Wins, r.Losses, r.FinalKills, r.FinalDeaths, r.BedsBroken}
+}
+
+// urchinSessionTokens is the !daily / !weekly / !monthly palette over one
+// period's Coral delta. Named rather than inline because the {bw.<period>.…}
+// token families render through it too.
+func urchinSessionTokens() module.TokenExpander[gossiprpc.UrchinSessionReply] {
+	type reply = gossiprpc.UrchinSessionReply
+	return bedWarsTokens(sessionBedWars, module.TokenExpander[reply]{
+		"games":  func(r *reply) string { return i64(r.GamesPlayed) },
+		"levels": func(r *reply) string { return i64(r.Levels) },
+	})
 }
 
 // urchinStatsRun answers !bwstats with lifetime Bed Wars stats. Template
 // tokens: {player} {stars} {wins} {losses} {finals} {finaldeaths} {beds}
 // {fkdr} {wlr}.
 func urchinStatsRun(d engine.Deps) module.RunFunc {
-	type reply = gossiprpc.HypixelStatsReply
-	return externalCommand[urchinConfig, reply]{
+	return externalCommand[urchinConfig, gossiprpc.HypixelStatsReply]{
 		route:    urchinRoute("hypixel", "stats"),
 		enabled:  func(c urchinConfig) string { return c.StatsEnabled },
 		message:  func(c urchinConfig) string { return c.StatsMessage },
 		fallback: defaultUrchinStatsTemplate,
-		tokens: module.TokenExpander[reply]{
-			"player":      func(r *reply) string { return r.Player },
-			"stars":       func(r *reply) string { return i64(r.Stars) },
-			"wins":        func(r *reply) string { return i64(r.Wins) },
-			"losses":      func(r *reply) string { return i64(r.Losses) },
-			"finals":      func(r *reply) string { return i64(r.FinalKills) },
-			"finaldeaths": func(r *reply) string { return i64(r.FinalDeaths) },
-			"beds":        func(r *reply) string { return i64(r.BedsBroken) },
-			"fkdr":        func(r *reply) string { return ratio(r.FinalKills, r.FinalDeaths) },
-			"wlr":         func(r *reply) string { return ratio(r.Wins, r.Losses) },
-		},
+		tokens:   urchinStatsTokens(),
 	}.run(d)
+}
+
+// urchinStatsTokens is the !bwstats palette over the lifetime Hypixel reply,
+// shared with the {bw.…} token family.
+func urchinStatsTokens() module.TokenExpander[gossiprpc.HypixelStatsReply] {
+	type reply = gossiprpc.HypixelStatsReply
+	return bedWarsTokens(statsBedWars, module.TokenExpander[reply]{
+		"stars": func(r *reply) string { return i64(r.Stars) },
+		"wlr":   func(r *reply) string { return ratio(r.Wins, r.Losses) },
+	})
 }
 
 // urchinSniperRun answers !sniper with the Urchin (Cubelify overlay) score.
 // Template tokens: {player} {score} {mode} {tagcount}.
 func urchinSniperRun(d engine.Deps) module.RunFunc {
-	type reply = gossiprpc.UrchinSniperReply
-	return externalCommand[urchinConfig, reply]{
+	return externalCommand[urchinConfig, gossiprpc.UrchinSniperReply]{
 		route:    urchinRoute("urchin", "sniper"),
 		enabled:  func(c urchinConfig) string { return c.SniperEnabled },
 		message:  func(c urchinConfig) string { return c.SniperMessage },
 		fallback: defaultUrchinSniperTemplate,
-		tokens: module.TokenExpander[reply]{
-			"player":   func(r *reply) string { return r.Player },
-			"score":    func(r *reply) string { return trimScore(r.Score) },
-			"mode":     func(r *reply) string { return r.Mode },
-			"tagcount": func(r *reply) string { return i64(int64(r.TagCount)) },
-		},
+		tokens:   urchinSniperTokens(),
 	}.run(d)
+}
+
+// urchinSniperTokens is the !sniper palette over the Cubelify overlay score,
+// shared with the {urchin.…} token family.
+func urchinSniperTokens() module.TokenExpander[gossiprpc.UrchinSniperReply] {
+	type reply = gossiprpc.UrchinSniperReply
+	return module.TokenExpander[reply]{
+		"player":   func(r *reply) string { return r.Player },
+		"score":    func(r *reply) string { return trimScore(r.Score) },
+		"mode":     func(r *reply) string { return r.Mode },
+		"tagcount": func(r *reply) string { return i64(int64(r.TagCount)) },
+	}
+}
+
+// The Bed Wars token families. {bw.…} is the lifetime profile and
+// {bw.daily.…} / {bw.weekly.…} / {bw.monthly.…} the three period deltas;
+// {urchin.…} is the overlay score, which is about a player's reputation rather
+// than their Bed Wars numbers and so keeps the module's own name.
+const (
+	bwTokenPrefix     = "bw."
+	bwDailyPrefix     = "bw.daily."
+	bwWeeklyPrefix    = "bw.weekly."
+	bwMonthlyPrefix   = "bw.monthly."
+	urchinTokenPrefix = "urchin."
+)
+
+// urchinFamilies is this module's contribution: the lifetime profile, the three
+// period deltas, and the overlay score.
+//
+// The tag views (!tag, !tagdescription) get none. Their {tags} is a joined list
+// that is the whole message when the command prints it, the same reason
+// !valmatches and !crdecks have no family; and a blacklist reputation dropped
+// into the middle of a broadcaster's own sentence about a viewer is a line
+// nobody should be able to write by accident.
+//
+// Every family passes preferUUID=true: Hypixel REQUIRES a Mojang uuid and Coral
+// accepts one, which is exactly why the module stores it beside the name.
+func urchinFamilies() []engine.GameFamilySpec {
+	session := urchinSessionTokens()
+	return []engine.GameFamilySpec{
+		linkedGameFamily[urchinConfig](
+			bwTokenPrefix, urchinModuleName, urchinRoute("hypixel", "stats"), urchinStatsTokens(), true).spec(),
+		bwSessionFamily(bwDailyPrefix, urchinDailyWindow, session),
+		bwSessionFamily(bwWeeklyPrefix, urchinWeeklyWindow, session),
+		bwSessionFamily(bwMonthlyPrefix, urchinMonthlyWindow, session),
+		linkedGameFamily[urchinConfig](
+			urchinTokenPrefix, urchinModuleName, urchinRoute("urchin", "sniper"), urchinSniperTokens(), true).spec(),
+	}
+}
+
+// bwSessionFamily is one period's family, over the very endpoint its own
+// command asks.
+func bwSessionFamily(prefix string, w urchinWindow, tokens module.TokenExpander[gossiprpc.UrchinSessionReply]) engine.GameFamilySpec {
+	return linkedGameFamily[urchinConfig](
+		prefix, urchinModuleName, urchinRoute("urchin", w.endpoint), tokens, true).spec()
 }
 
 // urchinTagsRun answers !tag with the player's active blacklist tags (display

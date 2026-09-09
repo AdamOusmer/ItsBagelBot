@@ -755,6 +755,7 @@
     "tokFn": "votre ratio E/M Fortnite de toujours, avec {fn.wins} {fn.kills} {fn.matches} et d’autres (Fortnite)",
     "tokCr": "vos trophées Voie des Légendes, avec {cr.level} {cr.road.trophies} et d’autres (Clash Royale)",
     "tokMcsr": "votre elo MCSR Ranked, avec {mcsr.rank} {mcsr.session.elochange} {mcsr.last.result} et d’autres (MCSR Ranked)",
+    "tokBw": "votre FKDR Bed Wars de toujours, avec {bw.stars} {bw.daily.finals} {urchin.score} et d’autres (Bed Wars)",
     "fallbackHint": "Ajoutez | et du texte dans n’importe quelle variable pour une valeur par défaut quand elle revient vide: {touser|tout le monde}.",
     "access": "Accès",
     "cooldownS": "Délai (s)",

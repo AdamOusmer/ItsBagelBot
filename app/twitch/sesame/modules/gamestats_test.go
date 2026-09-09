@@ -300,3 +300,78 @@ func TestMcsrFamilyPrefersTheStoredUuid(t *testing.T) {
 	require.True(t, found)
 	assert.Equal(t, "e4d5aa1c", gw.lastCall(t).req.Account)
 }
+
+// The Bed Wars families are !bwstats' and the three period commands' own
+// palettes; {urchin.…} is the overlay score, a different question about the
+// same player, which is why it keeps the module's own name.
+func TestUrchinFamiliesMirrorTheirPalettes(t *testing.T) {
+	lifetime := familyByPrefix(t, bwTokenPrefix)
+	daily := familyByPrefix(t, bwDailyPrefix)
+	sniper := familyByPrefix(t, urchinTokenPrefix)
+
+	assert.Equal(t, urchinModuleName, lifetime.Module)
+	assert.Equal(t, paletteFields(urchinStatsTokens()), lifetime.Fields)
+	assert.Equal(t, paletteFields(urchinSessionTokens()), daily.Fields)
+	assert.Equal(t, paletteFields(urchinSniperTokens()), sniper.Fields)
+	assert.Contains(t, lifetime.Fields, "stars", "only the lifetime profile has a star level")
+	assert.NotContains(t, daily.Fields, "stars")
+}
+
+func TestUrchinFamiliesRenderTheCommandsValues(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{
+		"hypixel.stats": gossiprpc.HypixelStatsReply{
+			Player: "Techno", Stars: 402, Wins: 1000, Losses: 100,
+			FinalKills: 9000, FinalDeaths: 1500, BedsBroken: 4200,
+		},
+		"urchin.daily": gossiprpc.UrchinSessionReply{
+			Player: "Techno", Wins: 5, Losses: 2, FinalKills: 21, FinalDeaths: 3, BedsBroken: 9,
+		},
+		"urchin.sniper": gossiprpc.UrchinSniperReply{Player: "Techno", Score: 7.5, Mode: "strict", TagCount: 2},
+	}}
+	const linked = `{"account":"Techno"}`
+
+	lifetime, found := lookOne(t, familyByPrefix(t, bwTokenPrefix), gameMount(gw, linked), "")
+	require.True(t, found)
+	assert.Equal(t, "402", lifetime["stars"])
+	assert.Equal(t, "6.00", lifetime["fkdr"])
+	assert.Equal(t, "10.00", lifetime["wlr"])
+
+	daily, found := lookOne(t, familyByPrefix(t, bwDailyPrefix), gameMount(gw, linked), "")
+	require.True(t, found)
+	assert.Equal(t, "21", daily["finals"])
+	assert.Equal(t, "7.00", daily["fkdr"])
+
+	sniper, found := lookOne(t, familyByPrefix(t, urchinTokenPrefix), gameMount(gw, linked), "")
+	require.True(t, found)
+	assert.Equal(t, "7.5", sniper["score"])
+	assert.Equal(t, "strict", sniper["mode"])
+}
+
+// Hypixel REQUIRES a Mojang uuid and Coral accepts one, which is exactly why
+// the module stores it beside the name: the families prefer it, as the
+// commands do.
+func TestUrchinFamiliesPreferTheStoredUuid(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{
+		"hypixel.stats": gossiprpc.HypixelStatsReply{Player: "Techno"},
+	}}
+	_, found := lookOne(t, familyByPrefix(t, bwTokenPrefix),
+		gameMount(gw, `{"account":"Techno","accountUuid":"b876ec32"}`), "")
+
+	require.True(t, found)
+	assert.Equal(t, "b876ec32", gw.lastCall(t).req.Account)
+}
+
+// Each period family asks its own command's endpoint, so {bw.weekly.finals} and
+// !weekly cannot disagree about which window they mean.
+func TestBwPeriodFamiliesAskTheirOwnEndpoint(t *testing.T) {
+	for prefix, endpoint := range map[string]string{
+		bwDailyPrefix: "daily", bwWeeklyPrefix: "weekly", bwMonthlyPrefix: "monthly",
+	} {
+		gw := &fakeGossip{replies: map[string]any{
+			"urchin." + endpoint: gossiprpc.UrchinSessionReply{Player: "Techno"},
+		}}
+		_, found := lookOne(t, familyByPrefix(t, prefix), gameMount(gw, `{"account":"Techno"}`), "")
+		require.True(t, found, prefix)
+		assert.Equal(t, endpoint, gw.lastCall(t).endpoint)
+	}
+}
