@@ -6,7 +6,7 @@
   // to be found. The nav's off-site links follow the visitor's locale; the one
   // local entry (/stats) lights up when you are on it.
   import { page } from '$app/state';
-  import { getI18n } from '@bagel/shared';
+  import { getI18n } from '@bagel/kit';
   import PublicNav from '$lib/components/public/PublicNav.svelte';
   import PublicFooter from '$lib/components/public/PublicFooter.svelte';
   import { webHref } from '$lib/components/public/links';

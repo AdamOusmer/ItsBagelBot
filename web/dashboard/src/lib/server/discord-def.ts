@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { moduleDef, type ModuleDef } from '@bagel/shared';
+import { moduleDef, type ModuleDef } from '@bagel/kit';
 
 // Resolved once, and shared by both Discord routes rather than resolved in
 // each. moduleDef returns undefined for an unknown id, and a silent undefined

@@ -14,7 +14,7 @@
   // The grammar enforced is the Go resolver's: segments [A-Za-z0-9_-]+ (array
   // indices arrive as bare digits), depth <= JSON_PATH_MAX_DEPTH, so a path
   // picked here always parses server-side.
-  import { JSON_PATH_MAX_DEPTH, buildJsonPath, getI18n, parseJsonPath } from '@bagel/shared';
+  import { JSON_PATH_MAX_DEPTH, buildJsonPath, getI18n, parseJsonPath } from '@bagel/kit';
 
   const { t } = getI18n();
 

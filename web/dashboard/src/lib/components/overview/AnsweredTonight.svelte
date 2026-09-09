@@ -8,7 +8,7 @@
   //
   // Bars are proportional to the busiest command rather than to a fixed ceiling,
   // so a quiet stream still reads as a shape instead of five slivers.
-  import { getI18n } from '@bagel/shared/i18n/context';
+  import { getI18n } from '@bagel/kit/i18n/context';
   import type { AnsweredTonight } from '$lib/overview-live';
 
   const { t } = getI18n();

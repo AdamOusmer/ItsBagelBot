@@ -13,7 +13,7 @@
 // translator to it, but the catalog behind it is never registered and every
 // string silently falls back to English -- which is what the admin console did
 // before it had a locale at all, and would have looked identical.
-import { ensureCatalog, isLocale } from '@bagel/shared/i18n';
+import { ensureCatalog, isLocale } from '@bagel/kit/i18n';
 import type { LayoutLoad } from './$types';
 
 export const load: LayoutLoad = async ({ data }) => {

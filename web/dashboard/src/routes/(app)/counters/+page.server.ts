@@ -2,8 +2,8 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { Actions, PageServerLoad } from './$types';
-import type { CounterDef, CounterEntryView, CounterScope } from '@bagel/shared';
-import { COUNTER_SCOPES } from '@bagel/shared';
+import type { CounterDef, CounterEntryView, CounterScope } from '@bagel/kit';
+import { COUNTER_SCOPES } from '@bagel/kit';
 import { listCounters, createCounter, renameCounter, deleteCounter, counterEntries } from '$lib/server/loyalty-store';
 import { UserError, normalizeCounterName } from '$lib/server/counter-form';
 import { runSet, runAddEntry, runDeleteEntry } from '$lib/server/counter-actions';

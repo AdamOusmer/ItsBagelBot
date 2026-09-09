@@ -7,8 +7,8 @@ import { fail, redirect } from '@sveltejs/kit';
 import type { Cookies } from '@sveltejs/kit';
 import { previewImport, commitImport, SERVER_STRATEGIES } from '$lib/server/importer';
 import type { SourceInput } from '$lib/server/importer';
-import { IMPORT_STRATEGIES, isImportSource } from '@bagel/shared/importer/strategy';
-import { ValkeyRateLimiter } from '@bagel/shared/server/rate-limit';
+import { IMPORT_STRATEGIES, isImportSource } from '@bagel/kit/importer/strategy';
+import { ValkeyRateLimiter } from '@bagel/kit/server/rate-limit';
 import type { Session } from '$lib/server/session';
 import {
   IMPORT_SOURCES,
@@ -16,7 +16,7 @@ import {
   type ImportManifest,
   type ImportSource,
   type PreviewResponse
-} from '@bagel/shared';
+} from '@bagel/kit';
 
 // Upload ceiling for the file-based sources that still cross the wire.
 // Since the Moobot path parses browser-side (+page.svelte), only StreamLabs

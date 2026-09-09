@@ -31,7 +31,7 @@
   // in the tree means json + that path; skipping the tree means plain text. The
   // author answers "which value do you want?", not "what shape is your API?".
   import { deserialize } from '$app/forms';
-  import { Button, Modal, getI18n, slugifyName, buildJsonPath, DEFS_PER_BROADCASTER } from '@bagel/shared';
+  import { Button, Modal, getI18n, slugifyName, buildJsonPath, DEFS_PER_BROADCASTER } from '@bagel/kit';
   import PickerPanel from '$lib/components/PickerPanel.svelte';
   import JsonTree from './JsonTree.svelte';
 

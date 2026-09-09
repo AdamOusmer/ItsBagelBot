@@ -22,10 +22,10 @@ mock.module('$lib/server/services', () => ({
   isBanned: async () => false
 }));
 mock.module('$lib/server/module-gate', () => ({ assertBetaRouteOpen: async () => {} }));
-mock.module('@bagel/shared', () => ({ delegateAllowedPaths: () => ['/'], pathnameAllowed: () => true }));
-mock.module('@bagel/shared/server/session-revocation', () => ({ isSessionRevoked: async () => false }));
+mock.module('@bagel/kit', () => ({ delegateAllowedPaths: () => ['/'], pathnameAllowed: () => true }));
+mock.module('@bagel/kit/server/session-revocation', () => ({ isSessionRevoked: async () => false }));
 
-const { RpcError } = await import('@bagel/shared/server/nats');
+const { RpcError } = await import('@bagel/kit/server/nats');
 const { guardSession } = await import('./guard');
 
 type Outcome = { redirected: string | null; wiped: boolean; locals: Record<string, unknown> };

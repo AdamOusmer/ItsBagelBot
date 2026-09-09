@@ -13,13 +13,13 @@
   // EventSub problem the row above had already explained.
   import type { SubmitFunction } from '@sveltejs/kit';
   import { enhance } from '$app/forms';
-  import Bolota from '@bagel/shared/components/Bolota.svelte';
-  import Chip from '@bagel/shared/components/Chip.svelte';
-  import Button from '@bagel/shared/components/Button.svelte';
-  import Scroller from '@bagel/shared/components/Scroller.svelte';
-  import { statusTone, type StatusTone } from '@bagel/shared/status-tone';
-  import { ago, fmtDate } from '@bagel/shared';
-  import { getI18n } from '@bagel/shared/i18n/context';
+  import Bolota from '@bagel/kit/components/Bolota.svelte';
+  import Chip from '@bagel/kit/components/Chip.svelte';
+  import Button from '@bagel/kit/components/Button.svelte';
+  import Scroller from '@bagel/kit/components/Scroller.svelte';
+  import { statusTone, type StatusTone } from '@bagel/kit/status-tone';
+  import { ago, fmtDate } from '@bagel/kit';
+  import { getI18n } from '@bagel/kit/i18n/context';
   import type { AccessKey } from '$lib/access';
   import type { AdminUserWire, AuditEntry, ChannelSubState } from '$lib/server/services';
   import StatusDot from '../StatusDot.svelte';

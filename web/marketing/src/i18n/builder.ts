@@ -8,7 +8,7 @@
 // deleted when the scope chain replaced it), dynamic tokens in
 // app/twitch/sesame/module/vars.go, module reply tokens in each
 // app/twitch/sesame/modules/*.go, and limits in internal/domain/validate/validate.go
-// (mirrored by web/kit/lib/commands-validate.ts). If a token isn't
+// (mirrored by web/kit/lib/engine/commands-validate.ts). If a token isn't
 // expanded there, it doesn't belong here, the bot leaves unknown braces
 // as literal text.
 

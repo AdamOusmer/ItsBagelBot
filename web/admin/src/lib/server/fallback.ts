@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import type { ShardSnapshot, UserStats } from '@bagel/shared';
+import type { ShardSnapshot, UserStats } from '@bagel/kit';
 import type { EnrollmentWire } from './services';
 
 // Production outage fallbacks are deliberately neutral. They preserve the

@@ -2,8 +2,8 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { Actions, PageServerLoad } from './$types';
-import type { CommandView } from '@bagel/shared/types';
-import { MODULE_CATALOG, catalogIndexable } from '@bagel/shared/types';
+import type { CommandView } from '@bagel/kit/types';
+import { MODULE_CATALOG, catalogIndexable } from '@bagel/kit/types';
 import {
   hasGrant,
   accountState,
@@ -19,7 +19,7 @@ import {
 import { listCommands, listModules } from '$lib/server/commands-store';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
-import { connectionUiState, type ConnSignals, type ConnUi } from '@bagel/shared/connection-state';
+import { connectionUiState, type ConnSignals, type ConnUi } from '@bagel/kit/connection-state';
 import { fail, redirect } from '@sveltejs/kit';
 import { overviewLanes } from '$lib/server/overview-lanes';
 

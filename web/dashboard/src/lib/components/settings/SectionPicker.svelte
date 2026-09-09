@@ -7,7 +7,7 @@
   // caller passes an `error`, the fieldset is marked invalid and points at the
   // message via aria-describedby.
   import CheckButton from '../CheckButton.svelte';
-  import { FieldError } from '@bagel/shared';
+  import { FieldError } from '@bagel/kit';
 
   let {
     legend,

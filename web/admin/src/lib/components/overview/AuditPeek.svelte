@@ -3,12 +3,12 @@
 	// Proprietary. No license granted. See LICENSE.md.
   // The last handful of operator actions. Managers only -- the caller gates the
   // whole panel on allows(role, 'audit.read'), matching the /audit route.
-  import Card from '@bagel/shared/components/Card.svelte';
-  import CardHead from '@bagel/shared/components/CardHead.svelte';
-  import EmptyState from '@bagel/shared/components/EmptyState.svelte';
-  import { statusTone } from '@bagel/shared/status-tone';
-  import { ago } from '@bagel/shared';
-  import { getI18n } from '@bagel/shared/i18n/context';
+  import Card from '@bagel/kit/components/Card.svelte';
+  import CardHead from '@bagel/kit/components/CardHead.svelte';
+  import EmptyState from '@bagel/kit/components/EmptyState.svelte';
+  import { statusTone } from '@bagel/kit/status-tone';
+  import { ago } from '@bagel/kit';
+  import { getI18n } from '@bagel/kit/i18n/context';
   import type { AuditEntry } from '$lib/server/services';
   import StatusDot from '../StatusDot.svelte';
 

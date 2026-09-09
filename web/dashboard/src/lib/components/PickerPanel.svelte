@@ -16,7 +16,7 @@
   // covering the field you are editing. It becomes a bottom sheet instead, which
   // is the same shape the inspector already takes at that width.
   import type { Snippet } from 'svelte';
-  import { portal, pushOverlay, removeOverlay, isTopmost, overlayIndex } from '@bagel/shared';
+  import { portal, pushOverlay, removeOverlay, isTopmost, overlayIndex } from '@bagel/kit';
 
   let {
     open = false,

@@ -11,7 +11,7 @@
   //
   // Save/Cancel/Delete are handled by the page so the whole rule list persists in
   // one place.
-  import { getI18n } from '@bagel/shared';
+  import { getI18n } from '@bagel/kit';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
 

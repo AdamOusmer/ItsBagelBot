@@ -40,14 +40,14 @@ import {
   warnDiag,
   MAX_AUTOMOD_TERMS,
   MIN_TIMER_INTERVAL_SECONDS
-} from '@bagel/shared/importer/validate';
+} from '@bagel/kit/importer/validate';
 import type { Session } from '../session';
 import { invalidate, SUB } from '../services';
 import { listCommands, listModules, upsertCommand } from '../commands-store';
 import { addQuote } from '../quotes-store';
 import { createCounter, setCounter } from '../loyalty-store';
-import { rpc } from '@bagel/shared/server/nats';
-import { logger } from '@bagel/shared/server/logger';
+import { rpc } from '@bagel/kit/server/nats';
+import { logger } from '@bagel/kit/server/logger';
 import type {
   CommitResponse,
   ImportDiagnostic,
@@ -58,7 +58,7 @@ import type {
   ManifestTrigger,
   PreviewResponse,
   TimerDef
-} from '@bagel/shared';
+} from '@bagel/kit';
 
 // How many command upserts commit sends before moving to the next chunk.
 // Within a chunk requests stay sequential: the commands upsert path is

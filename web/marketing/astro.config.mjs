@@ -9,35 +9,32 @@ import { fileURLToPath } from 'node:url';
 
 // The chat rehearsal (command builder) shares ONE source of truth with the
 // dashboard: the pure, framework-free engine mirror in web/kit. The builder
-// imports it as `@bagel/rehearsal` and renders the returned data with its own
-// DOM, so the slash-verb grammar and token expansion can never drift from the
-// bot the way a hand-copied version would. The file is pure TS with no runtime
-// deps (it pulls only two helpers from commands-validate.ts), so Vite bundles
-// a few KB of logic into the client chunk, no server code, no @bagel/shared
-// install. The catalog (sample values, bilingual copy) stays local in
-// src/i18n/builder.ts; only the logic is shared.
+// imports it as `@bagel/kit/engine/rehearsal` and renders the returned data
+// with its own DOM, so the slash-verb grammar and token expansion can never
+// drift from the bot the way a hand-copied version would. Same for the token
+// lexer behind it (`@bagel/kit/engine/tmpl`), so the builder can ASK what a
+// token is instead of matching one with a regex -- it is the same file pkg/tmpl
+// is pinned against, so "{pointsname} is a var named pointsname" is answered by
+// the grammar rather than re-guessed by a pattern that has to be kept in step
+// with it (and was not: the pattern this replaced missed {pointsname}).
 //
-// Still an absolute-path alias rather than a package import even though kit is
-// now a workspace sibling: marketing does not depend on @bagel/shared, and
-// adding the dependency would pull kit's server half (nats, iovalkey, mysql2)
-// into an install that only ever needs two pure files. The alias is deleted in
-// the kit-rename PR, which adds `./engine/*` subpath exports to publish exactly
-// these files and nothing else.
-const rehearsalCore = fileURLToPath(new URL('../kit/lib/rehearsal.ts', import.meta.url));
-// The token lexer the rehearsal itself reads templates with, aliased on its own
-// so the builder can ASK what a token is instead of matching one with a regex.
-// It is the same file pkg/tmpl is pinned against, so "{pointsname} is a var
-// named pointsname" is answered here by the grammar rather than re-guessed by
-// a pattern that has to be kept in step with it (and was not: the pattern this
-// replaced missed {pointsname} entirely).
-const tmplCore = fileURLToPath(new URL('../kit/lib/tmpl.ts', import.meta.url));
-// Same arrangement for the mote field: the physics are shared with the
-// console's LightField.svelte so both surfaces animate identically, and the
+// These were two absolute-path Vite aliases until the kit rename. They are now
+// real package imports: kit publishes exactly these six pure files under
+// `./engine/*` subpath exports, so marketing can depend on `@bagel/kit`
+// without Vite ever resolving kit's server half (nats, iovalkey, pino) -- the
+// subpath map is the boundary the alias used to enforce by hand, and unlike the
+// alias it also holds for `astro check` and for editors. The catalog (sample
+// values, bilingual copy) stays local in src/i18n/builder.ts; only the logic is
+// shared.
+
+// The mote field is still reached by absolute path: the physics are shared with
+// the console's LightField.svelte so both surfaces animate identically, and the
 // module is pure browser TS with no deps, so it bundles into the client chunk
-// with no install step. See web/kit/lib/light-field.ts for why the design
-// primitives sit under web/kit for now; they move to the standalone web-level
-// ui/ library, and these two aliases become `@bagel/ui/...` imports, in the
-// ui-library PR.
+// with no install step. It is NOT a kit engine subpath because it is a design
+// primitive, not a bot-grammar mirror. See web/kit/lib/light-field.ts for why
+// those primitives sit under web/kit for now; they move to the standalone
+// web-level ui/ library, and this alias becomes a `@bagel/ui/...` import, in
+// the ui-library PR.
 const lightFieldCore = fileURLToPath(new URL('../kit/lib/light-field.ts', import.meta.url));
 // Shared stylesheets from the same place, addressed as a prefix so a second
 // one is an import and not another config edit.
@@ -47,7 +44,7 @@ const sharedStyles = fileURLToPath(new URL('../kit/styles', import.meta.url));
 // console were separate bun projects; the flat web/ workspace narrows it to the
 // four sibling packages, which is why it is still a directory and not a file
 // list -- one path per aliased file would have to be edited again for every
-// alias added, and all four aliases resolve under here.
+// alias added, and both remaining aliases resolve under here.
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 
 // Locales are discovered from the catalog files: one src/i18n/locales/<code>.json
@@ -126,10 +123,9 @@ export default defineConfig({
 
   vite: {
     resolve: {
-      // Single source of truth for the rehearsal logic (see rehearsalCore above).
+      // Design primitives still reached by path (see lightFieldCore above);
+      // they become @bagel/ui package imports in the ui-library PR.
       alias: {
-        '@bagel/rehearsal': rehearsalCore,
-        '@bagel/tmpl': tmplCore,
         '@bagel/light-field': lightFieldCore,
         '@bagel/styles': sharedStyles,
       },

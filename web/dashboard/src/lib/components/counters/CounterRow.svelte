@@ -12,7 +12,7 @@
   // text. A channel/bot counter shows its single tally on the right; the entry
   // scopes keep per-bucket values in the inspector, so the row states which
   // kind it is there instead.
-  import { Icon, ManagementRow, getI18n, type CounterDef, type CounterScope } from '@bagel/shared';
+  import { Icon, ManagementRow, getI18n, type CounterDef, type CounterScope } from '@bagel/kit';
 
   const { t } = getI18n();
 

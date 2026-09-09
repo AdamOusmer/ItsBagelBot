@@ -20,15 +20,15 @@
 // The per-broadcaster operations are bound to a broadcaster by `goveeStore(id)`,
 // which returns them as methods closing over the id, so no operation repeats it
 // as an argument. A redemption is driven by sesame; this store only sets up.
-import { rpc } from '@bagel/shared/server/nats';
-import { POLICY } from '@bagel/shared/server/cache-keys';
-import { type GoveeOnRedeem, type GoveeDevice, type GoveeReward, type GoveeBinding, MOD } from '@bagel/shared';
+import { rpc } from '@bagel/kit/server/nats';
+import { POLICY } from '@bagel/kit/server/cache-keys';
+import { type GoveeOnRedeem, type GoveeDevice, type GoveeReward, type GoveeBinding, MOD } from '@bagel/kit';
 import { SUB, fabric, invalidate, publishEventSubEnsureOptional } from './services';
 import { upsertModule } from './commands-store';
 import { readModuleBlob, setModuleEnabled } from './module-blob';
 
 // Re-export the shared govee shapes so existing importers of this store keep
-// working; the definitions live in @bagel/shared for the client components too.
+// working; the definitions live in @bagel/kit for the client components too.
 export type { GoveeOnRedeem, GoveeDevice, GoveeReward, GoveeBinding };
 
 const GOVEE_MODULE = MOD.govee;

@@ -23,7 +23,7 @@
     TICKET_PANEL_BUTTON_MAX,
     TICKET_PANEL_DEFAULTS,
     TICKET_PANEL_TITLE_MAX
-  } from '@bagel/shared';
+  } from '@bagel/kit';
   import GuildForm from '$lib/components/discord/GuildForm.svelte';
   import ChannelPicker from '$lib/components/discord/ChannelPicker.svelte';
   import FieldNote from '$lib/components/discord/FieldNote.svelte';

@@ -7,12 +7,12 @@
   import { invalidateAll, afterNavigate } from '$app/navigation';
   // Direct imports, not the barrel: this layout is on every authed page's boot
   // path (see routes/+layout.svelte).
-  import AppShell from '@bagel/shared/components/AppShell.svelte';
-  import ImpersonationBanner from '@bagel/shared/components/ImpersonationBanner.svelte';
-  import NotificationBell from '@bagel/shared/components/NotificationBell.svelte';
-  import ToastHost from '@bagel/shared/components/ToastHost.svelte';
-  import { getI18n } from '@bagel/shared/i18n/context';
-  import { sectionForPath, dashboardNavItems, dashboardNavGroups } from '@bagel/shared/nav';
+  import AppShell from '@bagel/kit/components/AppShell.svelte';
+  import ImpersonationBanner from '@bagel/kit/components/ImpersonationBanner.svelte';
+  import NotificationBell from '@bagel/kit/components/NotificationBell.svelte';
+  import ToastHost from '@bagel/kit/components/ToastHost.svelte';
+  import { getI18n } from '@bagel/kit/i18n/context';
+  import { sectionForPath, dashboardNavItems, dashboardNavGroups } from '@bagel/kit/nav';
   let { data, children } = $props();
 
   const i18n = getI18n();

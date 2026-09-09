@@ -5,7 +5,7 @@
   // primary is a real button (aria-controls the reward inspector); the
   // remove-reward action is its sibling, never nested inside it. Selecting a row
   // loads its reward into the page's inspector. One reward per light.
-  import { Icon, ManagementRow, MiniButton, getI18n, type GoveeDevice, type GoveeBinding } from '@bagel/shared';
+  import { Icon, ManagementRow, MiniButton, getI18n, type GoveeDevice, type GoveeBinding } from '@bagel/kit';
 
   const { t } = getI18n();
 

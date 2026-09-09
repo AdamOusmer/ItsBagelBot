@@ -4,7 +4,7 @@
   // Alternate-name (alias) chip input. Commits on Enter/comma/blur, pops the
   // last chip on Backspace in an empty input, de-duplicates case-insensitively
   // against the command's own name and existing chips.
-  import { Icon, getI18n } from '@bagel/shared';
+  import { Icon, getI18n } from '@bagel/kit';
 
   const { t } = getI18n();
 

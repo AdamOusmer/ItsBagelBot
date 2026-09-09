@@ -14,10 +14,10 @@ import {
 } from '$lib/server/services';
 import { dev } from '$app/environment';
 import { allows } from '$lib/server/access';
-import { bestEffort } from '@bagel/shared/server/best-effort';
+import { bestEffort } from '@bagel/kit/server/best-effort';
 import { emptyEnrollment, emptyShardSnapshot } from '$lib/server/fallback';
 import { env } from '$env/dynamic/private';
-import type { ShardSnapshot } from '@bagel/shared';
+import type { ShardSnapshot } from '@bagel/kit';
 // The /analytics route folded into this page, and its one distinguishing
 // control was the enrollment window. It lives in the URL rather than in
 // component state so an operator can link a colleague at the 90-day view, and

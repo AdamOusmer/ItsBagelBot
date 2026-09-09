@@ -27,7 +27,7 @@
     actionPayload,
     toastFailure,
     type ActionOk,
-  } from '@bagel/shared';
+  } from '@bagel/kit';
   import CounterRow from '$lib/components/counters/CounterRow.svelte';
 
   let { data } = $props();

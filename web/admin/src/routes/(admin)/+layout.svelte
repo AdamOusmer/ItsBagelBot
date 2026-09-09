@@ -5,16 +5,16 @@
   import { afterNavigate } from '$app/navigation';
   // Direct imports, not the barrel: this layout is on every operator page's
   // boot path (see routes/+layout.svelte).
-  import AppShell from '@bagel/shared/components/AppShell.svelte';
-  import NotificationBell from '@bagel/shared/components/NotificationBell.svelte';
-  import ToastHost from '@bagel/shared/components/ToastHost.svelte';
-  import { getI18n } from '@bagel/shared/i18n/context';
+  import AppShell from '@bagel/kit/components/AppShell.svelte';
+  import NotificationBell from '@bagel/kit/components/NotificationBell.svelte';
+  import ToastHost from '@bagel/kit/components/ToastHost.svelte';
+  import { getI18n } from '@bagel/kit/i18n/context';
   import {
     adminNavGroups,
     adminSectionForPath,
     adminSectionLabelKey
-  } from '@bagel/shared/nav-admin';
-  import type { StaffRole } from '@bagel/shared/staff-role';
+  } from '@bagel/kit/nav-admin';
+  import type { StaffRole } from '@bagel/kit/staff-role';
   let { data, children } = $props();
 
   const i18n = getI18n();
@@ -34,7 +34,7 @@
   // Flat table, not a ternary chain: three roles today, and a fourth would
   // otherwise nest.
   // Keyed off t's own parameter type so a renamed key fails here, not silently
-  // at runtime; '@bagel/shared/i18n/keys' is a .d.ts with no export subpath.
+  // at runtime; '@bagel/kit/i18n/keys' is a .d.ts with no export subpath.
   const ROLE_LABEL: Record<StaffRole, Parameters<typeof t>[0]> = {
     moderator: 'admin.roleModerator',
     admin: 'admin.roleAdmin',

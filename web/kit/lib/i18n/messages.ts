@@ -3,7 +3,7 @@
 
 /// <reference types="vite/client" />
 // Pure-TS i18n runtime: no Svelte imports, so server code (hooks, load
-// functions) can import it via `@bagel/shared/i18n` without dragging component
+// functions) can import it via `@bagel/kit/i18n` without dragging component
 // modules into the server graph. Component-facing context helpers live in
 // context.ts.
 //

@@ -5,7 +5,7 @@
   // module posts live on Announcements and Community, because a streamer
   // turning a module off should not have to hunt through nine channel dropdowns
   // to find its toggle.
-  import { AlertBanner, getI18n } from '@bagel/shared';
+  import { AlertBanner, getI18n } from '@bagel/kit';
   import GuildForm from '$lib/components/discord/GuildForm.svelte';
   import ChannelPicker from '$lib/components/discord/ChannelPicker.svelte';
   import { createGuildDraft } from '$lib/discord/guild-draft.svelte';

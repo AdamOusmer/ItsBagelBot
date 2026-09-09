@@ -30,7 +30,7 @@
 //   5. No stray fixture-shaped module sits unimported under lib/server.
 //
 // Scanned roots include web/kit, which BOTH consoles bundle
-// (`ssr: { noExternal: ['@bagel/shared'] }`): a fixture or ungated read added
+// (`ssr: { noExternal: ['@bagel/kit'] }`): a fixture or ungated read added
 // there would otherwise reach production through an app that never mentions
 // DEMO itself.
 //

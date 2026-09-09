@@ -3,7 +3,7 @@
 
 // The admin console's staff ladder, in one place.
 //
-// It lives in @bagel/shared rather than in the admin app because two things
+// It lives in @bagel/kit rather than in the admin app because two things
 // have to agree about it and they are on opposite sides of the client/server
 // line: access.ts (ROLE_FOR, the server-side authorization table) and
 // nav-admin.ts (which sections a role may SEE). When they disagreed, the nav

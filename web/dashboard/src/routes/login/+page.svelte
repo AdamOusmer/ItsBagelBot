@@ -3,7 +3,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { onMount } from 'svelte';
   import { page } from '$app/state';
-  import { LightField, getI18n } from '@bagel/shared';
+  import { LightField, getI18n } from '@bagel/kit';
   import PublicNav from '$lib/components/public/PublicNav.svelte';
   import { webHref } from '$lib/components/public/links';
 

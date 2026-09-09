@@ -10,12 +10,12 @@
   // responder costs one skeleton rather than the whole board -- which is what
   // the previous single-bundle load did.
   import { goto } from '$app/navigation';
-  import SkeletonStack from '@bagel/shared/components/SkeletonStack.svelte';
-  import Skeleton from '@bagel/shared/components/Skeleton.svelte';
-  import OverviewGrid from '@bagel/shared/components/OverviewGrid.svelte';
-  import PageHead from '@bagel/shared/components/PageHead.svelte';
-  import AlertBanner from '@bagel/shared/components/AlertBanner.svelte';
-  import { getI18n } from '@bagel/shared/i18n/context';
+  import SkeletonStack from '@bagel/kit/components/SkeletonStack.svelte';
+  import Skeleton from '@bagel/kit/components/Skeleton.svelte';
+  import OverviewGrid from '@bagel/kit/components/OverviewGrid.svelte';
+  import PageHead from '@bagel/kit/components/PageHead.svelte';
+  import AlertBanner from '@bagel/kit/components/AlertBanner.svelte';
+  import { getI18n } from '@bagel/kit/i18n/context';
   import EnrollmentPanel from '$lib/components/overview/EnrollmentPanel.svelte';
   import FleetPanel from '$lib/components/overview/FleetPanel.svelte';
   import HealthPanel from '$lib/components/overview/HealthPanel.svelte';

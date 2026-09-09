@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Bolota, PageHead, Card, Modal, AlertBanner, Button, ConfirmDialog, FieldError, AuroraBg, LightField, portal, toast, getI18n, containsLink } from '@bagel/shared';
+  import { Bolota, PageHead, Card, Modal, AlertBanner, Button, ConfirmDialog, FieldError, AuroraBg, LightField, portal, toast, getI18n, containsLink } from '@bagel/kit';
   import { page } from '$app/state';
   import { replaceState } from '$app/navigation';
   import { onMount } from 'svelte';
@@ -64,7 +64,7 @@
 
   // Gift notes are emailed to the recipient, so links are refused. Checked live
   // for instant feedback, again in the server action, and a third time in the
-  // transactions service (@bagel/shared/validation mirrors the Go detector).
+  // transactions service (@bagel/kit/validation mirrors the Go detector).
   const giftMessageHasLink = $derived(giftMessage.trim().length > 0 && containsLink(giftMessage));
   // The gift submit is disabled until there is a recipient; the reason is
   // surfaced via aria-describedby so the block is never silent.

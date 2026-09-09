@@ -2,9 +2,9 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { RequestHandler } from './$types';
-import { ready as natsReady } from '@bagel/shared/server/nats';
-import { ready as valkeyReady } from '@bagel/shared/server/valkey-store';
-import { rateLimiterReady } from '@bagel/shared/server/rate-limit';
+import { ready as natsReady } from '@bagel/kit/server/nats';
+import { ready as valkeyReady } from '@bagel/kit/server/valkey-store';
+import { rateLimiterReady } from '@bagel/kit/server/rate-limit';
 
 // External status endpoint for the Better Stack status page, same contract as
 // the Go services' pkg/health /status: a named check per dependency, aggregate

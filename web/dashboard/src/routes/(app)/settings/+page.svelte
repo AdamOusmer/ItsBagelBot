@@ -13,7 +13,7 @@
     getI18n,
     toastFailure,
     type Locale
-  } from '@bagel/shared';
+  } from '@bagel/kit';
   import { page } from '$app/state';
   import { enhance, deserialize } from '$app/forms';
   import FetchKeyManager from '$lib/components/commands/fetches/FetchKeyManager.svelte';

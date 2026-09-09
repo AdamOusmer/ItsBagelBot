@@ -13,7 +13,7 @@ import {
   type QuoteView
 } from '$lib/server/quotes-store';
 import { auditDashboardImpersonation } from '$lib/server/services';
-import { logger } from '@bagel/shared/server/logger';
+import { logger } from '@bagel/kit/server/logger';
 import { gateModulePage } from '$lib/server/module-gate';
 import { moduleLoad } from '$lib/server/module-page';
 import type { Session } from '$lib/server/session';

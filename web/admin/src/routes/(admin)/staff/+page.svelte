@@ -12,21 +12,21 @@
   import { untrack } from 'svelte';
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import PageHead from '@bagel/shared/components/PageHead.svelte';
-  import PageToolbar from '@bagel/shared/components/PageToolbar.svelte';
-  import DeckList from '@bagel/shared/components/DeckList.svelte';
-  import InspectorSurface from '@bagel/shared/components/InspectorSurface.svelte';
-  import AlertBanner from '@bagel/shared/components/AlertBanner.svelte';
-  import EmptyState from '@bagel/shared/components/EmptyState.svelte';
-  import ConfirmDialog from '@bagel/shared/components/ConfirmDialog.svelte';
-  import SkeletonStack from '@bagel/shared/components/SkeletonStack.svelte';
-  import Skeleton from '@bagel/shared/components/Skeleton.svelte';
-  import Button from '@bagel/shared/components/Button.svelte';
-  import { createInspector } from '@bagel/shared/inspector';
-  import { createDiscardGuard } from '@bagel/shared/discard-guard';
-  import { toast } from '@bagel/shared/toast';
-  import { actionPayload, adminToastFailure } from '@bagel/shared';
-  import { getI18n } from '@bagel/shared/i18n/context';
+  import PageHead from '@bagel/kit/components/PageHead.svelte';
+  import PageToolbar from '@bagel/kit/components/PageToolbar.svelte';
+  import DeckList from '@bagel/kit/components/DeckList.svelte';
+  import InspectorSurface from '@bagel/kit/components/InspectorSurface.svelte';
+  import AlertBanner from '@bagel/kit/components/AlertBanner.svelte';
+  import EmptyState from '@bagel/kit/components/EmptyState.svelte';
+  import ConfirmDialog from '@bagel/kit/components/ConfirmDialog.svelte';
+  import SkeletonStack from '@bagel/kit/components/SkeletonStack.svelte';
+  import Skeleton from '@bagel/kit/components/Skeleton.svelte';
+  import Button from '@bagel/kit/components/Button.svelte';
+  import { createInspector } from '@bagel/kit/inspector';
+  import { createDiscardGuard } from '@bagel/kit/discard-guard';
+  import { toast } from '@bagel/kit/toast';
+  import { actionPayload, adminToastFailure } from '@bagel/kit';
+  import { getI18n } from '@bagel/kit/i18n/context';
   import { canManage, grantableRoles, type AdminRole } from '$lib/access';
   import type { AdminAcct, AuditEntry } from '$lib/server/services';
   import StaffRow from '$lib/components/staff/StaffRow.svelte';
@@ -37,7 +37,7 @@
     draftComplete,
     type StaffDraft
   } from '$lib/components/staff/staff-roles';
-  import { STAFF_RANK } from '@bagel/shared/staff-role';
+  import { STAFF_RANK } from '@bagel/kit/staff-role';
 
   let { data } = $props();
 

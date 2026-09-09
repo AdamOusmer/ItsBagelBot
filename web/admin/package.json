@@ -11,7 +11,7 @@
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
   },
   "dependencies": {
-    "@bagel/shared": "workspace:*",
+    "@bagel/kit": "workspace:*",
     "@nats-io/kv": "^3.4.0",
     "@nats-io/transport-node": "^3.4.0",
     "nanoid": "^6.0.1",

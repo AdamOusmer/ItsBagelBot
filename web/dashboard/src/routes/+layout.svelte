@@ -2,11 +2,11 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import '../app.css';
-  // Direct component imports, not the @bagel/shared barrel: the boot path must
+  // Direct component imports, not the @bagel/kit barrel: the boot path must
   // not statically reference every page's machinery, so per-route chunks stay
   // minimal (see shared/svelte-config.js for the long-task measurement behind
   // this rule).
-  import RootShell from '@bagel/shared/components/RootShell.svelte';
+  import RootShell from '@bagel/kit/components/RootShell.svelte';
   import InstallAppPrompt from '$lib/components/InstallAppPrompt.svelte';
   let { data, children } = $props();
 

@@ -17,13 +17,13 @@
   // so it never scrolls out of view.
   import type { SubmitFunction } from '@sveltejs/kit';
   import { enhance } from '$app/forms';
-  import Field from '@bagel/shared/components/Field.svelte';
-  import Switch from '@bagel/shared/components/Switch.svelte';
-  import Scroller from '@bagel/shared/components/Scroller.svelte';
-  import Button from '@bagel/shared/components/Button.svelte';
-  import EditorFooter from '@bagel/shared/components/EditorFooter.svelte';
-  import type { InspectorStatus } from '@bagel/shared';
-  import { getI18n } from '@bagel/shared/i18n/context';
+  import Field from '@bagel/kit/components/Field.svelte';
+  import Switch from '@bagel/kit/components/Switch.svelte';
+  import Scroller from '@bagel/kit/components/Scroller.svelte';
+  import Button from '@bagel/kit/components/Button.svelte';
+  import EditorFooter from '@bagel/kit/components/EditorFooter.svelte';
+  import type { InspectorStatus } from '@bagel/kit';
+  import { getI18n } from '@bagel/kit/i18n/context';
   import type { LaneView } from '$lib/server/lanes';
   import { ALIAS_MAX, type LaneDraft } from './lane-view';
 

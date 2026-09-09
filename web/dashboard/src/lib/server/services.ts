@@ -4,13 +4,13 @@
 // Dashboard-facing RPC wrappers over the shared NATS client. Subjects come from
 // env with the same defaults as the retired Go dashboard tier.
 import newrelic from 'newrelic';
-import { rpc, publish } from '@bagel/shared/server/nats';
-import { createCacheFabric } from '@bagel/shared/server/cache-fabric';
-import { POLICY, type CachePolicy } from '@bagel/shared/server/cache-keys';
-import { defineRead, defineWrite, READ_TIMEOUT_MS } from '@bagel/shared/server/service';
-import type { ScopeMap } from '@bagel/shared/server/invalidation';
-import * as valkey from '@bagel/shared/server/valkey-store';
-import type { Tier } from '@bagel/shared';
+import { rpc, publish } from '@bagel/kit/server/nats';
+import { createCacheFabric } from '@bagel/kit/server/cache-fabric';
+import { POLICY, type CachePolicy } from '@bagel/kit/server/cache-keys';
+import { defineRead, defineWrite, READ_TIMEOUT_MS } from '@bagel/kit/server/service';
+import type { ScopeMap } from '@bagel/kit/server/invalidation';
+import * as valkey from '@bagel/kit/server/valkey-store';
+import type { Tier } from '@bagel/kit';
 import type { Session } from './session';
 import * as liveHub from './live-hub';
 import { dashboardL1CacheCapacity } from './config-sanity';

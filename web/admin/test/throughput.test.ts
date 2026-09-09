@@ -3,7 +3,7 @@
 
 // @ts-ignore Bun supplies this module at test runtime; it is not a production dependency.
 import { describe, expect, test } from 'bun:test';
-import type { ShardSnapshot } from '@bagel/shared';
+import type { ShardSnapshot } from '@bagel/kit';
 import {
   barWidth,
   eventsPerSecond,

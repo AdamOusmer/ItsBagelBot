@@ -16,8 +16,8 @@
  * path secondary beneath it.
  *
  * The rehearsal SHARES the dashboard's logic rather than copying it: the
- * client script imports the engine mirror from web/kit/lib/rehearsal.ts
- * (aliased as `@bagel/rehearsal` in astro.config.mjs), the same module the
+ * client script imports the engine mirror from web/kit/lib/engine/rehearsal.ts
+ * (the `@bagel/kit/engine/rehearsal` subpath export), the same module the
  * dashboard inspector's ChatPreview uses, so the slash-verb grammar and token
  * expansion here always match the bot. Only the rendering is local: same
  * typing beat, same staggered reply-in animation, same announcement /
@@ -200,20 +200,20 @@ for (const surface of data.surfaces) {
         ui: Record<string, string> & { recipes: { label: string; text: string }[] };
     };
 
-    // The rehearsal logic is NOT reimplemented here. `@bagel/rehearsal` is the
-    // dashboard's own engine mirror (web/kit/lib/rehearsal.ts, aliased
-    // in astro.config.mjs): it owns the slash-verb grammar and token expansion,
+    // The rehearsal logic is NOT reimplemented here. `@bagel/kit/engine/rehearsal`
+    // is the dashboard's own engine mirror (web/kit/lib/engine/rehearsal.ts): it
+    // owns the slash-verb grammar and token expansion,
     // so the builder can never drift from the bot. This file only turns the
     // RehearsedLine[] it returns into DOM. The sample values stay local, in
     // src/i18n/builder.ts, and ride in as the `samples` argument.
-    import { rehearseCommand, rehearseReply, resolvedWithoutSample, type RehearsedLine, type Seg } from '@bagel/rehearsal';
-    // The lexer the rehearsal itself reads templates with (aliased in
-    // astro.config.mjs). Every question this file used to answer with a regex
+    import { rehearseCommand, rehearseReply, resolvedWithoutSample, type RehearsedLine, type Seg } from '@bagel/kit/engine/rehearsal';
+    // The lexer the rehearsal itself reads templates with, published on its own
+    // subpath. Every question this file used to answer with a regex
     // over token text — is this the core's token? does this surface offer the
     // dice? which counter does this chip name? — is asked of the grammar here
     // instead, so the builder cannot disagree with the engine about what a
     // token IS while agreeing with it about what a token DOES.
-    import { lex, type VarToken } from '@bagel/tmpl';
+    import { lex, type VarToken } from '@bagel/kit/engine/tmpl';
 
     // spanOf reads one catalog entry's token as the single span it spells.
     // null means the catalog entry is not one token, which is a catalog bug

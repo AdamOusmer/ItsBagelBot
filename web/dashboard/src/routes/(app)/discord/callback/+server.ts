@@ -8,7 +8,7 @@
 // can obtain a code for it, which is the ownership proof outgress relies on.
 import type { RequestHandler } from './$types';
 import type { Cookies } from '@sveltejs/kit';
-import { logger } from '@bagel/shared/server/logger';
+import { logger } from '@bagel/kit/server/logger';
 import {
   DISCORD_ERROR_SLUGS,
   DISCORD_INSTALL_LEG,
@@ -32,7 +32,7 @@ import {
   type DiscordGuildTarget,
   type DiscordSetup
 } from '$lib/server/discord-store';
-import { alertOff, legacyConfigFor } from '@bagel/shared';
+import { alertOff, legacyConfigFor } from '@bagel/kit';
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { redirect, isRedirect } from '@sveltejs/kit';
 

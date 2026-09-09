@@ -6,7 +6,7 @@
   // loyalty) and the generic /modules/[id] inspector both render this inside a
   // DeckList so the list is 1:1 across surfaces: a page-local copy drifted
   // quotes onto a 16px white heading while [id] kept the 12px tan caption.
-  import { getI18n, type ModuleCommandInfo } from '@bagel/shared';
+  import { getI18n, type ModuleCommandInfo } from '@bagel/kit';
   import ModuleCommandRow from './ModuleCommandRow.svelte';
 
   const { t } = getI18n();

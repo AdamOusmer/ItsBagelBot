@@ -13,7 +13,7 @@
     parsePinnedRoles,
     type DiscordConfig,
     type PinnedSlot
-  } from '@bagel/shared';
+  } from '@bagel/kit';
   import GuildForm from '$lib/components/discord/GuildForm.svelte';
   import FieldNote from '$lib/components/discord/FieldNote.svelte';
   import { createGuildDraft } from '$lib/discord/guild-draft.svelte';

@@ -1,12 +1,12 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Twitch OAuth via the shared in-repo client (@bagel/shared/server/oauth),
+// Twitch OAuth via the shared in-repo client (@bagel/kit/server/oauth),
 // which replaced the deprecated arctic package. One Twitch client built from
 // env. Helix user fetch lives here too so the callback route stays thin.
-import { Twitch } from '@bagel/shared/server/oauth';
+import { Twitch } from '@bagel/kit/server/oauth';
 import { env } from '$env/dynamic/private';
-import { scopeGap } from '@bagel/shared';
+import { scopeGap } from '@bagel/kit';
 
 // Identity + the elevated bot scopes the old dashboard requested. Driven by
 // DASHBOARD_BOT_SCOPES (Doppler) so the consent matches what it always asked

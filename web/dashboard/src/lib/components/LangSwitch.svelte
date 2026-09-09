@@ -5,8 +5,8 @@
   // path as `next` so the switch keeps you on the same page in the new language.
   import { onMount } from 'svelte';
   import { page } from '$app/state';
-  import { getI18n, LOCALES, type Locale } from '@bagel/shared';
-  import { ensureCatalog, localeName } from '@bagel/shared/i18n';
+  import { getI18n, LOCALES, type Locale } from '@bagel/kit';
+  import { ensureCatalog, localeName } from '@bagel/kit/i18n';
 
   let { selected }: { selected?: Locale } = $props();
   const i18n = getI18n();

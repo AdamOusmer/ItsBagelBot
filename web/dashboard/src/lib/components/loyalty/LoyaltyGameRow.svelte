@@ -12,7 +12,7 @@
     toast,
     getI18n,
     type ModuleDef
-  } from '@bagel/shared';
+  } from '@bagel/kit';
 
   let {
     def,

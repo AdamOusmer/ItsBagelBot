@@ -33,7 +33,7 @@ let sqlJsPromise: Promise<SqlJsStatic> | null = null;
 // getSqlJs lazily loads the WASM build once per process.
 //
 // Decision record - why createRequire and not import('sql.js') (2026-08-23):
-// this graph is bundled for SSR (@bagel/shared is ssr.noExternal, and
+// this graph is bundled for SSR (@bagel/kit is ssr.noExternal, and
 // rolldown ignores ssr.external/rollupOptions.external for deps reachable only
 // through it), which inlines the emscripten glue into an ESM chunk whose
 // __dirname + module.exports Node refuses to evaluate ("cannot determine

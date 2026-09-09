@@ -9,7 +9,7 @@
   // This component only RENDERS. What the bot would actually send (which
   // tokens expand, whether a leading /announce, /shoutout, /pin or /me becomes
   // a native Twitch action, how many messages a multi-line response mints)
-  // is computed by the shared rehearsal core (@bagel/shared rehearsal.ts),
+  // is computed by the shared rehearsal core (@bagel/kit rehearsal.ts),
   // which mirrors the Go engine line by line. `kind` picks the surface:
   //
   //   kind="command": custom "!command" responses: full command tokens,
@@ -29,7 +29,7 @@
     getI18n,
     type RehearsedLine,
     type Seg
-  } from '@bagel/shared';
+  } from '@bagel/kit';
 
   const { t } = getI18n();
 

@@ -12,12 +12,12 @@
   // JavaScript off.
   import type { SubmitFunction } from '@sveltejs/kit';
   import { enhance } from '$app/forms';
-  import RadioGroup from '@bagel/shared/components/RadioGroup.svelte';
-  import Field from '@bagel/shared/components/Field.svelte';
-  import Scroller from '@bagel/shared/components/Scroller.svelte';
-  import EditorFooter from '@bagel/shared/components/EditorFooter.svelte';
-  import type { InspectorStatus } from '@bagel/shared';
-  import { getI18n } from '@bagel/shared/i18n/context';
+  import RadioGroup from '@bagel/kit/components/RadioGroup.svelte';
+  import Field from '@bagel/kit/components/Field.svelte';
+  import Scroller from '@bagel/kit/components/Scroller.svelte';
+  import EditorFooter from '@bagel/kit/components/EditorFooter.svelte';
+  import type { InspectorStatus } from '@bagel/kit';
+  import { getI18n } from '@bagel/kit/i18n/context';
   import {
     LEVELS,
     LEVEL_LABEL,

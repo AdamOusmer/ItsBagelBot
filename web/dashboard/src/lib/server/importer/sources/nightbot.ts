@@ -5,8 +5,8 @@
 // form. The OAuth callback route parks the access token in an HttpOnly cookie
 // and the hooks below are the only readers, so a hand-made post cannot smuggle
 // a token in and the page never sees one.
-import { fetchNightbot, parseNightbot } from '@bagel/shared/importer/nightbot';
-import { CODE } from '@bagel/shared/importer/validate';
+import { fetchNightbot, parseNightbot } from '@bagel/kit/importer/nightbot';
+import { CODE } from '@bagel/kit/importer/validate';
 import { NB_COOKIE_PATH, NB_TOKEN_COOKIE } from '$lib/server/nightbot-oauth';
 import type { Cookies } from '@sveltejs/kit';
 import { refused, type ImportPreviewRequest, type ParseOutcome } from '../engine';

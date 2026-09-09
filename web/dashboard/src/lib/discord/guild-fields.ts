@@ -8,8 +8,8 @@
 // answers with WIRE field names, so a refusal raised by the Channels form can
 // name a field the Tickets page owns. One table is what lets any page label any
 // refused field; seven copies would drift the first time a field is renamed.
-import type { DiscordConfig, PinnedSlot } from '@bagel/shared';
-import type { I18n } from '@bagel/shared';
+import type { DiscordConfig, PinnedSlot } from '@bagel/kit';
+import type { I18n } from '@bagel/kit';
 
 export type I18nKey = Parameters<I18n['t']>[0];
 

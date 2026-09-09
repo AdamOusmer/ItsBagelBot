@@ -22,7 +22,7 @@
     actionPayload,
     toastFailure,
     type ActionOk,
-  } from '@bagel/shared';
+  } from '@bagel/kit';
   import GoveeLightRow from '$lib/components/govee/GoveeLightRow.svelte';
   import GoveeRewardEditor from '$lib/components/govee/GoveeRewardEditor.svelte';
 

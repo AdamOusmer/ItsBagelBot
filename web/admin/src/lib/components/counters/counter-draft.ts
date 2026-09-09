@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { normalizeCounterName } from '@bagel/shared/validation';
+import { normalizeCounterName } from '@bagel/kit/validation';
 
 /** The draft the counters inspector edits, for both an existing row and a new one. */
 export type CounterDraft = {

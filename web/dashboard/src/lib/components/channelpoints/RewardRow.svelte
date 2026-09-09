@@ -10,7 +10,7 @@
   // all optimistic-UI state lives in one place.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Icon, ManagementRow, Switch, getI18n, type ChannelPointReward } from '@bagel/shared';
+  import { Icon, ManagementRow, Switch, getI18n, type ChannelPointReward } from '@bagel/kit';
 
   const { t } = getI18n();
 

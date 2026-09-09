@@ -8,7 +8,7 @@
 import type { Actions, PageServerLoad } from './$types';
 import { readDiscord, saveDiscordModule, type DiscordGuildSummary } from '$lib/server/discord-store';
 import { DISCORD_ERROR_SLUGS, discordConfigured, discordTemplateURL } from '$lib/server/discord-oauth';
-import { logger } from '@bagel/shared/server/logger';
+import { logger } from '@bagel/kit/server/logger';
 import { assertModuleUnlocked, moduleLocked } from '$lib/server/module-gate';
 import { moduleLoad } from '$lib/server/module-page';
 import { moduleAction } from '$lib/server/module-action';

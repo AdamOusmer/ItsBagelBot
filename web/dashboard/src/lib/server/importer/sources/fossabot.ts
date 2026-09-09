@@ -7,9 +7,9 @@
 // reaches is the same commands directory any viewer can open at
 // fossabot.com/<login>/commands, which is also why nothing about it is
 // cached or stored here beyond the preview the user is about to review.
-import { fetchFossabot, parseFossabot } from '@bagel/shared/importer/fossabot';
-import { FOSSABOT_HANDLE_SHAPE, MAX_HANDLE_LEN } from '@bagel/shared/importer/strategy';
-import { CODE } from '@bagel/shared/importer/validate';
+import { fetchFossabot, parseFossabot } from '@bagel/kit/importer/fossabot';
+import { FOSSABOT_HANDLE_SHAPE, MAX_HANDLE_LEN } from '@bagel/kit/importer/strategy';
+import { CODE } from '@bagel/kit/importer/validate';
 import { refused, type ImportPreviewRequest, type ParseOutcome } from '../engine';
 import type { InputRefusal, ServerSourceStrategy, SourceInput } from '../strategy';
 
@@ -34,7 +34,7 @@ async function fossabotLeg(req: ImportPreviewRequest): Promise<ParseOutcome> {
 }
 
 // acceptInput refuses an empty or malformed handle before any transport, with
-// the same gate the page runs client-side (@bagel/shared/importer/strategy owns
+// the same gate the page runs client-side (@bagel/kit/importer/strategy owns
 // the regex). A handle is not a secret, so it is safe to say what was wrong.
 function acceptInput(input: SourceInput): InputRefusal {
   const handle = input.credential.trim();

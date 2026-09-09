@@ -2,12 +2,12 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { Actions, PageServerLoad } from './$types';
-import type { ModuleState } from '@bagel/shared';
-import { MODULE_CATALOG, betaLocked, catalogIndexable, moduleDef } from '@bagel/shared';
+import type { ModuleState } from '@bagel/kit';
+import { MODULE_CATALOG, betaLocked, catalogIndexable, moduleDef } from '@bagel/kit';
 import { listModules, type ModuleView } from '$lib/server/commands-store';
 import { setModuleEnabled } from '$lib/server/module-blob';
 import { auditDashboardImpersonation } from '$lib/server/services';
-import { logger } from '@bagel/shared/server/logger';
+import { logger } from '@bagel/kit/server/logger';
 import { assertModuleWritable, broadcasterPremium, delegateCanOpen, moduleLocked } from '$lib/server/module-gate';
 import { disableChildren } from '$lib/server/module-parent';
 import type { Session } from '$lib/server/session';

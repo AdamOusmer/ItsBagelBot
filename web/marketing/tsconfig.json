@@ -1,18 +1,12 @@
 {
   "extends": "astro/tsconfigs/strict",
   "compilerOptions": {
-    "baseUrl": ".",
-    "paths": {
-      "@bagel/rehearsal": ["../kit/lib/rehearsal.ts"],
-      "@bagel/tmpl": ["../kit/lib/tmpl.ts"]
-    }
+    "baseUrl": "."
   },
   "include": [
     ".astro/types.d.ts",
     "**/*",
-    "./worker-configuration.d.ts",
-    "../kit/lib/rehearsal.ts",
-    "../kit/lib/tmpl.ts"
+    "./worker-configuration.d.ts"
   ],
   "exclude": [
     "dist"

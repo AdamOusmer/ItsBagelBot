@@ -20,13 +20,13 @@ import {
   type NotificationWire
 } from '$lib/server/services';
 import { deleteFetchKey, listFetches, setFetchKey, type FetchKeyView } from '$lib/server/fetches-store';
-import { KEY_VALUE_MAX, slugifyName } from '@bagel/shared';
+import { KEY_VALUE_MAX, slugifyName } from '@bagel/kit';
 import { ACCOUNT_DELETED_COOKIE, COOKIE, SESSION_TTL_SECONDS, type Session } from '$lib/server/session';
-import { revokeAllForUser, revokeSession } from '@bagel/shared/server/session-revocation';
-import { isLocale, DEFAULT_LOCALE } from '@bagel/shared/i18n';
+import { revokeAllForUser, revokeSession } from '@bagel/kit/server/session-revocation';
+import { isLocale, DEFAULT_LOCALE } from '@bagel/kit/i18n';
 // The delegatable sections are the shared registry's grant set; the "what is
-// grantable and why" rationale lives on that constant in @bagel/shared/nav.
-import { GRANTABLE_SECTIONS } from '@bagel/shared';
+// grantable and why" rationale lives on that constant in @bagel/kit/nav.
+import { GRANTABLE_SECTIONS } from '@bagel/kit';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 

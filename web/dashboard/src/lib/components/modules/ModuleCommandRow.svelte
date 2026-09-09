@@ -6,7 +6,7 @@
   // role tag when the command is moderator- or lead-mod-only. Unlike ReplyRow it is not a
   // button and carries no toggle or inspector: nothing here is editable, so it
   // is deliberately not clickable.
-  import { getI18n, type ModuleCommandInfo } from '@bagel/shared';
+  import { getI18n, type ModuleCommandInfo } from '@bagel/kit';
 
   const { t } = getI18n();
 

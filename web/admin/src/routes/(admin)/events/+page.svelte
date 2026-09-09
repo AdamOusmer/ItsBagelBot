@@ -14,18 +14,18 @@
   // There is no inspector: an event is three fields, all of them already on the
   // row, and it is gone on reload.
   import { onMount } from 'svelte';
-  import PageHead from '@bagel/shared/components/PageHead.svelte';
-  import PageToolbar from '@bagel/shared/components/PageToolbar.svelte';
-  import SegmentedControl from '@bagel/shared/components/SegmentedControl.svelte';
-  import SearchInput from '@bagel/shared/components/SearchInput.svelte';
-  import Card from '@bagel/shared/components/Card.svelte';
-  import CardHead from '@bagel/shared/components/CardHead.svelte';
-  import Scroller from '@bagel/shared/components/Scroller.svelte';
-  import Switch from '@bagel/shared/components/Switch.svelte';
-  import Button from '@bagel/shared/components/Button.svelte';
-  import EmptyState from '@bagel/shared/components/EmptyState.svelte';
-  import type { StatusTone } from '@bagel/shared/status-tone';
-  import { getI18n } from '@bagel/shared/i18n/context';
+  import PageHead from '@bagel/kit/components/PageHead.svelte';
+  import PageToolbar from '@bagel/kit/components/PageToolbar.svelte';
+  import SegmentedControl from '@bagel/kit/components/SegmentedControl.svelte';
+  import SearchInput from '@bagel/kit/components/SearchInput.svelte';
+  import Card from '@bagel/kit/components/Card.svelte';
+  import CardHead from '@bagel/kit/components/CardHead.svelte';
+  import Scroller from '@bagel/kit/components/Scroller.svelte';
+  import Switch from '@bagel/kit/components/Switch.svelte';
+  import Button from '@bagel/kit/components/Button.svelte';
+  import EmptyState from '@bagel/kit/components/EmptyState.svelte';
+  import type { StatusTone } from '@bagel/kit/status-tone';
+  import { getI18n } from '@bagel/kit/i18n/context';
   import StatusDot from '$lib/components/StatusDot.svelte';
 
   interface FeedEvent {

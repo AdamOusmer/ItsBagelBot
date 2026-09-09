@@ -38,10 +38,10 @@ import {
   type ParseResult
 } from '$lib/server/admin-action';
 import { audit } from '$lib/server/audit';
-import { signViewAs } from '@bagel/shared/server/impersonation';
+import { signViewAs } from '@bagel/kit/server/impersonation';
 import { env } from '$env/dynamic/private';
 import { EMPTY_USER_STATS } from '$lib/server/fallback';
-import type { UserStats } from '@bagel/shared';
+import type { UserStats } from '@bagel/kit';
 import { parsePage, normalizeSearch } from '$lib/server/paging';
 
 const CREATOR_CODE_MAX_LENGTH = 64;

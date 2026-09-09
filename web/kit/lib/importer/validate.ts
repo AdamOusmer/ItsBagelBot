@@ -29,10 +29,10 @@ import type {
   Perm
 } from './types';
 import { IMPORT_ITEM_CAPS } from './types';
-import { slugifyName } from '../fetch-tokens';
-import { FETCH_NAME_MAX } from '../fetch-validate';
-import { lex, type VarToken } from '../tmpl';
-export { intactSpan } from '../tmpl';
+import { slugifyName } from '../engine/fetch-tokens';
+import { FETCH_NAME_MAX } from '../engine/fetch-validate';
+import { lex, type VarToken } from '../engine/tmpl';
+export { intactSpan } from '../engine/tmpl';
 
 // --- emitted-token guard -----------------------------------------------------
 

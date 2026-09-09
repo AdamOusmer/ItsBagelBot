@@ -5,7 +5,7 @@ import { redirect } from '@sveltejs/kit';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import type { LayoutServerLoad } from './$types';
-import { bestEffort } from '@bagel/shared/server/best-effort';
+import { bestEffort } from '@bagel/kit/server/best-effort';
 import type { Session } from '$lib/server/session';
 import { accountState, notificationsForUser, delegationAccess, type AccountState, type NotificationWire } from '$lib/server/services';
 

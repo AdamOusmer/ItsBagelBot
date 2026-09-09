@@ -6,7 +6,7 @@
   // persist the choice to the account + preference cookie. A persistence failure
   // is surfaced as a toast; a network failure (nothing stored) reverts the store
   // so the control keeps matching reality.
-  import { Switch, customCursor, getI18n, toast } from '@bagel/shared';
+  import { Switch, customCursor, getI18n, toast } from '@bagel/kit';
 
   let { describedby }: { describedby?: string } = $props();
 

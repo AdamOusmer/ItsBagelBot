@@ -10,7 +10,7 @@
   // cannot detect a conflict, and it would be invisible until two people edited
   // the same server at once.
   import { enhance } from '$app/forms';
-  import { AlertBanner, Button, Card, ConfirmDialog, SaveStatus, getI18n } from '@bagel/shared';
+  import { AlertBanner, Button, Card, ConfirmDialog, SaveStatus, getI18n } from '@bagel/kit';
   import type { Snippet } from 'svelte';
   import type { GuildDraft } from '$lib/discord/guild-draft.svelte';
 

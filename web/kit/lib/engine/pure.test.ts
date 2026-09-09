@@ -16,7 +16,7 @@ import { expand } from './tmpl';
 // which is the opposite of the point of sharing one.
 const GOLDEN_PATH = join(
   import.meta.dir,
-  '../../../app/twitch/sesame/engine/scope/testdata/pure.golden.json'
+  '../../../../app/twitch/sesame/engine/scope/testdata/pure.golden.json'
 );
 
 interface GoldenRow {

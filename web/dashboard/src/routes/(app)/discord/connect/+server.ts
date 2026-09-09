@@ -7,7 +7,7 @@
 // bot. Step two is /discord/pick -> /discord/callback.
 import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
-import { generateState } from '@bagel/shared/server/oauth';
+import { generateState } from '@bagel/kit/server/oauth';
 import {
   DISCORD_PICK_LEG,
   discordConfigured,

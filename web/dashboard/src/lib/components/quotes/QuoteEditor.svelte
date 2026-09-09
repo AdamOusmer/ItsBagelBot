@@ -9,7 +9,7 @@
   // within the page's docked inspector.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Field, Button, getI18n } from '@bagel/shared';
+  import { Field, Button, getI18n } from '@bagel/kit';
 
   let {
     draft = $bindable<{ text: string; quoteDate: string }>(),

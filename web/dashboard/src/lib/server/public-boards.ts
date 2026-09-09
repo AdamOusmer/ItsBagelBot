@@ -26,10 +26,10 @@
 // The same three rules as public-stats.ts apply: one shared snapshot for every
 // visitor, an absent counter is honestly 0, and an unreachable service degrades
 // to an empty board with `degraded: true` instead of erroring the render.
-import { rpc } from '@bagel/shared/server/nats';
+import { rpc } from '@bagel/kit/server/nats';
 import { dev } from '$app/environment';
-import { POLICY } from '@bagel/shared/server/cache-keys';
-import { sharedSnapshot } from '@bagel/shared/server/shared-snapshot';
+import { POLICY } from '@bagel/kit/server/cache-keys';
+import { sharedSnapshot } from '@bagel/kit/server/shared-snapshot';
 import { fabric, SUB, accountState } from './services';
 
 // Gated on the build-time `dev` constant first, so Rollup erases the demo

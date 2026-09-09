@@ -4,7 +4,7 @@
 // sessionStorage-backed command drafts: the editor mirrors work-in-progress
 // here so a stray navigation or refresh can't eat it; the list shows an
 // "unsaved" chip for rows with a lingering draft and restores it on reopen.
-import type { Perm } from '@bagel/shared';
+import type { Perm } from '@bagel/kit';
 
 // The editor's working copy of one command (create + edit share the shape).
 export interface CommandDraft {

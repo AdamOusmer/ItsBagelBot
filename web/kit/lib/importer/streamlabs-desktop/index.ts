@@ -119,7 +119,7 @@ export function fetchStreamLabsDesktop(file: Uint8Array): Uint8Array {
 }
 
 // Re-exports: the parser's public API, unchanged for every existing import
-// specifier (@bagel/shared/importer/streamlabs-desktop and ./streamlabsdesktop).
+// specifier (@bagel/kit/importer/streamlabs-desktop and ./streamlabsdesktop).
 export { DEFAULT_TIMER_INTERVAL_SECONDS, parseQuoteDate } from './extract';
 export { mapPermissionSLCB, translateVariables } from './parameters';
 export { StreamLabsDesktopError } from './dbfile';

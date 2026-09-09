@@ -13,7 +13,7 @@
   // `now` arrives as a prop rather than being read here: this component stays
   // pure like every other component in this directory, and the page owns the one
   // interval that ticks it.
-  import { getI18n } from '@bagel/shared/i18n/context';
+  import { getI18n } from '@bagel/kit/i18n/context';
   import ChatVolumeChart from './ChatVolumeChart.svelte';
   import {
     formatDuration,

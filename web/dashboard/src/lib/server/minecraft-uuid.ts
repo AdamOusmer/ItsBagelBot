@@ -6,13 +6,13 @@
 // Hypixel requires a uuid; Urchin and MCSR Ranked accept one. A miss (privacy
 // block, unknown name, gossip down) leaves the username in place.
 
-import { rpc } from '@bagel/shared/server/nats';
+import { rpc } from '@bagel/kit/server/nats';
 import { SUB } from './services';
 import { canonicalMinecraftUUID } from './minecraft-id';
 import { broadcasterPremium } from './module-gate';
 import { readModuleBlob } from './module-blob';
 import { effectiveId } from './board';
-import { MOD, type ModuleDef } from '@bagel/shared';
+import { MOD, type ModuleDef } from '@bagel/kit';
 
 export { canonicalMinecraftUUID };
 

@@ -6,7 +6,7 @@
 // callback verifies the cookie before spending the code.
 import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
-import { generateState } from '@bagel/shared/server/oauth';
+import { generateState } from '@bagel/kit/server/oauth';
 import { spotifyAuthorizeURL, spotifyConfigured } from '$lib/server/oauth';
 import { spotifyStore } from '$lib/server/spotify-store';
 import {

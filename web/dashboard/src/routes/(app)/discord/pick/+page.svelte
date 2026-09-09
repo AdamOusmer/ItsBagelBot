@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { ButtonLink, Card, Chip, EmptyState, Icon, PageHead, getI18n } from '@bagel/shared';
+  import { ButtonLink, Card, Chip, EmptyState, Icon, PageHead, getI18n } from '@bagel/kit';
   import { DISCORD_BADGE_KEYS } from '$lib/discord-messages';
 
   let { data } = $props();

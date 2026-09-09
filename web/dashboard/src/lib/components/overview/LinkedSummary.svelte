@@ -10,8 +10,8 @@
   // indistinguishable from an empty account. Rather than claim "Add your first
   // command" during an outage, a failed read falls back to a neutral "manage"
   // label that makes no count claim; the linked page shows the real state.
-  import ButtonLink from '@bagel/shared/components/ButtonLink.svelte';
-  import { getI18n } from '@bagel/shared/i18n/context';
+  import ButtonLink from '@bagel/kit/components/ButtonLink.svelte';
+  import { getI18n } from '@bagel/kit/i18n/context';
 
   const { t } = getI18n();
 

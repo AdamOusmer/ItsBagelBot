@@ -9,7 +9,7 @@
 import type { RequestHandler } from './$types';
 import type { Cookies } from '@sveltejs/kit';
 import { redirect } from '@sveltejs/kit';
-import { logger } from '@bagel/shared/server/logger';
+import { logger } from '@bagel/kit/server/logger';
 import {
   NB_COOKIE_PATH,
   NB_STATE_COOKIE,

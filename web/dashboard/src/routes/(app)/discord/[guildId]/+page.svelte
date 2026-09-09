@@ -9,7 +9,7 @@
   // default and reports whether the channel or role it needs was ever picked,
   // which is the difference between "off" and "on but silently dropping every
   // post" -- a distinction the old page never made anywhere.
-  import { AlertBanner, ButtonLink, Card, getI18n, guildModuleTiles, tilesNeedingSetup, type ModuleTileId } from '@bagel/shared';
+  import { AlertBanner, ButtonLink, Card, getI18n, guildModuleTiles, tilesNeedingSetup, type ModuleTileId } from '@bagel/kit';
   import ModuleTile from '$lib/components/discord/ModuleTile.svelte';
   import { CLOSE_KEYS, type I18nKey } from '$lib/discord/guild-fields';
   import { botOnlineOf, layoutDownOf } from '$lib/discord/guild-view';

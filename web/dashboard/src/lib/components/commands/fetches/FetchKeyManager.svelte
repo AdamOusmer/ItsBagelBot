@@ -15,7 +15,7 @@
     KEY_LABEL_MAX,
     KEY_VALUE_MAX,
     slugifyName
-  } from '@bagel/shared';
+  } from '@bagel/kit';
   import type { FetchKeyView } from '$lib/server/fetches-store';
 
   const { t } = getI18n();

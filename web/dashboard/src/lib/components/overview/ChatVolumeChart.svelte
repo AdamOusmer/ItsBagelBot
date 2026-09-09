@@ -9,8 +9,8 @@
   // differently. What stays here is what a shared chart must not decide -- the
   // label, the now/peak readout, the legend, and what to say when the read did
   // not land.
-  import { getI18n } from '@bagel/shared/i18n/context';
-  import AreaSeries from '@bagel/shared/components/AreaSeries.svelte';
+  import { getI18n } from '@bagel/kit/i18n/context';
+  import AreaSeries from '@bagel/kit/components/AreaSeries.svelte';
   import type { ChatVolume } from '$lib/overview-live';
 
   const { t } = getI18n();

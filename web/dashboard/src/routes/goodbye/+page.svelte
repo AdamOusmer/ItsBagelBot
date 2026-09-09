@@ -2,7 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { onMount } from 'svelte';
-  import { AuroraBg, getI18n } from '@bagel/shared';
+  import { AuroraBg, getI18n } from '@bagel/kit';
 
   const { t } = getI18n();
 

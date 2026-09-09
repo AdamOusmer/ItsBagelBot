@@ -19,7 +19,7 @@ import {
   validateCommand,
   validateFetchDef
 } from './commands-validate';
-import { RateLimiter } from './server/rate-limit';
+import { RateLimiter } from '../server/rate-limit';
 
 const validFields = {
   name: 'raid',

@@ -7,12 +7,12 @@
   // exactly the sibling-shaped duplicate that let the old `.probe-dot` and
   // `.nd` drift into two different greens.
   //
-  // Not in @bagel/shared: the dashboard has no equivalent surface, and the tone
+  // Not in @bagel/kit: the dashboard has no equivalent surface, and the tone
   // VOCABULARY is already shared (statusTone). This is only its paint.
   //
   // aria-hidden, always: the dot is decoration on top of a state that the text
   // beside it already names. Colour is never the only signal.
-  import type { StatusTone } from '@bagel/shared/status-tone';
+  import type { StatusTone } from '@bagel/kit/status-tone';
 
   let { tone }: { tone: StatusTone } = $props();
 </script>

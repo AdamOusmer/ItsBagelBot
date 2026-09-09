@@ -10,8 +10,8 @@
 // from chat), so this store reads/writes those through the same
 // listModules/upsertModule path every other module uses, and reads/mutates
 // the rows through the quote RPC.
-import { rpc } from '@bagel/shared/server/nats';
-import { MOD } from '@bagel/shared';
+import { rpc } from '@bagel/kit/server/nats';
+import { MOD } from '@bagel/kit';
 import { SUB } from './services';
 import { upsertModule } from './commands-store';
 import { readModuleBlob, setModuleEnabled } from './module-blob';

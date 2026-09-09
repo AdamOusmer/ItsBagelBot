@@ -19,7 +19,7 @@ export default defineConfig({
   // (bundling it would break it and create a second, uninstrumented instance).
   // `pino` stays external so the New Relic agent's require-hook wraps the real
   // module at runtime and local-decorates its log lines (bundling defeats the hook).
-  ssr: { noExternal: ['@bagel/shared'], external: ['mysql2', 'newrelic', 'iovalkey', 'pino'] },
+  ssr: { noExternal: ['@bagel/kit'], external: ['mysql2', 'newrelic', 'iovalkey', 'pino'] },
   server: { port: 5174 },
   build: {
     minify: 'terser'

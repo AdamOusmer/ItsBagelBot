@@ -7,7 +7,7 @@
 // sesame's ReadLoyaltyConfig is the runtime half, so a stale enabled row
 // still cannot spend points against a currency that is not running.
 
-import { catalogChildren, type ModuleDef } from '@bagel/shared';
+import { catalogChildren, type ModuleDef } from '@bagel/kit';
 import { listModules, upsertModule } from './commands-store';
 
 export async function parentIsEnabled(userId: string, parentId: string): Promise<boolean> {

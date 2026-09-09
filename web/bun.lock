@@ -24,7 +24,7 @@
     "admin": {
       "name": "admin",
       "dependencies": {
-        "@bagel/shared": "workspace:*",
+        "@bagel/kit": "workspace:*",
         "@nats-io/kv": "^3.4.0",
         "@nats-io/transport-node": "^3.4.0",
         "nanoid": "^6.0.1",
@@ -39,7 +39,7 @@
     "dashboard": {
       "name": "dashboard",
       "dependencies": {
-        "@bagel/shared": "workspace:*",
+        "@bagel/kit": "workspace:*",
         "motion": "^13.0.0",
         "newrelic": "^14.3.9",
         "pino": "^10.3.1",
@@ -64,7 +64,7 @@
       },
     },
     "kit": {
-      "name": "@bagel/shared",
+      "name": "@bagel/kit",
       "version": "0.0.0",
       "dependencies": {
         "@luzir/bolota": "0.1.6",
@@ -90,6 +90,7 @@
       "dependencies": {
         "@astrojs/check": "^0.9.9",
         "@astrojs/sitemap": "^3.7.3",
+        "@bagel/kit": "workspace:*",
         "@fontsource-variable/caveat": "5.3.0",
         "@fontsource-variable/dm-sans": "5.3.0",
         "@fontsource-variable/syne": "5.3.0",
@@ -175,7 +176,7 @@
 
     "@babel/types": ["@babel/types@7.29.8", "", { "dependencies": { "@babel/helper-string-parser": "^7.29.7", "@babel/helper-validator-identifier": "^7.29.7" } }, "sha512-Vj1jF3cPfxg7OAfoI7QnVKLoILlm2JF9pnVHrX8qx7AHMiYWT+NDAA7jChlNgRS4WTLc/fD1lXLmPixluj+3Gg=="],
 
-    "@bagel/shared": ["@bagel/shared@workspace:kit"],
+    "@bagel/kit": ["@bagel/kit@workspace:kit"],
 
     "@braintree/sanitize-url": ["@braintree/sanitize-url@7.1.2", "", {}, "sha512-jigsZK+sMF/cuiB7sERuo9V7N9jx+dhmHHnQyDSVdpZwVutaBu7WvNYqMDLSgFgfB30n452TP3vjDAvFC973mA=="],
 

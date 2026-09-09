@@ -14,7 +14,7 @@
     getI18n,
     guildMonogram,
     type GuildBotState
-  } from '@bagel/shared';
+  } from '@bagel/kit';
   import { DISCORD_PILL_KEYS } from '$lib/discord-messages';
   import { sinceParts } from '$lib/discord/guild-view';
   import type { DiscordGuildSummary } from '$lib/server/discord-store';

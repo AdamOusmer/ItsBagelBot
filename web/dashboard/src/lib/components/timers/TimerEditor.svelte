@@ -10,7 +10,7 @@
   // range in the help line. Blurring a field surfaces an inline error that is
   // wired to the input via aria-invalid + aria-describedby; the page's own
   // canSave still gates the actual submit, so this is display-only.
-  import { getI18n, type TimerDef, Field, FieldError } from '@bagel/shared';
+  import { getI18n, type TimerDef, Field, FieldError } from '@bagel/kit';
   import CheckButton from '$lib/components/CheckButton.svelte';
 
   // Whole minutes; mirrors the server clamp (60s–24h => 1–1440 min).

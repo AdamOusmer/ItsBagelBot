@@ -28,8 +28,8 @@
     categoryAnchorId,
     categoryHref,
     type ModuleState
-  } from '@bagel/shared';
-  import type { SaveState } from '@bagel/shared/components/SaveStatus.svelte';
+  } from '@bagel/kit';
+  import type { SaveState } from '@bagel/kit/components/SaveStatus.svelte';
   import ModuleIndexRow from '$lib/components/modules/ModuleIndexRow.svelte';
 
   let { data } = $props();

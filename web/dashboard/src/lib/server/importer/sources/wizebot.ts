@@ -9,8 +9,8 @@
 //
 // The leg runs here rather than in the browser because reading the list means
 // carrying a cross-origin session cookie, which no page bundle may do.
-import { fetchWizebot, parseWizebot } from '@bagel/shared/importer/wizebot';
-import { CODE } from '@bagel/shared/importer/validate';
+import { fetchWizebot, parseWizebot } from '@bagel/kit/importer/wizebot';
+import { CODE } from '@bagel/kit/importer/validate';
 import { refused, type ImportPreviewRequest, type ParseOutcome } from '../engine';
 import { missingAnyInput, type InputRefusal, type ServerSourceStrategy, type SourceInput } from '../strategy';
 

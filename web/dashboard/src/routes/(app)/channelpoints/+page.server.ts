@@ -2,8 +2,8 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { Actions, PageServerLoad } from './$types';
-import type { ChannelPointReward, CounterScope, RewardActionKind, RewardOnRedeem } from '@bagel/shared';
-import { clampInt, COUNTER_SCOPES, REWARD_ACTIONS, REWARD_ON_REDEEM } from '@bagel/shared';
+import type { ChannelPointReward, CounterScope, RewardActionKind, RewardOnRedeem } from '@bagel/kit';
+import { clampInt, COUNTER_SCOPES, REWARD_ACTIONS, REWARD_ON_REDEEM } from '@bagel/kit';
 import {
   readRewards,
   createReward,

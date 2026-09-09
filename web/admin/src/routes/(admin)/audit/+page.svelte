@@ -14,17 +14,17 @@
   // Search stays server-side (it covers the whole trail, not the loaded page);
   // the kind filter is client-side over what has been loaded, and says so.
   import { onMount } from 'svelte';
-  import PageHead from '@bagel/shared/components/PageHead.svelte';
-  import PageToolbar from '@bagel/shared/components/PageToolbar.svelte';
-  import SearchInput from '@bagel/shared/components/SearchInput.svelte';
-  import SegmentedControl from '@bagel/shared/components/SegmentedControl.svelte';
-  import DeckList from '@bagel/shared/components/DeckList.svelte';
-  import InspectorSurface from '@bagel/shared/components/InspectorSurface.svelte';
-  import AlertBanner from '@bagel/shared/components/AlertBanner.svelte';
-  import EmptyState from '@bagel/shared/components/EmptyState.svelte';
-  import SkeletonStack from '@bagel/shared/components/SkeletonStack.svelte';
-  import Button from '@bagel/shared/components/Button.svelte';
-  import { getI18n } from '@bagel/shared/i18n/context';
+  import PageHead from '@bagel/kit/components/PageHead.svelte';
+  import PageToolbar from '@bagel/kit/components/PageToolbar.svelte';
+  import SearchInput from '@bagel/kit/components/SearchInput.svelte';
+  import SegmentedControl from '@bagel/kit/components/SegmentedControl.svelte';
+  import DeckList from '@bagel/kit/components/DeckList.svelte';
+  import InspectorSurface from '@bagel/kit/components/InspectorSurface.svelte';
+  import AlertBanner from '@bagel/kit/components/AlertBanner.svelte';
+  import EmptyState from '@bagel/kit/components/EmptyState.svelte';
+  import SkeletonStack from '@bagel/kit/components/SkeletonStack.svelte';
+  import Button from '@bagel/kit/components/Button.svelte';
+  import { getI18n } from '@bagel/kit/i18n/context';
   import type { AuditEntry } from '$lib/server/services';
   import AuditRow from '$lib/components/audit/AuditRow.svelte';
   import AuditDetail from '$lib/components/audit/AuditDetail.svelte';

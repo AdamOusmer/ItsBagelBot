@@ -3,7 +3,7 @@
 
 import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
-import { ResponseBodyError } from '@bagel/shared/server/oauth';
+import { ResponseBodyError } from '@bagel/kit/server/oauth';
 import { botTwitch, botClientId } from '$lib/server/oauth';
 import { tokenSet } from '$lib/server/services';
 import { requireRole } from '$lib/server/access';

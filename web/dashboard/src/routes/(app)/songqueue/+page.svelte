@@ -33,7 +33,7 @@
     actionPayload,
     toastFailure,
     type ActionOk,
-  } from '@bagel/shared';
+  } from '@bagel/kit';
   import SpotifyRewardEditor from '$lib/components/spotify/SpotifyRewardEditor.svelte';
   import SpotifyRewardRow from '$lib/components/spotify/SpotifyRewardRow.svelte';
   import ModuleCommandList from '$lib/components/modules/ModuleCommandList.svelte';

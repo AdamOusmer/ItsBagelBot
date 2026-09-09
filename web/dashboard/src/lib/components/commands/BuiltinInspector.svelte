@@ -19,7 +19,7 @@
     type CommandView,
     type BuiltinCommandDef,
     type Perm
-  } from '@bagel/shared';
+  } from '@bagel/kit';
   import ChatPreview from './ChatPreview.svelte';
   import ResponseEditor from './ResponseEditor.svelte';
 

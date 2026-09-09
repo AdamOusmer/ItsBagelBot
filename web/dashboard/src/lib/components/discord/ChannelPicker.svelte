@@ -6,7 +6,7 @@
   // The empty option is "Not set" rather than a blank: a picker with nothing
   // chosen is a real, supported state (that module simply does not post), and a
   // blank first row reads as a list that failed to load.
-  import { getI18n, type DiscordConfig, type RefusedFields } from '@bagel/shared';
+  import { getI18n, type DiscordConfig, type RefusedFields } from '@bagel/kit';
   import type { DiscordEntry } from '$lib/server/discord-store';
   import type { GuildDraft } from '$lib/discord/guild-draft.svelte';
   import FieldNote from './FieldNote.svelte';

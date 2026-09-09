@@ -9,10 +9,10 @@
   // ManagementRow already sets data-cursor="off" on its primary button (a row
   // is a reading surface, not a control, so the custom cursor must not morph
   // into a row-sized box).
-  import ManagementRow from '@bagel/shared/components/ManagementRow.svelte';
-  import Bolota from '@bagel/shared/components/Bolota.svelte';
-  import { ago } from '@bagel/shared';
-  import { getI18n } from '@bagel/shared/i18n/context';
+  import ManagementRow from '@bagel/kit/components/ManagementRow.svelte';
+  import Bolota from '@bagel/kit/components/Bolota.svelte';
+  import { ago } from '@bagel/kit';
+  import { getI18n } from '@bagel/kit/i18n/context';
   import type { AdminUserWire } from '$lib/server/services';
   import StatePill from '../StatePill.svelte';
   import { stateOf } from './user-state';

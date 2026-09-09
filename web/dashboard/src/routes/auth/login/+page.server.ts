@@ -5,7 +5,7 @@ import type { PageServerLoad } from './$types';
 import { redirect } from '@sveltejs/kit';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
-import { generateState } from '@bagel/shared/server/oauth';
+import { generateState } from '@bagel/kit/server/oauth';
 import { randomBytes } from 'node:crypto';
 import { twitch, scopes, safeNextPath } from '$lib/server/oauth';
 import { skipAuthorizeIfSignedIn } from '$lib/server/oauth-start';
