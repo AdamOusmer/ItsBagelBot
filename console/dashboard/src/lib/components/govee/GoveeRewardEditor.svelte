@@ -133,9 +133,14 @@
   <Field label={t('govee.fieldReply')} tag={t('common.optional')}>
     <ResponseEditor bind:value={replyMessage} name="replyMessage" tokens={REPLY_TOKENS} placeholder={DEFAULT_REPLY} />
   </Field>
-  <!-- kind="reply" + dynamic={false}: the govee reply is a bare {user}/{color}
-       string replacer (renderGoveeReply). Nothing else ever expands. -->
-  <ChatPreview kind="reply" dynamic={false} response={replyMessage || DEFAULT_REPLY} showViewer={false} tag={t('govee.previewTag')} samples={replySamples} />
+  <!-- kind="reply": renderGoveeReply substitutes {user}/{color} plus the
+       dynamic set ({random}/{choice:…}), like every other reward reply.
+       It used to carry dynamic={false} because this one surface fell through
+       to a bare string replacer while the channel-points reply expanded the
+       dice; a broadcaster editing two rewards on two pages had no way to know
+       which was which. The engine now resolves dynamics on EVERY reward
+       surface, so the preview does too. -->
+  <ChatPreview kind="reply" response={replyMessage || DEFAULT_REPLY} showViewer={false} tag={t('govee.previewTag')} samples={replySamples} />
 
   <Field label={t('govee.afterTitle')}>
     <select class="input" name="onRedeem" bind:value={onRedeem}>

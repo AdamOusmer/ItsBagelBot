@@ -115,8 +115,12 @@ function responseProblem(response: string): string | undefined {
   if (lines.some((l) => l.length > RESPONSE_MAX)) return `Each line must be at most ${RESPONSE_MAX} characters.`;
   if (lines.some((l) => CONTROL_CHAR_RE.test(l))) return 'Response cannot contain control characters.';
   if (urlFetchNames(response).length > URLFETCH_TOKEN_CAP) {
-    // Distinct names, not occurrences: the engine dedupes repeats before the
-    // fan-out, so the latency budget it must absorb scales with distinct defs.
+    // Distinct NORMALIZED names, not occurrences: urlFetchNames folds each
+    // span's payload through the engine's own key (scope.NormalizeName, via
+    // the shared lexer) before deduping, so two spellings of one definition —
+    // {urlfetch:Weather} and {urlfetch:weather|n/a} — cost one slot here
+    // exactly as they cost one fetch there. The latency budget the engine must
+    // absorb scales with distinct defs, so that is what the cap counts.
     return `A response can reference at most ${URLFETCH_TOKEN_CAP} different fetched values ({urlfetch:…}).`;
   }
   return undefined;

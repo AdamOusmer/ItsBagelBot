@@ -17,6 +17,13 @@ import { fileURLToPath } from 'node:url';
 // @bagel/shared install. The catalog (sample values, bilingual copy) stays
 // local in src/i18n/builder.ts; only the logic is shared.
 const rehearsalCore = fileURLToPath(new URL('../console/shared/lib/rehearsal.ts', import.meta.url));
+// The token lexer the rehearsal itself reads templates with, aliased on its own
+// so the builder can ASK what a token is instead of matching one with a regex.
+// It is the same file pkg/tmpl is pinned against, so "{pointsname} is a var
+// named pointsname" is answered here by the grammar rather than re-guessed by
+// a pattern that has to be kept in step with it (and was not: the pattern this
+// replaced missed {pointsname} entirely).
+const tmplCore = fileURLToPath(new URL('../console/shared/lib/tmpl.ts', import.meta.url));
 // Same arrangement for the mote field: the physics are shared with the
 // console's LightField.svelte so both surfaces animate identically, and the
 // module is pure browser TS with no deps, so it bundles into the client chunk
@@ -108,6 +115,7 @@ export default defineConfig({
       // Single source of truth for the rehearsal logic (see rehearsalCore above).
       alias: {
         '@bagel/rehearsal': rehearsalCore,
+        '@bagel/tmpl': tmplCore,
         '@bagel/light-field': lightFieldCore,
         '@bagel/styles': sharedStyles,
       },

@@ -3,8 +3,10 @@
 
 // Command-builder catalog + UI copy, both locales. This file is the marketing
 // site's single source of truth for what the bot actually expands, verified
-// against the worker: custom-command tokens in app/twitch/sesame/engine/vars.go,
-// dynamic tokens in app/twitch/sesame/module/vars.go, module reply tokens in each
+// against the worker: custom-command tokens in app/twitch/sesame/engine/scope/
+// (one file per scope; the old engine/vars.go switch this used to name was
+// deleted when the scope chain replaced it), dynamic tokens in
+// app/twitch/sesame/module/vars.go, module reply tokens in each
 // app/twitch/sesame/modules/*.go, and limits in internal/domain/validate/validate.go
 // (mirrored by console/shared/lib/commands-validate.ts). If a token isn't
 // expanded there, it doesn't belong here, the bot leaves unknown braces

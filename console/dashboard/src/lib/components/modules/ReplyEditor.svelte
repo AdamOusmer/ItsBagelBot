@@ -16,7 +16,7 @@
   //
   // Save/Cancel are handled by the page so the whole-module config persists in
   // one place.
-  import { getI18n, type ModuleReply } from '@bagel/shared';
+  import { getI18n, intactSpan, type ModuleReply } from '@bagel/shared';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
 
@@ -44,11 +44,17 @@
   // The reply's own insert palette; undefined keeps ResponseEditor's default
   // command tokens (event replies define no token list yet). The chip tooltip
   // shows the sample value the preview substitutes.
+  // The chip text is BUILT from the catalog's bare token names, so it goes
+  // through intactSpan rather than string interpolation: a name carrying '}'
+  // or '|' would insert a span the engine re-cuts, and the chip would look
+  // right while the reply resolved to something else. A name that cannot be
+  // spelled is dropped from the palette instead of being offered broken.
   const palette = $derived(
-    reply.tokens?.map((tk) => {
-      const token = `{${tk}}`;
+    reply.tokens?.flatMap((tk) => {
+      const token = intactSpan(tk, null);
+      if (token === null) return [];
       const sample = reply.previewSamples?.[tk];
-      return { token, label: sample ? `${token} → ${sample}` : token };
+      return [{ token, label: sample ? `${token} → ${sample}` : token }];
     })
   );
 </script>

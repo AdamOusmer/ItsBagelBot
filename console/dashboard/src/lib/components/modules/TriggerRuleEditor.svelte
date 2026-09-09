@@ -47,10 +47,13 @@
   ];
 
   // The response palette: the tokens sesame expands (module.ParseDynamic + {user}).
+  // Labels go through t() like every other palette on this screen; they used to
+  // be English literals, which is what made this the one reward-shaped surface
+  // that stayed English under /fr.
   const TOKENS = [
-    { token: '{user}', label: '{user} → the chatter' },
-    { token: '{random}', label: '{random} → a number 1-100' },
-    { token: '{choice:a,b,c}', label: '{choice:a,b,c} → a random option' }
+    { token: '{user}', label: t('modules.trigTokUser') },
+    { token: '{random}', label: t('modules.trigTokRandom') },
+    { token: '{choice:a,b,c}', label: t('modules.trigTokChoice') }
   ];
 
   const DEFAULT_RESPONSE = 'hi {user}!';

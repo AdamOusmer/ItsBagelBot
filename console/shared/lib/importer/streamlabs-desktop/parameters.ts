@@ -6,7 +6,7 @@
 // shared permission table is consulted.
 
 import type { ImportDiagnostic } from '../types';
-import { CODE, mapPermission, normalizeName } from '../validate';
+import { CODE, intactSpan, mapPermission, normalizeName } from '../validate';
 import { goAtoi } from './dbfile';
 import { warnDiag } from './dbfile';
 
@@ -291,10 +291,21 @@ function dispatchParam(s: ScanState, cursor: ParamCursor): number {
   return unknownParam(s, cursor);
 }
 
+// counterSpan folds one counter name into its span, or null when the name
+// cannot survive our own lexer ('|' would turn the tail into a fallback, '}'
+// would close the span early). A command name is printable ASCII, so both are
+// reachable from a real export; the callers degrade to literal+warn rather
+// than emitting a token that names a different counter than it reads.
+function counterSpan(name: string): string | null {
+  const norm = normalizeName(name);
+  return norm === '' ? null : intactSpan('counter', norm);
+}
+
 function countParam(s: ScanState, cursor: ParamCursor): number {
   const { next } = cursor;
-  if (s.cmdName !== '') {
-    s.out += `{counter:${normalizeName(s.cmdName)}}`;
+  const span = counterSpan(s.cmdName);
+  if (span !== null) {
+    s.out += span;
     return next;
   }
   s.out += '$count';
@@ -308,19 +319,25 @@ function countParam(s: ScanState, cursor: ParamCursor): number {
 
 function checkCountParam(s: ScanState, cursor: ParamCursor): number {
   const { next } = cursor;
-  const arg = parenArg(s.text, next);
+  const arg = parenArg(s, cursor);
   if (arg === null || arg.trim() === '') {
     s.out += '$checkcount';
     warnOnce(s, CODE.variableUnmapped, '"$checkcount(...)" is missing its argument; left as literal text');
     return next;
   }
-  s.out += `{counter:${normalizeName(arg)}}`;
-  return skipParens(s.text, next);
+  const span = counterSpan(arg);
+  if (span === null) {
+    s.out += '$checkcount';
+    warnOnce(s, CODE.variableUnmapped, '"$checkcount(...)" names a counter this bot cannot spell; left as literal text');
+    return next;
+  }
+  s.out += span;
+  return skipParens(s, cursor);
 }
 
 function randnumParam(s: ScanState, cursor: ParamCursor): number {
   const { next } = cursor;
-  const endSpan = skipParensSpan(s.text, next);
+  const endSpan = skipParensSpan(s, cursor);
   if (endSpan === null) {
     s.out += '$randnum';
     warnOnce(s, CODE.variableUnmapped, '"$randnum" is missing its (min,max) arguments; left as literal text');
@@ -352,7 +369,7 @@ function externalParam(s: ScanState, cursor: ParamCursor): number {
   const { name, next } = cursor;
   s.res.external = true;
   s.out += `$${name}`;
-  const endSpan = skipParensSpan(s.text, next);
+  const endSpan = skipParensSpan(s, cursor);
   if (endSpan === null) return next;
   s.out += s.text.slice(next, endSpan);
   return endSpan;
@@ -364,7 +381,7 @@ function descParam(s: ScanState, cursor: ParamCursor): number {
   // the web" per SLCB docs), not response content; keeping it would post the
   // instruction into chat. Stripped when it opens the first line, kept literal
   // elsewhere.
-  const endSpan = skipParensSpan(s.text, next);
+  const endSpan = skipParensSpan(s, cursor);
   if (endSpan === null) {
     s.out += '$desc';
     return next;
@@ -384,7 +401,7 @@ function swallowDirectiveBreak(text: string, at: number): number {
 
 function unknownParam(s: ScanState, cursor: ParamCursor): number {
   const { name, next } = cursor;
-  const endSpan = skipParensSpan(s.text, next);
+  const endSpan = skipParensSpan(s, cursor);
   s.out += `$${name}`;
   if (endSpan !== null) s.out += s.text.slice(next, endSpan);
   warnOnce(s, CODE.variableUnmapped, `response uses $${name}, which has no equivalent here; left as literal text`);
@@ -429,28 +446,30 @@ function readNameChars(text: string, from: number): number {
 }
 
 
-// parenArg returns the content of the (...) following pos, or null.
-function parenArg(text: string, pos: number): string | null {
-  const end = skipParensSpan(text, pos);
-  if (end === null || end <= pos + 2) return null;
-  return text.slice(pos + 1, end - 1);
+// parenArg returns the content of the (...) following the scanned parameter,
+// or null. The helpers here all read the same two values the handlers already
+// hold — the scan state and the cursor just past the parameter name — so they
+// take those rather than a text/index pair unpacked at every call.
+function parenArg(s: ScanState, cursor: ParamCursor): string | null {
+  const end = skipParensSpan(s, cursor);
+  if (end === null || end <= cursor.next + 2) return null;
+  return s.text.slice(cursor.next + 1, end - 1);
 }
 
 // skipParensSpan returns the exclusive end index of the balanced parenthesis
 // group starting at pos ('('), handling nesting; quotes inside are treated as
 // plain characters, which matches how SLCB's own parameters nest.
-function skipParensSpan(text: string, pos: number): number | null {
-  if (!opensGroup(text, pos)) return null;
+function skipParensSpan(s: ScanState, cursor: ParamCursor): number | null {
+  // The group has to open right where the parameter name ended; anything else
+  // is a bare "$param" and the handlers keep it literal.
+  const { text } = s;
+  if (text[cursor.next] !== '(') return null;
   let depth = 0;
-  for (let i = pos; i < text.length; i++) {
+  for (let i = cursor.next; i < text.length; i++) {
     depth += parenStep(text[i]);
     if (depth === 0) return i + 1;
   }
   return null;
-}
-
-function opensGroup(text: string, pos: number): boolean {
-  return pos < text.length && text[pos] === '(';
 }
 
 function parenStep(ch: string): number {
@@ -458,10 +477,10 @@ function parenStep(ch: string): number {
   return ch === ')' ? -1 : 0;
 }
 
-// skipParens returns the index just past the group at pos.
-function skipParens(text: string, pos: number): number {
-  const end = skipParensSpan(text, pos);
-  return end ?? pos;
+// skipParens returns the index just past the group at the cursor.
+function skipParens(s: ScanState, cursor: ParamCursor): number {
+  const end = skipParensSpan(s, cursor);
+  return end ?? cursor.next;
 }
 
 // randnumTarget converts a $randnum(...) argument span "(...)" to

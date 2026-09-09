@@ -189,6 +189,11 @@ const haystack = (m: Module) => `${m.name} ${m.tagline} ${m.commands ?? ''}`.toL
         const total = cells.length;
         let cat = '';
 
+        // Deliberately NOT the shared token lexer: this is the i18n catalog's
+        // {name} interpolation, a different grammar over the same braces (no
+        // payloads, no fallbacks, no scopes — just a UI string's own
+        // placeholders), so reading it with the chat lexer would be a category
+        // error rather than a deduplication.
         function fill(tpl: string, values: Record<string, string>): string {
             return tpl.replace(/\{(\w+)\}/g, (_, key) => values[key] ?? '');
         }

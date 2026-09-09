@@ -89,8 +89,18 @@ const ENTRIES: {
     // linux/x64, which gzips the same bytes ~100-150 B larger than macOS/arm64
     // (see the size-budgets skill); 8420 covers that delta and keeps the usual
     // ~3% of room above the linux-side estimate (8007 + 150 = 8157 -> +3%).
+    //
+    // Raised from 8420 (2026-09-09) for the lexer adoption: every {…} span the
+    // parser MINTS now goes out through tmpl.ts's intactSpan, which pulls the
+    // shared lexer (lex + parseSpan) into this entry. Measured 8473 B gzip on
+    // macOS/arm64, 53 B over the old budget. The alternative was a local
+    // "does this string contain | or }" check, which is the exact hand-rolled
+    // grammar knowledge this change exists to delete — it would have cost ~0 B
+    // and gone stale the next time the span grammar spends a byte. 8700 covers
+    // the measured figure plus the linux/x64 gzip delta (~150 B) and ~1% room
+    // (8473 + 150 = 8623 -> +1%).
     name: "streamelements parser",
-    budget: 8420,
+    budget: 8700,
     external: [],
     source: `import { parseStreamElements } from "../../lib/importer/streamelements";
              globalThis.x = parseStreamElements;`,

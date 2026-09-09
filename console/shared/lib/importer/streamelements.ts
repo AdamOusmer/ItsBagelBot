@@ -24,6 +24,7 @@ import {
   canonicalizeResponse,
   clampCooldown,
   fetchDefSlug,
+  intactSpan,
   mapPermission,
   normalizeName
 } from './validate';
@@ -1374,7 +1375,8 @@ function urlfetchRule(v: TokenView, fetchSink?: FetchSlotSink): TokenOutcome {
   if (!args) return unmapped(v);
   const key = fetchSink.acquire(args.url, args.jsonPath);
   if (key === null) return unmapped(v);
-  return ok(`{urlfetch:${key}}`);
+  const span = intactSpan('urlfetch', key);
+  return span === null ? unmapped(v) : ok(span);
 }
 
 // classifyToken resolves one scanned token to its replacement text by looking
@@ -1408,6 +1410,16 @@ function isDelimitedToken(tok: string): boolean {
   );
 }
 
+// isBareBraceToken recognizes StreamElements' INBOUND bare-{name} shorthand,
+// not one of our spans, which is why it stays a hand scan while every other
+// {…} reader in the console moved to ../tmpl's lex(). The two grammars
+// genuinely differ: SE's shorthand nests ({choose {a} b} is one token, matched
+// by the brace counter in matchBrace), while our lexer closes a span at the
+// FIRST '}' and would read that as "{choose {a}" — reading inbound text with
+// the outbound grammar would silently re-cut somebody else's tokens. What our
+// lexer does own here is the OUTPUT: every span this file mints goes through
+// validate.ts's intactSpan, and the guard test replays the fixtures to prove
+// the translated text lexes back to the tokens it meant.
 function isBareBraceToken(tok: string): boolean {
   return tok.startsWith('{') && tok.endsWith('}') && tok.length > 2;
 }
@@ -1463,8 +1475,8 @@ function argsRange(v: TokenView): TokenOutcome {
 function getCounterParam(v: TokenView): TokenOutcome {
   const name = firstWord(v.restRaw);
   if (name === '') return unmapped(v);
-  const norm = normalizeName(name);
-  return norm !== '' ? ok(`{counter:${norm}}`) : unmapped(v);
+  const span = intactSpan('counter', normalizeName(name));
+  return span === null ? unmapped(v) : ok(span);
 }
 
 function chooseParam(v: TokenView): TokenOutcome {

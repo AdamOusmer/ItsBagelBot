@@ -206,7 +206,23 @@ for (const surface of data.surfaces) {
     // so the builder can never drift from the bot. This file only turns the
     // RehearsedLine[] it returns into DOM. The sample values stay local, in
     // src/i18n/builder.ts, and ride in as the `samples` argument.
-    import { rehearseCommand, rehearseReply, type RehearsedLine, type Seg } from '@bagel/rehearsal';
+    import { rehearseCommand, rehearseReply, resolvedWithoutSample, type RehearsedLine, type Seg } from '@bagel/rehearsal';
+    // The lexer the rehearsal itself reads templates with (aliased in
+    // astro.config.mjs). Every question this file used to answer with a regex
+    // over token text — is this the core's token? does this surface offer the
+    // dice? which counter does this chip name? — is asked of the grammar here
+    // instead, so the builder cannot disagree with the engine about what a
+    // token IS while agreeing with it about what a token DOES.
+    import { lex, type VarToken } from '@bagel/tmpl';
+
+    // spanOf reads one catalog entry's token as the single span it spells.
+    // null means the catalog entry is not one token, which is a catalog bug
+    // rather than a broadcaster's typo: such an entry resolves nothing and is
+    // simply left out of everything below.
+    function spanOf(token: string): VarToken | null {
+        const tokens = lex(token);
+        return tokens.length === 1 && tokens[0].kind === 'var' ? tokens[0] : null;
+    }
 
     // Announcement accent colors: presentation only, keyed by the color the
     // shared parse reports.
@@ -296,39 +312,55 @@ for (const surface of data.surfaces) {
         };
 
         // --- Sample values handed to the shared rehearsal ---------------------
-        // The catalog's own tokens, keyed without braces. Dynamic, {counter:…}
-        // and the pure utilities are deliberately left out: the shared logic
-        // resolves those itself — the dice deterministically (so the preview
-        // doesn't re-roll on every keystroke), the utilities by actually
-        // computing them, and {querystring} by encoding the {args} sample —
-        // exactly as the dashboard does. The viewer lookups ({followage},
-        // {points}, …), the module facts ({quote}, {time}, {song}), the chat
-        // room ({chatters}, {random.chatter}), the emote catalog ({7tvemotes},
-        // {random.emote}), the conditional ({if:…}, which resolves through the
-        // token its cond names), the command's own {uses} and the channel
-        // ({uptime}, {title}, {game}, {channel.viewers}) are left out for the same
-        // reason: the core carries one stand-in per family, and the spellings
-        // within a family must preview alike. The
-        // positional words ({1}, {2:}) are left out for the same reason and
-        // one more: the core derives them from the {args} sample, so a
+        // Only the tokens the CORE does not already resolve travel as samples.
+        // Everything the shared chain owns is left out on purpose: the dice
+        // resolve deterministically (so the preview doesn't re-roll on every
+        // keystroke), the utilities are actually computed, {querystring} is
+        // encoded from the {args} sample, and every lookup family — the viewer
+        // ones, the module facts, the chat room, the emote catalog, the
+        // channel, the conditional — carries ONE stand-in per family, so every
+        // spelling within a family previews alike. The positional words have
+        // one more reason: the core derives them from the {args} sample, so a
         // preview can never show a {1} that contradicts the {args} beside it.
-        const RESOLVED_BY_CORE =
-            /^(random(:|$|\.chatter$|\.emote$)|choice:|count(er)?:|chatters$|(7tv|bttv|ffz)emotes$|channel\.viewers$|[0-9]|math:|queryescape:|pathescape:|repeat:|countdown:|countup:|if:|querystring$|uses$|followage|accountage|points|watchtime|quote|time$|song|uptime(:|$)|title(:|$)|game(:|$))/;
-
+        //
+        // Decision record: which tokens those are used to be a 40-branch regex
+        // maintained here by hand, and it had drifted three ways. It never
+        // matched {pointsname}, so this page shipped a sample the viewer scope
+        // then ignored. And having ONE pattern for both chains, it suppressed
+        // {time} and {points} on module-reply surfaces that do resolve them
+        // (the mcsr and channel-points replies), because those names also name
+        // command-chain families — leaving three previews showing a literal
+        // {time} the bot would have filled in. resolvedWithoutSample answers
+        // per chain, from the rehearsal's own scopes, so the question is now
+        // asked of the thing that resolves it.
         function sampleMap(): Record<string, string> {
+            const kind = mode === 'custom' ? 'command' : 'reply';
             const samples: Record<string, string> = {};
             for (const item of current().vars) {
-                const key = item.token.slice(1, -1);
-                if (!RESOLVED_BY_CORE.test(key)) samples[key] = item.sample;
+                const span = spanOf(item.token);
+                if (span && !resolvedWithoutSample(span.name, kind)) samples[span.key] = item.sample;
             }
             return samples;
         }
 
         // A surface resolves the dynamic tokens when its module falls back to
         // module.ParseDynamic, which the catalog encodes by offering them in
-        // the palette. The odd one out is the !clip reply: outgress expands it
-        // with a bare token replacer, so {random} there stays literal.
-        const surfaceIsDynamic = () => current().vars.some((x) => /^\{(random|choice)/.test(x.token));
+        // the palette (every reward surface now does, the engine having been
+        // levelled so songqueue and govee replies resolve the dice like the
+        // channel-points one). The odd one out is the !clip reply: outgress
+        // expands it with a bare token replacer, so {random} there stays
+        // literal.
+        //
+        // The membership test is on the lexed NAME, not on the chip's leading
+        // characters: "{random}" and "{random:1-6}" are one family and a
+        // future "{randomize:…}" is not, which a prefix match cannot tell
+        // apart.
+        const DYNAMIC_NAMES = new Set(['random', 'choice']);
+        const surfaceIsDynamic = () =>
+            current().vars.some((x) => {
+                const span = spanOf(x.token);
+                return span !== null && DYNAMIC_NAMES.has(span.name);
+            });
 
         // Custom commands fan out to one message per line (cap 5) and route a
         // slash-verb per line; a module reply is a single message. Both share
@@ -531,7 +563,10 @@ for (const surface of data.surfaces) {
         // the live token preview, it can't travel through the token itself.
         function buildCounterVar(item: Var): HTMLElement {
             const scopes = item.scopes ?? [];
-            const defaultName = item.token.match(/^\{counter:(.+)\}$/)?.[1] ?? 'name';
+            // The counter this chip names is the span's payload — asked of the
+            // lexer, so {counter:falls} and a future {counter:…} spelling read
+            // the same way the engine reads them.
+            const defaultName = spanOf(item.token)?.payload || 'name';
 
             const card = el('div', 'var var--counter');
 

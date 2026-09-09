@@ -31,6 +31,35 @@ import type {
 import { IMPORT_ITEM_CAPS } from './types';
 import { slugifyName } from '../fetch-tokens';
 import { FETCH_NAME_MAX } from '../fetch-validate';
+import { lex, type VarToken } from '../tmpl';
+export { intactSpan } from '../tmpl';
+
+// --- emitted-token guard -----------------------------------------------------
+
+// An importer does not merely COPY response text: it MINTS this bot's own {…}
+// tokens out of strings another product controls — a Moobot random-text
+// option, a Nightbot word number, a StreamElements definition slug. Those
+// strings are broadcaster content from somewhere else, so they can carry the
+// two bytes our span grammar spends: a '}' closes the span at the first one
+// (amputating everything after it) and a '|' re-reads the tail as a fallback.
+// Either byte produces a token that reads perfectly on the review screen and
+// resolves to something else entirely in chat, which is the one class of
+// import bug a broadcaster cannot diagnose.
+//
+// ../tmpl's intactSpan is the only sanctioned way to build one: it writes the
+// span, reads it back with the SHIPPED lexer (the same one sesame's pkg/tmpl
+// is pinned against) and refuses anything that did not survive the round trip.
+// It is re-exported here so an importer reaches for it beside the other
+// mapping rules it already imports, and so this note sits where the mapping
+// code is read. A caller that gets null drops the token rather than emitting a
+// broken one.
+
+/** Every {…} span one mapped response carries, as the bot's own lexer reads
+ * them. Exported for the guard test that replays each source's fixtures and
+ * asserts the whole mapped corpus lexes back to the tokens it meant. */
+export function mappedSpans(text: string): VarToken[] {
+  return lex(text).filter((t): t is VarToken => t.kind === 'var');
+}
 
 // --- diagnostic codes (restated from internal/domain/rpc/importer, kept in
 // step; snake_case, item-kind-prefixed for item-level findings) ---------------
@@ -510,30 +539,43 @@ function automodDiags(terms: NonNullable<ImportManifest['automod']>): ImportDiag
 
 // --- item validators (one per manifest collection, all pure) -----------------
 
+// CommandItem is one manifest command under validation: the row as imported,
+// its folded name and its index in the collection. The three checks below all
+// need the same three values, so they travel as one rather than as a row plus
+// two loose primitives repeated at every call.
+interface CommandItem {
+  command: ManifestCommand;
+  name: string;
+  index: number;
+}
+
 function validateCommandItem(c: ManifestCommand, index: number): ImportDiagnostic[] {
-  const name = normalizeName(c.name);
+  const item: CommandItem = { command: c, name: normalizeName(c.name), index };
   return [
-    ...commandNameDiags(c, name, index),
-    ...commandAliasDiags(c, name, index),
-    ...commandResponseDiags(c, name, index),
+    ...commandNameDiags(item),
+    ...commandAliasDiags(item),
+    ...commandResponseDiags(item),
     ...commandTierDiags(c, index)
   ];
 }
 
-function commandNameDiags(c: ManifestCommand, name: string, index: number): ImportDiagnostic[] {
+function commandNameDiags(item: CommandItem): ImportDiagnostic[] {
+  const { command, name, index } = item;
   const problem = commandNameProblem(name);
-  return problem ? [errDiag(index, CODE.nameInvalid, `command name ${q(c.name)}: ${problem}`)] : [];
+  return problem ? [errDiag(index, CODE.nameInvalid, `command name ${q(command.name)}: ${problem}`)] : [];
 }
 
-function commandAliasDiags(c: ManifestCommand, name: string, index: number): ImportDiagnostic[] {
-  if (!c.aliases?.length) return [];
-  const problem = commandAliasesProblem(c.aliases.map(normalizeName));
+function commandAliasDiags(item: CommandItem): ImportDiagnostic[] {
+  const { command, name, index } = item;
+  if (!command.aliases?.length) return [];
+  const problem = commandAliasesProblem(command.aliases.map(normalizeName));
   return problem ? [errDiag(index, CODE.aliasInvalid, `aliases for ${q(name)}: ${problem}`)] : [];
 }
 
-function commandResponseDiags(c: ManifestCommand, name: string, index: number): ImportDiagnostic[] {
-  if (!c.responses?.length) return [errDiag(index, CODE.responseInvalid, 'command has no response')];
-  const problem = commandResponseProblem(c.responses.join('\n'));
+function commandResponseDiags(item: CommandItem): ImportDiagnostic[] {
+  const { command, name, index } = item;
+  if (!command.responses?.length) return [errDiag(index, CODE.responseInvalid, 'command has no response')];
+  const problem = commandResponseProblem(command.responses.join('\n'));
   return problem ? [errDiag(index, CODE.responseInvalid, `response for ${q(name)}: ${problem}`)] : [];
 }
 

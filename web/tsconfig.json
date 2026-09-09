@@ -3,14 +3,16 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@bagel/rehearsal": ["../console/shared/lib/rehearsal.ts"]
+      "@bagel/rehearsal": ["../console/shared/lib/rehearsal.ts"],
+      "@bagel/tmpl": ["../console/shared/lib/tmpl.ts"]
     }
   },
   "include": [
     ".astro/types.d.ts",
     "**/*",
     "./worker-configuration.d.ts",
-    "../console/shared/lib/rehearsal.ts"
+    "../console/shared/lib/rehearsal.ts",
+    "../console/shared/lib/tmpl.ts"
   ],
   "exclude": [
     "dist"
