@@ -110,6 +110,23 @@ const UTILITIES: VarDef[] = [
   v('{countup:2020-01-01}', '3 days, 4 hours', { en: 'Time since a date', fr: 'Temps depuis une date' }, { en: 'How long since that date, in the same wording as !uptime.', fr: 'Le temps écoulé depuis cette date, formulé comme !uptime.' }),
 ];
 
+// The viewer lookups (app/twitch/sesame/engine/scope/viewer.go). Like the
+// utilities these are custom-command only, and unlike the utilities each one
+// is answered by an opt-in module: with Followage, Account age or Loyalty
+// Points switched off the bot leaves the variable visible in chat instead of
+// answering it, which is what the descriptions say out loud.
+//
+// The samples match the shared rehearsal's stand-ins exactly (POINTS_SAMPLE
+// and friends): the preview substitutes those, so a different number here
+// would contradict the line right beside it.
+const VIEWER: VarDef[] = [
+  v('{followage}', '3 months', { en: 'Time following', fr: 'Temps de follow' }, { en: 'How long the viewer has followed you, in the same wording as !followage. {followage:alex} asks about someone else, and someone who does not follow comes back empty. Needs the Followage module.', fr: 'Depuis combien de temps le spectateur vous suit, formulé comme !followage. {followage:alex} interroge quelqu’un d’autre, et une personne qui ne suit pas ne renvoie rien. Nécessite le module Followage.' }),
+  v('{accountage}', '4 years, 2 months', { en: 'Account age', fr: 'Âge du compte' }, { en: 'How old their Twitch account is. {accountage:alex} asks about someone else. Needs the Account age module.', fr: 'L’âge de leur compte Twitch. {accountage:alex} interroge quelqu’un d’autre. Nécessite le module Âge du compte.' }),
+  v('{points}', '1280', { en: 'Points balance', fr: 'Solde de points' }, { en: 'What the viewer has earned. {points:alex} shows someone else, as long as this channel has seen them speak. Reading only: it never grants. Needs the Loyalty Points module.', fr: 'Ce que le spectateur a gagné. {points:alex} affiche le solde de quelqu’un d’autre, si la chaîne l’a vu parler. Lecture seule: rien n’est jamais accordé. Nécessite le module Points de fidélité.' }),
+  v('{pointsname}', 'bagels', { en: 'Name of your points', fr: 'Nom de vos points' }, { en: 'Whatever you called your points in the Loyalty Points module, so one reply reads right on every channel.', fr: 'Le nom que vous avez donné à vos points dans le module Points de fidélité, pour qu’une même réponse sonne juste sur chaque chaîne.' }),
+  v('{watchtime}', '2 hours, 30 minutes', { en: 'Time watched', fr: 'Temps de visionnage' }, { en: 'How long they have watched while the loyalty clock was running. {watchtime:alex} asks about someone else. Needs the Loyalty Points module.', fr: 'Le temps qu’ils ont passé à regarder pendant que l’horloge de fidélité tournait. {watchtime:alex} interroge quelqu’un d’autre. Nécessite le module Points de fidélité.' }),
+];
+
 const USER_VIEWER = v('{user}', 'maya_live', { en: 'Viewer name', fr: 'Nom du spectateur' }, { en: 'Whoever used the command. {sender} works too.', fr: 'La personne qui a utilisé la commande. {sender} fonctionne aussi.' });
 
 export const SURFACES: SurfaceDef[] = [
@@ -145,6 +162,7 @@ export const SURFACES: SurfaceDef[] = [
       },
       ...DYNAMIC,
       ...UTILITIES,
+      ...VIEWER,
     ],
   },
   {

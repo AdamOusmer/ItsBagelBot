@@ -6,7 +6,7 @@
 // Go engine, keep them in lockstep:
 //
 //   - token lexing:          pkg/tmpl/tmpl.go (Lex, Token.Resolve), ported to ./tmpl
-//   - scope chain:           app/twitch/sesame/engine/scope (Chain, Pure, Message, Store)
+//   - scope chain:           app/twitch/sesame/engine/scope (Chain, Pure, Message, Viewer, Store)
 //   - chain wiring per run:  app/twitch/sesame/engine/vars.go (commandChain)
 //   - counter normalization: app/twitch/sesame/engine/scope/store.go (NormalizeName)
 //   - slash-verb routing:    internal/domain/outgress/slash.go (CutSlash)
@@ -141,6 +141,17 @@ const COUNTER_SAMPLE = '42';
  * through, internal/domain/i18n HumanizeDuration). */
 const COUNTDOWN_SAMPLE = '3 days, 4 hours';
 
+/** Stand-ins for the viewer lookups (scope.Viewer): a follow date, an account
+ * creation date and a loyalty standing all live in services the dashboard
+ * cannot reach while the broadcaster is typing, so the preview shows a
+ * plausible answer rather than a live one. The two spans are worded by the
+ * bot's shared humanizer, like every other span it prints. */
+const FOLLOWAGE_SAMPLE = '3 months';
+const ACCOUNTAGE_SAMPLE = '4 years, 2 months';
+const POINTS_SAMPLE = '1280';
+const POINTS_NAME_SAMPLE = 'bagels';
+const WATCHTIME_SAMPLE = '2 hours, 30 minutes';
+
 /** Rehearse a custom command response: expand, split into messages, then
  * route each line's leading slash-verb (the same order as emitResponse).
  * (Expansion per line equals whole-template expansion: no token value can
@@ -227,10 +238,10 @@ function chainResolver(chain: readonly SampleScope[]): Resolve {
 }
 
 /** commandChain's mirror: the dice and the payload utilities (one Go scope,
- * scope.Pure), the triggering line, then the counter store. Order is
- * precedence, exactly as in the engine. */
+ * scope.Pure), the triggering line, the viewer lookups, then the counter
+ * store. Order is precedence, exactly as in the engine. */
 function commandChain(samples: Samples): SampleScope[] {
-  return [PURE_SCOPE, UTIL_SCOPE, messageScope(samples), COUNTER_SCOPE];
+  return [PURE_SCOPE, UTIL_SCOPE, messageScope(samples), VIEWER_SCOPE, COUNTER_SCOPE];
 }
 
 /** A module reply resolves only its own token map, plus the dynamic set when
@@ -357,6 +368,45 @@ function positionalSample(token: Token, samples: Samples): string | null {
   const words = (samples.args ?? '').split(/\s+/).filter((word) => word !== '');
   if (n > words.length) return '';
   return token.payload === null ? words[n - 1] : words.slice(n - 1).join(' ');
+}
+
+/** scope.Viewer's mirror: the tokens that describe ONE viewer through a
+ * lookup — {followage}, {accountage}, {points}, {watchtime} — plus the
+ * channel's {pointsname}. Bare is the caller, a payload names somebody else,
+ * and the preview shows the same stand-in either way: the number chat sees
+ * depends on who runs the command, which is exactly what a preview cannot
+ * know.
+ *
+ * It is mounted unconditionally here, as COUNTER_SCOPE already is, and for
+ * the same reason: the surfaces that rehearse a template pass a response and
+ * nothing else, so there is no module state to gate on. In chat the engine
+ * mounts each family only while its module is on (Followage, Account age,
+ * Loyalty Points), and an off module leaves its spans literal — so a
+ * broadcaster with one of them off sees a token here that stays visible
+ * there. The guide and the chip hints say so; a rehearsal that took module
+ * state would have to be threaded through every caller to say it in one more
+ * place.
+ *
+ * A span that addresses nobody ({points:}) or a currency name handed a viewer
+ * ({pointsname:bob}) stays literal, matching refOf in the Go scope. */
+const VIEWER_SAMPLES: Samples = {
+  followage: FOLLOWAGE_SAMPLE,
+  accountage: ACCOUNTAGE_SAMPLE,
+  points: POINTS_SAMPLE,
+  watchtime: WATCHTIME_SAMPLE
+};
+
+const VIEWER_SCOPE: SampleScope = {
+  owns: (name) => name in VIEWER_SAMPLES || name === 'pointsname',
+  get: viewerSample
+};
+
+function viewerSample(token: Token): string | null {
+  if (token.name === 'pointsname') return token.payload === null ? POINTS_NAME_SAMPLE : null;
+  // A payload is the named-viewer form; an empty one names nobody, exactly as
+  // an empty login does in the engine.
+  if (token.payload !== null && token.payload.trim().replace(/^@/, '') === '') return null;
+  return VIEWER_SAMPLES[token.name];
 }
 
 /** scope.Store's mirror: {counter:<name>} bumps and renders the counter. The

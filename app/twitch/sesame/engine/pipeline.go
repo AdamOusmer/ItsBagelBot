@@ -85,7 +85,14 @@ type Pipeline struct {
 	uses     *useReporter
 	loyalty  LoyaltyStore
 	dedup    *EventDedup
-	stats    *botStats
+	// followage and accountAge are the cached viewer readers behind
+	// !followage / !accountage; the {followage} and {accountage} response
+	// tokens resolve through the very same instances, so a token and the
+	// command share one cache instead of racing two. nil leaves those tokens
+	// literal.
+	followage  FollowageLookup
+	accountAge AccountAgeLookup
+	stats      *botStats
 	// customFetch resolves {urlfetch:...} response tokens through gossip's
 	// custom.fetch endpoint. nil leaves them visible (unknown-token convention).
 	customFetch UrlFetchCaller
@@ -145,6 +152,8 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 		cooldown:          d.Cooldown,
 		loyalty:           d.Loyalty,
 		dedup:             d.Dedup,
+		followage:         d.Followage,
+		accountAge:        d.AccountAge,
 		customFetch:       d.CustomFetch,
 		botID:             cfg.BotID,
 		outgressPremium:   cfg.OutgressPremium,

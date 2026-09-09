@@ -231,6 +231,33 @@ describe('scope chain (engine/scope mirror)', () => {
   });
 });
 
+describe('viewer scope (engine/scope/viewer.go mirror)', () => {
+  test('the viewer lookups preview with a stand-in', () => {
+    const [line] = rehearseCommand('{followage} / {accountage} / {points} {pointsname} / {watchtime}');
+    expect(textOf(line.segments)).toBe('3 months / 4 years, 2 months / 1280 bagels / 2 hours, 30 minutes');
+    expect(line.segments.every((seg) => seg.kind !== 'unknown')).toBe(true);
+  });
+
+  test('a named viewer previews the same stand-in as the bare form', () => {
+    // The preview cannot know whose balance chat will see, so both spellings
+    // show one plausible answer rather than inventing a second number.
+    const [line] = rehearseCommand('{points:alex} vs {points}');
+    expect(textOf(line.segments)).toBe('1280 vs 1280');
+  });
+
+  test('a span that addresses nobody stays literal, like refOf', () => {
+    for (const span of ['{points:}', '{followage:}', '{pointsname:alex}']) {
+      const [line] = rehearseCommand(span);
+      expect(line.segments).toEqual([{ text: span, kind: 'unknown' }]);
+    }
+  });
+
+  test('the message scope still answers first for the names it owns', () => {
+    const [line] = rehearseCommand('{user} has {points}');
+    expect(textOf(line.segments)).toBe('sesame_sam has 1280');
+  });
+});
+
 describe('rehearseReply', () => {
   test('substitutes only the given samples; command tokens stay unknown', () => {
     const [line] = rehearseReply('{user} {args}', { user: 'sam' });

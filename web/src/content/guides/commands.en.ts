@@ -12,12 +12,12 @@ const guide: GuideContent = {
     eyebrow: 'Guide',
     heading: 'Commands & variables',
     lead: 'Commands that greet people by name, roll dice, and count your wins. No code: just braces.',
-    minutes: '11 min read',
+    minutes: '12 min read',
     card: {
       title: 'Commands & variables',
       description:
         'Build commands that greet people by name, roll dice, and count wins. Every variable the bot understands, explained with live-looking chat examples.',
-      meta: '11 min · 9 steps',
+      meta: '12 min · 10 steps',
       chips: ['{user}', '{random}', '{counter:…}', '!cmd'],
     },
   },
@@ -315,6 +315,59 @@ const guide: GuideContent = {
                 rather than the number and comes back empty. Anything these cannot work out comes
                 back empty too, which is exactly when a default earns its keep:
                 <code>&#123;math:1/0|no idea&#125;</code>.`,
+        },
+      ],
+    },
+    {
+      id: 'viewer',
+      heading: 'What the bot already knows about a viewer',
+      note: 'Follow age, account age and loyalty points, dropped into a sentence of your own.',
+      blocks: [
+        {
+          kind: 'prose',
+          html: `
+            <p>
+                The bot already answers <code>!followage</code>, <code>!accountage</code> and
+                <code>!points</code>. These variables hand you the same answers as a piece of text, so
+                you can wrap them in your own sentence instead of sending the built-in one. Each looks
+                up whoever ran the command; add a name after a colon to ask about somebody else.
+            </p>`,
+        },
+        {
+          kind: 'table',
+          head: ['Variable', 'Becomes', 'Example'],
+          rows: [
+            ['<code>&#123;followage&#125;</code>', 'How long the viewer has followed you, worded exactly as <code>!followage</code> says it. <code>&#123;followage:alex&#125;</code> asks about someone else. Somebody who does not follow comes back empty, and so does the broadcaster, who cannot follow their own channel.', '3 months'],
+            ['<code>&#123;accountage&#125;</code>', 'How old their Twitch account is. <code>&#123;accountage:alex&#125;</code> asks about someone else.', '4 years, 2 months'],
+            ['<code>&#123;points&#125;</code>', 'Their points balance. <code>&#123;points:alex&#125;</code> shows somebody else, as long as your channel has seen them speak. It only reads: no command can hand points out this way.', '1280'],
+            ['<code>&#123;pointsname&#125;</code>', 'Whatever you named your points, so one response reads right whether yours are called points or bagels.', 'bagels'],
+            ['<code>&#123;watchtime&#125;</code>', 'How long they have watched while the loyalty clock was running, in the same words as <code>!uptime</code>. <code>&#123;watchtime:alex&#125;</code> asks about someone else.', '2 hours, 30 minutes'],
+          ],
+        },
+        {
+          kind: 'chat',
+          title: '#your_channel',
+          caption: 'One command that says three things the bot already knew.',
+          lines: [
+            { who: 'viewer', name: 'maya_live', text: '!me' },
+            { who: 'bot', text: 'maya_live: following 3 months, 1280 bagels, 2 hours, 30 minutes watched 🥯' },
+            { who: 'viewer', name: 'maya_live', text: '!me alex' },
+            { who: 'bot', text: 'alex: following 1 year, 2 months, 340 bagels, 12 hours watched 🥯' },
+          ],
+        },
+        {
+          kind: 'callout',
+          tone: 'warn',
+          html: `
+                <b>Each one needs its module switched on</b>
+                <code>&#123;followage&#125;</code> needs the Followage module,
+                <code>&#123;accountage&#125;</code> the Account age module, and the three points
+                variables the Loyalty Points module. With the module off the bot leaves the variable
+                in the message exactly as you typed it, braces and all, so if chat is reading
+                <code>&#123;points&#125;</code> back at you, that is the switch to check. When the
+                module is on but there is nothing to say (a viewer who does not follow, somebody your
+                channel has never seen speak), the variable comes back empty, which is what a default
+                is for: <code>&#123;followage|not yet&#125;</code>.`,
         },
       ],
     },

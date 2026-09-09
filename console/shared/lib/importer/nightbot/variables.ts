@@ -32,7 +32,14 @@
 //
 // $(count) mutates (increments, then returns) while {counter:*} only reads, so
 // translating it would silently drop the increment, a behavior change, not a
-// translation. $(countdown …) stays literal for a narrower reason: this bot
+// translation. The viewer lookups this bot grew ({followage}, {accountage},
+// {points}) have no counterpart to map here either: Nightbot spells follow age
+// as $(twitch $(touser) "…{{followed}}…"), a format-string call whose interior
+// is a template of its own rather than a variable, and it has no points
+// variable at all (its loyalty lives outside the command language). Inventing
+// a mapping from a format string would translate a sentence into a token and
+// silently drop everything the broadcaster wrote around it.
+// $(countdown …) stays literal for a narrower reason: this bot
 // has a {countdown:…}, but Nightbot's takes a free-form date string
 // ("Dec 25 2026 12:00:00 PST") that {countdown:…} does not read, so the
 // translation would produce a token that renders empty in chat. A warning the
