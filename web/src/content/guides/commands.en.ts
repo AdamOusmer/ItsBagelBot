@@ -616,6 +616,17 @@ const guide: GuideContent = {
             { who: 'bot', text: 'grinding at Ascendant 2 (51 RR) - peak was Immortal 1 🥯' },
           ],
         },
+        {
+          kind: 'table',
+          head: ['Variable', 'Becomes', 'Example'],
+          rows: [
+            ['<code>&#123;fn.wins&#125;</code>', 'Your all-time Fortnite wins.', '482'],
+            ['<code>&#123;fn.kd&#125;</code>', 'Kills per death, all time.', '2.83'],
+            ['<code>&#123;fn.matches&#125;</code>', 'Matches played.', '7310'],
+            ['<code>&#123;fn.player&#125;</code>', 'The account the answer is about.', 'bagel_bakery'],
+            ['Also', '<code>&#123;fn.kills&#125;</code>, <code>&#123;fn.winrate&#125;</code>, <code>&#123;fn.window&#125;</code>, and the same numbers per mode: <code>&#123;fn.solowins&#125;</code>, <code>&#123;fn.solomatches&#125;</code>, <code>&#123;fn.solokd&#125;</code>, and the <code>duo</code> and <code>squad</code> spellings of all three.', 'Needs the Fortnite module'],
+          ],
+        },
       ],
     },
     {

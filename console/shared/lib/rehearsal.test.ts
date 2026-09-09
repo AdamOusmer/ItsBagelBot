@@ -319,6 +319,12 @@ describe('game-stat scope (engine/scope/games.go mirror)', () => {
     expect(textOf(line.segments)).toBe('Ascendant 2 vs Ascendant 2');
   });
 
+  test('the Fortnite family previews with a stand-in', () => {
+    const [line] = rehearseCommand('{fn.wins} wins, {fn.kd} K/D over {fn.matches} matches');
+    expect(textOf(line.segments)).toBe('482 wins, 2.83 K/D over 7310 matches');
+    expect(line.segments.every((seg) => seg.kind !== 'unknown')).toBe(true);
+  });
+
   test('an unknown field under a known prefix stays literal', () => {
     const [line] = rehearseCommand('{val.teir}');
     expect(line.segments).toEqual([{ text: '{val.teir}', kind: 'unknown' }]);

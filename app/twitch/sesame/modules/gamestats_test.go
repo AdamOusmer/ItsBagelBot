@@ -124,3 +124,43 @@ func TestGameFamilyReportsAFailedLookupAsNothing(t *testing.T) {
 	assert.False(t, found)
 	assert.Nil(t, palette)
 }
+
+// The {fn.…} family is !fnstats's own palette over the all-time window, asked
+// for with the platform namespace the linked account lives in.
+func TestFnFamilyMirrorsTheStatsPalette(t *testing.T) {
+	spec := familyByPrefix(t, fnTokenPrefix)
+
+	assert.Equal(t, fortniteModuleName, spec.Module)
+	assert.Equal(t, paletteFields(fortniteStatsTokens()), spec.Fields)
+	assert.Contains(t, spec.Fields, "kd")
+	assert.Contains(t, spec.Fields, "wins")
+}
+
+func TestFnFamilyRendersTheCommandsValues(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{"fortnite.stats": fortniteStatsReply()}}
+	palette, found := lookOne(t, familyByPrefix(t, fnTokenPrefix),
+		gameMount(gw, `{"account":"Ninja","accountType":"epic"}`), "")
+
+	require.True(t, found)
+	assert.Equal(t, "Ninja", palette["player"])
+	assert.Equal(t, "301", palette["wins"])
+	assert.Equal(t, "3.66", palette["kd"])
+	assert.Equal(t, "4.1", palette["squadkd"])
+
+	call := gw.lastCall(t)
+	assert.Equal(t, "Ninja", call.req.Account)
+	assert.Equal(t, "epic", call.req.AccountType)
+	assert.Equal(t, fortniteLifetimeWindow, call.req.TimeWindow,
+		"a token outlives a season, so it reads the all-time window")
+}
+
+// Fortnite is name-keyed: a stored uuid must never be substituted for the
+// linked name, exactly as !fnstats does not substitute one.
+func TestFnFamilyKeepsTheLinkedName(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{"fortnite.stats": fortniteStatsReply()}}
+	_, found := lookOne(t, familyByPrefix(t, fnTokenPrefix),
+		gameMount(gw, `{"account":"Ninja","accountUuid":"0123456789abcdef"}`), "")
+
+	require.True(t, found)
+	assert.Equal(t, "Ninja", gw.lastCall(t).req.Account)
+}

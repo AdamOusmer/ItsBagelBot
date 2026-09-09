@@ -752,6 +752,7 @@
     "tokGame": "la catégorie que vous diffusez, ou {game:quelquun} pour une autre chaîne (interrupteur !game)",
     "tokChannelViewers": "combien de personnes regardent en ce moment, 0 hors ligne",
     "tokVal": "votre rang Valorant, avec {val.rr} {val.peaktier} {val.player} et d’autres (Valorant)",
+    "tokFn": "votre ratio E/M Fortnite de toujours, avec {fn.wins} {fn.kills} {fn.matches} et d’autres (Fortnite)",
     "fallbackHint": "Ajoutez | et du texte dans n’importe quelle variable pour une valeur par défaut quand elle revient vide: {touser|tout le monde}.",
     "access": "Accès",
     "cooldownS": "Délai (s)",

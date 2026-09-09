@@ -222,6 +222,30 @@ const VAL_SAMPLES: Samples = {
   'val.placement': '0'
 };
 
+/** Stand-ins for the Fortnite family (scope.Games, the {fn.…} prefix):
+ * !fnstats's own palette, over the all-time window the token reads. The
+ * overall numbers and the three per-mode breakdowns are one consistent player
+ * rather than three unrelated sets, so a preview that prints several of them
+ * side by side adds up. */
+const FN_SAMPLES: Samples = {
+  'fn.player': 'bagel_bakery',
+  'fn.window': 'lifetime',
+  'fn.wins': '482',
+  'fn.matches': '7310',
+  'fn.kills': '19204',
+  'fn.kd': '2.83',
+  'fn.winrate': '6.59',
+  'fn.solowins': '164',
+  'fn.solomatches': '2405',
+  'fn.solokd': '2.61',
+  'fn.duowins': '151',
+  'fn.duomatches': '2288',
+  'fn.duokd': '2.90',
+  'fn.squadwins': '167',
+  'fn.squadmatches': '2617',
+  'fn.squadkd': '2.97'
+};
+
 /** Rehearse a custom command response: expand, split into messages, then
  * route each line's leading slash-verb (the same order as emitResponse).
  * (Expansion per line equals whole-template expansion: no token value can
@@ -629,7 +653,8 @@ function counterSample(token: Token): string | null {
  * it would show a broadcaster a blank they cannot explain from the text they
  * typed. */
 const GAME_SAMPLES: Samples = {
-  ...VAL_SAMPLES
+  ...VAL_SAMPLES,
+  ...FN_SAMPLES
 };
 
 const GAME_SCOPE: SampleScope = {

@@ -83,7 +83,8 @@
     // points at the guide for the rest: listing every field of every game
     // here would be a hundred chips over a text box. Each is gated by its own
     // opt-in module, like the module facts above.
-    { token: '{val.tier}', hint: 'commandEditor.tokVal' }
+    { token: '{val.tier}', hint: 'commandEditor.tokVal' },
+    { token: '{fn.kd}', hint: 'commandEditor.tokFn' }
   ];
 
   let {

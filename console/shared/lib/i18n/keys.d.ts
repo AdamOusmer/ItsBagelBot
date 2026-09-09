@@ -705,6 +705,7 @@ export type KnownMessageKey =
   | 'commandEditor.tokCountdown'
   | 'commandEditor.tokCounter'
   | 'commandEditor.tokCountup'
+  | 'commandEditor.tokFn'
   | 'commandEditor.tokFollowage'
   | 'commandEditor.tokGame'
   | 'commandEditor.tokMath'

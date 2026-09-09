@@ -40,6 +40,7 @@ import (
 func GameFamilies() []engine.GameFamilySpec {
 	return []engine.GameFamilySpec{
 		valFamily(),
+		fnFamily(),
 	}
 }
 

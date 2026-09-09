@@ -88,13 +88,13 @@ type fortniteConfig struct {
 // keyed by this channel — so "this stream" is exactly the live session.
 func Fortnite(d engine.Deps) module.Module {
 	statsRun := fortniteStatsRun(d, fortniteStatsCommand{
-		window:   "lifetime",
+		window:   fortniteLifetimeWindow,
 		enabled:  func(c fortniteConfig) string { return c.StatsEnabled },
 		message:  func(c fortniteConfig) string { return c.StatsMessage },
 		fallback: defaultFortniteStatsTemplate,
 	})
 	seasonRun := fortniteStatsRun(d, fortniteStatsCommand{
-		window:   "season",
+		window:   fortniteSeasonWindow,
 		enabled:  func(c fortniteConfig) string { return c.SeasonEnabled },
 		message:  func(c fortniteConfig) string { return c.SeasonMessage },
 		fallback: defaultFortniteSeasonTemplate,
@@ -142,6 +142,14 @@ func fortniteSnapshotRequest(c *module.Context, cfg fortniteConfig, channelID st
 	account := resolveAccount(accountSources{Linked: cfg.Account, BroadcasterLogin: c.Env.BroadcasterUserLogin})
 	return gossiprpc.Request{Account: account, AccountType: cfg.AccountType, ChannelID: channelID, IsPremium: c.Regress.IsPremium()}
 }
+
+// The two windows the stats endpoint answers over. Named because the token
+// family asks for one of them too, and a third spelling of "lifetime" would be
+// a token that quietly reports a season.
+const (
+	fortniteLifetimeWindow = "lifetime"
+	fortniteSeasonWindow   = "season"
+)
 
 // fortniteStatsCommand names one stats command's wiring: the fixed window it
 // queries and where its toggle and template live in the config blob.
@@ -193,15 +201,46 @@ func fortniteStatsRun(d engine.Deps, cmd fortniteStatsCommand) module.RunFunc {
 	}.handler(d)
 	// The shared account request carries no platform namespace or window, and
 	// both are per-command wiring rather than something a viewer types.
-	h.request = func(call statsCall[fortniteConfig], subject statsSubject) gossiprpc.Request {
+	h.request = fortniteStatsRequest(cmd.window)
+	return h.run
+}
+
+// fortniteStatsRequest builds a stats lookup over one fixed window: the
+// resolved account, the platform namespace the linked account lives in, and the
+// window itself. Shared with the {fn.…} token family, so a token and !fnstats
+// ask the upstream the same question and ride the same cached answer.
+func fortniteStatsRequest(window string) func(statsCall[fortniteConfig], statsSubject) gossiprpc.Request {
+	return func(call statsCall[fortniteConfig], subject statsSubject) gossiprpc.Request {
 		return gossiprpc.Request{
 			Account:     subject.Account,
 			AccountType: call.Cfg.AccountType,
-			TimeWindow:  cmd.window,
+			TimeWindow:  window,
 			IsPremium:   call.Ctx.Regress.IsPremium(),
 		}
 	}
-	return h.run
+}
+
+// fnTokenPrefix spells the {fn.…} custom-command token family.
+const fnTokenPrefix = "fn."
+
+// fnFamily is the {fn.…} custom-command token family: !fnstats's palette, under
+// a prefix, over the all-time window.
+//
+// All-time and not the season, because a token is written once into a sentence
+// that outlives a season: "{fn.wins} wins" stays true in January where a season
+// reading would silently start over. A broadcaster who wants the season has
+// !fnseason, whose whole line is the answer. The session view is not here at
+// all: its baseline is filed per channel against the linked account, so a
+// payload naming somebody else would diff their numbers against the streamer's
+// snapshot.
+//
+// Fortnite is name-keyed (never a stored uuid), so the family passes
+// preferUUID=false for the reason !fnstats passes preferName.
+func fnFamily() engine.GameFamilySpec {
+	family := linkedGameFamily[fortniteConfig](
+		fnTokenPrefix, fortniteModuleName, fortniteRoute("stats"), fortniteStatsTokens(), false)
+	family.request = fortniteStatsRequest(fortniteLifetimeWindow)
+	return family.spec()
 }
 
 // fortniteRoute names one Fortnite gossip endpoint.
