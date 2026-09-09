@@ -23,6 +23,12 @@ const dashboardQuery = lang === defaultLang ? '' : `?lang=${lang}`;
 // The game trademark notices live in the Terms of Service (11-third-party).
 const [ownerBefore, ownerAfter = ''] = t('about.line1').split('{ign}');
 const [keyBefore, keyAfter = ''] = t('about.mcLine').split('{ign}');
+
+// Landing page only: the colophon is the homepage's sign-off, not sitewide
+// chrome. Trailing slashes normalized because localizePath always emits one
+// and Astro serves both shapes.
+const normalize = (p: string) => (p.endsWith('/') ? p : `${p}/`);
+const isHome = normalize(Astro.url.pathname) === localizePath('/', lang);
 ---
 
 {/* Deliberately NOT gated behind data-reveal: every revealed block starts at
@@ -31,7 +37,7 @@ const [keyBefore, keyAfter = ''] = t('about.mcLine').split('{ign}');
     visible text. A reviewer with JS off has to find ItsMavey here, so this
     stays statically visible. The id stays "about": it is the ownership
     colophon; tests/site.spec.js scans #about for the NameMC links. */}
-<section class="colophon">
+{isHome && <section class="colophon">
     <div class="colophon__owner" id="about">
         <p>{ownerBefore}<a
             class="colophon__ign"
@@ -46,7 +52,7 @@ const [keyBefore, keyAfter = ''] = t('about.mcLine').split('{ign}');
             rel="noopener noreferrer"
         >{OWNER_IGN}</a>{keyAfter}</p>
     </div>
-</section>
+</section>}
 
 <footer>
     <div class="signoff" data-reveal>

@@ -383,5 +383,6 @@
   "error.500.desc": "Un plateau s'est renversé en coulisses. Laissez-nous un instant, puis réessayez la page.",
   "error.500.action": "Retour en terrain sûr",
   "skip.toContent": "Aller au contenu",
-  "games.legalTermsLabel": "Conditions d'utilisation"
+  "games.legalTermsLabel": "Conditions d'utilisation",
+  "eco.ch": "éco · veille"
 }
