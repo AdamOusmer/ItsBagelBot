@@ -6,6 +6,7 @@ package discordoutgress
 import (
 	"ItsBagelBot/internal/discordapi"
 	ddiscord "ItsBagelBot/internal/domain/discord"
+	"ItsBagelBot/internal/domain/rpc"
 )
 
 // The ticket desk's orchestrations. They live here, rather than as a
@@ -47,10 +48,10 @@ type TicketOpenRequest struct {
 // non-empty ChannelID with an Error set means the channel exists but the card
 // does not: the caller must still record (or roll back) the channel.
 type TicketOpenReply struct {
-	ChannelID string `json:"channel_id,omitempty"`
-	MessageID string `json:"message_id,omitempty"`
-	Error     string `json:"error,omitempty"`
-	Code      string `json:"code,omitempty"`
+	ChannelID string   `json:"channel_id,omitempty"`
+	MessageID string   `json:"message_id,omitempty"`
+	Error     string   `json:"error,omitempty"`
+	Code      rpc.Code `json:"code,omitempty"`
 }
 
 // TicketClaimRequest is bagel.rpc.discord-outgress.ticket.claim: edit the
@@ -68,8 +69,8 @@ type TicketClaimRequest struct {
 }
 
 type TicketClaimReply struct {
-	Error string `json:"error,omitempty"`
-	Code  string `json:"code,omitempty"`
+	Error string   `json:"error,omitempty"`
+	Code  rpc.Code `json:"code,omitempty"`
 }
 
 // TicketCloseSummary is what the close card says, minus the message count,
@@ -117,10 +118,10 @@ type TicketCloseReply struct {
 	// because the message cap tripped or a page of history failed. It travels
 	// to the ticket row so a reader of the stored transcript knows the same
 	// thing the person reading the attached file does.
-	Truncated         bool   `json:"truncated,omitempty"`
-	ArchivedChannelID string `json:"archived_channel_id,omitempty"`
-	Error             string `json:"error,omitempty"`
-	Code              string `json:"code,omitempty"`
+	Truncated         bool     `json:"truncated,omitempty"`
+	ArchivedChannelID string   `json:"archived_channel_id,omitempty"`
+	Error             string   `json:"error,omitempty"`
+	Code              rpc.Code `json:"code,omitempty"`
 }
 
 // TicketMemberAddRequest is bagel.rpc.discord-outgress.ticket.add: grant one
@@ -135,8 +136,8 @@ type TicketMemberAddRequest struct {
 }
 
 type TicketMemberAddReply struct {
-	Error string `json:"error,omitempty"`
-	Code  string `json:"code,omitempty"`
+	Error string   `json:"error,omitempty"`
+	Code  rpc.Code `json:"code,omitempty"`
 }
 
 // TicketPanelRequest is bagel.rpc.discord-outgress.ticket.panel: post the
@@ -156,7 +157,7 @@ type TicketPanelRequest struct {
 
 // TicketPanelReply carries the posted panel's id, or the reason there is none.
 type TicketPanelReply struct {
-	MessageID string `json:"message_id,omitempty"`
-	Error     string `json:"error,omitempty"`
-	Code      string `json:"code,omitempty"`
+	MessageID string   `json:"message_id,omitempty"`
+	Error     string   `json:"error,omitempty"`
+	Code      rpc.Code `json:"code,omitempty"`
 }

@@ -3,7 +3,10 @@
 
 package outgress
 
-import ddiscord "ItsBagelBot/internal/domain/discord"
+import (
+	ddiscord "ItsBagelBot/internal/domain/discord"
+	"ItsBagelBot/internal/domain/rpc"
+)
 
 // Reply codes. Every dashboard-facing Discord reply carries one next to its
 // human-readable Error, because the console used to branch on substrings of
@@ -13,6 +16,14 @@ import ddiscord "ItsBagelBot/internal/domain/discord"
 // release so an older console keeps working; new branching switches on the
 // code.
 //
+// The generic half of this set is the shared vocabulary in
+// internal/domain/rpc, aliased rather than re-declared: these were plain
+// string constants spelling "invalid", "conflict" and "forbidden" a second
+// time, and two spellings of one wire value is how a service drifts from the
+// code the console switches on. The Discord-specific half stays declared
+// here, typed rpc.Code, because the distinctions it names (which Discord
+// failure this was) are not ones every service in the fleet has.
+//
 // Every Code field is serialized WITHOUT omitempty, deliberately. CodeOK is
 // the empty string, so omitempty dropped the field entirely on the success
 // path and the console could not tell "this service sends codes and nothing
@@ -20,27 +31,15 @@ import ddiscord "ItsBagelBot/internal/domain/discord"
 // exact ambiguity codes were added to remove. The four bytes are worth it.
 const (
 	// CodeOK is the empty code an untroubled reply carries.
-	CodeOK = ""
-	// CodeBoundElsewhere: the guild belongs to a different broadcaster.
-	CodeBoundElsewhere = "bound_elsewhere"
-	// CodeNotBound: no binding exists yet for this guild.
-	CodeNotBound = "not_bound"
-	// CodeDiscordUnavailable: outgress has no usable Discord client, or
-	// Discord itself failed in a way a retry might fix.
-	CodeDiscordUnavailable = "discord_unavailable"
+	CodeOK = rpc.CodeOK
 	// CodeForbidden: Discord refused the call (missing permissions).
-	CodeForbidden = "forbidden"
-	// CodeRateLimited: Discord's 429. The dashboard asks the user to wait.
-	CodeRateLimited = "rate_limited"
+	CodeForbidden = rpc.CodeForbidden
 	// CodeInvalid: the request itself was malformed.
-	CodeInvalid = "invalid"
+	CodeInvalid = rpc.CodeInvalid
 	// CodeNotFound: Discord answered 404 for the channel the call named --
 	// deleted, or never in this guild. Distinct from CodeInvalid because
 	// nothing about the request is wrong; the world changed underneath it.
-	CodeNotFound = "not_found"
-	// CodeTimeout: the handler ran out of time before Discord answered.
-	// The console retries this one; it does not retry a refusal.
-	CodeTimeout = "timeout"
+	CodeNotFound = rpc.CodeNotFound
 	// CodeConflict: the stored settings moved on since the caller read
 	// them, so the write was refused rather than applied over someone
 	// else's. The dashboard reloads instead of retrying the same body.
@@ -49,12 +48,38 @@ const (
 	// one. Two names for one wire value is how the console ends up
 	// switching on a constant the service stopped sending, so the sets were
 	// folded into this one and the missing code added.
-	CodeConflict = "conflict"
+	CodeConflict = rpc.CodeConflict
+
+	// CodeBoundElsewhere: the guild belongs to a different broadcaster.
+	CodeBoundElsewhere rpc.Code = "bound_elsewhere"
+	// CodeNotBound: no binding exists yet for this guild.
+	CodeNotBound rpc.Code = "not_bound"
+	// CodeDiscordUnavailable: outgress has no usable Discord client, or
+	// Discord itself failed in a way a retry might fix. Not the shared
+	// CodeUnavailable: the console renders this one as "Discord is having
+	// trouble", which is a different sentence from a generic dependency
+	// being slow, and it is the only one of the two it can act on.
+	CodeDiscordUnavailable rpc.Code = "discord_unavailable"
+	// CodeRateLimited: Discord's 429. The dashboard asks the user to wait.
+	CodeRateLimited rpc.Code = "rate_limited"
+	// CodeTimeout: the handler ran out of time before Discord answered.
+	// The console retries this one; it does not retry a refusal.
+	//
+	// Kept as its own value rather than folded into the shared
+	// CodeUnavailable: the console's DISCORD_CODES set (see
+	// console/dashboard/src/lib/server/discord-store.ts) lists "timeout"
+	// and maps it to its own message key, and a code outside that set reads
+	// as the empty code, which the page renders as success. Renaming the
+	// wire value would therefore turn a timed-out setup into a silent
+	// "worked". Rejected for the sake of one fewer constant.
+	CodeTimeout rpc.Code = "timeout"
 	// CodeUnknown: the call failed and nothing above classified it. This
 	// exists so a non-empty Error can never travel with an empty Code: the
 	// console reads "" as success, so an unclassified failure carrying ""
-	// was silently rendered as one.
-	CodeUnknown = "unknown"
+	// was silently rendered as one. Spelled "unknown" rather than the
+	// shared CodeInternal for the same reason CodeTimeout is not
+	// CodeUnavailable -- the console only knows this spelling.
+	CodeUnknown rpc.Code = "unknown"
 )
 
 // DiscordSetupRequest is bagel.rpc.dingress.discord.setup. UserID is the
@@ -126,7 +151,7 @@ type DiscordSetupReply struct {
 	// with `code,omitempty`; the shared const block above already carries
 	// CodeInvalid, and the no-omitempty rule documented there wins -- a
 	// dropped "code" on success is the ambiguity codes exist to remove.
-	Code string `json:"code"`
+	Code rpc.Code `json:"code"`
 }
 
 // DiscordLayoutRequest is bagel.rpc.dingress.discord.layout: the guild's
@@ -178,9 +203,9 @@ type DiscordLayoutReply struct {
 	// avatar still applies. Discord freezes a bot's permissions at install,
 	// so the only fix is the streamer re-authorizing; the dashboard shows
 	// the prompt, and it clears itself the first time a rename succeeds.
-	NeedsReauth bool   `json:"needs_reauth,omitempty"`
-	Error       string `json:"error,omitempty"`
-	Code        string `json:"code"`
+	NeedsReauth bool     `json:"needs_reauth,omitempty"`
+	Error       string   `json:"error,omitempty"`
+	Code        rpc.Code `json:"code"`
 }
 
 // DiscordUnbindRequest is bagel.rpc.dingress.discord.unbind: drop the
@@ -192,8 +217,8 @@ type DiscordUnbindRequest struct {
 }
 
 type DiscordUnbindReply struct {
-	Error string `json:"error,omitempty"`
-	Code  string `json:"code"`
+	Error string   `json:"error,omitempty"`
+	Code  rpc.Code `json:"code"`
 }
 
 // DiscordPostRequest is bagel.rpc.dingress.discord.post: Bagel's own
@@ -204,8 +229,8 @@ type DiscordPostRequest struct {
 }
 
 type DiscordPostReply struct {
-	Error string `json:"error,omitempty"`
-	Code  string `json:"code"`
+	Error string   `json:"error,omitempty"`
+	Code  rpc.Code `json:"code"`
 }
 
 // DiscordStatusRequest is bagel.rpc.dingress.discord.status: is the bot
@@ -247,8 +272,8 @@ type DiscordStatusReply struct {
 	AtCeiling        bool  `json:"at_ceiling,omitempty"`
 	ParkUntilUnixMS  int64 `json:"park_until_unix_ms,omitempty"`
 
-	Error string `json:"error,omitempty"`
-	Code  string `json:"code"`
+	Error string   `json:"error,omitempty"`
+	Code  rpc.Code `json:"code"`
 }
 
 // DiscordConfigGetRequest is bagel.rpc.dingress.discord.config.get: one
@@ -266,7 +291,7 @@ type DiscordConfigGetReply struct {
 	Config  ddiscord.Config `json:"config"`
 	Version int             `json:"version"`
 	Found   bool            `json:"found"`
-	Code    string          `json:"code"`
+	Code    rpc.Code        `json:"code"`
 	Error   string          `json:"error,omitempty"`
 }
 
@@ -286,7 +311,7 @@ type DiscordConfigSetRequest struct {
 type DiscordConfigSetReply struct {
 	Version int      `json:"version"`
 	Fields  []string `json:"fields,omitempty"`
-	Code    string   `json:"code"`
+	Code    rpc.Code `json:"code"`
 	Error   string   `json:"error,omitempty"`
 }
 
@@ -304,9 +329,9 @@ type DiscordGuildsListReply struct {
 	// twenty-six servers sees twenty-five and no sign the list is short,
 	// which reads as "Bagel lost my server" rather than "this page shows the
 	// first twenty-five".
-	Truncated bool   `json:"truncated,omitempty"`
-	Code      string `json:"code"`
-	Error     string `json:"error,omitempty"`
+	Truncated bool     `json:"truncated,omitempty"`
+	Code      rpc.Code `json:"code"`
+	Error     string   `json:"error,omitempty"`
 }
 
 // DiscordGuildEntry is one connected server as the picker shows it.
@@ -390,5 +415,5 @@ type DiscordDeskRepostReply struct {
 	// shipped with omitempty, so a successful repost sent no "code" key at
 	// all and the console's replyCode fell through to matching the English
 	// error text -- the exact behaviour codes replaced.
-	Code string `json:"code"`
+	Code rpc.Code `json:"code"`
 }

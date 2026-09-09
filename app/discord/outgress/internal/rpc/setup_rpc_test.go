@@ -4,6 +4,7 @@
 package rpc
 
 import (
+	"ItsBagelBot/internal/domain/rpc"
 	"context"
 	"errors"
 	"fmt"
@@ -214,7 +215,7 @@ func TestHandleLayoutSurvivesAFailedGuildLookup(t *testing.T) {
 func TestCodeForMapsEveryDashboardFailure(t *testing.T) {
 	cases := []struct {
 		err  error
-		want string
+		want rpc.Code
 	}{
 		{nil, outgressrpc.CodeOK},
 		{setup.ErrGuildNotBound, outgressrpc.CodeNotBound},

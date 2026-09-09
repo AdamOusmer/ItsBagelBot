@@ -10,6 +10,7 @@
 package rpc
 
 import (
+	"ItsBagelBot/internal/domain/rpc"
 	"context"
 	"errors"
 	"strings"
@@ -172,7 +173,7 @@ type botStatusReader interface {
 // Split across three helpers by the layer the error comes from, not to
 // shorten the list: a single switch over ten cases trips CodeScene's
 // cyclomatic limit, and the next code added would have to split it anyway.
-func codeFor(err error) string {
+func codeFor(err error) rpc.Code {
 	switch {
 	case err == nil:
 		return outgressrpc.CodeOK
@@ -192,7 +193,7 @@ func codeFor(err error) string {
 
 // bindingCode classifies the errors setup raises about the guild-to-
 // broadcaster binding itself. "" means "not one of mine".
-func bindingCode(err error) string {
+func bindingCode(err error) rpc.Code {
 	switch {
 	case errors.Is(err, setup.ErrGuildNotBound), errors.Is(err, setup.ErrNotBound),
 		errors.Is(err, discordstore.ErrNotBound):
@@ -212,7 +213,7 @@ func bindingCode(err error) string {
 
 // discordCode classifies what the Discord REST client reports. "" means
 // "not one of mine".
-func discordCode(err error) string {
+func discordCode(err error) rpc.Code {
 	switch {
 	case errors.Is(err, setup.ErrDiscordUnavailable), errors.Is(err, discapi.ErrAuth):
 		return outgressrpc.CodeDiscordUnavailable
@@ -588,7 +589,7 @@ func (d *discordRPC) guildEntries(ctx context.Context, guilds []setup.GuildSumma
 // console to offer a retry for faults no retry fixes). One classifier now
 // serves both surfaces; the store-layer errors it knew about moved into
 // bindingCode, unavailability included.
-func discordFailure(err error) (string, string) {
+func discordFailure(err error) (string, rpc.Code) {
 	if err == nil {
 		return "", outgressrpc.CodeOK
 	}
