@@ -1,43 +1,62 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+  // The staff roster on the shared deck + inspector. One inspector serves both
+  // "add a member" and "edit a member": they differ only in whether the Twitch
+  // id is already known, and the previous page's separate add-card duplicated
+  // the role picker and its grantable-role rule.
+  //
+  // No client-side last-owner rule. The users service owns that invariant and
+  // answers with its own refusal; surfacing the server's message is the only
+  // way the console cannot disagree with it about who the last owner is.
+  import { untrack } from 'svelte';
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
+  import PageHead from '@bagel/shared/components/PageHead.svelte';
+  import PageToolbar from '@bagel/shared/components/PageToolbar.svelte';
+  import DeckList from '@bagel/shared/components/DeckList.svelte';
+  import InspectorSurface from '@bagel/shared/components/InspectorSurface.svelte';
+  import AlertBanner from '@bagel/shared/components/AlertBanner.svelte';
+  import EmptyState from '@bagel/shared/components/EmptyState.svelte';
+  import ConfirmDialog from '@bagel/shared/components/ConfirmDialog.svelte';
+  import SkeletonStack from '@bagel/shared/components/SkeletonStack.svelte';
+  import Skeleton from '@bagel/shared/components/Skeleton.svelte';
+  import Button from '@bagel/shared/components/Button.svelte';
+  import { createInspector } from '@bagel/shared/inspector';
+  import { createDiscardGuard } from '@bagel/shared/discard-guard';
+  import { toast } from '@bagel/shared/toast';
+  import { actionPayload, adminToastFailure } from '@bagel/shared';
+  import { getI18n } from '@bagel/shared/i18n/context';
+  import { canManage, grantableRoles, type AdminRole } from '$lib/access';
+  import type { AdminAcct, AuditEntry } from '$lib/server/services';
+  import StaffRow from '$lib/components/staff/StaffRow.svelte';
+  import StaffEditor from '$lib/components/staff/StaffEditor.svelte';
   import {
-    Icon,
-    Button,
-    PageHead,
-    PageToolbar,
-    AlertBanner,
-    DeckList,
-    EmptyState,
-    ConfirmDialog,
-    Scroller,
-    Skeleton,
-    toast,
-    actionPayload,
-    adminToastFailure,
-    ago,
-  } from '@bagel/shared';
-  import type { AdminAcct, AdminRole, AuditEntry } from '$lib/server/services';
-
-  const failed = adminToastFailure(toast);
+    NEW_MEMBER,
+    blankDraft,
+    draftComplete,
+    type StaffDraft
+  } from '$lib/components/staff/staff-roles';
+  import { STAFF_RANK } from '@bagel/shared/staff-role';
 
   let { data } = $props();
 
-  // Streamed roster -> local state, so mutations can reconcile against the
+  const { t } = getI18n();
+  const failed = adminToastFailure(toast);
+
+  // Streamed roster -> local state, so mutations reconcile against the
   // authoritative roster echoed by the users service (never a local guess).
   let staff = $state<AdminAcct[]>([]);
-  let rosterLoaded = $state(false);
+  let loaded = $state(false);
   let degraded = $state(false);
   $effect(() => {
     let alive = true;
-    rosterLoaded = false;
+    loaded = false;
     data.roster.then((r) => {
       if (!alive) return;
       staff = r.staff;
       degraded = r.degraded;
-      rosterLoaded = true;
+      loaded = true;
     });
     return () => {
       alive = false;
@@ -45,80 +64,86 @@
   });
 
   const me = $derived(data.me);
-  const RANK: Record<AdminRole, number> = { moderator: 1, admin: 2, owner: 3 };
-  // Mirror of the server ladder: owners manage anyone; admins manage below owner.
-  function canManage(target: AdminRole): boolean {
-    if (me.role === 'owner') return true;
-    if (me.role !== 'admin') return false;
-    return target !== 'owner';
-  }
-  function grantableRoles(): AdminRole[] {
-    return me.role === 'owner' ? ['moderator', 'admin', 'owner'] : ['moderator', 'admin'];
-  }
+  const roles = $derived(grantableRoles(me.role));
   const roster = $derived(
     [...staff].sort(
-      (a, b) => (RANK[b.role] ?? 0) - (RANK[a.role] ?? 0) || a.login.localeCompare(b.login)
+      (a, b) => (STAFF_RANK[b.role] ?? 0) - (STAFF_RANK[a.role] ?? 0) || a.login.localeCompare(b.login)
     )
   );
 
-  type ActionPayload = {
-    action?: { ok: boolean; notice: string };
-    staff?: AdminAcct[];
-    error?: string;
-  };
+  function manageable(member: AdminAcct): boolean {
+    return canManage(me.role, member.role) && member.id !== Number(me.id);
+  }
 
+  // ── Inspector (shared controller over the pure state machine) ──────────────
+  const inspector = createInspector<StaffDraft>();
+  let draft = $state<StaffDraft | null>(null);
   let busy = $state(false);
 
-  function rosterAction(after?: () => void): SubmitFunction {
-    return () => {
-      busy = true;
-      const before = staff.map((s) => ({ ...s }));
-      return async ({ result, update }) => {
-        busy = false;
-        after?.();
-        const p = actionPayload<ActionPayload>(result);
-        if (result.type === 'success' && p?.action?.ok) {
-          toast('ok', p.action.notice);
-          if (p.staff) staff = p.staff;
-          await update({ reset: true });
-          return;
-        }
-        staff = before;
-        failed(p, 'roster change failed');
-      };
-    };
+  // Push editor changes into the machine for dirty tracking. The spread reads
+  // each field so the effect re-runs on any field mutation; the edit itself is
+  // untracked because it both reads and writes the machine's state, which would
+  // otherwise make the effect depend on state it also mutates (an unsafe cycle).
+  $effect(() => {
+    const snap = draft ? { ...draft } : null;
+    if (snap) untrack(() => inspector.edit(snap));
+  });
+
+  const creating = $derived(inspector.selectedId === NEW_MEMBER);
+  const selected = $derived(
+    creating ? null : (staff.find((s) => String(s.id) === inspector.selectedId) ?? null)
+  );
+  const canSave = $derived(inspector.dirty && !!draft && draftComplete(draft));
+
+  const discard = createDiscardGuard(
+    () => inspector.dirty,
+    () => {
+      inspector.reset();
+      draft = null;
+    }
+  );
+
+  function draftOf(m: AdminAcct): StaffDraft {
+    return { userId: String(m.id), login: m.login, displayName: m.display_name, role: m.role };
   }
 
-  let addOpen = $state(false);
-  const addSubmit = rosterAction(() => (addOpen = false));
-
-  // Role change: optimistic flip, echoed roster reconciles, failure reverts.
-  let roleForms = $state<Record<string, HTMLFormElement | null>>({});
-  let roleDraft = $state<Record<string, AdminRole>>({});
-  function changeRole(member: AdminAcct, role: AdminRole) {
-    if (member.role === role) return;
-    roleDraft[String(member.id)] = role;
-    const i = staff.findIndex((s) => s.id === member.id);
-    if (i >= 0) staff[i] = { ...staff[i], role };
-    queueMicrotask(() => roleForms[String(member.id)]?.requestSubmit());
+  function openNew() {
+    discard.guard(() => {
+      const blank = blankDraft(roles[0] ?? 'moderator');
+      inspector.open(NEW_MEMBER, blank);
+      draft = { ...blank };
+    });
   }
-  const roleSubmit = rosterAction();
 
-  let removeTarget = $state<AdminAcct | null>(null);
-  let removeForm = $state<HTMLFormElement | null>(null);
-  const removeSubmit = rosterAction(() => (removeTarget = null));
+  function openMember(m: AdminAcct) {
+    if (inspector.selectedId === String(m.id)) {
+      close();
+      return;
+    }
+    discard.guard(() => {
+      inspector.open(String(m.id), draftOf(m));
+      draft = draftOf(m);
+      loadHistory(m.id);
+    });
+  }
 
-  // ── Per-member history (lazy drawer) ───────────────────────────────────────
-  let historyFor = $state<AdminAcct | null>(null);
+  function close() {
+    discard.guard(() => {
+      inspector.reset();
+      draft = null;
+    });
+  }
+
+  // ── Per-member history (lazy) ─────────────────────────────────────────────
+  // Fetched on open so the roster page never ships the whole audit log.
   let history = $state<AuditEntry[] | null>(null);
   let historyError = $state('');
 
-  async function openHistory(member: AdminAcct) {
-    historyFor = member;
+  async function loadHistory(id: number) {
     history = null;
     historyError = '';
     try {
-      const res = await fetch(`/staff/history?actor_id=${member.id}`);
+      const res = await fetch(`/staff/history?actor_id=${id}`);
       if (!res.ok) throw new Error(`history fetch failed (${res.status})`);
       const body = (await res.json()) as { entries?: AuditEntry[]; error?: string };
       if (body.error) throw new Error(body.error);
@@ -129,349 +154,218 @@
     }
   }
 
-  function closeHistory() {
-    historyFor = null;
-    history = null;
-    historyError = '';
+  type ActionPayload = {
+    action?: { ok: boolean; notice: string };
+    staff?: AdminAcct[];
+    error?: string;
+  };
+
+  // ── Save: immutable snapshot + request id; a late response can't cross rows ─
+  const saveSubmit: SubmitFunction = () => {
+    const requestId = inspector.beginSave()?.requestId;
+    const wasCreating = creating;
+    const before = staff.map((s) => ({ ...s }));
+    busy = true;
+    return async ({ result }) => {
+      busy = false;
+      const p = actionPayload<ActionPayload>(result);
+      const ok = result.type === 'success' && p?.action?.ok === true;
+      // applied is false when the selection moved on during the request, so a
+      // late response for one member never mutates another's editor.
+      const applied = requestId ? inspector.resolved(requestId, { type: ok ? 'success' : 'error' }) : false;
+      if (!ok) {
+        staff = before;
+        failed(p, t('admin.staff.saveFailed'));
+        return;
+      }
+      toast('ok', p!.action!.notice);
+      if (p?.staff) staff = p.staff;
+      // A create has no row to keep editing, so it closes; an edit stays open
+      // and clean (Save does not close the inspector).
+      if (wasCreating && applied) {
+        inspector.reset();
+        draft = null;
+      }
+    };
+  };
+
+  // ── Console access ────────────────────────────────────────────────────────
+  // Off is the soft-remove and gets a confirmation; on re-upserts the row.
+  let accessTarget = $state<AdminAcct | null>(null);
+  let removeForm = $state<HTMLFormElement | null>(null);
+  let restoreForm = $state<HTMLFormElement | null>(null);
+
+  function setAccess(next: boolean) {
+    if (!selected) return;
+    if (next) {
+      restoreForm?.requestSubmit();
+      return;
+    }
+    accessTarget = selected;
   }
 
-  function onKey(e: KeyboardEvent) {
-    if (e.key === 'Escape' && historyFor) closeHistory();
-  }
+  const rosterSubmit = (after?: () => void): SubmitFunction => {
+    return () => {
+      busy = true;
+      const before = staff.map((s) => ({ ...s }));
+      return async ({ result }) => {
+        busy = false;
+        after?.();
+        const p = actionPayload<ActionPayload>(result);
+        if (result.type === 'success' && p?.action?.ok) {
+          toast('ok', p.action.notice);
+          if (p.staff) staff = p.staff;
+          return;
+        }
+        staff = before;
+        failed(p, t('admin.staff.saveFailed'));
+      };
+    };
+  };
+
+  const removeSubmit = rosterSubmit(() => (accessTarget = null));
+  const restoreSubmit = rosterSubmit();
 </script>
 
 <section class="screen active">
-  <PageHead eyebrow="Access control" description="Who can operate this console, and what they did with it.">
-    Staff <em>roster</em>
+  <PageHead eyebrow={t('admin.staff.eyebrow')} description={t('admin.staff.description')}>
+    {t('admin.staff.titlePre')}<em>{t('admin.staff.titleEm')}</em>
   </PageHead>
 
   {#if degraded}
-    <AlertBanner>Roster service unreachable; nothing below is live.</AlertBanner>
+    <AlertBanner>{t('admin.staff.degraded')}</AlertBanner>
   {/if}
 
   <PageToolbar>
     {#snippet lead()}
-      {#if rosterLoaded}
-        <span class="roster-count">{roster.length} member{roster.length === 1 ? '' : 's'}</span>
+      {#if loaded}
+        <span class="count">
+          {roster.length === 1
+            ? t('admin.staff.countOne')
+            : t('admin.staff.count', { n: String(roster.length) })}
+        </span>
       {:else}
         <Skeleton variant="pill" width="110px" />
       {/if}
     {/snippet}
     {#snippet trail()}
-      <Button variant="primary" onclick={() => (addOpen = !addOpen)}>Add member</Button>
+      <Button variant="primary" onclick={openNew}>{t('admin.staff.add')}</Button>
     {/snippet}
   </PageToolbar>
 
-  {#if addOpen}
-    <div class="card add-card">
-      <div class="card-head"><h3>Add staff member</h3></div>
-      <form method="POST" action="?/upsert" use:enhance={addSubmit} class="add-form">
-        <label>
-          Twitch user id
-          <input class="text-input" type="text" name="user_id" inputmode="numeric" pattern="[0-9]+" required placeholder="123456789" />
-        </label>
-        <label>
-          Login
-          <input class="text-input" type="text" name="login" required placeholder="itsmavey" />
-        </label>
-        <label>
-          Display name
-          <input class="text-input" type="text" name="display_name" placeholder="(defaults to login)" />
-        </label>
-        <label>
-          Role
-          <select class="text-input" name="role">
-            {#each grantableRoles() as r (r)}
-              <option value={r}>{r}</option>
-            {/each}
-          </select>
-        </label>
-        <div class="add-actions">
-          <Button variant="primary" type="submit" disabled={busy}>{busy ? 'Adding…' : 'Add'}</Button>
-          <Button variant="ghost" type="button" onclick={() => (addOpen = false)}>Cancel</Button>
-        </div>
-      </form>
-    </div>
-  {/if}
-
-  <div class="deck">
+  <div class="deck" class:inspecting={inspector.isOpen}>
     <DeckList>
-      {#if !rosterLoaded}
-        <div class="bb-skeletons">
-          {#each [0, 1, 2] as i (i)}<Skeleton variant="block" height="60px" />{/each}
-        </div>
+      {#if !loaded}
+        <SkeletonStack rows={3} height="60px" />
       {:else if roster.length}
-        <ul class="bb-list" aria-label="Staff">
+        <ul class="bb-list" aria-label={t('admin.staff.listLabel')}>
           {#each roster as member (member.id)}
-            <li class="staff-row">
-              <span class="avatar">{member.login.slice(0, 1).toUpperCase()}</span>
-              <div class="who">
-                <span class="login">
-                  {member.display_name || member.login}
-                  {#if member.id === Number(me.id)}<span class="you">you</span>{/if}
-                </span>
-                <span class="sub">@{member.login} · #{member.id} · added {ago(member.created_at)}</span>
-              </div>
-              {#if canManage(member.role) && member.id !== Number(me.id)}
-                <select
-                  class="role-select role-{member.role}"
-                  value={member.role}
-                  aria-label="Role for {member.login}"
-                  disabled={busy}
-                  onchange={(e) => changeRole(member, (e.currentTarget as HTMLSelectElement).value as AdminRole)}
-                >
-                  {#each grantableRoles() as r (r)}
-                    <option value={r}>{r}</option>
-                  {/each}
-                </select>
-              {:else}
-                <span class="role-pill role-{member.role}">{member.role}</span>
-              {/if}
-              <span class="row-actions">
-                <button
-                  class="mini-act"
-                  type="button"
-                  title="History"
-                  aria-label="History for {member.login}"
-                  onclick={() => openHistory(member)}
-                >
-                  <Icon name="audit" size={14} />
-                </button>
-                {#if canManage(member.role) && member.id !== Number(me.id)}
-                  <button
-                    class="mini-act danger"
-                    type="button"
-                    title="Remove"
-                    aria-label="Remove {member.login}"
-                    onclick={() => (removeTarget = member)}
-                  >
-                    <Icon name="trash" size={14} />
-                  </button>
-                {/if}
-              </span>
-              <form
-                method="POST"
-                action="?/upsert"
-                use:enhance={roleSubmit}
-                bind:this={roleForms[String(member.id)]}
-                hidden
-              >
-                <input type="hidden" name="user_id" value={member.id} />
-                <input type="hidden" name="login" value={member.login} />
-                <input type="hidden" name="display_name" value={member.display_name} />
-                <input type="hidden" name="role" value={roleDraft[String(member.id)] ?? member.role} />
-              </form>
+            <li>
+              <StaffRow
+                {member}
+                isSelf={member.id === Number(me.id)}
+                selected={inspector.selectedId === String(member.id)}
+                controls="staff-inspector"
+                onselect={() => openMember(member)}
+              />
             </li>
           {/each}
         </ul>
       {:else}
-        <EmptyState title="No staff yet" body="Add the first member with their Twitch user id." />
+        <EmptyState title={t('admin.staff.empty')} body={t('admin.staff.emptyBody')} />
       {/if}
     </DeckList>
 
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div
-      class="inspector-backdrop"
-      class:open={historyFor !== null}
-      role="presentation"
-      onclick={closeHistory}
-      onkeydown={(e) => {
-        if (e.key === 'Enter') closeHistory();
-      }}
-    ></div>
-    <aside class="inspector" class:open={historyFor !== null} aria-label="Member history">
-      <div class="inspector-head">
-        <span class="inspector-tag">{historyFor ? `History for @${historyFor.login}` : 'History'}</span>
-        {#if historyFor}
-          <button class="mini" type="button" aria-label="Close" onclick={closeHistory}>
-            <Icon name="x" size={14} />
-          </button>
-        {/if}
-      </div>
-      {#if historyFor}
-        <Scroller fill padding="14px" data-lenis-prevent>
-          {#if history === null}
-            <p class="hist-note">Loading history…</p>
-          {:else if historyError}
-            <p class="hist-note err">{historyError}</p>
-          {:else if history.length === 0}
-            <p class="hist-note">No recorded actions.</p>
-          {:else}
-            <ul class="hist-list">
-              {#each history as e (e.id)}
-                <li class="hist-row">
-                  <span class="hdot {e.ok ? '' : 'err'}"></span>
-                  <div class="hist-body">
-                    <span class="hact">{e.action}{e.target ? ` → ${e.target}` : ''}</span>
-                    {#if e.detail}<span class="hdetail">{e.detail}</span>{/if}
-                    {#if !e.ok && e.error}<span class="hdetail err">{e.error}</span>{/if}
-                  </div>
-                  <span class="hwhen">{ago(e.created_at)}</span>
-                </li>
-              {/each}
-            </ul>
-          {/if}
-        </Scroller>
-      {:else}
-        <div class="inspector-idle">
-          <p>Open a member's history to see their recorded operator actions.</p>
-        </div>
-      {/if}
-    </aside>
+    {#if inspector.isOpen && draft}
+      <InspectorSurface
+        open
+        title={creating ? t('admin.staff.newTitle') : `@${selected?.login ?? ''}`}
+        controls="staff-inspector"
+        closeLabel={t('admin.close')}
+        onClose={close}
+      >
+        <!-- Keyed on the selection so switching rows mounts a FRESH editor: it
+             snapshots its draft at mount, so one reused instance would freeze
+             the fields to the first member opened. -->
+        {#key inspector.selectedId}
+          <StaffEditor
+            bind:draft={
+              () => draft!,
+              (v) => (draft = v)
+            }
+            member={selected}
+            {creating}
+            {roles}
+            canToggleAccess={!!selected && manageable(selected)}
+            status={inspector.status}
+            dirty={inspector.dirty}
+            {canSave}
+            {busy}
+            {history}
+            {historyError}
+            onCancel={close}
+            onSubmit={saveSubmit}
+            onAccess={setAccess}
+          />
+        {/key}
+      </InspectorSurface>
+    {/if}
   </div>
 </section>
 
-<svelte:window onkeydown={onKey} />
-
 <ConfirmDialog
-  open={removeTarget !== null}
-  title="Remove staff member"
-  body={removeTarget ? `@${removeTarget.login} loses console access immediately. Their audit history is kept.` : undefined}
-  confirmLabel="Remove"
-  cancelLabel="Cancel"
+  open={accessTarget !== null}
+  title={t('admin.staff.confirmDeactivateTitle')}
+  body={accessTarget
+    ? t('admin.staff.confirmDeactivateBody', { login: accessTarget.login })
+    : undefined}
+  confirmLabel={t('admin.staff.remove')}
+  cancelLabel={t('common.cancel')}
   danger
-  busy={busy}
-  onCancel={() => (removeTarget = null)}
+  {busy}
+  onCancel={() => (accessTarget = null)}
   onConfirm={() => removeForm?.requestSubmit()}
 />
 <form method="POST" action="?/remove" use:enhance={removeSubmit} bind:this={removeForm} hidden>
-  <input type="hidden" name="user_id" value={removeTarget?.id ?? ''} />
-  <input type="hidden" name="target_role" value={removeTarget?.role ?? ''} />
+  <input type="hidden" name="user_id" value={accessTarget?.id ?? ''} />
+  <input type="hidden" name="target_role" value={accessTarget?.role ?? ''} />
 </form>
 
+<!-- Restoring access is an upsert at the member's committed role, not the
+     draft's: turning the switch back on must not smuggle in an unsaved role
+     change the operator has not pressed Save on. -->
+<form method="POST" action="?/upsert" use:enhance={restoreSubmit} bind:this={restoreForm} hidden>
+  <input type="hidden" name="user_id" value={selected?.id ?? ''} />
+  <input type="hidden" name="login" value={selected?.login ?? ''} />
+  <input type="hidden" name="display_name" value={selected?.display_name ?? ''} />
+  <input type="hidden" name="role" value={selected?.role ?? ''} />
+</form>
+
+<ConfirmDialog
+  open={discard.open}
+  title={t('admin.unsaved')}
+  confirmLabel={t('common.done')}
+  cancelLabel={t('common.cancel')}
+  onConfirm={discard.confirm}
+  onCancel={discard.cancel}
+/>
+
 <style>
-  .roster-count { font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted); }
-
-  .add-card { margin-bottom: 16px; }
-  .add-form { display: grid; grid-template-columns: repeat(4, 1fr) auto; gap: 12px; align-items: end; }
-  .add-form label {
-    display: flex; flex-direction: column; gap: 6px;
-    font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted);
-  }
-  .add-actions { display: flex; gap: 8px; }
-  @media (max-width: 900px) {
-    .add-form { grid-template-columns: 1fr 1fr; }
-    .add-actions { grid-column: 1 / -1; }
+  .count {
+    font-family: var(--bb-font-mono);
+    font-size: 11.5px;
+    color: var(--bb-muted);
   }
 
-  .text-input {
-    min-width: 0; padding: 8px 11px;
-    font-family: var(--bb-font-mono); font-size: 12.5px;
-    border: 1px solid var(--rule); border-radius: var(--bb-radius-sm);
-    background: var(--bb-bg-1, #16130f); color: var(--bb-white);
-  }
-  .text-input:focus { outline: none; border-color: var(--bb-border-strong); }
-
-  .deck { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
-  @media (min-width: 1080px) {
-    .deck { grid-template-columns: minmax(0, 1fr) 320px; }
-  }
-
-  .staff-row {
+  .deck {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto auto;
-    align-items: center;
-    gap: 14px;
-    padding: 13px 14px;
-    border-bottom: 1px solid var(--rule);
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
   }
-  .staff-row:last-child { border-bottom: none; }
-
-  .avatar {
-    width: 38px; height: 38px; border-radius: 50%; flex: none;
-    display: inline-flex; align-items: center; justify-content: center;
-    font-family: var(--bb-font-display); font-weight: 800; font-size: 15px;
-    color: var(--bb-tan-light);
-    background: rgba(201, 168, 124, 0.1); border: 1px solid rgba(201, 168, 124, 0.3);
-  }
-  .who { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-  .login {
-    font-family: var(--bb-font-body); font-weight: 600; font-size: 13.5px; color: var(--bb-white);
-    display: inline-flex; align-items: center; gap: 8px;
-  }
-  .you {
-    font-family: var(--bb-font-mono); font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase;
-    color: var(--bb-green-glow); background: rgba(82, 183, 136, 0.1);
-    border: 1px solid rgba(82, 183, 136, 0.3); border-radius: var(--bb-radius-pill); padding: 1px 7px;
-  }
-  .sub {
-    font-family: var(--bb-font-mono); font-size: 10.5px; color: var(--bb-muted);
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  }
-
-  .role-pill, .role-select {
-    font-family: var(--bb-font-mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
-    padding: 5px 12px; border-radius: var(--bb-radius-pill);
-    border: 1px solid var(--glass-border); background: rgba(255, 255, 255, 0.03); color: var(--bb-muted);
-  }
-  .role-select { cursor: pointer; }
-  .role-owner { color: var(--bb-green-glow); border-color: rgba(82, 183, 136, 0.35); background: rgba(82, 183, 136, 0.1); }
-  .role-admin { color: var(--bb-tan-light); border-color: rgba(201, 168, 124, 0.32); background: rgba(201, 168, 124, 0.1); }
-
-  .row-actions { display: flex; gap: 4px; }
-  .mini-act {
-    width: 28px; height: 28px; border-radius: var(--bb-radius-sm);
-    display: inline-flex; align-items: center; justify-content: center;
-    background: none; border: 1px solid transparent; color: var(--bb-muted); cursor: pointer;
-  }
-  .mini-act :global(svg) { stroke: currentColor; fill: none; stroke-width: 1.7; }
-  .mini-act:hover { color: var(--bb-white); background: rgba(255, 255, 255, 0.05); }
-  .mini-act.danger:hover { color: #cf8a78; background: rgba(176, 90, 70, 0.1); }
-
-  .inspector {
-    position: sticky; top: 62px;
-    border: 1px solid var(--rule); border-top-color: var(--rule-strong); border-radius: var(--bb-radius-md);
-    background: linear-gradient(180deg, rgba(240, 236, 228, 0.03), rgba(240, 236, 228, 0.012));
-    display: flex; flex-direction: column;
-    max-height: calc(100vh - 62px - 108px);
-  }
-  .inspector-head {
-    display: flex; align-items: center; justify-content: space-between; gap: 10px;
-    padding: 12px 16px; border-bottom: 1px solid var(--rule);
-  }
-  .inspector-tag {
-    font-family: var(--bb-font-display); font-weight: 700; font-size: 12px;
-    color: var(--bb-tan); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  }
-  .inspector-idle {
-    padding: 34px 20px; text-align: center; color: var(--bb-muted);
-    font-family: var(--bb-font-body); font-size: 13px;
-    display: flex; flex-direction: column; align-items: center; gap: 12px;
-  }
-  .inspector-idle p { margin: 0; max-width: 26ch; line-height: 1.5; }
-
-  .hist-note { font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted); margin: 6px 4px; }
-  .hist-note.err { color: #cf8a78; }
-  .hist-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-  .hist-row {
-    display: flex; align-items: flex-start; gap: 10px;
-    padding: 10px 4px; border-bottom: 1px solid var(--rule);
-  }
-  .hist-row:last-child { border-bottom: none; }
-  .hdot { width: 7px; height: 7px; border-radius: 50%; background: var(--bb-green-glow); margin-top: 5px; flex: none; }
-  .hdot.err { background: #cf8a78; }
-  .hist-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
-  .hact { font-family: var(--bb-font-mono); font-size: 11.5px; color: var(--bb-white); word-break: break-word; }
-  .hdetail { font-family: var(--bb-font-mono); font-size: 10.5px; color: var(--bb-muted); word-break: break-word; }
-  .hdetail.err { color: #cf8a78; }
-  .hwhen { font-family: var(--bb-font-mono); font-size: 10px; color: var(--bb-muted); white-space: nowrap; }
-
-  .inspector-backdrop { display: none; }
-  @media (max-width: 1079px) {
-    .inspector { display: none; }
-    .inspector.open {
-      display: flex;
-      position: fixed;
-      left: 0; right: 0; bottom: 0; top: auto;
-      z-index: 220; max-height: 88vh;
-      border-radius: var(--bb-radius-md) var(--bb-radius-md) 0 0;
-      background: var(--bb-bg-1, #111);
+  @media (min-width: 1080px) {
+    .deck.inspecting {
+      grid-template-columns: minmax(0, 1fr) 380px;
     }
-    .inspector-backdrop.open {
-      display: block; position: fixed; inset: 0; z-index: 219;
-      background: rgba(0, 0, 0, 0.55);
-    }
-    .staff-row { grid-template-columns: auto minmax(0, 1fr) auto; }
-    .role-pill, .role-select { display: none; }
   }
 </style>

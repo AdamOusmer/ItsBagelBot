@@ -12,12 +12,24 @@
 // dynamic-env proxy there deadlocks server.init (exit 13). process.env carries
 // the same runtime value.
 import type { Session } from './session';
-import { adminCheck, type AdminRole } from './services';
+import { adminCheck } from './services';
 import { dev } from '$app/environment';
-// The ladder is shared, not local: the nav registry decides which sections to
-// OFFER from the same numbers this table uses to decide who may act. When they
-// were separate, the rail offered moderators three links every route bounced.
-import { STAFF_RANK as RANK } from '@bagel/shared/staff-role';
+// The ladder itself lives in $lib/access, a server-free module, because the
+// page components have to ask the same question to decide which actions to
+// OFFER and cannot import $lib/server. Re-exported here so every existing
+// server-side caller keeps its one import, and so there is still exactly one
+// ROLE_FOR: this module owns the request-scoped gates, not the table.
+export {
+  ROLE_FOR,
+  allows,
+  canManage,
+  isManager,
+  grantableRoles,
+  type AccessKey,
+  type AdminRole
+} from '$lib/access';
+import { allows, type AccessKey } from '$lib/access';
+import type { AdminRole } from '$lib/access';
 
 export interface AdminIdentity {
   id: string;
@@ -30,63 +42,6 @@ export interface AdminIdentity {
 // helper call is not folded across SvelteKit's split server entries; this form
 // removes the import edge before adapter-node assembles the final image graph.
 const DEMO = dev && process.env.DEMO === '1';
-
-// Managers (admin/owner) may view + manage the staff roster. Moderators cannot.
-export function isManager(role: AdminRole): boolean {
-  return role === 'admin' || role === 'owner';
-}
-
-// ROLE_FOR is this console's whole authorization policy: one row per operator
-// action, naming the least role that may perform it. A table rather than an
-// `isManager(...)` call scattered through nine route files, because scattered
-// checks are how three mutations (shard scale, lane delete, impersonate) ended
-// up gated only by "is staff at all".
-//
-// Where the backing service enforces the same ladder (every users.* row below
-// maps onto admin.go's minRole table), this is defense in depth and the answer
-// still comes from the service. Where it does not -- the ingress, the JetStream
-// lane store, notifications, loyalty counters -- this table IS the enforcement,
-// which is why those rows are not optional.
-export const ROLE_FOR = {
-  // users service (mirrors app/db/users/rpc/admin.go)
-  'users.read': 'moderator',
-  'users.ban': 'moderator',
-  'users.grant': 'admin',
-  'users.token': 'admin',
-  'users.delete': 'owner',
-  // console-only surfaces
-  'users.impersonate': 'admin',
-  'users.restart': 'admin',
-  'shards.scale': 'admin',
-  'lanes.mutate': 'admin',
-  'notifications.send': 'admin',
-  'counters.manage': 'owner',
-  'staff.manage': 'admin',
-  'audit.read': 'admin',
-  'secrets.manage': 'admin',
-  // The bot-account OAuth consent flow installs a live Twitch token for the
-  // account the bot speaks as. Owner-only, and no lower: it is the one flow
-  // that mints credentials from an unauthenticated-looking URL.
-  'bot.token': 'owner'
-} as const satisfies Record<string, AdminRole>;
-
-export type AccessKey = keyof typeof ROLE_FOR;
-
-// allows answers the ladder question for a role already in hand (a layout load
-// that resolved the identity through parent()), so a page gate and an action
-// gate cannot disagree about what a key means.
-export function allows(role: AdminRole, key: AccessKey): boolean {
-  return RANK[role] >= RANK[ROLE_FOR[key]];
-}
-
-// canManage decides whether an actor may modify/remove a target staff row.
-// Owners may manage anyone; admins may manage moderators and admins but never
-// an owner. Mirrors the users-service enforcement (defense in depth).
-export function canManage(actor: AdminRole, target: AdminRole): boolean {
-  if (!isManager(actor)) return false;
-  if (target === 'owner') return actor === 'owner';
-  return RANK[actor] >= RANK[target];
-}
 
 // requireAdmin resolves the admin identity for a session, or null if the session
 // is absent / not active staff. The session is sealed by the Twitch OAuth
