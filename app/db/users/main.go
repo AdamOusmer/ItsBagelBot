@@ -151,7 +151,12 @@ func subscribeRPCs(ctx context.Context, wiring rpc.Wiring, client *ent.Client, l
 	}
 
 	svcboot.FatalIf(log, rpc.SubscribeDashboard(wiring, s.dashboard, invalidationPrefix), "failed to subscribe dashboard rpc")
-	svcboot.FatalIf(log, rpc.SubscribeAdmin(wiring, s.admin, invalidationPrefix), "failed to subscribe admin rpc")
+	adminCfg := rpc.AdminConfig{
+		Prefix:             s.admin,
+		InternalGetSubject: env.Get("NATS_INTERNAL_USERS_GET_SUBJECT", "bagel.rpc.internal.users.get"),
+		InvalidationPrefix: invalidationPrefix,
+	}
+	svcboot.FatalIf(log, rpc.SubscribeAdmin(wiring, client, adminCfg), "failed to subscribe admin rpc")
 	svcboot.FatalIf(log, rpc.SubscribeBilling(wiring, s.billing, invalidationPrefix), "failed to subscribe billing rpc")
 
 	// Admin authorization + audit. Seed the bootstrap owners/admins so a fresh

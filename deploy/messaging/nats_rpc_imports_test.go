@@ -139,13 +139,13 @@ var rpcRequests = map[string][]rpcRequest{
 		{"bagel.rpc.admin.notifications.send", "app/twitch/outgress/internal/config NotifySendSubject"},
 	},
 	"transactions_rpc": {
-		{"bagel.rpc.admin.user.get", "app/db/transactions/main.go userGetSubject"},
+		{"bagel.rpc.internal.users.get", "app/db/transactions/main.go userGetSubject"},
 		{"bagel.rpc.internal.billing.apply", "app/db/transactions/main.go billingSubject"},
 		{"bagel.rpc.internal.users.email.get", "app/db/transactions/main.go emailSubject"},
 		{"bagel.rpc.admin.notifications.send", "app/db/transactions/main.go sendSubject"},
 	},
 	"notifications_rpc": {
-		{"bagel.rpc.admin.user.get", "app/db/notifications/main.go userGetSubject"},
+		{"bagel.rpc.internal.users.get", "app/db/notifications/main.go userGetSubject"},
 	},
 	"gossip_rpc": {
 		{"bagel.rpc.internal.govee.key.get", "app/gossip/internal/core/goveekeys.go"},

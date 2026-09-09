@@ -203,9 +203,9 @@ func (a *adminRPC) delete(ctx context.Context, req notificationsrpc.DeleteReques
 	return notificationsrpc.DeleteReply{}
 }
 
-// resolveTarget looks up the target's numeric id via the users service admin
-// surface (bagel.rpc.admin.user.get) so the console can address a direct
-// notification by username as well as by id.
+// resolveTarget looks up the target's numeric id via the users service
+// internal lookup (bagel.rpc.internal.users.get) so the console can address a
+// direct notification by username as well as by id.
 func (a *adminRPC) resolveTarget(ctx context.Context, userID, username string) (uint64, error) {
 	if userID == "" && username == "" {
 		return 0, fmt.Errorf("target_user_id or target_username required")

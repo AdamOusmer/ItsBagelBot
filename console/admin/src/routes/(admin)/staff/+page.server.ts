@@ -4,8 +4,9 @@
 import type { Actions, PageServerLoad } from './$types';
 import { fail, redirect } from '@sveltejs/kit';
 import { dev } from '$app/environment';
-import { requireAdmin, isManager, canManage, type AdminIdentity } from '$lib/server/access';
-import { staffUpsert, staffRemove, adminListAccts, auditAppend, type AdminRole } from '$lib/server/services';
+import { allows, requireRole, canManage, type AdminIdentity } from '$lib/server/access';
+import { audit } from '$lib/server/audit';
+import { staffUpsert, staffRemove, adminListAccts, type AdminRole } from '$lib/server/services';
 import type { AdminAcct } from '$lib/server/services';
 
 const ROLES = new Set<AdminRole>(['moderator', 'admin', 'owner']);
@@ -22,7 +23,7 @@ export const load: PageServerLoad = async ({ parent }) => {
     role: layout.role
   };
   // Staff roster is managers-only; moderators get bounced to the overview.
-  if (!isManager(admin.role)) throw redirect(302, '/');
+  if (!allows(admin.role, 'staff.manage')) throw redirect(302, '/');
 
   // Streamed: the shell renders immediately; the roster hydrates when the RPC
   // lands. A member's action history stays lazy-loaded from /staff/history.
@@ -38,16 +39,11 @@ export const load: PageServerLoad = async ({ parent }) => {
   return { roster, me: admin };
 };
 
-function audit(admin: AdminIdentity, action: string, target: string, detail: string, ok: boolean, error?: string): void {
-  if (DEMO) return;
-  auditAppend({ actor_id: admin.id, actor_login: admin.login, action, target, detail, ok, error }).catch(() => {});
-}
-
 export const actions: Actions = {
   // Create or modify a staff member (add by id, or change role).
   upsert: async ({ request, locals }) => {
-    const admin = await requireAdmin(locals.session);
-    if (!admin || !isManager(admin.role)) return fail(403, { error: 'forbidden' });
+    const admin = await requireRole({ locals }, 'staff.manage');
+    if (!admin) return fail(403, { error: 'forbidden' });
 
     const f = await request.formData();
     const userId = String(f.get('user_id') ?? '').trim();
@@ -64,20 +60,26 @@ export const actions: Actions = {
     if (DEMO) return { action: { ok: true, notice: `${login} → ${role} (demo)` } };
     try {
       const staff = await staffUpsert({ id: admin.id }, { userId, login, displayName, role });
-      audit(admin, 'staff_upsert', userId, `${login}:${role}`, true);
+      audit(admin, { action: 'staff_upsert', target: userId, detail: `${login}:${role}`, ok: true });
       // Return the authoritative roster so the client reconciles in place
       // without a follow-up invalidateAll refetch.
       return { action: { ok: true, notice: `${login} set to ${role}` }, staff };
     } catch (e) {
-      audit(admin, 'staff_upsert', userId, `${login}:${role}`, false, (e as Error).message);
+      audit(admin, {
+        action: 'staff_upsert',
+        target: userId,
+        detail: `${login}:${role}`,
+        ok: false,
+        error: (e as Error).message
+      });
       return { action: { ok: false, notice: (e as Error).message } };
     }
   },
 
   // Soft-remove (deactivate) a staff member.
   remove: async ({ request, locals }) => {
-    const admin = await requireAdmin(locals.session);
-    if (!admin || !isManager(admin.role)) return fail(403, { error: 'forbidden' });
+    const admin = await requireRole({ locals }, 'staff.manage');
+    if (!admin) return fail(403, { error: 'forbidden' });
 
     const f = await request.formData();
     const userId = String(f.get('user_id') ?? '').trim();
@@ -88,10 +90,16 @@ export const actions: Actions = {
     if (DEMO) return { action: { ok: true, notice: 'staff removed (demo)' } };
     try {
       const staff = await staffRemove({ id: admin.id }, userId);
-      audit(admin, 'staff_remove', userId, targetRole, true);
+      audit(admin, { action: 'staff_remove', target: userId, detail: targetRole, ok: true });
       return { action: { ok: true, notice: 'staff member removed' }, staff };
     } catch (e) {
-      audit(admin, 'staff_remove', userId, targetRole, false, (e as Error).message);
+      audit(admin, {
+        action: 'staff_remove',
+        target: userId,
+        detail: targetRole,
+        ok: false,
+        error: (e as Error).message
+      });
       return { action: { ok: false, notice: (e as Error).message } };
     }
   }

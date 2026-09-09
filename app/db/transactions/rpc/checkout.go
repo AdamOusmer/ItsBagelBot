@@ -31,8 +31,8 @@ type checkoutRPC struct {
 }
 
 // CheckoutConfig names the subjects the checkout RPC binds and resolves
-// against. UserGetSubject is the users service admin lookup
-// (bagel.rpc.admin.user.get) used to resolve and vet gift recipients. The
+// against. UserGetSubject is the users service internal lookup
+// (bagel.rpc.internal.users.get) used to resolve and vet gift recipients. The
 // queue group and the process-wide handles arrive as bus.RPCWiring, which is
 // what carried them everywhere else; CheckoutRuntime was a third spelling of
 // that same set, and its QueueGroup sat next to two other plain strings here.

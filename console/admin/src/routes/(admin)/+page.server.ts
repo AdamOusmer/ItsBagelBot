@@ -11,7 +11,7 @@ import {
   type AuditEntry
 } from '$lib/server/services';
 import { dev } from '$app/environment';
-import { isManager } from '$lib/server/access';
+import { allows } from '$lib/server/access';
 import { emptyEnrollment, emptyShardSnapshot } from '$lib/server/fallback';
 import { env } from '$env/dynamic/private';
 import type { ShardSnapshot } from '@bagel/shared';
@@ -34,7 +34,7 @@ export type Overview = {
 // belongs to Analytics and is deliberately absent
 // here, so a diagnostic timeout can never hold the operational overview on
 // skeletons.
-async function loadOverview(withAudit: boolean): Promise<Overview> {
+async function loadOverview(actorId: string, withAudit: boolean): Promise<Overview> {
   let degraded = false;
   const orFallback = <T>(load: Promise<T>, fallback: T, critical = true): Promise<T> =>
     load.catch(() => {
@@ -44,9 +44,11 @@ async function loadOverview(withAudit: boolean): Promise<Overview> {
 
   const botId = env.ADMIN_BOT_USER_ID ?? '';
   const [enrollment, snapshot, token, recentAudit] = await Promise.all([
-    orFallback(userEnrollment(), emptyEnrollment()),
+    orFallback(userEnrollment(actorId), emptyEnrollment()),
     orFallback(shardSnapshot(), emptyShardSnapshot()),
-    orFallback(botId ? tokenStatus(botId) : Promise.resolve({ present: false }), { present: false }),
+    orFallback(botId ? tokenStatus({ actorId, userId: botId }) : Promise.resolve({ present: false }), {
+      present: false
+    }),
     orFallback(withAudit ? auditList(AUDIT_PEEK) : Promise.resolve([]), [])
   ]);
 
@@ -54,8 +56,8 @@ async function loadOverview(withAudit: boolean): Promise<Overview> {
 }
 
 export const load: PageServerLoad = async ({ parent }) => {
-  const { role } = await parent();
-  const withAudit = isManager(role);
+  const { id, role } = await parent();
+  const withAudit = allows(role, 'audit.read');
 
   // Return the bundle as an unawaited promise so SvelteKit streams it: the page
   // shell renders immediately and the live data hydrates when the round trip
@@ -68,7 +70,7 @@ export const load: PageServerLoad = async ({ parent }) => {
           recentAudit: withAudit ? sampleAudit : [],
           degraded: false
         }))
-    : loadOverview(withAudit);
+    : loadOverview(id, withAudit);
 
   return { overview, isManager: withAudit };
 };

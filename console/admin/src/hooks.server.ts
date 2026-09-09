@@ -1,12 +1,12 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import type { Handle, HandleServerError, ServerInit } from '@sveltejs/kit';
+import type { Handle, HandleServerError, RequestEvent, ServerInit } from '@sveltejs/kit';
 import { redirect } from '@sveltejs/kit';
 import { dev } from '$app/environment';
 import newrelic from 'newrelic';
 import { COOKIE, open } from '$lib/server/session';
-import { requireAdmin } from '$lib/server/access';
+import { requireAdmin, requireRole } from '$lib/server/access';
 import { initConsoleRuntime } from '@bagel/shared/server/boot';
 import {
   harden,
@@ -46,12 +46,48 @@ export const init: ServerInit = async () => {
   startInvalidationListener();
 };
 
-// Login/OAuth flow and probes stay reachable without a staff session; every
-// other route is gated below.
-const PUBLIC_PREFIXES = ['/auth', '/login', '/healthz', '/readyz'];
+// The operator sign-in legs and the probes stay reachable without a staff
+// session; every other route is gated below.
+//
+// This list used to be the whole of '/auth', which swept in /auth/bot/* -- the
+// bot-account OAuth consent flow. That flow ends by writing a live Twitch
+// token for the account the bot speaks as, so being reachable unauthenticated
+// meant anyone who could reach the host could install one. The bot legs are
+// gated as owner-only below instead.
+const PUBLIC_PREFIXES = [
+  '/auth/login',
+  '/auth/callback',
+  '/auth/logout',
+  '/login',
+  '/healthz',
+  '/readyz'
+];
+
+const BOT_FLOW_PREFIX = '/auth/bot';
+
+function matches(pathname: string, prefix: string): boolean {
+  return pathname === prefix || pathname.startsWith(prefix + '/');
+}
 
 function isPublic(pathname: string): boolean {
-  return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/'));
+  return PUBLIC_PREFIXES.some((p) => matches(pathname, p));
+}
+
+// staleStaffSession: a non-public request whose session is no longer active
+// staff. Flat rather than nested so the handle below reads as a list of gates.
+async function staleStaffSession(event: RequestEvent): Promise<boolean> {
+  if (DEMO || isPublic(event.url.pathname)) return false;
+  if (!event.locals.session) return false;
+  return !(await requireAdmin(event.locals.session));
+}
+
+// botFlowRefused: the bot-account consent legs demand an owner session in the
+// browser that walks them, which is a real behaviour change -- the operator
+// now signs in as owner first, then consents as the bot account in that same
+// browser, instead of opening a copied link in a fresh one.
+async function botFlowRefused(event: RequestEvent): Promise<boolean> {
+  if (DEMO || !matches(event.url.pathname, BOT_FLOW_PREFIX)) return false;
+  return !(await requireRole(event, 'bot.token'));
 }
 
 const PERMISSIONS_POLICY = 'camera=(), microphone=(), geolocation=(), payment=()';
@@ -68,13 +104,13 @@ export const handle: Handle = async ({ event, resolve }) => {
   // fabric-cached and push-invalidated on the staff scope, so a roster change
   // revokes access on every replica within one request). requireAdmin fails
   // closed on an auth-service outage, matching the per-route posture.
-  if (!DEMO && !isPublic(event.url.pathname)) {
-    if (event.locals.session && !(await requireAdmin(event.locals.session))) {
-      event.cookies.delete(COOKIE, { path: '/', secure: event.url.protocol === 'https:' });
-      event.locals.session = null;
-      throw redirect(303, '/login?e=denied');
-    }
+  if (await staleStaffSession(event)) {
+    event.cookies.delete(COOKIE, { path: '/', secure: event.url.protocol === 'https:' });
+    event.locals.session = null;
+    throw redirect(303, '/login?e=denied');
   }
+
+  if (await botFlowRefused(event)) throw redirect(303, '/login?e=denied');
 
   tagTransaction(newrelic, event, event.locals.session);
 

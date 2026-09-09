@@ -4,7 +4,7 @@
 import type { RequestHandler } from './$types';
 import { json, error } from '@sveltejs/kit';
 import { dev } from '$app/environment';
-import { requireAdmin, isManager } from '$lib/server/access';
+import { requireRole } from '$lib/server/access';
 import { auditPage, AUDIT_MAX_PAGES, AUDIT_PAGE_SIZE } from '$lib/server/services';
 
 const DEMO = dev && process.env.DEMO === '1';
@@ -12,8 +12,8 @@ const DEMO = dev && process.env.DEMO === '1';
 // Lazy per-member history. The staff drawer fetches this on open so the roster
 // page never ships the whole audit log (keeps payload + render cheap).
 export const GET: RequestHandler = async ({ url, locals }) => {
-  const admin = await requireAdmin(locals.session);
-  if (!admin || !isManager(admin.role)) throw error(403, 'forbidden');
+  const admin = await requireRole({ locals }, 'staff.manage');
+  if (!admin) throw error(403, 'forbidden');
 
   const actorId = (url.searchParams.get('actor_id') ?? '').trim();
   if (!/^[0-9]+$/.test(actorId)) throw error(400, 'actor_id required');

@@ -5,7 +5,8 @@ import type { Actions, PageServerLoad } from './$types';
 import { fail, redirect } from '@sveltejs/kit';
 import { dev } from '$app/environment';
 import { auditAppend } from '$lib/server/services';
-import { isManager, requireAdmin, type AdminIdentity } from '$lib/server/access';
+import { allows, requireRole, type AdminIdentity } from '$lib/server/access';
+import { audit } from '$lib/server/audit';
 import {
   credentialStatuses,
   listServiceTokens,
@@ -52,7 +53,7 @@ async function loadBundle(): Promise<SecretsBundle> {
 // scope probe, token lists, all parallel) hydrate in.
 export const load: PageServerLoad = async ({ parent }) => {
   const layout = await parent();
-  if (!isManager(layout.role)) throw redirect(302, '/');
+  if (!allows(layout.role, 'secrets.manage')) throw redirect(302, '/');
 
   const bundle: Promise<SecretsBundle> = DEMO
     ? import('$lib/server/demo-data').then(({ demoSecretsBundle }) =>
@@ -62,32 +63,8 @@ export const load: PageServerLoad = async ({ parent }) => {
   return { bundle };
 };
 
-type AuditOutcome = {
-  action: string;
-  target: string;
-  ok: boolean;
-  error?: string;
-};
-
-// audit records a mutating action best-effort: a logging failure must never
-// block the operator action it describes. Skipped in demo.
-function audit(admin: AdminIdentity, outcome: AuditOutcome): void {
-  if (DEMO) return;
-  auditAppend({
-    actor_id: admin.id,
-    actor_login: admin.login,
-    action: outcome.action,
-    target: outcome.target,
-    detail: '',
-    ok: outcome.ok,
-    error: outcome.error ?? ''
-  }).catch(() => {});
-}
-
 async function managerFromLocals(locals: App.Locals): Promise<AdminIdentity | null> {
-  const admin = await requireAdmin(locals.session);
-  if (!admin || !isManager(admin.role)) return null;
-  return admin;
+  return requireRole({ locals }, 'secrets.manage');
 }
 
 function serviceFromForm(f: FormData): SecretServiceId {

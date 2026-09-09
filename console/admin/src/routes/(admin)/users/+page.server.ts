@@ -21,11 +21,23 @@ import {
   restartUserEventSub,
   publishUserEventSub,
   channelSubState,
-  auditAppend,
+  isForbidden,
   type AdminUserWire,
-  type ChannelSubState
+  type ChannelSubState,
+  type UserRef
 } from '$lib/server/services';
-import { requireAdmin, type AdminIdentity } from '$lib/server/access';
+import { requireRole, type AccessKey, type AdminIdentity } from '$lib/server/access';
+import {
+  audited,
+  badRequest,
+  okReply,
+  refusalReply,
+  refused,
+  softNotice,
+  type ParseRefusal,
+  type ParseResult
+} from '$lib/server/admin-action';
+import { audit } from '$lib/server/audit';
 import { signViewAs } from '@bagel/shared/server/impersonation';
 import { env } from '$env/dynamic/private';
 import { EMPTY_USER_STATS } from '$lib/server/fallback';
@@ -57,26 +69,35 @@ function matchesState(user: AdminUserWire, state: string): boolean {
   return user.status === state;
 }
 
+// The directory's query string, parsed once. The three travel together through
+// every layer below (demo fixtures, RPC, the returned page props), so they move
+// as one value rather than as three positional strings a caller can reorder.
+export type DirectoryQuery = {
+  page: number;
+  search: string;
+  state: string;
+};
+
 type DemoDirectoryFixtures = {
   sampleUsers: AdminUserWire[];
   sampleStats: UserStats;
 };
 
-function demoPage(page: number, search: string, state: string, fixtures: DemoDirectoryFixtures) {
+function demoPage(q: DirectoryQuery, fixtures: DemoDirectoryFixtures) {
   const filtered = fixtures.sampleUsers.filter(
-    (user) => matchesSearch(user, search) && matchesState(user, state)
+    (user) => matchesSearch(user, q.search) && matchesState(user, q.state)
   );
-  const start = (page - 1) * USER_PAGE_SIZE;
+  const start = (q.page - 1) * USER_PAGE_SIZE;
   const users = filtered.slice(start, start + USER_PAGE_SIZE);
   const cappedTotal = Math.min(filtered.length, USER_PAGE_SIZE * USER_MAX_PAGES);
   return {
     recent: users,
     stats: fixtures.sampleStats,
-    page,
+    page: q.page,
     pageSize: USER_PAGE_SIZE,
     maxPages: USER_MAX_PAGES,
     hasMore: start + USER_PAGE_SIZE < cappedTotal,
-    search,
+    search: q.search,
     degraded: false
   };
 }
@@ -91,9 +112,9 @@ export type UserDirectory = {
   degraded: boolean;
 };
 
-async function loadDirectory(page: number, search: string, state: string): Promise<UserDirectory> {
+async function loadDirectory(actorId: string, q: DirectoryQuery): Promise<UserDirectory> {
   try {
-    const overview = await userOverview(page, search, state);
+    const overview = await userOverview(actorId, q.page, q.search, q.state);
     return {
       recent: overview.users,
       stats: overview.stats,
@@ -107,7 +128,7 @@ async function loadDirectory(page: number, search: string, state: string): Promi
     return {
       recent: [],
       stats: { ...EMPTY_USER_STATS },
-      page,
+      page: q.page,
       pageSize: USER_PAGE_SIZE,
       maxPages: USER_MAX_PAGES,
       hasMore: false,
@@ -118,16 +139,19 @@ async function loadDirectory(page: number, search: string, state: string): Promi
 
 // Streamed: the shell (toolbar, headers) renders immediately; the directory
 // hydrates when the users RPC lands instead of blocking SSR on NATS.
-export const load: PageServerLoad = ({ url }) => {
-  const page = parsePage(url.searchParams.get('page'), USER_MAX_PAGES);
-  const search = normalizeSearch(url.searchParams.get('q'));
-  const state = parseState(url.searchParams.get('state'));
+export const load: PageServerLoad = async ({ url, parent }) => {
+  const { id } = await parent();
+  const q: DirectoryQuery = {
+    page: parsePage(url.searchParams.get('page'), USER_MAX_PAGES),
+    search: normalizeSearch(url.searchParams.get('q')),
+    state: parseState(url.searchParams.get('state'))
+  };
 
   const directory: Promise<UserDirectory> = DEMO
-    ? import('$lib/server/demo-data').then((fixtures) => demoPage(page, search, state, fixtures))
-    : loadDirectory(page, search, state);
+    ? import('$lib/server/demo-data').then((fixtures) => demoPage(q, fixtures))
+    : loadDirectory(id, q);
 
-  return { directory, page, search, state };
+  return { directory, ...q };
 };
 
 // Status values the users service accepts (raw DB enum).
@@ -138,30 +162,6 @@ function dashboardOrigin(url: URL): string {
   if (configured) return configured;
   if (dev) return url.origin;
   throw new Error('DASHBOARD_PUBLIC_ORIGIN not set');
-}
-
-type AuditOutcome = {
-  action: string;
-  target: string;
-  detail?: string;
-  ok: boolean;
-  error?: string;
-};
-
-// audit records a mutating action best-effort: a logging failure must never
-// block or fail the operator action it describes. Skipped in demo (synthetic
-// non-numeric actor id).
-function audit(admin: AdminIdentity, outcome: AuditOutcome): void {
-  if (DEMO) return;
-  auditAppend({
-    actor_id: admin.id,
-    actor_login: admin.login,
-    action: outcome.action,
-    target: outcome.target,
-    detail: outcome.detail ?? '',
-    ok: outcome.ok,
-    error: outcome.error
-  }).catch(() => {});
 }
 
 const unknownSubState: ChannelSubState = { state: 'unknown', error: '', checkedAt: null };
@@ -178,12 +178,22 @@ function demoLookup(q: string, sampleUsers: AdminUserWire[]) {
   };
 }
 
+// Who is searching and what they typed. Same reason as services.ts's UserRef:
+// both are strings, so the two orders are indistinguishable to the compiler.
+type LookupRef = {
+  actorId: string;
+  q: string;
+};
+
 // probeUser fetches the row plus its token/enroll state; allSettled keeps a
 // slow or down responder from failing the whole lookup.
-async function probeUser(q: string) {
-  const user = await userLookup(q);
+async function probeUser(ref: LookupRef) {
+  const user = await userLookup(ref.actorId, ref.q);
   const uid = String(user.id);
-  const [tokenRes, subRes] = await Promise.allSettled([tokenStatus(uid), channelSubState(uid)]);
+  const [tokenRes, subRes] = await Promise.allSettled([
+    tokenStatus({ actorId: ref.actorId, userId: uid }),
+    channelSubState(uid)
+  ]);
   return {
     user,
     tokenPresent: tokenRes.status === 'fulfilled' ? tokenRes.value.present : false,
@@ -191,61 +201,149 @@ async function probeUser(q: string) {
   };
 }
 
+// ── The shared per-user action shape ────────────────────────────────────────
+//
+// Every per-user action runs the same six steps: gate on the role, read the
+// target id, parse the verb's own form fields, short-circuit under DEMO, run
+// the mutation, audit the outcome. Only the parse and the mutation differ, so
+// a spec supplies those and userAction owns the rest.
+//
+// setStatus and setCreatorCode used to be written out by hand, because the
+// wrapper had no way to express "this verb has extra fields to validate" or
+// "this verb phrases its own success notice". `parse` and `notice` are that
+// way. Keeping them hand-written meant the gate, the audit line and the
+// refusal mapping existed in three copies that had already drifted apart.
+
+// Verbs whose only input is the target id parse to no payload at all.
+const noFields = () => ({ value: null });
+
+// Everything a gated, parsed action has to work with.
+type ActionCtx<P> = {
+  admin: AdminIdentity;
+  ref: UserRef;
+  payload: P;
+};
+
+type UserActionSpec<P> = {
+  name: string; // audit action id
+  key: AccessKey; // least role that may run it (ROLE_FOR)
+  parse: (f: FormData) => ParseResult<P>;
+  demo: (ctx: ActionCtx<P>) => unknown;
+  notice: (user: AdminUserWire | null, payload: P) => string;
+  detail?: (payload: P) => string;
+  // Returns the refreshed user row when the service echoes one (so the
+  // inspector panel updates), or null for row-less mutations.
+  run: (ref: UserRef, payload: P) => Promise<AdminUserWire | null>;
+};
+
+function runUserAction<P>(ctx: ActionCtx<P>, spec: UserActionSpec<P>) {
+  return audited(
+    {
+      admin: ctx.admin,
+      action: spec.name,
+      target: ctx.ref.userId,
+      detail: spec.detail?.(ctx.payload)
+    },
+    () => spec.run(ctx.ref, ctx.payload),
+    // A row-less mutation (clear token, delete) has nothing to refresh the
+    // inspector with, so the lookup half is omitted rather than sent as null.
+    (user) => {
+      const reply = okReply(spec.notice(user, ctx.payload));
+      return user ? { ...reply, lookup: { user } } : reply;
+    }
+  );
+}
+
+function userAction<P>(spec: UserActionSpec<P>) {
+  return async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+    const admin = await requireRole({ locals }, spec.key);
+    if (!admin) return fail(403, { error: 'forbidden' });
+    const f = await request.formData();
+    const userId = String(f.get('user_id') ?? '').trim();
+    if (!userId) return fail(400, { error: 'user_id required' });
+
+    const parsed = spec.parse(f);
+    if ('refuse' in parsed) return refusalReply(parsed);
+
+    const ctx: ActionCtx<P> = { admin, ref: { actorId: admin.id, userId }, payload: parsed.value };
+    if (DEMO) return spec.demo(ctx);
+    return runUserAction(ctx, spec);
+  };
+}
+
+// ── Per-verb parse and notice steps ─────────────────────────────────────────
+
 // parsePaidGrant validates the status modal's end date: a paid grant always
 // carries one (the users service enforces it too) and runs from today until
 // end-of-day on the chosen date.
-function parsePaidGrant(f: FormData): { expiresAt: string; detail: string } | { notice: string } {
+function parsePaidGrant(f: FormData): { expiresAt: string; detail: string } | ParseRefusal {
   const raw = String(f.get('expires_at') ?? '').trim(); // YYYY-MM-DD from the modal
   if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
-    return { notice: 'paid grant needs an end date' };
+    return softNotice('paid grant needs an end date');
   }
   const end = new Date(`${raw}T23:59:59.999Z`);
   if (Number.isNaN(end.getTime()) || end.getTime() <= Date.now()) {
-    return { notice: 'end date must be in the future' };
+    return softNotice('end date must be in the future');
   }
   if (end.getTime() > Date.now() + 5 * 365 * 864e5) {
-    return { notice: 'end date is too far out (max 5 years)' };
+    return softNotice('end date is too far out (max 5 years)');
   }
   const start = new Date().toISOString().slice(0, 10);
   return { expiresAt: end.toISOString(), detail: `status=paid start=${start} end=${raw}` };
 }
 
-// userAction wraps the shared per-user mutation shape: admin gate, user_id
-// parse, demo short-circuit, the RPC, the audit trail, and the notice reply.
-// run returns the refreshed user row when the service echoes one (so the
-// inspector panel updates), or null for row-less mutations.
-type UserActionSpec = {
-  name: string; // audit action id
-  demoNotice: string;
-  notice: (user: AdminUserWire | null) => string;
-  detail?: (f: FormData) => string;
-  run: (userId: string, f: FormData) => Promise<AdminUserWire | null>;
-};
+type StatusGrant = { status: string; expiresAt?: string; detail: string };
 
-function userAction(spec: UserActionSpec) {
-  return async ({ request, locals }: { request: Request; locals: App.Locals }) => {
-    const admin = await requireAdmin(locals.session);
-    if (!admin) return fail(403, { error: 'forbidden' });
-    const f = await request.formData();
-    const userId = String(f.get('user_id') ?? '').trim();
-    if (!userId) return fail(400, { error: 'user_id required' });
-    if (DEMO) return { action: { ok: true, notice: spec.demoNotice } };
+function parseStatus(f: FormData): ParseResult<StatusGrant> {
+  const status = String(f.get('status') ?? '').trim();
+  if (!STATUSES.has(status)) return badRequest('invalid status');
+  if (status !== 'paid') return { value: { status, detail: `status=${status}` } };
+  const grant = parsePaidGrant(f);
+  if ('refuse' in grant) return grant;
+  return { value: { status, expiresAt: grant.expiresAt, detail: grant.detail } };
+}
 
-    const detail = spec.detail?.(f) ?? '';
-    try {
-      const user = await spec.run(userId, f);
-      audit(admin, { action: spec.name, target: userId, detail, ok: true });
-      const reply = { action: { ok: true, notice: spec.notice(user) } };
-      return user ? { ...reply, lookup: { user } } : reply;
-    } catch (e) {
-      audit(admin, { action: spec.name, target: userId, detail, ok: false, error: (e as Error).message });
-      return { action: { ok: false, notice: (e as Error).message } };
-    }
+function statusNotice(user: AdminUserWire | null, grant: StatusGrant): string {
+  if (!user) return `status set to ${grant.status}`;
+  const until = user.subscription_expires_at
+    ? ` until ${user.subscription_expires_at.slice(0, 10)}`
+    : '';
+  return `status set to ${user.status}${until}`;
+}
+
+type CreatorCode = { code: string; detail: string };
+
+function parseCreatorCode(f: FormData): ParseResult<CreatorCode> {
+  const code = String(f.get('creator_code') ?? '').trim();
+  if (code.length > CREATOR_CODE_MAX_LENGTH) {
+    return softNotice(`creator code must be ${CREATOR_CODE_MAX_LENGTH} characters or fewer`);
+  }
+  return { value: { code, detail: code ? `creator_code=${code}` : 'creator_code=cleared' } };
+}
+
+function creatorCodeNotice(user: AdminUserWire | null): string {
+  return user?.creator_code ? `creator code set to ${user.creator_code}` : 'creator code cleared';
+}
+
+function creatorCodeDemoNotice(ctx: ActionCtx<CreatorCode>) {
+  const { code } = ctx.payload;
+  return okReply(code ? `creator code set to ${code} (demo)` : 'creator code cleared (demo)');
+}
+
+// The demo directory is a static fixture list, so the refreshed row the
+// inspector expects has to be assembled here; no service echoes one back.
+async function demoCreatorCode(ctx: ActionCtx<CreatorCode>) {
+  const { sampleUsers } = await import('$lib/server/demo-data');
+  const user = sampleUsers.find((u) => String(u.id) === ctx.ref.userId);
+  const { code } = ctx.payload;
+  return {
+    ...creatorCodeDemoNotice(ctx),
+    lookup: user ? { user: { ...user, creator_code: code || null } } : undefined
   };
 }
 
-function formActive(f: FormData): boolean {
-  return String(f.get('active') ?? '').trim() === 'true';
+function parseActive(f: FormData): ParseResult<{ active: boolean }> {
+  return { value: { active: String(f.get('active') ?? '').trim() === 'true' } };
 }
 
 // Serving state and Twitch EventSub enrollment move together, mirroring the
@@ -278,7 +376,8 @@ async function withEnrollmentSync<T extends AdminUserWire | null>(
 
 export const actions: Actions = {
   lookup: async ({ request, locals }) => {
-    if (!(await requireAdmin(locals.session))) return fail(403, { error: 'forbidden' });
+    const admin = await requireRole({ locals }, 'users.read');
+    if (!admin) return fail(403, { error: 'forbidden' });
     const q = String((await request.formData()).get('q') ?? '').trim();
     if (!q) return fail(400, { error: 'query required' });
     if (q.length > 128) return fail(400, { error: 'query too long' });
@@ -287,127 +386,105 @@ export const actions: Actions = {
       return demoLookup(q, sampleUsers);
     }
     try {
-      return { lookup: await probeUser(q) };
+      return { lookup: await probeUser({ actorId: admin.id, q }) };
     } catch (e) {
+      if (isForbidden(e)) return refused(e);
       return { lookup: { error: (e as Error).message, q } };
     }
   },
 
-  setStatus: async ({ request, locals }) => {
-    const admin = await requireAdmin(locals.session);
-    if (!admin) return fail(403, { error: 'forbidden' });
-    const f = await request.formData();
-    const userId = String(f.get('user_id') ?? '').trim();
-    const status = String(f.get('status') ?? '').trim();
-    if (!userId || !STATUSES.has(status)) return fail(400, { error: 'invalid status' });
-
-    let expiresAt: string | undefined;
-    let detail = `status=${status}`;
-    if (status === 'paid') {
-      const grant = parsePaidGrant(f);
-      if ('notice' in grant) return { action: { ok: false, notice: grant.notice } };
-      ({ expiresAt, detail } = grant);
-    }
-
-    if (DEMO) return { action: { ok: true, notice: `status set to ${status} (demo)` } };
-    try {
-      const user: AdminUserWire = await userSetStatus(userId, status, expiresAt);
-      audit(admin, { action: 'set_status', target: userId, detail, ok: true });
-      const until = user.subscription_expires_at
-        ? ` until ${user.subscription_expires_at.slice(0, 10)}`
-        : '';
-      return { action: { ok: true, notice: `status set to ${user.status}${until}` }, lookup: { user } };
-    } catch (e) {
-      audit(admin, { action: 'set_status', target: userId, detail, ok: false, error: (e as Error).message });
-      return { action: { ok: false, notice: (e as Error).message } };
-    }
-  },
+  setStatus: userAction<StatusGrant>({
+    name: 'set_status',
+    key: 'users.grant',
+    parse: parseStatus,
+    demo: (ctx) => okReply(`status set to ${ctx.payload.status} (demo)`),
+    detail: (p) => p.detail,
+    notice: statusNotice,
+    run: (ref, p) => userSetStatus(ref, p.status, p.expiresAt)
+  }),
 
   reset: userAction({
     name: 'reset',
-    demoNotice: DEMO ? 'user reset (demo)' : '',
+    key: 'users.grant',
+    parse: noFields,
+    demo: () => okReply('user reset (demo)'),
     notice: () => 'user reset',
-    run: (userId) => userReset(userId)
+    run: (ref) => userReset(ref)
   }),
 
   clearToken: userAction({
     name: 'clear_token',
-    demoNotice: DEMO ? 'token cleared (demo)' : '',
+    key: 'users.token',
+    parse: noFields,
+    demo: () => okReply('token cleared (demo)'),
     notice: () => 'token cleared',
-    run: async (userId) => {
-      await tokenClear(userId);
+    run: async (ref) => {
+      await tokenClear(ref);
       return null;
     }
   }),
 
   setActive: userAction({
     name: 'set_active',
-    demoNotice: DEMO ? 'active set (demo)' : '',
+    key: 'users.grant',
+    parse: parseActive,
+    demo: () => okReply('active set (demo)'),
     notice: (user) => `active=${user?.is_active}`,
-    detail: (f) => String(formActive(f)),
-    run: (userId, f) => {
-      const active = formActive(f);
-      return withEnrollmentSync({
-        userId,
-        sync: active ? 'enroll-after' : 'unenroll-first',
-        mutate: () => userSetActive(userId, active)
-      });
-    }
+    detail: (p) => String(p.active),
+    run: (ref, p) =>
+      withEnrollmentSync({
+        userId: ref.userId,
+        sync: p.active ? 'enroll-after' : 'unenroll-first',
+        mutate: () => userSetActive(ref, p.active)
+      })
   }),
 
-  // Creator code carries its own length validation and demo-lookup shaping, so
-  // it stays hand-written rather than going through userAction.
-  setCreatorCode: async ({ request, locals }) => {
-    const admin = await requireAdmin(locals.session);
-    if (!admin) return fail(403, { error: 'forbidden' });
-    const f = await request.formData();
-    const userId = String(f.get('user_id') ?? '').trim();
-    const creatorCode = String(f.get('creator_code') ?? '').trim();
-    if (!userId) return fail(400, { error: 'user_id required' });
-    if (creatorCode.length > CREATOR_CODE_MAX_LENGTH) {
-      return { action: { ok: false, notice: `creator code must be ${CREATOR_CODE_MAX_LENGTH} characters or fewer` } };
-    }
-
-    const detail = creatorCode ? `creator_code=${creatorCode}` : 'creator_code=cleared';
-    if (DEMO) {
-      const { sampleUsers } = await import('$lib/server/demo-data');
-      const user = sampleUsers.find((u) => String(u.id) === userId);
-      return {
-        action: { ok: true, notice: creatorCode ? `creator code set to ${creatorCode} (demo)` : 'creator code cleared (demo)' },
-        lookup: user ? { user: { ...user, creator_code: creatorCode || null } } : undefined
-      };
-    }
-    try {
-      const user: AdminUserWire = await userSetCreatorCode(userId, creatorCode);
-      audit(admin, { action: 'set_creator_code', target: userId, detail, ok: true });
-      return {
-        action: { ok: true, notice: user.creator_code ? `creator code set to ${user.creator_code}` : 'creator code cleared' },
-        lookup: { user }
-      };
-    } catch (e) {
-      audit(admin, { action: 'set_creator_code', target: userId, detail, ok: false, error: (e as Error).message });
-      return { action: { ok: false, notice: (e as Error).message } };
-    }
-  },
+  setCreatorCode: userAction<CreatorCode>({
+    name: 'set_creator_code',
+    key: 'users.grant',
+    parse: parseCreatorCode,
+    // The fixture import must be named behind the build-time DEMO constant,
+    // not merely called behind it: a plain `demo: demoCreatorCode` leaves the
+    // spec object referencing the function in a production build, nothing can
+    // shake it out, and the demo-data chunk ships. `if (DEMO)` inside the
+    // function is too late for the same reason. scripts/assert-production-clean.ts
+    // is the gate that catches this, and it caught exactly this.
+    demo: DEMO ? demoCreatorCode : creatorCodeDemoNotice,
+    detail: (p) => p.detail,
+    notice: creatorCodeNotice,
+    run: (ref, p) => userSetCreatorCode(ref, p.code)
+  }),
 
   ban: userAction({
     name: 'ban',
-    demoNotice: DEMO ? 'user banned (demo)' : '',
+    key: 'users.ban',
+    parse: noFields,
+    demo: () => okReply('user banned (demo)'),
     notice: () => 'user banned',
-    run: (userId) =>
-      withEnrollmentSync({ userId, sync: 'unenroll-first', mutate: () => userBan(userId) })
+    run: (ref) =>
+      withEnrollmentSync({
+        userId: ref.userId,
+        sync: 'unenroll-first',
+        mutate: () => userBan(ref)
+      })
   }),
 
   unban: userAction({
     name: 'unban',
-    demoNotice: DEMO ? 'user unbanned (demo)' : '',
+    key: 'users.ban',
+    parse: noFields,
+    demo: () => okReply('user unbanned (demo)'),
     notice: () => 'user unbanned',
-    run: (userId) =>
-      withEnrollmentSync({ userId, sync: 'enroll-after', mutate: () => userUnban(userId) })
+    run: (ref) =>
+      withEnrollmentSync({
+        userId: ref.userId,
+        sync: 'enroll-after',
+        mutate: () => userUnban(ref)
+      })
   }),
 
   restart: async ({ request, locals }) => {
-    const admin = await requireAdmin(locals.session);
+    const admin = await requireRole({ locals }, 'users.restart');
     if (!admin) return fail(403, { error: 'forbidden' });
     const userId = String((await request.formData()).get('user_id') ?? '').trim();
     if (!userId) return fail(400, { error: 'user_id required' });
@@ -432,7 +509,7 @@ export const actions: Actions = {
   // dashboard. The signed token (5 min TTL) carries the actor so every write
   // during the impersonated session is attributed back to this admin.
   impersonate: async ({ request, locals, url }) => {
-    const admin = await requireAdmin(locals.session);
+    const admin = await requireRole({ locals }, 'users.impersonate');
     if (!admin) return fail(403, { error: 'forbidden' });
     const userId = String((await request.formData()).get('user_id') ?? '').trim();
     if (!userId) return fail(400, { error: 'user_id required' });
@@ -453,7 +530,7 @@ export const actions: Actions = {
       return { action: { ok: true, notice: 'view-as link minted (demo)' }, viewAsUrl: `${origin}/auth/impersonate?t=${token}` };
     }
     try {
-      const user = await userLookup(userId);
+      const user = await userLookup(admin.id, userId);
       const token = signViewAs({
         sub: String(user.id),
         login: user.username,
@@ -468,20 +545,23 @@ export const actions: Actions = {
       };
     } catch (e) {
       audit(admin, { action: 'impersonate', target: userId, ok: false, error: (e as Error).message });
+      if (isForbidden(e)) return refused(e);
       return { action: { ok: false, notice: (e as Error).message } };
     }
   },
 
   delete: userAction({
     name: 'delete',
-    demoNotice: DEMO ? 'user deleted (demo only, no real data removed)' : '',
+    key: 'users.delete',
+    parse: noFields,
+    demo: () => okReply('user deleted (demo only, no real data removed)'),
     notice: () => 'user deleted',
-    run: (userId) =>
+    run: (ref) =>
       withEnrollmentSync({
-        userId,
+        userId: ref.userId,
         sync: 'unenroll-first',
         mutate: async () => {
-          await userDelete(userId);
+          await userDelete(ref);
           return null;
         }
       })

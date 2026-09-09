@@ -27,7 +27,7 @@ func setupAdminAuthTest(t *testing.T) (*adminAuthRPC, *ent.Client) {
 
 	client := testdb.Open(t, "adminauth", func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
 
-	return &adminAuthRPC{db: client, log: zap.NewNop()}, client
+	return &adminAuthRPC{staffGate: staffGate{db: client}, log: zap.NewNop()}, client
 }
 
 type staffFixture struct {

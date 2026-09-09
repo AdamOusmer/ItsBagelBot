@@ -33,8 +33,17 @@ import (
 // not only in the console: only managers (admin/owner) may change the roster,
 // and only an owner may create, modify, or remove an owner.
 
+// staffGate is the staff allowlist read on its own: the roster surface below
+// and the admin user surface in admin.go both authorize against it, so it is a
+// type of its own rather than a method duplicated on each RPC struct. It holds
+// the ent client (not the repository) because the staff table is not part of
+// the users repository's keyspace.
+type staffGate struct {
+	db *ent.Client
+}
+
 type adminAuthRPC struct {
-	db  *ent.Client
+	staffGate
 	log *zap.Logger
 }
 
@@ -49,7 +58,7 @@ const (
 // they ride the console admin user's existing "bagel.rpc.admin.user.>" NATS
 // publish permission (no broker ACL change needed).
 func SubscribeAdminAuth(w Wiring, db *ent.Client, authPrefix, auditPrefix string) error {
-	a := &adminAuthRPC{db: db, log: w.Log}
+	a := &adminAuthRPC{staffGate: staffGate{db: db}, log: w.Log}
 
 	// Two tables rather than one map keyed by full subject: the prefixes
 	// differ, so the map had to pre-concatenate them and lost the property
@@ -150,9 +159,9 @@ func (a *adminAuthRPC) refreshIdentity(ctx context.Context, row *ent.AdminUser, 
 	return saved
 }
 
-func (a *adminAuthRPC) findStaff(ctx context.Context, id uint64) (*ent.AdminUser, error) {
+func (g staffGate) findStaff(ctx context.Context, id uint64) (*ent.AdminUser, error) {
 	return dbgate.WithQuery(ctx, func(ctx context.Context) (*ent.AdminUser, error) {
-		return a.db.AdminUser.Query().Where(adminuser.IDEQ(id)).Only(ctx)
+		return g.db.AdminUser.Query().Where(adminuser.IDEQ(id)).Only(ctx)
 	})
 }
 
@@ -232,7 +241,7 @@ func (a *adminAuthRPC) validateUpsert(ctx context.Context, req usersrpc.AuthRequ
 // resolveActiveActor loads the actor from the staff allowlist. ActorRole is
 // deliberately not consulted: authorization must be based on the persisted
 // role so a caller cannot elevate itself by forging request metadata.
-func (a *adminAuthRPC) resolveActiveActor(ctx context.Context, rawID string) (*ent.AdminUser, string) {
+func (g staffGate) resolveActiveActor(ctx context.Context, rawID string) (*ent.AdminUser, string) {
 	actorID, err := parseID(rawID)
 	if err != nil {
 		if rawID == "" {
@@ -240,7 +249,7 @@ func (a *adminAuthRPC) resolveActiveActor(ctx context.Context, rawID string) (*e
 		}
 		return nil, "actor_id must be numeric"
 	}
-	actor, err := a.findStaff(ctx, actorID)
+	actor, err := g.findStaff(ctx, actorID)
 	if ent.IsNotFound(err) {
 		return nil, "forbidden: actor is not active staff"
 	}

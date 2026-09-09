@@ -12,6 +12,11 @@ import "time"
 
 // AdminRequest covers all admin verbs; unused fields are zero-valued.
 type AdminRequest struct {
+	// ActorID identifies the operator calling the verb. Like AuthRequest's,
+	// it is only an identity claim: the users service resolves the actor's
+	// role from its own staff table, so a caller cannot name its own role.
+	// Required on every verb, reads included -- see admin.go's minRole table.
+	ActorID      string `json:"actor_id"`
 	UserID       string `json:"user_id"`
 	Username     string `json:"username"`
 	Status       string `json:"status"`

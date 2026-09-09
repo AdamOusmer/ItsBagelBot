@@ -6,13 +6,13 @@ import { fail, redirect } from '@sveltejs/kit';
 import { mutateAction } from '@bagel/shared/server/form-action';
 import { normalizeCounterName } from '@bagel/shared/validation';
 import { dev } from '$app/environment';
-import { requireAdmin, isManager, type AdminIdentity } from '$lib/server/access';
+import { allows, requireRole, type AdminIdentity } from '$lib/server/access';
+import { audit } from '$lib/server/audit';
 import {
   botCounterList,
   botCounterCreate,
   botCounterSet,
   botCounterDelete,
-  auditAppend,
   type BotCounter
 } from '$lib/server/services';
 
@@ -29,8 +29,11 @@ function validName(name: string): boolean {
 
 export const load: PageServerLoad = async ({ parent }) => {
   const layout = await parent();
-  // Bot-global counters are managers-only, like the rest of the Access group.
-  if (!isManager(layout.role)) throw redirect(302, '/');
+  // Bot-global counters have no backing role check of their own (the loyalty
+  // service takes any caller the broker lets through), so this table is the
+  // only gate: owner-only, because a bot-global counter is shared state every
+  // channel reads.
+  if (!allows(layout.role, 'counters.manage')) throw redirect(302, '/');
 
   const bundle: Promise<BotCountersBundle> = DEMO
     ? Promise.resolve({ counters: [{ name: 'feeds', scope: 'bot', value: 12873 }], degraded: false })
@@ -40,13 +43,6 @@ export const load: PageServerLoad = async ({ parent }) => {
 
   return { bundle };
 };
-
-type AuditLine = { action: string; target: string; detail: string; ok: boolean; error?: string };
-
-function audit(admin: AdminIdentity, line: AuditLine): void {
-  if (DEMO) return;
-  auditAppend({ actor_id: admin.id, actor_login: admin.login, ...line }).catch(() => {});
-}
 
 // mutate binds one POST action to the shared write skeleton
 // (@bagel/shared/server/form-action): gate, form, demo short-circuit, error
@@ -58,10 +54,7 @@ function mutate(op: string, run: Mutation) {
   const action = `bot_counter_${op}`;
   return (event: RequestEvent) =>
     mutateAction<AdminIdentity>(event, {
-      gate: async () => {
-        const admin = await requireAdmin(event.locals.session);
-        return admin && isManager(admin.role) ? admin : null;
-      },
+      gate: () => requireRole(event, 'counters.manage'),
       refusal: () => fail(403, { ok: false, error: 'forbidden' }),
       demo: DEMO,
       run: (_admin, f) => run(f),
