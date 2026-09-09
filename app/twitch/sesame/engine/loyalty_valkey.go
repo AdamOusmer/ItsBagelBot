@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"ItsBagelBot/app/twitch/sesame/engine/scope"
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/event/data"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
@@ -131,8 +132,13 @@ func NewValkeyLoyaltyStore(client valkey.Client, rpc *LoyaltyRPC, reporter *Loya
 
 // NormalizeCounterName is the worker-side mirror of the loyalty service's
 // counter key normalization: bare name, lower-cased, no leading "!".
+//
+// The definition lives in the scope package because the token grammar has to
+// fold a {counter:...} payload before this store is ever reached; keeping the
+// store-side spelling as a delegation means the two can never answer
+// differently for the same counter.
 func NormalizeCounterName(name string) string {
-	return strings.ToLower(strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(name), "!")))
+	return scope.NormalizeName(name)
 }
 
 // counterRef names one channel's counter: the (broadcaster, counter name)

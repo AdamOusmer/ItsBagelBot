@@ -6,14 +6,18 @@ package engine
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"ItsBagelBot/app/twitch/sesame/engine/scope"
 	"ItsBagelBot/app/twitch/sesame/module"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/internal/projection"
+	"ItsBagelBot/pkg/tmpl"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -98,7 +102,31 @@ func dispatch(t *testing.T, p *Pipeline, c *module.Context) ([]module.Output, er
 
 // --- scan grammar ---
 
-func TestUrlFetchNamesScan(t *testing.T) {
+// recordFetcher records the names the external scope asked for and answers
+// each with its own uppercased text.
+type recordFetcher struct{ asked []string }
+
+func (r *recordFetcher) Fetch(_ context.Context, names []string) map[string]string {
+	r.asked = append(r.asked, names...)
+	out := make(map[string]string, len(names))
+	for _, name := range names {
+		out[name] = strings.ToUpper(name)
+	}
+	return out
+}
+
+// planFetches plans template through an external scope and reports the names
+// it fanned out, in order.
+func planFetches(t *testing.T, template string) []string {
+	t.Helper()
+	rec := &recordFetcher{}
+	toks := tmpl.Lex(template)
+	chain := scope.Chain{scope.External{Fetcher: rec, Max: maxUrlFetchTokens}}
+	chain.Plan(context.Background(), toks, nil)
+	return rec.asked
+}
+
+func TestUrlFetchScopePlansNames(t *testing.T) {
 	tests := []struct {
 		name string
 		tmpl string
@@ -107,47 +135,81 @@ func TestUrlFetchNamesScan(t *testing.T) {
 		{"none", "plain {user} response", nil},
 		{"single", "{urlfetch:temp}", []string{"temp"}},
 		{"repeats collapse preserving first appearance", "{urlfetch:b} {urlfetch:a} {urlfetch:b}", []string{"b", "a"}},
-		// The sigil itself is matched case-sensitively, byte-for-byte like the
-		// counter scan (Index on the lowercase prefix); the PAYLOAD folds
-		// through NormalizeCounterName so {urlfetch:Temp.Hum} scans as
-		// "temp.hum" — the exact key expandCommand looks up.
-		{"case-folded through the counter fold", "{urlfetch:Temp.Hum}", []string{"temp.hum"}},
+		// The name folds through the same NormalizeName the counter payloads
+		// use, so {urlfetch:Temp.Hum} plans as "temp.hum" — the exact key the
+		// render phase looks up.
+		{"case-folded through the shared fold", "{urlfetch:Temp.Hum}", []string{"temp.hum"}},
 		{"path payloads are distinct tokens", "{urlfetch:w.temp} {urlfetch:w.hum}", []string{"w.temp", "w.hum"}},
 		{"bang stripped like counter names", "{urlfetch:!deaths}", []string{"deaths"}},
 		{"empty payload skipped", "{urlfetch:} tail", nil},
-		{"unterminated brace ignored", "head {urlfetch:w", nil},
+		{"no payload at all skipped", "{urlfetch} tail", nil},
+		{"unterminated brace opens no span", "head {urlfetch:w", nil},
 		{"other token families untouched", "{counter:deaths} {choice:A,B} {random}", nil},
-		// The scan takes the FIRST closing brace, exactly like closeBrace does
-		// at expansion time — so this payload scans as "{nested" AND that is
-		// the key expandCommand would look up, keeping scan and expansion in
-		// agreement even on malformed input (the token then stays verbatim).
+		// A span closes at the FIRST '}', so this payload is "{nested" both
+		// when planning and when rendering — scan and render cannot disagree
+		// even on malformed input (the token then stays verbatim).
 		{"nested braces", "x {urlfetch:{nested}} y", []string{"{nested"}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.want, urlFetchNames(tc.tmpl))
+			assert.Equal(t, tc.want, planFetches(t, tc.tmpl))
 		})
 	}
 }
 
+// TestUrlFetchScopeCapsFanOut pins the emit-side backstop: payloads past the
+// cap are never fetched and stay verbatim, exactly like an unknown token.
+func TestUrlFetchScopeCapsFanOut(t *testing.T) {
+	var b strings.Builder
+	for i := range maxUrlFetchTokens + 3 {
+		fmt.Fprintf(&b, "{urlfetch:d%d}", i)
+	}
+	assert.Len(t, planFetches(t, b.String()), maxUrlFetchTokens)
+
+	rec := &recordFetcher{}
+	got := renderScopes(nil, b.String(), scope.External{Fetcher: rec, Max: maxUrlFetchTokens})
+	assert.Contains(t, got, "D0")
+	assert.Contains(t, got, "{urlfetch:d"+strconv.Itoa(maxUrlFetchTokens)+"}")
+}
+
 // --- injection point ---
 
-func TestExpandCommandUrlToken(t *testing.T) {
+func TestRenderUrlToken(t *testing.T) {
+	fetched := stubFetcher{"temp": "72F", "temp.now": "72"}
 	t.Run("resolved payload renders", func(t *testing.T) {
-		buf := expandCommand(nil, "{urlfetch:temp}", tokens{urls: map[string]string{"temp": "72F"}})
-		assert.Equal(t, "72F", string(buf))
+		assert.Equal(t, "72F", renderScopes(nil, "{urlfetch:temp}", urlScope(fetched)))
 	})
-	t.Run("payload folds like the scan", func(t *testing.T) {
-		buf := expandCommand(nil, "{URLFETCH:TEMP.NOW}", tokens{urls: map[string]string{"temp.now": "72"}})
-		assert.Equal(t, "72", string(buf))
+	t.Run("payload folds like the plan", func(t *testing.T) {
+		assert.Equal(t, "72", renderScopes(nil, "{URLFETCH:TEMP.NOW}", urlScope(fetched)))
 	})
 	t.Run("unresolved stays verbatim", func(t *testing.T) {
-		buf := expandCommand(nil, "x {urlfetch:missing} y", tokens{urls: map[string]string{}})
-		assert.Equal(t, "x {urlfetch:missing} y", string(buf))
+		assert.Equal(t, "x {urlfetch:missing} y",
+			renderScopes(nil, "x {urlfetch:missing} y", urlScope(fetched)))
+	})
+	t.Run("unmounted scope leaves the token literal", func(t *testing.T) {
+		assert.Equal(t, "{urlfetch:temp}", renderScopes(nil, "{urlfetch:temp}"))
 	})
 	// Sanitize/cap coverage lives at the boundary that owns it: resolveUrlToken
 	// passes every fetched value through ExternalVar BEFORE it enters the map
-	// this expansion reads (see TestUrlFetchFailureTable).
+	// this render reads (see TestUrlFetchFailureTable).
+}
+
+// stubFetcher answers from a canned map; a name it does not hold is absent
+// from the result, which is the "leave the token literal" signal.
+type stubFetcher map[string]string
+
+func (s stubFetcher) Fetch(_ context.Context, names []string) map[string]string {
+	out := make(map[string]string, len(names))
+	for _, name := range names {
+		if value, ok := s[name]; ok {
+			out[name] = value
+		}
+	}
+	return out
+}
+
+func urlScope(f scope.Fetcher) scope.External {
+	return scope.External{Fetcher: f, Max: maxUrlFetchTokens}
 }
 
 // --- end to end through runCustom ---

@@ -4,132 +4,146 @@
 package engine
 
 import (
+	"context"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
+	"ItsBagelBot/app/twitch/sesame/engine/scope"
 	"ItsBagelBot/app/twitch/sesame/module"
+
+	"go.uber.org/zap"
 )
 
-// tokens are the substitution values a custom-command response can reference.
-type tokens struct {
-	user    string
-	sender  string
-	args    string
-	touser  string
-	channel string
-	// counters holds the pre-resolved {counter:<name>} values for this run,
-	// keyed by normalized name. runCustom bumps each referenced counter once
-	// (with ctx) before expansion, so the sync callback only looks values up.
-	counters map[string]string
-	// urls holds the pre-resolved {urlfetch:<name>} values for this run, keyed
-	// by normalized token payload ("name", or "name.path" when the token
-	// selects a dotted path into the fetched document). runCustom fans each
-	// referenced definition out to gossip once (with ctx) before expansion —
-	// the sync repl callback carries no ctx, so a network hook inside it is
-	// impossible without faking it.
-	urls map[string]string
-}
-
-// counterTokenPrefix marks the counter substitution inside a response
-// template: {counter:deaths} bumps the broadcaster's "deaths" counter by one
-// and renders the new value.
-const counterTokenPrefix = "counter:"
-
-// botCounterTokenPrefix marks a bot-scope counter reference inside a counter
-// token ({counter:bot:feeds}). Bot counters are admin-only: broadcaster
-// commands never resolve or bump them, so the token is skipped and stays
-// visible, exactly like any other unknown token. Only admin/system-authored
-// content may resolve it.
-const botCounterTokenPrefix = "bot:"
-
-// targetCounterTokenPrefix marks a target-addressed counter reference inside a
-// counter token ({counter:target:shutups}): the bump keys on the viewer the
-// command mentions ({touser}) instead of the sender, so "!shutup @bob" counts
-// against bob. The counter's own scope still decides the bucket shape — the
-// addressing only changes whose viewer identity rides the bump (issue #479).
-// Like "bot:", the "target:" spelling inside a counter name is reserved by the
-// worker's token grammar.
-const targetCounterTokenPrefix = "target:"
-
-// expandCommand expands a custom-command response, supporting the {user},
-// {sender}, {args} and {touser} tokens. It is expand specialized for the command
-// path. {target} is the dashboard-facing name for {touser}; both are kept as
-// aliases so existing commands continue to work. dst should be a pooled scratch
-// buffer.
-func expandCommand(dst []byte, tmpl string, t tokens) []byte {
-	return module.Expand(dst, tmpl, func(key string) (string, bool) {
-		switch key {
-		case "user":
-			return strings.TrimPrefix(t.user, "@"), true
-		case "sender":
-			return strings.TrimPrefix(t.sender, "@"), true
-		case "args":
-			return t.args, true
-		case "touser", "target":
-			return strings.TrimPrefix(t.touser, "@"), true
-		case "channel":
-			return t.channel, true
-		default:
-			if name, ok := strings.CutPrefix(key, counterTokenPrefix); ok {
-				v, ok := t.counters[NormalizeCounterName(name)]
-				return v, ok // unresolved (no loyalty store): leave the token visible
-			}
-			if payload, ok := strings.CutPrefix(key, urlFetchTokenPrefix); ok {
-				v, ok := t.urls[NormalizeCounterName(payload)]
-				return v, ok // unresolved (missing/inactive def): leave the token visible
-			}
-			return module.ParseDynamic(key)
-		}
-	})
-}
-
-// counterTokenNames scans a response template for {counter:<name>} tokens and
-// returns the distinct normalized names, in first-appearance order. nil when
-// the template references none — the fast path for every ordinary command.
-func counterTokenNames(tmpl string) []string {
-	var (
-		names []string
-		seen  map[string]struct{}
-	)
-	rest := tmpl
-	for {
-		i := strings.Index(rest, "{"+counterTokenPrefix)
-		if i < 0 {
-			return names
-		}
-		rest = rest[i+len(counterTokenPrefix)+1:]
-		end := strings.IndexByte(rest, '}')
-		if end < 0 {
-			return names
-		}
-		name := NormalizeCounterName(rest[:end])
-		rest = rest[end+1:]
-		if name != "" {
-			names, seen = appendDistinctName(names, seen, name)
-		}
-	}
-}
-
-// appendDistinctName appends name in first-appearance order unless seen
-// already holds it, returning the grown slice and the set. It replaced the
-// slices.Contains rescan both token scanners ran on every hit, which cost
-// T²/2 string compares for a template carrying T tokens — cheap for the two
-// or three tokens a normal response has, but the template is broadcaster-
-// supplied and nothing caps how many tokens it may name. names stays the
-// storage: callers read the order, and a map has none.
+// commandChain builds the scope chain one custom-command run expands through.
 //
-// seen is created lazily so the token-free template — the fast path both
-// scanners are written around — still allocates nothing: a read of a nil map
-// answers "not present" without touching the heap.
-func appendDistinctName(names []string, seen map[string]struct{}, name string) ([]string, map[string]struct{}) {
-	if _, dup := seen[name]; dup {
-		return names, seen
+// It replaced expandCommand's switch: a token family is no longer an arm
+// nothing can gate, it is a scope that is present or absent, so "this module
+// is off for this broadcaster" and "this dependency is not wired" are the same
+// statement and both leave the token literal. Order is precedence — pure
+// first, so a broadcaster cannot shadow {random} — and external last, because
+// its Plan is the only one that leaves the process.
+//
+// args is the RAW argument string: the counter scope resolves a mention from
+// it, and that resolution has to see the same bytes the chatter typed.
+func (p *Pipeline) commandChain(run commandRun) scope.Chain {
+	chain := scope.Chain{scope.Pure{}, messageVars(run)}
+	if p.loyalty != nil {
+		chain = append(chain, scope.Store{Counters: newCounterBumps(p, run)})
 	}
-	if seen == nil {
-		seen = make(map[string]struct{}, 4)
+	if p.customFetch != nil {
+		chain = append(chain, scope.External{
+			Fetcher: urlFetches{p: p, run: run},
+			Max:     maxUrlFetchTokens,
+		})
 	}
-	seen[name] = struct{}{}
-	return append(names, name), seen
+	return chain
+}
+
+// commandRun is the single custom-command run a chain plans for: the module
+// context it fires in, the canonical command name, and the RAW argument
+// string the chatter typed.
+//
+// The three travel together through every scope the chain mounts — the
+// message tokens, the counter bumps and the url fetches each need all three —
+// so they are one value rather than three parameters rethreaded at each hop,
+// which is what let a caller pass them in the wrong order.
+type commandRun struct {
+	c       *module.Context
+	command string
+	args    string
+}
+
+// messageVars reads the triggering chat line's identity tokens.
+//
+// The user-controlled halves ({args}, {touser}) are run through sanitizeVar
+// here, at the one boundary that mints them, so a crafted argument can never
+// inject a leading slash-verb (/ban, /timeout) into the expanded response for
+// Translate to route. Command CONTENT is validated at save time on the
+// dashboard; this guards only the runtime injection vector. The '@' is
+// trimmed after sanitizing as well as before, so "@@bob" still renders "bob".
+func messageVars(run commandRun) scope.Message {
+	sender := run.c.Env.ChatterName()
+	touser := sender
+	if run.args != "" {
+		touser = strings.TrimPrefix(firstArg(run.args), "@")
+	}
+	return scope.Message{
+		User:    strings.TrimPrefix(sender, "@"),
+		Sender:  strings.TrimPrefix(sender, "@"),
+		Args:    sanitizeVar(run.args),
+		Touser:  strings.TrimPrefix(sanitizeVar(touser), "@"),
+		Channel: run.c.Env.BroadcasterName(),
+	}
+}
+
+// logScopeFailure reports a scope whose Plan failed; its tokens then render
+// empty (or their fallback) rather than failing the whole reply.
+func (p *Pipeline) logScopeFailure(c *module.Context) func(error) {
+	return func(err error) {
+		p.log.Warn("command scope plan failed", module.BIDField(c.BroadcasterID), zap.Error(err))
+	}
+}
+
+// counterBumps is the engine half of the counter scope: the grammar (which
+// spellings resolve, how a payload folds) lives in scope.Store, and everything
+// that needs the run — whose identity rides the bump, the redelivery claim,
+// the loyalty store itself — lives here.
+//
+// The mentioned viewer is resolved lazily and once: a response naming three
+// addressed counters looks the mention up in the roster a single time.
+type counterBumps struct {
+	p   *Pipeline
+	run commandRun
+
+	sender   Viewer
+	target   Viewer
+	resolved bool
+}
+
+func newCounterBumps(p *Pipeline, run commandRun) *counterBumps {
+	env := run.c.Env
+	senderID, _ := strconv.ParseUint(env.ChatterUserID, 10, 64)
+	return &counterBumps{
+		p: p, run: run,
+		sender: Viewer{ID: senderID, Login: env.ChatterUserLogin, Name: env.ChatterUserName},
+	}
+}
+
+// Bump applies one counter's increment under the run's identity.
+func (b *counterBumps) Bump(ctx context.Context, name string, addressed bool) string {
+	viewer := b.sender
+	if addressed {
+		viewer = b.targetViewer()
+	}
+	return b.p.claimedCounterValue(ctx, b.run.c, name, viewer, b.run.command)
+}
+
+// targetViewer is the viewer the command mentions, resolved through the
+// roster of chatters this replica has seen speak. A mention nobody has spoken
+// where this replica could see falls back to the sender, mirroring how
+// {touser} itself defaults to the sender.
+func (b *counterBumps) targetViewer() Viewer {
+	if b.resolved {
+		return b.target
+	}
+	b.resolved, b.target = true, b.sender
+	login := strings.ToLower(strings.TrimPrefix(firstArg(b.run.args), "@"))
+	if v, found := b.p.roster.Resolve(b.run.c.BroadcasterID, login); found {
+		b.target = v
+	}
+	return b.target
+}
+
+// urlFetches is the engine half of the urlfetch scope: scope.External decides
+// which payloads are asked for, this fans them out to gossip.
+type urlFetches struct {
+	p   *Pipeline
+	run commandRun
+}
+
+func (f urlFetches) Fetch(ctx context.Context, names []string) map[string]string {
+	return f.p.fetchUrlValues(ctx, f.run.c, f.run.command, names)
 }
 
 // sanitizeVar neutralizes a user-supplied command variable so it cannot inject
@@ -140,16 +154,26 @@ func appendDistinctName(names []string, seen map[string]struct{}, name string) (
 // leading spaces/slashes are trimmed after. The rest is untouched: a URL's
 // "http://" keeps its slashes because they are not leading.
 func sanitizeVar(s string) string {
-	return trimLeftSlashSpace(stripControls(s))
+	return string(trimLeftSlashSpace(stripControls(rawText(s))))
 }
+
+// rawText is text that has been through at most one half of sanitizeVar.
+//
+// The named type is what stops a caller reaching past sanitizeVar for a
+// single half: stripControls alone still lets a leading "/ban" through, and
+// trimLeftSlashSpace alone still lets an embedded newline mint the second
+// chat line a slash-verb needs, so neither half is safe to hand a template on
+// its own. sanitizeVar is the only function here that returns a plain string,
+// so a plain string is the only thing that has crossed the whole guard.
+type rawText string
 
 // stripControls removes every ASCII control rune before an external value can
 // reach a template: an embedded \n or \r would mint extra chat lines through
 // emitResponse's per-line split, an ESC poisons terminal/IRC rendering, and a
 // NUL truncates downstream writers. Returns s unchanged when it carries none
 // (the overwhelmingly common case pays only the scan).
-func stripControls(s string) string {
-	i := strings.IndexFunc(s, func(r rune) bool { return r < ' ' || r == '\x7f' })
+func stripControls(s rawText) rawText {
+	i := strings.IndexFunc(string(s), func(r rune) bool { return r < ' ' || r == '\x7f' })
 	if i < 0 {
 		return s
 	}
@@ -160,10 +184,10 @@ func stripControls(s string) string {
 			out = utf8.AppendRune(out, r)
 		}
 	}
-	return string(out)
+	return rawText(out)
 }
 
-func trimLeftSlashSpace(s string) string {
+func trimLeftSlashSpace(s rawText) rawText {
 	i := 0
 	for i < len(s) && (s[i] == ' ' || s[i] == '/') {
 		i++
