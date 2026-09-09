@@ -638,6 +638,17 @@ const guide: GuideContent = {
             ['Also', 'The rest of the lifetime profile: <code>&#123;cr.wins&#125;</code>, <code>&#123;cr.losses&#125;</code>, <code>&#123;cr.draws&#125;</code>, <code>&#123;cr.battles&#125;</code>, <code>&#123;cr.winrate&#125;</code>, <code>&#123;cr.crowns&#125;</code>, <code>&#123;cr.challengemax&#125;</code>, <code>&#123;cr.donations&#125;</code>, <code>&#123;cr.totaldonations&#125;</code>, <code>&#123;cr.favcard&#125;</code>. Each of the three groups is its own <code>&#123;cr.player&#125;</code> and <code>&#123;cr.tag&#125;</code>.', 'Needs the Clash Royale module'],
           ],
         },
+        {
+          kind: 'table',
+          head: ['Variable', 'Becomes', 'Example'],
+          rows: [
+            ['<code>&#123;mcsr.elo&#125;</code>', 'Your MCSR Ranked elo this season, with <code>&#123;mcsr.rank&#125;</code>, <code>&#123;mcsr.wins&#125;</code>, <code>&#123;mcsr.losses&#125;</code>, <code>&#123;mcsr.draws&#125;</code>, <code>&#123;mcsr.matches&#125;</code>, <code>&#123;mcsr.country&#125;</code>.', '1650'],
+            ['<code>&#123;mcsr.session.elochange&#125;</code>', 'Elo gained or lost this stream, signed, with <code>&#123;mcsr.session.wins&#125;</code> and the rest of the same set. Always about you, whatever you put after a colon, because the starting point is saved per stream.', '+34'],
+            ['<code>&#123;mcsr.last.opponent&#125;</code>', 'Who you last played, with <code>&#123;mcsr.last.result&#125;</code>, <code>&#123;mcsr.last.time&#125;</code>, <code>&#123;mcsr.last.elochange&#125;</code>, <code>&#123;mcsr.last.seed&#125;</code>, <code>&#123;mcsr.last.structure&#125;</code>, <code>&#123;mcsr.last.ago&#125;</code>.', 'Priffin'],
+            ['<code>&#123;mcsr.player&#125;</code>', 'The Minecraft name the answer is about. Each of the three groups has its own.', 'bagel_bakery'],
+            ['Note', 'Before your first match of a stream there is nothing to compare against, and a brand-new player has no last match, so those groups come back empty rather than as zeros. Give them a default.', 'Needs the MCSR Ranked module'],
+          ],
+        },
       ],
     },
     {

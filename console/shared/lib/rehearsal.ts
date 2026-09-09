@@ -286,6 +286,40 @@ const CR_SAMPLES: Samples = {
   'cr.road.arena': 'Legendary Arena'
 };
 
+/** Stand-ins for the three MCSR Ranked families (scope.Games): the season
+ * standing ({mcsr.…}), this stream's delta ({mcsr.session.…}) and the last
+ * match ({mcsr.last.…}).
+ *
+ * {mcsr.elo} previews as a number rather than the word an unrated player gets,
+ * because a preview showing "unrated" would read as the variable being broken
+ * rather than as the one answer it gives a brand-new player. The session delta
+ * keeps its explicit sign, exactly as the command renders it. */
+const MCSR_SAMPLES: Samples = {
+  'mcsr.player': 'bagel_bakery',
+  'mcsr.elo': '1650',
+  'mcsr.rank': '312',
+  'mcsr.wins': '40',
+  'mcsr.losses': '20',
+  'mcsr.draws': '5',
+  'mcsr.matches': '65',
+  'mcsr.country': 'ca',
+  'mcsr.session.player': 'bagel_bakery',
+  'mcsr.session.elo': '1650',
+  'mcsr.session.elochange': '+34',
+  'mcsr.session.wins': '4',
+  'mcsr.session.losses': '2',
+  'mcsr.session.draws': '0',
+  'mcsr.session.matches': '6',
+  'mcsr.last.player': 'bagel_bakery',
+  'mcsr.last.opponent': 'Priffin',
+  'mcsr.last.result': 'win',
+  'mcsr.last.elochange': '+17',
+  'mcsr.last.time': '8:41',
+  'mcsr.last.seed': 'village',
+  'mcsr.last.structure': 'buried treasure',
+  'mcsr.last.ago': '15m'
+};
+
 /** Rehearse a custom command response: expand, split into messages, then
  * route each line's leading slash-verb (the same order as emitResponse).
  * (Expansion per line equals whole-template expansion: no token value can
@@ -695,7 +729,8 @@ function counterSample(token: Token): string | null {
 const GAME_SAMPLES: Samples = {
   ...VAL_SAMPLES,
   ...FN_SAMPLES,
-  ...CR_SAMPLES
+  ...CR_SAMPLES,
+  ...MCSR_SAMPLES
 };
 
 const GAME_SCOPE: SampleScope = {

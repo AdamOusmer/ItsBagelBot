@@ -213,3 +213,90 @@ func TestCrFamiliesRenderTheCommandsValues(t *testing.T) {
 
 	assert.Equal(t, "#P2LQ0GR", gw.lastCall(t).req.Account)
 }
+
+// The mcsr field lists are spelled out rather than derived (their palettes are
+// built per call against the channel's locale), so this is what stops them
+// drifting: each list must be exactly the keys its own palette carries.
+func TestMcsrFamilyFieldsMatchTheirPalettes(t *testing.T) {
+	c := urchinCtx("")
+
+	assert.Equal(t, mcsrEloFields,
+		stringPaletteFields(mcsrEloPalette(c, &gossiprpc.McsrUserReply{})))
+	assert.Equal(t, mcsrSessionFields,
+		stringPaletteFields(mcsrSessionPalette(c, &gossiprpc.McsrSessionReply{})))
+	assert.Equal(t, mcsrLastMatchFields,
+		stringPaletteFields(mcsrLastMatchPalette(c, &gossiprpc.McsrLastMatchReply{})))
+}
+
+func TestMcsrFamiliesRenderTheCommandsValues(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{
+		"mcsr.user": gossiprpc.McsrUserReply{
+			Nickname: "Feinberg", Elo: 1650, Rank: 12, Wins: 40, Loses: 20, Played: 65, Country: "us",
+		},
+		"mcsr.session": gossiprpc.McsrSessionReply{
+			Nickname: "Feinberg", Elo: 1650, EloChange: 34, Wins: 4, Loses: 2, Played: 6, HasSnapshot: true,
+		},
+		"mcsr.last_match": gossiprpc.McsrLastMatchReply{
+			Player: "Feinberg", Opponent: "Priffin", Result: "win",
+			EloChange: 17, Time: "8:41", Seed: "village", Structure: "buried treasure", AgoSeconds: 900,
+		},
+	}}
+	const linked = `{"account":"Feinberg"}`
+
+	elo, found := lookOne(t, familyByPrefix(t, mcsrTokenPrefix), gameMount(gw, linked), "")
+	require.True(t, found)
+	assert.Equal(t, "1650", elo["elo"])
+	assert.Equal(t, "12", elo["rank"])
+	assert.Equal(t, "5", elo["draws"], "draws are derived, exactly as !elo derives them")
+
+	session, found := lookOne(t, familyByPrefix(t, mcsrSessionTokenPrefix), gameMount(gw, linked), "")
+	require.True(t, found)
+	assert.Equal(t, "+34", session["elochange"])
+
+	last, found := lookOne(t, familyByPrefix(t, mcsrLastTokenPrefix), gameMount(gw, linked), "")
+	require.True(t, found)
+	assert.Equal(t, "Priffin", last["opponent"])
+	assert.Equal(t, "15m", last["ago"])
+}
+
+// The session baseline is filed per channel against the linked account, so a
+// payload names nobody: the family answers about the streamer either way.
+func TestMcsrSessionFamilyIgnoresAPayload(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{
+		"mcsr.session": gossiprpc.McsrSessionReply{Nickname: "Feinberg", HasSnapshot: true},
+	}}
+	_, found := lookOne(t, familyByPrefix(t, mcsrSessionTokenPrefix), gameMount(gw, `{"account":"Feinberg"}`), "Priffin")
+
+	require.True(t, found)
+	call := gw.lastCall(t)
+	assert.Equal(t, "Feinberg", call.req.Account)
+	assert.Equal(t, "2", call.req.ChannelID, "the baseline is this channel's")
+}
+
+// A reply carrying nothing renderable is found=false, so every field is empty
+// and the fallback speaks: a zero delta would claim the streamer played and
+// gained nothing.
+func TestMcsrFamiliesReportAnEmptyReplyAsNothing(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{
+		"mcsr.session":    gossiprpc.McsrSessionReply{Nickname: "Feinberg", Elo: 1650},
+		"mcsr.last_match": gossiprpc.McsrLastMatchReply{Player: "Newbie", Empty: true},
+	}}
+	const linked = `{"account":"Feinberg"}`
+
+	_, found := lookOne(t, familyByPrefix(t, mcsrSessionTokenPrefix), gameMount(gw, linked), "")
+	assert.False(t, found, "no baseline yet")
+
+	_, found = lookOne(t, familyByPrefix(t, mcsrLastTokenPrefix), gameMount(gw, linked), "")
+	assert.False(t, found, "never played a match")
+}
+
+// MCSR Ranked accepts a stored Mojang uuid and it survives a rename, so the
+// families prefer it exactly as the commands do.
+func TestMcsrFamilyPrefersTheStoredUuid(t *testing.T) {
+	gw := &fakeGossip{replies: map[string]any{"mcsr.user": gossiprpc.McsrUserReply{Nickname: "Feinberg"}}}
+	_, found := lookOne(t, familyByPrefix(t, mcsrTokenPrefix),
+		gameMount(gw, `{"account":"Feinberg","accountUuid":"e4d5aa1c"}`), "")
+
+	require.True(t, found)
+	assert.Equal(t, "e4d5aa1c", gw.lastCall(t).req.Account)
+}

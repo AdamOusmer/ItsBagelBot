@@ -42,7 +42,8 @@ func GameFamilies() []engine.GameFamilySpec {
 		valFamily(),
 		fnFamily(),
 	}
-	return append(specs, crFamilies()...)
+	specs = append(specs, crFamilies()...)
+	return append(specs, mcsrFamilies()...)
 }
 
 // gameFamily is one prefixed family: which palette renders it, who a bare span
@@ -66,6 +67,14 @@ type gameFamily[C any, R any] struct {
 	palette    func(statsCall[C], *R) scope.Palette
 	target     func(statsCall[C]) statsSubject
 	request    func(statsCall[C], statsSubject) gossiprpc.Request
+
+	// empty reports a reply that carries nothing renderable: no session
+	// baseline yet, no match ever played. It is the token twin of the
+	// commands' empty-state override (externalCommand.special), and it exists
+	// for the same reason: every numeric field would render zero, and a zero
+	// reads as a wrong answer where an empty span reads as no answer and lets
+	// the broadcaster's own fallback speak. nil means every reply renders.
+	empty func(*R) bool
 }
 
 // spec hands the family to the engine.
@@ -107,6 +116,9 @@ func (f gameFamily[C, R]) read(ctx context.Context, m engine.GameMount, call sta
 	if err := m.Gossip.Call(ctx, f.route, f.request(call, subject), &reply); err != nil {
 		logGameLookup(m, f.prefix, subject.Display, err)
 		return nil, false, err
+	}
+	if f.empty != nil && f.empty(&reply) {
+		return nil, false, nil
 	}
 	return f.palette(call, &reply), true, nil
 }

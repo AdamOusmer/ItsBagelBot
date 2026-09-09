@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"ItsBagelBot/app/twitch/sesame/engine"
+	"ItsBagelBot/app/twitch/sesame/engine/scope"
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/i18n"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
@@ -48,6 +49,124 @@ func mcsrEloPalette(c *module.Context, r *gossiprpc.McsrUserReply) module.String
 	)
 }
 
+// The three {mcsr.…} custom-command token families: the season standing, the
+// stream session and the last match.
+//
+// Prefixed under "mcsr." rather than sharing the bare spellings, because two
+// modules answer an {elo} — MCSR Ranked and Valorant — and an unprefixed merge
+// would have made the number mean whichever module a channel happened to have
+// on. The extra segment on the last two keeps the three views apart for the
+// reason Clash Royale's does: all three answer a {player} and two answer an
+// {elo}, and they are the season's, the session's and nothing alike.
+const (
+	mcsrTokenPrefix        = "mcsr."
+	mcsrSessionTokenPrefix = "mcsr.session."
+	mcsrLastTokenPrefix    = "mcsr.last."
+)
+
+// mcsrFamilies is MCSR Ranked's contribution. The PaceMan views (!pace,
+// !nethers, !lastfort) are not among them: they answer about a run in progress,
+// which is a fact with a lifetime of minutes, and a custom command is written
+// once and read for months.
+//
+// Every family passes preferUUID=true, as the mcsr commands do: MCSR Ranked
+// accepts a stored Mojang uuid and it survives a rename.
+func mcsrFamilies() []engine.GameFamilySpec {
+	return []engine.GameFamilySpec{
+		mcsrEloFamily(), mcsrSessionFamily(), mcsrLastMatchFamily(),
+	}
+}
+
+// mcsrEloFamily is !elo's palette: the season standing, current season only.
+// A past season is reachable from the command's "season:<n>" argument and not
+// from a token, because a payload here names the player.
+func mcsrEloFamily() engine.GameFamilySpec {
+	return mcsrFamily("user", mcsrTokenPrefix, mcsrEloFields, mcsrEloPalette).spec()
+}
+
+// mcsrFamily is every {mcsr.…} family's common half: the same module row gates
+// all three, the same account resolution answers all three (a stored Mojang
+// uuid, preferred because it survives a rename), and all three render one of
+// the commands' own locale-aware palettes.
+//
+// The differing half is what the caller passes — the endpoint, the spelling,
+// the field list, the palette — plus, for the two views that can come back
+// carrying nothing, an empty check set on the returned value. It is a
+// constructor rather than a table of specs because the reply type differs per
+// family and only the generic parameter can carry that; a table would have to
+// erase R and re-assert it inside each palette.
+func mcsrFamily[R any](
+	endpoint, prefix string,
+	fields []string,
+	build func(*module.Context, *R) module.StringPalette,
+) gameFamily[mcsrConfig, R] {
+	return gameFamily[mcsrConfig, R]{
+		prefix:     prefix,
+		moduleName: mcsrModuleName,
+		route:      mcsrRoute(endpoint),
+		fields:     fields,
+		palette:    mcsrPalette(build),
+		target:     linkedTarget[mcsrConfig](true),
+		request:    accountRequest[mcsrConfig],
+	}
+}
+
+// mcsrSessionFamily is !session's palette: the delta since this stream started.
+//
+// It always resolves the linked account and never a payload, for the very
+// reason ignoreArgs wraps the command: the baseline is stored per channel and
+// keyed to the linked account, so answering about somebody else would diff
+// their numbers against the streamer's snapshot. A payload is therefore
+// ignored rather than refused, which is what the command does with a typed
+// argument too.
+//
+// No baseline yet (the module was enabled mid-stream) renders every field
+// empty, because a zero delta would claim the streamer has played and gained
+// nothing.
+func mcsrSessionFamily() engine.GameFamilySpec {
+	f := mcsrFamily("session", mcsrSessionTokenPrefix, mcsrSessionFields, mcsrSessionPalette)
+	f.target, f.request = mcsrLinkedOnlyTarget, mcsrSessionRequest
+	f.empty = func(r *gossiprpc.McsrSessionReply) bool { return !r.HasSnapshot }
+	return f.spec()
+}
+
+// mcsrLastMatchFamily is !lastmatch's palette. A player who has never played
+// renders every field empty rather than a template full of dashes.
+func mcsrLastMatchFamily() engine.GameFamilySpec {
+	f := mcsrFamily("last_match", mcsrLastTokenPrefix, mcsrLastMatchFields, mcsrLastMatchPalette)
+	f.empty = func(r *gossiprpc.McsrLastMatchReply) bool { return r.Empty }
+	return f.spec()
+}
+
+// The fields each mcsr family answers.
+//
+// Spelled out rather than derived, because these palettes are built per call
+// against the channel's locale (an "unrated" elo, a translated win/loss) and
+// there is no reply-independent map to read keys off. TestMcsrFamilyFields
+// pins each list against the palette it describes, so the drift a derived list
+// prevents elsewhere is caught here by a failing test instead.
+var (
+	mcsrEloFields       = []string{"country", "draws", "elo", "losses", "matches", "player", "rank", "wins"}
+	mcsrSessionFields   = []string{"draws", "elo", "elochange", "losses", "matches", "player", "wins"}
+	mcsrLastMatchFields = []string{"ago", "elochange", "opponent", "player", "result", "seed", "structure", "time"}
+)
+
+// mcsrPalette adapts one of the locale-aware StringPalettes to the token
+// family's shape. The palette itself is the command's own, so a token renders
+// the very words !elo and !lastmatch print, in the channel's language.
+func mcsrPalette[R any](build func(*module.Context, *R) module.StringPalette) func(statsCall[mcsrConfig], *R) scope.Palette {
+	return func(call statsCall[mcsrConfig], reply *R) scope.Palette {
+		return scope.Palette(build(call.Ctx, reply))
+	}
+}
+
+// mcsrLinkedOnlyTarget resolves the linked account whatever the span's payload
+// says (see mcsrSessionFamily).
+func mcsrLinkedOnlyTarget(call statsCall[mcsrConfig]) statsSubject {
+	call.Args = ""
+	return linkedTarget[mcsrConfig](true)(call)
+}
+
 // mcsrSessionRun answers !session with the delta since the stream-start
 // snapshot. Template tokens: {player} {elo} {elochange} {wins} {losses}
 // {draws} {matches}. Without a baseline (module enabled mid-stream) gossip
@@ -61,14 +180,19 @@ func mcsrSessionRun(d engine.Deps) module.RunFunc {
 	h := mcsrCommand(d, mcsrRoute("session"), func(cfg mcsrConfig) string { return cfg.SessionEnabled }, mcsrSessionText)
 	// The baseline gossip diffs against is filed per channel, so this one
 	// request carries the channel id alongside the account.
-	h.request = func(call statsCall[mcsrConfig], subject statsSubject) gossiprpc.Request {
-		return gossiprpc.Request{
-			Account:   subject.Account,
-			ChannelID: strconv.FormatUint(call.Ctx.BroadcasterID, 10),
-			IsPremium: call.Ctx.Regress.IsPremium(),
-		}
-	}
+	h.request = mcsrSessionRequest
 	return ignoreArgs(h.run)
+}
+
+// mcsrSessionRequest asks for the session delta: the linked account plus the
+// channel the baseline is filed under. Shared with the {mcsr.session.…} token
+// family, so a token and !session diff against the same snapshot.
+func mcsrSessionRequest(call statsCall[mcsrConfig], subject statsSubject) gossiprpc.Request {
+	return gossiprpc.Request{
+		Account:   subject.Account,
+		ChannelID: strconv.FormatUint(call.Ctx.BroadcasterID, 10),
+		IsPremium: call.Ctx.Regress.IsPremium(),
+	}
 }
 
 // mcsrSessionText renders !session's chat line: the delta template when a
@@ -435,38 +559,61 @@ func mcsrPbRun(d engine.Deps) module.RunFunc {
 	}
 }
 
-// mcsrPbRankedHandler answers "!pb ranked" from the MCSR Ranked season best.
-func mcsrPbRankedHandler(d engine.Deps) statsHandler[mcsrConfig, gossiprpc.McsrUserReply] {
-	type reply = gossiprpc.McsrUserReply
-	return mcsrCommand(d, mcsrRoute("user"), func(cfg mcsrConfig) string { return cfg.PbEnabled },
-		func(call statsCall[mcsrConfig], r *reply) string {
-			if r.BestTimeMS <= 0 {
-				return mcsrPbEmptyText(call.Ctx, r.Nickname, "ranked")
+// mcsrPbBest is one !pb branch's reading of its own reply, before any
+// translation: whose best it is, which window it belongs to, and the clock it
+// reads. The window travels even on a miss because the empty line names it too
+// ("no ranked personal best yet"), which is the whole reason this is a value
+// rather than a rendered string.
+type mcsrPbBest struct {
+	player string
+	window string
+	time   string
+}
+
+// mcsrPbHandler binds one !pb branch: it reads the branch's own reply into the
+// shared best, then renders the one line !pb prints.
+//
+// The two branches ask different upstreams and decode different reply shapes,
+// and that is ALL they differ in — the toggle, the empty-state line and the
+// rendered line were two copies of the same three calls, which is two places
+// for "no personal best" to stop matching between the ranked and PaceMan
+// windows.
+func mcsrPbHandler[R any](d engine.Deps, route engine.GossipRoute, best func(*R) (mcsrPbBest, bool)) statsHandler[mcsrConfig, R] {
+	return mcsrCommand(d, route, func(cfg mcsrConfig) string { return cfg.PbEnabled },
+		func(call statsCall[mcsrConfig], r *R) string {
+			pb, found := best(r)
+			if !found {
+				return mcsrPbEmptyText(call.Ctx, pb.player, pb.window)
 			}
 			return mcsrPbText(call, mcsrPbView{
-				Player:      r.Nickname,
-				Time:        mcsrMsToClock(r.BestTimeMS),
-				WindowLabel: mcsrPbWindowLabel(call.Ctx, "ranked"),
+				Player:      pb.player,
+				Time:        pb.time,
+				WindowLabel: mcsrPbWindowLabel(call.Ctx, pb.window),
 			})
 		})
+}
+
+// mcsrPbRankedHandler answers "!pb ranked" from the MCSR Ranked season best.
+// The 0 BestTimeMS miss is the one mcsrPbRun's note above explains.
+func mcsrPbRankedHandler(d engine.Deps) statsHandler[mcsrConfig, gossiprpc.McsrUserReply] {
+	return mcsrPbHandler(d, mcsrRoute("user"), func(r *gossiprpc.McsrUserReply) (mcsrPbBest, bool) {
+		pb := mcsrPbBest{player: r.Nickname, window: "ranked"}
+		if r.BestTimeMS <= 0 {
+			return pb, false
+		}
+		pb.time = mcsrMsToClock(r.BestTimeMS)
+		return pb, true
+	})
 }
 
 // mcsrPbPacemanHandler answers every other !pb window from PaceMan's own
 // precomputed personal bests. Its request is scoped per call (mcsrPbRun) since
 // the window is typed, not wired.
 func mcsrPbPacemanHandler(d engine.Deps) statsHandler[mcsrConfig, gossiprpc.PacemanPersonalBestReply] {
-	type reply = gossiprpc.PacemanPersonalBestReply
-	return mcsrCommand(d, pacemanRoute("personal_best"), func(cfg mcsrConfig) string { return cfg.PbEnabled },
-		func(call statsCall[mcsrConfig], r *reply) string {
-			if r.Empty {
-				return mcsrPbEmptyText(call.Ctx, r.Player, r.Window)
-			}
-			return mcsrPbText(call, mcsrPbView{
-				Player:      r.Player,
-				Time:        r.Time,
-				WindowLabel: mcsrPbWindowLabel(call.Ctx, r.Window),
-			})
-		})
+	return mcsrPbHandler(d, pacemanRoute("personal_best"), func(r *gossiprpc.PacemanPersonalBestReply) (mcsrPbBest, bool) {
+		pb := mcsrPbBest{player: r.Player, window: r.Window, time: r.Time}
+		return pb, !r.Empty
+	})
 }
 
 // mcsrWindowRequest is !pb's PaceMan request: the resolved account and the

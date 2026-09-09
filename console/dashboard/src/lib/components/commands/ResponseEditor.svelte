@@ -85,7 +85,8 @@
     // opt-in module, like the module facts above.
     { token: '{val.tier}', hint: 'commandEditor.tokVal' },
     { token: '{fn.kd}', hint: 'commandEditor.tokFn' },
-    { token: '{cr.pol.trophies}', hint: 'commandEditor.tokCr' }
+    { token: '{cr.pol.trophies}', hint: 'commandEditor.tokCr' },
+    { token: '{mcsr.elo}', hint: 'commandEditor.tokMcsr' }
   ];
 
   let {

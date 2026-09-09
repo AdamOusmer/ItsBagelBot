@@ -331,6 +331,12 @@ describe('game-stat scope (engine/scope/games.go mirror)', () => {
     expect(line.segments.every((seg) => seg.kind !== 'unknown')).toBe(true);
   });
 
+  test('the MCSR families preview the season, the stream and the last match', () => {
+    const [line] = rehearseCommand('{mcsr.elo} elo, {mcsr.session.elochange} today, last vs {mcsr.last.opponent}');
+    expect(textOf(line.segments)).toBe('1650 elo, +34 today, last vs Priffin');
+    expect(line.segments.every((seg) => seg.kind !== 'unknown')).toBe(true);
+  });
+
   test('an unknown field under a known prefix stays literal', () => {
     const [line] = rehearseCommand('{val.teir}');
     expect(line.segments).toEqual([{ text: '{val.teir}', kind: 'unknown' }]);

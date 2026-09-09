@@ -710,6 +710,7 @@ export type KnownMessageKey =
   | 'commandEditor.tokFollowage'
   | 'commandEditor.tokGame'
   | 'commandEditor.tokMath'
+  | 'commandEditor.tokMcsr'
   | 'commandEditor.tokPathEscape'
   | 'commandEditor.tokPoints'
   | 'commandEditor.tokPointsName'
