@@ -8,15 +8,28 @@
    off-white text, Syne display + DM Sans body + DM Mono code.
    ────────────────────────────────────────────────────────────────── */
 
-@import url("https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Syne:wght@500;600;700;800&display=swap");
+/* Brand primitives: the palette, the shape scale, the easing curves, the type
+   stack and the motion durations come from the one shared definition
+   (marketing/ and the console read the same file), so this theme can no longer
+   drift away from the product's colours, including the RGB triplets those
+   colours are used through. Everything this file adds below is genuinely the
+   docs': the paper/light-mode surfaces, the Starlight gray ramps and the
+   mermaid palette.
 
-/* Brand primitives: the palette, the shape scale and the easing curve come
-   from the one shared definition (web/ and console/ read the same file), so
-   this theme can no longer drift away from the product's colours, including
-   the RGB triplets those colours are used through. Everything this file adds
-   below is genuinely the docs': the paper/light-mode surfaces, the Starlight
-   gray ramps and the mermaid palette. */
+   fonts.css replaces the Google Fonts @import that used to be the first line
+   of this file:
+     @import url("https://fonts.googleapis.com/css2?family=DM+Mono:...&display=swap")
+   That was a render-blocking stylesheet on a third-party origin, so a cold
+   visit paid DNS + TLS to fonts.googleapis.com and then again to
+   fonts.gstatic.com for the payloads, before first paint — and it could not be
+   reused from another site's visit, because the HTTP cache is partitioned per
+   top-level site. The faces it fetched are the ones ui vendors, so the swap is
+   like-for-like. Three things go with it: the two <link rel="preconnect"> tags
+   in src/components/Head.astro that existed only to warm those hosts, and both
+   Google origins in the CSP in public/_headers, which is now font-src 'self'
+   with no third-party host at all. */
 @import "@bagel/ui/styles/brand.css";
+@import "@bagel/ui/styles/fonts.css";
 
 /* ════════════════════════════════════════════════════════════════════
    Design tokens — every color the theme uses lives here.
@@ -110,10 +123,12 @@
     --bb-mermaid-panel-rgb: 13, 12, 10;
     --bb-elev-2-rgb: 29, 26, 20;
 
-    /* ── Typography ─────────────────────────────────────────────── */
-    --bb-font-display: "Syne", system-ui, sans-serif;
-    --bb-font-body: "DM Sans", system-ui, sans-serif;
-    --bb-font-mono: "DM Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    /* (--bb-font-display / -body / -mono are in @bagel/ui/styles/brand.css.
+       The three stacks this file used to declare named the same three
+       families with shorter fallback tails; the shared ones add "Inter Tight"
+       / "Inter" / "JetBrains Mono" ahead of the generic keyword, which only
+       changes what renders on a machine that has those installed AND failed
+       to load the woff2.) */
 }
 
 /* ── Starlight DARK theme overrides ───────────────────────────────── */
@@ -1065,11 +1080,18 @@ starlight-toc nav a[aria-current="true"] {
      --bb-ease-out-back  → playful overshoot for "fun" moments
    ════════════════════════════════════════════════════════════════════ */
 :root {
-    --bb-ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+    /* --bb-ease-out-back, --bb-dur-fast and --bb-dur-slow used to be
+       redeclared here. The easing was byte-identical to the shared one; the
+       durations were not, and this file's --bb-dur-slow was 520ms against the
+       console's 600ms. The shared value wins (see brand.css for why 600), so
+       the one rule that reads it — the sidebar transform at the bottom of this
+       file — travels 80ms slower than it did. --bb-ease-spring stays: it is
+       the docs' own overshoot curve and nothing else uses it.
+       --bb-dur-med is kept as a plain alias rather than renamed because it has
+       ~35 uses in this file and a rename is a diff nobody can review for
+       meaning; it goes when those uses are next touched. */
     --bb-ease-spring: cubic-bezier(0.22, 1.4, 0.36, 1);
-    --bb-dur-fast: 180ms;
-    --bb-dur-med: 320ms;
-    --bb-dur-slow: 520ms;
+    --bb-dur-med: var(--bb-dur-base);
 }
 
 /* ── Hero action buttons — arrow nudge + soft press ───────────────── */

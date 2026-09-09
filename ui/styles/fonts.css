@@ -1,0 +1,118 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* The one @font-face block for every ItsBagelBot front end.
+
+   Before this file the same three families arrived through three unrelated
+   delivery mechanisms: marketing/ imported the Fontsource packages
+   (@fontsource-variable/syne, @fontsource-variable/dm-sans, @fontsource/dm-mono),
+   the console hand-wrote four @font-face rules in kit/styles/tokens.css against
+   woff2 files it kept itself, and docs/ pulled a render-blocking
+   @import url("https://fonts.googleapis.com/css2?...") from a third-party
+   origin. Three mechanisms meant three answers to "what weights exist" and
+   three CSP shapes; docs' answer was also the slowest (DNS + TLS to
+   fonts.googleapis.com AND fonts.gstatic.com before first paint, on a stylesheet
+   that browsers cannot share across sites because the HTTP cache is partitioned
+   per top-level site).
+
+   The five faces below are the console's four (they were already the narrowest
+   correct set) plus a DM Sans italic that only marketing had. The woff2 payloads
+   are the Fontsource latin subsets, byte-for-byte: `shasum` of each file in
+   ui/fonts matches the corresponding file under
+   @fontsource-variable/{syne,dm-sans}/files and @fontsource/dm-mono/files at
+   5.3.0. They are vendored rather than depended on because a package dependency
+   would have to be declared by every consumer (marketing, docs, kit) and
+   Fontsource ships one npm package per family, which is what let the three
+   surfaces drift in the first place.
+
+   Latin subsets ONLY. Fontsource ships latin, latin-ext and (for Syne) greek
+   cuts; the marketing build emitted all 15 woff2 files, of which the site
+   requested 5. The product's UI copy and its locale catalogs (en, fr) live
+   inside U+0000-00FF plus the punctuation ranges below, so latin-ext bought
+   nothing but bytes on a cold cache. The unicode-range strings are copied
+   verbatim from Fontsource's latin faces so a character outside the subset
+   falls back to the next family in the stack instead of rendering tofu; do not
+   hand-trim them.
+
+   font-display: swap on all five: the fallback stack renders immediately and
+   the web font swaps in when it arrives. Rejected `optional`, which is faster
+   on paper but drops the web font entirely on a slow first visit, and the
+   display face IS the brand here. Rejected `block`, which is a flash of
+   invisible text for up to 3s.
+
+   Caveat (the handwriting accent) is NOT here. Only marketing renders it, it
+   is decorative, and it stays on @fontsource-variable/caveat so the console and
+   docs never pay for it.
+
+   Not wrapped in `@layer bb.tokens` even though layers.css groups this file
+   with brand.css. Font matching does not run through the cascade: @font-face
+   rules are collected into the font database keyed by
+   (family, style, weight-range, unicode-range), and layer order only ever
+   decides between two rules describing the SAME face. Nothing in this repo may
+   redeclare a face declared here, so a layer would add a browser-compat
+   surface (@font-face inside @layer needs Chrome 99 / Safari 15.4) for no
+   cascade benefit. brand.css, whose :root declarations DO participate in the
+   cascade, is layered. */
+
+/* Syne — display. Weight range is 500-800, not the 400-800 the variable file
+   can actually interpolate: 400 was never used by any surface (the Google
+   Fonts URL docs/ used asked for wght@500;600;700;800, and the console's
+   @font-face said 500 800), and naming a range the design system does not use
+   invites a heading to quietly ship at a weight nobody chose. A rule asking for
+   Syne 400 gets 500, the nearest weight in the declared range, not a
+   synthesised thin. */
+@font-face {
+  font-family: "Syne";
+  font-style: normal;
+  font-weight: 500 800;
+  font-display: swap;
+  src: url("../fonts/syne-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* DM Sans — body, upright. 400-700 for the same reason as Syne: the variable
+   file covers 100-1000, the design system uses 400/500/600/700. */
+@font-face {
+  font-family: "DM Sans";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("../fonts/dm-sans-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* DM Sans — body, italic. New to the console and docs, which had no italic face
+   and were therefore synthesising one: a browser with no italic face obliques
+   the upright by shearing it ~12deg, which on a geometric sans reads as a
+   rendering fault rather than emphasis. Marketing already loaded the real cut
+   (@fontsource-variable/dm-sans/wght-italic.css); this makes it the shared
+   answer. 39.7 kB, and it only downloads when a rule actually asks for
+   italic. */
+@font-face {
+  font-family: "DM Sans";
+  font-style: italic;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("../fonts/dm-sans-latin-italic.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* DM Mono — eyebrows, code, tabular numbers. No variable cut exists upstream,
+   so the two weights the design system uses stay two static files. */
+@font-face {
+  font-family: "DM Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../fonts/dm-mono-400.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "DM Mono";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("../fonts/dm-mono-500.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}

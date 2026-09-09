@@ -8,25 +8,29 @@ import '../styles/style.css';
 // no page that can skip them.
 import '../lib/contentGuards';
 
-// Fonts are self-hosted (Fontsource) instead of loaded from Google Fonts.
-// The old <link href="fonts.googleapis.com/css2?..."> was a render-blocking
-// stylesheet on a third-party origin: a cold visit paid DNS+TLS to two hosts
-// before first paint, and the CSS itself was uncacheable across sites since
-// browsers partition caches per-site. Bundling the @font-face rules into our
-// own CSS and serving the woff2 files from /_astro (immutable-cached in
-// public/_headers) removes both round-trips. Variable fonts replace the
-// per-weight files (Syne 400–800, DM Sans 400+italic, Caveat 500–600 in one
-// file each); DM Mono has no variable cut, so 400/500 stay static.
-import '@fontsource-variable/syne';
-import '@fontsource-variable/dm-sans';
-import '@fontsource-variable/dm-sans/wght-italic.css';
+// Fonts are self-hosted: no third-party origin, and no render-blocking
+// stylesheet on one. The original <link href="fonts.googleapis.com/css2?...">
+// made a cold visit pay DNS+TLS to two hosts before first paint, on CSS that
+// browsers cannot reuse across sites because the HTTP cache is partitioned per
+// top-level site. Serving the woff2 files from /_astro (immutable-cached in
+// public/_headers) removes both round-trips.
+//
+// The three Fontsource packages that used to be imported here
+// (@fontsource-variable/syne, @fontsource-variable/dm-sans,
+// @fontsource/dm-mono) are gone: their @font-face rules now live once in
+// @bagel/ui/styles/fonts.css, which style.css imports, so the console and docs
+// get the identical faces instead of two more hand-maintained copies. That
+// also drops the latin-ext and greek subsets Fontsource shipped and this site
+// never requested — 15 woff2 files in dist/_astro became 9.
+// Caveat stays on Fontsource: it is a decorative accent only this site
+// renders, so it does not belong in the shared library.
 import '@fontsource-variable/caveat';
-import '@fontsource/dm-mono/400.css';
-import '@fontsource/dm-mono/500.css';
-// Preload only the two families that render above the fold (display + body,
-// latin subset). The rest load on demand via unicode-range.
-import syneLatinWoff2 from '@fontsource-variable/syne/files/syne-latin-wght-normal.woff2?url';
-import dmSansLatinWoff2 from '@fontsource-variable/dm-sans/files/dm-sans-latin-wght-normal.woff2?url';
+// Preload only the two faces that render above the fold (display + body, latin
+// upright). Italic, mono and Caveat load on demand — nothing above the fold
+// asks for them, and preloading a font the first screen does not use costs the
+// bandwidth the preload was meant to save.
+import syneLatinWoff2 from '@bagel/ui/fonts/syne-latin.woff2?url';
+import dmSansLatinWoff2 from '@bagel/ui/fonts/dm-sans-latin.woff2?url';
 
 import { ClientRouter } from 'astro:transitions';
 import Cursor from '../components/ui/Cursor.astro'

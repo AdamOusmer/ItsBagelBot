@@ -12,7 +12,9 @@
    of non-determinism sorted-readdir.mjs exists to remove from the build.
 
    The four layers, weakest to strongest:
-     bb.tokens    custom properties only (brand.css, fonts.css)
+     bb.tokens    custom properties only (brand.css; fonts.css ships the
+                  @font-face rules, which font matching resolves outside the
+                  cascade, so it stays unlayered — reason written out there)
      bb.base      element defaults and resets
      bb.elements  the component contracts (button, card, field, …)
      bb.app       per-app overrides: console layout, marketing page styles, and
