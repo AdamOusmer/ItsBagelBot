@@ -56,18 +56,57 @@ function wipe(event: RequestEvent): void {
 //   * ban: isBanned serves last-known state through a users-service outage.
 //   * revocation: logout kills this sid; "sign out everywhere" kills every
 //     session issued before that moment. isSessionRevoked never throws.
-//   * ghost session: only an RpcError ("no such user") wipes; anything else
-//     keeps the session and lets pages degrade.
+//   * ghost session: only an authoritative "no such user" wipes (accountGone
+//     below); a service-side refusal or a transport blip keeps the session and
+//     lets pages degrade.
 // publishAccountState hands the gate's own account read to the (app) layout via
 // locals, so the shell does not spend a second RPC on it.
 //
+// The refusal codes that mean "this session's user is gone", as opposed to
+// "the users service could not answer right now".
+//
+// Every RpcError used to land here as gone, so a single `internal` or
+// `unavailable` refusal from the users projection signed a live visitor out
+// mid-session. Only `not_found` is authoritative about the row being absent;
+// the other codes are the service talking about itself, and a session must
+// survive them.
+//
+// The empty code stays in this set ON PURPOSE, and is not an oversight:
+// app/db/users/rpc/dashboard.go answers state_get through
+// `respondErr(msg, err.Error())`, which writes no `code` field at all, so the
+// deleted-account reply reaches this gate uncoded today -- not only from some
+// hypothetical older build. A strict `code === 'not_found'` test would
+// therefore stop clearing ghost sessions outright and re-open the Jul 2 2026
+// /goodbye bounce, where a deleted-then-recreated account held a valid cookie
+// for a nonexistent row and looped through the sign-out gate. The trade is
+// asymmetric: clearing wrongly costs one re-login, not clearing costs that
+// loop, so an uncoded refusal keeps the pre-code behaviour exactly.
+// Rejected alternative: teaching rpc-code.ts's LEGACY_TEXT a "no such user"
+// substring. That table only fires for codes the caller already knows, is
+// dated for deletion after 2026-10-08, and hanging the ghost gate off a
+// sentence match is the precise bug class the code vocabulary removed.
+// Revisit: once the users dashboard handlers answer with codes, drop '' here
+// and this set becomes the single `not_found`.
+const GONE_CODES: ReadonlySet<string> = new Set(['not_found', '']);
+
+// accountGone is the one reading of a settled account read that both the
+// locals publication and the refusal slug below share. One predicate rather
+// than the same test written twice: the two must never disagree about whether
+// a code means gone, or a request would wipe the cookie while telling the
+// layout to retry.
+function accountGone(state: PromiseSettledResult<AccountState>): boolean {
+  if (state.status !== 'rejected') return false;
+  return state.reason instanceof RpcError && GONE_CODES.has(state.reason.code);
+}
+
 // Settled result, never a live rejected promise (a request that never reads
 // locals must not raise an unhandled rejection): a fulfilled read is reused by
-// the layout, an RpcError means the user is gone (no retry), and any other
-// failure leaves the field unset so the layout retries like it used to.
+// the layout, a gone verdict means no retry, and any other failure -- a
+// non-RpcError blip, or an `internal`/`unavailable` refusal -- leaves the
+// field unset so the layout retries like it used to.
 function publishAccountState(event: RequestEvent, state: PromiseSettledResult<AccountState>): void {
   if (state.status === 'fulfilled') event.locals.accountState = { value: state.value };
-  else if (state.reason instanceof RpcError) event.locals.accountState = { ghost: true };
+  else if (accountGone(state)) event.locals.accountState = { ghost: true };
 }
 
 // refusalSlug reduces three gates that each answer in a different shape (a
@@ -83,7 +122,7 @@ function refusalSlug(
 ): string | null {
   if (ban.status === 'fulfilled' && ban.value) return 'banned';
   if (revoked.status === 'fulfilled' && revoked.value) return 'revoked';
-  if (state.status === 'rejected' && state.reason instanceof RpcError) return 'signedout';
+  if (accountGone(state)) return 'signedout';
   return null;
 }
 
