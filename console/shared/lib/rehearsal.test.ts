@@ -280,6 +280,26 @@ describe('chatter scope (engine/scope/chatters.go mirror)', () => {
   });
 });
 
+describe('uses scope (engine/scope/uses.go mirror)', () => {
+  test('the command run count previews with a stand-in', () => {
+    const [line] = rehearseCommand('hugged {uses} times');
+    expect(textOf(line.segments)).toBe('hugged 317 times');
+    expect(line.segments.every((seg) => seg.kind !== 'unknown')).toBe(true);
+  });
+
+  test('the token takes no payload', () => {
+    const [line] = rehearseCommand('{uses:hug}');
+    expect(line.segments).toEqual([{ text: '{uses:hug}', kind: 'unknown' }]);
+  });
+
+  test('a module reply has no use count, so it stays literal there', () => {
+    // In chat only runCustom mounts scope.Uses; a module's own reply is
+    // expanded through module.ParseDynamic and never reaches it.
+    const [line] = rehearseReply('{uses}', {});
+    expect(line.segments).toEqual([{ text: '{uses}', kind: 'unknown' }]);
+  });
+});
+
 describe('channel scope (engine/scope/channel.go mirror)', () => {
   test('the channel facts preview with a stand-in', () => {
     const [line] = rehearseCommand('{title} / {game} / {channel.viewers} / {uptime}');

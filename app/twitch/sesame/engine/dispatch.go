@@ -104,7 +104,7 @@ func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, name, args 
 	// "/announce" with no text, a "/shoutout" with no target) is dropped; the
 	// run counts once if anything was emitted.
 	toks := tmpl.Lex(cc.Response)
-	chain := p.commandChain(ctx, commandRun{c: c, command: cc.Name, args: args}, toks)
+	chain := p.commandChain(ctx, commandRun{c: c, command: cc.Name, args: args, uses: cc.Uses}, toks)
 	values := chain.Plan(ctx, toks, p.logScopeFailure(c))
 	emitted, err := p.emitResponse(c, toks, chain, values, emit)
 	if err != nil {

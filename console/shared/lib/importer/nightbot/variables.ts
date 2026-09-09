@@ -11,7 +11,7 @@
 //	$(query)                         → {args}
 //	$(querystring)                   → {querystring}
 //	$(1) $(2) … $(30)                → {1} {2} … {30}
-//	$(count)                         → literal + warn  (mutates, and unnamed)
+//	$(count)                         → {uses}
 //	$(urlfetch URL) / $(customapi …) → {urlfetch:nightbot_<cmd>} + def
 //	$(eval …) $(twitch …) $(time …)  → literal + warn  (no equivalent)
 //
@@ -30,15 +30,34 @@
 // (space to '+', everything outside the unreserved set percent-encoded), so a
 // translated response builds the byte-identical request.
 //
-// $(count) mutates (increments, then returns), and so does this bot's
-// {counter:<name>} — but Nightbot's is per-command and UNNAMED while ours is a
-// named channel counter, so a translation would have to invent a name and
-// silently bind the imported command to a bucket the broadcaster never chose.
-// The read-only {count:<name>} this bot grew is not the answer either: mapping
-// a mutating variable onto a read would drop the increment, a behavior change
-// rather than a translation. $(count) therefore keeps the literal+warn path,
-// and the warning is what sends the broadcaster to pick a counter name
-// themselves. The viewer lookups ({followage}, {accountage}, {points}) and the
+// $(count) maps onto {uses}, and that mapping replaced an earlier literal+warn
+// path — the record of why is worth keeping, because the objection that killed
+// the first two candidates does not apply to the third.
+//
+//   - {counter:<name>}: rejected. Nightbot's $(count) is per-command and
+//     UNNAMED, ours is a named channel counter, so the translation would have
+//     to invent a name and silently bind the imported command to a bucket the
+//     broadcaster never chose.
+//   - {count:<name>}: rejected for the same invented name, plus dropping the
+//     increment — a behaviour change rather than a translation.
+//   - {uses}: what both of those were reaching for. $(count) means "how many
+//     times this command has run"; {uses} means the same thing, per command,
+//     with no name to invent and no increment to drop, because this bot counts
+//     every custom command's runs on its own whether or not the response
+//     prints the number.
+//
+// Two divergences ride along and are deliberate. The count starts from THIS
+// bot's history, so a freshly imported command prints a small number where
+// Nightbot printed a large one; there is no way to carry the old total over,
+// since the import reads a response text and not a counter value. And {uses}
+// excludes the run doing the printing where $(count) includes it, so the first
+// line after an import reads one lower than the same line did yesterday. Both
+// are off-by-a-number, not off-by-a-meaning, which is why this is a mapping
+// and not a warning: a broadcaster reading "hugged {uses} times" gets the
+// sentence they wrote, and a warning here would fire on every imported counter
+// command while telling them nothing they could act on.
+//
+// The viewer lookups ({followage}, {accountage}, {points}) and the
 // module facts ({quote}, {time}, {song}) have no counterpart to map here
 // either: Nightbot spells follow age
 // as $(twitch $(touser) "…{{followed}}…"), a format-string call whose interior
@@ -103,7 +122,8 @@ const SIMPLE_TOKENS: Record<string, string> = {
   touser: '{touser}',
   channel: '{channel}',
   query: '{args}',
-  querystring: '{querystring}'
+  querystring: '{querystring}',
+  count: '{uses}'
 };
 
 const FETCH_HEADS = new Set(['urlfetch', 'customapi']);
@@ -133,7 +153,7 @@ function classify(token: Token, sink?: FetchSlotSink): TokenResult {
   const word = positionalToken(token);
   if (word) return { repl: word, warned: false };
   if (FETCH_HEADS.has(token.head)) return fetchToken(token, sink);
-  // count, eval, twitch, time, countdown, weather, …
+  // eval, twitch, time, countdown, weather, …
   return literal(token);
 }
 

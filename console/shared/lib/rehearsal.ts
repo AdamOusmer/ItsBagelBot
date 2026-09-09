@@ -133,6 +133,12 @@ const MAX_POSITIONAL = 30;
 const RANDOM_SAMPLE = '57';
 const COUNTER_SAMPLE = '42';
 
+/** {uses} in the preview. Deliberately not a round number and not the counter
+ * sample: the two read as the same thing in a template that shows both, and a
+ * broadcaster comparing "{counter:hugs} / {uses}" has to be able to see that
+ * they are two different numbers. */
+const USES_SAMPLE = '317';
+
 /** {countdown}/{countup} read the wall clock, so the preview shows a fixed,
  * plausible span instead of a live one: a value that ticks while the
  * broadcaster types would redraw the rehearsal on a timer and still not be
@@ -296,6 +302,7 @@ function commandChain(samples: Samples): SampleScope[] {
     PURE_SCOPE,
     UTIL_SCOPE,
     messageScope(samples),
+    USES_SCOPE,
     CHATTER_SCOPE,
     CHANNEL_SCOPE,
     VIEWER_SCOPE,
@@ -468,6 +475,27 @@ function viewerSample(token: Token): string | null {
   if (token.payload !== null && token.payload.trim().replace(/^@/, '') === '') return null;
   return VIEWER_SAMPLES[token.name];
 }
+
+/** scope.Uses' mirror: {uses}, how many times this custom command has been
+ * run in this channel.
+ *
+ * The preview shows a stand-in because the real number is the command row's
+ * own counter, which the surfaces that rehearse a template do not carry. Two
+ * things about it are visible here anyway, and both are what a broadcaster
+ * gets wrong first: the number never includes the run being previewed, and it
+ * is approximate — the bot batches use ticks, so chat can be up to about a
+ * minute behind the true total.
+ *
+ * Mounted unconditionally here, as the counter store is: no module gates it.
+ * In chat it is mounted only on a custom command, so {uses} typed into a
+ * module's own reply stays literal there — replyChain leaves it literal here
+ * for the same reason, since this scope is not in that chain.
+ *
+ * The token takes no payload, so a span carrying one stays literal. */
+const USES_SCOPE: SampleScope = {
+  owns: (name) => name === 'uses',
+  get: (token) => (token.payload === null ? USES_SAMPLE : null)
+};
 
 /** scope.Chatters' mirror: {chatters}, the size of the room, and
  * {random.chatter}, one name from it.

@@ -123,14 +123,30 @@ const strings: GuideStrings = {
                 un groupé par commande ou récompense, ou un par spectateur et par commande. Le
                 <a href="/fr/guides/counters">guide des compteurs</a> présente les quatre avec des
                 exemples.
+            </p>
+            <h3>&#123;uses&#125;: combien de fois cette commande sert</h3>
+            <p>
+                <code>&#123;uses&#125;</code> est le compte que le bot tient déjà pour chaque commande
+                personnalisée: combien de fois celle-ci a servi dans votre chaîne. Rien à créer, rien
+                à nommer, aucun module requis, et les autres noms comptent tous dans le même total:
+                <code>!hug</code> et <code>!cuddle</code> qui partagent une réponse partagent aussi le
+                nombre. Elle ne compte pas l'utilisation en train de l'afficher, donc la première
+                réponse d'une commande toute neuve affiche 0. Le total est approximatif: le bot compte
+                par lots au lieu d'écrire dans la base à chaque message, alors sur une commande très
+                sollicitée le nombre peut avoir jusqu'à une minute de retard avant de se rattraper.
+                C'est la bonne variable pour «ce câlin a été donné N fois» et la mauvaise pour tout ce
+                qui doit être exact au message près.
             </p>`,
-    'dynamic.b1.caption': 'Les trois en pleine action.',
+    'dynamic.b1.caption': 'Les quatre en pleine action.',
     'dynamic.b1.lines.0.name': 'maya_live',
     'dynamic.b1.lines.0.text': '!roll',
     'dynamic.b1.lines.1.text': 'maya_live lance un 73 sur 100 🎲',
     'dynamic.b1.lines.2.name': 'alex',
     'dynamic.b1.lines.2.text': '!chute',
     'dynamic.b1.lines.3.text': 'votre_chaine est tombé 128 fois. Un nouveau record de grâce.',
+    'dynamic.b1.lines.4.name': 'maya_live',
+    'dynamic.b1.lines.4.text': '!hug',
+    'dynamic.b1.lines.5.text': 'maya_live fait un câlin au chat. Ça fait 317 câlins donnés jusqu\'ici 🥟',
     'dynamic.b1.title': '#votre_chaine',
     'dynamic.b2.html': `
                 <b>Les compteurs demandent les Points de fidélité</b>

@@ -742,6 +742,7 @@
     "tokPointsName": "le nom que votre chaîne donne à ses points (Fidélité)",
     "tokWatchTime": "son temps de visionnage, formulé comme !uptime (Fidélité)",
     "tokCount": "lit un compteur sans l’incrémenter, contrairement à {counter:…} (Fidélité)",
+    "tokUses": "combien de fois cette commande a servi, sans compter celle-ci (approximatif)",
     "tokQuote": "une citation enregistrée au hasard, ou {quote:12} pour une citation précise (module Citations)",
     "tokTime": "votre heure locale, sur le format d’horloge que vous avez choisi (module Heure locale)",
     "tokSong": "le morceau en cours, ou {song.title} / {song.artist} (Requêtes musicales)",

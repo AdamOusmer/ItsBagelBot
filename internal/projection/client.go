@@ -109,6 +109,12 @@ type Command struct {
 	Perm             string   `json:"perm,omitempty"`
 	Cooldown         uint     `json:"cooldown,omitempty"`
 	AllowedUserID    string   `json:"allowed_user_id,omitempty"`
+	// Uses is the lifetime execution counter the commands service maintains
+	// from the worker's own data.commands.used events. It is projected onto
+	// the row (CommandView carries it, and the service republishes the row
+	// after every uses flush), so the worker reads it for free on the lookup
+	// it already does — the {uses} token costs no extra call.
+	Uses uint64 `json:"uses,omitempty"`
 }
 
 // Reader is the contract the pipeline depends on. Keeping it an interface lets
@@ -468,6 +474,7 @@ func commandFromView(v CommandView) Command {
 		Perm:             v.Perm,
 		Cooldown:         v.Cooldown,
 		AllowedUserID:    v.AllowedUserID,
+		Uses:             v.Uses,
 	}
 }
 

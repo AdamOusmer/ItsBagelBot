@@ -239,17 +239,32 @@ const guide: GuideContent = {
                 it is: one shared total for the channel, one per viewer, one pooled per command or
                 reward, or one per viewer per command. The <a href="/guides/counters">counters
                 guide</a> walks through all four with examples.
+            </p>
+            <h3>&#123;uses&#125;: how often this command gets used</h3>
+            <p>
+                <code>&#123;uses&#125;</code> is the count the bot already keeps for every custom
+                command: how many times this one has run in your channel. There is nothing to create
+                and nothing to name, it needs no module, and alternate names all count towards the
+                one total, so <code>!hug</code> and <code>!cuddle</code> sharing a response share a
+                number. It does not count the use that is printing it, so a brand new command's first
+                reply says 0. The total is approximate: the bot counts in batches instead of writing
+                to the database on every message, so on a busy command the number can trail the true
+                total by up to about a minute before catching up. It is the right variable for "this
+                hug has been given N times" and the wrong one for anything that has to be exact to
+                the message.
             </p>`,
         },
         {
           kind: 'chat',
           title: '#your_channel',
-          caption: 'All three in the wild.',
+          caption: 'All four in the wild.',
           lines: [
             { who: 'viewer', name: 'maya_live', text: '!roll' },
             { who: 'bot', text: 'maya_live rolls a 73 out of 100 🎲' },
             { who: 'viewer', name: 'alex', text: '!fall' },
             { who: 'bot', text: 'your_channel has fallen 128 times. A new record of grace.' },
+            { who: 'viewer', name: 'maya_live', text: '!hug' },
+            { who: 'bot', text: 'maya_live hugs the chat. That is 317 hugs given so far 🥟' },
           ],
         },
         {

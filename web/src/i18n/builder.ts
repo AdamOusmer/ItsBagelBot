@@ -218,6 +218,7 @@ export const SURFACES: SurfaceDef[] = [
         ),
         scopes: COUNTER_SCOPES,
       },
+      v('{uses}', '317', { en: 'Times used', fr: 'Nombre d’utilisations' }, { en: 'How many times this command has been used in your channel, not counting the one printing it. It counts every use, whichever name was typed, and needs no counter. The total is approximate: the bot batches its counting, so it can be up to a minute behind.', fr: 'Combien de fois cette commande a servi dans votre chaîne, sans compter celle qui l’affiche. Elle compte chaque utilisation, quel que soit le nom tapé, et ne demande aucun compteur. Le total est approximatif: le bot compte par lots et peut avoir jusqu’à une minute de retard.' }),
       ...DYNAMIC,
       ...UTILITIES,
       ...CHAT_ROOM,
