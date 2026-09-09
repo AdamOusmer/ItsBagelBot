@@ -299,8 +299,11 @@ for (const surface of data.surfaces) {
         // The catalog's own tokens, keyed without braces. Dynamic and
         // {counter:…} forms are deliberately left out: the shared logic
         // resolves those itself (deterministically, so the preview doesn't
-        // re-roll on every keystroke), exactly as the dashboard does.
-        const RESOLVED_BY_CORE = /^(random(:|$)|choice:|counter:)/;
+        // re-roll on every keystroke), exactly as the dashboard does. The
+        // positional words ({1}, {2:}) are left out for the same reason and
+        // one more: the core derives them from the {args} sample, so a
+        // preview can never show a {1} that contradicts the {args} beside it.
+        const RESOLVED_BY_CORE = /^(random(:|$)|choice:|counter:|[0-9])/;
 
         function sampleMap(): Record<string, string> {
             const samples: Record<string, string> = {};

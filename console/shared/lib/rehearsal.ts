@@ -92,9 +92,12 @@ export interface SampleScope {
  * (see COMMAND_ALIASES), so overriding the canonical token covers both. */
 export const COMMAND_SAMPLES: Samples = {
   user: 'sesame_sam',
-  args: 'aaaa',
+  args: 'ferret_king good luck',
   touser: 'ferret_king',
-  channel: 'bagel_bakery'
+  channel: 'bagel_bakery',
+  userid: '48291057',
+  'user.login': 'sesame_sam',
+  command: 'hug'
 };
 
 /** The message scope resolves each pair to one value ({user}/{sender} are both
@@ -102,8 +105,25 @@ export const COMMAND_SAMPLES: Samples = {
  * canonicalizes before lookup and a single override covers its partner. */
 const COMMAND_ALIASES: Samples = { sender: 'user', target: 'touser' };
 
-/** The names the message scope owns, matching scope.Message.Owns. */
-const MESSAGE_NAMES = new Set(['user', 'sender', 'args', 'touser', 'target', 'channel']);
+/** The fixed names the message scope owns, matching scope.Message's
+ * messageFields table. The positional names ({1}…{30}) are not listed: they
+ * are recognized by shape, like the Go scope's positionalIndex. */
+const MESSAGE_NAMES = new Set([
+  'user',
+  'sender',
+  'args',
+  'touser',
+  'target',
+  'channel',
+  'userid',
+  'user.login',
+  'command'
+]);
+
+/** The highest word a template may address, matching scope.MaxPositional.
+ * Past it a span stays literal, so "since {2024}" is visible rather than
+ * silently empty. */
+const MAX_POSITIONAL = 30;
 
 /** Deterministic stand-ins for values the bot rolls or reads at run time, so
  * the rehearsal shows something the bot could produce without re-rolling on
@@ -129,11 +149,19 @@ export function rehearseCommand(response: string, overrides?: Samples): Rehearse
 export function rehearseReply(
   response: string,
   samples: Samples = {},
-  opts: { dynamic?: boolean } = {}
+  opts: ReplyOptions = {}
 ): RehearsedLine[] {
   const text = responseLines(response).join(' ');
   if (text === '') return [];
-  return [rehearseLine(text, chainResolver(replyChain(samples, opts.dynamic ?? true)))];
+  return [rehearseLine(text, chainResolver(replyChain(samples, opts)))];
+}
+
+/** How a module reply rehearses. `dynamic` is false for the two modules that
+ * replace tokens with a bare string replacer (govee, clip) rather than going
+ * through ParseDynamic, so the shared dynamic tokens must NOT be shown
+ * resolving for them. */
+export interface ReplyOptions {
+  dynamic?: boolean;
 }
 
 /** One chat message: expand tokens, then route the leading slash-verb over
@@ -147,7 +175,7 @@ function rehearseLine(line: string, resolve: Resolve): RehearsedLine {
     verb: action.verb,
     color: action.color,
     target: action.target,
-    segments: sliceSegments(segments, action.bodyStart)
+    segments: sliceSegments(segments, action)
   };
 }
 
@@ -197,12 +225,12 @@ function commandChain(samples: Samples): SampleScope[] {
 /** A module reply resolves only its own token map, plus the dynamic set when
  * that module falls back to ParseDynamic. There is no message or counter
  * scope: a module reply is not a custom command. */
-function replyChain(samples: Samples, dynamic: boolean): SampleScope[] {
+function replyChain(samples: Samples, opts: ReplyOptions): SampleScope[] {
   const own: SampleScope = {
     owns: () => true,
     get: (token) => (token.key in samples ? samples[token.key] : null)
   };
-  return dynamic ? [PURE_SCOPE, own] : [own];
+  return (opts.dynamic ?? true) ? [PURE_SCOPE, own] : [own];
 }
 
 /** scope.Pure's mirror: {random} → a fixed stand-in, {random:min-max} → the
@@ -229,16 +257,47 @@ function randomSample(token: Token): string | null {
 
 /** scope.Message's mirror: the identity and argument tokens the chat line
  * already carries. A payload is declined rather than ignored ({user:bob} is
- * not a token), matching Message.Get. */
+ * not a token), matching Message.Get — except on a positional name, where
+ * the empty payload is the rest-of-args form. */
 function messageScope(samples: Samples): SampleScope {
   return {
-    owns: (name) => MESSAGE_NAMES.has(name),
-    get: (token) => {
-      if (token.payload !== null) return null;
-      const name = COMMAND_ALIASES[token.name] ?? token.name;
-      return name in samples ? samples[name] : null;
-    }
+    owns: (name) => MESSAGE_NAMES.has(name) || positionalIndex(name) !== null,
+    get: (token) => messageSample(token, samples)
   };
+}
+
+function messageSample(token: Token, samples: Samples): string | null {
+  if (positionalIndex(token.name) !== null) return positionalSample(token, samples);
+  if (token.payload !== null) return null;
+  const name = COMMAND_ALIASES[token.name] ?? token.name;
+  return name in samples ? samples[name] : null;
+}
+
+/** A positional word number in 1..MAX_POSITIONAL, or null for a span that
+ * only looks like one: a sign, a leading zero, {0} and anything past the cap
+ * are not this token and stay literal (scope.positionalIndex). */
+function positionalIndex(name: string): number | null {
+  if (!/^[1-9][0-9]?$/.test(name)) return null;
+  const n = Number(name);
+  return n <= MAX_POSITIONAL ? n : null;
+}
+
+/** {n} is word n of the {args} sample, {n:} is words n to the end.
+ *
+ * Derived from the args sample rather than carrying samples of its own, the
+ * way the engine derives them from the same argument string: a surface that
+ * overrides {args} gets positional samples that agree with it, instead of a
+ * preview where {1} contradicts {args}. A word past the end resolves to the
+ * empty string (not null), so the span's fallback renders exactly as it would
+ * in chat. Any other payload is the {n:m} slice this grammar does not have,
+ * so it stays literal. */
+function positionalSample(token: Token, samples: Samples): string | null {
+  const n = positionalIndex(token.name);
+  if (n === null) return null;
+  if (token.payload !== null && token.payload !== '') return null;
+  const words = (samples.args ?? '').split(/\s+/).filter((word) => word !== '');
+  if (n > words.length) return '';
+  return token.payload === null ? words[n - 1] : words.slice(n - 1).join(' ');
 }
 
 /** scope.Store's mirror: {counter:<name>} bumps and renders the counter. The
@@ -302,7 +361,10 @@ function parseSlash(text: string): SlashAction {
   for (const spec of VERBS) {
     const at = verbEnd(text, spec);
     if (at === null) continue;
-    if (spec.mode === 'shoutout') return parseShoutout(text, at);
+    if (spec.mode === 'shoutout') {
+      const shoutout = parseShoutout(text.slice(at));
+      return { ...shoutout, bodyStart: at + shoutout.bodyStart };
+    }
     return { mode: spec.mode, verb: spec.verb, color: spec.color, bodyStart: at };
   }
   return { mode: 'chat', bodyStart: 0 };
@@ -318,9 +380,13 @@ function verbEnd(text: string, spec: VerbSpec): number | null {
 }
 
 /** /shoutout <target>: the first token (leading '@' dropped) becomes the
- * target; the body is what follows, left-trimmed, like the engine's Cut. */
-function parseShoutout(text: string, from: number): SlashAction {
-  let i = from;
+ * target; the body is what follows, left-trimmed, like the engine's Cut.
+ *
+ * `text` is what FOLLOWS the verb, and bodyStart is an offset into that, so
+ * parseSlash adds the verb back on: this half of the rule does not need to
+ * know where in the line it was found. */
+function parseShoutout(text: string): SlashAction {
+  let i = 0;
   while (text[i] === ' ') i++;
   let j = i;
   while (j < text.length && text[j] !== ' ') j++;
@@ -329,12 +395,12 @@ function parseShoutout(text: string, from: number): SlashAction {
   return { mode: 'shoutout', verb: '/shoutout', target, bodyStart: j };
 }
 
-/** Drop the first `from` characters from a segment list, preserving the
- * sample/unknown marks of whatever remains. */
-function sliceSegments(segments: Seg[], from: number): Seg[] {
-  if (from <= 0) return segments;
+/** Drop the routed verb from a segment list: everything before the action's
+ * bodyStart goes, and the sample/unknown marks of whatever remains stay. */
+function sliceSegments(segments: Seg[], action: SlashAction): Seg[] {
+  if (action.bodyStart <= 0) return segments;
   const out: Seg[] = [];
-  let skip = from;
+  let skip = action.bodyStart;
   for (const seg of segments) {
     if (skip >= seg.text.length) {
       skip -= seg.text.length;

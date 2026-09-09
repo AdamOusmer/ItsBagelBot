@@ -106,6 +106,22 @@ describe('commands', () => {
     expect(diagnostics).toEqual([]);
   });
 
+  test('the user subfields map onto the identity tokens', () => {
+    const { manifest, diagnostics } = parseFossabot(
+      feed([command({ response: '$(user.id) / $(user.login) / $(user)' })])
+    );
+    expect(manifest.commands?.[0].responses).toEqual(['{userid} / {user.login} / {user}']);
+    expect(codesOf(diagnostics)).toEqual([]);
+  });
+
+  test('word numbers map onto the positional tokens', () => {
+    const { manifest, diagnostics } = parseFossabot(
+      feed([command({ response: '$(1) hugs $(2)' })])
+    );
+    expect(manifest.commands?.[0].responses).toEqual(['{1} hugs {2}']);
+    expect(codesOf(diagnostics)).toEqual([]);
+  });
+
   test('$(sender) and $(user) both mean the caller', () => {
     const { manifest } = parseFossabot(feed([command({ response: '$(sender) / $(user)' })]));
     expect(manifest.commands?.[0].responses).toEqual(['{user} / {user}']);

@@ -33,8 +33,12 @@ func commandScopes() []scope.Scope {
 		User:    "alice",
 		Sender:  "alice",
 		Args:    "the rest here",
+		Words:   []string{"the", "rest", "here"},
 		Touser:  "bob",
 		Channel: "channel_name",
+		UserID:  "999",
+		Login:   "alice_login",
+		Command: "hug",
 	}}
 }
 
@@ -60,6 +64,23 @@ func TestRenderCommandTokens(t *testing.T) {
 		// A payload is not silently ignored: {user:bob} is not a token this
 		// palette has, so it stays literal like any other unknown spelling.
 		{"identity token with a payload stays literal", "{user:bob}", "{user:bob}"},
+		// Positional words (#883).
+		{"first word", "hug {1}", "hug the"},
+		{"second word", "{2}", "rest"},
+		{"rest of the args from word 2", "{2:}", "rest here"},
+		{"rest from word 1 equals the args", "{1:}", "the rest here"},
+		{"a word past the end renders nothing", "[{9}]", "[]"},
+		{"a rest past the end renders nothing", "[{9:}]", "[]"},
+		{"the last addressable word", "[{30}]", "[]"},
+		{"past the cap stays literal", "since {31}", "since {31}"},
+		{"a signed number is not a word", "{+1}", "{+1}"},
+		{"a padded number is not a word", "{01}", "{01}"},
+		{"word zero is not a word", "{0}", "{0}"},
+		{"a bounded slice is not this grammar", "{1:2}", "{1:2}"},
+		// Identity (#885).
+		{"user id", "id {userid}", "id 999"},
+		{"login is not the display name", "{user} is {user.login}", "alice is alice_login"},
+		{"canonical command name", "!{command}", "!hug"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -75,19 +96,36 @@ func TestRenderAppendsIntoDst(t *testing.T) {
 	assert.Equal(t, "prefix: hi alice", got)
 }
 
+// emptyFetcher stands in for a data source that answered with nothing: the
+// definition exists (so the span is NOT unknown) but the value came back
+// empty, which is the case a fallback is written for.
+type emptyFetcher struct{}
+
+func (emptyFetcher) Fetch(_ context.Context, names []string) map[string]string {
+	out := make(map[string]string, len(names))
+	for _, name := range names {
+		out[name] = ""
+	}
+	return out
+}
+
 // TestRenderFallbackPipe pins the {token|fallback} grammar at the chain level:
 // an empty value falls back, a present value does not, and a fallback never
 // rescues a name no mounted scope owns (issue #884).
 func TestRenderFallbackPipe(t *testing.T) {
 	scopes := []scope.Scope{scope.Pure{}, scope.Message{
-		User: "alice", Sender: "alice", Args: "", Touser: "alice", Channel: "chan",
-	}}
+		User: "alice", Sender: "alice", Args: "", Touser: "", Channel: "chan",
+	}, scope.External{Fetcher: emptyFetcher{}, Max: 4}}
 	tests := []struct{ name, tmpl, want string }{
 		{"empty value falls back", "shout out to {args|everyone}", "shout out to everyone"},
 		{"present value wins", "hi {user|everyone}", "hi alice"},
 		{"empty value with no fallback renders nothing", "hi {args}!", "hi !"},
 		{"unknown name keeps its whole span", "{nosuchtoken|rescued}", "{nosuchtoken|rescued}"},
 		{"an unmounted scope's token keeps its span", "{counter:deaths|0}", "{counter:deaths|0}"},
+		{"a named viewer falls back", "shout out to {touser|nobody}", "shout out to nobody"},
+		{"a missing word falls back", "hug {2|none}", "hug none"},
+		{"an empty external value falls back", "temp is {urlfetch:x|down}", "temp is down"},
+		{"a fallback never rescues a typo", "{unknown|x}", "{unknown|x}"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -119,12 +157,35 @@ func TestRenderDynamicTokens(t *testing.T) {
 // the expansion, and an over-mentioned "@@bob" still reads as "bob".
 func TestMessageVarsSanitizesViewerInput(t *testing.T) {
 	c := chatCtx("!so", "")
-	vars := func(args string) scope.Message { return messageVars(commandRun{c: c, command: "!so", args: args}) }
-	got := vars("/ban @everyone")
+	got := messageVars(commandRun{c: c, command: "so", args: "/ban @everyone"})
 	assert.Equal(t, "ban @everyone", got.Args)
 	assert.Equal(t, "ban", got.Touser)
 
-	assert.Equal(t, "bob", vars("@@bob hi").Touser)
-	assert.Equal(t, "alice", vars("").Touser, "no argument: the sender is the target")
-	assert.Equal(t, "hithere", vars("hi\nthere").Args, "a newline is stripped, never kept as a line break")
+	assert.Equal(t, "bob", messageVars(commandRun{c: c, command: "so", args: "@@bob hi"}).Touser)
+	assert.Equal(t, "alice", messageVars(commandRun{c: c, command: "so"}).Touser, "no argument: the sender is the target")
+	assert.Equal(t, "hithere", messageVars(commandRun{c: c, command: "so", args: "hi\nthere"}).Args,
+		"a newline is stripped, never kept as a line break")
+}
+
+// TestMessageVarsSanitizesEveryWord pins the reason Words exists beside Args:
+// a positional token MOVES a word to the front of a line, so a slash-verb the
+// chatter typed mid-sentence has to be defanged even though sanitizeVar would
+// leave it alone inside {args}.
+func TestMessageVarsSanitizesEveryWord(t *testing.T) {
+	got := messageVars(commandRun{c: chatCtx("!so", ""), command: "so", args: "hey /me is a cat"})
+	assert.Equal(t, "hey /me is a cat", got.Args, "{args} keeps the chatter's own text")
+	assert.Equal(t, []string{"hey", "me", "is", "a", "cat"}, got.Words)
+
+	assert.Nil(t, messageVars(commandRun{c: chatCtx("!so", ""), command: "so", args: "   "}).Words, "no words, no slots")
+	assert.Equal(t, []string{"", "b"}, messageVars(commandRun{c: chatCtx("!so", ""), command: "so", args: "/// b"}).Words,
+		"a word that sanitizes away keeps its slot, so later words do not shift")
+}
+
+// TestMessageVarsCarriesIdentity pins the cheap identity tokens: they ride the
+// envelope and the canonical command name, so none of them costs a lookup.
+func TestMessageVarsCarriesIdentity(t *testing.T) {
+	got := messageVars(commandRun{c: chatCtx("!cuddle", ""), command: "hug"})
+	assert.Equal(t, "999", got.UserID)
+	assert.Equal(t, "alice", got.Login)
+	assert.Equal(t, "hug", got.Command, "an alias resolves to the canonical name")
 }

@@ -12,12 +12,12 @@ const guide: GuideContent = {
     eyebrow: 'Guide',
     heading: 'Commands & variables',
     lead: 'Commands that greet people by name, roll dice, and count your wins. No code: just braces.',
-    minutes: '9 min read',
+    minutes: '10 min read',
     card: {
       title: 'Commands & variables',
       description:
         'Build commands that greet people by name, roll dice, and count wins. Every variable the bot understands, explained with live-looking chat examples.',
-      meta: '9 min · 7 steps',
+      meta: '10 min · 8 steps',
       chips: ['{user}', '{random}', '{counter:…}', '!cmd'],
     },
   },
@@ -133,7 +133,12 @@ const guide: GuideContent = {
           rows: [
             ['<code>&#123;user&#125;</code>', 'The viewer who used the command. <code>&#123;sender&#125;</code> is an older alias, same value.', 'maya_live'],
             ['<code>&#123;touser&#125;</code>', "The first word typed after the command, with any “@” removed. When nothing is typed, it falls back to the viewer's own name. <code>&#123;target&#125;</code> is the same thing.", 'alex'],
-            ['<code>&#123;args&#125;</code>', 'Everything typed after the command, as one string. Empty when nothing was typed.', 'good luck on the exam'],
+            ['<code>&#123;args&#125;</code>', 'Everything typed after the command, as one string. Empty when nothing was typed.', 'alex good luck on the exam'],
+            ['<code>&#123;1&#125;</code>, <code>&#123;2&#125;</code>, …', 'One word at a time: <code>&#123;1&#125;</code> is the first word typed after the command, <code>&#123;2&#125;</code> the second, up to <code>&#123;30&#125;</code>. A word nobody typed comes back empty.', 'alex'],
+            ['<code>&#123;2:&#125;</code>', 'That word through to the end, as one string. Change the number to start somewhere else; <code>&#123;1:&#125;</code> is the whole thing.', 'good luck on the exam'],
+            ['<code>&#123;userid&#125;</code>', "The viewer's Twitch user ID. It never changes, even when they rename themselves.", '48291057'],
+            ['<code>&#123;user.login&#125;</code>', 'Their login in lowercase, which can differ from the display name <code>&#123;user&#125;</code> shows.', 'maya_live'],
+            ['<code>&#123;command&#125;</code>', 'The name of the command that answered, without the “!”. Alternate names all report the main one.', 'hug'],
             ['<code>&#123;channel&#125;</code>', "Your channel's display name.", 'your_channel'],
             ['<code>&#123;urlfetch:name&#125;</code>', 'A value fetched from a web API you saved as a data source. Covered in the <a href="/guides/data-sources">Data sources guide</a>.', '22'],
           ],
@@ -158,6 +163,53 @@ const guide: GuideContent = {
                 chat shows a literal <code>&#123;something&#125;</code>, check the spelling against the
                 table above (or build the command in the <a href="/command-builder">builder</a>, which
                 only offers real variables).`,
+        },
+      ],
+    },
+    {
+      id: 'fallbacks',
+      heading: 'Defaults, for when a word is missing',
+      note: 'A pipe inside a variable gives it something to say when it comes back empty.',
+      blocks: [
+        {
+          kind: 'prose',
+          html: `
+            <p>
+                <code>Check out &#123;1&#125;!</code> reads badly when nobody typed a name: chat
+                sees <em>Check out !</em>. Add a pipe and some text inside the braces, and that
+                text stands in whenever the variable comes back empty:
+                <code>Check out &#123;1|everyone&#125;!</code>.
+            </p>
+            <p>
+                It works on any variable, including one that <em>looks</em> filled but is not:
+                a <a href="/guides/data-sources">data source</a> that answered with nothing
+                (<code>&#123;urlfetch:temp|offline&#125;</code>), or a mentioned viewer nobody
+                named (<code>&#123;touser|chat&#125;</code>). The text after the pipe is plain
+                text, not another variable.
+            </p>`,
+        },
+        {
+          kind: 'chat',
+          title: '#your_channel',
+          caption: 'The same command, with and without a name after it.',
+          lines: [
+            { who: 'viewer', name: 'maya_live', text: '!shoutout alex' },
+            { who: 'bot', text: 'Go show alex some love 💛' },
+            { who: 'viewer', name: 'maya_live', text: '!shoutout' },
+            { who: 'bot', text: 'Go show everyone some love 💛' },
+          ],
+        },
+        {
+          kind: 'callout',
+          tone: 'warn',
+          html: `
+                <b>A default does not rescue a typo</b>
+                The pipe only covers an <em>empty</em> value. A variable the bot does not
+                recognize is still left exactly as typed, pipe and all: write
+                <code>&#123;touser|chat&#125;</code> and chat sees a name, write
+                <code>&#123;tousr|chat&#125;</code> and chat sees
+                <code>&#123;tousr|chat&#125;</code>. That is on purpose, so a misspelling stays
+                visible instead of hiding behind its own default forever.`,
         },
       ],
     },

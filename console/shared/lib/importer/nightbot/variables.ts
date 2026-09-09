@@ -10,10 +10,18 @@
 //	$(user) / $(touser) / $(channel) → {user} / {touser} / {channel}
 //	$(query)                         → {args}
 //	$(querystring)                   → literal + warn  (URL-encoded upstream)
-//	$(1) $(2) …                      → literal + warn  (no per-word token here)
+//	$(1) $(2) … $(30)                → {1} {2} … {30}
 //	$(count)                         → literal + warn  (mutates upstream)
 //	$(urlfetch URL) / $(customapi …) → {urlfetch:nightbot_<cmd>} + def
 //	$(eval …) $(twitch …) $(time …)  → literal + warn  (no equivalent)
+//
+// The word-number family maps straight across: both sides mean "the n'th word
+// typed after the trigger", both are 1-based, and both leave a missing word
+// empty, so nothing about a translated response changes. Past {30} (this bot's
+// cap, scope.MaxPositional) there is no token to map onto, so $(31) keeps the
+// literal+warn path rather than translating into a span that would itself stay
+// literal in chat — a warning the broadcaster sees beats a brace they discover
+// live.
 //
 // $(querystring) is deliberately NOT folded onto {args}: it URL-encodes, and
 // its whole reason to exist is being pasted inside a URL, where handing over
@@ -57,6 +65,19 @@ const SIMPLE_TOKENS: Record<string, string> = {
 
 const FETCH_HEADS = new Set(['urlfetch', 'customapi']);
 
+// POSITIONAL matches the word numbers this bot has a token for: 1 to 30
+// (scope.MaxPositional). Anchored, so $(1x) and $(031) are not word numbers
+// here either.
+const POSITIONAL = /^([1-9]|[12][0-9]|30)$/;
+
+// positionalToken translates $(n) into "{n}", or returns null when the token
+// is not a word number this bot can spell. Shared with the Fossabot layer,
+// which writes the same family in the same syntax.
+export function positionalToken(token: Token): string | null {
+  if (token.rest !== '' || !POSITIONAL.test(token.head)) return null;
+  return `{${token.head}}`;
+}
+
 const literal = (token: Token): TokenResult => ({ repl: token.raw, warned: true });
 
 // classify resolves one scanned token to its replacement. warned=true marks an
@@ -66,8 +87,10 @@ function classify(token: Token, sink?: FetchSlotSink): TokenResult {
   if (token.head === '') return { repl: token.raw, warned: token.rest !== '' };
   const simple = SIMPLE_TOKENS[token.head];
   if (simple !== undefined) return token.rest === '' ? { repl: simple, warned: false } : literal(token);
+  const word = positionalToken(token);
+  if (word) return { repl: word, warned: false };
   if (FETCH_HEADS.has(token.head)) return fetchToken(token, sink);
-  // querystring, count, 1..N, eval, twitch, time, countdown, weather, …
+  // querystring, count, eval, twitch, time, countdown, weather, …
   return literal(token);
 }
 

@@ -13,13 +13,25 @@
 // cross-checked against every token the live myth directory actually uses):
 //
 //	$(user) / $(sender)              → {user}     (both mean the caller)
+//	$(user.id)                       → {userid}
+//	$(user.login)                    → {user.login}
 //	$(touser)                        → {touser}
 //	$(channel)                       → {channel}
 //	$(query)                         → {args}
+//	$(1) $(2) … $(30)                → {1} {2} … {30}
 //	$(customapi URL)                 → {urlfetch:fossabot_<cmd>} + definition
 //	$(customapi)                     → literal + warn (no URL to extract)
 //	$(references other)              → the referenced command's response, inlined
 //	everything else                  → literal + warn
+//
+// The two $(user.…) subfields are the only dotted spellings with a token on
+// this side, and they are NOT the same value as $(user): {userid} is the
+// stable platform id and {user.login} the lower-case login, while {user} is
+// the display name, so folding either onto {user} would change what chat
+// reads. The word-number family maps straight across (same 1-based meaning,
+// same empty answer for a missing word); $(31) and up have no token here and
+// keep the literal+warn path rather than translating into a span that would
+// stay literal in chat.
 //
 // $(user) and $(sender) both fold onto {user}: Fossabot's own docs describe
 // them as the same person (sender is the older spelling), so keeping them apart
@@ -33,6 +45,7 @@ import { parseFetchArgs } from '../nightbot/fetchdefs';
 import type { FetchSlotSink } from '../nightbot/fetchdefs';
 import { nextToken } from '../nightbot/scan';
 import type { Token } from '../nightbot/scan';
+import { positionalToken } from '../nightbot/variables';
 
 // MAX_PASSES bounds the translation loop, as in the Nightbot layer: pass 1
 // translates every leaf token, pass 2 sees composites whose interior now reads
@@ -78,12 +91,22 @@ const SIMPLE_TOKENS: Record<string, string> = {
   query: '{args}'
 };
 
+// SUBFIELD_TOKENS maps a dotted Fossabot spelling, keyed by the whole body
+// ("<head><rest>"), onto its token here. It is matched before SIMPLE_TOKENS so
+// $(user.id) reads as a subfield rather than as $(user) with leftovers.
+const SUBFIELD_TOKENS: Record<string, string> = {
+  'user.id': '{userid}',
+  'user.login': '{user.login}'
+};
+
 const literal = (token: Token): TokenResult => ({ repl: token.raw, warned: true });
 
 // classify resolves one scanned token to its replacement. warned=true marks an
 // attempted-but-unmappable variable.
 function classify(token: Token, ctx: TranslationContext): TokenResult {
   if (token.head === '') return { repl: token.raw, warned: token.rest !== '' };
+  const mapped = SUBFIELD_TOKENS[token.head + token.rest] ?? positionalToken(token);
+  if (mapped) return { repl: mapped, warned: false };
   const simple = SIMPLE_TOKENS[token.head];
   if (simple !== undefined) return token.rest === '' ? { repl: simple, warned: false } : literal(token);
   if (token.head === 'customapi') return fetchToken(token, ctx.sink);

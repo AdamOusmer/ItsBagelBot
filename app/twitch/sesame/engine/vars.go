@@ -56,12 +56,17 @@ type commandRun struct {
 
 // messageVars reads the triggering chat line's identity tokens.
 //
-// The user-controlled halves ({args}, {touser}) are run through sanitizeVar
-// here, at the one boundary that mints them, so a crafted argument can never
-// inject a leading slash-verb (/ban, /timeout) into the expanded response for
-// Translate to route. Command CONTENT is validated at save time on the
-// dashboard; this guards only the runtime injection vector. The '@' is
-// trimmed after sanitizing as well as before, so "@@bob" still renders "bob".
+// The user-controlled halves ({args}, {touser}, {1}..{30}) are run through
+// sanitizeVar here, at the one boundary that mints them, so a crafted
+// argument can never inject a leading slash-verb (/ban, /timeout) into the
+// expanded response for Translate to route. Command CONTENT is validated at
+// save time on the dashboard; this guards only the runtime injection vector.
+// The '@' is trimmed after sanitizing as well as before, so "@@bob" still
+// renders "bob".
+//
+// run.command is the CANONICAL name (runCustom passes cc.Name, the same key
+// recordUse counts against), so {command} prints one name however many
+// aliases reach it.
 func messageVars(run commandRun) scope.Message {
 	sender := run.c.Env.ChatterName()
 	touser := sender
@@ -72,9 +77,41 @@ func messageVars(run commandRun) scope.Message {
 		User:    strings.TrimPrefix(sender, "@"),
 		Sender:  strings.TrimPrefix(sender, "@"),
 		Args:    sanitizeVar(run.args),
+		Words:   sanitizeWords(run.args),
 		Touser:  strings.TrimPrefix(sanitizeVar(touser), "@"),
 		Channel: run.c.Env.BroadcasterName(),
+		UserID:  run.c.Env.ChatterUserID,
+		Login:   run.c.Env.ChatterUserLogin,
+		Command: run.command,
 	}
+}
+
+// sanitizeWords splits the raw arguments into the words {1}..{30} and {n:}
+// address, sanitizing each one on its own.
+//
+// Sanitizing the joined string once is NOT enough here, and that difference
+// is the whole reason this exists beside Args. sanitizeVar only trims LEADING
+// slashes, which is the right rule for {args}: it renders where the chatter's
+// own first word renders, so a "/me" in the middle of it stays in the middle.
+// A positional token moves a word: "!so hey /me is a cat" puts "/me" at the
+// START of the rendered line through {2}, and emitResponse's per-line split
+// would then hand outgress a moderation verb the chatter chose. Every word is
+// therefore trimmed as if it began a line, because through a positional token
+// it can.
+//
+// A word that sanitizes away to nothing keeps its slot rather than being
+// dropped: positions are what the template addresses, so collapsing them
+// would shift every later word by one.
+func sanitizeWords(args string) []string {
+	fields := strings.Fields(args)
+	if len(fields) == 0 {
+		return nil
+	}
+	words := make([]string, len(fields))
+	for i, f := range fields {
+		words[i] = sanitizeVar(f)
+	}
+	return words
 }
 
 // logScopeFailure reports a scope whose Plan failed; its tokens then render
