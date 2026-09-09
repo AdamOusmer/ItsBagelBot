@@ -1,8 +1,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Secrets console backend: per-service database credentials plus Doppler
-// service-token minting, on least-privileged Doppler access.
+// Secrets console backend: per-service database credentials, read through
+// least-privileged Doppler access.
 //
 // Token model (least privilege): every service must resolve its own
 // DOPPLER_TOKEN_<SERVICE>, scoped to that one project (users/commands/…).
@@ -11,8 +11,14 @@
 // which turned any console-admin compromise into read access to all five DB
 // projects plus token minting (red-team finding F-secrets). Missing now means
 // missing: the UI reports it instead of silently escalating privilege.
-// Minted service tokens are always read-only and scoped to a single config:
-// the narrowest credential Doppler can issue.
+//
+// This module used to mint, list and revoke Doppler service tokens too. It
+// cannot: a scoped SERVICE token has no rights over tokens at all (Doppler
+// reserves /v3/configs/config/tokens for a personal or management token), so
+// every one of those three calls returned 403 the moment the broad-token
+// fallback was removed above. Token lifecycle is a Doppler-dashboard job now,
+// deliberately: restoring the console's ability to do it means restoring the
+// broad token, which is the exact escalation F-secrets closed.
 import { env } from '$env/dynamic/private';
 import { nanoid } from 'nanoid';
 import mysql from 'mysql2/promise';
@@ -173,56 +179,15 @@ export async function credentialStatuses(): Promise<DbCredentialStatus[]> {
   );
 }
 
-// ── Doppler service tokens (mint / list / revoke) ────────────────────────────
-
-export interface ServiceTokenView {
-  slug: string;
-  name: string;
-  createdAt: string;
-  lastSeenAt: string | null;
-  expiresAt: string | null;
-}
-
-interface ServiceTokenWire {
-  slug?: string;
-  name?: string;
-  created_at?: string;
-  last_seen_at?: string | null;
-  expires_at?: string | null;
-}
-
-function tokenViewOf(t: ServiceTokenWire): ServiceTokenView {
-  return {
-    slug: t.slug ?? '',
-    name: t.name ?? '',
-    createdAt: t.created_at ?? '',
-    lastSeenAt: t.last_seen_at ?? null,
-    expiresAt: t.expires_at ?? null
-  };
-}
-
-export async function listServiceTokens(id: SecretServiceId): Promise<ServiceTokenView[]> {
-  const svc = services[id];
-  const res = await dopplerFetch({
-    token: tokenFor(svc).token,
-    path: `/v3/configs/config/tokens?${configQuery(svc)}`
-  });
-  const body = (await res.json()) as { tokens?: ServiceTokenWire[] };
-  return (body.tokens ?? []).map(tokenViewOf);
-}
-
 // One validator over a rule table instead of a bespoke assert per field.
 interface FormatRule {
   re: RegExp;
   message: string;
 }
 
-export const FORMATS = {
-  tokenName: {
-    re: /^[a-z0-9][a-z0-9-]{2,47}$/,
-    message: 'token name must be 3-48 chars: lowercase letters, digits, dashes'
-  },
-  tokenSlug: { re: /^[A-Za-z0-9_-]{4,64}$/, message: 'invalid token slug' },
+// Module-private since the token rules left with the token calls: every
+// remaining caller is in this file.
+const FORMATS = {
   dbUser: {
     re: /^[A-Za-z0-9_]{3,32}$/,
     message: 'database user must be 3-32 characters of letters, numbers, or underscore'
@@ -230,50 +195,8 @@ export const FORMATS = {
   dbPassword: { re: /^[\s\S]{32,128}$/, message: 'password must be 32-128 characters' }
 } satisfies Record<string, FormatRule>;
 
-export function assertFormat(value: string, rule: FormatRule): void {
+function assertFormat(value: string, rule: FormatRule): void {
   if (!rule.re.test(value)) throw new Error(rule.message);
-}
-
-export interface MintTokenInput {
-  name: string;
-  expireDays: number;
-}
-
-// mintServiceToken issues a READ-ONLY token scoped to one service's config:
-// the least-privileged credential Doppler can hand out. The key is returned
-// exactly once; it is never stored server-side.
-export async function mintServiceToken(
-  id: SecretServiceId,
-  input: MintTokenInput
-): Promise<{ key: string; token: ServiceTokenView }> {
-  const svc = services[id];
-  assertFormat(input.name, FORMATS.tokenName);
-  const days = Math.min(Math.max(Math.trunc(input.expireDays), 0), 365);
-  const res = await dopplerFetch({
-    token: tokenFor(svc).token,
-    path: '/v3/configs/config/tokens',
-    init: {
-      method: 'POST',
-      ...dopplerBody(svc, {
-        name: input.name,
-        access: 'read',
-        ...(days > 0 ? { expire_at: new Date(Date.now() + days * 864e5).toISOString() } : {})
-      })
-    }
-  });
-  const body = (await res.json()) as { token?: ServiceTokenWire & { key?: string } };
-  if (!body.token?.key) throw new Error('Doppler did not return a token key');
-  return { key: body.token.key, token: tokenViewOf(body.token) };
-}
-
-export async function revokeServiceToken(id: SecretServiceId, input: { slug: string }): Promise<void> {
-  const svc = services[id];
-  assertFormat(input.slug, FORMATS.tokenSlug);
-  await dopplerFetch({
-    token: tokenFor(svc).token,
-    path: '/v3/configs/config/tokens/token',
-    init: { method: 'DELETE', ...dopplerBody(svc, { slug: input.slug }) }
-  });
 }
 
 // ── MySQL runtime users ──────────────────────────────────────────────────────

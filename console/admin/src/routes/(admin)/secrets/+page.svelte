@@ -5,18 +5,15 @@
   import { invalidateAll } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
   import {
-    Icon,
     Button,
     PageHead,
     ConfirmDialog,
-    Modal,
     Skeleton,
     toast,
     copyFlash,
-    fmtDate as fmtDateOf,
     adminToastFailure,
   } from '@bagel/shared';
-  import type { DbCredentialStatus, ServiceTokenView } from '$lib/server/secrets';
+  import type { DbCredentialStatus } from '$lib/server/secrets';
   import type { SecretsBundle } from './+page.server';
 
   let { data } = $props();
@@ -37,24 +34,20 @@
   const scope = $derived(bundle?.scope ?? null);
 
   // ── Dialog state machine ───────────────────────────────────────────────────
-  type PendingKind = 'rotate' | 'set' | 'revoke' | 'mint' | 'revokeToken';
-  type Pending = { kind: PendingKind; svc: DbCredentialStatus; token?: ServiceTokenView };
+  type PendingKind = 'rotate' | 'set' | 'revoke';
+  type Pending = { kind: PendingKind; svc: DbCredentialStatus };
   let pending = $state<Pending | null>(null);
 
   let confirmText = $state('');
   let dbUser = $state('');
   let dbPass = $state('');
-  let tokenName = $state('');
-  let tokenExpiry = $state('90');
   let busy = $state(false);
 
-  function open(kind: PendingKind, svc: DbCredentialStatus, token?: ServiceTokenView) {
-    pending = { kind, svc, token };
+  function open(kind: PendingKind, svc: DbCredentialStatus) {
+    pending = { kind, svc };
     confirmText = '';
     dbUser = '';
     dbPass = '';
-    tokenName = `${svc.id}-readonly`;
-    tokenExpiry = '90';
   }
 
   function close() {
@@ -70,32 +63,21 @@
         return `set ${pending.svc.id}`;
       case 'revoke':
         return `revoke ${dbUser.trim()}`;
-      case 'mint':
-        return `mint ${pending.svc.id}`;
-      case 'revokeToken':
-        return `revoke ${pending.svc.id} token`;
     }
   });
 
   const DIALOG_META: Record<PendingKind, { title: string; action: string; danger: boolean; cta: string }> = {
     rotate: { title: 'Rotate database credential', action: '?/rotate', danger: false, cta: 'Rotate' },
     set: { title: 'Set database credential', action: '?/set', danger: false, cta: 'Set credential' },
-    revoke: { title: 'Revoke database user', action: '?/revoke', danger: true, cta: 'Revoke' },
-    mint: { title: 'Mint read-only Doppler token', action: '?/mintToken', danger: false, cta: 'Mint token' },
-    revokeToken: { title: 'Revoke Doppler service token', action: '?/revokeToken', danger: true, cta: 'Revoke token' }
+    revoke: { title: 'Revoke database user', action: '?/revoke', danger: true, cta: 'Revoke' }
   };
 
   let dialogForm = $state<HTMLFormElement | null>(null);
-
-  // Minted keys are shown exactly once: the server never stores them.
-  let mintedKey = $state('');
-  let mintedCopied = $state(false);
 
   const failed = adminToastFailure(toast);
 
   type ActionPayload = {
     action?: { ok: boolean; notice: string };
-    mintedKey?: string;
     error?: string;
   };
 
@@ -108,10 +90,6 @@
       if (r.type === 'success' && p?.action?.ok) {
         toast('ok', p.action.notice);
         close();
-        if (p.mintedKey) {
-          mintedKey = p.mintedKey;
-          mintedCopied = false;
-        }
         // Reconcile with Doppler's view rather than guessing locally.
         bundle = null;
         await invalidateAll();
@@ -120,8 +98,6 @@
       failed(p, 'action failed');
     };
   };
-
-  const copyMinted = () => copyFlash(mintedKey, (on) => (mintedCopied = on));
 
   // ── Local secret generator (never leaves the browser) ─────────────────────
   type GenKind = 'base64' | 'hex' | 'password';
@@ -147,13 +123,6 @@
 
   const copyGenerated = () => copyFlash(generated, (on) => (genCopied = on));
 
-  // Token timestamps are operational and recent, so the year is noise here;
-  // an absent one reads 'never', not 'unknown' -- a token with no last-seen has
-  // demonstrably never been used, which is a fact, not a gap in the record.
-  const fmtDate = (iso: string | null) =>
-    fmtDateOf(iso, { missing: 'never', parts: { month: 'short', day: 'numeric' } });
-
-
   const SOURCE_META: Record<string, { label: string; cls: string }> = {
     scoped: { label: 'scoped token', cls: 'ok' },
     legacy: { label: 'legacy broad token', cls: 'warn' },
@@ -164,7 +133,7 @@
 <section class="screen active">
   <PageHead
     eyebrow="Access control"
-    description="Runtime database users and Doppler service tokens, minted least-privileged."
+    description="Runtime database users, provisioned least-privileged per service."
   >
     Service <em>secrets</em>
   </PageHead>
@@ -185,7 +154,6 @@
     <div class="svc-grid">
       {#each services as svc (svc.id)}
         {@const src = SOURCE_META[svc.tokenSource] ?? SOURCE_META.missing}
-        {@const tokens = bundle.tokens[svc.id] ?? []}
         <div class="card svc-card">
           <div class="card-head">
             <h3>{svc.label}</h3>
@@ -213,39 +181,6 @@
             <Button variant="ghost" onclick={() => open('rotate', svc)}>Rotate</Button>
             <Button variant="ghost" onclick={() => open('set', svc)}>Set…</Button>
             <Button variant="ghost" class="danger" onclick={() => open('revoke', svc)}>Revoke user…</Button>
-          </div>
-
-          <div class="tok-block">
-            <div class="tok-head">
-              <span class="tok-label">Service tokens (read-only, this config only)</span>
-              <button class="mini-act" type="button" title="Mint token" aria-label="Mint token for {svc.label}" onclick={() => open('mint', svc)}>
-                <Icon name="plus" size={13} />
-              </button>
-            </div>
-            {#if tokens.length === 0}
-              <p class="tok-empty">None issued.</p>
-            {:else}
-              <ul class="tok-list">
-                {#each tokens as t (t.slug)}
-                  <li class="tok-row">
-                    <span class="tok-name">{t.name}</span>
-                    <span class="tok-meta">
-                      created {fmtDate(t.createdAt)} · last seen {fmtDate(t.lastSeenAt)}
-                      {#if t.expiresAt}· expires {fmtDate(t.expiresAt)}{/if}
-                    </span>
-                    <button
-                      class="mini-act danger"
-                      type="button"
-                      title="Revoke token"
-                      aria-label="Revoke token {t.name}"
-                      onclick={() => open('revokeToken', svc, t)}
-                    >
-                      <Icon name="trash" size={13} />
-                    </button>
-                  </li>
-                {/each}
-              </ul>
-            {/if}
           </div>
         </div>
       {/each}
@@ -316,22 +251,6 @@
         <label>Database user to revoke
           <input class="text-input mono" type="text" bind:value={dbUser} placeholder="{pending.svc.expectedUserPrefix}_…" />
         </label>
-      {:else if pending.kind === 'mint'}
-        <p class="dialog-note">
-          Issues a Doppler service token that can only <b>read {pending.svc.project}/{pending.svc.config}</b>,
-          the narrowest credential Doppler can mint. The key is shown once.
-        </p>
-        <label>Token name
-          <input class="text-input mono" type="text" bind:value={tokenName} />
-        </label>
-        <label>Expires in (days, 0 = never)
-          <input class="text-input mono" type="number" min="0" max="365" bind:value={tokenExpiry} />
-        </label>
-      {:else if pending.kind === 'revokeToken'}
-        <p class="dialog-note">
-          Revokes <b>{pending.token?.name}</b>. Anything still using it loses read access to
-          {pending.svc.project}/{pending.svc.config} immediately.
-        </p>
       {/if}
 
       <label>Type <b class="mono">{phrase}</b> to confirm
@@ -353,25 +272,8 @@
     <input type="hidden" name="confirm" value={confirmText} />
     <input type="hidden" name="db_user" value={dbUser} />
     <input type="hidden" name="db_pass" value={dbPass} />
-    <input type="hidden" name="name" value={tokenName} />
-    <input type="hidden" name="expire_days" value={tokenExpiry} />
-    <input type="hidden" name="slug" value={pending.token?.slug ?? ''} />
   </form>
 {/if}
-
-<!-- Minted key reveal: shown exactly once, never stored server-side. -->
-<Modal open={mintedKey !== ''} title="Copy the token now" closeModal={() => (mintedKey = '')}>
-  <p class="dialog-note">
-    This is the only time the key is shown. Doppler does not let anyone read it again.
-  </p>
-  <div class="gen-row">
-    <input class="text-input mono" type="text" readonly value={mintedKey} />
-    <Button variant="primary" onclick={copyMinted}>{mintedCopied ? 'Copied' : 'Copy'}</Button>
-  </div>
-  <div class="modal-actions">
-    <button type="button" class="btn ghost" onclick={() => (mintedKey = '')}>Done</button>
-  </div>
-</Modal>
 
 <style>
   .loading-stack { display: flex; flex-direction: column; gap: 14px; }
@@ -409,30 +311,6 @@
 
   .svc-actions { display: flex; gap: 8px; flex-wrap: wrap; }
   .svc-actions :global(.danger) { color: #cf8a78; border-color: rgba(176, 90, 70, 0.4); }
-
-  .tok-block { border-top: 1px solid var(--rule); padding-top: 12px; }
-  .tok-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
-  .tok-label {
-    font-family: var(--bb-font-mono); font-size: 10px; letter-spacing: 0.1em;
-    text-transform: uppercase; color: var(--bb-muted);
-  }
-  .tok-empty { font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); margin: 0; }
-  .tok-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-  .tok-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; }
-  .tok-name { font-family: var(--bb-font-mono); font-size: 12px; color: var(--bb-white); }
-  .tok-meta {
-    font-family: var(--bb-font-mono); font-size: 10.5px; color: var(--bb-muted);
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  }
-
-  .mini-act {
-    width: 26px; height: 26px; border-radius: var(--bb-radius-sm);
-    display: inline-flex; align-items: center; justify-content: center;
-    background: none; border: 1px solid transparent; color: var(--bb-muted); cursor: pointer;
-  }
-  .mini-act :global(svg) { stroke: currentColor; fill: none; stroke-width: 1.7; }
-  .mini-act:hover { color: var(--bb-white); background: rgba(255, 255, 255, 0.05); }
-  .mini-act.danger:hover { color: #cf8a78; background: rgba(176, 90, 70, 0.1); }
 
   .gen-card { border-style: dashed; }
   .gen-note { font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted); margin: 0; }

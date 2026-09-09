@@ -14,12 +14,7 @@ import type {
 import type { AdminIdentity } from './access';
 import type { FeedEvent } from './feed';
 import type { LaneView } from './lanes';
-import type {
-  DbCredentialStatus,
-  ScopeReport,
-  SecretServiceId,
-  ServiceTokenView
-} from './secrets';
+import type { DbCredentialStatus, ScopeReport, SecretServiceId } from './secrets';
 
 // This module is only dynamically imported from branches guarded directly by
 // SvelteKit's build-time `dev` constant. If a future edit makes it reachable
@@ -181,7 +176,6 @@ export function demoStaffHistory(actorId: number): AuditEntry[] {
 
 export type DemoSecretsBundle = {
   services: DbCredentialStatus[];
-  tokens: Record<string, ServiceTokenView[]>;
   scope: ScopeReport;
 };
 
@@ -199,17 +193,6 @@ export function demoSecretsBundle(ids: readonly SecretServiceId[]): DemoSecretsB
       canReadDoppler: true,
       tokenSource: 'scoped'
     })),
-    tokens: {
-      users: [
-        {
-          slug: 'demo-slug',
-          name: 'users-readonly-ci',
-          createdAt: new Date(Date.now() - 12 * 864e5).toISOString(),
-          lastSeenAt: new Date(Date.now() - 3600e3).toISOString(),
-          expiresAt: null
-        }
-      ]
-    },
     scope: {
       sources: {
         users: 'scoped',
@@ -226,9 +209,7 @@ export function demoSecretsBundle(ids: readonly SecretServiceId[]): DemoSecretsB
 const secretNotices = {
   db_credential_rotate: 'credential rotated (demo)',
   db_credential_set: 'credential set (demo)',
-  db_credential_revoke: 'credential revoked (demo)',
-  doppler_token_mint: 'token minted (demo): dp.st.demo.notarealtoken',
-  doppler_token_revoke: 'token revoked (demo)'
+  db_credential_revoke: 'credential revoked (demo)'
 } as const;
 
 export function demoSecretNotice(action: keyof typeof secretNotices): string {
