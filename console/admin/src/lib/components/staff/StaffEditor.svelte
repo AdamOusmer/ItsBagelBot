@@ -247,21 +247,6 @@
     color: var(--bb-status-error);
   }
 
-  .text-input {
-    width: 100%;
-    padding: 8px 11px;
-    font-family: var(--bb-font-mono);
-    font-size: 12.5px;
-    border: 1px solid var(--bb-border);
-    border-radius: var(--bb-radius-sm);
-    background: var(--bb-bg-1, #16130f);
-    color: var(--bb-white);
-  }
-  .text-input:focus {
-    outline: none;
-    border-color: var(--bb-border-strong);
-  }
-
   .hist {
     display: flex;
     flex-direction: column;

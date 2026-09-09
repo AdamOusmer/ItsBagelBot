@@ -28,13 +28,27 @@ export const GET: RequestHandler = async ({ locals }) => {
         controller.enqueue(enc.encode(': connected\n\n'));
         let n = 0;
         const fixture = import('$lib/server/demo-data');
+        // Guarded, like the live branch's heartbeat below: the fixture tick
+        // resolves a dynamic import, so its write lands a microtask AFTER the
+        // timer fired. cancel() clearing the interval therefore cannot stop the
+        // write already in flight, and enqueueing on a closed controller throws
+        // ERR_INVALID_STATE out of a timer callback -- which is unhandled, and
+        // takes the whole dev server down. Navigating away from the feed page
+        // did exactly that.
+        const push = (chunk: Uint8Array) => {
+          try {
+            controller.enqueue(chunk);
+          } catch {
+            /* closed */
+          }
+        };
         const tick = setInterval(() => {
           fixture.then(({ demoFeedEvent }) => {
-            controller.enqueue(sse('feed', demoFeedEvent(n, STATUS_PREFIX)));
+            push(sse('feed', demoFeedEvent(n, STATUS_PREFIX)));
             n++;
           });
         }, 3000);
-        const hb = setInterval(() => controller.enqueue(enc.encode(': keepalive\n\n')), 20000);
+        const hb = setInterval(() => push(enc.encode(': keepalive\n\n')), 20000);
         // @ts-expect-error stash for cancel
         controller._cleanup = () => {
           clearInterval(tick);

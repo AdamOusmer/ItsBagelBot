@@ -1,38 +1,65 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+  // Operator notifications, on the shared deck + inspector.
+  //
+  // Compose used to be a permanently-open Card above the sent list, so the page
+  // opened on an empty form nobody had asked for and the history sat below the
+  // fold. Compose is now the inspector's `new` mode and the history is the deck;
+  // one surface is open at a time, which is the shape every other management
+  // page here already has.
+  //
+  // The action names (`send`, `delete`) are the server's and are not renamed --
+  // the audit trail keys off them.
+  import { untrack } from 'svelte';
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import {
-    PageHead,
-    Card,
-    CardHead,
-    Button,
-    EmptyState,
-    ConfirmDialog,
-    RadioGroup,
-    Skeleton,
-    toast,
-    actionPayload,
-    adminToastFailure,
-    type AdminActionOk
-  } from '@bagel/shared';
-
-  const failed = adminToastFailure(toast);
+  import PageHead from '@bagel/shared/components/PageHead.svelte';
+  import PageToolbar from '@bagel/shared/components/PageToolbar.svelte';
+  import DeckList from '@bagel/shared/components/DeckList.svelte';
+  import ManagementRow from '@bagel/shared/components/ManagementRow.svelte';
+  import InspectorSurface from '@bagel/shared/components/InspectorSurface.svelte';
+  import AlertBanner from '@bagel/shared/components/AlertBanner.svelte';
+  import EmptyState from '@bagel/shared/components/EmptyState.svelte';
+  import ConfirmDialog from '@bagel/shared/components/ConfirmDialog.svelte';
+  import SkeletonStack from '@bagel/shared/components/SkeletonStack.svelte';
+  import Skeleton from '@bagel/shared/components/Skeleton.svelte';
+  import Button from '@bagel/shared/components/Button.svelte';
+  import { createInspector } from '@bagel/shared/inspector';
+  import { createDiscardGuard } from '@bagel/shared/discard-guard';
+  import { toast } from '@bagel/shared/toast';
+  import { actionPayload, adminToastFailure, ago, type AdminActionOk } from '@bagel/shared';
+  import { getI18n } from '@bagel/shared/i18n/context';
   import type { NotificationWire } from '$lib/server/services';
-  let { data, form } = $props();
+  import StatePill from '$lib/components/StatePill.svelte';
+  import ComposeEditor from '$lib/components/notifications/ComposeEditor.svelte';
+  import NotificationDetail from '$lib/components/notifications/NotificationDetail.svelte';
+  import {
+    NEW_NOTIFICATION,
+    LEVEL_LABEL,
+    LEVEL_TONE,
+    audienceOf,
+    blankCompose,
+    composeComplete,
+    type ComposeDraft
+  } from '$lib/components/notifications/notification-compose';
 
-  // Streamed history -> local state, so a retract can apply optimistically
-  // and roll back on failure.
+  let { data } = $props();
+
+  const { t } = getI18n();
+  const failed = adminToastFailure(toast);
+
+  // Streamed history -> local state, so a retract can apply optimistically and
+  // roll back on failure.
   let notifications = $state<NotificationWire[]>([]);
-  let historyLoaded = $state(false);
+  let loaded = $state(false);
   let degraded = $state(false);
   let page = $state(1);
   let maxPages = $state(25);
   let hasMore = $state(false);
   $effect(() => {
     let alive = true;
-    historyLoaded = false;
+    loaded = false;
     data.history.then((h) => {
       if (!alive) return;
       notifications = h.notifications;
@@ -40,234 +67,364 @@
       page = h.page;
       maxPages = h.maxPages;
       hasMore = h.hasMore;
-      historyLoaded = true;
+      loaded = true;
     });
     return () => {
       alive = false;
     };
   });
 
-  let scope = $state<'broadcast' | 'direct'>('broadcast');
-  let level = $state('info');
-
-  function notificationsHref(pageNo: number): string {
+  function pageHref(pageNo: number): string {
     return pageNo > 1 ? `/notifications?page=${pageNo}` : '/notifications';
   }
 
-  function levelLabel(l: string): string {
-    return l.charAt(0).toUpperCase() + l.slice(1);
-  }
+  // ── Inspector: `new` composes, a selection reads ───────────────────────────
+  const inspector = createInspector<ComposeDraft>();
+  let draft = $state<ComposeDraft | null>(null);
+  let busy = $state(false);
 
-  // Surface action results as toasts and reset the compose form on success.
-  // svelte-ignore state_referenced_locally
-  let lastForm: unknown = form;
-  let composeForm = $state<HTMLFormElement | null>(null);
+  // Push editor changes into the machine for dirty tracking. The spread reads
+  // each field so the effect re-runs on any field mutation; the edit itself is
+  // untracked because it both reads and writes the machine's state, which would
+  // otherwise make the effect depend on state it also mutates (an unsafe cycle).
   $effect(() => {
-    if (form === lastForm) return;
-    lastForm = form;
-    const action = (form as { action?: { ok: boolean; notice: string } } | undefined)?.action;
-    if (!action) return;
-    if (action.ok) {
-      toast('ok', action.notice);
-      composeForm?.reset();
-    } else {
-      toast('err', action.notice);
-    }
+    const snap = draft ? { ...draft } : null;
+    if (snap) untrack(() => inspector.edit(snap));
   });
 
+  const composing = $derived(inspector.selectedId === NEW_NOTIFICATION);
+  const selected = $derived(
+    composing
+      ? null
+      : (notifications.find((n) => String(n.id) === inspector.selectedId) ?? null)
+  );
+  const canSend = $derived(inspector.dirty && !!draft && composeComplete(draft));
+
+  const discard = createDiscardGuard(
+    () => inspector.dirty,
+    () => {
+      inspector.reset();
+      draft = null;
+    }
+  );
+
+  function openCompose() {
+    discard.guard(() => {
+      const blank = blankCompose();
+      inspector.open(NEW_NOTIFICATION, blank);
+      draft = { ...blank };
+    });
+  }
+
+  function openNotification(n: NotificationWire) {
+    if (inspector.selectedId === String(n.id)) {
+      close();
+      return;
+    }
+    // A sent notification is read-only, so the machine holds no draft for it;
+    // `draft` stays null and the surface renders NotificationDetail instead.
+    discard.guard(() => {
+      inspector.open(String(n.id), blankCompose());
+      draft = null;
+    });
+  }
+
+  function close() {
+    discard.guard(() => {
+      inspector.reset();
+      draft = null;
+    });
+  }
+
+  // ── Send ───────────────────────────────────────────────────────────────────
+  // No optimistic row: the server assigns the id and resolves a username to a
+  // user id, so the sent row is not locally derivable. The page reloads the
+  // history instead of guessing at one.
+  const sendSubmit: SubmitFunction = () => {
+    const requestId = inspector.beginSave()?.requestId;
+    busy = true;
+    return async ({ result, update }) => {
+      busy = false;
+      const p = actionPayload<AdminActionOk>(result);
+      const ok = result.type === 'success' && p?.action?.ok === true;
+      const applied = requestId
+        ? inspector.resolved(requestId, { type: ok ? 'success' : 'error' })
+        : false;
+      if (!ok) {
+        failed(p, t('admin.notifications.sendFailed'));
+        return;
+      }
+      toast('ok', p!.action!.notice ?? t('admin.notifications.sent'));
+      if (applied) {
+        inspector.reset();
+        draft = null;
+      }
+      // invalidateAll, not a local push: only the server knows the new row's id
+      // and its resolved target. The inspector is already closed by here, so the
+      // reload costs no editor state.
+      await update({ reset: false });
+    };
+  };
+
+  // ── Retract (confirmed; recipients have already seen it) ───────────────────
   let retractTarget = $state<NotificationWire | null>(null);
   let retractForm = $state<HTMLFormElement | null>(null);
 
-  // Optimistic retract: the row disappears immediately; a refused delete puts
-  // it back with the real error, so the list never lies about what recipients
-  // still see.
+  // Optimistic: the row disappears immediately; a refused delete puts it back
+  // with the real error, so the list never lies about what recipients still see.
   const retractSubmit: SubmitFunction = () => {
     const target = retractTarget;
     const before = notifications.map((n) => ({ ...n }));
+    busy = true;
     if (target) notifications = notifications.filter((n) => n.id !== target.id);
     return async ({ result }) => {
+      busy = false;
+      retractTarget = null;
       const p = actionPayload<AdminActionOk>(result);
       if (result.type === 'success' && p?.action?.ok) {
-        toast('ok', p.action.notice ?? 'Retracted.');
+        inspector.reset();
+        draft = null;
+        toast('ok', p.action.notice ?? t('admin.notifications.retracted'));
         return;
       }
       notifications = before;
-      failed(p, 'retract failed');
+      failed(p, t('admin.notifications.retractFailed'));
     };
   };
 </script>
 
 <section class="screen active">
-  <PageHead eyebrow="Operate" description="Compose a message for one user or every user; it appears in their dashboard.">
-    <em>Notifications</em>
+  <PageHead
+    eyebrow={t('admin.notifications.eyebrow')}
+    description={t('admin.notifications.description')}
+  >
+    {t('admin.notifications.titlePre')}<em>{t('admin.notifications.titleEm')}</em>
   </PageHead>
 
-  <Card class="notif-card">
-    <CardHead title="Compose" />
-    <form method="POST" action="?/send" class="compose" use:enhance bind:this={composeForm}>
-      <RadioGroup
-        name="scope"
-        label="Audience"
-        bind:value={scope}
-        options={[
-          { value: 'broadcast', label: 'Broadcast to everyone' },
-          { value: 'direct', label: 'Direct to one user' }
-        ]}
-      />
+  {#if degraded}
+    <AlertBanner>{t('admin.notifications.degraded')}</AlertBanner>
+  {/if}
 
-      {#if scope === 'direct'}
-        <div class="row two">
-          <label>
-            User ID
-            <input type="text" name="target_user_id" placeholder="e.g. 123456789" autocomplete="off" />
-          </label>
-          <label>
-            or username
-            <input type="text" name="target_username" placeholder="e.g. itsmavey" autocomplete="off" />
-          </label>
-        </div>
+  <PageToolbar>
+    {#snippet lead()}
+      {#if loaded}
+        <span class="count">
+          {notifications.length === 1
+            ? t('admin.notifications.countOne')
+            : t('admin.notifications.count', { n: String(notifications.length) })}
+        </span>
+      {:else}
+        <Skeleton variant="pill" width="130px" />
+      {/if}
+    {/snippet}
+    {#snippet trail()}
+      <Button variant="primary" onclick={openCompose}>{t('admin.notifications.compose')}</Button>
+    {/snippet}
+  </PageToolbar>
+
+  <div class="deck" class:inspecting={inspector.isOpen}>
+    <DeckList>
+      {#if !loaded}
+        <SkeletonStack rows={4} height="60px" />
+      {:else if notifications.length}
+        <ul class="bb-list" aria-label={t('admin.notifications.listLabel')}>
+          {#each notifications as n (n.id)}
+            {@const audience = audienceOf(n)}
+            <li>
+              <ManagementRow
+                selected={inspector.selectedId === String(n.id)}
+                expanded={inspector.selectedId === String(n.id)}
+                controls="notification-inspector"
+                onselect={() => openNotification(n)}
+              >
+                {#snippet primary()}
+                  <span class="row">
+                    <span class="who">
+                      <span class="name">{n.title}</span>
+                      <span class="meta">
+                        {t('admin.notifications.rowMeta', {
+                          who: n.created_by_login,
+                          when: ago(n.created_at)
+                        })}
+                      </span>
+                    </span>
+                    <span class="marks">
+                      <StatePill tone={LEVEL_TONE[n.level]}>{t(LEVEL_LABEL[n.level])}</StatePill>
+                      <StatePill tone="neutral">{t(audience.key, audience.params)}</StatePill>
+                    </span>
+                  </span>
+                {/snippet}
+              </ManagementRow>
+            </li>
+          {/each}
+        </ul>
+      {:else}
+        <EmptyState
+          title={t('admin.notifications.empty')}
+          body={t('admin.notifications.emptyBody')}
+        />
       {/if}
 
-      <label class="field">
-        Title
-        <input type="text" name="title" maxlength="120" required placeholder="Brief service update" />
-      </label>
-
-      <label class="field">
-        Message
-        <textarea name="body" maxlength="2000" required rows="3" placeholder="What do you want them to know?"></textarea>
-      </label>
-
-      <div class="row two">
-        <label>
-          Level
-          <select name="level" bind:value={level}>
-            <option value="info">Info</option>
-            <option value="success">Success</option>
-            <option value="warning">Warning</option>
-            <option value="critical">Critical</option>
-          </select>
-        </label>
-        <label>
-          Expires (optional)
-          <input type="datetime-local" name="expires_at" />
-        </label>
-      </div>
-
-      <Button type="submit" variant="primary">Send notification</Button>
-    </form>
-  </Card>
-
-  <Card class="notif-card">
-    <CardHead title="Sent" />
-    {#if !historyLoaded}
-      <div class="bb-skeletons">
-        {#each [0, 1, 2] as i (i)}<Skeleton variant="block" height="72px" />{/each}
-      </div>
-    {:else if degraded}
-      <EmptyState title="History unavailable" body="The notifications service is unreachable; sent messages are not shown." />
-    {:else if notifications.length === 0}
-      <EmptyState title="No notifications yet" body="Notifications you send appear here." />
-    {:else}
-      <div class="list">
-        {#each notifications as n (n.id)}
-          <div class="row-item">
-            <div class="row-main">
-              <span class="level {n.level}">{levelLabel(n.level)}</span>
-              <div class="text">
-                <b>{n.title}</b>
-                <p>{n.body}</p>
-                <span class="meta">
-                  {n.scope === 'broadcast' ? 'All users' : `User ${n.target_user_id}`} · sent by {n.created_by_login} ·
-                  {new Date(n.created_at).toLocaleString()}
-                  {#if n.expires_at}· expires {new Date(n.expires_at).toLocaleString()}{/if}
-                </span>
-              </div>
-            </div>
-            <button type="button" class="btn ghost sm danger" onclick={() => (retractTarget = n)}>
-              Retract
-            </button>
-          </div>
-        {/each}
-      </div>
-
-      {#if page > 1 || hasMore}
+      {#if loaded && (page > 1 || hasMore)}
         <div class="pager">
-          <a class="btn ghost sm" class:disabled={page <= 1} href={notificationsHref(page - 1)}>Prev</a>
-          <span class="page-no">Page {page} / {maxPages}</span>
-          <a class="btn ghost sm" class:disabled={!hasMore} href={notificationsHref(page + 1)}>Next</a>
+          <a
+            class="btn ghost"
+            class:disabled={page <= 1}
+            href={pageHref(page - 1)}
+            aria-disabled={page <= 1}
+          >
+            {t('admin.notifications.pagerPrev')}
+          </a>
+          <span class="pager-label">
+            {t('admin.notifications.pagerLabel', {
+              page: String(page),
+              max: String(maxPages)
+            })}
+          </span>
+          <a
+            class="btn ghost"
+            class:disabled={!hasMore}
+            href={pageHref(page + 1)}
+            aria-disabled={!hasMore}
+          >
+            {t('admin.notifications.pagerNext')}
+          </a>
         </div>
       {/if}
+    </DeckList>
+
+    {#if inspector.isOpen}
+      <InspectorSurface
+        open
+        title={composing ? t('admin.notifications.composeTitle') : (selected?.title ?? '')}
+        controls="notification-inspector"
+        closeLabel={t('admin.close')}
+        onClose={close}
+      >
+        <!-- Keyed on the selection so switching rows mounts a FRESH surface: the
+             composer binds to the draft snapshot taken at open, so one reused
+             instance would carry the previous message's fields. -->
+        {#key inspector.selectedId}
+          {#if composing && draft}
+            <ComposeEditor
+              bind:draft={
+                () => draft!,
+                (v) => (draft = v)
+              }
+              status={inspector.status}
+              dirty={inspector.dirty}
+              canSave={canSend}
+              onCancel={close}
+              onSubmit={sendSubmit}
+            />
+          {:else if selected}
+            <NotificationDetail
+              notification={selected}
+              {busy}
+              onRetract={() => (retractTarget = selected)}
+            />
+          {/if}
+        {/key}
+      </InspectorSurface>
     {/if}
-  </Card>
+  </div>
 </section>
 
 <ConfirmDialog
   open={retractTarget !== null}
-  title="Retract this notification?"
-  body="It disappears from every recipient's dashboard immediately. This cannot be undone."
-  confirmLabel="Retract"
+  title={t('admin.notifications.confirmRetractTitle')}
+  body={t('admin.notifications.confirmRetractBody')}
+  confirmLabel={t('admin.notifications.retract')}
+  cancelLabel={t('common.cancel')}
   danger
+  {busy}
   onCancel={() => (retractTarget = null)}
-  onConfirm={() => {
-    retractForm?.requestSubmit();
-    retractTarget = null;
-  }}
+  onConfirm={() => retractForm?.requestSubmit()}
 />
-{#if retractTarget}
-  <form method="POST" action="?/delete" use:enhance={retractSubmit} bind:this={retractForm} hidden>
-    <input type="hidden" name="id" value={retractTarget.id} />
-  </form>
-{/if}
+<form method="POST" action="?/delete" use:enhance={retractSubmit} bind:this={retractForm} hidden>
+  <input type="hidden" name="id" value={retractTarget?.id ?? ''} />
+</form>
+
+<ConfirmDialog
+  open={discard.open}
+  title={t('admin.unsaved')}
+  confirmLabel={t('common.done')}
+  cancelLabel={t('common.cancel')}
+  onConfirm={discard.confirm}
+  onCancel={discard.cancel}
+/>
 
 <style>
-  :global(.notif-card) { margin-top: 18px; }
-
-  .compose { display: flex; flex-direction: column; gap: 14px; }
-  /* Cards, not rows: they need a touch more air than the shared stack. */
-  .bb-skeletons { gap: 10px; padding: 0; }
-  .row { display: flex; gap: 14px; flex-wrap: wrap; }
-  .row.two > label { flex: 1; min-width: 180px; }
-
-  label.field, .row label {
-    display: flex; flex-direction: column; gap: 6px;
-    font-family: var(--bb-font-mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--bb-muted);
+  .count {
+    font-family: var(--bb-font-mono);
+    font-size: 11.5px;
+    color: var(--bb-muted);
   }
-  input[type='text'], input[type='datetime-local'], textarea, select {
-    font-family: var(--bb-font-body); font-size: 14px; text-transform: none; letter-spacing: normal;
-    color: var(--bb-white); background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border);
-    border-radius: var(--bb-radius-sm); padding: 9px 12px;
+
+  .deck {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
   }
-  textarea { resize: vertical; font-family: var(--bb-font-body); }
-
-  .list { display: flex; flex-direction: column; gap: 10px; }
-  .row-item {
-    display: flex; align-items: flex-start; justify-content: space-between; gap: 14px;
-    border: 1px solid var(--glass-border); border-radius: var(--bb-radius-sm);
-    padding: 12px 14px; background: rgba(255, 255, 255, 0.02);
+  @media (min-width: 1080px) {
+    .deck.inspecting {
+      grid-template-columns: minmax(0, 1fr) 380px;
+    }
   }
-  .row-main { display: flex; gap: 12px; align-items: flex-start; flex: 1; min-width: 0; }
-  .text b { font-size: 14px; color: var(--bb-white); }
-  .text p { margin: 4px 0; font-size: 13px; color: var(--bb-muted); }
-  .meta { font-family: var(--bb-font-mono); font-size: 11px; color: var(--bb-muted); opacity: 0.8; }
 
-  .level {
-    font-family: var(--bb-font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
-    padding: 4px 10px; border-radius: var(--bb-radius-pill); border: 1px solid transparent; white-space: nowrap;
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
   }
-  .level.info { background: rgba(255,255,255,0.04); color: var(--bb-muted); border-color: var(--glass-border); }
-  .level.success { background: rgba(82,183,136,0.10); color: var(--bb-green-glow); border-color: rgba(82,183,136,0.28); }
-  .level.warning { background: rgba(201,168,124,0.10); color: var(--bb-tan-light); border-color: rgba(201,168,124,0.28); }
-  .level.critical { background: rgba(176,90,70,0.15); color: #cf8a78; border-color: rgba(176,90,70,0.4); }
+  .who {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1;
+  }
+  .name {
+    font-family: var(--bb-font-body);
+    font-weight: 600;
+    font-size: 13.5px;
+    color: var(--bb-white);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .meta {
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
+    color: var(--bb-muted);
+  }
+  .marks {
+    display: flex;
+    gap: 6px;
+    flex: none;
+  }
+  @media (max-width: 560px) {
+    .marks :global(.pill:last-child) {
+      display: none;
+    }
+  }
 
-  .btn.sm { padding: 4px 10px; font-size: 12px; }
-  .btn.danger { color: #e08f8f; }
-
-  .pager { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
-  .page-no { font-family: var(--bb-font-mono); font-size: 11px; color: var(--bb-muted); }
-  .disabled { pointer-events: none; opacity: 0.4; }
-
-  @media (max-width: 760px) {
-    .row-item { flex-direction: column; }
+  .pager {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 14px;
+  }
+  .pager-label {
+    font-family: var(--bb-font-mono);
+    font-size: 11.5px;
+    color: var(--bb-muted);
+  }
+  .disabled {
+    pointer-events: none;
+    opacity: 0.4;
   }
 </style>

@@ -1,22 +1,49 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+  // Twitch ingress fleet health, on the shared deck.
+  //
+  // The page was a grid of `.shard-card`s with its own tone triple, its own
+  // stat block, a hand-rolled `.btn-toggle` for autoscale and a per-shard SVG
+  // sparkline. It is now three StatTiles, one toolbar and a DeckList of rows:
+  // the sparkline went with the change, because a 30-sample ring buffer over an
+  // 8-second poll is four minutes of history rendered as decoration, and the
+  // per-shard load it drew is already the row's bar.
+  //
+  // Scale and autoscale are the only two verbs, both admin-only. The client
+  // gate is `allows`, the same question ?/scale and ?/autoscale ask through
+  // requireRole -- a hidden control is a courtesy, not the boundary.
+  import { onMount } from 'svelte';
   import { enhance } from '$app/forms';
-  import { onMount, untrack } from 'svelte';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { PageHead, AlertBanner, Skeleton, toast, actionPayload, adminToastFailure } from '@bagel/shared';
-  import type { Shard, ShardSnapshot } from '@bagel/shared';
-  import {
-    barWidth,
-    eventsPerSecond,
-    resolveCapacity,
-    utilizationPct,
-    utilizationTone
-  } from '$lib/throughput';
+  import PageHead from '@bagel/shared/components/PageHead.svelte';
+  import PageToolbar from '@bagel/shared/components/PageToolbar.svelte';
+  import DeckList from '@bagel/shared/components/DeckList.svelte';
+  import StatTile from '@bagel/shared/components/StatTile.svelte';
+  import Switch from '@bagel/shared/components/Switch.svelte';
+  import Button from '@bagel/shared/components/Button.svelte';
+  import AlertBanner from '@bagel/shared/components/AlertBanner.svelte';
+  import EmptyState from '@bagel/shared/components/EmptyState.svelte';
+  import ConfirmDialog from '@bagel/shared/components/ConfirmDialog.svelte';
+  import SkeletonStack from '@bagel/shared/components/SkeletonStack.svelte';
+  import { livePoll } from '@bagel/shared/live-poll';
+  import { toast } from '@bagel/shared/toast';
+  import { actionPayload, adminToastFailure } from '@bagel/shared';
+  import type { ShardSnapshot } from '@bagel/shared';
+  import { getI18n } from '@bagel/shared/i18n/context';
+  import { allows } from '$lib/access';
+  import StatusDot from '$lib/components/StatusDot.svelte';
+  import ShardRow from '$lib/components/shards/ShardRow.svelte';
+  import { rateLabel } from '$lib/components/shards/shard-state';
+  import { eventsPerSecond, resolveCapacity, utilizationPct } from '$lib/throughput';
 
   let { data } = $props();
 
-  // ── Streamed snapshot -> local state + live poll ───────────────────────────
+  const { t } = getI18n();
+  const failed = adminToastFailure(toast);
+  const canScale = $derived(allows(data.role, 'shards.scale'));
+
+  // ── Streamed snapshot -> local state ───────────────────────────────────────
   let snap = $state<ShardSnapshot | null>(null);
   let degraded = $state(false);
   let live = $state(false);
@@ -33,511 +60,406 @@
     };
   });
 
-  // Poll: 2s while a recent action settles, else 8s; paused when hidden.
+  // ── Live poll ──────────────────────────────────────────────────────────────
+  // Same schedule the hand-rolled loop had: 2s while a recent action settles,
+  // else 8s, first tick at 1.5s, paused while the tab is hidden.
+  //
+  // livePoll, not another setTimeout chain: it owns the generation counter that
+  // makes a teardown mid-fetch safe. The one thing it is NOT here is a poll that
+  // settles -- fleet state never "arrives", it just keeps moving -- so the tick
+  // always answers false and the deadline is Infinity.
+  const FAST_MS = 2000;
+  const SLOW_MS = 8000;
+  const SETTLE_WINDOW_MS = 30_000;
   let fastUntil = 0;
-  async function pollSnapshot() {
-    if (typeof document !== 'undefined' && document.hidden) return;
+
+  async function pollSnapshot(): Promise<boolean> {
+    if (typeof document !== 'undefined' && document.hidden) return false;
     try {
       const res = await fetch('/shards/snapshot');
-      if (!res.ok) return;
+      if (!res.ok) return false;
       const body = (await res.json()) as { snapshot?: ShardSnapshot };
-      if (body.snapshot) {
-        snap = body.snapshot;
-        degraded = false;
-        live = true;
-        sampleLoads(body.snapshot);
-      } else {
-        live = false; // endpoint answered but had no live snapshot: say so
+      if (!body.snapshot) {
+        live = false; // the endpoint answered but had no live snapshot: say so
+        return false;
       }
+      snap = body.snapshot;
+      degraded = false;
+      live = true;
     } catch {
       live = false;
     }
+    return false;
   }
 
   onMount(() => {
-    let timer: ReturnType<typeof setTimeout>;
-    const tick = async () => {
-      await pollSnapshot();
-      timer = setTimeout(tick, Date.now() < fastUntil ? 2000 : 8000);
-    };
-    timer = setTimeout(tick, 1500);
+    const stop = livePoll(pollSnapshot, {
+      firstDelayMs: 1500,
+      delayMs: () => (Date.now() < fastUntil ? FAST_MS : SLOW_MS),
+      timeoutMs: Number.POSITIVE_INFINITY
+    });
     const onVis = () => {
       if (!document.hidden) pollSnapshot();
     };
     document.addEventListener('visibilitychange', onVis);
     return () => {
-      clearTimeout(timer);
+      stop();
       document.removeEventListener('visibilitychange', onVis);
     };
   });
 
-  // ── Per-shard load sparkline (client-side ring buffer over the poll) ──────
-  const SPARK_LEN = 30;
-  let sparks = $state<Record<number, number[]>>({});
-  function sampleLoads(s: ShardSnapshot) {
-    const next: Record<number, number[]> = { ...sparks };
-    for (const sh of s.shards) {
-      const arr = [...(next[sh.shard_id] ?? []), evRate(sh.load)];
-      next[sh.shard_id] = arr.slice(-SPARK_LEN);
-    }
-    sparks = next;
-  }
-  function sparkPoints(vals: number[]): string {
-    if (vals.length < 2) return '';
-    const max = Math.max(...vals, 0.001);
-    const step = 72 / (vals.length - 1);
-    return vals
-      .map((v, i) => `${(i * step).toFixed(1)},${(19 - (v / max) * 18).toFixed(1)}`)
-      .join(' ');
-  }
-
-  // ── Derived views ──────────────────────────────────────────────────────────
-  const cm = $derived(snap?.conduit_manager);
+  // ── Derived fleet view ─────────────────────────────────────────────────────
   const capacity = $derived(snap ? resolveCapacity(snap) : null);
+  const shards = $derived(snap?.shards ?? []);
+  const connected = $derived(shards.filter((s) => s.state === 'connected').length);
   const minShards = $derived(snap?.min_shards ?? 1);
-  const maxShards = $derived(snap?.max_shards ?? capacity?.websocket_autoscale_max_shards ?? 11);
+  const maxShards = $derived(
+    snap?.max_shards ?? capacity?.websocket_autoscale_max_shards ?? 11
+  );
   const autoscaleOn = $derived(snap?.autoscale ?? false);
-
-  // Scale stepper: tracks user edits; resets when the authoritative base moves.
-  const scaleBase = $derived(snap?.desired_count ?? snap?.shard_count ?? 1);
-  let scaleOffset = $state(0);
-  const scaleCount = $derived(scaleBase + scaleOffset);
-  let lastScaleBase = $state<number | null>(null);
-  $effect(() => {
-    const nextBase = scaleBase;
-    untrack(() => {
-      if (lastScaleBase !== nextBase) {
-        lastScaleBase = nextBase;
-        if (scaleOffset !== 0) scaleOffset = 0;
-      }
-    });
-  });
 
   function evRate(load?: number): number {
     return capacity ? eventsPerSecond(load, capacity.load_window_seconds) : 0;
   }
-  function loadUtilization(load?: number): number {
-    return capacity ? utilizationPct(evRate(load), capacity.websocket_rated_eps) : 0;
-  }
-  function loadTone(load?: number): string {
-    if (load == null || !capacity) return 'muted';
-    return utilizationTone(loadUtilization(load), capacity.target_utilization_pct);
-  }
-  function rateLabel(eps: number): string {
-    if (eps <= 0) return '0 ev/s';
-    if (eps < 1) return `${eps.toFixed(2)} ev/s`;
-    return `${eps.toFixed(eps < 10 ? 1 : 0)} ev/s`;
-  }
-  function keepalive(ms?: number): string {
-    if (!ms || ms <= 0) return '-';
-    return `${Math.round(ms / 1000)}s window`;
-  }
-  // derive_state/1 in ingress emits connecting | binding | migrating while a
-  // socket is coming up or being handed over. All three are transient and heal
-  // on their own, so none is a fault worth waking an operator for; only
-  // backoff and unresponsive mean the shard is actually stuck.
-  const RESTARTING = new Set(['connecting', 'reconnecting', 'binding', 'migrating']);
 
-  // `unregistered` means no process at all answers for the slot, which is a
-  // different failure from a session ingress is running but cannot steer
-  // (managed === false). Conflating the two is what let a shard serving live
-  // events and a zombie shard both read as "degraded".
-  function stateBadge(s: Shard): { label: string; tone: string } {
-    if (s.state === 'unregistered') return { label: 'missing', tone: 'err' };
-    if (s.managed === false) return { label: 'unmanaged', tone: 'warn' };
-    if (s.state === 'connected') return { label: 'healthy', tone: 'green' };
-    if (RESTARTING.has(s.state)) return { label: 'restarting', tone: 'warn' };
-    return { label: 'degraded', tone: 'err' };
-  }
-  function podIndex(raw?: string): string {
-    if (!raw || !snap) return '';
-    const index = snap.nodes.findIndex((node) => node === String(raw));
-    return index >= 0 ? `pod${index + 1}` : '';
-  }
-
-  const aggregateEps = $derived(
-    (snap?.shards ?? []).reduce((sum, s) => sum + evRate(s.load), 0)
-  );
+  const aggregateEps = $derived(shards.reduce((sum, s) => sum + evRate(s.load), 0));
   const aggregateUtilization = $derived(
     capacity ? utilizationPct(aggregateEps, capacity.effective_rated_eps) : 0
   );
+  const conduit = $derived(snap?.conduit_manager);
 
-  // ── Actions: apply the echoed snapshot; autoscale flips optimistically ─────
-  type ActionPayload = { action?: { ok: boolean; notice: string }; snapshot?: ShardSnapshot; error?: string };
+  // ── Scale stepper ──────────────────────────────────────────────────────────
+  // Tracks the operator's edits as an OFFSET from the authoritative desired
+  // count, so a poll landing mid-edit moves the base without stealing what was
+  // typed; the offset resets only when the base itself moves.
+  const scaleBase = $derived(snap?.desired_count ?? snap?.shard_count ?? 1);
+  let scaleOffset = $state(0);
+  const scaleCount = $derived(scaleBase + scaleOffset);
+  let seedBase = -1;
+  $effect(() => {
+    if (seedBase === scaleBase) return;
+    seedBase = scaleBase;
+    scaleOffset = 0;
+  });
 
-  const failed = adminToastFailure(toast);
+  function stepScale(by: number) {
+    const next = Math.min(maxShards, Math.max(minShards, scaleCount + by));
+    scaleOffset = next - scaleBase;
+  }
+
+  function typeScale(raw: string) {
+    const v = parseInt(raw, 10);
+    if (Number.isNaN(v)) return;
+    scaleOffset = v - scaleBase;
+  }
+
+  // ── Actions ────────────────────────────────────────────────────────────────
+  type ActionPayload = {
+    action?: { ok: boolean; notice: string };
+    snapshot?: ShardSnapshot;
+    error?: string;
+  };
 
   let busy = $state(false);
+  let scaleForm = $state<HTMLFormElement | null>(null);
+  let autoscaleForm = $state<HTMLFormElement | null>(null);
+  let confirmScaleDown = $state(false);
+
+  // Scaling DOWN drops live websockets, so it confirms; scaling up is additive
+  // and fires straight away.
+  function requestScale() {
+    if (scaleCount < scaleBase) {
+      confirmScaleDown = true;
+      return;
+    }
+    scaleForm?.requestSubmit();
+  }
 
   const scaleSubmit: SubmitFunction = ({ formData }) => {
     formData.set('count', String(scaleCount));
     busy = true;
-    return async ({ result, update }) => {
+    confirmScaleDown = false;
+    return async ({ result }) => {
       busy = false;
-      fastUntil = Date.now() + 30_000;
+      fastUntil = Date.now() + SETTLE_WINDOW_MS;
       const p = actionPayload<ActionPayload>(result);
       if (result.type === 'success' && p?.action?.ok) {
         if (p.snapshot) snap = p.snapshot;
         toast('ok', p.action.notice);
-      } else {
-        failed(p, 'scale failed');
+        return;
       }
-      await update({ reset: false });
+      failed(p, t('admin.shards.scaleFailed'));
     };
   };
 
   const autoscaleSubmit: SubmitFunction = () => {
     busy = true;
     const before = snap ? { ...snap } : null;
+    // Optimistic: the switch flips instantly and rolls back if the ingress
+    // refuses, so the toggle never shows a mode the fleet is not in.
     if (snap) snap = { ...snap, autoscale: !snap.autoscale };
-    return async ({ result, update }) => {
+    return async ({ result }) => {
       busy = false;
-      fastUntil = Date.now() + 30_000;
+      fastUntil = Date.now() + SETTLE_WINDOW_MS;
       const p = actionPayload<ActionPayload>(result);
       if (result.type === 'success' && p?.action?.ok) {
         if (p.snapshot) snap = p.snapshot;
         toast('ok', p.action.notice);
-      } else {
-        // Roll the flip back: the toggle must show what the fleet actually runs.
-        if (before) snap = before;
-        failed(p, 'autoscale change failed');
+        return;
       }
-      await update({ reset: false });
+      if (before) snap = before;
+      failed(p, t('admin.shards.autoscaleFailed'));
     };
   };
 </script>
 
 <section class="screen active">
-  <div class="page-head">
-    <span class="eyebrow">
-      Twitch ingress
-      {#if live}<span class="live-chip"><span class="live-dot"></span> live</span>{/if}
-    </span>
-    <h1>Shard <em>health</em></h1>
-    {#if snap}
-      <p>
-        {snap.shards.filter((s) => s.state === 'connected').length}/{snap.shard_count || snap.shards.length}
-        connected across {snap.nodes.length} nodes · reporter {snap.reporter}
-      </p>
-    {:else}
-      <p>Waiting for the first fleet snapshot…</p>
-    {/if}
-  </div>
+  <PageHead eyebrow={t('admin.shards.eyebrow')} description={t('admin.shards.description')}>
+    {t('admin.shards.titlePre')}<em>{t('admin.shards.titleEm')}</em>
+  </PageHead>
 
   {#if degraded}
-    <AlertBanner>Live snapshot unavailable; fleet values are empty until the ingress answers.</AlertBanner>
+    <AlertBanner>{t('admin.shards.degraded')}</AlertBanner>
   {/if}
 
   {#if snap === null}
-    <div class="loading-stack">
-      <Skeleton variant="block" height="88px" />
-      <Skeleton variant="block" height="88px" />
-      <Skeleton variant="block" height="160px" />
-    </div>
+    <SkeletonStack rows={3} height="96px" />
   {:else}
-    <div class="top-grid">
-      <div class="card conduit-card">
-        <div class="card-head">
-          <h3>Conduit manager</h3>
-          <span class="more">{snap.nodes.join(', ') || 'no nodes'}</span>
-        </div>
-        <div class="conduit-row">
-          <div class="conduit-body">
-            <div class="live-tag"><span class="dot"></span> {cm?.state ?? 'unknown'}</div>
-            <div class="meta">
-              <span>node {cm?.node ?? '-'}</span><span class="mid">·</span>
-              <span>conduit {cm?.conduit_id ?? '-'}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {#if capacity}
-        <div class="card conduit-card">
-          <div class="card-head">
-            <h3>Effective capacity</h3>
-            <span class="more">limited by {capacity.bottleneck === 'nats' ? 'live NATS PubAck' : 'ingress compute'}</span>
-          </div>
-          <div class="load-row">
-            <div class="load-bar-track">
-              <div
-                class="load-bar-fill {utilizationTone(aggregateUtilization, capacity.target_utilization_pct)}"
-                style="width:{barWidth(aggregateUtilization)}%"
-              ></div>
-            </div>
-            <span class="load-pct {utilizationTone(aggregateUtilization, capacity.target_utilization_pct)}">
-              {rateLabel(aggregateEps)} · {aggregateUtilization.toFixed(1)}%
-            </span>
-          </div>
-          <div class="shard-meta">
-            <span>target {capacity.effective_target_eps.toLocaleString()} ev/s ({capacity.target_utilization_pct}%)</span>
-            <span>rated {capacity.effective_rated_eps.toLocaleString()} ev/s</span>
-            <span>NATS {capacity.nats_rated_eps.toLocaleString()} · compute {capacity.fleet_rated_eps.toLocaleString()} ev/s</span>
-          </div>
-        </div>
-      {/if}
+    <div class="tiles">
+      <StatTile
+        label={t('admin.shards.tileShards')}
+        value={`${connected}/${snap.shard_count || shards.length}`}
+        delta={t('admin.shards.tileShardsDelta', { nodes: String(snap.nodes.length) })}
+      />
+      <StatTile
+        label={t('admin.shards.tileThroughput')}
+        value={rateLabel(aggregateEps)}
+        unit={t('admin.shards.eps')}
+        delta={t('admin.shards.tileThroughputDelta', {
+          pct: aggregateUtilization.toFixed(1)
+        })}
+      />
+      <StatTile
+        label={t('admin.shards.tileAutoscale')}
+        value={autoscaleOn ? t('admin.shards.on') : t('admin.shards.off')}
+        delta={t('admin.shards.tileAutoscaleDelta', {
+          min: String(minShards),
+          max: String(maxShards)
+        })}
+      />
     </div>
 
-    <!-- Scale control -->
-    <div class="card control-card">
-      <div class="card-head">
-        <h3>Scale control</h3>
-        <span class="badge {autoscaleOn ? 'badge-on' : 'badge-off'}">
-          {autoscaleOn ? 'autoscale on' : 'manual'}
+    <PageToolbar>
+      {#snippet lead()}
+        <span class="conduit">
+          <StatusDot tone={conduit?.state === 'ready' ? 'success' : 'warning'} />
+          {t('admin.shards.conduit', {
+            state: conduit?.state ?? t('admin.shards.unknownState'),
+            node: conduit?.node ?? '-'
+          })}
+          {#if live}<span class="live">{t('admin.shards.live')}</span>{/if}
         </span>
-      </div>
+      {/snippet}
+      {#snippet trail()}
+        {#if canScale}
+          <!-- Switch renders no visible text of its own (its label is the
+               accessible name), so the toolbar supplies one: an unlabelled
+               toggle beside a number stepper is a coin flip. -->
+          <span class="switch-field">
+            <span class="switch-label">{t('admin.shards.autoscaleLabel')}</span>
+            <Switch
+              checked={autoscaleOn}
+              label={t('admin.shards.autoscaleLabel')}
+              describedby="shards-autoscale-hint"
+              pending={busy}
+              onchange={() => autoscaleForm?.requestSubmit()}
+            />
+          </span>
+          <!-- The stepper stays submittable while autoscale is on (visually
+               muted) so an operator can pre-set the floor before turning it
+               off. -->
+          <span class="stepper" class:dim={autoscaleOn}>
+            <button
+              type="button"
+              class="step"
+              aria-label={t('admin.shards.decrease')}
+              disabled={scaleCount <= minShards}
+              onclick={() => stepScale(-1)}>&minus;</button
+            >
+            <input
+              class="step-input"
+              type="number"
+              min={minShards}
+              max={maxShards}
+              value={scaleCount}
+              aria-label={t('admin.shards.countLabel')}
+              oninput={(e) => typeScale((e.target as HTMLInputElement).value)}
+            />
+            <button
+              type="button"
+              class="step"
+              aria-label={t('admin.shards.increase')}
+              disabled={scaleCount >= maxShards}
+              onclick={() => stepScale(1)}>+</button
+            >
+          </span>
+          <Button
+            variant="secondary"
+            disabled={autoscaleOn || busy || scaleCount === scaleBase}
+            onclick={requestScale}
+          >
+            {t('admin.shards.apply')}
+          </Button>
+        {/if}
+      {/snippet}
+    </PageToolbar>
 
-      <div class="ctrl-stats">
-        <div class="ctrl-stat"><span class="ctrl-label">desired</span><span class="ctrl-val">{snap.desired_count ?? '-'}</span></div>
-        <div class="ctrl-stat"><span class="ctrl-label">target</span><span class="ctrl-val">{snap.target ?? '-'}</span></div>
-        <div class="ctrl-stat"><span class="ctrl-label">min</span><span class="ctrl-val">{snap.min_shards ?? '-'}</span></div>
-        <div class="ctrl-stat"><span class="ctrl-label">max</span><span class="ctrl-val">{maxShards}</span></div>
-      </div>
+    {#if canScale}
+      <p class="hint" id="shards-autoscale-hint">
+        {autoscaleOn ? t('admin.shards.autoscaleOnHint') : t('admin.shards.autoscaleOffHint')}
+      </p>
+    {/if}
 
-      <!-- Manual scale: input stays submittable while autoscale is on (visually
-           muted) so an operator can pre-set the floor before disabling it. -->
-      <form method="POST" action="?/scale" use:enhance={scaleSubmit} class="ctrl-form">
-        <div class="stepper {autoscaleOn ? 'stepper-dim' : ''}">
-          <button
-            type="button"
-            class="step-btn"
-            aria-label="decrease shard count"
-            disabled={scaleCount <= minShards}
-            onclick={() => scaleOffset--}
-          >−</button>
-          <input
-            type="number"
-            name="count"
-            class="step-input"
-            min={minShards}
-            max={maxShards}
-            value={scaleCount}
-            oninput={(e) => {
-              const v = parseInt((e.target as HTMLInputElement).value, 10);
-              if (!isNaN(v)) scaleOffset = v - scaleBase;
-            }}
-            aria-label="shard count"
-          />
-          <button type="button" class="step-btn" aria-label="increase shard count" disabled={scaleCount >= maxShards} onclick={() => scaleOffset++}>+</button>
-        </div>
-        <button type="submit" class="btn-apply" disabled={autoscaleOn || busy}>Apply</button>
-        {#if autoscaleOn}<span class="ctrl-hint">disable autoscale to set manually</span>{/if}
-      </form>
-
-      <form method="POST" action="?/autoscale" use:enhance={autoscaleSubmit} class="autoscale-form">
-        <input type="hidden" name="enabled" value={autoscaleOn ? 'false' : 'true'} />
-        <button type="submit" class="btn-toggle {autoscaleOn ? 'btn-toggle-on' : 'btn-toggle-off'}" disabled={busy}>
-          <span class="toggle-dot"></span>
-          {autoscaleOn ? 'Disable autoscale' : 'Enable autoscale'}
-        </button>
-      </form>
-    </div>
-
-    <div class="shard-grid">
-      {#each snap.shards as s (s.shard_id)}
-        {@const sb = stateBadge(s)}
-        {@const utilization = loadUtilization(s.load)}
-        {@const ltone = loadTone(s.load)}
-        <div class="card shard-card">
-          <div class="shard-head">
-            <span class="shard-id">shard {s.shard_id}</span>
-            <span class="state-badge {sb.tone}">{sb.label}</span>
-            <span class="shard-node">
-              {s.host || 'unknown-host'}
-              {#if podIndex(s.node)}<span class="pod">({podIndex(s.node)})</span>{/if}
-            </span>
-          </div>
-          <div class="shard-meta">
-            <span>{s.bound ? 'bound' : 'unbound'}</span>
-            {#if s.managed === false && s.state !== 'unregistered'}
-              <span class="warn-tag">no registry entry</span>
-            {/if}
-            {#if s.handshake_in_flight}<span class="warn-tag">handshaking</span>{/if}
-            <span>{keepalive(s.keepalive_ms)}</span>
-            <span>{s.attempts ?? 0} att</span>
-          </div>
-          {#if s.load != null && capacity}
-            <div class="load-row">
-              <div class="load-bar-track">
-                <div class="load-bar-fill {ltone}" style="width:{barWidth(utilization)}%"></div>
-              </div>
-              <span class="load-pct {ltone}">{rateLabel(evRate(s.load))} · {utilization.toFixed(1)}% of socket</span>
-              {#if sparkPoints(sparks[s.shard_id] ?? [])}
-                <svg class="spark {ltone}" viewBox="0 0 72 20" aria-hidden="true">
-                  <polyline points={sparkPoints(sparks[s.shard_id] ?? [])} />
-                </svg>
-              {/if}
-            </div>
-          {/if}
-          {#if capacity}
-            <div class="shard-meta">
-              <span>autoscale at {capacity.websocket_target_eps.toLocaleString()} ev/s ({capacity.target_utilization_pct}%)</span>
-              <span>rated {capacity.websocket_rated_eps.toLocaleString()} ev/s</span>
-            </div>
-          {/if}
-          <div class="shard-session">session {s.session_id ?? '-'}</div>
-        </div>
-      {/each}
-    </div>
+    <DeckList>
+      {#if shards.length && capacity}
+        <ul class="bb-list" aria-label={t('admin.shards.listLabel')}>
+          {#each shards as shard (shard.shard_id)}
+            <li>
+              <ShardRow
+                {shard}
+                nodes={snap.nodes}
+                eps={evRate(shard.load)}
+                utilization={utilizationPct(evRate(shard.load), capacity.websocket_rated_eps)}
+                targetUtilization={capacity.target_utilization_pct}
+              />
+            </li>
+          {/each}
+        </ul>
+      {:else}
+        <EmptyState title={t('admin.shards.empty')} body={t('admin.shards.emptyBody')} />
+      {/if}
+    </DeckList>
   {/if}
 </section>
 
+<ConfirmDialog
+  open={confirmScaleDown}
+  title={t('admin.shards.confirmScaleDownTitle')}
+  body={t('admin.shards.confirmScaleDownBody', {
+    from: String(scaleBase),
+    to: String(scaleCount)
+  })}
+  confirmLabel={t('admin.shards.apply')}
+  cancelLabel={t('common.cancel')}
+  danger
+  {busy}
+  onCancel={() => (confirmScaleDown = false)}
+  onConfirm={() => scaleForm?.requestSubmit()}
+/>
+
+<form method="POST" action="?/scale" use:enhance={scaleSubmit} bind:this={scaleForm} hidden>
+  <input type="hidden" name="count" value={scaleCount} />
+</form>
+<form
+  method="POST"
+  action="?/autoscale"
+  use:enhance={autoscaleSubmit}
+  bind:this={autoscaleForm}
+  hidden
+>
+  <input type="hidden" name="enabled" value={autoscaleOn ? 'false' : 'true'} />
+</form>
+
 <style>
-  .loading-stack { display: flex; flex-direction: column; gap: 14px; }
-
-  .live-chip {
-    display: inline-flex; align-items: center; gap: 5px; margin-left: 8px;
-    color: var(--bb-green-glow); letter-spacing: 0.08em;
+  .tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px;
+    margin-bottom: 18px;
   }
-  .live-dot {
-    width: 6px; height: 6px; border-radius: 50%;
-    background: var(--bb-green-glow); box-shadow: 0 0 8px var(--bb-green-glow);
-    animation: live-pulse 2.4s ease-in-out infinite;
-  }
-  @keyframes live-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
-  .top-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  @media (max-width: 900px) { .top-grid { grid-template-columns: 1fr; } }
-
-  .conduit-row { display: flex; align-items: center; gap: 14px; }
-  .conduit-body .live-tag {
-    display: inline-flex; align-items: center; gap: 8px;
-    font-family: var(--bb-font-mono); font-size: 11px; letter-spacing: 0.14em;
-    text-transform: uppercase; color: var(--bb-green-glow); margin-bottom: 6px;
+  .conduit {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--bb-font-mono);
+    font-size: 11.5px;
+    color: var(--bb-muted);
   }
-  .conduit-body .live-tag .dot {
-    width: 7px; height: 7px; border-radius: 50%;
-    background: var(--bb-green-glow); box-shadow: 0 0 8px var(--bb-green-glow);
-    animation: live-pulse 2.4s ease-in-out infinite;
+  .live {
+    color: var(--bb-green-glow);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-size: 10px;
   }
-  .conduit-body .meta { font-family: var(--bb-font-mono); font-size: 12px; color: var(--bb-muted); display: flex; gap: 8px; }
-  .conduit-body .meta .mid { color: var(--bb-border-strong); }
 
-  .control-card { margin-top: 16px; }
-  .badge {
-    font-family: var(--bb-font-mono); font-size: 10px; letter-spacing: 0.1em;
-    text-transform: uppercase; padding: 2px 8px; border-radius: var(--bb-radius-sm);
+  .hint {
+    font-family: var(--bb-font-body);
+    font-size: 12.5px;
+    color: var(--bb-muted);
+    margin: 0 0 14px;
   }
-  .badge-on { color: var(--bb-green-glow); background: rgba(82, 183, 136, 0.12); border: 1px solid rgba(82, 183, 136, 0.32); }
-  .badge-off { color: var(--bb-muted); background: rgba(255, 255, 255, 0.04); border: 1px solid var(--bb-border); }
 
-  .ctrl-stats { display: flex; gap: 28px; margin-bottom: 18px; }
-  .ctrl-stat { display: flex; flex-direction: column; gap: 3px; }
-  .ctrl-label {
-    font-family: var(--bb-font-mono); font-size: 10px; letter-spacing: 0.12em;
-    text-transform: uppercase; color: var(--bb-muted);
+  .switch-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
   }
-  .ctrl-val { font-family: var(--bb-font-mono); font-size: 22px; font-weight: 600; color: var(--bb-white); line-height: 1; }
+  .switch-label {
+    font-family: var(--bb-font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--bb-muted);
+  }
 
-  .ctrl-form { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
   .stepper {
-    display: flex; align-items: center;
-    border: 1px solid var(--bb-border-strong); border-radius: var(--bb-radius-sm); overflow: hidden;
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--bb-border-strong);
+    border-radius: var(--bb-radius-sm);
+    overflow: hidden;
     transition: opacity 0.15s;
   }
-  .stepper-dim { opacity: 0.45; }
-  .step-btn {
-    background: rgba(255, 255, 255, 0.04); border: none; color: var(--bb-white);
-    font-family: var(--bb-font-mono); font-size: 18px; width: 36px; height: 36px;
-    cursor: pointer; line-height: 1;
+  .stepper.dim {
+    opacity: 0.45;
   }
-  .step-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.09); }
-  .step-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .step {
+    background: rgba(255, 255, 255, 0.04);
+    border: none;
+    color: var(--bb-white);
+    font-family: var(--bb-font-mono);
+    font-size: 16px;
+    width: 34px;
+    height: 34px;
+    cursor: pointer;
+    line-height: 1;
+  }
+  .step:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.09);
+  }
+  .step:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
   .step-input {
-    width: 52px; height: 36px; text-align: center; background: transparent; border: none;
-    border-left: 1px solid var(--bb-border-strong); border-right: 1px solid var(--bb-border-strong);
-    color: var(--bb-white); font-family: var(--bb-font-mono); font-size: 15px; font-weight: 600;
-    -moz-appearance: textfield; appearance: textfield;
+    width: 50px;
+    height: 34px;
+    text-align: center;
+    background: transparent;
+    border: none;
+    border-left: 1px solid var(--bb-border-strong);
+    border-right: 1px solid var(--bb-border-strong);
+    color: var(--bb-white);
+    font-family: var(--bb-font-mono);
+    font-size: 14px;
+    font-weight: 600;
+    -moz-appearance: textfield;
+    appearance: textfield;
   }
   .step-input::-webkit-outer-spin-button,
-  .step-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-
-  .btn-apply {
-    height: 36px; padding: 0 18px;
-    background: rgba(201, 168, 124, 0.12); border: 1px solid rgba(201, 168, 124, 0.38);
-    border-radius: var(--bb-radius-sm); color: var(--bb-tan-light);
-    font-family: var(--bb-font-mono); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase;
-    cursor: pointer; transition: background 0.12s, opacity 0.12s;
-  }
-  .btn-apply:hover:not(:disabled) { background: rgba(201, 168, 124, 0.22); }
-  .btn-apply:disabled { opacity: 0.3; cursor: not-allowed; }
-  .ctrl-hint { font-family: var(--bb-font-mono); font-size: 11px; color: var(--bb-muted); opacity: 0.7; }
-
-  .btn-toggle {
-    display: inline-flex; align-items: center; gap: 10px; height: 34px; padding: 0 16px;
-    border-radius: var(--bb-radius-sm); font-family: var(--bb-font-mono); font-size: 12px; letter-spacing: 0.08em;
-    cursor: pointer; transition: background 0.12s;
-  }
-  .btn-toggle:disabled { opacity: 0.5; cursor: not-allowed; }
-  .btn-toggle-off { background: rgba(82, 183, 136, 0.08); border: 1px solid rgba(82, 183, 136, 0.28); color: var(--bb-green-glow); }
-  .btn-toggle-off:hover:not(:disabled) { background: rgba(82, 183, 136, 0.16); }
-  .btn-toggle-on { background: rgba(176, 90, 70, 0.08); border: 1px solid rgba(176, 90, 70, 0.28); color: #cf8a78; }
-  .btn-toggle-on:hover:not(:disabled) { background: rgba(176, 90, 70, 0.16); }
-  .toggle-dot { width: 8px; height: 8px; border-radius: 50%; }
-  .btn-toggle-off .toggle-dot { background: var(--bb-green-glow); box-shadow: 0 0 6px var(--bb-green-glow); }
-  .btn-toggle-on .toggle-dot { background: #cf8a78; box-shadow: 0 0 6px #cf8a78; }
-
-  .shard-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 18px;
-    margin-top: 22px;
-  }
-  .shard-card { display: flex; flex-direction: column; gap: 13px; min-height: 154px; padding: 22px; }
-  .shard-head { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; }
-  .shard-id { font-family: var(--bb-font-mono); font-size: 15px; font-weight: 600; color: var(--bb-white); min-width: 0; }
-  .shard-node {
-    display: inline-flex; align-items: center; justify-content: center; gap: 4px;
-    font-family: var(--bb-font-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
-    color: var(--bb-tan-light); background: rgba(201, 168, 124, 0.1); border: 1px solid rgba(201, 168, 124, 0.28);
-    border-radius: var(--bb-radius-pill); padding: 3px 8px; white-space: nowrap;
-  }
-  .shard-node .pod { opacity: 0.6; }
-
-  .state-badge {
-    font-family: var(--bb-font-mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
-    padding: 2px 9px; border-radius: var(--bb-radius-pill); border: 1px solid transparent;
-  }
-  .state-badge.green { color: var(--bb-green-glow); background: rgba(82, 183, 136, 0.12); border-color: rgba(82, 183, 136, 0.32); }
-  .state-badge.warn { color: var(--bb-tan-light); background: rgba(201, 168, 124, 0.12); border-color: rgba(201, 168, 124, 0.32); }
-  .state-badge.err { color: #cf8a78; background: rgba(176, 90, 70, 0.12); border-color: rgba(176, 90, 70, 0.35); }
-
-  .shard-meta { display: flex; flex-wrap: wrap; gap: 6px 12px; font-family: var(--bb-font-mono); font-size: 12px; color: var(--bb-muted); }
-  .warn-tag {
-    color: var(--bb-tan-light); background: rgba(201, 168, 124, 0.1);
-    border: 1px solid rgba(201, 168, 124, 0.28); border-radius: var(--bb-radius-sm); padding: 1px 6px; font-size: 10px;
-  }
-
-  .load-row { display: flex; align-items: center; gap: 10px; }
-  .load-bar-track { flex: 1; height: 7px; border-radius: var(--bb-radius-pill); background: rgba(255, 255, 255, 0.08); overflow: hidden; }
-  .load-bar-fill { height: 100%; border-radius: var(--bb-radius-pill); transition: width 0.3s ease; }
-  .load-bar-fill.green { background: var(--bb-green-glow); }
-  .load-bar-fill.warn { background: var(--bb-tan); }
-  .load-bar-fill.err { background: #cf8a78; }
-  .load-bar-fill.muted { background: rgba(255, 255, 255, 0.18); }
-  .load-pct { font-family: var(--bb-font-mono); font-size: 10px; min-width: 30px; text-align: right; }
-  .load-pct.green { color: var(--bb-green-glow); }
-  .load-pct.warn { color: var(--bb-tan-light); }
-  .load-pct.err { color: #cf8a78; }
-  .load-pct.muted { color: var(--bb-muted); }
-
-  .spark { width: 72px; height: 20px; flex: none; }
-  .spark polyline { fill: none; stroke-width: 1.5; stroke: rgba(255, 255, 255, 0.35); }
-  .spark.green polyline { stroke: var(--bb-green-glow); }
-  .spark.warn polyline { stroke: var(--bb-tan); }
-  .spark.err polyline { stroke: #cf8a78; }
-
-  .shard-session {
-    font-family: var(--bb-font-mono); font-size: 12px; color: var(--bb-muted); opacity: 0.7;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
-
-  @media (max-width: 760px) {
-    .shard-grid { grid-template-columns: 1fr; }
-    .conduit-card { padding: 16px; }
-    .ctrl-stats { gap: 18px; }
-  }
-  @media (max-width: 380px) {
-    .ctrl-form { flex-direction: column; align-items: flex-start; }
+  .step-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
   }
 </style>

@@ -1,211 +1,283 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+  // The operator audit trail, on the shared deck + inspector. Manager-only; the
+  // gate is in +page.server.ts and /audit/data re-asks it, so a page that
+  // rendered would still get nothing without the role.
+  //
+  // Paging moved from prev/next to load-more. The trail is read backwards from
+  // "what just happened", and a numbered pager makes that a sequence of
+  // full-list replacements: page 2 threw page 1 away, so an entry seen a moment
+  // ago could not be scrolled back to. Appending keeps everything read so far on
+  // screen.
+  //
+  // Search stays server-side (it covers the whole trail, not the loaded page);
+  // the kind filter is client-side over what has been loaded, and says so.
   import { onMount } from 'svelte';
-  import {
-    Button,
-    PageHead,
-    PageToolbar,
-    SearchInput,
-    SegmentedControl,
-    DeckList,
-    EmptyState,
-    Skeleton,
-    AlertBanner,
-    ago,
-  } from '@bagel/shared';
+  import PageHead from '@bagel/shared/components/PageHead.svelte';
+  import PageToolbar from '@bagel/shared/components/PageToolbar.svelte';
+  import SearchInput from '@bagel/shared/components/SearchInput.svelte';
+  import SegmentedControl from '@bagel/shared/components/SegmentedControl.svelte';
+  import DeckList from '@bagel/shared/components/DeckList.svelte';
+  import InspectorSurface from '@bagel/shared/components/InspectorSurface.svelte';
+  import AlertBanner from '@bagel/shared/components/AlertBanner.svelte';
+  import EmptyState from '@bagel/shared/components/EmptyState.svelte';
+  import SkeletonStack from '@bagel/shared/components/SkeletonStack.svelte';
+  import Button from '@bagel/shared/components/Button.svelte';
+  import { getI18n } from '@bagel/shared/i18n/context';
   import type { AuditEntry } from '$lib/server/services';
+  import AuditRow from '$lib/components/audit/AuditRow.svelte';
+  import AuditDetail from '$lib/components/audit/AuditDetail.svelte';
+  import { auditCsv } from '$lib/components/audit/csv';
+  import { downloadCsv } from '$lib/csv';
+  import { AUDIT_KINDS, KIND_LABEL, inKind, type AuditKind } from '$lib/components/audit/audit-kinds';
 
   let { data } = $props();
 
-  // Client-fetched pages from /audit/data so search + paging never re-run SSR.
+  const { t } = getI18n();
+
+  // ── Client-fetched pages from /audit/data ──────────────────────────────────
+  // null = the first page is still in flight; [] = it landed empty.
   let entries = $state<AuditEntry[] | null>(null);
-  // svelte-ignore state_referenced_locally
-  let page = $state(data.page);
+  let page = $state(1);
   let hasMore = $state(false);
+  let loadingMore = $state(false);
   let fetchError = $state('');
   // svelte-ignore state_referenced_locally
   let search = $state(data.search);
 
+  type AuditWire = {
+    entries?: AuditEntry[];
+    page?: number;
+    has_more?: boolean;
+    error?: string;
+  };
+
+  // A generation counter, not an AbortController: the request that lost the race
+  // has usually already resolved, and the bug this prevents is a slow FIRST page
+  // overwriting a fast second search, which cancelling cannot help with.
   let seq = 0;
-  async function fetchPage(p: number, q: string) {
-    const mySeq = ++seq;
-    entries = null;
+
+  async function fetchPage(wanted: number, q: string, append: boolean) {
+    const mine = ++seq;
+    if (append) loadingMore = true;
+    else entries = null;
     fetchError = '';
     try {
       const params = new URLSearchParams();
-      if (p > 1) params.set('page', String(p));
+      if (wanted > 1) params.set('page', String(wanted));
       if (q) params.set('q', q);
       const res = await fetch(`/audit/data?${params}`);
       if (!res.ok) throw new Error(`audit fetch failed (${res.status})`);
-      const body = (await res.json()) as {
-        entries?: AuditEntry[];
-        page?: number;
-        has_more?: boolean;
-        error?: string;
-      };
-      if (mySeq !== seq) return; // a newer request superseded this one
+      const body = (await res.json()) as AuditWire;
+      if (mine !== seq) return; // a newer request superseded this one
       if (body.error) fetchError = body.error;
-      entries = body.entries ?? [];
-      page = body.page ?? p;
-      hasMore = Boolean(body.has_more);
+      apply(body, wanted, append);
     } catch (e) {
-      if (mySeq !== seq) return;
+      if (mine !== seq) return;
       fetchError = (e as Error).message;
-      entries = [];
+      entries = entries ?? [];
+    } finally {
+      if (mine === seq) loadingMore = false;
     }
   }
 
+  function apply(body: AuditWire, wanted: number, append: boolean) {
+    const next = body.entries ?? [];
+    entries = append ? [...(entries ?? []), ...next] : next;
+    page = body.page ?? wanted;
+    hasMore = Boolean(body.has_more);
+  }
+
   onMount(() => {
-    fetchPage(page, search);
+    fetchPage(1, search.trim(), false);
   });
 
   function submitSearch(q: string) {
     search = q;
-    fetchPage(1, q.trim());
+    closeInspector();
+    fetchPage(1, q.trim(), false);
   }
 
-  // Quick outcome filter over the loaded page (server search stays the source
-  // for text; this just narrows what's on screen).
-  const OUTCOMES = ['all', 'ok', 'failed'] as const;
-  let outcome = $state<string>('all');
-  const rows = $derived(
-    (entries ?? []).filter((e) => (outcome === 'all' ? true : outcome === 'ok' ? e.ok : !e.ok))
-  );
-  const failCount = $derived((entries ?? []).filter((e) => !e.ok).length);
+  // ── Kind filter (client-side, over what is loaded) ─────────────────────────
+  const kindLabels = $derived(AUDIT_KINDS.map((k) => t(KIND_LABEL[k])));
+  let kind = $state<AuditKind>('all');
+  const kindLabel = $derived(kindLabels[AUDIT_KINDS.indexOf(kind)]);
 
-  // CSV export of what's on screen (outcome filter applied).
-  function csvEscape(v: string): string {
-    return /[",\n]/.test(v) ? `"${v.replaceAll('"', '""')}"` : v;
+  function pickKind(label: string) {
+    const next = AUDIT_KINDS[kindLabels.indexOf(label)];
+    if (next) kind = next;
   }
+
+  const loaded = $derived(entries ?? []);
+  const rows = $derived(loaded.filter((e) => inKind(e, kind)));
+  const failCount = $derived(loaded.filter((e) => !e.ok).length);
+
+  // ── Selection ──────────────────────────────────────────────────────────────
+  let selectedId = $state<number | null>(null);
+  const selected = $derived(loaded.find((e) => e.id === selectedId) ?? null);
+
+  function closeInspector() {
+    selectedId = null;
+  }
+
+  function openEntry(entry: AuditEntry) {
+    selectedId = selectedId === entry.id ? null : entry.id;
+  }
+
+  // Exports what is ON SCREEN, kind filter included -- not everything loaded.
+  // An export that quietly carries rows the operator has filtered out is how a
+  // "failed actions only" spreadsheet ends up with successes in it.
   function exportCsv() {
-    const header = 'id,actor_id,actor_login,action,target,detail,ok,error,created_at';
-    const lines = rows.map((e) =>
-      [
-        String(e.id),
-        String(e.actor_id),
-        e.actor_login,
-        e.action,
-        e.target ?? '',
-        e.detail ?? '',
-        String(e.ok),
-        e.error ?? '',
-        e.created_at
-      ]
-        .map(csvEscape)
-        .join(',')
-    );
-    const blob = new Blob([[header, ...lines].join('\n')], { type: 'text/csv' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `audit-page${page}${search ? `-${search.trim()}` : ''}.csv`;
-    a.click();
-    URL.revokeObjectURL(a.href);
+    const suffix = search.trim() ? `-${search.trim()}` : '';
+    downloadCsv(`audit-${kind}${suffix}.csv`, auditCsv(rows));
   }
 </script>
 
 <section class="screen active">
-  <PageHead eyebrow="Access control" description="Every operator action, who ran it, and whether it worked.">
-    Audit <em>trail</em>
+  <PageHead eyebrow={t('admin.audit.eyebrow')} description={t('admin.audit.description')}>
+    {t('admin.audit.titlePre')}<em>{t('admin.audit.titleEm')}</em>
   </PageHead>
 
   <PageToolbar>
     {#snippet lead()}
-      <SegmentedControl options={OUTCOMES} bind:value={outcome} label="Outcome" />
-      {#if entries && failCount > 0}
-        <span class="fail-note">{failCount} failed on this page</span>
+      {#if entries}
+        <span class="stats">
+          {t('admin.audit.stats', {
+            loaded: String(loaded.length),
+            failed: String(failCount)
+          })}
+        </span>
       {/if}
     {/snippet}
     {#snippet trail()}
       <div class="toolbar-search">
         <SearchInput
           bind:value={search}
-          placeholder="Actor, action, target…"
+          placeholder={t('admin.audit.searchPlaceholder')}
           debounceMs={350}
           oninput={submitSearch}
         />
       </div>
-      <Button variant="ghost" onclick={exportCsv} disabled={rows.length === 0}>Export CSV</Button>
+      <Button variant="ghost" onclick={exportCsv} disabled={rows.length === 0}>
+        {t('admin.audit.exportCsv')}
+      </Button>
     {/snippet}
   </PageToolbar>
 
+  <div class="filters">
+    <SegmentedControl
+      options={kindLabels}
+      label={t('admin.audit.kindFilter')}
+      bind:value={() => kindLabel, pickKind}
+    />
+  </div>
+
   {#if fetchError}
-    <AlertBanner>Audit log unreachable: {fetchError}</AlertBanner>
+    <AlertBanner>{t('admin.audit.unreachable', { error: fetchError })}</AlertBanner>
   {/if}
 
-  <DeckList>
-    {#if entries === null}
-      <div class="bb-skeletons">
-        {#each [0, 1, 2, 3, 4, 5] as i (i)}<Skeleton variant="block" height="48px" />{/each}
-      </div>
-    {:else if rows.length}
-      <ul class="bb-list" aria-label="Audit entries">
-        {#each rows as e (e.id)}
-          <li class="audit-row">
-            <span class="adot {e.ok ? '' : 'err'}"></span>
-            <div class="abody">
-              <span class="aline">
-                <b>@{e.actor_login}</b>
-                <span class="aaction">{e.action}</span>
-                {#if e.target}<span class="atarget">→ {e.target}</span>{/if}
-              </span>
-              {#if e.detail}<span class="adetail">{e.detail}</span>{/if}
-              {#if !e.ok && e.error}<span class="adetail err">{e.error}</span>{/if}
-            </div>
-            <span class="awhen">{ago(e.created_at)}</span>
-          </li>
-        {/each}
-      </ul>
-    {:else if (entries ?? []).length > 0}
-      <EmptyState title="No entries match the outcome filter" />
-    {:else if search}
-      <EmptyState title="No entries match" body="Search covers actor, action, target, detail, and error text." />
-    {:else}
-      <EmptyState title="No actions recorded yet" />
-    {/if}
+  <div class="deck" class:inspecting={selected !== null}>
+    <DeckList>
+      {#if entries === null}
+        <SkeletonStack rows={6} height="52px" />
+      {:else if rows.length}
+        <ul class="bb-list" aria-label={t('admin.audit.listLabel')}>
+          {#each rows as entry (entry.id)}
+            <li>
+              <AuditRow
+                {entry}
+                selected={selectedId === entry.id}
+                controls="audit-inspector"
+                onselect={() => openEntry(entry)}
+              />
+            </li>
+          {/each}
+        </ul>
+      {:else if loaded.length}
+        <EmptyState title={t('admin.audit.emptyKind')} body={t('admin.audit.emptyKindBody')} />
+      {:else if search.trim()}
+        <EmptyState title={t('admin.audit.emptyMatch')} body={t('admin.audit.emptyMatchBody')} />
+      {:else}
+        <EmptyState title={t('admin.audit.empty')} />
+      {/if}
 
-    {#if entries && (page > 1 || hasMore)}
-      <div class="pager">
-        <button class="btn ghost" disabled={page <= 1} onclick={() => fetchPage(page - 1, search.trim())}>
-          ← Prev
-        </button>
-        <span class="pager-label">page {page}</span>
-        <button class="btn ghost" disabled={!hasMore} onclick={() => fetchPage(page + 1, search.trim())}>
-          Next →
-        </button>
-      </div>
+      {#if entries && hasMore}
+        <div class="more">
+          <Button
+            variant="ghost"
+            loading={loadingMore}
+            onclick={() => fetchPage(page + 1, search.trim(), true)}
+          >
+            {t('admin.audit.loadMore')}
+          </Button>
+        </div>
+      {:else if entries && page >= data.maxPages}
+        <p class="cap">{t('admin.audit.pageCap', { max: String(data.maxPages) })}</p>
+      {/if}
+    </DeckList>
+
+    {#if selected}
+      <InspectorSurface
+        open
+        title={t('admin.audit.inspectorTitle', { action: selected.action })}
+        controls="audit-inspector"
+        closeLabel={t('admin.close')}
+        onClose={closeInspector}
+      >
+        <AuditDetail entry={selected} />
+      </InspectorSurface>
     {/if}
-  </DeckList>
+  </div>
 </section>
 
 <style>
-  .toolbar-search { width: 260px; }
-  .toolbar-search :global(.search) { width: 100%; }
-  .fail-note { font-family: var(--bb-font-mono); font-size: 11px; color: #cf8a78; margin-left: 10px; }
-
-
-  .audit-row {
-    display: flex; align-items: flex-start; gap: 12px;
-    padding: 12px 14px; border-bottom: 1px solid var(--rule);
+  .stats {
+    font-family: var(--bb-font-mono);
+    font-size: 11.5px;
+    color: var(--bb-muted);
   }
-  .audit-row:last-child { border-bottom: none; }
 
-  .adot { width: 8px; height: 8px; border-radius: 50%; background: var(--bb-green-glow); box-shadow: 0 0 8px var(--bb-green-glow); margin-top: 5px; flex: none; }
-  .adot.err { background: #cf8a78; box-shadow: 0 0 8px rgba(176, 90, 70, 0.6); }
+  .toolbar-search {
+    width: 260px;
+  }
+  .toolbar-search :global(.search) {
+    width: 100%;
+  }
 
-  .abody { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
-  .aline { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-  .aline b { font-family: var(--bb-font-body); font-weight: 600; font-size: 13px; color: var(--bb-white); }
-  .aaction { font-family: var(--bb-font-mono); font-size: 12px; color: var(--bb-tan-light); }
-  .atarget { font-family: var(--bb-font-mono); font-size: 12px; color: var(--bb-muted); }
-  .adetail { font-family: var(--bb-font-mono); font-size: 11px; color: var(--bb-muted); word-break: break-word; }
-  .adetail.err { color: #cf8a78; }
-  .awhen { font-family: var(--bb-font-mono); font-size: 10.5px; color: var(--bb-muted); white-space: nowrap; margin-top: 3px; }
+  .filters {
+    margin: 0 0 14px;
+  }
 
-  .pager { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 14px; }
-  .pager-label { font-family: var(--bb-font-mono); font-size: 11.5px; color: var(--bb-muted); }
+  .deck {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
+  }
+  @media (min-width: 1080px) {
+    .deck.inspecting {
+      grid-template-columns: minmax(0, 1fr) 380px;
+    }
+  }
+
+  .more {
+    display: flex;
+    justify-content: center;
+    padding: 14px;
+  }
+  .cap {
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
+    color: var(--bb-muted);
+    text-align: center;
+    margin: 0;
+    padding: 14px;
+  }
 
   @media (max-width: 680px) {
-    .toolbar-search { width: 100%; }
+    .toolbar-search {
+      width: 100%;
+    }
   }
 </style>

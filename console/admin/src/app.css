@@ -3,3 +3,31 @@
 
 @import '@bagel/shared/styles/tokens.css';
 @import '@bagel/shared/styles/app.css';
+
+/* The console's one bare text/number/date field.
+   Not in shared/styles/app.css: the dashboard dresses its inputs through the
+   shared Field + `.search` components and has no bare-input surface, while the
+   admin inspectors (staff, counters, lanes, notifications, secrets) all need a
+   plain box inside a Field. It was a per-component copy in StaffEditor first;
+   four more copies were about to be typed, and copies of an input rule are how
+   two editors end up with different focus rings. */
+.text-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 11px;
+  font-family: var(--bb-font-mono);
+  font-size: 12.5px;
+  border: 1px solid var(--bb-border);
+  border-radius: var(--bb-radius-sm);
+  background: var(--bb-bg-1, #16130f);
+  color: var(--bb-white);
+}
+.text-input:focus {
+  outline: none;
+  border-color: var(--bb-border-strong);
+}
+textarea.text-input {
+  font-family: var(--bb-font-body);
+  font-size: 13.5px;
+  resize: vertical;
+}
