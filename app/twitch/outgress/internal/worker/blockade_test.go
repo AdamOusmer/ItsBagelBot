@@ -101,9 +101,10 @@ func TestAlreadyBlocked(t *testing.T) {
 }
 
 func TestBlockadeBecauseKeepsIdentity(t *testing.T) {
-	b := blockBanned.because("chat_user_banned: channel.chat.message")
-	if b.state != subStateBanned || b.notice != noticeBanned || b.reason == "" {
-		t.Errorf("because() lost a field: %+v", b)
+	reason := "chat_user_banned: channel.chat.message"
+	want := blockade{state: subStateBanned, notice: noticeBanned, reason: reason}
+	if got := blockBanned.because(reason); got != want {
+		t.Errorf("because() = %+v, want %+v", got, want)
 	}
 	if blockBanned.reason != "" {
 		t.Error("because() mutated the shared blockade value")
