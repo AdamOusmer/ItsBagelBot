@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/twitch/outgress/internal/twitch"
+	"ItsBagelBot/internal/domain/rpc/manage"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/monitor"
@@ -53,8 +54,8 @@ type authzSubRevoked struct {
 }
 
 // HandleAuthzGranted re-enrolls a channel whose consent just came back. Only
-// a channel the registry knows, still enabled, and currently marked revoked
-// or failing gets the enroll: a first-time consent has no registry entry yet
+// a channel the registry knows, still enabled, and currently marked revoked,
+// banned or failing gets the enroll: a first-time consent has no registry entry yet
 // (the dashboard enable owns that path), and a healthy channel needs nothing.
 // The enable path is create-only (409-idempotent), so the surviving unscoped
 // subscriptions are never dropped and recreated.
@@ -85,6 +86,13 @@ func (w *Worker) HandleAuthzGranted(msg *bus.Message) error {
 	if !reenrollableSubState(ch.SubState) {
 		return nil
 	}
+	// blockChannel deactivated the row; consent is back, so the channel is
+	// served again from here whatever the enroll below reports. A channel the
+	// streamer disconnected on purpose has an empty state and never reaches
+	// this line, so their choice is not overridden.
+	if blockedState(ch.SubState) {
+		w.setChannelActive(ctx, ev.UserID, true)
+	}
 
 	log.Info("authorization granted, re-enrolling eventsubs",
 		zap.String("broadcaster_id", ev.UserID),
@@ -110,7 +118,7 @@ func (w *Worker) HandleAuthzGranted(msg *bus.Message) error {
 // unenrolled channel) skips.
 func reenrollableSubState(state string) bool {
 	switch state {
-	case subStateRevoked, subStateFailing, subStatePending:
+	case subStateRevoked, subStateBanned, subStateFailing, subStatePending:
 		return true
 	}
 	return false
@@ -139,13 +147,14 @@ func (w *Worker) HandleAuthzRevoked(msg *bus.Message) error {
 		return nil
 	}
 
-	return w.markAuthorizationRevoked(ctx, ev.UserID, "authorization_revoked")
+	return w.blockChannel(ctx, ev.UserID, blockRevoked, "authorization_revoked")
 }
 
 // HandleAuthzSubRevoked folds a single-subscription revocation into the
-// channel state. Consent-shaped statuses mark the channel revoked; anything
-// else (version_removed, notification_failures_exceeded) is a bot-side fault
-// and marks it failing so the operator sees it.
+// channel state. Consent-shaped statuses mark the channel revoked;
+// chat_user_banned marks it banned (the chat banned the bot, consent is
+// intact); anything else (version_removed, notification_failures_exceeded)
+// is a bot-side fault and marks it failing so the operator sees it.
 func (w *Worker) HandleAuthzSubRevoked(msg *bus.Message) error {
 	ctx := msg.Context()
 	log := monitor.TxnLogger(ctx, w.log)
@@ -164,11 +173,20 @@ func (w *Worker) HandleAuthzSubRevoked(msg *bus.Message) error {
 		return nil
 	}
 
-	if !consentRevokedStatus(ev.Status) {
+	reason := ev.Status + ": " + ev.Type
+	switch {
+	case consentRevokedStatus(ev.Status):
+		return w.blockChannel(ctx, ev.BroadcasterID, blockRevoked, reason)
+	case ev.Status == statusChatUserBanned:
+		return w.blockChannel(ctx, ev.BroadcasterID, blockBanned, reason)
+	default:
 		return w.markSubDropped(ctx, ev)
 	}
-	return w.markAuthorizationRevoked(ctx, ev.BroadcasterID, ev.Status+": "+ev.Type)
 }
+
+// statusChatUserBanned is Twitch's revocation status when the user_id of a
+// chat subscription (our bot) is banned from the broadcaster's chat.
+const statusChatUserBanned = "chat_user_banned"
 
 // consentRevokedStatus reports whether a revocation status means the
 // broadcaster's consent is gone (as opposed to a bot-side subscription
@@ -177,27 +195,77 @@ func consentRevokedStatus(status string) bool {
 	return status == "authorization_revoked" || status == "user_removed"
 }
 
-// markAuthorizationRevoked flips one channel to the revoked state and
+// blockade is one streamer-fixable reason the bot cannot serve a channel:
+// the registry state that names it and the notice that tells the streamer
+// the matching remedy. Both are surfaced verbatim by the dashboard, the
+// admin console and the bell, so the two never share copy.
+type blockade struct {
+	state  string
+	notice notice
+}
+
+var (
+	blockRevoked = blockade{state: subStateRevoked, notice: noticeRevoked}
+	blockBanned  = blockade{state: subStateBanned, notice: noticeBanned}
+)
+
+// blockChannel flips one channel to a blocked state, deactivates it and
 // notifies the streamer, exactly once per outage: repeat events (Twitch sends
-// one revocation per subscription) see the state already revoked and stop.
-func (w *Worker) markAuthorizationRevoked(ctx context.Context, broadcasterID, reason string) error {
+// one revocation per subscription) see the state already set and stop.
+// Revoked is the stronger statement and never downgrades to banned.
+//
+// Deactivation is what drops the channel out of the admin's active count and
+// the ingress's traffic: an inactive row is the users service's own notion of
+// "the bot is not serving this broadcaster", and until the streamer acts that
+// is the truth. The grant path (or the streamer's Enable) reactivates it.
+func (w *Worker) blockChannel(ctx context.Context, broadcasterID string, b blockade, reason string) error {
 	ch, found, err := w.registry.Get(ctx, broadcasterID)
 	if err != nil {
 		return err // transient registry read: nak for paced redelivery
 	}
-	if !found || ch.SubState == subStateRevoked {
+	if alreadyBlocked(ch, found, b.state) {
 		return nil
 	}
 
-	if err := w.registry.SetSubState(ctx, broadcasterID, subStateRevoked, reason); err != nil {
+	if err := w.registry.SetSubState(ctx, broadcasterID, b.state, reason); err != nil {
 		return err
 	}
-	w.log.Warn("broadcaster authorization revoked, channel marked for reconnect",
+	w.log.Warn("channel blocked until the streamer acts",
 		zap.String("broadcaster_id", broadcasterID),
+		zap.String("state", b.state),
 		zap.String("reason", reason))
 
-	w.notifyReauthNeeded(ctx, broadcasterID)
+	w.setChannelActive(ctx, broadcasterID, false)
+	w.notifyReauthNeeded(ctx, broadcasterID, b.notice)
 	return nil
+}
+
+func alreadyBlocked(ch manage.Channel, found bool, state string) bool {
+	if !found {
+		return true
+	}
+	return ch.SubState == state || ch.SubState == subStateRevoked
+}
+
+// blockedState reports whether a registry state is one blockChannel set.
+func blockedState(state string) bool {
+	return state == subStateRevoked || state == subStateBanned
+}
+
+// setChannelActive flips the users-service active flag. Best-effort: the
+// registry state is the source of truth for the enroll machinery, and the
+// consoles read that state ahead of the flag, so a lost flip costs only the
+// count and the ingress traffic gate until the next transition.
+func (w *Worker) setChannelActive(ctx context.Context, broadcasterID string, active bool) {
+	if w.reauth == nil {
+		return
+	}
+	if err := w.reauth.SetActive(ctx, broadcasterID, active); err != nil {
+		w.log.Warn("channel active flag not updated",
+			zap.String("broadcaster_id", broadcasterID),
+			zap.Bool("active", active),
+			zap.Error(err))
+	}
 }
 
 // markSubDropped records a non-consent revocation (version_removed,
@@ -208,10 +276,10 @@ func (w *Worker) markSubDropped(ctx context.Context, ev authzSubRevoked) error {
 	if err != nil {
 		return err
 	}
-	// A channel already flagged revoked keeps that stronger state: it also
-	// explains the dropped subscription, and the reconnect CTA would fail
-	// until the broadcaster re-consents anyway.
-	if !found || ch.SubState == subStateRevoked {
+	// A channel already blocked keeps that stronger state: it also explains
+	// the dropped subscription, and the reconnect CTA would fail until the
+	// broadcaster re-consents (or unbans the bot) anyway.
+	if !found || blockedState(ch.SubState) {
 		return nil
 	}
 
@@ -228,11 +296,11 @@ func (w *Worker) markSubDropped(ctx context.Context, ev authzSubRevoked) error {
 // notifyReauthNeeded fans the revocation out to the streamer-facing channels
 // (dashboard bell notification). Best-effort: state is already persisted, and
 // the go-live chat beacon still fires later regardless.
-func (w *Worker) notifyReauthNeeded(ctx context.Context, broadcasterID string) {
+func (w *Worker) notifyReauthNeeded(ctx context.Context, broadcasterID string, n notice) {
 	if w.reauth == nil {
 		return
 	}
-	w.reauth.Notify(ctx, broadcasterID, noticeRevoked)
+	w.reauth.Notify(ctx, broadcasterID, n)
 }
 
 // EnsureClientEventSubs creates the client-scoped authorization subscriptions

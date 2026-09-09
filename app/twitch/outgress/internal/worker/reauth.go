@@ -48,16 +48,35 @@ var (
 		chat:    i18n.KeyGrantDeadChat,
 		request: "grant-dead-",
 	}
+	// noticeBanned: the broadcaster's chat banned the bot account. Consent is
+	// intact, so the remedy is an unban plus Enable, not a re-consent. No chat
+	// line: a chat that banned the bot cannot receive one.
+	noticeBanned = notice{
+		title:   i18n.KeyBotBannedTitle,
+		body:    i18n.KeyBotBannedBody,
+		request: "bot-banned-",
+	}
 )
 
 // ReauthConfig carries the NATS wiring for the reauth messaging: the
 // notifications admin send verb, the users state_get verb the locale comes
-// from, and the bot's numeric user id (the actor the notifications service
+// from, the users active_set verb a blocked channel is deactivated through,
+// and the bot's numeric user id (the actor the notifications service
 // requires).
 type ReauthConfig struct {
-	SendSubject  string
-	StateSubject string
-	BotID        string
+	SendSubject   string
+	StateSubject  string
+	ActiveSubject string
+	BotID         string
+}
+
+// SetActive flips the broadcaster's active flag in the users service, the
+// same verb the dashboard's Enable/Disconnect use, so every projection that
+// follows the flag (tier, ingress gate, admin count) converges the same way.
+func (r *ReauthNotifier) SetActive(ctx context.Context, broadcasterID string, active bool) error {
+	_, err := bus.RequestJSONTimeout[map[string]any](ctx, r.nc, r.cfg.ActiveSubject,
+		usersrpc.ActiveSetRequest{BroadcasterUserID: broadcasterID, Active: active}, 3*time.Second)
+	return err
 }
 
 // ReauthNotifier tells a streamer their grant died and how to fix it, in

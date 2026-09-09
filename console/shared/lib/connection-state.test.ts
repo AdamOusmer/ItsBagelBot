@@ -42,6 +42,25 @@ describe('connectionUiState', () => {
 		expect(r.live).toBe(false);
 	});
 
+	test('chat_banned → bot_banned (enable after the unban, no reconnect, no restart)', () => {
+		const r = connectionUiState({ ...base, sub: 'chat_banned' });
+		expect(r.kind).toBe('bot_banned');
+		expect(r.showEnable).toBe(true);
+		expect(r.showConnect).toBe(false);
+		expect(r.canManage).toBe(false);
+		expect(r.canRetry).toBe(false);
+		expect(r.live).toBe(false);
+	});
+
+	test('a blocked state outranks the active flag outgress cleared', () => {
+		// Outgress deactivates a revoked or banned channel itself; the panel
+		// must still name the block instead of a generic "not connected".
+		expect(connectionUiState({ ...base, active: false, sub: 'revoked' }).kind).toBe('reauth_required');
+		expect(connectionUiState({ ...base, active: false, sub: 'chat_banned' }).kind).toBe('bot_banned');
+		// A user disconnect leaves no enroll state and still reads disabled.
+		expect(connectionUiState({ ...base, active: false, sub: 'unenrolled' }).kind).toBe('disabled');
+	});
+
 	test('a down core read is unavailable, not a definite state', () => {
 		expect(connectionUiState({ ...base, grant: 'unknown' }).kind).toBe('unavailable');
 		expect(connectionUiState({ ...base, active: 'unknown' }).kind).toBe('unavailable');

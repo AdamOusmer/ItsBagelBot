@@ -138,9 +138,10 @@ func main() {
 	// dashboard bell immediately rather than waiting for the next go-live.
 	// The notifier holds no per-lane state, so one instance serves all three.
 	reauth := worker.NewReauthNotifier(nc, worker.ReauthConfig{
-		SendSubject:  cfg.NotifySendSubject,
-		StateSubject: cfg.UsersStateSubject,
-		BotID:        cfg.TwitchBotUserID,
+		SendSubject:   cfg.NotifySendSubject,
+		StateSubject:  cfg.UsersStateSubject,
+		ActiveSubject: cfg.UsersActiveSubject,
+		BotID:         cfg.TwitchBotUserID,
 	}, log.Named("reauth"))
 	premium.SetReauthNotifier(reauth)
 	standard.SetReauthNotifier(reauth)

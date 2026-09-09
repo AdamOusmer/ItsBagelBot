@@ -95,9 +95,11 @@ type Config struct {
 
 	// NotifySendSubject is the notifications service direct-send verb the
 	// reauth nudge goes through; UsersStateSubject is the users service verb
-	// the streamer's locale is read from.
-	NotifySendSubject string
-	UsersStateSubject string
+	// the streamer's locale is read from; UsersActiveSubject is the verb a
+	// channel blocked by a revocation or a chat ban is deactivated through.
+	NotifySendSubject  string
+	UsersStateSubject  string
+	UsersActiveSubject string
 
 	RateRegion          string
 	LeaseEpoch          time.Duration
@@ -129,6 +131,7 @@ func Load() *Config {
 		AuthzSubRevokedSubject: env.Get("NATS_SUBJECT_AUTHZ_SUBREVOKED", "twitch.ingress.status.authz.subrevoked"),
 		NotifySendSubject:      env.Get("NATS_NOTIFY_SEND_SUBJECT", "bagel.rpc.admin.notifications.send"),
 		UsersStateSubject:      env.Get("NATS_USERS_STATE_SUBJECT", "bagel.rpc.dashboard.state_get"),
+		UsersActiveSubject:     env.Get("NATS_USERS_ACTIVE_SUBJECT", "bagel.rpc.dashboard.active_set"),
 		MinRoutines:            env.GetInt("OUTGRESS_MIN_ROUTINES", 2),
 		MaxRoutines:            env.GetInt("OUTGRESS_MAX_ROUTINES", 8),
 		MaxConsumers:           env.GetInt("OUTGRESS_MAX_CONSUMERS", 3),

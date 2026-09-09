@@ -34,33 +34,55 @@ type SubSpec struct {
 //     authorized by the conduit app token alone (no user scope), so they cannot
 //     401. They drive the live-event subsystem (go-live cache prewarm and the
 //     mod-status re-verify), so every channel must carry them.
+//
+// The ORDER is load-bearing; the worker creates these sequentially and stops
+// at the first rejection:
+//
+//  1. App-token subscriptions first. They need no user grant, so they are
+//     the ones that survive a consent loss, and stream.online is the beacon
+//     that lets the bot reach the streamer on go-live. Creating them before
+//     anything that can 403 means a reconnect (drop, then recreate) never
+//     ends with the beacon deleted and nothing put back. Incident 2026-09-09,
+//     broadcaster 1538524894: chat.message came first, its 403 aborted the
+//     recreate, and the channel was left with zero subscriptions.
+//  2. Broadcaster-scoped subscriptions next. A revoked consent 403s here.
+//  3. channel.chat.message LAST. By the time it runs every scoped create has
+//     passed, so a 403 on it cannot be the broadcaster's consent: it is the
+//     bot's own seat in this chat (the bot user is banned there). The worker
+//     classifies on exactly that position; see worker.isChatBanned.
 func ChannelSubscriptions(broadcasterID, botID string) []SubSpec {
 	specs := make([]SubSpec, 0, 10)
 
-	if botID != "" {
-		specs = append(specs,
-			SubSpec{"channel.chat.message", "1", map[string]string{"broadcaster_user_id": broadcasterID, "user_id": botID}},
-		)
-	}
-
-	return append(specs,
-		SubSpec{"channel.subscribe", "1", map[string]string{"broadcaster_user_id": broadcasterID}},
-		SubSpec{"channel.subscription.gift", "1", map[string]string{"broadcaster_user_id": broadcasterID}},
-		SubSpec{"channel.subscription.message", "1", map[string]string{"broadcaster_user_id": broadcasterID}},
-		SubSpec{"channel.cheer", "1", map[string]string{"broadcaster_user_id": broadcasterID}},
-		SubSpec{"channel.follow", "2", map[string]string{"broadcaster_user_id": broadcasterID, "moderator_user_id": broadcasterID}},
-		// Condition keys off the receiving channel: a raid is "to" this broadcaster,
-		// not "from" them, so to_broadcaster_user_id is what makes this channel's
-		// raid handlers (shoutout, alerts) actually fire.
-		SubSpec{"channel.raid", "1", map[string]string{"to_broadcaster_user_id": broadcasterID}},
-		SubSpec{"channel.update", "2", map[string]string{"broadcaster_user_id": broadcasterID}},
+	specs = append(specs,
 		// Authorized by the conduit app token alone (broadcaster_user_id only,
 		// no user scope, no 401 risk). These deliver go-live/go-offline, which
 		// the live-event subsystem depends on.
 		SubSpec{"stream.online", "1", map[string]string{"broadcaster_user_id": broadcasterID}},
 		SubSpec{"stream.offline", "1", map[string]string{"broadcaster_user_id": broadcasterID}},
+		SubSpec{"channel.update", "2", map[string]string{"broadcaster_user_id": broadcasterID}},
+		// Condition keys off the receiving channel: a raid is "to" this broadcaster,
+		// not "from" them, so to_broadcaster_user_id is what makes this channel's
+		// raid handlers (shoutout, alerts) actually fire.
+		SubSpec{"channel.raid", "1", map[string]string{"to_broadcaster_user_id": broadcasterID}},
+		SubSpec{"channel.subscribe", "1", map[string]string{"broadcaster_user_id": broadcasterID}},
+		SubSpec{"channel.subscription.gift", "1", map[string]string{"broadcaster_user_id": broadcasterID}},
+		SubSpec{"channel.subscription.message", "1", map[string]string{"broadcaster_user_id": broadcasterID}},
+		SubSpec{"channel.cheer", "1", map[string]string{"broadcaster_user_id": broadcasterID}},
+		SubSpec{"channel.follow", "2", map[string]string{"broadcaster_user_id": broadcasterID, "moderator_user_id": broadcasterID}},
 	)
+
+	if botID != "" {
+		specs = append(specs,
+			SubSpec{ChatMessageType, "1", map[string]string{"broadcaster_user_id": broadcasterID, "user_id": botID}},
+		)
+	}
+
+	return specs
 }
+
+// ChatMessageType is the one subscription read in the bot's own user context;
+// it is the last spec ChannelSubscriptions yields (see the ordering note).
+const ChatMessageType = "channel.chat.message"
 
 // ChannelOptionalSubscriptions lists subscriptions that only some channels can
 // carry, so a create failure must not fail the whole enroll:

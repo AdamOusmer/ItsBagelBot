@@ -58,6 +58,11 @@ const (
 	KeyGrantDeadTitle = "grant.dead.title"
 	KeyGrantDeadBody  = "grant.dead.body"
 	KeyGrantDeadChat  = "grant.dead.chat"
+
+	// Bot banned from the broadcaster's chat: bell only, no chat key, since
+	// the one chat that needs the line is the one that cannot receive it.
+	KeyBotBannedTitle = "bot.banned.title"
+	KeyBotBannedBody  = "bot.banned.body"
 )
 
 // i18nFS embeds the catalog data: the manifest plus one file per locale. The

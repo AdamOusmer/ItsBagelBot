@@ -305,6 +305,8 @@ func liveNotice(ch manage.Channel) (notice, bool) {
 	switch {
 	case ch.SubState == subStateRevoked:
 		return noticeRevoked, true
+	case ch.SubState == subStateBanned:
+		return noticeBanned, true
 	case ch.GrantState == manage.GrantDead:
 		return noticeGrantDead, true
 	default:
@@ -314,7 +316,11 @@ func liveNotice(ch manage.Channel) (notice, bool) {
 
 // sendReauthChat pushes the localized reconnect line through the ordinary
 // chat action (registry route defaults + bot sender injection + per-channel
-// chat rate bucket), exactly as if a lane job carried it.
+// chat rate bucket), exactly as if a lane job carried it. A notice without a
+// chat line (the bot is banned from that chat) is bell-only and returns nil.
 func (w *Worker) sendReauthChat(ctx context.Context, broadcasterID, locale string, n notice) error {
+	if n.chat == "" {
+		return nil
+	}
 	return w.sendBotChat(ctx, broadcasterID, w.reauth.ChatLine(locale, n))
 }

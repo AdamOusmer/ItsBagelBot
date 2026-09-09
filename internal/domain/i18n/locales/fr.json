@@ -7,6 +7,8 @@
   "cmd.err.missing_resp": "@{user} veuillez fournir une réponse pour la commande",
   "cmd.err.not_found": "@{user} la commande {command} n'a pas été trouvée, utilisez !cmd add",
   "cmd.err.usage": "Utilisation : !cmd \u003cadd|edit|remove\u003e \u003cnom\u003e [réponse]",
+  "bot.banned.body": "Votre chaîne a banni le compte Twitch du bot, il ne peut donc plus lire ni répondre au chat. Débannissez-le dans votre chat Twitch, puis ouvrez {dashboard_url} et appuyez sur Activer pour le rétablir.",
+  "bot.banned.title": "Le bot est banni de votre chat",
   "cmd.link": "@{user} parcourez les commandes de {channel} ici : {url}",
   "cmd.modified": "@{user} la commande {command} a été modifiée",
   "cmd.removed": "@{user} la commande {command} a été supprimée",

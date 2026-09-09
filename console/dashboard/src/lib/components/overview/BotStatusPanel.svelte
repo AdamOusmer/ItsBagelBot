@@ -77,6 +77,8 @@
         return t('overview.reconnectNeeded');
       case 'reauth_required':
         return t('overview.twitchAccessLost');
+      case 'bot_banned':
+        return t('overview.botBanned');
       case 'sub_unknown':
         return t('overview.connectedIdle');
       case 'unavailable':
@@ -96,6 +98,8 @@
         return t('overview.issueSubs');
       case 'reauth_required':
         return t('overview.issueReauth');
+      case 'bot_banned':
+        return t('overview.issueBotBanned');
       case 'sub_unknown':
         return t('overview.issueIdle');
       case 'disabled':

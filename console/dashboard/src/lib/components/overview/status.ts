@@ -20,6 +20,7 @@ export function statusTone(kind: ConnKind): StatusTone {
       return 'success';
     case 'degraded':
     case 'reauth_required':
+    case 'bot_banned':
       return 'error';
     case 'unavailable':
       return 'neutral';
