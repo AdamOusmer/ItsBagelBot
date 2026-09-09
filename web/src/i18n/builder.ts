@@ -173,6 +173,23 @@ const CHANNEL_FACTS: VarDef[] = [
   v('{channel.viewers}', '128', { en: 'Viewers watching', fr: 'Spectateurs' }, { en: 'How many people are watching right now, straight from Twitch. An offline channel comes back as 0. Bare {channel} stays your channel name.', fr: 'Combien de personnes regardent en ce moment, directement depuis Twitch. Une chaîne hors ligne renvoie 0. {channel} seul reste le nom de votre chaîne.' }),
 ];
 
+// The emote catalog (app/twitch/sesame/engine/scope/emotes.go). No module
+// gates these either — the bot keeps the code lists loaded for its own spam
+// filter — so the descriptions spend their words on the two things a sample
+// cannot show: these are the GLOBAL sets every channel already has, not the
+// emotes a broadcaster added to their own channel, and a real list is cut to
+// fit one chat line.
+//
+// The samples match the shared rehearsal's stand-ins exactly
+// (SEVENTV_EMOTES_SAMPLE and friends): the preview substitutes those, so a
+// different value here would contradict the line right beside it.
+const EMOTES: VarDef[] = [
+  v('{7tvemotes}', 'PagMan Clap peepoHappy', { en: '7TV emotes', fr: 'Émotes 7TV' }, { en: 'The global 7TV emote codes, separated by spaces. These are the ones every channel has, not the emotes you added to yours, and a long list is cut to fit one chat line.', fr: 'Les codes des émotes 7TV globales, séparés par des espaces. Ce sont celles que toutes les chaînes ont, pas les émotes que vous avez ajoutées à la vôtre, et une longue liste est coupée pour tenir sur une ligne de chat.' }),
+  v('{bttvemotes}', 'KEKW monkaS catJAM', { en: 'BTTV emotes', fr: 'Émotes BTTV' }, { en: 'The global BetterTTV emote codes, the same way {7tvemotes} lists 7TV.', fr: 'Les codes des émotes BetterTTV globales, comme {7tvemotes} liste celles de 7TV.' }),
+  v('{ffzemotes}', 'LUL ZULUL AYAYA', { en: 'FFZ emotes', fr: 'Émotes FFZ' }, { en: 'The global FrankerFaceZ emote codes, the same way {7tvemotes} lists 7TV.', fr: 'Les codes des émotes FrankerFaceZ globales, comme {7tvemotes} liste celles de 7TV.' }),
+  v('{random.emote}', 'KEKW', { en: 'A random emote', fr: 'Une émote au hasard' }, { en: 'One emote code drawn at random from those lists. Two of them in one response are two separate picks. If the bot has not loaded any codes yet, it comes back empty.', fr: 'Un code d’émote tiré au hasard dans ces listes. Deux dans une même réponse font deux tirages distincts. Si le bot n’a pas encore chargé de codes, la variable revient vide.' }),
+];
+
 const USER_VIEWER = v('{user}', 'maya_live', { en: 'Viewer name', fr: 'Nom du spectateur' }, { en: 'Whoever used the command. {sender} works too.', fr: 'La personne qui a utilisé la commande. {sender} fonctionne aussi.' });
 
 export const SURFACES: SurfaceDef[] = [
@@ -222,6 +239,7 @@ export const SURFACES: SurfaceDef[] = [
       ...DYNAMIC,
       ...UTILITIES,
       ...CHAT_ROOM,
+      ...EMOTES,
       ...CHANNEL_FACTS,
       ...VIEWER,
       ...MODULE_FACTS,

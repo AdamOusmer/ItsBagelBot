@@ -748,6 +748,8 @@
     "tokSong": "le morceau en cours, ou {song.title} / {song.artist} (Requêtes musicales)",
     "tokChatters": "combien de personnes ont parlé récemment dans le chat",
     "tokRandomChatter": "l’une d’elles, choisie au hasard (jamais vous, jamais le bot)",
+    "tokEmoteList": "tous les codes d’émotes globales 7TV, séparés par des espaces; {bttvemotes} et {ffzemotes} aussi (coupé pour tenir sur une ligne)",
+    "tokRandomEmote": "un code d’émote choisi au hasard parmi ces ensembles globaux",
     "tokUptime": "depuis combien de temps vous êtes en direct, vide hors ligne (interrupteur !uptime)",
     "tokTitle": "le titre actuel de votre stream, ou {title:quelquun} pour une autre chaîne (interrupteur !title)",
     "tokGame": "la catégorie que vous diffusez, ou {game:quelquun} pour une autre chaîne (interrupteur !game)",

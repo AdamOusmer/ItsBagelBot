@@ -69,6 +69,11 @@
 // shape of reason as $(twitch …) above: both take an argument this bot's
 // {time} / {song} do not (a per-call timezone, a format string), because both
 // read the broadcaster's own module configuration instead.
+// The emote catalog ({7tvemotes}, {bttvemotes}, {ffzemotes},
+// {random.emote}) has none either: the table at the top of this file is the
+// record of Nightbot's variable language, and it carries no emote-list
+// variable. A response that wanted one keeps the literal+warn path that sends
+// it to review, which is the honest answer for a spelling nobody has observed.
 // The chat room ({chatters}, {random.chatter}) has no inbound counterpart at
 // all: the table at the top of this file is the record of what Nightbot's
 // variable language contains, and it carries neither a chatter count nor a

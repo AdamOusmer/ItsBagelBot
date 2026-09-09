@@ -748,6 +748,8 @@
     "tokSong": "the track playing right now, or {song.title} / {song.artist} (Song requests)",
     "tokChatters": "how many people have talked in chat recently",
     "tokRandomChatter": "one of them, picked at random (never you, never the bot)",
+    "tokEmoteList": "every global 7TV emote code, space-separated; {bttvemotes} and {ffzemotes} too (cut to fit one line)",
+    "tokRandomEmote": "one emote code picked at random from those global sets",
     "tokUptime": "how long you have been live, empty when you are offline (!uptime toggle)",
     "tokTitle": "your current stream title, or {title:someone} for another channel (!title toggle)",
     "tokGame": "the category you are streaming, or {game:someone} for another channel (!game toggle)",

@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/automod"
+	"ItsBagelBot/app/twitch/sesame/engine/scope"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	modulesrpc "ItsBagelBot/internal/domain/rpc/modules"
 	"ItsBagelBot/internal/projection"
@@ -133,6 +134,13 @@ type Deps struct {
 	// emoteplay module; ValkeyEmotePlay is the default. nil leaves the module
 	// silent (it never emits without a store).
 	EmotePlay EmotePlayStore
+	// Emotes is the loaded third-party emote catalog behind the {7tvemotes},
+	// {bttvemotes}, {ffzemotes} and {random.emote} response tokens. It is the
+	// automod emote refresher's own snapshot (EmoteCatalogFrom wraps it), so
+	// the tokens read a set that is already in memory and add no HTTP path of
+	// their own to the command lane. nil -- a deployment with the refresher
+	// switched off -- leaves all four tokens literal.
+	Emotes scope.EmoteSource
 	// Dedup guards the non-idempotent effect sites against a redelivered or
 	// schedule-retried event applying them twice. nil (the kill switch) fails
 	// open everywhere: effects run, nothing is deduped.

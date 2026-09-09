@@ -73,6 +73,15 @@
     // who have SPOKEN recently, not from everyone watching.
     { token: '{chatters}', hint: 'commandEditor.tokChatters' },
     { token: '{random.chatter}', hint: 'commandEditor.tokRandomChatter' },
+    // The emote catalog. Also unmoduled: the bot keeps these code lists loaded
+    // for its own spam filter, so the chips insert tokens that work on every
+    // channel. One list chip stands for all three providers — {bttvemotes} and
+    // {ffzemotes} are spelled the same way, and three chips of the same shape
+    // would crowd out the rest of the palette — and its hint carries the thing
+    // the chip cannot show: these are the GLOBAL sets, not this channel's own
+    // emotes, and a long list is cut to fit one chat line.
+    { token: '{7tvemotes}', hint: 'commandEditor.tokEmoteList' },
+    { token: '{random.emote}', hint: 'commandEditor.tokRandomEmote' },
     // The channel itself. {uptime}, {title} and {game} are gated by the same
     // per-command toggle as !uptime / !title / !game, so a chip can insert a
     // token that stays visible in chat while that command is switched off on

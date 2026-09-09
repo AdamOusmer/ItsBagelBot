@@ -80,6 +80,10 @@ type engineRuntime struct {
 	raffle  *engine.ValkeyRaffleStore
 	duel    *engine.ValkeyDuelStore
 	seq     *engine.Sequencer
+	// emotes is the shared third-party emote catalog the automod refresher
+	// keeps current; the command lane reads its snapshot for the {7tvemotes}
+	// family. nil when the refresher is off.
+	emotes *automod.EmoteFetcher
 }
 
 // buildDeps assembles the engine.Deps every module fn captures. modules.All turns
@@ -125,6 +129,12 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 		Personality: engine.NewValkeyPersonality(in.vc, engine.NewPersonalityRPC(in.nc, cfg.ModulesRPCPrefix), log),
 
 		EmotePlay: engine.NewValkeyEmotePlay(in.vc),
+
+		// The {7tvemotes} / {bttvemotes} / {ffzemotes} / {random.emote} tokens
+		// read the emote refresher's own snapshot. EmoteCatalogFrom keeps a
+		// missing refresher out of the interface (a typed nil would mount the
+		// scope and answer every list "" forever).
+		Emotes: engine.EmoteCatalogFrom(rt.emotes),
 
 		Dedup: newDedup(w),
 

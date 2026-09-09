@@ -12,6 +12,7 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/automod"
 	"ItsBagelBot/app/twitch/sesame/confcache"
+	"ItsBagelBot/app/twitch/sesame/engine/scope"
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/event/lane"
 	"ItsBagelBot/internal/domain/outgress"
@@ -110,6 +111,10 @@ type Pipeline struct {
 	// literal.
 	quotes QuotesStore
 	gossip GossipCaller
+	// emotes is the loaded third-party emote catalog behind the {7tvemotes}
+	// family and {random.emote}: the automod refresher's snapshot, read here
+	// rather than fetched. nil leaves all four tokens literal.
+	emotes scope.EmoteSource
 	// roster remembers who this replica has seen speak, so a target-addressed
 	// counter token ({counter:target:...}) can key its bump on the mentioned
 	// viewer. Pure in-process memory; see chatterRoster.
@@ -183,6 +188,7 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 		shieldEnabled:     cfg.ShieldEnabled,
 		adaptiveEnabled:   cfg.AdaptiveEnabled,
 		raidGate:          newRaidCooldown(raidCooldownTTL),
+		emotes:            d.Emotes,
 		roster:            newChatterRoster(),
 		nuke:              d.Nuke,
 		special:           d.Special,
