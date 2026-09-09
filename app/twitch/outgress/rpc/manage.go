@@ -42,7 +42,7 @@ type Manage struct {
 //	<prefix>.accountage.get  {target_id?, target_login?}       -> {created_at, user_found}
 //	<prefix>.system.status   {}                                -> {paused, token health}
 //	<prefix>.system.pause    {paused}                          -> {paused}
-//	<prefix>.streaminfo.get  {broadcaster_id}                  -> {live, title, game_name, viewer_count}
+//	<prefix>.streaminfo.get  {broadcaster_id?, target_login?}  -> {user_found, live, title, game_name, viewer_count, started_at}
 func SubscribeManage(nc *nats.Conn, registry *channels.Registry, tw *twitch.Client, prefix, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
 
 	m := &Manage{registry: registry, twitch: tw, log: log}
@@ -190,21 +190,14 @@ func (m *Manage) handleUptime(ctx context.Context, req outgressrpc.UptimeRequest
 // to it call m.twitch directly with no added token. Wiring the lane budget
 // in here would mean exporting or duplicating a worker-package-private spec
 // across a package boundary for a call that is already this narrow.
+// It is also what sesame's {uptime} / {title} / {game} / {channel.viewers}
+// response tokens read, which is why the request grew a login and the reply a
+// session start: one endpoint answers the whole family for a template, so a
+// response naming three of them costs one round trip instead of three. The
+// composition (resolve login, read stream, fall back to the channel object
+// when offline) lives in streaminfo.go.
 func (m *Manage) handleStreamInfo(ctx context.Context, req outgressrpc.StreamInfoRequest) outgressrpc.StreamInfoReply {
-	if req.BroadcasterID == "" {
-		return outgressrpc.StreamInfoReply{Error: "bad request"}
-	}
-	details, live, err := m.twitch.StreamDetails(ctx, req.BroadcasterID)
-	if err != nil {
-		m.log.Warn("streaminfo lookup failed", zap.Error(err))
-		return outgressrpc.StreamInfoReply{Error: "lookup failed"}
-	}
-	if !live {
-		return outgressrpc.StreamInfoReply{Live: false}
-	}
-	return outgressrpc.StreamInfoReply{
-		Live: true, Title: details.Title, GameName: details.GameName, ViewerCount: details.ViewerCount,
-	}
+	return readStreamInfo(ctx, m.twitch, m.log, req)
 }
 
 func (m *Manage) handleChannelGet(ctx context.Context, req manage.ChannelRequest) manage.ChannelReply {

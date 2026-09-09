@@ -107,6 +107,7 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 		Followage:   engine.NewFollowageRPC(in.nc, cfg.OutgressRPCPrefix),
 		AccountAge:  engine.NewAccountAgeRPC(in.nc, cfg.OutgressRPCPrefix),
 		Uptime:      engine.NewUptimeRPC(in.nc, cfg.OutgressRPCPrefix),
+		StreamInfo:  engine.NewStreamInfoRPC(in.nc, cfg.OutgressRPCPrefix),
 		Log:         log,
 		Automod:     rt.guard,
 		Reputation:  engine.NewValkeyReputation(in.vc, 6*time.Hour, log),

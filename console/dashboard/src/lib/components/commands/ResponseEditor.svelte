@@ -67,7 +67,17 @@
     // they need saying instead is that the bot counts and draws from people
     // who have SPOKEN recently, not from everyone watching.
     { token: '{chatters}', hint: 'commandEditor.tokChatters' },
-    { token: '{random.chatter}', hint: 'commandEditor.tokRandomChatter' }
+    { token: '{random.chatter}', hint: 'commandEditor.tokRandomChatter' },
+    // The channel itself. {uptime}, {title} and {game} are gated by the same
+    // per-command toggle as !uptime / !title / !game, so a chip can insert a
+    // token that stays visible in chat while that command is switched off on
+    // this very page; the hints name it. {channel.viewers} has no toggle
+    // because no command prints it, so its hint spends its words on the
+    // offline answer instead.
+    { token: '{uptime}', hint: 'commandEditor.tokUptime' },
+    { token: '{title}', hint: 'commandEditor.tokTitle' },
+    { token: '{game}', hint: 'commandEditor.tokGame' },
+    { token: '{channel.viewers}', hint: 'commandEditor.tokChannelViewers' }
   ];
 
   let {

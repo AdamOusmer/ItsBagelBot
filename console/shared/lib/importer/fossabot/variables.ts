@@ -17,6 +17,8 @@
 //	$(user.login)                    → {user.login}
 //	$(touser)                        → {touser}
 //	$(channel)                       → {channel}
+//	$(uptime)                        → {uptime}
+//	$(title)                         → {title}
 //	$(query)                         → {args}
 //	$(1) $(2) … $(30)                → {1} {2} … {30}
 //	$(customapi URL)                 → {urlfetch:fossabot_<cmd>} + definition
@@ -61,13 +63,28 @@
 // real directory it can be added and checked, and until then a response that
 // wanted one keeps the literal+warn path that sends it to review.
 //
+// The channel facts are the exception this table just gained, and only where
+// it already documented the inbound spelling: $(uptime) and $(title) are named
+// above, they take no argument, and this bot's {uptime} / {title} read the very
+// same two facts through the same Twitch endpoints — so a translated response
+// says in chat exactly what the Fossabot one said. Their offline behaviour even
+// matches: both bots answer an offline channel's title and leave its uptime
+// empty.
+//
+// {game} and {channel.viewers} get no inbound mapping, and that asymmetry is
+// the point: the table above is this file's record of Fossabot's variable
+// language, it lists neither a category nor a viewer-count variable, and
+// inventing $(game) or $(stream.title) from a guess at what the source might
+// spell them is exactly the class of mistake this file exists to avoid. The day
+// one is observed in a real directory it can be added and checked against it.
+//
 // $(user) and $(sender) both fold onto {user}: Fossabot's own docs describe
 // them as the same person (sender is the older spelling), so keeping them apart
 // would invent a distinction the source never had. $(count.increment …),
-// $(time …), $(uptime), $(title), $(setgame), $(nuke), $(rngphrase …),
-// $(youtube …) and friends stay literal: each either mutates state, calls a
-// Twitch API this bot exposes differently, or randomizes, and a wrong mapping
-// is worse than visible untranslated text the broadcaster can fix in review.
+// $(time …), $(setgame), $(nuke), $(rngphrase …), $(youtube …) and friends stay
+// literal: each either mutates state, calls a Twitch API this bot exposes
+// differently, or randomizes, and a wrong mapping is worse than visible
+// untranslated text the broadcaster can fix in review.
 
 import { parseFetchArgs } from '../nightbot/fetchdefs';
 import type { FetchSlotSink } from '../nightbot/fetchdefs';
@@ -116,6 +133,13 @@ const SIMPLE_TOKENS: Record<string, string> = {
   sender: '{user}',
   touser: '{touser}',
   channel: '{channel}',
+  // The two channel facts Fossabot spells as bare, argument-less variables.
+  // Both are gated here by the !uptime / !title toggle on the Commands page,
+  // which Fossabot has no equivalent of — the token stays visible in chat
+  // while that command is off, which is what the guide and the chip hint say
+  // and what the importer cannot say for the broadcaster.
+  uptime: '{uptime}',
+  title: '{title}',
   query: '{args}'
 };
 

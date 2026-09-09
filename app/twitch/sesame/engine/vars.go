@@ -28,8 +28,8 @@ import (
 // args is the RAW argument string: the counter scope resolves a mention from
 // it, and that resolution has to see the same bytes the chatter typed.
 //
-// toks is the lexed template, which the viewer and module scopes need BEFORE
-// they mount: their module rows are read only for the token families the
+// toks is the lexed template, which the channel, viewer and module scopes need
+// BEFORE they mount: their module rows are read only for the token families the
 // template actually names, so a command mentioning none of them costs no
 // projection read. The module scope also counts the template's bare {quote}
 // spans there, because each is an independent draw and the chain would hand it
@@ -42,6 +42,9 @@ func (p *Pipeline) commandChain(ctx context.Context, run commandRun, toks []tmpl
 		scope.Pure{Locale: run.c.Locale},
 		messageVars(run),
 		p.chattersScope(run.c, toks),
+	}
+	if channel, mounted := p.channelScope(ctx, run.c, toks); mounted {
+		chain = append(chain, channel)
 	}
 	if viewer, mounted := p.viewerScope(ctx, run.c, toks); mounted {
 		chain = append(chain, viewer)

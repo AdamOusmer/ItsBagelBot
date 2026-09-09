@@ -92,6 +92,13 @@ type Pipeline struct {
 	// literal.
 	followage  FollowageLookup
 	accountAge AccountAgeLookup
+	// streamInfo is the cached channel reader behind the {uptime}, {title},
+	// {game} and {channel.viewers} response tokens: one outgress read carries
+	// all four, so a response naming three of them costs one round trip. It
+	// shares !uptime's cache policy but not its instance -- the reply is a
+	// superset, so the tokens read it and !uptime keeps its own narrower
+	// lookup. nil leaves all four tokens literal.
+	streamInfo StreamInfoLookup
 	stats      *botStats
 	// customFetch resolves {urlfetch:...} response tokens through gossip's
 	// custom.fetch endpoint. nil leaves them visible (unknown-token convention).
@@ -161,6 +168,7 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 		dedup:             d.Dedup,
 		followage:         d.Followage,
 		accountAge:        d.AccountAge,
+		streamInfo:        d.StreamInfo,
 		customFetch:       d.CustomFetch,
 		quotes:            d.Quotes,
 		gossip:            d.Gossip,
