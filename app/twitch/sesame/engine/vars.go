@@ -28,16 +28,23 @@ import (
 // args is the RAW argument string: the counter scope resolves a mention from
 // it, and that resolution has to see the same bytes the chatter typed.
 //
-// toks is the lexed template, which the viewer scope needs BEFORE it mounts:
-// its module rows are read only for the token families the template actually
-// names, so a command mentioning none of them costs no projection read.
+// toks is the lexed template, which the viewer and module scopes need BEFORE
+// they mount: their module rows are read only for the token families the
+// template actually names, so a command mentioning none of them costs no
+// projection read. The module scope also counts the template's bare {quote}
+// spans there, because each is an independent draw and the chain would hand it
+// only one distinct span.
 func (p *Pipeline) commandChain(ctx context.Context, run commandRun, toks []tmpl.Token) scope.Chain {
 	chain := scope.Chain{scope.Pure{Locale: run.c.Locale}, messageVars(run)}
 	if viewer, mounted := p.viewerScope(ctx, run.c, toks); mounted {
 		chain = append(chain, viewer)
 	}
+	if mods, mounted := p.moduleScope(ctx, run.c, toks); mounted {
+		chain = append(chain, mods)
+	}
 	if p.loyalty != nil {
-		chain = append(chain, scope.Store{Counters: newCounterBumps(p, run)})
+		counters := newCounterBumps(p, run)
+		chain = append(chain, scope.Store{Counters: counters, Peeks: counters})
 	}
 	if p.customFetch != nil {
 		chain = append(chain, scope.External{
@@ -157,11 +164,29 @@ func newCounterBumps(p *Pipeline, run commandRun) *counterBumps {
 
 // Bump applies one counter's increment under the run's identity.
 func (b *counterBumps) Bump(ctx context.Context, name string, addressed bool) string {
-	viewer := b.sender
+	return b.p.claimedCounterValue(ctx, b.run.c, name, b.viewerFor(addressed), b.run.command)
+}
+
+// Peek reads one counter under the same identity, and writes nothing at all:
+// no bump, and no dedup claim either, because a read has nothing to deduplicate
+// and claiming one would make a redelivered line render an unrelated counter's
+// replay value.
+func (b *counterBumps) Peek(ctx context.Context, name string, addressed bool) string {
+	return CounterPeekValue(ctx, b.p.loyalty, CounterTarget{
+		BroadcasterID: b.run.c.BroadcasterID,
+		Name:          name,
+		ViewerID:      b.viewerFor(addressed).ID,
+		Command:       b.run.command,
+	})
+}
+
+// viewerFor picks whose bucket a span addresses: the mentioned viewer for the
+// "target:" spelling, the sender otherwise.
+func (b *counterBumps) viewerFor(addressed bool) Viewer {
 	if addressed {
-		viewer = b.targetViewer()
+		return b.targetViewer()
 	}
-	return b.p.claimedCounterValue(ctx, b.run.c, name, viewer, b.run.command)
+	return b.sender
 }
 
 // targetViewer is the viewer the command mentions, resolved through the

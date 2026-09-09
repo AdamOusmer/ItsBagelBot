@@ -41,6 +41,18 @@
 // into a bare token would drop everything the broadcaster wrote around it, so
 // both keep the literal+warn path.
 //
+// The module facts ({quote}, {time}, {song}) and the read-only counter
+// ({count:<name>}) gain no mapping for the same reason plus one of their own.
+// $(count.get <name>) is the one inbound variable that means what {count:…}
+// means, and it is NOT in the live directories this table was cross-checked
+// against — mapping a spelling nothing observed uses would be a guess at
+// Fossabot's counter scoping (per channel? per command?) that would show up as
+// a wrong number in chat rather than as a warning in review. $(time <tz>)
+// takes a per-call timezone where {time} reads the broadcaster's Local Time
+// module, and Fossabot has no now-playing variable at all. All keep the
+// literal+warn path; a mapping can be added the day a real directory carries
+// one to check against.
+//
 // $(user) and $(sender) both fold onto {user}: Fossabot's own docs describe
 // them as the same person (sender is the older spelling), so keeping them apart
 // would invent a distinction the source never had. $(count.increment …),

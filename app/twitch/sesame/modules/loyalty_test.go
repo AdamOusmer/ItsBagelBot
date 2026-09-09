@@ -75,8 +75,8 @@ func (f *fakeLoyalty) CounterBump(_ context.Context, b engine.CounterBump) (int6
 	return f.bumpVal, nil
 }
 
-func (f *fakeLoyalty) CounterPeek(_ context.Context, _ uint64, name string, _ uint64, _ string) (loyaltyrpc.Counter, bool, error) {
-	c, ok := f.counters[engine.NormalizeCounterName(name)]
+func (f *fakeLoyalty) CounterPeek(_ context.Context, target engine.CounterTarget) (loyaltyrpc.Counter, bool, error) {
+	c, ok := f.counters[engine.NormalizeCounterName(target.Name)]
 	return c, ok, nil
 }
 

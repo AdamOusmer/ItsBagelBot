@@ -6,7 +6,7 @@
 // Go engine, keep them in lockstep:
 //
 //   - token lexing:          pkg/tmpl/tmpl.go (Lex, Token.Resolve), ported to ./tmpl
-//   - scope chain:           app/twitch/sesame/engine/scope (Chain, Pure, Message, Viewer, Store)
+//   - scope chain:           app/twitch/sesame/engine/scope (Chain, Pure, Message, Viewer, Modules, Store)
 //   - chain wiring per run:  app/twitch/sesame/engine/vars.go (commandChain)
 //   - counter normalization: app/twitch/sesame/engine/scope/store.go (NormalizeName)
 //   - slash-verb routing:    internal/domain/outgress/slash.go (CutSlash)
@@ -152,6 +152,22 @@ const POINTS_SAMPLE = '1280';
 const POINTS_NAME_SAMPLE = 'bagels';
 const WATCHTIME_SAMPLE = '2 hours, 30 minutes';
 
+/** Stand-ins for the module facts (scope.Modules): a saved quote, the
+ * broadcaster's local clock and whatever is playing. All three live in
+ * services the dashboard cannot reach while a response is being typed, so the
+ * preview shows a plausible answer rather than a live one.
+ *
+ * The quote sample keeps the shape !quote prints (number, text, save date),
+ * because that is exactly what the token renders; the clock keeps the 12-hour
+ * face, which is the module's default. Chat sees two DIFFERENT quotes for two
+ * {quote} spans (they are independent draws) — the preview shows the same one
+ * twice rather than inventing a second fake quote, because a preview that
+ * showed two would suggest the bot knows which two. */
+const QUOTE_SAMPLE = 'Quote #12: bagels are just savoury donuts (2026-01-31)';
+const TIME_SAMPLE = '3:04 PM';
+const SONG_TITLE_SAMPLE = 'Everything In Its Right Place';
+const SONG_ARTIST_SAMPLE = 'Radiohead';
+
 /** Rehearse a custom command response: expand, split into messages, then
  * route each line's leading slash-verb (the same order as emitResponse).
  * (Expansion per line equals whole-template expansion: no token value can
@@ -238,10 +254,10 @@ function chainResolver(chain: readonly SampleScope[]): Resolve {
 }
 
 /** commandChain's mirror: the dice and the payload utilities (one Go scope,
- * scope.Pure), the triggering line, the viewer lookups, then the counter
- * store. Order is precedence, exactly as in the engine. */
+ * scope.Pure), the triggering line, the viewer lookups, the module facts,
+ * then the counter store. Order is precedence, exactly as in the engine. */
 function commandChain(samples: Samples): SampleScope[] {
-  return [PURE_SCOPE, UTIL_SCOPE, messageScope(samples), VIEWER_SCOPE, COUNTER_SCOPE];
+  return [PURE_SCOPE, UTIL_SCOPE, messageScope(samples), VIEWER_SCOPE, MODULE_SCOPE, COUNTER_SCOPE];
 }
 
 /** A module reply resolves only its own token map, plus the dynamic set when
@@ -409,7 +425,47 @@ function viewerSample(token: Token): string | null {
   return VIEWER_SAMPLES[token.name];
 }
 
-/** scope.Store's mirror: {counter:<name>} bumps and renders the counter. The
+/** scope.Modules' mirror: the tokens whose value is a single fact an opt-in
+ * module already holds — {quote} / {quote:n}, {time}, and the {song} family.
+ *
+ * Mounted unconditionally here, as COUNTER_SCOPE and VIEWER_SCOPE already
+ * are, and for the same reason: the surfaces that rehearse a template pass a
+ * response and nothing else, so there is no module state to gate on. In chat
+ * the engine mounts each family only while its module is on (Quotes, Local
+ * Time, Song Requests), and an off module leaves its spans literal — so a
+ * broadcaster with one of them off sees a token here that stays visible
+ * there. The guide and the chip hints say so.
+ *
+ * {quote:n} previews the same stand-in as the bare draw: the preview cannot
+ * know quote #7's text, and inventing a second fake quote for it would
+ * suggest it could. A payload that is not a positive number, and any payload
+ * at all on {time} or a {song…} span, stays literal, matching the Go scope. */
+const MODULE_SAMPLES: Samples = {
+  time: TIME_SAMPLE,
+  song: `${SONG_TITLE_SAMPLE} by ${SONG_ARTIST_SAMPLE}`,
+  'song.title': SONG_TITLE_SAMPLE,
+  'song.artist': SONG_ARTIST_SAMPLE
+};
+
+const MODULE_SCOPE: SampleScope = {
+  owns: (name) => name === 'quote' || name in MODULE_SAMPLES,
+  get: moduleSample
+};
+
+function moduleSample(token: Token): string | null {
+  if (token.name === 'quote') return quoteSample(token);
+  return token.payload === null ? MODULE_SAMPLES[token.name] : null;
+}
+
+function quoteSample(token: Token): string | null {
+  if (token.payload === null) return QUOTE_SAMPLE;
+  return /^\s*[1-9][0-9]*\s*$/.test(token.payload) ? QUOTE_SAMPLE : null;
+}
+
+/** scope.Store's mirror: {counter:<name>} bumps and renders the counter, and
+ * {count:<name>} reads it without bumping. Both spell a counter the same way,
+ * so one parser answers both; the preview shows one number for either, since
+ * a preview cannot know whether the counter is about to be bumped. The
  * name normalizes like NormalizeName (trim, drop one leading '!', trim,
  * lower-case). A {counter:target:<name>} spelling keys the bump on the
  * mentioned viewer instead of the sender (issue #479); it rehearses the same
@@ -417,14 +473,14 @@ function viewerSample(token: Token): string | null {
  * admin-only and an empty name never resolves, so both stay literal, exactly
  * like the engine. */
 const COUNTER_SCOPE: SampleScope = {
-  owns: (name) => name === 'counter',
+  owns: (name) => name === 'counter' || name === 'count',
   get: counterSample
 };
 
 function counterSample(token: Token): string | null {
-  // A bare {counter} is not the counter form: with no payload it names no
-  // counter and falls through literal, exactly as HasPayload does in the
-  // engine.
+  // A bare {counter} / {count} is not the counter form: with no payload it
+  // names no counter and falls through literal, exactly as HasPayload does in
+  // the engine.
   const name = (token.payload ?? '').trim().replace(/^!/, '').trim().toLowerCase();
   const base = name.startsWith('target:') ? name.slice('target:'.length) : name;
   if (base === '' || base.startsWith('bot:')) return null;

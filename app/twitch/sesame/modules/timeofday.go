@@ -8,10 +8,6 @@ import (
 	"strings"
 	"time"
 
-	// The sesame image is distroless/static: there is no /usr/share/zoneinfo on
-	// disk, so the IANA database must ride the binary for LoadLocation to work.
-	_ "time/tzdata"
-
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/outgress"
@@ -20,7 +16,7 @@ import (
 )
 
 const (
-	timeModuleName = "time"
+	timeModuleName = engine.TimeModuleName
 	timeCooldown   = 15 * time.Second
 
 	// defaultTimeTemplate is the built-in !time reply, used when the broadcaster
@@ -33,16 +29,11 @@ const (
 	timeUnsetReply = "The streamer hasn't set their timezone yet."
 )
 
-// timeConfig is the module's dashboard configuration. Timezone is an IANA zone
-// name ("America/Toronto") the dashboard suggests from the viewer's browser
-// (Intl.DateTimeFormat, computed client-side only — nothing is stored until the
-// broadcaster saves). Format selects the clock face: "24" for 15:04, anything
-// else the 12-hour default. Message is the reply template.
-type timeConfig struct {
-	Timezone string `json:"timezone"`
-	Format   string `json:"format"`
-	Message  string `json:"message"`
-}
+// timeConfig is the module's dashboard configuration. It lives in the engine
+// (engine.TimeModuleConfig) because the {time} response token decodes the same
+// blob and the engine cannot import this package; the alias keeps every use
+// here reading as the module's own type.
+type timeConfig = engine.TimeModuleConfig
 
 // TimeOfDay owns !time: it answers with the broadcaster's current local time in
 // their configured timezone. It is a named, opt-in module (KindOptIn): off by
@@ -72,14 +63,13 @@ func timeRun(d engine.Deps) module.RunFunc {
 func timeReply(log *zap.Logger, c *module.Context, now time.Time) string {
 	var cfg timeConfig
 	_ = c.Decode(&cfg)
-	tz := strings.TrimSpace(cfg.Timezone)
-	if tz == "" {
+	if strings.TrimSpace(cfg.Timezone) == "" {
 		return timeUnsetReply
 	}
-	loc, err := time.LoadLocation(tz)
-	if err != nil {
+	loc, ok := cfg.Zone()
+	if !ok {
 		log.Warn("time: configured timezone failed to load",
-			c.BID(), zap.String("timezone", tz), zap.Error(err))
+			c.BID(), zap.String("timezone", cfg.Timezone))
 		return "The time is unavailable right now."
 	}
 	return expandTimeTemplate(cfg, now.In(loc), c)
@@ -95,7 +85,7 @@ func expandTimeTemplate(cfg timeConfig, local time.Time, c *module.Context) stri
 	return module.ExpandString(tmpl, func(key string) (string, bool) {
 		switch key {
 		case "time":
-			return formatClock(local, cfg.Format), true
+			return engine.FormatClock(local, cfg.Format), true
 		case "date":
 			return local.Format("Monday, January 2"), true
 		case "timezone":
@@ -106,13 +96,4 @@ func expandTimeTemplate(cfg timeConfig, local time.Time, c *module.Context) stri
 			return module.ParseDynamic(key)
 		}
 	})
-}
-
-// formatClock renders the local time on the configured clock face: "24" gives
-// 15:04, anything else the 12-hour default (3:04 PM).
-func formatClock(t time.Time, format string) string {
-	if format == "24" {
-		return t.Format("15:04")
-	}
-	return t.Format("3:04 PM")
 }

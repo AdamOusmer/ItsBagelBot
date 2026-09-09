@@ -51,7 +51,17 @@
     { token: '{accountage}', hint: 'commandEditor.tokAccountAge' },
     { token: '{points}', hint: 'commandEditor.tokPoints' },
     { token: '{pointsname}', hint: 'commandEditor.tokPointsName' },
-    { token: '{watchtime}', hint: 'commandEditor.tokWatchTime' }
+    { token: '{watchtime}', hint: 'commandEditor.tokWatchTime' },
+    // The read-only counter sits beside the bump on purpose: seeing both chips
+    // is what tells a broadcaster that one of them adds 1 and the other does
+    // not, which no amount of hint text on a single chip can.
+    { token: '{count:deaths}', hint: 'commandEditor.tokCount' },
+    // The module facts. Each is answered by an opt-in module, so a chip
+    // inserts a token that stays visible in chat while that module is off —
+    // the hints name the module for exactly that reason.
+    { token: '{quote}', hint: 'commandEditor.tokQuote' },
+    { token: '{time}', hint: 'commandEditor.tokTime' },
+    { token: '{song}', hint: 'commandEditor.tokSong' }
   ];
 
   let {
