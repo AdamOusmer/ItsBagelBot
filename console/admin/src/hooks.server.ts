@@ -16,6 +16,7 @@ import {
   tagTransaction
 } from '@bagel/shared/server/hooks';
 import { rumTransform } from '@bagel/shared/server/rum';
+import { detectLocale, isLocale, LOCALE_COOKIE } from '@bagel/shared/i18n';
 import { startInvalidationListener } from '$lib/server/services';
 import { assertConfigSane } from '$lib/server/config-sanity';
 import { ensureLaneStoreHA } from '$lib/server/lanes';
@@ -90,12 +91,29 @@ async function botFlowRefused(event: RequestEvent): Promise<boolean> {
   return !(await requireRole(event, 'bot.token'));
 }
 
+// resolveLocale resolves the UI locale once per request, mirroring the
+// dashboard's hook: a valid ?lang override wins (and is pinned to the switcher
+// cookie), else the cookie, else the browser's Accept-Language, else English.
+// There is no per-account preference here -- an operator's admin UI language is
+// a property of their browser, not of any account they are looking at.
+function resolveLocale(event: RequestEvent): ReturnType<typeof detectLocale> {
+  const queryLang = event.url.searchParams.get('lang');
+  if (isLocale(queryLang)) {
+    event.cookies.set(LOCALE_COOKIE, queryLang, { path: '/', maxAge: 31536000, secure: true, sameSite: 'lax' });
+  }
+  return detectLocale({
+    cookie: queryLang || event.cookies.get(LOCALE_COOKIE),
+    accept: event.request.headers.get('accept-language')
+  });
+}
+
 const PERMISSIONS_POLICY = 'camera=(), microphone=(), geolocation=(), payment=()';
 
 // Session + staff gate + the security headers SvelteKit's CSP config does not
 // own.
 export const handle: Handle = async ({ event, resolve }) => {
   event.locals.session = openSessionCookie(event, COOKIE, open);
+  event.locals.locale = resolveLocale(event);
 
   // Staff gate for every non-public request: form actions and +server.ts
   // endpoints included, which layout loads never cover. The per-route

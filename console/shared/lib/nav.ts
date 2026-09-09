@@ -17,14 +17,14 @@ import type { MessageKey } from './i18n/keys';
 // entry points -- so they are safe in guard.ts's boot import graph.
 import { MODULE_CATALOG, moduleDelegateSections } from './types';
 import { MODULE_CATEGORY_I18N, MODULE_CATEGORY_ORDER, categoryHref } from './module-index';
+// The console-agnostic half lives in nav-core so a consumer that wants only the
+// generic machinery (the admin registry) does not drag MODULE_CATALOG in with
+// it. Re-exported here so every existing '@bagel/shared/nav' importer is
+// unchanged.
+import { identity, navGroups, navItems, resolveSection, type SectionDef } from './nav-core';
 
-// The label translator defaults to identity rather than pulling in
-// i18n/messages: that module loads locales via Vite's import.meta.glob, which
-// has no meaning outside a Vite build (bun test throws), and this module sits
-// in guard.ts's boot import graph. The layout always injects its real `t`.
-const identity =
-  (key: MessageKey): string =>
-  key;
+export { navGroups, navItems, resolveSection } from './nav-core';
+export type { SectionDef };
 
 /**
  * Sections an owner can delegate to another account, in offer order.
@@ -42,31 +42,6 @@ export const GRANTABLE_SECTIONS = ['commands', 'modules', 'discord', 'channelpoi
 export type GrantSection = (typeof GRANTABLE_SECTIONS)[number];
 
 export type SectionId = 'overview' | 'commands' | 'modules' | 'discord' | 'billing' | 'settings';
-
-/**
- * The shape a section registry has, whichever console owns it.
- *
- * The dashboard's registry (DASHBOARD_SECTIONS below) was the first; the admin
- * console has the same ladder problem with a different access rule, so the
- * resolution functions underneath take a registry rather than closing over
- * this one. Access is declared, never computed here: `ownerOnly`/`grant` are
- * the dashboard's delegate model and `minRole` the admin console's staff
- * ladder, and each app passes the predicate that reads its own fields.
- */
-export interface SectionDef {
-  id: string;
-  labelKey: MessageKey;
-  icon: IconName;
-  href: string;
-  /** Path prefixes that resolve to this section ('/' is exact-match only). */
-  match: readonly string[];
-  /** Hidden from delegates. */
-  ownerOnly?: boolean;
-  /** Visible to a delegate only when granted this section. */
-  grant?: string;
-  /** Lowest staff role that may see this section (admin console). */
-  minRole?: 'moderator' | 'admin' | 'owner';
-}
 
 export interface DashboardSectionDef extends SectionDef {
   id: SectionId;
@@ -147,65 +122,9 @@ export const DASHBOARD_SECTIONS: readonly DashboardSectionDef[] = [
   }
 ];
 
-/**
- * Longest-prefix resolution over a registry's match lists ('/' exact-match
- * only), falling back to `fallback`. Prefixes are disjoint today, so length and
- * declaration order can never disagree.
- */
-export function resolveSection<D extends SectionDef>(
-  sections: readonly D[],
-  path: string,
-  fallback: D['id']
-): D['id'] {
-  let best = fallback;
-  let bestLen = 0;
-  for (const def of sections) {
-    for (const prefix of def.match) {
-      const hit = prefix === '/' ? path === '/' : path.startsWith(prefix);
-      if (hit && prefix.length > bestLen) {
-        best = def.id;
-        bestLen = prefix.length;
-      }
-    }
-  }
-  return best;
-}
-
 /** The dashboard registry's resolution, defaulting to its landing section. */
 export function sectionForPath(path: string): SectionId {
   return resolveSection(DASHBOARD_SECTIONS, path, 'overview');
-}
-
-/**
- * Nav links for a registry: the caller supplies which entries this viewer may
- * see, which one is current, and any nested children, because those three are
- * the only parts that differ between the consoles' access models. The mapping
- * from a section to a link -- and the injected translator defaulting to
- * identity so pure callers need no i18n context -- is the same everywhere.
- */
-export function navItems<D extends SectionDef>(opts: {
-  sections: readonly D[];
-  visible: (def: D) => boolean;
-  active: (def: D) => boolean;
-  children?: (def: D) => NavChild[] | undefined;
-  t?: (key: MessageKey) => string;
-}): NavLink[] {
-  const t = opts.t ?? identity;
-  return opts.sections.filter(opts.visible).map((def) => {
-    const children = opts.children?.(def);
-    return {
-      href: def.href,
-      icon: def.icon,
-      label: t(def.labelKey),
-      active: opts.active(def),
-      ...(children ? { children } : {})
-    };
-  });
-}
-
-/** The single sidebar/mobile group wrapping a set of nav items. */
-export function navGroups(label: string, items: readonly NavLink[]): NavGroupDef[] {
-  return [{ label, items: [...items] }];
 }
 
 /**

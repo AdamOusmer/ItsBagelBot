@@ -2,8 +2,20 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import '../app.css';
-  import { RootShell } from '@bagel/shared';
-  let { children } = $props();
+  // Direct component import, not the @bagel/shared barrel: the boot path must
+  // not statically reference every page's machinery, so per-route chunks stay
+  // minimal (see shared/svelte-config.js for the long-task measurement behind
+  // this rule).
+  import RootShell from '@bagel/shared/components/RootShell.svelte';
+  let { data, children } = $props();
+
+  const DEFAULT_TITLE = 'ItsBagelBot Admin';
 </script>
 
-<RootShell>{@render children()}</RootShell>
+<svelte:head>
+  <title>{DEFAULT_TITLE}</title>
+</svelte:head>
+
+<!-- `orbs` is RootShell's default; the ambient pair used to be two literal divs
+     in app.html, which is why they never moved with the CSS that styles them. -->
+<RootShell locale={data.locale}>{@render children()}</RootShell>

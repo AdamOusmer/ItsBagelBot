@@ -1,4 +1,25 @@
 {
+  "admin": {
+    "title": "Admin",
+    "roleModerator": "Modérateur",
+    "roleAdmin": "Admin",
+    "roleOwner": "Propriétaire"
+  },
+  "adminNav": {
+    "operate": "Exploitation",
+    "accounts": "Comptes",
+    "access": "Accès",
+    "overview": "Aperçu",
+    "shards": "Shards",
+    "lanes": "Files",
+    "events": "Flux d'entrée",
+    "users": "Utilisateurs",
+    "notifications": "Notifications",
+    "staff": "Équipe",
+    "audit": "Audit",
+    "secrets": "Secrets",
+    "counters": "Compteurs du bot"
+  },
   "banner": {
     "sharedPre": "Accès partagé au tableau de bord de ",
     "sharedPost": " ({sections})",

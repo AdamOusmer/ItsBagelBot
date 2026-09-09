@@ -6,9 +6,12 @@
  * Measured through synthetic consumers rather than by building a module
  * directly: an entry with no importer tree-shakes to nothing, which reports a
  * flattering number no real app ever sees. Each consumer imports exactly what
- * the dashboard's import page (routes/(app)/settings/import) pulls in, so the
- * number tracks what a broadcaster's browser actually pays for that route
- * chunk.
+ * one real route pulls in, so the number tracks what that page's visitor
+ * actually pays for its chunk.
+ *
+ * Both console apps run this same script (dashboard and admin both call it from
+ * their build), so a row here is budgeted once no matter which app is bundling
+ * it.
  *
  * Budgets are per entry, gzip bytes, and deliberately carry a few percent of
  * headroom over the measurement: gzip output differs slightly by platform
@@ -50,6 +53,28 @@ const ENTRIES: {
              import { applyImportCaps } from "../../lib/importer/caps";
              import { IMPORT_STRATEGIES } from "../../lib/importer/strategy";
              globalThis.x = [parseMoobot, applyImportCaps, IMPORT_STRATEGIES];`,
+  },
+  {
+    // The admin console's shell: the section registry plus the three resolvers
+    // its (admin)/+layout.svelte calls on every navigation. Budgeted because
+    // this row is really a guard on WHICH nav module the shell imports.
+    // Initial measurement 2026-09-09 (macOS/arm64): 814 B gzip. Budget 1000,
+    // not the 895 a flat +10% would give: CI's linux/x64 runner gzips the same
+    // bytes ~100-150 B larger than macOS/arm64 (see the size-budgets skill),
+    // which on a row this small is 18%, not a rounding error. 814 + 150 = 964
+    // -> +3% of the usual headroom.
+    //
+    // The same three functions imported from lib/nav.ts instead measure 16253 B
+    // gzip: nav.ts statically imports MODULE_CATALOG for the dashboard's
+    // Modules fan-out, and that is a value, not a type. lib/nav-admin.ts and
+    // lib/nav-core.ts exist to keep the dashboard's catalog out of the admin
+    // bundle, and this row is what fails the build the day someone "tidies"
+    // them back together.
+    name: "admin nav registry",
+    budget: 1000,
+    external: [],
+    source: `import { ADMIN_SECTIONS, adminNavGroups, adminSectionForPath, adminSectionLabelKey } from "../../lib/nav-admin";
+             globalThis.x = [ADMIN_SECTIONS, adminNavGroups, adminSectionForPath, adminSectionLabelKey];`,
   },
   {
     // Server-side StreamElements parser. Not currently in any client bundle;

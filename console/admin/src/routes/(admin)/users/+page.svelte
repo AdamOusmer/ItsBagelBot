@@ -954,11 +954,14 @@
   .user-row.on { background: rgba(201, 168, 124, 0.06); }
 
   .udot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
-  .udot.state-free { background: var(--bb-green-glow); box-shadow: 0 0 8px var(--bb-green-glow); }
-  .udot.state-paid { background: var(--bb-tan-light); box-shadow: 0 0 8px rgba(224, 196, 154, 0.6); }
-  .udot.state-vip { background: #d9dee4; box-shadow: 0 0 8px rgba(217, 222, 228, 0.55); }
-  .udot.state-banned { background: #cf8a78; box-shadow: 0 0 8px rgba(176, 90, 70, 0.6); }
-  .udot.state-inactive { background: #8fa8bf; box-shadow: 0 0 8px rgba(143, 168, 191, 0.5); }
+  /* Tier colour is a token, not a literal, so the dashboard's perm badges and
+     this roster cannot drift apart again (see --bb-tier-* in shared tokens.css;
+     VIP is silver). */
+  .udot.state-free { background: var(--bb-tier-free); box-shadow: 0 0 8px var(--bb-tier-free); }
+  .udot.state-paid { background: var(--bb-tier-paid); box-shadow: 0 0 8px var(--bb-tier-paid); }
+  .udot.state-vip { background: var(--bb-tier-vip); box-shadow: 0 0 8px var(--bb-tier-vip); }
+  .udot.state-banned { background: var(--bb-tier-banned); box-shadow: 0 0 8px var(--bb-tier-banned); }
+  .udot.state-inactive { background: var(--bb-tier-inactive); box-shadow: 0 0 8px var(--bb-tier-inactive); }
 
   .uname { font-family: var(--bb-font-body); font-weight: 600; font-size: 13.5px; color: var(--bb-white); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .uid { font-family: var(--bb-font-mono); font-size: 11.5px; color: var(--bb-muted); white-space: nowrap; }
@@ -968,11 +971,11 @@
     font-family: var(--bb-font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
     padding: 2px 8px; border-radius: var(--bb-radius-pill); border: 1px solid transparent; white-space: nowrap;
   }
-  .tag.st-free { color: var(--bb-green-glow); background: rgba(82, 183, 136, 0.1); border-color: rgba(82, 183, 136, 0.28); }
-  .tag.st-paid { color: var(--bb-tan-light); background: rgba(201, 168, 124, 0.1); border-color: rgba(201, 168, 124, 0.3); }
-  .tag.st-vip { color: #dfe4e9; background: rgba(217, 222, 228, 0.1); border-color: rgba(217, 222, 228, 0.34); }
-  .tag.st-banned { color: #cf8a78; background: rgba(176, 90, 70, 0.1); border-color: rgba(176, 90, 70, 0.32); }
-  .tag.st-inactive { color: #a7bccd; background: rgba(143, 168, 191, 0.1); border-color: rgba(143, 168, 191, 0.3); }
+  .tag.st-free { color: var(--bb-tier-free); background: var(--bb-tier-free-bg); border-color: var(--bb-tier-free-border); }
+  .tag.st-paid { color: var(--bb-tier-paid); background: var(--bb-tier-paid-bg); border-color: var(--bb-tier-paid-border); }
+  .tag.st-vip { color: var(--bb-tier-vip); background: var(--bb-tier-vip-bg); border-color: var(--bb-tier-vip-border); }
+  .tag.st-banned { color: var(--bb-tier-banned); background: var(--bb-tier-banned-bg); border-color: var(--bb-tier-banned-border); }
+  .tag.st-inactive { color: var(--bb-tier-inactive); background: var(--bb-tier-inactive-bg); border-color: var(--bb-tier-inactive-border); }
   .tag.code { color: var(--bb-muted); background: rgba(255, 255, 255, 0.03); border-color: var(--glass-border); }
   .uwhen { font-family: var(--bb-font-mono); font-size: 11px; color: var(--bb-muted); white-space: nowrap; }
 
@@ -1038,9 +1041,9 @@
   .chip.on { color: var(--bb-white); background: var(--ui-accent-soft); border-color: var(--bb-border-strong); }
   .chip:disabled { opacity: 0.5; cursor: not-allowed; }
   /* Active tier chip wears the tier's state color (VIP silver, not purple). */
-  .chip-free.on { color: var(--bb-green-glow); background: rgba(82, 183, 136, 0.12); border-color: rgba(82, 183, 136, 0.35); }
-  .chip-paid.on { color: var(--bb-tan-light); background: rgba(201, 168, 124, 0.12); border-color: rgba(201, 168, 124, 0.38); }
-  .chip-vip.on { color: #dfe4e9; background: rgba(217, 222, 228, 0.12); border-color: rgba(217, 222, 228, 0.4); }
+  .chip-free.on { color: var(--bb-tier-free); background: var(--bb-tier-free-bg); border-color: var(--bb-tier-free-border); }
+  .chip-paid.on { color: var(--bb-tier-paid); background: var(--bb-tier-paid-bg); border-color: var(--bb-tier-paid-border); }
+  .chip-vip.on { color: var(--bb-tier-vip); background: var(--bb-tier-vip-bg); border-color: var(--bb-tier-vip-border); }
 
   .subfacts { display: flex; flex-direction: column; gap: 7px; margin: 2px 0 0; }
   .subfacts div { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
@@ -1049,11 +1052,11 @@
     margin: 0; font-family: var(--bb-font-mono); font-size: 11.5px; color: var(--bb-tan-light);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
-  .subfacts dd.cancel { color: #cf8a78; }
+  .subfacts dd.cancel { color: var(--bb-status-error); }
 
   .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
-  .btn.danger { color: #cf8a78; border-color: rgba(176, 90, 70, 0.4); }
-  .btn.danger:hover { background: rgba(176, 90, 70, 0.12); color: #e0a293; }
+  .btn.danger { color: var(--bb-tier-banned); border-color: var(--bb-tier-banned-border); }
+  .btn.danger:hover { background: var(--bb-tier-banned-bg); color: var(--bb-status-error-fg); }
 
   .probe-row {
     display: flex; align-items: center; gap: 9px;
@@ -1062,9 +1065,9 @@
   .probe-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
   .probe-dot.green { background: var(--bb-green-glow); box-shadow: 0 0 8px var(--bb-green-glow); }
   .probe-dot.warn { background: var(--bb-tan); box-shadow: 0 0 8px var(--bb-tan); }
-  .probe-dot.err { background: #cf8a78; box-shadow: 0 0 8px rgba(176, 90, 70, 0.6); }
+  .probe-dot.err { background: var(--bb-status-error); box-shadow: 0 0 8px var(--bb-status-error); }
   .probe-err {
-    font-family: var(--bb-font-mono); font-size: 11px; color: #cf8a78;
+    font-family: var(--bb-font-mono); font-size: 11px; color: var(--bb-status-error);
     word-break: break-word;
   }
 
