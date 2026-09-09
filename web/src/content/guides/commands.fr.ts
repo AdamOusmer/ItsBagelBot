@@ -156,13 +156,13 @@ const strings: GuideStrings = {
     'meta.card.chips.2': '{counter:…}',
     'meta.card.chips.3': '!cmd',
     'meta.card.description': 'Créez des commandes qui saluent les gens par leur nom, lancent des dés et comptent vos victoires. Toutes les variables du bot, expliquées avec des exemples de chat.',
-    'meta.card.meta': '11 min · 9 étapes',
+    'meta.card.meta': '12 min · 10 étapes',
     'meta.card.title': 'Commandes et variables',
     'meta.description': "Maîtrisez les commandes personnalisées d'ItsBagelBot: toutes les variables supportées ({user}, {random}, {counter} et plus), réponses multilignes, actions de chat, délais et niveaux d'accès.",
     'meta.eyebrow': 'Guide',
     'meta.heading': 'Commandes et variables',
     'meta.lead': 'Des commandes qui saluent les gens par leur nom, lancent des dés et comptent vos victoires. Pas de code: juste des accolades.',
-    'meta.minutes': '11 min de lecture',
+    'meta.minutes': '12 min de lecture',
     'meta.title': 'Commandes et variables - Guides ItsBagelBot',
     'fallbacks.b0.html': `
             <p>
@@ -342,6 +342,52 @@ const strings: GuideStrings = {
                 <a href="/fr/command-builder">constructeur</a>, qui ne propose que de vraies variables).`,
     'variables.heading': 'Les variables: les parties intelligentes',
     'variables.note': 'Les accolades sont des espaces réservés. Le bot les remplit au moment de répondre.',
+    'viewer.b0.html': `
+            <p>
+                Le bot répond déjà à <code>!followage</code>, <code>!accountage</code> et
+                <code>!points</code>. Ces variables vous donnent les mêmes réponses sous forme de
+                texte, pour que vous puissiez les glisser dans votre propre phrase au lieu d'envoyer
+                celle du bot. Chacune interroge la personne qui a lancé la commande; ajoutez un nom
+                après deux-points pour interroger quelqu'un d'autre.
+            </p>`,
+    'viewer.b1.head.0': 'Variable',
+    'viewer.b1.head.1': 'Devient',
+    'viewer.b1.head.2': 'Exemple',
+    'viewer.b1.rows.0.0': '<code>&#123;followage&#125;</code>',
+    'viewer.b1.rows.0.1': "Depuis combien de temps la personne vous suit, formulé exactement comme <code>!followage</code> le dit. <code>&#123;followage:alex&#125;</code> interroge quelqu'un d'autre. Une personne qui ne suit pas ne renvoie rien, et le streamer non plus, puisqu'il ne peut pas suivre sa propre chaîne.",
+    'viewer.b1.rows.0.2': '3 mois',
+    'viewer.b1.rows.1.0': '<code>&#123;accountage&#125;</code>',
+    'viewer.b1.rows.1.1': "L'âge de son compte Twitch. <code>&#123;accountage:alex&#125;</code> interroge quelqu'un d'autre.",
+    'viewer.b1.rows.1.2': '4 ans, 2 mois',
+    'viewer.b1.rows.2.0': '<code>&#123;points&#125;</code>',
+    'viewer.b1.rows.2.1': "Son solde de points. <code>&#123;points:alex&#125;</code> affiche celui de quelqu'un d'autre, à condition que votre chaîne l'ait vu parler. La variable ne fait que lire: aucune commande ne distribue de points ainsi.",
+    'viewer.b1.rows.2.2': '1280',
+    'viewer.b1.rows.3.0': '<code>&#123;pointsname&#125;</code>',
+    'viewer.b1.rows.3.1': 'Le nom que vous avez donné à vos points, pour qu’une même réponse sonne juste que les vôtres s’appellent points ou bagels.',
+    'viewer.b1.rows.3.2': 'bagels',
+    'viewer.b1.rows.4.0': '<code>&#123;watchtime&#125;</code>',
+    'viewer.b1.rows.4.1': "Le temps passé à regarder pendant que l'horloge de fidélité tournait, formulé comme <code>!uptime</code>. <code>&#123;watchtime:alex&#125;</code> interroge quelqu'un d'autre.",
+    'viewer.b1.rows.4.2': '2 heures, 30 minutes',
+    'viewer.b2.caption': 'Une seule commande qui dit trois choses que le bot savait déjà.',
+    'viewer.b2.lines.0.name': 'maya_live',
+    'viewer.b2.lines.0.text': '!moi',
+    'viewer.b2.lines.1.text': 'maya_live: follow depuis 3 mois, 1280 bagels, 2 heures, 30 minutes de visionnage 🥯',
+    'viewer.b2.lines.2.name': 'maya_live',
+    'viewer.b2.lines.2.text': '!moi alex',
+    'viewer.b2.lines.3.text': 'alex: follow depuis 1 an, 2 mois, 340 bagels, 12 heures de visionnage 🥯',
+    'viewer.b2.title': '#votre_chaine',
+    'viewer.b3.html': `
+                <b>Chacune a besoin de son module</b>
+                <code>&#123;followage&#125;</code> nécessite le module Followage,
+                <code>&#123;accountage&#125;</code> le module Âge du compte, et les trois variables de
+                points le module Points de fidélité. Module éteint, le bot laisse la variable dans le
+                message telle que vous l'avez tapée, accolades comprises: si le chat vous renvoie
+                <code>&#123;points&#125;</code>, c'est l'interrupteur à vérifier. Module allumé mais
+                rien à dire (une personne qui ne suit pas, quelqu'un que votre chaîne n'a jamais vu
+                parler), la variable revient vide, et c'est exactement à ça que sert une valeur par
+                défaut: <code>&#123;followage|pas encore&#125;</code>.`,
+    'viewer.heading': 'Ce que le bot sait déjà d’un spectateur',
+    'viewer.note': 'Ancienneté du follow, âge du compte et points de fidélité, glissés dans une phrase à vous.',
 };
 
 export default strings;

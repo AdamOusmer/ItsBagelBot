@@ -43,7 +43,15 @@
     { token: '{pathescape:text}', hint: 'commandEditor.tokPathEscape' },
     { token: '{repeat:3:hi}', hint: 'commandEditor.tokRepeat' },
     { token: '{countdown:2026-12-25}', hint: 'commandEditor.tokCountdown' },
-    { token: '{countup:2026-12-25}', hint: 'commandEditor.tokCountup' }
+    { token: '{countup:2026-12-25}', hint: 'commandEditor.tokCountup' },
+    // The viewer lookups. Each is answered by an opt-in module, so a chip
+    // inserts a token that stays visible in chat while that module is off —
+    // the hints name the module for exactly that reason.
+    { token: '{followage}', hint: 'commandEditor.tokFollowage' },
+    { token: '{accountage}', hint: 'commandEditor.tokAccountAge' },
+    { token: '{points}', hint: 'commandEditor.tokPoints' },
+    { token: '{pointsname}', hint: 'commandEditor.tokPointsName' },
+    { token: '{watchtime}', hint: 'commandEditor.tokWatchTime' }
   ];
 
   let {

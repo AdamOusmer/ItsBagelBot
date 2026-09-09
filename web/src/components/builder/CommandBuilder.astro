@@ -301,12 +301,15 @@ for (const surface of data.surfaces) {
         // resolves those itself — the dice deterministically (so the preview
         // doesn't re-roll on every keystroke), the utilities by actually
         // computing them, and {querystring} by encoding the {args} sample —
-        // exactly as the dashboard does. The
+        // exactly as the dashboard does. The viewer lookups ({followage},
+        // {points}, …) are left out for the same reason: the core carries one
+        // stand-in per family, and the bare and named-viewer spellings must
+        // preview alike. The
         // positional words ({1}, {2:}) are left out for the same reason and
         // one more: the core derives them from the {args} sample, so a
         // preview can never show a {1} that contradicts the {args} beside it.
         const RESOLVED_BY_CORE =
-            /^(random(:|$)|choice:|counter:|[0-9]|math:|queryescape:|pathescape:|repeat:|countdown:|countup:|querystring$)/;
+            /^(random(:|$)|choice:|counter:|[0-9]|math:|queryescape:|pathescape:|repeat:|countdown:|countup:|querystring$|followage|accountage|points|watchtime)/;
 
         function sampleMap(): Record<string, string> {
             const samples: Record<string, string> = {};

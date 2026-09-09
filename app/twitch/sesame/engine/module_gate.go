@@ -6,7 +6,10 @@ package engine
 import (
 	"context"
 
+	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/projection"
+
+	"go.uber.org/zap"
 )
 
 // ModuleState is the outcome of resolving one broadcaster's module row.
@@ -82,4 +85,36 @@ func (l ModuleLookup) Resolve(ctx context.Context) (projection.ModuleView, Modul
 		return view, ModuleOff, nil
 	}
 	return view, ModuleOn, nil
+}
+
+// ModuleGate is one module's per-broadcaster row, named
+// the way ModuleLookup beside it is: everything the read needs on one value,
+// so a caller cannot hand the projection of one broadcaster the id of another.
+//
+// It lives here rather than in the modules package because the {followage} and
+// {accountage} response tokens are gated by exactly the same rows as
+// !followage and !accountage, and a token that read those rows under its own
+// polarity would leave one channel where the command runs and the token does
+// not. Log may be nil.
+type ModuleGate struct {
+	Proj          projection.Reader
+	Log           *zap.Logger
+	BroadcasterID uint64
+	Name          string
+}
+
+// BuiltinEnabled reports whether a BUILT-IN command's toggle is on. A missing
+// row (or a projection read error, or no projection at all) fails open: a
+// transient blip must not silently swallow the command.
+func (g ModuleGate) BuiltinEnabled(ctx context.Context) bool {
+	// absent is ModuleOn because the built-ins ship enabled: a broadcaster who
+	// never touched the toggle has no row, and that must not read as "off".
+	_, state, err := ModuleLookup{Proj: g.Proj, BroadcasterID: g.BroadcasterID, Name: g.Name, Absent: ModuleOn}.Resolve(ctx)
+	if err != nil && g.Log != nil {
+		g.Log.Warn(g.Name+": module state read failed, allowing", module.BIDField(g.BroadcasterID), zap.Error(err))
+	}
+	// Fail open: only an explicit off suppresses it. ModuleUnavailable (read
+	// error, or no projection wired at all) runs, which is why this compares
+	// against ModuleOff rather than for ModuleOn.
+	return state != ModuleOff
 }

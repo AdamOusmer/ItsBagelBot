@@ -33,6 +33,14 @@
 // keep the literal+warn path rather than translating into a span that would
 // stay literal in chat.
 //
+// The viewer lookups this bot grew ({followage}, {accountage}, {points}) have
+// no counterpart in the table above and gain none here: Fossabot spells follow
+// age as $(twitch <channel> <user> "…"), a format-string call whose interior is
+// a template of its own rather than a variable, and its points live in a
+// provider block outside the command language. Translating a format string
+// into a bare token would drop everything the broadcaster wrote around it, so
+// both keep the literal+warn path.
+//
 // $(user) and $(sender) both fold onto {user}: Fossabot's own docs describe
 // them as the same person (sender is the older spelling), so keeping them apart
 // would invent a distinction the source never had. $(count.increment …),

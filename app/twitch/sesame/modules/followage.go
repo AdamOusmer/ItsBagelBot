@@ -18,10 +18,15 @@ import (
 )
 
 const (
-	followageModuleName  = "followage"
-	followageCooldown    = 15 * time.Second
-	accountAgeModuleName = "accountage"
-	accountAgeCooldown   = 15 * time.Second
+	// The module rows live on the engine side: the {followage} and
+	// {accountage} response tokens are gated by the very same rows, and two
+	// spellings of one row is one rename away from a channel where the
+	// command runs and the token stays literal.
+	followageModuleName  = engine.FollowageModuleName
+	accountAgeModuleName = engine.AccountAgeModuleName
+
+	followageCooldown  = 15 * time.Second
+	accountAgeCooldown = 15 * time.Second
 )
 
 // Followage owns the built-in viewer-lookup commands that read Twitch through
@@ -183,17 +188,12 @@ func moduleLog(d engine.Deps) *zap.Logger {
 }
 
 // moduleEnabled reports whether a built-in command's per-broadcaster toggle is
-// on. A missing row (or a projection read error, or no projection at all) fails
-// open: a transient blip must not silently swallow the command.
+// on, through the one gate the response tokens also read.
 func moduleEnabled(ctx context.Context, d engine.Deps, broadcasterID uint64, moduleName string) bool {
-	// absent is ModuleOn because the built-ins ship enabled: a broadcaster who
-	// never touched the toggle has no row, and that must not read as "off".
-	_, state, err := engine.ModuleLookup{Proj: d.Proj, BroadcasterID: broadcasterID, Name: moduleName, Absent: engine.ModuleOn}.Resolve(ctx)
-	if err != nil {
-		moduleLog(d).Warn(moduleName+": module state read failed, allowing", module.BIDField(broadcasterID), zap.Error(err))
-	}
-	// Fail open: only an explicit off suppresses the command. ModuleUnavailable
-	// (read error, or no projection wired at all) runs it, which is why this
-	// compares against ModuleOff rather than for ModuleOn.
-	return state != engine.ModuleOff
+	return engine.ModuleGate{
+		Proj:          d.Proj,
+		Log:           moduleLog(d),
+		BroadcasterID: broadcasterID,
+		Name:          moduleName,
+	}.BuiltinEnabled(ctx)
 }

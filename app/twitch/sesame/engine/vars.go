@@ -11,6 +11,7 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/engine/scope"
 	"ItsBagelBot/app/twitch/sesame/module"
+	"ItsBagelBot/pkg/tmpl"
 
 	"go.uber.org/zap"
 )
@@ -26,8 +27,15 @@ import (
 //
 // args is the RAW argument string: the counter scope resolves a mention from
 // it, and that resolution has to see the same bytes the chatter typed.
-func (p *Pipeline) commandChain(run commandRun) scope.Chain {
+//
+// toks is the lexed template, which the viewer scope needs BEFORE it mounts:
+// its module rows are read only for the token families the template actually
+// names, so a command mentioning none of them costs no projection read.
+func (p *Pipeline) commandChain(ctx context.Context, run commandRun, toks []tmpl.Token) scope.Chain {
 	chain := scope.Chain{scope.Pure{Locale: run.c.Locale}, messageVars(run)}
+	if viewer, mounted := p.viewerScope(ctx, run.c, toks); mounted {
+		chain = append(chain, viewer)
+	}
 	if p.loyalty != nil {
 		chain = append(chain, scope.Store{Counters: newCounterBumps(p, run)})
 	}
