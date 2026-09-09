@@ -5,6 +5,7 @@ package modules
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -570,41 +571,83 @@ func scopeLabel(scope string) string {
 	}
 }
 
+// counterAddArgs is one parsed "!counter add <name> [delta] [bucket...]".
+type counterAddArgs struct {
+	name    string
+	delta   int64
+	command string
+}
+
+// counterAddLine is the argument tail of one add verb. It parses itself so
+// the reader stays inside the line's own vocabulary (name, delta, bucket)
+// rather than indexing a bare slice at three call sites.
+type counterAddLine []string
+
+// parse reads the line. ok is false on a malformed line, which the caller
+// answers with the usage reply.
+func (l counterAddLine) parse() (counterAddArgs, bool) {
+	if len(l) == 0 {
+		return counterAddArgs{}, false
+	}
+	delta, ok := l.delta()
+	if !ok {
+		return counterAddArgs{}, false
+	}
+	return counterAddArgs{name: l[0], delta: delta, command: l.bucket()}, true
+}
+
+// delta is the optional second word: defaults to 1, refuses 0 and anything
+// past counterAddMax so a typo cannot warp a counter.
+func (l counterAddLine) delta() (int64, bool) {
+	if len(l) < 2 {
+		return 1, true
+	}
+	n, err := strconv.ParseInt(l[1], 10, 64)
+	if err != nil || n == 0 {
+		return 0, false
+	}
+	if n > counterAddMax || n < -counterAddMax {
+		return 0, false
+	}
+	return n, true
+}
+
+// bucket is everything after the value: a viewer+command counter's manual
+// add can name its bucket (a command trigger or a multi-word reward title),
+// and without one the bump lands in the empty bucket.
+func (l counterAddLine) bucket() string {
+	if len(l) > 2 {
+		return strings.Join(l[2:], " ")
+	}
+	return ""
+}
+
 func (lc loyaltyCmd) counterAdd(ctx context.Context, rest []string) error {
-	if len(rest) == 0 {
+	args, ok := counterAddLine(rest).parse()
+	if !ok {
 		lc.reply("loyalty.counter.usage")
 		return nil
-	}
-	delta := int64(1)
-	if len(rest) > 1 {
-		n, err := strconv.ParseInt(rest[1], 10, 64)
-		if err != nil || n == 0 || n > counterAddMax || n < -counterAddMax {
-			lc.reply("loyalty.counter.usage")
-			return nil
-		}
-		delta = n
-	}
-	// A viewer+command counter's manual add can name the bucket (a command
-	// trigger or a multi-word reward title) after the value; without one it
-	// lands in the empty bucket.
-	command := ""
-	if len(rest) > 2 {
-		command = strings.Join(rest[2:], " ")
 	}
 	viewerID, _ := strconv.ParseUint(lc.c.Env.ChatterUserID, 10, 64)
 	viewer := engine.Viewer{ID: viewerID, Login: lc.c.Env.ChatterUserLogin, Name: lc.c.Env.ChatterUserName}
 	value, err := lc.d.Loyalty.CounterBump(ctx, engine.CounterBump{
 		BroadcasterID: lc.c.BroadcasterID,
-		Name:          rest[0],
+		Name:          args.name,
 		Viewer:        viewer,
-		Command:       command,
-		Delta:         delta,
+		Command:       args.command,
+		Delta:         args.delta,
 	})
+	if errors.Is(err, engine.ErrReservedCounter) {
+		// Hidden from the dashboard list, so "no such counter" is the
+		// honest answer, and it does not confirm the name exists.
+		lc.reply("loyalty.counter.not_found", "counter", engine.NormalizeCounterName(args.name))
+		return nil
+	}
 	if err != nil {
 		return lc.fail("add", err)
 	}
 	lc.reply("loyalty.counter.set",
-		"counter", engine.NormalizeCounterName(rest[0]), "value", strconv.FormatInt(value, 10))
+		"counter", engine.NormalizeCounterName(args.name), "value", strconv.FormatInt(value, 10))
 	return nil
 }
 

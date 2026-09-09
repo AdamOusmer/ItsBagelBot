@@ -190,3 +190,17 @@ func TestBumpTargetRouting(t *testing.T) {
 	assert.Equal(t, "raid:7", entryField(data.CounterScopeViewerCommand, 7, "raid"))
 	assert.Equal(t, "7", entryField(data.CounterScopeViewer, 7, ""))
 }
+
+// A broadcaster-controlled bump may not touch a fleet stats name: the chat
+// "!counter add", a reward's counter and a {counter:} token all enter here,
+// and the public stats boards rank channels on exactly these rows. The check
+// runs before any Valkey call, which is why a zero-value store suffices.
+func TestCounterBumpRefusesSystemCounters(t *testing.T) {
+	s := &ValkeyLoyaltyStore{}
+	for _, name := range data.SystemCounterNames() {
+		_, err := s.CounterBump(context.Background(), CounterBump{BroadcasterID: 1, Name: name, Delta: 1})
+		assert.ErrorIs(t, err, ErrReservedCounter, name)
+	}
+	_, err := s.CounterBump(context.Background(), CounterBump{BroadcasterID: 1, Name: " !Commands_Answered ", Delta: 1})
+	assert.ErrorIs(t, err, ErrReservedCounter, "normalization must not open a way around the guard")
+}

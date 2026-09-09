@@ -5,6 +5,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -62,6 +63,16 @@ const scopeCacheCapacity int64 = 4096
 // that seed only when the key is still cold, then applies this caller's delta.
 // Concurrent seeders are safe: one creates the value and every caller's INCR
 // still lands exactly once.
+// ErrReservedCounter is returned by CounterBump for a fleet stats name
+// (data.SystemCounter). Those rows rank the channel on the public stats
+// boards and are written only by the pipeline's own stats flush, which goes
+// through LoyaltyReporter.BumpChannel and never through here. Every
+// broadcaster-controlled bump (a chat "!counter add", a reward's counter, a
+// {counter:} template token) funnels through CounterBump, so refusing the
+// name at this one entry closes all three; the loyalty service cannot refuse
+// it on receipt because the legitimate flush arrives on the same bump event.
+var ErrReservedCounter = errors.New("reserved counter name")
+
 var (
 	counterTTLArg     = strconv.FormatInt(int64(counterTTL.Seconds()), 10)
 	bumpChannelScript = valkey.NewLuaScript(`
@@ -249,6 +260,9 @@ func (s *ValkeyLoyaltyStore) CounterBump(ctx context.Context, b CounterBump) (in
 	name := NormalizeCounterName(b.Name)
 	if name == "" || b.Delta == 0 {
 		return 0, nil
+	}
+	if data.SystemCounter(name) {
+		return 0, ErrReservedCounter
 	}
 	scope, viewerID, command := bumpTarget(s.scope(ctx, b.BroadcasterID, name), b.Viewer.ID, NormalizeCounterName(b.Command))
 	viewer := b.Viewer

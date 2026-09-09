@@ -341,13 +341,15 @@ func (r *Loyalty) CounterGet(ctx context.Context, userID uint64, name string, vi
 // CountersList returns the channel's counter definitions. The system-owned
 // fleet stats rows sesame writes on every channel are left out: the broadcaster
 // cannot edit them (writableCounterName), so listing them would only offer a
-// dashboard row whose every action fails. The bot namespace still sees them —
-// that is where the admin console manages the fleet totals.
+// dashboard row whose every action fails. The exclusion takes the whole set
+// from data.SystemCounterNames rather than naming rows here, so a name added
+// to the set is hidden the moment it is reserved. The bot namespace still
+// sees them — that is where the admin console manages the fleet totals.
 func (r *Loyalty) CountersList(ctx context.Context, userID uint64) ([]*ent.Counter, error) {
 	return db.WithQuery(ctx, func(ctx context.Context) ([]*ent.Counter, error) {
 		q := r.client.Counter.Query().Where(counter.UserIDEQ(userID))
 		if userID != 0 {
-			q = q.Where(counter.NameNotIn(data.CounterMessagesProcessed, data.CounterEventsProcessed))
+			q = q.Where(counter.NameNotIn(data.SystemCounterNames()...))
 		}
 		return q.Order(counter.ByName()).All(ctx)
 	})

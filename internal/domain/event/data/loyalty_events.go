@@ -43,26 +43,43 @@ const (
 // CounterCommandsAnswered and CounterModActionsTaken are reserved the same
 // way as the pair above, for the Overview's per-stream counter panel (see
 // internal/projection/valkey.go's StreamCounters and
-// console/dashboard/src/lib/server/stream-counters.ts). Neither has a writer
-// yet — sesame's bot_stats.go only flushes messages/events per channel today
-// — but reserving the names now means the eventual writer needs no protocol
-// change, and until it ships an uncreated counter reads as an honest 0
-// through counter.get's found:false (same precedent as messages_processed
-// before its own writer existed).
+// console/dashboard/src/lib/server/stream-counters.ts). Sesame's bot_stats.go
+// flushes both per channel from the same window as messages/events; a channel
+// that has not been flushed yet reads as an honest 0 through counter.get's
+// found:false.
 const (
 	CounterCommandsAnswered = "commands_answered"
 	CounterModActionsTaken  = "mod_actions"
 )
 
+// systemCounterNames is the single list every reserved-name guard derives
+// from: the repository's writableCounterName and CountersList filter, and
+// sesame's CounterBump. The list filter used to spell two of the names inline
+// and silently missed the two added later, which put commands_answered and
+// mod_actions on every broadcaster's counters page; one source list is what
+// keeps the next addition from repeating that.
+var systemCounterNames = []string{
+	CounterMessagesProcessed,
+	CounterEventsProcessed,
+	CounterCommandsAnswered,
+	CounterModActionsTaken,
+}
+
 // SystemCounter reports whether a counter name belongs to the fleet stats set
 // above rather than to the broadcaster whose row holds it.
 func SystemCounter(name string) bool {
-	switch name {
-	case CounterMessagesProcessed, CounterEventsProcessed, CounterCommandsAnswered, CounterModActionsTaken:
-		return true
-	default:
-		return false
+	for _, n := range systemCounterNames {
+		if n == name {
+			return true
+		}
 	}
+	return false
+}
+
+// SystemCounterNames returns a copy of the reserved fleet stats names, for
+// callers that need the set as a query argument rather than a predicate.
+func SystemCounterNames() []string {
+	return append([]string(nil), systemCounterNames...)
 }
 
 // LoyaltyEarnEntry is one viewer's summed accrual inside a flush window:
