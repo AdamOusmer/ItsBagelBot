@@ -339,6 +339,8 @@ const playStrings = {
         width: 0;
         border-radius: var(--radius-xs);
         background: linear-gradient(90deg, var(--green, #2d6a4f), var(--green-glow, #52b788));
+        /* `width` for the same reason as .qw-poll__bar i in QuietWork.astro:
+           scaleX would squash the 4px radius-xs ends of a 6px-tall bar. */
         transition: width 1100ms var(--ease-out-expo);
     }
 

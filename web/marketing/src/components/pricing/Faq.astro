@@ -184,6 +184,11 @@ const faqLd = {
     .faq__body {
         display: grid;
         grid-template-rows: 0fr;
+        /* 0fr -> 1fr on the grid row is the only way to animate to CONTENT
+           height without hard-coding one. Lighthouse counts it as a
+           non-composited animation, and it is; the alternative is a max-height
+           magic number, which breaks the moment the FR copy runs longer than
+           the EN copy it was measured against. */
         transition: grid-template-rows 380ms var(--ease-out-expo);
     }
 

@@ -357,7 +357,17 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
         font-family: var(--font-body, "DM Sans", sans-serif);
         font-weight: 500;
         font-size: 0.9rem;
-        transition: all 0.2s ease;
+        /* Name the four properties :hover actually changes instead of `all`.
+           `all` transitions every animatable property, so any later addition to
+           the hover rule (or an inherited custom property) silently becomes an
+           animation -- Lighthouse counts each as a non-composited animated
+           element, and a layout property added here would animate layout at
+           60fps with nothing in the diff to explain why. */
+        transition:
+            background 0.2s ease,
+            border-color 0.2s ease,
+            color 0.2s ease,
+            transform 0.2s ease;
     }
 
     .games-req__btn:hover {

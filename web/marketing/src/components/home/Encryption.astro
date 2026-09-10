@@ -357,6 +357,7 @@ const t = useTranslations(lang);
         typeof import('three/addons/postprocessing/UnrealBloomPass.js'),
     ]> | null = null;
     let pendingStart = false;
+    let preloadScheduled = false;
     let bootCompleted =
         preloadRegistry.bootComplete === true ||
         document.getElementById('loader-wrapper')?.getAttribute('aria-hidden') === 'true' ||
@@ -392,6 +393,33 @@ const t = useTranslations(lang);
     }
 
     preloadRegistry.preloadEncryption = preloadEncryptionScene;
+
+    function preloadEncryptionWhenIdle() {
+        if (destroyed) return;
+        void preloadEncryptionScene();
+    }
+
+    // Do not fetch the scene's modules while the boot loader is still up and the
+    // visitor has not scrolled. The observer below watches with a 900px
+    // rootMargin and this section sits that close to the fold, so on / it fired
+    // during the initial load and pulled the three chunk (49.8 KiB, 33 of it
+    // unused that early) into the page-load trace, against LCP. Gate it on boot
+    // (or a real scroll) and then take an idle slice, with a timeout matching
+    // the post-boot start delay so the modules are still in flight before
+    // startEncryption() needs them. Nothing breaks if a scroll beats the idle
+    // callback: initEncryption() awaits the same memoized promise and imports on
+    // demand -- the gate only moves WHEN the fetch starts, never whether.
+    function schedulePreloadEncryption() {
+        const ready = bootCompleted || window.scrollY >= POST_BOOT_SCROLL_THRESHOLD;
+        if (preloadScheduled || destroyed || !ready) return;
+        preloadScheduled = true;
+        const idle =
+            typeof window.requestIdleCallback === 'function'
+                ? window.requestIdleCallback.bind(window)
+                : null;
+        if (idle) idle(preloadEncryptionWhenIdle, {timeout: POST_BOOT_INIT_DELAY_MS});
+        else window.setTimeout(preloadEncryptionWhenIdle, 0);
+    }
 
     function encryptionScrollMetrics() {
         const heroOffset = window.innerHeight;
@@ -1327,18 +1355,20 @@ const t = useTranslations(lang);
     function requestEncryptionStart() {
         if (destroyed || !ownsActiveEncryption()) return;
         pendingStart = true;
-        void preloadEncryptionScene();
+        schedulePreloadEncryption();
         maybeStartAfterBoot();
     }
 
     function onBootLoaderComplete() {
         bootCompleted = true;
         preloadRegistry.bootComplete = true;
+        schedulePreloadEncryption();
         maybeStartAfterBoot();
     }
 
     function onBootScroll() {
         if (window.scrollY < POST_BOOT_SCROLL_THRESHOLD) return;
+        schedulePreloadEncryption();
         maybeStartAfterBoot();
     }
 

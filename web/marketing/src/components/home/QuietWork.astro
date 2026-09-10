@@ -449,6 +449,13 @@ const t = useTranslations(lang);
         width: 4%;
         border-radius: var(--radius-xs);
         background: linear-gradient(90deg, rgba(201, 168, 124, 0.5), var(--tan, #c9a87c));
+        /* Stays `width`, not a composited transform, on purpose. scaleX() on a
+           7px-tall bar scales its 4px radius-xs corners horizontally too, so the
+           pill ends flatten to near-square for the whole fill (worst at the 4%
+           start: 0.16px of radius). Lighthouse lists this as a non-composited
+           animation; it is a one-shot 1200ms reveal on a handful of 7px bars,
+           which is a cheaper trade than distorted corners on the design system's
+           radius scale. */
         transition: width 1200ms var(--ease-out-expo);
     }
 
