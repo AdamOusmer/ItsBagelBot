@@ -66,7 +66,7 @@ const isActive = (href: string) =>
     const MENU_VIEWPORT_QUERY = '(max-width: 1023px)';
 
     type NavWindow = Window & {
-        lenis?: {
+        __lenis?: {
             scrollTo?: (target: number, options?: { duration?: number; immediate?: boolean }) => void;
         };
     };
@@ -274,9 +274,9 @@ const isActive = (href: string) =>
 
             event.preventDefault();
             window.history.replaceState(window.history.state, '', target.pathname || '/');
-            (window as NavWindow).lenis?.scrollTo?.(0, {duration: 0.9});
+            (window as NavWindow).__lenis?.scrollTo?.(0, {duration: 0.9});
 
-            if (!(window as NavWindow).lenis?.scrollTo) {
+            if (!(window as NavWindow).__lenis?.scrollTo) {
                 window.scrollTo({top: 0, behavior: 'smooth'});
             }
         });

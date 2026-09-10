@@ -30,6 +30,9 @@
  * separate lockfile, the separate CI job and the clean lift-out.
  */
 
+import { prefersReducedMotion } from './motion-query';
+import { subscribe } from './raf-loop';
+
 /** One drifting speck. */
 type Mote = {
     x: number;
@@ -57,7 +60,7 @@ export type FieldOptions = {
  * mid-fade with an empty canvas.
  */
 export function field(canvas: HTMLCanvasElement, options: FieldOptions = {}): (() => void) | null {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return null;
+    if (prefersReducedMotion()) return null;
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
 
@@ -66,7 +69,7 @@ export function field(canvas: HTMLCanvasElement, options: FieldOptions = {}): ((
     let height = 0;
     let dpr = devicePixelRatio();
     let motes: Mote[] = [];
-    let frame = 0;
+    let unsubscribe: (() => void) | null = null;
 
     function build() {
         width = canvas.clientWidth;
@@ -89,20 +92,28 @@ export function field(canvas: HTMLCanvasElement, options: FieldOptions = {}): ((
         ctx!.globalCompositeOperation = 'source-over';
     }
 
-    function loop() {
-        draw();
-        frame = requestAnimationFrame(loop);
+    // Subscribing rather than calling requestAnimationFrame directly: the mote
+    // field is one of up to four effects on a marketing page, and the shared
+    // scheduler (lib/raf-loop.ts) is what keeps them to one callback per frame.
+    // `draw` returns void, which the loop reads as "tick me again" -- correct
+    // here, because a drifting field never settles; it is the
+    // IntersectionObserver below that stops it, not a settle condition.
+    function start() {
+        if (unsubscribe) return;
+        unsubscribe = subscribe(() => {
+            draw();
+        });
     }
 
     function stop() {
-        if (!frame) return;
-        cancelAnimationFrame(frame);
-        frame = 0;
+        if (!unsubscribe) return;
+        unsubscribe();
+        unsubscribe = null;
     }
 
     const observer = new IntersectionObserver(([entry]) => {
-        if (entry.isIntersecting && !frame) frame = requestAnimationFrame(loop);
-        else if (!entry.isIntersecting) stop();
+        if (entry.isIntersecting) start();
+        else stop();
     }, { rootMargin: '150px' });
 
     const resize = () => {
