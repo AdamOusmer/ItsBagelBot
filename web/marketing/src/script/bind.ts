@@ -17,7 +17,8 @@
  * Nothing here unbinds: every listener these setups add is either on the root
  * itself (collected with it on swap) or on `window` for the life of the tab.
  * A widget that owns a rAF loop or an observer needs its own teardown on
- * `astro:before-swap` (see script/lightfield.js) and does not belong here.
+ * `astro:before-swap` (see the hoisted scripts in `@bagel/ui/astro/Cursor.astro`
+ * and `LightField.astro`, or `script/reveal.js`) and does not belong here.
  */
 export function bindOnce(selector: string, setup: (root: HTMLElement) => void): void {
     function bindAll() {

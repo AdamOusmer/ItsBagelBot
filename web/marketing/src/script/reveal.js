@@ -2,69 +2,42 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 /**
- * Scroll reveal: the shared entrance for every section.
+ * Scroll reveal, Astro-shaped.
  *
- * Any element tagged `data-reveal` starts hidden (opacity 0 + a small
- * translate, defined globally in style.css) and transitions in the first time
- * it scrolls into view. Stagger neighbours with inline `style="--reveal-i: N"`.
+ * The observer, the reduced-motion branch, the above-the-fold immediate reveal
+ * and the `data-reveal-repeat` opt-in all live in `@bagel/ui/lib/reveal` now,
+ * shared with the console. What is left here is the part that is genuinely
+ * about this site: it scans the whole document, and it does that again on every
+ * ClientRouter navigation.
  *
- * This replaces the old `animation: fadeUp ... forwards` pattern, which fired
- * on page load even for sections far below the fold. Reveal is viewport-driven,
- * so the choreography matches the hero. Works on every device (not gated on a
- * fine pointer like the parallax system) and respects reduced-motion.
+ * Document-wide on purpose, where the console uses the `use:reveal` action on
+ * the sections that want it. Practically every section of this site is a
+ * reveal, so one observer for the page is cheaper than one per section; on the
+ * console, reveals are the exception and a page-wide scan would mostly find
+ * nothing.
+ *
+ * The previous observer is disposed before the next scan rather than kept for
+ * the life of the tab. A ClientRouter swap replaces the whole document body, so
+ * everything the old observer was watching is detached — keeping it would leak
+ * one live observer per navigation, watching nodes that can never intersect
+ * anything again.
  */
 
-const SELECTOR = "[data-reveal]";
-import { reduceMotion } from './motion';
+import { observeReveal } from '@bagel/ui/lib/reveal';
 
-function revealAll() {
-    document.querySelectorAll(SELECTOR).forEach((el) => el.classList.add("is-revealed"));
-}
+let dispose = null;
 
-let observer = null;
-
-function getObserver() {
-    if (observer) return observer;
-
-    observer = new IntersectionObserver(
-        (entries, obs) => {
-            entries.forEach((entry) => {
-                if (!entry.isIntersecting) return;
-                entry.target.classList.add("is-revealed");
-                if (entry.target.dataset.revealRepeat !== "true") {
-                    obs.unobserve(entry.target);
-                }
-            });
-        },
-        { rootMargin: "0px 0px -10% 0px", threshold: 0.08 },
-    );
-
-    return observer;
+function teardown() {
+    dispose?.();
+    dispose = null;
 }
 
 function setup() {
-    if (reduceMotion.matches || !("IntersectionObserver" in window)) {
-        revealAll();
-        return;
-    }
-
-    const io = getObserver();
-
-    document.querySelectorAll(SELECTOR).forEach((el) => {
-        if (el.dataset.revealReady === "true") return;
-        el.dataset.revealReady = "true";
-
-        // Already on screen at load (above the fold): reveal immediately so it
-        // plays its entrance, instead of waiting for a scroll that never comes.
-        const rect = el.getBoundingClientRect();
-        if (rect.top < window.innerHeight && rect.bottom > 0) {
-            el.classList.add("is-revealed");
-            return;
-        }
-
-        io.observe(el);
-    });
+    teardown();
+    dispose = observeReveal(document);
 }
 
 setup();
-document.addEventListener("astro:page-load", setup);
+document.addEventListener('astro:page-load', setup);
+document.addEventListener('astro:before-swap', teardown);
+window.addEventListener('pagehide', teardown);

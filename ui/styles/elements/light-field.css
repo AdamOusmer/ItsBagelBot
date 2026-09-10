@@ -1,0 +1,53 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* The mote field contract: one canvas the engine (@bagel/ui/lib/light-field)
+   paints into. Both adapters emit
+
+     <canvas class="bb-light-field" data-warmth="0.7" aria-hidden="true">
+
+   These rules were the identical scoped <style> block in three places —
+   web/kit/components/LightField.svelte, marketing's HomeLightField.astro and
+   PageHero.astro's `.phero__field`. Identical except for the one thing the
+   full-bleed modifier below now carries, which is the only reason there were
+   three. */
+
+@layer bb.elements {
+    /* Fills its positioned ancestor and paints behind it. `z-index: -1` rather
+       than `0` puts the field under sibling decoration layers (glows, rings,
+       orbs) without reordering anyone's markup — every host that draws one has
+       other absolutely-positioned children and they all predate this. */
+    .bb-light-field {
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        display: block;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+    }
+
+    /* Full-bleed variant: the field escapes a max-width container and spans the
+       viewport. Was HomeLightField.astro's whole reason to exist as a separate
+       component — the home sections are width-constrained but their motes are
+       not, because a starfield that stops at the content gutter reads as a
+       rectangle of stars rather than as depth. */
+    .bb-light-field--bleed {
+        top: 0;
+        bottom: 0;
+        left: 50%;
+        width: 100vw;
+        height: 100%;
+        transform: translateX(-50%);
+    }
+
+    /* The engine already declines to start under reduced motion (field()
+       returns null), which leaves a blank canvas occupying layout. Hiding it
+       is not redundant: a 100vw canvas that paints nothing still costs a
+       compositing layer on every scroll. */
+    @media (prefers-reduced-motion: reduce) {
+        .bb-light-field {
+            display: none;
+        }
+    }
+}

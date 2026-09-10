@@ -15,7 +15,7 @@
     "./astro/*": "./astro/*"
   },
   "scripts": {
-    "check": "tsc --noEmit && bun scripts/assert-framework-free.mjs",
+    "check": "tsc --noEmit && svelte-check --tsconfig ./tsconfig.json && bun scripts/assert-framework-free.mjs",
     "test": "bun test && bun scripts/size.ts"
   },
   "dependencies": {
@@ -38,6 +38,7 @@
     "@types/bun": "^1.4.0",
     "astro": "^7.0.6",
     "svelte": "^5.56.4",
+    "svelte-check": "^4.7.6",
     "typescript": "^6.0.3"
   }
 }

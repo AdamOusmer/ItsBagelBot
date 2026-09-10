@@ -79,6 +79,14 @@ beforeEach(() => {
 
 afterEach(() => {
   delete (globalThis as unknown as LenisWindow).__lenis;
+  // Also reset here, not only in beforeEach. `mock.module` is process-wide and
+  // permanent: this stub is motion-query for EVERY test file in the run, not
+  // just this one, and bun does not promise which file runs first. A `reduced`
+  // left true by the last test here is read by the next file's import of
+  // prefersReducedMotion — which is how reveal.test.ts came to see reduced
+  // motion it never asked for and take the "reveal everything, observe
+  // nothing" branch in all five of its cases.
+  reduced = false;
 });
 
 describe("createSmoothScroll", () => {

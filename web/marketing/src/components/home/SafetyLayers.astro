@@ -10,7 +10,7 @@
 import Card from '../ui/Card.astro';
 import SectionHeading from '../ui/SectionHeading.astro';
 import IncomingBadge from '../ui/IncomingBadge.astro';
-import HomeLightField from './HomeLightField.astro';
+import LightField from '@bagel/ui/astro/LightField.astro';
 import { getLangFromUrl, useTranslations } from '../../i18n/ui';
 
 const lang = getLangFromUrl(Astro.url);
@@ -18,7 +18,7 @@ const t = useTranslations(lang);
 ---
 
 <section class="safe" id="safety-layers">
-    <HomeLightField />
+    <LightField class="bb-light-field--bleed" />
     {/* One chip for the section, not one per card. Three identical BETA tags
         down a row of three cards read as three separate disclaimers; the state
         belongs to the layer stack as a whole. */}

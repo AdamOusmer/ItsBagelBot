@@ -34,7 +34,7 @@
   <button
     class="mrow-primary"
     type="button"
-    data-cursor="off"
+    data-cursor="quiet"
     aria-expanded={expanded}
     aria-controls={controls}
     aria-current={selected ? 'true' : undefined}

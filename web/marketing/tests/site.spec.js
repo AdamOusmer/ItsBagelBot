@@ -81,10 +81,14 @@ test.describe('ItsBagelBot site', () => {
 
         // Sparse pockets reuse the inner-page mote field without covering home.
         // Three fields: the hero starfield plus the two section pockets.
-        await expect(page.locator('.home-light-field[data-field]')).toHaveCount(3);
-        await expect(page.locator('.starfield .home-light-field')).toHaveCount(1);
-        await expect(page.locator('#safety-layers .home-light-field')).toHaveCount(1);
-        await expect(page.locator('#how .home-light-field')).toHaveCount(1);
+        //
+        // `.bb-light-field--bleed`, not the old `.home-light-field`: the field
+        // moved to @bagel/ui/astro/LightField.astro and the full-bleed variant
+        // that HomeLightField.astro existed to provide is now a modifier class.
+        await expect(page.locator('.bb-light-field--bleed[data-field]')).toHaveCount(3);
+        await expect(page.locator('.starfield .bb-light-field')).toHaveCount(1);
+        await expect(page.locator('#safety-layers .bb-light-field')).toHaveCount(1);
+        await expect(page.locator('#how .bb-light-field')).toHaveCount(1);
 
         // Playground: chat window, command chips, spam button, live feed seed
         const play = page.locator('#playground');

@@ -40,7 +40,7 @@
   const width = $derived(Math.min(100, Math.max(0, Math.round(utilization))));
 </script>
 
-<div class="row" data-cursor="off">
+<div class="row" data-cursor="quiet">
   <StatusDot tone={badge.tone} />
   <span class="who">
     <span class="name">

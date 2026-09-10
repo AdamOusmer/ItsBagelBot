@@ -3,7 +3,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { page } from '$app/state';
   import AuroraBg from '@bagel/kit/components/AuroraBg.svelte';
-  import LightField from '@bagel/kit/components/LightField.svelte';
+  import LightField from '@bagel/ui/svelte/LightField.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
 
   const { t } = getI18n();

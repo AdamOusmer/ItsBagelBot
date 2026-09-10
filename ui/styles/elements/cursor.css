@@ -1,0 +1,105 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* The custom cursor contract: two fixed layers the engine
+   (@bagel/ui/lib/cursor-engine) writes transform/size/radius onto, and one
+   class on <html> that hides the native pointer.
+
+   Both adapters emit exactly this markup, which is why the classes live here
+   and not in a scoped <style> in either of them:
+
+     <div class="bb-cursor"></div>
+     <div class="bb-cursor-ring"></div>
+
+   The engine writes only geometry inline. Everything that is a LOOK — the tan,
+   the blend mode, the wash on morph, the media gates — is in this file, so a
+   surface can restyle the cursor without touching the physics.
+
+   Renamed from `.cursor` / `.cursor-ring`. Those were two of the most generic
+   class names in the repo, in a package whose whole job is to be imported into
+   other people's stylesheets; `.cursor` colliding with an app's own rule is not
+   a hypothetical. `.morph` became `.is-morphed` to match the repo's state-class
+   idiom (`is-revealed`, `is-done`). */
+
+@layer bb.elements {
+    /* The dot. Tracks the pointer 1:1, so it carries no transition at all:
+       any duration here fights the per-frame transform the engine writes and
+       shows up as a rubber-banding lag the ring is already providing on
+       purpose. Only opacity animates, for the fade under a morphed ring.
+
+       left/top of -6px (half the size) centre it on the transform origin, so
+       the engine can write the raw pointer coordinates with no offset maths. */
+    .bb-cursor {
+        position: fixed;
+        top: -6px;
+        left: -6px;
+        width: 12px;
+        height: 12px;
+        border-radius: var(--bb-radius-pill);
+        background: var(--bb-tan);
+        pointer-events: none;
+        /* Above the ring: the dot is the pointer, the ring is decoration. */
+        z-index: 9999;
+        /* `difference` is what keeps a tan dot visible on a tan section. A
+           plain tan dot disappears over --bb-tan-pale washes, and no single
+           colour survives both the near-black hero and the cream panels. */
+        mix-blend-mode: difference;
+        transition: opacity 200ms;
+        will-change: transform, opacity;
+    }
+
+    /* The ring. Every geometric property here is a starting value the engine
+       overwrites each frame; they exist so the first painted frame is the
+       idle circle rather than a 0×0 box.
+
+       No transition on transform/width/height/border-radius either: those are
+       lerped in script (ui/lib/cursor-engine.ts), and a CSS transition on top
+       of a per-frame write would ease an already-eased value — the result
+       reads as syrup and cannot be tuned, because two easings compose. The
+       transitions that ARE here cover the properties script only toggles. */
+    .bb-cursor-ring {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 36px;
+        height: 36px;
+        border: 2px solid var(--bb-tan);
+        border-radius: var(--bb-radius-sm);
+        opacity: 0.5;
+        pointer-events: none;
+        z-index: 9998;
+        transition: opacity 250ms, background 250ms, border-color 250ms;
+        will-change: transform, width, height, border-radius;
+    }
+
+    /* Stamped onto an interactive element: the ring fills with a tan wash so
+       the element reads as picked up, rather than merely outlined. */
+    .bb-cursor-ring.is-morphed {
+        background: rgba(var(--bb-tan-rgb), 0.22);
+        border-color: var(--bb-tan);
+        opacity: 1;
+    }
+
+    /* Set by the engine, never by CSS alone: hiding the native pointer before
+       the replacement exists leaves a window with no cursor at all, and the
+       engine is the only thing that knows it has mounted. `!important` is the
+       one exception this package makes, and it is unavoidable — `cursor` is
+       set by UA styles on inputs and by app rules on dozens of elements, and a
+       cursor that survives on ONE of them is worse than not hiding it at all. */
+    html.bb-cursor-on,
+    html.bb-cursor-on * {
+        cursor: none !important;
+    }
+
+    /* Coarse pointers and narrow viewports never get the engine (it returns a
+       no-op teardown without a fine pointer), so this is belt and braces for
+       the markup the adapters still render. Reduced motion is NOT in this
+       query: the engine parks the cursor and gives the native pointer back,
+       which needs the elements to stay in the tree. */
+    @media (max-width: 900px), (pointer: coarse) {
+        .bb-cursor,
+        .bb-cursor-ring {
+            display: none;
+        }
+    }
+}

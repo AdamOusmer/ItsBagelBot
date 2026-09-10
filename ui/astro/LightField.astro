@@ -1,0 +1,65 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro adapter for the drifting mote field. Emits the same canvas as
+// ui/svelte/LightField.svelte; the physics are in @bagel/ui/lib/light-field.
+//
+// One hoisted script serves every instance on the page (Astro dedupes it), so
+// the canvases are found by scanning for the contract attribute rather than by
+// each instance carrying its own inline setup.
+import '../styles/elements/light-field.css';
+
+interface Props {
+    /** Extra classes, e.g. the `bb-light-field--bleed` full-bleed modifier. */
+    class?: string;
+    /** Share of gold (vs green) motes, 0..1. */
+    warmth?: number;
+}
+
+const { class: className = '', warmth = 0.7 } = Astro.props;
+const classes = ['bb-light-field', className].filter(Boolean).join(' ');
+---
+
+<canvas class={classes} data-field data-warmth={warmth} aria-hidden="true"></canvas>
+
+<script>
+    // Not bindOnce: a field owns a rAF subscription and an IntersectionObserver,
+    // so it needs a real teardown before the ClientRouter throws the old
+    // document away, and bindOnce deliberately has no unbind.
+    import { field } from '../lib/light-field';
+
+    const running = new Set<() => void>();
+
+    function setupField(canvas: HTMLCanvasElement): void {
+        if (canvas.dataset.fieldReady === 'true') return;
+
+        const stop = field(canvas, { warmth: parseFloat(canvas.dataset.warmth ?? '') || 0.7 });
+        if (!stop) return;
+        canvas.dataset.fieldReady = 'true';
+
+        const cleanup = () => {
+            stop();
+            canvas.removeAttribute('data-field-ready');
+            // Zeroing the backing store frees the (dpr-scaled) bitmap right
+            // away instead of waiting for the detached canvas to be collected.
+            canvas.width = 0;
+            canvas.height = 0;
+            running.delete(cleanup);
+        };
+        running.add(cleanup);
+    }
+
+    function setup(): void {
+        document.querySelectorAll<HTMLCanvasElement>('canvas[data-field]').forEach(setupField);
+    }
+
+    function teardown(): void {
+        running.forEach((cleanup) => cleanup());
+    }
+
+    setup();
+    document.addEventListener('astro:page-load', setup);
+    document.addEventListener('astro:before-swap', teardown);
+    window.addEventListener('pagehide', teardown);
+</script>
