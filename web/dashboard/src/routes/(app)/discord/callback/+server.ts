@@ -20,15 +20,18 @@ import {
   type DiscordErrorSlug
 } from '$lib/server/discord-oauth';
 import {
+  blankDiscordConfig,
   persistSetup,
   pinnedRolesOf,
   readDiscord,
   readGuildConfig,
   readLegacyBlob,
+  refusalCode,
   saveDiscordModule,
   setupGuild,
   type DiscordCode,
   type DiscordConfig,
+  type DiscordGuildConfig,
   type DiscordGuildTarget,
   type DiscordSetup
 } from '$lib/server/discord-store';
@@ -124,17 +127,15 @@ async function connectLogin(locals: App.Locals, target: DiscordGuildTarget): Pro
  * over a server that already had channels picked wipes every id the streamer
  * chose, and re-installing the bot is exactly when that read is most likely to
  * be slow. Refuse the whole callback instead: the binding is untouched and the
- * streamer can try again.
+ * streamer can try again. The one refusal that IS "no config" is `not_bound`
+ * -- see unboundRow.
  *
  * A board that predates the multi-guild split still carries this guild's whole
  * config in the per-user modules blob; it has to be copied onto the guild row
  * BEFORE the blob is narrowed, or every id in it is lost.
  */
 async function seedConfig(target: DiscordGuildTarget, login: string): Promise<DiscordConfig> {
-  const row = await readGuildConfig(target).catch((err) => {
-    logger.warn({ err }, '[discord-callback] guild config unreadable');
-    discordFail('discord_unavailable');
-  });
+  const row = await readGuildConfig(target).catch((err) => unboundRow(target, err));
   const legacy = row.found
     ? null
     : legacyConfigFor(await readLegacyBlob({ userId: target.userId }).catch(() => null), target.guildId);
@@ -143,6 +144,35 @@ async function seedConfig(target: DiscordGuildTarget, login: string): Promise<Di
     ...(legacy ?? {}),
     guildId: target.guildId,
     twitchLogin: login
+  };
+}
+
+/**
+ * The row a refused config.get stands in for.
+ *
+ * `not_bound` is not a fault here, it is the ordinary state of a first
+ * install: outgress refuses every settings read for a guild it holds no
+ * binding for, and the binding is created by setupGuild -- the call AFTER
+ * this one. Refusing it therefore killed every first install with
+ * `discord_unavailable`, which the page renders as "Discord did not answer"
+ * about a server whose bot Discord had just added (seen in prod on both
+ * dashboard pods, 2026-09-10). Standing in a blank row cannot lose anything:
+ * a config row is only reachable through the binding, so an unbound guild has
+ * none, and `found: false` still lets seedConfig adopt a pre-split blob.
+ *
+ * Every other refusal, and every transport failure, still stops the callback:
+ * those genuinely mean the row could not be read, and seeding over it would
+ * wipe the ids the streamer picked.
+ */
+function unboundRow(target: DiscordGuildTarget, err: unknown): DiscordGuildConfig {
+  if (refusalCode(err) !== 'not_bound') {
+    logger.warn({ err }, '[discord-callback] guild config unreadable');
+    discordFail('discord_unavailable');
+  }
+  return {
+    config: { ...blankDiscordConfig(), guildId: target.guildId },
+    version: 0,
+    found: false
   };
 }
 
