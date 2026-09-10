@@ -1,0 +1,43 @@
+{
+  "name": "@bagel/ui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "bun@1.4.2",
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "exports": {
+    "./styles/*": "./styles/*",
+    "./fonts/*": "./fonts/*",
+    "./lib/*": "./lib/*.ts",
+    "./svelte/*": "./svelte/*",
+    "./astro/*": "./astro/*"
+  },
+  "scripts": {
+    "check": "tsc --noEmit && bun scripts/assert-framework-free.mjs",
+    "test": "bun test && bun scripts/size.ts"
+  },
+  "dependencies": {
+    "lenis": "^1.3.23"
+  },
+  "peerDependencies": {
+    "astro": "^7.0.6",
+    "svelte": "^5.56.4"
+  },
+  "peerDependenciesMeta": {
+    "astro": {
+      "optional": true
+    },
+    "svelte": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@astrojs/compiler": "^4.0.0",
+    "@types/bun": "^1.4.0",
+    "astro": "^7.0.6",
+    "svelte": "^5.56.4",
+    "typescript": "^6.0.3"
+  }
+}

@@ -1,0 +1,49 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+# Build context whitelist for the console-dashboard image.
+#
+# The context is the repository ROOT (the design library at ui/ has to be inside
+# it), and the repository root is mostly a Go monorepo: app/, internal/, pkg/,
+# deploy/, bus-bench/, plus test corpora. None of that belongs in a SvelteKit
+# image's context, and sending it costs the build the time to hash and transfer
+# every file. So this is a whitelist -- deny everything, re-admit by name --
+# rather than the usual denylist, because a denylist would have to be edited
+# every time the Go side grows a directory, and forgetting is silent.
+#
+# Per-image rather than one .containerignore at the root because the two console
+# images want different trees (dashboard/ vs admin/) out of the same context.
+# `buildah bud`/`podman build` take `--ignorefile <path>`, which is what makes
+# two whitelists over one context possible; without it both images would share
+# the root .containerignore and each would carry the other's sources.
+#
+# The `*` line excludes every top-level entry; each `!` line re-admits one path.
+# Order matters: the last pattern a path matches decides, so the denials for
+# generated directories come last.
+*
+!ui
+!web/package.json
+!web/bun.lock
+!web/bunfig.toml
+!web/tsconfig.base.json
+!web/sorted-readdir.mjs
+!web/serve-node.js
+!web/kit
+!web/dashboard
+
+# The other three workspace members contribute their manifest and nothing else:
+# `bun install --frozen-lockfile` re-resolves the whole workspace graph and
+# fails ("lockfile had changes, but lockfile is frozen") if a member named in
+# bun.lock has no package.json on disk. Their sources stay out; that is what
+# keeps astro, sharp and mermaid off this image.
+!web/admin/package.json
+!web/marketing/package.json
+!web/docs/package.json
+
+**/node_modules
+**/dist
+**/build
+**/.svelte-kit
+**/.astro
+**/test-results
+**/*.log

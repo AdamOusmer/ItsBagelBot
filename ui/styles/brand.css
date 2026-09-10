@@ -16,18 +16,26 @@
    The values below are the web/ ones, which style.css has always been named
    as the source of truth for.
 
-   Lives under web/kit, not beside one of the apps, because the console images
-   build with `web/` as their whole build context (publish-images.yml);
-   anything above that line is not in the image at all. marketing/ and docs/
-   build from a full checkout and reach in by relative path.
+   Lives in the standalone @bagel/ui library at the repo root, not in web/kit
+   and not beside one of the apps: these are design tokens with no bot
+   knowledge in them, and kit is the bot-specific glue. The three consumers
+   that used to reach in by relative path (`../../../kit/styles/brand.css`)
+   now all say `@import '@bagel/ui/styles/brand.css'`, resolved through the
+   package's subpath exports, so the depth of the importing file stopped being
+   part of the answer.
 
-   web/kit is a way station, not the address. These are design tokens with no
-   bot knowledge in them, and kit is the bot-specific glue, so this file moves
-   to the standalone repo-level ui/ library (@bagel/ui) in the ui-library PR,
-   at which point the image build context widens to the repo root behind a
-   whitelist ignorefile and the three reach-in @imports become
-   `@bagel/ui/styles/brand.css`. It sits here for now only so the workspace
-   relocation stays a pure rename with nothing to review but paths.
+   That cost the console images their narrow build context: they built with
+   `web/` as the whole context and nothing above that line can be COPYed. They
+   build from the repo root now, behind a per-image whitelist ignorefile
+   (web/dashboard/Containerfile.ignore). The whitelist is the price of the
+   library being extractable to its own repo later.
+
+   Cascade layers: this file is unlayered today and the tokens it declares are
+   custom properties, which do not participate in the cascade the way
+   declarations do -- a `--bb-*` on `:root` is won by specificity and order,
+   not by layer. styles/layers.css names `bb.tokens` as the first layer so this
+   file can move into it without reordering anything; that move belongs with
+   fonts.css, which is when there is a second token file to order against.
 
    App-specific tokens do NOT belong here. Fonts are the clearest case: the
    three apps legitimately name different families (marketing/ self-hosts

@@ -22,21 +22,23 @@ export default defineConfig({
   // use dynamic requires that do not bundle cleanly for SSR.
   // `pino` stays external so the New Relic agent's require-hook wraps the real
   // module at runtime and local-decorates its log lines (bundling defeats the hook).
-  ssr: { noExternal: ['@bagel/kit'], external: ['newrelic', 'iovalkey', 'pino'] },
+  ssr: { noExternal: ['@bagel/kit', '@bagel/ui'], external: ['newrelic', 'iovalkey', 'pino'] },
   // fs.allow: tokens.css lives in the workspace sibling web/kit and
-  // @font-faces four woff2 files beside it. Vite rewrites those url()s to
-  // /@fs/… absolute paths, and web/kit sits outside every directory
-  // SvelteKit's plugin allows (its own src, .svelte-kit, and the two
+  // @font-faces four woff2 files that now live in the design library, one
+  // level further out again (repo-root ui/, linked as @bagel/ui). Vite
+  // rewrites those url()s to /@fs/… absolute paths, and neither directory is
+  // one SvelteKit's plugin allows (its own src, .svelte-kit, and the two
   // node_modules dirs), so each font answered 403, `document.fonts` reported
   // all four faces in `error`, and Syne 800 fell back to sans-serif, ~40%
   // narrower, which silently resized every width-sensitive layout in dev (the
   // /login hero grid measured a 547px title column against 902px in the Astro
-  // original). Scoped to ../kit rather than .., which would also expose
-  // web/admin, web/marketing and web/docs over /@fs now that all five packages
-  // are siblings in one workspace. A second entry (../../ui) joins it when the
-  // design primitives move to the standalone library. Dev only; production
-  // builds emit the fonts as hashed assets under _app/immutable/assets.
-  server: { port: 5173, fs: { allow: ['../kit'] } },
+  // original). Two scoped entries rather than one wide one: '..' would also
+  // expose web/admin, web/marketing and web/docs over /@fs, and '../..' would
+  // expose the whole repository including the Go tree. ../../ui is the real
+  // directory, not the node_modules symlink, because Vite compares realpaths.
+  // Dev only; production builds emit the fonts as hashed assets under
+  // _app/immutable/assets.
+  server: { port: 5173, fs: { allow: ['../kit', '../../ui'] } },
   build: {
     minify: 'terser'
   }

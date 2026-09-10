@@ -7,7 +7,7 @@
    every rule below and every component style says var(--tan), not
    var(--bb-tan), and renaming ~900 uses to buy nothing would be the change
    that actually risks something. */
-@import '../../../kit/styles/brand.css';
+@import '@bagel/ui/styles/brand.css';
 
 :root {
     --black: var(--bb-black);

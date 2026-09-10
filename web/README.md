@@ -123,6 +123,50 @@ One lockfile (`bun.lock`) covers all five packages, and `bunfig.toml` selects
 bun's hoisted linker so the SSR images can ship a self-contained flat
 `node_modules` by copying the workspace root.
 
+### `postinstall` links the design library
+
+All five packages import the design library as `@bagel/ui`, but it is **not** a
+workspace member: it lives at the repository root in `ui/`, with its own
+`package.json`, its own `bun.lock` and its own CI job, so it can be lifted into
+its own repository unchanged. `bun install` therefore has nothing that would put
+it on the resolver's path, and the `postinstall` hook in `package.json` does it:
+
+```
+mkdir -p node_modules/@bagel && ln -sfn ../../../ui node_modules/@bagel/ui \
+  && bun install --cwd ../ui --frozen-lockfile --production
+```
+
+A hand-made symlink because bun has no manifest spelling that produces one
+across the workspace boundary, and both of the ones that look like they should
+were tried (bun 1.4.2):
+
+- `"@bagel/ui": "link:../ui"` — bun's `link:` protocol names a globally linked
+  package, not a path. It resolves and then fails to link:
+  `FileNotFound: failed linking dependency/workspace to node_modules for package
+  @bagel/ui`, and `bun install` exits 1, which would fail every CI job.
+- `"@bagel/ui": "file:../../ui"` — installs, but bun materialises a `file:`
+  dependency by **hardlinking its files into the store**, not by symlinking the
+  directory. Editing `ui/` then does not reach the console until the next
+  install, and a newly added file never appears at all.
+- Adding `"../ui"` to `workspaces` — bun ignores workspace entries outside the
+  root; nothing lands in `node_modules` and nothing is reported.
+
+The `--production` on the inner install is deliberate: `ui`'s devDependencies
+are the Svelte and Astro compilers its parity test drives, and web needs only
+its runtime dependency (`lenis`). Work on the library itself with
+`cd ui && bun install`.
+
+If `ui/` has never been installed, the symptom in a build or dev server is:
+
+```
+Cannot find module 'lenis'
+```
+
+`link:`/`file:` dependencies are resolved from their **realpath**, so an import
+that reaches `ui/lib/*` looks for `ui`'s own dependencies in `ui/node_modules`
+and never in `web/node_modules`. Re-run `bun install` here, or the postinstall
+command by hand if you installed with `--ignore-scripts`.
+
 ### Two versions of `cookie`, on purpose
 
 The workspace root declares `cookie` at `^0.7.0` even though nothing in the root

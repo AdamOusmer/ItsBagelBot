@@ -27,25 +27,18 @@ import { fileURLToPath } from 'node:url';
 // values, bilingual copy) stays local in src/i18n/builder.ts; only the logic is
 // shared.
 
-// The mote field is still reached by absolute path: the physics are shared with
-// the console's LightField.svelte so both surfaces animate identically, and the
-// module is pure browser TS with no deps, so it bundles into the client chunk
-// with no install step. It is NOT a kit engine subpath because it is a design
-// primitive, not a bot-grammar mirror. See web/kit/lib/light-field.ts for why
-// those primitives sit under web/kit for now; they move to the standalone
-// web-level ui/ library, and this alias becomes a `@bagel/ui/...` import, in
-// the ui-library PR.
-const lightFieldCore = fileURLToPath(new URL('../kit/lib/light-field.ts', import.meta.url));
-// Shared stylesheets from the same place, addressed as a prefix so a second
-// one is an import and not another config edit.
-const sharedStyles = fileURLToPath(new URL('../kit/styles', import.meta.url));
-// The web/ workspace root, so Vite's dev server may read the shared files that
-// live outside marketing/. Was the whole repo root while the site and the
-// console were separate bun projects; the flat web/ workspace narrows it to the
-// four sibling packages, which is why it is still a directory and not a file
-// list -- one path per aliased file would have to be edited again for every
-// alias added, and both remaining aliases resolve under here.
-const repoRoot = fileURLToPath(new URL('..', import.meta.url));
+// The design primitives (the mote field's physics, brand.css, the card
+// atmosphere) are no longer reached by path at all: they are `@bagel/ui/...`
+// package imports, resolved through that package's subpath exports. This
+// config used to carry two Vite aliases and an `fs.allow` widened to the
+// workspace root to make those reach-ins work, and all three are gone with
+// them -- an alias is invisible to `astro check` and to editors, and
+// `fs.allow` on a directory hands the dev server every file under it.
+//
+// @bagel/ui is linked (`link:../ui`), so node_modules/@bagel/ui is a symlink
+// and Vite resolves through it to the realpath. Nothing extra is needed for
+// that here; what it does need is ui's own dependencies installed, which
+// web/package.json's postinstall handles.
 
 // Locales are discovered from the catalog files: one src/i18n/locales/<code>.json
 // per language. Dropping in a new JSON adds the language to Astro's i18n config
@@ -122,18 +115,8 @@ export default defineConfig({
   },
 
   vite: {
-    resolve: {
-      // Design primitives still reached by path (see lightFieldCore above);
-      // they become @bagel/ui package imports in the ui-library PR.
-      alias: {
-        '@bagel/light-field': lightFieldCore,
-        '@bagel/styles': sharedStyles,
-      },
-    },
     server: {
       allowedHosts: true, // Bypass Vite 6's network host blocking for external devices
-      // Let the dev server serve the shared files from the repo root.
-      fs: { allow: [repoRoot] },
     },
     build: {
       // The production CSP only permits scripts loaded from this origin.

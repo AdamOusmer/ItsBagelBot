@@ -1,0 +1,28 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* The cascade order for everything @bagel/ui ships, declared in one place and
+   imported first by every consumer.
+
+   A bare `@layer a, b, c;` statement establishes the order of the layers
+   without putting a rule in any of them, and layer order is fixed by the FIRST
+   declaration the browser sees. That is the whole point of this file: without
+   it, order would be decided by whichever stylesheet happened to open a layer
+   first, which changes with bundler chunking and import order — the same class
+   of non-determinism sorted-readdir.mjs exists to remove from the build.
+
+   The four layers, weakest to strongest:
+     bb.tokens    custom properties only (brand.css, fonts.css)
+     bb.base      element defaults and resets
+     bb.elements  the component contracts (button, card, field, …)
+     bb.app       per-app overrides: console layout, marketing page styles, and
+                  the Starlight `--sl-*` remap in docs
+
+   `bb.app` exists so an app can win against an element contract by BEING an
+   app, not by out-specifying it. Unlayered CSS beats every layer, so anything
+   an app leaves outside `bb.app` still wins; the layer is what lets an app
+   override with a LOWER-specificity selector than the contract uses. Either
+   way `!important` is never the answer here, and no rule in this package
+   uses it. */
+
+@layer bb.tokens, bb.base, bb.elements, bb.app;

@@ -51,7 +51,7 @@ export { default as DeckList } from '../components/DeckList.svelte';
 export { default as Scroller } from '../components/Scroller.svelte';
 
 export { initLenis, magnetic, countUp } from './actions';
-export { copyFlash } from './clipboard';
+export { copyFlash } from '@bagel/ui/lib/clipboard';
 export { icons, type IconName } from './icons';
 export { customCursor } from './cursor';
 

@@ -1,0 +1,17 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro half of the parity fixture. Its Svelte twin is ./fixture.svelte and the
+// two must emit the same contract markup; parity.test.ts is what says so.
+//
+// Deliberately trivial and deliberately NOT a real element: it exercises the
+// harness (compile both, render both, normalise both, diff) while ui/svelte and
+// ui/astro are still empty, so the day the first real adapter pair lands the
+// only new thing is the element. It also pins the four normalisations the
+// diff needs, one per shape the two frameworks disagree on: a boolean attribute
+// (data-fixture), an interpolated text node, a static class, and whitespace.
+const { text = 'hello' } = Astro.props;
+---
+
+<p class="bb-fixture" data-fixture>{text}</p>

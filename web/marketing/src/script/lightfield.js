@@ -6,7 +6,7 @@
  * Any `<canvas data-field>` gets the same drifting mote field the cinematic
  * scenes use, at a constant warmth.
  *
- * The physics live in `@bagel/light-field` (web/kit/lib/light-field.ts),
+ * The physics live in `@bagel/ui/lib/light-field`,
  * shared with the console's LightField.svelte so the two surfaces cannot drift
  * apart on how the field looks. What stays here is everything Astro-shaped: the
  * DOM scan, the ready flag, and teardown on `astro:before-swap`.
@@ -16,7 +16,7 @@
  * throws the old document away, and bindOnce deliberately has no unbind.
  */
 
-import { field } from '@bagel/light-field';
+import { field } from '@bagel/ui/lib/light-field';
 
 const activeFieldCleanups = new Set();
 

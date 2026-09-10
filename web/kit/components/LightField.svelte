@@ -2,12 +2,12 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { onMount } from 'svelte';
-  // The physics live beside this file and are shared verbatim with the
+  // The physics live in the design library and are shared verbatim with the
   // marketing site's script/lightfield.js: console surfaces have to read as
   // the same material as itsbagelbot.com, and the two hand-kept copies this
   // replaces had already drifted on how a mote is counted warm. What stays
   // here is only the Svelte lifecycle.
-  import { field } from '../lib/light-field';
+  import { field } from '@bagel/ui/lib/light-field';
 
   // `warmth` is the share of gold (vs green) motes, matching the web field's
   // data-warmth. 0.7 is the pricing-header value.

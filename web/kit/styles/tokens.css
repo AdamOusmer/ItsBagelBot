@@ -2,22 +2,32 @@
    Proprietary. No license granted. See LICENSE.md. */
 
 /* ItsBagelBot: Colors & Type
- * The palette, the shape scale and the easing curves come from ./brand.css,
- * shared with web/ and docs/. This file adds what is the CONSOLE's: its own
- * self-hosted faces, the status system, the spacing scale and the layout
- * tokens. Brand palette is a dark canvas with deep evergreen + warm tan
+ * The palette, the shape scale and the easing curves come from the design
+ * library (@bagel/ui/styles/brand.css), shared with marketing/ and docs/. This
+ * file adds what is the CONSOLE's: the status system, the spacing scale and the
+ * layout tokens. Brand palette is a dark canvas with deep evergreen + warm tan
  * accents, tied together with a film-grain texture overlay.
  *
  * The @import has to precede the @font-face rules below: CSS only honours
  * @import at the top of a stylesheet.
  */
-@import './brand.css';
+@import '@bagel/ui/styles/brand.css';
 
-/* Self-hosted fonts: no third-party origin, satisfies CSP font-src 'self'. */
-@font-face { font-family: "Syne"; font-weight: 500 800; font-display: swap; src: url("./fonts/syne-latin.woff2") format("woff2"); }
-@font-face { font-family: "DM Sans"; font-weight: 400 700; font-display: swap; src: url("./fonts/dm-sans-latin.woff2") format("woff2"); }
-@font-face { font-family: "DM Mono"; font-weight: 400; font-display: swap; src: url("./fonts/dm-mono-400.woff2") format("woff2"); }
-@font-face { font-family: "DM Mono"; font-weight: 500; font-display: swap; src: url("./fonts/dm-mono-500.woff2") format("woff2"); }
+/* Self-hosted fonts: no third-party origin, satisfies CSP font-src 'self'.
+   The woff2 files moved to @bagel/ui/fonts with the rest of the design
+   primitives, so these url()s are package specifiers rather than the relative
+   paths they were. Vite resolves a url() the same way it resolves a JS import,
+   which is what makes that work and is also why the specifier carries the
+   extension: there is no exports entry to add one.
+
+   The @font-face block itself is still the console's, and still duplicated by
+   marketing (Fontsource) and docs (Google Fonts). It collapses into one
+   @bagel/ui/styles/fonts.css with the fonts-and-tokens PR; the files moving
+   first is what makes that a one-file change. */
+@font-face { font-family: "Syne"; font-weight: 500 800; font-display: swap; src: url("@bagel/ui/fonts/syne-latin.woff2") format("woff2"); }
+@font-face { font-family: "DM Sans"; font-weight: 400 700; font-display: swap; src: url("@bagel/ui/fonts/dm-sans-latin.woff2") format("woff2"); }
+@font-face { font-family: "DM Mono"; font-weight: 400; font-display: swap; src: url("@bagel/ui/fonts/dm-mono-400.woff2") format("woff2"); }
+@font-face { font-family: "DM Mono"; font-weight: 500; font-display: swap; src: url("@bagel/ui/fonts/dm-mono-500.woff2") format("woff2"); }
 
 :root {
   /* semantic aliases */
