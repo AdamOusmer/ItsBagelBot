@@ -159,7 +159,7 @@ function busServerList(override: string | undefined): string[] {
 // (cert-manager secret mount; file paths so renewals are re-read on
 // reconnect). Both or neither: a half-set pair fails loudly rather than
 // silently downgrading to server-auth only.
-function tlsOptions(): ConnectionOptions['tls'] | undefined {
+export function tlsOptions(): ConnectionOptions['tls'] | undefined {
   const caPem = process.env.NATS_CA_PEM;
   if (!caPem) return undefined;
 

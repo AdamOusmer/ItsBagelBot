@@ -6,6 +6,7 @@
 // request/reply client so a long-lived subscription never interferes with the
 // short-lived RPC requests (and vice versa).
 import {
+import { tlsOptions } from '@bagel/kit/server/nats';
   connect,
   type ConnectionOptions,
   type NatsConnection,
@@ -38,11 +39,13 @@ async function get(): Promise<NatsConnection> {
   if (process.env.NATS_USER) opts.user = process.env.NATS_USER;
   if (process.env.NATS_PASSWORD) opts.pass = process.env.NATS_PASSWORD;
   if (process.env.NATS_TOKEN) opts.token = process.env.NATS_TOKEN;
-  // Verify the server's TLS cert against the fleet CA, exactly like the shared
-  // client: without it Node rejects the NATS-native TLS handshake ("unable to
-  // verify the first certificate") and the feed never connects. No CA (local
-  // dev against a plaintext server) keeps the connection plaintext.
-  if (process.env.NATS_CA_PEM) opts.tls = { ca: process.env.NATS_CA_PEM };
+  // Same TLS shape as the shared client: fleet CA to verify the server AND the
+  // cert-manager client pair, because the hub runs mTLS. CA-only (what this
+  // did until 2026-09-10) never connects: the hub logged "client didn't
+  // provide a certificate" every ~6s per admin pod, a permanent reconnect loop
+  // that never surfaced in the console. No CA (local dev) stays plaintext.
+  const tls = tlsOptions();
+  if (tls) opts.tls = tls;
 
   dialing = connect(opts)
     .then((c) => {
