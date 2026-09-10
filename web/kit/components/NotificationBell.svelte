@@ -7,7 +7,10 @@
   // wiring onMarkRead to its own form action (mark-read semantics differ
   // between the dashboard, which tracks per-user read state, and admin,
   // which has none and passes no onMarkRead at all).
+  import type { ComponentProps } from 'svelte';
   import Icon from '@bagel/ui/svelte/Icon.svelte';
+  import Badge from '@bagel/ui/svelte/Badge.svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
 
   export interface BellNotification {
     id: number;
@@ -60,15 +63,15 @@
   // has no per-user read state and keeps its badge behavior unchanged.
   const showBadge = $derived(unreadCount > 0 && !(onOpen && peeked));
 
-  // Severity -> shared .bb-tag variant. Same map as the settings notification
-  // list, so one level reads identically in both surfaces. No variant is red,
-  // so critical takes --alpha plus the danger colour below.
-  const LEVEL_TAG: Record<string, string> = {
-    info: 'bb-tag--quiet',
-    success: 'bb-tag--live',
-    warning: 'bb-tag--pre',
-    critical: 'bb-tag--alpha'
-  };
+  // Severity -> Badge tone. Same map as the settings notification list, so one
+  // level reads identically in both surfaces. No tone is red, so critical takes
+  // `alpha` plus the danger colour below.
+  const LEVEL_TONE = {
+    info: 'quiet',
+    success: 'live',
+    warning: 'pre',
+    critical: 'alpha'
+  } as const satisfies Record<string, ComponentProps<typeof Badge>['tone']>;
 </script>
 
 <svelte:window onkeydown={(e) => { if (e.key === 'Escape') open = false; }} />
@@ -83,7 +86,7 @@
     onclick={toggle}
   >
     <Icon name="bell" size={16} />
-    {#if showBadge}<span class="bb-tag bb-tag--bare badge"><i class="bb-mark" aria-hidden="true"></i>{unreadCount > 9 ? '9+' : unreadCount}</span>{/if}
+    {#if showBadge}<Badge tone="bare" mark="solid" class="badge">{unreadCount > 9 ? '9+' : unreadCount}</Badge>{/if}
   </button>
 
   {#if open}
@@ -107,15 +110,17 @@
         <div class="items">
           {#each notifications as n (n.id)}
             <div class="item" class:unread={!n.read}>
-              <span class="bb-tag {LEVEL_TAG[n.level] ?? 'bb-tag--quiet'} level {n.level}">{n.level}</span>
+              <Badge
+                tone={LEVEL_TONE[n.level as keyof typeof LEVEL_TONE] ?? 'quiet'}
+                class="level {n.level}">{n.level}</Badge>
               <div class="text">
                 <b>{n.title}</b>
                 <p>{n.body}</p>
               </div>
               {#if onMarkRead && !n.read}
-                <button type="button" class="bb-btn bb-btn--ghost bb-btn--sm" onclick={() => onMarkRead?.(n.id)}>
-                  {readLabel}
-                </button>
+                <Button variant="ghost" size="sm" class="mark-read" onclick={() => onMarkRead?.(n.id)}
+                  >{readLabel}</Button
+                >
               {/if}
             </div>
           {/each}
@@ -138,7 +143,7 @@
 
   /* Was a filled 999px counter circle; the count is an indicator, not a
      control, so it is a bare .bb-tag with a .bb-mark beside the number. */
-  .badge {
+  .icon-btn :global(.badge) {
     position: absolute; top: -7px; right: -11px;
     gap: 4px; font-size: 9.5px; letter-spacing: 0.08em;
     color: var(--bb-tan, #c9a87c); pointer-events: none;
@@ -179,9 +184,8 @@
     border: 1px solid var(--bb-border, rgba(201, 168, 124, 0.15)); border-radius: var(--bb-radius-sm);
     padding: 10px 12px; background: rgba(255, 255, 255, 0.02);
   }
-  .item .level { justify-self: start; grid-row: 1; }
+  .item :global(.level) { justify-self: start; grid-row: 1; }
   .item .text { grid-column: 1 / -1; }
-  .item .bb-btn { grid-column: 2; grid-row: 1; justify-self: end; }
   .item.unread { border-color: rgba(201, 168, 124, 0.3); background: rgba(201, 168, 124, 0.05); }
 
   .text { flex: 1; min-width: 0; }
@@ -190,10 +194,18 @@
 
   /* Pill triad retired: the .bb-tag variants above carry info/success/warning.
      Only the layout and critical's red survive as scoped rules. */
-  .level { font-size: 10px; white-space: nowrap; }
-  .level.critical { color: #d98a8a; border-bottom-color: rgba(217, 138, 138, 0.45); }
+  .item :global(.level) { font-size: 10px; white-space: nowrap; }
+  .item :global(.level.critical) { color: #d98a8a; border-bottom-color: rgba(217, 138, 138, 0.45); }
 
-  .bb-btn--sm { padding: 4px 10px; font-size: 11px; white-space: nowrap; }
+  /* The row fit for the mark-read button, set through the contract's own
+     custom properties. It used to restate `.bb-btn--sm { padding; font-size }`,
+     which forks a shared modifier for one row: every other `--sm` button in
+     the product kept the contract's 7px/11.5px while this one quietly did not,
+     and a change to the modifier would never have reached here. */
+  .item :global(.mark-read) {
+    grid-column: 2; grid-row: 1; justify-self: end;
+    --btn-pad: 4px 10px; --btn-size: 11px; white-space: nowrap;
+  }
 
   .view-all {
     font-family: var(--bb-font-body); font-weight: 600; font-size: 12px;

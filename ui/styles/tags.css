@@ -1,6 +1,14 @@
 /* Copyright (c) 2026 Adam Ousmer. All rights reserved.
    Proprietary. No license granted. See LICENSE.md. */
 
+/* Layer order first. Every adapter in ../svelte JS-imports its own element
+   CSS, so a bundler can emit this file ahead of layers.css -- and layer order
+   is fixed by the first declaration seen, which would rank bb.elements BELOW
+   bb.base and let the button reset there strip the typography off every
+   contract that renders a <button>. Restating it is idempotent; the layers
+   themselves are documented in layers.css. */
+@layer bb.tokens, bb.base, bb.elements, bb.app;
+
 /* ─────────────────────────────────────────────────────────────────
  * Labels, tags & controls
  *
@@ -197,6 +205,14 @@
     /* Filter groups: tabs on a hairline rail, green underline on the active
        one. Replaces a row of pills, which reads as "tags", not "filters". */
     .bb-tabs { display: inline-flex; gap: 22px; border-bottom: 1px solid var(--bb-border); }
+
+    /* A rail that wraps instead of overflowing, for a toolbar that shares its
+       row with something elastic (the public commands page puts a search box
+       beside it). `inline-flex` is the default because the rail is normally
+       sized by its tabs; a wrapping rail has to be a block to have a width to
+       wrap inside. This was a `.bb-tabs { display: flex; flex-wrap: wrap }`
+       redeclare in that page's scoped styles. */
+    .bb-tabs--wrap { display: flex; flex-wrap: wrap; }
 
     .bb-tab {
         padding: 6px 2px 9px;

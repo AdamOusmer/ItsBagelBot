@@ -213,4 +213,18 @@ export const CASES: ParityCase[] = [
     astro: AstroPageHead,
     props: { eyebrow: 'Board', title: 'Commands', description: 'Everything the bot answers to.' },
   },
+  {
+    // The compact modifier separately: it is the one prop that only changes a
+    // class on the root, which is exactly the kind of drift a diff of the
+    // rendered markup catches and a type check does not.
+    name: 'PageHeadCompact',
+    svelte: SveltePageHead,
+    astro: AstroPageHead,
+    props: {
+      eyebrow: 'Overview',
+      title: 'Good evening',
+      description: 'Everything the bot did while you were away.',
+      compact: true,
+    },
+  },
 ];

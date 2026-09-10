@@ -19,7 +19,7 @@
     "./astro/*": "./astro/*"
   },
   "scripts": {
-    "check": "tsc --noEmit && svelte-check --tsconfig ./tsconfig.json && bun scripts/assert-framework-free.mjs",
+    "check": "tsc --noEmit && svelte-check --tsconfig ./tsconfig.json && bun scripts/assert-framework-free.mjs && bun scripts/assert-layer-order.mjs",
     "test": "bun test && bun scripts/size.ts"
   },
   "dependencies": {

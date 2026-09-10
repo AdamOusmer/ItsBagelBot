@@ -13,12 +13,12 @@
   import Skeleton from '@bagel/ui/svelte/Skeleton.svelte';
   import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
   import OverviewGrid from '@bagel/ui/svelte/OverviewGrid.svelte';
+  import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { connectionUiState, type ConnSignals, type ConnUi } from '@bagel/kit/connection-state';
   import { toast } from '@bagel/ui/svelte/toast';
   import type { ActionResult } from '@sveltejs/kit';
   import OnboardingGuide from '$lib/components/OnboardingGuide.svelte';
-  import OverviewHead from '$lib/components/overview/OverviewHead.svelte';
   import BotStatusPanel from '$lib/components/overview/BotStatusPanel.svelte';
   import NeedsAttention from '$lib/components/overview/NeedsAttention.svelte';
   import QuickActions from '$lib/components/overview/QuickActions.svelte';
@@ -293,13 +293,14 @@
 </script>
 
 <section class="screen active">
-  <!-- 1. Compact head: the one <h1> (focus target) with greeting + channel. -->
-  <OverviewHead
+  <!-- 1. Compact head: the one <h1> (focus target) with greeting + channel.
+       `compact` is the contract's modifier; the local OverviewHead.svelte that
+       used to redraw this head at its own four sizes is gone. -->
+  <PageHead
+    compact
     eyebrow={t('overview.eyebrow')}
-    greeting={greeting}
-    channel={data.displayName ?? data.login}
     description={t('overview.description')}
-  />
+  >{greeting}, <em>{data.displayName ?? data.login}</em></PageHead>
 
   <!-- 2. Bot status: the page anchor. Textual state (main's honest ConnUi) plus
        the one recovery action that state needs. -->

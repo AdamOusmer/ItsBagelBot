@@ -7,6 +7,7 @@
     ButtonLink,
     Card,
     PageHead,
+    SectionNav,
     ConfirmDialog,
     EmptyState,
     toast,
@@ -19,7 +20,6 @@
   import FetchKeyManager from '$lib/components/commands/fetches/FetchKeyManager.svelte';
   import LangSwitch from '$lib/components/LangSwitch.svelte';
   import CursorSwitch from '$lib/components/CursorSwitch.svelte';
-  import SettingsNav from '$lib/components/settings/SettingsNav.svelte';
   import SectionPicker from '$lib/components/settings/SectionPicker.svelte';
   import type { DelegationGrant, NotificationWire } from '$lib/server/services';
 
@@ -280,7 +280,7 @@
          container is narrow (container query, not a viewport hide), so the
          same markup is the chip row on a phone. -->
     <aside class="rail">
-      <SettingsNav label={t('settings.navSections')} items={navItems} />
+      <SectionNav label={t('settings.navSections')} items={navItems} />
       <Card class="board">
         <span class="board-title">{t('settings.boardState')}</span>
         <span class="board-row"><i class="dot live" aria-hidden="true"></i>{t('settings.boardTwitch')}</span>

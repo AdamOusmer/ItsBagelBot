@@ -4,21 +4,9 @@
   import { onMount } from 'svelte';
   import { page } from '$app/state';
   import { LightField, getI18n } from '@bagel/kit';
-  import PublicNav from '$lib/components/public/PublicNav.svelte';
-  import { webHref } from '$lib/components/public/links';
+  import { SITE } from '@bagel/kit/site-links';
 
-  const { t, locale } = getI18n();
-
-  // Same row the signed-out layout ships: marketing destinations + Stats.
-  const navLinks = $derived([
-    { href: webHref('/pricing', locale), label: t('public.nav.pricing') },
-    { href: webHref('/guides', locale), label: t('public.nav.guides') },
-    { href: webHref('/contact', locale), label: t('public.nav.contact') },
-    { href: 'https://stats.itsbagelbot.com/', label: t('public.nav.stats') }
-  ]);
-
-  const DISCORD = 'https://discord.gg/SZ2remwSDv';
-  const SITE = 'https://itsbagelbot.com';
+  const { t } = getI18n();
 
   const lines = $derived([
     { text: t('login.title1'), cls: 'tan' },
@@ -153,8 +141,6 @@
 
 <div class="starfield" aria-hidden="true"><LightField /></div>
 
-<PublicNav links={navLinks} showLang />
-
 <header>
   <div class="bg" aria-hidden="true">
     <div class="bg-ring">
@@ -193,7 +179,7 @@
       </div>
     {/if}
 
-    <a class="eyebrow" href={DISCORD} target="_blank" rel="noopener noreferrer">
+    <a class="eyebrow" href={SITE.discord} target="_blank" rel="noopener noreferrer">
       <span class="eyebrow__badge">
         <span class="eyebrow__dot"></span>{t('login.badge')}
       </span>
@@ -231,7 +217,7 @@
 
         <p class="consent">{@html t('login.consent')}</p>
 
-        <a class="migrate" href={SITE}>
+        <a class="migrate" href={SITE.web}>
           {t('login.back')}<span class="migrate__arrow" aria-hidden="true">→</span>
         </a>
       </div>

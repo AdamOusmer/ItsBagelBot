@@ -29,6 +29,13 @@ export { default as AppShell } from '../components/AppShell.svelte';
 export { default as Rail } from '../components/Rail.svelte';
 export { default as RailItem } from '../components/RailItem.svelte';
 export { default as Brand } from '@bagel/ui/svelte/Brand.svelte';
+// The public (signed-out) chrome. The console's own shell is Rail + Topbar;
+// these two are the marketing bar and sign-off, which the public pages wear so
+// a visitor crossing from itsbagelbot.com to commands.itsbagelbot.com does not
+// change sites mid-click.
+export { default as Nav } from '@bagel/ui/svelte/Nav.svelte';
+export { default as Footer } from '@bagel/ui/svelte/Footer.svelte';
+export { default as LanguageSwitcher } from '@bagel/ui/svelte/LanguageSwitcher.svelte';
 export { default as NavGroup } from '../components/NavGroup.svelte';
 export { default as AccountFoot } from '../components/AccountFoot.svelte';
 export { default as Topbar } from '../components/Topbar.svelte';

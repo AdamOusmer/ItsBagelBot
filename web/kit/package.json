@@ -73,7 +73,8 @@
     "./staff-role": "./lib/staff-role.ts",
     "./status-tone": "./lib/status-tone.ts",
     "./live-poll": "./lib/live-poll.ts",
-    "./social": "./lib/social.ts"
+    "./social": "./lib/social.ts",
+    "./site-links": "./lib/site-links.ts"
   },
   "dependencies": {
     "@luzir/bolota": "0.1.6",
