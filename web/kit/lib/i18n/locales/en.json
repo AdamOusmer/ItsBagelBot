@@ -716,8 +716,6 @@
     "addLine": "Add line",
     "removeLine": "Remove line {n}",
     "linesHint": "Up to {max} lines; each line is sent as its own chat message.",
-    "moreVariables": "More variables",
-    "fewerVariables": "Fewer variables",
     "insertVariable": "Insert variable",
     "tokUser": "who ran the command",
     "tokTarget": "first argument, e.g. a mentioned user",

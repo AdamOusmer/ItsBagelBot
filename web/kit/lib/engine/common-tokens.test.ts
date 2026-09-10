@@ -1,10 +1,12 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// The curated opening set, pinned. See the golden-output-tests skill: the eight
-// heads are written out here as a literal so ADDING a ninth is a deliberate
-// edit to this file, not something that happens because somebody appended to a
-// catalog. The whole value of the list is that it is eight.
+// The curated opening set, pinned. See the golden-output-tests skill: the
+// heads are written out here as a literal and the LENGTH is asserted, so
+// widening the offer to six is a deliberate edit to two files rather than
+// something that happens because somebody appended to a catalog. The whole
+// value of the list is that a rehearsal surface shows five chips and nothing
+// else -- no "More variables" button, no expand-in-place, no hidden list.
 //
 // The two catalogs it curates cannot both be imported here -- @bagel/kit must
 // not depend on the marketing site -- so the fixtures below are the two real
@@ -17,19 +19,20 @@
 // list is keyed on, which is the point.
 
 import { describe, expect, test } from 'bun:test';
-import { COMMON_TOKEN_HEADS, isCommonToken, pickCommonTokens, tokenHead } from './common-tokens';
+import {
+  COMMON_TOKEN_HEADS,
+  COMMON_TOKEN_LIMIT,
+  FALLBACK_TOKEN_HEAD,
+  isCommonToken,
+  pickCommonTokens,
+  tokenHead,
+} from './common-tokens';
 
-test('the opening set is exactly these eight heads, in this order', () => {
-  expect([...COMMON_TOKEN_HEADS]).toEqual([
-    'user',
-    'channel',
-    'args',
-    'count',
-    'random',
-    'uptime',
-    'game',
-    'title',
-  ]);
+test('the opening set is exactly these five heads, in this order', () => {
+  expect([...COMMON_TOKEN_HEADS]).toEqual(['user', 'args', 'channel', 'random', 'count']);
+  expect(COMMON_TOKEN_HEADS.length).toBeLessThanOrEqual(5);
+  expect(COMMON_TOKEN_LIMIT).toBe(5);
+  expect(FALLBACK_TOKEN_HEAD).toBe('uptime');
 });
 
 describe('tokenHead', () => {
@@ -42,7 +45,7 @@ describe('tokenHead', () => {
 
   // The dot is not a split point, and this is the test that says why: these
   // are five DIFFERENT variables, and a head that stopped at the dot would
-  // pull all five into a list whose whole job is to be eight long.
+  // pull all five into a list whose whole job is to be five long.
   test('keeps a dotted name whole', () => {
     expect(tokenHead('{user.login}')).toBe('user.login');
     expect(tokenHead('{random.chatter}')).toBe('random.chatter');
@@ -62,12 +65,17 @@ describe('tokenHead', () => {
 test('isCommonToken keys on the head, not the example payload', () => {
   expect(isCommonToken('{count:deaths}')).toBe(true);
   expect(isCommonToken('{count:falls}')).toBe(true);
+  expect(isCommonToken('{uptime}')).toBe(true);
   // The console swaps {counter:…} for the counter PICKER, so the bumping
   // counter is deliberately NOT in the opening set: it would show the same
   // variable twice there.
   expect(isCommonToken('{counter:deaths}')).toBe(false);
   expect(isCommonToken('{user.login}')).toBe(false);
   expect(isCommonToken('{followage}')).toBe(false);
+  // Cut from the set when it went from eight to five: real, documented, and
+  // reachable somewhere other than the rehearsal surface.
+  expect(isCommonToken('{game}')).toBe(false);
+  expect(isCommonToken('{title}')).toBe(false);
 });
 
 /** The console palette, in ResponseEditor's own order, counter chip removed. */
@@ -96,18 +104,35 @@ const MARKETING_CATALOG = [
 ];
 
 describe('pickCommonTokens', () => {
-  test('the console opens on eight, in the console catalog order', () => {
-    expect(pickCommonTokens(CONSOLE_CATALOG, (t) => t)).toEqual([
+  test('the console opens on five, in the console catalog order', () => {
+    const picked = pickCommonTokens(CONSOLE_CATALOG, (t) => t);
+    expect(picked).toEqual([
       '{user}', '{args}', '{channel}', '{random}', '{count:deaths}',
-      '{uptime}', '{title}', '{game}',
     ]);
+    expect(picked.length).toBeLessThanOrEqual(5);
   });
 
-  test('the marketing builder opens on the same eight variables', () => {
-    expect(pickCommonTokens(MARKETING_CATALOG, (t) => t)).toEqual([
+  test('the marketing builder opens on the same five variables', () => {
+    const picked = pickCommonTokens(MARKETING_CATALOG, (t) => t);
+    expect(picked).toEqual([
       '{user}', '{args}', '{channel}', '{count:falls}', '{random}',
-      '{uptime}', '{title}', '{game}',
     ]);
+    expect(picked.length).toBeLessThanOrEqual(5);
+  });
+
+  // The counter is the only slot that moves: a catalog without one spends the
+  // fifth chip on {uptime} rather than showing four.
+  test('a catalog with no counter falls back to uptime for the fifth slot', () => {
+    expect(
+      pickCommonTokens(
+        ['{user}', '{args}', '{channel}', '{random}', '{uptime}', '{title}', '{game}'],
+        (t) => t,
+      ),
+    ).toEqual(['{user}', '{args}', '{channel}', '{random}', '{uptime}']);
+  });
+
+  test('a catalog with a counter does not also spend a slot on uptime', () => {
+    expect(pickCommonTokens(['{count:deaths}', '{uptime}'], (t) => t)).toEqual(['{count:deaths}']);
   });
 
   // The reason this is a function rather than a filter each surface writes.
@@ -116,7 +141,7 @@ describe('pickCommonTokens', () => {
     expect(pickCommonTokens(['{random:1-6}', '{random}'], (t) => t)).toEqual(['{random:1-6}']);
   });
 
-  test('a short catalog with none of the eight comes back empty', () => {
+  test('a short catalog with none of the five comes back empty', () => {
     expect(pickCommonTokens(['{followage}', '{points}'], (t) => t)).toEqual([]);
   });
 });

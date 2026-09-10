@@ -778,12 +778,10 @@ const UI = {
   sendHelp: { en: 'Review the summary that opens, press Create, done.', fr: "Relisez le récapitulatif qui s'ouvre, appuyez sur Créer, c'est fait." },
   step3Title: { en: 'Make it dynamic', fr: 'Rendez-la dynamique' },
   step3Sub: { en: 'Click a variable to insert it at your cursor. Only variables that work here are shown.', fr: 'Cliquez une variable pour l’insérer au curseur. Seules les variables qui fonctionnent ici sont montrées.' },
-  // The builder opens on the eight common variables and expands in place, the
-  // same eight and the same toggle as the console's response editor -- the
-  // shared list is @bagel/kit/engine/common-tokens, which is where the reason
-  // is written out.
-  moreVars: { en: 'More variables', fr: 'Plus de variables' },
-  fewerVars: { en: 'Fewer variables', fr: 'Moins de variables' },
+  // The builder shows FIVE variables and nothing else -- no toggle, no hidden
+  // rest-of-catalog -- so there is no "More variables" string to translate.
+  // Which five, and why the toggle is not coming back, is written out in
+  // @bagel/kit/engine/common-tokens.
   counterNameAria: { en: 'Counter name', fr: 'Nom du compteur' },
   counterScopeAria: { en: 'Counter scope', fr: 'Portée du compteur' },
   bracesSummary: { en: 'What do the braces mean?', fr: 'Que signifient les accolades?' },

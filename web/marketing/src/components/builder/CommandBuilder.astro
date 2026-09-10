@@ -94,13 +94,6 @@ for (const surface of data.surfaces) {
                 <header><b>{ui.step3Title}</b><span class="scope" data-scope></span></header>
                 <p class="palette-sub">{ui.step3Sub}</p>
                 <div class="vars" data-vars></div>
-                <!-- The toggle lives in the same section as the cards it reveals:
-                     the rest of the catalog is MORE OF WHAT IS ALREADY HERE, so a
-                     disclosure that moved it into a panel would be a second
-                     pattern for one list. Same behaviour, same eight opening
-                     variables and the same ghost button as the console's response
-                     editor; the shared list is @bagel/kit/engine/common-tokens. -->
-                <div class="vars-more" data-vars-more hidden></div>
                 <details><summary>{ui.bracesSummary}</summary><p>{ui.bracesBody}</p></details>
             </section>
 
@@ -642,38 +635,28 @@ for (const surface of data.surfaces) {
             return card;
         }
 
-        // Expanded is per-visit, not per-surface: switching surface
-        // (custom command -> follow alert) re-renders the cards and keeps the
-        // reader's choice, because having asked for the whole catalog once is
-        // a statement about the reader, not about the surface.
-        let varsExpanded = false;
-
+        // The custom-command surface is FIVE cards and nothing else: no "More
+        // variables" button, no expand-in-place, no hidden rest-of-catalog.
+        // Rendering all forty was the first shape and eight-plus-a-toggle was
+        // the second; both put the wall in front of a first-time reader, the
+        // second one click in. Which five is
+        // @bagel/kit/engine/common-tokens, shared with the console's response
+        // editor, and the reason the toggle is not coming back is recorded
+        // there. The rest is real and documented and belongs elsewhere.
+        //
+        // Only the custom-command catalog is capped. The module and alert
+        // surfaces carry three to eight vars each, all of them specific to
+        // that event, and dropping some with nowhere to see them loses content
+        // to save nothing.
         function renderVars() {
             const box = $<HTMLElement>('[data-vars]');
-            const moreBox = $<HTMLElement>('[data-vars-more]');
             const all = current().vars;
-            const common = pickCommonTokens(all, (item) => item.token);
-            const collapsible = common.length < all.length;
-            const shown = !collapsible || varsExpanded ? all : common;
+            const shown = surfaceId === 'custom' ? pickCommonTokens(all, (item) => item.token) : all;
 
             box.replaceChildren();
             for (const item of shown) {
                 box.append(item.scopes?.length ? buildCounterVar(item) : buildSimpleVar(item));
             }
-
-            moreBox.replaceChildren();
-            moreBox.hidden = !collapsible;
-            if (!collapsible) return;
-            const toggle = document.createElement('button');
-            toggle.type = 'button';
-            toggle.className = 'bb-btn bb-btn--ghost bb-btn--sm';
-            toggle.setAttribute('aria-expanded', String(varsExpanded));
-            toggle.textContent = varsExpanded ? ui.fewerVars : ui.moreVars;
-            toggle.addEventListener('click', () => {
-                varsExpanded = !varsExpanded;
-                renderVars();
-            });
-            moreBox.append(toggle);
         }
 
         // --- Recipes ----------------------------------------------------------
@@ -895,7 +878,6 @@ for (const surface of data.surfaces) {
     .scope { color: var(--green-glow); font: 10.5px var(--font-mono); letter-spacing: .06em; text-transform: uppercase; text-align: right; }
     .palette-sub { margin: 6px 0 14px; color: #a39c92; font-size: 13px; }
     .vars { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .vars-more { margin-top: 10px; }
 
     .palette details { margin-top: 14px; color: #a39c92; font-size: 12.5px; }
     .palette details summary { color: var(--tan-light); cursor: pointer; }

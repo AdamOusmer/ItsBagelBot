@@ -9,7 +9,7 @@
   // each field is one chat message the bot will send (commands allow up to 5).
   // The default stays a single field for callers whose reply is one message
   // (module replies); there pasted newlines collapse to spaces.
-  import { RESPONSE_MAX, getI18n, Button, Chip } from '@bagel/kit';
+  import { RESPONSE_MAX, getI18n, Chip } from '@bagel/kit';
   import { pickCommonTokens } from '@bagel/kit/engine/common-tokens';
   import CounterPicker from '$lib/components/counters/CounterPicker.svelte';
   import FetchSourcePicker, { type SourceDef } from '$lib/components/commands/fetches/FetchSourcePicker.svelte';
@@ -134,20 +134,20 @@
   const pickerOn = $derived(tokens === DEFAULT_TOKENS);
   const paletteTokens = $derived(pickerOn ? tokens.filter((tk) => !tk.token.startsWith('{counter')) : tokens);
 
-  // The palette opens on the eight common variables and expands in place. The
-  // whole catalog used to render at once -- forty chips on the command
-  // surface -- and the eight a first command is actually built out of were
-  // somewhere in the middle of that wall. Which eight is
-  // @bagel/kit/engine/common-tokens, shared with the marketing command
-  // builder so the two rehearsal surfaces open on the same set.
+  // The command palette is FIVE chips and nothing else. The whole catalog
+  // used to render at once (forty chips), then eight chips plus a ghost "More
+  // variables" toggle that expanded the rest in place; both put the wall back
+  // in front of a first-time reader, the second one click in. Which five is
+  // @bagel/kit/engine/common-tokens, shared with the marketing command builder
+  // so the two rehearsal surfaces open on the same set, and the reason the
+  // toggle is not coming back is recorded there. The rest of the catalog is
+  // real and documented and belongs on another surface.
   //
   // A caller passing its OWN tokens (module replies, rewards) is never
   // truncated: those catalogs are already short (three to eight entries) and
-  // hiding two of five behind a toggle costs a click to save nothing.
-  const commonTokens = $derived(pickCommonTokens(paletteTokens, (tk) => tk.token));
-  const collapsible = $derived(pickerOn && commonTokens.length < paletteTokens.length);
-  let showAll = $state(false);
-  const shownTokens = $derived(collapsible && !showAll ? commonTokens : paletteTokens);
+  // dropping two of five with nowhere to see them loses content to save
+  // nothing.
+  const shownTokens = $derived(pickerOn ? pickCommonTokens(paletteTokens, (tk) => tk.token) : paletteTokens);
 
   // One entry per message field. Seeded from the incoming value (a draft
   // restore or an edit of an existing multi-line command); from then on the
@@ -286,17 +286,6 @@
   {#each shownTokens as tk (tk.token)}
     <Chip tone="muted" title={chipTitle(tk)} onclick={() => insert(tk.token)}>{tk.token}</Chip>
   {/each}
-  {#if collapsible}
-    <!-- Expands IN PLACE, into this same toolbar: the rest of the catalog is
-         more of what is already here, so a disclosure that moved it into a
-         panel or a menu would be a second pattern for one list. -->
-    <Button
-      variant="ghost"
-      size="sm"
-      onclick={() => (showAll = !showAll)}
-      aria-expanded={showAll}
-    >{i18n.t(showAll ? 'commandEditor.fewerVariables' : 'commandEditor.moreVariables')}</Button>
-  {/if}
   {#if pickerOn}
     <!-- Separated from the literals above: these two open a menu instead of
          inserting what their label says, so they get their own group rather
