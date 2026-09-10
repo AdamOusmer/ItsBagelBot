@@ -427,10 +427,23 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   // The data table and its scroll wrapper, lifted out of console.css.
   // Measured 2026-09-10 (macOS/arm64): 474 B gzip. 474 + 150 = 624, +10%.
   { name: "elements/table", budget: 700 },
-  // Labels, tags, marks, sweeps and chips. Was ~120 lines in the marketing
-  // style.css and ~110 in the console app.css; both are deleted.
-  // Measured 2026-09-09 (macOS/arm64): 1336 B gzip. 1336 + 150 = 1486, +10%.
-  { name: "tags", budget: 1640 },
+  // Labels, tags, marks, sweeps, chips AND THE RAIL. Was ~120 lines in the
+  // marketing style.css and ~110 in the console app.css; both are deleted.
+  //
+  // RAISED 1640 -> 2020 on 2026-09-10, measured at 1836 B gzip (macOS/arm64),
+  // up from 1353. The +483 is three rows arriving here and three files
+  // leaving: `.bb-tabs` grew the orientation modifiers, the count slot, the
+  // active diamond, the drawn underline and the zero-sized form input, and in
+  // exchange elements/segmented.css (160 B) and elements/radio-group.css
+  // (512 B) were DELETED and the `.bb-section-nav` block left
+  // elements/shell.css (3276 -> 3038 B, -238). Net across the four files is
+  // -427 B, so the console ships less CSS than before even though this row is
+  // bigger. 1836 + 150 = 1986, +10% -> 2020.
+  //
+  // The row to watch is a SECOND rail arriving: a `.bb-pills`, a
+  // `.bb-segmented`, anything that answers "which one of these am I looking
+  // at" a second way. That is what the three deleted files were.
+  { name: "tags", budget: 2020 },
   // The 24px/760ms/80ms entrance, both the scroll transition and the load
   // keyframe. Measured 2026-09-09: 307 B gzip. 307 + 150 = 457, +10%.
   { name: "reveal", budget: 520 },
@@ -525,12 +538,8 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   // 517 B. Carries .bb-input, the frame every text control in the console
   // wears, so it is the largest of the form rows and the one to watch.
   { name: "elements/field", budget: 760 },
-  // 512 B.
-  { name: "elements/radio-group", budget: 760 },
   // 298 B.
   { name: "elements/search-input", budget: 520 },
-  // 160 B.
-  { name: "elements/segmented", budget: 360 },
   // 454 B.
   { name: "elements/skeleton", budget: 700 },
   // 703 B. The biggest, and fairly: it carries the grid, the tile, three

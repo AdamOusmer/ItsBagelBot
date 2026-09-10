@@ -1393,21 +1393,33 @@ const PRIMITIVES: {
     svelte: SvelteSegmentedControl,
     astro: AstroSegmentedControl,
     props: {"options":["All","Live"],"value":"Live"},
-    html: "<div class=\"bb-seg bb-tabs\" role=\"radiogroup\" aria-label=\"Filter\"><button type=\"button\" class=\"bb-tab \" role=\"radio\" aria-checked=\"false\">All</button><button type=\"button\" class=\"bb-tab is-active\" role=\"radio\" aria-checked=\"true\">Live</button></div>",
+    html: "<div class=\"bb-tabs bb-tabs--wrap\" role=\"radiogroup\" aria-label=\"Filter\"><button type=\"button\" class=\"bb-tab \" role=\"radio\" aria-checked=\"false\">All</button><button type=\"button\" class=\"bb-tab is-active\" role=\"radio\" aria-checked=\"true\">Live</button></div>",
   },
   {
     name: "RadioGroup",
     svelte: SvelteRadioGroup,
     astro: AstroRadioGroup,
     props: {"name":"tier","options":[{"value":"a","label":"A"}],"value":"a"},
-    html: "<div class=\"bb-radio-group\" role=\"radiogroup\" aria-label=\"Options\"><label class=\"bb-radio\" data-on><input type=\"radio\" name=\"tier\" value=\"a\" checked><span class=\"bb-radio__dot\" aria-hidden=\"true\"></span> A</label></div>",
+    html: "<div class=\"bb-tabs bb-tabs--wrap\" role=\"radiogroup\" aria-label=\"Options\"><label class=\"bb-tab is-active\"><input class=\"bb-tab__input\" type=\"radio\" name=\"tier\" value=\"a\" checked> A</label></div>",
   },
   {
     name: "SectionNav",
     svelte: SvelteSectionNav,
     astro: AstroSectionNav,
     props: {"label":"Sections","items":[{"href":"#a","label":"A","count":2}]},
-    html: "<div class=\"bb-section-nav-host\"><nav class=\"bb-section-nav bb-tabs\" aria-label=\"Sections\"><a class=\"bb-tab\" href=\"#a\">A<span class=\"bb-section-nav__count\">2</span></a></nav></div>",
+    html: "<div class=\"bb-tabs-host\"><nav class=\"bb-tabs bb-tabs--auto\" aria-label=\"Sections\"><a class=\"bb-tab\" href=\"#a\">A<span class=\"bb-tab__count\">2</span></a></nav></div>",
+  },
+  {
+    // The rail's second orientation. Pinned separately from the default
+    // because `orientation` is the ONE thing SectionNav still decides for
+    // itself -- everything else it renders is the shared `.bb-tabs` contract
+    // -- and a modifier that silently stopped being emitted would look like a
+    // CSS regression on the settings page rather than an adapter one.
+    name: "SectionNav|vertical",
+    svelte: SvelteSectionNav,
+    astro: AstroSectionNav,
+    props: {"label":"Sections","items":[{"href":"#a","label":"A"}],"orientation":"vertical"},
+    html: "<div class=\"bb-tabs-host\"><nav class=\"bb-tabs bb-tabs--vertical\" aria-label=\"Sections\"><a class=\"bb-tab\" href=\"#a\">A</a></nav></div>",
   },
   {
     name: "Scroller",

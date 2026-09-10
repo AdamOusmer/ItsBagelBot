@@ -264,7 +264,7 @@
   .index {
     display: grid;
     gap: 18px 32px;
-    --section-nav-sticky-top: calc(58px + env(safe-area-inset-top, 0px) + 68px);
+    --bb-tabs-sticky-top: calc(58px + env(safe-area-inset-top, 0px) + 68px);
   }
   /* One column on a phone (chips above the list). Two columns when there is
      room for a ~10rem rail: reflow, not display:none. The old sidebar hid
@@ -302,7 +302,7 @@
       top: calc(52px + env(safe-area-inset-top, 0px));
     }
     .index {
-      --section-nav-sticky-top: calc(52px + env(safe-area-inset-top, 0px) + 68px);
+      --bb-tabs-sticky-top: calc(52px + env(safe-area-inset-top, 0px) + 68px);
     }
     .family {
       scroll-margin-top: calc(52px + env(safe-area-inset-top, 0px) + 72px);

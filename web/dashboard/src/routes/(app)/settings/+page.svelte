@@ -632,7 +632,7 @@
   .layout {
     display: grid;
     gap: 18px 40px;
-    --section-nav-sticky-top: calc(58px + env(safe-area-inset-top, 0px) + 68px);
+    --bb-tabs-sticky-top: calc(58px + env(safe-area-inset-top, 0px) + 68px);
   }
   @media (min-width: 761px) {
     .layout { grid-template-columns: 12rem minmax(0, 1fr); align-items: start; }
@@ -842,6 +842,6 @@
     .notif-text { flex-basis: 100%; }
   }
   @media (max-width: 900px) {
-    .layout { --section-nav-sticky-top: calc(52px + env(safe-area-inset-top, 0px) + 68px); }
+    .layout { --bb-tabs-sticky-top: calc(52px + env(safe-area-inset-top, 0px) + 68px); }
   }
 </style>

@@ -2,28 +2,41 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Astro twin of ../svelte/SectionNav.svelte: in-page section navigation on the
-// shared `.bb-tabs` rail. Real anchors, never ARIA tabs — each one points at a
-// section of this page, so the native semantics (open in a new tab,
-// right-click, the "link" role) are kept and nothing reimplements roving focus.
+// Astro twin of ../svelte/SectionNav.svelte: a thin adapter over THE RAIL
+// (`.bb-tabs`, ../styles/tags.css) for in-page section navigation. Real
+// anchors, never ARIA tabs — each one points at a section of this page, so the
+// native semantics (open in a new tab, right-click, the "link" role) are kept
+// and nothing reimplements roving focus.
 //
 // Which one is lit comes from the hash at runtime, via ../lib/hash-active.ts.
 // This adapter emits none of them as active, which is correct and not a
 // compromise: a server (or a static build) never receives the fragment. A
 // static page that wants the engine calls `mountHashActive` on the nav in its
 // own script; the Svelte twin does it in an effect.
-import '../styles/elements/shell.css';
 import '../styles/tags.css';
 
 interface Props {
     label: string;
     items: { href: string; label: string; count?: number }[];
+    /**
+     * `auto` is a row while its column is wide enough for one and a vertical
+     * hairline rail once it is not — a container query, so the same markup
+     * serves a phone and a two-column settings page. The two fixed values
+     * exist for a caller whose column cannot change width.
+     */
+    orientation?: 'auto' | 'horizontal' | 'vertical';
     class?: string;
     [key: string]: unknown;
 }
 
-const { label, items, class: className = '', ...rest } = Astro.props;
-const classes = ['bb-section-nav', 'bb-tabs', className].filter(Boolean).join(' ');
+const MODIFIER = {
+    auto: 'bb-tabs--auto',
+    horizontal: 'bb-tabs--wrap',
+    vertical: 'bb-tabs--vertical',
+} as const;
+
+const { label, items, orientation = 'auto', class: className = '', ...rest } = Astro.props;
+const classes = ['bb-tabs', MODIFIER[orientation], className].filter(Boolean).join(' ');
 ---
 
-<div class="bb-section-nav-host"><nav class={classes} aria-label={label} {...rest}>{items.map((item) => (<a class="bb-tab" href={item.href}>{item.label}{item.count != null && (<span class="bb-section-nav__count">{item.count}</span>)}</a>))}</nav></div>
+<div class="bb-tabs-host"><nav class={classes} aria-label={label} {...rest}>{items.map((item) => (<a class="bb-tab" href={item.href}>{item.label}{item.count != null && (<span class="bb-tab__count">{item.count}</span>)}</a>))}</nav></div>

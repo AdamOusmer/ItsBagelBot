@@ -786,6 +786,7 @@
     "titleEm": "commandes",
     "description": "Tout ce à quoi le bot répond dans le chat. Filtrez, ou tapez un nom qui n'existe pas encore pour le créer.",
     "degraded": "Les données de commandes en direct sont injoignables pour le moment. Rien n'est affiché plutôt que des lignes obsolètes. Réessayez bientôt.",
+    "filterLabel": "Filtrer les commandes",
     "filterAll": "Toutes",
     "filterActive": "Actives",
     "filterDisabled": "Désactivées",

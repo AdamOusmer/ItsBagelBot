@@ -57,9 +57,9 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **FieldError** | — | svelte<br>*Svelte only: it renders only when a form action has returned an error, which a static page has not.* | — |
 | **IconButton** | `label*`: string<br>`tooltip`: boolean<br>`size`: 'md' \| 'sm'<br>`type`: 'button' \| 'submit' \| 'reset'<br>`onclick`: (e: MouseEvent) => void<br>`disabled`: boolean | svelte + astro | `styles/elements/button.css, styles/elements/tooltip.css` |
 | **Input** | `value`: string<br>`type`: 'text' \| 'email' \| 'url' \| 'tel' \| 'number' \| 'password' \| 'search'<br>`invalid`: boolean<br>`fill`: boolean<br>`mono`: boolean<br>`icon`: Snippet<br>`trail`: Snippet | svelte + astro | `styles/elements/field.css, styles/elements/input.css` |
-| **RadioGroup** | `name*`: string<br>`options*`: readonly { value: string; label: string }[]<br>`value*`: string<br>`label`: string | svelte + astro | `styles/elements/radio-group.css` |
+| **RadioGroup** | `name*`: string<br>`options*`: readonly { value: string; label: string }[]<br>`value*`: string<br>`label`: string | svelte + astro | `styles/tags.css` |
 | **SearchInput** | — | svelte + astro | — |
-| **SegmentedControl** | `options*`: readonly string[]<br>`value*`: string<br>`label`: string | svelte + astro | `styles/elements/segmented.css, styles/tags.css` |
+| **SegmentedControl** | `options*`: readonly string[]<br>`value*`: string<br>`label`: string | svelte + astro | `styles/tags.css` |
 | **Select** | `value`: string<br>`invalid`: boolean<br>`fill`: boolean | svelte + astro | `styles/elements/field.css, styles/elements/input.css` |
 | **Switch** | `checked`: boolean<br>`label*`: string<br>`describedby`: string<br>`disabled`: boolean<br>`pending`: boolean<br>`type`: 'button' \| 'submit'<br>`onchange`: (v: boolean) => void | svelte + astro | — |
 | **Textarea** | `value`: string<br>`rows`: number<br>`invalid`: boolean<br>`fill`: boolean<br>`mono`: boolean | svelte + astro | `styles/elements/field.css, styles/elements/input.css` |
@@ -101,7 +101,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **PageToolbar** | `lead`: Snippet<br>`trail`: Snippet | svelte + astro | `styles/elements/shell.css` |
 | **Rail** | `brand*`: UiBrand<br>`groups*`: UiNavGroup[]<br>`foot`: Snippet<br>`ariaLabel`: string | svelte + astro | `styles/elements/shell.css` |
 | **RailItem** | `href`: string<br>`icon`: IconName<br>`label*`: string<br>`active`: boolean<br>`locked`: boolean<br>`lockedHint`: string<br>`count`: string \| number | svelte + astro | `styles/elements/shell.css` |
-| **SectionNav** | `label*`: string<br>`items*`: { href: string; label: string; count?: number }[] | svelte + astro | `styles/elements/shell.css, styles/tags.css` |
+| **SectionNav** | `label*`: string<br>`items*`: { href: string; label: string; count?: number }[]<br>`orientation`: 'auto' \| 'horizontal' \| 'vertical' | svelte + astro | `styles/tags.css` |
 | **SocialRail** | `items*`: { label: string; href: string; icon: IconName }[]<br>`ariaLabel*`: string<br>`size`: number | svelte + astro | `styles/elements/nav.css` |
 | **Topbar** | `brand*`: UiBrand<br>`crumbs`: UiCrumb[]<br>`crumbAriaLabel`: string<br>`clock`: boolean<br>`railed`: boolean<br>`actions`: Snippet<br>`account`: Snippet | svelte + astro | `styles/elements/shell.css` |
 

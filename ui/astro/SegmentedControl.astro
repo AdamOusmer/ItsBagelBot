@@ -2,8 +2,9 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Astro twin of ../svelte/SegmentedControl.svelte: an in-page filter as one
-// accessible control (radiogroup) on the shared `.bb-tabs` rail.
+// Astro twin of ../svelte/SegmentedControl.svelte: a thin adapter over THE
+// RAIL (`.bb-tabs`, ../styles/tags.css), an in-page filter as one accessible
+// control.
 //
 // STATIC. The Svelte twin owns `value` as bindable state and flips it on
 // click; here the selected option is whatever the caller renders it as, and
@@ -13,9 +14,10 @@
 // change a picture the surrounding prose is describing.
 //
 // Not a form field: it posts nothing. The control that survives a no-JS
-// submit is RadioGroup, and the two are named apart on purpose.
+// submit is RadioGroup, which wears the same rail with a real
+// <input type="radio"> inside each tab, and the two are named apart on
+// purpose.
 import '../styles/tags.css';
-import '../styles/elements/segmented.css';
 
 interface Props {
     options: readonly string[];
@@ -26,4 +28,4 @@ interface Props {
 const { options, value = '', label = 'Filter' } = Astro.props;
 ---
 
-<div class="bb-seg bb-tabs" role="radiogroup" aria-label={label}>{options.map((opt) => (<button type="button" class={`bb-tab ${value === opt ? 'is-active' : ''}`} role="radio" aria-checked={value === opt}>{opt}</button>))}</div>
+<div class="bb-tabs bb-tabs--wrap" role="radiogroup" aria-label={label}>{options.map((opt) => (<button type="button" class={`bb-tab ${value === opt ? 'is-active' : ''}`} role="radio" aria-checked={value === opt}>{opt}</button>))}</div>

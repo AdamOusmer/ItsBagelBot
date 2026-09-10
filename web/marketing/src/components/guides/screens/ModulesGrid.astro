@@ -119,11 +119,11 @@ const categories: { label: string; count: string }[] = [
 >
     <div class="gs-find"><SearchInput placeholder={L.searchPlaceholder} readonly /></div>
     <div class="gs-index">
-        <div class="bb-section-nav-host">
-            <nav class="bb-section-nav" aria-label={L.railTitle}>
+        <div class="bb-tabs-host">
+            <nav class="bb-tabs bb-tabs--auto" aria-label={L.railTitle}>
                 {categories.map((cat, i) => (
                     <a class:list={['bb-tab', i === 0 && 'is-active']} href="#">
-                        {cat.label}<span class="bb-section-nav__count">{cat.count}</span>
+                        {cat.label}<span class="bb-tab__count">{cat.count}</span>
                     </a>
                 ))}
             </nav>

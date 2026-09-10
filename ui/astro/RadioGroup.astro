@@ -2,14 +2,15 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Astro twin of ../svelte/RadioGroup.svelte.
+// Astro twin of ../svelte/RadioGroup.svelte: THE RAIL (`.bb-tabs`,
+// ../styles/tags.css) in its FORM CONTROL shape — each tab is a <label>
+// wrapping a real <input type="radio">, so the value still posts through
+// native form submission.
 //
-// Styled pills backed by real <input type="radio">, so the value still posts
-// through native form submission. That is the whole reason this element and
-// SegmentedControl are two elements and not one with a flag: this one is a
-// FORM FIELD and survives with JavaScript off, the other is client-only chip
-// state that posts nothing.
-import '../styles/elements/radio-group.css';
+// That is the whole reason this element and SegmentedControl are two elements
+// and not one with a flag: this one is a FORM FIELD and survives with
+// JavaScript off, the other is client-only state that posts nothing.
+import '../styles/tags.css';
 
 interface Props {
     name: string;
@@ -20,7 +21,7 @@ interface Props {
 }
 
 // The space before the label is CONTENT, not layout. The Svelte twin has the
-// label on its own template line after the dot, and a newline+indent between
+// label on its own template line after the input, and a newline+indent between
 // an inline element and a text node renders as a single space; the parity
 // normaliser keeps whitespace inside text nodes precisely so a difference like
 // this cannot be normalised into invisibility. Written out here so the two
@@ -28,4 +29,4 @@ interface Props {
 const { name, options, value = '', label = 'Options' } = Astro.props;
 ---
 
-<div class="bb-radio-group" role="radiogroup" aria-label={label}>{options.map((opt) => (<label class="bb-radio" data-on={value === opt.value ? '' : undefined}><input type="radio" name={name} value={opt.value} checked={value === opt.value} /><span class="bb-radio__dot" aria-hidden="true"></span> {opt.label}</label>))}</div>
+<div class="bb-tabs bb-tabs--wrap" role="radiogroup" aria-label={label}>{options.map((opt) => (<label class={`bb-tab ${value === opt.value ? 'is-active' : ''}`}><input class="bb-tab__input" type="radio" name={name} value={opt.value} checked={value === opt.value} /> {opt.label}</label>))}</div>

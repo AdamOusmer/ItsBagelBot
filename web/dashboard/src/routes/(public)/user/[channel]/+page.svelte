@@ -162,10 +162,9 @@
     <div class="bb-tabs bb-tabs--wrap" role="tablist" aria-label="Command source">
       {#each FILTERS as f (f.id)}
         {@const on = !moduleId && filter === f.id}
-        <button class="bb-tab" class:is-active={on} role="tab" type="button" aria-selected={on} onclick={() => pickFilter(f.id)}>
-          <span>{f.label}</span>
-          <span class="tab__count">{countOf(f.id)}</span>
-        </button>
+        <button class="bb-tab" class:is-active={on} role="tab" type="button" aria-selected={on} onclick={() => pickFilter(f.id)}
+          >{f.label}<span class="bb-tab__count">{countOf(f.id)}</span></button
+        >
       {/each}
     </div>
   </div>
@@ -434,7 +433,6 @@
      All that is left here is how wide the field is in the wrapping row. */
   .search { flex: 1 1 260px; min-width: 0; }
 
-  .tab__count { font-family: var(--bb-font-mono); font-size: 11px; color: var(--bb-muted); }
 
   /* ── columns ── */
 

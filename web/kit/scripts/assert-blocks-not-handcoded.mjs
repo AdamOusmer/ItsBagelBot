@@ -172,7 +172,6 @@ const PENDING_ROWS = [
   ['dashboard/src/routes/(public)/stats/+page.svelte', 11],
   ['dashboard/src/routes/(app)/counters/+page.svelte', 8],
   ['dashboard/src/routes/(public)/user/[channel]/+page.svelte', 6],
-  ['dashboard/src/lib/components/discord/GuildNav.svelte', 6],
   ['dashboard/src/routes/(app)/settings/import/+page.svelte', 5],
   ['dashboard/src/lib/components/modules/TriggerRuleEditor.svelte', 5],
   ['dashboard/src/routes/(app)/settings/+page.svelte', 4],
