@@ -52,11 +52,22 @@
   # script-src.
   #
   # Origins explained:
-  #   fonts.googleapis.com  → CSS @import in src/styles/theme.css
-  #   fonts.gstatic.com     → woff2 font payloads requested by that CSS
   #   data: / blob:         → favicons-as-data-URIs and any client-side
   #                           image generation; safe with object-src 'none'
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; connect-src 'self'; media-src 'self'; worker-src 'self' blob:; manifest-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'self'; object-src 'none'; upgrade-insecure-requests
+  #
+  # No third-party origin is allowed any more. style-src used to allow the
+  # Google Fonts CSS host and font-src the Google static host, for the
+  # @import at the top of src/styles/theme.css. The faces are self-hosted in
+  # @bagel/ui and emitted into /_astro, so both hosts came out with that
+  # @import and font-src is plain 'self' — a font can now only be loaded from
+  # this origin, which is the property the allowance was costing. (The hosts
+  # are not named here on purpose: this file ships verbatim to dist/ and the
+  # release check greps the built output for either domain. The full history
+  # is in src/styles/theme.css, which the build minifies away.)
+  # data: stays on font-src: nothing ships a data: font today, but Starlight's
+  # own build has done so for tiny icon faces and losing it is a silent
+  # regression rather than an error.
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; connect-src 'self'; media-src 'self'; worker-src 'self' blob:; manifest-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'self'; object-src 'none'; upgrade-insecure-requests
 
 # ─────────────────────────────────────────────────────────────────────
 # Astro's hashed asset bundle (JS/CSS) — immutable, cache for a year.

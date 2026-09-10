@@ -30,18 +30,33 @@
    (web/dashboard/Containerfile.ignore). The whitelist is the price of the
    library being extractable to its own repo later.
 
-   Cascade layers: this file is unlayered today and the tokens it declares are
-   custom properties, which do not participate in the cascade the way
-   declarations do -- a `--bb-*` on `:root` is won by specificity and order,
-   not by layer. styles/layers.css names `bb.tokens` as the first layer so this
-   file can move into it without reordering anything; that move belongs with
-   fonts.css, which is when there is a second token file to order against.
+   Cascade layers: the :root block below is in `bb.tokens`, the weakest layer
+   styles/layers.css declares. Custom properties DO take part in the cascade
+   (a `--bb-*` declaration is won like any other declaration), and an unlayered
+   one beats every layered one regardless of order, so putting the brand
+   defaults in the weakest layer is what lets an app override a token with a
+   plain `:root { --bb-x: … }` without depending on which stylesheet the
+   bundler happened to emit last. That was already the de-facto arrangement,
+   because every consumer @imports this file first; the layer makes it a fact
+   instead of an accident of import order. fonts.css deliberately stays
+   unlayered -- see the note at the top of that file.
 
-   App-specific tokens do NOT belong here. Fonts are the clearest case: the
-   three apps legitimately name different families (marketing/ self-hosts
-   Fontsource variable faces, the console self-hosts static woff2, docs pulls
-   from Google Fonts), so a shared font token would be a lie in two of the
-   three. Same for spacing scales, layout widths and status colours. */
+   What belongs here: facts about the brand that no app is allowed to have its
+   own answer to. That now includes the type stack and the motion durations.
+   It did not before, and the paragraph that used to sit here said fonts could
+   never be shared because "the three apps legitimately name different
+   families". That was describing three DELIVERY mechanisms (Fontsource
+   packages, hand-written @font-face, Google Fonts) and mistaking them for
+   three intents: all three were asking for Syne, DM Sans and DM Mono, and the
+   only real differences were the fallback chains ("Syne Variable" vs "Syne")
+   and docs' 520ms slow duration against the console's 600ms. One @font-face
+   file (fonts.css) removed the delivery difference, so the tokens follow.
+
+   Still NOT here, and still app-specific: spacing scales, status colours,
+   account-tier colours, the Starlight `--sl-*` remap, and anything whose value
+   is a layout decision one surface makes on its own. */
+
+@layer bb.tokens {
 
 :root {
     /* ── core palette ──────────────────────────────────────────── */
@@ -92,4 +107,87 @@
     /* ── motion ────────────────────────────────────────────────── */
     --bb-ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
     --bb-ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+    /* Three durations, and only three. fast = a state that must feel
+       instantaneous (hover, focus ring, press); base = anything the eye is
+       meant to follow (colour and border transitions, small transforms);
+       slow = a movement with distance in it (reveals, drawer and menu
+       travel).
+       600ms for slow is the console's value, adopted here over the docs'
+       520ms. The two had drifted apart with no reason recorded on either
+       side, so the tie is broken on coverage: 600ms was the value on the two
+       surfaces with the most motion, and the one place docs actually used
+       --bb-dur-slow is a transform on the sidebar, where the extra 80ms is
+       not a visible regression. Rejected splitting the difference at 560ms,
+       which would have changed BOTH surfaces to a number nobody had ever
+       looked at. docs keeps --bb-dur-med as a plain alias of --bb-dur-base
+       so its ~35 uses did not all have to be renamed in the same commit. */
+    --bb-dur-fast: 180ms;
+    --bb-dur-base: 320ms;
+    --bb-dur-slow: 600ms;
+
+    /* ── type ──────────────────────────────────────────────────── */
+    /* One stack per role, for all three surfaces. The families come from
+       styles/fonts.css; the tail of each stack is what renders before the
+       woff2 lands (font-display: swap) and if it never lands.
+       The family NAME is the plain one, not the Fontsource "Syne Variable" /
+       "DM Sans Variable" spelling marketing used to carry. Fontsource
+       suffixes "Variable" so a page can load its variable and static builds
+       side by side without one shadowing the other; nothing here loads both,
+       and the suffix leaked the delivery mechanism into ~900 declarations.
+       Marketing's old stack listed BOTH ("Syne Variable", "Syne") to keep
+       working for a browser still holding the pre-Fontsource Google Fonts CSS
+       in cache; that cache entry expired long ago and the Google stylesheet is
+       gone from every surface as of this commit, so the alias is dropped
+       rather than carried forever. */
+    --bb-font-display: "Syne", "Inter Tight", sans-serif;
+    --bb-font-body:    "DM Sans", "Inter", system-ui, sans-serif;
+    --bb-font-mono:    "DM Mono", "JetBrains Mono", ui-monospace, monospace;
+
+    /* Tracking scale. Negative on display sizes because Syne's default
+       sidebearings are drawn for text sizes and read loose above ~40px;
+       positive and large on the eyebrow because that is uppercase mono at
+       11-12px, where the counters need the air. All four move together rather
+       than only the eyebrow: they are one scale, and the semantic type
+       classes that read them (.bb-display, .bb-h1, .bb-h2, .bb-eyebrow, still
+       in kit/styles/tokens.css until the elements PRs) read three of the four
+       from the same rule set. */
+    --bb-tracking-tight: -0.03em;
+    --bb-tracking-display: -0.02em;
+    --bb-tracking-body: 0em;
+    --bb-tracking-eyebrow: 0.18em; /* uppercase mono labels */
+
+    /* ── focus ─────────────────────────────────────────────────── */
+    /* Single shared focus-ring colour. Warm tan reads as brand and clears 3:1
+       against every surface: vs canvas #0a0a0a = 11.81:1, vs card #111110 =
+       11.27:1 (WCAG 2.2 SC 1.4.11 needs 3:1). One token so every
+       :focus-visible rule agrees. Spelled as a literal rather than
+       var(--bb-tan-light) so the contrast numbers above stay attached to the
+       value they were measured on. */
+    --bb-focus: #e0c49a;
+
+    /* ── accents ───────────────────────────────────────────────── */
+    /* The only border alpha between --bb-border (15%) and the 35% hover
+       state. Controls need to out-read labels without going solid. */
+    --bb-border-chip: rgba(201, 168, 124, 0.28);
+
+    /* Ambient wash behind hero and card surfaces: the same two accents as the
+       orbs, at the alpha where they tint a dark panel without becoming a
+       shape you can point at. Green sits 2 points lower than tan because
+       #52b788 is the brighter of the two on this canvas (8.00:1 vs 11.81:1
+       against #0a0a0a) and matches it at a lower alpha. */
+    --bb-glow-tan: rgba(201, 168, 124, 0.18);
+    --bb-glow-green: rgba(82, 183, 136, 0.16);
+
+    /* ── layout ────────────────────────────────────────────────── */
+    /* Both surfaces with a fixed top nav landed on the same two numbers
+       independently (marketing --nav-height/--content-max, console
+       --bb-nav-height/--bb-content-max), which is the definition of a shared
+       fact. 76px is the nav band ONLY: the iOS safe-area inset is added by
+       the consumer (marketing's --nav-offset) because it is an environment
+       value, not a design one. */
+    --bb-nav-height: 76px;
+    --bb-content-max: 1200px;
 }
+
+} /* @layer bb.tokens */

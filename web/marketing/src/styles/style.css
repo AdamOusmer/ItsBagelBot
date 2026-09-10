@@ -1,13 +1,19 @@
 /* Copyright (c) 2026 Adam Ousmer. All rights reserved.
    Proprietary. No license granted. See LICENSE.md. */
 
-/* Brand primitives (palette, shape scale, easing) come from the one shared
-   definition, so the console and the docs cannot drift away from this site's
-   values the way they had. The site's own short names are aliases onto them:
-   every rule below and every component style says var(--tan), not
-   var(--bb-tan), and renaming ~900 uses to buy nothing would be the change
-   that actually risks something. */
+/* Brand primitives (palette, shape scale, easing, type stack, durations) come
+   from the one shared definition, so the console and the docs cannot drift
+   away from this site's values the way they had. The site's own short names
+   are aliases onto them: every rule below and every component style says
+   var(--tan), not var(--bb-tan), and renaming ~900 uses to buy nothing would
+   be the change that actually risks something.
+
+   fonts.css carries the five @font-face rules and the woff2 payloads. It is
+   imported here rather than in Layout.astro so that any entry point reaching
+   style.css gets the faces the tokens below name; Layout.astro keeps only the
+   two <link rel="preload"> URLs, which have to be values it can render. */
 @import '@bagel/ui/styles/brand.css';
+@import '@bagel/ui/styles/fonts.css';
 
 :root {
     --black: var(--bb-black);
@@ -22,15 +28,22 @@
     --card-bg: var(--bb-card-bg);
     --border: var(--bb-border);
 
-    /* "* Variable" are the self-hosted Fontsource variable-font family names
-       (see Layout.astro); the plain names stay as fallbacks for any cached
-       page still holding the old Google Fonts CSS. */
-    --font-display: "Syne Variable", "Syne", sans-serif;
-    --font-mono: "DM Mono", monospace;
-    --font-body: "DM Sans Variable", "DM Sans", sans-serif;
+    /* The type stack is shared now. The families lost their Fontsource
+       "* Variable" suffix, which named the delivery mechanism rather than the
+       typeface and only existed so a page could load a variable and a static
+       build of the same family side by side; nothing here ever did. The plain
+       names used to trail them as a fallback for a browser still holding the
+       pre-Fontsource Google Fonts CSS in cache — that entry expired long ago
+       and no surface serves the Google stylesheet any more, so the pair
+       collapses to one name. See @bagel/ui/styles/fonts.css.
+       Caveat keeps its own line: it is this site's decorative accent, still
+       delivered by @fontsource-variable/caveat, and is not in the library. */
+    --font-display: var(--bb-font-display);
+    --font-mono: var(--bb-font-mono);
+    --font-body: var(--bb-font-body);
     --font-hand: "Caveat Variable", "Caveat", cursive;
 
-    --nav-height: 76px;
+    --nav-height: var(--bb-nav-height);
     /* Visual nav band (--nav-height) plus the iOS notch inset above it. Fixed
        nav grows into the safe area; content offsets clear the whole thing. */
     --nav-offset: calc(var(--nav-height) + env(safe-area-inset-top, 0px));
@@ -50,13 +63,13 @@
     --space-section-sm: clamp(56px, 8vw, 88px);
 
     /* Content widths */
-    --content-max: 1200px;
+    --content-max: var(--bb-content-max);
     --content-narrow: 720px;
     --content-text: 68ch;
 
     /* Glow accents (echo the hero orbs) */
-    --glow-tan: rgba(201, 168, 124, 0.18);
-    --glow-green: rgba(82, 183, 136, 0.16);
+    --glow-tan: var(--bb-glow-tan);
+    --glow-green: var(--bb-glow-green);
 
     /* Scroll-reveal */
     --reveal-distance: 24px;
@@ -229,11 +242,14 @@ section {
  * ───────────────────────────────────────────────────────────────── */
 
 :root {
-    /* 0.18em is the house eyebrow tracking; 28% is the only border alpha
-       between --border (15%) and the 35% hover state. */
-    --tracking-eyebrow: 0.18em;
-    --border-chip: rgba(201, 168, 124, 0.28);
-    --dur-base: 320ms;
+    /* All three were this site's literals and are now the shared tokens; the
+       numbers behind them (0.18em eyebrow tracking, the 28% border alpha that
+       is the only step between --border at 15% and the 35% hover state, 320ms
+       for anything the eye is meant to follow) are recorded in
+       @bagel/ui/styles/brand.css. */
+    --tracking-eyebrow: var(--bb-tracking-eyebrow);
+    --border-chip: var(--bb-border-chip);
+    --dur-base: var(--bb-dur-base);
 }
 
 /* ── Tier 1 · Labels ─────────────────────────────────────────────── */

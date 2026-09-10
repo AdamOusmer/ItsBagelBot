@@ -2,32 +2,26 @@
    Proprietary. No license granted. See LICENSE.md. */
 
 /* ItsBagelBot: Colors & Type
- * The palette, the shape scale and the easing curves come from the design
- * library (@bagel/ui/styles/brand.css), shared with marketing/ and docs/. This
- * file adds what is the CONSOLE's: the status system, the spacing scale and the
- * layout tokens. Brand palette is a dark canvas with deep evergreen + warm tan
- * accents, tied together with a film-grain texture overlay.
+ * The palette, the shape scale, the easing curves, the type stack, the motion
+ * durations and the focus ring come from the design library
+ * (@bagel/ui/styles/brand.css), shared with marketing/ and docs/. This file
+ * adds what is genuinely the CONSOLE's: the status system, the account-tier
+ * colours, the spacing scale and the elevation shadows. Brand palette is a
+ * dark canvas with deep evergreen + warm tan accents, tied together with a
+ * film-grain texture overlay.
  *
- * The @import has to precede the @font-face rules below: CSS only honours
- * @import at the top of a stylesheet.
+ * Both @imports have to stay at the top: CSS only honours @import before any
+ * other rule, so a declaration added above them silently disables them.
  */
 @import '@bagel/ui/styles/brand.css';
 
 /* Self-hosted fonts: no third-party origin, satisfies CSP font-src 'self'.
-   The woff2 files moved to @bagel/ui/fonts with the rest of the design
-   primitives, so these url()s are package specifiers rather than the relative
-   paths they were. Vite resolves a url() the same way it resolves a JS import,
-   which is what makes that work and is also why the specifier carries the
-   extension: there is no exports entry to add one.
-
-   The @font-face block itself is still the console's, and still duplicated by
-   marketing (Fontsource) and docs (Google Fonts). It collapses into one
-   @bagel/ui/styles/fonts.css with the fonts-and-tokens PR; the files moving
-   first is what makes that a one-file change. */
-@font-face { font-family: "Syne"; font-weight: 500 800; font-display: swap; src: url("@bagel/ui/fonts/syne-latin.woff2") format("woff2"); }
-@font-face { font-family: "DM Sans"; font-weight: 400 700; font-display: swap; src: url("@bagel/ui/fonts/dm-sans-latin.woff2") format("woff2"); }
-@font-face { font-family: "DM Mono"; font-weight: 400; font-display: swap; src: url("@bagel/ui/fonts/dm-mono-400.woff2") format("woff2"); }
-@font-face { font-family: "DM Mono"; font-weight: 500; font-display: swap; src: url("@bagel/ui/fonts/dm-mono-500.woff2") format("woff2"); }
+   The four @font-face rules that used to be written out here are now five in
+   @bagel/ui/styles/fonts.css (the console never had a real italic cut and was
+   letting the browser shear the upright), shared with marketing/ and docs/.
+   The url()s in that file are relative to it, so the package owns both the
+   rules and the woff2 payloads and a consumer resolves neither. */
+@import '@bagel/ui/styles/fonts.css';
 
 :root {
   /* semantic aliases */
@@ -38,13 +32,6 @@
   --bb-accent: var(--bb-green);
   --bb-accent-glow: var(--bb-green-glow);
   --bb-warm: var(--bb-tan);
-
-  /* ────────────────────────── focus ────────────────────────────── */
-  /* Single shared focus-ring colour. Warm tan reads as brand and clears 3:1
-     against every surface: vs canvas #0a0a0a = 11.81:1, vs card #111110 =
-     11.27:1 (WCAG 2.2 SC 1.4.11 needs 3:1). One token so every :focus-visible
-     rule agrees. */
-  --bb-focus: #e0c49a;
 
   /* ────────────────────────── spacing ──────────────────────────── */
   /* (the radius scale is in brand.css) */
@@ -111,15 +98,7 @@
   --bb-tier-inactive-bg: rgba(255, 255, 255, 0.04);
   --bb-tier-inactive-border: rgba(201, 168, 124, 0.20);
 
-  /* ────────────────────────── typography ───────────────────────── */
-  --bb-font-display: "Syne", "Inter Tight", sans-serif;
-  --bb-font-body:    "DM Sans", "Inter", system-ui, sans-serif;
-  --bb-font-mono:    "DM Mono", "JetBrains Mono", ui-monospace, monospace;
-
-  --bb-tracking-tight: -0.03em;
-  --bb-tracking-display: -0.02em;
-  --bb-tracking-body: 0em;
-  --bb-tracking-eyebrow: 0.18em; /* uppercase mono labels */
+  /* (the type stack and the tracking scale are in brand.css) */
 
   --bb-space-1: 4px;
   --bb-space-2: 8px;
@@ -131,20 +110,14 @@
   --bb-space-8: 64px;
   --bb-space-9: 96px;
 
-  /* ────────────────────────── motion ───────────────────────────── */
-  /* Easing curves are in brand.css; the durations are the console's own. */
-  --bb-dur-fast: 180ms;
-  --bb-dur-base: 320ms;
-  --bb-dur-slow: 600ms;
+  /* (the easing curves and the durations are in brand.css) */
 
   /* ────────────────────────── elevation ────────────────────────── */
   --bb-shadow-soft: 0 1px 0 rgba(255,255,255,0.02) inset, 0 8px 30px rgba(0,0,0,0.35);
   --bb-shadow-glow: 0 0 0 1px rgba(82,183,136,0.35), 0 0 24px rgba(82,183,136,0.25);
   --bb-shadow-tan-glow: 0 0 0 1px rgba(201,168,124,0.35), 0 0 24px rgba(201,168,124,0.18);
 
-  /* ────────────────────────── layout ───────────────────────────── */
-  --bb-nav-height: 76px;
-  --bb-content-max: 1200px;
+  /* (--bb-nav-height and --bb-content-max are in brand.css) */
 }
 
 /* ────────────────────────── base / reset ──────────────────────── */

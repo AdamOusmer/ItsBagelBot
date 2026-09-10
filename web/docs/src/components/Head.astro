@@ -80,10 +80,15 @@ const structuredData = {
 {/* Structured data — Organization (merged with the marketing site) + this docs site. */}
 <script type="application/ld+json" set:html={JSON.stringify(structuredData)} is:inline />
 
-{/* Preconnect to Google Fonts so the @import in theme.css gets its
-    DNS + TLS warmed before the CSS parser hits the URL. */}
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+{/* No font preconnects. Two used to sit here, warming DNS + TLS to
+    fonts.googleapis.com and fonts.gstatic.com for the @import in theme.css.
+    That @import is gone — the faces are self-hosted in @bagel/ui and served
+    from this origin — so a preconnect to either host would open a connection
+    nothing ever uses, which is strictly a cost. No self-origin preconnect
+    replaces them either: the document itself already opened that connection.
+    Marketing preloads its two above-the-fold woff2 URLs; docs does not,
+    because Starlight's first paint is body copy, and a preload competes with
+    the CSS it is waiting on. */}
 
 <ClientRouter />
 <SmoothScroll />
