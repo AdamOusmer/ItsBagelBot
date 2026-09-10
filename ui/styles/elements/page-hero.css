@@ -1,0 +1,135 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* `.bb-page-hero` — the inner-page hero: warm mote field, hearth glow, and a
+   title that decodes (scramble -> resolve) when it enters. It is the homepage
+   scenes' language without the scroll-scrub, so pricing, contact, changelog,
+   the guides index and the legal pages open the same way the home page does
+   rather than each inventing a masthead.
+
+   THE THREE ENTRANCES ARE STAGGERED OUT OF ORDER on purpose: title at 60ms,
+   eyebrow at 120ms, description at 320ms. Reading order is eyebrow -> title ->
+   description, but the title is the largest thing on the screen and starting
+   it first is what makes the hero feel like it was already there rather than
+   assembling itself. The eyebrow catching up 60ms later reads as one gesture.
+
+   `min-height: clamp(56vh, 70vh, 80vh)` — a `clamp` whose middle term is a
+   viewport unit, which looks redundant and is not: it pins the hero to 70vh on
+   every ordinary screen and lets the two bounds win on the extremes, so a
+   short laptop window keeps the fold visible and a tall monitor does not get a
+   full screen of nothing.
+
+   `--page-hero-top` reads the marketing site's `--nav-offset` (nav height plus
+   the iOS safe area) and falls back to `--bb-nav-height`. The fallback is what
+   a surface without that site's layout variables gets; it is not an attempt to
+   agree with it, because the safe-area term genuinely does not apply there.
+
+   Reduced motion drops the three entrances rather than shortening them: they
+   are `forwards` fills from `opacity: 0`, so a collapsed duration would leave
+   the hero blank. */
+
+@layer bb.elements {
+  .bb-page-hero {
+    --page-hero-top: var(--nav-offset, var(--bb-nav-height));
+    --page-hero-measure: var(--content-narrow, 720px);
+
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    max-width: none;
+    min-height: clamp(56vh, 70vh, 80vh);
+    margin: 0;
+    padding: calc(var(--page-hero-top) + 80px) 24px 80px;
+    text-align: center;
+  }
+
+  .bb-page-hero__glow {
+    position: absolute;
+    left: 50%;
+    top: 48%;
+    width: 110vmin;
+    height: 90vmin;
+    translate: -50% -50%;
+    pointer-events: none;
+    filter: blur(12px);
+    background: radial-gradient(
+      55% 60% at 50% 50%,
+      rgba(201, 168, 124, 0.16) 0%,
+      rgba(82, 183, 136, 0.06) 38%,
+      transparent 70%
+    );
+  }
+
+  .bb-page-hero__inner {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    max-width: var(--page-hero-measure);
+  }
+
+  .bb-page-hero__eyebrow {
+    margin-bottom: 22px;
+    color: var(--bb-green-glow);
+    font-family: var(--bb-font-mono);
+    font-size: clamp(0.66rem, 1.4vw, 0.76rem);
+    letter-spacing: var(--bb-tracking-eyebrow, 0.22em);
+    text-transform: uppercase;
+    text-shadow: 0 0 16px rgba(82, 183, 136, 0.5);
+    opacity: 0;
+    animation: bb-page-hero-in 700ms 120ms var(--bb-ease-out-expo) forwards;
+  }
+
+  .bb-page-hero__title {
+    max-width: 16ch;
+    margin: 0;
+    color: var(--bb-white);
+    font-family: var(--bb-font-display);
+    font-size: clamp(2.2rem, 6.5vw, 4rem);
+    font-weight: 800;
+    line-height: 1.02;
+    letter-spacing: -0.03em;
+    text-shadow:
+      0 0 24px rgba(240, 236, 228, 0.18),
+      0 3px 18px rgba(0, 0, 0, 0.9),
+      0 0 40px rgba(201, 168, 124, 0.22);
+    opacity: 0;
+    animation: bb-page-hero-in 760ms 60ms var(--bb-ease-out-expo) forwards;
+  }
+
+  .bb-page-hero__desc {
+    max-width: 52ch;
+    margin: 26px 0 0;
+    color: var(--bb-muted);
+    font-family: var(--bb-font-body);
+    font-size: clamp(1rem, 1.6vw, 1.15rem);
+    line-height: 1.7;
+    opacity: 0;
+    animation: bb-page-hero-in 800ms 320ms var(--bb-ease-out-expo) forwards;
+  }
+
+  @keyframes bb-page-hero-in {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bb-page-hero__eyebrow,
+    .bb-page-hero__title,
+    .bb-page-hero__desc {
+      animation: none;
+      opacity: 1;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .bb-page-hero {
+      --page-hero-top: var(--nav-offset, 68px);
+      min-height: 60vh;
+      padding: calc(var(--page-hero-top) + 56px) 20px 56px;
+    }
+  }
+}

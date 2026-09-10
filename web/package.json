@@ -15,7 +15,7 @@
     "dev:dashboard": "bun run --filter dashboard dev",
     "dev:admin": "bun run --filter admin dev",
     "check": "bun run --filter '*' check",
-    "test": "bun test kit dashboard/src/lib/server/oauth-start.test.ts && bun kit/scripts/size.ts",
+    "test": "bun run --filter '@bagel/kit' verify:ui-only && bun test kit dashboard/src/lib/server/oauth-start.test.ts && bun kit/scripts/size.ts",
     "postinstall": "mkdir -p node_modules/@bagel && ln -sfn ../../../ui node_modules/@bagel/ui && bun install --cwd ../ui --frozen-lockfile --production"
   },
   "devDependencies": {

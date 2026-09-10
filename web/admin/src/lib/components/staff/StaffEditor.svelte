@@ -16,7 +16,7 @@
   import Switch from '@bagel/ui/svelte/Switch.svelte';
   import Field from '@bagel/ui/svelte/Field.svelte';
   import Scroller from '@bagel/ui/svelte/Scroller.svelte';
-  import EditorFooter from '@bagel/kit/components/EditorFooter.svelte';
+  import EditorFooter from '@bagel/ui/svelte/EditorFooter.svelte';
   import type { InspectorStatus } from '@bagel/kit';
   import { statusTone } from '@bagel/kit/status-tone';
   import { ago } from '@bagel/kit';

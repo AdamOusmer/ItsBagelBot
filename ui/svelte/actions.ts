@@ -11,6 +11,7 @@
 
 import type { Action } from 'svelte/action';
 
+import { observeDecode, type DecodeOptions } from '../lib/decode';
 import { observeReveal, type RevealOptions } from '../lib/reveal';
 
 /**
@@ -38,5 +39,25 @@ import { observeReveal, type RevealOptions } from '../lib/reveal';
  */
 export const reveal: Action<HTMLElement, RevealOptions | undefined> = (node, options) => {
   const dispose = observeReveal(node, options);
+  return { destroy: dispose };
+};
+
+/**
+ * Decode every `[data-decode]` in this subtree as it scrolls into view.
+ *
+ * ```svelte
+ * <h1 data-decode="Pricing" use:decode>Pricing</h1>
+ * ```
+ *
+ * Same shape as `reveal` above and the same reason for existing: the marketing
+ * site scans the document once per navigation, and a Svelte surface that wants
+ * one decoding title should not have to.
+ *
+ * Disposing matters more here than for reveal: the engine writes `textContent`
+ * on a frame loop, so a subtree removed mid-scramble would otherwise leave a
+ * tick running against a detached node until its own clock expires.
+ */
+export const decode: Action<HTMLElement, DecodeOptions | undefined> = (node, options) => {
+  const dispose = observeDecode(node, options);
   return { destroy: dispose };
 };

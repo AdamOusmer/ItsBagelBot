@@ -4,9 +4,9 @@
   import { deserialize } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
   import { Card, PageHead, Scroller, SaveStatus, Switch, Button, ButtonLink, InspectorSurface, ConfirmDialog, AlertBanner, DeckList, EmptyState, toast, getI18n, automodToggleDefault, moduleDef, type ModuleField, type ModuleReply, MOD } from '@bagel/kit';
-  import type { SaveState } from '@bagel/kit/components/SaveStatus.svelte';
+  import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
   import ReplyRow from '$lib/components/modules/ReplyRow.svelte';
-  import { createDiscardGuard } from '@bagel/kit/discard-guard';
+  import { createDiscardGuard } from '@bagel/ui/svelte/discard-guard';
   import ReplyEditor from '$lib/components/modules/ReplyEditor.svelte';
   import ModuleCommandList from '$lib/components/modules/ModuleCommandList.svelte';
   import TriggerRuleEditor from '$lib/components/modules/TriggerRuleEditor.svelte';

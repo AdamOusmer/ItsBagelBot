@@ -6,7 +6,7 @@
   // which put three <button>s beside a row that was itself clickable (and a
   // fourth, an inline rename <input>, inside it). All three moved into the
   // inspector, so the row is a selector and nothing else.
-  import ManagementRow from '@bagel/kit/components/ManagementRow.svelte';
+  import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { LaneView } from '$lib/server/lanes';
   import StatusDot from '../StatusDot.svelte';

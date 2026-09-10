@@ -1,0 +1,61 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro adapter over the shared tag vocabulary (../styles/tags.css) plus the
+// one rule in ../styles/elements/save-status.css. Svelte twin:
+// ../svelte/SaveStatus.svelte.
+//
+// Static, so it draws one state and never transitions between them. That is
+// what a guide screenshot needs; the pipeline the states describe is documented
+// in the Svelte adapter's module block.
+import '../styles/elements/save-status.css';
+
+interface Props {
+    state?: 'idle' | 'saving' | 'saved' | 'live' | 'error';
+    compact?: boolean;
+    savingLabel?: string;
+    savedLabel?: string;
+    liveLabel?: string;
+    errorLabel?: string;
+    class?: string;
+}
+
+const {
+    state = 'idle',
+    compact = false,
+    savingLabel = 'Saving…',
+    savedLabel = 'Saved',
+    liveLabel = 'Synced to chat',
+    errorLabel = 'Failed',
+    class: className = '',
+    ...rest
+} = Astro.props;
+
+const TONE: Record<string, string> = {
+    idle: '',
+    saving: 'bb-tag--quiet',
+    saved: 'bb-tag--alpha',
+    live: 'bb-tag--live',
+    error: 'bb-tag--error',
+};
+const MARK: Record<string, string> = {
+    idle: '',
+    saving: 'bb-mark--dash',
+    saved: '',
+    live: '',
+    error: 'bb-mark--hollow',
+};
+const LABELS: Record<string, string> = {
+    idle: '',
+    saving: savingLabel,
+    saved: savedLabel,
+    live: liveLabel,
+    error: errorLabel,
+};
+
+const classes = ['bb-tag', TONE[state], className].filter(Boolean).join(' ');
+const markClasses = ['bb-mark', MARK[state]].filter(Boolean).join(' ');
+---
+
+{state !== 'idle' && (<span class={classes} role="status" {...rest}><i class={markClasses} aria-hidden="true"></i>{!compact && LABELS[state]}{state === 'saving' && <i class="bb-sweep bb-sweep--tan" aria-hidden="true"></i>}{state === 'live' && <i class="bb-sweep" aria-hidden="true"></i>}</span>)}

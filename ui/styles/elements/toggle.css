@@ -110,4 +110,45 @@
         .bb-switch,
         .bb-switch::after { transition: none; }
     }
+
+    /* ── the switch row ──────────────────────────────────────────────────
+       A switch with a label and an optional hint beside it: the shape every
+       "master enable" bar on the console wears, and the only thing
+       @bagel/kit's MasterToggle.svelte had left to say for itself once the
+       pill above became an element. It is here rather than in that wrapper
+       because it describes an element, and a `<style>` block in a kit
+       component is the exact duplication this package exists to delete
+       (web/kit/scripts/assert-ui-only-in-ui.mjs enforces it).
+
+       The label is display-700 13px white, NOT `.bb-field__label` (body 12.5px
+       muted). Deliberately not unified: a field's label names an input the eye
+       is already on, while this one is the heading of the thing the switch
+       turns off, and it has to read as the section title it has always been.
+       Measured on the timers and loyalty pages before the move; the two type
+       stacks were already different and stay different. */
+    .bb-switch-row {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .bb-switch-row__text {
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+        min-width: 0;
+    }
+
+    .bb-switch-row__label {
+        font-family: var(--bb-font-display);
+        font-weight: 700;
+        font-size: 13px;
+        color: var(--bb-white);
+    }
+
+    .bb-switch-row__hint {
+        font-family: var(--bb-font-body);
+        font-size: 11.5px;
+        color: var(--bb-muted);
+    }
 }

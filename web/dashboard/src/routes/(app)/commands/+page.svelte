@@ -5,7 +5,7 @@
   import { deserialize } from '$app/forms';
   import { replaceState } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { createDiscardGuard } from '@bagel/kit/discard-guard';
+  import { createDiscardGuard } from '@bagel/ui/svelte/discard-guard';
   import {
     Icon,
     PageHead,
@@ -37,7 +37,7 @@
     type Perm,
     Chip
   } from '@bagel/kit';
-  import type { SaveState } from '@bagel/kit/components/SaveStatus.svelte';
+  import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
   import CommandRow from '$lib/components/commands/CommandRow.svelte';
   import CommandEditor from '$lib/components/commands/CommandEditor.svelte';
   import type { SourceDef } from '$lib/components/commands/fetches/FetchSourcePicker.svelte';

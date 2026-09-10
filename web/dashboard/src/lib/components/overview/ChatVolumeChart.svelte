@@ -10,7 +10,7 @@
   // label, the now/peak readout, the legend, and what to say when the read did
   // not land.
   import { getI18n } from '@bagel/kit/i18n/context';
-  import AreaSeries from '@bagel/kit/components/AreaSeries.svelte';
+  import AreaSeries from '@bagel/ui/svelte/AreaSeries.svelte';
   import type { ChatVolume } from '$lib/overview-live';
 
   const { t } = getI18n();

@@ -18,9 +18,9 @@
   import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
   import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
   import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
-  import DeckList from '@bagel/kit/components/DeckList.svelte';
-  import InspectorSurface from '@bagel/kit/components/InspectorSurface.svelte';
-  import AlertBanner from '@bagel/kit/components/AlertBanner.svelte';
+  import DeckList from '@bagel/ui/svelte/DeckList.svelte';
+  import InspectorSurface from '@bagel/ui/svelte/InspectorSurface.svelte';
+  import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';

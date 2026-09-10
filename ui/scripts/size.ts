@@ -325,6 +325,56 @@ const ENTRIES: {
     source: `import { icons } from "../../lib/icons";
              globalThis.x = icons;`,
   },
+  {
+    // Decode-on-view text. Charged the shared frame loop and the motion query
+    // in full (571 B of the row), which is the gate working as designed: this
+    // is what a page that imports ONLY the decode engine pays.
+    //
+    // Initial measurement 2026-09-09 (macOS/arm64): 990 B gzip, at the
+    // move out of web/marketing/src/script/decode.js. The scramble table is
+    // 46 characters of the total; the rest is the observer and the tick.
+    // Budget: 990 + 150 B for CI's linux/x64 gzip delta = 1140, +10% -> 1260.
+    name: "decode",
+    budget: 1260,
+    external: [],
+    source: `import { observeDecode } from "../../lib/decode";
+             globalThis.x = observeDecode;`,
+  },
+  {
+    // The reading bar's driver: one passive scroll listener, one resize
+    // listener, and a frame subscription per burst. Small, and it has to stay
+    // small — it runs on every marketing page, on every scroll.
+    //
+    // Initial measurement 2026-09-09 (macOS/arm64): 521 B gzip, of which
+    // raf-loop is 346. Budget: 521 + 150 B for CI's linux/x64 gzip
+    // delta = 671, +10% -> 740.
+    name: "reading-progress",
+    budget: 740,
+    external: [],
+    source: `import { mountReadingProgress } from "../../lib/reading-progress";
+             globalThis.x = mountReadingProgress;`,
+  },
+  {
+    // The overlay stack: ref-counted scroll lock, background inert, z-order,
+    // topmost-only Escape, portal and focus trap. Every modal surface in the
+    // console pulls it in, so it is the row that decides what a dialog costs
+    // before it has drawn anything.
+    //
+    // It imports NOTHING, deliberately, and that is worth a line here because
+    // the obvious tidy-up would break it: the scroll lock reaches the smooth
+    // scroller through `window.__lenis` rather than through lib/lenis, because
+    // that module statically imports lenis (~20 KB) and this file is on every
+    // dialog's path.
+    //
+    // Initial measurement 2026-09-09 (macOS/arm64): 751 B gzip, at the
+    // move out of web/kit. Budget: 751 + 150 B for CI's linux/x64 gzip
+    // delta = 901, +10% -> 1000.
+    name: "overlay-stack",
+    budget: 1000,
+    external: [],
+    source: `import { pushOverlay, portal, trapFocus } from "../../lib/overlay-stack";
+             globalThis.x = [pushOverlay, portal, trapFocus];`,
+  },
 ];
 
 /* The CSS contracts. Measured directly rather than through a synthetic
@@ -453,7 +503,109 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   // breakpoints and the entry stagger.
   { name: "elements/stat-tile", budget: 980 },
   // 562 B.
+  //
+  // RE-MEASURED 2026-09-10 at 687 B, 133 B of room left. The +125 is the
+  // `.bb-switch-row` block: the row, label and hint that @bagel/kit's
+  // MasterToggle.svelte used to carry as a scoped <style>, moved here so the
+  // kit gate (web/kit/scripts/assert-ui-only-in-ui.mjs) can run unconditional.
+  // The row grew and a component's scoped block of the same size went away, so
+  // the page is unchanged; budget held at 820 rather than raised, because this
+  // is the last thing that file owed this one.
   { name: "elements/toggle", budget: 820 },
+  // The inline degraded band plus the fixed, inverted impersonation bar. It
+  // replaces the page-local `.degraded` block 31 pages hand-rolled, so the
+  // row to watch is a fourth tone arriving as rules instead of as three
+  // `--alert-*` values on the caller.
+  // Measured 2026-09-09 (macOS/arm64): 507 B gzip. 507 + 150 = 657, +10% -> 730.
+  { name: "elements/alert", budget: 730 },
+  // Chart chrome only: gridlines, curve, dot, tick gutter. The geometry is the
+  // adapter's, which is why this row is small and must stay small.
+  // Measured 2026-09-09: 203 B gzip. 203 + 150 = 353, +10% -> 390.
+  { name: "elements/area-series", budget: 390 },
+  // Composition over orbs.css: which three orbs, where, how bright. If this
+  // row ever approaches the orbs row, the composition has started redefining
+  // the shape.
+  // Measured 2026-09-09: 257 B gzip. 257 + 150 = 407, +10% -> 450.
+  { name: "elements/aurora", budget: 450 },
+  // Placement of the shell's ambient pair; shape and wash are orbs.css.
+  // Measured 2026-09-09: 179 B gzip. 179 + 150 = 329, +10% -> 370.
+  { name: "elements/bg-orbs", budget: 370 },
+  // Corner brackets, wordmark, and the shared `--ornament-inline` inset the
+  // social rail aligns to.
+  // Measured 2026-09-09: 446 B gzip. 446 + 150 = 596, +10% -> 660.
+  { name: "elements/brackets", budget: 660 },
+  // A card preset. The plate is copied from Card.svelte until card.css lands,
+  // so this row is expected to SHRINK on the button+card re-stack, not grow.
+  // Measured 2026-09-09: 161 B gzip. 161 + 150 = 311, +10% -> 350.
+  //
+  // RE-MEASURED 2026-09-10 at 74 B: the copied card plate is gone and the file
+  // is one custom property, which is what the note above predicted. Budget
+  // NOT lowered to match. 350 is already the floor this arithmetic produces
+  // for anything (a 74 B file is far under the ~150 B platform delta the
+  // budgets carry room for), and re-cutting it would only mean re-raising it
+  // the first time a deck needs a second declaration.
+  { name: "elements/deck-list", budget: 350 },
+  // The sticky action bar and its four status tones.
+  // Measured 2026-09-09: 431 B gzip. 431 + 150 = 581, +10% -> 640.
+  // Re-measured 2026-09-10 at 432 B, when the 44px touch-target selector
+  // became `.bb-btn` with the Button adapter. One byte; budget unchanged.
+  { name: "elements/editor-footer", budget: 640 },
+  // The largest row in the package, and the one with the weakest claim to its
+  // bytes: two orbit systems, an outlined display code, six staggered
+  // entrances and their reduced-motion opt-out, for a page nobody wants to be
+  // on. It is here rather than trimmed because it is the surface a visitor
+  // meets when something has already gone wrong. Anything ADDED to it should
+  // be argued against this sentence.
+  // Measured 2026-09-09: 1582 B gzip. 1582 + 150 = 1732, +10% -> 1910.
+  { name: "elements/error-scene", budget: 1910 },
+  // The row whose structure is the accessibility fix.
+  // Measured 2026-09-09: 387 B gzip. 387 + 150 = 537, +10% -> 600.
+  { name: "elements/management-row", budget: 600 },
+  // The centred dialog, plus the `confirm-danger` tone that belongs in
+  // button.css and is parked here for the length of the stack — this row
+  // shrinks when it leaves.
+  // Measured 2026-09-09: 669 B gzip. 669 + 150 = 819, +10% -> 910.
+  //
+  // RE-MEASURED 2026-09-10 at 608 B: the `.confirm-danger` button tone this
+  // file was holding for ConfirmDialog is deleted, as its own note said it
+  // should be once button.css landed in the package. Budget left at 910: the
+  // row shrank by giving a rule back to the contract that owns it, and 910 is
+  // still the number the next real modal feature is measured against.
+  { name: "elements/modal", budget: 910 },
+  // Two columns, one collapse point, one margin rule.
+  // Measured 2026-09-09: 225 B gzip. 225 + 150 = 375, +10% -> 420.
+  { name: "elements/overview-grid", budget: 420 },
+  // The inner-page masthead: glow, measure, three staggered entrances. Ten
+  // pages render it and none of them ship a masthead of their own any more.
+  // Measured 2026-09-09: 839 B gzip. 839 + 150 = 989, +10% -> 1090.
+  { name: "elements/page-hero", budget: 1090 },
+  // A 2px track and a scaleX fill.
+  // Measured 2026-09-09: 251 B gzip. 251 + 150 = 401, +10% -> 450.
+  { name: "elements/reading-progress", budget: 450 },
+  // One rule. Everything else the save indicator draws is the tags
+  // vocabulary, and this row is the proof: the day it stops being ~100 B,
+  // someone has re-created the four bespoke pulse animations it replaced.
+  // Measured 2026-09-09: 95 B gzip. 95 + 150 = 245, +10% -> 270.
+  { name: "elements/save-status", budget: 270 },
+  // Eyebrow, badge line, title.
+  // Measured 2026-09-09: 358 B gzip. 358 + 150 = 508, +10% -> 560.
+  { name: "elements/section-heading", budget: 560 },
+  // Both inspector forms, docked and sheet, plus the sheet entrance.
+  // Measured 2026-09-09: 733 B gzip. 733 + 150 = 883, +10% -> 980.
+  // Re-measured 2026-09-10 at 728 B, when `--docked` stopped hand-copying the
+  // card plate and started composing `.bb-card` (three declarations out, one
+  // custom property in). 5 B; budget unchanged. Note that the composition
+  // means a consumer of the docked form now also pays card.css, which is a row
+  // of its own above and not a cost this row hides.
+  { name: "elements/surface", budget: 980 },
+  // The per-glyph roll, the ember rail and the glint, in three pointer
+  // stories. Expensive for a text link, which is exactly why the nav and the
+  // footer render `.bb-nav-link` instead and this one is reserved for prose.
+  // Measured 2026-09-09: 1018 B gzip. 1018 + 150 = 1168, +10% -> 1290.
+  { name: "elements/text-link", budget: 1290 },
+  // The stack, three tones, the undo control and the entrance.
+  // Measured 2026-09-09: 714 B gzip. 714 + 150 = 864, +10% -> 960.
+  { name: "elements/toast", budget: 960 },
 ];
 
 let failed = false;

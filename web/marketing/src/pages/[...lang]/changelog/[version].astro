@@ -7,9 +7,9 @@
 // The param is entry.data.version, not the collection id: the loader strips
 // dots from ids, and the version string is the stable public name.
 import Layout from '../../../layouts/Layout.astro';
-import PageHero from '../../../components/ui/PageHero.astro';
+import PageHero from '@bagel/ui/astro/PageHero.astro';
 import ChangelogList from '../../../components/changelog/ChangelogList.astro';
-import TextLink from '../../../components/ui/TextLink.astro';
+import TextLink from '@bagel/ui/astro/TextLink.astro';
 import { getCollection } from 'astro:content';
 import { getLangFromUrl, useTranslations, locales, langParam, localizePath } from '../../../i18n/ui';
 

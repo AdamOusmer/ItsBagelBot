@@ -1,0 +1,30 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* `.bb-deck-list` — the container every management deck (commands, timers,
+   counters, staff, lanes, audit, shards, notifications) puts its rows inside.
+   Its whole job is that those nine pages agree on one padding and one class,
+   because before it they did not: three of them had drifted to their own
+   inline padding and the row separators lined up differently on each.
+
+   IT IS A CARD PRESET, and it now says so by COMPOSING the card rather than
+   restating it: the adapters emit `bb-card bb-deck-list`, card.css owns the
+   plate (warm ink, tan hairline, --bb-radius-md), and the only thing left in
+   this file is the one value a deck disagrees with the card about. The three
+   declarations that used to stand here were a hand-copy of `.card` made when
+   the card contract still lived in the console, and the note on them said to
+   delete them the moment card.css landed in this package. This is that
+   deletion.
+
+   `--card-pad: 6px 0 0` was an inline style on the Card call. The rows own
+   their own horizontal padding and the first one must sit flush under the
+   card's top hairline, so the only padding the container contributes is the
+   6px that keeps the first row from touching it. It is set as the card's own
+   property rather than as a `padding` declaration here so that a deck inside
+   a density-scaled surface still resolves through card.css's one channel. */
+
+@layer bb.elements {
+  .bb-deck-list {
+    --card-pad: 6px 0 0;
+  }
+}

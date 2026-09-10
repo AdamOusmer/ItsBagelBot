@@ -13,7 +13,7 @@
  * `slot={section.id}` inside a .map is not resolvable by the compiler and
  * threw "section is not defined" at build time, so the body is a prop now.
  */
-import TextLink from '../ui/TextLink.astro';
+import TextLink from '@bagel/ui/astro/TextLink.astro';
 import GuideBody from './GuideBody.astro';
 import { getLangFromUrl, useTranslations, localizePath } from '../../i18n/ui';
 import type { Block } from '../../lib/guides/types';

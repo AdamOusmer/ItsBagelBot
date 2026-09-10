@@ -1,0 +1,67 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* `.bb-section-heading` — eyebrow, optional badge and title, as one block, so
+   the six sections that use it agree on the 14px between eyebrow and title and
+   the 56px below the whole thing.
+
+   THE BADGE RIDES THE EYEBROW LINE, not the title, and that is the one
+   non-obvious decision in the file. A status chip set beside display type at
+   `clamp(1.6rem, 4.5vw, 2.5rem)` either shrinks the title to fit or is
+   dwarfed by it, and on a phone it wraps under the first word of the heading
+   and reads as a caption for that word. On the eyebrow line it is beside type
+   of its own weight.
+
+   `data-reveal` and `--reveal-i` on the title are the shared scroll-reveal
+   contract (ui/styles/reveal.css): the meta row reveals first, the title one
+   step behind it. The stagger index is on the element rather than a
+   `:nth-child` rule because the meta row is conditional. */
+
+@layer bb.elements {
+  .bb-section-heading {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 56px;
+  }
+
+  .bb-section-heading--center {
+    align-items: center;
+    text-align: center;
+  }
+
+  .bb-section-heading--left {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .bb-section-heading__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .bb-section-heading__eyebrow {
+    color: var(--bb-green-glow);
+    font-family: var(--bb-font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  .bb-section-heading__title {
+    color: var(--bb-white);
+    font-family: var(--bb-font-display);
+    font-size: clamp(1.6rem, 4.5vw, 2.5rem);
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: var(--bb-tracking-tight, -0.01em);
+  }
+
+  @media (max-width: 640px) {
+    .bb-section-heading {
+      margin-bottom: 40px;
+    }
+  }
+}

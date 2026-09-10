@@ -1,0 +1,81 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* `.bb-row` — a selectable list row inside a `.bb-deck-list` deck.
+
+   THE STRUCTURE IS THE ACCESSIBILITY FIX, and it is the reason this element
+   exists at all rather than being nine pages' worth of `<div onclick>`. The
+   row's primary content is a single `<button>` (announced with aria-expanded /
+   aria-controls); the quick actions (a switch, a delete) are SIBLINGS of that
+   button, never nested inside it. The audit flagged the old rows for putting
+   role="button" on a container that wrapped a switch and a delete button:
+   invalid, and a screen-reader trap — the switch was unreachable and the row
+   announced its own children as its label. Anything that re-nests them
+   re-creates that bug, silently.
+
+   `.bb-row-shell` is the marker class callers target from outside (e.g.
+   `.bb-deck-list .bb-row-shell:last-child`). It carries no rules of its own on
+   purpose: a hook that also styles is a hook nobody can remove.
+
+   THE RULE COLOUR is `--rule`, the console's hairline (rgba(201,168,124,0.14)),
+   with `--bb-border` (the same tan at 0.15) as the fallback for a surface that
+   has no console stylesheet. One percent of alpha apart; the fallback is there
+   so a row drawn on a guide screenshot still has a separator, not so the two
+   agree to the byte.
+
+   The focus ring is inset (`outline-offset: -2px`) because a row is flush
+   against its neighbours: a 2px outward ring would be clipped by the row below
+   and read as a broken underline. */
+
+@layer bb.elements {
+  .bb-row {
+    --row-rule: var(--rule, var(--bb-border));
+    --row-selected: rgba(201, 168, 124, 0.05);
+    --row-hover: rgba(201, 168, 124, 0.045);
+
+    display: flex;
+    align-items: stretch;
+    border-bottom: 1px solid var(--row-rule);
+    transition: background var(--bb-dur-fast) ease;
+  }
+
+  .bb-row.is-selected {
+    background: var(--row-selected);
+  }
+
+  .bb-row.is-off .bb-row__primary {
+    opacity: 0.5;
+  }
+
+  .bb-row__primary {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: block;
+    padding: 12px 14px;
+    margin: 0;
+    border: 0;
+    background: none;
+    text-align: left;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .bb-row__primary:hover {
+    background: var(--row-hover);
+  }
+
+  .bb-row__primary:focus-visible {
+    outline: 2px solid var(--bb-tan);
+    outline-offset: -2px;
+  }
+
+  .bb-row__actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 14px;
+    flex: none;
+  }
+}

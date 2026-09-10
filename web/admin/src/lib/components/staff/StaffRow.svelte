@@ -5,7 +5,7 @@
   // select and the delete button used to sit here, which meant a <select> and a
   // <button> lived beside a row the whole of which was clickable. Both moved
   // into the inspector, so the row is a selector and nothing else.
-  import ManagementRow from '@bagel/kit/components/ManagementRow.svelte';
+  import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
   import Bolota from '@bagel/kit/components/Bolota.svelte';
   import { ago } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';

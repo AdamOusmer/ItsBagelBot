@@ -15,7 +15,7 @@
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
   import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
   import StatTile from '@bagel/ui/svelte/StatTile.svelte';
-  import AreaSeries from '@bagel/kit/components/AreaSeries.svelte';
+  import AreaSeries from '@bagel/ui/svelte/AreaSeries.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { EnrollmentWire } from '$lib/server/services';

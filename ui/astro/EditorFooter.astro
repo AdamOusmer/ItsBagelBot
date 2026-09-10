@@ -1,0 +1,62 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro adapter for the `.bb-editor-foot` contract
+// (../styles/elements/editor-footer.css). Svelte twin:
+// ../svelte/EditorFooter.svelte.
+//
+// It must be rendered as a sibling AFTER the scroll area, never inside it: the
+// element is sticky, and inside the scroller it scrolls away with the form,
+// which is the below-the-fold Save button the audit flagged.
+//
+// The two actions are ./Button.astro, the sibling adapter, matching the Svelte
+// twin: cancel is `ghost`, save is the default `primary` at type="submit".
+import '../styles/elements/editor-footer.css';
+import Button from './Button.astro';
+
+interface Props {
+    status?: 'idle' | 'saving' | 'saved' | 'error' | 'conflict';
+    dirty?: boolean;
+    canSave?: boolean;
+    saveLabel?: string;
+    cancelLabel?: string;
+    savingLabel?: string;
+    savedLabel?: string;
+    errorLabel?: string;
+    dirtyLabel?: string;
+    class?: string;
+}
+
+const {
+    status = 'idle',
+    dirty = false,
+    canSave = true,
+    saveLabel = 'Save',
+    cancelLabel = 'Cancel',
+    savingLabel = 'Saving…',
+    savedLabel = 'Saved',
+    errorLabel = 'Could not save',
+    dirtyLabel = 'Unsaved changes',
+    class: className = '',
+    ...rest
+} = Astro.props;
+
+const classes = ['bb-editor-foot', className].filter(Boolean).join(' ');
+
+// One derived pair rather than a chain in the template, so the two adapters'
+// branch order cannot drift: conflict reads as error, and `dirty` only shows
+// when nothing more specific is happening.
+const state =
+    status === 'saving'
+        ? { mod: 'saving', label: savingLabel }
+        : status === 'error' || status === 'conflict'
+          ? { mod: 'error', label: errorLabel }
+          : status === 'saved'
+            ? { mod: 'saved', label: savedLabel }
+            : dirty
+              ? { mod: 'dirty', label: dirtyLabel }
+              : null;
+---
+
+<div class={classes} {...rest}><span class="bb-editor-foot__status" role="status" aria-live="polite">{state && <span class={`bb-editor-foot__s bb-editor-foot__s--${state.mod}`}>{state.label}</span>}</span><span class="bb-editor-foot__acts"><Button variant="ghost">{cancelLabel}</Button><Button type="submit" disabled={!canSave || status === 'saving'}>{status === 'saving' ? savingLabel : saveLabel}</Button></span></div>

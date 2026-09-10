@@ -1,0 +1,210 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* `.bb-text-link` — the site's one text-link motion: a mono micro-label whose
+   glyphs roll over on hover while an ember rail sweeps in under them (tan
+   fading into green) and a single glint runs the wire.
+
+   TWO ROWS OF GLYPHS, NOT ONE. The label is rendered twice inside a clipping
+   mask: the resting row rolls up and out, the lit row rolls up and in. One row
+   with a colour transition would be cheaper and is a different effect — the
+   glyphs would change colour in place rather than being replaced. The mask is
+   `1.15em` tall, which is the line box plus the descender clearance the roll
+   needs; taller and the outgoing row is visible above the incoming one.
+
+   THE PER-GLYPH DELAY IS THE POINT AND THE COST. `--gi` is the glyph's index,
+   set inline by the adapter, and the two rows use different multipliers (14ms
+   out, 16ms in, plus a 60ms head start on the incoming row) so the label reads
+   as being replaced left-to-right rather than cross-fading. On a long label
+   this is a lot of transitioning elements — the site's footer used to run this
+   on every link in four columns at once, which is why the nav and footer moved
+   to `.bb-nav-link`'s cheaper drawline and this element is now reserved for
+   inline links in prose and chrome.
+
+   `--text-link-size` is the one knob callers turn (default 0.78rem), because
+   the roll geometry is in `em` and everything else scales with it.
+
+   THREE POINTER STORIES, deliberately not one:
+     hover + fine pointer + motion allowed -> the full roll, rail and glint
+     touch (`:active`)                     -> colour only; there is no hover
+                                              state to preview on a tap
+     reduced motion                        -> the lit row is `display: none`
+                                              and the rail appears without
+                                              sweeping. Not merely a shorter
+                                              transition: a roll with no
+                                              duration is a flicker.
+
+   `.is-active` is the persistent lit state for the current route: brighter
+   than the hover colour (`--text-link-active`, the white) and the rail stays
+   drawn, so a current link does not look like one the pointer happens to be
+   over. */
+
+@layer bb.elements {
+  .bb-text-link {
+    --text-link-rest: var(--bb-muted);
+    --text-link-lit: var(--bb-tan-light);
+    --text-link-active: var(--bb-white);
+    --text-link-size: 0.78rem;
+    --text-link-shift: 1.3em;
+
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    padding: 0.3em 0.06em;
+    color: var(--text-link-rest);
+    font-family: var(--bb-font-mono);
+    font-size: var(--text-link-size);
+    font-weight: 500;
+    line-height: 1;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    text-decoration: none;
+    outline: none;
+    isolation: isolate;
+  }
+
+  /* Ember rail (::before) and the glint that runs it once (::after). */
+  .bb-text-link::before,
+  .bb-text-link::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0.08em;
+    height: 1px;
+    pointer-events: none;
+  }
+
+  .bb-text-link::before {
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(201, 168, 124, 0.75),
+      rgba(82, 183, 136, 0.55),
+      transparent
+    );
+    opacity: 0;
+    transform: scaleX(0.2);
+    transform-origin: left;
+  }
+
+  .bb-text-link::after {
+    background: linear-gradient(90deg, transparent, rgba(240, 236, 228, 0.85), transparent);
+    opacity: 0;
+    transform: translateX(-95%) scaleX(0.22);
+  }
+
+  .bb-text-link__mask {
+    position: relative;
+    display: block;
+    height: 1.15em;
+    overflow: hidden;
+  }
+
+  .bb-text-link__row {
+    display: inline-flex;
+    align-items: baseline;
+  }
+
+  .bb-text-link__row--over {
+    position: absolute;
+    inset: 0 auto auto 0;
+    color: var(--text-link-lit);
+    text-shadow: 0 0 14px rgba(224, 196, 154, 0.28);
+  }
+
+  .bb-text-link__glyph {
+    display: inline-block;
+    white-space: pre;
+  }
+
+  .bb-text-link__row--over .bb-text-link__glyph {
+    opacity: 0;
+    transform: translateY(var(--text-link-shift));
+  }
+
+  .bb-text-link:focus-visible {
+    outline: 1px solid rgba(224, 196, 154, 0.58);
+    outline-offset: 4px;
+  }
+
+  .bb-text-link:active {
+    color: var(--text-link-lit);
+  }
+
+  .bb-text-link.is-active {
+    color: var(--text-link-active);
+  }
+
+  .bb-text-link.is-active::before {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+
+  @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+    .bb-text-link {
+      transition: color 180ms ease;
+    }
+
+    .bb-text-link::before {
+      transition:
+        opacity 240ms ease,
+        transform 560ms var(--bb-ease-out-expo);
+    }
+
+    .bb-text-link__glyph {
+      transition:
+        opacity 260ms ease,
+        transform 400ms var(--bb-ease-out-expo);
+      transition-delay: calc(var(--gi) * 14ms);
+      will-change: transform, opacity;
+    }
+
+    .bb-text-link:is(:hover, :focus-visible) {
+      color: var(--text-link-lit);
+    }
+
+    .bb-text-link:is(:hover, :focus-visible)::before {
+      opacity: 1;
+      transform: scaleX(1);
+    }
+
+    .bb-text-link:is(:hover, :focus-visible)::after {
+      animation: bb-text-link-glint 680ms var(--bb-ease-out-expo) both;
+    }
+
+    .bb-text-link:is(:hover, :focus-visible) .bb-text-link__row--rest .bb-text-link__glyph {
+      opacity: 0.25;
+      transform: translateY(calc(var(--text-link-shift) * -1));
+    }
+
+    .bb-text-link:is(:hover, :focus-visible) .bb-text-link__row--over .bb-text-link__glyph {
+      opacity: 1;
+      transform: translateY(0);
+      transition-delay: calc(60ms + (var(--gi) * 16ms));
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bb-text-link__row--over {
+      display: none;
+    }
+
+    .bb-text-link:is(:hover, :focus-visible) {
+      color: var(--text-link-lit);
+    }
+
+    .bb-text-link:is(:hover, :focus-visible)::before {
+      opacity: 1;
+      transform: scaleX(1);
+    }
+  }
+
+  @keyframes bb-text-link-glint {
+    0% { opacity: 0; transform: translateX(-95%) scaleX(0.18); }
+    34% { opacity: 0.8; }
+    100% { opacity: 0; transform: translateX(95%) scaleX(0.34); }
+  }
+}

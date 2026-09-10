@@ -1,0 +1,159 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* `.bb-surface` — the master-detail inspector shell, in its two forms.
+
+   ONE ELEMENT, TWO FORMS, and the split is a viewport question rather than a
+   caller's choice: on a wide screen the inspector is an in-flow panel docked
+   beside the list (`--docked`); below 1080px it becomes a modal bottom sheet
+   that portals to <body>, traps focus, makes the page inert and dismisses on
+   scrim or Escape (`--sheet`, inside `.bb-sheet-shell`). Every route's
+   inspector behaves identically because there is one element rather than each
+   page re-styling an <aside>.
+
+   1080px is where the docked panel stops fitting beside the deck without the
+   deck's rows truncating — measured against the widest row (the commands
+   deck), not chosen as a round number.
+
+   THE SHEET IS NOT A CARD. The docked form is: it sits in flow next to the
+   deck's cards, so it takes the same warm ink, tan hairline and 8px radius.
+   The sheet floats over a scrim on the page ink, where the card's warm plate
+   and corner atmosphere read as a second panel showing through the first, so
+   it takes `--bb-bg-1` and a plain hairline instead.
+
+   The docked form COMPOSES the card rather than restating it: the adapter
+   emits `bb-card` alongside `bb-surface--docked`, card.css owns the plate, and
+   what stays below is only what a docked panel disagrees with a card about
+   (sticky box, no padding of its own -- the head and body carry theirs). The
+   three declarations that used to stand here were a hand-copy of Card.svelte's
+   `.card`, made when the card contract still lived in the console; their own
+   note said to replace them with `.bb-card` on the re-stack, and this is it.
+   The sheet does NOT take `bb-card`, for the reason in the paragraph above.
+
+   `top: 62px` is the topbar's height and `108px` the dock's, so the docked
+   panel's sticky box is exactly the gap between the two pieces of console
+   chrome. Both are still literals. The shell contract HAS landed
+   (ui/styles/elements/shell.css) and it does not name a height token: the
+   topbar is a sticky element whose height is its content's, and the dock's is
+   its own. Minting `--bb-topbar-h` here would be this file guessing a number
+   for another element, which is worse than the literal. When shell.css
+   publishes one, these become it. */
+
+@layer bb.elements {
+  .bb-surface {
+    --surface-rule: var(--rule, var(--bb-border));
+    --surface-rule-strong: var(--rule-strong, var(--bb-border-strong));
+
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .bb-surface--docked {
+    /* The head and the body own their padding; the plate contributes none. */
+    --card-pad: 0;
+
+    position: sticky;
+    top: 62px;
+    max-height: calc(100dvh - 62px - 108px);
+  }
+
+  .bb-surface__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--surface-rule);
+    flex: none;
+  }
+
+  /* Was a display-700 heading run; now the shared `.bb-tag--bare` label. The
+     title interpolates user-typed names (a reward title, a counter name), so
+     the tag's uppercase is turned off here rather than rewriting their casing.
+     The ellipsis clipping has to live on the element rather than in tags.css:
+     `--bare` sets `overflow: visible`. */
+  .bb-surface__tag {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--bb-tan);
+    text-transform: none;
+    letter-spacing: 0.02em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .bb-surface__close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: 1px solid transparent;
+    border-radius: var(--bb-radius-sm);
+    background: none;
+    color: var(--bb-muted);
+    cursor: pointer;
+  }
+
+  .bb-surface__close:hover {
+    color: var(--bb-white);
+    border-color: var(--bb-border-strong);
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .bb-surface__close:focus-visible {
+    outline: 2px solid var(--bb-green-glow);
+    outline-offset: 2px;
+  }
+
+  .bb-surface__body {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    flex: 1;
+  }
+
+  .bb-sheet-shell {
+    position: fixed;
+    inset: 0;
+  }
+
+  .bb-sheet-shell__scrim {
+    position: absolute;
+    inset: 0;
+    border: 0;
+    padding: 0;
+    background: rgba(0, 0, 0, 0.55);
+  }
+
+  .bb-surface--sheet {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-height: 88dvh;
+    overflow: hidden;
+    border: 1px solid var(--surface-rule);
+    border-top-color: var(--surface-rule-strong);
+    border-radius: var(--bb-radius-md) var(--bb-radius-md) 0 0;
+    background: var(--bb-bg-1, #111);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+    animation: bb-sheet-in var(--bb-dur-base) var(--bb-ease-out-expo) both;
+  }
+
+  @keyframes bb-sheet-in {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+
+  /* The sheet's entrance is the one animation in this file that a11y.css's
+     global duration collapse cannot fix on its own: it runs `both`, so a
+     zero-duration run would leave the sheet parked at its `from` keyframe
+     (off-screen). Turned off outright instead. */
+  @media (prefers-reduced-motion: reduce) {
+    .bb-surface--sheet {
+      animation: none;
+    }
+  }
+}

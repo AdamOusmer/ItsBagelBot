@@ -9,13 +9,13 @@
   import Button from '@bagel/ui/svelte/Button.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
-  import Modal from '@bagel/kit/components/Modal.svelte';
+  import Modal from '@bagel/ui/svelte/Modal.svelte';
   import Skeleton from '@bagel/ui/svelte/Skeleton.svelte';
   import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
-  import OverviewGrid from '@bagel/kit/components/OverviewGrid.svelte';
+  import OverviewGrid from '@bagel/ui/svelte/OverviewGrid.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { connectionUiState, type ConnSignals, type ConnUi } from '@bagel/kit/connection-state';
-  import { toast } from '@bagel/kit/toast';
+  import { toast } from '@bagel/ui/svelte/toast';
   import type { ActionResult } from '@sveltejs/kit';
   import OnboardingGuide from '$lib/components/OnboardingGuide.svelte';
   import OverviewHead from '$lib/components/overview/OverviewHead.svelte';

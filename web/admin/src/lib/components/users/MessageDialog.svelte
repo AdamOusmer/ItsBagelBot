@@ -10,7 +10,7 @@
   // the next user.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import ConfirmDialog from '@bagel/kit/components/ConfirmDialog.svelte';
+  import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
 
   let {

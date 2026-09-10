@@ -1,0 +1,42 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro adapter for the `.bb-surface` contract
+// (../styles/elements/surface.css). Svelte twin:
+// ../svelte/InspectorSurface.svelte.
+//
+// THE DOCKED FORM ONLY. The responsive half of this element is a runtime
+// decision — below 1080px it becomes a modal bottom sheet that portals, traps
+// focus and inerts the page — and a static render has no viewport to react to
+// and nothing to trap focus in. A page that needs to draw the sheet draws the
+// sheet markup directly; it is three elements and the contract names them.
+//
+// The close glyph is ./Icon.astro at `name="x"`, matching the Svelte twin. It
+// was an inline copy of that path while the icon set still lived in the
+// console.
+// Both stylesheets, in this order: the docked form composes `.bb-card`, and
+// surface.css must come second so its flex column beats the card's block.
+import '../styles/elements/card.css';
+import '../styles/elements/surface.css';
+import Icon from './Icon.astro';
+
+interface Props {
+    /**
+     * Accepted and ignored: a static surface is always open. Without it the
+     * prop lands in the rest spread and Astro emits `open` on the <aside>.
+     */
+    open?: boolean;
+    title: string;
+    controls?: string;
+    closeLabel?: string;
+    class?: string;
+}
+
+const { open: _open = true, title, controls, closeLabel = 'Close', class: className = '', ...rest } = Astro.props;
+const classes = ['bb-surface', 'bb-card', 'bb-surface--docked', className]
+    .filter(Boolean)
+    .join(' ');
+---
+
+<aside class={classes} aria-label={title} {...rest}><div class="bb-surface__head"><span class="bb-surface__tag bb-tag bb-tag--bare">{title}</span><button class="bb-surface__close" type="button" aria-label={closeLabel}><Icon name="x" size={14} /></button></div><div class="bb-surface__body" id={controls}><slot /></div></aside>

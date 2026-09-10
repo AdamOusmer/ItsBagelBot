@@ -5,7 +5,7 @@
   // an operator scans for -- who, what, to whom, when -- and nothing else; the
   // detail and the error text belong to the inspector, because they are the two
   // fields that are arbitrarily long and were what made the old rows ragged.
-  import ManagementRow from '@bagel/kit/components/ManagementRow.svelte';
+  import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
   import Bolota from '@bagel/kit/components/Bolota.svelte';
   import { ago } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';

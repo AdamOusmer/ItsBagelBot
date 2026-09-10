@@ -1,0 +1,47 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro adapter for the `.bb-modal` contract (../styles/elements/modal.css).
+// Svelte twin: ../svelte/Modal.svelte.
+//
+// THE SURFACE WITHOUT THE BEHAVIOUR. There is no overlay stack here, no portal
+// and no focus trap: a static page renders a dialog that is always open, with
+// nothing behind it to inert and nothing to restore focus to. Everything that
+// makes a real modal safe lives in ../lib/overlay-stack.ts and is wired by the
+// Svelte adapter.
+//
+// It still emits `data-overlay` and the base z-index, because those ARE the
+// contract — the stack excludes `[data-overlay]` children from its inert
+// sweep, and a static render that omitted them would document a modal that
+// cannot be made real.
+import '../styles/elements/modal.css';
+
+interface Props {
+    /**
+     * Accepted and ignored. A static modal is always open; the prop exists so
+     * the two adapters take the same props object — without it, `open` lands in
+     * the rest spread and Astro emits it as a bare attribute on a <div>.
+     */
+    open?: boolean;
+    title?: string;
+    ariaLabel?: string;
+    closeLabel?: string;
+    /** id for the title, pointed at by aria-labelledby. */
+    titleId?: string;
+    class?: string;
+}
+
+const {
+    open: _open = true,
+    title,
+    ariaLabel,
+    closeLabel = 'Close',
+    titleId = 'bb-modal-title',
+    class: className = '',
+    ...rest
+} = Astro.props;
+const classes = ['bb-modal', className].filter(Boolean).join(' ');
+---
+
+<div class={classes} data-overlay style="z-index: 200" {...rest}><button class="bb-modal__backdrop" type="button" aria-label={closeLabel} data-cursor="quiet"></button><div class="bb-modal__card" role="dialog" aria-modal="true" tabindex="-1" aria-labelledby={title ? titleId : undefined} aria-label={title ? undefined : ariaLabel} data-lenis-prevent>{title && <h3 class="bb-modal__title" id={titleId}>{title}</h3>}<slot /></div></div>

@@ -282,12 +282,12 @@
      shell renders that pair (RootShell -> BackgroundOrbs), outside this route's
      component tree, so hiding them takes a :global rule, but route CSS
      stays in the document after a client-side navigation, and an unqualified
-     :global(.bg-orb) kept them hidden on every page visited afterwards (reach
+     :global(.bb-bg-orb) kept them hidden on every page visited afterwards (reach
      /login from the error page's sign-in link, then go Back). Gating on the
      hero's presence unscopes the rule the moment this page unmounts, and
      unlike a body class toggled from onMount it also holds during SSR, so the
      shell orbs never flash in before hydration. */
-  :global(body:has([data-hero-title]) .bg-orb) {
+  :global(body:has([data-hero-title]) .bb-bg-orb) {
     display: none;
   }
 

@@ -1,0 +1,77 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* `.bb-editor-foot` — the sticky action bar under an inspector's editor form.
+
+   Sticky rather than fixed, and a SIBLING AFTER the scroll area rather than
+   inside it: the audit flagged editors whose Save button sat below the fold of
+   a long form, and an in-flow footer inside the scroller reproduces exactly
+   that. `position: sticky; bottom: 0` keeps it on screen while the form
+   scrolls behind it.
+
+   It is opaque (`--bb-bg-1`, the console's panel ink) for the same reason: the
+   form scrolls UNDER it, and a translucent bar leaves ascenders showing
+   through the button labels.
+
+   The 44px minimum on the action buttons below 480px is the touch target
+   floor, not a design choice; above that width the buttons keep their own
+   height. */
+
+@layer bb.elements {
+  .bb-editor-foot {
+    --editor-foot-rule: var(--rule, var(--bb-border));
+
+    position: sticky;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--editor-foot-rule);
+    background: var(--bb-bg-1, #111);
+  }
+
+  .bb-editor-foot__status {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .bb-editor-foot__s {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--bb-font-body);
+    font-size: 12px;
+  }
+
+  .bb-editor-foot__s--dirty { color: var(--bb-muted); }
+  .bb-editor-foot__s--saving { color: var(--bb-tan-light); }
+  .bb-editor-foot__s--saved { color: var(--bb-green-glow); }
+  .bb-editor-foot__s--error { color: #cf8a78; }
+
+  /* An inline glyph in the saved state inherits the label's colour instead of
+     rendering the icon set's default fill. */
+  .bb-editor-foot__s--saved svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.4;
+  }
+
+  .bb-editor-foot__acts {
+    display: inline-flex;
+    gap: 10px;
+    flex: none;
+  }
+
+  /* 44px is the phone touch target, and it is set HERE rather than on the
+     button contract because it is this row's constraint: a sticky bar the
+     thumb reaches for, not a size the button has anywhere else. */
+  @media (max-width: 480px) {
+    .bb-editor-foot__acts .bb-btn {
+      min-height: 44px;
+    }
+  }
+}
