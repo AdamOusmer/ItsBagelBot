@@ -14,8 +14,8 @@
 // this broadcaster) is NOT a failure -- the projector answers that with
 // `known: false` and no `error`, so it resolves normally with known left
 // false, matching the honesty rule the RPC handler itself documents.
-import { rpc } from '@bagel/shared/server/nats';
-import { POLICY } from '@bagel/shared/server/cache-keys';
+import { rpc } from '@bagel/kit/server/nats';
+import { POLICY } from '@bagel/kit/server/cache-keys';
 import { fabric } from './services';
 import {
   finiteOrNull,

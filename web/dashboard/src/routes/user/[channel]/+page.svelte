@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { AlertBanner, Card, LightField } from '@bagel/shared';
+  import { AlertBanner, Card, LightField } from '@bagel/kit';
   import PublicNav from '$lib/components/public/PublicNav.svelte';
   import PublicFooter from '$lib/components/public/PublicFooter.svelte';
   import type { PageData } from './$types';

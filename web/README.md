@@ -111,7 +111,7 @@ The web workspace is an integral part of the multi-tenant Twitch automation plat
 - `docs/` — the Astro Starlight documentation site (Cloudflare Pages).
 - `dashboard/` — the broadcaster-facing SvelteKit SSR console (`console-dashboard` image).
 - `admin/` — the operator-facing SvelteKit SSR console (`console-admin` image).
-- `kit/` — `@bagel/shared`: the server code, catalog, i18n, nav registries, Go-engine mirrors, styles and Svelte components the four apps share.
+- `kit/` — `@bagel/kit`: the server code, catalog, i18n, nav registries, Go-engine mirrors, styles and Svelte components the four apps share.
 
 The project is under active development. It is currently operated as a complete cloud deployment rather than distributed as a turnkey, single-container bot.
 

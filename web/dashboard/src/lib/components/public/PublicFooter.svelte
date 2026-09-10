@@ -6,7 +6,7 @@
   // columns, legal strip. Extracted here so every public page signs off the same
   // way; copy comes from the i18n catalog and the site links follow the
   // visitor's locale.
-  import { getI18n } from '@bagel/shared';
+  import { getI18n } from '@bagel/kit';
   import { dashHref, webHref } from './links';
 
   const { t, locale } = getI18n();

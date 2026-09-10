@@ -6,7 +6,7 @@
   // it. The list lazy-loads from /counters/list on first open; create posts
   // through the counters page's own ?/create action.
   import { deserialize } from '$app/forms';
-  import { getI18n, type CounterScope } from '@bagel/shared';
+  import { getI18n, type CounterScope } from '@bagel/kit';
   import PickerPanel from '$lib/components/PickerPanel.svelte';
 
   const { t } = getI18n();

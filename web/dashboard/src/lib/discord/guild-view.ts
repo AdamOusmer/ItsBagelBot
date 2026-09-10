@@ -6,7 +6,7 @@
 // Type-only imports of the store types: the values never leave the server, but
 // the shapes are the page contract and re-declaring them here is how they drift.
 import type { DiscordEntry, DiscordGuildInfo, DiscordLayout, DiscordStatus } from '$lib/server/discord-store';
-import { guildBotState, type GuildBotState } from '@bagel/shared';
+import { guildBotState, type GuildBotState } from '@bagel/kit';
 
 export type GuildShell = {
   layout: DiscordLayout;

@@ -9,7 +9,7 @@
 // under the guard: pages call it from load AND every action.
 import { dev } from '$app/environment';
 import { redirect, type RequestEvent } from '@sveltejs/kit';
-import { MODULE_CATALOG, betaLocked, moduleDef, moduleDelegateSections, type ModuleDef } from '@bagel/shared';
+import { MODULE_CATALOG, betaLocked, moduleDef, moduleDelegateSections, type ModuleDef } from '@bagel/kit';
 import type { Session } from '$lib/server/session';
 import { accountState, type AccountState } from '$lib/server/services';
 

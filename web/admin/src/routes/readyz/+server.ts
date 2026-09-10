@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { RequestHandler } from './$types';
-import { ready } from '@bagel/shared/server/nats';
+import { ready } from '@bagel/kit/server/nats';
 
 export const GET: RequestHandler = async () => {
   if (!(await ready())) {

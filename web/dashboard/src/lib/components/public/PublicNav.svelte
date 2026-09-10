@@ -10,7 +10,7 @@
   // Under 1024px the link row and CTA fold into web's hamburger + top-down
   // menu (MobileMenu.svelte). The open flag lives here; the menu animates it.
   import { onMount } from 'svelte';
-  import { getI18n } from '@bagel/shared';
+  import { getI18n } from '@bagel/kit';
   import LangSwitch from '$lib/components/LangSwitch.svelte';
   import MobileMenu from './MobileMenu.svelte';
   import NavLink from './NavLink.svelte';

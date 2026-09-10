@@ -6,7 +6,7 @@
   // travels as one JSON field; the server validates and normalizes it.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { RadioGroup, getI18n, type ChannelPointReward, type CounterScope } from '@bagel/shared';
+  import { RadioGroup, getI18n, type ChannelPointReward, type CounterScope } from '@bagel/kit';
   import CheckButton from '$lib/components/CheckButton.svelte';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';

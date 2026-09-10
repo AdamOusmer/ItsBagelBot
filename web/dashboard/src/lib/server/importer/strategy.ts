@@ -3,7 +3,7 @@
 
 // Server half of the import-source registry: what a source needs that only the
 // server may do (read an HttpOnly cookie, fetch an upstream API, decode an
-// upload). The client half (@bagel/shared/importer/strategy) carries what the
+// upload). The client half (@bagel/kit/importer/strategy) carries what the
 // page renders.
 //
 // This replaces the per-source tables the form action used to carry
@@ -11,7 +11,7 @@
 // load and commit). The action now looks a source up once and calls the hooks
 // it declares, so it names no source at all.
 import type { Cookies } from '@sveltejs/kit';
-import type { ImportManifest, ImportSource } from '@bagel/shared';
+import type { ImportManifest, ImportSource } from '@bagel/kit';
 import type { ImportPreviewRequest, ParseOutcome } from './engine';
 import { streamelementsSource } from './sources/streamelements';
 import { fossabotSource } from './sources/fossabot';
@@ -94,7 +94,7 @@ export function fileSourceInput(input: SourceInput): InputRefusal {
   return missingAnyInput(input, 'Choose a file to upload.') ?? credentialShapeRefusal(input.credential);
 }
 
-// MAX_CREDENTIAL_LEN and JWT_SHAPE mirror @bagel/shared/importer/streamelements:
+// MAX_CREDENTIAL_LEN and JWT_SHAPE mirror @bagel/kit/importer/streamelements:
 // three dot-separated base64url segments, <=4KB. Failing here gives a readable
 // message before any fetch is attempted and guarantees no credential with
 // interior whitespace or control chars reaches the transport. It runs for

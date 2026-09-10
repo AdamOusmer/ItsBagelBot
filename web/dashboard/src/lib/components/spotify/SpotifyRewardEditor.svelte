@@ -6,7 +6,7 @@
   import { tick } from 'svelte';
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Button, Field, EditorFooter, getI18n, type SpotifyRedeemConfig } from '@bagel/shared';
+  import { Button, Field, EditorFooter, getI18n, type SpotifyRedeemConfig } from '@bagel/kit';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
 

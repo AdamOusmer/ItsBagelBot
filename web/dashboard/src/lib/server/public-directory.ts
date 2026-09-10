@@ -6,7 +6,7 @@
 // leaderboard host page) must present them identically, so the filtering and
 // labeling live here once.
 
-import { BUILTIN_COMMANDS, MODULE_CATALOG, PERM_LABELS, type CommandView, type Perm } from '@bagel/shared';
+import { BUILTIN_COMMANDS, MODULE_CATALOG, PERM_LABELS, type CommandView, type Perm } from '@bagel/kit';
 import type { ModuleView } from '$lib/server/commands-store';
 
 export type PublicCommand = {

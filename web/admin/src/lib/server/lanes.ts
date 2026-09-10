@@ -1,8 +1,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { jsm, js } from '@bagel/shared/server/nats';
-import { logger } from '@bagel/shared/server/logger';
+import { jsm, js } from '@bagel/kit/server/nats';
+import { logger } from '@bagel/kit/server/logger';
 import { Kvm, type KV } from '@nats-io/kv';
 import { dev } from '$app/environment';
 

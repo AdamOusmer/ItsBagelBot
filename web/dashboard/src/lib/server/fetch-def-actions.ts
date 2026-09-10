@@ -13,7 +13,7 @@
 // written inside an action, so these return a message (or null) and the route
 // turns it into the refusal.
 
-import { ValkeyRateLimiter } from '@bagel/shared/server/rate-limit';
+import { ValkeyRateLimiter } from '@bagel/kit/server/rate-limit';
 import {
   DEFS_PER_BROADCASTER,
   firstError,
@@ -22,11 +22,11 @@ import {
   slugifyName,
   validateFetchDef,
   type FetchDefErrors
-} from '@bagel/shared';
+} from '@bagel/kit';
 import { listFetches, rehearseFetch, upsertFetchDef, deleteFetchDef } from '$lib/server/fetches-store';
 import { auditDashboardImpersonation } from '$lib/server/services';
 import type { Session } from '$lib/server/session';
-import { logger } from '@bagel/shared/server/logger';
+import { logger } from '@bagel/kit/server/logger';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 

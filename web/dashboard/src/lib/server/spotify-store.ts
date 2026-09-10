@@ -40,7 +40,7 @@
 //   - The enable row rides the standard modules service (listModules /
 //     upsertModule), so the tile toggle, the projection and cache invalidation
 //     all behave like every other named module.
-import { rpc } from '@bagel/shared/server/nats';
+import { rpc } from '@bagel/kit/server/nats';
 import type {
   SpotifySrConfig,
   SpotifyQuotas,
@@ -48,8 +48,8 @@ import type {
   SpotifyReward,
   RewardOnRedeem,
   SpotifySrPerm
-} from '@bagel/shared';
-import { blankSpotifyRedeem, blankSpotifySr, blankSpotifyQuotas } from '@bagel/shared';
+} from '@bagel/kit';
+import { blankSpotifyRedeem, blankSpotifySr, blankSpotifyQuotas } from '@bagel/kit';
 import { SUB, publishEventSubEnsureOptional } from './services';
 import { upsertModule } from './commands-store';
 import { readModuleBlob } from './module-blob';

@@ -19,10 +19,10 @@
 // survive for minutes. The event pipeline (data.*.changed -> projector ->
 // cache-invalidation bus) reconciles everything shortly after either way.
 import newrelic from 'newrelic';
-import { rpc } from '@bagel/shared/server/nats';
-import { POLICY } from '@bagel/shared/server/cache-keys';
-import * as valkey from '@bagel/shared/server/valkey-store';
-import type { CommandView, Perm } from '@bagel/shared';
+import { rpc } from '@bagel/kit/server/nats';
+import { POLICY } from '@bagel/kit/server/cache-keys';
+import * as valkey from '@bagel/kit/server/valkey-store';
+import type { CommandView, Perm } from '@bagel/kit';
 import { SUB, fabric, invalidate } from './services';
 
 const READ_TIMEOUT_MS = 2000;

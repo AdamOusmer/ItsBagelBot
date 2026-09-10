@@ -11,7 +11,7 @@
   // The footer states the median answer time AND whether anything was shed. The
   // pipeline hook drops events under backpressure by design, so a feed that
   // silently omitted them would be claiming a completeness it does not have.
-  import { getI18n } from '@bagel/shared/i18n/context';
+  import { getI18n } from '@bagel/kit/i18n/context';
   import { clockFace, type ActivityFeed, type ActivityKind } from '$lib/overview-live';
 
   const { t } = getI18n();

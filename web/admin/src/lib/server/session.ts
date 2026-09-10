@@ -10,7 +10,7 @@
 // in the boot import graph (hooks.server.ts -> session), and even importing the
 // dynamic-env proxy there deadlocks server.init (exit 13). process.env carries
 // the same runtime value; the key getter runs per seal/open (request time).
-import { createSessionCodec, decodeKey, SESSION_TTL_SECONDS } from '@bagel/shared/server/session';
+import { createSessionCodec, decodeKey, SESSION_TTL_SECONDS } from '@bagel/kit/server/session';
 
 export { SESSION_TTL_SECONDS };
 

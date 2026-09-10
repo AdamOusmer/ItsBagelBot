@@ -5,12 +5,12 @@
   // or tell everyone something. The lookup is a real GET form so it works
   // without JS and lands on /users with the query already applied -- the users
   // page owns the search, this only aims it.
-  import Card from '@bagel/shared/components/Card.svelte';
-  import CardHead from '@bagel/shared/components/CardHead.svelte';
-  import Button from '@bagel/shared/components/Button.svelte';
-  import ButtonLink from '@bagel/shared/components/ButtonLink.svelte';
-  import SearchInput from '@bagel/shared/components/SearchInput.svelte';
-  import { getI18n } from '@bagel/shared/i18n/context';
+  import Card from '@bagel/kit/components/Card.svelte';
+  import CardHead from '@bagel/kit/components/CardHead.svelte';
+  import Button from '@bagel/kit/components/Button.svelte';
+  import ButtonLink from '@bagel/kit/components/ButtonLink.svelte';
+  import SearchInput from '@bagel/kit/components/SearchInput.svelte';
+  import { getI18n } from '@bagel/kit/i18n/context';
 
   let { canNotify }: { canNotify: boolean } = $props();
 

@@ -9,9 +9,9 @@
 //   - Standings and counters live in the loyalty service, reached over NATS
 //     RPC (bagel.rpc.loyalty.*). Sesame is the writer (batched deltas); the
 //     dashboard reads and runs the management verbs.
-import { rpc } from '@bagel/shared/server/nats';
-import type { CounterDef, CounterEntryView, CounterScope, LoyaltyConfig, LoyaltyStanding } from '@bagel/shared';
-import { blankLoyaltyConfig, COUNTER_SCOPES, MOD } from '@bagel/shared';
+import { rpc } from '@bagel/kit/server/nats';
+import type { CounterDef, CounterEntryView, CounterScope, LoyaltyConfig, LoyaltyStanding } from '@bagel/kit';
+import { blankLoyaltyConfig, COUNTER_SCOPES, MOD } from '@bagel/kit';
 import { SUB } from './services';
 import { upsertModule } from './commands-store';
 import { readModuleBlob } from './module-blob';

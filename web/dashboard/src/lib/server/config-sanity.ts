@@ -2,13 +2,13 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { dev } from '$app/environment';
-import { demoConfigured } from '@bagel/shared/server/demo-guard';
+import { demoConfigured } from '@bagel/kit/server/demo-guard';
 import {
   assertCallback,
   assertOptionalHTTPSURL,
   assertOrigin,
   positiveIntegerSetting
-} from '@bagel/shared/server/config-sanity';
+} from '@bagel/kit/server/config-sanity';
 
 type Env = Record<string, string | undefined>;
 

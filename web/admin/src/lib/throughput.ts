@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import type { IngressCapacity, ShardSnapshot } from '@bagel/shared';
+import type { IngressCapacity, ShardSnapshot } from '@bagel/kit';
 
 const FALLBACK_POD_RATED_EPS = 140_000;
 const FALLBACK_WEBSOCKET_RATED_EPS = 16_000;

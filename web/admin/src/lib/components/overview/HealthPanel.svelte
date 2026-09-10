@@ -4,12 +4,12 @@
   // The /health probe, summarised. One row per responder with its round-trip
   // time, because "which one" and "how slow" are the two follow-up questions an
   // operator asks the instant the count is not N/N.
-  import Card from '@bagel/shared/components/Card.svelte';
-  import CardHead from '@bagel/shared/components/CardHead.svelte';
-  import EmptyState from '@bagel/shared/components/EmptyState.svelte';
-  import Scroller from '@bagel/shared/components/Scroller.svelte';
-  import { statusTone } from '@bagel/shared/status-tone';
-  import { getI18n } from '@bagel/shared/i18n/context';
+  import Card from '@bagel/kit/components/Card.svelte';
+  import CardHead from '@bagel/kit/components/CardHead.svelte';
+  import EmptyState from '@bagel/kit/components/EmptyState.svelte';
+  import Scroller from '@bagel/kit/components/Scroller.svelte';
+  import { statusTone } from '@bagel/kit/status-tone';
+  import { getI18n } from '@bagel/kit/i18n/context';
   import type { ServiceHealth } from '$lib/server/services';
   import StatusDot from '../StatusDot.svelte';
 

@@ -16,7 +16,7 @@
 // Visibility is never the enforcement. Every key below is also checked by
 // requireRole on the server, and most by the backing service on top of that; a
 // hidden button is a courtesy, not a boundary.
-import { STAFF_RANK as RANK, type StaffRole } from '@bagel/shared/staff-role';
+import { STAFF_RANK as RANK, type StaffRole } from '@bagel/kit/staff-role';
 
 export type AdminRole = StaffRole;
 

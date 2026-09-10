@@ -21,11 +21,11 @@
 // importing the dynamic-env proxy there deadlocks server.init (exit 13).
 import { dev } from '$app/environment';
 import { redirect, type RequestEvent } from '@sveltejs/kit';
-import { delegateAllowedPaths, pathnameAllowed } from '@bagel/shared';
+import { delegateAllowedPaths, pathnameAllowed } from '@bagel/kit';
 import { COOKIE, seal, type Session } from '$lib/server/session';
 import { accountState, delegationAccess, isBanned, type AccountState } from '$lib/server/services';
-import { RpcError } from '@bagel/shared/server/nats';
-import { isSessionRevoked } from '@bagel/shared/server/session-revocation';
+import { RpcError } from '@bagel/kit/server/nats';
+import { isSessionRevoked } from '@bagel/kit/server/session-revocation';
 import { assertBetaRouteOpen } from '$lib/server/module-gate';
 
 const DEMO = dev && process.env.DEMO === '1';

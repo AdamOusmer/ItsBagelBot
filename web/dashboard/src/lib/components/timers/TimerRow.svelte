@@ -12,7 +12,7 @@
   // state pill reads "Active"/"Paused" with colour only tinting it.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Icon, ManagementRow, Switch, getI18n, type TimerDef } from '@bagel/shared';
+  import { Icon, ManagementRow, Switch, getI18n, type TimerDef } from '@bagel/kit';
 
   const { t } = getI18n();
 

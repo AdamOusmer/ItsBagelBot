@@ -14,7 +14,7 @@
 // Key values are write-only: fetch_set_key seals and replies {last4} once; no
 // verb in this file ever receives or returns key material.
 
-import { rpc } from '@bagel/shared/server/nats';
+import { rpc } from '@bagel/kit/server/nats';
 import { SUB } from './services';
 
 /** One stored definition. `json_path` is segment-array wire form (Go stores

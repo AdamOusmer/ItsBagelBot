@@ -9,8 +9,8 @@
 // and never logged.
 import type { PageServerLoad } from './$types';
 import type { Cookies } from '@sveltejs/kit';
-import { logger } from '@bagel/shared/server/logger';
-import { generateState } from '@bagel/shared/server/oauth';
+import { logger } from '@bagel/kit/server/logger';
+import { generateState } from '@bagel/kit/server/oauth';
 import {
   DISCORD_INSTALL_LEG,
   DISCORD_PICK_LEG,
@@ -24,7 +24,7 @@ import {
   type DiscordUserGuild
 } from '$lib/server/discord-oauth';
 import { listGuilds } from '$lib/server/discord-store';
-import { canManageGuild, guildMonogram, guildPickerBadge, type GuildPickerBadge } from '@bagel/shared';
+import { canManageGuild, guildMonogram, guildPickerBadge, type GuildPickerBadge } from '@bagel/kit';
 import { gateModulePage } from '$lib/server/module-gate';
 import { dev } from '$app/environment';
 

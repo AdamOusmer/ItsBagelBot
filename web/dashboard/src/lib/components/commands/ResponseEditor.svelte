@@ -9,7 +9,7 @@
   // each field is one chat message the bot will send (commands allow up to 5).
   // The default stays a single field for callers whose reply is one message
   // (module replies); there pasted newlines collapse to spaces.
-  import { RESPONSE_MAX, getI18n } from '@bagel/shared';
+  import { RESPONSE_MAX, getI18n } from '@bagel/kit';
   import CounterPicker from '$lib/components/counters/CounterPicker.svelte';
   import FetchSourcePicker, { type SourceDef } from '$lib/components/commands/fetches/FetchSourcePicker.svelte';
 

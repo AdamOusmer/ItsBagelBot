@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 // Per-collection import caps, applied client-side after a local parse. The
-// numbers live in @bagel/shared (IMPORT_ITEM_CAPS) mirrored from
+// numbers live in @bagel/kit (IMPORT_ITEM_CAPS) mirrored from
 // app/importer/mapping/validate.go so browser and server truncate/flag at the
 // same boundary; this module is the browser-side enforcement point.
 

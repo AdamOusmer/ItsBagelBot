@@ -5,13 +5,13 @@ import type { RequestHandler } from './$types';
 import type { Cookies } from '@sveltejs/kit';
 import { redirect } from '@sveltejs/kit';
 import { randomBytes } from 'node:crypto';
-import { isOAuthProtocolError } from '@bagel/shared/server/oauth';
+import { isOAuthProtocolError } from '@bagel/kit/server/oauth';
 import { twitch, safeNextPath, fetchAccountEmail } from '$lib/server/oauth';
-import { rpc } from '@bagel/shared/server/nats';
-import { logger } from '@bagel/shared/server/logger';
+import { rpc } from '@bagel/kit/server/nats';
+import { logger } from '@bagel/kit/server/logger';
 import { saveGrant, isBanned, delegationConsume, userLocale, setLocale, userCursor } from '$lib/server/services';
 import { COOKIE, CURSOR_COOKIE, seal, SESSION_TTL_SECONDS } from '$lib/server/session';
-import { isLocale, LOCALE_COOKIE } from '@bagel/shared/i18n';
+import { isLocale, LOCALE_COOKIE } from '@bagel/kit/i18n';
 import { env } from '$env/dynamic/private';
 
 const DASHBOARD = env.NATS_DASHBOARD_SUBJECT_PREFIX ?? 'bagel.rpc.dashboard';

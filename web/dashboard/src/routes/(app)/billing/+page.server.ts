@@ -5,9 +5,9 @@ import type { Actions, PageServerLoad } from './$types';
 import { redirect, fail } from '@sveltejs/kit';
 import { billingState, checkoutBasketCreate, type BillingState } from '$lib/server/services';
 import type { Session } from '$lib/server/session';
-import { RpcError } from '@bagel/shared/server/nats';
-import { logger } from '@bagel/shared/server/logger';
-import { containsLink } from '@bagel/shared/validation';
+import { RpcError } from '@bagel/kit/server/nats';
+import { logger } from '@bagel/kit/server/logger';
+import { containsLink } from '@bagel/kit/validation';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 

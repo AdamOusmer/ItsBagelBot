@@ -12,7 +12,7 @@
   // chip styling is copied rather than shared so a change to the in-page rail's
   // hash behaviour cannot silently change route navigation.
   import { page } from '$app/state';
-  import { getI18n } from '@bagel/shared';
+  import { getI18n } from '@bagel/kit';
 
   let { guildId }: { guildId: string } = $props();
   const { t } = getI18n();

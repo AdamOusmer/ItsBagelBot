@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { Actions, PageServerLoad } from './$types';
-import { clampInt, type TimerDef } from '@bagel/shared';
+import { clampInt, type TimerDef } from '@bagel/kit';
 import {
   readTimers,
   createTimer,

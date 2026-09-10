@@ -11,7 +11,7 @@
   // `use:enhance`: enhance funnels results into whatever `form` prop the
   // CURRENT page load has, and keeping the posts manual means the step state
   // machine below fully owns when review/done render, with no reload wiping it.
-  // Wire shapes come from @bagel/shared, single source:
+  // Wire shapes come from @bagel/kit, single source:
   // web/kit/lib/importer/types.ts since the importer service folded
   // into the dashboard.
   //
@@ -43,8 +43,8 @@
     PageHead,
     toast,
     getI18n
-  } from '@bagel/shared';
-  import { applyImportCaps } from '@bagel/shared/importer/caps';
+  } from '@bagel/kit';
+  import { applyImportCaps } from '@bagel/kit/importer/caps';
   import {
     CHIP_LABEL_KEYS,
     IMPORT_STRATEGIES,
@@ -54,7 +54,7 @@
     type InputSpec,
     type OAuthInputSpec,
     type TextInputSpec
-  } from '@bagel/shared/importer/strategy';
+  } from '@bagel/kit/importer/strategy';
   import {
     IMPORT_SOURCES,
     type CommitResponse,
@@ -66,7 +66,7 @@
     type ManifestTimer,
     type ManifestTrigger,
     type PreviewResponse
-  } from '@bagel/shared';
+  } from '@bagel/kit';
 
   const { t, tl } = getI18n();
 

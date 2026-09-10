@@ -5,7 +5,7 @@
 // marketing site's nav + footer, so every chrome link points at the live
 // marketing origin rather than at a dashboard route, and follows the visitor
 // into their language the same way web/marketing/src/i18n/ui.ts localizePath() does.
-import { DEFAULT_LOCALE, type Locale } from '@bagel/shared/i18n';
+import { DEFAULT_LOCALE, type Locale } from '@bagel/kit/i18n';
 
 /** The live marketing site. */
 export const WEB = 'https://itsbagelbot.com';

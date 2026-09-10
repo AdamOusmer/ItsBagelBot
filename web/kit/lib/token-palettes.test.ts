@@ -24,8 +24,8 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, test } from 'bun:test';
-import { lex, type VarToken } from './tmpl';
-import { ownedByCore } from './rehearsal';
+import { lex, type VarToken } from './engine/tmpl';
+import { ownedByCore } from './engine/rehearsal';
 
 const dashboard = join(dirname(import.meta.path), '..', '..', 'dashboard', 'src', 'lib', 'components');
 

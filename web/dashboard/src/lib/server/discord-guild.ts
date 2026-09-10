@@ -42,7 +42,7 @@ import {
 } from '$lib/server/discord-store';
 import { discordConfigured, requireDiscordActor } from '$lib/server/discord-oauth';
 import { auditDashboardImpersonation } from '$lib/server/services';
-import { logger } from '@bagel/shared/server/logger';
+import { logger } from '@bagel/kit/server/logger';
 import { assertModuleUnlocked, gateModulePage, moduleLocked } from '$lib/server/module-gate';
 import { DISCORD_DEF } from '$lib/server/discord-def';
 import {
@@ -54,7 +54,7 @@ import {
   legacyConfigFor,
   mergeDiscordConfig,
   type PinnedSlot
-} from '@bagel/shared';
+} from '@bagel/kit';
 import type { Session } from '$lib/server/session';
 import { effectiveId } from '$lib/server/board';
 import { dev } from '$app/environment';

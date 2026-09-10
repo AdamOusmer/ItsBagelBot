@@ -13,9 +13,9 @@ import { gateModulePage } from './module-gate';
 import { effectiveId } from './board';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
-import { decodeKey } from '@bagel/shared/server/session';
-import { openOAuthState, sealOAuthState } from '@bagel/shared/server/oauth-state';
-import { encodeIdList, parseIdList, parseUserGuilds, type DiscordUserGuild } from '@bagel/shared';
+import { decodeKey } from '@bagel/kit/server/session';
+import { openOAuthState, sealOAuthState } from '@bagel/kit/server/oauth-state';
+import { encodeIdList, parseIdList, parseUserGuilds, type DiscordUserGuild } from '@bagel/kit';
 
 export type { DiscordUserGuild };
 
@@ -113,7 +113,7 @@ export const DISCORD_PICK_LEG = PICK_LEG;
  *
  * The returned value is what goes to Discord; the cookie holds the same state
  * plus an HMAC over (leg, uid, state), so a cookie planted by one account
- * cannot be redeemed by another. See @bagel/shared/server/oauth-state.
+ * cannot be redeemed by another. See @bagel/kit/server/oauth-state.
  */
 export function putDiscordState(ref: DiscordStateRef, state: OAuthState): void {
   const { cookies, url, leg, uid } = ref;

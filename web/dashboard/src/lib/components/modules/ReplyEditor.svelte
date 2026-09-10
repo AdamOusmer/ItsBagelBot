@@ -16,7 +16,7 @@
   //
   // Save/Cancel are handled by the page so the whole-module config persists in
   // one place.
-  import { getI18n, intactSpan, type ModuleReply } from '@bagel/shared';
+  import { getI18n, intactSpan, type ModuleReply } from '@bagel/kit';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
 

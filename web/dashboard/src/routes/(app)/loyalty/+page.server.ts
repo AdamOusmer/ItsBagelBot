@@ -2,8 +2,8 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { Actions, PageServerLoad } from './$types';
-import type { LoyaltyConfig, LoyaltyStanding } from '@bagel/shared';
-import { blankLoyaltyConfig, catalogChildren, moduleDef } from '@bagel/shared';
+import type { LoyaltyConfig, LoyaltyStanding } from '@bagel/kit';
+import { blankLoyaltyConfig, catalogChildren, moduleDef } from '@bagel/kit';
 import { readLoyalty, writeLoyalty, topStandings } from '$lib/server/loyalty-store';
 import { listModules } from '$lib/server/commands-store';
 import { setModuleEnabled } from '$lib/server/module-blob';

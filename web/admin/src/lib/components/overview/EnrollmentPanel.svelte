@@ -11,13 +11,13 @@
   // deletions make every historical point a guess, and it carried an "est."
   // label saying so. A stat tile with the live total is the honest version of
   // the same answer, so the derived line went with the component.
-  import Card from '@bagel/shared/components/Card.svelte';
-  import CardHead from '@bagel/shared/components/CardHead.svelte';
-  import SegmentedControl from '@bagel/shared/components/SegmentedControl.svelte';
-  import StatTile from '@bagel/shared/components/StatTile.svelte';
-  import AreaSeries from '@bagel/shared/components/AreaSeries.svelte';
-  import EmptyState from '@bagel/shared/components/EmptyState.svelte';
-  import { getI18n } from '@bagel/shared/i18n/context';
+  import Card from '@bagel/kit/components/Card.svelte';
+  import CardHead from '@bagel/kit/components/CardHead.svelte';
+  import SegmentedControl from '@bagel/kit/components/SegmentedControl.svelte';
+  import StatTile from '@bagel/kit/components/StatTile.svelte';
+  import AreaSeries from '@bagel/kit/components/AreaSeries.svelte';
+  import EmptyState from '@bagel/kit/components/EmptyState.svelte';
+  import { getI18n } from '@bagel/kit/i18n/context';
   import type { EnrollmentWire } from '$lib/server/services';
   import { ENROLLMENT_WINDOWS, type EnrollmentWindow } from '$lib/enrollment-window';
 

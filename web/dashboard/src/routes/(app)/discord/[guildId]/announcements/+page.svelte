@@ -3,7 +3,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
   // Stream posts: the two switches plus the category allow/deny lists that
   // decide which streams get announced at all.
-  import { Button, Chip, getI18n, encodeNameList, parseNameList, CATEGORY_NAME_MAX, type DiscordConfig } from '@bagel/shared';
+  import { Button, Chip, getI18n, encodeNameList, parseNameList, CATEGORY_NAME_MAX, type DiscordConfig } from '@bagel/kit';
   import GuildForm from '$lib/components/discord/GuildForm.svelte';
   import FieldNote from '$lib/components/discord/FieldNote.svelte';
   import SwitchRow from '$lib/components/discord/SwitchRow.svelte';

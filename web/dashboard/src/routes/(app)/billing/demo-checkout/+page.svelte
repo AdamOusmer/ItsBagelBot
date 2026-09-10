@@ -4,7 +4,7 @@
   // Fake Tebex-hosted checkout, DEMO=1 only. Real checkout redirects the
   // browser out to Tebex; this page is the demo's own stand-in for that trip,
   // styled to match the billing page it launches from and returns to.
-  import { AuroraBg, LightField, PageHead, Card, Button } from '@bagel/shared';
+  import { AuroraBg, LightField, PageHead, Card, Button } from '@bagel/kit';
 
   let { data } = $props();
 

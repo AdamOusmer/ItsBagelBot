@@ -11,16 +11,16 @@
   // it never scrolls out of view.
   import type { SubmitFunction } from '@sveltejs/kit';
   import { enhance } from '$app/forms';
-  import Bolota from '@bagel/shared/components/Bolota.svelte';
-  import RadioGroup from '@bagel/shared/components/RadioGroup.svelte';
-  import Switch from '@bagel/shared/components/Switch.svelte';
-  import Field from '@bagel/shared/components/Field.svelte';
-  import Scroller from '@bagel/shared/components/Scroller.svelte';
-  import EditorFooter from '@bagel/shared/components/EditorFooter.svelte';
-  import type { InspectorStatus } from '@bagel/shared';
-  import { statusTone } from '@bagel/shared/status-tone';
-  import { ago } from '@bagel/shared';
-  import { getI18n } from '@bagel/shared/i18n/context';
+  import Bolota from '@bagel/kit/components/Bolota.svelte';
+  import RadioGroup from '@bagel/kit/components/RadioGroup.svelte';
+  import Switch from '@bagel/kit/components/Switch.svelte';
+  import Field from '@bagel/kit/components/Field.svelte';
+  import Scroller from '@bagel/kit/components/Scroller.svelte';
+  import EditorFooter from '@bagel/kit/components/EditorFooter.svelte';
+  import type { InspectorStatus } from '@bagel/kit';
+  import { statusTone } from '@bagel/kit/status-tone';
+  import { ago } from '@bagel/kit';
+  import { getI18n } from '@bagel/kit/i18n/context';
   import type { AdminRole } from '$lib/access';
   import type { AdminAcct, AuditEntry } from '$lib/server/services';
   import StatusDot from '../StatusDot.svelte';

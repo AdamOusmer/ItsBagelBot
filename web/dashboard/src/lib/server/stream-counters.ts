@@ -25,16 +25,16 @@
 //      a manual counter.set). Clamp the delta at 0 rather than surface a
 //      negative count (same precedent as public-stats.ts's perSecond clamp).
 import Redis from 'iovalkey';
-import { rpc } from '@bagel/shared/server/nats';
-import { getServerConfig, hasServerConfig } from '@bagel/shared/server/config';
-import { CircuitBreaker, withTimeout } from '@bagel/shared/server/resilience';
+import { rpc } from '@bagel/kit/server/nats';
+import { getServerConfig, hasServerConfig } from '@bagel/kit/server/config';
+import { CircuitBreaker, withTimeout } from '@bagel/kit/server/resilience';
 import {
   VALKEY_TLS_DATA_PORT,
   VALKEY_TLS_SENTINEL_PORT,
   valkeyEndpoint,
   valkeySentinelNAT,
   valkeyTLSOptions
-} from '@bagel/shared/server/valkey-connection';
+} from '@bagel/kit/server/valkey-connection';
 import { SUB } from './services';
 import {
   allRead,

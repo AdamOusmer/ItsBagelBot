@@ -10,7 +10,7 @@
 - **Sesame expansion**: pre-resolve slot beside counters — `runCustom` (app/twitch/sesame/engine/dispatch.go:74, `bumpCounterTokens` :100), `expandCommand` (app/twitch/sesame/engine/vars.go:52), `tokens` struct (vars.go:15-25).
 - **Commands storage**: ent entity conventions (app/db/commands/ent/schema/commands.go:24-68), dashboard verbs (app/db/commands/rpc/dashboard.go:28-35), Valkey projection (internal/projection/valkey.go:244,:514; client.go:296).
 - **Gossip execution**: Builder (app/gossip/internal/provider/builder.go), transports (app/gossip/internal/core/http.go:122,:157-170), per-subject fleets (app/gossip/internal/engine/engine.go:34-47), provider registration (providers/all.go).
-- **Console**: commands page patterns (routes/(app)/commands/+page.svelte), shared validation (web/kit/lib/commands-validate.ts:73).
+- **Console**: commands page patterns (routes/(app)/commands/+page.svelte), shared validation (web/kit/lib/engine/commands-validate.ts:73).
 - **Importer**: urlfetch tags recognized-but-unmapped today (web/kit/lib/importer/moobot.ts:287,300).
 
 ## Phase 0 — Decisions & syntax

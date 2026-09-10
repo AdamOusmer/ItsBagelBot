@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { LaneView } from '$lib/server/lanes';
-import type { StatusTone } from '@bagel/shared/status-tone';
+import type { StatusTone } from '@bagel/kit/status-tone';
 
 /**
  * A lane's identity. JetStream has no id for a consumer beyond its stream +

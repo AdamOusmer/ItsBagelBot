@@ -6,7 +6,7 @@
   // whatever tab Twitch opened, which may not carry an admin session, so this
   // page renders an outcome and nothing else.
   import { page } from '$app/state';
-  import { getI18n } from '@bagel/shared/i18n/context';
+  import { getI18n } from '@bagel/kit/i18n/context';
 
   const { t } = getI18n();
 

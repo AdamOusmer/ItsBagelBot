@@ -10,8 +10,8 @@
   // pressed is worse than no button -- it announces itself as actionable to
   // assistive tech and morphs the custom cursor for a dead target. The row is a
   // plain <div> that borrows the deck's rule and padding instead.
-  import type { Shard } from '@bagel/shared';
-  import { getI18n } from '@bagel/shared/i18n/context';
+  import type { Shard } from '@bagel/kit';
+  import { getI18n } from '@bagel/kit/i18n/context';
   import StatusDot from '../StatusDot.svelte';
   import StatePill from '../StatePill.svelte';
   import { loadTone, podIndex, rateLabel, shardBadge } from './shard-state';

@@ -6,7 +6,7 @@
   // It is a row-level note rather than a toast because the reseed that follows
   // an `invalid` refusal snaps the control back to the stored value: without a
   // mark, nothing on screen would say which control moved or why.
-  import { FieldError, getI18n, type DiscordConfig, type RefusedFields } from '@bagel/shared';
+  import { FieldError, getI18n, type DiscordConfig, type RefusedFields } from '@bagel/kit';
 
   let { invalid, field }: { invalid: RefusedFields; field: keyof DiscordConfig } = $props();
   const { t } = getI18n();

@@ -27,8 +27,8 @@ import {
   type DiscordConfig,
   type I18n,
   type RefusedFields
-} from '@bagel/shared';
-import type { SaveState } from '@bagel/shared/components/SaveStatus.svelte';
+} from '@bagel/kit';
+import type { SaveState } from '@bagel/kit/components/SaveStatus.svelte';
 import { DISCORD_CODE_KEYS } from '$lib/discord-messages';
 import { FIELD_LABEL_KEYS } from './guild-fields';
 

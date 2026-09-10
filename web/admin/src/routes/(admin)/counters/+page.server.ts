@@ -3,8 +3,8 @@
 
 import type { Actions, PageServerLoad, RequestEvent } from './$types';
 import { fail, redirect } from '@sveltejs/kit';
-import { mutateAction } from '@bagel/shared/server/form-action';
-import { normalizeCounterName } from '@bagel/shared/validation';
+import { mutateAction } from '@bagel/kit/server/form-action';
+import { normalizeCounterName } from '@bagel/kit/validation';
 import { dev } from '$app/environment';
 import { allows, requireRole, type AdminIdentity } from '$lib/server/access';
 import { audit } from '$lib/server/audit';
@@ -45,7 +45,7 @@ export const load: PageServerLoad = async ({ parent }) => {
 };
 
 // mutate binds one POST action to the shared write skeleton
-// (@bagel/shared/server/form-action): gate, form, demo short-circuit, error
+// (@bagel/kit/server/form-action): gate, form, demo short-circuit, error
 // mapping, audit. The manager identity is this page's actor context; `run`
 // returns the audit detail, or null for a validation failure.
 type Mutation = (f: FormData) => Promise<string | null>;

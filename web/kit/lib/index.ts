@@ -80,14 +80,14 @@ export * from './inspector-machine';
 export * from './command-active';
 export * from './discord-config';
 export * from './discord-overview';
-export * from './commands-validate';
+export * from './engine/commands-validate';
 export * from './uses';
-export * from './rehearsal';
+export * from './engine/rehearsal';
 // Only the span builder is re-exported from the lexer, not the lexer itself:
 // a component that needs to READ a template rehearses it (./rehearsal), while
 // one that needs to WRITE a span out of a catalog string must not hand-build
 // it. `export *` would also collide with rehearsal's own Token alias.
-export { intactSpan } from './tmpl';
+export { intactSpan } from './engine/tmpl';
 export * from './validation';
 export * from './action-result';
 export * from './format';

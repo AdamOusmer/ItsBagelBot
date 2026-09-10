@@ -8,7 +8,7 @@
 // byte-for-byte. English is bundled eagerly; every other locale pays one small
 // parallel JSON-chunk fetch here instead of ~54 KB of eager eval for every
 // visitor at boot.
-import { ensureCatalog, isLocale } from '@bagel/shared/i18n';
+import { ensureCatalog, isLocale } from '@bagel/kit/i18n';
 import type { LayoutLoad } from './$types';
 
 export const load: LayoutLoad = async ({ data }) => {

@@ -10,10 +10,10 @@ import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
 import { randomBytes } from 'node:crypto';
 import newrelic from 'newrelic';
-import { verifyViewAs } from '@bagel/shared/server/impersonation';
-import { claimOnce } from '@bagel/shared/server/rate-limit';
+import { verifyViewAs } from '@bagel/kit/server/impersonation';
+import { claimOnce } from '@bagel/kit/server/rate-limit';
 import { COOKIE, seal, IMPERSONATION_TTL_SECONDS } from '$lib/server/session';
-import { LOCALE_COOKIE } from '@bagel/shared/i18n';
+import { LOCALE_COOKIE } from '@bagel/kit/i18n';
 
 // jti claims only need to outlive the token's own 5-minute validity window
 // (plus clock skew); after that verifyViewAs rejects the token anyway.

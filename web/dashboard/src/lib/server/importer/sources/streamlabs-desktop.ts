@@ -4,8 +4,8 @@
 // StreamLabs Chatbot: the export is a SQLite Chatbot.db, so it uploads whole
 // and is decoded here (sql.js, lazily imported by the parser). Console CSP
 // forbids WASM, which is what rules out the browser-side parse Moobot gets.
-import { parseStreamLabsDesktop } from '@bagel/shared/importer/streamlabs-desktop';
-import { CODE } from '@bagel/shared/importer/validate';
+import { parseStreamLabsDesktop } from '@bagel/kit/importer/streamlabs-desktop';
+import { CODE } from '@bagel/kit/importer/validate';
 import { refused, type ImportPreviewRequest, type ParseOutcome } from '../engine';
 import { fileSourceInput, type ServerSourceStrategy } from '../strategy';
 

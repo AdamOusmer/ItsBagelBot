@@ -4,14 +4,14 @@
 // Admin-facing RPC wrappers over the shared NATS client. Subjects come from env
 // with the same defaults as the retired Go admin tier. Page callers degrade to
 // neutral zero/empty shapes so SSR can render without inventing live state.
-import { rpc, publish, RpcError } from '@bagel/shared/server/nats';
-import { codeReader } from '@bagel/shared/server/rpc-code';
-import { defineRead, defineWrite } from '@bagel/shared/server/service';
-import { createCacheFabric } from '@bagel/shared/server/cache-fabric';
-import { POLICY, type CachePolicy } from '@bagel/shared/server/cache-keys';
-import { getServerConfig } from '@bagel/shared/server/config';
-import type { ScopeMap } from '@bagel/shared/server/invalidation';
-import type { ShardSnapshot, UserStats } from '@bagel/shared';
+import { rpc, publish, RpcError } from '@bagel/kit/server/nats';
+import { codeReader } from '@bagel/kit/server/rpc-code';
+import { defineRead, defineWrite } from '@bagel/kit/server/service';
+import { createCacheFabric } from '@bagel/kit/server/cache-fabric';
+import { POLICY, type CachePolicy } from '@bagel/kit/server/cache-keys';
+import { getServerConfig } from '@bagel/kit/server/config';
+import type { ScopeMap } from '@bagel/kit/server/invalidation';
+import type { ShardSnapshot, UserStats } from '@bagel/kit';
 import { adminL1CacheCapacity } from './config-sanity';
 
 // Subjects come from process.env, NOT $env/dynamic/private. This module is

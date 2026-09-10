@@ -7,11 +7,11 @@
 // It is a separate module from nav.ts for a measured reason. nav.ts statically
 // imports MODULE_CATALOG (types.ts) and MODULE_CATEGORY_ORDER (module-index.ts)
 // for the dashboard's Modules fan-out, and those are values, not types: any
-// importer of '@bagel/shared/nav' pays for the whole dashboard module catalog.
+// importer of '@bagel/kit/nav' pays for the whole dashboard module catalog.
 // Measured 2026-09-09 on macOS/arm64: importing only resolveSection/navItems/
 // navGroups from nav.ts is 16253 B gzip; the same three from here is ~0. The
 // admin console's shell needs exactly those three and none of the catalog, so
-// it imports '@bagel/shared/nav-core' (via nav-admin.ts) instead.
+// it imports '@bagel/kit/nav-core' (via nav-admin.ts) instead.
 //
 // Everything here is pure data / pure functions -- no import.meta.glob, no
 // Vite-only entry points -- so it stays safe in a boot import graph.

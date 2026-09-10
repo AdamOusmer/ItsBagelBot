@@ -1,5 +1,5 @@
 /**
- * Bundle size gate for @bagel/shared: the bolota pattern (bolota/scripts/
+ * Bundle size gate for @bagel/kit: the bolota pattern (bolota/scripts/
  * size.ts) applied to the entries the console apps bundle rather than
  * externalise.
  *

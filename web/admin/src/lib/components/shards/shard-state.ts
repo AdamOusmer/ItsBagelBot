@@ -1,8 +1,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import type { Shard } from '@bagel/shared';
-import type { StatusTone } from '@bagel/shared/status-tone';
+import type { Shard } from '@bagel/kit';
+import type { StatusTone } from '@bagel/kit/status-tone';
 
 // derive_state/1 in ingress emits connecting | binding | migrating while a
 // socket is coming up or being handed over. All three are transient and heal

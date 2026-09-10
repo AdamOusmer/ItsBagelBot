@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { Actions, PageServerLoad } from './$types';
-import { GOVEE_COLOR_NAMES } from '@bagel/shared';
+import { GOVEE_COLOR_NAMES } from '@bagel/kit';
 import {
   goveeStore,
   type GoveeDevice,
@@ -14,7 +14,7 @@ import {
 } from '$lib/server/govee-store';
 import { moduleLoad } from '$lib/server/module-page';
 import { moduleAction } from '$lib/server/module-action';
-import type { MutationRefusal } from '@bagel/shared/server/form-action';
+import type { MutationRefusal } from '@bagel/kit/server/form-action';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { fail } from '@sveltejs/kit';

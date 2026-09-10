@@ -12,7 +12,7 @@
   // The two banners that are NOT here are the conflict and refused-field ones:
   // those belong to a draft, drafts are per sub-page, and a banner about a save
   // that happened on Channels has no meaning while you are looking at Roles.
-  import { AlertBanner, ButtonLink, Card, Chip, getI18n, droppedPinNotice } from '@bagel/shared';
+  import { AlertBanner, ButtonLink, Card, Chip, getI18n, droppedPinNotice } from '@bagel/kit';
   import GuildHeader from '$lib/components/discord/GuildHeader.svelte';
   import GuildNav from '$lib/components/discord/GuildNav.svelte';
   import { SLOT_LABEL_KEYS } from '$lib/discord/guild-fields';

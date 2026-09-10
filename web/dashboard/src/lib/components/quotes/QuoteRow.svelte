@@ -6,7 +6,7 @@
   // the page inspector) and a delete button. The disclosure's accessible name is
   // its visible content (number + full quote text + date), so the whole quote is
   // available to assistive tech even though the visible line is clamped.
-  import { MiniButton, getI18n } from '@bagel/shared';
+  import { MiniButton, getI18n } from '@bagel/kit';
   import type { QuoteView } from '$lib/server/quotes-store';
 
   let {

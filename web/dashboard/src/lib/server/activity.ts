@@ -4,7 +4,7 @@
 // Overview "What the bot just did" feed: a read-only Valkey view. The only
 // writer is internal/activity/store.go (Go, sesame + outgress); this file
 // mirrors its exact key layout and wire format rather than talking to it
-// over RPC, the same direct-read pattern @bagel/shared/server/valkey-store
+// over RPC, the same direct-read pattern @bagel/kit/server/valkey-store
 // uses for the settings projection. Three keys per broadcaster:
 //
 //   activity:feed:<uid>     LIST, LPUSHed newest-first, JSON per row, capped
@@ -23,13 +23,13 @@
 // (typically seconds to minutes later), so the same window (milliseconds) is
 // not observable here. This matches every other read in valkey-store.ts.
 import Redis from 'iovalkey';
-import { getServerConfig, hasServerConfig } from '@bagel/shared/server/config';
-import { CircuitBreaker, withTimeout } from '@bagel/shared/server/resilience';
+import { getServerConfig, hasServerConfig } from '@bagel/kit/server/config';
+import { CircuitBreaker, withTimeout } from '@bagel/kit/server/resilience';
 import {
   VALKEY_TLS_DATA_PORT,
   valkeyEndpoint,
   valkeyTLSOptions
-} from '@bagel/shared/server/valkey-connection';
+} from '@bagel/kit/server/valkey-connection';
 import {
   degradedActivityFeed,
   type ActivityFeed,

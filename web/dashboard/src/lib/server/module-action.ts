@@ -10,7 +10,7 @@
 // logged error, audit line -- so a four-verb page carried it four times and the
 // copies had already drifted in what they logged and whether they audited at all.
 //
-// This binds those to mutateAction (@bagel/shared/server/form-action), which
+// This binds those to mutateAction (@bagel/kit/server/form-action), which
 // pins the ORDER; what is added here is the dashboard's own actor: the board
 // being written (the OWNER's id, so a delegate edits the owner's board) plus
 // the session that asked (so the audit line names the delegate).
@@ -20,8 +20,8 @@
 // the caller's own route file for Rollup to fold the branch away (see
 // shared/scripts/assert-demo-gated.mjs), so this module never names the key.
 import { fail } from '@sveltejs/kit';
-import { mutateAction, type MutationRefusal } from '@bagel/shared/server/form-action';
-import { logger } from '@bagel/shared/server/logger';
+import { mutateAction, type MutationRefusal } from '@bagel/kit/server/form-action';
+import { logger } from '@bagel/kit/server/logger';
 import { auditDashboardImpersonation } from './services';
 import { gateModulePage } from './module-gate';
 import { effectiveId } from './board';

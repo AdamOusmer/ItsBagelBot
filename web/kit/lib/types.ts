@@ -153,7 +153,7 @@ export interface DashboardLink {
 // Compat barrel: everything that used to live in this god file now lives in
 // the files below: catalog/ for the module catalog and built-in commands,
 // govee/channelpoints/timers/loyalty for the page domain models. This file
-// remains only so existing consumers keep importing from '@bagel/shared'
+// remains only so existing consumers keep importing from '@bagel/kit'
 // unchanged (`export * from './types'` in index.ts); new code should import
 // from the specific modules instead. The BW/FN preview token palettes moved to
 // catalog/rehearsal-tokens.ts and are deliberately NOT re-exported here: they were
@@ -170,7 +170,7 @@ export * from './govee';
 // The canonical import shapes live in lib/importer/types.ts since the
 // standalone importer service was folded into the dashboard (2026-08-23) and
 // that module became their single source of truth. Re-exported here so every
-// existing '@bagel/shared' import keeps resolving unchanged.
+// existing '@bagel/kit' import keeps resolving unchanged.
 export type {
   AutomodTerms,
   CollisionRef,

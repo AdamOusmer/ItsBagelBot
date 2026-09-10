@@ -16,7 +16,7 @@ import type {
   ImportManifest,
   ImportSource,
   PreviewResponse
-} from '@bagel/shared';
+} from '@bagel/kit';
 
 if (!dev) throw new Error('DASHBOARD_DEV_FIXTURE_INCLUDED_IN_PRODUCTION');
 

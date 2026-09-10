@@ -7,8 +7,8 @@
   // glance as the name rather than behind a "Configure" button.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { SaveStatus, Switch, getI18n, moduleCommandChips, moduleHref, type ModuleState } from '@bagel/shared';
-  import type { SaveState } from '@bagel/shared/components/SaveStatus.svelte';
+  import { SaveStatus, Switch, getI18n, moduleCommandChips, moduleHref, type ModuleState } from '@bagel/kit';
+  import type { SaveState } from '@bagel/kit/components/SaveStatus.svelte';
 
   const { t } = getI18n();
 

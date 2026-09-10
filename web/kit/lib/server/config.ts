@@ -11,7 +11,7 @@
 // reads them back through `getServerConfig()`.
 //
 // This keeps `$env` resolution inside the app, where SvelteKit guarantees it,
-// and keeps `@bagel/shared` free of SvelteKit virtual-module imports (a clean
+// and keeps `@bagel/kit` free of SvelteKit virtual-module imports (a clean
 // dependency-inversion seam: shared depends on this abstraction, not on the
 // framework).
 //

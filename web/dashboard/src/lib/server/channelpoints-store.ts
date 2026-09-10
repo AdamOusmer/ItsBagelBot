@@ -17,9 +17,9 @@
 // succeed) and then rewrites the blob, so the two never diverge on a failed
 // call. After a create/enable we also fire an ensure-optional EventSub job so
 // the channel starts receiving redemption events.
-import { rpc } from '@bagel/shared/server/nats';
-import { logger } from '@bagel/shared/server/logger';
-import { type ChannelPointReward, MOD } from '@bagel/shared';
+import { rpc } from '@bagel/kit/server/nats';
+import { logger } from '@bagel/kit/server/logger';
+import { type ChannelPointReward, MOD } from '@bagel/kit';
 import { SUB, publishEventSubEnsureOptional } from './services';
 import { upsertModule } from './commands-store';
 import { readModuleBlob, setModuleEnabled } from './module-blob';

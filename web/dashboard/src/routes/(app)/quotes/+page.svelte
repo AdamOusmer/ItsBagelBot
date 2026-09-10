@@ -23,7 +23,7 @@
     actionPayload,
     toastFailure,
     type ActionOk,
-  } from '@bagel/shared';
+  } from '@bagel/kit';
   import type { QuoteView } from '$lib/server/quotes-store';
   import QuoteRow from '$lib/components/quotes/QuoteRow.svelte';
   import QuoteEditor from '$lib/components/quotes/QuoteEditor.svelte';

@@ -23,9 +23,9 @@
     actionPayload,
     toastFailure,
     type ActionOk,
-  } from '@bagel/shared';
+  } from '@bagel/kit';
   import { untrack } from 'svelte';
-  import { createInspector } from '@bagel/shared/inspector';
+  import { createInspector } from '@bagel/kit/inspector';
   import TimerRow from '$lib/components/timers/TimerRow.svelte';
   import TimerEditor from '$lib/components/timers/TimerEditor.svelte';
 

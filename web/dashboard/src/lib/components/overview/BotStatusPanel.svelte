@@ -20,13 +20,13 @@
   // those are the moments the streamer actually has to read and act on.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import Button from '@bagel/shared/components/Button.svelte';
-  import ButtonLink from '@bagel/shared/components/ButtonLink.svelte';
-  import Card from '@bagel/shared/components/Card.svelte';
-  import Skeleton from '@bagel/shared/components/Skeleton.svelte';
-  import { getI18n } from '@bagel/shared/i18n/context';
-  import type { ConnUi } from '@bagel/shared/connection-state';
-  import { statusTone } from '@bagel/shared/status-tone';
+  import Button from '@bagel/kit/components/Button.svelte';
+  import ButtonLink from '@bagel/kit/components/ButtonLink.svelte';
+  import Card from '@bagel/kit/components/Card.svelte';
+  import Skeleton from '@bagel/kit/components/Skeleton.svelte';
+  import { getI18n } from '@bagel/kit/i18n/context';
+  import type { ConnUi } from '@bagel/kit/connection-state';
+  import { statusTone } from '@bagel/kit/status-tone';
 
   const { t } = getI18n();
 

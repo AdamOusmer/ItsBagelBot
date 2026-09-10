@@ -6,16 +6,16 @@
   import { page } from '$app/state';
   // Direct imports, not the barrel: this is the authed landing page's boot path
   // (see routes/+layout.svelte).
-  import Button from '@bagel/shared/components/Button.svelte';
-  import Card from '@bagel/shared/components/Card.svelte';
-  import ButtonLink from '@bagel/shared/components/ButtonLink.svelte';
-  import Modal from '@bagel/shared/components/Modal.svelte';
-  import Skeleton from '@bagel/shared/components/Skeleton.svelte';
-  import SkeletonStack from '@bagel/shared/components/SkeletonStack.svelte';
-  import OverviewGrid from '@bagel/shared/components/OverviewGrid.svelte';
-  import { getI18n } from '@bagel/shared/i18n/context';
-  import { connectionUiState, type ConnSignals, type ConnUi } from '@bagel/shared/connection-state';
-  import { toast } from '@bagel/shared/toast';
+  import Button from '@bagel/kit/components/Button.svelte';
+  import Card from '@bagel/kit/components/Card.svelte';
+  import ButtonLink from '@bagel/kit/components/ButtonLink.svelte';
+  import Modal from '@bagel/kit/components/Modal.svelte';
+  import Skeleton from '@bagel/kit/components/Skeleton.svelte';
+  import SkeletonStack from '@bagel/kit/components/SkeletonStack.svelte';
+  import OverviewGrid from '@bagel/kit/components/OverviewGrid.svelte';
+  import { getI18n } from '@bagel/kit/i18n/context';
+  import { connectionUiState, type ConnSignals, type ConnUi } from '@bagel/kit/connection-state';
+  import { toast } from '@bagel/kit/toast';
   import type { ActionResult } from '@sveltejs/kit';
   import OnboardingGuide from '$lib/components/OnboardingGuide.svelte';
   import OverviewHead from '$lib/components/overview/OverviewHead.svelte';
@@ -28,7 +28,7 @@
   import StreamSection from '$lib/components/overview/StreamSection.svelte';
   import ActivityLog from '$lib/components/overview/ActivityLog.svelte';
   import AnsweredTonight from '$lib/components/overview/AnsweredTonight.svelte';
-  import { livePoll } from '@bagel/shared/live-poll';
+  import { livePoll } from '@bagel/kit/live-poll';
   import {
     CONNECTION_POLL_FAST_MS,
     CONNECTION_POLL_TIMEOUT_MS,

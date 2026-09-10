@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { AuroraBg, LightField, AlertBanner, Card, getI18n } from '@bagel/shared';
+  import { AuroraBg, LightField, AlertBanner, Card, getI18n } from '@bagel/kit';
   import type { PageData } from './$types';
   import { commandsHref } from '$lib/components/public/links';
 

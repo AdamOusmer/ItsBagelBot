@@ -21,7 +21,7 @@
     getI18n,
     toast,
     type ModuleTile
-  } from '@bagel/shared';
+  } from '@bagel/kit';
   import { payloadOf, refusalTextOf, succeeded } from '$lib/discord/guild-draft.svelte';
 
   let {

@@ -21,7 +21,7 @@
     RESPONSE_MAX_LINES,
     getI18n,
     type CommandErrors
-  } from '@bagel/shared';
+  } from '@bagel/kit';
   import CheckButton from '$lib/components/CheckButton.svelte';
   import AliasChips from './AliasChips.svelte';
   import ResponseEditor from './ResponseEditor.svelte';

@@ -2,9 +2,9 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { RequestHandler } from './$types';
-import { ready } from '@bagel/shared/server/nats';
-import { ready as warmValkey } from '@bagel/shared/server/valkey-store';
-import { rateLimiterReady } from '@bagel/shared/server/rate-limit';
+import { ready } from '@bagel/kit/server/nats';
+import { ready as warmValkey } from '@bagel/kit/server/valkey-store';
+import { rateLimiterReady } from '@bagel/kit/server/rate-limit';
 
 export const GET: RequestHandler = async () => {
   // Gate readiness on NATS (the hard dependency) and best-effort-warm the Valkey

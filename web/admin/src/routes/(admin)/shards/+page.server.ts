@@ -9,7 +9,7 @@ import { requireRole } from '$lib/server/access';
 import { audit } from '$lib/server/audit';
 import { emptyShardSnapshot } from '$lib/server/fallback';
 
-import type { ShardSnapshot } from '@bagel/shared';
+import type { ShardSnapshot } from '@bagel/kit';
 
 export type ShardsBundle = { snapshot: ShardSnapshot; degraded: boolean };
 const DEMO = dev && process.env.DEMO === '1';

@@ -7,7 +7,7 @@
   // motion lives in menu-animator.ts; this file owns the markup and the
   // open/closed accessibility state.
   import { onMount } from 'svelte';
-  import { getI18n } from '@bagel/shared';
+  import { getI18n } from '@bagel/kit';
   import LangSwitch from '$lib/components/LangSwitch.svelte';
   import { MenuAnimator } from './menu-animator';
   import { dashInstallHref, type PublicNavLink } from './links';

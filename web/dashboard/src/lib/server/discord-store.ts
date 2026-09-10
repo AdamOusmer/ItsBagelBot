@@ -10,11 +10,11 @@
 // modules blob, which structurally allowed exactly one server per broadcaster
 // and had no version to guard a concurrent save with.
 //
-// The config's shape, defaults and validation live in @bagel/shared's
+// The config's shape, defaults and validation live in @bagel/kit's
 // discord-config so they can be unit-tested (the console runner only executes
 // shared/**); this file is the transport half.
-import { rpc } from '@bagel/shared/server/nats';
-import { codeReader, type CodedReply } from '@bagel/shared/server/rpc-code';
+import { rpc } from '@bagel/kit/server/nats';
+import { codeReader, type CodedReply } from '@bagel/kit/server/rpc-code';
 import {
   MOD,
   droppedPinNotice,
@@ -26,7 +26,7 @@ import {
   type DiscordConfig,
   type PinnedRoles,
   type PinnedSlot
-} from '@bagel/shared';
+} from '@bagel/kit';
 import { SUB } from './services';
 import { upsertModule } from './commands-store';
 import { readModuleBlob } from './module-blob';
@@ -34,7 +34,7 @@ import { readModuleBlob } from './module-blob';
 export {
   blankDiscordConfig,
   type DiscordConfig
-} from '@bagel/shared';
+} from '@bagel/kit';
 
 const DISCORD_MODULE = MOD.discord;
 
@@ -91,7 +91,7 @@ export const DISCORD_CODES = [
 export type DiscordCode = (typeof DISCORD_CODES)[number] | '';
 
 // The reader (code first, the pre-code sentence as a dying fallback) is
-// @bagel/shared/server/rpc-code, shared with every other surface that reads a
+// @bagel/kit/server/rpc-code, shared with every other surface that reads a
 // refusal. This page keeps only its own vocabulary: three of these codes are
 // discord-specific and the shared set deliberately does not carry them.
 export const replyCode: (r: CodedReply) => DiscordCode = codeReader(DISCORD_CODES);

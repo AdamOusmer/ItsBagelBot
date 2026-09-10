@@ -5,8 +5,8 @@
   // primary is a real button and the per-reply on/off switch is its sibling, not
   // nested inside it. The page passes the toggle handler so all optimistic state
   // stays in one place.
-  import { SaveStatus, ManagementRow, Switch, getI18n, type ModuleReply } from '@bagel/shared';
-  import type { SaveState } from '@bagel/shared/components/SaveStatus.svelte';
+  import { SaveStatus, ManagementRow, Switch, getI18n, type ModuleReply } from '@bagel/kit';
+  import type { SaveState } from '@bagel/kit/components/SaveStatus.svelte';
 
   const { t } = getI18n();
 

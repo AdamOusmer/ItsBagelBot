@@ -9,7 +9,7 @@
   // to stand down for the redirect belongs to the sub-pages that have a draft,
   // and none of them is mounted while this one is.
   import { enhance } from '$app/forms';
-  import { Button, ButtonLink, Card, ConfirmDialog, getI18n, toast } from '@bagel/shared';
+  import { Button, ButtonLink, Card, ConfirmDialog, getI18n, toast } from '@bagel/kit';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { invalidateAll } from '$app/navigation';
   import { payloadOf, refusalTextOf, succeeded } from '$lib/discord/guild-draft.svelte';

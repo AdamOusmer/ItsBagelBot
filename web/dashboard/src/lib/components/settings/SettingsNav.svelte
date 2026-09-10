@@ -3,7 +3,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
   // Settings keeps this local name; the markup lives in shared SectionNav
   // (the modules index uses the same component).
-  import { SectionNav } from '@bagel/shared';
+  import { SectionNav } from '@bagel/kit';
   let {
     label,
     items

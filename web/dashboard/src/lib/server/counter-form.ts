@@ -4,8 +4,8 @@
 // Form-parsing helpers shared by the /counters page actions. Kept out of the
 // route module so +page.server.ts stays a thin list of actions: each one reads
 // its inputs through these, then calls the loyalty store.
-import type { CounterScope } from '@bagel/shared';
-import { normalizeCounterName } from '@bagel/shared/validation';
+import type { CounterScope } from '@bagel/kit';
+import { normalizeCounterName } from '@bagel/kit/validation';
 import { resolveViewerId, type CounterTarget } from './loyalty-store';
 
 // UserError carries a safe, machine-readable failure code out of an action so
@@ -14,7 +14,7 @@ import { resolveViewerId, type CounterTarget } from './loyalty-store';
 export class UserError extends Error {}
 
 // Re-exported so the counters actions keep one import for their form helpers;
-// the fold itself lives in @bagel/shared/validation, shared with the admin
+// the fold itself lives in @bagel/kit/validation, shared with the admin
 // console's bot-counter page (same keyspace, same normalization).
 export { normalizeCounterName };
 

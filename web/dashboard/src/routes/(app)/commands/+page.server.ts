@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { Actions, PageServerLoad } from './$types';
-import type { CommandView, Perm } from '@bagel/shared';
+import type { CommandView, Perm } from '@bagel/kit';
 import {
   PERMS,
   RESPONSE_MAX,
@@ -18,13 +18,13 @@ import {
   slugifyName,
   validateFetchDef,
   type FetchDefErrors
-} from '@bagel/shared';
-import { ValkeyRateLimiter } from '@bagel/shared/server/rate-limit';
+} from '@bagel/kit';
+import { ValkeyRateLimiter } from '@bagel/kit/server/rate-limit';
 import { listCommands, upsertCommand, deleteCommand, listModules, upsertModule, type ModuleView } from '$lib/server/commands-store';
 import { listFetches, upsertFetchDef, deleteFetchDef } from '$lib/server/fetches-store';
 import { saveFetchDef, removeFetchDef, rehearseFetchDef } from '$lib/server/fetch-def-actions';
 import { auditDashboardImpersonation } from '$lib/server/services';
-import { logger } from '@bagel/shared/server/logger';
+import { logger } from '@bagel/kit/server/logger';
 import type { Session } from '$lib/server/session';
 import { effectiveId } from '$lib/server/board';
 import { dev } from '$app/environment';

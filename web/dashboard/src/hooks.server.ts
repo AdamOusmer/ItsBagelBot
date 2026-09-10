@@ -5,19 +5,19 @@ import type { Handle, HandleServerError, ServerInit } from '@sveltejs/kit';
 import newrelic from 'newrelic';
 import { COOKIE, CURSOR_COOKIE, open } from '$lib/server/session';
 import { guardSession } from '$lib/server/guard';
-import { warm as warmValkey } from '@bagel/shared/server/valkey-store';
-import { initConsoleRuntime } from '@bagel/shared/server/boot';
+import { warm as warmValkey } from '@bagel/kit/server/valkey-store';
+import { initConsoleRuntime } from '@bagel/kit/server/boot';
 import {
   harden,
   noticeServerError,
   openSessionCookie,
   preloadStrategy,
   tagTransaction
-} from '@bagel/shared/server/hooks';
-import { rumTransform } from '@bagel/shared/server/rum';
-import { ValkeyRateLimiter, warmRateLimiter } from '@bagel/shared/server/rate-limit';
-import { warmSessionRevocation } from '@bagel/shared/server/session-revocation';
-import { detectLocale, isLocale, LOCALE_COOKIE } from '@bagel/shared/i18n';
+} from '@bagel/kit/server/hooks';
+import { rumTransform } from '@bagel/kit/server/rum';
+import { ValkeyRateLimiter, warmRateLimiter } from '@bagel/kit/server/rate-limit';
+import { warmSessionRevocation } from '@bagel/kit/server/session-revocation';
+import { detectLocale, isLocale, LOCALE_COOKIE } from '@bagel/kit/i18n';
 import { startInvalidationListener } from '$lib/server/services';
 import { assertConfigSane } from '$lib/server/config-sanity';
 

@@ -22,8 +22,8 @@
     moduleDef,
     catalogChildren,
     type LoyaltyConfig
-  } from '@bagel/shared';
-  import type { SaveState } from '@bagel/shared/components/SaveStatus.svelte';
+  } from '@bagel/kit';
+  import type { SaveState } from '@bagel/kit/components/SaveStatus.svelte';
   import ModuleCommandList from '$lib/components/modules/ModuleCommandList.svelte';
   import LoyaltyGameRow from '$lib/components/loyalty/LoyaltyGameRow.svelte';
 

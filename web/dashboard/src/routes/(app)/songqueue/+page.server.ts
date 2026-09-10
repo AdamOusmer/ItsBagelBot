@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 
 import type { Actions, PageServerLoad } from './$types';
-import { SPOTIFY_SR_PERMS, SPOTIFY_QUOTA_TIERS, blankSpotifySr, blankSpotifyRedeem, blankSpotifyQuotas } from '@bagel/shared';
+import { SPOTIFY_SR_PERMS, SPOTIFY_QUOTA_TIERS, blankSpotifySr, blankSpotifyRedeem, blankSpotifyQuotas } from '@bagel/kit';
 import type {
   RewardDraft,
   RewardOnRedeem,
@@ -11,10 +11,10 @@ import type {
 } from '$lib/server/spotify-store';
 import { spotifyStore } from '$lib/server/spotify-store';
 import { spotifyRedirectURI, spotifyScopeGap, spotifyConfigured } from '$lib/server/oauth';
-import { getSongQueue, type SongQueueDoc } from '@bagel/shared/server/songqueue-store';
+import { getSongQueue, type SongQueueDoc } from '@bagel/kit/server/songqueue-store';
 import { moduleLoad } from '$lib/server/module-page';
 import { moduleAction } from '$lib/server/module-action';
-import type { MutationRefusal } from '@bagel/shared/server/form-action';
+import type { MutationRefusal } from '@bagel/kit/server/form-action';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { fail } from '@sveltejs/kit';

@@ -22,7 +22,7 @@ import {
 // side effect of running this suite: a fixture either language can rewrite
 // documents whatever that language currently does, which is the opposite of
 // the point of sharing one.
-const GOLDEN_PATH = join(import.meta.dir, '../../../pkg/tmpl/testdata/tokens.golden.json');
+const GOLDEN_PATH = join(import.meta.dir, '../../../../pkg/tmpl/testdata/tokens.golden.json');
 
 interface GoldenRow {
   name: string;

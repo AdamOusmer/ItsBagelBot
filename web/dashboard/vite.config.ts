@@ -22,7 +22,7 @@ export default defineConfig({
   // use dynamic requires that do not bundle cleanly for SSR.
   // `pino` stays external so the New Relic agent's require-hook wraps the real
   // module at runtime and local-decorates its log lines (bundling defeats the hook).
-  ssr: { noExternal: ['@bagel/shared'], external: ['newrelic', 'iovalkey', 'pino'] },
+  ssr: { noExternal: ['@bagel/kit'], external: ['newrelic', 'iovalkey', 'pino'] },
   // fs.allow: tokens.css lives in the workspace sibling web/kit and
   // @font-faces four woff2 files beside it. Vite rewrites those url()s to
   // /@fs/… absolute paths, and web/kit sits outside every directory

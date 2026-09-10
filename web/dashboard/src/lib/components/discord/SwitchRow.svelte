@@ -7,7 +7,7 @@
   // turned off (alertOn) and half are OFF unless explicitly turned on
   // (alertOff), and reading a blank field as "off" for the first group would
   // draw a module as stopped while it is posting.
-  import { Switch, alertOff, alertOn, type DiscordConfig, type RefusedFields } from '@bagel/shared';
+  import { Switch, alertOff, alertOn, type DiscordConfig, type RefusedFields } from '@bagel/kit';
   import type { GuildDraft } from '$lib/discord/guild-draft.svelte';
   import FieldNote from './FieldNote.svelte';
 

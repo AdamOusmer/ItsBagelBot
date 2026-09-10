@@ -4,12 +4,12 @@
   // Shard roll-call. The summary line answers the only question this panel is
   // asked at a glance ("are they all up"); the rows are there for the one time
   // a month the answer is no.
-  import Card from '@bagel/shared/components/Card.svelte';
-  import CardHead from '@bagel/shared/components/CardHead.svelte';
-  import EmptyState from '@bagel/shared/components/EmptyState.svelte';
-  import { statusTone } from '@bagel/shared/status-tone';
-  import { getI18n } from '@bagel/shared/i18n/context';
-  import type { ShardSnapshot } from '@bagel/shared';
+  import Card from '@bagel/kit/components/Card.svelte';
+  import CardHead from '@bagel/kit/components/CardHead.svelte';
+  import EmptyState from '@bagel/kit/components/EmptyState.svelte';
+  import { statusTone } from '@bagel/kit/status-tone';
+  import { getI18n } from '@bagel/kit/i18n/context';
+  import type { ShardSnapshot } from '@bagel/kit';
   import StatusDot from '../StatusDot.svelte';
 
   let { snapshot, ok }: { snapshot: ShardSnapshot; ok: boolean } = $props();

@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { Session } from '$lib/server/session';
-import type { Locale } from '@bagel/shared/i18n';
+import type { Locale } from '@bagel/kit/i18n';
 import type { AccountState } from '$lib/server/services';
 
 declare global {

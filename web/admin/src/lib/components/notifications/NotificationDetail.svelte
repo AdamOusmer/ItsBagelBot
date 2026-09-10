@@ -4,9 +4,9 @@
   // The read half of the notifications inspector: what was sent, to whom, and
   // the one verb a sent message still has (retract). No EditorFooter -- there is
   // nothing to save, because the notifications service has no update verb.
-  import Scroller from '@bagel/shared/components/Scroller.svelte';
-  import Button from '@bagel/shared/components/Button.svelte';
-  import { getI18n } from '@bagel/shared/i18n/context';
+  import Scroller from '@bagel/kit/components/Scroller.svelte';
+  import Button from '@bagel/kit/components/Button.svelte';
+  import { getI18n } from '@bagel/kit/i18n/context';
   import type { NotificationWire } from '$lib/server/services';
   import StatePill from '../StatePill.svelte';
   import { LEVEL_LABEL, LEVEL_TONE, audienceOf } from './notification-compose';

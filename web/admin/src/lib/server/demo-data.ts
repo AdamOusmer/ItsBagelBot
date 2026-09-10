@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { dev } from '$app/environment';
-import type { ShardSnapshot, UserStats } from '@bagel/shared';
+import type { ShardSnapshot, UserStats } from '@bagel/kit';
 import type {
   AdminAcct,
   AdminUserWire,

@@ -25,9 +25,9 @@
 // previous one and divides by the wall time between them (same shape as the
 // admin lane sampler). Sampling is per-pod and per-process, which is fine: the
 // counters are fleet-global, so any pod's delta measures the same fleet.
-import { rpc } from '@bagel/shared/server/nats';
+import { rpc } from '@bagel/kit/server/nats';
 import { dev } from '$app/environment';
-import { POLICY } from '@bagel/shared/server/cache-keys';
+import { POLICY } from '@bagel/kit/server/cache-keys';
 import { fabric, SUB } from './services';
 
 // Gated on the build-time `dev` constant first, so Rollup erases the demo

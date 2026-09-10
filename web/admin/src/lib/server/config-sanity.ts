@@ -5,8 +5,8 @@ import {
   assertCallback,
   assertOrigin,
   positiveIntegerSetting
-} from '@bagel/shared/server/config-sanity';
-import { demoConfigured } from '@bagel/shared/server/demo-guard';
+} from '@bagel/kit/server/config-sanity';
+import { demoConfigured } from '@bagel/kit/server/demo-guard';
 
 type Env = Record<string, string | undefined>;
 

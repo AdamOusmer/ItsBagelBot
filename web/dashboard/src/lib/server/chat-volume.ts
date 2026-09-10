@@ -30,10 +30,10 @@ import {
   valkeyEndpoint,
   valkeySentinelNAT,
   valkeyTLSOptions
-} from '@bagel/shared/server/valkey-connection';
-import { getServerConfig, hasServerConfig, type ValkeyConfig } from '@bagel/shared/server/config';
-import { CircuitBreaker, withTimeout } from '@bagel/shared/server/resilience';
-import { logger } from '@bagel/shared/server/logger';
+} from '@bagel/kit/server/valkey-connection';
+import { getServerConfig, hasServerConfig, type ValkeyConfig } from '@bagel/kit/server/config';
+import { CircuitBreaker, withTimeout } from '@bagel/kit/server/resilience';
+import { logger } from '@bagel/kit/server/logger';
 import { allRead, finiteOrNull, degradedChatVolume, type ChatVolume } from '../overview-live';
 
 const RING_WIDTH = 60;

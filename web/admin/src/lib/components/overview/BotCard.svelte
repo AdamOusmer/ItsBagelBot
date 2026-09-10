@@ -6,12 +6,12 @@
   // the one flow that mints a live Twitch credential from a URL that looks
   // unauthenticated.
   import { onMount } from 'svelte';
-  import Card from '@bagel/shared/components/Card.svelte';
-  import CardHead from '@bagel/shared/components/CardHead.svelte';
-  import Button from '@bagel/shared/components/Button.svelte';
-  import { statusTone } from '@bagel/shared/status-tone';
-  import { copyFlash } from '@bagel/shared';
-  import { getI18n } from '@bagel/shared/i18n/context';
+  import Card from '@bagel/kit/components/Card.svelte';
+  import CardHead from '@bagel/kit/components/CardHead.svelte';
+  import Button from '@bagel/kit/components/Button.svelte';
+  import { statusTone } from '@bagel/kit/status-tone';
+  import { copyFlash } from '@bagel/kit';
+  import { getI18n } from '@bagel/kit/i18n/context';
   import StatusDot from '../StatusDot.svelte';
 
   let { present }: { present: boolean } = $props();

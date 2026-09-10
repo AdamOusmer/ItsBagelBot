@@ -7,16 +7,16 @@ import { dev } from '$app/environment';
 import newrelic from 'newrelic';
 import { COOKIE, open } from '$lib/server/session';
 import { requireAdmin, requireRole } from '$lib/server/access';
-import { initConsoleRuntime } from '@bagel/shared/server/boot';
+import { initConsoleRuntime } from '@bagel/kit/server/boot';
 import {
   harden,
   noticeServerError,
   openSessionCookie,
   preloadStrategy,
   tagTransaction
-} from '@bagel/shared/server/hooks';
-import { rumTransform } from '@bagel/shared/server/rum';
-import { detectLocale, isLocale, LOCALE_COOKIE } from '@bagel/shared/i18n';
+} from '@bagel/kit/server/hooks';
+import { rumTransform } from '@bagel/kit/server/rum';
+import { detectLocale, isLocale, LOCALE_COOKIE } from '@bagel/kit/i18n';
 import { startInvalidationListener } from '$lib/server/services';
 import { assertConfigSane } from '$lib/server/config-sanity';
 import { ensureLaneStoreHA } from '$lib/server/lanes';

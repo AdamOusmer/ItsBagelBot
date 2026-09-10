@@ -7,8 +7,8 @@
   // handlers so all optimistic-UI state lives in one place.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Icon, Badge, SaveStatus, ManagementRow, Switch, getI18n, usesCount, type CommandView, type Perm } from '@bagel/shared';
-  import type { SaveState } from '@bagel/shared/components/SaveStatus.svelte';
+  import { Icon, Badge, SaveStatus, ManagementRow, Switch, getI18n, usesCount, type CommandView, type Perm } from '@bagel/kit';
+  import type { SaveState } from '@bagel/kit/components/SaveStatus.svelte';
 
   const { t } = getI18n();
 

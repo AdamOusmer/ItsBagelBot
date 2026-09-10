@@ -9,7 +9,7 @@
 // disarms them on stream.offline, and fires each off its own Valkey key expiry
 // (app/twitch/sesame/engine/timers_valkey.go), re-reading this same blob every cycle.
 import { randomUUID } from 'node:crypto';
-import { type TimerDef, MOD } from '@bagel/shared';
+import { type TimerDef, MOD } from '@bagel/kit';
 import { upsertModule } from './commands-store';
 import { readModuleBlob, setModuleEnabled } from './module-blob';
 

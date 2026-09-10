@@ -28,8 +28,8 @@ import {
   type CounterEntryView,
   type LoyaltyStanding,
   type TimerDef
-} from '@bagel/shared';
-import { DEFAULT_LOCALE } from '@bagel/shared/i18n';
+} from '@bagel/kit';
+import { DEFAULT_LOCALE } from '@bagel/kit/i18n';
 import type { Session } from './session';
 import type { AccountState, BillingState, NotificationWire } from './services';
 import type { QuoteView } from './quotes-store';

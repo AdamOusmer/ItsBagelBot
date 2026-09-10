@@ -19,7 +19,7 @@ import { MODULE_CATALOG, moduleDelegateSections } from './types';
 import { MODULE_CATEGORY_I18N, MODULE_CATEGORY_ORDER, categoryHref } from './module-index';
 // The console-agnostic half lives in nav-core so a consumer that wants only the
 // generic machinery (the admin registry) does not drag MODULE_CATALOG in with
-// it. Re-exported here so every existing '@bagel/shared/nav' importer is
+// it. Re-exported here so every existing '@bagel/kit/nav' importer is
 // unchanged.
 import { identity, navGroups, navItems, resolveSection, type SectionDef } from './nav-core';
 

@@ -13,7 +13,7 @@ import {
   decodeKey,
   IMPERSONATION_TTL_SECONDS,
   SESSION_TTL_SECONDS
-} from '@bagel/shared/server/session';
+} from '@bagel/kit/server/session';
 
 export { IMPERSONATION_TTL_SECONDS, SESSION_TTL_SECONDS };
 
