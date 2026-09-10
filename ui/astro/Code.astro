@@ -9,11 +9,13 @@ import '../styles/elements/typography.css';
 interface Props {
     /** Renders inside a <pre>, for multi-line code. */
     block?: boolean;
+    /** `danger`: this identifier is about to break. See the contract. */
+    tone?: 'danger';
     class?: string;
 }
 
-const { block = false, class: className = '', ...rest } = Astro.props;
-const classes = ['bb-code', className].filter(Boolean).join(' ');
+const { block = false, tone, class: className = '', ...rest } = Astro.props;
+const classes = ['bb-code', tone && `bb-code--${tone}`, className].filter(Boolean).join(' ');
 ---
 
 {block ? (<pre class="bb-code-block" {...rest}><code class={classes}><slot /></code></pre>) : (<code class={classes} {...rest}><slot /></code>)}

@@ -13,6 +13,8 @@
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import {
+    Code,
+    Field,
     Switch,
     getI18n,
     PERM_LABELS,
@@ -87,12 +89,11 @@
 
   <p class="desc">{def.description}</p>
 
-  <div class="field">
-    <span>{t('builtinInspector.usage')}</span>
+  <Field label={t('builtinInspector.usage')}>
     <ul class="usage">
-      {#each def.usage as u}<li><code>{u}</code></li>{/each}
+      {#each def.usage as u}<li><Code>{u}</Code></li>{/each}
     </ul>
-  </div>
+  </Field>
 
   {#if def.editable && replySubmit}
     <!-- Editable reply: same surface as a custom command: message editor with a
@@ -101,11 +102,9 @@
     <form class="reply-form" method="POST" action="?/saveBuiltinReply" use:enhance={replySubmit}>
       <input type="hidden" name="name" value={c.name} />
       <input type="hidden" name="is_active" value={c.is_active ? 'on' : ''} />
-      <div class="field">
-        <span>{t('builtinInspector.replyMessage')}</span>
+      <Field label={t('builtinInspector.replyMessage')} hint={t('builtinInspector.replyHint')}>
         <ResponseEditor name="reply" bind:value={message} tokens={palette} placeholder={def.preview} />
-        <small class="hint">{t('builtinInspector.replyHint')}</small>
-      </div>
+      </Field>
       <!-- kind="reply": built-in replies are expanded by a bare token replacer
            (e.g. clipExpand), only def.previewSamples substitute, no dynamic
            tokens. Leading slash-verbs still route (outgress sendBotLine). -->
@@ -124,10 +123,9 @@
       </div>
     </form>
   {:else}
-    <div class="field">
-      <span>{t('builtinInspector.preview')}</span>
+    <Field label={t('builtinInspector.preview')}>
       <ChatPreview kind="reply" dynamic={false} name={def.id} args={def.previewArgs ?? ''} response={def.preview} samples={def.previewSamples} />
-    </div>
+    </Field>
   {/if}
 
   <div class="field-row">
@@ -187,21 +185,7 @@
   }
 
   /* Field label typography, copied from CommandEditor. */
-  .field {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin-bottom: 14px;
-  }
-  .field > span {
-    font-family: var(--bb-font-body);
-    font-size: 12.5px;
-    color: var(--bb-muted);
-    letter-spacing: 0.01em;
-  }
-
   .reply-form { margin-bottom: 14px; }
-  .field .hint { color: var(--bb-muted); opacity: 0.7; font-size: 11px; }
   .reply-actions { display: flex; justify-content: flex-end; margin-top: 12px; }
   @media (max-width: 480px) {
     .reply-actions { --btn-w: 100%; --btn-justify: center; --btn-min-h: 44px; }
@@ -223,15 +207,6 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
-  }
-  .usage code {
-    font-family: var(--bb-font-mono);
-    font-size: 12.5px;
-    color: var(--bb-tan-light);
-    background: rgba(201, 168, 124, 0.08);
-    border: 1px solid var(--glass-border);
-    border-radius: var(--bb-radius-sm);
-    padding: 4px 8px;
   }
 
   /* Read-only value box: styled like a disabled .bb-input so Access /

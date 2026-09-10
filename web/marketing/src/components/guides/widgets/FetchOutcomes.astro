@@ -55,8 +55,8 @@ const outcomes = (Array.isArray(props.outcomes) ? props.outcomes : []) as Outcom
     <div class="gout__win">
         <div class="gout__bar"><span>{L.title}</span></div>
         <div class="gout__feed">
-            <p class="gout__msg"><b class="gout__viewer">{L.viewer}</b><span>{L.viewerText}</span></p>
-            <p class="gout__msg"><b class="gout__bot">{L.botName}</b><span data-go-line>{outcomes[0]?.bot}</span></p>
+            <p class="gout__msg"><b class="gout__viewer">{L.viewer}</b><span class="gout__line">{L.viewerText}</span></p>
+            <p class="gout__msg"><b class="gout__bot">{L.botName}</b><span class="gout__line" data-go-line>{outcomes[0]?.bot}</span></p>
         </div>
     </div>
     {outcomes.map((outcome, i) => (
@@ -87,15 +87,17 @@ const outcomes = (Array.isArray(props.outcomes) ? props.outcomes : []) as Outcom
     .gout__msg b { font-weight: 600; }
     .gout__viewer { color: var(--tan-light, #e0c49a); }
     .gout__bot { color: var(--green-glow, #52b788); }
-    .gout__msg span { font-family: var(--font-mono, "DM Mono", monospace); font-size: 0.8rem; }
-    .gout__msg span.is-new { animation: gout-slide 240ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)); }
+    /* Named, not `.gout__msg span`: the chat LINE inside this mock, which
+       is this widget's own part. */
+    .gout__line { font-family: var(--font-mono, "DM Mono", monospace); font-size: 0.8rem; }
+    .gout__line.is-new { animation: gout-slide 240ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)); }
     .gout__why { margin: 0; font-family: var(--font-body, "DM Sans", sans-serif); font-size: 0.88rem; line-height: 1.65; color: #a39c92; }
 
     @keyframes gout-slide { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }
 
     @media (prefers-reduced-motion: reduce) {
         .gout__tab { transition: none; }
-        .gout__msg span.is-new { animation: none; }
+        .gout__line.is-new { animation: none; }
     }
 </style>
 

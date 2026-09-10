@@ -14,6 +14,7 @@
   import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
   import OverviewGrid from '@bagel/ui/svelte/OverviewGrid.svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { connectionUiState, type ConnSignals, type ConnUi } from '@bagel/kit/connection-state';
   import { toast } from '@bagel/ui/svelte/toast';
@@ -409,7 +410,7 @@
           <div class="ov-unavail">
             <p class="ov-unavail__text">
               <b>{t('overview.commandsUnavailable')}</b>
-              <span>{t('overview.commandsUnavailableDesc')}</span>
+              <Text as="span" size="sm" tone="muted">{t('overview.commandsUnavailableDesc')}</Text>
             </p>
             <ButtonLink href="/" variant="ghost" class="ov-cta">{t('overview.retry')}</ButtonLink>
           </div>
@@ -485,11 +486,6 @@
     font-family: var(--bb-font-body);
     font-size: 14px;
     color: var(--bb-white);
-  }
-  .ov-unavail__text span {
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-    color: var(--bb-muted);
   }
   .ov-unavail :global(.ov-cta) {
     flex: none;

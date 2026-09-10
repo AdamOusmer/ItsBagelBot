@@ -16,6 +16,8 @@
     PageHead,
     AlertBanner,
     Card,
+    Heading,
+    Text,
     EmptyState,
     toast,
     getI18n,
@@ -210,9 +212,11 @@
             aria-labelledby="family-{categoryAnchorId(group.name)}"
           >
             <header class="family-head">
-              <h2 id="family-{categoryAnchorId(group.name)}">{catLabel(group.name)}</h2>
+              <Heading level={2} class="family-title" id="family-{categoryAnchorId(group.name)}"
+                >{catLabel(group.name)}</Heading
+              >
               {#if catHint(group.name)}
-                <p>{catHint(group.name)}</p>
+                <Text size="sm" tone="muted" class="family-hint">{catHint(group.name)}</Text>
               {/if}
             </header>
             <Card style="padding:0">
@@ -264,7 +268,7 @@
   .index {
     display: grid;
     gap: 18px 32px;
-    --section-nav-sticky-top: calc(58px + env(safe-area-inset-top, 0px) + 68px);
+    --bb-tabs-sticky-top: calc(58px + env(safe-area-inset-top, 0px) + 68px);
   }
   /* One column on a phone (chips above the list). Two columns when there is
      room for a ~10rem rail: reflow, not display:none. The old sidebar hid
@@ -280,29 +284,20 @@
     scroll-margin-top: calc(58px + env(safe-area-inset-top, 0px) + 72px);
   }
   .family:focus { outline: none; }
-  .family:target .family-head h2 { color: var(--bb-tan-pale, var(--bb-tan-light)); }
+  /* The type is `Heading` and `Text`. Local: a category heading is a RAIL
+     DESTINATION, so the jumped-to one lights up, and it is sized to sit
+     between the module rows rather than above a page (1.15rem, between the
+     l4 and l5 steps). 52ch is the measure the hint stays readable at. */
+  .family:target :global(.family-title) { color: var(--bb-tan-pale, var(--bb-tan-light)); }
   .family-head { margin-bottom: 10px; }
-  .family-head h2 {
-    font-family: var(--bb-font-display);
-    font-weight: 800;
-    font-size: 1.15rem;
-    letter-spacing: -0.02em;
-    color: var(--bb-white);
-    margin: 0;
-  }
-  .family-head p {
-    margin: 4px 0 0;
-    font-size: 13px;
-    line-height: 1.45;
-    color: var(--bb-muted);
-    max-width: 52ch;
-  }
+  :global(.family-title) { font-size: 1.15rem; letter-spacing: -0.02em; }
+  :global(.family-hint) { margin-top: 4px; max-width: 52ch; }
   @media (max-width: 760px) {
     .deck {
       top: calc(52px + env(safe-area-inset-top, 0px));
     }
     .index {
-      --section-nav-sticky-top: calc(52px + env(safe-area-inset-top, 0px) + 68px);
+      --bb-tabs-sticky-top: calc(52px + env(safe-area-inset-top, 0px) + 68px);
     }
     .family {
       scroll-margin-top: calc(52px + env(safe-area-inset-top, 0px) + 72px);

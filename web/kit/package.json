@@ -46,6 +46,7 @@
     "./engine/commands-validate": "./lib/engine/commands-validate.ts",
     "./engine/fetch-validate": "./lib/engine/fetch-validate.ts",
     "./engine/fetch-tokens": "./lib/engine/fetch-tokens.ts",
+    "./engine/common-tokens": "./lib/engine/common-tokens.ts",
     "./validation": "./lib/validation.ts",
     "./i18n": "./lib/i18n/messages.ts",
     "./styles/tokens.css": "./styles/tokens.css",

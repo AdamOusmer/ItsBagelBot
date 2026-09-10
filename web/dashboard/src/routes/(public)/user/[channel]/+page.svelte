@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { AlertBanner, Card, LightField, SearchInput } from '@bagel/kit';
+  import { AlertBanner, Card, Code, LightField, SearchInput, Text } from '@bagel/kit';
   import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();
@@ -162,10 +162,9 @@
     <div class="bb-tabs bb-tabs--wrap" role="tablist" aria-label="Command source">
       {#each FILTERS as f (f.id)}
         {@const on = !moduleId && filter === f.id}
-        <button class="bb-tab" class:is-active={on} role="tab" type="button" aria-selected={on} onclick={() => pickFilter(f.id)}>
-          <span>{f.label}</span>
-          <span class="tab__count">{countOf(f.id)}</span>
-        </button>
+        <button class="bb-tab" class:is-active={on} role="tab" type="button" aria-selected={on} onclick={() => pickFilter(f.id)}
+          >{f.label}<span class="bb-tab__count">{countOf(f.id)}</span></button
+        >
       {/each}
     </div>
   </div>
@@ -184,7 +183,7 @@
               <li>
                 <button class="row" type="button" onclick={() => copy(row.trigger, row.key)}>
                   <span class="row__trigger">
-                    <code>{row.trigger}</code>
+                    <Code class="trigger-code">{row.trigger}</Code>
                     {#if row.aliases.length}
                       <span class="row__aliases">{row.aliases.join(' ')}</span>
                     {/if}
@@ -245,7 +244,7 @@
                   aria-pressed={moduleId === mod.id}
                   onclick={() => pickModule(mod.id)}
                 >
-                  <i class="bb-mark" aria-hidden="true"></i>
+                  <i class="bb-mark mod__mark" aria-hidden="true"></i>
                   <span class="mod__text">
                     <span class="mod__label">{mod.label}</span>
                     <span class="mod__tagline">{mod.tagline}</span>
@@ -262,10 +261,10 @@
 
       <div class="legend">
         <span class="side__head">Reading the tags</span>
-        <p>
+        <Text size="sm" tone="muted">
           <em>Everyone</em>, <em>Subs</em>, <em>Mods</em> say who can run it. The clock is the cooldown
           between uses. <em class="live">Live only</em> commands answer while the stream is up.
-        </p>
+        </Text>
       </div>
     </aside>
   </div>
@@ -434,7 +433,6 @@
      All that is left here is how wide the field is in the wrapping row. */
   .search { flex: 1 1 260px; min-width: 0; }
 
-  .tab__count { font-family: var(--bb-font-mono); font-size: 11px; color: var(--bb-muted); }
 
   /* ── columns ── */
 
@@ -455,14 +453,17 @@
     gap: 14px;
   }
 
-  /* Shared Card, re-shaped: the list is a table so its padding goes to the
-     rows; the modules panel keeps a plate. Both take the 16px public radius. */
-  .list-wrap :global(.bb-card), .side :global(.bb-card) {
-    border-radius: var(--bb-radius-md);
+  /* Shared Card, re-shaped through its own knobs (`--card-pad`,
+     `--card-radius`, elements/card.css) handed down from the two columns: the
+     list is a table so its padding goes to the rows; the modules panel keeps
+     a plate. Both take the 16px public radius. The shadow keys on the classes
+     this page puts ON the cards, which it owns. */
+  .list-wrap { --card-pad: 0; }
+  .side { --card-pad: 22px; }
+  .list-wrap, .side { --card-radius: var(--bb-radius-md); }
+  :global(.list), :global(.modules) {
     box-shadow: 0 1px 0 rgba(255, 255, 255, 0.02) inset, 0 8px 30px rgba(0, 0, 0, 0.35);
   }
-  .list-wrap :global(.bb-card) { --card-pad: 0; }
-  .side :global(.bb-card) { --card-pad: 22px; }
 
   .list__head, .side__head {
     display: flex;
@@ -510,13 +511,9 @@
     flex-direction: column;
     gap: 6px;
   }
-  .row__trigger code {
-    font-family: var(--bb-font-mono);
-    font-size: 14.5px;
-    font-weight: 500;
-    color: var(--bb-green-glow);
-    overflow-wrap: anywhere;
-  }
+  /* The chip is the `Code` block. Local: the trigger is the thing a viewer
+     types in chat, so it is green and set a step larger than prose code. */
+  :global(.trigger-code) { font-size: 14.5px; font-weight: 500; color: var(--bb-green-glow); }
   .row__aliases {
     font-family: var(--bb-font-mono);
     font-size: 11.5px;
@@ -587,7 +584,10 @@
   .mod:disabled { cursor: default; }
   .mod:not(:disabled):hover, .mod:focus-visible { background: rgba(201, 168, 124, 0.06); }
   .mod.on { background: rgba(82, 183, 136, 0.12); }
-  .mod :global(.bb-mark) { color: var(--bb-green-glow); }
+  /* Keyed on the mark's own class in this file's markup, not on the shared
+     `.bb-mark` contract: the diamond is green HERE because it stands for the
+     module being on. */
+  .mod__mark { color: var(--bb-green-glow); }
   .mod__text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
   .mod__label { font-family: var(--bb-font-body); font-size: 14px; font-weight: 600; color: var(--bb-white); }
   .mod__tagline {
@@ -610,12 +610,6 @@
     gap: 10px;
   }
   .legend .side__head { margin-bottom: 0; }
-  .legend p {
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-    line-height: 1.55;
-    color: var(--bb-muted);
-  }
   .legend em { font-style: normal; color: var(--bb-tan-light); }
   .legend em.live { color: var(--bb-green-glow); }
 

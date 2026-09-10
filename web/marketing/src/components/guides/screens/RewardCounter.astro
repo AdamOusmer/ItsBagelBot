@@ -13,7 +13,7 @@ import Field from '@bagel/ui/astro/Field.astro';
 import InspectorSurface from '@bagel/ui/astro/InspectorSurface.astro';
 import ScreenCheck from '../ScreenCheck.astro';
 import '@bagel/ui/styles/elements/field.css';
-import '@bagel/ui/styles/elements/radio-group.css';
+import '@bagel/ui/styles/tags.css';
 
 interface Props {
     labels?: Record<string, string>;
@@ -46,11 +46,9 @@ const scopes = [L.chip1, L.chip2, L.chip3, L.chip4];
             <span class="bb-input gs-value">{L.nameValue}</span>
         </Field>
         <Field label={L.fieldScope}>
-            <span class="bb-radio-group" role="radiogroup" aria-label={L.fieldScope}>
+            <span class="bb-tabs bb-tabs--wrap" role="radiogroup" aria-label={L.fieldScope}>
                 {scopes.map((scope, i) => (
-                    <span class="bb-radio" data-on={i === 3 ? '' : undefined}>
-                        <span class="bb-radio__dot" aria-hidden="true"></span>{scope}
-                    </span>
+                    <span class={`bb-tab ${i === 3 ? 'is-active' : ''}`}>{scope}</span>
                 ))}
                 <i class="gs-mark" data-note="2"></i>
             </span>

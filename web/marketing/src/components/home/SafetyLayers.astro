@@ -39,7 +39,7 @@ const t = useTranslations(lang);
                     <span class="jury__seat jury__seat--bl" style="--jury-i: 4"><i></i><em>block</em></span>
                     <span class="jury__seat jury__seat--br" style="--jury-i: 5"><i></i><em>block</em></span>
                     <span class="jury__tally">
-                        <small>{t('safe.juryVerdict')}</small>
+                        <small class="jury__verdict">{t('safe.juryVerdict')}</small>
                         <b>5-1</b>
                         <em>block</em>
                     </span>
@@ -59,9 +59,9 @@ const t = useTranslations(lang);
                     <span class="gates__exit">✓</span>
                 </div>
                 <div class="gates__receipt">
-                    <span>{t('safe.gateRate')} <b>✓</b></span>
-                    <span>{t('safe.gateShape')} <b>✓</b></span>
-                    <span>{t('safe.gateLink')} <b>✓</b></span>
+                    <span class="gates__check">{t('safe.gateRate')} <b>✓</b></span>
+                    <span class="gates__check">{t('safe.gateShape')} <b>✓</b></span>
+                    <span class="gates__check">{t('safe.gateLink')} <b>✓</b></span>
                     <em>{t('safe.gatesPassed')}</em>
                 </div>
             </div>
@@ -290,7 +290,10 @@ const t = useTranslations(lang);
         animation: juryTally 7.2s ease-in-out infinite;
     }
 
-    .jury__tally small {
+    /* Named, not `.jury__tally small`: this is the verdict LABEL inside an
+       animated diagram, at 0.44rem -- illustration lettering below the type
+       scale's smallest step, not text the reader is meant to read as prose. */
+    .jury__verdict {
         font-size: 0.44rem;
         letter-spacing: 0.06em;
         text-transform: uppercase;
@@ -431,7 +434,9 @@ const t = useTranslations(lang);
         color: var(--muted, #888077);
     }
 
-    .gates__receipt span {
+    /* Named: one printed line of the animated receipt. Same argument as
+       `.jury__verdict` -- 0.54rem is diagram lettering. */
+    .gates__check {
         font-size: 0.54rem;
         text-transform: uppercase;
         opacity: 0.26;
@@ -439,9 +444,9 @@ const t = useTranslations(lang);
         animation-timing-function: ease;
         animation-iteration-count: infinite;
     }
-    .gates__receipt span:nth-child(1) { animation-name: receiptOne; }
-    .gates__receipt span:nth-child(2) { animation-name: receiptTwo; }
-    .gates__receipt span:nth-child(3) { animation-name: receiptThree; }
+    .gates__check:nth-child(1) { animation-name: receiptOne; }
+    .gates__check:nth-child(2) { animation-name: receiptTwo; }
+    .gates__check:nth-child(3) { animation-name: receiptThree; }
     .gates__receipt b { color: var(--green-glow, #52b788); font-weight: 500; }
     .gates__receipt em {
         margin-left: auto;

@@ -98,6 +98,20 @@
     .bb-tag--quiet    { color: var(--bb-muted);      border-bottom-color: rgba(var(--bb-tan-rgb), 0.20); }
     .bb-tag--incoming { color: var(--bb-green-glow); border-bottom-style: dotted; border-bottom-color: rgba(var(--bb-green-glow-rgb), 0.50); }
 
+    /* Wrap: the tag's text is a SENTENCE, not a short label. Tags are
+       `white-space: nowrap` above because a two-word status label breaking in
+       half reads as two tags; a note long enough to be prose has the opposite
+       problem and gets clipped instead. Was a `.foot :global(.bb-tag)`
+       reach-in on the public leaderboard. */
+    .bb-tag--wrap { white-space: normal; text-align: left; }
+
+    /* Literal: the tag's text is USER DATA, not a label this system chose --
+       a command alias typed in chat, a channel name. The uppercase transform
+       above would rewrite it, and a viewer typing what the tag shows would
+       type the wrong thing. Was a `.aliases :global(.bb-tag)` reach-in in the
+       command deck's row. */
+    .bb-tag--literal { text-transform: none; letter-spacing: 0.04em; }
+
     /* Bare: no rule at all. For tags sitting inside an already-bordered row. */
     .bb-tag--bare { border-bottom: 0; padding-bottom: 0; overflow: visible; letter-spacing: 0.14em; }
 
@@ -202,9 +216,42 @@
     .bb-chip--eyebrow .bb-chip__text { font-size: 12.5px; letter-spacing: var(--bb-tracking-eyebrow); text-transform: uppercase; color: var(--bb-tan-light); }
     .bb-chip--eyebrow .bb-chip__arrow { font-size: 13px; color: var(--bb-tan); }
 
-    /* Filter groups: tabs on a hairline rail, green underline on the active
-       one. Replaces a row of pills, which reads as "tags", not "filters". */
-    .bb-tabs { display: inline-flex; gap: 22px; border-bottom: 1px solid var(--bb-border); }
+    /* ── Tier 3 · The rail ───────────────────────────────────────
+     * THE ONE RAIL. Every row of mutually exclusive choices in the
+     * product wears this: page filters, in-page section jumps, the
+     * locale switch, and radio form fields. Tabs on a hairline, a
+     * green line that draws in under the active one, a diamond
+     * beside its label.
+     *
+     * It was three idioms for one question. A page filter was a row
+     * of boxed pills (`.bb-seg`, elements/segmented.css, and
+     * before that `.bb-chip` rows on the commands page); a section
+     * jump was this rail; a radio field was a third pill with a
+     * round dot (`.bb-radio`, elements/radio-group.css). So
+     * "which one of these am I looking at" had three answers inside
+     * one console, two of them pills -- and a pill reads as a TAG,
+     * a thing you HAVE, not as a CHOICE you make. That is the same
+     * argument the .bb-tag/.bb-chip split above makes; it lands the
+     * same way here, and the two pill blocks are deleted with it.
+     *
+     * Three item shapes wear the rail and the contract makes all
+     * three the same box:
+     *   <button>          an in-page filter (SegmentedControl)
+     *   <a>               a section jump or a locale
+     *                     (SectionNav, LanguageSwitcher)
+     *   <label> + <input> a filter that is also a FORM CONTROL and
+     *                     has to survive a no-JS submit
+     *                     (RadioGroup, SegmentedControl+`name`).
+     *                     The input is positioned and zero-sized
+     *                     rather than `display: none`, so it stays
+     *                     focusable and still posts; `:has()` hops
+     *                     the focus ring onto the label, because a
+     *                     ring on a zero-sized box shows nothing. */
+    .bb-tabs {
+        display: inline-flex;
+        gap: 22px;
+        border-bottom: 1px solid var(--bb-border);
+    }
 
     /* A rail that wraps instead of overflowing, for a toolbar that shares its
        row with something elastic (the public commands page puts a search box
@@ -214,24 +261,195 @@
        redeclare in that page's scoped styles. */
     .bb-tabs--wrap { display: flex; flex-wrap: wrap; }
 
+    /* Under 760px a wrapping rail scrolls instead of wrapping, because a
+       wrapped filter set pushes the list it filters below the fold. The
+       scrollbar is hidden in both engines because the rail already shows its
+       own overflow by clipping a tab mid-word. Was `.bb-seg` in
+       elements/segmented.css, which existed only to carry these six lines. */
+    @media (max-width: 760px) {
+        .bb-tabs--wrap {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            flex-wrap: nowrap;
+            scrollbar-width: none;
+        }
+
+        .bb-tabs--wrap::-webkit-scrollbar { display: none; }
+    }
+
     .bb-tab {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
         padding: 6px 2px 9px;
         margin-bottom: -1px;
         background: transparent;
         border: 0;
         border-bottom: 1px solid transparent;
+        border-radius: 0;
         cursor: pointer;
         font-family: var(--bb-font-mono);
         font-size: 11px;
         letter-spacing: 0.14em;
         text-transform: uppercase;
         color: var(--bb-muted);
+        text-decoration: none;
         transition: color var(--bb-dur-base) var(--bb-ease-out-expo),
                     border-color var(--bb-dur-base) var(--bb-ease-out-expo);
     }
 
+    /* The mark. Reserved on EVERY tab and painted only on the active one, so
+       moving the selection never moves the labels -- a rail whose text shifts
+       6px sideways on click reads as a reflow, not as a choice landing. Same
+       5px rotated square as `.bb-mark` above: the dot vocabulary is one
+       shape, and a tab is not allowed a second one. */
+    .bb-tab::before {
+        content: "";
+        flex: 0 0 auto;
+        width: 5px;
+        height: 5px;
+        transform: rotate(45deg);
+        background: transparent;
+        transition: background var(--bb-dur-base) var(--bb-ease-out-expo);
+    }
+
+    .bb-tab.is-active::before { background: var(--bb-green-glow); }
+
+    /* The underline DRAWS IN from the leading edge rather than switching
+       colour. It is the `.bb-drawline` gesture above -- this system's "the
+       thing you did landed here" motion -- and it is an element rather than
+       the tab's own border-bottom so it can animate: a border-colour swap
+       cannot be scaled, and across five filters it read as a flicker. */
+    .bb-tab::after {
+        content: "";
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: -1px;
+        height: 1px;
+        background: var(--bb-green-glow);
+        transform: scaleX(0);
+        transform-origin: left;
+        transition: transform var(--bb-dur-base) var(--bb-ease-out-expo);
+    }
+
+    .bb-tab.is-active::after { transform: scaleX(1); }
+
     .bb-tab:hover { color: var(--bb-tan-light); border-bottom-color: rgba(var(--bb-tan-rgb), 0.40); }
-    .bb-tab.is-active { color: var(--bb-white); border-bottom-color: var(--bb-green-glow); }
+    .bb-tab.is-active { color: var(--bb-white); }
+
+    /* The count slot: a section rail says how many things are in the section
+       it jumps to. Quiet until its tab is the active one, then it inherits. */
+    .bb-tab__count {
+        font-size: 10px;
+        letter-spacing: 0.04em;
+        color: var(--bb-muted);
+    }
+
+    .bb-tab.is-active .bb-tab__count { color: inherit; }
+
+    /* The form-control shape. See the block comment above for why the input
+       is zero-sized rather than hidden. */
+    .bb-tab__input {
+        position: absolute;
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+
+    .bb-tab:has(.bb-tab__input:focus-visible) {
+        outline: 2px solid var(--bb-green-glow);
+        outline-offset: 2px;
+    }
+
+    /* ── Orientation ─────────────────────────────────────────────
+     * `vertical` turns the rail 90 degrees: the hairline moves from the
+     * bottom edge to the left one and the line that drew in sideways draws
+     * DOWN instead. Nothing else changes, which is the point -- the same
+     * contract, the same mark, the same motion. */
+    .bb-tabs--vertical {
+        display: flex;
+        flex-direction: column;
+        flex-wrap: nowrap;
+        gap: 2px;
+        border-bottom: 0;
+        border-left: 1px solid var(--bb-border);
+    }
+
+    .bb-tabs--vertical .bb-tab {
+        margin-bottom: 0;
+        padding: 8px 0 8px 14px;
+        border-bottom: 0;
+    }
+
+    .bb-tabs--vertical .bb-tab::after {
+        left: -1px;
+        right: auto;
+        top: 20%;
+        bottom: 20%;
+        width: 1px;
+        height: auto;
+        transform: scaleY(0);
+        transform-origin: top;
+    }
+
+    .bb-tabs--vertical .bb-tab.is-active::after { transform: scaleY(1); }
+
+    /* `auto`: horizontal while the column is wide enough for a row of tabs,
+       vertical once it is not.
+
+       A CONTAINER query, not a viewport one. The version this replaces set
+       `display: none` below 980px and drove the current state with a rAF
+       scrollspy: a phone could not jump at all, and the highlight lied after a
+       search dropped sections. Same markup everywhere -- a row when the host
+       is wide, a hairline rail when the column is ~10rem. */
+    .bb-tabs-host {
+        container-type: inline-size;
+        min-width: 0;
+    }
+
+    .bb-tabs--auto {
+        display: flex;
+        flex-wrap: wrap;
+        margin-bottom: 22px;
+    }
+
+    /* 44px tap target: this rail is the primary in-page jump on a phone. */
+    .bb-tabs--auto .bb-tab { min-height: 44px; }
+
+    @container (max-width: 220px) {
+        .bb-tabs--auto {
+            flex-direction: column;
+            flex-wrap: nowrap;
+            gap: 2px;
+            margin-bottom: 0;
+            border-bottom: 0;
+            border-left: 1px solid var(--bb-border);
+            position: sticky;
+            top: var(--bb-tabs-sticky-top, calc(58px + env(safe-area-inset-top, 0px) + 68px));
+        }
+
+        .bb-tabs--auto .bb-tab {
+            min-height: 0;
+            margin-bottom: 0;
+            padding: 8px 0 8px 14px;
+            border-bottom: 0;
+        }
+
+        .bb-tabs--auto .bb-tab::after {
+            left: -1px;
+            right: auto;
+            top: 20%;
+            bottom: 20%;
+            width: 1px;
+            height: auto;
+            transform: scaleY(0);
+            transform-origin: top;
+        }
+
+        .bb-tabs--auto .bb-tab.is-active::after { transform: scaleY(1); }
+    }
 
     /* Reduced motion parks the two indicators at a readable resting frame
        instead of letting a11y.css's global kill switch land them on their

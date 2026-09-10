@@ -136,87 +136,33 @@ const ALLOWLIST = new Map([
 ]);
 
 /**
- * The ratchet. File -> the number of offending rules it held when this gate
- * landed (2026-09-10). The number may go DOWN and never up; the gate fails
- * both on a file that grows past its number and on a file that shrank without
- * its number being lowered in the same commit, so paying debt down is
- * recorded rather than quietly banked.
+ * The ratchet, and it is EMPTY.
  *
- * These are NOT justified. Each one is a rule that should become a block, and
- * the reason it is a number instead of a fix is in the header: 264 rules in 68
- * files could not be converted in one change without a way to see the result,
- * and a fabricated reason per file would have made the four real reasons above
- * unreadable.
+ * File -> the number of offending rules it held. The number may go DOWN and
+ * never up; the gate fails both on a file that grows past its number and on a
+ * file that shrank without its number being lowered in the same commit, so
+ * paying debt down is recorded rather than quietly banked.
  *
- * Sorted by size, which is also roughly the order to pay them off in: the top
- * of this list is where the type scale is most duplicated.
- */
-/**
- * The ratchet. File -> the number of offending rules it held when this gate
- * landed (2026-09-10). The number may go DOWN and never up; the gate fails
- * both on a file that grows past its number and on a file that shrank without
- * its number being lowered in the same commit, so paying debt down is recorded
- * rather than quietly banked.
+ * HISTORY, because an empty list says nothing on its own. The four surfaces
+ * held 264 such rules in 68 files when this gate landed (2026-09-10) and the
+ * list opened at that number. It was paid down to 133 in 49 files that day,
+ * and to ZERO in the same week. Nothing here was forgiven: every rule either
+ * became a block (Heading, Text, Code, Field, Button, Select, Textarea, Grid,
+ * Stack, Cluster, Table), became a MODIFIER or a custom property on the
+ * contract it was reaching into (`.bb-tabs--vertical`, `.bb-row--accent`,
+ * `.bb-tag--literal`, `.bb-tag--wrap`, `.bb-code--danger`, `.bb-prose`,
+ * `.bb-stat-grid--auto`, `--input-fs`, `--card-body-display`,
+ * `--card-atmo-flip`), or was renamed onto the component's OWN class where
+ * the thing being styled is genuinely a part of that component and not the
+ * type scale (a mock chat window's title, an animated diagram's 0.44rem
+ * lettering).
  *
- * These are NOT justified. Each one is a rule that should become a block, and
- * the reason it is a number instead of a fix is in the header: the four
- * surfaces held 264 such rules in 68 files on the day this was written, and a
- * fabricated per-file reason would have made the four real reasons above
- * unreadable.
- *
- * Sorted by size, which is roughly the order to pay them off in: the top of
- * this list is where the type scale is most duplicated.
+ * Keep the list empty. A file added here now is a decision to ship debt, and
+ * the gate prints the total on every run so the number is in the CI log of
+ * every PR. The seven ALLOWLIST entries above are the permanent, argued
+ * exceptions; this is not the place for a new one.
  */
 const PENDING_ROWS = [
-  ['dashboard/src/routes/(public)/[user]/+page.svelte', 14],
-  ['dashboard/src/routes/(public)/stats/+page.svelte', 11],
-  ['dashboard/src/routes/(app)/counters/+page.svelte', 8],
-  ['dashboard/src/routes/(public)/user/[channel]/+page.svelte', 6],
-  ['dashboard/src/lib/components/discord/GuildNav.svelte', 6],
-  ['dashboard/src/routes/(app)/settings/import/+page.svelte', 5],
-  ['dashboard/src/lib/components/modules/TriggerRuleEditor.svelte', 5],
-  ['dashboard/src/routes/(app)/settings/+page.svelte', 4],
-  ['dashboard/src/routes/(app)/quotes/+page.svelte', 4],
-  ['dashboard/src/lib/components/commands/CommandRow.svelte', 4],
-  ['marketing/src/components/pricing/Tiers.astro', 3],
-  ['marketing/src/components/changelog/ChangelogList.astro', 3],
-  ['dashboard/src/routes/(app)/modules/+page.svelte', 3],
-  ['dashboard/src/lib/components/commands/fetches/FetchKeyManager.svelte', 3],
-  ['dashboard/src/lib/components/commands/CommandEditor.svelte', 3],
-  ['dashboard/src/lib/components/channelpoints/RewardEditor.svelte', 3],
-  ['dashboard/src/lib/components/OnboardingGuide.svelte', 3],
-  ['marketing/src/components/pricing/Faq.astro', 2],
-  ['marketing/src/components/home/SafetyLayers.astro', 2],
-  ['marketing/src/components/home/EcoFriendly.astro', 2],
-  ['marketing/src/components/guides/widgets/Rehearsal.astro', 2],
-  ['marketing/src/components/guides/widgets/ModuleCatalog.astro', 2],
-  ['dashboard/src/routes/(app)/songqueue/+page.svelte', 2],
-  ['dashboard/src/routes/(app)/loyalty/+page.svelte', 2],
-  ['dashboard/src/lib/components/overview/ActivityLog.svelte', 2],
-  ['dashboard/src/lib/components/modules/ReplyEditor.svelte', 2],
-  ['dashboard/src/lib/components/discord/GuildHeader.svelte', 2],
-  ['dashboard/src/lib/components/commands/fetches/FetchSourcePicker.svelte', 2],
-  ['dashboard/src/lib/components/commands/BuiltinInspector.svelte', 2],
-  ['admin/src/lib/components/overview/BotCard.svelte', 2],
-  ['marketing/src/pages/[...lang]/guides/index.astro', 1],
-  ['marketing/src/layouts/Layout.astro', 1],
-  ['marketing/src/components/home/Playground.astro', 1],
-  ['marketing/src/components/guides/widgets/FetchOutcomes.astro', 1],
-  ['marketing/src/components/guides/widgets/CounterPlay.astro', 1],
-  ['marketing/src/components/guides/widgets/Checklist.astro', 1],
-  ['marketing/src/components/guides/ChatMock.astro', 1],
-  ['dashboard/src/routes/(app)/govee/+page.svelte', 1],
-  ['dashboard/src/routes/(app)/discord/+page.svelte', 1],
-  ['dashboard/src/routes/(app)/channelpoints/+page.svelte', 1],
-  ['dashboard/src/routes/(app)/billing/+page.svelte', 1],
-  ['dashboard/src/routes/(app)/+page.svelte', 1],
-  ['dashboard/src/lib/components/spotify/SpotifyRewardEditor.svelte', 1],
-  ['dashboard/src/lib/components/modules/ModuleCommandRow.svelte', 1],
-  ['dashboard/src/lib/components/modules/ModuleCommandList.svelte', 1],
-  ['dashboard/src/lib/components/govee/GoveeRewardEditor.svelte', 1],
-  ['dashboard/src/lib/components/commands/AliasChips.svelte', 1],
-  ['dashboard/src/lib/components/InstallAppPrompt.svelte', 1],
-  ['admin/src/lib/components/users/MessageDialog.svelte', 1],
 ];
 
 /**

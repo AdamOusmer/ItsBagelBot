@@ -7,6 +7,7 @@
  * grid-template-rows height trick; mono index numbers; hover nudge.
  */
 import SectionHeading from '@bagel/ui/astro/SectionHeading.astro';
+import Text from '@bagel/ui/astro/Text.astro';
 import { getLangFromUrl, useTranslations } from '../../i18n/ui';
 
 const lang = getLangFromUrl(Astro.url);
@@ -64,7 +65,7 @@ const faqLd = {
                 </summary>
                 <div class="faq__body">
                     <div class="faq__answer">
-                        <p>{faq.answer}</p>
+                        <Text size="sm" tone="muted" class="faq__text">{faq.answer}</Text>
                     </div>
                 </div>
             </details>
@@ -202,12 +203,11 @@ const faqLd = {
 
     .faq__item[open] .faq__answer { opacity: 1; }
 
-    .faq__answer p {
-        font-family: var(--font-body, "DM Sans", sans-serif);
-        font-size: 0.9rem;
+    /* The type is the `Text` block. Local: the answer is indented to clear
+       the question's expand icon (42px) and carries the panel's own bottom
+       padding, which is this accordion's geometry. */
+    :global(.faq__text) {
         line-height: 1.75;
-        color: var(--muted, #888077);
-        margin: 0;
         padding: 0 4px 24px 42px;
     }
 
@@ -221,6 +221,6 @@ const faqLd = {
     @media (max-width: 640px) {
         .faq { padding: var(--space-section-sm, 80px) 24px; }
         .faq__question { font-size: 0.92rem; padding: 18px 0; gap: 12px; }
-        .faq__answer p { font-size: 0.85rem; padding-left: 32px; }
+        :global(.faq__text) { font-size: 0.85rem; padding-left: 32px; }
     }
 </style>

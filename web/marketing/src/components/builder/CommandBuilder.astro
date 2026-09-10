@@ -38,6 +38,7 @@ import { builderData, builderUI, builderRecipes } from '../../i18n/builder';
 // build-time 28px webp (2x for retina) of ~1 kB instead.
 const avatarImage = await getImage({ src: logoImage, width: 28, height: 28, format: 'webp' });
 import { localizePath, type Lang } from '../../i18n/ui';
+import '@bagel/ui/styles/elements/button.css';
 
 interface Props {
     lang: Lang;
@@ -214,6 +215,7 @@ for (const surface of data.surfaces) {
     // instead, so the builder cannot disagree with the engine about what a
     // token IS while agreeing with it about what a token DOES.
     import { lex, type VarToken } from '@bagel/kit/engine/tmpl';
+    import { pickCommonTokens } from '@bagel/kit/engine/common-tokens';
 
     // spanOf reads one catalog entry's token as the single span it spells.
     // null means the catalog entry is not one token, which is a catalog bug
@@ -633,10 +635,26 @@ for (const surface of data.surfaces) {
             return card;
         }
 
+        // The custom-command surface is FIVE cards and nothing else: no "More
+        // variables" button, no expand-in-place, no hidden rest-of-catalog.
+        // Rendering all forty was the first shape and eight-plus-a-toggle was
+        // the second; both put the wall in front of a first-time reader, the
+        // second one click in. Which five is
+        // @bagel/kit/engine/common-tokens, shared with the console's response
+        // editor, and the reason the toggle is not coming back is recorded
+        // there. The rest is real and documented and belongs elsewhere.
+        //
+        // Only the custom-command catalog is capped. The module and alert
+        // surfaces carry three to eight vars each, all of them specific to
+        // that event, and dropping some with nowhere to see them loses content
+        // to save nothing.
         function renderVars() {
             const box = $<HTMLElement>('[data-vars]');
+            const all = current().vars;
+            const shown = surfaceId === 'custom' ? pickCommonTokens(all, (item) => item.token) : all;
+
             box.replaceChildren();
-            for (const item of current().vars) {
+            for (const item of shown) {
                 box.append(item.scopes?.length ? buildCounterVar(item) : buildSimpleVar(item));
             }
         }

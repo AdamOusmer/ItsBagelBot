@@ -6,7 +6,7 @@
   import { tick } from 'svelte';
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Button, Field, EditorFooter, getI18n, type SpotifyRedeemConfig } from '@bagel/kit';
+  import { Button, Code, Field, EditorFooter, getI18n, type SpotifyRedeemConfig } from '@bagel/kit';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
 
@@ -81,8 +81,8 @@
 
 <form method="POST" action="?/saveReward" class="editor" novalidate use:enhance={submit} bind:this={formEl}>
   <p class="hint">
-    {t('spotify.editorInputHint')} <code>Blinding Lights</code>. {t('spotify.editorInputHintPair')}
-    <code>The Weeknd - Blinding Lights</code>. {t('spotify.editorInputHintLink')}
+    {t('spotify.editorInputHint')} <Code>Blinding Lights</Code>. {t('spotify.editorInputHintPair')}
+    <Code>The Weeknd - Blinding Lights</Code>. {t('spotify.editorInputHintLink')}
   </p>
 
   <Field label={t('spotify.fieldTitle')}>
@@ -194,8 +194,6 @@
   .color-hex { font-family: var(--bb-font-mono, monospace); font-size: 12px; color: var(--bb-tan-light); text-transform: uppercase; }
 
   .del-row { display: flex; }
-
-  code { font-family: var(--bb-font-mono, monospace); font-size: 0.86em; color: var(--bb-tan-light); }
 
   @media (max-width: 480px) {
     .field-row { flex-direction: column; gap: 12px; }

@@ -49,15 +49,15 @@ const L = {
     <div class="rh__grid">
         <label class="rh__field rh__field--wide">
             <span>{L.responseLabel}</span>
-            <textarea data-rh-response rows="2" maxlength="500">{L.responseDefault}</textarea>
+            <textarea class="rh__control" data-rh-response rows="2" maxlength="500">{L.responseDefault}</textarea>
         </label>
         <label class="rh__field">
             <span>{L.whoLabel}</span>
-            <input type="text" data-rh-who value={L.whoDefault} maxlength="25" />
+            <input class="rh__control" type="text" data-rh-who value={L.whoDefault} maxlength="25" />
         </label>
         <label class="rh__field">
             <span>{L.argsLabel}</span>
-            <input type="text" data-rh-args value={L.argsDefault} maxlength="80" />
+            <input class="rh__control" type="text" data-rh-args value={L.argsDefault} maxlength="80" />
         </label>
     </div>
     <div class="rh__out">
@@ -67,7 +67,7 @@ const L = {
             <span data-rh-content>{L.outputDefault}</span>
         </p>
     </div>
-    <p class="rh__note">{L.builderNote} <a href={L.builderHref}>{L.builderLinkText}</a></p>
+    <p class="rh__note bb-prose">{L.builderNote} <a href={L.builderHref}>{L.builderLinkText}</a></p>
 </div>
 
 <style>
@@ -100,8 +100,11 @@ const L = {
         color: var(--muted, #888077);
     }
 
-    .rh__field textarea,
-    .rh__field input {
+    /* Named, not `.rh__field textarea, .rh__field input`: this widget's own
+       control part. It is NOT `.bb-input` on purpose -- the widget is a
+       miniature of the console inside a guide page, and its controls have to
+       fit a 0.68rem label grid rather than the console's own rhythm. */
+    .rh__control {
         font-family: var(--font-body, "DM Sans", sans-serif);
         font-size: 0.85rem;
         text-transform: none;
@@ -114,8 +117,7 @@ const L = {
         resize: vertical;
     }
 
-    .rh__field textarea:focus,
-    .rh__field input:focus {
+    .rh__control:focus {
         outline: 2px solid var(--green-glow, #52b788);
         outline-offset: 1px;
     }
@@ -168,7 +170,7 @@ const L = {
         color: var(--muted, #888077);
     }
 
-    .rh__note a { color: var(--tan-light, #e0c49a); }
+    /* The link colour is `.bb-prose`'s (@bagel/ui/styles/elements/typography.css). */
 
     @media (prefers-reduced-motion: reduce) {
         .rh__line { transition: none; }

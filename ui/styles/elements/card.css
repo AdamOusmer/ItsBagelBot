@@ -153,7 +153,17 @@
      same way; the two records are why nobody should "simplify" it back (C10). */
   :where(.bb-card--band) > :where(.bb-card__body) {
     position: relative;
-    display: block;
+    /* Three knobs so a caller can make the body a full-height column, which
+       is what it takes to push something to its bottom edge -- a pricing
+       tier whose CTA sits under a feature list of a length the caller does
+       not control. `block` stays the DEFAULT (the record above says why: a
+       `display: flex` default here silently ate a page's own body layout),
+       so opting in is explicit and the three land together.
+
+       Was a `.tier :global(.bb-card__body)` reach-in on the pricing page. */
+    display: var(--card-body-display, block);
+    flex-direction: var(--card-body-dir, row);
+    height: var(--card-body-h, auto);
     flex: 1;
     padding: var(--card-body-pad, var(--card-pad, 24px));
   }

@@ -17,6 +17,7 @@
     EmptyState,
     Button,
     ButtonLink,
+    Heading,
     toast,
     getI18n,
     type GoveeDevice,
@@ -177,7 +178,7 @@
     <div class="step">
       <span class="step-index" aria-hidden="true">1</span>
       <div class="step-body">
-        <h2>{t('govee.keyTitle')}</h2>
+        <Heading level={6} as="h2" class="step-title">{t('govee.keyTitle')}</Heading>
         <p class="muted-text">
           {t('govee.keyHelpPre')} <strong>{t('govee.keyPath')}</strong>. {t('govee.keyHelpPost')}
         </p>
@@ -311,7 +312,9 @@
   }
   .step-index.sm { width: 26px; height: 26px; font-size: 12px; border-radius: var(--bb-radius-xs); }
   .step-body { flex: 1; min-width: 0; }
-  .step-body h2 { margin: 0 0 6px; font-family: var(--bb-font-display); font-weight: 700; font-size: 15px; color: var(--bb-white); }
+  /* `level={6} as="h2"`: the h2 is the step's rank in the page outline; the
+     l6 (15px) step is what a numbered step head is sized at here. */
+  :global(.step-title) { margin-bottom: 6px; }
   .muted-text { color: var(--bb-muted); font-family: var(--bb-font-body); font-size: 13px; line-height: 1.55; margin: 0 0 14px; }
   .muted-text strong { color: var(--bb-tan-light); font-weight: 600; }
 

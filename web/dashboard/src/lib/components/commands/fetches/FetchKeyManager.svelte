@@ -14,7 +14,8 @@
     getI18n,
     KEY_LABEL_MAX,
     KEY_VALUE_MAX,
-    slugifyName
+    slugifyName,
+    Code
   } from '@bagel/kit';
   import type { FetchKeyView } from '$lib/server/fetches-store';
 
@@ -128,6 +129,7 @@
         {#if rotating === k.label}
           <form class="rotate" onsubmit={submitRotate}>
             <input
+              class="bb-input bb-input--fill"
               type="password"
               placeholder={t('fetches.keyValuePh')}
               aria-label={t('fetches.keyValueAria', { label: k.label })}
@@ -149,7 +151,7 @@
 
 <form class="add-key" onsubmit={submitNew}>
   <input
-    class="bb-input"
+    class="bb-input bb-input--fill add-key-field"
     placeholder={t('fetches.keyLabelPh')}
     aria-label={t('fetches.keyLabelAria')}
     autocomplete="off"
@@ -158,7 +160,7 @@
     bind:value={newLabel}
   />
   <input
-    class="bb-input"
+    class="bb-input bb-input--fill add-key-field"
     type="password"
     placeholder={t('fetches.keyValuePh')}
     aria-label={t('fetches.keyValueNewAria')}
@@ -188,7 +190,7 @@
     <p class="ref-warn">{t('fetches.keyDeleteRefs')}</p>
     <ul class="ref-list">
       {#each referencing as name (name)}
-        <li><code>!{name}</code></li>
+        <li><Code tone="danger">!{name}</Code></li>
       {/each}
     </ul>
   {:else}
@@ -212,35 +214,21 @@
   .acts { margin-left: auto; display: inline-flex; gap: 8px; }
 
   .rotate { display: flex; gap: 8px; width: 100%; }
-  .rotate input {
-    flex: 1;
-    box-sizing: border-box;
-    padding: 8px 12px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid var(--glass-border);
-    border-radius: var(--bb-radius-sm);
-    color: var(--bb-white);
-    font-family: var(--bb-font-mono);
-    font-size: 12px;
-  }
-  .rotate input:focus { outline: none; border-color: rgba(82, 183, 136, 0.5); }
+  /* The frame is `.bb-input` (@bagel/ui/styles/elements/field.css) with the
+     fill modifier; this file used to redraw it at a slightly different
+     padding and a green focus ring the rest of the console does not use. */
 
   .empty { margin: 0 0 14px; font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted); font-style: italic; }
 
   .add-key { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-  .add-key .bb-input { flex: 1; min-width: 140px; box-sizing: border-box; }
+  /* 140px is a wrap floor, not a width: below it the label field and the value
+     field stop being two columns and the row is better off wrapping. The fill
+     behaviour itself is `.bb-input--fill` on the controls. */
+  .add-key-field { min-width: 140px; }
 
   .note { display: block; margin-top: 8px; font-family: var(--bb-font-body); font-size: 11px; line-height: 1.5; color: var(--bb-muted); opacity: 0.7; }
 
   .ref-warn { margin: 0 0 8px; font-family: var(--bb-font-body); font-size: 13px; color: var(--bb-white); }
   .ref-list { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
-  .ref-list code {
-    font-family: var(--bb-font-mono);
-    font-size: 11.5px;
-    color: #cf8a78;
-    background: rgba(176, 90, 70, 0.12);
-    border-radius: var(--bb-radius-pill);
-    padding: 2px 9px;
-  }
   .ref-note { margin: 0; font-family: var(--bb-font-body); font-size: 13px; color: var(--bb-muted); }
 </style>

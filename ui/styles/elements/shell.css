@@ -810,98 +810,11 @@
 
   /* ── Section nav ─────────────────────────────────────────────────────── */
 
-  /* In-page section navigation on the shared `.bb-tabs` rail. Real anchors,
-     not ARIA tabs: each one scrolls to and focuses a section, so native
-     semantics (open in a new tab, right-click, the "link" role) are kept.
-
-     Layout is a CONTAINER query, not a viewport hide. The version this
-     replaces set `display: none` below 980px and drove the current state with
-     a rAF scrollspy: a phone could not jump at all, and the highlight lied
-     after a search dropped sections. Same markup everywhere -- chips when the
-     host is wide, a hairline rail when the column is ~10rem. */
-  .bb-section-nav-host {
-    container-type: inline-size;
-    min-width: 0;
-  }
-
-  .bb-section-nav {
-    display: flex;
-    flex-wrap: wrap;
-    margin-bottom: 22px;
-  }
-
-  .bb-section-nav a {
-    /* `.bb-tab` is written for <button>; anchors need the box explicitly. */
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    /* 44px tap target: this rail is the primary in-page jump on a phone. */
-    min-height: 44px;
-    text-decoration: none;
-  }
-
-  .bb-section-nav__count {
-    font-size: 10px;
-    letter-spacing: 0.04em;
-    color: var(--bb-muted);
-  }
-
-  .bb-section-nav a.is-active .bb-section-nav__count {
-    color: inherit;
-  }
-
-  @container (max-width: 220px) {
-    .bb-section-nav {
-      flex-direction: column;
-      flex-wrap: nowrap;
-      gap: 2px;
-      margin-bottom: 0;
-      border-bottom: 0;
-      border-left: 1px solid var(--bb-border);
-      position: sticky;
-      top: var(--section-nav-sticky-top, calc(58px + env(safe-area-inset-top, 0px) + 68px));
-    }
-
-    .bb-section-nav a {
-      display: flex;
-      min-height: 0;
-      margin-bottom: 0;
-      padding: 8px 0 8px 14px;
-      border: none;
-      border-radius: 0;
-      background: transparent;
-      color: var(--bb-muted);
-      position: relative;
-    }
-
-    .bb-section-nav a::before {
-      content: "";
-      position: absolute;
-      left: -1px;
-      top: 20%;
-      bottom: 20%;
-      width: 1px;
-      background: var(--bb-tan);
-      transform: scaleY(0);
-      transition: transform var(--bb-dur-base) var(--bb-ease-out-expo);
-    }
-
-    .bb-section-nav a:hover {
-      color: var(--bb-tan-light);
-      background: transparent;
-      border-color: transparent;
-    }
-
-    .bb-section-nav a.is-active {
-      color: var(--bb-tan-light);
-      background: transparent;
-      padding-left: 18px;
-    }
-
-    .bb-section-nav a.is-active::before {
-      transform: scaleY(1);
-    }
-  }
+  /* Gone from here. In-page section navigation is the shared rail contract
+     (`.bb-tabs`, ../tags.css) with `orientation="auto"`, and the block that
+     used to sit here -- the container query, the count slot, the active
+     marker -- moved there whole so the rail has ONE definition. The adapters
+     are ../../svelte/SectionNav.svelte and ../../astro/SectionNav.astro. */
 
   /* ── Page head ───────────────────────────────────────────────────────── */
 

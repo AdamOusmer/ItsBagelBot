@@ -270,10 +270,20 @@
 
   /* ── sizes ────────────────────────────────────────────────────── */
 
+  /* `--btn-min-h` is declared HERE and not only on `.bb-btn--block` because a
+     container that raises the floor for its buttons (the settings page sets
+     44px on each section) would otherwise raise it for the dense inline ones
+     too: an inherited custom property can only be beaten by a declaration on
+     the element itself. 36px is well above WCAG 2.5.8's 24x24 AA minimum and
+     is the number the settings page was already trying to reach, through a
+     `:global(.settings-section .bb-btn--sm)` rule in its own styles -- which
+     never matched anything, because those call sites pass `class="sm"` and
+     the contract class is `.bb-btn--sm`. */
   .bb-btn--sm {
     --btn-pad: 7px 12px 7px 10px;
     --btn-gap: 9px;
     --btn-size: 11.5px;
+    --btn-min-h: 36px;
   }
 
   .bb-btn--sm .bb-btn__mark,

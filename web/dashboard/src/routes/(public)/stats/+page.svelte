@@ -2,7 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { onMount, untrack } from 'svelte';
-  import { AuroraBg, LightField, AlertBanner, Card, getI18n } from '@bagel/kit';
+  import { AuroraBg, Heading, LightField, AlertBanner, Card, Stack, Text, getI18n } from '@bagel/kit';
   import type { PageData } from './$types';
   import { commandsHref } from '@bagel/kit/site-links';
 
@@ -358,6 +358,11 @@
               <span class="label">{tile.label}</span>
             </div>
           {/snippet}
+          <!-- The body is a `Stack`, not a `:global(.bb-card__body)` rule.
+               The 12px between the counter and its rate line is the block's
+               gap; the container-type below is this page's own, because the
+               counter sizes itself in cqi against the tile it is in. -->
+          <Stack gap={3} class="tile-body">
           <div class="value">
             <span class="num">{tile.value}</span>
           </div>
@@ -369,6 +374,7 @@
             {/if}
             <span class="rate-label">{tile.rateLabel} · {t('stats.rightNow')}</span>
           </div>
+          </Stack>
         </Card>
       </div>
     {/each}
@@ -380,8 +386,8 @@
         {#snippet band()}
           <header class="board-head">
             <div class="board-titles">
-              <h2>{t('stats.trafficBoardTitle')}</h2>
-              <p>{t('stats.trafficBoardNote')}</p>
+              <Heading level={2} class="board-title">{t('stats.trafficBoardTitle')}</Heading>
+              <Text size="sm" tone="muted" class="board-note">{t('stats.trafficBoardNote')}</Text>
             </div>
           </header>
         {/snippet}
@@ -404,7 +410,7 @@
                 {#each traffic as row, i (row.id)}
                   <tr>
                     <td class="rank">{i + 1}</td>
-                    <td class="chan">
+                    <td class="chan bb-prose">
                       {#if row.name}
                         <a href={channelHref(row)}>{row.name}</a>
                       {:else}
@@ -427,8 +433,8 @@
         {#snippet band()}
           <header class="board-head">
             <div class="board-titles">
-              <h2>{t('stats.feedBoardTitle')}</h2>
-              <p>{t('stats.feedBoardNote')}</p>
+              <Heading level={2} class="board-title">{t('stats.feedBoardTitle')}</Heading>
+              <Text size="sm" tone="muted" class="board-note">{t('stats.feedBoardNote')}</Text>
             </div>
           </header>
         {/snippet}
@@ -443,7 +449,7 @@
             {#each feed.entries as row, i (row.id)}
               <li>
                 <span class="rank">{i + 1}</span>
-                <span class="chan">
+                <span class="chan bb-prose">
                   {#if row.name}
                     <a href={channelHref(row)}>{row.name}</a>
                   {:else}
@@ -542,37 +548,25 @@
      hairline border, radius, hover spotlight/lift) is the Card's own. */
   .tile-wrap { min-width: 0; }
 
-  /* The tile is a banded Card: the head lives in the housing band, so the
-     column layout and gap move to the body the Card renders below it. */
-  .tiles :global(.bb-card) {
+  /* The tile is a banded Card. Everything below is set through the CARD'S OWN
+     custom properties (`--card-pad`, `--card-band-h`, `--card-band-pad`,
+     elements/card.css), handed down from this grid, rather than through
+     `:global(.bb-card…)` rules reaching into the contract. The band height is
+     one value for the whole grid on purpose: a 32px icon, or a label wrapped
+     to two lines on a narrow screen, must give the pair one seam either way. */
+  .tiles {
     --card-pad: clamp(24px, 3.4vw, 40px);
-    height: 100%;
-    min-width: 0;
-  }
-  /* 32px icon, or a label wrapped to two lines on a narrow screen, plus the
-     housing's padding: one height for the pair either way. */
-  .tiles :global(.bb-card__band) {
     --card-band-h: calc(70px * var(--d, 1));
-    padding: calc(14px * var(--d, 1)) var(--card-pad);
+    --card-band-pad: calc(14px * var(--d, 1)) var(--card-pad);
   }
-  /* The gap is the real 12px between the counter and its rate line. It used
-     to be 24px here with a -12px margin on .rate pulling back against it,
-     which collapsed onto the counter's last line as soon as the number
-     wrapped and printed the rate line through the digits.
-
-     container-type makes this box the reference for the counter's cqi font
-     size below: the counter has to fit the tile it is in, not the tile it
-     had when the number was shorter. */
-  .tiles :global(.bb-card__body) {
-    display: flex;
-    flex-direction: column;
-    gap: var(--bb-space-3);
-    min-width: 0;
-    container-type: inline-size;
-  }
+  :global(.tile) { height: 100%; min-width: 0; }
+  /* container-type makes this box the reference for the counter's cqi font
+     size below: the counter has to fit the tile it is in, not the tile it had
+     when the number was shorter. */
+  :global(.tile-body) { min-width: 0; container-type: inline-size; }
   /* Hairline of light along the top edge, as on the marketing surfaces. Free to
      use: Card's own ::before only paints under the (unused) `sheen` variant. */
-  .tiles :global(.bb-card)::before {
+  :global(.tile)::before {
     content: '';
     position: absolute;
     inset: 0 0 auto;
@@ -660,48 +654,28 @@
 
   .board-wrap { min-width: 0; }
 
-  /* Banded Card: the head is the housing band; column layout moves to the
-     body below it. */
-  .boards :global(.bb-card) {
+  /* Banded Card, driven by the card's own custom properties. Both boards
+     share one housing height: the two notes wrap at different widths, so a
+     floor would stagger the seams across the pair. Sized for the longest note
+     wrapped to three lines on a 375px screen (65px in French), which is the
+     tightest this head ever gets. */
+  .boards {
     --card-pad: clamp(20px, 2.4vw, 30px);
-    height: 100%;
-    min-width: 0;
-  }
-  /* Both boards share one housing height: the two notes wrap at different
-     widths, so a floor would stagger the seams across the pair. Sized for the
-     longest note wrapped to three lines on a 375px screen (65px in French),
-     which is the tightest this head ever gets. */
-  .boards :global(.bb-card__band) {
     --card-band-h: calc(112px * var(--d, 1));
-    padding: calc(16px * var(--d, 1)) var(--card-pad);
+    --card-band-pad: calc(16px * var(--d, 1)) var(--card-pad);
   }
-  .boards :global(.bb-card__body) {
-    display: flex;
-    flex-direction: column;
-    gap: var(--bb-space-4);
-    min-width: 0;
-  }
+  :global(.board) { height: 100%; min-width: 0; }
 
   .board-head { display: flex; align-items: flex-start; gap: var(--bb-space-3); min-width: 0; }
   .board-titles { min-width: 0; }
 
-  .board-head h2 {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: clamp(18px, 2vw, 22px);
-    line-height: 1.2;
-    letter-spacing: var(--bb-tracking-tight);
-    color: var(--bb-white);
-    margin: 0;
-  }
-
-  .board-head p {
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-    line-height: 1.5;
-    color: var(--bb-muted);
-    margin: 4px 0 0;
-  }
+  /* The type is `Heading` and `Text`. What stays local is the board title's
+     SIZE: clamp(18px, 2vw, 22px) sits between the l4 (20px) and l5 (17px)
+     steps because the housing band is a fixed height and the two boards'
+     titles have to fit it in both languages. The 4px between title and note
+     is the only other local value. */
+  :global(.board-title) { font-size: clamp(18px, 2vw, 22px); letter-spacing: var(--bb-tracking-tight); }
+  :global(.board-note) { margin-top: 4px; }
 
   .empty {
     font-family: var(--bb-font-body);
@@ -751,13 +725,11 @@
   th.n { text-align: right; padding-right: 0; }
 
   .chan { min-width: 0; }
-  .chan a {
-    color: var(--bb-white);
-    text-decoration: none;
-    border-bottom: 1px solid transparent;
-    transition: color 140ms ease, border-color 140ms ease;
-  }
-  .chan a:hover, .chan a:focus-visible { color: var(--bb-green-glow); border-bottom-color: currentColor; }
+  /* The channel link is the `.bb-prose` contract
+     (@bagel/ui/styles/elements/typography.css): a run of text with a link in
+     it, which is what this cell is. It was a fourth drawing of an inline link
+     (white, transparent bottom border, green on hover) in a repo that already
+     had three. */
   .unnamed { color: var(--bb-muted); font-style: italic; }
 
   /* Feed board: one big tan total, then the podium as a list, the ranking is

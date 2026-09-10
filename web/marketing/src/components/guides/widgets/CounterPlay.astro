@@ -38,7 +38,7 @@ const start = typeof props.start === 'number' ? props.start : 12;
 <div class="gcplay" data-counter-play data-start={start} data-name={counterName}>
     <p class="gcplay__heading">{L.heading}</p>
     <div class="gcplay__win" role="img" aria-label={L.windowTitle}>
-        <div class="gcplay__bar"><i></i><span>{L.windowTitle}</span><b>chat</b></div>
+        <div class="gcplay__bar"><i></i><span class="gcplay__title">{L.windowTitle}</span><b>chat</b></div>
         <div class="gcplay__feed">
             <p class="gcplay__msg">
                 <b class="gcplay__name gcplay__name--mod">{L.modName}</b>
@@ -95,7 +95,8 @@ const start = typeof props.start === 'number' ? props.start : 12;
     }
 
     .gcplay__bar i { width: 7px; height: 7px; border-radius: 50%; background: #e06262; box-shadow: 0 0 8px rgba(224, 98, 98, 0.6); }
-    .gcplay__bar span { font-family: var(--font-mono, "DM Mono", monospace); font-size: 0.75rem; color: var(--white, #f0ece4); }
+    /* Named, not `.gcplay__bar span`: the mock window's own title part. */
+    .gcplay__title { font-family: var(--font-mono, "DM Mono", monospace); font-size: 0.75rem; color: var(--white, #f0ece4); }
     .gcplay__bar b { margin-left: auto; font-family: var(--font-mono, "DM Mono", monospace); font-weight: 400; font-size: 0.6rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted, #888077); }
 
     .gcplay__feed { display: grid; gap: 10px; padding: 16px; }

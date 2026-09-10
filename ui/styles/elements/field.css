@@ -75,6 +75,19 @@
         border: 1px solid var(--bb-border);
         border-radius: var(--bb-radius-sm);
         width: var(--input-w, 240px);
+        /* `--input-fs` is a KNOB rather than a modifier because the caller
+           that needs it (the counters inspector's rename utility) wants a
+           whole SECTION of controls a step quieter, and setting it once on
+           the section is the difference between one declaration and a class
+           on every control in it. It was a `.sec-util :global(.bb-input)`
+           reach-in there.
+
+           Declared on the frame as well as on the inner control because both
+           shapes ship: `<label class="bb-input"><input>` (the frame wraps the
+           control) and `<input class="bb-input">` (the control IS the frame).
+           13.5px is the value the inner rules below already use, so nothing
+           moves; the bare-element form was inheriting the UA's 13.33px. */
+        font-size: var(--input-fs, 13.5px);
         color: var(--bb-muted);
         transition: border-color var(--bb-dur-base) var(--bb-ease-out-expo),
                     box-shadow var(--bb-dur-base) var(--bb-ease-out-expo);
@@ -93,7 +106,7 @@
         outline: 0;
         color: var(--bb-white);
         font-family: var(--bb-font-body);
-        font-size: 13.5px;
+        font-size: var(--input-fs, 13.5px);
         width: 100%;
     }
 

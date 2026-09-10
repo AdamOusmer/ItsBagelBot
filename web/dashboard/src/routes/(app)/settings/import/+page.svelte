@@ -39,8 +39,10 @@
     Button,
     ButtonLink,
     Card,
+    Heading,
     Icon,
     PageHead,
+    Textarea,
     toast,
     getI18n
   } from '@bagel/kit';
@@ -597,7 +599,7 @@
 
   {#if step === 'pick'}
     <Card>
-      <h2>{t('import.stepPick')}</h2>
+      <Heading level={2} class="step-title">{t('import.stepPick')}</Heading>
       <p class="hint">{t('import.pickHint')}</p>
 
       <div class="tiles">
@@ -644,7 +646,7 @@
     <Card>
       <div class="instr-head">
         <span class="glyph" aria-hidden="true">{st.initials}</span>
-        <h2>{t('import.stepInstructions', { source: st.label })}</h2>
+        <Heading level={2} class="step-title">{t('import.stepInstructions', { source: st.label })}</Heading>
       </div>
       <p class="hint">{t('import.instrHint', { source: st.label })}</p>
 
@@ -656,7 +658,7 @@
 
       {#if spec.kind === 'text'}
         {#if spec.linkHref && spec.linkLabel}
-          <p class="instr-link">
+          <p class="instr-link bb-prose">
             <a href={spec.linkHref} target="_blank" rel="noopener noreferrer">{t(spec.linkLabel)}</a>
           </p>
         {/if}
@@ -666,17 +668,20 @@
                textarea reads as "paste something big here" and accepts a
                newline the gate then refuses. Same binding either way. -->
           {#if spec.secret}
-            <textarea
-              rows="3"
+            <Textarea
+              rows={3}
+              fill
+              mono
               placeholder={spec.placeholder}
               bind:value={credential}
               spellcheck="false"
               autocomplete="off"
               autocapitalize="off"
               aria-label={t(spec.i18n.field)}
-            ></textarea>
+            />
           {:else}
             <input
+              class="bb-input bb-input--fill cred-mono"
               type="text"
               placeholder={spec.placeholder}
               bind:value={credential}
@@ -700,7 +705,7 @@
               {t(spec.i18n.connected)}
             </p>
           {:else}
-            <ButtonLink href={spec.connectPath} variant="primary">
+            <ButtonLink href={spec.connectPath} variant="primary" class="cred-cta">
               {t(spec.i18n.cta)}
             </ButtonLink>
           {/if}
@@ -755,7 +760,7 @@
     </Card>
   {:else if step === 'review' && previewResult?.manifest}
     <Card class="review-head">
-      <h2>{t('import.reviewTitle')}</h2>
+      <Heading level={2} class="step-title">{t('import.reviewTitle')}</Heading>
       <p class="hint">{reviewHint}</p>
 
       <div class="review-bar">
@@ -971,7 +976,7 @@
           sequenceKey={commitResult?.audit_id ?? 'done'}
         />
       </span>
-      <h2>{t('import.doneTitle')}</h2>
+      <Heading level={2} class="step-title">{t('import.doneTitle')}</Heading>
       {#if commitResult}
         <p class="hint">
           {t('import.doneLine', {
@@ -1019,10 +1024,10 @@
 </section>
 
 <style>
-  h2 {
-    margin: 0 0 6px;
-    font-size: 16px;
-  }
+  /* The step titles are `Heading` blocks. 16px is between the l4 (20px) and
+     l5 (17px) steps, and matches the settings page's own section heads: this
+     page is one of its sections. */
+  :global(.step-title) { margin-bottom: 6px; font-size: 16px; }
   .hint {
     color: var(--bb-muted, #888077);
     font-size: 13px;
@@ -1277,21 +1282,19 @@
     margin: 0 0 14px;
     font-size: 13.5px;
   }
-  .instr-link a {
-    color: var(--bb-tan-light);
-    text-decoration: underline;
-    text-underline-offset: 2px;
-  }
-  .instr-link a:hover {
-    color: var(--bb-tan);
-  }
+  /* The link look is `.bb-prose` on the paragraph
+     (@bagel/ui/styles/elements/typography.css). Local: this one link is the
+     step's whole instruction, so it is underlined at rest rather than on
+     hover -- a reader following a numbered step should not have to find it. */
+  .instr-link a { text-decoration: underline; text-underline-offset: 2px; }
   .cred {
     display: flex;
     flex-direction: column;
     gap: 8px;
     margin-bottom: 6px;
   }
-  .cred :global(.bb-btn) {
+  /* Keyed on the CTA's own class: where THIS button sits in the column. */
+  :global(.cred-cta) {
     align-self: flex-start;
   }
   .nb-connected {
@@ -1302,18 +1305,12 @@
     color: var(--bb-green, #7dc98f);
     font-size: 13px;
   }
-  .cred textarea,
-  .cred input[type='text'] {
-    width: 100%;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid var(--glass-border);
-    border-radius: var(--bb-radius-sm);
-    color: var(--bb-white);
-    padding: 8px 10px;
-    font-size: 13px;
-    font-family: var(--bb-font-mono);
-    resize: vertical;
-  }
+  /* The controls are `Textarea` and `.bb-input` now. This file used to draw
+     the frame itself, at its own padding and its own background: the fifth
+     redrawing of a control the library ships. What is genuinely local is the
+     FACE: a credential is a token, so its characters have to be
+     distinguishable (l vs 1, O vs 0) in a way prose does not need. */
+  .cred-mono { font-family: var(--bb-font-mono); }
   .drop {
     position: relative;
     display: flex;
@@ -1536,8 +1533,8 @@
     gap: 12px;
     margin-bottom: 14px;
   }
-  .instr-head h2 {
-    margin: 0;
+  .instr-head :global(.step-title) {
+    margin-bottom: 0;
   }
 
   .review-bar {

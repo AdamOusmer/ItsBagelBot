@@ -11,6 +11,7 @@
   import {
     ButtonLink,
     SegmentedControl,
+    Select,
     getI18n,
     guildMonogram,
     type GuildBotState
@@ -130,11 +131,15 @@
       />
     {:else if guilds.length > SEGMENTED_MAX}
       <label class="sr-only" for="dc-switcher">{t('discord.switcherLabel')}</label>
-      <select id="dc-switcher" class="setting-input" value={guildId} onchange={(e) => switchTo(e.currentTarget.value)}>
+      <!-- The `Select` block. This was a bare <select> with its own frame,
+           its own 6px radius and an `option { color: #1a1814 }` rule for the
+           native dropdown; the contract (@bagel/ui/styles/elements/input.css)
+           owns all three, chevron included. -->
+      <Select id="dc-switcher" class="guild-select" value={guildId} onchange={(e: Event) => switchTo((e.currentTarget as HTMLSelectElement).value)}>
         {#each guilds as g, i (g.guildId)}
           <option value={g.guildId}>{switchLabels[i]}</option>
         {/each}
-      </select>
+      </Select>
     {/if}
   </div>
 </div>
@@ -234,18 +239,8 @@
     flex-wrap: wrap;
     min-width: 0;
   }
-  .switcher select {
-    width: min(220px, 60vw);
-    padding: 8px 12px;
-    border: 1px solid var(--rule);
-    border-radius: 6px;
-    background: rgba(240, 236, 228, 0.04);
-    color: var(--bb-white);
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-    appearance: auto;
-  }
-  .switcher select option {
-    color: #1a1814;
-  }
+  /* `--input-w` is `.bb-input`'s own width knob (elements/field.css). The
+     switcher shrinks with the viewport because it shares a wrapping row with
+     the "all servers" link and a long guild name. */
+  .switcher { --input-w: min(220px, 60vw); }
 </style>

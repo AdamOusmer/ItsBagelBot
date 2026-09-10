@@ -34,6 +34,7 @@
     actionPayload,
     toastFailure,
     type ActionOk,
+    Code,
   } from '@bagel/kit';
   import SpotifyRewardEditor from '$lib/components/spotify/SpotifyRewardEditor.svelte';
   import SpotifyRewardRow from '$lib/components/spotify/SpotifyRewardRow.svelte';
@@ -335,7 +336,7 @@
       <h2 class="path-title">{t('spotify.appTitle')}</h2>
       <p class="muted-text">{app.present ? t('spotify.appSetHelp') : t('spotify.appHelp')}</p>
 
-      <ol class="steps">
+      <ol class="steps bb-prose">
         <li>
           {t('spotify.appStepCreate')}
           <a class="ext" href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener noreferrer">
@@ -345,7 +346,7 @@
         <li>
           {t('spotify.appStepRedirect')}
           <span class="redirect">
-            <code>{data.redirectUri}</code>
+            <Code class="setup-code">{data.redirectUri}</Code>
             <Button variant="ghost" type="button" onclick={copyRedirect}>{t('spotify.redirectCopy')}</Button>
           </span>
         </li>
@@ -355,7 +356,7 @@
       {#if app.present && !editingApp}
         <div class="row">
           <span class="ok-pill">{t('spotify.appPill')}</span>
-          <code class="client-id">{app.clientId}</code>
+          <Code class="setup-code">{app.clientId}</Code>
           <Button variant="secondary" type="button" onclick={() => (editingApp = true)}>{t('spotify.appReplace')}</Button>
           <form method="POST" action="?/clearApp" use:enhance={formResult(t('spotify.appRemoved'), t('spotify.appRemoveFailed'), () => { app = { present: false, clientId: '' }; connected = false; })}>
             <Button variant="destructive" type="submit">{t('spotify.appRemove')}</Button>
@@ -668,10 +669,18 @@
      before the first authorize attempt, or consent fails with a URI mismatch
      that reads like a bug in our console. */
   .steps { margin: 0 0 14px; padding-left: 18px; display: grid; gap: 8px; color: var(--bb-muted); font-family: var(--bb-font-body); font-size: 13px; line-height: 1.55; }
-  .steps a.ext { color: var(--bb-green-glow); text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
-  .steps a.ext:hover { text-decoration: underline; }
+  /* The link look is `.bb-prose` (@bagel/ui/styles/elements/typography.css),
+     on the list. Local: the one link in these steps leaves the console for
+     Spotify's own dashboard, so it carries an icon beside its label and is
+     green rather than tan -- green is what the rest of this page uses for
+     "this is the Spotify side". */
+  .steps .ext { color: var(--bb-green-glow); display: inline-flex; align-items: center; gap: 4px; }
   .redirect { display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
-  .redirect code, .client-id { background: var(--bb-surface-2); border: 1px solid var(--bb-border); border-radius: var(--bb-radius-sm); padding: 4px 8px; font-family: var(--bb-font-mono, monospace); font-size: 12px; color: var(--bb-white); word-break: break-all; }
+  /* Both chips are the `Code` block. Local: a redirect URI and a client id
+     are long single tokens with no spaces, so they must break anywhere rather
+     than push the card wide, and they are white because they are values to
+     copy, not identifiers in prose. */
+  :global(.setup-code) { color: var(--bb-white); word-break: break-all; }
   .muted-text.small { font-size: 12px; margin: 10px 0 0; }
   /* Field wraps its control in a <label>, so a sentence-long hint sits after
      the field rather than inside it (a paragraph inside a label reads oddly to

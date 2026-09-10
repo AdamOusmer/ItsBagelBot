@@ -10,6 +10,10 @@
   // a card. Dismissal is remembered in localStorage; `?welcome=1` re-opens it
   // for a refresher (both handled by the caller).
   import Icon from '@bagel/ui/svelte/Icon.svelte';
+  import Code from '@bagel/ui/svelte/Code.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
+  import Stack from '@bagel/ui/svelte/Stack.svelte';
   import Bolota from '@bagel/kit/components/Bolota.svelte';
   import Toggle from '@bagel/ui/svelte/Toggle.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
@@ -257,13 +261,24 @@
           {#key step}
             <div class="step">
               <p class="progress" aria-hidden="true">{t('onboarding.stepOf', { n: step + 1, total: steps.length })}</p>
-              <h4 id="onb-title">{s.title}</h4>
-              <p class="step-body">{s.body}</p>
+              <!-- Heading and body as one `Stack`: the 8px between them was a
+                   `margin-bottom` on a scoped `h4` rule, which is the block's
+                   spacing written where only this file can see it. -->
+              <Stack gap={2}>
+                <Heading level={4} id="onb-title">{s.title}</Heading>
+                <Text size="sm" tone="muted">{s.body}</Text>
+              </Stack>
 
               {#if s.consent}
                 <div class="consent-check">
                   <Toggle bind:on={consentAccepted} />
-                  <span>{@html t('onboarding.consentLabel')}</span>
+                  <!-- `.bb-prose`: the consent line is a TRANSLATED string with
+                       two links inside it, so this component cannot put a class
+                       on either anchor. The contract
+                       (@bagel/ui/styles/elements/typography.css) is the library's
+                       answer to exactly that; it replaces a scoped
+                       `:global(a)` pair here. -->
+                  <span class="bb-prose">{@html t('onboarding.consentLabel')}</span>
                 </div>
               {/if}
 
@@ -280,7 +295,7 @@
 
               {#if s.mod}
                 <button type="button" class="mod-cmd" onclick={copyMod} title={t('common.copy')}>
-                  <code>{MOD_COMMAND}</code>
+                  <Code>{MOD_COMMAND}</Code>
                   <span class="copy-hint">
                     <Icon name={copied ? 'check' : 'link'} size={12} />
                     {copied ? t('common.copied') : t('common.copy')}
@@ -433,14 +448,6 @@
     font-family: var(--bb-font-mono); font-size: 10px; letter-spacing: 0.08em;
     text-transform: uppercase; color: var(--bb-muted); margin: 0 0 6px;
   }
-  .step h4 {
-    font-family: var(--bb-font-display); font-weight: 700; font-size: 16px;
-    letter-spacing: -0.01em; color: var(--bb-white); margin: 0 0 8px;
-  }
-  .step-body {
-    font-family: var(--bb-font-body); font-size: 13px; line-height: 1.55;
-    color: var(--bb-muted); margin: 0;
-  }
 
   .mod-cmd {
     display: flex; align-items: center; justify-content: space-between; gap: 10px;
@@ -452,7 +459,6 @@
     transition: border-color 0.2s, background 0.2s;
   }
   .mod-cmd:hover { border-color: var(--bb-tan); background: rgba(201, 168, 124, 0.06); }
-  .mod-cmd code { font-family: var(--bb-font-mono); font-size: 13px; color: var(--bb-tan-light); }
   .copy-hint {
     display: inline-flex; align-items: center; gap: 5px;
     font-family: var(--bb-font-body); font-weight: 600; font-size: 11.5px;
@@ -466,8 +472,6 @@
     display: flex; align-items: center; gap: 12px; margin-top: 4px;
     font-family: var(--bb-font-body); font-size: 13.5px; color: var(--bb-muted);
   }
-  .consent-check :global(a) { color: var(--bb-tan-light); text-decoration: none; font-weight: 500; }
-  .consent-check :global(a:hover) { text-decoration: underline; }
 
   .lang-row { margin-top: 4px; display: flex; }
 

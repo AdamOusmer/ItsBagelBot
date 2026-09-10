@@ -51,6 +51,31 @@
     background: var(--row-selected);
   }
 
+  /* `accent`: a 2px leading edge on the SELECTED row.
+
+     For a deck that docks an inspector beside its list. The row is the only
+     thing left saying which record the inspector is holding once it scrolls
+     past the inspector's own header, and the background tint above is not
+     enough at that distance. Off by default because the decks that select
+     WITHOUT an inspector (settings, quotes) would be marking nothing.
+
+     It arrived as a `.row-wrap :global(.bb-row)` pair in the command deck's
+     CommandRow.svelte, i.e. a caller reaching into this contract to add a
+     pseudo-element to it -- which also meant `position: relative` had to be
+     set from outside, and any future ::before here would have collided with
+     it silently. */
+  .bb-row--accent { position: relative; }
+
+  .bb-row--accent.is-selected::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--bb-green-glow);
+  }
+
   .bb-row.is-off .bb-row__primary {
     opacity: 0.5;
   }

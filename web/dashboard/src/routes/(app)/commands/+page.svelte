@@ -35,7 +35,7 @@
     type CommandView,
     type CommandErrors,
     type Perm,
-    Chip
+    SegmentedControl
   } from '@bagel/kit';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
   import CommandRow from '$lib/components/commands/CommandRow.svelte';
@@ -166,7 +166,14 @@
           : f === 'Custom'
             ? t('commands.filterCustom')
             : t('commands.filterAll');
-  let active = $state<(typeof filters)[number]>('All');
+  // SegmentedControl keys its options by their DISPLAYED string -- the same
+  // contract every other caller of it uses -- so the bound state is the label
+  // and the internal key is derived back out of it. The reverse (bind the key,
+  // translate on render) would need the control to carry a value/label split
+  // that no other filter in the console needs.
+  const filterOptions = $derived(filters.map(filterLabel));
+  let activeLabel = $state(filterLabel('All'));
+  const active = $derived(filters.find((f) => filterLabel(f) === activeLabel) ?? 'All');
   let search = $state('');
 
   const rows = $derived(
@@ -786,11 +793,16 @@
 
   <PageToolbar>
     {#snippet lead()}
-      <div class="chip-row">
-        {#each filters as f}
-          <Chip tone="muted" on={active === f} onclick={() => (active = f)}>{filterLabel(f)}</Chip>
-        {/each}
-      </div>
+      <!-- THE RAIL. This was a row of `Chip`s -- boxed pills, the tag shape --
+           while the modules page next door jumped sections on the underline
+           rail, so one console answered "which of these am I looking at" two
+           ways. SegmentedControl is that rail, and the small-screen overflow
+           the `.chip-row` block below used to carry is `.bb-tabs--wrap`. -->
+      <SegmentedControl
+        options={filterOptions}
+        bind:value={activeLabel}
+        label={t('commands.filterLabel')}
+      />
     {/snippet}
     {#snippet trail()}
       <span class="keys" aria-hidden="true"><kbd class="hint">/</kbd> {t('commands.keysSearch')} <kbd class="hint">N</kbd> {t('commands.keysNew')}</span>
@@ -1081,12 +1093,5 @@
     .deck-stats { gap: 16px; }
     .deck-stats .big { font-size: 20px; }
     .toolbar-search { width: 100%; order: 3; }
-    .chip-row {
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
-      flex-wrap: nowrap;
-      scrollbar-width: none;
-    }
-    .chip-row::-webkit-scrollbar { display: none; }
   }
 </style>

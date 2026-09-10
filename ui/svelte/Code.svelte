@@ -15,18 +15,23 @@
 
   let {
     block = false,
+    tone = undefined,
     class: className = '',
     children,
     ...rest
   }: {
     /** Renders inside a <pre>, for multi-line code. */
     block?: boolean;
+    /** `danger`: this identifier is about to break. See the contract. */
+    tone?: 'danger';
     class?: string;
     children: Snippet;
     [key: string]: unknown;
   } = $props();
 
-  const classes = $derived(['bb-code', className || null].filter(Boolean).join(' '));
+  const classes = $derived(
+    ['bb-code', tone ? `bb-code--${tone}` : null, className || null].filter(Boolean).join(' '),
+  );
 </script>
 
 {#if block}<pre class="bb-code-block" {...rest}><code class={classes}>{@render children()}</code></pre>{:else}<code

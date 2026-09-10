@@ -155,10 +155,10 @@ const playStrings = {
     }
 
     /* Chips were pill buttons (.play__chip / --evil, radius-pill + a lift on
-       hover); they are .bb-chip / .bb-chip--danger frames now. */
-    .bb-chip:active {
-        transform: scale(0.96);
-    }
+       hover); they are .bb-chip / .bb-chip--danger frames now, and the press
+       (scale 0.96) is the contract's own -- it moved into
+       @bagel/ui/styles/elements/chip.css so every chip in the system presses,
+       not just this page's. */
 
     .play__hint {
         font-family: var(--font-mono, "DM Mono", monospace);

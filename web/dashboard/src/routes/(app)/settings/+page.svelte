@@ -6,7 +6,9 @@
     Button,
     ButtonLink,
     Card,
+    Heading,
     PageHead,
+    Text,
     SectionNav,
     ConfirmDialog,
     EmptyState,
@@ -266,8 +268,8 @@
       compact
     />
     <div class="grant-edit-actions">
-      <Button variant="ghost" class="sm" onclick={closeEdit}>{t('common.cancel')}</Button>
-      <Button type="submit" variant="primary" class="sm">{t('common.save')}</Button>
+      <Button variant="ghost" size="sm" onclick={closeEdit}>{t('common.cancel')}</Button>
+      <Button type="submit" variant="primary" size="sm">{t('common.save')}</Button>
     </div>
   </form>
 {/snippet}
@@ -292,7 +294,7 @@
     <div class="stack">
   <!-- ACCOUNT -->
   <Card as="section" id="account" class="settings-section" tabindex="-1" aria-labelledby="h-account">
-    <h2 id="h-account">{t('settings.account')}</h2>
+    <Heading level={2} class="sec-title" id="h-account">{t('settings.account')}</Heading>
     <p class="hint">{t('settings.accountHint')}</p>
     <div class="identity">
       <span class="identity-face"><Bolota name={data.login ?? ''} size={44} active /></span>
@@ -311,7 +313,7 @@
   <Card as="section" id="access" class="settings-section" tabindex="-1" aria-labelledby="h-access">
     <div class="sec-head">
       <div>
-        <h2 id="h-access">{t('settings.sharedAccess')}</h2>
+        <Heading level={2} class="sec-title" id="h-access">{t('settings.sharedAccess')}</Heading>
         <p class="hint">{t('settings.sharedAccessHint')}</p>
       </div>
       <Button variant="primary" aria-expanded={creating} onclick={() => (creating = !creating)}>
@@ -366,8 +368,8 @@
               <div class="grant-sections">{@render sectionChips(g.sections)}</div>
             </div>
             <div class="actions">
-              <Button variant="ghost" class="sm" onclick={() => openEdit(g.token)}>{t('settings.editAccess')}</Button>
-              <Button variant="destructive" class="sm" onclick={() => (revokeTarget = g)}>{t('common.revoke')}</Button>
+              <Button variant="ghost" size="sm" onclick={() => openEdit(g.token)}>{t('settings.editAccess')}</Button>
+              <Button variant="destructive" size="sm" onclick={() => (revokeTarget = g)}>{t('common.revoke')}</Button>
             </div>
             {#if editingToken === g.token}{@render editSections(g)}{/if}
           </li>
@@ -385,14 +387,14 @@
             <div class="actions">
               <Button
                 variant="ghost"
-                class="sm"
+                size="sm"
                 onclick={() => copy(g.token)}
                 aria-label={t('settings.copyLinkAria')}
               >
                 {copied[g.token] ? t('common.copied') : t('common.copy')}
               </Button>
-              <Button variant="ghost" class="sm" onclick={() => openEdit(g.token)}>{t('settings.editAccess')}</Button>
-              <Button variant="destructive" class="sm" onclick={() => (revokeTarget = g)}>{t('common.revoke')}</Button>
+              <Button variant="ghost" size="sm" onclick={() => openEdit(g.token)}>{t('settings.editAccess')}</Button>
+              <Button variant="destructive" size="sm" onclick={() => (revokeTarget = g)}>{t('common.revoke')}</Button>
             </div>
             <div class="grant-sections">{@render sectionChips(g.sections)}</div>
             {#if editingToken === g.token}{@render editSections(g)}{/if}
@@ -415,11 +417,11 @@
                 <div class="grant-sections">{@render sectionChips(r.sections)}</div>
               </div>
               <div class="actions">
-                <ButtonLink href={`/delegate/enter?owner=${r.owner_user_id}`} variant="ghost" class="sm">{t('common.open')}</ButtonLink>
+                <ButtonLink href={`/delegate/enter?owner=${r.owner_user_id}`} variant="ghost" size="sm">{t('common.open')}</ButtonLink>
                 <Button
                   type="button"
                   variant="destructive"
-                  class="sm"
+                  size="sm"
                   aria-label={t('settings.leaveDashboardAria', { login: r.owner_login })}
                   onclick={() => (leaveTarget = r)}
                 >{t('common.leave')}</Button>
@@ -434,11 +436,11 @@
   <!-- NOTIFICATIONS: the bell dropdown's "view all" target (/settings#notifications). -->
   <Card as="section" id="notifications" class="settings-section" tabindex="-1" aria-labelledby="h-notifications">
     <div class="sec-head">
-      <h2 id="h-notifications">{t('settings.notifications')}</h2>
+      <Heading level={2} class="sec-title" id="h-notifications">{t('settings.notifications')}</Heading>
       {#if unreadIds.length > 0}
         <form method="POST" action="?/markAllRead" use:enhance>
           <input type="hidden" name="ids" value={unreadIds.join(',')} />
-          <Button type="submit" variant="ghost" class="sm">{t('settings.markAllRead')}</Button>
+          <Button type="submit" variant="ghost" size="sm">{t('settings.markAllRead')}</Button>
         </form>
       {/if}
     </div>
@@ -451,13 +453,13 @@
             <span class="bb-tag {LEVEL_TAG[n.level] ?? 'bb-tag--quiet'} level {n.level}">{levelLabel(n.level)}</span>
             <div class="notif-text">
               <b>{n.title}</b>
-              <p>{n.body}</p>
+              <Text size="sm" tone="muted" class="notif-body">{n.body}</Text>
               <span class="notif-meta">{new Date(n.created_at).toLocaleString()}</span>
             </div>
             {#if !n.read}
               <form method="POST" action="?/markRead" use:enhance>
                 <input type="hidden" name="id" value={n.id} />
-                <Button type="submit" variant="ghost" class="sm">{t('common.read')}</Button>
+                <Button type="submit" variant="ghost" size="sm">{t('common.read')}</Button>
               </form>
             {/if}
           </li>
@@ -468,7 +470,7 @@
 
   <!-- PREFERENCES -->
   <Card as="section" id="preferences" class="settings-section" tabindex="-1" aria-labelledby="h-preferences">
-    <h2 id="h-preferences">{t('settings.preferences')}</h2>
+    <Heading level={2} class="sec-title" id="h-preferences">{t('settings.preferences')}</Heading>
     <div class="row">
       <div>
         <span class="pref-label" id="lang-label">{t('settings.language')}</span>
@@ -489,7 +491,7 @@
        rest of this page. Data sources themselves are created inside the command
        editor; only the keys they spend are managed here. -->
   <Card as="section" id="api-keys" class="settings-section" tabindex="-1" aria-labelledby="h-api-keys">
-    <h2 id="h-api-keys">{t('fetches.keysTitle')}</h2>
+    <Heading level={2} class="sec-title" id="h-api-keys">{t('fetches.keysTitle')}</Heading>
     <p class="hint">{t('settings.keysHint')}</p>
     <FetchKeyManager
       keys={fetchKeys}
@@ -505,7 +507,7 @@
   <Card as="section" id="import" class="settings-section" tabindex="-1" aria-labelledby="h-import">
     <div class="sec-head">
       <div>
-        <h2 id="h-import">{t('settings.importSetup')}</h2>
+        <Heading level={2} class="sec-title" id="h-import">{t('settings.importSetup')}</Heading>
         <p class="hint">{t('settings.importSetupHint')}</p>
       </div>
       <ButtonLink href="/settings/import" variant="secondary">{t('settings.importSetupCta')}</ButtonLink>
@@ -514,7 +516,7 @@
 
   <!-- DANGER ZONE: visually separated, last. -->
   <Card as="section" id="danger-zone" class="settings-section danger-section" tabindex="-1" aria-labelledby="h-danger">
-    <h2 id="h-danger">{t('settings.dangerZone')}</h2>
+    <Heading level={2} class="sec-title" id="h-danger">{t('settings.dangerZone')}</Heading>
     <p class="hint">{t('settings.dangerZoneHint')}</p>
     <div class="row">
       <div>
@@ -626,13 +628,13 @@
   :global(.settings-section:focus) { outline: none; }
 
   /* Rail + column, same shape as the modules index: one column on a phone
-     (SectionNav renders its chip row), two once there is room for a ~12rem
-     rail. The rail is a container query inside SectionNav, so nothing here
-     hides anything. */
+     (the rail lies down as a horizontal row of tabs), two once there is room
+     for a ~12rem rail, where it stands up. The switch is a container query
+     inside the `.bb-tabs` contract, so nothing here hides anything. */
   .layout {
     display: grid;
     gap: 18px 40px;
-    --section-nav-sticky-top: calc(58px + env(safe-area-inset-top, 0px) + 68px);
+    --bb-tabs-sticky-top: calc(58px + env(safe-area-inset-top, 0px) + 68px);
   }
   @media (min-width: 761px) {
     .layout { grid-template-columns: 12rem minmax(0, 1fr); align-items: start; }
@@ -663,7 +665,10 @@
 
   .stack { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
 
-  h2 { margin: 0 0 6px; font-size: 16px; }
+  /* The section titles are `Heading` blocks. 16px is between the l4 (20px)
+     and l5 (17px) steps because a settings section head sits inside a card,
+     under a rail, and has to stay quieter than the page title above it. */
+  :global(.sec-title) { margin-bottom: 6px; font-size: 16px; }
   .hint { color: var(--bb-muted, #998f82); font-size: 13px; margin: 0 0 12px; }
 
   /* Card header: title block left, its one primary action right. */
@@ -674,7 +679,7 @@
     gap: 16px;
     flex-wrap: wrap;
   }
-  .sec-head h2 { margin-bottom: 0; }
+  .sec-head :global(.sec-title) { margin-bottom: 0; }
   .sec-head .hint { margin: 4px 0 0; }
   .sec-head + :global(*) { margin-top: 18px; }
 
@@ -791,17 +796,12 @@
   /* Standalone actions get a full 44px target; the dense inline "sm" buttons stay
      compact but keep a 36px target (well above the 24px AA floor) and 8px+ gaps. */
   :global(.settings-section) { --btn-min-h: 44px; }
-  /* The one selector on the contract left in this file, and it stays because
-     the alternative is worse. The section sets a 44px target for every button
-     inside it through the inherited knob above; the dense inline "sm" buttons
-     have to opt back down to 36px, and an inherited property can only be
-     overridden by a declaration on the ELEMENT. Reaching for `.bb-btn--sm`
-     from here is one rule; the alternatives are `--btn-min-h: 36px` hand-set
-     at each of this page's sm call sites, or a 36px floor baked into
-     `.bb-btn--sm` for every surface in the system, which is a global change
-     to satisfy one page. Allowlisted in
-     web/kit/scripts/assert-blocks-not-handcoded.mjs with this reason. */
-  :global(.settings-section .bb-btn--sm) { --btn-min-h: 36px; --btn-pad: 8px 14px; }
+  /* The 36px floor for the dense inline buttons is `.bb-btn--sm`'s own now
+     (@bagel/ui/styles/elements/button.css). The rule that used to sit here
+     never matched: these call sites pass `class="sm"`, which lands as a bare
+     `sm` class on the element, while the contract class is `.bb-btn--sm` --
+     so the buttons were full size and the 44px floor above applied to them.
+     They pass `size="sm"` now, which is what the rule was reaching for. */
 
   /* --- notifications section --- */
   .notif-list { display: flex; flex-direction: column; gap: 10px; list-style: none; margin: 0; padding: 0; }
@@ -813,7 +813,7 @@
   .notif-item.unread { border-color: rgba(201, 168, 124, 0.3); background: rgba(201, 168, 124, 0.05); }
   .notif-text { flex: 1; min-width: 0; }
   .notif-text b { font-size: 14px; color: var(--bb-white); }
-  .notif-text p { margin: 4px 0; font-size: 13px; color: var(--bb-muted); }
+  :global(.notif-body) { margin: 4px 0; }
   .notif-meta { font-family: var(--bb-font-body); font-size: 11px; color: var(--bb-muted); opacity: 0.8; }
   /* Pill triad retired for the shared .bb-tag variants (LEVEL_TAG above), so a
      level reads the same here and in NotificationBell. Only the layout and
@@ -834,7 +834,11 @@
     /* A phone has no room for three grid tracks; every part of a row stacks
        and the link wraps instead of ellipsing. */
     .grant { grid-template-columns: minmax(0, 1fr); }
-    .grant .actions :global(.bb-btn) { flex: 1; justify-content: center; }
+    /* The button contract's own knobs, handed down: two buttons sharing the
+       row, each centred. `width: 100%` with the default flex-shrink is what
+       `flex: 1` spelled, and it is one declaration the contract already
+       exposes rather than a rule reaching into `.bb-btn`. */
+    .grant .actions { --btn-w: 100%; --btn-justify: center; }
     .grant-link { white-space: normal; word-break: break-all; }
     /* Level pill and Read button share the first line; the message gets the
        full width rather than a column three words wide. */
@@ -842,6 +846,6 @@
     .notif-text { flex-basis: 100%; }
   }
   @media (max-width: 900px) {
-    .layout { --section-nav-sticky-top: calc(52px + env(safe-area-inset-top, 0px) + 68px); }
+    .layout { --bb-tabs-sticky-top: calc(52px + env(safe-area-inset-top, 0px) + 68px); }
   }
 </style>

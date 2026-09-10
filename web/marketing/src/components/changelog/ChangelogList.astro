@@ -174,26 +174,24 @@ const tagLabel: Record<CollectionEntry<'changelog'>['data']['tag'], string> = {
             transform 260ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
     }
 
-    /* Content rides above the atmosphere layer. The shared contract parks that
-       layer at z-index:-1 (it is the shape that works for a card whose root
-       carries the layout), so the card has to isolate: without a stacking
-       context here a negative-z child paints BEHIND this card's own
-       background and the light disappears entirely. */
-    .clog__card > :global(*:not(.bb-card-atmo)) {
-        position: relative;
-        z-index: 1;
+    /* Content rides above the atmosphere layer, and `isolation: isolate` on
+       `.clog__card` above is what makes that true: inside a stacking context
+       the atmosphere's z-index:-1 lands between this card's background and
+       its in-flow content, which is the same arrangement
+       @bagel/ui/styles/elements/card.css makes for a real `.bb-card`. The
+       rule that used to sit here lifted every child except the atmosphere to
+       z-index 1 by hand, which the isolation already did.
+
+       The three atmosphere values below are the contract's own inherited
+       knobs (`--card-atmo-flip`, `--card-atmo-glow`, `--card-atmo-ring`,
+       ui/styles/card-atmosphere.css), set on the card rather than reached
+       into on the layer: this page draws its own card shape rather than a
+       `.bb-card`, so it cannot inherit the card's hover wiring. */
+    .clog__item:nth-child(even) .clog__card {
+        --card-atmo-flip: -1;
     }
 
-    /* These two rules used to live in the site's own CardAtmosphere.astro,
-       which listed this page's class names next to the card's. The shared
-       component keys both on the card element instead (`data-hover`), and
-       this page draws its own card shape rather than a `.bb-card` -- so until
-       it becomes one, the two rules for it belong here. */
-    .clog__item:nth-child(even) .clog__card :global(.bb-card-atmo) {
-        transform: scaleX(-1);
-    }
-
-    .clog__item:hover .clog__card :global(.bb-card-atmo) {
+    .clog__item:hover .clog__card {
         --card-atmo-glow: 1.6;
         --card-atmo-ring: 0.24;
     }

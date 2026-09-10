@@ -786,6 +786,7 @@
     "titleEm": "deck",
     "description": "Everything the bot answers to in chat. Type to filter, or type a name that doesn't exist yet to build it.",
     "degraded": "Live command data is unreachable right now. Showing nothing rather than stale rows. Retry shortly.",
+    "filterLabel": "Filter commands",
     "filterAll": "All",
     "filterActive": "Active",
     "filterDisabled": "Disabled",

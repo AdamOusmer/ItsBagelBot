@@ -16,7 +16,7 @@
   //
   // Save/Cancel are handled by the page so the whole-module config persists in
   // one place.
-  import { getI18n, intactSpan, type ModuleReply } from '@bagel/kit';
+  import { Field, getI18n, intactSpan, type ModuleReply } from '@bagel/kit';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
 
@@ -60,11 +60,9 @@
 </script>
 
 <div class="editor">
-  <label class="field">
-    <span>{t('modules.replyMessage', { label: reply.label })}</span>
+  <Field label={t('modules.replyMessage', { label: reply.label })} hint={t('modules.replyBlankHint')}>
     <ResponseEditor bind:value={message} placeholder={reply.defaultMessage} tokens={palette} />
-    <small>{t('modules.replyBlankHint')}</small>
-  </label>
+  </Field>
 
   {#if isCommand}
     <!-- Same surface as the commands page: viewer types the trigger, the bot
@@ -98,9 +96,6 @@
 
 <style>
   .editor { padding: 4px 2px 2px; }
-  .field { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
-  .field > span { font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted); letter-spacing: 0.01em; }
-  .field small { color: var(--bb-muted); opacity: 0.7; font-size: 11px; }
   .actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 12px; }
   @media (max-width: 480px) {
     .actions { flex-direction: column-reverse; }

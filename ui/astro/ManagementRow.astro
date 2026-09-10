@@ -18,6 +18,8 @@ interface Props {
     expanded?: boolean;
     controls?: string;
     disabled?: boolean;
+    /** Leading edge on the selected row, for a deck that docks an inspector. */
+    accent?: boolean;
     class?: string;
 }
 
@@ -26,6 +28,7 @@ const {
     expanded = false,
     controls,
     disabled = false,
+    accent = false,
     class: className = '',
     ...rest
 } = Astro.props;
@@ -33,6 +36,7 @@ const {
 const classes = [
     'bb-row',
     'row-shell',
+    accent ? 'bb-row--accent' : null,
     selected ? 'is-selected' : null,
     disabled ? 'is-off' : null,
     className || null,

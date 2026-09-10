@@ -242,6 +242,57 @@
         overflow-wrap: anywhere;
     }
 
+    /* ── Prose ──────────────────────────────────────────────────────
+       A run of authored text with links inside it, where the component
+       CANNOT put a class on the anchors: a translated string injected with
+       {@html} / set:html, a body a CMS wrote. Put `.bb-prose` on the element
+       that receives the run.
+
+       This is the one place the library styles a bare element outside
+       bb.base, and it is deliberate: it is the same argument the
+       markdown-body exemption in web/kit/scripts/assert-blocks-not-handcoded.mjs
+       makes. The author writes prose, not class names, so SOMETHING has to
+       select the element -- and one contract that does it is better than the
+       six scoped `.something :global(a)` rules across the four surfaces that
+       this replaces, which had drifted to three different link colours.
+
+       A bare `a` rule in bb.base was the other option and was rejected: an
+       unlayered scoped rule beats every layer, so surfaces with their own
+       anchor styling would have been unaffected while every anchor with no
+       styling at all -- including ones that are deliberately bare -- would
+       have changed at once, with no way to see where. */
+    .bb-prose a {
+        color: var(--bb-tan-light);
+        font-weight: 500;
+        text-decoration: none;
+    }
+
+    .bb-prose a:hover { text-decoration: underline; }
+
+    .bb-prose a:focus-visible {
+        outline: 2px solid var(--bb-green-glow);
+        outline-offset: 2px;
+        border-radius: var(--bb-radius-xs);
+    }
+
+    /* The one tone. A code chip naming something that is ABOUT TO BREAK --
+       the commands that reference an API key you are deleting, so far -- and
+       the reason it is a modifier here rather than a scoped rule at that call
+       site is that the call site had already written it: a `.ref-list code`
+       block in FetchKeyManager.svelte with its own red, its own tint and a
+       pill radius the rest of the system does not use.
+
+       The red is --bb-danger's (#d98a8a, ../tags.css) SIBLING, not the same
+       value: #cf8a78 is the form-error red field.css already ships, and a
+       chip inside a delete dialog is next to those errors, not next to a
+       status tag. Two reds in the system is one more than ideal and is
+       recorded in field.css; this row does not add a third. */
+    .bb-code--danger {
+        color: #cf8a78;
+        background: rgba(176, 90, 70, 0.12);
+        border-color: rgba(176, 90, 70, 0.30);
+    }
+
     /* The block form: `<pre class="bb-code-block"><code class="bb-code">`.
        The <pre> owns the box (padding, frame, scroll) and the <code> inside it
        drops back to a bare inline run, because the chip styling that reads

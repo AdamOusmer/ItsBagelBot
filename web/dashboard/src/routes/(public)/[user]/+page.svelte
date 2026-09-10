@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { AuroraBg, LightField, AlertBanner, Card, getI18n } from '@bagel/kit';
+  import { AuroraBg, Code, Heading, LightField, AlertBanner, Card, Text, getI18n } from '@bagel/kit';
   import type { PageData } from './$types';
   import { commandsHref } from '@bagel/kit/site-links';
 
@@ -75,8 +75,8 @@
   {:else if data.top.length === 0}
     <div class="podium-wrap reveal" style="--i:3">
       <Card atmo class="empty-card">
-        <h2>{t('leaderboard.emptyTitle')}</h2>
-        <p>{t('leaderboard.emptyBody', { channel: data.channelName })}</p>
+        <Heading level={2} class="empty-title">{t('leaderboard.emptyTitle')}</Heading>
+        <Text class="empty-body">{t('leaderboard.emptyBody', { channel: data.channelName })}</Text>
       </Card>
     </div>
   {:else}
@@ -106,8 +106,8 @@
         {#snippet band()}
           <header class="board-head">
             <div class="board-titles">
-              <h2>{t('leaderboard.boardTitle')}</h2>
-              <p>{t('leaderboard.boardNote')}</p>
+              <Heading level={2} class="board-title">{t('leaderboard.boardTitle')}</Heading>
+              <Text size="sm" tone="muted" class="board-note">{t('leaderboard.boardNote')}</Text>
             </div>
           </header>
         {/snippet}
@@ -152,7 +152,10 @@
       <Card atmo class="cmds-card" label={t('leaderboard.commandsCh')}>
         {#snippet band()}
           <header class="cmds-head">
-            <h2>{t('leaderboard.commandsTitle')}</h2>
+            <!-- `level={2} … l6 size`: see InstallAppPrompt for the same pair.
+                 The rank is h2 (it labels the card); the SIZE is the l6 step
+                 because the housing band is a fixed height. -->
+            <Heading level={6} as="h2">{t('leaderboard.commandsTitle')}</Heading>
           </header>
         {/snippet}
 
@@ -170,7 +173,7 @@
                 {#each data.commands as cmd (cmd.trigger)}
                   <tr>
                     <td>
-                      <code>{cmd.trigger}</code>
+                      <Code class="cmd-code">{cmd.trigger}</Code>
                       {#if cmd.aliases.length > 0}
                         <span class="aliases">{cmd.aliases.join(' ')}</span>
                       {/if}
@@ -196,7 +199,7 @@
   {/if}
 
   <footer class="foot reveal" style="--i:7">
-    <span class="bb-tag bb-tag--live"><i class="bb-mark" aria-hidden="true"></i>{t('leaderboard.earnNote')}<i class="bb-sweep" aria-hidden="true"></i></span>
+    <span class="bb-tag bb-tag--live bb-tag--wrap"><i class="bb-mark" aria-hidden="true"></i>{t('leaderboard.earnNote')}<i class="bb-sweep" aria-hidden="true"></i></span>
   </footer>
 </main>
 
@@ -307,8 +310,11 @@
     .place-1, .place-2, .place-3 { order: 0; }
   }
 
-  .podium :global(.bb-card) {
-    --card-pad: clamp(20px, 2.4vw, 30px);
+  /* `--card-pad` is the card contract's own knob, handed down from the grid.
+     Everything else keys on `.spot`, the class this page puts ON the Card,
+     rather than on `.bb-card`, which this page does not own. */
+  .podium { --card-pad: clamp(20px, 2.4vw, 30px); }
+  :global(.spot) {
     height: 100%;
     display: flex;
     flex-direction: column;
@@ -318,18 +324,18 @@
     min-width: 0;
     position: relative;
   }
-  .place-1 :global(.bb-card) {
+  .place-1 :global(.spot) {
     padding-top: calc(clamp(20px, 2.4vw, 30px) + var(--bb-space-4));
   }
   /* Hairline of light along the top edge, as the stats tiles wear. */
-  .podium :global(.bb-card)::before {
+  :global(.spot)::before {
     content: '';
     position: absolute;
     inset: 0 0 auto;
     height: 1px;
     background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.14), transparent);
   }
-  :global(:root[data-theme='light']) .podium :global(.bb-card)::before {
+  :global(:root[data-theme='light']) :global(.spot)::before {
     background: linear-gradient(90deg, transparent, rgba(20, 17, 12, 0.12), transparent);
   }
 
@@ -438,45 +444,24 @@
     margin: 0 auto;
   }
 
-  /* Banded Card: the head is the housing band; column layout moves to the
-     body the Card renders below it. */
-  .board-wrap :global(.bb-card) {
-    --card-pad: clamp(20px, 2.4vw, 30px);
-    min-width: 0;
-  }
-  /* Sized for the note wrapped to three lines on a 375px screen (the same
+  /* Banded Card, driven by the card's own custom properties. The band height
+     is sized for the note wrapped to three lines on a 375px screen (the same
      head shape as the stats boards). */
-  .board-wrap :global(.bb-card__band) {
+  .board-wrap {
+    --card-pad: clamp(20px, 2.4vw, 30px);
     --card-band-h: calc(112px * var(--d, 1));
-    padding: calc(16px * var(--d, 1)) var(--card-pad);
+    --card-band-pad: calc(16px * var(--d, 1)) var(--card-pad);
   }
-  .board-wrap :global(.bb-card__body) {
-    display: flex;
-    flex-direction: column;
-    gap: var(--bb-space-4);
-    min-width: 0;
-  }
+  :global(.board) { min-width: 0; }
 
   .board-head { display: flex; align-items: flex-start; gap: var(--bb-space-3); min-width: 0; }
   .board-titles { min-width: 0; }
 
-  .board-head h2 {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: clamp(18px, 2vw, 22px);
-    line-height: 1.2;
-    letter-spacing: var(--bb-tracking-tight);
-    color: var(--bb-white);
-    margin: 0;
-  }
-
-  .board-head p {
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-    line-height: 1.5;
-    color: var(--bb-muted);
-    margin: 4px 0 0;
-  }
+  /* The type is `Heading` and `Text`. What stays local is the SIZE: the
+     housing band is a fixed height and this title has to fit it in both
+     languages, which lands between the l4 and l5 steps. */
+  :global(.board-title) { font-size: clamp(18px, 2vw, 22px); letter-spacing: var(--bb-tracking-tight); }
+  :global(.board-note) { margin-top: 4px; }
 
   .empty-card {
     max-width: 640px;
@@ -489,22 +474,9 @@
     gap: var(--bb-space-3);
     padding-block: var(--bb-space-7);
   }
-  .empty-card :global(h2) {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: clamp(20px, 2.4vw, 26px);
-    color: var(--bb-white);
-    margin: 0;
-    letter-spacing: var(--bb-tracking-tight);
-  }
-  .empty-card :global(p) {
-    font-family: var(--bb-font-body);
-    font-size: 14px;
-    line-height: 1.6;
-    color: var(--bb-muted);
-    margin: 0;
-    max-width: 44ch;
-  }
+  :global(.empty-title) { font-size: clamp(20px, 2.4vw, 26px); letter-spacing: var(--bb-tracking-tight); }
+  /* 44ch: the measure a centred paragraph stays readable at. */
+  :global(.empty-body) { color: var(--bb-muted); max-width: 44ch; }
 
   .solo-note {
     font-family: var(--bb-font-body);
@@ -595,13 +567,6 @@
     align-items: center;
     gap: var(--bb-space-2);
   }
-  .cmds-head h2 {
-    margin: 0;
-    font-family: var(--bb-font-display);
-    font-size: 15px;
-    letter-spacing: -0.01em;
-    color: var(--bb-white);
-  }
   .cmd-table { width: 100%; border-collapse: collapse; font-family: var(--bb-font-body); font-size: 13px; }
   .cmd-table th[scope='col'] {
     text-align: left;
@@ -622,16 +587,10 @@
     vertical-align: top;
   }
   .cmd-table td.n { text-align: right; white-space: nowrap; }
-  .cmd-table code {
-    font-family: var(--bb-font-mono);
-    font-size: 12.5px;
-    color: var(--bb-green);
-    background: rgba(0, 0, 0, 0.35);
-    border: 1px solid var(--bb-border);
-    border-radius: var(--bb-radius-sm);
-    padding: 2px 7px;
-    white-space: nowrap;
-  }
+  /* The chip is the `Code` block. What is local is that a command trigger in
+     a table cell must not wrap mid-name, and that it is GREEN here: it is the
+     thing a viewer types in chat, not a neutral identifier in prose. */
+  :global(.cmd-code) { color: var(--bb-green); white-space: nowrap; }
   .aliases { display: block; margin-top: 4px; font-family: var(--bb-font-mono); font-size: 11px; color: var(--bb-muted); }
   .response { overflow-wrap: anywhere; }
   .perm-cell { font-family: var(--bb-font-mono); font-size: 11px; letter-spacing: 0.06em; color: var(--bb-muted); }
@@ -664,8 +623,8 @@
     color: var(--bb-muted);
   }
   /* Was a blinking round .pip; the live label carries the state now. The note
-     is a sentence, not a short label, so this one tag is allowed to wrap. */
-  .foot :global(.bb-tag) { white-space: normal; text-align: left; }
+     is a sentence, not a short label, so this one tag is allowed to wrap --
+     `.bb-tag--wrap` is the contract's own modifier for that. */
 
   @media (max-width: 900px) {
     .podium { grid-template-columns: minmax(0, 1fr); max-width: 480px; }

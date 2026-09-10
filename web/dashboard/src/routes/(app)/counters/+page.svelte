@@ -27,7 +27,7 @@
     actionPayload,
     toastFailure,
     type ActionOk,
-    Chip,
+    SegmentedControl,
   } from '@bagel/kit';
   import CounterRow from '$lib/components/counters/CounterRow.svelte';
 
@@ -51,7 +51,17 @@
 
   // --- Search + scope filter + sorted rows ------------------------------------
   let search = $state('');
-  let scopeFilter = $state<CounterScope | 'all'>('all');
+  // SegmentedControl keys its options by their DISPLAYED string, the same
+  // contract every other filter in the console uses, so the bound state is the
+  // label and the scope is derived back out of it.
+  const scopeOptions = $derived([
+    t('counters.filterAll'),
+    ...COUNTER_SCOPES.map((s) => scopeTag[s]),
+  ]);
+  let scopeLabelPicked = $state(t('counters.filterAll'));
+  const scopeFilter = $derived<CounterScope | 'all'>(
+    COUNTER_SCOPES.find((s) => scopeTag[s] === scopeLabelPicked) ?? 'all',
+  );
   const rows = $derived(
     items
       .filter((c) => c.name.toLowerCase().includes(search.toLowerCase()))
@@ -419,14 +429,14 @@
 
   <PageToolbar>
     {#snippet lead()}
-      <div class="chip-row" role="group" aria-label={t('counters.filterAria')}>
-        <Chip tone="muted" on={scopeFilter === 'all'} onclick={() => (scopeFilter = 'all')}>
-          {t('counters.filterAll')}
-        </Chip>
-        {#each COUNTER_SCOPES as s}
-          <Chip tone="muted" on={scopeFilter === s} onclick={() => (scopeFilter = s)}>{scopeTag[s]}</Chip>
-        {/each}
-      </div>
+      <!-- THE RAIL. This was a row of `Chip`s -- boxed pills, the tag shape --
+           while the modules page next door jumped sections on the underline
+           rail. One console, one answer to "which of these am I looking at". -->
+      <SegmentedControl
+        options={scopeOptions}
+        bind:value={scopeLabelPicked}
+        label={t('counters.filterAria')}
+      />
     {/snippet}
     {#snippet trail()}
       <div class="toolbar-search">
@@ -555,7 +565,7 @@
                   <p class="hint">{t('counters.entriesEmpty')}</p>
                 {:else}
                   <div class="bb-tbl-wrap">
-                    <table class="bb-tbl">
+                    <table class="bb-tbl entries">
                       <caption class="sr-only">{t('counters.entriesTitle', { name: selected.name })}</caption>
                       <thead>
                         <tr>
@@ -654,7 +664,7 @@
                         <input class="bb-input num" type="number" name="value" step="1" bind:value={addValue} />
                       </Field>
                     </div>
-                    <Button variant="secondary" type="submit" loading={adding}>
+                    <Button variant="secondary" type="submit" loading={adding} class="add-btn">
                       {t('counters.add')}
                     </Button>
                   </div>
@@ -802,8 +812,9 @@
      add and rename read as distinct groups rather than one form dump. */
   .sec { padding: 0 0 16px; }
   .sec + .sec { padding-top: 16px; border-top: 1px solid var(--rule, rgba(240, 236, 228, 0.08)); }
-  /* The rename utility sits quieter than the sections above it. */
-  .sec-util :global(.bb-input) { font-size: 12.5px; }
+  /* The rename utility sits quieter than the sections above it. `--input-fs`
+     is the control frame's own knob (elements/field.css). */
+  .sec-util { --input-fs: 12.5px; }
 
   .sec-head {
     display: block;
@@ -829,12 +840,12 @@
 
   /* Fixed value column so every value cell is the same box and the right edge
      never drifts with content. */
-  .bb-tbl th.r,
-  .bb-tbl td.r { width: 128px; }
+  .entries th.r,
+  .entries td.r { width: 128px; }
   /* Trailing per-bucket delete column. */
-  .bb-tbl th.act,
-  .bb-tbl td.act { width: 32px; padding-left: 4px; padding-right: 0; text-align: right; }
-  .bb-tbl :global(.entry-del:hover) { color: #cf8a78; }
+  .entries th.act,
+  .entries td.act { width: 32px; padding-left: 4px; padding-right: 0; text-align: right; }
+  .entries :global(.entry-del:hover) { color: #cf8a78; }
 
   /* Per-entry value cell: a 2-track grid (number box | 28px save slot). The
      save check toggles visibility inside its always-reserved slot, so the
@@ -847,15 +858,15 @@
     gap: 6px;
     justify-items: end;
   }
-  .bb-tbl :global(.entry-num) {
+  .entries :global(.entry-num) {
     width: 90px;
     text-align: right;
     font-variant-numeric: tabular-nums;
     appearance: textfield;
     -moz-appearance: textfield;
   }
-  .bb-tbl :global(.entry-num)::-webkit-outer-spin-button,
-  .bb-tbl :global(.entry-num)::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .entries :global(.entry-num)::-webkit-outer-spin-button,
+  .entries :global(.entry-num)::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
   .entry-ro {
     width: 90px;
     text-align: right;
@@ -863,7 +874,7 @@
     color: var(--bb-white);
   }
   .entry-slot { width: 28px; height: 28px; }
-  .bb-tbl :global(.entry-check.is-off) { visibility: hidden; }
+  .entries :global(.entry-check.is-off) { visibility: hidden; }
 
   /* Add a value: key fields stack full-width (the panel is only 420px, so a
      side-by-side row would cramp), then the value + Add button share the last
@@ -872,7 +883,9 @@
   .add-foot { display: flex; align-items: flex-end; gap: 10px; }
   .add-val { flex: none; }
   .add-val :global(.num) { width: 96px; }
-  .add-foot :global(.bb-btn) { margin-bottom: 2px; }
+  /* Keyed on the button's own class: this is where THIS button sits on the
+     row, which is composition, not a second definition of the contract. */
+  :global(.add-btn) { margin-bottom: 2px; }
 
   @media (max-width: 760px) {
     .toolbar-search { width: 100%; }

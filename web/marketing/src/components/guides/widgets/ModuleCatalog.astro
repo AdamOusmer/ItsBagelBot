@@ -78,11 +78,11 @@ const haystack = (m: Module) => `${m.name} ${m.tagline} ${m.commands ?? ''}`.toL
                     {m.start && <i>{m.start}</i>}
                 </span>
                 <p class="mcat__line">{m.tagline}</p>
-                {m.needs && <p class="mcat__needs"><span>{L.needs}</span> {m.needs}</p>}
+                {m.needs && <p class="mcat__needs"><span class="mcat__needs-label">{L.needs}</span> {m.needs}</p>}
                 {m.commands && (
                     <details class="mcat__cmds">
                         <summary>{L.commands}</summary>
-                        <p>{m.commands}</p>
+                        <p class="mcat__cmds-list">{m.commands}</p>
                     </details>
                 )}
             </li>
@@ -147,7 +147,9 @@ const haystack = (m: Module) => `${m.name} ${m.tagline} ${m.commands ?? ''}`.toL
 
     .mcat__needs { color: var(--muted); font-size: 0.78rem; }
 
-    .mcat__needs span { color: var(--tan); }
+    /* Named: the "needs" LABEL that prefixes the sentence, this widget's
+       own part rather than "a span looks like this here". */
+    .mcat__needs-label { color: var(--tan); }
 
     .mcat__cmds summary {
         cursor: pointer; font-family: var(--font-mono); font-size: 0.62rem;
@@ -156,7 +158,8 @@ const haystack = (m: Module) => `${m.name} ${m.tagline} ${m.commands ?? ''}`.toL
 
     .mcat__cmds summary:hover { color: var(--tan); }
 
-    .mcat__cmds p {
+    /* Named: the revealed command LIST, this widget's own part. */
+    .mcat__cmds-list {
         margin: 7px 0 0; font-family: var(--font-mono); font-size: 0.72rem;
         line-height: 1.8; color: var(--tan-light); word-break: break-word;
     }
