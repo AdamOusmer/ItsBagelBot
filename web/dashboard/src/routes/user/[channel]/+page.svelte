@@ -428,7 +428,15 @@
 
   .notice { margin-bottom: 24px; }
 
-  /* ── toolbar: search + source tabs, pinned under the nav ── */
+  /* ── toolbar: search + source tabs, pinned under the nav ──
+     Deliberately NOT @bagel/ui's <PageToolbar>/`.bb-toolbar`, even though the
+     class name is the same word. That contract is a plain 12px flex row with
+     an 18px bottom margin; this one is sticky under the public nav, carries a
+     z-index, a 10px gap, its own padding and a gradient scrim, and its search
+     field is `flex: 1 1 260px` in a wrapping row -- the contract's
+     `.bb-toolbar__grow` spacer would compete with it for the free space and
+     push the tabs to a second line. This is a page's own sticky header that
+     happens to share a noun. Scoped, so it collides with nothing. */
 
   .toolbar {
     position: sticky;

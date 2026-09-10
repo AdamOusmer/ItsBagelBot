@@ -1,0 +1,587 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* The site nav family: the floating bar, the panel it becomes on a phone, the
+   button that opens it, the icon rail in the corner and the locale switch.
+   Five components, one contract, because they are one surface -- the panel is
+   the bar's overflow and the switch renders in both.
+
+   The links themselves are NOT here: they are `.bb-nav-link`
+   (ui/styles/elements/nav-link.css), the same element the footer columns and
+   the console rail render. This file positions them and nothing else. Where a
+   surface needs a link to look different -- the bar's 0.7rem mono, the panel's
+   2.45rem display face -- it sets the contract's own custom properties on the
+   container, which is why there is no `.bb-nav .bb-nav-link { font-size: … }`
+   rule anywhere below. */
+@layer bb.elements {
+  /* ── Bar ─────────────────────────────────────────────────────────────── */
+
+  /* The wrapper is a transparent positioning band that never eats clicks; the
+     pill inside it carries the glass. --nav-height/--nav-offset stay as the
+     reserved band that page content pads against, so the bar can float
+     without every hero recomputing its top. */
+  .bb-nav {
+    --nav-max: 1000px;
+    --nav-blur: 18px;
+    --nav-bg: rgba(10, 10, 10, 0.55);
+    --nav-link-gap: 30px;
+    --nav-z: 50;
+
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    padding-top: calc(14px + env(safe-area-inset-top, 0px));
+    padding-inline: max(
+      16px,
+      env(safe-area-inset-left, 0px),
+      env(safe-area-inset-right, 0px)
+    );
+    z-index: var(--nav-z);
+    display: flex;
+    justify-content: center;
+    font-family: var(--bb-font-display);
+    pointer-events: none;
+  }
+
+  .bb-nav__inner {
+    display: grid;
+    grid-template-columns: minmax(150px, 1fr) minmax(0, auto) minmax(150px, 1fr);
+    align-items: center;
+    gap: 24px;
+    width: min(100%, var(--nav-max));
+    padding: 9px 12px 9px 18px;
+    border: 1px solid var(--bb-border);
+    border-radius: var(--bb-radius-pill);
+    background: var(--nav-bg);
+    /* Standard property only, never hand-write -webkit-backdrop-filter:
+       Chrome 151 dropped the alias, and the minifier dedupes the pair to
+       whichever is last, which shipped prefixed-only CSS and killed the blur
+       in every Chromium browser. Lightning CSS re-adds the prefix itself when
+       build targets need it. */
+    backdrop-filter: blur(var(--nav-blur));
+    pointer-events: auto;
+  }
+
+  /* The bar's links: 0.7rem (11.2px) rather than the contract's 11px because
+     that was the bar's measured size before the element existed and the grid's
+     1000px max was laid out against it, and a 50% white resting colour rather
+     than --bb-muted because the pill's glass sits over live page content,
+     where muted drops under 4.5:1 against a light hero. */
+  .bb-nav__links {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--nav-link-gap);
+    min-width: 0;
+    margin: 0;
+    padding: 0 1.5rem;
+    list-style: none;
+  }
+
+  .bb-nav__links > li {
+    display: flex;
+    align-items: center;
+  }
+
+  .bb-nav__inner .bb-nav-link {
+    --bb-nav-link-size: 0.7rem;
+    --bb-nav-link-rest: rgba(240, 236, 228, 0.5);
+  }
+
+  .bb-nav__actions {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 14px;
+  }
+
+  /* The CTA takes the bar's type and curve: the links are mono 0.7rem at
+     .14em uppercase and the shell is a 999px pill, so the system's sentence
+     case at 6px corners reads as imported from another page. The pill radius
+     is the one sanctioned exception to the square button corner, and it is set
+     by the CONTAINER, not by the button.
+
+     Zero tracking, and that is what shipped rather than what the rule it
+     replaced said: a blanket `.button a { letter-spacing: 0 }` at specificity
+     0-1-1 quietly beat the old .14em, so the live CTA has always been
+     untracked. Pinning it here is what stops the blanket rule's removal from
+     silently widening the button by ~30px into the pill's right padding
+     (measured 2026-09-09 on /pricing at 1280px). */
+  .bb-nav__cta {
+    --bb-nav-link-size: 0.7rem;
+    --bb-nav-link-tracking: 0;
+    --bb-nav-link-transform: uppercase;
+    --bb-nav-link-radius: var(--bb-radius-pill);
+    --bb-nav-link-rest: var(--bb-white);
+  }
+
+  .bb-nav__brand {
+    width: max-content;
+  }
+
+  /* `bar`: the nav as a plain in-flow row filling whatever already holds it.
+     The docs need this. Starlight renders its own fixed header bar and slots a
+     Header component INSIDE it, so a second fixed, centred, glass pill would
+     float over the sidebar and the page would have two headers stacked. The
+     variant strips exactly the four things that make the marketing bar float
+     -- the fixed position, the max width, the pill shell and the blur -- and
+     changes nothing about the links, which is the point of sharing it. */
+  .bb-nav[data-variant="bar"] {
+    position: static;
+    width: 100%;
+    padding: 0;
+    justify-content: stretch;
+    pointer-events: auto;
+  }
+
+  .bb-nav[data-variant="bar"] .bb-nav__inner {
+    width: 100%;
+    max-width: none;
+    grid-template-columns: auto 1fr auto;
+    gap: 16px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    backdrop-filter: none;
+  }
+
+  /* Both of these undo a DARK-SURFACE assumption, and both were measured on
+     the docs in light mode, where the header is cream: the bar's 50%-white
+     resting link colour and the brand name's --bb-white came out as pale text
+     on pale ground, at roughly 1.2:1. They are correct for the marketing pill,
+     which floats its own near-black glass over the page whatever the page is;
+     they are wrong for a bar that sits in a host's header and has to take the
+     host's theme. Inheriting is what makes one nav work on both. */
+  .bb-nav[data-variant="bar"] .bb-nav__inner .bb-nav-link {
+    --bb-nav-link-rest: currentColor;
+  }
+
+  .bb-nav[data-variant="bar"] .bb-brand__name {
+    color: inherit;
+  }
+
+  /* The bar collapses in two steps, not one: at 1120px the three-column grid
+     stops fitting five links at a 30px gap, and only at 1023px -- the same
+     query the panel and the hamburger use -- do the links leave for the panel.
+     One number in two places is a bug waiting to happen, so the panel reads
+     the breakpoint from its own rule below and this comment is the link. */
+  @media (max-width: 1120px) {
+    .bb-nav {
+      --nav-link-gap: 18px;
+    }
+
+    .bb-nav__inner {
+      grid-template-columns: minmax(140px, 1fr) minmax(0, auto) minmax(140px, 1fr);
+      gap: 16px;
+    }
+
+    .bb-nav__links {
+      padding-inline: 1rem;
+    }
+  }
+
+  @media (max-width: 1023px) {
+    .bb-nav__inner {
+      grid-template-columns: 1fr auto;
+      gap: 16px;
+      padding: 7px 10px 7px 16px;
+    }
+
+    .bb-nav__links,
+    .bb-nav__actions {
+      display: none;
+    }
+  }
+
+  /* ── Hamburger ───────────────────────────────────────────────────────── */
+
+  /* Three pills, the middle one shorter so the glyph reads as a mark rather
+     than a grille; they fold into a cross while the panel is open. Bar pitch
+     is 6px (2px bar + 4px gap), so the outer bars travel 6px to meet. */
+  .bb-hamburger {
+    display: none;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    background: rgba(240, 236, 228, 0.05);
+    border: 1px solid rgba(240, 236, 228, 0.14);
+    border-radius: var(--bb-radius-pill);
+    cursor: pointer;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+    align-self: center;
+    position: relative;
+    z-index: calc(var(--nav-z, 50) + 1);
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    transition:
+      border-color var(--bb-dur-fast) ease,
+      background var(--bb-dur-fast) ease,
+      transform 280ms var(--bb-ease-out-expo);
+  }
+
+  .bb-hamburger:hover,
+  .bb-hamburger:focus-visible {
+    border-color: rgba(224, 196, 154, 0.5);
+    background: rgba(201, 168, 124, 0.1);
+    outline: none;
+  }
+
+  .bb-hamburger:active {
+    transform: scale(0.92);
+  }
+
+  .bb-hamburger.is-open {
+    border-color: rgba(224, 196, 154, 0.55);
+    background: rgba(201, 168, 124, 0.14);
+  }
+
+  .bb-hamburger__bar {
+    display: block;
+    width: 18px;
+    height: 2px;
+    background: var(--bb-white);
+    border-radius: var(--bb-radius-pill);
+    transform-origin: center;
+    transition:
+      transform 280ms var(--bb-ease-out-expo),
+      width 280ms var(--bb-ease-out-expo),
+      opacity var(--bb-dur-fast) ease;
+  }
+
+  .bb-hamburger__bar:nth-child(2) {
+    width: 12px;
+  }
+
+  .bb-hamburger.is-open .bb-hamburger__bar:nth-child(1) {
+    transform: translateY(6px) rotate(45deg);
+  }
+
+  .bb-hamburger.is-open .bb-hamburger__bar:nth-child(2) {
+    opacity: 0;
+    width: 0;
+  }
+
+  .bb-hamburger.is-open .bb-hamburger__bar:nth-child(3) {
+    transform: translateY(-6px) rotate(-45deg);
+  }
+
+  @media (max-width: 1023px) {
+    .bb-hamburger {
+      display: flex;
+    }
+  }
+
+  /* ── Mobile panel ────────────────────────────────────────────────────── */
+
+  /* Hidden by `display: none` above the breakpoint AND by `visibility` below
+     it. Two mechanisms because they answer different questions: display keeps
+     the panel out of the layout on a desktop, and visibility is what the open
+     animation toggles -- the engine needs the box measurable (getBoundingClientRect
+     for the curve path) one frame before it is visible, which `display: none`
+     would report as 0x0. */
+  .bb-mobile-menu {
+    display: none;
+    position: fixed;
+    inset: var(--nav-offset, 76px) 0 0;
+    padding: 16px;
+    background: rgba(10, 10, 10, 0.72);
+    backdrop-filter: blur(22px);
+    z-index: calc(var(--nav-z, 50) - 1);
+    isolation: isolate;
+    overflow: hidden;
+    transform: translateY(-100%);
+    /* The clip id is per instance (two panels on one page -- a docs header and
+       an embedded preview -- would otherwise share one <clipPath> and animate
+       together), so the adapters hand it in as a custom property rather than
+       this file naming an id it cannot know. The fallback is the id the single
+       default instance emits, so a panel rendered without the property still
+       clips. */
+    clip-path: var(--menu-clip, url(#bb-mobile-menu-clip));
+    will-change: transform;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  /* Scroll lock. The engine used to toggle `body.nav-menu-open`, a class the
+     marketing stylesheet defined and the library did not own: an element in a
+     shared library cannot assume the host page carries a rule for its state.
+     `:has` moves the lock into the contract, so it cannot fall out of sync
+     with the panel and needs no script at all. Baseline since 2023 in all
+     three engines; the panel only exists under 1023px, and a browser without
+     `:has` there simply scrolls behind an open panel, which is the pre-2019
+     behaviour and not a broken page. */
+  body:has(.bb-mobile-menu.is-open) {
+    overflow: hidden;
+  }
+
+  .bb-mobile-menu.is-visible {
+    visibility: visible;
+  }
+
+  .bb-mobile-menu.is-open {
+    pointer-events: auto;
+  }
+
+  .bb-mobile-menu__curve {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+
+  .bb-mobile-menu__curve-path {
+    fill: #fff;
+  }
+
+  .bb-mobile-menu__panel {
+    position: relative;
+    z-index: 1;
+    width: min(720px, 100%);
+    height: 100%;
+    margin: 0 auto;
+    padding: clamp(34px, 6vw, 56px);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 40px;
+    overflow-y: auto;
+  }
+
+  .bb-mobile-menu__links {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  /* The panel's links are the bar's links at the panel's voice: display face
+     at 2.45rem, which predates the element. line-height stays at 1.2, not the
+     contract's 1 -- at 2.45rem a line-height of 1 clips Syne's descenders
+     against the 8px list gap.
+
+     No :active colour swap. It was the only feedback a touch user got and it
+     fired after the tap had already committed; the contract's drawline runs
+     under the label on :hover AND :focus-visible, which is what a touch device
+     reports on press. */
+  .bb-mobile-menu__link {
+    --bb-nav-link-family: var(--bb-font-display);
+    --bb-nav-link-size: 2.45rem;
+    --bb-nav-link-weight: 700;
+    --bb-nav-link-tracking: 0;
+    --bb-nav-link-transform: none;
+    --bb-nav-link-pad: 6px 0 10px;
+    --bb-nav-link-rest: var(--bb-white);
+
+    line-height: 1.2;
+  }
+
+  /* The engine animates these two in: they start invisible and offset, and a
+     staggered spring brings them down. Written here rather than left to the
+     engine's first frame so a panel that opens before its script has run
+     does not flash its contents at full opacity. */
+  .bb-mobile-menu__links > li,
+  .bb-mobile-menu__footer {
+    opacity: 0;
+    transform: translateY(-28px);
+    will-change: opacity, transform;
+  }
+
+  .bb-mobile-menu__footer {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: calc(clamp(56px, 8vh, 86px) + env(safe-area-inset-bottom, 0px));
+    padding-top: 24px;
+    border-top: 1px solid rgba(201, 168, 124, 0.15);
+  }
+
+  .bb-mobile-menu__cta {
+    justify-content: center;
+  }
+
+  .bb-mobile-menu__meta {
+    font-family: var(--bb-font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0;
+    text-transform: uppercase;
+    color: var(--bb-muted);
+    text-align: center;
+  }
+
+  @media (max-width: 1023px) {
+    .bb-mobile-menu {
+      display: flex;
+    }
+  }
+
+  @media (max-width: 639px) {
+    .bb-mobile-menu {
+      padding: 0;
+      background: rgba(10, 10, 10, 0.96);
+    }
+
+    .bb-mobile-menu__panel {
+      width: 100%;
+      padding: 32px 24px 28px;
+    }
+
+    .bb-mobile-menu__link {
+      --bb-nav-link-size: 2.2rem;
+    }
+
+    .bb-mobile-menu__footer {
+      margin-bottom: calc(clamp(64px, 9vh, 92px) + env(safe-area-inset-bottom, 0px));
+    }
+  }
+
+  @media (max-width: 380px) {
+    .bb-mobile-menu__panel {
+      padding: 28px 20px 24px;
+    }
+
+    .bb-mobile-menu__link {
+      --bb-nav-link-size: 2rem;
+    }
+  }
+
+  /* ── Social rail ─────────────────────────────────────────────────────── */
+
+  /* A quiet vertical stack of brand marks in the bottom-left corner. Its inset
+     matches the page ornament's (24px inline, corner at bottom 24px with a
+     40px arm) so it reads as part of the frame rather than as a widget. */
+  .bb-social-rail {
+    position: fixed;
+    left: 24px;
+    bottom: 76px;
+    /* Under the bar so an open panel covers it. */
+    z-index: calc(var(--nav-z, 50) - 10);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .bb-social-rail__item {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    color: var(--bb-tan);
+    opacity: 0.45;
+    transition:
+      opacity var(--bb-dur-fast) ease,
+      color var(--bb-dur-fast) ease;
+  }
+
+  .bb-social-rail__item:hover,
+  .bb-social-rail__item:focus-visible {
+    opacity: 1;
+    color: var(--bb-tan-light);
+  }
+
+  .bb-social-rail__item:focus-visible {
+    outline: 1px solid var(--bb-tan);
+    outline-offset: 2px;
+  }
+
+  /* Narrow viewports: the rail would crowd the content column. */
+  @media (max-width: 900px) {
+    .bb-social-rail {
+      display: none;
+    }
+  }
+
+  /* ── Locale switch ───────────────────────────────────────────────────── */
+
+  /* Rides the shared `.bb-tabs` rail (ui/styles/tags.css): the green underline
+     marks the current locale. It was a 999px track with a tan-filled knob, a
+     two-way pill toggle that could only ever show two locales; the rail scales
+     to as many as the site discovers. Only the link reset is local. */
+  .bb-lang-switch {
+    gap: 16px;
+  }
+
+  .bb-lang-switch__opt {
+    text-decoration: none;
+  }
+
+  /* ── Nav group ───────────────────────────────────────────────────────── */
+
+  /* A labelled stack of links, ruled off from what is above it: the console's
+     numbered register. The rule BETWEEN rows belongs to the group, not to an
+     entry -- an entry drawing its own would double it against the group's top
+     border. This is the one place `.bb-nav-link`'s hairline is deliberately
+     left alone and the border set directly; the contract's is transparent by
+     default precisely so a container like this one can own it. */
+  .bb-nav-group__label {
+    font-family: var(--bb-font-mono);
+    font-size: 9px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--bb-tan);
+    padding: 20px 12px 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .bb-nav-group__label::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: rgba(240, 236, 228, 0.1);
+  }
+
+  .bb-nav-group {
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid rgba(240, 236, 228, 0.1);
+  }
+
+  /* The row padding is the rail's, not the contract's: 11px/12px is the
+     density the console's 240px rail was laid out against, and the contract's
+     6px/2px is a bar's, where links sit side by side. */
+  .bb-nav-group > .bb-nav-link {
+    --bb-nav-link-pad: 11px 10px 11px 12px;
+    --bb-nav-link-size: 12px;
+    --bb-nav-link-tracking: 0.08em;
+
+    border-bottom: 1px solid rgba(240, 236, 228, 0.06);
+  }
+
+  /* The index column and the count are the LEDGER, not the link: they are what
+     makes this a numbered register rather than a menu, and no other surface
+     rendering a nav link has them. */
+  .bb-nav-group__index {
+    font-size: 10px;
+    color: var(--bb-muted);
+    opacity: 0.6;
+    min-width: 18px;
+    transition:
+      color var(--bb-dur-base) ease,
+      opacity var(--bb-dur-base) ease;
+  }
+
+  .bb-nav-group__index[data-active] {
+    color: var(--bb-tan);
+    opacity: 1;
+  }
+
+  .bb-nav-link:hover .bb-nav-group__index {
+    opacity: 1;
+  }
+
+  .bb-nav-group__count {
+    margin-left: auto;
+    font-size: 10px;
+    color: var(--bb-muted);
+  }
+}

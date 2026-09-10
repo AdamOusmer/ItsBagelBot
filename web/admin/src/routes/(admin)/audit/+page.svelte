@@ -14,8 +14,8 @@
   // Search stays server-side (it covers the whole trail, not the loaded page);
   // the kind filter is client-side over what has been loaded, and says so.
   import { onMount } from 'svelte';
-  import PageHead from '@bagel/kit/components/PageHead.svelte';
-  import PageToolbar from '@bagel/kit/components/PageToolbar.svelte';
+  import PageHead from '@bagel/ui/svelte/PageHead.svelte';
+  import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
   import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
   import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
   import DeckList from '@bagel/kit/components/DeckList.svelte';

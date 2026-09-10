@@ -7,7 +7,7 @@
   import Card from '@bagel/ui/svelte/Card.svelte';
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
-  import Scroller from '@bagel/kit/components/Scroller.svelte';
+  import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import { statusTone } from '@bagel/kit/status-tone';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { ServiceHealth } from '$lib/server/services';

@@ -36,6 +36,7 @@
 
 import { expect, test } from 'bun:test';
 import { createRawSnippet } from 'svelte';
+import { normalise } from './normalise';
 import { render } from 'svelte/server';
 import { experimental_AstroContainer } from 'astro/container';
 import SvelteFixture from './fixture.svelte';
@@ -60,54 +61,6 @@ import SvelteStatTile from '../svelte/StatTile.svelte';
 import AstroStatTile from '../astro/StatTile.astro';
 import SvelteSwitch from '../svelte/Switch.svelte';
 import AstroSwitch from '../astro/Switch.astro';
-
-/**
- * Reduce rendered HTML to the part the CSS contract actually selects on.
- *
- * Four differences are framework bookkeeping, not markup, and every one of them
- * would otherwise fail a pair that is genuinely identical:
- *
- *  1. Svelte's SSR output wraps each component in `<!--[-->` / `<!--]-->`
- *     hydration markers. They are instructions to Svelte's client runtime and
- *     never reach the CSSOM. All comments go.
- *  2. Svelte serialises a boolean attribute as `data-fixture=""`; Astro emits it
- *     bare as `data-fixture`. `[data-fixture]` matches both. Empty values are
- *     dropped so the two spellings converge on the bare form.
- *  3. Indentation and newlines between tags differ with how each compiler lays
- *     out its template. Whitespace BETWEEN tags collapses away; whitespace
- *     inside a text node is collapsed to single spaces but kept, because that
- *     is content.
- *  4. Trailing/leading whitespace around the whole fragment.
- *  5. Astro's hoisted `<script type="module" src="…">` tag. Both adapters
- *     attach the same engine, but they say so in different places: Astro emits
- *     a tag into the HTML and lets the bundler rewrite the src, while Svelte
- *     compiles the `$effect` into the component's own JS and emits nothing.
- *     The tag is build bookkeeping (its src here is the raw source path,
- *     because this harness runs @astrojs/compiler without Astro's Vite plugin),
- *     and no CSS contract can select on it. Only the empty, src-carrying form
- *     is dropped: an inline `<script>` in an adapter WOULD be markup, and this
- *     leaves it in the diff so it has to be argued for.
- *  6. Void elements: Svelte serialises `<input …/>`, Astro `<input …>`. Both
- *     parse to the same node -- HTML has no self-closing syntax for void
- *     elements and the slash is ignored -- so the slash goes. Measured on
- *     SearchInput, 2026-09-09: the ONLY difference between its two adapters.
- *
- * Attribute ORDER is deliberately not normalised. It does not affect rendering,
- * but it does affect diffs of the emitted HTML, and holding the two adapters to
- * the same order is free as long as they are written from the same contract.
- * If a framework ever reorders on its own this comment is the place to record
- * that it was measured, and the sort belongs here.
- */
-function normalise(html: string): string {
-  return html
-    .replace(/<script type="module" src="[^"]*"><\/script>/g, '')
-    .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/\s*=\s*(""|'')/g, '')
-    .replace(/\s*\/>/g, '>')
-    .replace(/>\s+</g, '><')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
 
 /** The contract. Edit deliberately; both adapters are held to it. */
 const FIXTURE_HTML = '<p class="bb-fixture" data-fixture>hello</p>';
@@ -607,3 +560,54 @@ test('badge.css ships no perm ladder and no purple', async () => {
   expect(rules).not.toMatch(/#d9aaff/i);
   expect(rules).not.toMatch(/everyone|broadcaster|lead_mod/);
 });
+
+// ── Nav, footer and shell ──────────────────────────────────────────────────
+// Fifteen pairs, checked against a committed golden file each rather than
+// against a literal in this file. Two reasons, and the second is why the
+// earlier elements above keep their literals:
+//
+//  1. Size. The rail's contract markup is 3.3 KB; four such literals would
+//     bury the twelve cases above them in this file.
+//  2. Blast radius. One file per element means a deliberate change to one
+//     element's markup is a one-file diff a reviewer can read, instead of a
+//     hunk inside a 400-line test.
+//
+// Nothing here regenerates: the goldens are read, never written. They were
+// produced once by a script pointed at the same `CASES` registry, and that
+// script is deliberately NOT in the repo -- a fixture that rewrites itself on
+// failure is a test that cannot fail. Re-baselining a deliberate markup change
+// means running such a script by hand and committing the diff.
+//
+// Rail, Topbar and Dock are compared in their STATIC render: no glide
+// measured, no clock ticking, no group popover open. Their engines
+// (ui/lib/rail-glide, clock, dock-groups, hash-active) are framework-free and
+// get their own unit tests; what parity is for is the markup the CSS selects
+// on, which is what the two adapters can silently disagree about.
+import { CASES } from './pr10-cases';
+
+for (const parityCase of CASES) {
+  const golden = (
+    await Bun.file(
+      new URL(`./__golden__/${parityCase.name}.html`, import.meta.url).pathname,
+    ).text()
+  ).trim();
+
+  test(`${parityCase.name}: svelte adapter matches the golden`, () => {
+    // The cast is the price of ONE registry driving two renderers: both
+    // `render` and the Astro container type their props against the
+    // component's own generic, and a heterogeneous case list has no single
+    // generic to give them.
+    const { body } = render(parityCase.svelte as never, {
+      props: parityCase.props as never,
+    });
+    expect(normalise(body)).toBe(golden);
+  });
+
+  test(`${parityCase.name}: astro adapter matches the golden`, async () => {
+    const container = await experimental_AstroContainer.create();
+    const html = await container.renderToString(parityCase.astro as never, {
+      props: parityCase.props as never,
+    });
+    expect(normalise(html)).toBe(golden);
+  });
+}

@@ -2,14 +2,27 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import logoImage from "../../assets/LogoBOT.png";
-import {Image} from "astro:assets";
-
-import NavLink   from '@bagel/ui/astro/NavLink.astro';
-import Hamburger  from '../ui/Hamburger.astro';
-import MobileMenu from './MobileMenu.astro';
-import LanguageSwitcher from './LanguageSwitcher.astro';
-import { getLangFromUrl, useTranslations, localizePath, dashLoginHref } from '../../i18n/ui';
+/**
+ * The site nav, as this site's data.
+ *
+ * The bar, the floating pill, the hamburger, the top-down panel and its
+ * choreography are @bagel/ui's `.bb-nav` family now. What is left here is
+ * everything that made the 430-line component this site's and only this
+ * site's: five links resolved from the i18n catalog, `localizePath`, the
+ * dashboard login URL, and the "get the app" row in the panel footer.
+ */
+import { getImage } from 'astro:assets';
+import logoImage from '../../assets/LogoBOT.png';
+import Nav from '@bagel/ui/astro/Nav.astro';
+import LanguageSwitcher from '@bagel/ui/astro/LanguageSwitcher.astro';
+import {
+    getLangFromUrl,
+    useTranslations,
+    localizePath,
+    dashLoginHref,
+    localeOptions,
+    defaultLang,
+} from '../../i18n/ui';
 
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
@@ -23,419 +36,59 @@ const links = [
 ];
 
 const cta = { href: dashLoginHref(lang), label: t('nav.cta') };
-const homeHref = localizePath("/", lang);
 
 const currentPath = Astro.url.pathname.replace(/\/+$/, "") || "/";
 const isActive = (href: string) =>
     href.startsWith("/") && href.replace(/\/+$/, "") === currentPath;
+
+// The mark is resolved through getImage rather than passed as the raw import:
+// LogoBOT.png is a 1 MB source file, and `logoImage.src` would put THAT in the
+// bar on every page. 52px is the 26px mark at 2x. Same reason and same shape
+// as the builder's avatar (CommandBuilder.astro).
+const logo = await getImage({ src: logoImage, width: 52, height: 52, format: 'webp' });
+
+const locales = localeOptions(Astro.url);
+const getAppHref = `https://dashboard.itsbagelbot.com/?install=1${lang === defaultLang ? '' : `&lang=${lang}`}`;
 ---
 
-<nav class="site-nav" aria-label={t('nav.primary')}>
-    <div class="site-nav__inner">
-        <a class="logo" href={homeHref} aria-label={t('nav.home')} data-home-logo>
-            <Image src={logoImage} alt="" width={26} height={26} loading="eager" fetchpriority="high"/>
-            <span>ItsBagelBot</span>
-        </a>
-
-        <ul class="links" aria-label={t('nav.primary')}>
-            {links.map((link) => (
-                <li>
-                    <NavLink href={link.href} label={link.label} current={isActive(link.href)} />
-                </li>
-            ))}
-        </ul>
-
-        <div class="button">
-            <LanguageSwitcher />
-            <NavLink class="cta" variant="cta" href={cta.href} label={cta.label} />
-        </div>
-
-        <Hamburger />
-    </div>
-</nav>
-
-<MobileMenu links={links} ctaHref={cta.href} ctaLabel={cta.label} />
-
-<script>
-    import {animate, cubicBezier} from "motion";
-    import { bindOnce } from '../../script/bind';
-
-    const MENU_VIEWPORT_QUERY = '(max-width: 1023px)';
-
-    type NavWindow = Window & {
-        __lenis?: {
-            scrollTo?: (target: number, options?: { duration?: number; immediate?: boolean }) => void;
-        };
-    };
-
-    class TopDownMenuAnimator {
-        private readonly ham: HTMLButtonElement;
-        private readonly menu: HTMLDivElement;
-        private readonly curvePath: SVGPathElement;
-        private readonly compactViewport: MediaQueryList;
-        private readonly menuItems: HTMLElement[];
-
-        private readonly curveDepth = 220;
-        private readonly initialHeight = 96;
-        private readonly initialOffset = -34;
-        private readonly offsetStep = -8;
-
-        private activeAnimations: { stop: () => void }[] = [];
-        private isOpen = false;
-
-        constructor(ham: HTMLButtonElement, menu: HTMLDivElement, curvePath: SVGPathElement) {
-            this.ham = ham;
-            this.menu = menu;
-            this.curvePath = curvePath;
-            this.compactViewport = window.matchMedia(MENU_VIEWPORT_QUERY);
-            this.menuItems = [
-                ...Array.from(menu.querySelectorAll<HTMLElement>('[data-menu-item]')),
-                ...Array.from(menu.querySelectorAll<HTMLElement>('[data-menu-footer]')),
-            ];
-
-            this.init();
-        }
-
-        private init(): void {
-            this.renderMenu(0);
-            this.renderPath(0);
-            this.renderMenuItems(0);
-            this.setA11y(false);
-
-            this.ham.addEventListener('click', () => {
-                this.setOpen(!this.isOpen);
-            });
-
-            this.menu.querySelectorAll('a').forEach((a) =>
-                a.addEventListener('click', () => this.setOpen(false))
-            );
-
-            this.menu.addEventListener('click', (event) => {
-                if (event.target === this.menu) this.setOpen(false);
-            });
-
-            document.addEventListener('keydown', (e) => {
-                if (e.key === 'Escape' && this.isOpen) this.setOpen(false);
-            });
-
-            this.compactViewport.addEventListener('change', (event) => {
-                if (!event.matches) this.setOpen(false, false);
-            });
-
-            window.addEventListener('resize', () => {
-                this.renderPath(this.isOpen ? 1 : 0);
-            }, {passive: true});
-
-            window.addEventListener('pagehide', () => this.setOpen(false, false));
-        }
-
-        private setOpen(open: boolean, shouldAnimate = true): void {
-            const nextOpen = open && this.compactViewport.matches;
-            if (nextOpen === this.isOpen && shouldAnimate) return;
-
-            this.stopAnimations();
-            this.isOpen = nextOpen;
-            this.setA11y(nextOpen);
-
-            if (nextOpen) {
-                this.menu.classList.add('is-visible', 'is-open');
-            } else {
-                this.menu.classList.remove('is-open');
-            }
-
-            if (!shouldAnimate) {
-                this.renderMenu(nextOpen ? 1 : 0);
-                this.renderPath(nextOpen ? 1 : 0);
-                this.renderMenuItems(nextOpen ? 1 : 0);
-                if (!nextOpen) this.menu.classList.remove('is-visible');
-                return;
-            }
-
-            const from = nextOpen ? 0 : 1;
-            const to = nextOpen ? 1 : 0;
-
-            this.activeAnimations.push(
-                animate(from, to, {
-                    duration: 0.7,
-                    ease: cubicBezier(0.33, 1, 0.68, 1),
-                    onUpdate: (latest) => this.renderMenu(latest),
-                    onComplete: () => {
-                        this.renderMenu(to);
-                        if (!nextOpen) this.menu.classList.remove('is-visible');
-                    },
-                })
-            );
-
-            this.activeAnimations.push(
-                animate(from, to, {
-                    duration: 0.95,
-                    ease: cubicBezier(0.25, 0.1, 0.25, 1),
-                    onUpdate: (latest) => this.renderPath(latest),
-                    onComplete: () => this.renderPath(to),
-                })
-            );
-
-            this.animateMenuItems(nextOpen);
-        }
-
-        private setA11y(open: boolean): void {
-            this.ham.classList.toggle('is-open', open);
-            this.ham.setAttribute('aria-expanded', String(open));
-            this.ham.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
-            this.menu.setAttribute('aria-hidden', String(!open));
-            this.menu.toggleAttribute('inert', !open);
-            document.body.classList.toggle('nav-menu-open', open);
-        }
-
-        private animateMenuItems(isOpening: boolean): void {
-            const from = isOpening ? 0 : 1;
-            const to = isOpening ? 1 : 0;
-
-            this.menuItems.forEach((item, index) => {
-                const delay = isOpening
-                    ? 0.1 + index * 0.07
-                    : (this.menuItems.length - 1 - index) * 0.035;
-
-                this.activeAnimations.push(
-                    animate(from, to, {
-                        duration: 0.72,
-                        delay,
-                        ease: cubicBezier(0.34, 1.56, 0.64, 1),
-                        onUpdate: (latest) => this.renderMenuItem(item, index, latest),
-                        onComplete: () => this.renderMenuItem(item, index, to),
-                    })
-                );
-            });
-        }
-
-        private renderMenuItems(progress: number): void {
-            this.menuItems.forEach((item, index) => this.renderMenuItem(item, index, progress));
-        }
-
-        private renderMenuItem(item: HTMLElement, index: number, progress: number): void {
-            const offset = this.initialOffset + (this.offsetStep * index);
-            const currentOffset = offset * (1 - progress);
-
-            item.style.opacity = String(progress);
-            item.style.transform = `translateY(${currentOffset}px)`;
-        }
-
-        private renderMenu(progress: number): void {
-            const translateY = (1 - progress) * -100;
-            this.menu.style.transform = `translateY(${translateY}%)`;
-        }
-
-        private renderPath(progress: number): void {
-            const {width, height} = this.menu.getBoundingClientRect();
-            const targetWidth = Math.max(1, width || window.innerWidth);
-            const targetHeight = Math.max(1, height || window.innerHeight);
-            const currentHeight = this.initialHeight + (targetHeight - this.initialHeight) * progress;
-            const curve = this.curveDepth * (1 - progress);
-
-            const path = `
-                M 0 0
-                L ${targetWidth} 0
-                L ${targetWidth} ${currentHeight}
-                Q ${targetWidth / 2} ${currentHeight + curve}, 0 ${currentHeight}
-                L 0 0
-                Z
-            `.trim();
-
-            this.curvePath.setAttribute('d', path);
-        }
-
-        private stopAnimations(): void {
-            this.activeAnimations.forEach((animation) => animation.stop());
-            this.activeAnimations = [];
-        }
-    }
-
-    function setupNav(ham: HTMLElement): void {
-        const menu = document.querySelector<HTMLDivElement>('[data-mobile-menu]');
-        const curvePath = document.querySelector<SVGPathElement>('[data-menu-curve-path]');
-
-        if (!menu || !curvePath) return;
-
-        new TopDownMenuAnimator(ham as HTMLButtonElement, menu, curvePath);
-    }
-
-    function setupLogoHomeLink(logo: HTMLElement): void {
-        const href = (logo as HTMLAnchorElement).href;
-        logo.addEventListener('click', (event) => {
-            const target = new URL(href, window.location.href);
-            const isSameHomePath =
-                target.origin === window.location.origin &&
-                target.pathname === window.location.pathname;
-
-            if (!isSameHomePath) return;
-
-            event.preventDefault();
-            window.history.replaceState(window.history.state, '', target.pathname || '/');
-            (window as NavWindow).__lenis?.scrollTo?.(0, {duration: 0.9});
-
-            if (!(window as NavWindow).__lenis?.scrollTo) {
-                window.scrollTo({top: 0, behavior: 'smooth'});
-            }
-        });
-    }
-
-    bindOnce('[data-menu-toggle]', setupNav);
-    bindOnce('[data-home-logo]', setupLogoHomeLink);
-</script>
+<Nav
+    brand={{ title: 'ItsBagelBot', href: localizePath("/", lang), logoSrc: logo.src, logoAlt: '' }}
+    links={links.map((link) => ({ ...link, active: isActive(link.href) }))}
+    cta={cta}
+    locales={locales}
+    localeLabel="Language"
+    ariaLabel={t('nav.primary')}
+    menuLabels={{ open: t('nav.menuOpen'), close: t('nav.menuClose'), panel: t('menu.primary') }}
+    menuMeta={t('menu.meta')}
+>
+    <Fragment slot="mobileFooter">
+        <a class="mobile-menu__app" href={getAppHref}>{t('nav.getApp')}</a>
+        <div class="mobile-menu__lang"><LanguageSwitcher options={locales} ariaLabel="Language" /></div>
+    </Fragment>
+</Nav>
 
 <style>
-    /* Floating pill (2b): the wrapper is a transparent positioning band that
-       never eats clicks; the pill itself carries the glass. --nav-height and
-       --nav-offset stay as the reserved band other components pad against. */
-    .site-nav {
-        font-family: var(--font-display, "Syne", sans-serif);
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        padding-top: calc(14px + env(safe-area-inset-top, 0px));
-        padding-inline: max(16px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
-        z-index: 50;
+    /* The two rows this site adds to the panel's footer. They are slotted into
+       @bagel/ui's panel, and slotted markup carries the scope attribute of the
+       file it is WRITTEN in -- this one -- so these rules reach it. */
+    .mobile-menu__app {
+        display: block;
+        text-align: center;
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.78rem;
+        letter-spacing: 0;
+        text-transform: uppercase;
+        color: var(--tan-light, #e0c49a);
+        text-decoration: underline;
+        text-decoration-color: rgba(201, 168, 124, 0.4);
+        text-underline-offset: 4px;
+        transition: color 200ms ease;
+    }
+
+    .mobile-menu__app:active { color: var(--green-glow, #52b788); }
+
+    .mobile-menu__lang {
         display: flex;
         justify-content: center;
-        pointer-events: none;
-    }
-
-    .site-nav__inner {
-        display: grid;
-        grid-template-columns: minmax(150px, 1fr) minmax(0, auto) minmax(150px, 1fr);
-        align-items: center;
-        gap: 24px;
-        width: min(100%, 1000px);
-        padding: 9px 12px 9px 18px;
-        border: 1px solid var(--border);
-        border-radius: var(--radius-pill);
-        background: rgba(10, 10, 10, 0.55);
-        /* Standard property only, never hand-write -webkit-backdrop-filter:
-           Chrome 151 dropped the alias, and the minifier dedupes the pair to
-           whichever is last, which shipped prefixed-only CSS and killed the
-           blur in every Chromium browser. Lightning CSS re-adds the prefix
-           itself when build targets need it. */
-        backdrop-filter: blur(18px);
-        pointer-events: auto;
-    }
-
-    /* The bar's links are @bagel/ui's `.bb-nav-link` and nothing here restates
-       their look: the hairline, the green drawline on hover and the tan diamond
-       on the current page are the contract, shared with the mobile menu, the
-       footer columns and the console rail. The two lines below are the only
-       thing this surface knows that the contract cannot: the pill is 0.7rem
-       (11.2px) rather than the contract's 11px because it was the bar's
-       measured size before the element existed and the grid's 1000px max was
-       laid out against it, and the resting colour is a 50% white rather than
-       --bb-muted (#888077) because the pill's own rgba(10,10,10,.55) glass sits
-       over live page content, where muted drops under 4.5:1 against a light
-       hero. */
-    :where(.site-nav__inner) :global(.bb-nav-link) {
-        --bb-nav-link-size: 0.7rem;
-        --bb-nav-link-rest: rgba(240, 236, 228, 0.5);
-    }
-
-    /* The CTA is the filled green variant, and takes the bar's own type and
-       curve: the nav links are mono 0.7rem at .14em uppercase, and the shell
-       is a 999px pill, so the system's 12.5px sentence case at 6px corners
-       reads as imported from another page. The pill radius here is the one
-       sanctioned exception to the 6px button corner: it is set by the
-       container, not by the button. Expressed as contract properties, so the
-       CTA still hovers, focuses and marks the current page like every other
-       nav link — it only disagrees about type and radius.
-
-       No `--bb-nav-link-rest` here any more. The CTA composes `.bb-btn
-       --go-solid` now, so the white label is the BUTTON contract's and this
-       surface has nothing to say about it. Setting it here was also the bug:
-       Astro scopes this rule to `.cta[data-astro-cid-*]` (0-2-0) and the
-       wrapper rule above to `.site-nav__inner[data-astro-cid-*]
-       .bb-nav-link` (0-3-0), so the wrapper's 50% white won and the live CTA
-       computed rgba(240, 236, 228, 0.5) on the green fill — measured on
-       /pricing at 1280x800 — instead of #f0ece4. The wrapper is wrapped in
-       `:where()` as well, which drops it to 0-1-0: it exists to set two
-       defaults for the bar, not to outrank the links inside it. */
-    .cta {
-        --bb-nav-link-size: 0.7rem;
-
-        /* Zero tracking, and this is what SHIPPED rather than what the rule
-           above it used to say. `.button :global(a)` set letter-spacing: 0 at
-           specificity 0-1-1 and quietly beat the old `.cta` rule's .14em, so
-           the live CTA has always been untracked. That blanket rule is gone
-           now, and pinning the value here is what stops its removal from
-           silently widening the button by ~30px into the pill's right padding
-           (measured 2026-09-09 on /pricing at 1280px). The label is four words
-           in a fixed-width pill; the bar's tracking is a luxury it does not
-           have. */
-        --bb-nav-link-tracking: 0;
-        --bb-nav-link-transform: uppercase;
-        --bb-nav-link-radius: var(--radius-pill);
-    }
-
-    .logo {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        min-width: 0;
-        width: max-content;
-        color: var(--white);
-        text-decoration: none;
-    }
-
-    .logo span {
-        font-family: var(--font-display, "Syne", sans-serif);
-        font-weight: 700;
-        font-size: 0.95rem;
-        letter-spacing: -0.01em;
-        color: var(--white);
-        white-space: nowrap;
-    }
-
-    ul.links {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 30px;
-        min-width: 0;
-        padding: 0 1.5rem;
-        list-style: none;
-        margin: 0;
-    }
-
-    ul.links li {
-        display: flex;
-        align-items: center;
-    }
-
-    .button {
-        display: flex;
-        justify-content: flex-end;
-        align-items: center;
-        gap: 14px;
-    }
-
-    @media (max-width: 1120px) {
-        .site-nav__inner {
-            grid-template-columns: minmax(140px, 1fr) minmax(0, auto) minmax(140px, 1fr);
-            gap: 16px;
-        }
-
-        ul.links {
-            gap: 18px;
-            padding-inline: 1rem;
-        }
-    }
-
-    @media (max-width: 1023px) {
-        .site-nav__inner {
-            grid-template-columns: 1fr auto;
-            gap: 16px;
-            padding: 7px 10px 7px 16px;
-        }
-
-        ul.links,
-        .button {
-            display: none;
-        }
     }
 </style>

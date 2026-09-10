@@ -1,0 +1,60 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro adapter for the `.bb-brand` contract. Its Svelte twin is
+// ../svelte/Brand.svelte and ../test/parity.test.ts diffs the two, so the
+// element choice (<a> with an href, <div> without) and the attribute order
+// here match that file.
+//
+// The mark is a plain <img> taking a pre-resolved `logoSrc`, NOT astro:assets'
+// <Image>. Importing that here would make every consumer of this library --
+// including the console, which is SvelteKit -- depend on Astro's asset
+// pipeline to render a call sign. The marketing site keeps its own <Image> /
+// getImage() call and passes the emitted `.src` in, so it still gets the
+// hashed, resized file.
+import '../styles/elements/brand-mark.css';
+
+interface Props {
+  /** The name. Always rendered. */
+  title: string;
+  /** The line under it: a station id, a board name, a tagline. */
+  sub?: string;
+  /** Makes the block a link. Omit for a label. */
+  href?: string;
+  /** Pre-resolved URL. ui never imports an asset; see brand-mark.css. */
+  logoSrc?: string;
+  /** Empty by default: next to the name, the mark is decorative. */
+  logoAlt?: string;
+  /** sm = bar/strip (26px), md = rail (30px), lg = footer (55px). */
+  size?: 'sm' | 'md' | 'lg';
+  /** Rounds the mark to a circle. The only premium mark in the chrome. */
+  premium?: boolean;
+  class?: string;
+  [key: string]: unknown;
+}
+
+const {
+  title,
+  sub,
+  href,
+  logoSrc,
+  logoAlt = '',
+  size = 'md',
+  premium = false,
+  class: className = '',
+  ...rest
+} = Astro.props;
+
+const classes = ['bb-brand', `bb-brand--${size}`, className || null]
+  .filter(Boolean)
+  .join(' ');
+
+const px = size === 'sm' ? 26 : size === 'lg' ? 55 : 30;
+---
+
+{href ? (
+  <a class={classes} href={href} data-premium={premium ? '' : undefined} {...rest}>{logoSrc && <span class="bb-brand__logo"><img src={logoSrc} alt={logoAlt} width={px} height={px} /></span>}<span class="bb-brand__id"><span class="bb-brand__name">{title}</span>{sub && <span class="bb-brand__sub">{sub}</span>}</span></a>
+) : (
+  <div class={classes} data-premium={premium ? '' : undefined} {...rest}>{logoSrc && <span class="bb-brand__logo"><img src={logoSrc} alt={logoAlt} width={px} height={px} /></span>}<span class="bb-brand__id"><span class="bb-brand__name">{title}</span>{sub && <span class="bb-brand__sub">{sub}</span>}</span></div>
+)}

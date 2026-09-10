@@ -1,0 +1,52 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro adapter for `.bb-footer`. Its Svelte twin is ../svelte/Footer.svelte
+// and ../test/parity.test.ts diffs the two, so the element order and the
+// `--reveal-i` stagger indices here match that file.
+//
+// The `colophon` slot renders BEFORE the <footer>, which is not a layout
+// accident: on the marketing site that block is a separately ruled section
+// above the footer, statically visible with no `data-reveal` gate, because an
+// external ownership scan reads the served HTML for a username and a reviewer
+// with JS off has to be able to find it.
+import '../styles/elements/footer.css';
+import Brand from './Brand.astro';
+import NavLink from './NavLink.astro';
+import type { UiBrand, UiFooterColumn, UiNavLink } from '../lib/nav-types';
+
+interface Props {
+  brand: UiBrand;
+  /** The goodbye line and its hand-written sub-line. */
+  signoff?: { line: string; sub?: string };
+  columns?: UiFooterColumn[];
+  legal?: UiNavLink[];
+  copyright: string;
+  /** The one promise repeated at the bottom. */
+  note?: string;
+  class?: string;
+  [key: string]: unknown;
+}
+
+const {
+  brand,
+  signoff,
+  columns = [],
+  legal = [],
+  copyright,
+  note,
+  class: className = '',
+  ...rest
+} = Astro.props;
+
+const classes = ['bb-footer', className || null].filter(Boolean).join(' ');
+---
+
+<slot name="colophon" /><footer class={classes} {...rest}>{signoff && <div class="bb-footer__signoff" data-reveal><p class="bb-footer__signoff-line">{signoff.line}</p>{signoff.sub && <p class="bb-footer__signoff-sub">{signoff.sub}</p>}</div>}<div class="bb-footer__top"><Brand class="bb-footer__brand" title={brand.title} sub={brand.sub} href={brand.href} logoSrc={brand.logoSrc} logoAlt={brand.logoAlt} size="lg" data-reveal /><div class="bb-footer__cols">{columns.map((column, i) => (
+  <div class="bb-footer__col" data-reveal style={`--reveal-i: ${i + 1}`}><p class="bb-footer__col-title">{column.title}</p>{column.links.map((link) => (
+    <NavLink href={link.href} label={link.label} current={link.active} external={link.external} />
+  ))}</div>
+))}</div></div><div class="bb-footer__bottom"><span class="bb-footer__copy">{copyright}</span><span class="bb-footer__note">{note}</span><div class="bb-footer__legal">{legal.map((link) => (
+  <NavLink href={link.href} label={link.label} current={link.active} external={link.external} />
+))}</div></div></footer>

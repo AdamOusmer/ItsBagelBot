@@ -137,7 +137,7 @@ test.describe('ItsBagelBot site', () => {
 
     test('Add to Twitch starts dashboard OAuth, not the console origin', async ({ page }) => {
         await page.goto('/');
-        await expect(page.locator('.site-nav a.cta')).toHaveAttribute(
+        await expect(page.locator('.bb-nav a.bb-nav__cta')).toHaveAttribute(
             'href',
             'https://dashboard.itsbagelbot.com/auth/login'
         );
@@ -147,7 +147,7 @@ test.describe('ItsBagelBot site', () => {
         );
 
         await page.goto('/fr/');
-        await expect(page.locator('.site-nav a.cta')).toHaveAttribute(
+        await expect(page.locator('.bb-nav a.bb-nav__cta')).toHaveAttribute(
             'href',
             'https://dashboard.itsbagelbot.com/auth/login?lang=fr'
         );
@@ -262,7 +262,9 @@ test.describe('ItsBagelBot site', () => {
 
         await expect(items.last().locator('.rtag--alpha')).toHaveCount(1);
 
-        await expect(page.locator('footer a[aria-label="Changelog"]')).toHaveCount(1);
+        // The footer's columns are @bagel/ui's `.bb-nav-link` now: the label is
+        // the link's text, not an aria-label the old hand-written footer set.
+        await expect(page.locator('footer a.bb-nav-link[href="/changelog/"]')).toHaveCount(1);
 
         await page.goto('/fr/changelog');
         await expect(page.locator('.phero__title')).toContainText('Quoi de neuf.');
@@ -272,7 +274,7 @@ test.describe('ItsBagelBot site', () => {
         await expect(page.locator('.clog__item').filter({ hasText: "Assistant d'import v1" })).toContainText(
             'StreamElements, Moobot et Streamlabs Chatbot'
         );
-        await expect(page.locator('.lang-switch a[hreflang="en"]').first()).toHaveAttribute('href', '/changelog');
+        await expect(page.locator('.bb-lang-switch a[hreflang="en"]').first()).toHaveAttribute('href', '/changelog');
     });
 
     test('production assets referenced by the document are emitted', async ({ page, request }) => {
@@ -302,19 +304,19 @@ test.describe('ItsBagelBot site', () => {
 
     test('active nav route is marked', async ({ page }) => {
         await page.goto('/pricing');
-        await expect(page.locator('nav a.nav-link.is-active[href="/pricing/"]')).toHaveCount(1);
+        await expect(page.locator('.bb-nav__links a.bb-nav-link[href="/pricing/"][aria-current="page"]')).toHaveCount(1);
     });
 
     test('client route changes always start at the top', async ({ page }) => {
         await page.goto('/');
         await jumpDown(page);
 
-        await page.locator('nav a.nav-link[href="/pricing/"]').click();
+        await page.locator('.bb-nav__links a.bb-nav-link[href="/pricing/"]').click();
         await expect(page).toHaveURL(/\/pricing\/?$/);
         await expectPageTop(page);
 
         await jumpDown(page);
-        await page.locator('nav a.nav-link[href="/contact/"]').click();
+        await page.locator('.bb-nav__links a.bb-nav-link[href="/contact/"]').click();
         await expect(page).toHaveURL(/\/contact\/?$/);
         await expectPageTop(page);
 
@@ -326,7 +328,7 @@ test.describe('ItsBagelBot site', () => {
     test('decode text animates after client route swaps', async ({ page }) => {
         await page.goto('/');
 
-        await page.locator('nav a.nav-link[href="/pricing/"]').click();
+        await page.locator('.bb-nav__links a.bb-nav-link[href="/pricing/"]').click();
         await expect(page).toHaveURL(/\/pricing\/?$/);
 
         await page.waitForFunction(() => {
@@ -349,7 +351,7 @@ test.describe('ItsBagelBot site', () => {
 
         const firstSceneId = await page.evaluate(() => window.__itsbagelbotPreload.activeEncryption.id);
 
-        await page.locator('nav a.nav-link[href="/pricing/"]').click();
+        await page.locator('.bb-nav__links a.bb-nav-link[href="/pricing/"]').click();
         await expect(page).toHaveURL(/\/pricing\/?$/);
         await expect(page.locator('#enc-canvas')).toHaveCount(0);
 
@@ -383,7 +385,7 @@ test.describe('guides & command builder', () => {
         await expect(page.locator('.ghub__tool')).toHaveAttribute('href', '/command-builder');
 
         // The Guides nav entry is live and marked active.
-        await expect(page.locator('nav a.nav-link[href="/guides/"]')).toHaveAttribute('aria-current', 'page');
+        await expect(page.locator('.bb-nav__links a.bb-nav-link[href="/guides/"]')).toHaveAttribute('aria-current', 'page');
     });
 
     test('guide pages render toc, visuals, and pager', async ({ page }) => {
@@ -443,14 +445,14 @@ test.describe('guides & command builder', () => {
         await page.goto('/fr/guides/commands');
 
         await expect(page.locator('.gshell__toc-label')).toHaveText('Dans ce guide');
-        await expect(page.locator('.lang-switch a[hreflang="en"]').first()).toHaveAttribute('href', '/guides/commands');
+        await expect(page.locator('.bb-lang-switch a[hreflang="en"]').first()).toHaveAttribute('href', '/guides/commands');
 
         await page.goto('/fr/guides/data-sources');
         await expect(page.locator('[data-guide-section]')).toHaveCount(7);
-        await expect(page.locator('.lang-switch a[hreflang="en"]').first()).toHaveAttribute('href', '/guides/data-sources');
+        await expect(page.locator('.bb-lang-switch a[hreflang="en"]').first()).toHaveAttribute('href', '/guides/data-sources');
 
         await page.goto('/guides');
-        await expect(page.locator('.lang-switch a[hreflang="fr"]').first()).toHaveAttribute('href', '/fr/guides/');
+        await expect(page.locator('.bb-lang-switch a[hreflang="fr"]').first()).toHaveAttribute('href', '/fr/guides/');
     });
 
     test('builder composes a command end to end', async ({ page }) => {

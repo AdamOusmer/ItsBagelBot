@@ -9,7 +9,7 @@
   // dialog stepper, but the blob walks the screen instead of sitting still in
   // a card. Dismissal is remembered in localStorage; `?welcome=1` re-opens it
   // for a refresher (both handled by the caller).
-  import Icon from '@bagel/kit/components/Icon.svelte';
+  import Icon from '@bagel/ui/svelte/Icon.svelte';
   import Bolota from '@bagel/kit/components/Bolota.svelte';
   import Toggle from '@bagel/ui/svelte/Toggle.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';

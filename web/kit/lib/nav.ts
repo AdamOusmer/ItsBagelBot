@@ -10,7 +10,7 @@
 // means adding ONE entry here with its match prefixes; every consumer derives
 // from this list, so they cannot drift.
 
-import type { IconName } from './icons';
+import type { IconName } from '@bagel/ui/lib/icons';
 import type { NavChild, NavGroupDef, NavLink } from './types';
 import type { MessageKey } from './i18n/keys';
 // Both are pure data/pure functions -- no import.meta.glob, no Vite-only

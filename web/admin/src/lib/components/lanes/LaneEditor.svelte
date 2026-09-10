@@ -19,7 +19,7 @@
   import { enhance } from '$app/forms';
   import Field from '@bagel/ui/svelte/Field.svelte';
   import Switch from '@bagel/ui/svelte/Switch.svelte';
-  import Scroller from '@bagel/kit/components/Scroller.svelte';
+  import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import EditorFooter from '@bagel/kit/components/EditorFooter.svelte';
   import type { InspectorStatus } from '@bagel/kit';

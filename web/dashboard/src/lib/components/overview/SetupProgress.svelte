@@ -8,7 +8,7 @@
   // read as connected here.
   import Card from '@bagel/ui/svelte/Card.svelte';
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
-  import Icon from '@bagel/kit/components/Icon.svelte';
+  import Icon from '@bagel/ui/svelte/Icon.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
 
   const { t } = getI18n();

@@ -16,7 +16,7 @@
 // Everything here is pure data / pure functions -- no import.meta.glob, no
 // Vite-only entry points -- so it stays safe in a boot import graph.
 
-import type { IconName } from './icons';
+import type { IconName } from '@bagel/ui/lib/icons';
 import type { NavChild, NavGroupDef, NavLink } from './types';
 import type { MessageKey } from './i18n/keys';
 

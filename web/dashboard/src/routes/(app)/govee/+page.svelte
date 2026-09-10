@@ -7,6 +7,7 @@
   import {
     Card,
     PageHead,
+    PageToolbar,
     Scroller,
     ConfirmDialog,
     InspectorSurface,
@@ -157,16 +158,18 @@
   {/if}
 
   <!-- Master switch -->
-  <div class="toolbar">
-    <MasterToggle
-      action="?/toggle"
-      bind:enabled
-      label={t('govee.masterLabel')}
-      hint={enabled ? t('govee.masterHintOn') : t('govee.masterHintOff')}
-      ariaLabel={t('govee.masterAria')}
-      failMessage={t('govee.masterFail')}
-    />
-  </div>
+  <PageToolbar>
+    {#snippet lead()}
+      <MasterToggle
+        action="?/toggle"
+        bind:enabled
+        label={t('govee.masterLabel')}
+        hint={enabled ? t('govee.masterHintOn') : t('govee.masterHintOff')}
+        ariaLabel={t('govee.masterAria')}
+        failMessage={t('govee.masterFail')}
+      />
+    {/snippet}
+  </PageToolbar>
 
   <!-- Step 1 (prerequisite): the API key. The device + reward UI below is gated
        on a key being on file, so setup always comes before management. -->
@@ -290,8 +293,6 @@
   }
   .back:hover { color: var(--bb-white); }
   .back:focus-visible { outline: 2px solid var(--bb-focus, var(--bb-tan)); outline-offset: 2px; border-radius: var(--bb-radius-xs); }
-
-  .toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; }
 
   .step { display: flex; gap: 14px; align-items: flex-start; }
   .step-index {

@@ -1,0 +1,55 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+/**
+ * Starlight `Header` override: the docs wear the same nav bar as the rest of
+ * the site.
+ *
+ * It is a WRAPPER around `@bagel/ui/astro/Nav.astro`, not the library
+ * component pointed at directly, because Starlight renders this file inside
+ * its own fixed header with its own props and its own slots. Two of its
+ * pieces have to survive: the search box (Pagefind's modal trigger, which the
+ * whole docs keyboard flow hangs off) and the theme toggle.
+ *
+ * Two props do the fitting:
+ *  - `variant="bar"` drops the marketing bar's fixed position, max width,
+ *    pill shell and blur, because Starlight's header already provides all
+ *    four. Everything about the LINKS stays shared, which is the point.
+ *  - `menu={false}` leaves the hamburger and the top-down panel out.
+ *    Starlight ships its own mobile menu in the same bar; rendering ours as
+ *    well would put two hamburgers side by side opening two different
+ *    navigations.
+ *
+ * `locales` is omitted: the docs are not translated (no `locales` in the
+ * Starlight config), so there is nothing for the switch to switch between.
+ */
+import Nav from '@bagel/ui/astro/Nav.astro';
+import Search from '@astrojs/starlight/components/Search.astro';
+import ThemeSelect from '@astrojs/starlight/components/ThemeSelect.astro';
+
+const links = [
+  { href: '/guides/', label: 'Guides' },
+  { href: '/architecture/', label: 'Architecture' },
+  { href: '/microservices/', label: 'Services' },
+  { href: '/adr/', label: 'ADRs' },
+];
+
+const path = Astro.url.pathname;
+const isActive = (href: string) => path === href || path.startsWith(href);
+---
+
+<Nav
+  variant="bar"
+  menu={false}
+  brand={{ title: 'ItsBagelBot', sub: 'DOCS', href: '/' }}
+  links={links.map((link) => ({ ...link, active: isActive(link.href) }))}
+  cta={{ href: 'https://itsbagelbot.com', label: 'Main site', external: true }}
+  ariaLabel="Documentation"
+  menuLabels={{ open: 'Open menu', close: 'Close menu', panel: 'Menu' }}
+>
+  <Fragment slot="actions">
+    <Search />
+    <ThemeSelect />
+  </Fragment>
+</Nav>

@@ -127,6 +127,13 @@ export default defineConfig({
 			components: {
 				Head: './src/components/Head.astro',
 				SkipLink: './src/components/SkipLink.astro',
+				// Both are thin local wrappers around @bagel/ui, not the library
+				// components themselves: Starlight passes its own props and expects
+				// its own slots back (the search modal, the theme toggle, the
+				// per-page pagination), so something has to sit in between. See the
+				// note at the top of each file.
+				Header: './src/components/Header.astro',
+				Footer: './src/components/Footer.astro',
 			},
 			social: [
 				{

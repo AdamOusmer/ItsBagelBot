@@ -13,7 +13,7 @@
   import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
   import Skeleton from '@bagel/ui/svelte/Skeleton.svelte';
   import OverviewGrid from '@bagel/kit/components/OverviewGrid.svelte';
-  import PageHead from '@bagel/kit/components/PageHead.svelte';
+  import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import AlertBanner from '@bagel/kit/components/AlertBanner.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import EnrollmentPanel from '$lib/components/overview/EnrollmentPanel.svelte';

@@ -1,0 +1,45 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro adapter for `.bb-rail-item`. Its Svelte twin is
+// ../svelte/RailItem.svelte and ../test/parity.test.ts diffs the two, so the
+// element choice for a locked row and the attribute order here match it.
+import '../styles/elements/shell.css';
+import Icon from './Icon.astro';
+import type { IconName } from '../lib/icons';
+
+interface Props {
+  href?: string;
+  icon?: IconName;
+  label: string;
+  /** Current route. The rail's glide reads `[data-active]` to find this row. */
+  active?: boolean;
+  locked?: boolean;
+  /** sr-only explanation of a locked row. Caller's wording. */
+  lockedHint?: string;
+  count?: string | number;
+  class?: string;
+  [key: string]: unknown;
+}
+
+const {
+  href,
+  icon,
+  label,
+  active = false,
+  locked = false,
+  lockedHint,
+  count,
+  class: className = '',
+  ...rest
+} = Astro.props;
+
+const classes = ['bb-rail-item', className || null].filter(Boolean).join(' ');
+---
+
+{locked ? (
+  <span class={classes} data-locked {...rest}>{icon && <Icon name={icon} />}<span class="bb-rail-item__label">{label}</span><Icon name="lock" size={13} />{lockedHint && <span class="bb-rail-item__hint">{lockedHint}</span>}</span>
+) : (
+  <a class={classes} href={href} data-active={active ? '' : undefined} aria-current={active ? 'page' : undefined} {...rest}>{icon && <Icon name={icon} />}<span class="bb-rail-item__label">{label}</span>{count !== undefined && <span class="bb-rail-item__count">{count}</span>}</a>
+)}

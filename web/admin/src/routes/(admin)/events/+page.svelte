@@ -14,13 +14,13 @@
   // There is no inspector: an event is three fields, all of them already on the
   // row, and it is gone on reload.
   import { onMount } from 'svelte';
-  import PageHead from '@bagel/kit/components/PageHead.svelte';
-  import PageToolbar from '@bagel/kit/components/PageToolbar.svelte';
+  import PageHead from '@bagel/ui/svelte/PageHead.svelte';
+  import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
   import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
   import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
-  import Scroller from '@bagel/kit/components/Scroller.svelte';
+  import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import Switch from '@bagel/ui/svelte/Switch.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';

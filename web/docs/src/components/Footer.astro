@@ -1,0 +1,57 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+/**
+ * Starlight `Footer` override: the page's own footer, then the site's.
+ *
+ * Starlight's Footer is per-PAGE furniture -- edit link, last updated,
+ * previous/next pagination -- and every one of those is worth keeping, so the
+ * default renders first, unchanged. `@bagel/ui/astro/Footer.astro` follows it
+ * as the sitewide sign-off, which is what makes the docs feel like the same
+ * property as the marketing site rather than a subdomain someone forgot.
+ *
+ * No colophon slot here: the ownership block is the homepage's, and it is
+ * homepage-gated for a reason (see web/marketing/src/components/layout/Footer.astro).
+ */
+import Default from '@astrojs/starlight/components/Footer.astro';
+import Footer from '@bagel/ui/astro/Footer.astro';
+
+const columns = [
+  {
+    title: 'Docs',
+    links: [
+      { href: '/guides/', label: 'Guides' },
+      { href: '/architecture/', label: 'Architecture' },
+      { href: '/adr/', label: 'ADRs' },
+    ],
+  },
+  {
+    title: 'Product',
+    links: [
+      { href: 'https://itsbagelbot.com', label: 'Main site', external: true },
+      { href: 'https://itsbagelbot.com/pricing', label: 'Pricing', external: true },
+      { href: 'https://dashboard.itsbagelbot.com', label: 'Dashboard', external: true },
+    ],
+  },
+  {
+    title: 'Community',
+    links: [
+      { href: 'https://discord.gg/SZ2remwSDv', label: 'Discord', external: true },
+      { href: 'https://github.com/AdamOusmer/ItsBagelBot', label: 'GitHub', external: true },
+    ],
+  },
+];
+---
+
+<Default><slot /></Default>
+<Footer
+  class="docs-footer"
+  brand={{ title: 'ItsBagelBot', sub: 'Documentation', href: 'https://itsbagelbot.com' }}
+  columns={columns}
+  legal={[
+    { href: 'https://itsbagelbot.com/privacy', label: 'Privacy', external: true },
+    { href: 'https://itsbagelbot.com/terms', label: 'Terms', external: true },
+  ]}
+  copyright="© 2026 ItsBagelBot"
+/>

@@ -386,12 +386,14 @@ header.header {
     background: linear-gradient(180deg, var(--bb-mermaid-panel) 0%, var(--bb-black) 100%);
 }
 
-.site-title {
-    font-family: var(--bb-font-display);
-    font-weight: 800;
-    letter-spacing: -0.02em;
-    font-size: 1.05rem;
-}
+/* Starlight's `SiteTitle` and `SocialIcons` no longer render: the Header
+   override draws @bagel/ui's `.bb-nav`, whose brand mark and links carry their
+   own contract (ui/styles/elements/brand-mark.css, nav-link.css). The rules
+   that used to restyle those two components are deleted rather than left in
+   place -- a selector for an element nothing emits is indistinguishable from a
+   rule that stopped working, and the next person would spend the afternoon
+   finding out which. `header.header` above stays: that IS Starlight's bar, and
+   it still holds the nav. */
 
 /* Search button */
 site-search button[data-open-modal] {
@@ -946,25 +948,6 @@ starlight-toc nav a[aria-current="true"] {
    direction for the surface.
    ════════════════════════════════════════════════════════════════════ */
 :root[data-theme="light"] {
-    /* Logo / site title */
-    & header.header .site-title:hover img,
-    & header.header .site-title:hover svg {
-        opacity: 1;
-        filter: brightness(0.78) saturate(1.15) contrast(1.05);
-    }
-    & header.header .site-title:hover {
-        color: var(--bb-ink-soft);
-    }
-
-    /* Social icons */
-    & .social-icons a {
-        opacity: 0.7;
-    }
-    & .social-icons a:hover {
-        color: var(--bb-ink-soft);
-        filter: brightness(0.85);
-        opacity: 1;
-    }
 
     /* Theme toggle */
     & starlight-theme-select label:hover,
@@ -1056,41 +1039,6 @@ starlight-toc nav a[aria-current="true"] {
     transform: translateX(3px) translateY(-3px);
 }
 
-/* ── Header logo + site title — brighten on hover, no rotation ────── */
-header.header .site-title {
-    transition: color var(--bb-dur-med) var(--bb-ease-out-expo),
-                filter var(--bb-dur-med) var(--bb-ease-out-expo);
-}
-
-header.header .site-title img,
-header.header .site-title svg {
-    transition: filter var(--bb-dur-med) var(--bb-ease-out-expo),
-                opacity var(--bb-dur-med) var(--bb-ease-out-expo);
-    opacity: 0.92;
-}
-
-header.header .site-title:hover img,
-header.header .site-title:hover svg {
-    opacity: 1;
-    filter: brightness(1.18) saturate(1.1);
-}
-
-header.header .site-title:hover {
-    color: var(--bb-tan-pale);
-}
-
-/* ── Header social icons — quiet brighten ─────────────────────────── */
-.social-icons a {
-    transition: color var(--bb-dur-med) var(--bb-ease-out-expo),
-                filter var(--bb-dur-med) var(--bb-ease-out-expo);
-    opacity: 0.85;
-}
-
-.social-icons a:hover {
-    color: var(--bb-tan-light);
-    filter: brightness(1.15);
-    opacity: 1;
-}
 
 /* ── Theme toggle — brighten on hover, no rotation ────────────────── */
 starlight-theme-select select,
@@ -1437,3 +1385,29 @@ starlight-toc nav a[aria-current="true"] {
 /* Reduced motion: the global kill switch moved to
    @bagel/ui/styles/a11y.css, where all three surfaces get it instead of
    only this one. */
+
+/* ════════════════════════════════════════════════════════════════════
+   @bagel/ui chrome on a LIGHT surface
+   ════════════════════════════════════════════════════════════════════
+   The nav bar and the footer are the library's `.bb-nav` and `.bb-footer`,
+   and both were drawn for the marketing site, which is dark everywhere and
+   always. Two of their colours are therefore literal light-on-dark values --
+   the brand wordmark and the footer's column headings are `--bb-white`
+   (#f0ece4) -- and on this site's cream light theme they measured about
+   1.2:1 against the page, which is invisible rather than merely low.
+
+   Fixed HERE and not in the library because the library is right: a nav that
+   floats its own near-black glass over any page needs a fixed light ink. What
+   is site-specific is that this site has two grounds, and the docs are the
+   only surface that does. `--bb-ink` is this file's own light-mode text
+   token, already remapped onto Starlight's `--sl-color-white` above.
+
+   In `bb.app`, the layer the architecture reserves for exactly this: it wins
+   over `bb.elements` without a specificity trick and without !important. */
+@layer bb.app {
+    :root[data-theme='light'] .bb-brand__name,
+    :root[data-theme='light'] .bb-footer__col-title,
+    :root[data-theme='light'] .bb-footer__signoff-line {
+        color: var(--bb-ink);
+    }
+}

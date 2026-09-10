@@ -1,0 +1,1013 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* The application shell: the desktop rail, the call-sign strip, the floating
+   dock, the stage they frame, and the four page-level pieces that live inside
+   it (section nav, page head, toolbar, scroll region).
+
+   One file rather than eight because they are one layout and they share three
+   numbers -- the 761px width at which the rail replaces the dock, the gutter
+   the stage and the strip agree on, and the z-order that keeps the dock over
+   the page, the strip over the rail and the rail over a page's own fixed
+   backdrop. Splitting them put those numbers in three files each, which is how
+   the rail came to appear UNDER the billing page's aurora backdrop.
+
+   `--gutter` and `--d` (a density multiplier) are the console's, not this
+   library's: they arrive from the host stylesheet and every use below carries
+   a fallback, so a surface that does not define them still lays out. */
+@layer bb.elements {
+  /* ── Shell ───────────────────────────────────────────────────────────── */
+
+  .bb-shell {
+    /* The one number the rail and the dock must agree on: above it the rail is
+       the navigation and the dock is hidden, below it the reverse. */
+    --shell-rail-breakpoint: 761px;
+    --shell-canvas-max: 1160px;
+
+    position: relative;
+    /* Pages that paint a fixed full-viewport backdrop inside the shell do it
+       at z-index 0; 1 here keeps the chrome above them. */
+    z-index: 1;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .bb-shell__stage {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+  }
+
+  /* `display: contents` keeps the fixed dock positioned against the viewport;
+     the wrapper exists only so the rail can take the dock's place at desktop
+     widths without the dock growing a breakpoint of its own. */
+  .bb-shell__dock-slot {
+    display: contents;
+  }
+
+  .bb-shell__main {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+  }
+
+  /* main is a landmark skip target, not a control: focus lands here from the
+     skip link so the next Tab starts in the content, but a full-width ring
+     around the whole page reads as a bug. Whatever sent focus here already
+     showed its own ring. */
+  .bb-shell__main:focus {
+    outline: none;
+  }
+
+  /* One centred reading column; the dock floats over the bottom padding. */
+  .bb-shell__canvas {
+    padding: calc(var(--gutter, 28px) + 6px) var(--gutter, 28px)
+      calc(110px + env(safe-area-inset-bottom, 0px));
+    max-width: var(--shell-canvas-max);
+    width: 100%;
+    margin: 0 auto;
+  }
+
+  /* Offset for a fixed banner above the shell (impersonation, delegation).
+     The strip keeps its own 10px float below the banner. */
+  .bb-shell--offset {
+    box-sizing: border-box;
+    padding-top: 44px;
+    min-height: 100vh;
+  }
+
+  .bb-shell--offset .bb-topbar {
+    top: calc(54px + env(safe-area-inset-top, 0px));
+  }
+
+  /* The first focusable element in the shell, parked off-screen by a transform
+     rather than by `display: none` or a clip: it has to be focusable, and it
+     has to animate back in, and a clipped element that moves is the shape
+     Safari has historically failed to repaint. */
+  .bb-shell__skip {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1000;
+    transform: translateY(-120%);
+    margin: 8px;
+    padding: 10px 16px;
+    background: var(--bb-card-bg);
+    color: var(--bb-white);
+    border: 1px solid var(--bb-focus);
+    border-radius: var(--bb-radius-sm);
+    font-family: var(--bb-font-body);
+    font-weight: 600;
+    font-size: 13px;
+    text-decoration: none;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+    transition: transform var(--bb-dur-fast) var(--bb-ease-out-expo);
+  }
+
+  .bb-shell__skip:focus,
+  .bb-shell__skip:focus-visible {
+    transform: translateY(0);
+    outline-offset: 3px;
+  }
+
+  @media (min-width: 761px) {
+    .bb-shell--railed {
+      flex-direction: row;
+    }
+
+    .bb-shell--railed .bb-shell__dock-slot {
+      display: none;
+    }
+
+    /* No dock to clear: give the column back the bottom it was reserving. */
+    .bb-shell--railed .bb-shell__canvas {
+      padding-bottom: calc(var(--gutter, 28px) + 24px);
+    }
+  }
+
+  /* ── Rail ────────────────────────────────────────────────────────────── */
+
+  .bb-rail {
+    --rail-width: 240px;
+    --rail-pad: 14px;
+
+    position: sticky;
+    top: 0;
+    /* Above a page's fixed backdrop (z 0), below the strip (z 40). */
+    z-index: 1;
+    align-self: start;
+    height: 100vh;
+    box-sizing: border-box;
+    width: var(--rail-width);
+    flex: none;
+    display: none;
+    flex-direction: column;
+    padding: 20px var(--rail-pad) var(--rail-pad);
+    background: rgba(10, 10, 10, 0.55);
+    border-right: 1px solid rgba(240, 236, 228, 0.1);
+    overflow: auto;
+  }
+
+  @media (min-width: 761px) {
+    .bb-rail {
+      display: flex;
+    }
+  }
+
+  /* The rail's one moving part: a single measured highlight that travels
+     between rows, including across group boundaries. It sits BEHIND the rows
+     (they carry z-index 1) so it reads as the row lighting up rather than as a
+     block sliding over the text. Position comes from the engine as two custom
+     properties; see ui/lib/rail-glide.ts for why it is measured. */
+  .bb-rail__glide {
+    position: absolute;
+    left: var(--rail-pad, 14px);
+    right: var(--rail-pad, 14px);
+    top: var(--glide-top, 0);
+    height: var(--glide-h, 0);
+    pointer-events: none;
+    border-radius: var(--bb-radius-sm);
+    background: rgba(240, 236, 228, 0.05);
+    opacity: 0;
+    transition:
+      top var(--bb-dur-slow) var(--bb-ease-out-expo),
+      height var(--bb-dur-slow) var(--bb-ease-out-expo),
+      opacity var(--bb-dur-fast) ease;
+  }
+
+  .bb-rail__glide[data-shown] {
+    opacity: 1;
+  }
+
+  .bb-rail__glide-edge {
+    position: absolute;
+    left: 0;
+    top: 10px;
+    bottom: 10px;
+    width: 2px;
+    border-radius: var(--bb-radius-pill);
+    background: var(--bb-green-glow);
+    box-shadow: 0 0 10px rgba(82, 183, 136, 0.5);
+  }
+
+  /* One box holding every nav row: the glide watches its height, so an opening
+     sub-list re-measures as it moves. `flex: none` keeps a tall nav from being
+     squeezed by the spacer below it. */
+  .bb-rail__nav {
+    display: flex;
+    flex-direction: column;
+    flex: none;
+  }
+
+  .bb-rail__label {
+    font-family: var(--bb-font-mono);
+    font-size: 9px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--bb-muted);
+    padding: 0 8px 8px;
+  }
+
+  .bb-rail__group {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    margin-bottom: 20px;
+  }
+
+  .bb-rail__row {
+    display: flex;
+    align-items: center;
+  }
+
+  .bb-rail__row .bb-rail-item {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .bb-rail__chev {
+    position: relative;
+    z-index: 1;
+    flex: none;
+    width: 26px;
+    height: 26px;
+    margin-right: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--bb-muted);
+    transition: color var(--bb-dur-fast) ease;
+  }
+
+  .bb-rail__chev svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transition: transform var(--bb-dur-base) var(--bb-ease-out-expo);
+  }
+
+  .bb-rail__chev:hover {
+    color: var(--bb-white);
+  }
+
+  .bb-rail__chev[aria-expanded="true"] svg {
+    transform: rotate(90deg);
+  }
+
+  /* The collapse is a grid-template-rows 0fr -> 1fr transition, NOT a height
+     animation and NOT a framework transition. Two reasons, and the second is
+     the load-bearing one: `auto` is not an interpolable height, so the version
+     this replaces used Svelte's `transition:slide`, which measures and writes
+     inline styles -- and an Astro twin has no equivalent, so the two adapters
+     could not have rendered the same collapsing group. A CSS state driven by
+     `data-open` animates identically in both and keeps the engine
+     framework-free. `overflow: hidden` on the wrapper is what makes 0fr clip
+     rather than overflow. */
+  .bb-rail__subs {
+    display: grid;
+    grid-template-rows: 0fr;
+    overflow: hidden;
+    transition: grid-template-rows 200ms var(--bb-ease-out-expo);
+  }
+
+  .bb-rail__subs[data-open] {
+    grid-template-rows: 1fr;
+  }
+
+  .bb-rail__subs-inner {
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 4px 0 6px 22px;
+    padding-left: 12px;
+    border-left: 1px solid rgba(201, 168, 124, 0.25);
+  }
+
+  .bb-rail__sub {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: var(--bb-radius-sm);
+    text-decoration: none;
+    font-family: var(--bb-font-sans, var(--bb-font-body));
+    font-weight: 500;
+    font-size: 12.5px;
+    color: var(--bb-muted);
+    transition: color var(--bb-dur-fast) ease;
+  }
+
+  .bb-rail__sub:hover {
+    color: var(--bb-white);
+  }
+
+  .bb-rail__sub-label {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .bb-rail__sub-count {
+    font-family: var(--bb-font-mono);
+    font-size: 10.5px;
+    color: rgba(136, 128, 119, 0.8);
+  }
+
+  .bb-rail__spacer {
+    flex: 1;
+    min-height: 18px;
+  }
+
+  /* A quiet rail entry: icon + sentence-case label. Deliberately NOT the
+     ledger row (`.bb-nav-group > .bb-nav-link`): no index column, no mono
+     uppercase. The active state is carried by the rail's gliding highlight, so
+     this row only changes COLOUR -- two competing active treatments in one
+     list read as a rendering bug. */
+  .bb-rail-item {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    height: 40px;
+    box-sizing: border-box;
+    padding: 0 12px;
+    border-radius: var(--bb-radius-sm);
+    text-decoration: none;
+    font-family: var(--bb-font-sans, var(--bb-font-body));
+    font-weight: 500;
+    font-size: 13.5px;
+    color: var(--bb-muted);
+    transition: color var(--bb-dur-fast) var(--bb-ease-out-expo);
+  }
+
+  .bb-rail-item .bb-icon {
+    width: 17px;
+    height: 17px;
+  }
+
+  .bb-rail-item__label {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .bb-rail-item__count {
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
+    color: var(--bb-tan);
+  }
+
+  .bb-rail-item:hover {
+    color: var(--bb-white);
+  }
+
+  .bb-rail-item[data-active] {
+    color: var(--bb-tan-pale);
+  }
+
+  .bb-rail-item[data-locked] {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  /* A locked row says WHY, in real text, to whoever cannot see that it is
+     dimmed. Not a `title` tooltip: that reaches neither a screen reader
+     reliably nor a touch user at all. Written out here rather than reused from
+     a shared `.sr-only` for the same reason nav-link.css writes its own -- the
+     package does not ship one yet, and scoping it to the element means the day
+     it does, deleting this block cannot silently unhide anything else.
+     `clip-path: inset(50%)` and not the legacy `clip: rect(…)`, which Safari
+     17 stopped honouring inside a transformed ancestor. */
+  .bb-rail-item__hint {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  /* ── Topbar ──────────────────────────────────────────────────────────── */
+
+  /* A floating glass pill matching the marketing bar: sticky with a breathing
+     gap rather than a full-bleed ruled strip. The sticky top offset carries
+     the notch inset so the pill never rides into the safe area. */
+  .bb-topbar {
+    position: sticky;
+    top: calc(10px + env(safe-area-inset-top, 0px));
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin: calc(10px + env(safe-area-inset-top, 0px))
+      max(12px, env(safe-area-inset-right, 0px)) 0
+      max(12px, env(safe-area-inset-left, 0px));
+    padding: 7px 12px 7px 8px;
+    border: 1px solid var(--bb-border);
+    border-radius: var(--bb-radius-pill);
+    background: rgba(10, 10, 10, 0.55);
+    backdrop-filter: blur(18px);
+  }
+
+  .bb-topbar .bb-brand {
+    padding: 4px 12px 4px 4px;
+    border-radius: var(--bb-radius-pill);
+    transition: background var(--bb-dur-base) ease;
+  }
+
+  .bb-topbar .bb-brand__sub {
+    font-family: var(--bb-font-display);
+    font-weight: 700;
+    font-size: 9.5px;
+    letter-spacing: 0.04em;
+    text-transform: none;
+    margin-top: 3px;
+  }
+
+  .bb-topbar__crumb {
+    font-family: var(--bb-font-body);
+    font-weight: 500;
+    font-size: 13px;
+    color: var(--bb-muted);
+    min-width: 0;
+  }
+
+  .bb-topbar__crumb ol {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .bb-topbar__crumb li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  /* The separator is decorative pseudo-content, not a text node, so assistive
+     tech never reads a spurious "slash" between the crumbs. */
+  .bb-topbar__crumb li + li::before {
+    content: "/";
+    opacity: 0.45;
+  }
+
+  .bb-topbar__crumb a {
+    color: inherit;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: color var(--bb-dur-fast) ease;
+  }
+
+  .bb-topbar__crumb a:hover {
+    color: var(--bb-tan-pale);
+  }
+
+  /* min-width: 0 plus hidden overflow makes the crumb the one flexible piece
+     of the strip: a long page title ellipsizes instead of running under the
+     account chip. */
+  .bb-topbar__crumb [data-here] {
+    color: var(--bb-tan-light);
+    white-space: nowrap;
+    font-weight: 600;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .bb-topbar__grow {
+    flex: 1;
+  }
+
+  .bb-topbar__account {
+    position: relative;
+    display: flex;
+    flex: none;
+  }
+
+  .bb-topbar__clock {
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    color: var(--bb-muted);
+    font-variant-numeric: tabular-nums;
+    display: none;
+  }
+
+  @media (min-width: 761px) {
+    .bb-topbar {
+      gap: 20px;
+      margin-inline: var(--gutter, 28px);
+      padding: 8px 14px 8px 10px;
+    }
+
+    .bb-topbar__clock {
+      display: inline;
+    }
+
+    /* A railed board's rail owns the account surface at this width, so the
+       strip's chip is a duplicate of it and goes. Same breakpoint as the
+       rail's own `display: flex`, and it has to stay the same one: at any
+       other value there is a band where the board shows two account menus or
+       none. */
+    .bb-topbar__account[data-railed] {
+      display: none;
+    }
+  }
+
+  /* On phones the crumb goes entirely: after the mark, the avatar and the bell
+     the pill leaves it ~30px (measured at 375px), which ellipsized every page
+     name down to two letters. The page eyebrow and the dock's active item
+     already carry the location there. */
+  @media (max-width: 480px) {
+    .bb-topbar__crumb {
+      display: none;
+    }
+  }
+
+  /* ── Dock ────────────────────────────────────────────────────────────── */
+
+  .bb-dock {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 60;
+    display: flex;
+    justify-content: center;
+    padding: 0 12px calc(14px + env(safe-area-inset-bottom, 0px));
+    pointer-events: none;
+  }
+
+  .bb-dock__scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 59;
+  }
+
+  .bb-dock__inner {
+    pointer-events: auto;
+    display: flex;
+    align-items: stretch;
+    gap: 4px;
+    padding: 7px;
+    background: rgba(17, 17, 16, 0.92);
+    border: 1px solid var(--bb-border);
+    border-radius: var(--bb-radius-md);
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+    animation: bb-dock-in 520ms var(--bb-ease-out-expo) 120ms both;
+    max-width: calc(100vw - 24px);
+  }
+
+  @keyframes bb-dock-in {
+    from {
+      opacity: 0;
+      transform: translateY(14px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .bb-dock__group {
+    position: relative;
+    display: flex;
+  }
+
+  .bb-dock-item {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-width: 64px;
+    padding: 8px 14px 7px;
+    border-radius: var(--bb-radius-sm);
+    color: var(--bb-muted);
+    text-decoration: none;
+    cursor: pointer;
+    font-family: var(--bb-font-body);
+    font-weight: 600;
+    font-size: 10.5px;
+    letter-spacing: 0.02em;
+    border: none;
+    background: none;
+    transition:
+      color var(--bb-dur-fast) ease,
+      background var(--bb-dur-fast) ease,
+      transform 200ms var(--bb-ease-out-back);
+    white-space: nowrap;
+  }
+
+  .bb-dock-item .bb-icon {
+    width: 18px;
+    height: 18px;
+  }
+
+  .bb-dock-item:hover {
+    color: var(--bb-white);
+    transform: translateY(-2px);
+  }
+
+  .bb-dock-item:active {
+    transform: translateY(0);
+  }
+
+  .bb-dock-item[data-active],
+  .bb-dock-item[aria-expanded="true"] {
+    color: var(--bb-tan-pale);
+    background: rgba(201, 168, 124, 0.14);
+  }
+
+  .bb-dock-item[data-active]::before {
+    content: "";
+    position: absolute;
+    top: 5px;
+    right: 8px;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--bb-green-glow);
+    box-shadow: 0 0 6px var(--bb-green-glow);
+  }
+
+  .bb-dock-item__count {
+    position: absolute;
+    top: 2px;
+    left: 8px;
+    min-width: 15px;
+    height: 15px;
+    padding: 0 4px;
+    border-radius: var(--bb-radius-pill);
+    background: var(--bb-tan);
+    color: var(--bb-black);
+    font-family: var(--bb-font-body);
+    font-size: 9.5px;
+    font-weight: 700;
+    line-height: 15px;
+    text-align: center;
+  }
+
+  /* A group's popover: a small card floating above its dock button. */
+  .bb-dock__popover {
+    position: absolute;
+    bottom: calc(100% + 12px);
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 190px;
+    padding: 6px;
+    background: var(--bb-card-bg);
+    border: 1px solid var(--bb-border-strong);
+    border-radius: var(--bb-radius-md);
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    animation: bb-pop-in 260ms var(--bb-ease-out-back) both;
+    z-index: 61;
+  }
+
+  @keyframes bb-pop-in {
+    from {
+      opacity: 0;
+      transform: translateX(-50%) translateY(8px) scale(0.96);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0) scale(1);
+    }
+  }
+
+  .bb-dock__pop-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: var(--bb-radius-sm);
+    color: var(--bb-muted);
+    text-decoration: none;
+    font-family: var(--bb-font-body);
+    font-weight: 600;
+    font-size: 13px;
+    transition:
+      color var(--bb-dur-fast) ease,
+      background var(--bb-dur-fast) ease;
+  }
+
+  .bb-dock__pop-item:hover {
+    color: var(--bb-white);
+    background: rgba(201, 168, 124, 0.1);
+  }
+
+  .bb-dock__pop-item[data-active] {
+    color: var(--bb-tan-pale);
+    background: rgba(201, 168, 124, 0.14);
+  }
+
+  .bb-dock__pop-count {
+    margin-left: auto;
+    min-width: 18px;
+    padding: 1px 6px;
+    border-radius: var(--bb-radius-pill);
+    background: var(--bb-tan);
+    color: var(--bb-black);
+    font-size: 10.5px;
+    font-weight: 700;
+    text-align: center;
+  }
+
+  /* Phones: icons only, except the ACTIVE item, which keeps its label as an
+     expanding pill (the iOS tab-bar shape). Every destination stays one tap
+     away without crowding a 375px row. The label is `display: none`, never
+     removed, so the accessible name survives. */
+  @media (max-width: 760px) {
+    .bb-dock {
+      padding: 0 8px calc(8px + env(safe-area-inset-bottom, 0px));
+    }
+
+    /* Full-bleed veil behind the pill: fades the scrolling page out and paints
+       the canvas colour solid across the home-indicator strip, so nothing
+       shows through the gaps around the floating dock. */
+    .bb-dock::before {
+      content: "";
+      position: absolute;
+      inset: -22px 0 0;
+      background: linear-gradient(
+        to top,
+        var(--bb-black) 0%,
+        var(--bb-black) 46%,
+        rgba(10, 10, 10, 0.72) 72%,
+        transparent 100%
+      );
+      pointer-events: none;
+      z-index: -1;
+    }
+
+    .bb-dock__inner {
+      width: 100%;
+      justify-content: space-around;
+    }
+
+    .bb-dock-item {
+      min-width: 0;
+      flex: 1;
+      padding: 10px 6px 9px;
+    }
+
+    .bb-dock-item__label {
+      display: none;
+    }
+
+    .bb-dock-item[data-active] {
+      flex: 1.6;
+    }
+
+    .bb-dock-item[data-active] .bb-dock-item__label {
+      display: block;
+    }
+
+    .bb-dock__group {
+      flex: 1;
+    }
+
+    .bb-dock__group .bb-dock-item {
+      width: 100%;
+    }
+  }
+
+  /* ── Section nav ─────────────────────────────────────────────────────── */
+
+  /* In-page section navigation on the shared `.bb-tabs` rail. Real anchors,
+     not ARIA tabs: each one scrolls to and focuses a section, so native
+     semantics (open in a new tab, right-click, the "link" role) are kept.
+
+     Layout is a CONTAINER query, not a viewport hide. The version this
+     replaces set `display: none` below 980px and drove the current state with
+     a rAF scrollspy: a phone could not jump at all, and the highlight lied
+     after a search dropped sections. Same markup everywhere -- chips when the
+     host is wide, a hairline rail when the column is ~10rem. */
+  .bb-section-nav-host {
+    container-type: inline-size;
+    min-width: 0;
+  }
+
+  .bb-section-nav {
+    display: flex;
+    flex-wrap: wrap;
+    margin-bottom: 22px;
+  }
+
+  .bb-section-nav a {
+    /* `.bb-tab` is written for <button>; anchors need the box explicitly. */
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    /* 44px tap target: this rail is the primary in-page jump on a phone. */
+    min-height: 44px;
+    text-decoration: none;
+  }
+
+  .bb-section-nav__count {
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    color: var(--bb-muted);
+  }
+
+  .bb-section-nav a.is-active .bb-section-nav__count {
+    color: inherit;
+  }
+
+  @container (max-width: 220px) {
+    .bb-section-nav {
+      flex-direction: column;
+      flex-wrap: nowrap;
+      gap: 2px;
+      margin-bottom: 0;
+      border-bottom: 0;
+      border-left: 1px solid var(--bb-border);
+      position: sticky;
+      top: var(--section-nav-sticky-top, calc(58px + env(safe-area-inset-top, 0px) + 68px));
+    }
+
+    .bb-section-nav a {
+      display: flex;
+      min-height: 0;
+      margin-bottom: 0;
+      padding: 8px 0 8px 14px;
+      border: none;
+      border-radius: 0;
+      background: transparent;
+      color: var(--bb-muted);
+      position: relative;
+    }
+
+    .bb-section-nav a::before {
+      content: "";
+      position: absolute;
+      left: -1px;
+      top: 20%;
+      bottom: 20%;
+      width: 1px;
+      background: var(--bb-tan);
+      transform: scaleY(0);
+      transition: transform var(--bb-dur-base) var(--bb-ease-out-expo);
+    }
+
+    .bb-section-nav a:hover {
+      color: var(--bb-tan-light);
+      background: transparent;
+      border-color: transparent;
+    }
+
+    .bb-section-nav a.is-active {
+      color: var(--bb-tan-light);
+      background: transparent;
+      padding-left: 18px;
+    }
+
+    .bb-section-nav a.is-active::before {
+      transform: scaleY(1);
+    }
+  }
+
+  /* ── Page head ───────────────────────────────────────────────────────── */
+
+  /* The console's answer to the marketing site's section heading: a quiet mono
+     green eyebrow, a display title with gentle tracking. No rules, no
+     ornaments. */
+  .bb-page-head {
+    margin-bottom: calc(30px * var(--d, 1));
+  }
+
+  /* Flex only WITH a trail, so a page without one keeps the exact block layout
+     (and margin collapse) it had before the slot existed. */
+  .bb-page-head--trailed {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 32px;
+    flex-wrap: wrap;
+  }
+
+  .bb-page-head__main {
+    min-width: 0;
+  }
+
+  .bb-page-head__trail {
+    flex: none;
+  }
+
+  .bb-page-head__eyebrow {
+    font-family: var(--bb-font-mono);
+    font-size: 0.72rem;
+    letter-spacing: var(--bb-tracking-eyebrow, 0.14em);
+    text-transform: uppercase;
+    color: var(--bb-green-glow);
+    display: block;
+    margin-bottom: 14px;
+  }
+
+  .bb-page-head h1 {
+    font-family: var(--bb-font-display);
+    font-weight: 800;
+    font-size: clamp(32px, 4vw, 48px);
+    line-height: 1.05;
+    letter-spacing: -0.01em;
+    color: var(--bb-white);
+    margin: 0;
+  }
+
+  .bb-page-head h1 em {
+    font-style: normal;
+    font-weight: 800;
+    color: var(--bb-tan-light);
+    font-family: var(--bb-font-display);
+  }
+
+  .bb-page-head__description {
+    font-family: var(--bb-font-body);
+    font-size: 14.5px;
+    line-height: 1.55;
+    color: var(--bb-muted);
+    margin: 12px 0 0;
+    max-width: 560px;
+  }
+
+  /* ── Toolbar ─────────────────────────────────────────────────────────── */
+
+  .bb-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+
+  .bb-toolbar__grow {
+    flex: 1;
+  }
+
+  @media (max-width: 600px) {
+    .bb-toolbar {
+      flex-wrap: wrap;
+    }
+  }
+
+  /* ── Scroller ────────────────────────────────────────────────────────── */
+
+  /* The thin tan bar itself is `.bb-scroll` in ui/styles/a11y.css. Only the
+     6px width is this element's: a panel bar inside a card has to read as
+     narrower than the page's. */
+  .bb-scroller {
+    --bb-scrollbar-size: 6px;
+
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .bb-scroller--fill {
+    flex: 1;
+    min-height: 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bb-rail__glide,
+    .bb-rail__chev svg,
+    .bb-rail__subs {
+      transition: none;
+    }
+
+    .bb-dock__inner,
+    .bb-dock__popover {
+      animation: none;
+    }
+
+    .bb-dock-item:hover {
+      transform: none;
+    }
+  }
+}

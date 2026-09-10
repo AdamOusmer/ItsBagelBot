@@ -10,8 +10,8 @@
   import { enhance } from '$app/forms';
   import { goto } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import PageHead from '@bagel/kit/components/PageHead.svelte';
-  import PageToolbar from '@bagel/kit/components/PageToolbar.svelte';
+  import PageHead from '@bagel/ui/svelte/PageHead.svelte';
+  import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
   import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
   import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
   import DeckList from '@bagel/kit/components/DeckList.svelte';

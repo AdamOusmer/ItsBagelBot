@@ -208,6 +208,123 @@ const ENTRIES: {
     source: `import { createSmoothScroll, getSmoothScroll } from "../../lib/lenis";
              globalThis.x = [createSmoothScroll, getSmoothScroll];`,
   },
+  {
+    // The mobile nav panel's choreography: three concurrent tweens, the SVG
+    // curve, the stagger, plus the brand mark's scroll-to-top. The biggest
+    // single engine in the package after the cursor, and the row that proves
+    // the `motion` dependency did not have to come with it: 1901 B here
+    // against ~30 KB for the smallest `motion` entry exporting `animate` and
+    // `cubicBezier`, which is what the component this replaces imported.
+    //
+    // `lenis` is external for the same reason as the row below it -- the
+    // engine reads the running scroller through lib/lenis to scroll home, and
+    // bundling the vendor library would drown the 300 B of wiring that can
+    // actually grow by accident.
+    //
+    // Initial measurement 2026-09-09 (macOS/arm64): 1901 B gzip, with tween
+    // (656 B), raf-loop and motion-query charged in full by the synthetic
+    // single-entry consumer. Budget 2300: 1901 + 150 B for CI's linux/x64
+    // gzip delta = 2051, +10% -> 2256, rounded.
+    name: "nav-menu",
+    budget: 2300,
+    external: ["lenis"],
+    source: `import { mountTopDownMenu, mountHomeLogo } from "../../lib/nav-menu";
+             globalThis.x = [mountTopDownMenu, mountHomeLogo];`,
+  },
+  {
+    // One driven number on a cubic-bezier, on the shared scheduler. Budgeted
+    // tightly BECAUSE it is the obvious place to bolt on the next thing an
+    // animation wants: springs, keyframes, a timeline, an interpolator for
+    // colours. Every one of those belongs to the engine that needs it, and
+    // this row is what says so.
+    //
+    // Initial measurement 2026-09-09 (macOS/arm64): 656 B gzip, of which
+    // ~345 B is raf-loop bundled in -- the tween's own code, including the
+    // Newton-Raphson solve, is ~310 B. Budget 950: 656 + 150 = 806, +10% ->
+    // 887, rounded.
+    name: "tween",
+    budget: 950,
+    external: [],
+    source: `import { tween, bezier } from "../../lib/tween";
+             globalThis.x = [tween, bezier];`,
+  },
+  {
+    // The rail's measured highlight: read two offsets, write two custom
+    // properties, re-measure under a ResizeObserver. It should never move
+    // again; if it does, what arrived is almost certainly per-row logic that
+    // belongs in the CSS contract.
+    //
+    // Initial measurement 2026-09-09 (macOS/arm64): 329 B gzip, importing
+    // nothing at all. Budget 560: 329 + 150 = 479, +10% -> 527, rounded.
+    name: "rail-glide",
+    budget: 560,
+    external: [],
+    source: `import { mountGlide } from "../../lib/rail-glide";
+             globalThis.x = mountGlide;`,
+  },
+  {
+    // One shared interval for every clock on the page. Tiny, and budgeted
+    // precisely because the temptation here is a formatter cache or a
+    // timezone map, neither of which is this element's business.
+    //
+    // Initial measurement 2026-09-09 (macOS/arm64): 254 B gzip. Budget 480:
+    // 254 + 150 = 404, +10% -> 444, rounded.
+    name: "clock",
+    budget: 480,
+    external: [],
+    source: `import { mountClock } from "../../lib/clock";
+             globalThis.x = mountClock;`,
+  },
+  {
+    // The dock's folding arithmetic: six pure functions, no DOM. The row is
+    // here rather than folded into the adapter's cost because these are the
+    // functions a static surface calls at BUILD time and ships nothing for --
+    // if this row starts growing, the arithmetic has acquired state.
+    //
+    // Initial measurement 2026-09-09 (macOS/arm64): 428 B gzip. Budget 700:
+    // 428 + 150 = 578, +10% -> 636, rounded up.
+    name: "dock-groups",
+    budget: 700,
+    external: [],
+    source: `import * as dock from "../../lib/dock-groups";
+             globalThis.x = dock;`,
+  },
+  {
+    // A hashchange listener and a class toggle. The whole point of this
+    // module is that it is NOT a scrollspy, and a scrollspy is what would
+    // make this row jump: an IntersectionObserver, a threshold table and a
+    // "which section wins" tiebreak.
+    //
+    // Initial measurement 2026-09-09 (macOS/arm64): 255 B gzip. Budget 480:
+    // 255 + 150 = 405, +10% -> 446, rounded.
+    name: "hash-active",
+    budget: 480,
+    external: [],
+    source: `import { mountHashActive } from "../../lib/hash-active";
+             globalThis.x = mountHashActive;`,
+  },
+  {
+    // The generated icon set: 33 glyph bodies as string constants. The
+    // largest module in lib/ by bytes, and the one whose growth is a design
+    // decision rather than an engineering one -- every name added here is
+    // paid for by every surface that imports the map.
+    //
+    // It is measured with the whole map reachable (`globalThis.x = icons`),
+    // which is the worst case and not the common one: a surface that names
+    // its glyphs statically lets the bundler drop the rest. The row exists to
+    // keep the worst case visible.
+    //
+    // Initial measurement 2026-09-09 (macOS/arm64): 2640 B gzip for 33
+    // icons, replacing two generated files (26 + 9 names, one `x` in common
+    // under two different glyphs) that shipped separately to the console and
+    // the marketing site. Budget 3200: 2640 + 150 = 2790, +10% -> 3069,
+    // rounded.
+    name: "icons",
+    budget: 3200,
+    external: [],
+    source: `import { icons } from "../../lib/icons";
+             globalThis.x = icons;`,
+  },
 ];
 
 /* The CSS contracts. Measured directly rather than through a synthetic
@@ -271,7 +388,40 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   // would hide a move of bytes from one to the other.
   // Measured 2026-09-09 (macOS/arm64): 1170 B gzip. 1170 + 150 = 1320, +10%.
   { name: "elements/card", budget: 1460 },
-
+  // The icon element: two declarations. It is a row rather than nothing
+  // because "the icon needs one more rule" is how a 400-byte utility grows out
+  // of a 60-byte contract. Measured 2026-09-09: 83 B gzip. 83 + 150 = 233,
+  // +10% -> 256, rounded.
+  { name: "elements/icon", budget: 280 },
+  // The call sign, replacing four hand-written copies (rail 30px, strip 26px,
+  // marketing bar 26px, footer 55px). Measured 2026-09-09: 592 B gzip.
+  // 592 + 150 = 742, +10% -> 816, rounded.
+  { name: "elements/brand-mark", budget: 900 },
+  // The site nav family: bar, hamburger, mobile panel, social rail, locale
+  // switch, nav group. Six blocks in one file because they are one surface;
+  // it replaces ~600 lines of scoped styles across five components.
+  // Measured 2026-09-09: 1943 B gzip. 1943 + 150 = 2093, +10% -> 2302.
+  //
+  // RE-MEASURED 2026-09-10 at 2047 B on the rebased stack, 353 B of room left.
+  // nav.css is byte-identical to the 1943 measurement (diffed against the
+  // pre-rebase blob), so the 104 B is the gate's own floor moving under a
+  // different Bun minifier, not this contract growing. Recorded rather than
+  // left silent because the next reader will run this and get 2047, not 1943.
+  // The same run moved nav-menu 1901 -> 1900, tween 656 -> 655, clock
+  // 254 -> 253 and dock-groups 428 -> 426; those are inside the noise and do
+  // not each get a paragraph of their own. Budget unchanged: 2302 was the
+  // arithmetic and 2400 the rounding, and 2047 is under both.
+  { name: "elements/nav", budget: 2400 },
+  // The sign-off. Measured 2026-09-09: 791 B gzip. 791 + 150 = 941,
+  // +10% -> 1035, rounded.
+  { name: "elements/footer", budget: 1100 },
+  // The application shell: rail, strip, dock, stage, section nav, page head,
+  // toolbar, scroller. The largest contract in the package, and deliberately
+  // one file -- see the note at the top of shell.css for why splitting it put
+  // the same three numbers in three places each. It replaces ~1100 lines of
+  // component-scoped CSS. Measured 2026-09-09: 3214 B gzip. 3214 + 150 =
+  // 3364, +10% -> 3700, rounded up.
+  { name: "elements/shell", budget: 3800 },
   /* The per-element contracts (styles/elements/*.css). Same arithmetic:
    * measured + ~150 B for CI's linux/x64 gzip delta, then ~10%, rounded.
    * All ten measured 2026-09-09 (macOS/arm64) at the move out of

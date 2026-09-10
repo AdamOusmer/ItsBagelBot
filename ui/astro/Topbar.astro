@@ -1,0 +1,48 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro adapter for `.bb-topbar`. Its Svelte twin is ../svelte/Topbar.svelte
+// and ../test/parity.test.ts diffs the two.
+//
+// Static: the clock element is rendered but no interval is started, so a guide
+// screenshot shows the strip with whatever time the caller wrote into the
+// `clockText` prop (or an empty readout) rather than a number that ticks while
+// someone reads the page around it.
+import '../styles/elements/shell.css';
+import Brand from './Brand.astro';
+import type { UiBrand, UiCrumb } from '../lib/nav-types';
+
+interface Props {
+  brand: UiBrand;
+  /** Ancestors first, current page last. The last one is not a link. */
+  crumbs?: UiCrumb[];
+  crumbAriaLabel?: string;
+  /** Render the clock readout. */
+  clock?: boolean;
+  /** Frozen time for a static screen. */
+  clockText?: string;
+  /** See the note in the twin: hides the chip where a rail owns the account. */
+  railed?: boolean;
+  class?: string;
+  [key: string]: unknown;
+}
+
+const {
+  brand,
+  crumbs = [],
+  crumbAriaLabel,
+  clock = true,
+  clockText = '',
+  railed = false,
+  class: className = '',
+  ...rest
+} = Astro.props;
+
+const classes = ['bb-topbar', className || null].filter(Boolean).join(' ');
+const hasAccount = Astro.slots.has('account');
+---
+
+<header class={classes} {...rest}><Brand title={brand.title} sub={brand.sub} href={brand.href} logoSrc={brand.logoSrc} logoAlt={brand.logoAlt} size="sm" premium={brand.premium} />{crumbs.length > 0 && <nav class="bb-topbar__crumb" aria-label={crumbAriaLabel}><ol>{crumbs.map((crumb, i) => (
+  <li data-here={i === crumbs.length - 1 ? '' : undefined}>{crumb.href ? <a href={crumb.href}>{crumb.label}</a> : <span aria-current="page">{crumb.label}</span>}</li>
+))}</ol></nav>}<div class="bb-topbar__grow"></div>{clock && <span class="bb-topbar__clock" aria-hidden="true" data-clock>{clockText}</span>}{hasAccount && <div class="bb-topbar__account" data-railed={railed ? '' : undefined}><slot name="account" /></div>}<slot name="actions" /></header>

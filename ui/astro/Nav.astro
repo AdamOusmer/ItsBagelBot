@@ -1,0 +1,117 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro adapter for `.bb-nav`. Its Svelte twin is ../svelte/Nav.svelte and
+// ../test/parity.test.ts diffs the two.
+//
+// The bar knows about links, a brand, a call to action and a set of locales.
+// It does not know whose links they are: the marketing site resolves them from
+// its i18n catalog, the docs header from Starlight's route data, and both hand
+// the same shape in. That is the whole reason the 430-line component this
+// replaces could not be shared -- five `t('nav.*')` calls and a `localizePath`
+// import made it the marketing site's, permanently.
+import '../styles/elements/nav.css';
+import Brand from './Brand.astro';
+import NavLink from './NavLink.astro';
+import Hamburger from './Hamburger.astro';
+import MobileMenu from './MobileMenu.astro';
+import LanguageSwitcher from './LanguageSwitcher.astro';
+import type { UiBrand, UiLocaleOption, UiNavLink } from '../lib/nav-types';
+
+interface Props {
+  brand: UiBrand;
+  links: UiNavLink[];
+  /** The one filled entry, in the bar and repeated in the panel. */
+  cta?: UiNavLink;
+  /** Omit entirely on a single-locale surface; the switch disappears. */
+  locales?: UiLocaleOption[];
+  localeLabel?: string;
+  ariaLabel: string;
+  /** Every string the hamburger and the panel need. No copy lives in ui. */
+  menuLabels: { open: string; close: string; panel: string };
+  /** Panel fine print. */
+  menuMeta?: string;
+  /** Panel id; the hamburger's aria-controls and the clip id derive from it. */
+  menuId?: string;
+  /** pill = the floating marketing bar, bar = a full-width docs header. */
+  variant?: 'pill' | 'bar';
+  /** The hamburger and its panel. Off for a host that already ships a mobile
+      menu of its own (Starlight does), where a second one is two hamburgers
+      side by side opening two different navigations. */
+  menu?: boolean;
+  class?: string;
+  [key: string]: unknown;
+}
+
+const {
+  brand,
+  links,
+  cta,
+  locales,
+  localeLabel = 'Language',
+  ariaLabel,
+  menuLabels,
+  menuMeta,
+  menuId = 'bb-mobile-menu',
+  variant = 'pill',
+  menu = true,
+  class: className = '',
+  ...rest
+} = Astro.props;
+
+const classes = ['bb-nav', className || null].filter(Boolean).join(' ');
+---
+
+<nav class={classes} aria-label={ariaLabel} data-variant={variant} {...rest}><div class="bb-nav__inner"><Brand class="bb-nav__brand" title={brand.title} sub={brand.sub} href={brand.href} logoSrc={brand.logoSrc} logoAlt={brand.logoAlt} size="sm" premium={brand.premium} data-home-logo /><ul class="bb-nav__links">{links.map((link) => (
+  <li><NavLink href={link.href} label={link.label} current={link.active} external={link.external} /></li>
+))}</ul><div class="bb-nav__actions">{locales && locales.length > 0 && <LanguageSwitcher options={locales} ariaLabel={localeLabel} />}{cta && <NavLink class="bb-nav__cta" variant="cta" href={cta.href} label={cta.label} external={cta.external} />}<slot name="actions" /></div>{menu && <Hamburger label={menuLabels.open} closeLabel={menuLabels.close} controls={menuId} />}</div></nav>{menu && <MobileMenu links={links} cta={cta} id={menuId} panelLabel={menuLabels.panel} meta={menuMeta}><slot name="mobileFooter" slot="footer" /></MobileMenu>}
+
+<script>
+  // bind.ts-shaped: wire on `astro:page-load` (a cold load AND a ClientRouter
+  // swap) behind a `data-ready` flag so a second pass over a node that survived
+  // the swap does not double-bind. Unlike bind.ts this tears down, because the
+  // engine holds tweens on the shared rAF loop plus seven listeners, two of
+  // them on `document` and `window`.
+  import { mountTopDownMenu, mountHomeLogo } from '../lib/nav-menu';
+
+  let disposers: (() => void)[] = [];
+
+  function unmount(): void {
+    for (const dispose of disposers) dispose();
+    disposers = [];
+  }
+
+  function mountMenu(): void {
+    const toggle = document.querySelector<HTMLElement>('[data-menu-toggle]');
+    const menu = document.querySelector<HTMLElement>('[data-mobile-menu]');
+    const curvePath = document.querySelector<SVGPathElement>('[data-menu-curve-path]');
+    if (!toggle || !menu || !curvePath || toggle.dataset.ready === '1') return;
+    toggle.dataset.ready = '1';
+
+    // The two labels the engine swaps on the hamburger come off the markup it
+    // was rendered with: the button already carries the closed label, and the
+    // open one rides on a data attribute rather than a second prop, so a
+    // surface that renders the button itself cannot forget one of the pair.
+    const open = toggle.getAttribute('aria-label') ?? '';
+    const close = toggle.dataset.labelClose ?? open;
+    disposers.push(mountTopDownMenu({ toggle, menu, curvePath }, { labels: { open, close } }));
+  }
+
+  function mountLogo(): void {
+    const logo = document.querySelector<HTMLAnchorElement>('[data-home-logo]');
+    if (!logo || logo.dataset.ready === '1') return;
+    logo.dataset.ready = '1';
+    disposers.push(mountHomeLogo(logo));
+  }
+
+  function mount(): void {
+    mountMenu();
+    mountLogo();
+  }
+
+  mount();
+  document.addEventListener('astro:page-load', mount);
+  document.addEventListener('astro:before-swap', unmount);
+  window.addEventListener('pagehide', unmount);
+</script>

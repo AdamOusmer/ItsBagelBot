@@ -1,12 +1,18 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // Quiet rail entry: icon + sentence-case label. Deliberately NOT the ledger
-  // row (NavItem): no index column, no mono uppercase. The active state is
-  // carried by the rail's single gliding highlight, so this row only changes
-  // colour: two competing active treatments read as a rendering bug.
-  import Icon from './Icon.svelte';
-  import type { IconName } from '../lib/icons';
+
+  // Data wrapper around @bagel/ui's `.bb-rail-item`. Everything visible about
+  // the row -- the height, the icon size, the colour it takes when it is the
+  // current page -- is the library's; what is left here is the ONE string the
+  // element must never contain.
+  //
+  // `t('nav.lockedBroadcaster')` used to be called inside the component that
+  // drew the row. Resolving it here and handing the result down as `lockedHint`
+  // is what lets that element live in a library which cannot know the word
+  // "broadcaster", let alone which of this bot's pages are gated on being one.
+  import RailItem from '@bagel/ui/svelte/RailItem.svelte';
+  import type { IconName } from '@bagel/ui/lib/icons';
   import { getI18n } from '../lib/i18n/context';
 
   const { t } = getI18n();
@@ -28,36 +34,12 @@
   } = $props();
 </script>
 
-{#if locked}
-  <span class="rail-item locked">
-    {#if icon}<Icon name={icon} />{/if} <span class="lbl">{label}</span>
-    <Icon name="lock" size={13} />
-    <span class="sr-only">{t('nav.lockedBroadcaster')}</span>
-  </span>
-{:else}
-  <a class="rail-item {active ? 'active' : ''}" {href} aria-current={active ? 'page' : undefined}>
-    {#if icon}<Icon name={icon} />{/if} <span class="lbl">{label}</span>
-    {#if count !== undefined}<span class="count">{count}</span>{/if}
-  </a>
-{/if}
-
-<style>
-  .rail-item {
-    position: relative; z-index: 1;
-    display: flex; align-items: center; gap: 12px;
-    height: 40px; box-sizing: border-box; padding: 0 12px;
-    border-radius: var(--bb-radius-sm); text-decoration: none;
-    font-family: var(--bb-font-sans); font-weight: 500; font-size: 13.5px;
-    color: var(--bb-muted);
-    transition: color var(--bb-dur-fast) var(--bb-ease-out-expo);
-  }
-  .rail-item :global(svg) {
-    width: 17px; height: 17px; stroke: currentColor; fill: none;
-    stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0;
-  }
-  .lbl { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .count { font-family: var(--bb-font-mono); font-size: 11px; color: var(--bb-tan); }
-  .rail-item:hover { color: var(--bb-white); }
-  .rail-item.active { color: var(--bb-tan-pale); }
-  .rail-item.locked { opacity: 0.45; cursor: not-allowed; }
-</style>
+<RailItem
+  {href}
+  {icon}
+  {label}
+  {active}
+  {locked}
+  lockedHint={locked ? t('nav.lockedBroadcaster') : undefined}
+  {count}
+/>

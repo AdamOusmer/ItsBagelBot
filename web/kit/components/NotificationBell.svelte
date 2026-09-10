@@ -7,7 +7,7 @@
   // wiring onMarkRead to its own form action (mark-read semantics differ
   // between the dashboard, which tracks per-user read state, and admin,
   // which has none and passes no onMarkRead at all).
-  import Icon from './Icon.svelte';
+  import Icon from '@bagel/ui/svelte/Icon.svelte';
 
   export interface BellNotification {
     id: number;

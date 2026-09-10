@@ -1,19 +1,22 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // Call-sign strip: with the sidebar gone this is the only chrome above the
-  // content: station mark, route readout, wall clock, and the signed-in
-  // operator. One thin ruled line, everything else is page.
+
+  // Data wrapper around @bagel/ui's `.bb-topbar`. The strip -- the glass pill,
+  // the breadcrumb, the wall clock -- is the library's. Two things stay here
+  // and neither could go: the crumb labels and aria strings come from this
+  // app's i18n catalog, and the operator chip is a session, an avatar engine
+  // and a POST /auth/logout form (./OperatorMenu.svelte).
+  //
+  // The notification-bell fallback that used to render when no `actions`
+  // snippet was given is gone with the move. It was a dead button that opened
+  // nothing, on every page of the admin board.
   import type { Snippet } from 'svelte';
-  import { afterNavigate } from '$app/navigation';
-  import Icon from './Icon.svelte';
-  import Scroller from './Scroller.svelte';
-  import Bolota from './Bolota.svelte';
+  import Topbar from '@bagel/ui/svelte/Topbar.svelte';
+  import OperatorMenu from './OperatorMenu.svelte';
   import type { DashboardLink } from '../lib/types';
   import { getI18n } from '../lib/i18n/context';
 
-  // Falls back to English when no i18n context is set (admin), so the label is
-  // correct in every app without prop-drilling it through AppShell.
   const { t } = getI18n();
 
   let {
@@ -39,301 +42,35 @@
     brandSub?: string;
     accountName?: string;
     accountRole?: string;
-    // Boards shared with this user; renders a scrollable quick-switch list in
-    // the account menu. Empty (e.g. admin, or a user with no grants) hides it.
     dashboards?: DashboardLink[];
     logoSrc?: string;
     isPremium?: boolean;
     isDelegate?: boolean;
     delegateExitHref?: string;
     delegateExitLabel?: string;
-    // The rail owns the account surface at desktop widths (its AccountFoot
-    // opens the switcher menu), so a railed app hides the operator chip there
-    // and keeps it only on phones, where the rail is off screen.
+    // The rail owns the account surface at desktop widths, so a railed app
+    // keeps the chip here only on phones, where the rail is off screen.
     railed?: boolean;
   } = $props();
-
-  // Account menu: the avatar chip opens a small dropdown holding Log out,
-  // sign-out lives here (not in the dock) so navigation stays uncrowded.
-  let menuOpen = $state(false);
-
-  // Drives the account chip's Bolota: waking it up on hover, independent of
-  // whether the menu is open.
-  let hovered = $state(false);
-
-  // The Topbar lives in the persistent layout, so a shared-dashboard link in
-  // the menu navigates without unmounting it, leaving the menu open. Close it
-  // on any completed navigation (covers back/forward too).
-  afterNavigate(() => (menuOpen = false));
-
-  // Local wall-clock readout: the strip's "master control" pulse.
-  let now = $state('');
-  $effect(() => {
-    const fmt = () => (now = new Date().toLocaleTimeString(undefined, { hour12: false }));
-    fmt();
-    const t = setInterval(fmt, 1000);
-    return () => clearInterval(t);
-  });
 </script>
 
-<svelte:window onkeydown={(e) => { if (e.key === 'Escape') menuOpen = false; }} />
-
-<header class="topbar">
-  <a class="station" href="/" class:station--premium={isPremium}>
-    <img src={logoSrc} alt="" />
-    <span class="station-id">
-      <b>{brandTitle}</b>
-      {#if brandSub}<i>{brandSub}</i>{/if}
-    </span>
-  </a>
-
-  <nav class="crumb" aria-label={t('common.breadcrumb')}>
-    <ol>
-      <li class="root"><a href="/">{root}</a></li>
-      <li class="here"><span aria-current="page">{crumb}</span></li>
-    </ol>
-  </nav>
-
-  <div class="grow"></div>
-
-  <span class="clock" aria-hidden="true">{now}</span>
-
-  {#if accountName}
-    <div class="operator-wrap" class:railed>
-      <button
-        class="operator"
-        class:open={menuOpen}
-        title="{accountName} · {accountRole}"
-        aria-label="{accountName} · {accountRole}"
-        aria-expanded={menuOpen}
-        aria-haspopup="menu"
-        onclick={() => (menuOpen = !menuOpen)}
-        onpointerenter={() => (hovered = true)}
-        onpointerleave={() => (hovered = false)}
-      >
-        <span class="avatar"><Bolota name={accountName} size={30} active={hovered || menuOpen} /></span>
-        <span class="op-id">
-          <b>{accountName}</b>
-          <i>{accountRole}</i>
-        </span>
-      </button>
-      {#if menuOpen}
-        <!-- Click-away scrim; Escape via the window handler below. -->
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div
-          class="op-scrim"
-          role="presentation"
-          onclick={() => (menuOpen = false)}
-          onkeydown={(e) => { if (e.key === 'Enter') menuOpen = false; }}
-        ></div>
-        <div class="op-menu" role="menu">
-          <div class="op-menu-head">
-            <span class="op-menu-avatar">
-              <Bolota name={accountName} size={72} active={menuOpen} />
-            </span>
-            <b>{accountName}</b>
-            <i>{accountRole}</i>
-          </div>
-          {#if dashboards.length}
-            <!-- Boards shared with this user; the Scroller caps the list so a
-                 long roster never runs the menu off-screen. Each row jumps into
-                 that owner's dashboard via the /delegate/enter link. -->
-            <div class="op-dash-group">
-              <div class="op-menu-section">{t('topbar.dashboards')}</div>
-              <Scroller maxHeight="208px" role="group" aria-label={t('topbar.dashboards')}>
-                <div class="op-dash-list">
-                  {#each dashboards as d (d.href)}
-                    <a class="op-dash" href={d.href} role="menuitem">
-                      <span class="dash-avatar"><Bolota name={d.name} size={26} active={menuOpen} gate /></span>
-                      <span class="dash-name">{d.name}</span>
-                    </a>
-                  {/each}
-                </div>
-              </Scroller>
-            </div>
-          {/if}
-          {#if isDelegate}
-            <div class="op-dash-group">
-              <a class="op-dash" href={delegateExitHref} role="menuitem">
-                <span class="dash-avatar"><Icon name="home" size={14} /></span>
-                <span class="dash-name">{delegateExitLabel}</span>
-              </a>
-            </div>
-          {/if}
-          <form method="POST" action="/auth/logout">
-            <button type="submit" class="op-menu-item" role="menuitem">
-              {t('topbar.logout')}
-            </button>
-          </form>
-        </div>
-      {/if}
-    </div>
-  {/if}
-
-  {#if actions}
-    {@render actions()}
-  {:else}
-    <button class="icon-btn" aria-label={t('topbar.notifications')}><Icon name="bell" size={16} /></button>
-  {/if}
-</header>
-
-<style>
-  /* Floating glass pill, matching the marketing site's nav: sticky with a
-     breathing gap instead of a full-bleed ruled strip. The sticky top offset
-     carries the notch inset so the pill never rides into the safe area. */
-  .topbar {
-    position: sticky; top: calc(10px + env(safe-area-inset-top, 0px)); z-index: 40;
-    display: flex; align-items: center; gap: 14px;
-    margin: calc(10px + env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) 0 max(12px, env(safe-area-inset-left, 0px));
-    padding: 7px 12px 7px 8px;
-    border: 1px solid var(--bb-border, rgba(201, 168, 124, 0.15));
-    border-radius: var(--bb-radius-pill);
-    background: rgba(10, 10, 10, 0.55);
-    backdrop-filter: blur(18px);
-  }
-  @media (min-width: 761px) {
-    .topbar { gap: 20px; margin-inline: var(--gutter); padding: 8px 14px 8px 10px; }
-  }
-
-  .station { display: flex; align-items: center; gap: 9px; text-decoration: none; flex: none; padding: 4px 12px 4px 4px; border-radius: var(--bb-radius-pill); border: none; background: transparent; transition: all var(--bb-dur-base) ease; }
-  .station img { width: 26px; height: 26px; border-radius: var(--bb-radius-sm); }
-  .station--premium img { border-radius: 50%; }
-  .station-id { display: flex; flex-direction: column; line-height: 1; }
-  .station-id b { font-family: var(--bb-font-display); font-weight: 800; font-size: 13.5px; letter-spacing: -0.01em; color: var(--bb-white); }
-  .station-id i { font-style: normal; font-family: var(--bb-font-display); font-weight: 700; font-size: 9.5px; letter-spacing: 0.04em; color: var(--bb-tan); margin-top: 3px; }
-
-  .crumb { font-family: var(--bb-font-body); font-weight: 500; font-size: 13px; color: var(--bb-muted); min-width: 0; }
-  .crumb ol { list-style: none; margin: 0; padding: 0; display: flex; align-items: center; gap: 8px; min-width: 0; }
-  .crumb li { display: flex; align-items: center; gap: 8px; min-width: 0; }
-  /* Separator is decorative pseudo-content, not a real text node, so AT never
-     reads a spurious "slash" between the crumbs. */
-  .crumb .here::before { content: "/"; opacity: 0.45; }
-  .crumb a { color: inherit; text-decoration: none; white-space: nowrap; transition: color var(--bb-dur-fast, 180ms) ease; }
-  .crumb a:hover { color: var(--bb-tan-pale); }
-  /* min-width:0 + hidden overflow lets the crumb be the one flexible piece of
-     the strip: a long page title ellipsizes instead of running under the
-     account chip on narrow screens. */
-  .crumb .here span { color: var(--bb-tan-light); white-space: nowrap; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-
-  .grow { flex: 1; }
-
-  .clock {
-    font-family: var(--bb-font-mono); font-size: 11px; letter-spacing: 0.12em;
-    color: var(--bb-muted); font-variant-numeric: tabular-nums;
-    display: none;
-  }
-
-  .operator-wrap { position: relative; display: flex; flex: none; }
-  .operator {
-    display: flex; align-items: center; gap: 9px;
-    background: none; border: none; padding: 3px; border-radius: var(--bb-radius-pill);
-    cursor: pointer;
-    transition: background var(--bb-dur-fast, 180ms) ease;
-  }
-  .operator:hover, .operator.open { background: rgba(201, 168, 124, 0.1); }
-  .avatar {
-    width: 30px; height: 30px; border-radius: 50%; flex: none;
-    background: linear-gradient(135deg, var(--bb-green-light), var(--bb-tan));
-    display: flex; align-items: center; justify-content: center;
-  }
-  .op-id { display: none; flex-direction: column; line-height: 1; text-align: left; }
-  .op-id b { font-family: var(--bb-font-body); font-weight: 600; font-size: 12px; color: var(--bb-white); max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .op-id i { font-style: normal; font-family: var(--bb-font-display); font-weight: 700; font-size: 10px; letter-spacing: 0.02em; color: var(--bb-tan); margin-top: 3px; }
-
-  .op-scrim { position: fixed; inset: 0; z-index: 89; }
-  .op-menu {
-    position: absolute;
-    top: calc(100% + 10px);
-    right: 0;
-    z-index: 90;
-    min-width: 260px;
-    padding: 8px;
-    background: var(--bb-card-bg, #111110);
-    border: 1px solid var(--bb-border-strong, rgba(201, 168, 124, 0.35));
-    border-radius: var(--bb-radius-md);
-    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
-    transform-origin: top right;
-    animation: menu-in 240ms var(--bb-ease-out-back, ease-out) both;
-  }
-  @keyframes menu-in {
-    from { opacity: 0; transform: translateY(-6px) scale(0.97); }
-    to { opacity: 1; transform: translateY(0) scale(1); }
-  }
-  /* Centrepiece of the menu: a big Bolota on its own plate, name and role
-     stacked below it, everything centred. */
-  .op-menu-head {
-    display: flex; flex-direction: column; align-items: center; gap: 6px;
-    padding: 14px 10px 16px; border-bottom: 1px solid var(--bb-border); margin-bottom: 6px;
-    text-align: center;
-  }
-  .op-menu-avatar {
-    width: 84px; height: 84px; border-radius: 50%; flex: none;
-    background: linear-gradient(135deg, var(--bb-green-light), var(--bb-tan));
-    display: flex; align-items: center; justify-content: center;
-  }
-  .op-menu-head b { font-family: var(--bb-font-body); font-weight: 600; font-size: 14px; color: var(--bb-white); }
-  .op-menu-head i { font-style: normal; font-family: var(--bb-font-display); font-weight: 700; font-size: 10px; color: var(--bb-tan); }
-
-  .op-menu-section {
-    padding: 2px 10px 4px;
-    font-family: var(--bb-font-mono); font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase;
-    color: var(--bb-tan);
-  }
-  /* Ruled off from Log out below; the Scroller inside caps the height (~4.5 rows)
-     so a long roster never pushes Log out off-screen. */
-  .op-dash-group { margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid var(--bb-border); }
-  .op-dash-list { display: flex; flex-direction: column; gap: 2px; }
-  .op-dash {
-    display: flex; align-items: center; gap: 10px; width: 100%;
-    padding: 7px 10px; border-radius: var(--bb-radius-sm);
-    text-decoration: none; cursor: pointer;
-    transition: background var(--bb-dur-fast, 180ms) ease;
-  }
-  .op-dash:hover { background: rgba(201, 168, 124, 0.1); }
-  /* Same gradient plate as the account badge, scaled down. */
-  .dash-avatar {
-    width: 26px; height: 26px; border-radius: 50%; flex: none;
-    background: linear-gradient(135deg, var(--bb-green-light), var(--bb-tan));
-    display: flex; align-items: center; justify-content: center;
-  }
-  .dash-name {
-    font-family: var(--bb-font-body); font-weight: 600; font-size: 13px; color: var(--bb-muted);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
-  }
-  .op-dash:hover .dash-name { color: var(--bb-white); }
-
-  .op-menu form { display: flex; }
-  .op-menu-item {
-    display: flex; align-items: center; gap: 10px; width: 100%;
-    padding: 10px 10px; border-radius: var(--bb-radius-sm);
-    background: none; border: none; cursor: pointer; text-decoration: none;
-    font-family: var(--bb-font-body); font-weight: 600; font-size: 13px; color: var(--bb-muted);
-    transition: color var(--bb-dur-fast, 180ms) ease, background var(--bb-dur-fast, 180ms) ease;
-  }
-  .op-menu-item :global(svg) { stroke: currentColor; fill: none; }
-  .op-menu-item:hover { color: var(--bb-white); background: rgba(201, 168, 124, 0.1); }
-
-  @media (min-width: 761px) {
-    .clock { display: inline; }
-    .op-id { display: flex; }
-    /* Rail visible → its AccountFoot is the account surface; drop the chip.
-       Same breakpoint as the rail's own display: flex. */
-    .operator-wrap.railed { display: none; }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .op-menu { animation: none; }
-  }
-  /* On phones the crumb goes entirely: after the brand mark, avatar and bell
-     the pill leaves it ~30px (measured at 375px), which ellipsized every page
-     name down to two letters. The page eyebrow and the dock's active item
-     already carry the location there. */
-  @media (max-width: 480px) {
-    .crumb { display: none; }
-  }
-
-  .icon-btn { width: 34px; height: 34px; border-radius: var(--bb-radius-sm); display: flex; align-items: center; justify-content: center;
-    background: none; border: 1px solid var(--rule, rgba(240, 236, 228, 0.1)); color: var(--bb-tan-light); cursor: pointer;
-    transition: all var(--bb-dur-base) var(--bb-ease-out-expo); flex: none; }
-  .icon-btn :global(svg) { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.7; }
-  .icon-btn:hover { border-color: var(--rule-tan, rgba(201, 168, 124, 0.45)); color: var(--bb-tan-pale); }
-</style>
+<Topbar
+  brand={{ title: brandTitle, sub: brandSub, href: '/', logoSrc, logoAlt: '', premium: isPremium }}
+  crumbs={[{ label: root, href: '/' }, { label: crumb }]}
+  crumbAriaLabel={t('common.breadcrumb')}
+  {railed}
+  {actions}
+>
+  {#snippet account()}
+    {#if accountName}
+      <OperatorMenu
+        {accountName}
+        {accountRole}
+        {dashboards}
+        {isDelegate}
+        {delegateExitHref}
+        {delegateExitLabel}
+      />
+    {/if}
+  {/snippet}
+</Topbar>

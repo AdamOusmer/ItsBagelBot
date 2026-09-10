@@ -8,8 +8,8 @@
   import { afterNavigate } from '$app/navigation';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import Bolota from './Bolota.svelte';
-  import Icon from './Icon.svelte';
-  import Scroller from './Scroller.svelte';
+  import Icon from '@bagel/ui/svelte/Icon.svelte';
+  import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import type { DashboardLink } from '../lib/types';
   import { getI18n } from '../lib/i18n/context';
 

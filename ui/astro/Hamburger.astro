@@ -1,0 +1,43 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro adapter for `.bb-hamburger`. Its Svelte twin is
+// ../svelte/Hamburger.svelte and ../test/parity.test.ts diffs the two, so the
+// attribute order here matches that file.
+import '../styles/elements/nav.css';
+
+interface Props {
+  /** aria-label in the closed state. The engine swaps it on open. */
+  label: string;
+  /** aria-label while open. Rides on the element rather than reaching the
+      engine as a second prop, so a surface that renders this button itself
+      cannot supply one half of the pair. */
+  closeLabel?: string;
+  /** id of the panel this opens. */
+  controls?: string;
+  class?: string;
+  [key: string]: unknown;
+}
+
+const {
+  label,
+  closeLabel,
+  controls = 'bb-mobile-menu',
+  class: className = '',
+  ...rest
+} = Astro.props;
+
+const classes = ['bb-hamburger', className || null].filter(Boolean).join(' ');
+---
+
+<button
+  class={classes}
+  type="button"
+  data-menu-toggle
+  aria-label={label}
+  aria-expanded="false"
+  aria-controls={controls}
+  data-label-close={closeLabel}
+  {...rest}
+><span class="bb-hamburger__bar"></span><span class="bb-hamburger__bar"></span><span class="bb-hamburger__bar"></span></button>
