@@ -63,7 +63,7 @@ const strings: GuideStrings = {
     'create.b4.labels.insertVariable': 'Insérer une variable',
     'create.b4.labels.newSource': '+ Nouvelle source',
     'create.b4.labels.popoverTitle': 'Définitions enregistrées',
-    'create.b4.labels.responseHtml': 'Il fait <span class="df-var">&#123;urlfetch:weather&#125;</span>°C à Montréal en ce moment. Demandez à <span class="df-var">&#123;user&#125;</span> s’il veut un manteau.',
+    'create.b4.labels.responseHtml': 'Il fait <span class="gs-var">&#123;urlfetch:weather&#125;</span>°C à Montréal en ce moment. Demandez à <span class="gs-var">&#123;user&#125;</span> s’il veut un manteau.',
     'create.b4.labels.row2Path': 'Texte brut',
     'create.b4.notes.0.text': 'La puce Source de données se trouve avec les pastilles de jetons sous Réponse, à côté de Compteur.',
     'create.b4.notes.1.text': 'Chaque ligne montre le chemin enregistré sur la source, ou «Texte brut» quand elle affiche toute la réponse.',

@@ -3,17 +3,28 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 /**
- * The Modules page as the dashboard draws it: sticky topbar, one centered
- * column, the search box, the Categories rail in its real order, and tiles
- * from three categories. It shows the three tile shapes a newcomer trips on:
- * an ordinary tile with a switch, a beta tile locked to Premium, and a tile
- * that is always on and so carries no switch at all.
+ * The Modules page as the dashboard draws it TODAY: the search box, the
+ * category rail, and one card per category holding a row per module. It shows
+ * the three row shapes a newcomer trips on: an ordinary row with a switch, a
+ * beta row locked to Premium, and a row that is always on and so carries no
+ * switch at all.
+ *
+ * The component name is the one reserved in lib/guides/types.ts and named by
+ * two guides' content files; it kept its name when the page stopped being a
+ * grid of tiles so no other file has to change.
  *
  * Module names and their one-line descriptions stay English in every locale
  * because that is what the dashboard itself shows. The six markers are
  * labels: pass an empty string for one and it disappears, so a guide that
  * annotates only two of them does not leave four numbers unexplained.
  */
+import Badge from '@bagel/ui/astro/Badge.astro';
+import DeckList from '@bagel/ui/astro/DeckList.astro';
+import ManagementRow from '@bagel/ui/astro/ManagementRow.astro';
+import SearchInput from '@bagel/ui/astro/SearchInput.astro';
+import Switch from '@bagel/ui/astro/Switch.astro';
+import ScreenChrome from '../ScreenChrome.astro';
+
 interface Props {
     labels?: Record<string, string>;
 }
@@ -24,7 +35,7 @@ const L = {
     crumbPage: 'Modules',
     account: 'streamer · Broadcaster',
     eyebrow: 'Manage',
-    titleHtml: 'Channel <i>modules</i>',
+    titleHtml: 'Channel <em>modules</em>',
     sub: 'Find a feature by name, by what it does, or by a chat command. 3 of 24 on.',
     searchPlaceholder: 'Search name, command, or what it does…',
     railTitle: 'Categories',
@@ -36,94 +47,157 @@ const L = {
     rail6: 'Gear',
     rail7: 'Stats',
     cat1: 'Moderation',
+    cat1Hint: 'Everything that reads chat before your mods have to.',
     cat2: 'Chat',
+    cat2Hint: 'What the bot says, and what makes it say it.',
     cat3: 'Points',
-    tile1Name: 'AutoMod',
-    tile1Cat: 'Moderation',
-    tile1Desc: 'Catch scams, IP-grabbers and raid spam before your mods do.',
-    tile1Beta: 'Beta · Premium',
-    tile2Name: 'Trigger Words',
-    tile2Cat: 'Chat',
-    tile2Desc: 'Auto-reply when a word shows up in chat, no "!" needed.',
-    tile3Name: 'Quotes',
-    tile3Cat: 'Chat',
-    tile3Desc: 'Save the best things said on stream and replay them in chat.',
-    tile4Name: 'Loyalty Points',
-    tile4Cat: 'Points',
-    tile4Desc: 'Viewers earn channel currency for subs, cheers and watch time.',
-    tile5Name: 'Counters',
-    tile5Cat: 'Points',
-    tile5Desc: 'Track wins, deaths, hugs, redeems, anything your chat can count.',
-    tile5State: 'Always on',
-    configure: 'Configure',
+    cat3Hint: 'Channel currency, counters and what viewers spend them on.',
+    row1Name: 'AutoMod',
+    row1Desc: 'Catch scams, IP-grabbers and raid spam before your mods do.',
+    row1Beta: 'Beta · Premium',
+    row2Name: 'Trigger Words',
+    row2Desc: 'Auto-reply when a word shows up in chat, no "!" needed.',
+    row2Cmds: '!triggers',
+    row3Name: 'Quotes',
+    row3Desc: 'Save the best things said on stream and replay them in chat.',
+    row3Cmds: '!quote, !addquote',
+    row4Name: 'Loyalty Points',
+    row4Desc: 'Viewers earn channel currency for subs, cheers and watch time.',
+    row4Cmds: '!points, !leaderboard',
+    row5Name: 'Counters',
+    row5Desc: 'Track wins, deaths, hugs, redeems, anything your chat can count.',
+    row5Cmds: '!counter',
+    row5State: 'Always on',
+    statusOn: 'On',
+    beta: 'Beta',
     dot1: '1',
     dot2: '2',
     dot3: '3',
     dot4: '4',
     dot5: '5',
     dot6: '6',
-    dockOverview: 'Overview',
-    dockCommands: 'Commands',
-    dockModules: 'Modules',
-    dockBilling: 'Billing',
-    dockSettings: 'Settings',
+    navLabel: 'Manage',
+    navOverview: 'Overview',
+    navCommands: 'Commands',
+    navModules: 'Modules',
+    navDiscord: 'Discord',
+    navBilling: 'Billing',
+    navSettings: 'Settings',
     ...labels,
 };
+
+const nav = {
+    overview: L.navOverview,
+    commands: L.navCommands,
+    modules: L.navModules,
+    discord: L.navDiscord,
+    billing: L.navBilling,
+    settings: L.navSettings,
+};
+
+const categories: { label: string; count: string }[] = [
+    { label: L.rail1, count: '3' },
+    { label: L.rail2, count: '5' },
+    { label: L.rail3, count: '4' },
+    { label: L.rail4, count: '4' },
+    { label: L.rail5, count: '3' },
+    { label: L.rail6, count: '2' },
+    { label: L.rail7, count: '3' },
+];
 ---
 
-<div class="df-main">
-    <div class="df-topbar"><span class="df-brand">ItsBagelBot <small>{L.console}</small></span><span class="df-crumb">ItsBagelBot / <b>{L.crumbPage}</b></span><span class="df-account">{L.account}</span></div>
-    <span class="df-eyebrow">{L.eyebrow}</span>
-    <p class="df-title" set:html={L.titleHtml}></p>
-    <p class="df-sub">{L.sub}</p>
-    <div class="df-search" style="max-width:260px;">{L.searchPlaceholder}</div>
-    <div class="df-cols df-cols--rail">
-        <div class="df-rail" style="position:relative;">
-            <b>{L.railTitle}</b>
-            <span class="is-active">{L.rail1}</span><span>{L.rail2}</span><span>{L.rail3}</span><span>{L.rail4}</span><span>{L.rail5}</span><span>{L.rail6}</span><span>{L.rail7}</span>
-            {L.dot1 && <i class="df-mark" data-note={L.dot1}></i>}
+<ScreenChrome
+    console={L.console}
+    crumb={L.crumbPage}
+    account={L.account}
+    navLabel={L.navLabel}
+    nav={nav}
+    active="modules"
+    eyebrow={L.eyebrow}
+    titleHtml={L.titleHtml}
+    description={L.sub}
+>
+    <div class="gs-find"><SearchInput placeholder={L.searchPlaceholder} readonly /></div>
+    <div class="gs-index">
+        <div class="bb-section-nav-host">
+            <nav class="bb-section-nav" aria-label={L.railTitle}>
+                {categories.map((cat, i) => (
+                    <a class:list={['bb-tab', i === 0 && 'is-active']} href="#">
+                        {cat.label}<span class="bb-section-nav__count">{cat.count}</span>
+                    </a>
+                ))}
+            </nav>
+            {L.dot1 && <i class="gs-mark" data-note={L.dot1}></i>}
         </div>
-        <div style="display:grid; gap:10px; align-content:start;">
-            <span class="df-cat">{L.cat1}</span>
-            <div class="df-grid">
-                <div class="df-tile">
-                    <div class="df-tile-head"><span><b>{L.tile1Name}</b><small>{L.tile1Cat}</small></span></div>
-                    <small>{L.tile1Desc}</small>
-                    <div class="df-tile-foot"><span class="df-btn--configure">{L.configure}</span><span class="df-pill df-pill--tan">{L.tile1Beta}</span></div>
-                    {L.dot5 && <i class="df-mark" data-note={L.dot5}></i>}
-                </div>
+        <div class="gs-stack">
+            <div class="gs-family">
+                <header class="gs-family-head"><h2>{L.cat1}</h2><p>{L.cat1Hint}</p></header>
+                <DeckList>
+                    <ManagementRow>
+                        <span class="gs-copy">
+                            <span class="gs-name">{L.row1Name}<span class="bb-tag bb-tag--alpha">{L.beta}</span></span>
+                            <span class="gs-grow">{L.row1Desc}</span>
+                        </span>
+                        <Fragment slot="actions">
+                            <span class="bb-tag bb-tag--pre">{L.row1Beta}</span>
+                            {L.dot5 && <i class="gs-mark" data-note={L.dot5}></i>}
+                        </Fragment>
+                    </ManagementRow>
+                </DeckList>
             </div>
-            <span class="df-cat">{L.cat2}</span>
-            <div class="df-grid">
-                <div class="df-tile">
-                    <div class="df-tile-head"><span><b>{L.tile2Name}</b><small>{L.tile2Cat}</small></span></div>
-                    <small>{L.tile2Desc}</small>
-                    <div class="df-tile-foot"><span class="df-btn--configure">{L.configure}</span><span class="df-toggle"></span></div>
-                    {L.dot2 && <i class="df-mark" data-note={L.dot2}></i>}
-                </div>
-                <div class="df-tile">
-                    <div class="df-tile-head"><span><b>{L.tile3Name}</b><small>{L.tile3Cat}</small></span></div>
-                    <small>{L.tile3Desc}</small>
-                    <div class="df-tile-foot"><span class="df-btn--configure">{L.configure}</span><span class="df-toggle"></span></div>
-                </div>
+            <div class="gs-family">
+                <header class="gs-family-head"><h2>{L.cat2}</h2><p>{L.cat2Hint}</p></header>
+                <DeckList>
+                    <ManagementRow>
+                        <span class="gs-copy">
+                            <span class="gs-name">{L.row2Name}</span>
+                            <span class="gs-grow">{L.row2Desc}</span>
+                            <span class="gs-cmds"><span class="bb-tag bb-tag--bare">{L.row2Cmds}</span></span>
+                            {L.dot2 && <i class="gs-mark" data-note={L.dot2}></i>}
+                        </span>
+                        <Fragment slot="actions"><Switch label={L.row2Name} /></Fragment>
+                    </ManagementRow>
+                    <ManagementRow>
+                        <span class="gs-copy">
+                            <span class="gs-name">{L.row3Name}</span>
+                            <span class="gs-grow">{L.row3Desc}</span>
+                            <span class="gs-cmds"><span class="bb-tag bb-tag--bare">{L.row3Cmds}</span></span>
+                        </span>
+                        <Fragment slot="actions">
+                            <Switch label={L.row3Name} />
+                            {L.dot3 && <i class="gs-mark" data-note={L.dot3}></i>}
+                        </Fragment>
+                    </ManagementRow>
+                </DeckList>
             </div>
-            <span class="df-cat">{L.cat3}</span>
-            <div class="df-grid">
-                <div class="df-tile">
-                    <div class="df-tile-head"><span><b>{L.tile4Name}</b><small>{L.tile4Cat}</small></span></div>
-                    <small>{L.tile4Desc}</small>
-                    <div class="df-tile-foot"><span class="df-btn--configure">{L.configure}</span><span class="df-toggle is-on"></span></div>
-                    {L.dot3 && <i class="df-mark" data-note={L.dot3}></i>}
-                    {L.dot4 && <i class="df-mark" data-note={L.dot4}></i>}
-                </div>
-                <div class="df-tile">
-                    <div class="df-tile-head"><span><b>{L.tile5Name}</b><small>{L.tile5Cat}</small></span></div>
-                    <small>{L.tile5Desc}</small>
-                    <div class="df-tile-foot"><span class="df-btn--configure">{L.configure}</span><span class="df-pill df-pill--on">{L.tile5State}</span></div>
-                    {L.dot6 && <i class="df-mark" data-note={L.dot6}></i>}
-                </div>
+            <div class="gs-family">
+                <header class="gs-family-head"><h2>{L.cat3}</h2><p>{L.cat3Hint}</p></header>
+                <DeckList>
+                    <ManagementRow>
+                        <span class="gs-copy">
+                            <span class="gs-name">{L.row4Name}</span>
+                            <span class="gs-grow">{L.row4Desc}</span>
+                            <span class="gs-cmds"><span class="bb-tag bb-tag--bare">{L.row4Cmds}</span></span>
+                        </span>
+                        <Fragment slot="actions">
+                            <Badge tone="live" mark="solid">{L.statusOn}</Badge>
+                            <Switch checked label={L.row4Name} />
+                            {L.dot4 && <i class="gs-mark" data-note={L.dot4}></i>}
+                        </Fragment>
+                    </ManagementRow>
+                    <ManagementRow>
+                        <span class="gs-copy">
+                            <span class="gs-name">{L.row5Name}</span>
+                            <span class="gs-grow">{L.row5Desc}</span>
+                            <span class="gs-cmds"><span class="bb-tag bb-tag--bare">{L.row5Cmds}</span></span>
+                        </span>
+                        <Fragment slot="actions">
+                            <span class="bb-tag bb-tag--quiet">{L.row5State}</span>
+                            {L.dot6 && <i class="gs-mark" data-note={L.dot6}></i>}
+                        </Fragment>
+                    </ManagementRow>
+                </DeckList>
             </div>
         </div>
     </div>
-    <div class="df-dock"><span>{L.dockOverview}</span><span>{L.dockCommands}</span><span class="is-active">{L.dockModules}</span><span>{L.dockBilling}</span><span>{L.dockSettings}</span></div>
-</div>
+</ScreenChrome>

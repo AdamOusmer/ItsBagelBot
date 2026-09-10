@@ -69,15 +69,15 @@ const guide: GuideContent = {
     {
       id: 'tour',
       heading: 'Find your way around',
-      note: 'Six stops in the floating dock. You will spend most of your time in two of them.',
+      note: 'Six stops in the navigation rail. You will spend most of your time in two of them.',
       blocks: [
         {
           kind: 'prose',
           html: `
             <p>
-                The dashboard is one page at a time, and its whole navigation is the floating dock
-                at the bottom of the screen, the same on desktop and phone. <strong>Overview</strong>
-                is your landing page, <strong>Commands</strong> is where custom chat commands live, and
+                The dashboard is one page at a time, and its whole navigation is the six-item rail
+                down the left of the screen, which becomes a floating dock at the bottom on a phone.
+                <strong>Overview</strong> is your landing page, <strong>Commands</strong> is where custom chat commands live, and
                 <strong>Modules</strong> holds every bigger feature. <strong>Discord</strong> is its own
                 page for connecting a Discord server (premium beta). Billing and Settings do what they
                 say on the tin.
@@ -87,9 +87,9 @@ const guide: GuideContent = {
           kind: 'dash',
           screen: 'DashboardHome',
           path: '/',
-          caption: 'The Overview page. Navigation lives in the floating dock at the bottom.',
+          caption: 'The Overview page. Navigation lives in the rail on the left, and in a dock at the bottom on a phone.',
           notes: [
-            { n: 1, text: 'The dock is the whole navigation, on every screen size: Overview, Commands, Modules, Discord, Billing, Settings.' },
+            { n: 1, text: 'The rail is the whole navigation: Overview, Commands, Modules, Discord, Billing, Settings. On a phone the same six sit in a dock at the bottom.' },
             { n: 2, text: 'Bot status: whether ItsBagelBot is sitting in your chat right now, and the one button to fix it if not.' },
             { n: 3, text: 'Quick actions: the two things you will do most, one tap away.' },
             { n: 4, text: 'Your most-used commands live here too, one click from editing.' },
@@ -161,11 +161,11 @@ const guide: GuideContent = {
           kind: 'prose',
           html: `
             <p>
-                Head to <strong>Modules</strong>. Each tile is one feature with its own switch, and
-                clicking a tile opens its settings. Two are already working for you out of the box:
+                Head to <strong>Modules</strong>. Each row is one feature with its own switch, and
+                clicking a row opens its settings. Two are already working for you out of the box:
                 <strong>Chat Alerts</strong> (follows, subs, cheers, raids) and <strong>AutoMod</strong>
                 (the layered moderation you read about on the homepage; it runs quietly without a
-                tile on this grid). Two more never show a switch at all: <strong>Counters</strong> and
+                row in this list). Two more never show a switch at all: <strong>Counters</strong> and
                 <strong>Stream Management</strong> (the commands behind <code>!title</code>,
                 <code>!game</code> and <code>!marker</code>) are always on.
             </p>`,
@@ -174,11 +174,11 @@ const guide: GuideContent = {
           kind: 'dash',
           screen: 'ModulesGrid',
           path: '/modules',
-          caption: 'The Modules page: a category rail on the left, tiles with a Configure button and a switch.',
+          caption: 'The Modules page: a category rail on the left, one row per module, and a switch.',
           labels: { dot3: '', dot4: '', dot5: '', dot6: '' },
           notes: [
-            { n: 1, text: 'The Categories rail. Click a group and the grid scrolls to it.' },
-            { n: 2, text: 'A tile is one module: its name, its category, one line about it, Configure, and the switch. Chat Alerts starts on; most others wait for you.' },
+            { n: 1, text: 'The Categories rail. Click a group and the list scrolls to it.' },
+            { n: 2, text: 'A row is one module: its name, one line about it, the commands it brings, and the switch. Chat Alerts starts on; most others wait for you.' },
           ],
         },
         {

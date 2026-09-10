@@ -3,10 +3,24 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 /**
- * The Commands page with the editor docked beside the list: filter pills, two
- * command rows, and the "New command" panel open on the right.
+ * The Commands page with the editor docked beside the list: the toolbar's
+ * filter chips and search, two command rows, and the "New command" inspector
+ * open on the right. Same elements as the console: PageToolbar's `.bb-toolbar`,
+ * DeckList, ManagementRow, InspectorSurface, Field and EditorFooter.
  */
-import Icon from '@bagel/ui/astro/Icon.astro';
+import Button from '@bagel/ui/astro/Button.astro';
+import Chip from '@bagel/ui/astro/Chip.astro';
+import DeckList from '@bagel/ui/astro/DeckList.astro';
+import EditorFooter from '@bagel/ui/astro/EditorFooter.astro';
+import Field from '@bagel/ui/astro/Field.astro';
+import InspectorSurface from '@bagel/ui/astro/InspectorSurface.astro';
+import ManagementRow from '@bagel/ui/astro/ManagementRow.astro';
+import SearchInput from '@bagel/ui/astro/SearchInput.astro';
+import Switch from '@bagel/ui/astro/Switch.astro';
+import ChatRehearsal from '../ChatRehearsal.astro';
+import ScreenChrome from '../ScreenChrome.astro';
+import '@bagel/ui/styles/elements/shell.css';
+import '@bagel/ui/styles/elements/field.css';
 
 interface Props {
     labels?: Record<string, string>;
@@ -18,7 +32,7 @@ const L = {
     crumbPage: 'Commands',
     account: 'streamer · Broadcaster',
     eyebrow: 'Manage',
-    titleHtml: 'Chat <i>commands</i>',
+    titleHtml: 'Chat <em>commands</em>',
     filterAll: 'All',
     filterActive: 'Active',
     filterCustom: 'Custom',
@@ -42,45 +56,87 @@ const L = {
     botName: 'ItsBagelBot',
     cancel: 'Cancel',
     create: 'Create',
-    dockOverview: 'Overview',
-    dockCommands: 'Commands',
-    dockModules: 'Modules',
-    dockDiscord: 'Discord',
-    dockBilling: 'Billing',
-    dockSettings: 'Settings',
+    navLabel: 'Manage',
+    navOverview: 'Overview',
+    navCommands: 'Commands',
+    navModules: 'Modules',
+    navDiscord: 'Discord',
+    navBilling: 'Billing',
+    navSettings: 'Settings',
     ...labels,
+};
+
+const nav = {
+    overview: L.navOverview,
+    commands: L.navCommands,
+    modules: L.navModules,
+    discord: L.navDiscord,
+    billing: L.navBilling,
+    settings: L.navSettings,
 };
 ---
 
-<div class="df-main">
-    <div class="df-topbar"><span class="df-brand">ItsBagelBot <small>{L.console}</small></span><span class="df-crumb">ItsBagelBot / <b>{L.crumbPage}</b></span><span class="df-account">{L.account}</span></div>
-    <span class="df-eyebrow">{L.eyebrow}</span>
-    <p class="df-title" set:html={L.titleHtml}></p>
-    <div class="df-toolbar">
-        <span class="df-pill df-pill--tan">{L.filterAll}</span>
-        <span class="df-pill df-pill--off">{L.filterActive}</span>
-        <span class="df-pill df-pill--off">{L.filterCustom}</span>
-        <span class="df-spacer"></span>
-        <span class="df-search">{L.searchPlaceholder}</span>
-        <span class="df-btn df-btn--tan">{L.newCommand}</span>
-        <i class="df-mark" data-note="1"></i>
-    </div>
-    <div class="df-cols">
-        <div style="display:grid; gap:8px; align-content:start;">
-            <div class="df-row"><span class="df-num">01</span><code>{L.row1Name}</code><span class="df-pill df-pill--on">{L.builtIn}</span><span class="df-grow"></span><span class="df-meta">{L.row1Meta}</span><span class="df-toggle is-on"></span></div>
-            <div class="df-row is-open"><span class="df-num">02</span><code>{L.row2Name}</code><span class="df-grow">{L.row2Text}</span><span class="df-meta">{L.row2Meta}</span><span class="df-toggle is-on"></span></div>
+<ScreenChrome
+    console={L.console}
+    crumb={L.crumbPage}
+    account={L.account}
+    navLabel={L.navLabel}
+    nav={nav}
+    active="commands"
+    eyebrow={L.eyebrow}
+    titleHtml={L.titleHtml}
+>
+    <div class="bb-toolbar">
+        <div class="gs-actions">
+            <Chip on>{L.filterAll}</Chip>
+            <Chip tone="muted">{L.filterActive}</Chip>
+            <Chip tone="muted">{L.filterCustom}</Chip>
         </div>
-        <div class="df-panel">
-            <div class="df-panel-head">{L.panelHead} <i aria-label={L.close} role="img"><Icon name="x" size={12} /></i></div>
-            <div class="df-field"><span>{L.fieldName}</span><div class="df-input is-focus">{L.nameValue}<i class="df-mark" data-note="2"></i></div></div>
-            <div class="df-field"><span>{L.fieldResponse}</span><div class="df-input">{L.responseValue}<i class="df-mark" data-note="3"></i></div></div>
-            <div class="df-chat">
-                <span class="df-chat-tag">{L.chatTag}</span>
-                <p class="df-viewer"><b>{L.viewerName}</b><span>{L.viewerText}</span></p>
-                <p class="df-bot"><b>{L.botName}</b><span>{L.responseValue}</span></p>
+        <div class="bb-toolbar__grow"></div>
+        <SearchInput placeholder={L.searchPlaceholder} readonly />
+        <Button size="sm">{L.newCommand}</Button>
+        <i class="gs-mark" data-note="1"></i>
+    </div>
+    <div class="gs-cols">
+        <DeckList>
+            <ManagementRow>
+                <span class="gs-row">
+                    <span class="gs-num">01</span>
+                    <code>{L.row1Name}</code>
+                    <span class="bb-tag bb-tag--quiet">{L.builtIn}</span>
+                    <span class="gs-grow"></span>
+                    <span class="gs-meta">{L.row1Meta}</span>
+                </span>
+                <Fragment slot="actions"><Switch checked label={L.row1Name} /></Fragment>
+            </ManagementRow>
+            <ManagementRow selected>
+                <span class="gs-row">
+                    <span class="gs-num">02</span>
+                    <code>{L.row2Name}</code>
+                    <span class="gs-grow">{L.row2Text}</span>
+                    <span class="gs-meta">{L.row2Meta}</span>
+                </span>
+                <Fragment slot="actions"><Switch checked label={L.row2Name} /></Fragment>
+            </ManagementRow>
+        </DeckList>
+        <InspectorSurface title={L.panelHead} closeLabel={L.close}>
+            <Field label={L.fieldName}>
+                <span class="bb-input gs-value" data-focus>{L.nameValue}<i class="gs-mark" data-note="2"></i></span>
+            </Field>
+            <Field label={L.fieldResponse}>
+                <span class="bb-input gs-value">{L.responseValue}<i class="gs-mark" data-note="3"></i></span>
+            </Field>
+            <ChatRehearsal
+                tag={L.chatTag}
+                lines={[
+                    { who: 'viewer', name: L.viewerName, text: L.viewerText },
+                    { who: 'bot', name: L.botName, text: L.responseValue },
+                ]}
+            />
+            <div class="gs-foot">
+                <EditorFooter cancelLabel={L.cancel} saveLabel={L.create} dirty />
+                <i class="gs-mark" data-note="4"></i>
             </div>
-            <div class="df-panel-foot"><span class="df-btn df-btn--ghost">{L.cancel}</span><span class="df-btn df-btn--tan">{L.create}</span><i class="df-mark" data-note="4"></i></div>
-        </div>
+        </InspectorSurface>
     </div>
-    <div class="df-dock"><span>{L.dockOverview}</span><span class="is-active">{L.dockCommands}</span><span>{L.dockModules}</span><span>{L.dockDiscord}</span><span>{L.dockBilling}</span><span>{L.dockSettings}</span></div>
-</div>
+</ScreenChrome>

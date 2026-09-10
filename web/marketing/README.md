@@ -20,7 +20,7 @@ web/
 │   ├── lib/         # guides/ content model, slug list and parity check
 │   ├── pages/       # [...lang]/ routes: index, pricing, guides, changelog, builder, legal
 │   ├── script/      # client scripts
-│   └── styles/      # global styles + dashframe.css (the df-* mock library)
+│   └── styles/      # global styles + guide-screen.css (mock frame + annotations)
 └── tests/           # Playwright tests
 ```
 
@@ -75,11 +75,13 @@ block), or on an em dash anywhere in any language.
 
 Two conventions inside a section:
 
-- **Screens** (`src/components/guides/screens/`) are the hand-built dashboard
-  mocks a `dash` block renders. One component per distinct screen, built from
-  the `df-*` classes in `src/styles/dashframe.css`. Every visible string is a
-  `labels` key with the English text as the default, so a locale passes only
-  what differs and never edits the markup.
+- **Screens** (`src/components/guides/screens/`) are the dashboard mocks a
+  `dash` block renders. One component per distinct screen, built from the real
+  `@bagel/ui` elements the console renders, so a screen cannot describe a page
+  the console no longer has; `src/styles/guide-screen.css` holds only the
+  annotation anchor and the overrides that fit console chrome inside a figure.
+  Every visible string is a `labels` key with the English text as the default,
+  so a locale passes only what differs and never edits the markup.
 - **Widgets** (`src/components/guides/widgets/`) are blocks that do something in
   the browser: `Checklist` (first-hour tasks kept in `localStorage`),
   `Rehearsal` (expands the response tokens as you type), `PathPicker`,

@@ -6,8 +6,16 @@
  * The Counters page "new counter" panel: a name, the scope picker, and the
  * plain-language reminder of where a counter gets bumped from. Labels are the
  * console catalog's own strings (counters.* in web/kit/lib/i18n/locales).
+ *
+ * The scope picker is the `.bb-radio-group` contract with no <input> in it: on
+ * a still frame a real radio is a control that changes nothing, and the
+ * element's own `[data-on]` carries the picked state without one.
  */
-import Icon from '@bagel/ui/astro/Icon.astro';
+import EditorFooter from '@bagel/ui/astro/EditorFooter.astro';
+import Field from '@bagel/ui/astro/Field.astro';
+import InspectorSurface from '@bagel/ui/astro/InspectorSurface.astro';
+import '@bagel/ui/styles/elements/field.css';
+import '@bagel/ui/styles/elements/radio-group.css';
 
 interface Props {
     labels?: Record<string, string>;
@@ -20,7 +28,6 @@ const L = {
     fieldName: 'Name',
     nameValue: 'deaths',
     fieldCounts: 'Counts',
-    countsValue: 'One total for the channel',
     chip1: 'channel total',
     chip2: 'per user',
     chip3: 'per command',
@@ -30,20 +37,28 @@ const L = {
     create: 'Create counter',
     ...labels,
 };
+
+const scopes = [L.chip1, L.chip2, L.chip3, L.chip4];
 ---
 
-<div class="df-main" style="max-width:420px; margin:0 auto;">
-    <div class="df-panel">
-        <div class="df-panel-head">{L.panelHead} <i aria-label={L.close} role="img"><Icon name="x" size={12} /></i></div>
-        <div class="df-field"><span>{L.fieldName}</span><div class="df-input">{L.nameValue}<i class="df-mark" data-note="1"></i></div></div>
-        <div class="df-field">
-            <span>{L.fieldCounts}</span>
-            <div class="df-input">{L.countsValue}<i class="df-mark" data-note="2"></i></div>
+<div class="dframe__screen dframe__screen--panel">
+    <InspectorSurface title={L.panelHead} closeLabel={L.close}>
+        <Field label={L.fieldName}>
+            <span class="bb-input gs-value">{L.nameValue}<i class="gs-mark" data-note="1"></i></span>
+        </Field>
+        <Field label={L.fieldCounts}>
+            <span class="bb-radio-group" role="radiogroup" aria-label={L.fieldCounts}>
+                {scopes.map((scope, i) => (
+                    <span class="bb-radio" data-on={i === 0 ? '' : undefined}>
+                        <span class="bb-radio__dot" aria-hidden="true"></span>{scope}
+                    </span>
+                ))}
+                <i class="gs-mark" data-note="2"></i>
+            </span>
+        </Field>
+        <p class="gs-hint"><Fragment set:html={L.hint} /><i class="gs-mark" data-note="3"></i></p>
+        <div class="gs-foot">
+            <EditorFooter cancelLabel={L.cancel} saveLabel={L.create} dirty />
         </div>
-        <div class="df-chips"><i>{L.chip1}</i><i>{L.chip2}</i><i>{L.chip3}</i><i>{L.chip4}</i></div>
-        <p style="font-family:var(--font-body); font-size:0.66rem; color:var(--muted); margin:0;">
-            <Fragment set:html={L.hint} /><i class="df-mark" data-note="3"></i>
-        </p>
-        <div class="df-panel-foot"><span class="df-btn df-btn--ghost">{L.cancel}</span><span class="df-btn df-btn--tan">{L.create}</span></div>
-    </div>
+    </InspectorSurface>
 </div>

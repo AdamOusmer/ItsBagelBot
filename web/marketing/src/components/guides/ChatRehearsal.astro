@@ -1,0 +1,117 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+/**
+ * The chat rehearsal strip the command and module editors carry under a
+ * response: what the bot would say, with the sample values marked.
+ *
+ * Why this is drawn here rather than imported. The console's own
+ * (web/dashboard/src/lib/components/commands/ChatPreview.svelte) is a Svelte
+ * component with a live tokenizer, a typing animation and a generated avatar;
+ * it is behaviour, not a surface, so it has no @bagel/ui element to reuse and
+ * cannot render inside an Astro page. The three screens that show it need the
+ * still frame only, so they share this one, and its rules are a deliberate
+ * copy of that component's own -- kept to the box, the two speaker colours and
+ * the <mark>, which are the parts a reader recognises.
+ */
+export interface Line {
+    who: 'viewer' | 'bot' | 'system';
+    /** Omitted for a system line ("sesame_sam followed the channel"). */
+    name?: string;
+    /** Plain text. Use `html` for a line with marked sample values. */
+    text?: string;
+    html?: string;
+}
+
+interface Props {
+    /** The label notched into the box's top edge. */
+    tag: string;
+    lines: Line[];
+    /** Legend index of the note describing the rehearsal, if a guide has one. */
+    note?: string;
+}
+
+const { tag, lines, note } = Astro.props;
+---
+
+<div class="chat">
+    <span class="bb-tag bb-tag--bare chat-tag">{tag}</span>
+    {lines.map((line) => (
+        <p class:list={['line', line.who]}>
+            {line.name && <span class:list={['who', `${line.who}-name`]}>{line.name}</span>}
+            {line.html ? <span class="msg" set:html={line.html} /> : <span class="msg">{line.text}</span>}
+        </p>
+    ))}
+    {note && <i class="gs-mark" data-note={note}></i>}
+</div>
+
+<style>
+    .chat {
+        position: relative;
+        margin-top: 10px;
+        padding: 14px 14px 12px;
+        border: 1px solid var(--border, rgba(240, 236, 228, 0.1));
+        border-radius: var(--radius-md);
+        background: rgba(0, 0, 0, 0.3);
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    /* Bare .bb-tag: the box already draws the frame this label sits on, so the
+       label keeps only the notch (opaque background cutting the border). */
+    .chat-tag {
+        position: absolute;
+        top: -8px;
+        left: 10px;
+        font-size: 10px;
+        color: var(--green-glow, #52b788);
+        background: #0d0d0c;
+        padding: 0 6px;
+    }
+
+    .line {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        min-width: 0;
+        margin: 0;
+    }
+
+    .who {
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-weight: 700;
+        font-size: 12.5px;
+        flex: none;
+    }
+
+    .viewer-name { color: var(--tan-light, #e0c49a); }
+    .bot-name { color: var(--green-glow, #52b788); }
+    .viewer-name::after,
+    .bot-name::after { content: ":"; color: var(--muted, #888077); font-weight: 400; }
+
+    .msg {
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 13px;
+        line-height: 1.5;
+        color: var(--white, #f0ece4);
+        min-width: 0;
+        overflow-wrap: anywhere;
+    }
+
+    .line.viewer .msg {
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 12.5px;
+        color: var(--tan-light, #e0c49a);
+    }
+
+    .line.system .msg { color: var(--muted, #888077); font-style: italic; }
+
+    .msg :global(mark) {
+        background: rgba(82, 183, 136, 0.14);
+        color: var(--green-glow, #52b788);
+        border-radius: 4px;
+        padding: 0 3px;
+    }
+</style>

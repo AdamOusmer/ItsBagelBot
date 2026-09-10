@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 // Screen dispatcher: ScreenName -> component. A screen is a still mock of one
-// dashboard view, built from the df-* classes in src/styles/dashframe.css.
+// dashboard view, built from the @bagel/ui elements the console renders.
 // Resolved from the directory so adding a screen is one new file: the name in
 // ScreenName (types.ts) must equal the file's basename.
 //

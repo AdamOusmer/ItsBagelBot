@@ -1,0 +1,73 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+/**
+ * The still frame of the console's checkbox
+ * (web/dashboard/src/lib/components/CheckButton.svelte): the box, the tick and
+ * the label the command and reward editors use for "Active", "Only while live"
+ * and "Keep a counter".
+ *
+ * Like ChatRehearsal, it is drawn rather than imported: CheckButton is a live
+ * two-way-bound control with no @bagel/ui element behind it, and a mock must
+ * not render a checkbox that a reader can tick and that saves nothing. The
+ * markup here is a <span>, not a <label>, for exactly that reason.
+ */
+interface Props {
+    label: string;
+    checked?: boolean;
+    /** Legend index of the note describing this control, if a guide has one. */
+    note?: string;
+}
+
+const { label, checked = false, note } = Astro.props;
+---
+
+<span class="cb" data-on={checked ? '' : undefined}>
+    <span class="box" aria-hidden="true">
+        {checked && (
+            <svg viewBox="0 0 16 16" width="11" height="11">
+                <path
+                    d="M2 8.5l4 4 8-9"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.4"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                />
+            </svg>
+        )}
+    </span>
+    <span class="lbl">{label}</span>
+    {note && <i class="gs-mark" data-note={note}></i>}
+</span>
+
+<style>
+    .cb {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-size: 13.5px;
+        line-height: 1.4;
+        color: var(--white, #f0ece4);
+    }
+
+    .box {
+        flex: none;
+        width: 20px;
+        height: 20px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+        background: rgba(0, 0, 0, 0.22);
+        color: #0a0a0a;
+    }
+
+    .cb[data-on] .box {
+        background: var(--tan, #c9a87c);
+        border-color: var(--tan, #c9a87c);
+    }
+</style>

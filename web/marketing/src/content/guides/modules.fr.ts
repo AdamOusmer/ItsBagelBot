@@ -327,7 +327,7 @@ const strings: GuideStrings = {
             <h3>Discord</h3>
             <p>
                 Le même bot des deux côtés: annonces de direct, clips, accueils, tickets et salons
-                vocaux. Discord saute la grille des modules et ne dit rien dans le chat Twitch; il
+                vocaux. Discord saute la liste des modules et ne dit rien dans le chat Twitch; il
                 reçoit sa propre page dans le tableau de bord. Connectez un serveur que vous gérez
                 déjà, ou laissez le bot en construire un depuis le modèle. C'est premium pendant la
                 bêta, et ce que vous configurez pendant la bêta continue de fonctionner après.
@@ -338,65 +338,65 @@ const strings: GuideStrings = {
     'meta.card.chips.1': 'chat',
     'meta.card.chips.2': 'points',
     'meta.card.chips.3': 'stats',
-    'meta.card.description': "Les 24 tuiles de votre page Modules: ce que fait chacune, ce dont elle a besoin pour fonctionner, et les commandes de chat qu'elle apporte.",
+    'meta.card.description': "Les 24 modules de votre page Modules: ce que fait chacune, ce dont elle a besoin pour fonctionner, et les commandes de chat qu'elle apporte.",
     'meta.card.meta': '10 min · 7 sections',
     'meta.card.title': 'Modules',
-    'meta.description': "La page Modules d'ItsBagelBot expliquée: les sept catégories, les formes de tuiles, la configuration d'un module, les points et les jeux, les stats de jeu dans le chat, et les neuf commandes intégrées.",
+    'meta.description': "La page Modules d'ItsBagelBot expliquée: les sept catégories, les formes de lignes, la configuration d'un module, les points et les jeux, les stats de jeu dans le chat, et les neuf commandes intégrées.",
     'meta.eyebrow': 'Guide',
     'meta.heading': 'Modules',
-    'meta.lead': "Chaque fonction de votre chaîne est une tuile avec un interrupteur. Voici ce que fait chacune, ce qu'il faut préparer avant, et ce que veulent dire les tuiles bizarres.",
+    'meta.lead': "Chaque fonction de votre chaîne est une ligne avec un interrupteur. Voici ce que fait chacune, ce qu'il faut préparer avant, et ce que veulent dire les lignes bizarres.",
     'meta.minutes': '10 min de lecture',
     'meta.title': 'Modules - Guides ItsBagelBot',
     'page.b0.html': `
             <p>
                 Un module est une fonction du bot avec son propre interrupteur. La
                 <a href="https://dashboard.itsbagelbot.com/modules" target="_blank" rel="noopener noreferrer">page Modules</a>
-                les présente en tuiles, regroupées par le rail Catégories à gauche: Modération, Chat,
-                Chaîne, Points, Jouer, Matériel, Stats. La ligne sous le titre compte ce qui tourne,
+                les présente en lignes, une carte par catégorie, avec le rail Catégories à gauche:
+                Modération, Chat, Chaîne, Points, Jouer, Matériel, Stats. La ligne sous le titre compte ce qui tourne,
                 et la recherche accepte un nom de module, ce qu'il fait, ou une commande de chat dont
                 vous vous souvenez à moitié.
             </p>`,
-    'page.b1.caption': "La page Modules: le rail Catégories, les tuiles avec leur bouton Configurer, et l'interrupteur.",
-    'page.b1.notes.0.text': 'Le rail Catégories. Sept groupes, dans cet ordre, et un clic fait défiler la grille jusque-là.',
-    'page.b1.notes.1.text': "Une tuile, c'est un module: son nom, sa catégorie, et la phrase que le tableau de bord utilise pour le décrire.",
-    'page.b1.notes.2.text': 'Configurer ouvre la page du module, là où vivent ses réglages et ses messages de chat.',
+    'page.b1.caption': "La page Modules: le rail Catégories, une ligne par module, et l'interrupteur.",
+    'page.b1.notes.0.text': 'Le rail Catégories. Sept groupes, dans cet ordre, et un clic fait défiler la liste jusque-là.',
+    'page.b1.notes.1.text': "Une ligne, c'est un module: son nom, la phrase que le tableau de bord utilise pour le décrire, et les commandes de chat qu'il apporte.",
+    'page.b1.notes.2.text': 'Cliquer une ligne ouvre la page du module, là où vivent ses réglages et ses messages de chat.',
     'page.b1.notes.3.text': "L'interrupteur. Éteint, le module se tait, et chaque réglage reste tel que vous l'avez laissé.",
-    'page.b1.notes.4.text': 'AutoMod porte une pastille "Bêta · Premium". Sur une chaîne gratuite, la tuile est verrouillée.',
+    'page.b1.notes.4.text': 'AutoMod porte une pastille "Bêta · Premium". Sur une chaîne gratuite, la ligne est verrouillée.',
     'page.b1.notes.5.text': "Counters n'a pas d'interrupteur. Il est toujours actif, comme Stream Management.",
     'page.b2.html': `
             <p>
-                La plupart des tuiles fonctionnent pareil: vous basculez l'interrupteur, vous cliquez
-                sur Configurer, c'est fini. Cinq tuiles se comportent autrement, et savoir lesquelles
-                vous évite de chercher un interrupteur qui n'a jamais existé.
+                La plupart des lignes fonctionnent pareil: vous basculez l'interrupteur, vous ouvrez
+                la ligne, c'est fini. Cinq modules se comportent autrement, et savoir lesquels vous
+                évite de chercher un interrupteur qui n'a jamais existé.
             </p>`,
-    'page.b3.caption': 'Six formes de tuiles, dont cinq surprennent tout le monde au moins une fois.',
-    'page.b3.head.0': 'Forme de tuile',
+    'page.b3.caption': 'Six formes de lignes, dont cinq surprennent tout le monde au moins une fois.',
+    'page.b3.head.0': 'Forme de ligne',
     'page.b3.head.1': 'Ce que vous voyez',
     'page.b3.head.2': 'Quels modules',
     'page.b3.rows.0.0': 'Ordinaire',
-    'page.b3.rows.0.1': "Un interrupteur et un bouton Configurer. L'interrupteur active la fonction sur votre chaîne.",
-    'page.b3.rows.0.2': 'Timers, Quotes, Raffle, et la majorité de la grille.',
+    'page.b3.rows.0.1': "Une ligne à ouvrir et un interrupteur à côté. L'interrupteur active la fonction sur votre chaîne.",
+    'page.b3.rows.0.2': 'Timers, Quotes, Raffle, et la majorité de la liste.',
     'page.b3.rows.1.0': 'Caché',
-    'page.b3.rows.1.1': "Le module tourne à l'intérieur du bot et n'atteint jamais la grille, parce qu'il n'y a rien à régler.",
+    'page.b3.rows.1.1': "Le module tourne à l'intérieur du bot et n'atteint jamais la liste, parce qu'il n'y a rien à régler.",
     'page.b3.rows.1.2': 'La tuyauterie interne derrière les commandes.',
     'page.b3.rows.2.0': 'Section',
-    'page.b3.rows.2.1': 'Le module saute la grille et reçoit sa propre page dans le tableau de bord.',
+    'page.b3.rows.2.1': 'Le module saute la liste et reçoit sa propre page dans le tableau de bord.',
     'page.b3.rows.2.2': 'Discord.',
     'page.b3.rows.3.0': 'Imbriqué',
     'page.b3.rows.3.1': 'Une ligne sur la page du module parent, sans interrupteur à lui. La ligne dit: "Ce jeu dépense les <code>&#123;parent&#125;</code>. Activez-le depuis cette page. Il ne peut pas tourner tout seul."',
     'page.b3.rows.3.2': 'Gamble et Duels, sur la page Loyalty Points.',
     'page.b3.rows.4.0': 'Toujours actif',
-    'page.b3.rows.4.1': "Une tuile avec un bouton Configurer, et l'interrupteur manque volontairement. La fonction tourne quoi qu'il arrive.",
+    'page.b3.rows.4.1': "Une ligne à ouvrir, et l'interrupteur manque volontairement. La fonction tourne quoi qu'il arrive.",
     'page.b3.rows.4.2': 'Counters, Stream Management.',
     'page.b3.rows.5.0': 'Bêta',
-    'page.b3.rows.5.1': 'Une tuile verrouillée avec une pastille "Bêta · Premium", et les réglages en dessous une fois Premium activé.',
+    'page.b3.rows.5.1': 'Une ligne verrouillée avec une pastille "Bêta · Premium", et les réglages en dessous une fois Premium activé.',
     'page.b3.rows.5.2': 'AutoMod, Discord.',
     'page.b4.html': `
                 <b>Note</b>
                 Deux modules sont réservés au Premium pendant leur bêta: AutoMod et Discord. Tout le
                 reste de cette page fonctionne sur le forfait gratuit, aussi longtemps que vous voulez.`,
     'page.heading': 'La page Modules',
-    'page.note': 'Sept catégories, un interrupteur par tuile, six formes de tuiles.',
+    'page.note': 'Sept catégories, un interrupteur par ligne, six formes de lignes.',
     'points.b0.html': `
             <p>
                 <strong>Loyalty Points</strong> donne une monnaie à votre chaîne. Vous la nommez
@@ -410,7 +410,7 @@ const strings: GuideStrings = {
             </p>
             <p>
                 Deux jeux dépensent cette monnaie, et tous les deux vivent en lignes sur la page
-                Loyalty Points plutôt qu'en tuiles à eux.
+                Loyalty Points plutôt qu'en lignes à eux.
             </p>`,
     'points.b1.caption': 'Les valeurs livrées avec le bot. Toutes se changent.',
     'points.b1.head.0': 'Jeu',
@@ -438,7 +438,7 @@ const strings: GuideStrings = {
     'points.b2.title': '#your_channel',
     'points.b3.html': `
                 <b>Attention</b>
-                Chercher Gamble ou Duels sur la grille des modules est un voyage pour rien. Activez
+                Chercher Gamble ou Duels dans la liste des modules est un voyage pour rien. Activez
                 Loyalty Points, ouvrez sa page, et allumez les jeux depuis les lignes qui s'y
                 trouvent.`,
     'points.heading': 'Points, gamble et duels',
