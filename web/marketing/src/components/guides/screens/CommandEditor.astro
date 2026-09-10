@@ -5,11 +5,18 @@
 /**
  * The command editor panel on its own, every field annotated: name, alternate
  * names, response, chat rehearsal, access, cooldown, the user restriction and
- * the two switches. The palette row also carries the Data source chip: it
+ * the two checkboxes. The palette row also carries the Data source chip: it
  * inserts a {urlfetch:name} token from a saved API definition (see the Data
  * sources guide), same as the real editor.
  */
+import Chip from '@bagel/ui/astro/Chip.astro';
+import EditorFooter from '@bagel/ui/astro/EditorFooter.astro';
+import Field from '@bagel/ui/astro/Field.astro';
 import Icon from '@bagel/ui/astro/Icon.astro';
+import InspectorSurface from '@bagel/ui/astro/InspectorSurface.astro';
+import ChatRehearsal from '../ChatRehearsal.astro';
+import ScreenCheck from '../ScreenCheck.astro';
+import '@bagel/ui/styles/elements/field.css';
 
 interface Props {
     labels?: Record<string, string>;
@@ -26,7 +33,7 @@ const L = {
     altChipLabel: 'cuddle',
     remove: 'Remove',
     fieldResponse: 'Response',
-    responseHtml: '<span class="df-var">&#123;user&#125;</span> gives <span class="df-var">&#123;touser&#125;</span> a warm bagel hug 🥯',
+    responseHtml: '<span class="gs-var">&#123;user&#125;</span> gives <span class="gs-var">&#123;touser&#125;</span> a warm bagel hug 🥯',
     chip1: '&#123;user&#125;',
     chip2: '&#123;target&#125;',
     chip3: '&#123;random&#125;',
@@ -51,26 +58,52 @@ const L = {
 };
 ---
 
-<div class="df-main" style="max-width:420px; margin:0 auto;">
-    <div class="df-panel">
-        <div class="df-panel-head">{L.panelHead} <i aria-label={L.close} role="img"><Icon name="x" size={12} /></i></div>
-        <div class="df-field"><span>{L.fieldName}</span><div class="df-input">{L.nameValue}<i class="df-mark" data-note="1"></i></div></div>
-        <div class="df-field"><span>{L.fieldAlts} <small>{L.optional}</small></span><div class="df-input"><span class="df-pill df-pill--tan">{L.altChipLabel} <i aria-label={L.remove} role="img"><Icon name="x" size={10} /></i></span><i class="df-mark" data-note="2"></i></div></div>
-        <div class="df-field"><span>{L.fieldResponse}</span><div class="df-input"><span set:html={L.responseHtml}></span><i class="df-mark" data-note="3"></i></div></div>
-        <div class="df-chips"><i set:html={L.chip1}></i><i set:html={L.chip2}></i><i set:html={L.chip3}></i><i title={L.chip4Tooltip}>{L.chip4}</i><i class="df-mark" data-note="7"></i></div>
-        <div class="df-chat">
-            <span class="df-chat-tag">{L.chatTag}</span>
-            <p class="df-viewer"><b>{L.viewerName}</b><span>{L.viewerText}</span></p>
-            <p class="df-bot"><b>{L.botName}</b><span set:html={L.botHtml}></span></p>
-            <i class="df-mark" data-note="4"></i>
+<div class="dframe__screen dframe__screen--panel">
+    <InspectorSurface title={L.panelHead} closeLabel={L.close}>
+        <Field label={L.fieldName}>
+            <span class="bb-input gs-value">{L.nameValue}<i class="gs-mark" data-note="1"></i></span>
+        </Field>
+        <Field label={L.fieldAlts} tag={L.optional}>
+            <span class="bb-input gs-value">
+                <Chip on aria-label={`${L.altChipLabel} · ${L.remove}`}>{L.altChipLabel} <Icon name="x" size={10} /></Chip>
+                <i class="gs-mark" data-note="2"></i>
+            </span>
+        </Field>
+        <Field label={L.fieldResponse}>
+            <span class="bb-input gs-value">
+                <span set:html={L.responseHtml}></span><i class="gs-mark" data-note="3"></i>
+            </span>
+        </Field>
+        <div class="gs-actions">
+            <Chip tone="muted"><Fragment set:html={L.chip1} /></Chip>
+            <Chip tone="muted"><Fragment set:html={L.chip2} /></Chip>
+            <Chip tone="muted"><Fragment set:html={L.chip3} /></Chip>
+            <Chip tone="muted" title={L.chip4Tooltip}>{L.chip4}</Chip>
+            <i class="gs-mark" data-note="7"></i>
         </div>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-            <div class="df-field"><span>{L.fieldAccess}</span><div class="df-input">{L.accessValue}</div></div>
-            <div class="df-field"><span>{L.fieldCooldown}</span><div class="df-input">{L.cooldownValue}<i class="df-mark" data-note="5"></i></div></div>
+        <ChatRehearsal
+            tag={L.chatTag}
+            note="4"
+            lines={[
+                { who: 'viewer', name: L.viewerName, text: L.viewerText },
+                { who: 'bot', name: L.botName, html: L.botHtml },
+            ]}
+        />
+        <div class="gs-pair">
+            <Field label={L.fieldAccess}>
+                <span class="bb-input gs-value">{L.accessValue}</span>
+            </Field>
+            <Field label={L.fieldCooldown}>
+                <span class="bb-input gs-value">{L.cooldownValue}<i class="gs-mark" data-note="5"></i></span>
+            </Field>
         </div>
-        <div class="df-field"><span>{L.fieldRestrict} <small>{L.optional}</small></span><div class="df-input is-placeholder">{L.restrictPlaceholder}</div></div>
-        <span class="df-check is-on">{L.checkActive}</span>
-        <span class="df-check">{L.checkLive} <i class="df-mark" data-note="6"></i></span>
-        <div class="df-panel-foot"><span class="df-btn df-btn--ghost">{L.cancel}</span><span class="df-btn df-btn--tan">{L.save}</span></div>
-    </div>
+        <Field label={L.fieldRestrict} tag={L.optional}>
+            <span class="bb-input gs-value" data-placeholder>{L.restrictPlaceholder}</span>
+        </Field>
+        <ScreenCheck label={L.checkActive} checked />
+        <ScreenCheck label={L.checkLive} note="6" />
+        <div class="gs-foot">
+            <EditorFooter cancelLabel={L.cancel} saveLabel={L.save} dirty />
+        </div>
+    </InspectorSurface>
 </div>

@@ -4,9 +4,18 @@
 
 /**
  * The command editor's insert palette with the "Data source" chip open: the
- * token pills a response already offers, then the popover listing the saved
+ * token chips a response already offers, then the popover listing the saved
  * definitions with their paths. Clicking a row drops the token at the cursor.
+ *
+ * The popover is the one piece with no @bagel/ui element behind it: it is the
+ * editor's own FetchSourcePicker, a live listbox, so the still frame of it is
+ * drawn here in scoped CSS and stays here.
  */
+import Card from '@bagel/ui/astro/Card.astro';
+import Chip from '@bagel/ui/astro/Chip.astro';
+import Field from '@bagel/ui/astro/Field.astro';
+import '@bagel/ui/styles/elements/field.css';
+
 interface Props {
     labels?: Record<string, string>;
 }
@@ -15,7 +24,7 @@ const { labels = {} } = Astro.props;
 const L = {
     fieldResponse: 'Response',
     responseHtml:
-        'It is <span class="df-var">&#123;urlfetch:weather&#125;</span>°C in Montreal right now. Ask <span class="df-var">&#123;user&#125;</span> if they want a coat.',
+        'It is <span class="gs-var">&#123;urlfetch:weather&#125;</span>°C in Montreal right now. Ask <span class="gs-var">&#123;user&#125;</span> if they want a coat.',
     insertVariable: 'Insert variable',
     chipUser: '&#123;user&#125;',
     chipArgs: '&#123;args&#125;',
@@ -31,48 +40,35 @@ const L = {
 };
 ---
 
-<div class="df-main" style="max-width:460px; margin:0 auto;">
-    <div class="df-panel">
-        <div class="df-field">
-            <span>{L.fieldResponse}</span>
-            <div class="df-input is-focus"><Fragment set:html={L.responseHtml} /></div>
-        </div>
-        <p class="df-sub" style="margin:0;">{L.insertVariable}</p>
-        <div class="df-chips">
-            <i><Fragment set:html={L.chipUser} /></i>
-            <i><Fragment set:html={L.chipArgs} /></i>
-            <i>{L.chipCounter}</i>
-            <i class="dsp__chip is-open">{L.chipDataSource}<i class="df-mark" data-note="1"></i></i>
+<div class="dframe__screen dframe__screen--panel">
+    <Card>
+        <Field label={L.fieldResponse}>
+            <span class="bb-input gs-value" data-focus><Fragment set:html={L.responseHtml} /></span>
+        </Field>
+        <p class="gs-hint">{L.insertVariable}</p>
+        <div class="gs-actions">
+            <Chip tone="muted"><Fragment set:html={L.chipUser} /></Chip>
+            <Chip tone="muted"><Fragment set:html={L.chipArgs} /></Chip>
+            <Chip tone="muted">{L.chipCounter}</Chip>
+            <Chip on>{L.chipDataSource}<i class="gs-mark" data-note="1"></i></Chip>
         </div>
         <div class="dsp__pop">
             <span class="dsp__title">{L.popoverTitle}</span>
             <span class="dsp__row is-active">
                 <b>{L.row1Name}</b><em>{L.row1Path}</em>
-                <i class="df-mark" data-note="2"></i>
+                <i class="gs-mark" data-note="2"></i>
             </span>
             <span class="dsp__row"><b>{L.row2Name}</b><em>{L.row2Path}</em></span>
-            <span class="dsp__new">{L.newSource}<i class="df-mark" data-note="3"></i></span>
+            <span class="dsp__new">{L.newSource}<i class="gs-mark" data-note="3"></i></span>
         </div>
-    </div>
+    </Card>
 </div>
 
 <style>
-    .dsp__chip {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        font-family: var(--font-body, "DM Sans", sans-serif) !important;
-    }
-
-    .dsp__chip.is-open {
-        color: var(--black, #0a0a0a) !important;
-        background: var(--tan, #c9a87c) !important;
-        border-color: var(--tan, #c9a87c) !important;
-    }
-
     .dsp__pop {
         display: grid;
         gap: 4px;
+        margin-top: 10px;
         padding: 8px 9px;
         border: 1px solid var(--border, rgba(201, 168, 124, 0.15));
         border-radius: var(--radius-sm);
@@ -81,7 +77,7 @@ const L = {
 
     .dsp__title {
         font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.52rem;
+        font-size: 0.62rem;
         letter-spacing: 0.12em;
         text-transform: uppercase;
         color: var(--muted, #888077);
@@ -92,15 +88,22 @@ const L = {
         display: flex;
         align-items: center;
         gap: 8px;
-        padding: 4px 6px;
+        padding: 5px 6px;
         border-radius: var(--radius-sm);
         font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.58rem;
+        font-size: 0.72rem;
     }
 
     .dsp__row b { font-weight: 400; color: rgba(240, 236, 228, 0.85); }
     .dsp__row em { font-style: normal; color: var(--muted, #888077); }
     .dsp__row.is-active { background: rgba(201, 168, 124, 0.12); }
     .dsp__row.is-active b { color: var(--tan-light, #e0c49a); }
-    .dsp__new { color: var(--tan-light, #e0c49a); border-top: 1px solid var(--border, rgba(201, 168, 124, 0.15)); border-radius: 0; margin-top: 2px; padding-top: 7px; }
+
+    .dsp__new {
+        color: var(--tan-light, #e0c49a);
+        border-top: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+        border-radius: 0;
+        margin-top: 2px;
+        padding-top: 7px;
+    }
 </style>

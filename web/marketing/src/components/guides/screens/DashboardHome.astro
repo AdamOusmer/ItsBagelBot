@@ -3,12 +3,19 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 /**
- * The dashboard Overview page, hand-built from the df-* class library (see
- * src/styles/dashframe.css). English is the default; a locale overrides only
- * the keys it needs, so a translator never touches this DOM. The numbered
- * df-mark anchors live here, on the element they describe; their explanations
- * come from the content file's `notes`.
+ * The dashboard Overview page, built from the @bagel/ui elements the console
+ * itself renders: the rail, the topbar, the page head, a card and management
+ * rows. English is the default; a locale overrides only the keys it needs, so
+ * a translator never touches this DOM. The numbered gs-mark anchors live here,
+ * on the element they describe; their explanations come from the content
+ * file's `notes`.
  */
+import Button from '@bagel/ui/astro/Button.astro';
+import Card from '@bagel/ui/astro/Card.astro';
+import DeckList from '@bagel/ui/astro/DeckList.astro';
+import ManagementRow from '@bagel/ui/astro/ManagementRow.astro';
+import ScreenChrome from '../ScreenChrome.astro';
+
 interface Props {
     labels?: Record<string, string>;
 }
@@ -19,7 +26,7 @@ const L = {
     crumbPage: 'Overview',
     account: 'streamer · Broadcaster',
     eyebrow: 'Status',
-    titleHtml: 'Good evening, <i>streamer</i>',
+    titleHtml: 'Good evening, <em>streamer</em>',
     statusState: 'Online · in chat',
     statusNote: '· nothing needs you right now',
     restart: 'Restart',
@@ -35,25 +42,66 @@ const L = {
     cmd2Response: '&#123;user&#125; fades into the shadows. Thanks for the lurk.',
     cmd2Count: '521',
     uses: 'uses',
-    dockOverview: 'Overview',
-    dockCommands: 'Commands',
-    dockModules: 'Modules',
-    dockDiscord: 'Discord',
-    dockBilling: 'Billing',
-    dockSettings: 'Settings',
+    navLabel: 'Manage',
+    navOverview: 'Overview',
+    navCommands: 'Commands',
+    navModules: 'Modules',
+    navDiscord: 'Discord',
+    navBilling: 'Billing',
+    navSettings: 'Settings',
     ...labels,
+};
+
+const nav = {
+    overview: L.navOverview,
+    commands: L.navCommands,
+    modules: L.navModules,
+    discord: L.navDiscord,
+    billing: L.navBilling,
+    settings: L.navSettings,
 };
 ---
 
-<div class="df-main">
-    <div class="df-topbar"><span class="df-brand">ItsBagelBot <small>{L.console}</small></span><span class="df-crumb">ItsBagelBot / <b>{L.crumbPage}</b></span><span class="df-account">{L.account}</span></div>
-    <span class="df-eyebrow">{L.eyebrow}</span>
-    <p class="df-title" set:html={L.titleHtml}></p>
-    <div class="df-row"><span class="df-grow"><b style="color:var(--white);">{L.statusState}</b> {L.statusNote}</span><span class="df-btn df-btn--ghost">{L.restart}</span><span class="df-btn df-btn--ghost">{L.disconnect}</span><i class="df-mark" data-note="2"></i></div>
-    <span class="df-cat">{L.quickActions}</span>
-    <div class="df-actions"><span class="df-btn df-btn--primary">{L.newCommand}</span><span class="df-btn df-btn--ghost">{L.manageModules}</span><i class="df-mark" data-note="3"></i></div>
-    <span class="df-cat">{L.topCommands} <i class="df-mark" data-note="4"></i></span>
-    <div class="df-row"><code>{L.cmd1Name}</code><span class="df-grow" set:html={L.cmd1Response}></span><span class="df-meta"><b>{L.cmd1Count}</b> {L.uses}</span></div>
-    <div class="df-row"><code>{L.cmd2Name}</code><span class="df-grow" set:html={L.cmd2Response}></span><span class="df-meta"><b>{L.cmd2Count}</b> {L.uses}</span></div>
-    <div class="df-dock"><span class="is-active">{L.dockOverview}</span><span>{L.dockCommands}</span><span>{L.dockModules}</span><span>{L.dockDiscord}</span><span>{L.dockBilling}</span><span>{L.dockSettings}</span><i class="df-mark" data-note="1"></i></div>
-</div>
+<ScreenChrome
+    console={L.console}
+    crumb={L.crumbPage}
+    account={L.account}
+    navLabel={L.navLabel}
+    nav={nav}
+    active="overview"
+    eyebrow={L.eyebrow}
+    titleHtml={L.titleHtml}
+    railNote="1"
+>
+    <Card>
+        <span class="gs-row">
+            <span class="gs-grow"><b>{L.statusState}</b> {L.statusNote}</span>
+            <Button variant="ghost" size="sm">{L.restart}</Button>
+            <Button variant="ghost" size="sm">{L.disconnect}</Button>
+            <i class="gs-mark" data-note="2"></i>
+        </span>
+    </Card>
+    <span class="gs-h">{L.quickActions}</span>
+    <div class="gs-actions">
+        <Button size="sm">{L.newCommand}</Button>
+        <Button variant="ghost" size="sm">{L.manageModules}</Button>
+        <i class="gs-mark" data-note="3"></i>
+    </div>
+    <span class="gs-h">{L.topCommands} <i class="gs-mark" data-note="4"></i></span>
+    <DeckList>
+        <ManagementRow>
+            <span class="gs-row">
+                <code>{L.cmd1Name}</code>
+                <span class="gs-grow" set:html={L.cmd1Response}></span>
+                <span class="gs-meta"><b>{L.cmd1Count}</b> {L.uses}</span>
+            </span>
+        </ManagementRow>
+        <ManagementRow>
+            <span class="gs-row">
+                <code>{L.cmd2Name}</code>
+                <span class="gs-grow" set:html={L.cmd2Response}></span>
+                <span class="gs-meta"><b>{L.cmd2Count}</b> {L.uses}</span>
+            </span>
+        </ManagementRow>
+    </DeckList>
+</ScreenChrome>

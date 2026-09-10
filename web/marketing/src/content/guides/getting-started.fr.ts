@@ -50,12 +50,13 @@ const strings: GuideStrings = {
     'first-command.b1.labels.chatTag': 'Répétition du chat',
     'first-command.b1.labels.create': 'Créer',
     'first-command.b1.labels.crumbPage': 'Commandes',
-    'first-command.b1.labels.dockBilling': 'Facturation',
-    'first-command.b1.labels.dockCommands': 'Commandes',
-    'first-command.b1.labels.dockDiscord': 'Discord',
-    'first-command.b1.labels.dockModules': 'Modules',
-    'first-command.b1.labels.dockOverview': 'Aperçu',
-    'first-command.b1.labels.dockSettings': 'Paramètres',
+    'first-command.b1.labels.navLabel': 'Gérer',
+    'first-command.b1.labels.navBilling': 'Facturation',
+    'first-command.b1.labels.navCommands': 'Commandes',
+    'first-command.b1.labels.navDiscord': 'Discord',
+    'first-command.b1.labels.navModules': 'Modules',
+    'first-command.b1.labels.navOverview': 'Aperçu',
+    'first-command.b1.labels.navSettings': 'Paramètres',
     'first-command.b1.labels.eyebrow': 'Gérer',
     'first-command.b1.labels.fieldName': 'Nom',
     'first-command.b1.labels.fieldResponse': 'Réponse',
@@ -89,17 +90,16 @@ const strings: GuideStrings = {
     'first-command.note': 'Un nom et une réponse. Tout le reste est optionnel.',
     'first-module.b0.html': `
             <p>
-                Direction <strong>Modules</strong>. Chaque tuile est une fonction avec son propre
-                interrupteur, et cliquer la tuile ouvre ses réglages. Deux travaillent déjà pour vous:
+                Direction <strong>Modules</strong>. Chaque ligne est une fonction avec son propre
+                interrupteur, et cliquer la ligne ouvre ses réglages. Deux travaillent déjà pour vous:
                 les <strong>Alertes de chat</strong> (follows, subs, cheers, raids) et
-                <strong>AutoMod</strong> (la modération en couches présentée sur la page d'accueil; il travaille discrètement sans tuile sur cette grille).
+                <strong>AutoMod</strong> (la modération en couches présentée sur la page d'accueil; il travaille discrètement sans ligne dans cette liste).
                 Deux autres n'affichent jamais d'interrupteur: <strong>Counters</strong> et
                 <strong>Stream Management</strong> (les commandes derrière <code>!title</code>,
                 <code>!game</code> et <code>!marker</code>) sont toujours actives.
             </p>`,
-    'first-module.b1.caption': 'La page Modules: un rail de catégories à gauche, des tuiles avec Configurer et un interrupteur.',
+    'first-module.b1.caption': 'La page Modules: un rail de catégories à gauche, une ligne par module, et un interrupteur.',
     'first-module.b1.labels.account': 'streamer · Diffuseur',
-    'first-module.b1.labels.configure': 'Configurer',
     // The English guide blanks dots 3-6 on this mock (the legend only has
     // two notes); French says the same nothing, spelled out because the
     // parity guard wants every id answered.
@@ -107,18 +107,25 @@ const strings: GuideStrings = {
     'first-module.b1.labels.dot4': '',
     'first-module.b1.labels.dot5': '',
     'first-module.b1.labels.dot6': '',
-    'first-module.b1.labels.dockBilling': 'Facturation',
-    'first-module.b1.labels.dockCommands': 'Commandes',
-    'first-module.b1.labels.dockDiscord': 'Discord',
-    'first-module.b1.labels.dockModules': 'Modules',
-    'first-module.b1.labels.dockOverview': 'Aperçu',
-    'first-module.b1.labels.dockSettings': 'Paramètres',
+    'first-module.b1.labels.cat1Hint': 'Tout ce qui lit le chat avant vos modérateurs.',
+    'first-module.b1.labels.cat2Hint': 'Ce que le bot dit, et ce qui le fait parler.',
+    'first-module.b1.labels.cat3Hint': 'Monnaie de chaîne, compteurs, et ce que les viewers en font.',
+    'first-module.b1.labels.navLabel': 'Gérer',
+    'first-module.b1.labels.navBilling': 'Facturation',
+    'first-module.b1.labels.navCommands': 'Commandes',
+    'first-module.b1.labels.navDiscord': 'Discord',
+    'first-module.b1.labels.navModules': 'Modules',
+    'first-module.b1.labels.navOverview': 'Aperçu',
+    'first-module.b1.labels.navSettings': 'Paramètres',
     'first-module.b1.labels.eyebrow': 'Gérer',
+    'first-module.b1.labels.railTitle': 'Catégories',
+    'first-module.b1.labels.row5State': 'Toujours actif',
+    'first-module.b1.labels.statusOn': 'Actif',
     'first-module.b1.labels.searchPlaceholder': 'Rechercher un module…',
     'first-module.b1.labels.sub': 'Fonctions optionnelles pour votre chaîne. 1 sur 20 activée.',
     'first-module.b1.labels.titleHtml': 'Modules de <i>chaîne</i>',
-    'first-module.b1.notes.0.text': "Le rail des catégories. Cliquez un groupe et la grille défile jusqu'à lui.",
-    'first-module.b1.notes.1.text': "Une tuile est un module: son nom, sa catégorie, une ligne qui le décrit, Configurer et l'interrupteur. Les alertes de chat démarrent actives; la plupart des autres attendent votre feu vert.",
+    'first-module.b1.notes.0.text': "Le rail des catégories. Cliquez un groupe et la liste défile jusqu'à lui.",
+    'first-module.b1.notes.1.text': "Une ligne est un module: son nom, la phrase qui le décrit, les commandes qu'il apporte et l'interrupteur. Les alertes de chat démarrent actives; la plupart des autres attendent votre feu vert.",
     'first-module.b2.html': `
             <p>
                 Rien ici n'est risqué à explorer: chaque module se désactive aussi vite qu'il s'active,
@@ -170,25 +177,26 @@ const strings: GuideStrings = {
     'tour.b0.html': `
             <p>
                 Le tableau de bord affiche une page à la fois, et toute sa navigation tient dans le
-                dock flottant en bas de l'écran, identique sur ordinateur et téléphone.
-                <strong>Aperçu</strong> est votre page d'accueil, <strong>Commandes</strong>
+                rail de six entrées à gauche de l'écran, qui devient un dock flottant en bas sur
+                téléphone. <strong>Aperçu</strong> est votre page d'accueil, <strong>Commandes</strong>
                 héberge les commandes personnalisées, et <strong>Modules</strong> regroupe toutes les
                 grandes fonctions. <strong>Discord</strong> a sa propre page pour connecter un serveur
                 Discord (bêta payante). Facturation et Paramètres font ce que leur nom dit.
             </p>`,
-    'tour.b1.caption': 'La page Aperçu. La navigation vit dans le dock flottant, en bas.',
+    'tour.b1.caption': 'La page Aperçu. La navigation vit dans le rail à gauche, et dans un dock en bas sur téléphone.',
     'tour.b1.labels.account': 'streamer · Diffuseur',
     'tour.b1.labels.cmd1Count': '1,2k',
     'tour.b1.labels.cmd1Response': '&#123;user&#125; lance un bagel tout chaud à &#123;target&#125;. Croustillant.',
     'tour.b1.labels.cmd2Response': "&#123;user&#125; se fond dans l'ombre. Merci pour le lurk.",
     'tour.b1.labels.crumbPage': 'Aperçu',
     'tour.b1.labels.disconnect': 'Déconnecter',
-    'tour.b1.labels.dockBilling': 'Facturation',
-    'tour.b1.labels.dockCommands': 'Commandes',
-    'tour.b1.labels.dockDiscord': 'Discord',
-    'tour.b1.labels.dockModules': 'Modules',
-    'tour.b1.labels.dockOverview': 'Aperçu',
-    'tour.b1.labels.dockSettings': 'Paramètres',
+    'tour.b1.labels.navLabel': 'Gérer',
+    'tour.b1.labels.navBilling': 'Facturation',
+    'tour.b1.labels.navCommands': 'Commandes',
+    'tour.b1.labels.navDiscord': 'Discord',
+    'tour.b1.labels.navModules': 'Modules',
+    'tour.b1.labels.navOverview': 'Aperçu',
+    'tour.b1.labels.navSettings': 'Paramètres',
     'tour.b1.labels.eyebrow': 'État',
     'tour.b1.labels.manageModules': 'Gérer les modules',
     'tour.b1.labels.newCommand': 'Nouvelle commande',
@@ -199,7 +207,7 @@ const strings: GuideStrings = {
     'tour.b1.labels.titleHtml': 'Bonsoir, <i>streamer</i>',
     'tour.b1.labels.topCommands': 'Vos commandes favorites',
     'tour.b1.labels.uses': 'utilisations',
-    'tour.b1.notes.0.text': 'Le dock est toute la navigation, sur tous les écrans: Aperçu, Commandes, Modules, Discord, Facturation, Paramètres.',
+    'tour.b1.notes.0.text': 'Le rail est toute la navigation: Aperçu, Commandes, Modules, Discord, Facturation, Paramètres. Sur téléphone, les mêmes six vivent dans un dock en bas.',
     'tour.b1.notes.1.text': 'État du bot: ItsBagelBot est-il dans votre chat en ce moment, avec le bouton pour corriger si besoin.',
     'tour.b1.notes.2.text': 'Actions rapides: les deux gestes les plus fréquents, à un clic.',
     'tour.b1.notes.3.text': 'Vos commandes les plus utilisées vivent ici aussi, à un clic de la modification.',
@@ -210,7 +218,7 @@ const strings: GuideStrings = {
                 quelques secondes.
             </p>`,
     'tour.heading': 'Repérez-vous',
-    'tour.note': 'Six arrêts dans le dock flottant. Vous passerez presque tout votre temps dans deux d’entre eux.',
+    'tour.note': 'Six arrêts dans le rail de navigation. Vous passerez presque tout votre temps dans deux d’entre eux.',
 };
 
 export default strings;

@@ -193,15 +193,15 @@ const guide: GuideContent = {
   meta: {
     title: 'Modules - ItsBagelBot Guides',
     description:
-      'The ItsBagelBot modules page explained: the seven categories, the tile shapes, how a module is configured, points and games, game stats in chat, and the nine built-in commands.',
+      'The ItsBagelBot modules page explained: the seven categories, the row shapes, how a module is configured, points and games, game stats in chat, and the nine built-in commands.',
     eyebrow: 'Guide',
     heading: 'Modules',
-    lead: 'Every feature on your channel is a tile with a switch. Here is what each one does, what it needs first, and what the odd tiles mean.',
+    lead: 'Every feature on your channel is a row with a switch. Here is what each one does, what it needs first, and what the odd rows mean.',
     minutes: '10 min read',
     card: {
       title: 'Modules',
       description:
-        'The 24 tiles on your Modules page: what each one does, what it needs before it works, and which commands it brings to chat.',
+        'The 24 modules on your Modules page: what each one does, what it needs before it works, and which commands it brings to chat.',
       meta: '10 min · 7 sections',
       chips: ['moderation', 'chat', 'points', 'stats'],
     },
@@ -210,7 +210,7 @@ const guide: GuideContent = {
     {
       id: 'page',
       heading: 'The modules page',
-      note: 'Seven categories, one switch per tile, six tile shapes.',
+      note: 'Seven categories, one switch per row, six row shapes.',
       blocks: [
         {
           kind: 'prose',
@@ -218,8 +218,9 @@ const guide: GuideContent = {
             <p>
                 A module is one feature of the bot with its own switch. The
                 <a href="https://dashboard.itsbagelbot.com/modules" target="_blank" rel="noopener noreferrer">Modules page</a>
-                lists them as tiles, grouped by the Categories rail on the left: Moderation, Chat,
-                Channel, Points, Play, Gear, Stats. The line under the title counts what is running,
+                lists them as rows, one card per category, with the Categories rail on the left:
+                Moderation, Chat, Channel, Points, Play, Gear, Stats. The line under the title
+                counts what is running,
                 and the search box matches a module name, what it does, or a chat command you half
                 remember.
             </p>`,
@@ -228,13 +229,13 @@ const guide: GuideContent = {
           kind: 'dash',
           screen: 'ModulesGrid',
           path: '/modules',
-          caption: 'The Modules page: the Categories rail, tiles with a Configure button, and the switch.',
+          caption: 'The Modules page: the Categories rail, a row per module, and the switch.',
           notes: [
-            { n: 1, text: 'The Categories rail. Seven groups, in this order, and clicking one scrolls the grid to it.' },
-            { n: 2, text: "A tile is one module: its name, its category, and the one line the dashboard uses to describe it." },
-            { n: 3, text: "Configure opens the module's own page, where its settings and its chat lines live." },
+            { n: 1, text: 'The Categories rail. Seven groups, in this order, and clicking one scrolls the list to it.' },
+            { n: 2, text: "A row is one module: its name, the one line the dashboard uses to describe it, and the chat commands it brings." },
+            { n: 3, text: "Clicking a row opens the module's own page, where its settings and its chat lines live." },
             { n: 4, text: 'The switch. Off means the module says nothing, and every setting stays where you left it.' },
-            { n: 5, text: 'AutoMod carries a "Beta · Premium" chip. On a free channel the tile is locked.' },
+            { n: 5, text: 'AutoMod carries a "Beta · Premium" chip. On a free channel the row is locked.' },
             { n: 6, text: 'Counters has no switch. It is always on, and so is Stream Management.' },
           ],
         },
@@ -242,28 +243,28 @@ const guide: GuideContent = {
           kind: 'prose',
           html: `
             <p>
-                Most tiles behave the same way: flip the switch, click Configure, done. Five tiles
+                Most rows behave the same way: flip the switch, open the row, done. Five modules
                 behave differently, and knowing which is which saves you hunting for a switch that
                 was never there.
             </p>`,
         },
         {
           kind: 'table',
-          head: ['Tile shape', 'What you see', 'Which modules'],
+          head: ['Row shape', 'What you see', 'Which modules'],
           rows: [
             [
               'Ordinary',
-              'A switch and a Configure button. The switch turns the feature on for your channel.',
-              'Timers, Quotes, Raffle, and most of the grid.',
+              'A row you can open and a switch beside it. The switch turns the feature on for your channel.',
+              'Timers, Quotes, Raffle, and most of the list.',
             ],
             [
               'Hidden',
-              'The module runs inside the bot and never reaches the grid, because it has nothing for you to set.',
+              'The module runs inside the bot and never reaches the list, because it has nothing for you to set.',
               'The internal plumbing behind commands.',
             ],
             [
               'Section',
-              'The module skips the grid and gets a page of its own in the dashboard.',
+              'The module skips the list and gets a page of its own in the dashboard.',
               'Discord.',
             ],
             [
@@ -273,16 +274,16 @@ const guide: GuideContent = {
             ],
             [
               'Always on',
-              'A tile with a Configure button, and the switch is missing on purpose. The feature runs whatever you do.',
+              'A row you can open, and the switch is missing on purpose. The feature runs whatever you do.',
               'Counters, Stream Management.',
             ],
             [
               'Beta',
-              'A locked tile with a "Beta · Premium" chip, and the settings underneath once you have Premium.',
+              'A locked row with a "Beta · Premium" chip, and the settings underneath once you have Premium.',
               'AutoMod, Discord.',
             ],
           ],
-          caption: 'Six tile shapes, five of which surprise people at least once.',
+          caption: 'Six row shapes, five of which surprise people at least once.',
         },
         {
           kind: 'callout',
@@ -408,7 +409,7 @@ const guide: GuideContent = {
             </p>
             <p>
                 Two games spend that currency, and both live as rows on the Loyalty Points page
-                rather than as tiles of their own.
+                rather than as rows of their own.
             </p>`,
         },
         {
@@ -448,7 +449,7 @@ const guide: GuideContent = {
           tone: 'warn',
           html: `
                 <b>Watch out</b>
-                Looking for Gamble or Duels on the modules grid is a wasted trip. Turn on Loyalty
+                Looking for Gamble or Duels in the modules list is a wasted trip. Turn on Loyalty
                 Points, open its page, and switch the games on from the rows there.`,
         },
       ],
@@ -568,7 +569,7 @@ const guide: GuideContent = {
             <h3>Discord</h3>
             <p>
                 The same bot on both sides: go-live posts, clips, welcomes, tickets and voice rooms.
-                Discord skips the modules grid and says nothing in Twitch chat; it gets a page of
+                Discord skips the modules list and says nothing in Twitch chat; it gets a page of
                 its own in the dashboard. Connect a server you already run, or let the bot
                 build one from the template. It is premium while the beta lasts, and what you
                 configure during the beta keeps working afterwards.

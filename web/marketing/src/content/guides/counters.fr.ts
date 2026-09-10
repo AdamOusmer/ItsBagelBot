@@ -89,7 +89,6 @@ const strings: GuideStrings = {
     'dashboard.b1.labels.chip2': 'par utilisateur',
     'dashboard.b1.labels.chip3': 'par commande',
     'dashboard.b1.labels.chip4': 'par utilisateur + commande',
-    'dashboard.b1.labels.countsValue': 'Un total pour la chaîne',
     'dashboard.b1.labels.create': 'Créer le compteur',
     'dashboard.b1.labels.fieldCounts': 'Comptage',
     'dashboard.b1.labels.fieldName': 'Nom',
@@ -119,7 +118,6 @@ const strings: GuideStrings = {
     'dashboard.b3.labels.fieldScope': 'Ce que compte chaque échange',
     'dashboard.b3.labels.nameValue': 'hydratations',
     'dashboard.b3.labels.save': 'Enregistrer',
-    'dashboard.b3.labels.scopeValue': 'Par viewer, par récompense',
     'dashboard.b3.notes.0.text': "Désactivé par défaut, la plupart des récompenses n'en ont pas besoin.",
     'dashboard.b3.notes.1.text': "Par spectateur + récompense est souvent le bon choix: chaque spectateur bâtit son propre compte d'échanges pour cette récompense.",
     'dashboard.b4.html': `

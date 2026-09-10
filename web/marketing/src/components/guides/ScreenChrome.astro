@@ -1,0 +1,100 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+/**
+ * The console chrome every full-page guide screen sits in: the navigation rail,
+ * the topbar with its breadcrumb, and the page head. All three are the real
+ * @bagel/ui elements the dashboard itself renders, so a screen cannot drift
+ * from the console the way the hand-drawn dashframe mock did.
+ *
+ * THE RAIL, NOT THE DOCK. The dashboard is railed above 761px and docked below
+ * it (`.bb-shell--railed .bb-shell__dock-slot { display: none }`, shell.css),
+ * and a guide screenshot shows the desktop console, so the rail is what a
+ * reader sees when they open the page on the same screen they are reading on.
+ * The dock the screens used to draw is the phone half of the same six links.
+ *
+ * Every visible string is a prop: a locale file overrides the ones it needs
+ * through the block's `labels`, and never touches this DOM.
+ */
+import Rail from '@bagel/ui/astro/Rail.astro';
+import Topbar from '@bagel/ui/astro/Topbar.astro';
+import PageHead from '@bagel/ui/astro/PageHead.astro';
+import type { UiNavLink } from '@bagel/ui/lib/nav-types';
+
+export type SectionId = 'overview' | 'commands' | 'modules' | 'discord' | 'billing' | 'settings';
+
+interface Props {
+    /** Rail + topbar brand line, e.g. "Console". */
+    console: string;
+    /** First breadcrumb, the channel. */
+    crumbRoot?: string;
+    /** Current page's breadcrumb. */
+    crumb: string;
+    /** The account line the rail's foot carries on a railed board. */
+    account: string;
+    /** Rail group heading; the console's is "Manage". */
+    navLabel: string;
+    /** The six sections, in dock order (nav.ts DASHBOARD_SECTIONS). */
+    nav: Record<SectionId, string>;
+    active: SectionId;
+    eyebrow?: string;
+    /** The <h1>. HTML because the console emphasises one word of it. */
+    titleHtml: string;
+    description?: string;
+    /** Legend index of the note that describes the rail, if a guide has one. */
+    railNote?: string;
+}
+
+const {
+    console: consoleLabel,
+    crumbRoot = 'ItsBagelBot',
+    crumb,
+    account,
+    navLabel,
+    nav,
+    active,
+    eyebrow,
+    titleHtml,
+    description,
+    railNote,
+} = Astro.props;
+
+const brand = { title: 'ItsBagelBot', sub: consoleLabel };
+
+// Order and icons are the console's registry (web/kit/lib/nav.ts).
+const SECTIONS: readonly { id: SectionId; href: string; icon: UiNavLink['icon'] }[] = [
+    { id: 'overview', href: '/', icon: 'overview' },
+    { id: 'commands', href: '/commands', icon: 'commands' },
+    { id: 'modules', href: '/modules', icon: 'modules' },
+    { id: 'discord', href: '/discord', icon: 'discord' },
+    { id: 'billing', href: '/billing', icon: 'card' },
+    { id: 'settings', href: '/settings', icon: 'settings' },
+];
+
+const items: UiNavLink[] = SECTIONS.map((section) => ({
+    href: section.href,
+    icon: section.icon,
+    label: nav[section.id],
+    active: section.id === active,
+}));
+---
+
+<div class="dframe__screen">
+    <Rail brand={brand} groups={[{ label: navLabel, items }]} ariaLabel={navLabel}>
+        <Fragment slot="foot">
+            <span class="bb-tag bb-tag--quiet">{account}</span>
+            {railNote && <i class="gs-mark" data-note={railNote}></i>}
+        </Fragment>
+    </Rail>
+    <div class="dframe__stage">
+        <Topbar
+            brand={brand}
+            crumbs={[{ label: crumbRoot, href: '/' }, { label: crumb }]}
+            clock={false}
+            railed
+        />
+        <PageHead eyebrow={eyebrow} description={description}><Fragment set:html={titleHtml} /></PageHead>
+        <slot />
+    </div>
+</div>

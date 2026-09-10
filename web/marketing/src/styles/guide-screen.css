@@ -1,0 +1,333 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/*
+ * What is left of the guides' mock library after the screens were rebuilt on
+ * @bagel/ui (PR12). It replaces dashframe.css, which redrew the whole console
+ * -- topbar, rail, rows, fields, buttons, tiles -- in 609 lines of its own CSS.
+ * That copy is what let the guides describe a Modules page of tiles for months
+ * after the real one became a list of rows: a drawing cannot go stale loudly.
+ *
+ * So the screens now render the real elements, and this file holds only the
+ * two things the real elements cannot supply:
+ *
+ *  1. the annotation anchor and its highlight (the legend under a frame lights
+ *     the element that carries the matching mark), and
+ *  2. the containment overrides. The console chrome positions itself against
+ *     the VIEWPORT -- a sticky topbar, a 100vh rail, a fixed dock, a sticky
+ *     editor footer -- and a mock is a 700px box inside an article. Without
+ *     these, the rail is a full-height column and the dock floats over the
+ *     guide text. They are scoped to `.dframe__body` so nothing outside a mock
+ *     is touched, and they change position and size only, never the look.
+ *
+ * It has to be global: slotted markup carries the caller's scope attribute,
+ * never DashFrame's, so a scoped rule there would never match.
+ */
+
+/* ── Annotation ─────────────────────────────────────────────────────────── */
+
+/* Invisible anchor: the legend under the frame carries the index, and hovering
+   or focusing a legend line lights the element holding the matching mark. A
+   hidden <i> keeps the mark a sibling of the element's own content, so a screen
+   needs no wrapper elements to be annotatable. */
+.gs-mark {
+    display: none;
+}
+
+.dframe__body .is-hot {
+    outline: 1px solid var(--tan, #c9a87c);
+    outline-offset: 3px;
+    border-radius: var(--radius-sm);
+    transition: outline-color 300ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+}
+
+/* ── The mock viewport ──────────────────────────────────────────────────── */
+
+/*
+ * `zoom` rather than `transform: scale()`: the console is drawn in px and lays
+ * itself out against the canvas width, and a mock is ~648px wide. transform
+ * scales the painted result but leaves the layout box at full size, so the
+ * frame would reserve the unscaled height and the rail would still ask for a
+ * 1080px row. zoom scales the layout, so a screen reflows exactly as the
+ * console does at the width it is drawn at. It is in the CSS spec and shipped
+ * in Firefox 126, so every engine the site targets has it.
+ *
+ * 1080 x 0.6 = 648: the mock is the console at a 1080px window, shrunk to the
+ * figure, rather than the console squeezed into 648px, which is a different
+ * layout (the console drops its rail below 761px) and would show a reader a
+ * page they will not see on the screen they are reading on.
+ */
+.dframe__screen {
+    width: 1080px;
+    zoom: 0.6;
+    display: flex;
+    align-items: flex-start;
+    gap: 0;
+    min-width: 0;
+}
+
+/* A panel-only screen is one element, not a page: it is drawn near actual size
+   because shrinking a 420px dialog into a 648px figure wastes two thirds of it. */
+.dframe__screen--panel {
+    display: block;
+    width: auto;
+    max-width: 680px;
+    zoom: 0.92;
+    margin: 0 auto;
+}
+
+.dframe__stage {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 0 4px;
+}
+
+/* ── Containment ────────────────────────────────────────────────────────── */
+
+.dframe__body .bb-rail {
+    /* The real rail is a sticky 100vh column and hides itself below 761px. A
+       mock is one still frame of the desktop console, so it shows the rail at
+       every width, at the height of its own content. */
+    display: flex;
+    position: static;
+    height: auto;
+    width: 190px;
+    padding: 12px 10px;
+    border-radius: var(--radius-sm);
+}
+
+.dframe__body .bb-topbar {
+    position: static;
+    margin: 0 0 4px;
+}
+
+.dframe__body .bb-surface--docked {
+    position: static;
+    max-height: none;
+}
+
+.dframe__body .bb-editor-foot {
+    position: static;
+}
+
+/* A mock modal dims its own frame, not the guide page behind it. */
+.dframe__body .bb-modal {
+    position: relative;
+    inset: auto;
+    padding: 14px 0;
+}
+
+.dframe__body .bb-modal__card {
+    margin: 0 auto;
+}
+
+/* ── Mock-only layout glue ──────────────────────────────────────────────── */
+
+/* Not console chrome: the few boxes a still frame needs to place real elements
+   next to each other (a deck beside its inspector, a row of quick actions). */
+.dframe__body .gs-cols {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 420px;
+    gap: 14px;
+    align-items: start;
+}
+
+.dframe__body .gs-stack {
+    display: grid;
+    gap: 8px;
+    align-content: start;
+    min-width: 0;
+}
+
+.dframe__body .gs-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.dframe__body .gs-index {
+    display: grid;
+    grid-template-columns: 10rem minmax(0, 1fr);
+    gap: 10px 24px;
+}
+
+.dframe__body .gs-family-head {
+    margin: 0 0 8px;
+}
+
+.dframe__body .gs-family-head h2 {
+    margin: 0;
+    font-family: var(--bb-font-display, var(--font-display));
+    font-weight: 800;
+    font-size: 1.05rem;
+    letter-spacing: -0.02em;
+    color: var(--bb-white, var(--white));
+}
+
+.dframe__body .gs-family-head p {
+    margin: 3px 0 0;
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--bb-muted, var(--muted));
+}
+
+.dframe__body .gs-h {
+    display: block;
+    margin: 8px 0 2px;
+    font-family: var(--bb-font-mono, var(--font-mono));
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--bb-muted, var(--muted));
+}
+
+/* A row's own content: the label column, the free space, the trailing read. */
+.dframe__body .gs-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-width: 0;
+    font-family: var(--bb-font-body, var(--font-body));
+    font-size: 13px;
+    color: var(--bb-text, var(--white));
+    text-align: left;
+}
+
+.dframe__body .gs-row code {
+    font-family: var(--bb-font-mono, var(--font-mono));
+    font-size: 12.5px;
+    color: var(--bb-tan-light, var(--tan-light));
+}
+
+.dframe__body .gs-grow {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--bb-muted, var(--muted));
+}
+
+.dframe__body .gs-meta {
+    flex: none;
+    font-family: var(--bb-font-mono, var(--font-mono));
+    font-size: 11px;
+    color: var(--bb-muted, var(--muted));
+}
+
+.dframe__body .gs-num {
+    flex: none;
+    font-family: var(--bb-font-mono, var(--font-mono));
+    font-size: 10.5px;
+    letter-spacing: 0.1em;
+    color: rgba(201, 168, 124, 0.45);
+}
+
+/* The static stand-in for an <input>: the real one is a live control, and a
+   mock that rendered one would offer a text box that saves nothing. */
+.dframe__body .gs-value {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    min-height: 34px;
+    padding: 7px 10px;
+    font-family: var(--bb-font-body, var(--font-body));
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--bb-text, var(--white));
+}
+
+.dframe__body .gs-value[data-placeholder] {
+    color: var(--bb-muted, var(--muted));
+}
+
+.dframe__body .gs-value[data-focus] {
+    border-color: rgba(201, 168, 124, 0.45);
+}
+
+/* A response token, the way the editor's rehearsal marks one. */
+.dframe__body .gs-var {
+    font-family: var(--bb-font-mono, var(--font-mono));
+    font-size: 12px;
+    color: var(--bb-tan-light, var(--tan-light));
+    background: rgba(201, 168, 124, 0.12);
+    border-radius: var(--radius-xs, 4px);
+    padding: 1px 4px;
+}
+
+.dframe__body .gs-hint {
+    margin: 0;
+    font-family: var(--bb-font-body, var(--font-body));
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--bb-muted, var(--muted));
+}
+
+/* The modules page's search box is the width of its column, as the console's
+   is; the commands toolbar's shares its row and keeps its natural width. */
+.dframe__body .gs-find .bb-search {
+    width: 100%;
+}
+
+@media (max-width: 760px) {
+    /* Below the console's own rail breakpoint the mock stops shrinking to fit
+       and scrolls sideways instead: a two-column console squeezed into 340px
+       is not what the reader will open. */
+    .dframe__body {
+        overflow-x: auto;
+    }
+
+    .dframe__screen {
+        min-width: 0;
+    }
+}
+
+/* A module row's own stack: name, one line about it, its chat commands. */
+.dframe__body .gs-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+    text-align: left;
+}
+
+.dframe__body .gs-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--bb-font-display, var(--font-display));
+    font-weight: 700;
+    font-size: 13.5px;
+    color: var(--bb-white, var(--white));
+}
+
+.dframe__body .gs-copy .gs-grow {
+    white-space: normal;
+    font-family: var(--bb-font-body, var(--font-body));
+    font-size: 12.5px;
+    line-height: 1.45;
+}
+
+.dframe__body .gs-cmds {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+/* Two fields side by side, the way the command editor pairs access + cooldown. */
+.dframe__body .gs-pair {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+/* Wrapper the legend can light: EditorFooter has no slot for a mark. */
+.dframe__body .gs-foot {
+    margin-top: 4px;
+}

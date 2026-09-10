@@ -3,18 +3,19 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 /**
- * DashFrame: an annotated, hand-built "screenshot" of the dashboard for the
- * guides. Pure CSS, no images: a browser window (address bar only)
- * wraps a mock UI the page composes in the slot from the df-* helper classes
- * below. Invisible anchors (`<i class="df-mark" data-note="1">`) placed inside the mock
- * pair with the `notes` legend rendered underneath, so every visual carries
- * its own explanation, no "see figure 3" indirection.
+ * DashFrame: an annotated "screenshot" of the dashboard for the guides. No
+ * images: a browser window (address bar only) wraps a mock the page composes in
+ * the slot from the REAL @bagel/ui elements the console renders. Invisible
+ * anchors (`<i class="gs-mark" data-note="1">`) placed inside the mock pair with
+ * the `notes` legend rendered underneath, so every visual carries its own
+ * explanation, no "see figure 3" indirection.
  */
-// The df-* mock library used by whatever this component wraps. It has to be
-// global: slotted markup carries the caller's scope attribute, never this
-// component's, so a scoped rule here would never match. Imported rather than
-// inlined so screens/ authors have one file to read.
-import '../../styles/dashframe.css';
+// The annotation anchor and the containment overrides the console chrome needs
+// to sit inside a 700px figure. Global on purpose: slotted markup carries the
+// caller's scope attribute, never this component's, so a scoped rule here would
+// never match. It replaced dashframe.css, which redrew the whole console in its
+// own CSS and let the guides describe a Modules page that had moved on.
+import '../../styles/guide-screen.css';
 
 interface Note {
     n: number;
@@ -157,7 +158,7 @@ const { path = '/', notes = [], caption } = Astro.props;
     import { bindOnce } from '../../script/bind';
 
     // Legend line -> element in the frame. Each screen leaves an invisible
-    // <i class="df-mark" data-note="N"> inside the element it describes; the
+    // <i class="gs-mark" data-note="N"> inside the element it describes; the
     // matching legend line lights that element's parent while hovered or
     // focused. Bound on astro:page-load as well as at load for the ClientRouter,
     // with data-ready so a second pass never binds twice.
@@ -165,7 +166,7 @@ const { path = '/', notes = [], caption } = Astro.props;
         const lines = frame.querySelectorAll<HTMLElement>('[data-note-for]');
         lines.forEach((line) => {
             const n = line.dataset.noteFor;
-            const target = frame.querySelector<HTMLElement>(`.df-mark[data-note="${n}"]`)?.parentElement;
+            const target = frame.querySelector<HTMLElement>(`.gs-mark[data-note="${n}"]`)?.parentElement;
             if (!target) return;
             const on = () => target.classList.add('is-hot');
             const off = () => target.classList.remove('is-hot');

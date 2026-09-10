@@ -35,7 +35,7 @@ const strings: GuideStrings = {
     'anatomy.b1.labels.optional': '(optionnel)',
     'anatomy.b1.labels.panelHead': 'Modifier la commande',
     'anatomy.b1.labels.remove': 'Retirer',
-    'anatomy.b1.labels.responseHtml': '<span class="df-var">&#123;user&#125;</span> donne à <span class="df-var">&#123;touser&#125;</span> un gros câlin bagel 🥯',
+    'anatomy.b1.labels.responseHtml': '<span class="gs-var">&#123;user&#125;</span> donne à <span class="gs-var">&#123;touser&#125;</span> un gros câlin bagel 🥯',
     'anatomy.b1.labels.restrictPlaceholder': "ID utilisateur Twitch. Lui seul peut l'exécuter",
     'anatomy.b1.labels.save': 'Enregistrer',
     'anatomy.b1.labels.viewerText': '!calin ferret_king',
