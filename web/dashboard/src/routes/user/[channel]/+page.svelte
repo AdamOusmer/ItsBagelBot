@@ -8,6 +8,11 @@
 
   let { data }: { data: PageData } = $props();
 
+  // Keys carry the source index because triggers are not unique across the
+  // flat list: a module can publish the same label twice (aliases folded into
+  // the catalog) and a custom trigger can shadow a module one. Keying on the
+  // trigger alone throws each_key_duplicate, which aborts the render and
+  // leaves the page blank.
   // One flat directory of everything a viewer can type. Custom commands carry
   // their own detail (aliases, access, cooldown); module and built-in commands
   // come from the catalog and carry a usage line instead, with the module that
@@ -43,16 +48,16 @@
   const creatorCode = $derived(String(data.creatorCode ?? '').trim());
 
   const all = $derived.by((): Row[] => {
-    const custom: Row[] = data.commands.map((c) => ({
+    const custom: Row[] = data.commands.map((c, i) => ({
       ...c,
-      key: `custom:${c.trigger}`,
+      key: `custom:${i}:${c.trigger}`,
       kind: 'custom',
       source: 'Custom',
       moduleId: null
     }));
     const fromModules: Row[] = data.modules.flatMap((m) =>
-      m.commands.map((c) => ({
-        key: `${m.id}:${c.label}`,
+      m.commands.map((c, i) => ({
+        key: `${m.id}:${i}:${c.label}`,
         trigger: c.label,
         aliases: [],
         response: c.meta,
@@ -126,7 +131,6 @@
 <!-- Shared public chrome (see lib/components/public): the marketing nav + footer,
      and the same drifting mote field the leaderboard and stats pages wear. -->
 <PublicNav />
-<div class="grain" aria-hidden="true"></div>
 <div class="starfield" aria-hidden="true"><LightField /></div>
 <div class="glow" aria-hidden="true"></div>
 
@@ -291,16 +295,6 @@
 
   /* ── atmosphere ── */
 
-  /* Film grain over everything, nav included. Pointer-events off so it never
-     eats a click; the opacity is low enough to read as texture, not fog. */
-  .grain {
-    position: fixed;
-    inset: 0;
-    z-index: 100;
-    pointer-events: none;
-    opacity: 0.055;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  }
 
   /* Mote field below content (z-index 1), the same stacking the leaderboard
      and stats pages use. */
