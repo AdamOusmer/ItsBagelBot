@@ -22,17 +22,15 @@ import { describe, expect, test } from 'bun:test';
 import {
   COMMON_TOKEN_HEADS,
   COMMON_TOKEN_LIMIT,
-  FALLBACK_TOKEN_HEAD,
   isCommonToken,
   pickCommonTokens,
   tokenHead,
 } from './common-tokens';
 
 test('the opening set is exactly these five heads, in this order', () => {
-  expect([...COMMON_TOKEN_HEADS]).toEqual(['user', 'args', 'channel', 'random', 'count']);
+  expect([...COMMON_TOKEN_HEADS]).toEqual(['user', 'args', 'channel', 'random', 'uptime']);
   expect(COMMON_TOKEN_HEADS.length).toBeLessThanOrEqual(5);
   expect(COMMON_TOKEN_LIMIT).toBe(5);
-  expect(FALLBACK_TOKEN_HEAD).toBe('uptime');
 });
 
 describe('tokenHead', () => {
@@ -63,9 +61,10 @@ describe('tokenHead', () => {
 });
 
 test('isCommonToken keys on the head, not the example payload', () => {
-  expect(isCommonToken('{count:deaths}')).toBe(true);
-  expect(isCommonToken('{count:falls}')).toBe(true);
   expect(isCommonToken('{uptime}')).toBe(true);
+  // `{count:deaths}` is an example payload, not a variable: cut 2026-09-10.
+  expect(isCommonToken('{count:deaths}')).toBe(false);
+  expect(isCommonToken('{count:falls}')).toBe(false);
   // The console swaps {counter:…} for the counter PICKER, so the bumping
   // counter is deliberately NOT in the opening set: it would show the same
   // variable twice there.
@@ -107,7 +106,7 @@ describe('pickCommonTokens', () => {
   test('the console opens on five, in the console catalog order', () => {
     const picked = pickCommonTokens(CONSOLE_CATALOG, (t) => t);
     expect(picked).toEqual([
-      '{user}', '{args}', '{channel}', '{random}', '{count:deaths}',
+      '{user}', '{args}', '{channel}', '{random}', '{uptime}',
     ]);
     expect(picked.length).toBeLessThanOrEqual(5);
   });
@@ -115,24 +114,13 @@ describe('pickCommonTokens', () => {
   test('the marketing builder opens on the same five variables', () => {
     const picked = pickCommonTokens(MARKETING_CATALOG, (t) => t);
     expect(picked).toEqual([
-      '{user}', '{args}', '{channel}', '{count:falls}', '{random}',
+      '{user}', '{args}', '{channel}', '{random}', '{uptime}',
     ]);
     expect(picked.length).toBeLessThanOrEqual(5);
   });
 
-  // The counter is the only slot that moves: a catalog without one spends the
-  // fifth chip on {uptime} rather than showing four.
-  test('a catalog with no counter falls back to uptime for the fifth slot', () => {
-    expect(
-      pickCommonTokens(
-        ['{user}', '{args}', '{channel}', '{random}', '{uptime}', '{title}', '{game}'],
-        (t) => t,
-      ),
-    ).toEqual(['{user}', '{args}', '{channel}', '{random}', '{uptime}']);
-  });
-
-  test('a catalog with a counter does not also spend a slot on uptime', () => {
-    expect(pickCommonTokens(['{count:deaths}', '{uptime}'], (t) => t)).toEqual(['{count:deaths}']);
+  test('a counter example never takes a slot, even when the catalog has one', () => {
+    expect(pickCommonTokens(['{count:deaths}', '{uptime}'], (t) => t)).toEqual(['{uptime}']);
   });
 
   // The reason this is a function rather than a filter each surface writes.
