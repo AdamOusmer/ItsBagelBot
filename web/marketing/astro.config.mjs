@@ -126,7 +126,17 @@ export default defineConfig({
   },
 
   build: {
-      inlineStylesheets: 'auto',
+      // 'always', not 'auto'. Astro's 'auto' inlines a stylesheet only when it
+      // is under Vite's build.assetsInlineLimit -- which is pinned to 0 above so
+      // the CSP can forbid inline SCRIPT. That pairing silently disabled CSS
+      // inlining entirely: Lighthouse measured 4 render-blocking <link>s on /
+      // (index 12.6 KiB, LightField 11.2, CardAtmosphere 2.3, SectionHeading
+      // 1.5 = 27.6 KiB, ~870ms of blocked render). 'always' is a separate switch
+      // from assetsInlineLimit, so it inlines the CSS without re-permitting
+      // inline script. Safe because Layout.astro's CSP already carries
+      // style-src 'self' 'unsafe-inline'; if that ever tightens to a nonce or
+      // hash, this has to go back to 'auto' (or grow style hashes) first.
+      inlineStylesheets: 'always',
   },
 
   markdown: {

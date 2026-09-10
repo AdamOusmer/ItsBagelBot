@@ -297,7 +297,14 @@ const contentSecurityPolicy = [
     .skip-link {
         position: absolute;
         left: 12px;
-        top: -60px;
+        /* Parked off-screen with a transform, not with `top: -60px`, so the
+           reveal runs on the compositor. `top` animates layout: it was the one
+           layout-animating transition on every page of the site, since this
+           link is in the shared layout. -72px = the focused 12px offset plus
+           the 60px this used to sit at, so the resting and focused positions
+           are pixel-identical to before. */
+        top: 12px;
+        transform: translateY(-72px);
         z-index: 200;
         padding: 10px 16px;
         border-radius: var(--radius-sm);
@@ -307,11 +314,11 @@ const contentSecurityPolicy = [
         font-family: var(--font-mono, "DM Mono", monospace);
         font-size: 0.8rem;
         text-decoration: none;
-        transition: top 200ms ease;
+        transition: transform 200ms ease;
     }
 
     .skip-link:focus {
-        top: 12px;
+        transform: translateY(0);
     }
 
     /* No box: keeps the landmark for a11y without disturbing the hero/Encryption
