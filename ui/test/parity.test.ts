@@ -40,6 +40,8 @@ import SvelteCursor from '../svelte/Cursor.svelte';
 import AstroCursor from '../astro/Cursor.astro';
 import SvelteLightField from '../svelte/LightField.svelte';
 import AstroLightField from '../astro/LightField.astro';
+import SvelteNavLink from '../svelte/NavLink.svelte';
+import AstroNavLink from '../astro/NavLink.astro';
 
 /**
  * Reduce rendered HTML to the part the CSS contract actually selects on.
@@ -167,3 +169,85 @@ test('light field: the class and warmth props agree', async () => {
   );
   expect(astro).toBe(svelte);
 });
+// ── NavLink ────────────────────────────────────────────────────────────────
+// The first adapter pair carrying PROPS, which is what makes it the first one
+// the harness can drift on: Cursor and LightField above emit fixed markup.
+//
+// Three cases rather than one, because the three shapes NavLink can take are
+// exactly the three places two adapters drift: the plain link (does Astro emit
+// the same attribute order), the current + CTA link (do both suppress the
+// attributes they are not given, rather than emitting target="undefined" or an
+// empty aria-current — Astro drops an undefined attribute, Svelte drops it for
+// `undefined` but emits it for `null`, and the two rules are not the same rule),
+// and the disabled entry (a different ELEMENT, plus an extra child).
+//
+// External is folded into the CTA case on purpose: target and rel are the pair
+// most likely to be typed by hand on one side only.
+
+/** The contract. Edit deliberately; both adapters are held to it. */
+const NAV_LINK_HTML =
+  '<a class="bb-nav-link" href="/pricing">' +
+  '<span class="bb-nav-link__label">Pricing</span></a>';
+
+const NAV_LINK_CTA_HTML =
+  '<a class="bb-nav-link bb-nav-link--cta" href="https://example.test/add" ' +
+  'aria-current="page" target="_blank" rel="noopener noreferrer">' +
+  '<span class="bb-nav-link__label">Add</span></a>';
+
+const NAV_LINK_DISABLED_HTML =
+  '<span class="bb-nav-link bb-nav-link--block" aria-disabled="true">' +
+  '<span class="bb-nav-link__label">Loyalty</span>' +
+  '<span class="bb-nav-link__hint">Broadcaster only</span></span>';
+
+const NAV_LINK_CASES: { name: string; props: Record<string, unknown>; html: string }[] = [
+  {
+    name: 'rail link',
+    props: { href: '/pricing', label: 'Pricing' },
+    html: NAV_LINK_HTML,
+  },
+  {
+    name: 'current external cta',
+    props: {
+      href: 'https://example.test/add',
+      label: 'Add',
+      variant: 'cta',
+      current: true,
+      external: true,
+    },
+    html: NAV_LINK_CTA_HTML,
+  },
+  {
+    name: 'disabled block entry',
+    props: {
+      label: 'Loyalty',
+      block: true,
+      disabled: true,
+      hint: 'Broadcaster only',
+    },
+    html: NAV_LINK_DISABLED_HTML,
+  },
+];
+
+for (const testCase of NAV_LINK_CASES) {
+  test(`NavLink svelte adapter emits the contract markup: ${testCase.name}`, () => {
+    const { body } = render(SvelteNavLink, { props: testCase.props });
+    expect(normalise(body)).toBe(testCase.html);
+  });
+
+  test(`NavLink astro adapter emits the contract markup: ${testCase.name}`, async () => {
+    const container = await experimental_AstroContainer.create();
+    const html = await container.renderToString(AstroNavLink, {
+      props: testCase.props,
+    });
+    expect(normalise(html)).toBe(testCase.html);
+  });
+
+  test(`NavLink adapters agree: ${testCase.name}`, async () => {
+    const container = await experimental_AstroContainer.create();
+    const svelte = normalise(render(SvelteNavLink, { props: testCase.props }).body);
+    const astro = normalise(
+      await container.renderToString(AstroNavLink, { props: testCase.props }),
+    );
+    expect(svelte).toBe(astro);
+  });
+}

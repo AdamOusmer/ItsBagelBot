@@ -5,6 +5,7 @@
 import logoImage from "../../assets/LogoBOT.png";
 import {Image} from "astro:assets";
 
+import NavLink   from '@bagel/ui/astro/NavLink.astro';
 import Hamburger  from '../ui/Hamburger.astro';
 import MobileMenu from './MobileMenu.astro';
 import LanguageSwitcher from './LanguageSwitcher.astro';
@@ -39,18 +40,14 @@ const isActive = (href: string) =>
         <ul class="links" aria-label={t('nav.primary')}>
             {links.map((link) => (
                 <li>
-                    <a
-                        class:list={["nav-link", { "is-active": isActive(link.href) }]}
-                        href={link.href}
-                        aria-current={isActive(link.href) ? "page" : undefined}
-                    >{link.label}</a>
+                    <NavLink href={link.href} label={link.label} current={isActive(link.href)} />
                 </li>
             ))}
         </ul>
 
         <div class="button">
             <LanguageSwitcher />
-            <a class="bb-btn bb-btn--go-solid bb-btn--sm cta" href={cta.href}>{cta.label}</a>
+            <NavLink class="cta" variant="cta" href={cta.href} label={cta.label} />
         </div>
 
         <Hamburger />
@@ -323,21 +320,20 @@ const isActive = (href: string) =>
         pointer-events: auto;
     }
 
-    .nav-link {
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.7rem;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
-        text-decoration: none;
-        color: rgba(240, 236, 228, 0.5);
-        padding: 6px 2px;
-        white-space: nowrap;
-        transition: color 0.2s;
-    }
-
-    .nav-link:hover,
-    .nav-link.is-active {
-        color: var(--white);
+    /* The bar's links are @bagel/ui's `.bb-nav-link` and nothing here restates
+       their look: the hairline, the green drawline on hover and the tan diamond
+       on the current page are the contract, shared with the mobile menu, the
+       footer columns and the console rail. The two lines below are the only
+       thing this surface knows that the contract cannot: the pill is 0.7rem
+       (11.2px) rather than the contract's 11px because it was the bar's
+       measured size before the element existed and the grid's 1000px max was
+       laid out against it, and the resting colour is a 50% white rather than
+       --bb-muted (#888077) because the pill's own rgba(10,10,10,.55) glass sits
+       over live page content, where muted drops under 4.5:1 against a light
+       hero. */
+    .site-nav__inner :global(.bb-nav-link) {
+        --bb-nav-link-size: 0.7rem;
+        --bb-nav-link-rest: rgba(240, 236, 228, 0.5);
     }
 
     /* The CTA is the filled green variant, and takes the bar's own type and
@@ -345,15 +341,25 @@ const isActive = (href: string) =>
        is a 999px pill, so the system's 12.5px sentence case at 6px corners
        reads as imported from another page. The pill radius here is the one
        sanctioned exception to the 6px button corner: it is set by the
-       container, not by the button. */
+       container, not by the button. Expressed as contract properties, so the
+       CTA still hovers, focuses and marks the current page like every other
+       nav link — it only disagrees about type and radius. */
     .cta {
-        gap: 9px;
-        padding: 9px 16px 9px 13px;
-        border-radius: var(--radius-pill);
-        font-size: 0.7rem;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
-        white-space: nowrap;
+        --bb-nav-link-size: 0.7rem;
+
+        /* Zero tracking, and this is what SHIPPED rather than what the rule
+           above it used to say. `.button :global(a)` set letter-spacing: 0 at
+           specificity 0-1-1 and quietly beat the old `.cta` rule's .14em, so
+           the live CTA has always been untracked. That blanket rule is gone
+           now, and pinning the value here is what stops its removal from
+           silently widening the button by ~30px into the pill's right padding
+           (measured 2026-09-09 on /pricing at 1280px). The label is four words
+           in a fixed-width pill; the bar's tracking is a luxury it does not
+           have. */
+        --bb-nav-link-tracking: 0;
+        --bb-nav-link-transform: uppercase;
+        --bb-nav-link-radius: var(--radius-pill);
+        --bb-nav-link-rest: var(--white);
     }
 
     .logo {
@@ -396,11 +402,6 @@ const isActive = (href: string) =>
         justify-content: flex-end;
         align-items: center;
         gap: 14px;
-    }
-
-    .button :global(a) {
-        letter-spacing: 0;
-        white-space: nowrap;
     }
 
     @media (max-width: 1120px) {
