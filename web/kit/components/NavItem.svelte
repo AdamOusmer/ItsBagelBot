@@ -1,15 +1,36 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+
+  // The console rail's ledger entry. Presentation is @bagel/ui's `.bb-nav-link`
+  // -- the same element the marketing bar, the mobile menu and the footer
+  // columns render -- and what stays here is the bot-specific half this
+  // component has always owned: the nav registry's shape (icon name, index,
+  // count, broadcaster lock) and the one i18n string the lock needs.
+  //
+  // That string is why this wrapper exists at all rather than the rail
+  // rendering NavLink directly. `t('nav.lockedBroadcaster')` used to be called
+  // INSIDE the component that drew the link; resolving it here and handing the
+  // result down as `hint` is what lets the element live in a library that must
+  // never know the word "broadcaster".
+  //
+  // The ledger's own active mark is gone with the CSS: the green square pinned
+  // to the right edge of the active row is now the contract's tan diamond on
+  // the left, next to the index, which is where every other surface marks the
+  // current page. One active state, one place to look for it.
+  import NavLink from '@bagel/ui/svelte/NavLink.svelte';
   import Icon from './Icon.svelte';
   import type { IconName } from '../lib/icons';
   import { getI18n } from '../lib/i18n/context';
 
   const { t } = getI18n();
 
+  // `icon` is destructured under another name because the markup below passes a
+  // SNIPPET called `icon` to NavLink, and a snippet shadows a prop of the same
+  // name inside its own body.
   let {
     href,
-    icon,
+    icon: iconName,
     label,
     active = false,
     locked = false,
@@ -28,46 +49,48 @@
   const idx = $derived(index !== undefined ? String(index).padStart(2, '0') : undefined);
 </script>
 
-{#if locked}
-  <!-- Locked (broadcaster-only) entry: non-interactive, and the meaning is
-       carried by real .sr-only text, not a hover-only title tooltip. -->
-  <span class="nav-item locked">
-    {#if idx}<span class="idx">{idx}</span>{/if}
-    {#if icon}<Icon name={icon} />{/if} {label}
-    <Icon name="lock" size={13} />
-    <span class="sr-only">{t('nav.lockedBroadcaster')}</span>
-  </span>
-{:else}
-  <a class="nav-item {active ? 'active' : ''}" {href} aria-current={active ? 'page' : undefined}>
-    {#if idx}<span class="idx">{idx}</span>{/if}
-    {#if icon}<Icon name={icon} />{/if} <span class="lbl">{label}</span>
+<NavLink
+  class="nav-item"
+  href={locked ? undefined : href}
+  {label}
+  current={active}
+  disabled={locked}
+  hint={locked ? t('nav.lockedBroadcaster') : undefined}
+  block
+>
+  {#snippet icon()}
+    {#if idx}<span class="idx" class:is-active={active}>{idx}</span>{/if}
+    {#if iconName}<Icon name={iconName} />{/if}
+  {/snippet}
+  {#snippet trail()}
+    {#if locked}<Icon name="lock" size={13} />{/if}
     {#if count !== undefined}<span class="count">{count}</span>{/if}
-  </a>
-{/if}
+  {/snippet}
+</NavLink>
 
 <style>
-  /* Ledger rail entry: indexed mono line on a hairline, active keyed by a tan
-     bracket + index instead of a filled pill. */
-  .nav-item {
-    display: flex; align-items: center; gap: 10px; padding: 11px 10px 11px 12px;
-    cursor: pointer; position: relative;
-    color: var(--bb-muted); border: none;
-    transition: color var(--bb-dur-base) var(--bb-ease-out-expo),
-                border-color var(--bb-dur-base) var(--bb-ease-out-expo);
-    font-family: var(--bb-font-mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
-    background: none; width: 100%; text-align: left; text-decoration: none;
+  /* The index column and the count are the LEDGER, not the link: they are what
+     makes this rail a numbered register rather than a menu, and no other
+     surface that renders a nav link has them. Everything that WAS link styling
+     here -- the mono type, the hover colour, the active state, the green square
+     -- now comes from @bagel/ui/styles/elements/nav-link.css.
+
+     `.nav-item` is still passed to NavLink and still styled, but only by
+     NavGroup, which draws the hairline BETWEEN rows. That rule stays there
+     because it is a property of the group, not of one entry. */
+  .idx {
+    font-size: 10px;
+    color: var(--bb-muted);
+    opacity: 0.6;
+    min-width: 18px;
+    transition: color var(--bb-dur-base) ease, opacity var(--bb-dur-base) ease;
   }
-  .idx { font-size: 10px; color: var(--bb-muted); opacity: 0.6; min-width: 18px; transition: color var(--bb-dur-base) ease, opacity var(--bb-dur-base) ease; }
-  .nav-item :global(svg) { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
-  .lbl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .nav-item:hover { color: var(--bb-white); }
-  .nav-item:hover .idx { opacity: 1; }
-  .nav-item.active { color: var(--bb-white); }
-  .nav-item.active .idx { color: var(--bb-tan); opacity: 1; }
-  .nav-item.active::after {
-    content: ""; position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
-    width: 5px; height: 5px; background: var(--bb-green-glow); box-shadow: 0 0 8px var(--bb-green-glow);
-  }
+
+  .idx.is-active { color: var(--bb-tan); opacity: 1; }
+
+  /* Reached through :global because the class it hangs off lives on the child
+     component's root, which Svelte cannot scope-mark from here. */
+  :global(.bb-nav-link):hover .idx { opacity: 1; }
+
   .count { margin-left: auto; font-size: 10px; color: var(--bb-muted); }
-  .nav-item.locked { opacity: 0.45; cursor: not-allowed; }
 </style>

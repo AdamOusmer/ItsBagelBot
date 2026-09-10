@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import NavLink from '@bagel/ui/astro/NavLink.astro';
 import LanguageSwitcher from './LanguageSwitcher.astro';
 import { getLangFromUrl, useTranslations, defaultLang } from '../../i18n/ui';
 
@@ -30,12 +31,12 @@ const getAppHref = `https://dashboard.itsbagelbot.com/?install=1${lang === defau
     <div class="mobile-menu__panel" role="dialog" aria-label={t('menu.primary')} aria-modal="true">
         <ul class="mobile-menu__links">
             {links.map((link) => (
-                <li data-menu-item><a class="mobile-menu__link" href={link.href}>{link.label}</a></li>
+                <li data-menu-item><NavLink class="mobile-menu__link" href={link.href} label={link.label} block /></li>
             ))}
         </ul>
 
         <div class="mobile-menu__footer" data-menu-footer>
-            <a class="bb-btn bb-btn--primary mobile-menu__cta" href={ctaHref}>{ctaLabel}</a>
+            <NavLink class="mobile-menu__cta" variant="cta" href={ctaHref} label={ctaLabel} block />
             <a class="mobile-menu__app" href={getAppHref}>{t('nav.getApp')}</a>
             <div class="mobile-menu__lang"><LanguageSwitcher /></div>
             <span class="mobile-menu__meta">{t('menu.meta')}</span>
@@ -107,19 +108,27 @@ const getAppHref = `https://dashboard.itsbagelbot.com/?install=1${lang === defau
         gap: 8px;
     }
 
-    .mobile-menu__link {
-        display: block;
-        font-family: var(--font-display, "Syne", sans-serif);
-        font-weight: 700;
-        font-size: 2.45rem;
-        line-height: 1.2;
-        letter-spacing: 0;
-        color: var(--white, #f0ece4);
-        text-decoration: none;
-        padding: 6px 0;
-    }
+    /* The panel's links are the same `.bb-nav-link` the bar and the footer
+       render; only the type changes, and it changes through the contract's own
+       properties rather than by restating the look. Display face at 2.45rem is
+       the panel's editorial voice and predates the element. line-height stays
+       at 1.2, not the contract's 1 — at 2.45rem a line-height of 1 clips Syne's
+       descenders against the 8px list gap.
 
-    .mobile-menu__link:active { color: var(--green-glow, #52b788); }
+       No :active colour swap any more. It was the only feedback a touch user
+       got, and it fired after the tap had already committed; the contract's
+       drawline runs under the label on :hover AND :focus-visible, which is what
+       a touch device reports on press. */
+    .mobile-menu__link {
+        --bb-nav-link-family: var(--font-display, "Syne", sans-serif);
+        --bb-nav-link-size: 2.45rem;
+        --bb-nav-link-weight: 700;
+        --bb-nav-link-tracking: 0;
+        --bb-nav-link-transform: none;
+        --bb-nav-link-pad: 6px 0 10px;
+        --bb-nav-link-rest: var(--white, #f0ece4);
+        line-height: 1.2;
+    }
 
     .mobile-menu__links li,
     .mobile-menu__footer {
@@ -138,14 +147,13 @@ const getAppHref = `https://dashboard.itsbagelbot.com/?install=1${lang === defau
         border-top: 1px solid rgba(201, 168, 124, 0.15);
     }
 
+    /* The panel CTA is the bar CTA: same filled variant, same green, so the two
+       entry points to the dashboard cannot drift. It was `bb-btn bb-btn--primary`
+       before, and `.bb-btn--primary` has never existed in this stylesheet — the
+       class was inert and the button fell back to the bare hollow tan frame,
+       which is why the panel's call to action looked quieter than the bar's. */
     .mobile-menu__cta {
-        width: 100%;
         justify-content: center;
-    }
-
-    .mobile-menu__cta:active {
-        background: var(--tan, #c9a87c);
-        color: var(--black, #0a0a0a);
     }
 
     .mobile-menu__app {

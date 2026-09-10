@@ -9,7 +9,7 @@
  */
 import { Image } from 'astro:assets';
 import logoImage from '../../assets/LogoBOT.png';
-import TextLink from '../ui/TextLink.astro';
+import NavLink from '@bagel/ui/astro/NavLink.astro';
 import { OWNER_IGN, OWNER_PROFILE_URL } from '../../owner';
 import { getLangFromUrl, useTranslations, localizePath, defaultLang } from '../../i18n/ui';
 
@@ -74,24 +74,24 @@ const isHome = normalize(Astro.url.pathname) === localizePath('/', lang);
         <div class="cols">
             <div class="col" data-reveal style="--reveal-i: 1">
                 <p>{t('footer.product')}</p>
-                <TextLink href={localizePath("/pricing", lang)} label={t('footer.pricing')} />
-                <TextLink href={localizePath("/guides", lang)} label={t('footer.guides')} />
-                <TextLink href={localizePath("/changelog", lang)} label={t('footer.changelog')} />
-                <TextLink href={localizePath("/command-builder", lang)} label={t('footer.builder')} />
+                <NavLink href={localizePath("/pricing", lang)} label={t('footer.pricing')} />
+                <NavLink href={localizePath("/guides", lang)} label={t('footer.guides')} />
+                <NavLink href={localizePath("/changelog", lang)} label={t('footer.changelog')} />
+                <NavLink href={localizePath("/command-builder", lang)} label={t('footer.builder')} />
             </div>
             <div class="col" data-reveal style="--reveal-i: 2">
                 <p>{t('footer.company')}</p>
-                <TextLink href={localizePath("/contact", lang)} label={t('footer.contact')} />
-                <TextLink href="https://stats.itsbagelbot.com" label={t('footer.stats')} external />
-                <TextLink href="https://status.itsbagelbot.com" label={t('footer.status')} external />
+                <NavLink href={localizePath("/contact", lang)} label={t('footer.contact')} />
+                <NavLink href="https://stats.itsbagelbot.com" label={t('footer.stats')} external />
+                <NavLink href="https://status.itsbagelbot.com" label={t('footer.status')} external />
             </div>
             <div class="col" data-reveal style="--reveal-i: 3">
                 <p>{t('footer.community')}</p>
-                <TextLink href="https://discord.gg/SZ2remwSDv" label="Discord" external />
-                <TextLink href="https://twitch.tv/itsbagelbot" label="Twitch" external />
-                <TextLink href="https://github.com/AdamOusmer/ItsBagelBot" label="GitHub" external />
-                <TextLink href="https://docs.itsbagelbot.com" label={t('footer.developer')} external />
-                <TextLink href={`https://dashboard.itsbagelbot.com${dashboardQuery}`} label={t('footer.dashboard')} external />
+                <NavLink href="https://discord.gg/SZ2remwSDv" label="Discord" external />
+                <NavLink href="https://twitch.tv/itsbagelbot" label="Twitch" external />
+                <NavLink href="https://github.com/AdamOusmer/ItsBagelBot" label="GitHub" external />
+                <NavLink href="https://docs.itsbagelbot.com" label={t('footer.developer')} external />
+                <NavLink href={`https://dashboard.itsbagelbot.com${dashboardQuery}`} label={t('footer.dashboard')} external />
             </div>
         </div>
     </div>
@@ -100,9 +100,9 @@ const isHome = normalize(Astro.url.pathname) === localizePath('/', lang);
         <span class="copy">&copy; 2026 ItsBagelBot</span>
         <span class="note">{t('footer.note')}</span>
         <div class="legal">
-            <TextLink href={localizePath('/privacy', lang)} label={t('footer.privacy')} size="0.7rem" />
-            <TextLink href={localizePath('/terms', lang)} label={t('footer.terms')} size="0.7rem" />
-            <TextLink href={localizePath('/creator-terms', lang)} label={t('footer.creatorTerms')} size="0.7rem" />
+            <NavLink href={localizePath('/privacy', lang)} label={t('footer.privacy')} />
+            <NavLink href={localizePath('/terms', lang)} label={t('footer.terms')} />
+            <NavLink href={localizePath('/creator-terms', lang)} label={t('footer.creatorTerms')} />
         </div>
     </div>
 </footer>
@@ -227,6 +227,29 @@ const isHome = normalize(Astro.url.pathname) === localizePath('/', lang);
         text-transform: uppercase;
         color: var(--white);
         margin: 0 0 4px 0;
+    }
+
+    /* The columns render @bagel/ui's `.bb-nav-link` at its own defaults, and
+       that is the visible change here: they were TextLink, whose hover rolled
+       every glyph of the label into a duplicate row while two pseudo-element
+       rails faded in and a glint keyframe ran the wire — sixteen animated spans
+       per link, on the block of the page nobody watches. The footer now moves
+       the way the bar and the console rail move: the label lights, a green line
+       draws in under it, the current page keeps a tan diamond.
+
+       The columns take the contract's 11px/.14em rather than TextLink's
+       0.78rem/.04em on purpose: one nav link, one size, and the footer was the
+       odd one out. */
+
+    /* The legal strip is the footer's fine print: a step below the columns in
+       size, which is what TextLink was given here before, and back at TextLink's
+       .04em rather than the contract's .14em. Three long labels share one grid
+       column with the "data is never sold" note, and at .14em they grow past
+       the note and out of the 1fr track — measured 2026-09-09 at 1280px, the
+       strip overflowed by ~40px and PRIVACY POLICY sat on top of the note. */
+    .legal {
+        --bb-nav-link-size: 0.7rem;
+        --bb-nav-link-tracking: 0.04em;
     }
 
     @media (prefers-reduced-motion: reduce) {

@@ -96,3 +96,4 @@ export { intactSpan } from './engine/tmpl';
 export * from './validation';
 export * from './action-result';
 export * from './format';
+export { default as NavLink } from '@bagel/ui/svelte/NavLink.svelte';

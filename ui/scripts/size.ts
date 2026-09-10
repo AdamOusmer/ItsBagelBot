@@ -214,6 +214,15 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   // one most likely to become a dumping ground for "global-ish" rules, which
   // is what this row is for. Measured 2026-09-09: 348 B gzip.
   { name: "a11y", budget: 560 },
+  // The `.bb-nav-link` contract: every navigation link on every surface --
+  // marketing top nav, mobile menu, footer columns, console rail. The row to
+  // watch for modifier creep. It replaces four per-component link styles whose
+  // combined shipped weight was larger, but that is not a licence for this one
+  // to grow: a fifth surface should arrive as component-property values on the
+  // caller's side, which cost this file nothing, and a new MODIFIER here has to
+  // justify itself against that.
+  // Measured 2026-09-09: 1072 B gzip. 1072 + 150 = 1222, +10% -> 1350.
+  { name: "elements/nav-link", budget: 1350 },
 ];
 
 let failed = false;

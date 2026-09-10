@@ -28,5 +28,19 @@
   }
   .nav-group-label::after { content: ""; flex: 1; height: 1px; background: var(--rule, rgba(240,236,228,0.1)); }
   .nav { display: flex; flex-direction: column; border-top: 1px solid var(--rule, rgba(240,236,228,0.1)); }
-  .nav :global(.nav-item) { border-bottom: 1px solid var(--rule, rgba(240,236,228,0.06)); }
+  /* The rule BETWEEN rows belongs to the group, not to an entry: an entry that
+     drew its own would double it against the group's top border. This is the
+     one place @bagel/ui's `--bb-nav-link-rule` is deliberately left alone and
+     the border set directly -- the contract's hairline is transparent by
+     default precisely so a container like this one can own it.
+
+     The row padding is the rail's, not the contract's: 11px/12px is the density
+     the console's 240px rail was laid out against, and the contract's 6px/2px
+     is a bar's, where links sit side by side. */
+  .nav :global(.nav-item) {
+    --bb-nav-link-pad: 11px 10px 11px 12px;
+    --bb-nav-link-size: 12px;
+    --bb-nav-link-tracking: 0.08em;
+    border-bottom: 1px solid var(--rule, rgba(240,236,228,0.06));
+  }
 </style>

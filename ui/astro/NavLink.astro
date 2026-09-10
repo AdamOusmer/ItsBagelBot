@@ -1,0 +1,74 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro adapter for the `.bb-nav-link` contract. Its Svelte twin is
+// ../svelte/NavLink.svelte and ../test/parity.test.ts diffs the two rendered
+// outputs, so the class list, the attribute order and the element structure
+// here are written to match that file line for line even where Astro would
+// allow something shorter.
+//
+// No scoped <style> block, by package rule: the contract is
+// ../styles/elements/nav-link.css and a scoped rule here would be unlayered,
+// beat it, and apply on exactly one of the three surfaces.
+import '../styles/elements/nav-link.css';
+
+interface Props {
+  /** Target. Omitted only for a `disabled` entry, which renders a span. */
+  href?: string;
+  /** Visible text. The default slot wins when both are given. */
+  label?: string;
+  /** Current route: emits aria-current="page", which is what the CSS keys on. */
+  current?: boolean;
+  /** rail = hairline + drawline (default); cta = the one filled form. */
+  variant?: 'rail' | 'cta';
+  /** Opens in a new tab, with the rel that makes that safe. */
+  external?: boolean;
+  /** Full-width row form, for a stacked list rather than a bar. */
+  block?: boolean;
+  /** Non-interactive entry. Renders a span, so there is nothing to focus. */
+  disabled?: boolean;
+  /** sr-only text explaining a disabled entry. Caller-supplied wording. */
+  hint?: string;
+  class?: string;
+  [key: string]: unknown;
+}
+
+const {
+  href,
+  label = '',
+  current = false,
+  variant = 'rail',
+  external = false,
+  block = false,
+  disabled = false,
+  hint,
+  class: className = '',
+  ...rest
+} = Astro.props;
+
+// `rest` carries the caller's scoped-style attribute (data-astro-cid-*) as well
+// as any aria/data hook, which is how a marketing surface positions the link
+// with its own CSS without this component knowing about that surface.
+const classes = [
+  'bb-nav-link',
+  variant === 'cta' ? 'bb-nav-link--cta' : null,
+  block ? 'bb-nav-link--block' : null,
+  className || null,
+]
+  .filter(Boolean)
+  .join(' ');
+---
+
+{disabled ? (
+  <span class={classes} aria-disabled="true" {...rest}><slot name="icon" /><span class="bb-nav-link__label"><slot>{label}</slot></span><slot name="trail" />{hint && <span class="bb-nav-link__hint">{hint}</span>}</span>
+) : (
+  <a
+    class={classes}
+    href={href}
+    aria-current={current ? 'page' : undefined}
+    target={external ? '_blank' : undefined}
+    rel={external ? 'noopener noreferrer' : undefined}
+    {...rest}
+  ><slot name="icon" /><span class="bb-nav-link__label"><slot>{label}</slot></span><slot name="trail" /></a>
+)}

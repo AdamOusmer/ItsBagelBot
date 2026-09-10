@@ -1,0 +1,354 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* `.bb-nav-link` — the one contract every navigation link renders through, on
+   every surface: the marketing top nav, the mobile menu, the footer link
+   columns, and the console rail. Before this file there were four of them, and
+   they had already drifted into four different motions:
+
+     marketing Nav.astro `.nav-link`   mono 0.7rem/.14em, colour-only fade, 200ms
+     marketing TextLink `.text-link`   mono 0.78rem/.04em, per-glyph roll-over +
+                                       two pseudo-element rails + a glint keyframe
+     marketing MobileMenu `__link`     Syne 2.45rem, :active colour swap only
+     console NavItem `.nav-item`       mono 12px/.08em, colour fade + a green
+                                       square pinned to the right edge
+
+   Four answers to "what does a nav link do when you point at it" is three too
+   many, and the footer's answer (16 glyph spans per link, three transitions
+   each, staggered by index) was the most expensive thing on the page while
+   being the one nobody looks at.
+
+   THE MOTION. Hover, focus and current-page all follow the button idiom that
+   already governs every other clickable thing on the site — marketing
+   `style.css` `.bb-btn` (Tier 2b, the diamond mark) and `.bb-rail` (Tier 2c,
+   the rail: no frame, label on a hairline, a green line drawing in from the
+   left, the same draw as `.bb-drawline`). Two variants, per the Tier 2
+   vocabulary:
+
+     rail (default)  no frame; the label sits on a tan hairline and a green
+                     line draws in under it on hover. This is `.bb-rail`, and a
+                     nav link is exactly what Tier 2c describes: an action that
+                     would read as a box dropped into the page if it were
+                     framed.
+     --cta           the one filled form, for the single conversion target in
+                     the bar. Matches `.bb-btn--go-solid`: green fill, green
+                     border, white label, no drawline (there is nothing to draw
+                     on — the fill already carries it).
+
+   WHY THE VALUES BELOW ARE THESE VALUES, in the order a reader hits them. */
+
+/* In `@layer bb.elements`, with every other contract this package ships.
+
+   It was NOT layered when the element landed, and the reason is worth keeping:
+   unlayered CSS beats EVERY cascade layer regardless of specificity, and
+   marketing's resets were unlayered. Measured 2026-09-09 on /pricing at 1280px
+   with the file wrapped in the layer, `*, *::before, *::after { padding: 0 }`
+   and `a { color: inherit }` (then style.css:83 and :141) won: every nav link
+   computed `padding: 0px` while `--bb-nav-link-pad` held the right value, so
+   the bar collapsed to 13px with the CTA's fill cut by the pill, and every
+   link resolved to white instead of its muted rest state.
+
+   The CSS-layers PR moved those resets into `bb.base`, which is weaker than
+   `bb.elements`, so the contract wins by layer order and the layer is back.
+   Re-verified the same way after the move: padding and colour compute from the
+   properties, and the hover line still draws 0px -> 100%.
+
+   Consumers retune through the `--bb-nav-link-*` properties, which layers do
+   not affect, and an app that has to win against the contract does it from
+   `bb.app` rather than by out-specifying it. */
+
+@layer bb.elements {
+    .bb-nav-link {
+      /* Component properties, three-tier tokens: a surface retunes a nav link by
+         setting these, never by re-declaring the look. That is the whole reason
+         this is one contract and not one contract plus four overrides — the
+         console rail (12px/.08em, full width) and the mobile menu (Syne 2.45rem,
+         sentence case) are the SAME element with different property values, and
+         every one of them still hovers, focuses and marks the current page
+         identically. Anything a surface cannot express by setting a property here
+         is a gap in this file, not a licence to write a second `.nav-link`. */
+
+      /* 11px/.14em uppercase mono is the site's label type: `.bb-tab`, `.bb-rail`
+         and the marketing nav's own `.nav-link` (0.7rem = 11.2px at the default
+         root) had all independently arrived at it. `--bb-tracking-eyebrow` is
+         0.18em and is deliberately NOT used: that is the tracking for a static
+         eyebrow you read, and at 11px on a clickable target it opens the word up
+         far enough that the hover underline reads as a rule rather than as
+         belonging to the label. .14em is the value `.bb-tab`/`.bb-rail` use. */
+      --bb-nav-link-family: var(--bb-font-mono);
+      --bb-nav-link-size: 11px;
+      --bb-nav-link-weight: 400;
+      --bb-nav-link-tracking: 0.14em;
+      --bb-nav-link-transform: uppercase;
+
+      /* 6px above / 10px below is `.bb-rail`'s padding, and the asymmetry is
+         load-bearing: the extra 4px underneath is what separates the label from
+         the hairline it sits on, so the drawn line reads as a rail under the
+         word rather than as an underline through its descenders. */
+      --bb-nav-link-pad: 6px 2px 10px;
+      --bb-nav-link-gap: 10px;
+
+      --bb-nav-link-rest: var(--bb-muted);
+      --bb-nav-link-lit: var(--bb-white);
+
+      /* The resting hairline is TRANSPARENT by default and the border is still
+         declared, exactly as `.bb-tab` does it: the rule under a row of links
+         belongs to the container (`.bb-tabs` draws it, the console rail's group
+         draws it), so links that sit in a glass pill or in a footer column do not
+         each grow their own 40px dash. Keeping the 1px border reserves the space
+         so a container that DOES set --bb-nav-link-rule cannot shift the row. */
+      --bb-nav-link-rule: transparent;
+      --bb-nav-link-draw: var(--bb-green-glow);
+      --bb-nav-link-mark: var(--bb-tan);
+      --bb-nav-link-radius: 0;
+
+      /* 420ms for the draw, not --bb-dur-base (320ms). The line travels the full
+         width of the label, so it is "a movement with distance in it" —
+         brand.css's own definition of the slow tier — but --bb-dur-slow (600ms)
+         is a drawer, and at 600ms the line is still arriving after the pointer
+         has moved on to the next item in a five-item bar. 420ms is the value
+         `.bb-rail` was tuned to and it survives being re-measured here. Colour
+         and border stay on --bb-dur-base so the label lights before the line
+         lands, which is what makes the two read as one gesture. */
+      --bb-nav-link-draw-dur: 420ms;
+
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: var(--bb-nav-link-gap);
+      padding: var(--bb-nav-link-pad);
+
+      /* -1px so a row of links shares ONE hairline with whatever rule they sit
+         on rather than stacking a second one 1px below it. `.bb-tabs`/`.bb-rail`
+         do the same; without it a footer column shows a visible double rule. */
+      margin-bottom: -1px;
+
+      border: 0;
+      border-bottom: 1px solid var(--bb-nav-link-rule);
+      border-radius: var(--bb-nav-link-radius);
+
+      /* The drawline. A background gradient sized 0->100% on one axis, NOT a
+         ::after with a transform: the label already owns ::before for the mark,
+         and scaleX on a pseudo-element cannot animate from a 1px-tall element
+         without either compositing a blurred edge or forcing a second layer per
+         link. Sizing a background is a single non-composited property on an
+         element that is already painting one. `.bb-drawline` animates `width`
+         for the same reason and this is its hover form. */
+      background: linear-gradient(var(--bb-nav-link-draw), var(--bb-nav-link-draw))
+        no-repeat left bottom;
+      background-size: 0 1px;
+
+      color: var(--bb-nav-link-rest);
+      font-family: var(--bb-nav-link-family);
+      font-size: var(--bb-nav-link-size);
+      font-weight: var(--bb-nav-link-weight);
+      letter-spacing: var(--bb-nav-link-tracking);
+      text-transform: var(--bb-nav-link-transform);
+      line-height: 1;
+      text-decoration: none;
+      white-space: nowrap;
+      cursor: pointer;
+
+      transition:
+        background-size var(--bb-nav-link-draw-dur) var(--bb-ease-out-expo),
+        color var(--bb-dur-base) var(--bb-ease-out-expo),
+        border-color var(--bb-dur-base) var(--bb-ease-out-expo),
+        opacity var(--bb-dur-base) var(--bb-ease-out-expo);
+    }
+
+    /* The mark. `.bb-btn` and `.bb-rail` both open with a 5px square rotated 45deg
+       inheriting currentColor, and that diamond is the entire "dot" vocabulary of
+       this system (`.bb-mark` in marketing style.css says so, and says why: a
+       circle plus a box-shadow is the pattern this system replaces).
+
+       It is rendered on EVERY link and hidden with opacity, never added on the
+       current one with a `content` swap. A mark that appears only when a link
+       becomes current shifts its label 15px sideways at the moment the route
+       changes, and in the console rail — where SvelteKit swaps `aria-current`
+       client-side with no reload — that is a visible jump on two rows at once.
+       Reserving the box costs 5px of gap on links that never light it up. */
+    .bb-nav-link::before {
+      content: "";
+      flex-shrink: 0;
+      box-sizing: border-box;
+      width: 5px;
+      height: 5px;
+      border: 1px solid currentColor;
+      background: transparent;
+      opacity: 0;
+      transform: rotate(45deg);
+      transition:
+        opacity var(--bb-dur-base) var(--bb-ease-out-expo),
+        background-color var(--bb-dur-base) var(--bb-ease-out-expo),
+        border-color var(--bb-dur-base) var(--bb-ease-out-expo);
+    }
+
+    /* Hover and keyboard focus are the SAME state deliberately: a keyboard user
+       gets the drawline, not just a ring. `.bb-tab`/`.bb-rail` only styled
+       :hover, which is why tabbing the old footer moved nothing at all. */
+    .bb-nav-link:is(:hover, :focus-visible) {
+      background-size: 100% 1px;
+      color: var(--bb-nav-link-lit);
+    }
+
+    .bb-nav-link:is(:hover, :focus-visible)::before {
+      opacity: 1;
+    }
+
+    .bb-nav-link:focus-visible {
+      outline: 1px solid var(--bb-focus);
+      outline-offset: 3px;
+    }
+
+    /* Current page. Keyed off `aria-current="page"` and nothing else: an
+       `is-active` class is a second source of truth that a screen reader cannot
+       see, and all four predecessors carried one (`is-active`, `active`) next to
+       an aria-current they set from the same boolean. One attribute, styled
+       directly, cannot drift from what is announced.
+
+       The drawline is held at full width and the mark goes solid tan — tan, not
+       the green of the draw, because green is the motion colour here (it is what
+       travels) and using it for the resting state of the current page would make
+       a static page look like it is still animating. Tan is the accent that says
+       "you are here" on `.bb-tag--alpha` and the console's active index. */
+    .bb-nav-link[aria-current="page"] {
+      background-size: 100% 1px;
+      color: var(--bb-nav-link-lit);
+    }
+
+    .bb-nav-link[aria-current="page"]::before {
+      opacity: 1;
+      border-color: var(--bb-nav-link-mark);
+      background: var(--bb-nav-link-mark);
+    }
+
+    /* Full-width form, for a link that is a ROW rather than an item in a bar:
+       the console rail's ledger entries and the mobile menu's stacked list. Only
+       the box changes; the motion above is untouched. */
+    .bb-nav-link--block {
+      display: flex;
+      width: 100%;
+      white-space: normal;
+    }
+
+    /* The label span. Exists so a row link can ellipsize its text without the
+       mark, an index or a count being dragged into the truncation — the console
+       rail's `.lbl` did exactly this and it is the one structural thing the four
+       predecessors did not share. */
+    .bb-nav-link__label {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Icons ride at the label's colour and weight; sized to the label rather than
+       to a fixed px so a 2.45rem mobile-menu link does not get a 15px glyph. */
+    .bb-nav-link svg {
+      flex-shrink: 0;
+      width: 1.36em;
+      height: 1.36em;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.6;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    /* A nav link that is not a link: the console's broadcaster-gated entries
+       render a <span> so there is nothing to activate. Meaning is carried by real
+       sr-only text next to it, never by a title tooltip. */
+    .bb-nav-link[aria-disabled="true"],
+    span.bb-nav-link {
+      opacity: 0.45;
+      cursor: not-allowed;
+      background-size: 0 1px;
+    }
+
+    /* The hint's visually-hidden rule is written out here rather than reused from
+       a shared `.sr-only`, because this package does not ship one yet: the a11y
+       stylesheet lands with the tags/reveal/orbs layer. Scoping it to the element
+       means the day that file arrives, deleting this block is a one-line change
+       that cannot silently unhide anything else. `clip-path: inset(50%)` and not
+       the legacy `clip: rect(...)`, which is deprecated and which Safari 17
+       stopped honouring inside a transformed ancestor — the nav pill is one. */
+    .bb-nav-link__hint {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      padding: 0;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    /* ── --cta ───────────────────────────────────────────────────────────────
+       The one filled nav link, and the reason the variant exists at all: a
+       hairline rail inside a glass pill read as another nav item, and the bar's
+       single conversion target has to carry itself. Values are `.bb-btn--go-solid`
+       plus `.bb-btn--sm`'s geometry, which is what the marketing nav CTA already
+       resolved to through four classes and a scoped override.
+
+       It does NOT reach for `.bb-btn`. Not because the duplication is desirable
+       but because on this branch `.bb-btn` is still marketing-only CSS in
+       `web/marketing/src/styles/style.css`; a ui element that only styles
+       correctly on one of the three surfaces is not a contract. The button
+       element PR moves `.bb-btn` into ui/styles/elements/button.css, and at that
+       point this block becomes `composes`-by-class (`bb-btn bb-btn--go-solid
+       bb-btn--sm`) emitted from the adapter and these five declarations delete.
+       Do not "fix" the duplication before button.css exists in this package. */
+    .bb-nav-link--cta {
+      --bb-nav-link-rest: var(--bb-white);
+      --bb-nav-link-lit: var(--bb-white);
+      --bb-nav-link-size: 12.5px;
+      --bb-nav-link-tracking: 0.04em;
+      --bb-nav-link-pad: 9px 16px 9px 13px;
+      --bb-nav-link-gap: 9px;
+      --bb-nav-link-radius: var(--bb-radius-sm);
+
+      margin-bottom: 0;
+      border: 1px solid var(--bb-green-light);
+      background: var(--bb-green);
+      transition:
+        background-color var(--bb-dur-base) var(--bb-ease-out-expo),
+        border-color var(--bb-dur-base) var(--bb-ease-out-expo),
+        color var(--bb-dur-base) var(--bb-ease-out-expo);
+    }
+
+    /* The mark is always lit on the filled form. Tier 2b's rule is that every
+       button opens with the diamond; hiding it at rest is the RAIL's affordance
+       (there is no frame there, so the mark appearing is the hover event), and a
+       filled button already announces itself. */
+    .bb-nav-link--cta::before {
+      opacity: 1;
+      border-color: currentColor;
+    }
+
+    .bb-nav-link--cta:is(:hover, :focus-visible) {
+      border-color: var(--bb-green-glow);
+      background: var(--bb-green-light);
+      color: var(--bb-nav-link-lit);
+    }
+
+    /* aria-current on a CTA is possible (a "Dashboard" CTA on the dashboard) and
+       must not paint a tan diamond on a green fill: 3.4:1 against #2d6a4f and it
+       reads as a defect rather than a state. */
+    .bb-nav-link--cta[aria-current="page"]::before {
+      border-color: currentColor;
+      background: currentColor;
+    }
+
+    /* ── Reduced motion ──────────────────────────────────────────────────────
+       The line still ARRIVES, it just does not travel: `background-size` jumps to
+       its hover value with no transition. Removing the drawn line entirely would
+       take the hover affordance away from exactly the users least able to guess
+       at it, and the same call is already made for `.bb-sweep`/`.bb-drawline` at
+       the bottom of marketing style.css (animation none, line held at 100%). */
+    @media (prefers-reduced-motion: reduce) {
+      .bb-nav-link,
+      .bb-nav-link::before {
+        transition: none;
+      }
+    }
+} /* @layer bb.elements */

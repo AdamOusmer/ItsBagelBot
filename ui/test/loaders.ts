@@ -16,9 +16,17 @@
 //
 // Astro is compiled with @astrojs/compiler's `transform`, the same function the
 // Astro Vite plugin calls. `resolvePath` is required (the compiler has no
-// resolver of its own) and here it is the identity: fixtures import nothing, so
-// there is no specifier to rewrite. The moment a fixture imports another
-// component this has to become a real resolve against the importer's directory.
+// resolver of its own) and here it is the identity: adapters import only a
+// relative stylesheet and their own siblings, so there is no bare specifier to
+// rewrite. The moment one imports a package by name this has to become a real
+// resolve against the importer's directory.
+//
+// Both plugins hand Bun `loader: "ts"`, not `"js"`, and for the same reason:
+// neither compiler strips TypeScript. Svelte's leaves a `lang="ts"` block as
+// source, @astrojs/compiler leaves the frontmatter alone (see the note on the
+// astro plugin below), and Bun's js loader then dies on the first type
+// annotation. Its transpiler erases them once told what it is being handed, and
+// there is no cost for a file that happens to contain none.
 import { plugin } from "bun";
 import { transform } from "@astrojs/compiler";
 import { readFileSync } from "node:fs";
@@ -32,7 +40,7 @@ plugin({
         generate: "server",
         filename: path,
       });
-      return { contents: js.code, loader: "js" };
+      return { contents: js.code, loader: "ts" };
     });
   },
 });
