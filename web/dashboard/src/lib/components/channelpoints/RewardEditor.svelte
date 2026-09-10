@@ -375,6 +375,6 @@
     .field-row { flex-direction: column; gap: 0; }
     .color-field { width: 100%; }
     .actions { flex-direction: column-reverse; }
-    .actions .bb-btn { width: 100%; justify-content: center; min-height: 44px; }
+    .actions { --btn-w: 100%; --btn-justify: center; --btn-min-h: 44px; }
   }
 </style>

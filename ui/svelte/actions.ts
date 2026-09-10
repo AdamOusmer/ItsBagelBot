@@ -13,6 +13,7 @@ import type { Action } from 'svelte/action';
 
 import { observeDecode, type DecodeOptions } from '../lib/decode';
 import { observeReveal, type RevealOptions } from '../lib/reveal';
+import { mountMagnetic, type MagneticOptions } from '../lib/magnetic';
 
 /**
  * Reveal every `[data-reveal]` in this subtree as it scrolls into view.
@@ -59,5 +60,27 @@ export const reveal: Action<HTMLElement, RevealOptions | undefined> = (node, opt
  */
 export const decode: Action<HTMLElement, DecodeOptions | undefined> = (node, options) => {
   const dispose = observeDecode(node, options);
+  return { destroy: dispose };
+};
+
+/**
+ * Magnetic hover: the element eases toward the pointer while it is over it.
+ *
+ * ```svelte
+ * <button use:magnetic={{ strength: 0.4 }}>Connect</button>
+ * ```
+ *
+ * The engine is ../lib/magnetic.ts, shared with the static surfaces'
+ * `data-magnetic` spelling. This lived in web/kit/lib/actions.ts and was
+ * therefore console-only; kit now re-exports this one, so its call sites did
+ * not change and there is still exactly one implementation.
+ *
+ * Like `reveal` and `decode` above, options are read once at mount: the
+ * engine caps and eases from them on every frame, and a mid-life change would
+ * have to tear the listeners down and re-attach to take effect, which no
+ * caller wants and an `update` that silently ignored its argument would hide.
+ */
+export const magnetic: Action<HTMLElement, MagneticOptions | undefined> = (node, options) => {
+  const dispose = mountMagnetic(node, options);
   return { destroy: dispose };
 };

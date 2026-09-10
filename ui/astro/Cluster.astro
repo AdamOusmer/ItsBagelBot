@@ -1,0 +1,41 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro twin of ../svelte/Cluster.svelte. Wrapping is the default and
+// `nowrap` the opt-out; the reason is recorded there.
+import '../styles/elements/layout.css';
+
+interface Props {
+    /** Step on the --bb-space ramp, not a length. */
+    gap?: 1 | 2 | 3 | 4 | 5 | 6;
+    justify?: 'start' | 'center' | 'end' | 'between';
+    align?: 'baseline' | 'stretch';
+    /** Opts out of wrapping. The caller then owns the overflow. */
+    nowrap?: boolean;
+    as?: string;
+    class?: string;
+}
+
+const {
+    gap = 2,
+    justify,
+    align,
+    nowrap = false,
+    as: Tag = 'div',
+    class: className = '',
+    ...rest
+} = Astro.props;
+const classes = [
+    'bb-cluster',
+    `bb-cluster--${gap}`,
+    justify ? `bb-cluster--${justify}` : null,
+    align ? `bb-cluster--${align}` : null,
+    nowrap ? 'bb-cluster--nowrap' : null,
+    className,
+]
+    .filter(Boolean)
+    .join(' ');
+---
+
+<Tag class={classes} {...rest}><slot /></Tag>

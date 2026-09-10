@@ -886,10 +886,7 @@
   .plan-buttons form {
     flex: 1;
   }
-  .plan-buttons :global(.bb-btn) {
-    width: 100%;
-    justify-content: center;
-  }
+  .plan-buttons { --btn-w: 100%; --btn-justify: center; }
   .plan-fine {
     font-family: var(--bb-font-body);
     font-size: 12px;
@@ -1315,10 +1312,7 @@
     .gift-cta {
       flex-direction: column;
     }
-    .gift-cta :global(.bb-btn) {
-      width: 100%;
-      justify-content: center;
-    }
+    .gift-cta { --btn-w: 100%; --btn-justify: center; }
     .plan-buttons {
       flex-direction: column;
     }

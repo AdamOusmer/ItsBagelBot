@@ -1,0 +1,40 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro twin of ../svelte/Input.svelte. The frame is a wrapper element rather
+// than a class on the <input>; the record is in the Svelte adapter.
+//
+// No `bind:value` here, so the value is a plain attribute -- which is the
+// correct shape for a static surface anyway: the page renders a form and the
+// browser owns the value from first keystroke.
+import '../styles/elements/field.css';
+import '../styles/elements/input.css';
+
+interface Props {
+    value?: string;
+    type?: 'text' | 'email' | 'url' | 'tel' | 'number' | 'password' | 'search';
+    /** Draws the error frame. Set when the value has been JUDGED wrong. */
+    invalid?: boolean;
+    /** Take the container's width instead of the 240px default. */
+    fill?: boolean;
+    mono?: boolean;
+    class?: string;
+    [key: string]: unknown;
+}
+
+const {
+    value = '',
+    type = 'text',
+    invalid = false,
+    fill = false,
+    mono = false,
+    class: className = '',
+    ...rest
+} = Astro.props;
+const classes = ['bb-input', fill ? 'bb-input--fill' : null, mono ? 'bb-input--mono' : null, className]
+    .filter(Boolean)
+    .join(' ');
+---
+
+<span class={classes} data-invalid={invalid ? '' : undefined}><slot name="icon" /><input type={type} value={value} {...rest} /><slot name="trail" /></span>

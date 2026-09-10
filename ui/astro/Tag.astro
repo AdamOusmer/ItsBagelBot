@@ -1,0 +1,39 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro twin of ../svelte/Tag.svelte: the bare `.bb-tag`, tier 1 of the tag
+// vocabulary (../styles/tags.css).
+//
+// Tag versus Badge versus Chip — a label you read with a system tone, the same
+// label with a consumer-driven tone, and a control you click. The full record
+// is in the Svelte adapter.
+import '../styles/tags.css';
+
+interface Props {
+    /** Tag vocabulary tone. */
+    tone?: 'quiet' | 'live' | 'alpha' | 'pre' | 'incoming' | 'bare' | 'error';
+    /** The 5px rotated-square dot family. */
+    mark?: 'solid' | 'hollow' | 'dash' | 'up' | 'plus';
+    /** The travelling hairline light. Never a pulse. */
+    sweep?: boolean;
+    /** role="status": announce changes to this label as they happen. */
+    status?: boolean;
+    as?: 'span' | 'small' | 'div';
+    class?: string;
+    [key: string]: unknown;
+}
+
+const {
+    tone,
+    mark,
+    sweep = false,
+    status = false,
+    as: Tag = 'span',
+    class: className = '',
+    ...rest
+} = Astro.props;
+const classes = ['bb-tag', tone ? `bb-tag--${tone}` : null, className].filter(Boolean).join(' ');
+---
+
+<Tag class={classes} role={status ? 'status' : undefined} {...rest}>{mark && (<i class={`bb-mark${mark === 'solid' ? '' : ` bb-mark--${mark}`}`} aria-hidden="true"></i>)}<slot />{sweep && (<i class="bb-sweep" aria-hidden="true"></i>)}</Tag>

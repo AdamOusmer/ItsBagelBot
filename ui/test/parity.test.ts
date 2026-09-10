@@ -1018,3 +1018,491 @@ test('ErrorScene: carries no copy of its own', async () => {
   expect(html).not.toContain('bagel');
   expect(html).not.toContain('Bagel');
 });
+
+
+// ── The primitives ─────────────────────────────────────────────────────────
+// Typography, layout, the native controls, the two label tiers, the tooltip,
+// the table, and the twins that landed for elements that previously shipped
+// on one framework only (AreaSeries, Scroller, the two backdrops, NavGroup,
+// SectionNav, SegmentedControl, RadioGroup, Skeleton, ErrorScene, ButtonLink).
+//
+// This is the block set the library is FOR: a caller reaching for a heading, a
+// stack or a select should never have to write the class names, and this table
+// is the readable index of what those elements emit.
+//
+// Same shape as REMAINING above, plus a `slot`, and the same rule: `html` is
+// the golden, written out here, so changing what an element emits is an edit
+// to this file. Nothing regenerates. The literals below were produced once by
+// a throwaway script pointed at these same rows, checked by hand, and
+// committed; re-baselining a deliberate markup change means doing that again,
+// not running the suite with a flag.
+//
+// Rows are the DEFAULT rendering plus, where a prop genuinely changes the
+// element's SHAPE rather than one of its classes, the changed one -- Code with
+// `block` (a <pre> wrapper appears), Divider with `vertical` (a <span>, not an
+// <hr>), Grid with `min` (auto-fit rather than fixed columns), IconButton with
+// `tooltip` (a wrapper and a bubble), Heading with `as` (a <p> that is not in
+// the outline). Not every combination: a table that asserts everything stops
+// being read.
+
+import SvelteHeading from '../svelte/Heading.svelte';
+import AstroHeading from '../astro/Heading.astro';
+import SvelteText from '../svelte/Text.svelte';
+import AstroText from '../astro/Text.astro';
+import SvelteEyebrow from '../svelte/Eyebrow.svelte';
+import AstroEyebrow from '../astro/Eyebrow.astro';
+import SvelteLead from '../svelte/Lead.svelte';
+import AstroLead from '../astro/Lead.astro';
+import SvelteKbd from '../svelte/Kbd.svelte';
+import AstroKbd from '../astro/Kbd.astro';
+import SvelteCode from '../svelte/Code.svelte';
+import AstroCode from '../astro/Code.astro';
+import SvelteLabel from '../svelte/Label.svelte';
+import AstroLabel from '../astro/Label.astro';
+import SvelteVisuallyHidden from '../svelte/VisuallyHidden.svelte';
+import AstroVisuallyHidden from '../astro/VisuallyHidden.astro';
+import SvelteContainer from '../svelte/Container.svelte';
+import AstroContainer from '../astro/Container.astro';
+import SvelteSection from '../svelte/Section.svelte';
+import AstroSection from '../astro/Section.astro';
+import SvelteStack from '../svelte/Stack.svelte';
+import AstroStack from '../astro/Stack.astro';
+import SvelteCluster from '../svelte/Cluster.svelte';
+import AstroCluster from '../astro/Cluster.astro';
+import SvelteGrid from '../svelte/Grid.svelte';
+import AstroGrid from '../astro/Grid.astro';
+import SvelteDivider from '../svelte/Divider.svelte';
+import AstroDivider from '../astro/Divider.astro';
+import SvelteSpacer from '../svelte/Spacer.svelte';
+import AstroSpacer from '../astro/Spacer.astro';
+import SvelteInput from '../svelte/Input.svelte';
+import AstroInput from '../astro/Input.astro';
+import SvelteSelect from '../svelte/Select.svelte';
+import AstroSelect from '../astro/Select.astro';
+import SvelteTextarea from '../svelte/Textarea.svelte';
+import AstroTextarea from '../astro/Textarea.astro';
+import SvelteCheckbox from '../svelte/Checkbox.svelte';
+import AstroCheckbox from '../astro/Checkbox.astro';
+import SvelteIconButton from '../svelte/IconButton.svelte';
+import AstroIconButton from '../astro/IconButton.astro';
+import SvelteButtonLink from '../svelte/ButtonLink.svelte';
+import AstroButtonLink from '../astro/ButtonLink.astro';
+import SvelteTag from '../svelte/Tag.svelte';
+import AstroTag from '../astro/Tag.astro';
+import SvelteTooltip from '../svelte/Tooltip.svelte';
+import AstroTooltip from '../astro/Tooltip.astro';
+import SvelteTable from '../svelte/Table.svelte';
+import AstroTable from '../astro/Table.astro';
+import SvelteSkeleton from '../svelte/Skeleton.svelte';
+import AstroSkeleton from '../astro/Skeleton.astro';
+import SvelteSkeletonStack from '../svelte/SkeletonStack.svelte';
+import AstroSkeletonStack from '../astro/SkeletonStack.astro';
+import SvelteSegmentedControl from '../svelte/SegmentedControl.svelte';
+import AstroSegmentedControl from '../astro/SegmentedControl.astro';
+import SvelteRadioGroup from '../svelte/RadioGroup.svelte';
+import AstroRadioGroup from '../astro/RadioGroup.astro';
+import SvelteSectionNav from '../svelte/SectionNav.svelte';
+import AstroSectionNav from '../astro/SectionNav.astro';
+import SvelteScroller from '../svelte/Scroller.svelte';
+import AstroScroller from '../astro/Scroller.astro';
+import SvelteBackgroundOrbs from '../svelte/BackgroundOrbs.svelte';
+import AstroBackgroundOrbs from '../astro/BackgroundOrbs.astro';
+import SvelteAuroraBg from '../svelte/AuroraBg.svelte';
+import AstroAuroraBg from '../astro/AuroraBg.astro';
+import SvelteAreaSeries from '../svelte/AreaSeries.svelte';
+import AstroAreaSeries from '../astro/AreaSeries.astro';
+import SvelteNavGroup from '../svelte/NavGroup.svelte';
+import AstroNavGroup from '../astro/NavGroup.astro';
+import SvelteErrorScene from '../svelte/ErrorScene.svelte';
+import AstroErrorScene from '../astro/ErrorScene.astro';
+
+const PRIMITIVES: {
+  name: string;
+  svelte: unknown;
+  astro: unknown;
+  props: Record<string, unknown>;
+  slot?: string;
+  html: string;
+}[] = [
+{
+    name: "Heading",
+    svelte: SvelteHeading,
+    astro: AstroHeading,
+    props: {"level":1,"variant":"display"},
+    slot: "Ship it",
+    html: "<h1 class=\"bb-h bb-h--l1 bb-h--display\">Ship it</h1>",
+  },
+  {
+    name: "Heading|card",
+    svelte: SvelteHeading,
+    astro: AstroHeading,
+    props: {"level":4,"variant":"card"},
+    slot: "Recent",
+    html: "<h4 class=\"bb-h bb-h--l4 bb-h--card\">Recent</h4>",
+  },
+  {
+    name: "Heading|as",
+    svelte: SvelteHeading,
+    astro: AstroHeading,
+    props: {"level":2,"as":"p"},
+    slot: "Not in the outline",
+    html: "<p class=\"bb-h bb-h--l2\">Not in the outline</p>",
+  },
+  {
+    name: "Text",
+    svelte: SvelteText,
+    astro: AstroText,
+    props: {},
+    slot: "Body copy.",
+    html: "<p class=\"bb-text bb-text--md\">Body copy.</p>",
+  },
+  {
+    name: "Text|toned",
+    svelte: SvelteText,
+    astro: AstroText,
+    props: {"size":"sm","tone":"muted","mono":true,"as":"span"},
+    slot: "12 ms",
+    html: "<span class=\"bb-text bb-text--sm bb-text--muted bb-text--mono\">12 ms</span>",
+  },
+  {
+    name: "Eyebrow",
+    svelte: SvelteEyebrow,
+    astro: AstroEyebrow,
+    props: {},
+    slot: "Live",
+    html: "<span class=\"bb-eyebrow\">Live</span>",
+  },
+  {
+    name: "Lead",
+    svelte: SvelteLead,
+    astro: AstroLead,
+    props: {},
+    slot: "One paragraph under the hero.",
+    html: "<p class=\"bb-lead\">One paragraph under the hero.</p>",
+  },
+  {
+    name: "Kbd",
+    svelte: SvelteKbd,
+    astro: AstroKbd,
+    props: {},
+    slot: "K",
+    html: "<kbd class=\"bb-kbd\">K</kbd>",
+  },
+  {
+    name: "Code",
+    svelte: SvelteCode,
+    astro: AstroCode,
+    props: {},
+    slot: "bun run check",
+    html: "<code class=\"bb-code\">bun run check</code>",
+  },
+  {
+    name: "Code|block",
+    svelte: SvelteCode,
+    astro: AstroCode,
+    props: {"block":true},
+    slot: "bun test",
+    html: "<pre class=\"bb-code-block\"><code class=\"bb-code\">bun test</code></pre>",
+  },
+  {
+    name: "Label",
+    svelte: SvelteLabel,
+    astro: AstroLabel,
+    props: {"htmlFor":"cooldown"},
+    slot: "Cooldown",
+    html: "<label class=\"bb-label\" for=\"cooldown\">Cooldown</label>",
+  },
+  {
+    name: "VisuallyHidden",
+    svelte: SvelteVisuallyHidden,
+    astro: AstroVisuallyHidden,
+    props: {"focusable":true,"as":"a"},
+    slot: "Skip to content",
+    html: "<a class=\"bb-sr-only bb-sr-only--focusable\">Skip to content</a>",
+  },
+  {
+    name: "Container",
+    svelte: SvelteContainer,
+    astro: AstroContainer,
+    props: {"width":"narrow","flush":true},
+    slot: "x",
+    html: "<div class=\"bb-container bb-container--narrow bb-container--flush\">x</div>",
+  },
+  {
+    name: "Section",
+    svelte: SvelteSection,
+    astro: AstroSection,
+    props: {"size":"lg","anchor":true,"reveal":true},
+    slot: "x",
+    html: "<section class=\"bb-section bb-section--lg bb-section--anchor\" data-reveal>x</section>",
+  },
+  {
+    name: "Stack",
+    svelte: SvelteStack,
+    astro: AstroStack,
+    props: {"gap":6,"align":"center"},
+    slot: "x",
+    html: "<div class=\"bb-stack bb-stack--6 bb-stack--center\">x</div>",
+  },
+  {
+    name: "Cluster",
+    svelte: SvelteCluster,
+    astro: AstroCluster,
+    props: {"gap":3,"justify":"between","nowrap":true},
+    slot: "x",
+    html: "<div class=\"bb-cluster bb-cluster--3 bb-cluster--between bb-cluster--nowrap\">x</div>",
+  },
+  {
+    name: "Grid",
+    svelte: SvelteGrid,
+    astro: AstroGrid,
+    props: {"min":"240px","gap":5},
+    slot: "x",
+    html: "<div class=\"bb-grid bb-grid--auto bb-grid--gap-5\" style=\"--grid-min: 240px;\">x</div>",
+  },
+  {
+    name: "Grid|fixed",
+    svelte: SvelteGrid,
+    astro: AstroGrid,
+    props: {"cols":3},
+    slot: "x",
+    html: "<div class=\"bb-grid bb-grid--3 bb-grid--gap-4\">x</div>",
+  },
+  {
+    name: "Divider",
+    svelte: SvelteDivider,
+    astro: AstroDivider,
+    props: {},
+    html: "<hr class=\"bb-divider\">",
+  },
+  {
+    name: "Divider|vertical",
+    svelte: SvelteDivider,
+    astro: AstroDivider,
+    props: {"vertical":true,"fade":true},
+    html: "<span class=\"bb-divider bb-divider--v bb-divider--fade\" aria-hidden=\"true\"></span>",
+  },
+  {
+    name: "Spacer",
+    svelte: SvelteSpacer,
+    astro: AstroSpacer,
+    props: {"grow":true},
+    html: "<span class=\"bb-spacer bb-spacer--grow\" aria-hidden=\"true\"></span>",
+  },
+  {
+    name: "Input",
+    svelte: SvelteInput,
+    astro: AstroInput,
+    props: {"type":"email","invalid":true,"name":"email","placeholder":"you@example.com"},
+    html: "<span class=\"bb-input\" data-invalid><input type=\"email\" value name=\"email\" placeholder=\"you@example.com\"></span>",
+  },
+  {
+    name: "Select",
+    svelte: SvelteSelect,
+    astro: AstroSelect,
+    props: {"name":"mode"},
+    slot: "<option value=\"a\">A</option>",
+    html: "<span class=\"bb-input bb-input--select\"><select name=\"mode\"><option value=\"a\">A</option></select><svg class=\"bb-input__chevron\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"m6 9 6 6 6-6\"></path></svg></span>",
+  },
+  {
+    name: "Textarea",
+    svelte: SvelteTextarea,
+    astro: AstroTextarea,
+    props: {"rows":4,"name":"body","value":"hi"},
+    html: "<span class=\"bb-input bb-input--area\"><textarea rows=\"4\" name=\"body\">hi</textarea></span>",
+  },
+  {
+    name: "Checkbox",
+    svelte: SvelteCheckbox,
+    astro: AstroCheckbox,
+    props: {"checked":true,"name":"optin"},
+    slot: "Email me",
+    html: "<label class=\"bb-check\"><input type=\"checkbox\" class=\"bb-check__input\" checked name=\"optin\"><span class=\"bb-check__box\" aria-hidden=\"true\"></span><span class=\"bb-check__label\">Email me</span></label>",
+  },
+  {
+    name: "IconButton",
+    svelte: SvelteIconButton,
+    astro: AstroIconButton,
+    props: {"label":"Close","tooltip":true},
+    slot: "<svg></svg>",
+    html: "<span class=\"bb-tooltip\"><button class=\"bb-btn bb-btn--icon\" type=\"button\" aria-label=\"Close\" data-mark><span class=\"bb-btn__content\"><svg></svg></span></button><span class=\"bb-tooltip__bubble\" aria-hidden=\"true\">Close</span></span>",
+  },
+  {
+    name: "IconButton|plain",
+    svelte: SvelteIconButton,
+    astro: AstroIconButton,
+    props: {"label":"Close","size":"sm"},
+    slot: "<svg></svg>",
+    html: "<button class=\"bb-btn bb-btn--icon bb-btn--sm\" type=\"button\" aria-label=\"Close\" data-mark><span class=\"bb-btn__content\"><svg></svg></span></button>",
+  },
+  {
+    name: "ButtonLink",
+    svelte: SvelteButtonLink,
+    astro: AstroButtonLink,
+    props: {"href":"/pricing","variant":"green"},
+    slot: "Go",
+    html: "<a class=\"bb-btn bb-btn--green\" href=\"/pricing\" data-mark><i class=\"bb-btn__mark\" aria-hidden=\"true\"></i><span class=\"bb-btn__content\">Go</span></a>",
+  },
+  {
+    name: "Tag",
+    svelte: SvelteTag,
+    astro: AstroTag,
+    props: {"tone":"live","mark":"solid","sweep":true,"status":true},
+    slot: "Live",
+    html: "<span class=\"bb-tag bb-tag--live\" role=\"status\"><i class=\"bb-mark\" aria-hidden=\"true\"></i>Live<i class=\"bb-sweep\" aria-hidden=\"true\"></i></span>",
+  },
+  {
+    name: "Tooltip",
+    svelte: SvelteTooltip,
+    astro: AstroTooltip,
+    props: {"text":"Copy","id":"tt-1"},
+    slot: "<button></button>",
+    html: "<span class=\"bb-tooltip\"><button></button><span class=\"bb-tooltip__bubble\" id=\"tt-1\" role=\"tooltip\">Copy</span></span>",
+  },
+  {
+    name: "Table",
+    svelte: SvelteTable,
+    astro: AstroTable,
+    props: {"label":"Counters","zebra":true},
+    slot: "<tbody><tr><td>1</td></tr></tbody>",
+    html: "<div class=\"bb-tbl-wrap\" role=\"region\" aria-label=\"Counters\" tabindex=\"0\"><table class=\"bb-tbl bb-tbl--zebra\"><tbody><tr><td>1</td></tr></tbody></table></div>",
+  },
+  {
+    name: "Skeleton",
+    svelte: SvelteSkeleton,
+    astro: AstroSkeleton,
+    props: {"variant":"text","lines":3},
+    html: "<span class=\"bb-skel-lines\" style=\"--skel-w:100%;\"><span class=\"bb-skel bb-skel--text\" style=\"--skel-w:100%;\"></span><span class=\"bb-skel bb-skel--text\" style=\"--skel-w:100%;\"></span><span class=\"bb-skel bb-skel--text\" style=\"--skel-w:60%;\"></span></span>",
+  },
+  {
+    name: "Skeleton|block",
+    svelte: SvelteSkeleton,
+    astro: AstroSkeleton,
+    props: {"variant":"block","height":"260px"},
+    html: "<span class=\"bb-skel bb-skel--block\" style=\"--skel-h:260px;\"></span>",
+  },
+  {
+    name: "SkeletonStack",
+    svelte: SvelteSkeletonStack,
+    astro: AstroSkeletonStack,
+    props: {"rows":2,"height":"80px","columns":2},
+    html: "<div class=\"bb-skel-stack bb-skel-stack--grid\" aria-hidden=\"true\"><span class=\"bb-skel bb-skel--block\" style=\"--skel-h:80px;\"></span><span class=\"bb-skel bb-skel--block\" style=\"--skel-h:80px;\"></span></div>",
+  },
+  {
+    name: "SegmentedControl",
+    svelte: SvelteSegmentedControl,
+    astro: AstroSegmentedControl,
+    props: {"options":["All","Live"],"value":"Live"},
+    html: "<div class=\"bb-seg bb-tabs\" role=\"radiogroup\" aria-label=\"Filter\"><button type=\"button\" class=\"bb-tab \" role=\"radio\" aria-checked=\"false\">All</button><button type=\"button\" class=\"bb-tab is-active\" role=\"radio\" aria-checked=\"true\">Live</button></div>",
+  },
+  {
+    name: "RadioGroup",
+    svelte: SvelteRadioGroup,
+    astro: AstroRadioGroup,
+    props: {"name":"tier","options":[{"value":"a","label":"A"}],"value":"a"},
+    html: "<div class=\"bb-radio-group\" role=\"radiogroup\" aria-label=\"Options\"><label class=\"bb-radio\" data-on><input type=\"radio\" name=\"tier\" value=\"a\" checked><span class=\"bb-radio__dot\" aria-hidden=\"true\"></span> A</label></div>",
+  },
+  {
+    name: "SectionNav",
+    svelte: SvelteSectionNav,
+    astro: AstroSectionNav,
+    props: {"label":"Sections","items":[{"href":"#a","label":"A","count":2}]},
+    html: "<div class=\"bb-section-nav-host\"><nav class=\"bb-section-nav bb-tabs\" aria-label=\"Sections\"><a class=\"bb-tab\" href=\"#a\">A<span class=\"bb-section-nav__count\">2</span></a></nav></div>",
+  },
+  {
+    name: "Scroller",
+    svelte: SvelteScroller,
+    astro: AstroScroller,
+    props: {"maxHeight":"208px","fill":true},
+    slot: "x",
+    html: "<div class=\"bb-scroller bb-scroller--fill bb-scroll\" style=\"max-height:208px\">x</div>",
+  },
+  {
+    name: "BackgroundOrbs",
+    svelte: SvelteBackgroundOrbs,
+    astro: AstroBackgroundOrbs,
+    props: {},
+    html: "<div class=\"bb-orb bb-orb--fixed bb-orb--wash-green bb-bg-orb\"></div><div class=\"bb-orb bb-orb--fixed bb-orb--wash-tan bb-bg-orb bb-bg-orb--two\"></div>",
+  },
+  {
+    name: "AuroraBg",
+    svelte: SvelteAuroraBg,
+    astro: AstroAuroraBg,
+    props: {},
+    html: "<div class=\"bb-aurora\" aria-hidden=\"true\"><span class=\"bb-orb bb-orb--aurora-green bb-orb--drift-1 bb-aurora__o1\"></span><span class=\"bb-orb bb-orb--aurora-tan bb-orb--drift-2 bb-aurora__o2\"></span><span class=\"bb-orb bb-orb--aurora-green-soft bb-orb--drift-3 bb-aurora__o3\"></span></div>",
+  },
+  {
+    name: "AreaSeries",
+    svelte: SvelteAreaSeries,
+    astro: AstroAreaSeries,
+    props: {"values":[1,4,2],"ariaLabel":"Chat volume","uid":"p","ticks":[1]},
+    html: "<svg class=\"bb-area\" style=\"height: 178px\" viewBox=\"0 0 640 178\" preserveAspectRatio=\"none\" role=\"img\" aria-label=\"Chat volume\"><defs><linearGradient id=\"bb-area-fill-p\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0%\" stop-color=\"var(--bb-green-glow)\" stop-opacity=\"0.3\"></stop><stop offset=\"100%\" stop-color=\"var(--bb-green-glow)\" stop-opacity=\"0.02\"></stop></linearGradient></defs><line x1=\"0\" y1=\"44\" x2=\"640\" y2=\"44\" class=\"bb-area__grid\"></line><line x1=\"0\" y1=\"94\" x2=\"640\" y2=\"94\" class=\"bb-area__grid\"></line><line x1=\"0\" y1=\"144\" x2=\"640\" y2=\"144\" class=\"bb-area__grid bb-area__grid--base\"></line><path d=\"M0,111 L320,12 L640,78 L640,144 L0,144 Z\" fill=\"url(#bb-area-fill-p)\"></path><path d=\"M0,111 L320,12 L640,78\" class=\"bb-area__line\"></path><g class=\"bb-area__ticks\"><line x1=\"320\" y1=\"150\" x2=\"320\" y2=\"160\"></line></g><circle cx=\"640\" cy=\"78\" r=\"3.5\" class=\"bb-area__dot\"></circle></svg>",
+  },
+  {
+    name: "NavGroup",
+    svelte: SvelteNavGroup,
+    astro: AstroNavGroup,
+    props: {"label":"Boards","items":[{"href":"/a","label":"A","count":3}]},
+    html: "<div class=\"bb-nav-group__label\">Boards</div><nav class=\"bb-nav-group\"><a class=\"bb-nav-link bb-nav-link--block\" href=\"/a\"><span class=\"bb-nav-group__index\">01</span><span class=\"bb-nav-link__label\">A</span><span class=\"bb-nav-group__count\">3</span></a></nav>",
+  },
+  {
+    name: "ErrorScene",
+    svelte: SvelteErrorScene,
+    astro: AstroErrorScene,
+    props: {"status":404,"eyebrow":"Not found","title":"T","description":"D","aside":"A"},
+    html: "<main class=\"bb-error-scene\" aria-labelledby=\"bb-error-title\"><canvas class=\"bb-light-field\" data-field data-warmth=\"0.7\" aria-hidden=\"true\"></canvas><div class=\"bb-error-scene__glow\" aria-hidden=\"true\"></div><div class=\"bb-error-scene__orbits\" aria-hidden=\"true\"><span class=\"bb-error-scene__orbit\"></span><span class=\"bb-error-scene__orbit bb-error-scene__orbit--two\"></span></div><div class=\"bb-error-scene__content\"><p class=\"bb-error-scene__eyebrow\"><span>404</span> · Not found</p><p class=\"bb-error-scene__code\" aria-hidden=\"true\">404</p><h1 class=\"bb-error-scene__title\" id=\"bb-error-title\">T</h1><p class=\"bb-error-scene__desc\">D</p><p class=\"bb-error-scene__aside\">A</p></div></main>",
+  },
+];
+
+for (const primitive of PRIMITIVES) {
+  test(`${primitive.name}: svelte adapter emits the contract markup`, () => {
+    const props = { ...primitive.props } as Record<string, unknown>;
+    if (primitive.slot !== undefined) {
+      props.children = createRawSnippet(() => ({ render: () => primitive.slot as string }));
+    }
+    const { body } = render(primitive.svelte as never, { props: props as never });
+    expect(normalise(body)).toBe(primitive.html);
+  });
+
+  test(`${primitive.name}: astro adapter emits the contract markup`, async () => {
+    const container = await experimental_AstroContainer.create();
+    const html = await container.renderToString(primitive.astro as never, {
+      props: primitive.props as never,
+      ...(primitive.slot === undefined ? {} : { slots: { default: primitive.slot } }),
+    });
+    expect(normalise(html)).toBe(primitive.html);
+  });
+}
+
+// The typography contract's ONE job that a markup diff cannot see: the bare
+// element fallback must stay in `bb.base`, weaker than every contract in
+// `bb.elements`. It sat unlayered once and out-ranked every `.bb-*` rule it
+// met -- the measurement is written up in web/kit/styles/tokens.css, where
+// `.bb-page-head h1` resolved to the fallback's 40px/700 instead of its own
+// contract's clamp/800. A test rather than a comment because the failure is
+// invisible on the surface whose author changed it.
+test('typography.css keeps the bare-element rules in bb.base', async () => {
+  const css = await Bun.file(
+    new URL('../styles/elements/typography.css', import.meta.url),
+  ).text();
+  const body = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  const base = body.slice(body.indexOf('@layer bb.base'));
+  // Every bare element selector this file ships is inside the bb.base block.
+  for (const selector of ['h1 {', 'p {', 'small {', 'code, pre, kbd, samp {']) {
+    expect(body).toContain(selector);
+    expect(base).toContain(selector);
+  }
+  // And the contract half never selects a bare element.
+  const elements = body.slice(body.indexOf('@layer bb.elements'), body.indexOf('@layer bb.base'));
+  expect(elements).not.toMatch(/^\s{4}(h[1-6]|p|small|code|kbd)\s*[,{]/m);
+});
+
+// The magnetic engine moved out of the console and into ../lib/magnetic.ts.
+// Its two tuned constants moved with it, and they are what makes the hover
+// read as weighted rather than as lag; the file records the measurements.
+// Pinned here because a "tidy-up" that rounds 0.1 to 0.5 would look harmless.
+test('magnetic keeps its tuned ease and settle threshold', async () => {
+  const src = await Bun.file(new URL('../lib/magnetic.ts', import.meta.url)).text();
+  expect(src).toContain('const EASE = 0.2;');
+  expect(src).toContain('const SETTLE_PX = 0.1;');
+});

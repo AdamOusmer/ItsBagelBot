@@ -36,6 +36,15 @@
    or a [data-reveal] — Starlight owns the prose chrome and the page
    transitions. Adding an import for a contract with no markup behind it
    would put ~1.6 KB gzip on every docs page to style nothing. */
+/* The type scale and the layout primitives. Safe to import under Starlight,
+   which owns the prose type on this surface: this file's bare-element half is
+   in `bb.base`, the weakest layer, and Starlight's own stylesheets are
+   unlayered — unlayered CSS beats every layer at any specificity, so nothing
+   here can out-rank a Starlight heading. What it adds is the `.bb-h` /
+   `.bb-text` / `.bb-stack` contract for the docs' own components, which were
+   otherwise the one surface with no block vocabulary at all. */
+@import "@bagel/ui/styles/elements/typography.css";
+@import "@bagel/ui/styles/elements/layout.css";
 @import "@bagel/ui/styles/orbs.css";
 @import "@bagel/ui/styles/a11y.css";
 

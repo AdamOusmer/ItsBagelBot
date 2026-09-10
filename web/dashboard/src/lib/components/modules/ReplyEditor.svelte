@@ -104,6 +104,6 @@
   .actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 12px; }
   @media (max-width: 480px) {
     .actions { flex-direction: column-reverse; }
-    .actions .bb-btn { width: 100%; justify-content: center; min-height: 44px; }
+    .actions { --btn-w: 100%; --btn-justify: center; --btn-min-h: 44px; }
   }
 </style>

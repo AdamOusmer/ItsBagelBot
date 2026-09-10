@@ -1,0 +1,90 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* Layer order first. Every adapter in ../svelte JS-imports its own element
+   CSS, so a bundler can emit this file ahead of layers.css -- and layer order
+   is fixed by the first declaration seen, which would rank bb.elements BELOW
+   bb.base and let the button reset there strip the typography off every
+   contract that renders a <button>. Restating it is idempotent; the layers
+   themselves are documented in layers.css. */
+@layer bb.tokens, bb.base, bb.elements, bb.app;
+
+/* `[data-tooltip]` — a hint on hover and on keyboard focus, with no JS.
+ *
+ * NO POSITIONING ENGINE, AND THAT IS THE DECISION. The obvious alternative is
+ * floating-ui, which is 5-8 KB gzipped and would be the single largest
+ * dependency in this package, in exchange for flipping a 200px bubble away
+ * from a viewport edge. What it buys is real; what it costs is a client-side
+ * runtime on every surface that shows a hint, including the marketing site
+ * and the docs, which are otherwise static. The trade taken here is: the
+ * bubble is CSS-only, it is centred over its anchor, and the two places that
+ * genuinely sit against an edge (the rail's collapsed labels, the dock)
+ * already have their own labelled contracts and do not use this.
+ *
+ * IT IS A HINT, NEVER THE ONLY LABEL. `title`-style tooltips are invisible to
+ * touch, so anything a user MUST read to operate the control belongs in the
+ * accessible name. The adapters therefore emit `aria-describedby`-shaped
+ * content only when the caller opts in with `describe`, and the bubble itself
+ * is `aria-hidden` -- a tooltip announced twice (once as description, once as
+ * the ::after's text) is the usual outcome of doing this with content:
+ * attr(data-tooltip), which is why the text is a real element here.
+ *
+ * The delay is on ENTER only (`transition-delay` on the resting state is 0).
+ * A bubble that also delays its exit trails the pointer across a toolbar. */
+
+@layer bb.elements {
+    .bb-tooltip {
+        position: relative;
+        display: inline-flex;
+    }
+
+    .bb-tooltip__bubble {
+        position: absolute;
+        z-index: 60;
+        bottom: calc(100% + 8px);
+        left: 50%;
+        translate: -50% 0;
+        max-width: 220px;
+        width: max-content;
+        padding: 6px 9px;
+        border-radius: var(--bb-radius-sm);
+        background: var(--bb-card-bg);
+        border: 1px solid var(--bb-border-strong);
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+        color: var(--bb-white);
+        font-family: var(--bb-font-body);
+        font-size: var(--bb-text-xs);
+        line-height: 1.4;
+        text-align: center;
+        pointer-events: none;
+        opacity: 0;
+        translate: -50% 4px;
+        transition:
+            opacity 120ms ease,
+            translate 120ms var(--bb-ease-out-expo);
+    }
+
+    .bb-tooltip--bottom .bb-tooltip__bubble {
+        bottom: auto;
+        top: calc(100% + 8px);
+        translate: -50% -4px;
+    }
+
+    .bb-tooltip:is(:hover, :focus-within) .bb-tooltip__bubble {
+        opacity: 1;
+        translate: -50% 0;
+        transition-delay: 320ms;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .bb-tooltip__bubble { transition: opacity 1ms linear; translate: -50% 0; }
+        .bb-tooltip--bottom .bb-tooltip__bubble { translate: -50% 0; }
+    }
+
+    /* Coarse pointers get nothing. A tooltip on touch either never appears or
+       appears on the tap that also activated the control, and covers the thing
+       the user just pressed. */
+    @media (hover: none) {
+        .bb-tooltip__bubble { display: none; }
+    }
+}

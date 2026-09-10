@@ -1,0 +1,16 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro twin of ../svelte/Kbd.svelte.
+import '../styles/elements/typography.css';
+
+interface Props {
+    class?: string;
+}
+
+const { class: className = '', ...rest } = Astro.props;
+const classes = ['bb-kbd', className].filter(Boolean).join(' ');
+---
+
+<kbd class={classes} {...rest}><slot /></kbd>

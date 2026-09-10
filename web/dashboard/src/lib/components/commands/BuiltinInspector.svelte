@@ -204,7 +204,7 @@
   .field .hint { color: var(--bb-muted); opacity: 0.7; font-size: 11px; }
   .reply-actions { display: flex; justify-content: flex-end; margin-top: 12px; }
   @media (max-width: 480px) {
-    .reply-actions .bb-btn { width: 100%; justify-content: center; min-height: 44px; }
+    .reply-actions { --btn-w: 100%; --btn-justify: center; --btn-min-h: 44px; }
   }
 
   .field-row {

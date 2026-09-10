@@ -1,0 +1,23 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro twin of ../svelte/Spacer.svelte. Not for spacing stack children; the
+// two cases it is for are recorded there.
+import '../styles/elements/layout.css';
+
+interface Props {
+    /** Step on the --bb-space ramp, not a length. */
+    size?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+    /** Absorbs the free space in a flex row instead of taking a fixed size. */
+    grow?: boolean;
+    class?: string;
+}
+
+const { size = 4, grow = false, class: className = '', ...rest } = Astro.props;
+const classes = ['bb-spacer', grow ? 'bb-spacer--grow' : `bb-spacer--${size}`, className]
+    .filter(Boolean)
+    .join(' ');
+---
+
+<span class={classes} aria-hidden="true" {...rest} />

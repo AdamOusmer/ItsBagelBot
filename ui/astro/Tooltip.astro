@@ -1,0 +1,28 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro twin of ../svelte/Tooltip.svelte, for `.bb-tooltip`
+// (../styles/elements/tooltip.css).
+//
+// CSS-only and deliberately without a positioning engine, and a hint rather
+// than a label: both records are in the Svelte adapter and at the contract.
+import '../styles/elements/tooltip.css';
+
+interface Props {
+    text: string;
+    placement?: 'top' | 'bottom';
+    /** Give the bubble an id and it stops being aria-hidden, so the wrapped
+        control can point at it with aria-describedby. Opt-in. */
+    id?: string;
+    class?: string;
+    [key: string]: unknown;
+}
+
+const { text, placement = 'top', id, class: className = '', ...rest } = Astro.props;
+const classes = ['bb-tooltip', placement === 'bottom' ? 'bb-tooltip--bottom' : null, className]
+    .filter(Boolean)
+    .join(' ');
+---
+
+<span class={classes} {...rest}><slot /><span class="bb-tooltip__bubble" id={id} role={id ? 'tooltip' : undefined} aria-hidden={id ? undefined : 'true'}>{text}</span></span>

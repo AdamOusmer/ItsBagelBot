@@ -1,0 +1,29 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro twin of ../svelte/SegmentedControl.svelte: an in-page filter as one
+// accessible control (radiogroup) on the shared `.bb-tabs` rail.
+//
+// STATIC. The Svelte twin owns `value` as bindable state and flips it on
+// click; here the selected option is whatever the caller renders it as, and
+// nothing changes it. That is not a degraded version — it is the correct
+// shape for the surfaces this adapter serves (a guide screenshot of the
+// console, a docs figure), where a control that responded to clicks would
+// change a picture the surrounding prose is describing.
+//
+// Not a form field: it posts nothing. The control that survives a no-JS
+// submit is RadioGroup, and the two are named apart on purpose.
+import '../styles/tags.css';
+import '../styles/elements/segmented.css';
+
+interface Props {
+    options: readonly string[];
+    value?: string;
+    label?: string;
+}
+
+const { options, value = '', label = 'Filter' } = Astro.props;
+---
+
+<div class="bb-seg bb-tabs" role="radiogroup" aria-label={label}>{options.map((opt) => (<button type="button" class={`bb-tab ${value === opt ? 'is-active' : ''}`} role="radio" aria-checked={value === opt}>{opt}</button>))}</div>

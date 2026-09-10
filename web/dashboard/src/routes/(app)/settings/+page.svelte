@@ -790,8 +790,18 @@
   .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   /* Standalone actions get a full 44px target; the dense inline "sm" buttons stay
      compact but keep a 36px target (well above the 24px AA floor) and 8px+ gaps. */
-  :global(.settings-section .bb-btn) { min-height: 44px; }
-  :global(.settings-section .bb-btn--sm) { min-height: 36px; padding: 8px 14px; }
+  :global(.settings-section) { --btn-min-h: 44px; }
+  /* The one selector on the contract left in this file, and it stays because
+     the alternative is worse. The section sets a 44px target for every button
+     inside it through the inherited knob above; the dense inline "sm" buttons
+     have to opt back down to 36px, and an inherited property can only be
+     overridden by a declaration on the ELEMENT. Reaching for `.bb-btn--sm`
+     from here is one rule; the alternatives are `--btn-min-h: 36px` hand-set
+     at each of this page's sm call sites, or a 36px floor baked into
+     `.bb-btn--sm` for every surface in the system, which is a global change
+     to satisfy one page. Allowlisted in
+     web/kit/scripts/assert-blocks-not-handcoded.mjs with this reason. */
+  :global(.settings-section .bb-btn--sm) { --btn-min-h: 36px; --btn-pad: 8px 14px; }
 
   /* --- notifications section --- */
   .notif-list { display: flex; flex-direction: column; gap: 10px; list-style: none; margin: 0; padding: 0; }
@@ -820,7 +830,7 @@
 
   @media (max-width: 760px) {
     .row, .identity { flex-direction: column; align-items: stretch; }
-    .sec-head :global(.bb-btn) { width: 100%; justify-content: center; }
+    .sec-head { --btn-w: 100%; --btn-justify: center; }
     /* A phone has no room for three grid tracks; every part of a row stacks
        and the link wraps instead of ellipsing. */
     .grant { grid-template-columns: minmax(0, 1fr); }

@@ -26,6 +26,22 @@
    rules and the woff2 payloads and a consumer resolves neither. */
 @import '@bagel/ui/styles/fonts.css';
 
+/* The type scale, as the `.bb-h`/`.bb-text` contract plus the bare-element
+   fallback this file used to own. Imported globally rather than pulled in by
+   the Heading/Text adapters alone, because the fallback half has to cover
+   prose nobody wrote a component for. */
+@import '@bagel/ui/styles/elements/typography.css';
+
+/* The layout primitives (container, section, stack, cluster, grid, divider,
+   spacer). Global for the same reason: `.bb-container` is applied to markup a
+   page author writes, not only through the adapter. */
+@import '@bagel/ui/styles/elements/layout.css';
+
+/* The data table, which used to live in console.css. Global because three
+   pages write the `<table class="bb-tbl">` markup by hand rather than through
+   the adapter. */
+@import '@bagel/ui/styles/elements/table.css';
+
 /* Layer order, restated. layers.css declares it too, but the statement is
    idempotent and the file that OPENS a layer has to name the order first: the
    order is fixed by whichever declaration the browser sees first, and a bundler
@@ -111,15 +127,8 @@
 
     /* (the type stack and the tracking scale are in brand.css) */
 
-    --bb-space-1: 4px;
-    --bb-space-2: 8px;
-    --bb-space-3: 12px;
-    --bb-space-4: 16px;
-    --bb-space-5: 24px;
-    --bb-space-6: 32px;
-    --bb-space-7: 48px;
-    --bb-space-8: 64px;
-    --bb-space-9: 96px;
+    /* (the spacing ramp --bb-space-1..9 is in brand.css now: the shared layout
+       elements read it, so it could not stay console-only) */
 
     /* (the easing curves and the durations are in brand.css) */
 
@@ -166,68 +175,15 @@
   * , *::before, *::after { box-sizing: border-box; }
 
   /* ────────────────────────── semantic type ─────────────────────── */
-  .bb-display, h1.bb {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: clamp(56px, 8vw, 120px);
-    line-height: 0.95;
-    letter-spacing: var(--bb-tracking-tight);
-    color: var(--bb-fg-1);
-  }
-  .bb-h1, h1 {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: clamp(40px, 5.5vw, 72px);
-    line-height: 1.02;
-    letter-spacing: var(--bb-tracking-display);
-    color: var(--bb-fg-1);
-  }
-  .bb-h2, h2 {
-    font-family: var(--bb-font-display);
-    font-weight: 600;
-    font-size: clamp(28px, 3.5vw, 44px);
-    line-height: 1.1;
-    letter-spacing: var(--bb-tracking-display);
-    color: var(--bb-fg-1);
-  }
-  .bb-h3, h3 {
-    font-family: var(--bb-font-display);
-    font-weight: 600;
-    font-size: 24px;
-    line-height: 1.2;
-    color: var(--bb-fg-1);
-  }
-  .bb-body, p {
-    font-family: var(--bb-font-body);
-    font-weight: 400;
-    font-size: 16px;
-    line-height: 1.6;
-    color: var(--bb-fg-1);
-  }
-  .bb-body-lg {
-    font-family: var(--bb-font-body);
-    font-weight: 400;
-    font-size: 18px;
-    line-height: 1.55;
-    color: var(--bb-fg-1);
-  }
-  .bb-small, small {
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-    line-height: 1.5;
-    color: var(--bb-fg-2);
-  }
-  .bb-eyebrow {
-    font-family: var(--bb-font-mono);
-    font-weight: 400;
-    font-size: 12px;
-    letter-spacing: var(--bb-tracking-eyebrow);
-    text-transform: uppercase;
-    color: var(--bb-tan);
-  }
-  .bb-mono, code, pre, kbd {
-    font-family: var(--bb-font-mono);
-    font-size: 14px;
-    color: var(--bb-fg-1);
-  }
+  /* Moved to @bagel/ui/styles/elements/typography.css, imported at the top of
+     this file. It ships the same numbers twice: as the `.bb-h` / `.bb-text`
+     contract in `bb.elements`, and as the bare `h1`-`h6`/`p`/`small`/`code`
+     fallback in `bb.base` — which is what this block was, minus the dead
+     `.bb-display`/`.bb-h1`/`.bb-body`/`.bb-mono` aliases (grepped on
+     2026-09-10: zero call sites across web/ and ui/, so they were deleted
+     rather than carried into the new file).
+
+     The console keeps the reset above and nothing else here: a heading that
+     needs a different size inside a component belongs to that component's
+     contract, and now there IS a contract to reach for. */
 }

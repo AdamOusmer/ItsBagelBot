@@ -1,0 +1,36 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro twin of ../svelte/Scroller.svelte: a scroll region wearing the thin
+// tan scrollbar instead of the browser's default chrome bar.
+//
+// Extra attributes (role, aria-*, data-lenis-prevent) pass straight through to
+// the scrolling element. `data-lenis-prevent` in particular HAS to land on the
+// element that actually scrolls, or the smooth scroller eats the wheel event
+// and the panel never moves — which is why this forwards ...rest onto the
+// scrolling div rather than onto a wrapper.
+import '../styles/elements/shell.css';
+
+interface Props {
+    /** Height cap before scrolling starts (e.g. '208px'). Omit to grow. */
+    maxHeight?: string;
+    /** Fill a flex parent and scroll the overflow. */
+    fill?: boolean;
+    /** Inner padding, kept inside the scroll region so the bar hugs the edge. */
+    padding?: string;
+    class?: string;
+    [key: string]: unknown;
+}
+
+const { maxHeight, fill = false, padding, class: className = '', ...rest } = Astro.props;
+const classes = ['bb-scroller', fill ? 'bb-scroller--fill' : null, 'bb-scroll', className]
+    .filter(Boolean)
+    .join(' ');
+const style =
+    [maxHeight && `max-height:${maxHeight}`, padding && `padding:${padding}`]
+        .filter(Boolean)
+        .join(';') || undefined;
+---
+
+<div class={classes} style={style} {...rest}><slot /></div>

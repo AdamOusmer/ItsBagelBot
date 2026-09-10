@@ -1,0 +1,29 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro twin of ../svelte/Heading.svelte, for the `.bb-h` contract
+// (../styles/elements/typography.css).
+//
+// LEVEL AND VARIANT ARE TWO PROPS -- outline rank versus type treatment. The
+// full record is in the Svelte adapter and in the contract file.
+import '../styles/elements/typography.css';
+
+interface Props {
+    /** Outline rank. Picks the tag and, with no `variant`, the size. */
+    level?: 1 | 2 | 3 | 4 | 5 | 6;
+    /** Type treatment. Overrides the level's size, never its tag. */
+    variant?: 'display' | 'section' | 'card' | 'eyebrow';
+    /** Tag override, for type that must stay out of the heading outline. */
+    as?: string;
+    class?: string;
+}
+
+const { level = 2, variant, as: tag, class: className = '', ...rest } = Astro.props;
+const Tag = tag ?? `h${level}`;
+const classes = ['bb-h', `bb-h--l${level}`, variant ? `bb-h--${variant}` : null, className]
+    .filter(Boolean)
+    .join(' ');
+---
+
+<Tag class={classes} {...rest}><slot /></Tag>

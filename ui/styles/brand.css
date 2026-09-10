@@ -196,6 +196,55 @@
        value, not a design one. */
     --bb-nav-height: 76px;
     --bb-content-max: 1200px;
+
+    /* Two narrower measures, because "wide" is not the only content width the
+       three surfaces need and both were being spelled as a literal at the call
+       site. 960px is the console's editor column; 68ch is a reading measure and
+       is deliberately in `ch` rather than px -- it tracks the body font, so it
+       stays 60-75 characters when the type scale moves, which a px width does
+       not. Consumed by `.bb-container--narrow` / `--text`
+       (styles/elements/layout.css). */
+    --bb-content-narrow: 960px;
+    --bb-content-text: 68ch;
+
+    /* ── spacing ───────────────────────────────────────────────── */
+    /* A 4px-based ramp that opens up as it climbs (4 8 12 16 24 32 48 64 96):
+       linear at the bottom where the steps are paddings inside a control, then
+       roughly x1.5 where they are gaps between blocks. A pure geometric scale
+       has no 12px, and 12px is the single most-used gap in the console.
+
+       Lived in web/kit/styles/tokens.css and was therefore console-only, so the
+       layout elements (`.bb-stack`, `.bb-cluster`, `.bb-grid`, `.bb-section`)
+       could not be shared with marketing or docs without either duplicating the
+       ramp or hard-coding pixels into a contract. Moved here rather than copied:
+       a second copy is what --bb-border and the type stack each did before, and
+       both had drifted by the time anyone looked. */
+    --bb-space-1: 4px;
+    --bb-space-2: 8px;
+    --bb-space-3: 12px;
+    --bb-space-4: 16px;
+    --bb-space-5: 24px;
+    --bb-space-6: 32px;
+    --bb-space-7: 48px;
+    --bb-space-8: 64px;
+    --bb-space-9: 96px;
+
+    /* ── type scale ────────────────────────────────────────────── */
+    /* The five body sizes `.bb-text` selects between (styles/elements/
+       typography.css). Named xs-xl rather than by px so a caller writes the
+       ROLE it wants; the px values are the ones the console and the marketing
+       site had independently converged on (13px captions, 16px body, 18px lead).
+
+       Fixed px and not a clamp(): these are text sizes, and a body paragraph
+       that grows with the viewport re-wraps at every breakpoint and reads
+       wrong at both ends. Only headings clamp here -- see `.bb-h`, whose
+       display sizes are the ones that genuinely have to survive a 320px phone
+       and a 2560px monitor. */
+    --bb-text-xs: 12px;
+    --bb-text-sm: 13px;
+    --bb-text-md: 16px;
+    --bb-text-lg: 18px;
+    --bb-text-xl: 20px;
 }
 
 } /* @layer bb.tokens */

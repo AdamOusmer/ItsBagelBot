@@ -1,0 +1,31 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro twin of ../svelte/ButtonLink.svelte.
+//
+// It DELEGATES to ./Button.astro rather than repeating its markup. Astro
+// already renders an <a> from Button when `href` is passed (divergence BL1,
+// written up in that file), so the only thing missing on this side was the
+// NAME: a catalog entry and an import path that says "this navigates", so a
+// call site reads the same on both frameworks. Repeating the markup here to
+// make the file look symmetrical with the Svelte twin would recreate exactly
+// the duplication this package exists to delete.
+import Button from './Button.astro';
+
+interface Props {
+    href: string;
+    variant?: 'primary' | 'secondary' | 'ghost' | 'green' | 'destructive' | 'icon' | 'tan' | 'quiet' | 'go';
+    solid?: boolean;
+    /** Full width, centred, >=44px tall: the mobile action-row shape. */
+    block?: boolean;
+    size?: 'md' | 'sm';
+    done?: boolean;
+    class?: string;
+    [key: string]: unknown;
+}
+
+const props = Astro.props;
+---
+
+<Button {...props}><slot /></Button>

@@ -1,0 +1,23 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro twin of ../svelte/PageToolbar.svelte: a lead slot, a flexible spacer,
+// a trail slot.
+//
+// The spacer is a real <div class="bb-toolbar__grow"> and not
+// `justify-content: space-between`, because the row has two named holes and
+// space-between would spread three or more children evenly the moment a
+// caller put two things in `lead`.
+import '../styles/elements/shell.css';
+
+interface Props {
+    class?: string;
+    [key: string]: unknown;
+}
+
+const { class: className = '', ...rest } = Astro.props;
+const classes = ['bb-toolbar', className].filter(Boolean).join(' ');
+---
+
+<div class={classes} {...rest}><slot name="lead" /><div class="bb-toolbar__grow"></div><slot name="trail" /></div>

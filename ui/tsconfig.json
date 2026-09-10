@@ -18,6 +18,7 @@
   "include": [
     "lib/**/*.ts",
     "svelte/**/*.ts",
+    "astro/**/*.ts",
     "scripts/**/*.ts",
     "test/**/*.ts",
     "types/**/*.d.ts",

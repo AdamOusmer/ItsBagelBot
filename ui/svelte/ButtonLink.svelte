@@ -24,6 +24,7 @@
     href,
     variant = 'primary',
     solid = false,
+    block = false,
     size = 'md',
     done = false,
     class: cls = '',
@@ -33,6 +34,8 @@
     href: string;
     variant?: 'primary' | 'secondary' | 'ghost' | 'green' | 'destructive' | 'icon' | 'tan' | 'quiet' | 'go';
     solid?: boolean;
+    /** Full width, centred, >=44px tall: the mobile action-row shape. */
+    block?: boolean;
     size?: 'md' | 'sm';
     done?: boolean;
     class?: string;
@@ -51,6 +54,7 @@
       'bb-btn',
       `bb-btn--${variant}`,
       solid && 'bb-btn--solid',
+      block && 'bb-btn--block',
       size === 'sm' && 'bb-btn--sm',
       done && 'is-done',
       cls,

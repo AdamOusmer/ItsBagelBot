@@ -6,13 +6,16 @@
 // visitor who mistyped a French URL; the un-prefixed build is still the
 // site-wide 404.html.
 import Layout from '../../layouts/Layout.astro';
-import ErrorScene from '../../components/errors/ErrorScene.astro';
-import { getLangFromUrl, useTranslations, localeStaticPaths } from '../../i18n/ui';
+import ErrorScene from '@bagel/ui/astro/ErrorScene.astro';
+import { getLangFromUrl, useTranslations, localeStaticPaths, localizePath } from '../../i18n/ui';
 
 export const getStaticPaths = localeStaticPaths;
 
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
+// The home link is localised: a French visitor who mistyped a URL should land
+// on /fr, not on the English root.
+const home = localizePath('/', lang);
 ---
 
 <Layout title={t('error.404.metaTitle')} description={t('error.404.metaDesc')} noindex>
@@ -21,5 +24,22 @@ const t = useTranslations(lang);
         eyebrow={t('error.404.eyebrow')}
         title={t('error.404.title')}
         description={t('error.404.desc')}
-    />
+        aside={t('error.aside')}
+    >
+        <Fragment slot="actions">
+            <a class="bb-error-scene__action bb-error-scene__action--primary" href={home}
+                >{t('error.home')}</a
+            >
+            <button
+                class="bb-error-scene__action bb-error-scene__action--quiet"
+                type="button"
+                data-error-back={home}>{t('error.back')}</button
+            >
+        </Fragment>
+    </ErrorScene>
 </Layout>
+
+<script>
+    import { mountErrorBack } from '../../script/error-back';
+    mountErrorBack();
+</script>

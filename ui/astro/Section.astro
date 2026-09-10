@@ -1,0 +1,38 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro twin of ../svelte/Section.svelte. `anchor` is opt-in and `reveal`
+// emits the shared attribute rather than an animation of its own; both
+// records are in the Svelte adapter.
+import '../styles/elements/layout.css';
+
+interface Props {
+    size?: 'default' | 'sm' | 'lg' | 'flush';
+    /** position: relative, for a band that hosts its own ornament. */
+    anchor?: boolean;
+    /** Opts into the shared scroll-reveal contract. */
+    reveal?: boolean;
+    as?: string;
+    class?: string;
+}
+
+const {
+    size = 'default',
+    anchor = false,
+    reveal = false,
+    as: Tag = 'section',
+    class: className = '',
+    ...rest
+} = Astro.props;
+const classes = [
+    'bb-section',
+    size === 'default' ? null : `bb-section--${size}`,
+    anchor ? 'bb-section--anchor' : null,
+    className,
+]
+    .filter(Boolean)
+    .join(' ');
+---
+
+<Tag class={classes} data-reveal={reveal ? '' : undefined} {...rest}><slot /></Tag>

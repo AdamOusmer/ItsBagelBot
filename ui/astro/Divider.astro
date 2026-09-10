@@ -1,0 +1,31 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro twin of ../svelte/Divider.svelte. <hr> horizontally, a decorative
+// <span> vertically; the reason is recorded there.
+import '../styles/elements/layout.css';
+
+interface Props {
+    vertical?: boolean;
+    /** Drops the surrounding margin. */
+    flush?: boolean;
+    /** Hairline that fades out at both ends, for use inside a framed card. */
+    fade?: boolean;
+    class?: string;
+}
+
+const { vertical = false, flush = false, fade = false, class: className = '', ...rest } =
+    Astro.props;
+const classes = [
+    'bb-divider',
+    vertical ? 'bb-divider--v' : null,
+    flush ? 'bb-divider--flush' : null,
+    fade ? 'bb-divider--fade' : null,
+    className,
+]
+    .filter(Boolean)
+    .join(' ');
+---
+
+{vertical ? (<span class={classes} aria-hidden="true" {...rest} />) : (<hr class={classes} {...rest} />)}
