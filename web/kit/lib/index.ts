@@ -11,7 +11,12 @@ export { default as MasterToggle } from '../components/MasterToggle.svelte';
 export { default as Badge } from '../components/Badge.svelte';
 export { default as StatTile } from '../components/StatTile.svelte';
 export { default as NavItem } from '../components/NavItem.svelte';
-export { default as Cursor } from '../components/Cursor.svelte';
+// Cursor and LightField are the design library's, re-exported here so the
+// console's 40-odd call sites keep importing them from `@bagel/kit` like every
+// other primitive. Both were kit components until the cursor/reveal PR moved
+// the physics and the markup into @bagel/ui; the barrel entry is what made
+// that a zero-diff change for the apps.
+export { default as Cursor } from '@bagel/ui/svelte/Cursor.svelte';
 export { default as RootShell } from '../components/RootShell.svelte';
 export { default as AuroraBg } from '../components/AuroraBg.svelte';
 export { default as Modal } from '../components/Modal.svelte';
@@ -32,7 +37,7 @@ export { default as AlertBanner } from '../components/AlertBanner.svelte';
 export { default as Chip } from '../components/Chip.svelte';
 export { default as MiniButton } from '../components/MiniButton.svelte';
 export { default as ErrorView } from '../components/ErrorView.svelte';
-export { default as LightField } from '../components/LightField.svelte';
+export { default as LightField } from '@bagel/ui/svelte/LightField.svelte';
 export { default as Field } from '../components/Field.svelte';
 export { default as ToastHost } from '../components/ToastHost.svelte';
 export { default as SaveStatus } from '../components/SaveStatus.svelte';

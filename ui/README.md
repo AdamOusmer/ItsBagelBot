@@ -14,8 +14,8 @@ is split up. Nothing in here knows anything about the bot.
 ```
 fonts/     self-hosted latin woff2
 styles/    layers.css, brand.css, card-atmosphere.css, elements/*.css
-lib/       framework-free browser engines (light-field, clipboard, …)
-svelte/    Svelte adapters
+lib/       framework-free browser engines (cursor-engine, light-field, reveal, …)
+svelte/    Svelte adapters, plus `use:` actions over the lib/ engines
 astro/     Astro adapters
 scripts/   assert-framework-free.mjs, size.ts
 test/      parity.test.ts
@@ -89,9 +89,15 @@ bun run check   # tsc --noEmit + assert-framework-free.mjs
 bun run test    # parity test + per-entry gzip budgets
 ```
 
-`svelte-check` is not in `check` yet: it needs a `svelte.config.js` and at
-least one `.svelte` file, and `svelte/` is empty until the adapters land. It
-joins the script with the first adapter.
+`svelte-check` runs as part of `check`, from the first adapter pair onwards.
+Two things about it are worth knowing before you trust its output:
+
+- it needs a `svelte.config.js` to exist at all, even an empty default export;
+- it decides what to check from the **`include` list in `tsconfig.json`**. With
+  only `*.ts` globs there it reports `0 ERRORS` over hundreds of files while
+  checking no component whatsoever. `svelte/**/*.svelte` is in the list for
+  that reason, and the way to confirm it still works is to plant a type error
+  in an adapter and watch the file count go up by one.
 
 The Astro adapters have no standalone type check here either; the marketing
 build is their gate. The parity test does render them: `test/loaders.ts`

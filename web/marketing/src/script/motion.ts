@@ -11,12 +11,13 @@
  * mistyped media feature is not an error — it is a query that never matches,
  * forever — which is why they are worth naming once.
  *
- * It stays behind as a re-export rather than being deleted because twelve
- * component scripts import `../../script/motion`, and one of them is
- * `components/ui/Cursor.astro`, which the next PR rewrites onto the shared
- * cursor engine. Rewriting twelve import paths now and the cursor again next
- * week is churn spread over two PRs for no behaviour change; when the cursor
- * lands, this file goes and those imports point at the package.
+ * It stays behind as a re-export rather than being deleted because a dozen
+ * component scripts import `../../script/motion`. The cursor has since moved
+ * to `@bagel/ui/astro/Cursor.astro` and no longer goes through here, so the
+ * one importer that was worth waiting for is gone; what is left is a flat
+ * rename across files that other in-flight PRs are editing, and doing it from
+ * here would collide with them. It is the last thing to delete once the
+ * element PRs have landed.
  *
  * Nothing new may be added here. New motion state belongs in the library.
  */

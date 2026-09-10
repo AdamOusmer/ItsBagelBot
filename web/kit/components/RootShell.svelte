@@ -6,7 +6,7 @@
   import { browser } from '$app/environment';
   import { afterNavigate, beforeNavigate } from '$app/navigation';
   import { updated } from '$app/state';
-  import Cursor from './Cursor.svelte';
+  import Cursor from '@bagel/ui/svelte/Cursor.svelte';
   import BackgroundOrbs from './BackgroundOrbs.svelte';
   import { customCursor } from '../lib/cursor';
   import { initLenis } from '../lib/actions';
@@ -75,5 +75,5 @@
 </script>
 
 {#if orbs}<BackgroundOrbs />{/if}
-<Cursor />
+<Cursor enabled={$customCursor} />
 {@render children()}

@@ -45,7 +45,31 @@ plugin({
         filename: path,
         resolvePath: async (specifier: string) => specifier,
       });
-      return { contents: code, loader: "js" };
+      // loader "ts", not "js": @astrojs/compiler rewrites the TEMPLATE and
+      // leaves the frontmatter alone, so a component that types its props with
+      // `interface Props { … }` — which is how Astro documents props and how
+      // every adapter here declares them — reaches the runner as TypeScript.
+      // Bun's js loader dies on it with `Expected ";" but found "Props"`,
+      // pointing at the .astro file, which reads like a compiler bug and is
+      // not one. The ts loader strips the types the way Vite's astro plugin
+      // does downstream.
+      return { contents: code, loader: "ts" };
     });
+  },
+});
+
+// Adapters import their own contract stylesheet (the CardAtmosphere pair set
+// that precedent: the element and the CSS that makes it an element ship
+// together, so a consumer imports one thing). Bun's runtime has no CSS loader,
+// so without this the parity test dies on `import '../styles/elements/
+// cursor.css'` before it renders anything.
+//
+// Stubbed to an empty module rather than parsed: this test compares MARKUP.
+// What the CSS says is the contract's business and is asserted by the browser
+// checks in the PR, not by a string diff here.
+plugin({
+  name: "css-stub",
+  setup(build) {
+    build.onLoad({ filter: /\.css$/ }, () => ({ contents: "", loader: "js" }));
   },
 });

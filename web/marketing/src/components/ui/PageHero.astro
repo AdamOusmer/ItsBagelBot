@@ -7,6 +7,8 @@
  * a decode (scramble→resolve) title, matching the homepage scenes without the
  * full scroll-scrub. Used by pricing, contact, and legal pages.
  */
+import LightField from '@bagel/ui/astro/LightField.astro';
+
 interface Props {
     eyebrow?: string;
     title: string;
@@ -17,7 +19,7 @@ const { eyebrow, title, description } = Astro.props;
 ---
 
 <header class="phero">
-    <canvas class="phero__field" data-field data-warmth="0.7" aria-hidden="true"></canvas>
+    <LightField />
     <div class="phero__glow" aria-hidden="true"></div>
 
     <div class="phero__inner">
@@ -39,15 +41,6 @@ const { eyebrow, title, description } = Astro.props;
         padding: calc(var(--nav-offset, 76px) + 80px) 24px 80px;
         max-width: none;
         margin: 0;
-    }
-
-    .phero__field {
-        position: absolute;
-        inset: 0;
-        width: 100%;
-        height: 100%;
-        display: block;
-        pointer-events: none;
     }
 
     .phero__glow {
@@ -123,7 +116,6 @@ const { eyebrow, title, description } = Astro.props;
 
     @media (prefers-reduced-motion: reduce) {
         .phero__eyebrow, .phero__title, .phero__desc { animation: none; opacity: 1; }
-        .phero__field { display: none; }
     }
 
     @media (max-width: 640px) {

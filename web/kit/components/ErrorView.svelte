@@ -2,7 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { page } from '$app/state';
-  import LightField from './LightField.svelte';
+  import LightField from '@bagel/ui/svelte/LightField.svelte';
 
   let { appName, loginHref = '/login' }: { appName: string; loginHref?: string } = $props();
 

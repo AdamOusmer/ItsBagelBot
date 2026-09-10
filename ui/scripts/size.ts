@@ -70,6 +70,49 @@ const ENTRIES: {
              globalThis.x = field;`,
   },
   {
+    // The custom cursor: dot, lerping ring, box morph, opt-out attribute. The
+    // heaviest thing in lib/ after the mote field, and the one most likely to
+    // grow by accretion — every "and when you hover a video it should…" idea
+    // lands here.
+    //
+    // Initial measurement 2026-09-09 (macOS/arm64): 1364 B gzip. That includes
+    // motion-query (222 B) and raf-loop (341 B) bundled in, so the cursor's
+    // OWN code is ~800 B — roughly the two 200-line components it replaces,
+    // minus one of them. Budget 1700: 1364 + 150 B for CI's linux/x64 gzip
+    // delta = 1514, +10% -> 1665, rounded up.
+    //
+    // The first number written here was 1341 against a 1650 budget, measured
+    // before the frame loop was split into hovered()/paint()/tick() to clear
+    // a CodeScene cyclomatic-complexity finding. Splitting one closure into
+    // three cost 23 B gzip, which is what a named function and two call sites
+    // weigh; the budget moves with it rather than the code moving back.
+    //
+    // As with light-field, the shared modules are charged to this row in full
+    // because the gate builds a synthetic single-entry consumer. On a real page
+    // the cursor, the mote field and the smooth scroll share one copy of each.
+    name: "cursor-engine",
+    budget: 1700,
+    external: [],
+    source: `import { mountCursor } from "../../lib/cursor-engine";
+             globalThis.x = mountCursor;`,
+  },
+  {
+    // Scroll reveal. Small and expected to stay small: an IntersectionObserver,
+    // a class name and an above-the-fold check. If this row moves, what moved
+    // is almost certainly a stagger scheduler or a per-element options parser,
+    // and both belong in the CSS contract instead.
+    //
+    // Initial measurement 2026-09-09 (macOS/arm64): 639 B gzip, of which
+    // 222 B is motion-query — the reduced-motion branch is the only import.
+    // Budget 900: 639 + 150 B for CI's linux/x64 gzip delta = 789, +10% ->
+    // 868, rounded.
+    name: "reveal",
+    budget: 900,
+    external: [],
+    source: `import { observeReveal } from "../../lib/reveal";
+             globalThis.x = observeReveal;`,
+  },
+  {
     // Copy-to-clipboard with the "Copied" flash. Tiny on purpose, and budgeted
     // precisely BECAUSE it is tiny: it is the entry most likely to acquire a
     // toast import or a shared-state module some day, and this row is what
@@ -78,6 +121,10 @@ const ENTRIES: {
     // Initial measurement 2026-09-09 (macOS/arm64): 139 B gzip. Budget 320,
     // not the 153 a flat +10% would give: at this size CI's ~150 B linux/x64
     // gzip delta is larger than the module (139 + 150 = 289, +10% -> 320).
+    //
+    // Re-measured 2026-09-09 after the flash constant became 1600: 139 B,
+    // unchanged. Recorded rather than left silent because the number in the
+    // source moved and the next person will check.
     name: "clipboard",
     budget: 320,
     external: [],

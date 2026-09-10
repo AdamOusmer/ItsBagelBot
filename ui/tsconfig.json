@@ -15,5 +15,19 @@
     "types": ["bun"],
     "noEmit": true
   },
-  "include": ["lib/**/*.ts", "scripts/**/*.ts", "test/**/*.ts", "types/**/*.d.ts"]
+  "include": [
+    "lib/**/*.ts",
+    "svelte/**/*.ts",
+    "scripts/**/*.ts",
+    "test/**/*.ts",
+    "types/**/*.d.ts",
+    // tsc ignores this glob (it only ever picks up .ts/.d.ts/.js from
+    // `include`), but svelte-check uses the SAME include list to decide which
+    // components to check, and with only .ts globs here it reports
+    // "623 FILES 0 ERRORS" while silently checking no .svelte file at all.
+    // Verified by planting `const x: number = 'nope'` in an adapter: before
+    // this line it passed.
+    "svelte/**/*.svelte",
+    "test/**/*.svelte"
+  ]
 }

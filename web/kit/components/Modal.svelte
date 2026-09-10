@@ -66,7 +66,7 @@
       class="modal-backdrop"
       type="button"
       aria-label={closeLabel}
-      data-cursor="off"
+      data-cursor="quiet"
       onclick={tryClose}
     ></button>
     <div

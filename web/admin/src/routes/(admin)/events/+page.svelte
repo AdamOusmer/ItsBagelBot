@@ -186,7 +186,7 @@
       {:else}
         <ul class="bb-list" aria-label={t('admin.events.listLabel')}>
           {#each rows as f, i (f.time + f.subject + i)}
-            <li class="feed-row" data-cursor="off">
+            <li class="feed-row" data-cursor="quiet">
               <StatusDot tone={TONE_DOT[f.tone]} />
               <span class="body">
                 <span class="label">{f.label}</span>

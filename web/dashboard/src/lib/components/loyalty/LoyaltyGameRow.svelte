@@ -57,10 +57,10 @@
 </script>
 
 <article class="game" class:on={enabled} id={def.id}>
-  <!-- data-cursor="off": a row is a reading surface, not a control. The
+  <!-- data-cursor="quiet": a row is a reading surface, not a control. The
        custom cursor morphs onto any <a>, and filling this whole card with a
        tan box covered the switch and read against the dock. -->
-  <a class="main" {href} data-cursor="off">
+  <a class="main" {href} data-cursor="quiet">
     <span class="copy">
       <span class="name">{def.label}</span>
       <span class="tagline">{def.tagline}</span>

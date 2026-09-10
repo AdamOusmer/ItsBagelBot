@@ -1,0 +1,58 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro adapter for the custom cursor. Emits the same two elements as
+// ui/svelte/Cursor.svelte (ui/test/parity.test.ts holds them to it) and mounts
+// the shared engine from a hoisted module script.
+import '../styles/elements/cursor.css';
+---
+
+<div class="bb-cursor" aria-hidden="true"></div>
+<div class="bb-cursor-ring" aria-hidden="true"></div>
+
+<script>
+    // bind.ts-shaped: wire on `astro:page-load` (which fires for a cold load
+    // AND for a ClientRouter swap) and use a `data-ready` flag so a second pass
+    // over a node that survived the swap does not double-bind.
+    //
+    // Unlike bind.ts this DOES tear down, because the cursor owns a rAF
+    // subscription, three delegated listeners and a class on <html>. bindOnce
+    // deliberately has no unbind, which is exactly why it is not used here (see
+    // the same note on the mote field).
+    //
+    // These elements are NOT `transition:persist`, and that is a deliberate
+    // change from the version this replaces. Persisting makes Astro emit a
+    // `data-astro-transition-persist` attribute that the Svelte adapter has no
+    // way to emit, which breaks the parity this package is built on. What
+    // persist was buying — a cursor that does not restart in the middle of the
+    // viewport after a navigation — is bought instead by the engine
+    // remembering the last pointer position at module scope.
+    import { mountCursor } from '../lib/cursor-engine';
+    import { prefersReducedMotion, reduceMotion } from '../lib/motion-query';
+
+    let dispose: (() => void) | null = null;
+
+    function unmount(): void {
+        dispose?.();
+        dispose = null;
+    }
+
+    function mount(): void {
+        if (dispose || prefersReducedMotion()) return;
+        const dot = document.querySelector<HTMLElement>('.bb-cursor');
+        const ring = document.querySelector<HTMLElement>('.bb-cursor-ring');
+        if (!dot || !ring || dot.dataset.ready === '1') return;
+        dot.dataset.ready = '1';
+        dispose = mountCursor({ dot, ring });
+    }
+
+    mount();
+    document.addEventListener('astro:page-load', mount);
+    document.addEventListener('astro:before-swap', unmount);
+    window.addEventListener('pagehide', unmount);
+    // Reduced motion can be flipped with the page open. The engine handles the
+    // on -> off direction itself (it parks and hands the native pointer back);
+    // this handles off -> on, where there is no engine running to react.
+    reduceMotion.addEventListener('change', () => (prefersReducedMotion() ? unmount() : mount()));
+</script>

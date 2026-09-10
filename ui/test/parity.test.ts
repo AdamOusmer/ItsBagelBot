@@ -27,15 +27,19 @@
 // and never enter a console image: the Containerfiles install ui with
 // `--production`.
 //
-// While ui/svelte/ and ui/astro/ are still empty this runs on a pair of
-// fixtures. Each element pair joins it as it lands (Button and Card from the
-// button-card PR onward).
+// The fixture pair stays even though real adapters have landed: it is the
+// harness's own test. When Cursor and LightField both fail, the fixture row
+// says whether the compilers broke or the elements did.
 
 import { expect, test } from 'bun:test';
 import { render } from 'svelte/server';
 import { experimental_AstroContainer } from 'astro/container';
 import SvelteFixture from './fixture.svelte';
 import AstroFixture from './fixture.astro';
+import SvelteCursor from '../svelte/Cursor.svelte';
+import AstroCursor from '../astro/Cursor.astro';
+import SvelteLightField from '../svelte/LightField.svelte';
+import AstroLightField from '../astro/LightField.astro';
 
 /**
  * Reduce rendered HTML to the part the CSS contract actually selects on.
@@ -54,6 +58,15 @@ import AstroFixture from './fixture.astro';
  *     inside a text node is collapsed to single spaces but kept, because that
  *     is content.
  *  4. Trailing/leading whitespace around the whole fragment.
+ *  5. Astro's hoisted `<script type="module" src="…">` tag. Both adapters
+ *     attach the same engine, but they say so in different places: Astro emits
+ *     a tag into the HTML and lets the bundler rewrite the src, while Svelte
+ *     compiles the `$effect` into the component's own JS and emits nothing.
+ *     The tag is build bookkeeping (its src here is the raw source path,
+ *     because this harness runs @astrojs/compiler without Astro's Vite plugin),
+ *     and no CSS contract can select on it. Only the empty, src-carrying form
+ *     is dropped: an inline `<script>` in an adapter WOULD be markup, and this
+ *     leaves it in the diff so it has to be argued for.
  *
  * Attribute ORDER is deliberately not normalised. It does not affect rendering,
  * but it does affect diffs of the emitted HTML, and holding the two adapters to
@@ -63,6 +76,7 @@ import AstroFixture from './fixture.astro';
  */
 function normalise(html: string): string {
   return html
+    .replace(/<script type="module" src="[^"]*"><\/script>/g, '')
     .replace(/<!--[\s\S]*?-->/g, '')
     .replace(/\s*=\s*(""|'')/g, '')
     .replace(/>\s+</g, '><')
@@ -95,4 +109,61 @@ test('the two adapters agree', async () => {
     await container.renderToString(AstroFixture, { props: { text: 'parity' } }),
   );
   expect(svelte).toBe(astro);
+});
+
+/**
+ * The custom cursor: two fixed layers the engine writes geometry onto. The
+ * Svelte adapter renders them behind an `enabled` prop (the console gates on a
+ * user preference); the default is on, which is the Astro adapter's only
+ * behaviour, so the default is what is compared.
+ */
+const CURSOR_HTML =
+  '<div class="bb-cursor" aria-hidden="true"></div>' +
+  '<div class="bb-cursor-ring" aria-hidden="true"></div>';
+
+test('cursor: both adapters emit the contract markup', async () => {
+  const container = await experimental_AstroContainer.create();
+  const svelte = normalise(render(SvelteCursor, { props: {} }).body);
+  const astro = normalise(await container.renderToString(AstroCursor, { props: {} }));
+
+  expect(svelte).toBe(CURSOR_HTML);
+  expect(astro).toBe(CURSOR_HTML);
+});
+
+test('cursor: the svelte adapter renders nothing when disabled', () => {
+  // Not a parity case — Astro has no `enabled` prop, because the marketing site
+  // has no cursor preference to gate on. It is here because "disabled" must
+  // mean "no elements at all", not "elements the engine ignores": leaving them
+  // in the tree would leave `cursor: none` fighting a native pointer.
+  const { body } = render(SvelteCursor, { props: { enabled: false } });
+  expect(normalise(body)).toBe('');
+});
+
+/**
+ * The mote field. `data-field` and `data-warmth` are contract attributes even
+ * though only the Astro adapter reads them back off the DOM; see the note in
+ * ui/svelte/LightField.svelte.
+ */
+const LIGHT_FIELD_HTML =
+  '<canvas class="bb-light-field" data-field data-warmth="0.7" aria-hidden="true"></canvas>';
+
+test('light field: both adapters emit the contract markup', async () => {
+  const container = await experimental_AstroContainer.create();
+  const svelte = normalise(render(SvelteLightField, { props: {} }).body);
+  const astro = normalise(await container.renderToString(AstroLightField, { props: {} }));
+
+  expect(svelte).toBe(LIGHT_FIELD_HTML);
+  expect(astro).toBe(LIGHT_FIELD_HTML);
+});
+
+test('light field: the class and warmth props agree', async () => {
+  const props = { class: 'bb-light-field--bleed', warmth: 0.4 };
+  const container = await experimental_AstroContainer.create();
+  const svelte = normalise(render(SvelteLightField, { props }).body);
+  const astro = normalise(await container.renderToString(AstroLightField, { props }));
+
+  expect(svelte).toBe(
+    '<canvas class="bb-light-field bb-light-field--bleed" data-field data-warmth="0.4" aria-hidden="true"></canvas>',
+  );
+  expect(astro).toBe(svelte);
 });

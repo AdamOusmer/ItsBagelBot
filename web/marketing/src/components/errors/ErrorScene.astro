@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import HomeLightField from '../home/HomeLightField.astro';
+import LightField from '@bagel/ui/astro/LightField.astro';
 import { getLangFromUrl, useTranslations, localizePath } from '../../i18n/ui';
 
 interface Props {
@@ -28,7 +28,7 @@ const {
 ---
 
 <section class="error-scene" aria-labelledby="error-title">
-    <HomeLightField />
+    <LightField class="bb-light-field--bleed" />
     <div class="error-scene__glow" aria-hidden="true"></div>
 
     <div class="error-scene__orbit" aria-hidden="true">

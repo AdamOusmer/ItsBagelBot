@@ -6,7 +6,7 @@
   // role-gated, so they all live in the inspector where the confirmation and
   // the permission story sit together, and the row stays a pure selector.
   //
-  // ManagementRow already sets data-cursor="off" on its primary button (a row
+  // ManagementRow already sets data-cursor="quiet" on its primary button (a row
   // is a reading surface, not a control, so the custom cursor must not morph
   // into a row-sized box).
   import ManagementRow from '@bagel/kit/components/ManagementRow.svelte';
