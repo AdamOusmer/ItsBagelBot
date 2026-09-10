@@ -7,8 +7,13 @@
   // Optimistic: flips `enabled` on submit, reverts + toasts on a non-success.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { toast } from '../lib/toast';
+  import { toast } from '@bagel/ui/svelte/toast';
   import Switch from '@bagel/ui/svelte/Switch.svelte';
+  // No <style> here on purpose. The row, its label and its hint are
+  // `.bb-switch-row` in @bagel/ui/styles/elements/toggle.css, next to the pill
+  // they sit beside; what is left in this file is the POST form, the optimistic
+  // flip and the failure toast, which is the data half.
+  import '@bagel/ui/styles/elements/toggle.css';
 
   let {
     action,
@@ -43,24 +48,11 @@
   };
 </script>
 
-<form method="POST" {action} use:enhance={submit} class="master">
+<form method="POST" {action} use:enhance={submit} class="bb-switch-row">
   <input type="hidden" {name} value={enabled ? '' : 'on'} />
   <Switch type="submit" checked={enabled} label={ariaLabel ?? label} describedby={hint ? hintId : undefined} />
-  <span class="txt">
-    <span class="lbl">{label}</span>
-    {#if hint}<span class="hint" id={hintId}>{hint}</span>{/if}
+  <span class="bb-switch-row__text">
+    <span class="bb-switch-row__label">{label}</span>
+    {#if hint}<span class="bb-switch-row__hint" id={hintId}>{hint}</span>{/if}
   </span>
 </form>
-
-<style>
-  .master { display: inline-flex; align-items: center; gap: 12px; }
-
-  .txt { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-  .lbl {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 13px;
-    color: var(--bb-white);
-  }
-  .hint { font-family: var(--bb-font-body); font-size: 11.5px; color: var(--bb-muted); }
-</style>

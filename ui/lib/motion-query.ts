@@ -58,6 +58,26 @@ function query(feature: string): MotionQuery {
     return window.matchMedia(feature);
 }
 
+/**
+ * A live media query with the SSR stand-in above, for the layout breakpoints an
+ * ELEMENT owns rather than a stylesheet.
+ *
+ * Exported reluctantly and used sparingly: a breakpoint that only changes how
+ * something looks belongs in CSS, where it costs no JS and no listener. This is
+ * for the case where the breakpoint changes what is RENDERED — the inspector
+ * surface is an in-flow panel on a wide screen and a modal bottom sheet on a
+ * narrow one, and those are different DOM with different focus behaviour, not
+ * two skins of one element.
+ *
+ * The value matters at first paint, so callers read `.matches` synchronously
+ * during setup and subscribe for later changes. Rendering the wide form and
+ * swapping on mount tears down and re-mounts the sheet, which races its focus
+ * trap.
+ */
+export function mediaQuery(feature: string): MotionQuery {
+    return query(feature);
+}
+
 /** True while the visitor has asked the OS for reduced motion. */
 export const reduceMotion: MotionQuery = query('(prefers-reduced-motion: reduce)');
 

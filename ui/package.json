@@ -11,6 +11,10 @@
     "./styles/*": "./styles/*",
     "./fonts/*": "./fonts/*",
     "./lib/*": "./lib/*.ts",
+    "./svelte/toast": "./svelte/toast.svelte.ts",
+    "./svelte/inspector": "./svelte/inspector.svelte.ts",
+    "./svelte/discard-guard": "./svelte/discard-guard.svelte.ts",
+    "./svelte/actions": "./svelte/actions.ts",
     "./svelte/*": "./svelte/*",
     "./astro/*": "./astro/*"
   },

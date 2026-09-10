@@ -1,0 +1,51 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro adapter for the `.bb-text-link` contract
+// (../styles/elements/text-link.css). Svelte twin: ../svelte/TextLink.svelte;
+// ../test/parity.test.ts diffs the two, which matters more here than anywhere
+// else in the package: this element emits one <span> PER GLYPH, twice, each
+// carrying its index, so a drift of one wrapper is invisible on the surface
+// its author was looking at and breaks the roll on the other.
+//
+// The site's one text-link motion: a mono micro-label whose glyphs roll over on
+// hover while an ember rail sweeps in and a glint runs the wire. Reserved for
+// inline links in prose and chrome — the nav and footer render `.bb-nav-link`,
+// whose drawline costs two transitions instead of two per character.
+//
+// `Array.from(label)` and not `label.split('')`: split breaks surrogate pairs,
+// so an emoji or an accented character composed of two code units renders as
+// two broken glyphs with two different delays.
+import '../styles/elements/text-link.css';
+
+interface Props {
+    href: string;
+    label: string;
+    /** Persistent lit state for the current route. */
+    active?: boolean;
+    /** Opens in a new tab, with the rel that makes that safe. */
+    external?: boolean;
+    /** Font-size override, any CSS length. The roll geometry is in em. */
+    size?: string;
+    class?: string;
+}
+
+// `rest` forwards the parent's scoped-style attribute (data-astro-cid-*) so a
+// consumer can position the link with its own scoped CSS.
+const {
+    href,
+    label,
+    active = false,
+    external = false,
+    size,
+    class: className = '',
+    ...rest
+} = Astro.props;
+const glyphs = Array.from(label);
+const classes = ['bb-text-link', className, active ? 'is-active' : null]
+    .filter(Boolean)
+    .join(' ');
+---
+
+<a class={classes} href={href} aria-label={label} aria-current={active ? 'page' : undefined} target={external ? '_blank' : undefined} rel={external ? 'noopener noreferrer' : undefined} style={size ? `--text-link-size: ${size};` : undefined} {...rest}><span class="bb-text-link__mask" aria-hidden="true"><span class="bb-text-link__row bb-text-link__row--rest">{glyphs.map((glyph, index) => (<span class="bb-text-link__glyph" style={`--gi: ${index};`}>{glyph}</span>))}</span><span class="bb-text-link__row bb-text-link__row--over">{glyphs.map((glyph, index) => (<span class="bb-text-link__glyph" style={`--gi: ${index};`}>{glyph}</span>))}</span></span></a>

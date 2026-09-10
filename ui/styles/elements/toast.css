@@ -1,0 +1,129 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* `.bb-toast-stack` / `.bb-toast` — the transient confirmations that let the
+   console apply a change optimistically and offer Undo instead of stopping the
+   user with a confirmation dialog. The stack is `aria-live="polite"` and each
+   toast is `role="status"`: announced when they arrive, never stealing focus,
+   because a toast the keyboard has to dismiss is worse than no toast.
+
+   z-index 300 sits ABOVE the modal stack's 200-and-up. Deliberate: a toast
+   raised by an action taken inside a dialog (a failed save) has to be readable
+   without closing the dialog first.
+
+   `max-width: min(420px, calc(100vw - 32px))` and the full-width phone form
+   below 480px are the same rule stated twice — a toast never touches the
+   viewport edge and never grows past a comfortable reading measure.
+
+   The entrance is 220ms on `--bb-ease-out-back`, the only overshoot easing in
+   the package: a toast arrives, it does not fade in. Nothing here disables it
+   under reduced motion because the global rule in ui/styles/a11y.css already
+   collapses every animation duration; a second opt-out here would only be one
+   more thing to keep in sync. */
+
+@layer bb.elements {
+  .bb-toast-stack {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    z-index: 300;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-width: min(420px, calc(100vw - 32px));
+  }
+
+  .bb-toast {
+    --toast-fg: var(--bb-tan-light);
+    --toast-border: var(--bb-border-strong);
+
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 12px 14px;
+    border: 1px solid var(--toast-border);
+    border-radius: var(--bb-radius-md);
+    background: var(--bb-card-bg);
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
+    color: var(--bb-white);
+    font-family: var(--bb-font-body);
+    font-size: 13.5px;
+    animation: bb-toast-in 220ms var(--bb-ease-out-back);
+  }
+
+  .bb-toast--ok {
+    --toast-fg: var(--bb-green-glow);
+    --toast-border: rgba(82, 183, 136, 0.45);
+    color: var(--toast-fg);
+    border-color: var(--toast-border);
+  }
+
+  .bb-toast--err {
+    --toast-fg: #cf8a78;
+    --toast-border: rgba(176, 90, 70, 0.45);
+    color: var(--toast-fg);
+    border-color: var(--toast-border);
+  }
+
+  .bb-toast--info {
+    color: var(--bb-tan-light);
+  }
+
+  .bb-toast__text {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .bb-toast__undo {
+    flex: none;
+    padding: 4px 12px;
+    border: 1px solid rgba(201, 168, 124, 0.28);
+    border-radius: var(--bb-radius-pill);
+    background: rgba(201, 168, 124, 0.1);
+    color: var(--bb-tan-light);
+    font-family: var(--bb-font-mono);
+    font-size: 11.5px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all var(--bb-dur-fast) var(--bb-ease-out-expo);
+  }
+
+  .bb-toast__undo:hover {
+    background: rgba(201, 168, 124, 0.2);
+    color: var(--bb-white);
+  }
+
+  .bb-toast__close {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border: none;
+    border-radius: var(--bb-radius-sm);
+    background: transparent;
+    color: var(--bb-muted);
+    cursor: pointer;
+  }
+
+  .bb-toast__close:hover {
+    color: var(--bb-white);
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  @keyframes bb-toast-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (max-width: 480px) {
+    .bb-toast-stack {
+      left: 16px;
+      right: 16px;
+      bottom: 16px;
+      max-width: none;
+    }
+  }
+}

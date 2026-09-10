@@ -6,7 +6,7 @@
   // nested inside it. The page passes the toggle handler so all optimistic state
   // stays in one place.
   import { SaveStatus, ManagementRow, Switch, getI18n, type ModuleReply } from '@bagel/kit';
-  import type { SaveState } from '@bagel/kit/components/SaveStatus.svelte';
+  import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
 
   const { t } = getI18n();
 

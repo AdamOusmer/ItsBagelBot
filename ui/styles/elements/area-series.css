@@ -1,0 +1,55 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* `.bb-area` — the chart chrome behind both consoles' volume curves:
+   gridlines, the filled area, the head-of-series dot and an optional gutter of
+   event ticks.
+
+   Contract only: the geometry (the path `d`, the tick positions) is computed
+   by the adapter, because the point count changes with the window being
+   charted and a 20-minute stream and a 6-hour one both have to fill the same
+   box. Everything here is stroke and fill.
+
+   `preserveAspectRatio: none` on the element means the viewBox stretches, so
+   stroke widths below are in viewBox units and render slightly wider than
+   their nominal px at the sizes these charts are drawn. 1.8 was picked at the
+   rendered size, not the nominal one.
+
+   The grid alphas (0.10, and 0.14 on the baseline) are deliberately below the
+   0.15 of `--bb-border`: a gridline that reads as strongly as a card hairline
+   turns the chart into a table. */
+
+@layer bb.elements {
+  .bb-area {
+    width: 100%;
+    display: block;
+  }
+
+  .bb-area__grid {
+    stroke: rgba(201, 168, 124, 0.1);
+    stroke-width: 1;
+  }
+
+  .bb-area__grid--base {
+    stroke: rgba(201, 168, 124, 0.14);
+  }
+
+  .bb-area__line {
+    fill: none;
+    stroke: var(--bb-green-glow);
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .bb-area__ticks line {
+    stroke: var(--bb-tan);
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    opacity: 0.7;
+  }
+
+  .bb-area__dot {
+    fill: var(--bb-green-glow);
+  }
+}

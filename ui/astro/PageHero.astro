@@ -1,0 +1,37 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro adapter for the `.bb-page-hero` contract
+// (../styles/elements/page-hero.css). Its Svelte twin is
+// ../svelte/PageHero.svelte and ../test/parity.test.ts diffs the two rendered
+// outputs, so the class list, the attribute order and the element structure
+// here are written to match that file even where Astro would allow something
+// shorter.
+//
+// The inner-page hero: warm mote field, hearth glow, and a title that decodes
+// when it enters. It is the homepage scenes' language without the scroll-scrub,
+// so pricing, contact, changelog, the guides index and the legal pages open the
+// way the home page does rather than each inventing a masthead.
+//
+// NO HOISTED SCRIPT, unlike ../astro/LightField.astro and
+// ../astro/ReadingProgress.astro. `data-decode` is a document-wide contract —
+// the homepage's step receipts carry it too, on a page that renders no hero —
+// so the scan lives in the consuming site's binder over ../lib/decode.ts, and
+// a per-instance script here would wire the same elements twice on the pages
+// that have both.
+import '../styles/elements/page-hero.css';
+import LightField from './LightField.astro';
+
+interface Props {
+    eyebrow?: string;
+    title: string;
+    description?: string;
+    class?: string;
+}
+
+const { eyebrow, title, description, class: className = '', ...rest } = Astro.props;
+const classes = ['bb-page-hero', className].filter(Boolean).join(' ');
+---
+
+<header class={classes} {...rest}><LightField /><div class="bb-page-hero__glow" aria-hidden="true"></div><div class="bb-page-hero__inner">{eyebrow && <span class="bb-page-hero__eyebrow">{eyebrow}</span>}<h1 class="bb-page-hero__title" data-decode={title}>{title}</h1>{description && <p class="bb-page-hero__desc">{description}</p>}</div></header>

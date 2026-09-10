@@ -29,7 +29,7 @@
     categoryHref,
     type ModuleState
   } from '@bagel/kit';
-  import type { SaveState } from '@bagel/kit/components/SaveStatus.svelte';
+  import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
   import ModuleIndexRow from '$lib/components/modules/ModuleIndexRow.svelte';
 
   let { data } = $props();

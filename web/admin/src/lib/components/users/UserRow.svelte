@@ -9,7 +9,7 @@
   // ManagementRow already sets data-cursor="quiet" on its primary button (a row
   // is a reading surface, not a control, so the custom cursor must not morph
   // into a row-sized box).
-  import ManagementRow from '@bagel/kit/components/ManagementRow.svelte';
+  import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
   import Bolota from '@bagel/kit/components/Bolota.svelte';
   import { ago } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';

@@ -156,7 +156,7 @@ test.describe('ItsBagelBot site', () => {
     test('pricing renders free-first tiers, oath, and faq', async ({ page }) => {
         await page.goto('/pricing');
 
-        await expect(page.locator('.phero__title')).toContainText('Everything is on the free plan.');
+        await expect(page.locator('.bb-page-hero__title')).toContainText('Everything is on the free plan.');
 
         const tiers = page.locator('.tiers [data-card]');
         await expect(tiers).toHaveCount(3);
@@ -219,7 +219,7 @@ test.describe('ItsBagelBot site', () => {
     test('contact renders 4 switchboard lines with copy affordance', async ({ page }) => {
         await page.goto('/contact');
 
-        await expect(page.locator('.phero__title')).toContainText('Talk to a human.');
+        await expect(page.locator('.bb-page-hero__title')).toContainText('Talk to a human.');
         await expect(page.locator('.board .line')).toHaveCount(4);
         await expect(page.locator('.line').filter({ hasText: 'Discord' })).toHaveCount(1);
         await expect(page.locator('.line').filter({ hasText: 'Support' })).toHaveCount(1);
@@ -234,7 +234,7 @@ test.describe('ItsBagelBot site', () => {
     test('changelog lists tagged releases ordered by version', async ({ page }) => {
         await page.goto('/changelog');
 
-        await expect(page.locator('.phero__title')).toContainText("What's new.");
+        await expect(page.locator('.bb-page-hero__title')).toContainText("What's new.");
         const releases = releasesNewestFirst();
         const items = page.locator('.clog__item');
         await expect(items).toHaveCount(releases.length);
@@ -267,7 +267,7 @@ test.describe('ItsBagelBot site', () => {
         await expect(page.locator('footer a.bb-nav-link[href="/changelog/"]')).toHaveCount(1);
 
         await page.goto('/fr/changelog');
-        await expect(page.locator('.phero__title')).toContainText('Quoi de neuf.');
+        await expect(page.locator('.bb-page-hero__title')).toContainText('Quoi de neuf.');
         await expect(page.locator('.clog__item').first()).toContainText(newest.title.fr ?? title);
         await expect(page.locator('.rtag--beta').first()).toContainText('Bêta');
         // The French entry names the same import sources as the English one.
@@ -289,13 +289,13 @@ test.describe('ItsBagelBot site', () => {
 
     test('legal pages render with toc, plain words, and copy intact', async ({ page }) => {
         await page.goto('/privacy');
-        await expect(page.locator('.phero__title')).toContainText('Privacy Policy');
+        await expect(page.locator('.bb-page-hero__title')).toContainText('Privacy Policy');
         await expect(page.locator('body')).toContainText('Data We Collect');
         await expect(page.locator('[data-legal-link]')).toHaveCount(11);
         await expect(page.locator('.lshell__plain').first()).toContainText('plain words');
 
         await page.goto('/terms');
-        await expect(page.locator('.phero__title')).toContainText('Terms of Service');
+        await expect(page.locator('.bb-page-hero__title')).toContainText('Terms of Service');
         await expect(page.locator('body')).toContainText('Acceptable Use');
         await expect(page.locator('body')).toContainText('Source Available License');
         await expect(page.locator('body')).toContainText('Third-Party Games and Trademarks');
@@ -331,17 +331,22 @@ test.describe('ItsBagelBot site', () => {
         await page.locator('.bb-nav__links a.bb-nav-link[href="/pricing/"]').click();
         await expect(page).toHaveURL(/\/pricing\/?$/);
 
+        // Mid-scramble: the element is showing something other than its final
+        // text. `data-decode-ready` is gone -- the old script used it as an
+        // idempotence flag, and @bagel/ui's observeDecode guards with
+        // `observer.unobserve` and its own running set instead, so the
+        // attribute was a marker with no reader. The condition below is the
+        // same observable signal without it.
         await page.waitForFunction(() => {
-            const title = document.querySelector('.phero__title');
+            const title = document.querySelector('.bb-page-hero__title');
             return Boolean(
                 title &&
-                title.dataset.decodeReady === 'true' &&
                 title.dataset.decode &&
                 title.textContent !== title.dataset.decode
             );
         });
 
-        await expect(page.locator('.phero__title')).toContainText('Everything is on the free plan.', { timeout: 3000 });
+        await expect(page.locator('.bb-page-hero__title')).toContainText('Everything is on the free plan.', { timeout: 3000 });
     });
 
     test('encryption scene boots again when returning home', async ({ page }) => {
@@ -378,7 +383,7 @@ test.describe('guides & command builder', () => {
     test('guides hub lists the five guides and the builder tool', async ({ page }) => {
         await page.goto('/guides');
 
-        await expect(page.locator('.phero__title')).toContainText('Learn the bot.');
+        await expect(page.locator('.bb-page-hero__title')).toContainText('Learn the bot.');
         await expect(page.locator('.gcard')).toHaveCount(5);
         await expect(page.locator('.gcard').first()).toHaveAttribute('href', '/guides/getting-started/');
         await expect(page.locator('.gcard').nth(2)).toHaveAttribute('href', '/guides/data-sources/');
@@ -503,7 +508,7 @@ test.describe('guides & command builder', () => {
         await page.goto('/fr/command-builder');
         await page.waitForSelector('[data-builder][data-ready="1"]');
 
-        await expect(page.locator('.phero__title')).toContainText('Des commandes puissantes.');
+        await expect(page.locator('.bb-page-hero__title')).toContainText('Des commandes puissantes.');
         await expect(page.locator('[data-vars] .var code')).toHaveCount(8);
         const href = await page.getAttribute('[data-send]', 'href');
         expect(href).toContain('lang=fr');

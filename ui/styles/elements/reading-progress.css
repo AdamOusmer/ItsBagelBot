@@ -1,0 +1,44 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* `.bb-reading-progress` — the 2px gradient bar pinned to the top of the
+   viewport showing how far down the page the reader is.
+
+   IT MEASURES THE DOCUMENT, not an article container. The per-shell bars this
+   replaced each measured their own `<article>`, so on a page whose article
+   ended above the footer the bar hit 100% with a screen of content left, and
+   on the guides shell (article inside a sticky-sidebar grid) it never reached
+   100% at all.
+
+   The fill is driven by `--read` (0..1) written by ui/lib/reading-progress.ts
+   and applied as `scaleX` from the left origin. A transform and not a width:
+   width animates layout on every scroll frame, scaleX is composited.
+
+   z-index 90 puts it under the nav (100) and over the page. `pointer-events:
+   none` on the track because a 2px strip across the top of the viewport that
+   swallows clicks is a bug report waiting to happen.
+
+   No transition on the fill: it is already frame-accurate, and easing it makes
+   the bar lag the scroll on a flick and then catch up, which reads as jank. */
+
+@layer bb.elements {
+  .bb-reading-progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    z-index: 90;
+    pointer-events: none;
+  }
+
+  .bb-reading-progress__fill {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, var(--bb-green-glow), var(--bb-tan));
+    box-shadow: 0 0 12px rgba(201, 168, 124, 0.5);
+    transform: scaleX(var(--read, 0));
+    transform-origin: left;
+  }
+}

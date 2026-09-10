@@ -1,0 +1,108 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* `.bb-ornaments` — the two hairline corner brackets and the wordmark that
+   frame the bottom of every marketing page, and the loader's quieter twin.
+
+   `--ornament-inline` IS A SHARED MEASUREMENT, and that is the reason it is a
+   custom property rather than a number written twice. The social rail aligns
+   its column to the same 24px inset; before this it agreed with the brackets
+   by way of a comment in each file, which is not agreement, it is coincidence
+   with a note attached. A surface that shifts one now shifts both.
+
+   `--ornament-z` is the whole difference between the two variants: the page
+   brackets sit at 50, above the content and below the nav; the loader's sit at
+   5, above the loader's own backdrop and under everything the loader draws.
+   Same geometry, different stacking, so one variable rather than a second
+   block.
+
+   The label is `:empty { display: none }` rather than conditional in the
+   markup so that a caller passing an empty string gets no box, and the two
+   adapters do not have to agree on what "no label" means.
+
+   The phone steps (1023px, 420px) move the loader's brackets and label UP, not
+   in: on a phone the bottom inset has to clear the browser chrome, and the
+   label sits above the brackets rather than between them because at 18px in
+   there is no between. */
+
+@layer bb.elements {
+  .bb-ornaments {
+    --ornament-bottom: 24px;
+    --ornament-inline: 24px;
+    --ornament-label-bottom: var(--ornament-bottom);
+    --ornament-size: 40px;
+    --ornament-z: 50;
+
+    position: fixed;
+    inset: 0;
+    z-index: var(--ornament-z);
+    pointer-events: none;
+  }
+
+  .bb-ornaments--loader {
+    --ornament-z: 5;
+  }
+
+  .bb-corner {
+    position: absolute;
+    width: var(--ornament-size);
+    height: var(--ornament-size);
+    border-color: var(--bb-border);
+    border-style: solid;
+  }
+
+  .bb-corner--bl {
+    bottom: var(--ornament-bottom);
+    left: var(--ornament-inline);
+    border-width: 0 0 1px 1px;
+  }
+
+  .bb-corner--br {
+    right: var(--ornament-inline);
+    bottom: var(--ornament-bottom);
+    border-width: 0 1px 1px 0;
+  }
+
+  .bb-ornament-label {
+    position: absolute;
+    left: 50%;
+    bottom: var(--ornament-label-bottom);
+    height: var(--ornament-size);
+    display: flex;
+    align-items: flex-end;
+    transform: translateX(-50%);
+    color: var(--bb-tan-light);
+    font-family: var(--bb-font-display);
+    font-size: 0.95rem;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0;
+    white-space: nowrap;
+  }
+
+  .bb-ornament-label:empty {
+    display: none;
+  }
+
+  @media (max-width: 1023px) {
+    .bb-ornaments {
+      --ornament-inline: 24px;
+    }
+
+    .bb-ornaments--loader {
+      --ornament-bottom: 64px;
+      --ornament-label-bottom: 80px;
+    }
+  }
+
+  @media (max-width: 420px) {
+    .bb-ornaments {
+      --ornament-inline: 18px;
+    }
+
+    .bb-ornaments--loader {
+      --ornament-bottom: 58px;
+      --ornament-label-bottom: 72px;
+    }
+  }
+}

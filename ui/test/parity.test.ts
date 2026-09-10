@@ -611,3 +611,410 @@ for (const parityCase of CASES) {
     expect(normalise(html)).toBe(golden);
   });
 }
+
+
+// ── The remaining elements ─────────────────────────────────────────────────
+// Everything presentational that was still living in a consuming app: the
+// console's overlays, rows, decks and chart chrome, and the marketing site's
+// hero, headings, text links, page ornaments and reading bar.
+//
+// Registered as a table rather than as hand-written pairs, because at thirteen
+// elements the interesting failure is no longer "this element drifted" but
+// "somebody added an element and forgot the other adapter". A row per element
+// with its props and its expected markup makes the omission visible in the
+// diff of this file.
+//
+// Rows are the DEFAULT rendering plus, where an element's shape genuinely
+// changes with a prop, the changed one. Not every prop: a table that asserts
+// every combination stops being read.
+
+import SvelteAlertBanner from '../svelte/AlertBanner.svelte';
+import AstroAlertBanner from '../astro/AlertBanner.astro';
+import SvelteDeckList from '../svelte/DeckList.svelte';
+import AstroDeckList from '../astro/DeckList.astro';
+import SvelteOverviewGrid from '../svelte/OverviewGrid.svelte';
+import AstroOverviewGrid from '../astro/OverviewGrid.astro';
+import SvelteManagementRow from '../svelte/ManagementRow.svelte';
+import AstroManagementRow from '../astro/ManagementRow.astro';
+import SvelteEditorFooter from '../svelte/EditorFooter.svelte';
+import AstroEditorFooter from '../astro/EditorFooter.astro';
+import SvelteSaveStatus from '../svelte/SaveStatus.svelte';
+import AstroSaveStatus from '../astro/SaveStatus.astro';
+import SvelteModal from '../svelte/Modal.svelte';
+import AstroModal from '../astro/Modal.astro';
+import SvelteInspectorSurface from '../svelte/InspectorSurface.svelte';
+import AstroInspectorSurface from '../astro/InspectorSurface.astro';
+import SveltePageHero from '../svelte/PageHero.svelte';
+import AstroPageHero from '../astro/PageHero.astro';
+import SvelteSectionHeading from '../svelte/SectionHeading.svelte';
+import AstroSectionHeading from '../astro/SectionHeading.astro';
+import SvelteTextLink from '../svelte/TextLink.svelte';
+import AstroTextLink from '../astro/TextLink.astro';
+import SvelteBrackets from '../svelte/Brackets.svelte';
+import AstroBrackets from '../astro/Brackets.astro';
+import SvelteReadingProgress from '../svelte/ReadingProgress.svelte';
+import AstroReadingProgress from '../astro/ReadingProgress.astro';
+
+const LIGHT_FIELD = '<canvas class="bb-light-field" data-field data-warmth="0.7" aria-hidden="true"></canvas>';
+
+/** The contract, one row per element. Edit deliberately.
+ *
+ * Named REMAINING, not CASES: the nav/footer/shell block above already
+ * imports a `CASES` registry from ./pr10-cases, and two registries in one
+ * module scope cannot share a name. The rows are unchanged. */
+const REMAINING: {
+  name: string;
+  svelte: unknown;
+  astro: unknown;
+  props: Record<string, unknown>;
+  html: string;
+}[] = [
+  {
+    name: 'AlertBanner: danger',
+    svelte: SvelteAlertBanner,
+    astro: AstroAlertBanner,
+    props: {},
+    html: '<div class="bb-alert bb-alert--danger" role="alert"><span class="bb-alert__msg"></span></div>',
+  },
+  {
+    // The staff bar: a different tone AND a different live region, which is
+    // the pair most likely to be changed on one adapter only.
+    name: 'AlertBanner: impersonation',
+    svelte: SvelteAlertBanner,
+    astro: AstroAlertBanner,
+    props: { variant: 'impersonation', role: 'status' },
+    html: '<div class="bb-alert bb-alert--impersonation" role="status"><span class="bb-alert__msg"></span></div>',
+  },
+  {
+    name: 'DeckList: default',
+    svelte: SvelteDeckList,
+    astro: AstroDeckList,
+    props: {},
+    html: '<div class="bb-card bb-deck-list"></div>',
+  },
+  {
+    // `as` is the landmark escape hatch; a deck rendered as a div loses its
+    // labelled region, so the tag is contract.
+    name: 'DeckList: as section',
+    svelte: SvelteDeckList,
+    astro: AstroDeckList,
+    props: { as: 'section', class: 'timers' },
+    html: '<section class="bb-card bb-deck-list timers"></section>',
+  },
+  {
+    name: 'OverviewGrid: default',
+    svelte: SvelteOverviewGrid,
+    astro: AstroOverviewGrid,
+    props: {},
+    html: '<div class="bb-ov-row"><div class="bb-ov-row__main"></div><div class="bb-ov-row__side"></div></div>',
+  },
+  {
+    name: 'ManagementRow: default',
+    svelte: SvelteManagementRow,
+    astro: AstroManagementRow,
+    props: {},
+    html:
+      '<div class="bb-row row-shell">' +
+      '<button class="bb-row__primary" type="button" data-cursor="quiet" aria-expanded="false"></button>' +
+      '</div>',
+  },
+  {
+    // Selected + expanded + controls: the three attributes that make the row
+    // announce its relationship to the inspector it opens.
+    name: 'ManagementRow: selected',
+    svelte: SvelteManagementRow,
+    astro: AstroManagementRow,
+    props: { selected: true, expanded: true, controls: 'insp', disabled: true },
+    html:
+      '<div class="bb-row row-shell is-selected is-off">' +
+      '<button class="bb-row__primary" type="button" data-cursor="quiet" aria-expanded="true" aria-controls="insp" aria-current="true"></button>' +
+      '</div>',
+  },
+  {
+    name: 'EditorFooter: idle',
+    svelte: SvelteEditorFooter,
+    astro: AstroEditorFooter,
+    props: {},
+    html:
+      '<div class="bb-editor-foot">' +
+      '<span class="bb-editor-foot__status" role="status" aria-live="polite"></span>' +
+      '<span class="bb-editor-foot__acts">' +
+      '<button class="bb-btn bb-btn--ghost" type="button" data-mark>' +
+      '<i class="bb-btn__mark" aria-hidden="true"></i>' +
+      '<span class="bb-btn__content">Cancel</span></button>' +
+      '<button class="bb-btn bb-btn--primary" type="submit" data-mark>' +
+      '<i class="bb-btn__mark" aria-hidden="true"></i>' +
+      '<span class="bb-btn__content">Save</span></button>' +
+      '</span></div>',
+  },
+  {
+    // `saving` is the one state that changes BOTH halves: the status label and
+    // the submit button's own label and disabled flag.
+    name: 'EditorFooter: saving',
+    svelte: SvelteEditorFooter,
+    astro: AstroEditorFooter,
+    props: { status: 'saving', dirty: true },
+    html:
+      '<div class="bb-editor-foot">' +
+      '<span class="bb-editor-foot__status" role="status" aria-live="polite">' +
+      '<span class="bb-editor-foot__s bb-editor-foot__s--saving">Saving…</span></span>' +
+      '<span class="bb-editor-foot__acts">' +
+      '<button class="bb-btn bb-btn--ghost" type="button" data-mark>' +
+      '<i class="bb-btn__mark" aria-hidden="true"></i>' +
+      '<span class="bb-btn__content">Cancel</span></button>' +
+      '<button class="bb-btn bb-btn--primary" type="submit" disabled data-mark>' +
+      '<i class="bb-btn__mark" aria-hidden="true"></i>' +
+      '<span class="bb-btn__content">Saving…</span></button>' +
+      '</span></div>',
+  },
+  {
+    name: 'SaveStatus: live',
+    svelte: SvelteSaveStatus,
+    astro: AstroSaveStatus,
+    props: { state: 'live' },
+    html:
+      '<span class="bb-tag bb-tag--live" role="status">' +
+      '<i class="bb-mark" aria-hidden="true"></i>Synced to chat' +
+      '<i class="bb-sweep" aria-hidden="true"></i></span>',
+  },
+  {
+    name: 'SaveStatus: error compact',
+    svelte: SvelteSaveStatus,
+    astro: AstroSaveStatus,
+    props: { state: 'error', compact: true },
+    html:
+      '<span class="bb-tag bb-tag--error" role="status">' +
+      '<i class="bb-mark bb-mark--hollow" aria-hidden="true"></i></span>',
+  },
+  {
+    // No `title`, on purpose: the Svelte adapter mints the title's id from
+    // $props.id(), which is per-render and has no Astro equivalent. The
+    // labelled form is asserted on its own below.
+    name: 'Modal: labelled by aria-label',
+    svelte: SvelteModal,
+    astro: AstroModal,
+    props: { open: true, ariaLabel: 'Celebration' },
+    html:
+      '<div class="bb-modal" data-overlay style="z-index: 200">' +
+      '<button class="bb-modal__backdrop" type="button" aria-label="Close" data-cursor="quiet"></button>' +
+      '<div class="bb-modal__card" role="dialog" aria-modal="true" tabindex="-1" aria-label="Celebration" data-lenis-prevent></div>' +
+      '</div>',
+  },
+  {
+    // The Svelte adapter renders the SHEET below 1080px, but only a browser
+    // has a viewport: server-side the media query stands in with matches:false,
+    // so both adapters render the docked panel and that is what parity covers.
+    name: 'InspectorSurface: docked',
+    svelte: SvelteInspectorSurface,
+    astro: AstroInspectorSurface,
+    props: { open: true, title: 'Timer', controls: 'insp-body' },
+    html:
+      '<aside class="bb-surface bb-card bb-surface--docked" aria-label="Timer">' +
+      '<div class="bb-surface__head">' +
+      '<span class="bb-surface__tag bb-tag bb-tag--bare">Timer</span>' +
+      '<button class="bb-surface__close" type="button" aria-label="Close">' +
+      '<svg class="bb-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      '<path d="M18 6L6 18M6 6l12 12"></svg></button></div>' +
+      '<div class="bb-surface__body" id="insp-body"></div></aside>',
+  },
+  {
+    name: 'PageHero: full',
+    svelte: SveltePageHero,
+    astro: AstroPageHero,
+    props: { eyebrow: 'Pricing', title: 'Simple pricing', description: 'One plan.' },
+    html:
+      '<header class="bb-page-hero">' +
+      LIGHT_FIELD +
+      '<div class="bb-page-hero__glow" aria-hidden="true"></div>' +
+      '<div class="bb-page-hero__inner">' +
+      '<span class="bb-page-hero__eyebrow">Pricing</span>' +
+      '<h1 class="bb-page-hero__title" data-decode="Simple pricing">Simple pricing</h1>' +
+      '<p class="bb-page-hero__desc">One plan.</p></div></header>',
+  },
+  {
+    // Title only: both adapters have to DROP the eyebrow and the description
+    // rather than render empty boxes, and Astro's `&&` and Svelte's `{#if}`
+    // are not the same rule for an empty string.
+    name: 'PageHero: title only',
+    svelte: SveltePageHero,
+    astro: AstroPageHero,
+    props: { title: 'Contact' },
+    html:
+      '<header class="bb-page-hero">' +
+      LIGHT_FIELD +
+      '<div class="bb-page-hero__glow" aria-hidden="true"></div>' +
+      '<div class="bb-page-hero__inner">' +
+      '<h1 class="bb-page-hero__title" data-decode="Contact">Contact</h1></div></header>',
+  },
+  {
+    name: 'SectionHeading: left with eyebrow',
+    svelte: SvelteSectionHeading,
+    astro: AstroSectionHeading,
+    props: { eyebrow: 'Safety', title: 'Layers', align: 'left' },
+    html:
+      '<div class="bb-section-heading bb-section-heading--left">' +
+      '<div class="bb-section-heading__meta" data-reveal>' +
+      '<span class="bb-section-heading__eyebrow">Safety</span></div>' +
+      '<h2 class="bb-section-heading__title" data-reveal style="--reveal-i: 1">Layers</h2></div>',
+  },
+  {
+    // No eyebrow and no badge: the meta row disappears entirely, so the title
+    // is the block's only child and the 14px gap goes with it.
+    name: 'SectionHeading: bare',
+    svelte: SvelteSectionHeading,
+    astro: AstroSectionHeading,
+    props: { title: 'Games' },
+    html:
+      '<div class="bb-section-heading bb-section-heading--center">' +
+      '<h2 class="bb-section-heading__title" data-reveal style="--reveal-i: 1">Games</h2></div>',
+  },
+  {
+    // Two glyphs is enough to prove the per-glyph indices are emitted in the
+    // same order on both rows; a longer label only makes the diff harder to
+    // read when it fails.
+    name: 'TextLink: default',
+    svelte: SvelteTextLink,
+    astro: AstroTextLink,
+    props: { href: '/docs', label: 'Go' },
+    html:
+      '<a class="bb-text-link" href="/docs" aria-label="Go">' +
+      '<span class="bb-text-link__mask" aria-hidden="true">' +
+      '<span class="bb-text-link__row bb-text-link__row--rest">' +
+      '<span class="bb-text-link__glyph" style="--gi: 0;">G</span>' +
+      '<span class="bb-text-link__glyph" style="--gi: 1;">o</span></span>' +
+      '<span class="bb-text-link__row bb-text-link__row--over">' +
+      '<span class="bb-text-link__glyph" style="--gi: 0;">G</span>' +
+      '<span class="bb-text-link__glyph" style="--gi: 1;">o</span></span></span></a>',
+  },
+  {
+    name: 'TextLink: active external sized',
+    svelte: SvelteTextLink,
+    astro: AstroTextLink,
+    props: { href: 'https://example.test', label: 'X', active: true, external: true, size: '1rem' },
+    html:
+      '<a class="bb-text-link is-active" href="https://example.test" aria-label="X" ' +
+      'aria-current="page" target="_blank" rel="noopener noreferrer" style="--text-link-size: 1rem;">' +
+      '<span class="bb-text-link__mask" aria-hidden="true">' +
+      '<span class="bb-text-link__row bb-text-link__row--rest">' +
+      '<span class="bb-text-link__glyph" style="--gi: 0;">X</span></span>' +
+      '<span class="bb-text-link__row bb-text-link__row--over">' +
+      '<span class="bb-text-link__glyph" style="--gi: 0;">X</span></span></span></a>',
+  },
+  {
+    name: 'Brackets: page',
+    svelte: SvelteBrackets,
+    astro: AstroBrackets,
+    props: {},
+    html:
+      '<div class="bb-ornaments bb-ornaments--page" aria-hidden="true">' +
+      '<div class="bb-corner bb-corner--bl"></div>' +
+      '<div class="bb-corner bb-corner--br"></div>' +
+      '<div class="bb-ornament-label"></div></div>',
+  },
+  {
+    // The loader variant defaults its own label, which is the one place the
+    // two adapters compute a default rather than pass one through.
+    name: 'Brackets: loader',
+    svelte: SvelteBrackets,
+    astro: AstroBrackets,
+    props: { variant: 'loader' },
+    html:
+      '<div class="bb-ornaments bb-ornaments--loader" aria-hidden="true">' +
+      '<div class="bb-corner bb-corner--bl"></div>' +
+      '<div class="bb-corner bb-corner--br"></div>' +
+      '<div class="bb-ornament-label">ItsBagelBot</div></div>',
+  },
+  {
+    name: 'ReadingProgress: default',
+    svelte: SvelteReadingProgress,
+    astro: AstroReadingProgress,
+    props: {},
+    html:
+      '<div class="bb-reading-progress" aria-hidden="true">' +
+      '<span class="bb-reading-progress__fill" data-reading-progress></span></div>',
+  },
+];
+
+for (const testCase of REMAINING) {
+  test(`svelte adapter emits the contract markup: ${testCase.name}`, () => {
+    // The two `any` casts are the price of ONE table for thirteen components
+    // with thirteen different prop types. `render` is generic over its
+    // component, so a heterogeneous array cannot be typed without a union that
+    // would have to be updated by hand on every row — which is the maintenance
+    // this table exists to avoid. The assertion below is what actually checks
+    // the props: a wrong one produces wrong markup.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { body } = render(testCase.svelte as any, { props: testCase.props as any });
+    expect(normalise(body)).toBe(testCase.html);
+  });
+
+  test(`astro adapter emits the contract markup: ${testCase.name}`, async () => {
+    const container = await experimental_AstroContainer.create();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const html = await container.renderToString(testCase.astro as any, {
+      props: testCase.props,
+    });
+    expect(normalise(html)).toBe(testCase.html);
+  });
+}
+
+/**
+ * The Svelte-only halves. Each is here because the element genuinely has no
+ * Astro equivalent for that case, not because writing the twin was awkward.
+ */
+
+test('Modal: a title mints an id and points aria-labelledby at it', () => {
+  // $props.id() is per-render, so the id itself is not asserted — only that
+  // the two ends agree, which is the whole job of the pair.
+  const { body } = render(SvelteModal, {
+    props: { open: true, title: 'Delete timer' },
+  });
+  const html = normalise(body);
+  const id = /<h3 class="bb-modal__title" id="([^"]+)">/.exec(html)?.[1];
+  expect(id).toBeTruthy();
+  expect(html).toContain(`aria-labelledby="${id}"`);
+  expect(html).toContain('>Delete timer</h3>');
+});
+
+test('Modal: closed renders nothing at all', () => {
+  // Not "renders hidden": a modal left in the tree would keep the overlay
+  // stack's inert sweep excluding it and leave a focusable backdrop button in
+  // the tab order behind the page.
+  const { body } = render(SvelteModal, { props: { open: false } });
+  expect(normalise(body)).toBe('');
+});
+
+test('SaveStatus: idle renders nothing', () => {
+  // The row has no indicator until something has happened to it. An empty tag
+  // would still take its gap in the row's flex layout.
+  const { body } = render(SvelteSaveStatus, { props: { state: 'idle' } });
+  expect(normalise(body)).toBe('');
+});
+
+test('AreaSeries: fewer than two points draws no path', async () => {
+  const SvelteAreaSeries = (await import('../svelte/AreaSeries.svelte')).default;
+  // A one-point series has no line to draw and no scale to draw it against.
+  // It must render the empty chrome rather than a NaN path, which browsers
+  // report only as a silent non-render.
+  const { body } = render(SvelteAreaSeries, {
+    props: { values: [4], ariaLabel: 'Chat volume' },
+  });
+  const html = normalise(body);
+  expect(html).toContain('class="bb-area"');
+  expect(html).not.toContain('NaN');
+  expect(html).not.toContain('class="bb-area__dot"');
+});
+
+test('ErrorScene: carries no copy of its own', async () => {
+  const SvelteErrorScene = (await import('../svelte/ErrorScene.svelte')).default;
+  // The element is the scene; every sentence arrives as a prop. This is the
+  // test that fails the day someone moves a default string back into it,
+  // which is how a design library stops being one.
+  const { body } = render(SvelteErrorScene, {
+    props: { status: 404, eyebrow: 'E', title: 'T', description: 'D' },
+  });
+  const html = normalise(body);
+  expect(html).toContain('<h1 class="bb-error-scene__title" id="bb-error-title">T</h1>');
+  expect(html).not.toContain('bagel');
+  expect(html).not.toContain('Bagel');
+});

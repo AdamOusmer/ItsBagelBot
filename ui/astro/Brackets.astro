@@ -1,0 +1,33 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro adapter for the `.bb-ornaments` contract
+// (../styles/elements/brackets.css). Svelte twin: ../svelte/Brackets.svelte.
+//
+// The two hairline corner brackets and the wordmark that frame the bottom of
+// every page, plus the loader's quieter twin. The whole difference between the
+// two variants is the stacking context (`--ornament-z`), so it is one element
+// with a modifier rather than two.
+//
+// The label is rendered unconditionally and hidden by `:empty` in the
+// contract, so a caller passing an empty string gets no box and the two
+// adapters do not have to agree on what "no label" means.
+import '../styles/elements/brackets.css';
+
+interface Props {
+    variant?: 'page' | 'loader';
+    label?: string;
+    class?: string;
+}
+
+const {
+    variant = 'page',
+    label = variant === 'loader' ? 'ItsBagelBot' : '',
+    class: className = '',
+    ...rest
+} = Astro.props;
+const classes = ['bb-ornaments', `bb-ornaments--${variant}`, className].filter(Boolean).join(' ');
+---
+
+<div class={classes} aria-hidden="true" {...rest}><div class="bb-corner bb-corner--bl"></div><div class="bb-corner bb-corner--br"></div><div class="bb-ornament-label">{label}</div></div>

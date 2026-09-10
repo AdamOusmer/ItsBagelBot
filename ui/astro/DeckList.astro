@@ -1,0 +1,28 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro adapter for the `.bb-deck-list` contract
+// (../styles/elements/deck-list.css). Svelte twin: ../svelte/DeckList.svelte.
+//
+// `as` picks the tag so a deck can stay a landmark: a page that needs a
+// <section> with aria-labelledby must pass as="section", because rendering it
+// as a bare <div> silently drops the labelled region from the a11y tree.
+//
+// It IS a card: the element emits `bb-card` alongside `bb-deck-list`, and
+// deck-list.css contributes only `--card-pad`. Same composition, same import
+// order, as the Svelte twin.
+import '../styles/elements/card.css';
+import '../styles/elements/deck-list.css';
+
+interface Props {
+    as?: string;
+    class?: string;
+}
+
+const { as = 'div', class: className = '', ...rest } = Astro.props;
+const Tag = as;
+const classes = ['bb-card', 'bb-deck-list', className].filter(Boolean).join(' ');
+---
+
+<Tag class={classes} {...rest}><slot /></Tag>

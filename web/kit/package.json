@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "i18n:keys": "bun scripts/gen-i18n-keys.mjs"
+    "i18n:keys": "bun scripts/gen-i18n-keys.mjs",
+    "verify:ui-only": "bun scripts/assert-ui-only-in-ui.mjs"
   },
   "svelte": "./lib/index.ts",
   "exports": {
@@ -64,9 +65,7 @@
     "./i18n/context": "./lib/i18n/context.ts",
     "./actions": "./lib/actions.ts",
     "./cursor": "./lib/cursor.ts",
-    "./toast": "./lib/toast.ts",
     "./connection-state": "./lib/connection-state.ts",
-    "./overlay-stack": "./lib/overlay-stack.ts",
     "./types": "./lib/types.ts",
     "./nav": "./lib/nav.ts",
     "./nav-core": "./lib/nav-core.ts",
@@ -74,8 +73,6 @@
     "./staff-role": "./lib/staff-role.ts",
     "./status-tone": "./lib/status-tone.ts",
     "./live-poll": "./lib/live-poll.ts",
-    "./inspector": "./lib/inspector.svelte.ts",
-    "./discard-guard": "./lib/discard-guard.svelte.ts",
     "./social": "./lib/social.ts"
   },
   "dependencies": {

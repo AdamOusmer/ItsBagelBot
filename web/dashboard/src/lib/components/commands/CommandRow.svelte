@@ -8,7 +8,7 @@
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { Icon, PermBadge, SaveStatus, ManagementRow, Switch, getI18n, usesCount, type CommandView, type Perm } from '@bagel/kit';
-  import type { SaveState } from '@bagel/kit/components/SaveStatus.svelte';
+  import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
 
   const { t } = getI18n();
 
@@ -124,8 +124,8 @@
      away from the inspector's own header. Applied from here rather than in the
      shared ManagementRow: only the command deck docks an inspector beside its
      list, and the other decks select without one. */
-  .row-wrap :global(.mrow) { position: relative; }
-  .row-wrap :global(.mrow.selected)::before {
+  .row-wrap :global(.bb-row) { position: relative; }
+  .row-wrap :global(.bb-row.is-selected)::before {
     content: '';
     position: absolute;
     left: 0;
@@ -205,7 +205,7 @@
     transition: width var(--bb-dur-base, 320ms) var(--bb-ease-out-expo, ease);
   }
   /* A disabled command keeps its history but stops being a live signal. */
-  :global(.mrow.off) .u-fill { background: var(--bb-muted); }
+  :global(.bb-row.is-off) .u-fill { background: var(--bb-muted); }
 
   .m-cd {
     font-family: var(--bb-font-mono);

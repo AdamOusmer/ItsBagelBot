@@ -10,10 +10,10 @@
 // most visitors came for), the first guide as a wide Card (the starting
 // point), the remaining guides in two columns, then where to ask.
 import Layout from '../../../layouts/Layout.astro';
-import PageHero from '../../../components/ui/PageHero.astro';
+import PageHero from '@bagel/ui/astro/PageHero.astro';
 import Card from '@bagel/ui/astro/Card.astro';
 import GuideCard from '../../../components/guides/GuideCard.astro';
-import TextLink from '../../../components/ui/TextLink.astro';
+import TextLink from '@bagel/ui/astro/TextLink.astro';
 import { getLangFromUrl, localeStaticPaths } from '../../../i18n/ui';
 import { getGuide, getHub, guideIndex, guidePath, guideSlugs } from '../../../lib/guides/registry';
 

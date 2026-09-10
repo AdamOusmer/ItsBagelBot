@@ -1,0 +1,26 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro adapter for the `.bb-alert` contract (../styles/elements/alert.css).
+// Svelte twin: ../svelte/AlertBanner.svelte; ../test/parity.test.ts diffs the
+// two.
+//
+// role="alert" and not "status": these announce a failure the visitor has to
+// act on, which is what the assertive live region is for. A static render has
+// no live region to speak of, and the role stays anyway — the contract is the
+// markup, and a guide screenshot of a banner that is missing its role teaches
+// the wrong shape.
+import '../styles/elements/alert.css';
+
+interface Props {
+    variant?: 'danger' | 'warn' | 'impersonation';
+    role?: 'alert' | 'status';
+    class?: string;
+}
+
+const { variant = 'danger', role = 'alert', class: className = '', ...rest } = Astro.props;
+const classes = ['bb-alert', `bb-alert--${variant}`, className].filter(Boolean).join(' ');
+---
+
+<div class={classes} role={role} {...rest}><span class="bb-alert__msg"><slot /></span><slot name="action" /></div>

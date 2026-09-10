@@ -1,0 +1,45 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro adapter for the `.bb-row` contract
+// (../styles/elements/management-row.css). Svelte twin:
+// ../svelte/ManagementRow.svelte; ../test/parity.test.ts diffs the two.
+//
+// THE STRUCTURE IS THE ACCESSIBILITY FIX and it survives the static render for
+// that reason. The primary content is a single <button>; the quick actions are
+// SIBLINGS of it, never nested inside. The static version has no click handler
+// and would be simpler as a <div>, and drawing it that way in the guides is
+// how the invalid shape gets copied back into a real page.
+import '../styles/elements/management-row.css';
+
+interface Props {
+    selected?: boolean;
+    expanded?: boolean;
+    controls?: string;
+    disabled?: boolean;
+    class?: string;
+}
+
+const {
+    selected = false,
+    expanded = false,
+    controls,
+    disabled = false,
+    class: className = '',
+    ...rest
+} = Astro.props;
+
+const classes = [
+    'bb-row',
+    'row-shell',
+    selected ? 'is-selected' : null,
+    disabled ? 'is-off' : null,
+    className || null,
+]
+    .filter(Boolean)
+    .join(' ');
+const hasActions = Astro.slots.has('actions');
+---
+
+<div class={classes} {...rest}><button class="bb-row__primary" type="button" data-cursor="quiet" aria-expanded={expanded} aria-controls={controls} aria-current={selected ? 'true' : undefined}><slot /></button>{hasActions && <div class="bb-row__actions"><slot name="actions" /></div>}</div>

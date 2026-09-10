@@ -1,0 +1,122 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* `.bb-alert` — the inline status band a page puts above its content when the
+   data behind it is degraded, stale, or refused. Two tones, both borrowed
+   rather than invented: `--danger` is the red every page-local `.degraded`
+   block used to hand-roll, `--warn` is the tan one.
+
+   COMPONENT TIER. The two tones are declared as `--alert-*` custom properties
+   on the block rather than written into the rules, so a surface can retone one
+   banner without a new modifier. Their defaults are the literals the kit
+   component shipped, NOT `--bb-status-error*`: those tokens live in
+   web/kit/styles/tokens.css and are console-only, so an alert rendered on the
+   marketing site would fall back to nothing. When the status ramp moves into
+   brand.css these five defaults become `var(--bb-status-…)` and this note goes
+   with them.
+
+   The 14px bottom margin is the element's, not the caller's: every one of the
+   31 call sites set it and one of them had drifted to 12. */
+
+@layer bb.elements {
+  .bb-alert {
+    --alert-fg: var(--bb-tan-light);
+    --alert-bg: rgba(201, 168, 124, 0.08);
+    --alert-border: rgba(201, 168, 124, 0.4);
+
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+    padding: 10px 14px;
+    border: 1px solid var(--alert-border);
+    border-radius: var(--bb-radius-md);
+    background: var(--alert-bg);
+    color: var(--alert-fg);
+    font-family: var(--bb-font-body);
+    font-size: 13px;
+  }
+
+  .bb-alert--danger {
+    --alert-fg: #cf8a78;
+    --alert-bg: rgba(176, 90, 70, 0.08);
+    --alert-border: rgba(176, 90, 70, 0.4);
+  }
+
+  /* `--warn` is the block's own default; the modifier exists so a caller can
+     say which tone it means instead of relying on the absence of one. */
+  .bb-alert--warn {
+    --alert-fg: var(--bb-tan-light);
+    --alert-bg: rgba(201, 168, 124, 0.08);
+    --alert-border: rgba(201, 168, 124, 0.4);
+  }
+
+  /* The impersonation bar: a staff member is acting AS someone else, and the
+     surface has to say so from every route without being dismissible. So this
+     variant is the one that leaves the flow — fixed to the top of the viewport,
+     full bleed, above the modal stack (z 300, the toast tier) because it must
+     stay legible over an open dialog too.
+
+     It inverts: solid tan ground, page ink text, a hairline of black rather
+     than tan. An advisory band that reads like the other two would be one more
+     yellow strip a person stops seeing after a day, and the failure mode of
+     forgetting you are impersonating somebody is a write to the wrong account.
+
+     `--alert-fg` is reused as the INK here rather than the label colour, which
+     is why the two are set the other way round below. */
+  .bb-alert--impersonation {
+    --alert-fg: var(--bb-bg-1, #111);
+    --alert-bg: var(--bb-tan);
+    --alert-border: rgba(0, 0, 0, 0.2);
+
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 300;
+    margin-bottom: 0;
+    justify-content: center;
+    gap: 1rem;
+    padding: 8px 14px;
+    border: 0;
+    border-bottom: 1px solid var(--alert-border);
+    border-radius: 0;
+  }
+
+  .bb-alert--impersonation .bb-alert__msg {
+    flex: 0 1 auto;
+  }
+
+  .bb-alert--impersonation b {
+    font-weight: 700;
+  }
+
+  .bb-alert--impersonation form {
+    display: inline;
+  }
+
+  /* The exit control. Not a `.bb-btn`: it sits ON the tan ground, so every
+     token the button contract resolves against is the wrong side of the
+     inversion. It borrows the button's geometry and nothing else. */
+  .bb-alert__exit {
+    display: inline-block;
+    padding: 3px 12px;
+    border: 1px solid rgba(0, 0, 0, 0.35);
+    border-radius: var(--bb-radius-sm);
+    background: transparent;
+    color: var(--bb-bg-1, #111);
+    font: inherit;
+    font-weight: 700;
+    line-height: 1.4;
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  .bb-alert__exit:hover {
+    background: rgba(0, 0, 0, 0.12);
+  }
+
+  .bb-alert__msg {
+    flex: 1;
+  }
+}

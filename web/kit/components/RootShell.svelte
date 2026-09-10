@@ -7,7 +7,7 @@
   import { afterNavigate, beforeNavigate } from '$app/navigation';
   import { updated } from '$app/state';
   import Cursor from '@bagel/ui/svelte/Cursor.svelte';
-  import BackgroundOrbs from './BackgroundOrbs.svelte';
+  import BackgroundOrbs from '@bagel/ui/svelte/BackgroundOrbs.svelte';
   import { customCursor } from '../lib/cursor';
   import { initLenis } from '../lib/actions';
   import { setI18n } from '../lib/i18n/context';

@@ -1,0 +1,55 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* `.bb-ov-row` — the working row both overview pages are built around: one
+   wide column carrying the page's heaviest panel and a rail of smaller reads
+   beside it.
+
+   THE GAP IS AN APP INPUT. `--row-gap` is the console's density-scaled spacing
+   step (`calc(28px * var(--d))` in web/kit/styles/console.css), and the console
+   has a density control that has to keep working. So the component tier reads
+   it and falls back to the 28px it evaluates to at density 1 — that fallback
+   is what a surface without the console's scale (a guide screenshot, a docs
+   page) gets, and it is why this file names a non-`--bb-` variable at all.
+
+   THE `> section` RULE IS NOT DECORATION. The panels in the rail each carry a
+   bottom margin from when the page was one vertical stack. Inside the rail
+   that margin adds to the flex gap and every second slot ends up double-spaced
+   (measured 28px then 56px), so the rail owns the spacing and the children
+   contribute none.
+
+   Collapses at 900px, which is where the main panel's rows start truncating —
+   not at a round breakpoint. */
+
+@layer bb.elements {
+  .bb-ov-row {
+    --ov-gap: var(--row-gap, 28px);
+
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: var(--ov-gap);
+    align-items: start;
+    margin-bottom: var(--ov-gap);
+  }
+
+  .bb-ov-row__main,
+  .bb-ov-row__side {
+    min-width: 0;
+  }
+
+  .bb-ov-row__side {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ov-gap);
+  }
+
+  .bb-ov-row__side > section {
+    margin-bottom: 0;
+  }
+
+  @media (max-width: 900px) {
+    .bb-ov-row {
+      grid-template-columns: 1fr;
+    }
+  }
+}

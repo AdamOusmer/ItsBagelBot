@@ -6,7 +6,7 @@
 // src/content/guides/<slug>.<lang>.ts; this page only decides which one to
 // render and wires the shell, the body and the pager around it.
 import Layout from '../../../layouts/Layout.astro';
-import PageHero from '../../../components/ui/PageHero.astro';
+import PageHero from '@bagel/ui/astro/PageHero.astro';
 import GuideShell from '../../../components/guides/GuideShell.astro';
 import { getLangFromUrl, locales, langParam } from '../../../i18n/ui';
 import { getGuide, guidePath, hubPath, guideSlugs, guideIndex, toGuideSlug } from '../../../lib/guides/registry';

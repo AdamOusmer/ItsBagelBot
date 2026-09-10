@@ -22,9 +22,9 @@
   import Button from '@bagel/ui/svelte/Button.svelte';
   import Chip from '@bagel/ui/svelte/Chip.svelte';
   import Field from '@bagel/ui/svelte/Field.svelte';
-  import ConfirmDialog from '@bagel/kit/components/ConfirmDialog.svelte';
+  import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';
   import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
-  import { toast } from '@bagel/kit/toast';
+  import { toast } from '@bagel/ui/svelte/toast';
   import { actionPayload, adminToastFailure, copyFlash } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { allows } from '$lib/access';

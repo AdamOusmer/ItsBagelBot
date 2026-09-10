@@ -8,7 +8,7 @@
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { SaveStatus, Switch, getI18n, moduleCommandChips, moduleHref, type ModuleState } from '@bagel/kit';
-  import type { SaveState } from '@bagel/kit/components/SaveStatus.svelte';
+  import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
 
   const { t } = getI18n();
 

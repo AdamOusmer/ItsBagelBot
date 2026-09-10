@@ -2,7 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { page } from '$app/state';
-  import AuroraBg from '@bagel/kit/components/AuroraBg.svelte';
+  import AuroraBg from '@bagel/ui/svelte/AuroraBg.svelte';
   import LightField from '@bagel/ui/svelte/LightField.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
 

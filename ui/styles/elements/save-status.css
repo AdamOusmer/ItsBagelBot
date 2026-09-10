@@ -1,0 +1,25 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* `.bb-tag--error` — the ONE rule the per-row save indicator needs that the
+   shared tag vocabulary (ui/styles/tags.css: `.bb-tag`, `.bb-mark`,
+   `.bb-sweep`) does not already carry.
+
+   SaveStatus is otherwise a pure composition, which is the point: it was a
+   50%-radius dot per state, sine-pulsing at 900ms while saving and 1400ms once
+   saved, with a green box-shadow glow on live — four bespoke animations for
+   what is a label with a mark. The motion is now the travelling hairline
+   (`.bb-sweep`) on the two states that are genuinely in motion, and the rest is
+   the global label plus the rotated-square mark.
+
+   The red is the same `#cf8a78` / `rgba(176,90,70,0.45)` pair the alert banner
+   and the editor footer use, and for the same reason it is a literal there: the
+   `--bb-status-error*` ramp is console-only (web/kit/styles/tokens.css), and a
+   save indicator has to render wherever a row does. */
+
+@layer bb.elements {
+  .bb-tag--error {
+    color: #cf8a78;
+    border-bottom-color: rgba(176, 90, 70, 0.45);
+  }
+}
