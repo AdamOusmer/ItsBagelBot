@@ -126,7 +126,7 @@
     :global(.modal-actions) {
       flex-direction: column-reverse;
     }
-    :global(.modal-actions .btn),
+    :global(.modal-actions .bb-btn),
     :global(.modal-actions button) {
       width: 100%;
       justify-content: center;

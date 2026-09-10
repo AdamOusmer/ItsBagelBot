@@ -11,9 +11,9 @@
   // `legacy` is gone from the token-source vocabulary: TokenSource is
   // 'scoped' | 'missing' since the broad token was pruned, and the card used to
   // carry a third branch that could never render.
-  import Card from '@bagel/kit/components/Card.svelte';
-  import CardHead from '@bagel/kit/components/CardHead.svelte';
-  import Button from '@bagel/kit/components/Button.svelte';
+  import Card from '@bagel/ui/svelte/Card.svelte';
+  import CardHead from '@bagel/ui/svelte/CardHead.svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { DbCredentialStatus } from '$lib/server/secrets';
   import StatePill from '../StatePill.svelte';

@@ -6,9 +6,9 @@
   // the one flow that mints a live Twitch credential from a URL that looks
   // unauthenticated.
   import { onMount } from 'svelte';
-  import Card from '@bagel/kit/components/Card.svelte';
-  import CardHead from '@bagel/kit/components/CardHead.svelte';
-  import Button from '@bagel/kit/components/Button.svelte';
+  import Card from '@bagel/ui/svelte/Card.svelte';
+  import CardHead from '@bagel/ui/svelte/CardHead.svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
   import { statusTone } from '@bagel/kit/status-tone';
   import { copyFlash } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
@@ -44,7 +44,7 @@
         {present ? t('admin.overview.botStoredMeta') : t('admin.overview.botMissingMeta')}
       </div>
     </div>
-    <a class="btn ghost" href="/auth/bot/login">
+    <a class="bb-btn bb-btn--ghost" href="/auth/bot/login">
       {present ? t('admin.overview.botReauthorize') : t('admin.overview.botAuthorize')}
     </a>
   </div>
@@ -106,7 +106,7 @@
     font-size: 12.5px;
     color: var(--bb-muted);
   }
-  .row .btn {
+  .row .bb-btn {
     margin-left: auto;
     white-space: nowrap;
   }
@@ -141,7 +141,7 @@
     .row {
       flex-wrap: wrap;
     }
-    .row .btn {
+    .row .bb-btn {
       margin-left: 0;
       width: 100%;
       justify-content: center;

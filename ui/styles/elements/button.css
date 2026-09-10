@@ -1,0 +1,353 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* The button contract. One file replacing three copies that had already
+   drifted: the marketing site's `.bb-btn` block (style.css), the console's raw
+   `.btn` block (console.css) and the scoped `<style>` inside kit's
+   Button.svelte, with ButtonLink.svelte hand-keeping a fourth. They were the
+   same idiom -- "Mark", tier 2b -- and they disagreed on the disabled hook, the
+   green variant, the hover guard and what a button with no modifier means.
+
+   The design: nothing is filled at rest. Every button is a 1px frame plus a 5px
+   rotated-square mark that inherits currentColor, so on hover the mark inverts
+   with the fill for free and turns solid green when the action is done. The
+   filled tan slab with a lift and a glow was the old look on four separate
+   components; it is the generic SaaS CTA, and it made the primary the only
+   recognisable button. Only the primary earns a full-colour tan border, and no
+   variant is a pill.
+
+   WHAT A BARE `.bb-btn` MEANS (divergence B1, decided by the user 2026-09-09):
+   it is the PRIMARY. The marketing site has always drawn it that way and used
+   `.bb-btn--primary` 5x as a no-op modifier that style.css never defined; the
+   Svelte component defaulted to `ghost` instead, so "primary" meant two
+   different things per surface and agreed only by accident. Base stays primary
+   (every raw marketing call site keeps its pixels), `--primary` is now defined
+   for real, and the Svelte/Astro adapters default to `variant="primary"`. The
+   console call sites were audited at the flip: all 109 `<Button>` and 36
+   `<ButtonLink>` sites already passed an explicit variant, so the new default
+   changed nothing on screen there.
+
+   MARK AND SPINNER ARE REAL ELEMENTS (B4/B5), not pseudos: `variant="icon"`
+   has no mark, and suppressing a `::before` needs a `content: none` special
+   case per variant, which is what style.css:412 was. The parity test also
+   needs ONE markup, and a pseudo has none. Raw HTML call sites that predate
+   the adapters (the nav CTA, the mobile menu CTA, the playground send key)
+   cannot grow a child element, so the pseudo stays as a FALLBACK gated on
+   `:not([data-mark])`: adapters set `data-mark` on the root and opt out of it.
+   The same gate carries the spinner, for the same reason. */
+
+@layer bb.elements {
+
+  .bb-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--btn-gap, 12px);
+    /* One shorthand rather than the block/inline pair the rest of the system
+       uses: the padding is asymmetric because the mark hangs on the leading
+       edge only (16/20 at md, 10/12 at sm), and the two insets do not move
+       together, so a `calc(inline + n)` formula would be a lie at one size. */
+    padding: var(--btn-pad, 13px 20px 13px 16px);
+    border: 1px solid var(--bb-tan);
+    border-radius: var(--btn-radius, var(--bb-radius-sm));
+    background: transparent;
+    color: var(--bb-tan-light);
+    font-family: var(--bb-font-mono);
+    font-size: var(--btn-size, 12.5px);
+    letter-spacing: 0.04em;
+    line-height: 1;
+    white-space: nowrap;
+    text-decoration: none;
+    cursor: pointer;
+    --btn-spinner: var(--bb-tan-light);
+    transition: all var(--bb-dur-base) var(--bb-ease-out-expo);
+  }
+
+  .bb-btn svg {
+    width: 14px;
+    height: 14px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  /* The label box exists so an icon+text button spaces its own contents at 8px
+     while the mark keeps the 12px gap from the frame. */
+  .bb-btn__content {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .bb-btn__mark,
+  .bb-btn:not([data-mark])::before {
+    content: "";
+    flex-shrink: 0;
+    box-sizing: border-box;
+    width: 5px;
+    height: 5px;
+    border: 1px solid currentColor;
+    background: transparent;
+    transform: rotate(45deg);
+  }
+
+  /* ── variants ─────────────────────────────────────────────────── */
+
+  /* primary == the base. Written out so the modifier is not a no-op and so a
+     caller reading this file can see that `variant="primary"` is real. */
+  .bb-btn--primary {
+    border-color: var(--bb-tan);
+    color: var(--bb-tan-light);
+  }
+
+  /* The hover guard carries `[aria-disabled="true"]` as well as `:disabled`
+     (B2/B3): ButtonLink renders an <a>, and an <a> can never match `:disabled`,
+     so the console copy's `:not(:disabled)` guard left disabled links hovering
+     as if they were live. */
+  .bb-btn:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done),
+  .bb-btn--primary:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
+    background: var(--bb-tan);
+    color: var(--bb-black);
+  }
+
+  /* secondary: the quiet tan outline. `--tan` is the console's historical name
+     for it and `--quiet` the marketing site's; both are kept as aliases rather
+     than renamed at ~40 call sites to buy nothing. */
+  .bb-btn--secondary,
+  .bb-btn--tan,
+  .bb-btn--quiet,
+  .bb-btn--icon {
+    border-color: var(--bb-border-chip);
+    color: var(--bb-tan-light);
+  }
+
+  .bb-btn--secondary:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done),
+  .bb-btn--tan:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done),
+  .bb-btn--quiet:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done),
+  .bb-btn--icon:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
+    background: rgba(201, 168, 124, 0.08);
+    border-color: rgba(201, 168, 124, 0.5);
+    color: var(--bb-tan-pale);
+  }
+
+  /* ghost: no frame until hover, and the mark degrades to a 6x1 dash because a
+     rotated square with no border around it reads as debris. `background:
+     transparent` is re-declared on purpose (B7): without it the base primary
+     hover fill wins and a ghost button fills tan on hover. */
+  .bb-btn--ghost {
+    border-color: transparent;
+    color: var(--bb-muted);
+    --btn-spinner: var(--bb-muted);
+  }
+
+  .bb-btn--ghost .bb-btn__mark,
+  .bb-btn--ghost:not([data-mark])::before {
+    width: 6px;
+    height: 1px;
+    border: 0;
+    background: currentColor;
+    transform: none;
+  }
+
+  .bb-btn--ghost:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
+    background: transparent;
+    border-color: var(--bb-border-chip);
+    color: var(--bb-tan-light);
+  }
+
+  /* green: the "go" action. `--go` is the marketing spelling (nav CTA, hero
+     CTA) and stays an alias; the console had `.btn.green` in raw CSS only,
+     with no component path to it at all (B6), which is why the console's green
+     buttons were all hand-written <button class="btn green"> markup. */
+  .bb-btn--green,
+  .bb-btn--go {
+    border-color: var(--bb-green-light);
+    color: var(--bb-green-glow);
+    --btn-spinner: var(--bb-green-glow);
+  }
+
+  .bb-btn--green:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done),
+  .bb-btn--go:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
+    background: var(--bb-green);
+    color: var(--bb-white);
+  }
+
+  /* The one filled button in the system. 2b keeps every control hollow at
+     rest, but the nav CTA is the site's single conversion target and has to
+     carry the bar on its own: a hairline frame inside a glass pill read as
+     another nav link. Filled stays scoped to this modifier so nothing else
+     drifts. `--go-solid` is the marketing spelling and is self-sufficient
+     (the raw call sites pass it without `--go`); `--green --solid` is the
+     component spelling of the same thing. */
+  .bb-btn--go-solid,
+  .bb-btn--green.bb-btn--solid {
+    border-color: var(--bb-green-light);
+    background: var(--bb-green);
+    color: var(--bb-white);
+  }
+
+  .bb-btn--go-solid:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done),
+  .bb-btn--green.bb-btn--solid:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
+    border-color: var(--bb-green-glow);
+    background: var(--bb-green-light);
+    color: var(--bb-white);
+  }
+
+  /* destructive: dashed, because colour alone is not a warning for the ~8% of
+     men with a red-green deficiency, and the dash reads at any acuity. The
+     literal #d98a8a stays a literal: brand.css names no danger role yet (docs
+     has its own --bb-danger at a different hex), and minting the token here
+     would fork it a third time. `--danger` is the marketing spelling. */
+  .bb-btn--destructive,
+  .bb-btn--danger {
+    border-style: dashed;
+    border-color: rgba(217, 138, 138, 0.4);
+    color: #d98a8a;
+    --btn-spinner: #d98a8a;
+  }
+
+  .bb-btn--destructive:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done),
+  .bb-btn--danger:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
+    background: rgba(217, 138, 138, 0.08);
+    border-color: rgba(217, 138, 138, 0.6);
+    color: #d98a8a;
+  }
+
+  /* ── sizes ────────────────────────────────────────────────────── */
+
+  .bb-btn--sm {
+    --btn-pad: 7px 12px 7px 10px;
+    --btn-gap: 9px;
+    --btn-size: 11.5px;
+  }
+
+  .bb-btn--sm .bb-btn__mark,
+  .bb-btn--sm:not([data-mark])::before {
+    width: 4px;
+    height: 4px;
+  }
+
+  /* The ghost dash does not shrink with the size: it is already 1px tall, and
+     a 4x1 dash next to 11.5px mono reads as a rendering artefact. */
+  .bb-btn--sm.bb-btn--ghost .bb-btn__mark,
+  .bb-btn--sm.bb-btn--ghost:not([data-mark])::before {
+    width: 6px;
+    height: 1px;
+  }
+
+  /* icon-only: a 40px square, no mark, secondary frame. The adapters omit the
+     mark element; `content: none` covers the raw-HTML fallback. */
+  .bb-btn--icon {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .bb-btn--icon:not([data-mark])::before {
+    content: none;
+  }
+
+  /* icon at sm is the console's old `.mini`: a 28px square that is INVISIBLE
+     at rest (transparent frame, muted glyph) and only draws its hairline on
+     hover. It is not `--icon` scaled down -- a 28px square carrying the 28%
+     tan frame at rest turns every row-action column into a grid of boxes,
+     which is why MiniButton.svelte was written as its own element instead of
+     reusing Button. Folded in here so there is one contract; the divergence
+     that justified the separate file is these four declarations. */
+  .bb-btn--icon.bb-btn--sm {
+    width: 28px;
+    height: 28px;
+    border-color: transparent;
+    color: var(--bb-muted);
+  }
+
+  .bb-btn--icon.bb-btn--sm svg {
+    width: 15px;
+    height: 15px;
+    stroke-width: 1.7;
+  }
+
+  .bb-btn--icon.bb-btn--sm:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
+    background: transparent;
+    border-color: var(--bb-border-chip);
+    color: var(--bb-tan-light);
+  }
+
+  /* ── states ───────────────────────────────────────────────────── */
+
+  .bb-btn:disabled,
+  .bb-btn[aria-disabled="true"] {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  /* Loading hides the label with `color: transparent` rather than replacing
+     it, so the button keeps its exact width and the row does not reflow under
+     the pointer; the mark collapses to an invisible spacer and the spinner
+     centres over the lot. aria-busy carries the state to AT, and the adapters
+     also set native `disabled`, which is what actually blocks a double submit. */
+  .bb-btn.is-loading {
+    color: transparent;
+    cursor: progress;
+  }
+
+  .bb-btn.is-loading .bb-btn__mark,
+  .bb-btn.is-loading:not([data-mark])::before {
+    border-color: transparent;
+    background: transparent;
+  }
+
+  .bb-btn__spinner,
+  .bb-btn.is-loading:not([data-mark])::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 14px;
+    height: 14px;
+    margin: -7px 0 0 -7px;
+    border: 2px solid var(--btn-spinner);
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: bb-btn-spin 0.6s linear infinite;
+  }
+
+  /* done: the resting "saved" state. The mark goes solid green and hover is
+     inert -- the guards above all exclude `.is-done` -- because the button is
+     reporting, not offering. */
+  .bb-btn.is-done {
+    border-style: solid;
+    border-color: rgba(82, 183, 136, 0.4);
+    background: rgba(82, 183, 136, 0.07);
+    color: var(--bb-green-glow);
+    --btn-spinner: var(--bb-green-glow);
+  }
+
+  .bb-btn.is-done .bb-btn__mark,
+  .bb-btn.is-done:not([data-mark])::before {
+    border: 0;
+    background: currentColor;
+  }
+
+  /* Reduced motion freezes the spin rather than hiding the spinner: the
+     disabled state and aria-busy still convey "working", and a vanished
+     spinner reads as a finished request. */
+  @media (prefers-reduced-motion: reduce) {
+    .bb-btn__spinner,
+    .bb-btn.is-loading:not([data-mark])::after {
+      animation: none;
+    }
+  }
+
+}
+
+/* Outside the layer on purpose: @keyframes are not subject to the cascade, so
+   a layered one is dead weight in the same way a layered @font-face is. */
+@keyframes bb-btn-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

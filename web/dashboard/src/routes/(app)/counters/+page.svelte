@@ -871,7 +871,7 @@
   .add-foot { display: flex; align-items: flex-end; gap: 10px; }
   .add-val { flex: none; }
   .add-val :global(.num) { width: 96px; }
-  .add-foot :global(.btn) { margin-bottom: 2px; }
+  .add-foot :global(.bb-btn) { margin-bottom: 2px; }
 
   @media (max-width: 760px) {
     .toolbar-search { width: 100%; }

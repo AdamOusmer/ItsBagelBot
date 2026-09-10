@@ -2,9 +2,9 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 export { default as Icon } from '../components/Icon.svelte';
-export { default as Card } from '../components/Card.svelte';
-export { default as Button } from '../components/Button.svelte';
-export { default as ButtonLink } from '../components/ButtonLink.svelte';
+export { default as Card } from '@bagel/ui/svelte/Card.svelte';
+export { default as Button } from '@bagel/ui/svelte/Button.svelte';
+export { default as ButtonLink } from '@bagel/ui/svelte/ButtonLink.svelte';
 export { default as Toggle } from '../components/Toggle.svelte';
 export { default as Switch } from '../components/Switch.svelte';
 export { default as MasterToggle } from '../components/MasterToggle.svelte';
@@ -32,7 +32,7 @@ export { default as ImpersonationBanner } from '../components/ImpersonationBanne
 export { default as PageHead } from '../components/PageHead.svelte';
 export { default as PageToolbar } from '../components/PageToolbar.svelte';
 export { default as SectionNav } from '../components/SectionNav.svelte';
-export { default as CardHead } from '../components/CardHead.svelte';
+export { default as CardHead } from '@bagel/ui/svelte/CardHead.svelte';
 export { default as AlertBanner } from '../components/AlertBanner.svelte';
 export { default as Chip } from '../components/Chip.svelte';
 export { default as MiniButton } from '../components/MiniButton.svelte';

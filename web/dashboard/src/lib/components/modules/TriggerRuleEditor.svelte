@@ -110,13 +110,13 @@
   <div class="actions">
     {#if !isNew}
       <!-- Only an existing rule can be deleted; a new one is cancelled, not deleted. -->
-      <button type="button" class="btn danger" onclick={onDelete} disabled={busy}>
+      <button type="button" class="bb-btn rule-btn danger" onclick={onDelete} disabled={busy}>
         Delete
       </button>
     {/if}
     <span class="spacer"></span>
-    <button type="button" class="btn ghost" onclick={onCancel} disabled={busy}>{t('common.cancel')}</button>
-    <button type="button" class="btn primary" onclick={onSave} disabled={busy || !canSave}>
+    <button type="button" class="bb-btn rule-btn bb-btn--ghost" onclick={onCancel} disabled={busy}>{t('common.cancel')}</button>
+    <button type="button" class="bb-btn rule-btn bb-btn--primary" onclick={onSave} disabled={busy || !canSave}>
       {busy ? t('modules.loading') : t('modules.saveChanges')}
     </button>
   </div>
@@ -150,7 +150,13 @@
 
   .actions { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
   .spacer { flex: 1; }
-  .btn {
+  /* A local re-skin, not a second definition of the contract: this editor's
+     actions are body-font 13px controls on the rule hairline, and only the
+     mark and the frame come from .bb-btn. The rules below key on `.rule-btn`
+     so `.bb-btn` has exactly one definition in the repo
+     (@bagel/ui/styles/elements/button.css) and this file cannot silently
+     become a second one. */
+  .rule-btn {
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -164,15 +170,20 @@
     color: var(--bb-muted);
     transition: all var(--bb-dur-fast, 140ms) ease;
   }
-  .btn.ghost:hover { color: var(--bb-white); }
-  .btn.primary { background: rgba(82, 183, 136, 0.16); border-color: rgba(82, 183, 136, 0.5); color: var(--bb-green-glow, #52b788); }
-  .btn.primary:disabled { opacity: 0.5; cursor: default; }
-  .btn.danger { border-color: transparent; color: #cf8a78; }
-  .btn.danger:hover { border-color: rgba(176, 90, 70, 0.5); background: rgba(176, 90, 70, 0.08); }
+  .rule-btn.bb-btn--ghost:hover { color: var(--bb-white); }
+  .rule-btn.bb-btn--primary { background: rgba(82, 183, 136, 0.16); border-color: rgba(82, 183, 136, 0.5); color: var(--bb-green-glow, #52b788); }
+  .rule-btn.bb-btn--primary:disabled { opacity: 0.5; cursor: default; }
+  .rule-btn.danger { border-color: transparent; color: #cf8a78; }
+  /* `color` is re-declared on hover on purpose: this editor's `.danger` is its
+     own look (a quiet red text button, not the dashed .bb-btn--destructive),
+     and the shared contract's base hover paints the label --bb-black now that
+     a bare .bb-btn is the primary. Before the contract move a bare `.btn` had
+     no hover rule at all, so this rule only had to name what changed. */
+  .rule-btn.danger:hover { border-color: rgba(176, 90, 70, 0.5); background: rgba(176, 90, 70, 0.08); color: #cf8a78; }
 
   @media (max-width: 480px) {
     .actions { flex-wrap: wrap; }
-    .actions .btn { flex: 1; justify-content: center; min-height: 44px; }
+    .actions .rule-btn { flex: 1; justify-content: center; min-height: 44px; }
     .spacer { display: none; }
   }
 </style>

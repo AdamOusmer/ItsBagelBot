@@ -24,7 +24,7 @@
   import ConfirmDialog from '@bagel/kit/components/ConfirmDialog.svelte';
   import SkeletonStack from '@bagel/kit/components/SkeletonStack.svelte';
   import Skeleton from '@bagel/kit/components/Skeleton.svelte';
-  import Button from '@bagel/kit/components/Button.svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
   import { createInspector } from '@bagel/kit/inspector';
   import { createDiscardGuard } from '@bagel/kit/discard-guard';
   import { toast } from '@bagel/kit/toast';
@@ -268,7 +268,7 @@
       {#if loaded && (page > 1 || hasMore)}
         <div class="pager">
           <a
-            class="btn ghost"
+            class="bb-btn bb-btn--ghost"
             class:disabled={page <= 1}
             href={pageHref(page - 1)}
             aria-disabled={page <= 1}
@@ -282,7 +282,7 @@
             })}
           </span>
           <a
-            class="btn ghost"
+            class="bb-btn bb-btn--ghost"
             class:disabled={!hasMore}
             href={pageHref(page + 1)}
             aria-disabled={!hasMore}

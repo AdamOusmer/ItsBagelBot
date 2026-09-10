@@ -10,9 +10,9 @@
  */
 import PageHero from '../ui/PageHero.astro';
 import SectionHeading from '../ui/SectionHeading.astro';
-import Card from '../ui/Card.astro';
+import Card from '@bagel/ui/astro/Card.astro';
 import Faq from '../pricing/Faq.astro';
-import Button from '../ui/Buttons/Button.astro';
+import Button from '@bagel/ui/astro/Button.astro';
 
 interface Item {
     name?: string;
@@ -55,7 +55,7 @@ const {
     <ol class="flhow__steps">
         {steps.map((step, i) => (
             <li>
-                <Card class="flhow__card" data-reveal style={`--reveal-i: ${i}`}>
+                <Card atmo hover class="flhow__card" data-reveal style={`--reveal-i: ${i}`}>
                     <span class="flhow__num" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
                     <h3 class="flhow__title">{step.title}</h3>
                     <p class="flhow__desc">{step.desc}</p>
@@ -83,8 +83,8 @@ const {
 <section class="flcta">
     <h2 class="flcta__title" data-reveal>{ctaTitle}</h2>
     <div class="flcta__actions" data-reveal style="--reveal-i: 1">
-        <Button href={ctaPrimary.href} label={ctaPrimary.label} />
-        {ctaSecondary && <Button variant="quiet" href={ctaSecondary.href} label={ctaSecondary.label} />}
+        <Button href={ctaPrimary.href}>{ctaPrimary.label}</Button>
+        {ctaSecondary && <Button variant="quiet" href={ctaSecondary.href}>{ctaSecondary.label}</Button>}
     </div>
     {legal && <p class="flcta__legal">{legal}</p>}
 </section>

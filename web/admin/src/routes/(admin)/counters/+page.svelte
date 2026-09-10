@@ -24,7 +24,7 @@
   import ConfirmDialog from '@bagel/kit/components/ConfirmDialog.svelte';
   import SkeletonStack from '@bagel/kit/components/SkeletonStack.svelte';
   import Skeleton from '@bagel/kit/components/Skeleton.svelte';
-  import Button from '@bagel/kit/components/Button.svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
   import Field from '@bagel/kit/components/Field.svelte';
   import Scroller from '@bagel/kit/components/Scroller.svelte';
   import EditorFooter from '@bagel/kit/components/EditorFooter.svelte';

@@ -8,7 +8,7 @@
  * short highlight bullets, and a link to the GitHub release.
  */
 import type { CollectionEntry } from 'astro:content';
-import CardAtmosphere from '../ui/CardAtmosphere.astro';
+import CardAtmosphere from '@bagel/ui/astro/CardAtmosphere.astro';
 import ReleaseTag from './ReleaseTag.astro';
 import TextLink from '../ui/TextLink.astro';
 import { getLangFromUrl, useTranslations, localizePath } from '../../i18n/ui';
@@ -168,15 +168,34 @@ const tagLabel: Record<CollectionEntry<'changelog'>['data']['tag'], string> = {
         border-radius: var(--radius-lg);
         background: rgba(17, 17, 16, 0.88);
         overflow: hidden;
+        isolation: isolate;
         transition:
             border-color 220ms ease,
             transform 260ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
     }
 
-    /* Content rides above the atmosphere layer (which paints at z-index 0). */
-    .clog__card > :global(*:not(.card-atmo)) {
+    /* Content rides above the atmosphere layer. The shared contract parks that
+       layer at z-index:-1 (it is the shape that works for a card whose root
+       carries the layout), so the card has to isolate: without a stacking
+       context here a negative-z child paints BEHIND this card's own
+       background and the light disappears entirely. */
+    .clog__card > :global(*:not(.bb-card-atmo)) {
         position: relative;
         z-index: 1;
+    }
+
+    /* These two rules used to live in the site's own CardAtmosphere.astro,
+       which listed this page's class names next to the card's. The shared
+       component keys both on the card element instead (`data-hover`), and
+       this page draws its own card shape rather than a `.bb-card` -- so until
+       it becomes one, the two rules for it belong here. */
+    .clog__item:nth-child(even) .clog__card :global(.bb-card-atmo) {
+        transform: scaleX(-1);
+    }
+
+    .clog__item:hover .clog__card :global(.bb-card-atmo) {
+        --card-atmo-glow: 1.6;
+        --card-atmo-ring: 0.24;
     }
 
     @media (hover: hover) and (pointer: fine) {

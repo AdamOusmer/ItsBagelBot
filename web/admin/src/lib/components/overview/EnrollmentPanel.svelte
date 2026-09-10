@@ -11,8 +11,8 @@
   // deletions make every historical point a guess, and it carried an "est."
   // label saying so. A stat tile with the live total is the honest version of
   // the same answer, so the derived line went with the component.
-  import Card from '@bagel/kit/components/Card.svelte';
-  import CardHead from '@bagel/kit/components/CardHead.svelte';
+  import Card from '@bagel/ui/svelte/Card.svelte';
+  import CardHead from '@bagel/ui/svelte/CardHead.svelte';
   import SegmentedControl from '@bagel/kit/components/SegmentedControl.svelte';
   import StatTile from '@bagel/kit/components/StatTile.svelte';
   import AreaSeries from '@bagel/kit/components/AreaSeries.svelte';
@@ -61,7 +61,7 @@
 <Card as="section">
   <CardHead title={t('admin.overview.enrollmentTitle')}>
     {#snippet action()}
-      <a class="more" href="/users">{t('admin.overview.allUsers')}</a>
+      <a class="bb-card-head__more" href="/users">{t('admin.overview.allUsers')}</a>
     {/snippet}
   </CardHead>
 

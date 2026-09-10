@@ -6,7 +6,7 @@
   // exit) that used to live behind the topbar avatar, so the signed-in user
   // has one place to be, not two.
   import { afterNavigate } from '$app/navigation';
-  import Button from './Button.svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
   import Bolota from './Bolota.svelte';
   import Icon from './Icon.svelte';
   import Scroller from './Scroller.svelte';

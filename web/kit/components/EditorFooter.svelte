@@ -45,8 +45,8 @@
     {/if}
   </span>
   <span class="acts">
-    <button type="button" class="btn ghost" onclick={onCancel}>{cancelLabel}</button>
-    <button type="submit" class="btn primary" disabled={!canSave || status === 'saving'}>
+    <button type="button" class="bb-btn bb-btn--ghost" onclick={onCancel}>{cancelLabel}</button>
+    <button type="submit" class="bb-btn bb-btn--primary" disabled={!canSave || status === 'saving'}>
       {status === 'saving' ? savingLabel : saveLabel}
     </button>
   </span>
@@ -80,6 +80,6 @@
   .acts { display: inline-flex; gap: 10px; flex: none; }
 
   @media (max-width: 480px) {
-    .acts .btn { min-height: 44px; }
+    .acts .bb-btn { min-height: 44px; }
   }
 </style>

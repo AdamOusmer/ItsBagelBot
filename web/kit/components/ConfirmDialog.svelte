@@ -36,10 +36,10 @@
   {#if body}<p class="modal-body">{body}</p>{/if}
   {#if children}{@render children()}{/if}
   <div class="modal-actions">
-    <button type="button" class="btn ghost" onclick={onCancel} disabled={busy}>{cancelLabel}</button>
+    <button type="button" class="bb-btn bb-btn--ghost" onclick={onCancel} disabled={busy}>{cancelLabel}</button>
     <button
       type="button"
-      class="btn {danger ? 'confirm-danger' : 'primary'}"
+      class="bb-btn {danger ? 'confirm-danger' : 'bb-btn--primary'}"
       onclick={onConfirm}
       disabled={busy}
     >
@@ -54,8 +54,13 @@
     border-color: rgba(176, 90, 70, 0.4);
     color: #cf8a78;
   }
+  /* `color` is re-declared here on purpose: a bare `.bb-btn` is the primary
+     now, and the contract's primary hover paints the label --bb-black. Before
+     the button contract moved into @bagel/ui a bare `.btn` had no hover rule,
+     so this only had to name the two things that changed. */
   .confirm-danger:hover {
     background: rgba(176, 90, 70, 0.28);
     box-shadow: 0 0 18px rgba(176, 90, 70, 0.25);
+    color: #cf8a78;
   }
 </style>

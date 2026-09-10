@@ -7,7 +7,7 @@
  * Free is the product. Premium is framed as the tip jar it actually is, and
  * Enterprise sits quietly beside it. Count-up price, stroke-drawn checks.
  */
-import Card from '../ui/Card.astro';
+import Card from '@bagel/ui/astro/Card.astro';
 import { Image } from 'astro:assets';
 // Rendered at 80px tall; the source is a 1024px 834 kB PNG. Serving it
 // through astro:assets ships a ~160px webp of a few kB instead.
@@ -33,7 +33,7 @@ const enterpriseFeatures = [
 
 <section class="tiers">
     <!-- Free: the whole product -->
-    <Card class="tier tier--free" data-reveal>
+    <Card atmo hover class="tier tier--free" data-reveal>
         <div class="tier-free__layout">
             <div class="tier-free__head">
                 <span class="tier__name">{t('tier.free')}</span>
@@ -64,7 +64,7 @@ const enterpriseFeatures = [
 
     <div class="tiers__pair">
         <!-- Premium: the tip jar -->
-        <Card class="tier tier--premium" data-reveal style="--reveal-i: 1">
+        <Card atmo hover class="tier tier--premium" data-reveal style="--reveal-i: 1">
             <div class="tier__demo" slot="band" aria-hidden="true">
                 <Image src={premiumLogo} alt="Premium" class="tier__premium-logo" width={160} height={160} loading="lazy" />
             </div>
@@ -96,7 +96,7 @@ const enterpriseFeatures = [
         </Card>
 
         <!-- Enterprise -->
-        <Card class="tier tier--enterprise" data-reveal style="--reveal-i: 2">
+        <Card atmo hover class="tier tier--enterprise" data-reveal style="--reveal-i: 2">
             <div class="tier__demo" slot="band" aria-hidden="true">
                 <div class="tier__demo-ent">
                     <div class="ent-server">
@@ -156,17 +156,24 @@ const enterpriseFeatures = [
         .tiers__pair { grid-template-columns: repeat(2, 1fr); }
     }
 
-    .tiers__pair :global(.card) { flex: 1; }
+    .tiers__pair :global(.bb-card) { flex: 1; }
 
     /* ── Card internals ── */
 
-    .tier :global(.card__body) {
+    /* Banded tiers (premium, enterprise) get their column from the card's body
+       box. The free tier is FLAT, and a flat card renders its children
+       directly now (@bagel/ui C6: a card whose root carries the layout cannot
+       have a mandatory wrapper), so it takes the same column on the card
+       itself. */
+    .tier :global(.bb-card__body) {
         display: flex;
         flex-direction: column;
         height: 100%;
     }
 
     .tier--free {
+        display: flex;
+        flex-direction: column;
         border-color: rgba(201, 168, 124, 0.35) !important;
         animation: freeGlow 5s ease-in-out infinite;
     }

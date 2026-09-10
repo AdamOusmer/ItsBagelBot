@@ -6,8 +6,8 @@
   // not just a tick), and links to where it gets done. `receiving` is main's honest
   // "online" (grant + active + enroll ok), so a pending/failing connection does not
   // read as connected here.
-  import Card from '@bagel/kit/components/Card.svelte';
-  import ButtonLink from '@bagel/kit/components/ButtonLink.svelte';
+  import Card from '@bagel/ui/svelte/Card.svelte';
+  import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import Icon from '@bagel/kit/components/Icon.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
 

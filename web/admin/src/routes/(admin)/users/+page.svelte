@@ -21,7 +21,7 @@
   import ConfirmDialog from '@bagel/kit/components/ConfirmDialog.svelte';
   import SkeletonStack from '@bagel/kit/components/SkeletonStack.svelte';
   import Skeleton from '@bagel/kit/components/Skeleton.svelte';
-  import Button from '@bagel/kit/components/Button.svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
   import { toast } from '@bagel/kit/toast';
   import { actionPayload, adminToastFailure } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
@@ -397,7 +397,7 @@
       {#if dir && (dir.page > 1 || dir.hasMore)}
         <div class="pager">
           <a
-            class="btn ghost"
+            class="bb-btn bb-btn--ghost"
             class:disabled={dir.page <= 1}
             href={href({ q: data.search, state: data.state, page: dir.page - 1 })}
             aria-disabled={dir.page <= 1}
@@ -408,7 +408,7 @@
             {t('admin.users.pagerLabel', { page: String(dir.page), max: String(dir.maxPages) })}
           </span>
           <a
-            class="btn ghost"
+            class="bb-btn bb-btn--ghost"
             class:disabled={!dir.hasMore}
             href={href({ q: data.search, state: data.state, page: dir.page + 1 })}
             aria-disabled={!dir.hasMore}
@@ -568,7 +568,7 @@
     font-size: 11.5px;
     color: var(--bb-muted);
   }
-  .pager .btn.disabled {
+  .pager .bb-btn.disabled {
     opacity: 0.35;
     pointer-events: none;
   }

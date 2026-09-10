@@ -113,7 +113,7 @@
                 <p>{n.body}</p>
               </div>
               {#if onMarkRead && !n.read}
-                <button type="button" class="btn ghost sm" onclick={() => onMarkRead?.(n.id)}>
+                <button type="button" class="bb-btn bb-btn--ghost bb-btn--sm" onclick={() => onMarkRead?.(n.id)}>
                   {readLabel}
                 </button>
               {/if}
@@ -181,7 +181,7 @@
   }
   .item .level { justify-self: start; grid-row: 1; }
   .item .text { grid-column: 1 / -1; }
-  .item .btn { grid-column: 2; grid-row: 1; justify-self: end; }
+  .item .bb-btn { grid-column: 2; grid-row: 1; justify-self: end; }
   .item.unread { border-color: rgba(201, 168, 124, 0.3); background: rgba(201, 168, 124, 0.05); }
 
   .text { flex: 1; min-width: 0; }
@@ -193,7 +193,7 @@
   .level { font-size: 10px; white-space: nowrap; }
   .level.critical { color: #d98a8a; border-bottom-color: rgba(217, 138, 138, 0.45); }
 
-  .btn.sm { padding: 4px 10px; font-size: 11px; white-space: nowrap; }
+  .bb-btn--sm { padding: 4px 10px; font-size: 11px; white-space: nowrap; }
 
   .view-all {
     font-family: var(--bb-font-body); font-weight: 600; font-size: 12px;

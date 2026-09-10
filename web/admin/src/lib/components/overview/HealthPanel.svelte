@@ -4,8 +4,8 @@
   // The /health probe, summarised. One row per responder with its round-trip
   // time, because "which one" and "how slow" are the two follow-up questions an
   // operator asks the instant the count is not N/N.
-  import Card from '@bagel/kit/components/Card.svelte';
-  import CardHead from '@bagel/kit/components/CardHead.svelte';
+  import Card from '@bagel/ui/svelte/Card.svelte';
+  import CardHead from '@bagel/ui/svelte/CardHead.svelte';
   import EmptyState from '@bagel/kit/components/EmptyState.svelte';
   import Scroller from '@bagel/kit/components/Scroller.svelte';
   import { statusTone } from '@bagel/kit/status-tone';

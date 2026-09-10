@@ -1,0 +1,83 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+/**
+ * The Astro adapter for the button contract. Its Svelte twins are
+ * ../svelte/Button.svelte and ../svelte/ButtonLink.svelte, and
+ * ui/test/parity.test.ts holds all three to the same markup. The look is
+ * entirely ../styles/elements/button.css: no scoped <style> here, deliberately,
+ * because a scoped copy is what let the marketing site's button and the
+ * console's button drift apart in the first place.
+ *
+ * ONE component for both elements (divergence BL1): pass `href` and it renders
+ * an <a>, otherwise a <button>. The site's previous Buttons/Button.astro was
+ * already an <a>-only component, and its two siblings are not ported:
+ * AnimatedButton.astro (280 lines of motion-driven word roll) and Link.astro
+ * had ZERO importers in the whole repo. Porting dead code into a library
+ * freezes it; if the word roll is wanted later it comes back as its own
+ * element with its own engine, never as a Button variant that would give every
+ * button a motion dependency.
+ */
+import '../styles/elements/button.css';
+
+interface Props {
+    variant?: 'primary' | 'secondary' | 'ghost' | 'green' | 'destructive' | 'icon' | 'tan' | 'quiet' | 'go';
+    solid?: boolean;
+    size?: 'md' | 'sm';
+    type?: 'button' | 'submit' | 'reset';
+    href?: string;
+    loading?: boolean;
+    done?: boolean;
+    disabled?: boolean;
+    class?: string;
+    [key: string]: unknown;
+}
+
+const {
+    variant = 'primary',
+    solid = false,
+    size = 'md',
+    type = 'button',
+    href,
+    loading = false,
+    done = false,
+    disabled = false,
+    class: cls = '',
+    ...rest
+} = Astro.props;
+
+// The Svelte adapter warns at runtime; this one has no runtime, so it fails
+// the build instead. Both refuse to ship a nameless icon-only control.
+if (variant === 'icon' && !rest['aria-label'] && !rest['aria-labelledby']) {
+    throw new Error('<Button variant="icon"> needs an aria-label (icon-only button has no text).');
+}
+
+// Same list, same order, same join as the Svelte adapter: the parity test
+// diffs the rendered string, so the two have to build it the same way.
+const classes = [
+    'bb-btn',
+    `bb-btn--${variant}`,
+    solid && 'bb-btn--solid',
+    size === 'sm' && 'bb-btn--sm',
+    loading && 'is-loading',
+    done && 'is-done',
+    cls,
+]
+    .filter(Boolean)
+    .join(' ');
+
+const isDisabled = disabled || loading;
+const Tag = href ? 'a' : 'button';
+// A link has no `type` and cannot be `disabled`; `aria-disabled` is its
+// escape hatch and button.css's hover guard honours it.
+const elementProps = href
+    ? { href }
+    : { type, disabled: isDisabled, 'aria-busy': loading ? 'true' : undefined };
+---
+
+<Tag class={classes} {...elementProps} data-mark="" {...rest}>
+    {variant !== 'icon' && <i class="bb-btn__mark" aria-hidden="true" />}
+    <span class="bb-btn__content"><slot /></span>
+    {loading && <span class="bb-btn__spinner" aria-hidden="true" />}
+</Tag>

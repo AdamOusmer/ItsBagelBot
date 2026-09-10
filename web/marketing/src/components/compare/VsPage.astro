@@ -9,7 +9,7 @@
  * dated in the disclaimer, so a stale claim is a correction, not a lawsuit.
  */
 import PageHero from '../ui/PageHero.astro';
-import Button from '../ui/Buttons/Button.astro';
+import Button from '@bagel/ui/astro/Button.astro';
 
 interface Row {
     label: string;
@@ -68,9 +68,9 @@ const DASHBOARD_LOGIN = 'https://dashboard.itsbagelbot.com/auth/login';
     </ul>
 
     <div class="vs__actions" data-reveal>
-        <Button href={DASHBOARD_LOGIN} label="Add to Twitch" />
-        <Button variant="quiet" href="/import/" label="Import your setup" />
-        <Button variant="quiet" href={otherVs.href} label={otherVs.label} />
+        <Button href={DASHBOARD_LOGIN}>Add to Twitch</Button>
+        <Button variant="quiet" href="/import/">Import your setup</Button>
+        <Button variant="quiet" href={otherVs.href}>{otherVs.label}</Button>
     </div>
 
     <p class="vs__disclaimer">

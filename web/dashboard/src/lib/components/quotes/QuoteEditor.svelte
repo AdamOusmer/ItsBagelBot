@@ -85,6 +85,6 @@
   .actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 6px; }
   @media (max-width: 480px) {
     .actions { flex-direction: column-reverse; }
-    .actions :global(.btn) { width: 100%; justify-content: center; min-height: 44px; }
+    .actions :global(.bb-btn) { width: 100%; justify-content: center; min-height: 44px; }
   }
 </style>

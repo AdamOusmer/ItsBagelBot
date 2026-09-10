@@ -20,7 +20,7 @@
   import Field from '@bagel/kit/components/Field.svelte';
   import Switch from '@bagel/kit/components/Switch.svelte';
   import Scroller from '@bagel/kit/components/Scroller.svelte';
-  import Button from '@bagel/kit/components/Button.svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
   import EditorFooter from '@bagel/kit/components/EditorFooter.svelte';
   import type { InspectorStatus } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';

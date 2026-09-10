@@ -21,7 +21,7 @@
   import DeckList from '@bagel/kit/components/DeckList.svelte';
   import StatTile from '@bagel/kit/components/StatTile.svelte';
   import Switch from '@bagel/kit/components/Switch.svelte';
-  import Button from '@bagel/kit/components/Button.svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
   import AlertBanner from '@bagel/kit/components/AlertBanner.svelte';
   import EmptyState from '@bagel/kit/components/EmptyState.svelte';
   import ConfirmDialog from '@bagel/kit/components/ConfirmDialog.svelte';

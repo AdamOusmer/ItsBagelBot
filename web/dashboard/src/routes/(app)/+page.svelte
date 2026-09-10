@@ -6,9 +6,9 @@
   import { page } from '$app/state';
   // Direct imports, not the barrel: this is the authed landing page's boot path
   // (see routes/+layout.svelte).
-  import Button from '@bagel/kit/components/Button.svelte';
-  import Card from '@bagel/kit/components/Card.svelte';
-  import ButtonLink from '@bagel/kit/components/ButtonLink.svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
+  import Card from '@bagel/ui/svelte/Card.svelte';
+  import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import Modal from '@bagel/kit/components/Modal.svelte';
   import Skeleton from '@bagel/kit/components/Skeleton.svelte';
   import SkeletonStack from '@bagel/kit/components/SkeletonStack.svelte';

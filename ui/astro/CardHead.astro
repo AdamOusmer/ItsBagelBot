@@ -1,0 +1,25 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+/**
+ * Astro twin of ../svelte/CardHead.svelte; see it for what this is.
+ *
+ * There is no marketing source for this one: the head is a console shape, and
+ * the guide screens draw it by hand in dashframe.css. The adapter exists now
+ * so those screens can be rebuilt on the real element when dashframe.css is
+ * deleted, rather than the drawing drifting a second time.
+ */
+import '../styles/elements/card.css';
+
+interface Props {
+    title: string;
+}
+
+const { title } = Astro.props;
+---
+
+<div class="bb-card-head">
+    <h3 class="bb-card-head__title">{title}</h3>
+    <slot name="action" />
+</div>

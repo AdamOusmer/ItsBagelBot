@@ -12,7 +12,7 @@
  * and it fills on card hover so the affordance shows from anywhere on the
  * card. The button is a <span>: an <a> inside an <a> is not allowed.
  */
-import Card from '../ui/Card.astro';
+import Card from '@bagel/ui/astro/Card.astro';
 
 interface Props {
     index: string;
@@ -32,7 +32,7 @@ interface Props {
 const { index, href, title, description, meta, chips = [], cta, wide = false, revealIndex = 0 } = Astro.props;
 ---
 
-<Card
+<Card atmo hover
     as="a"
     href={href}
     label={index}

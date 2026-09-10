@@ -7,7 +7,7 @@
   // scrim/Escape, reusing the shared overlay foundation. One component so every
   // route's inspector behaves identically instead of each re-styling an <aside>.
   import type { Snippet } from 'svelte';
-  import Card from './Card.svelte';
+  import Card from '@bagel/ui/svelte/Card.svelte';
   import Icon from './Icon.svelte';
   import { pushOverlay, removeOverlay, isTopmost, overlayIndex, hasOpenOverlay, portal, trapFocus } from '../lib/overlay-stack';
 

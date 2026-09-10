@@ -7,7 +7,7 @@
  * Shows Minecraft (Hypixel Bedwars + MCSR Ranked), Fortnite, Valorant,
  * Clash Royale, and a call-to-action for requesting more games.
  */
-import Card from '../ui/Card.astro';
+import Card from '@bagel/ui/astro/Card.astro';
 import SectionHeading from '../ui/SectionHeading.astro';
 import { getLangFromUrl, useTranslations, localizePath } from '../../i18n/ui';
 
@@ -26,7 +26,7 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
 
     <div class="games__grid">
         <!-- Minecraft: Hypixel Bedwars + MCSR Ranked -->
-        <Card class="games__card" label={t('games.mcCh')} data-reveal>
+        <Card atmo hover class="games__card" label={t('games.mcCh')} data-reveal>
             <div class="games__demo games__demo--mc" slot="band" aria-hidden="true">
                 <div class="games-mc__group games-mc__group--bw">
                     <span class="games-mc__line games-mc__line--bw">!bwstats player123</span>
@@ -51,7 +51,7 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
         </Card>
 
         <!-- Fortnite -->
-        <Card class="games__card" label={t('games.fnCh')} data-reveal style="--reveal-i: 1">
+        <Card atmo hover class="games__card" label={t('games.fnCh')} data-reveal style="--reveal-i: 1">
             <div class="games__demo games__demo--fn" slot="band" aria-hidden="true">
                 <svg class="games-fn__scar" viewBox="0 0 220 72" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg">
                     <!-- stock -->
@@ -93,7 +93,7 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
         </Card>
 
         <!-- Valorant -->
-        <Card class="games__card" label={t('games.valCh')} data-reveal style="--reveal-i: 2">
+        <Card atmo hover class="games__card" label={t('games.valCh')} data-reveal style="--reveal-i: 2">
             <div class="games__demo games__demo--val" slot="band" aria-hidden="true">
                 <span class="games-val__line">!valrank Frosty#EUW1</span>
                 <div class="games-val__stats">
@@ -112,7 +112,7 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
         </Card>
 
         <!-- Clash Royale -->
-        <Card class="games__card" label={t('games.crCh')} data-reveal style="--reveal-i: 3">
+        <Card atmo hover class="games__card" label={t('games.crCh')} data-reveal style="--reveal-i: 3">
             <div class="games__demo games__demo--cr" slot="band" aria-hidden="true">
                 <span class="games-cr__line">!cr #P2LQ0GR</span>
                 <div class="games-cr__stats">
@@ -128,7 +128,7 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
         </Card>
 
         <!-- Request more games -->
-        <Card class="games__card games__card--req" label={t('games.reqCh')} data-reveal style="--reveal-i: 4">
+        <Card atmo hover class="games__card games__card--req" label={t('games.reqCh')} data-reveal style="--reveal-i: 4">
             <div class="games__demo games__demo--req" slot="band" aria-hidden="true">
                 <a href="https://github.com/AdamOusmer/ItsBagelBot/issues/new" target="_blank" rel="noopener noreferrer" class="games-req__btn">
                     <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">

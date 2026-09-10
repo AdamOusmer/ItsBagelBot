@@ -352,7 +352,7 @@
          card's own hover lift. -->
     {#each tiles as tile, i (tile.label)}
       <div class="tile-wrap reveal" style="--i:{5 + i * 0.5}">
-        <Card atmosphere hover class="tile">
+        <Card atmo hover class="tile">
           {#snippet band()}
             <div class="tile-head">
               <span class="label">{tile.label}</span>
@@ -376,7 +376,7 @@
 
   <section class="boards" aria-label={t('stats.boardsEyebrow')}>
     <div class="board-wrap reveal" style="--i:6">
-      <Card atmosphere class="board" label={t('stats.trafficBoardCh')}>
+      <Card atmo class="board" label={t('stats.trafficBoardCh')}>
         {#snippet band()}
           <header class="board-head">
             <div class="board-titles">
@@ -423,7 +423,7 @@
     </div>
 
     <div class="board-wrap reveal" style="--i:6.5">
-      <Card atmosphere class="board" label={t('stats.feedBoardCh')}>
+      <Card atmo class="board" label={t('stats.feedBoardCh')}>
         {#snippet band()}
           <header class="board-head">
             <div class="board-titles">
@@ -544,14 +544,14 @@
 
   /* The tile is a banded Card: the head lives in the housing band, so the
      column layout and gap move to the body the Card renders below it. */
-  .tiles :global(.card) {
+  .tiles :global(.bb-card) {
     --card-pad: clamp(24px, 3.4vw, 40px);
     height: 100%;
     min-width: 0;
   }
   /* 32px icon, or a label wrapped to two lines on a narrow screen, plus the
      housing's padding: one height for the pair either way. */
-  .tiles :global(.card__band) {
+  .tiles :global(.bb-card__band) {
     --card-band-h: calc(70px * var(--d, 1));
     padding: calc(14px * var(--d, 1)) var(--card-pad);
   }
@@ -563,7 +563,7 @@
      container-type makes this box the reference for the counter's cqi font
      size below: the counter has to fit the tile it is in, not the tile it
      had when the number was shorter. */
-  .tiles :global(.card__body) {
+  .tiles :global(.bb-card__body) {
     display: flex;
     flex-direction: column;
     gap: var(--bb-space-3);
@@ -572,7 +572,7 @@
   }
   /* Hairline of light along the top edge, as on the marketing surfaces. Free to
      use: Card's own ::before only paints under the (unused) `sheen` variant. */
-  .tiles :global(.card)::before {
+  .tiles :global(.bb-card)::before {
     content: '';
     position: absolute;
     inset: 0 0 auto;
@@ -662,7 +662,7 @@
 
   /* Banded Card: the head is the housing band; column layout moves to the
      body below it. */
-  .boards :global(.card) {
+  .boards :global(.bb-card) {
     --card-pad: clamp(20px, 2.4vw, 30px);
     height: 100%;
     min-width: 0;
@@ -671,11 +671,11 @@
      widths, so a floor would stagger the seams across the pair. Sized for the
      longest note wrapped to three lines on a 375px screen (65px in French),
      which is the tightest this head ever gets. */
-  .boards :global(.card__band) {
+  .boards :global(.bb-card__band) {
     --card-band-h: calc(112px * var(--d, 1));
     padding: calc(16px * var(--d, 1)) var(--card-pad);
   }
-  .boards :global(.card__body) {
+  .boards :global(.bb-card__body) {
     display: flex;
     flex-direction: column;
     gap: var(--bb-space-4);

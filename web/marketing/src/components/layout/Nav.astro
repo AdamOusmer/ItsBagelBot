@@ -331,7 +331,7 @@ const isActive = (href: string) =>
        --bb-muted (#888077) because the pill's own rgba(10,10,10,.55) glass sits
        over live page content, where muted drops under 4.5:1 against a light
        hero. */
-    .site-nav__inner :global(.bb-nav-link) {
+    :where(.site-nav__inner) :global(.bb-nav-link) {
         --bb-nav-link-size: 0.7rem;
         --bb-nav-link-rest: rgba(240, 236, 228, 0.5);
     }
@@ -343,7 +343,18 @@ const isActive = (href: string) =>
        sanctioned exception to the 6px button corner: it is set by the
        container, not by the button. Expressed as contract properties, so the
        CTA still hovers, focuses and marks the current page like every other
-       nav link — it only disagrees about type and radius. */
+       nav link — it only disagrees about type and radius.
+
+       No `--bb-nav-link-rest` here any more. The CTA composes `.bb-btn
+       --go-solid` now, so the white label is the BUTTON contract's and this
+       surface has nothing to say about it. Setting it here was also the bug:
+       Astro scopes this rule to `.cta[data-astro-cid-*]` (0-2-0) and the
+       wrapper rule above to `.site-nav__inner[data-astro-cid-*]
+       .bb-nav-link` (0-3-0), so the wrapper's 50% white won and the live CTA
+       computed rgba(240, 236, 228, 0.5) on the green fill — measured on
+       /pricing at 1280x800 — instead of #f0ece4. The wrapper is wrapped in
+       `:where()` as well, which drops it to 0-1-0: it exists to set two
+       defaults for the bar, not to outrank the links inside it. */
     .cta {
         --bb-nav-link-size: 0.7rem;
 
@@ -359,7 +370,6 @@ const isActive = (href: string) =>
         --bb-nav-link-tracking: 0;
         --bb-nav-link-transform: uppercase;
         --bb-nav-link-radius: var(--radius-pill);
-        --bb-nav-link-rest: var(--white);
     }
 
     .logo {

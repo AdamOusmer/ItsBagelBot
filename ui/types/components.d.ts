@@ -24,3 +24,11 @@ declare module '*.astro' {
   const component: any;
   export default component;
 }
+
+// Same reason, one layer down: the adapters import their own contract
+// stylesheet so a consumer cannot render a `.bb-btn` with no rules for it, and
+// svelte-check reports a side-effect import of a .css file as a missing module
+// ("Cannot find module or type declarations for side-effect import"). There is
+// nothing to type; the declaration exists so the check has something to
+// resolve.
+declare module '*.css';

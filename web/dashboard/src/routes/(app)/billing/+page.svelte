@@ -886,7 +886,7 @@
   .plan-buttons form {
     flex: 1;
   }
-  .plan-buttons :global(.btn) {
+  .plan-buttons :global(.bb-btn) {
     width: 100%;
     justify-content: center;
   }
@@ -1089,7 +1089,7 @@
     justify-content: space-between;
     gap: 18px;
   }
-  .gift-cta :global(.btn) {
+  .gift-cta :global(.bb-btn) {
     flex-shrink: 0;
   }
 
@@ -1315,7 +1315,7 @@
     .gift-cta {
       flex-direction: column;
     }
-    .gift-cta :global(.btn) {
+    .gift-cta :global(.bb-btn) {
       width: 100%;
       justify-content: center;
     }

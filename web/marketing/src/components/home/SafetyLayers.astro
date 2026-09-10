@@ -7,7 +7,7 @@
  * The visual language follows QuietWork: tactile cards, small mono system
  * readouts, and motion that demonstrates the feature instead of decorating it.
  */
-import Card from '../ui/Card.astro';
+import Card from '@bagel/ui/astro/Card.astro';
 import SectionHeading from '../ui/SectionHeading.astro';
 import IncomingBadge from '../ui/IncomingBadge.astro';
 import LightField from '@bagel/ui/astro/LightField.astro';
@@ -27,7 +27,7 @@ const t = useTranslations(lang);
     </SectionHeading>
 
     <div class="safe__grid">
-        <Card class="safe__card" data-reveal>
+        <Card atmo hover class="safe__card" data-reveal>
             <div class="safe__demo safe__demo--jury" slot="band" aria-hidden="true">
                 <span class="jury__case">{t('safe.spam')} / {t('safe.hate')}</span>
                 <div class="jury__table">
@@ -49,7 +49,7 @@ const t = useTranslations(lang);
             <p class="safe__desc">{t('safe.juryDesc')}</p>
         </Card>
 
-        <Card class="safe__card" data-reveal style="--reveal-i: 1">
+        <Card atmo hover class="safe__card" data-reveal style="--reveal-i: 1">
             <div class="safe__demo safe__demo--gates" slot="band" aria-hidden="true">
                 <div class="gates__lane">
                     <span class="gates__packet">MSG</span>
@@ -69,7 +69,7 @@ const t = useTranslations(lang);
             <p class="safe__desc">{t('safe.gatesDesc')}</p>
         </Card>
 
-        <Card class="safe__card safe__card--network" data-reveal style="--reveal-i: 2">
+        <Card atmo hover class="safe__card safe__card--network" data-reveal style="--reveal-i: 2">
             <div class="safe__demo safe__demo--network" slot="band" aria-hidden="true">
                 <svg class="network__map" viewBox="0 0 360 112" role="presentation">
                     <g class="network__links">

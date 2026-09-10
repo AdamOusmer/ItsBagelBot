@@ -31,9 +31,10 @@
                      would read as a box dropped into the page if it were
                      framed.
      --cta           the one filled form, for the single conversion target in
-                     the bar. Matches `.bb-btn--go-solid`: green fill, green
-                     border, white label, no drawline (there is nothing to draw
-                     on — the fill already carries it).
+                     the bar. IS `.bb-btn--go-solid` — the adapters emit the
+                     button classes and this file adds only the nav geometry —
+                     so: green fill, green border, white label, no drawline
+                     (there is nothing to draw on, the fill already carries it).
 
    WHY THE VALUES BELOW ARE THESE VALUES, in the order a reader hits them. */
 
@@ -117,28 +118,8 @@
       align-items: center;
       gap: var(--bb-nav-link-gap);
       padding: var(--bb-nav-link-pad);
-
-      /* -1px so a row of links shares ONE hairline with whatever rule they sit
-         on rather than stacking a second one 1px below it. `.bb-tabs`/`.bb-rail`
-         do the same; without it a footer column shows a visible double rule. */
-      margin-bottom: -1px;
-
-      border: 0;
-      border-bottom: 1px solid var(--bb-nav-link-rule);
       border-radius: var(--bb-nav-link-radius);
 
-      /* The drawline. A background gradient sized 0->100% on one axis, NOT a
-         ::after with a transform: the label already owns ::before for the mark,
-         and scaleX on a pseudo-element cannot animate from a 1px-tall element
-         without either compositing a blurred edge or forcing a second layer per
-         link. Sizing a background is a single non-composited property on an
-         element that is already painting one. `.bb-drawline` animates `width`
-         for the same reason and this is its hover form. */
-      background: linear-gradient(var(--bb-nav-link-draw), var(--bb-nav-link-draw))
-        no-repeat left bottom;
-      background-size: 0 1px;
-
-      color: var(--bb-nav-link-rest);
       font-family: var(--bb-nav-link-family);
       font-size: var(--bb-nav-link-size);
       font-weight: var(--bb-nav-link-weight);
@@ -154,6 +135,43 @@
         color var(--bb-dur-base) var(--bb-ease-out-expo),
         border-color var(--bb-dur-base) var(--bb-ease-out-expo),
         opacity var(--bb-dur-base) var(--bb-ease-out-expo);
+    }
+
+    /* THE RAIL'S PAINT, and the one rule in this file that does not apply to
+       every nav link. `--cta` composes `.bb-btn --go-solid` from button.css
+       (see the block at the bottom), so on a CTA the fill, the frame and the
+       label colour are the BUTTON's, and the six declarations below are exactly
+       the ones that would land on top of them.
+
+       `:not(:where(.bb-btn))` and not `:not(.bb-btn)`: `:where()` contributes
+       zero specificity, so this rule stays 0-1-0 and a surface still retunes a
+       rail link with the same weight it always could. Written as an exclusion
+       rather than left to source order because source order does not settle it:
+       measured 2026-09-09 in the marketing /pricing bundle, button.css is
+       emitted at byte 5865 and this file at 19035, so at equal specificity the
+       rail would win and the CTA would come out muted on green — which is the
+       shipped bug this composition fixes. */
+    .bb-nav-link:not(:where(.bb-btn)) {
+      /* -1px so a row of links shares ONE hairline with whatever rule they sit
+         on rather than stacking a second one 1px below it. `.bb-tabs`/`.bb-rail`
+         do the same; without it a footer column shows a visible double rule. */
+      margin-bottom: -1px;
+
+      border: 0;
+      border-bottom: 1px solid var(--bb-nav-link-rule);
+
+      /* The drawline. A background gradient sized 0->100% on one axis, NOT a
+         ::after with a transform: the label already owns ::before for the mark,
+         and scaleX on a pseudo-element cannot animate from a 1px-tall element
+         without either compositing a blurred edge or forcing a second layer per
+         link. Sizing a background is a single non-composited property on an
+         element that is already painting one. `.bb-drawline` animates `width`
+         for the same reason and this is its hover form. */
+      background: linear-gradient(var(--bb-nav-link-draw), var(--bb-nav-link-draw))
+        no-repeat left bottom;
+      background-size: 0 1px;
+
+      color: var(--bb-nav-link-rest);
     }
 
     /* The mark. `.bb-btn` and `.bb-rail` both open with a 5px square rotated 45deg
@@ -186,7 +204,7 @@
     /* Hover and keyboard focus are the SAME state deliberately: a keyboard user
        gets the drawline, not just a ring. `.bb-tab`/`.bb-rail` only styled
        :hover, which is why tabbing the old footer moved nothing at all. */
-    .bb-nav-link:is(:hover, :focus-visible) {
+    .bb-nav-link:not(:where(.bb-btn)):is(:hover, :focus-visible) {
       background-size: 100% 1px;
       color: var(--bb-nav-link-lit);
     }
@@ -211,7 +229,7 @@
        travels) and using it for the resting state of the current page would make
        a static page look like it is still animating. Tan is the accent that says
        "you are here" on `.bb-tag--alpha` and the console's active index. */
-    .bb-nav-link[aria-current="page"] {
+    .bb-nav-link:not(:where(.bb-btn))[aria-current="page"] {
       background-size: 100% 1px;
       color: var(--bb-nav-link-lit);
     }
@@ -283,52 +301,48 @@
       border: 0;
     }
 
-    /* ── --cta ───────────────────────────────────────────────────────────────
+    /* ── --cta ─────────────────────────────────────────────────────────────────
        The one filled nav link, and the reason the variant exists at all: a
        hairline rail inside a glass pill read as another nav item, and the bar's
-       single conversion target has to carry itself. Values are `.bb-btn--go-solid`
-       plus `.bb-btn--sm`'s geometry, which is what the marketing nav CTA already
-       resolved to through four classes and a scoped override.
+       single conversion target has to carry itself.
 
-       It does NOT reach for `.bb-btn`. Not because the duplication is desirable
-       but because on this branch `.bb-btn` is still marketing-only CSS in
-       `web/marketing/src/styles/style.css`; a ui element that only styles
-       correctly on one of the three surfaces is not a contract. The button
-       element PR moves `.bb-btn` into ui/styles/elements/button.css, and at that
-       point this block becomes `composes`-by-class (`bb-btn bb-btn--go-solid
-       bb-btn--sm`) emitted from the adapter and these five declarations delete.
-       Do not "fix" the duplication before button.css exists in this package. */
+       It COMPOSES the button contract rather than restating it. Both adapters
+       emit `bb-btn bb-btn--go-solid` alongside `bb-nav-link bb-nav-link--cta`
+       for `variant="cta"`, and button.css then owns the fill, the frame, the
+       white label and the hover swap. The five declarations that used to stand
+       here (border, background, the two colour properties and the hover block)
+       were a hand-kept copy of `.bb-btn--go-solid`, written when `.bb-btn` was
+       still marketing-only CSS; that copy is what the note in the NavLink
+       commit said to delete the moment button.css landed in this package, and
+       this is that deletion.
+
+       `bb-btn--sm` is deliberately NOT emitted: everything it sets
+       (`--btn-pad`, `--btn-size`, the 4px mark) is overridden by this file
+       anyway, so adding it would only give a reader a third size to reconcile.
+
+       What is left is GEOMETRY, and it is expressed as contract properties so a
+       surface can still retune it — the marketing bar sets a pill radius and
+       0.7rem type over the top of these. */
     .bb-nav-link--cta {
-      --bb-nav-link-rest: var(--bb-white);
-      --bb-nav-link-lit: var(--bb-white);
       --bb-nav-link-size: 12.5px;
       --bb-nav-link-tracking: 0.04em;
       --bb-nav-link-pad: 9px 16px 9px 13px;
       --bb-nav-link-gap: 9px;
       --bb-nav-link-radius: var(--bb-radius-sm);
-
-      margin-bottom: 0;
-      border: 1px solid var(--bb-green-light);
-      background: var(--bb-green);
-      transition:
-        background-color var(--bb-dur-base) var(--bb-ease-out-expo),
-        border-color var(--bb-dur-base) var(--bb-ease-out-expo),
-        color var(--bb-dur-base) var(--bb-ease-out-expo);
     }
 
     /* The mark is always lit on the filled form. Tier 2b's rule is that every
        button opens with the diamond; hiding it at rest is the RAIL's affordance
        (there is no frame there, so the mark appearing is the hover event), and a
-       filled button already announces itself. */
+       filled button already announces itself.
+
+       One pseudo-element, two contracts: `.bb-btn:not([data-mark])::before` also
+       draws a diamond, and because a CTA carries both classes the two rules
+       cascade onto the SAME box rather than producing two marks. This file wins
+       the overlap on size (5px, not `--sm`'s 4px), which is the intended one. */
     .bb-nav-link--cta::before {
       opacity: 1;
       border-color: currentColor;
-    }
-
-    .bb-nav-link--cta:is(:hover, :focus-visible) {
-      border-color: var(--bb-green-glow);
-      background: var(--bb-green-light);
-      color: var(--bb-nav-link-lit);
     }
 
     /* aria-current on a CTA is possible (a "Dashboard" CTA on the dashboard) and

@@ -800,7 +800,7 @@
       <!-- No "Fetch definitions" link any more: data sources are created from
            the {urlfetch:…} chip inside the command editor, where they are used.
            Their API keys live in Settings. -->
-      <button class="btn primary" onclick={openNew} disabled={expanded === NEW}>
+      <button class="bb-btn bb-btn--primary" onclick={openNew} disabled={expanded === NEW}>
         {t('commands.newCommand')}
       </button>
     {/snippet}
@@ -849,7 +849,7 @@
               title={t('commands.noneYet')}
               body={`${t('commands.noneYetSub')} !name ${t('commands.inChat')}`}
             >
-              <button class="btn primary" onclick={openNew}>{t('commands.newCommand')}</button>
+              <button class="bb-btn bb-btn--primary" onclick={openNew}>{t('commands.newCommand')}</button>
             </EmptyState>
           {:else}
             <EmptyState title={t('commands.noneMatch')} body={t('commands.noneMatchSub')} />

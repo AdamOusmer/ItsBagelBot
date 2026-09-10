@@ -1,0 +1,9 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro half of the CardHead parity fixture; see ./cardhead.svelte.
+import CardHead from '../../astro/CardHead.astro';
+const { title = 'Recent', withAction = false } = Astro.props;
+---
+{withAction ? <CardHead title={title}><a class="bb-card-head__more" href="/x" slot="action">All</a></CardHead> : <CardHead title={title} />}

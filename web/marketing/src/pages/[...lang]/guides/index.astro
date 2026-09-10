@@ -11,7 +11,7 @@
 // point), the remaining guides in two columns, then where to ask.
 import Layout from '../../../layouts/Layout.astro';
 import PageHero from '../../../components/ui/PageHero.astro';
-import Card from '../../../components/ui/Card.astro';
+import Card from '@bagel/ui/astro/Card.astro';
 import GuideCard from '../../../components/guides/GuideCard.astro';
 import TextLink from '../../../components/ui/TextLink.astro';
 import { getLangFromUrl, localeStaticPaths } from '../../../i18n/ui';
@@ -37,7 +37,7 @@ const [first, ...rest] = guides;
              guides; the rehearsal is the housing's visual, the body carries a
              solid button. The whole card is the link; the cursor stays quiet
              on it and morphs on the button only. -->
-        <Card as="a" href={hub.tool.href} label={hub.tool.eyebrow} class="ghub__tool" data-cursor="quiet" data-reveal style="--reveal-i: 1">
+        <Card atmo hover as="a" href={hub.tool.href} label={hub.tool.eyebrow} class="ghub__tool" data-cursor="quiet" data-reveal style="--reveal-i: 1">
             <span class="ghub__tool-demo" slot="band" aria-hidden="true">
                 <span class="ghub__tool-line" set:html={hub.tool.demoIn}></span>
                 <span class="ghub__tool-line ghub__tool-line--out" set:html={hub.tool.demoOut}></span>

@@ -1,0 +1,9 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro half of the Card parity fixture; see ./card.svelte.
+import Card from '../../astro/Card.astro';
+const { banded = false, ...props } = Astro.props;
+---
+{banded ? <Card {...props}><i slot="band">B</i>body</Card> : <Card {...props}>body</Card>}

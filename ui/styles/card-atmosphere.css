@@ -12,10 +12,12 @@
    every tile re-rasters at 60fps, the original hitch) and hover only nudges
    opacity, which stays on the compositor.
 
-   Shared by web/marketing/src/components/ui/CardAtmosphere.astro and
-   web/kit/components/CardAtmosphere.svelte, which were byte-identical
-   for the 55 lines below and legitimately different either side of them. Each
-   component keeps its own stacking and hover rules and sets the two knobs:
+   Geometry only. Where the layer SITS (stacking) and when it BRIGHTENS
+   (hover) belong to the card that hosts it, and are in elements/card.css,
+   which imports this file. It was split that way when the two hosts were an
+   Astro component and a Svelte component that were byte-identical for the 55
+   lines below and legitimately different either side of them; the two knobs
+   are still the seam:
 
      --card-atmo-ease   the app's expo easing token
      --card-atmo-glow / --card-atmo-ring   the rest/hover opacity pair
@@ -23,9 +25,17 @@
    Plain CSS rather than a component: the two hosts are Astro and Svelte, and
    the shared part is entirely style. Global rather than scoped for the same
    reason (neither scoping mechanism can reach the other's markup); the class
-   names are namespaced under card-atmo__ so that is safe. */
+   names are namespaced under bb-card-atmo__ so that is safe.
 
-.card-atmo {
+   IN THE LAYER, not unlayered as it shipped in PR3. Unlayered CSS beats every
+   layer, so `.bb-card-atmo { --card-atmo-glow: 1 }` here outranked card.css's
+   `.bb-card[data-hover]:hover .bb-card-atmo { --card-atmo-glow: 1.6 }` no
+   matter how specific the latter was, and the hover brightening silently did
+   nothing. Inside the same layer, specificity decides and it works. */
+
+@layer bb.elements {
+
+.bb-card-atmo {
     position: absolute;
     inset: 0;
     overflow: hidden;
@@ -41,7 +51,7 @@
    masked conic gradient rather than an inline SVG so we never mint per-card
    gradient ids (g1/g2 would collide across a grid). Parked half off the right
    edge the way the hero ring sits off-canvas. */
-.card-atmo__ring {
+.bb-card-atmo__ring {
     position: absolute;
     top: 42%;
     right: -22%;
@@ -63,10 +73,12 @@
     mask: radial-gradient(farthest-side, transparent calc(100% - 1.6px), #000 calc(100% - 0.4px));
 }
 
-.card-atmo__sheen {
+.bb-card-atmo__sheen {
     position: absolute;
     inset: 0;
     opacity: var(--card-atmo-glow);
     transition: opacity 360ms var(--card-atmo-ease, cubic-bezier(0.16, 1, 0.3, 1));
     background: radial-gradient(120% 80% at 100% 0%, rgba(82, 183, 136, 0.12), transparent 60%);
+}
+
 }

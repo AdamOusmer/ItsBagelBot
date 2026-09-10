@@ -1,0 +1,253 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* The card contract, plus its head. One file replacing the marketing site's
+   Card.astro scoped styles, kit's Card.svelte scoped styles, kit's
+   CardHead.svelte and the duplicate `.card-head` block console.css carried
+   next to it.
+
+   The shell is the instrument panel (QuietWork Cards, variant 3a): solid warm
+   ink, a tan hairline, and character from structure rather than glow. Two
+   shapes:
+
+     flat    one plate; the atmosphere washes the whole card
+     banded  a housing -- a darker page-ink band on top holds the visual, with
+             the atmosphere and the mono label inset in its corner, and the
+             body sits below on the card plate
+
+   The atmosphere geometry itself is card-atmosphere.css, imported here so a
+   consumer of the card contract cannot end up with a `.bb-card-atmo` element
+   and no rules for it. */
+
+@import '../card-atmosphere.css';
+
+@layer bb.elements {
+
+  .bb-card {
+    position: relative;
+    display: block;
+    overflow: hidden;
+    padding: var(--card-pad, 24px);
+    background: var(--card-bg, var(--bb-card-bg));
+    border: 1px solid var(--card-border, var(--bb-border));
+    /* RADIUS (divergence C4, decided by the user 2026-09-09): one token for
+       both surfaces. The console has been on --bb-radius-md since f453b3a2
+       standardised its corners; the marketing site was on --bb-radius-lg
+       (16px), so the site's ~35 cards lose 4px of corner and the console is
+       unchanged. Note for whoever reads the decision record next to it: the
+       decision says "8px (--bb-radius-md)", but --bb-radius-md has been 12px
+       since the shape scale landed in brand.css -- Card.svelte's own comment
+       claiming 8px was equally stale. The TOKEN is what was decided (one
+       value, console unchanged, marketing moves); 8px was a misremembered
+       reading of it. Changing the token's value is a brand.css decision, not
+       a card decision, so it is not made here. */
+    border-radius: var(--card-radius, var(--bb-radius-md));
+    text-decoration: none;
+    transition:
+      border-color 360ms var(--bb-ease-out-expo),
+      transform 360ms var(--bb-ease-out-expo);
+  }
+
+  /* --card-pad is the console's `calc(24px * var(--d))` where the density
+     scale exists and 32px on the marketing site, which sets it on :root.
+     Exposed as a property rather than hard-coded per surface because the
+     density scale only exists in the console (C3). */
+
+  .bb-card--stat {
+    padding: calc(20px * var(--d, 1));
+  }
+
+  .bb-card--sheen::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    background: radial-gradient(circle at 88% 0%, var(--bb-glow-green), transparent 50%);
+  }
+
+  /* ── banded ───────────────────────────────────────────────────── */
+
+  .bb-card--band {
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+  }
+
+  /* The band is a fixture the visual sits IN, not a picture frame: page-ink
+     background, hairline seam, atmosphere contained.
+
+     A FIXED height, never a min-height. Banded cards sit side by side in a
+     grid, and a floor lets the one card whose visual runs tall (Games' rifle
+     drawing was 131px against its neighbours' 105px; in the console it is a
+     two-line module title) push its own seam down while the others stay at
+     the floor -- two different housings in one row. Sections set
+     --card-band-h once for the whole grid, sized to their tallest visual, so
+     every seam in the row lands on the same line. Both surfaces arrived at
+     that rule independently, which is why it is written out twice in the
+     files this replaces. */
+  .bb-card__band {
+    position: relative;
+    isolation: isolate;
+    flex: none;
+    display: flex;
+    align-items: center;
+    height: var(--card-band-h, calc(96px * var(--d, 1)));
+    padding: var(--card-band-pad, calc(14px * var(--d, 1)) calc(18px * var(--d, 1)));
+    background: var(--bb-bg-0, var(--bb-black));
+    border-bottom: 1px solid rgba(201, 168, 124, 0.12);
+    overflow: hidden;
+  }
+
+  /* Fills the housing so a visual sized in percentages resolves against the
+     band, not against its own content. */
+  .bb-card__band-inner {
+    position: relative;
+    z-index: 1;
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Channel label inset in the housing corner (or the plate corner on a flat
+     card that asks for one). 12/16 is the marketing inset; the console's
+     10/14 was sized against its smaller card padding and moves 2px (C8). */
+  .bb-card__label {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    z-index: 1;
+    font-family: var(--bb-font-mono);
+    font-size: 0.6rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: rgba(201, 168, 124, 0.4);
+  }
+
+  /* THE BODY BOX EXISTS ONLY ON BANDED CARDS (C6). The marketing Card wrapped
+     every card's children in one; the console Card wrapped only banded ones,
+     because console cards put layout on the card ROOT (loyalty's .status-row
+     and the importer's .stepper are display:flex cards) and a mandatory
+     wrapper swallows their children out of the flex container. The parity test
+     forces one answer and this is it: flat cards render children directly.
+     What the wrapper gave marketing's flat cards was `position: relative;
+     z-index: 1` to sit above the atmosphere; the atmosphere's z-index:-1 below
+     does that for free.
+
+     :where() so this scores 0,1,0 and a page can restyle the body it was
+     handed. Written as `.bb-card--band > .bb-card__body` it scored 0,4,0 in
+     the console (0,4,0 with Astro's scoping on the site) and beat every page's
+     own `.tiles .card__body` (0,3,0): the stats tiles asked for a flex column
+     with a gap, silently got this `display: block` instead, and their gap
+     stopped existing, which is how the counter's rate line ended up printed
+     through the digits. BOTH surfaces shipped that bug and both fixed it the
+     same way; the two records are why nobody should "simplify" it back (C10). */
+  :where(.bb-card--band) > :where(.bb-card__body) {
+    position: relative;
+    display: block;
+    flex: 1;
+    padding: var(--card-body-pad, var(--card-pad, 24px));
+  }
+
+  /* ── atmosphere composition ───────────────────────────────────── */
+
+  /* Stacking context only where it is needed: it keeps the atmosphere's
+     z-index:-1 between this card's background and its content instead of
+     letting it escape to the page. Flat cards WITHOUT the light must not
+     create one -- an inspector's sticky panel and the overlay stack sit above
+     them. Banded cards isolate the BAND instead (above), so the housing ink
+     paints under the light while the card root stays context-free.
+
+     The marketing side ran the layer at z-index 0 and lifted the body to 1
+     instead; that shape needs the body wrapper C6 just deleted, so the
+     console's shape is the one that survives (C7). */
+  .bb-card[data-atmo]:not(.bb-card--band) {
+    isolation: isolate;
+  }
+
+  .bb-card-atmo {
+    z-index: -1;
+    border-radius: inherit;
+    --card-atmo-ease: var(--bb-ease-out-expo);
+  }
+
+  /* Even siblings flip so neighbouring cards don't share one corner glow.
+     scaleX on this layer only: body copy is a sibling, not a child. Scoped to
+     `.bb-card` -- the marketing copy also listed `.gcard` and `.clog__item`,
+     which are page class names this library must not know about; the pages
+     that still draw their own card shape keep that rule in their own file
+     until they become `.bb-card` instances. */
+  .bb-card:nth-child(even) .bb-card-atmo {
+    transform: scaleX(-1);
+  }
+
+  /* Hover gates on an ATTRIBUTE, not on a class per surface (CA1): the
+     console gated on `.hoverable`, the site on a list of its own page
+     classes, and the two could not be one selector. `data-hover` also carries
+     the border/lift rule below, so a card either reacts to a pointer or it
+     does not -- one answer per card, not two. */
+  .bb-card[data-hover]:is(:hover, :focus-visible) .bb-card-atmo {
+    --card-atmo-glow: 1.6;
+    --card-atmo-ring: 0.24;
+  }
+
+  /* Inside the housing the arc re-parks to band scale: centred on the band's
+     midline, smaller, a touch brighter than the card-scale rest. */
+  .bb-card__band .bb-card-atmo__ring {
+    top: 50%;
+    right: -16%;
+    width: 62%;
+    --card-atmo-ring: 0.18;
+  }
+
+  /* ── hover ────────────────────────────────────────────────────── */
+
+  /* Opt-in (C2): marketing cards are links and brightened unconditionally,
+     console cards are dense non-interactive panels that must not react to a
+     passing cursor. Media-gated so a touch device does not latch the lift on
+     tap and keep it. */
+  @media (hover: hover) and (pointer: fine) {
+    .bb-card[data-hover]:hover {
+      border-color: rgba(201, 168, 124, 0.38);
+      transform: translateY(-3px);
+    }
+  }
+
+  /* ── head ─────────────────────────────────────────────────────── */
+
+  .bb-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .bb-card-head__title {
+    font-family: var(--bb-font-display);
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: -0.01em;
+    color: var(--bb-white);
+    margin: 0;
+  }
+
+  /* The quiet "see all" link in the head's action slot. It was a bare `.more`
+     reached through a :global() escape hatch from the component AND repeated
+     as a global rule in console.css; a real contract class means the action
+     slot can hold anything and only this one is styled. */
+  .bb-card-head__more {
+    font-family: var(--bb-font-body);
+    font-weight: 600;
+    font-size: 12.5px;
+    color: var(--bb-tan);
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  .bb-card-head__more:hover {
+    color: var(--bb-tan-pale);
+  }
+
+}

@@ -196,7 +196,7 @@
 
   {#if groups.length === 0}
     <EmptyState title={t('modules.noMatch')} body={t('modules.noMatchBody')}>
-      <button type="button" class="btn" onclick={clearSearch}>{t('modules.searchClear')}</button>
+      <button type="button" class="bb-btn bb-btn--ghost" onclick={clearSearch}>{t('modules.searchClear')}</button>
     </EmptyState>
   {:else}
     <div class="index">

@@ -5,7 +5,7 @@
   // the one verb a sent message still has (retract). No EditorFooter -- there is
   // nothing to save, because the notifications service has no update verb.
   import Scroller from '@bagel/kit/components/Scroller.svelte';
-  import Button from '@bagel/kit/components/Button.svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { NotificationWire } from '$lib/server/services';
   import StatePill from '../StatePill.svelte';

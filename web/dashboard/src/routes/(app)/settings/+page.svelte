@@ -790,8 +790,8 @@
   .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   /* Standalone actions get a full 44px target; the dense inline "sm" buttons stay
      compact but keep a 36px target (well above the 24px AA floor) and 8px+ gaps. */
-  :global(.settings-section .btn) { min-height: 44px; }
-  :global(.settings-section .btn.sm) { min-height: 36px; padding: 8px 14px; }
+  :global(.settings-section .bb-btn) { min-height: 44px; }
+  :global(.settings-section .bb-btn--sm) { min-height: 36px; padding: 8px 14px; }
 
   /* --- notifications section --- */
   .notif-list { display: flex; flex-direction: column; gap: 10px; list-style: none; margin: 0; padding: 0; }
@@ -820,11 +820,11 @@
 
   @media (max-width: 760px) {
     .row, .identity { flex-direction: column; align-items: stretch; }
-    .sec-head :global(.btn) { width: 100%; justify-content: center; }
+    .sec-head :global(.bb-btn) { width: 100%; justify-content: center; }
     /* A phone has no room for three grid tracks; every part of a row stacks
        and the link wraps instead of ellipsing. */
     .grant { grid-template-columns: minmax(0, 1fr); }
-    .grant .actions :global(.btn) { flex: 1; justify-content: center; }
+    .grant .actions :global(.bb-btn) { flex: 1; justify-content: center; }
     .grant-link { white-space: normal; word-break: break-all; }
     /* Level pill and Read button share the first line; the message gets the
        full width rather than a column three words wide. */
