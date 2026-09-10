@@ -48,7 +48,7 @@
     "./validation": "./lib/validation.ts",
     "./i18n": "./lib/i18n/messages.ts",
     "./styles/tokens.css": "./styles/tokens.css",
-    "./styles/app.css": "./styles/app.css",
+    "./styles/console.css": "./styles/console.css",
     "./components/*": "./components/*",
     "./svelte-config": "./svelte-config.js",
     "./importer/fossabot": "./lib/importer/fossabot/index.ts",

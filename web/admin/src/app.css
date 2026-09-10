@@ -2,10 +2,10 @@
    Proprietary. No license granted. See LICENSE.md. */
 
 @import '@bagel/kit/styles/tokens.css';
-@import '@bagel/kit/styles/app.css';
+@import '@bagel/kit/styles/console.css';
 
 /* The console's one bare text/number/date field.
-   Not in shared/styles/app.css: the dashboard dresses its inputs through the
+   Not in @bagel/kit/styles/console.css: the dashboard dresses its inputs through the
    shared Field + `.search` components and has no bare-input surface, while the
    admin inspectors (staff, counters, lanes, notifications, secrets) all need a
    plain box inside a Field. It was a per-component copy in StaffEditor first;

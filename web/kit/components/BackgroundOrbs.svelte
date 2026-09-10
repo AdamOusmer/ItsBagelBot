@@ -17,20 +17,22 @@
   // they take part in no layout and swallow no clicks.
 </script>
 
-<div class="bg-orb"></div>
-<div class="bg-orb two"></div>
+<div class="bb-orb bb-orb--fixed bb-orb--wash-green bg-orb"></div>
+<div class="bb-orb bb-orb--fixed bb-orb--wash-tan bg-orb two"></div>
 
 <style>
+  /* Shape, blur and the two wash gradients are @bagel/ui/styles/orbs.css
+     (.bb-orb--wash-green / --wash-tan); the gradient literals it used to
+     write out, rgba(45,106,79,0.55) and rgba(201,168,124,0.28), are
+     --bb-green-rgb and --bb-tan-rgb. What is left here is placement, which
+     is the shell's: green low on the left, tan high on the right. */
   .bg-orb {
-    position: fixed; pointer-events: none; z-index: 0;
-    top: auto; bottom: -30%; left: -10%; width: min(900px, 90vw); aspect-ratio: 1.6; border-radius: 50%;
-    filter: blur(110px); opacity: 0.16;
-    background: radial-gradient(ellipse at 40% 60%, rgba(45,106,79,0.55), transparent 65%);
-    animation: none;
+    z-index: 0;
+    top: auto; bottom: -30%; left: -10%; width: min(900px, 90vw); aspect-ratio: 1.6;
+    --bb-orb-blur: 110px;
   }
   .bg-orb.two {
     top: -25%; bottom: auto; left: auto; right: -8%; width: min(640px, 70vw);
-    background: radial-gradient(circle at 50% 50%, rgba(201,168,124,0.28), transparent 60%);
-    opacity: 0.1;
+    --bb-orb-opacity: 0.1;
   }
 </style>

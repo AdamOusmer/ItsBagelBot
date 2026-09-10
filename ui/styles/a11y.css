@@ -1,0 +1,105 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* The three globals that have to be true on every surface: motion can be
+ * refused, keyboard focus is always visible, and a scroll region wears the
+ * brand's bar rather than the platform's.
+ *
+ * All three existed on some surfaces and not others. The reduced-motion kill
+ * switch was docs-only, so a marketing or console animation nobody had
+ * remembered to gate simply ran. The focus ring existed twice with two
+ * different colours and offsets and did not exist on marketing at all. The
+ * scrollbar existed twice, once as `*` in docs and once as a literal in the
+ * console's Scroller component.
+ */
+
+@layer bb.base {
+    /* ── Reduced motion ─────────────────────────────────────────────
+       The floor, not the whole story: components that need a specific
+       resting frame (the tag sweep, the scroll reveal) still declare their
+       own reduced-motion rule, because "run for 0.01ms" lands an animation
+       on its last keyframe and a transition on its start value, which is
+       not always the frame a human should be left looking at.
+
+       This is the ONE rule in @bagel/ui that uses !important, and it has to:
+       an author animation can be declared anywhere, including unlayered in
+       an app or inline on an element, and a layered rule loses to all of
+       those. `!important` in the weakest layer is the only declaration that
+       outranks every normal one regardless of where it was written. Nothing
+       else here needs that, and nothing else here gets it.
+
+       0.01ms rather than 0: a zero-duration animation is never started by
+       some engines, so `animationend` never fires and any JS waiting on it
+       hangs. Iteration count 1 stops infinite loops from spinning at 0.01ms
+       forever. */
+    @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+        }
+    }
+
+    /* ── Keyboard focus ─────────────────────────────────────────────
+       Every interactive element gets a visible ring unless a component
+       deliberately overrides it. :focus-visible only, so programmatic focus
+       (the route-change focus on an h1) is silent.
+
+       Two rules became one. The console used --bb-focus at offset 3px; docs
+       used --bb-tan at offset 2px plus `border-radius: 4px`, which is not a
+       focus property at all: it reshaped the ELEMENT for as long as it held
+       focus, so a square control rounded its corners when tabbed to. That
+       part is dropped rather than moved. --bb-focus wins over --bb-tan
+       because it is the token that names the role; it is a lighter tan
+       (#e0c49a vs #c9a87c) and therefore the more visible of the two on this
+       dark canvas. Docs keeps its light-theme outline-color override, which
+       is a theme concern rather than a focus concern. */
+    :focus-visible {
+        outline: 2px solid var(--bb-focus);
+        outline-offset: 3px;
+    }
+
+    /* ── Scroll regions ─────────────────────────────────────────────
+       Opt-in by class, plus the document scroller. Not `*`: the marketing
+       site deliberately hides its page scrollbar, and a rule that styled
+       every scroller everywhere would have to be fought off rather than
+       simply not asked for. A surface that wants the page bar hidden
+       declares that on html itself, unlayered, and wins.
+
+       scrollbar-width and scrollbar-color INHERIT, so putting them on html
+       reaches every nested scroller on that surface without a `*` selector;
+       that is how docs keeps thin bars on its sidebars after losing its own
+       `*` rule. The ::-webkit-scrollbar pseudo-elements do not inherit, so
+       they stay scoped to the two selectors that ask for them, and act only
+       as the fallback for an engine with no scrollbar-color support. */
+    .bb-scroll,
+    html {
+        scrollbar-width: thin;
+        scrollbar-color: var(--bb-scrollbar-thumb, var(--bb-border-strong)) transparent;
+    }
+
+    .bb-scroll::-webkit-scrollbar,
+    html::-webkit-scrollbar {
+        width: var(--bb-scrollbar-size, 10px);
+        height: var(--bb-scrollbar-size, 10px);
+    }
+
+    .bb-scroll::-webkit-scrollbar-thumb,
+    html::-webkit-scrollbar-thumb {
+        background: var(--bb-scrollbar-thumb, var(--bb-border-strong));
+        border-radius: var(--bb-radius-pill);
+        /* Transparent border + padding-box clip is what insets the thumb
+           inside the track without a second element to inset it with. */
+        border: 2px solid transparent;
+        background-clip: padding-box;
+    }
+
+    .bb-scroll::-webkit-scrollbar-thumb:hover,
+    html::-webkit-scrollbar-thumb:hover {
+        background: var(--bb-tan);
+        background-clip: padding-box;
+        border: 2px solid transparent;
+    }
+}

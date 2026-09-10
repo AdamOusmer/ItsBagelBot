@@ -7,9 +7,9 @@
 </script>
 
 <div class="aurora" aria-hidden="true">
-  <span class="orb o1"></span>
-  <span class="orb o2"></span>
-  <span class="orb o3"></span>
+  <span class="bb-orb bb-orb--aurora-green bb-orb--drift-1 orb o1"></span>
+  <span class="bb-orb bb-orb--aurora-tan bb-orb--drift-2 orb o2"></span>
+  <span class="bb-orb bb-orb--aurora-green-soft bb-orb--drift-3 orb o3"></span>
 </div>
 
 <style>
@@ -21,44 +21,34 @@
     pointer-events: none;
     background: var(--bb-black, #0a0a0a);
   }
+  /* Shape, blur, the three wash gradients and the three drift loops are
+     @bagel/ui/styles/orbs.css; the rgba literals this file wrote out are
+     --bb-green-glow-rgb, --bb-green-rgb and --bb-tan-rgb, and the drift
+     periods (24s / 30s / 26s) are its keyframes. Placement, size and the
+     per-orb opacity stay here: this backdrop is composed for the login
+     screen and nothing else renders the three together. */
   .orb {
-    position: absolute;
-    border-radius: 50%;
-    filter: blur(56px);
-    will-change: transform;
+    --bb-orb-blur: 56px;
   }
   .o1 {
     top: -10%;
     left: 6%;
     width: min(560px, 60vw);
     aspect-ratio: 1;
-    background: radial-gradient(circle at 38% 38%, rgba(82, 183, 136, 0.45), rgba(45, 106, 79, 0.2) 46%, transparent 70%);
-    opacity: 0.55;
-    animation: drift1 24s ease-in-out infinite;
+    --bb-orb-opacity: 0.55;
   }
   .o2 {
     bottom: -14%;
     right: 4%;
     width: min(480px, 54vw);
     aspect-ratio: 1;
-    background: radial-gradient(circle at 50% 50%, rgba(201, 168, 124, 0.36), transparent 64%);
-    opacity: 0.5;
-    animation: drift2 30s ease-in-out infinite;
+    --bb-orb-opacity: 0.5;
   }
   .o3 {
     top: 34%;
     right: 26%;
     width: min(360px, 40vw);
     aspect-ratio: 1;
-    background: radial-gradient(circle at 50% 50%, rgba(82, 183, 136, 0.28), transparent 66%);
-    opacity: 0.4;
-    animation: drift3 26s ease-in-out infinite;
-  }
-
-  @keyframes drift1 { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(4%, 5%) scale(1.08); } }
-  @keyframes drift2 { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(-5%, -3%) scale(1.1); } }
-  @keyframes drift3 { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(-6%, 7%); } }
-  @media (prefers-reduced-motion: reduce) {
-    .orb { animation: none; }
+    --bb-orb-opacity: 0.4;
   }
 </style>

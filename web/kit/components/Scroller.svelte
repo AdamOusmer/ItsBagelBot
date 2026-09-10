@@ -32,18 +32,20 @@
   );
 </script>
 
-<div class="scroller" class:fill {style} {...rest}>
+<div class="scroller bb-scroll" class:fill {style} {...rest}>
   {@render children()}
 </div>
 
 <style>
+  /* The thin tan bar itself is .bb-scroll in @bagel/ui/styles/a11y.css; the
+     literal rgba(201, 168, 124, 0.35) this file used to repeat twice IS
+     --bb-border-strong, which is what that rule defaults to. Only the 6px
+     width is this component's: a panel bar inside a card has to read as
+     narrower than the page's. */
   .scroller {
     overflow-y: auto;
     overscroll-behavior: contain;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(201, 168, 124, 0.35) transparent;
+    --bb-scrollbar-size: 6px;
   }
   .scroller.fill { flex: 1; min-height: 0; }
-  .scroller::-webkit-scrollbar { width: 6px; }
-  .scroller::-webkit-scrollbar-thumb { background: rgba(201, 168, 124, 0.35); border-radius: var(--bb-radius-pill); }
 </style>

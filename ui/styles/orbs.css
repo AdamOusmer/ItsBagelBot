@@ -1,0 +1,150 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* Ambient orbs: the blurred brand glows that sit behind a hero, a docs page
+ * and the console shell.
+ *
+ * Four copies existed, and they had already drifted:
+ *   web/marketing  Header.astro   scoped .orb — the original, scroll-coupled
+ *   web/docs       theme.css      .bb-decoration .bb-orb — a hand copy whose
+ *                                 comment claimed it "mirrors Header.astro
+ *                                 exactly"; it had lost the scroll coupling
+ *                                 and re-typed the two glow colours
+ *   web/kit        BackgroundOrbs.svelte — the console backdrop, gradient
+ *                                 wash rather than blurred disc
+ *   web/kit        AuroraBg.svelte — the login/onboarding backdrop, three
+ *                                 washes on independent drift loops
+ *
+ * What is genuinely shared is the SHAPE: a circle, a heavy blur, an optional
+ * pulsing halo and an optional glow core, in one of two brand colours. What
+ * is not shared is where each orb sits and how big it is, so geometry stays
+ * with the component that renders it (its scoped styles are unlayered and
+ * therefore win over everything here regardless of specificity).
+ *
+ * The hero's scroll coupling stays with the hero too, but as VALUES rather
+ * than rules: Header.astro sets --bb-orb-opacity, --bb-orb-transform,
+ * --bb-orb-core-opacity and --bb-orb-core-scale from --hero-p. That is the
+ * difference this file is built around — docs copied the hero's rules and
+ * silently dropped the parts that made them move, which is exactly what a
+ * shared contract plus four custom properties prevents.
+ */
+
+@layer bb.tokens {
+    :root {
+        /* The mint the hero orb's core glow uses. Lighter than
+           --bb-green-glow; it is the innermost 24% of the radial and has to
+           read as a light source rather than as the orb's own colour.
+           Docs declared this triplet locally (--bb-mint-glow-rgb, "hero
+           orb-1 core glow") while marketing wrote rgba(167, 243, 208, 0.85)
+           out by hand; same colour, two homes, neither checked. */
+        --bb-mint-glow-rgb: 167, 243, 208;
+    }
+}
+
+@layer bb.elements {
+    .bb-orb {
+        position: absolute;
+        border-radius: 50%;
+        filter: blur(var(--bb-orb-blur, 80px));
+        opacity: var(--bb-orb-opacity, 0.16);
+        transform: var(--bb-orb-transform, none);
+        transform-origin: center;
+        will-change: var(--bb-orb-will-change, opacity, transform);
+    }
+
+    /* Backdrop orbs are page furniture: fixed, and never in the way of a
+       click. Hero orbs are not, because they scroll out with the hero. */
+    .bb-orb--fixed { position: fixed; pointer-events: none; }
+
+    /* Halo: the slow breathe on a copy of the orb, plus a bright core.
+       --bb-orb-play-state is the hook the marketing hero uses to freeze the
+       loop once the hero has fully scrolled away, so a permanently offscreen
+       animation stops costing frames. */
+    .bb-orb--halo::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        background: inherit;
+        animation: bb-orb-pulse 5s ease-in-out infinite;
+        animation-delay: var(--bb-orb-pulse-delay, 0s);
+        animation-play-state: var(--bb-orb-play-state, running);
+    }
+
+    .bb-orb--halo::after {
+        content: "";
+        position: absolute;
+        inset: 8%;
+        border-radius: inherit;
+        background: radial-gradient(
+            circle,
+            var(--bb-orb-core) 0 24%,
+            var(--bb-orb-soft) 48%,
+            transparent 72%
+        );
+        opacity: var(--bb-orb-core-opacity, 0.45);
+        transform: scale(var(--bb-orb-core-scale, 0.42));
+        transform-origin: center;
+        will-change: opacity, transform;
+    }
+
+    .bb-orb--green {
+        background: var(--bb-green);
+        --bb-orb-core: rgba(var(--bb-mint-glow-rgb), 0.85);
+        --bb-orb-soft: rgba(var(--bb-green-glow-rgb), 0.34);
+    }
+
+    .bb-orb--tan {
+        background: var(--bb-tan);
+        --bb-orb-core: rgba(var(--bb-tan-pale-rgb), 0.78);
+        --bb-orb-soft: rgba(var(--bb-tan-rgb), 0.32);
+    }
+
+    @keyframes bb-orb-pulse {
+        0%, 100% { opacity: 0.55; transform: scale(1); }
+        50%      { opacity: 1;    transform: scale(1.1); }
+    }
+
+    /* ── Washes ──────────────────────────────────────────────────────
+       No hard edge: the colour is in a radial gradient that fades to
+       transparent well inside the box, so the blur has nothing to smear
+       into a visible disc. This is what the console backdrops want, and
+       why they are a variant rather than a differently sized .bb-orb. */
+    .bb-orb--wash-green {
+        background: radial-gradient(ellipse at 40% 60%, rgba(var(--bb-green-rgb), 0.55), transparent 65%);
+    }
+
+    .bb-orb--wash-tan {
+        background: radial-gradient(circle at 50% 50%, rgba(var(--bb-tan-rgb), 0.28), transparent 60%);
+    }
+
+    .bb-orb--aurora-green {
+        background: radial-gradient(circle at 38% 38%, rgba(var(--bb-green-glow-rgb), 0.45), rgba(var(--bb-green-rgb), 0.2) 46%, transparent 70%);
+    }
+
+    .bb-orb--aurora-green-soft {
+        background: radial-gradient(circle at 50% 50%, rgba(var(--bb-green-glow-rgb), 0.28), transparent 66%);
+    }
+
+    .bb-orb--aurora-tan {
+        background: radial-gradient(circle at 50% 50%, rgba(var(--bb-tan-rgb), 0.36), transparent 64%);
+    }
+
+    /* ── Drifts ──────────────────────────────────────────────────────
+       Three independent loops with coprime-ish periods (24s / 30s / 26s) so
+       the three orbs never resynchronise into a single visible pulse. Only
+       transform moves: translating a blurred layer is a compositor job,
+       animating the blur radius is a full shader pass per frame. */
+    .bb-orb--drift-1 { animation: bb-orb-drift-1 24s ease-in-out infinite; }
+    .bb-orb--drift-2 { animation: bb-orb-drift-2 30s ease-in-out infinite; }
+    .bb-orb--drift-3 { animation: bb-orb-drift-3 26s ease-in-out infinite; }
+
+    @keyframes bb-orb-drift-1 { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(4%, 5%) scale(1.08); } }
+    @keyframes bb-orb-drift-2 { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(-5%, -3%) scale(1.1); } }
+    @keyframes bb-orb-drift-3 { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(-6%, 7%); } }
+
+    @media (prefers-reduced-motion: reduce) {
+        .bb-orb,
+        .bb-orb--halo::before { animation: none; }
+    }
+}

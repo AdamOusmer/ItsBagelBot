@@ -28,8 +28,16 @@
    in src/components/Head.astro that existed only to warm those hosts, and both
    Google origins in the CSP in public/_headers, which is now font-src 'self'
    with no third-party host at all. */
+@import "@bagel/ui/styles/layers.css";
 @import "@bagel/ui/styles/brand.css";
 @import "@bagel/ui/styles/fonts.css";
+/* Only the two contracts this site actually renders: it draws the ambient
+   orbs and it needs the a11y floor, but nothing here is a .bb-tag, a .bb-chip
+   or a [data-reveal] — Starlight owns the prose chrome and the page
+   transitions. Adding an import for a contract with no markup behind it
+   would put ~1.6 KB gzip on every docs page to style nothing. */
+@import "@bagel/ui/styles/orbs.css";
+@import "@bagel/ui/styles/a11y.css";
 
 /* ════════════════════════════════════════════════════════════════════
    Design tokens — every color the theme uses lives here.
@@ -105,19 +113,15 @@
     --bb-gray-5-light: #d8d0c1;
     --bb-gray-6-light: #ede6d7;
 
-    /* ── Semantic ───────────────────────────────────────────────── */
-    --bb-danger: #e07a7a;
 
     /* ── RGB-component tokens for alpha math ──────────────────────
        Only the docs' own colours are here. The brand roles (tan, green,
        black, card-bg, white, muted) ship their triplets from brand.css,
        because a triplet re-typed from a hex is a copy nothing checks. */
     --bb-tan-deep-rgb: 138, 106, 62;
-    --bb-mint-glow-rgb: 167, 243, 208; /* hero orb-1 core glow */
     --bb-ink-rgb: 20, 17, 12;
     --bb-white-pure-rgb: 255, 255, 255;
     --bb-shadow-rgb: 0, 0, 0;
-    --bb-danger-rgb: 220, 90, 90;
     --bb-paper-warm-rgb: 250, 245, 233;
     --bb-paper-sidebar-rgb: 243, 236, 219;
     --bb-mermaid-panel-rgb: 13, 12, 10;
@@ -304,48 +308,19 @@ samp {
     z-index: 1;
 }
 
-/* ── Orbs — mirrors web/marketing/src/components/home/Header.astro exactly ──── */
-.bb-decoration .bb-orb {
-    position: absolute;
-    border-radius: 50%;
-    filter: blur(80px);
-    will-change: transform, opacity;
-}
-
-.bb-decoration .bb-orb::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    background: inherit;
-    animation: bb-orb-pulse 5s ease-in-out infinite;
-}
-
-.bb-decoration .bb-orb::after {
-    content: "";
-    position: absolute;
-    inset: 8%;
-    border-radius: inherit;
-    background: radial-gradient(
-        circle,
-        var(--orb-glow-core) 0 24%,
-        var(--orb-glow-soft) 48%,
-        transparent 72%
-    );
-    opacity: 0.45;
-    transform: scale(0.42);
-    transform-origin: center;
-}
-
+/* ── Orbs — geometry only ────────────────────────────────────────────
+   The circle, the blur, the pulsing halo and the two glow colours are
+   @bagel/ui/styles/orbs.css now. This block used to be a hand copy of the
+   marketing hero's rules, labelled "mirrors Header.astro exactly", and it
+   was not: it had already lost the hero's scroll coupling and re-typed both
+   glow colours as literals. Only the placement is genuinely docs-specific,
+   because the hero puts green top-RIGHT over its ring and docs puts it
+   top-left, on the logical axis so RTL locales mirror it. */
 .bb-decoration .bb-orb-1 {
     width: 500px;
     height: 500px;
     top: -100px;
     inset-inline-start: -100px;
-    background: var(--bb-green);
-    --orb-glow-core: rgba(var(--bb-mint-glow-rgb), 0.85);
-    --orb-glow-soft: rgba(var(--bb-green-glow-rgb), 0.34);
-    opacity: 0.16;
 }
 
 .bb-decoration .bb-orb-2 {
@@ -353,25 +328,8 @@ samp {
     height: 400px;
     bottom: -80px;
     inset-inline-end: -80px;
-    background: var(--bb-tan);
-    --orb-glow-core: rgba(var(--bb-tan-pale-rgb), 0.78);
-    --orb-glow-soft: rgba(var(--bb-tan-rgb), 0.32);
-    opacity: 0.14;
-}
-
-.bb-decoration .bb-orb-2::before {
-    animation-delay: 400ms;
-}
-
-@keyframes bb-orb-pulse {
-    0%, 100% {
-        opacity: 0.55;
-        transform: scale(1);
-    }
-    50% {
-        opacity: 1;
-        transform: scale(1.1);
-    }
+    --bb-orb-opacity: 0.14;
+    --bb-orb-pulse-delay: 400ms;
 }
 
 /* Light theme — softer & a touch warmer */
@@ -965,42 +923,19 @@ starlight-toc nav a[aria-current="true"] {
     color: var(--bb-ink);
 }
 
-/* Focus rings — accessible & on-brand */
-:focus-visible {
-    outline: 2px solid var(--bb-tan);
-    outline-offset: 2px;
-    border-radius: 4px;
-}
-
+/* Focus rings — the ring itself is @bagel/ui/styles/a11y.css (2px
+   --bb-focus, 3px offset). Only the light-theme colour is docs', because
+   only docs has a light theme. */
 :root[data-theme="light"] :focus-visible {
     outline-color: var(--bb-tan-deep);
 }
 
-/* Scrollbar — subtle */
-@supports (scrollbar-width: thin) {
-    * {
-        scrollbar-width: thin;
-        scrollbar-color: var(--bb-border-strong) transparent;
-    }
-}
-
-*::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
-}
-
-*::-webkit-scrollbar-thumb {
-    background: var(--bb-border-strong);
-    border-radius: 999px;
-    border: 2px solid transparent;
-    background-clip: padding-box;
-}
-
-*::-webkit-scrollbar-thumb:hover {
-    background: var(--bb-tan);
-    background-clip: padding-box;
-    border: 2px solid transparent;
-}
+/* Scrollbar — @bagel/ui/styles/a11y.css. It styles `html` and `.bb-scroll`
+   rather than the `*` this block used, and scrollbar-width/scrollbar-color
+   inherit, so every nested scroller on this site still gets the thin tan bar
+   from the html rule. What nested scrollers lose is the ::-webkit-scrollbar
+   fallback, which only matters on an engine that supports the pseudo-element
+   but not the standard properties. */
 
 /* ════════════════════════════════════════════════════════════════════
    Light-mode hover inversion
@@ -1499,15 +1434,6 @@ starlight-toc nav a[aria-current="true"] {
     from { opacity: 0; }
 }
 
-/* ────────────────────────────────────────────────────────────────────
-   Reduced motion
-   ──────────────────────────────────────────────────────────────────── */
-@media (prefers-reduced-motion: reduce) {
-    *,
-    *::before,
-    *::after {
-        animation-duration: 0.01ms !important;
-        animation-iteration-count: 1 !important;
-        transition-duration: 0.01ms !important;
-    }
-}
+/* Reduced motion: the global kill switch moved to
+   @bagel/ui/styles/a11y.css, where all three surfaces get it instead of
+   only this one. */
