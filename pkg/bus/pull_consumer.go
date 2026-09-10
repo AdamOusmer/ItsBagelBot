@@ -92,6 +92,9 @@ const (
 	// leader election and a client reconnect — both error for a few seconds — and
 	// stay far under the time anyone would take to notice the silence by hand.
 	laneUnhealthyAfter = 30 * time.Second
+	// fetchErrorLogEvery is how often a persisting fetch error repeats in the
+	// log (see shouldLogFetchError).
+	fetchErrorLogEvery = time.Minute
 
 	pullProvisionTimeout = 5 * time.Second
 )
@@ -354,6 +357,11 @@ type pullSubscriber struct {
 	// consumerMu guards consumer across the fetch loops and serializes their
 	// rebuild attempts.
 	consumerMu sync.Mutex
+
+	// logMu guards the fetch-error log gate below (see shouldLogFetchError).
+	logMu        sync.Mutex
+	lastFetchErr string
+	lastFetchLog time.Time
 
 	output  chan *Message
 	closeCh chan struct{}
@@ -739,7 +747,8 @@ func (s *pullSubscriber) noteFetchError(err error) bool {
 		return false
 	}
 	s.errSince.CompareAndSwap(0, time.Now().UnixNano())
-	if count := s.fetchErrs.Add(1); count == 1 || count%1_000 == 0 {
+	count := s.fetchErrs.Add(1)
+	if s.shouldLogFetchError(err) {
 		s.log.Warn("lane fetch failed",
 			zap.String("stream", s.stream),
 			zap.String("subject", s.subject),
@@ -756,6 +765,25 @@ func (s *pullSubscriber) noteFetchError(err error) bool {
 // noteFetchProgress clears the error clock the moment the loop reads a message
 // again. It is a relaxed load per delivery on the hot path and a store only on
 // the edge, so a healthy lane pays a comparison and nothing else.
+// shouldLogFetchError gates the fetch-error line by error text and time, not
+// by count. The count gate it replaces (error #1, then every 1000th) hid the
+// 2026-09-10 outage: each lane logged exactly one "consumer deleted", rebuilt,
+// then failed every fetch for 15 minutes with zero further lines while
+// readyz sat at 503. With maxWait backoff between attempts, error #1000 was
+// hours away. Now a new error text logs at once and a persisting one logs once
+// per fetchErrorLogEvery, so a stuck lane is visible within a minute and a
+// storm still costs one line a minute.
+func (s *pullSubscriber) shouldLogFetchError(err error) bool {
+	s.logMu.Lock()
+	defer s.logMu.Unlock()
+	now, text := time.Now(), err.Error()
+	if text == s.lastFetchErr && now.Sub(s.lastFetchLog) < fetchErrorLogEvery {
+		return false
+	}
+	s.lastFetchErr, s.lastFetchLog = text, now
+	return true
+}
+
 func (s *pullSubscriber) noteFetchProgress() {
 	if s.errSince.Load() != 0 {
 		s.errSince.Store(0)
