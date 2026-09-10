@@ -8,7 +8,7 @@
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { toast } from '../lib/toast';
-  import Switch from './Switch.svelte';
+  import Switch from '@bagel/ui/svelte/Switch.svelte';
 
   let {
     action,

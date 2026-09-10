@@ -1,0 +1,49 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* Empty state: the "nothing here yet" panel a list renders instead of rows.
+
+   Pure layout and type; no behaviour, no state. The two numbers that a
+   surface might want to change are exposed rather than hard-coded, because
+   the guide screenshots (PR12) draw this inside a much smaller frame than a
+   console page does:
+
+     --empty-pad       the block's padding (36px 20px)
+     --empty-measure   the body copy's measure (42ch)
+
+   42ch is a measure, not a width: the body is centred prose and 42 characters
+   is the low end of the readable range, chosen over a px width so it tracks
+   the font. */
+
+@layer bb.elements {
+    .bb-empty {
+        padding: var(--empty-pad, 36px 20px);
+        text-align: center;
+        color: var(--bb-muted);
+        font-family: var(--bb-font-body);
+    }
+
+    .bb-empty__title {
+        font-family: var(--bb-font-display);
+        font-weight: 700;
+        font-size: 17px;
+        color: var(--bb-white);
+        margin: 0 0 6px;
+        letter-spacing: -0.01em;
+    }
+
+    .bb-empty__body {
+        font-size: 13px;
+        line-height: 1.5;
+        margin: 0 auto;
+        max-width: var(--empty-measure, 42ch);
+    }
+
+    .bb-empty__cta {
+        margin-top: 16px;
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+}

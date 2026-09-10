@@ -6,7 +6,7 @@
 
 /* The console's one bare text/number/date field.
    Not in @bagel/kit/styles/console.css: the dashboard dresses its inputs through the
-   shared Field + `.search` components and has no bare-input surface, while the
+   shared Field + `.bb-input` components and has no bare-input surface, while the
    admin inspectors (staff, counters, lanes, notifications, secrets) all need a
    plain box inside a Field. It was a per-component copy in StaffEditor first;
    four more copies were about to be typed, and copies of an input rule are how

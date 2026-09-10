@@ -296,7 +296,7 @@
       <div class="toolbar-actions">
         <div class="toolbar-search">
           <label for="quotes-search" class="sr-only">{t('quotes.searchLabel')}</label>
-          <div class="search">
+          <div class="bb-input">
             <Icon name="search" size={15} />
             <input
               id="quotes-search"
@@ -330,7 +330,7 @@
         <form method="POST" action="?/perm" use:enhance={addPermSubmit} bind:this={addPermForm}>
           <input type="hidden" name="kind" value="add" />
           <Field label={t('quotes.permLabel')}>
-            <select class="search" name="perm" value={addPerm} onchange={onAddPermChange}>
+            <select class="bb-input" name="perm" value={addPerm} onchange={onAddPermChange}>
               {#each permOptions as option (option.value)}
                 <option value={option.value}>{option.label}</option>
               {/each}
@@ -341,7 +341,7 @@
         <form method="POST" action="?/perm" use:enhance={editPermSubmit} bind:this={editPermForm}>
           <input type="hidden" name="kind" value="edit" />
           <Field label={t('quotes.permEditLabel')}>
-            <select class="search" name="perm" value={editPerm} onchange={onEditPermChange}>
+            <select class="bb-input" name="perm" value={editPerm} onchange={onEditPermChange}>
               {#each permOptions as option (option.value)}
                 <option value={option.value}>{option.label}</option>
               {/each}
@@ -516,7 +516,7 @@
   .cmd-block { margin-top: 26px; }
 
   .toolbar-search { width: 220px; }
-  .toolbar-search .search { width: 100%; }
+  .toolbar-search .bb-input { width: 100%; }
   .search-clear {
     display: inline-flex;
     align-items: center;

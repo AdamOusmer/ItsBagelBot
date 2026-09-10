@@ -19,13 +19,13 @@
   import PageHead from '@bagel/kit/components/PageHead.svelte';
   import PageToolbar from '@bagel/kit/components/PageToolbar.svelte';
   import DeckList from '@bagel/kit/components/DeckList.svelte';
-  import StatTile from '@bagel/kit/components/StatTile.svelte';
-  import Switch from '@bagel/kit/components/Switch.svelte';
+  import StatTile from '@bagel/ui/svelte/StatTile.svelte';
+  import Switch from '@bagel/ui/svelte/Switch.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import AlertBanner from '@bagel/kit/components/AlertBanner.svelte';
-  import EmptyState from '@bagel/kit/components/EmptyState.svelte';
+  import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import ConfirmDialog from '@bagel/kit/components/ConfirmDialog.svelte';
-  import SkeletonStack from '@bagel/kit/components/SkeletonStack.svelte';
+  import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
   import { livePoll } from '@bagel/kit/live-poll';
   import { toast } from '@bagel/kit/toast';
   import { actionPayload, adminToastFailure } from '@bagel/kit';

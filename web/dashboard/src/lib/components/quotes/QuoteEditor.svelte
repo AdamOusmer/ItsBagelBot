@@ -40,7 +40,7 @@
 
   <Field label={t('quotes.fieldQuote')}>
     <textarea
-      class="search quote-area"
+      class="bb-input quote-area"
       name="text"
       placeholder={t('quotes.addPlaceholder')}
       maxlength={MAX}
@@ -52,7 +52,7 @@
   </Field>
 
   <Field label={t('quotes.fieldDay')}>
-    <input class="search date-input" type="date" name="quote_date" required bind:value={draft.quoteDate} />
+    <input class="bb-input date-input" type="date" name="quote_date" required bind:value={draft.quoteDate} />
     <small class="hint">{t('quotes.fieldDayHint')}</small>
   </Field>
 

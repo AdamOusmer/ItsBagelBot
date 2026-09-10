@@ -34,7 +34,7 @@
   import { deserialize } from '$app/forms';
   import {
     AlertBanner,
-    Badge,
+    PermBadge,
     Bolota,
     Button,
     ButtonLink,
@@ -801,7 +801,7 @@
                 <div class="row-body">
                   <span class="row-response">{c.responses?.join(' / ')}</span>
                   <span class="chips">
-                    {#if c.permission && c.permission !== 'everyone'}<Badge perm={c.permission} />{/if}
+                    {#if c.permission && c.permission !== 'everyone'}<PermBadge perm={c.permission} />{/if}
                     {#if c.cooldown_seconds}<span class="chip">{t('import.cooldownChip', { n: c.cooldown_seconds })}</span>{/if}
                     {#each c.aliases ?? [] as a (a)}<span class="alias-chip">!{a}</span>{/each}
                     {#each diags.filter((d) => d.severity === 'warn') as d (d.code + d.message)}
@@ -1232,7 +1232,13 @@
     flex: 1;
     min-width: 0;
   }
+  /* This page draws its own chip and always has; the only thing it took
+     from the deleted global .chip was the box, so the box is declared here
+     now. Without it a padded inline <span>/<code> leaves its vertical
+     padding out of the line box and the row height changes. */
   .chip {
+    display: inline-flex;
+    align-items: center;
     font-family: var(--bb-font-mono);
     font-size: 10px;
     letter-spacing: 0.08em;

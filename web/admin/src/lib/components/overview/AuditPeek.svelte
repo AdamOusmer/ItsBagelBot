@@ -5,7 +5,7 @@
   // whole panel on allows(role, 'audit.read'), matching the /audit route.
   import Card from '@bagel/ui/svelte/Card.svelte';
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
-  import EmptyState from '@bagel/kit/components/EmptyState.svelte';
+  import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import { statusTone } from '@bagel/kit/status-tone';
   import { ago } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';

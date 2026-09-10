@@ -1,0 +1,134 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* Channel-strip readout: the oversized numeral IS the tile.
+
+   StatTile.svelte was a 33-line component with a 1-line scoped stylesheet;
+   the actual contract was console.css `.stat-grid` / `.stat` / `.stat .value`
+   / `.stat .delta`, i.e. a component whose look lived in a global stylesheet
+   two packages away. Everything is here now, on the .bb-stat block.
+
+   Two things about the move are worth writing down.
+
+   1. `.stat .ico` is NOT carried over. It drew a 34px tinted icon chip above
+      the label, and the `iconTone` half of it (green / tan) was the only
+      colour choice the tile ever offered. It has zero call sites: grepped for
+      `class="ico` across web/dashboard, web/admin and web/kit and the only
+      hits are `.icon-btn`, a different class. StatTile.svelte never rendered
+      one either -- the markup went away and the rules stayed. Copying dead
+      rules into a new package is how a design library starts its life already
+      containing a legacy. If PR12's guide screens want the icon back, they
+      want it drawn on the real element with a real prop.
+
+   2. The entry stagger below is HALF of a rule. console.css staggers three
+      things off one nth-child ladder:
+        .stat-grid .stat      this element
+        .node-list .node-row  PR11
+        .feed .feed-row       PR11
+      Only the .bb-stat half moves now. Splitting a shared nth-child ladder
+      across two PRs and "tidying" the remaining selectors is exactly how the
+      delays get lost on one of the three, so the console.css copy keeps its
+      two selectors and its delays untouched until PR11 collapses all three
+      into a single .bb-stagger utility. Duplicated on purpose, for one PR,
+      with an end date. */
+
+@layer bb.elements {
+    /* --d is the console's density scale; it does not exist on marketing or
+       docs, where a stat grid renders at density 1. Defaulted rather than
+       inherited so calc() does not resolve to an invalid length there. */
+    .bb-stat-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: calc(14px * var(--d, 1));
+    }
+
+    .bb-stat {
+        padding: calc(20px * var(--d, 1)) calc(24px * var(--d, 1));
+        background: var(--bb-card-bg);
+        border: 1px solid var(--bb-border);
+        border-radius: var(--bb-radius-md);
+        position: relative;
+        transition: border-color var(--bb-dur-base) var(--bb-ease-out-expo),
+                    transform var(--bb-dur-base) var(--bb-ease-out-expo);
+    }
+
+    .bb-stat:hover {
+        border-color: rgba(var(--bb-tan-rgb), 0.38);
+        transform: translateY(-3px);
+    }
+
+    .bb-stat__head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 14px;
+    }
+
+    .bb-stat__label {
+        font-family: var(--bb-font-body);
+        font-weight: 600;
+        font-size: 12px;
+        color: var(--bb-muted);
+    }
+
+    .bb-stat__value {
+        font-family: var(--bb-font-display);
+        font-weight: 800;
+        font-size: clamp(30px, 2.6vw, 40px);
+        letter-spacing: -0.01em;
+        color: var(--bb-white);
+        margin-top: 8px;
+        line-height: 1;
+    }
+
+    .bb-stat__value small {
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--bb-muted);
+        margin-left: 6px;
+        letter-spacing: 0;
+        font-family: var(--bb-font-body);
+    }
+
+    .bb-stat__delta {
+        font-family: var(--bb-font-mono);
+        font-size: 11px;
+        color: var(--bb-green-glow);
+        margin-top: 10px;
+        letter-spacing: 0.02em;
+    }
+
+    .bb-stat__delta[data-flat] {
+        color: var(--bb-muted);
+        font-family: var(--bb-font-body);
+    }
+
+    /* The strips check in one after another. bb-rise-in is reveal.css's
+       keyframe, the same one .reveal plays; the strips run it faster (420ms,
+       not 760ms) because a grid's worth arrives at once and the slower
+       cascade is still finishing after the eye has reached the last tile. */
+    .bb-stat-grid .bb-stat {
+        animation: bb-rise-in 420ms var(--bb-ease-out-expo) both;
+    }
+
+    .bb-stat-grid .bb-stat:nth-child(1) { animation-delay: 30ms; }
+    .bb-stat-grid .bb-stat:nth-child(2) { animation-delay: 90ms; }
+    .bb-stat-grid .bb-stat:nth-child(3) { animation-delay: 150ms; }
+    .bb-stat-grid .bb-stat:nth-child(4) { animation-delay: 210ms; }
+    .bb-stat-grid .bb-stat:nth-child(n + 5) { animation-delay: 260ms; }
+
+    @media (max-width: 1100px) {
+        .bb-stat-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (max-width: 760px) {
+        .bb-stat-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+        .bb-stat { padding: 16px; }
+        .bb-stat__value { font-size: clamp(24px, 7vw, 34px); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .bb-stat-grid .bb-stat { animation: none; }
+    }
+}

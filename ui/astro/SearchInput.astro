@@ -1,0 +1,15 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+//
+// Astro twin of ../svelte/SearchInput.svelte: the frame, the glyph and the
+// input. No debounce and no clear button -- the clear button only exists when
+// there is a value to clear, and on a static render there never is, so drawing
+// it would be drawing a control that does nothing.
+const { placeholder = 'Search…', value = '', ...rest } = Astro.props;
+---
+
+<label class="bb-search bb-input">
+  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+  <input type="search" class="bb-search__input" placeholder={placeholder} value={value} {...rest} />
+</label>

@@ -15,15 +15,15 @@
   import type { SubmitFunction } from '@sveltejs/kit';
   import PageHead from '@bagel/kit/components/PageHead.svelte';
   import PageToolbar from '@bagel/kit/components/PageToolbar.svelte';
-  import SearchInput from '@bagel/kit/components/SearchInput.svelte';
-  import SegmentedControl from '@bagel/kit/components/SegmentedControl.svelte';
+  import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
+  import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
   import DeckList from '@bagel/kit/components/DeckList.svelte';
   import InspectorSurface from '@bagel/kit/components/InspectorSurface.svelte';
   import AlertBanner from '@bagel/kit/components/AlertBanner.svelte';
-  import EmptyState from '@bagel/kit/components/EmptyState.svelte';
+  import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import ConfirmDialog from '@bagel/kit/components/ConfirmDialog.svelte';
-  import SkeletonStack from '@bagel/kit/components/SkeletonStack.svelte';
-  import Skeleton from '@bagel/kit/components/Skeleton.svelte';
+  import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
+  import Skeleton from '@bagel/ui/svelte/Skeleton.svelte';
   import { createInspector } from '@bagel/kit/inspector';
   import { createDiscardGuard } from '@bagel/kit/discard-guard';
   import { livePoll } from '@bagel/kit/live-poll';
@@ -406,7 +406,7 @@
   .toolbar-search {
     width: 240px;
   }
-  .toolbar-search :global(.search) {
+  .toolbar-search :global(.bb-input) {
     width: 100%;
   }
 

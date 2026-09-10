@@ -34,7 +34,8 @@
     COOLDOWN_MAX,
     type CommandView,
     type CommandErrors,
-    type Perm
+    type Perm,
+    Chip
   } from '@bagel/kit';
   import type { SaveState } from '@bagel/kit/components/SaveStatus.svelte';
   import CommandRow from '$lib/components/commands/CommandRow.svelte';
@@ -787,13 +788,13 @@
     {#snippet lead()}
       <div class="chip-row">
         {#each filters as f}
-          <button class="chip {active === f ? 'on' : ''}" onclick={() => (active = f)}>{filterLabel(f)}</button>
+          <Chip tone="muted" on={active === f} onclick={() => (active = f)}>{filterLabel(f)}</Chip>
         {/each}
       </div>
     {/snippet}
     {#snippet trail()}
       <span class="keys" aria-hidden="true"><kbd class="hint">/</kbd> {t('commands.keysSearch')} <kbd class="hint">N</kbd> {t('commands.keysNew')}</span>
-      <label class="search toolbar-search">
+      <label class="bb-input toolbar-search">
         <Icon name="search" size={15} />
         <input type="text" placeholder={t('commands.searchPlaceholder')} bind:value={search} bind:this={searchInput} />
       </label>

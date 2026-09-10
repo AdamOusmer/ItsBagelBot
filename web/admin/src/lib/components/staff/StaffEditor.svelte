@@ -12,9 +12,9 @@
   import type { SubmitFunction } from '@sveltejs/kit';
   import { enhance } from '$app/forms';
   import Bolota from '@bagel/kit/components/Bolota.svelte';
-  import RadioGroup from '@bagel/kit/components/RadioGroup.svelte';
-  import Switch from '@bagel/kit/components/Switch.svelte';
-  import Field from '@bagel/kit/components/Field.svelte';
+  import RadioGroup from '@bagel/ui/svelte/RadioGroup.svelte';
+  import Switch from '@bagel/ui/svelte/Switch.svelte';
+  import Field from '@bagel/ui/svelte/Field.svelte';
   import Scroller from '@bagel/kit/components/Scroller.svelte';
   import EditorFooter from '@bagel/kit/components/EditorFooter.svelte';
   import type { InspectorStatus } from '@bagel/kit';

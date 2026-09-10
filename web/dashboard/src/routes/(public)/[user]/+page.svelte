@@ -636,7 +636,13 @@
   .response { overflow-wrap: anywhere; }
   .perm-cell { font-family: var(--bb-font-mono); font-size: 11px; letter-spacing: 0.06em; color: var(--bb-muted); }
   .chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--bb-space-3); }
+  /* This page draws its own chip and always has; the only thing it took
+     from the deleted global .chip was the box, so the box is declared here
+     now. Without it a padded inline <span>/<code> leaves its vertical
+     padding out of the line box and the row height changes. */
   .chip {
+    display: inline-flex;
+    align-items: center;
     font-family: var(--bb-font-mono);
     font-size: 11.5px;
     color: var(--bb-tan);

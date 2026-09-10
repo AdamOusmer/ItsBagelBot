@@ -119,7 +119,7 @@
 
   <label class="field">
     <span>{t('commandEditor.name')}</span>
-    <input class="search" name="name" placeholder={t('commandEditor.namePlaceholder')} bind:value={draft.name} required />
+    <input class="bb-input" name="name" placeholder={t('commandEditor.namePlaceholder')} bind:value={draft.name} required />
     <FieldError message={errors.name} />
     {#if draft.edit}<small>{t('commandEditor.renameHint')}</small>{/if}
   </label>
@@ -150,7 +150,7 @@
   <div class="field-row">
     <label class="field">
       <span>{t('commandEditor.access')}</span>
-      <select class="search" name="perm" bind:value={draft.perm}>
+      <select class="bb-input" name="perm" bind:value={draft.perm}>
         {#each PERMS as p}
           <option value={p}>{PERM_LABELS[p]}</option>
         {/each}
@@ -159,7 +159,7 @@
 
     <label class="field">
       <span>{t('commandEditor.cooldownS')}</span>
-      <input class="search" type="number" name="cooldown" min="0" max={COOLDOWN_MAX} bind:value={draft.cooldown} />
+      <input class="bb-input" type="number" name="cooldown" min="0" max={COOLDOWN_MAX} bind:value={draft.cooldown} />
       <FieldError message={errors.cooldown} />
     </label>
   </div>
@@ -167,7 +167,7 @@
   <label class="field">
     <span>{t('commandEditor.restrictUser')} <small>{t('common.optional')}</small></span>
     <input
-      class="search"
+      class="bb-input"
       name="allowed_user_id"
       inputmode="numeric"
       placeholder={t('commandEditor.restrictPlaceholder')}
@@ -228,7 +228,7 @@
     letter-spacing: 0.01em;
   }
   .field small { color: var(--bb-muted); opacity: 0.7; font-size: 11px; }
-  .field :global(.search) { width: 100%; box-sizing: border-box; }
+  .field :global(.bb-input) { width: 100%; box-sizing: border-box; }
 
   .field-row { display: flex; gap: 12px; }
   .field-row .field { flex: 1; min-width: 0; }

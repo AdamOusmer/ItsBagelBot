@@ -48,7 +48,7 @@
 <div class="editor">
   <Field label={t('timers.fieldMessage')}>
     <textarea
-      class="search msg-area"
+      class="bb-input msg-area"
       placeholder={t('timers.fieldMessagePh')}
       maxlength="500"
       rows="3"
@@ -64,7 +64,7 @@
   <Field label={t('timers.fieldInterval')}>
     <div class="interval-row">
       <input
-        class="search num"
+        class="bb-input num"
         type="number"
         min={MIN}
         max={MAX}
@@ -102,7 +102,7 @@
   }
 
   .interval-row { display: flex; align-items: center; gap: 10px; }
-  /* Extra specificity so the fixed width wins over Field's `.search { width:100% }`. */
+  /* Extra specificity so the fixed width wins over Field's `.bb-input { width: 100% }`. */
   .editor .interval-row .num { width: 100px; flex: none; }
   .unit { font-family: var(--bb-font-body); font-size: 13px; color: var(--bb-muted); }
 

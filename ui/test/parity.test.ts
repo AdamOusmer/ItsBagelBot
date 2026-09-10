@@ -28,10 +28,14 @@
 // `--production`.
 //
 // The fixture pair stays even though real adapters have landed: it is the
-// harness's own test. When Cursor and LightField both fail, the fixture row
-// says whether the compilers broke or the elements did.
+// harness's own smoke test, and the only case that still passes when every
+// real element is broken, which is what tells you the failure is in an element
+// and not in the loader plugins. Real element pairs live below: Cursor,
+// LightField and NavLink as hand-written cases, the button/card contracts in
+// their describe() blocks, and the rest in the PAIRS table.
 
 import { expect, test } from 'bun:test';
+import { createRawSnippet } from 'svelte';
 import { render } from 'svelte/server';
 import { experimental_AstroContainer } from 'astro/container';
 import SvelteFixture from './fixture.svelte';
@@ -42,6 +46,20 @@ import SvelteLightField from '../svelte/LightField.svelte';
 import AstroLightField from '../astro/LightField.astro';
 import SvelteNavLink from '../svelte/NavLink.svelte';
 import AstroNavLink from '../astro/NavLink.astro';
+import SvelteBadge from '../svelte/Badge.svelte';
+import AstroBadge from '../astro/Badge.astro';
+import SvelteChip from '../svelte/Chip.svelte';
+import AstroChip from '../astro/Chip.astro';
+import SvelteEmptyState from '../svelte/EmptyState.svelte';
+import AstroEmptyState from '../astro/EmptyState.astro';
+import SvelteField from '../svelte/Field.svelte';
+import AstroField from '../astro/Field.astro';
+import SvelteSearchInput from '../svelte/SearchInput.svelte';
+import AstroSearchInput from '../astro/SearchInput.astro';
+import SvelteStatTile from '../svelte/StatTile.svelte';
+import AstroStatTile from '../astro/StatTile.astro';
+import SvelteSwitch from '../svelte/Switch.svelte';
+import AstroSwitch from '../astro/Switch.astro';
 
 /**
  * Reduce rendered HTML to the part the CSS contract actually selects on.
@@ -69,6 +87,10 @@ import AstroNavLink from '../astro/NavLink.astro';
  *     and no CSS contract can select on it. Only the empty, src-carrying form
  *     is dropped: an inline `<script>` in an adapter WOULD be markup, and this
  *     leaves it in the diff so it has to be argued for.
+ *  6. Void elements: Svelte serialises `<input …/>`, Astro `<input …>`. Both
+ *     parse to the same node -- HTML has no self-closing syntax for void
+ *     elements and the slash is ignored -- so the slash goes. Measured on
+ *     SearchInput, 2026-09-09: the ONLY difference between its two adapters.
  *
  * Attribute ORDER is deliberately not normalised. It does not affect rendering,
  * but it does affect diffs of the emitted HTML, and holding the two adapters to
@@ -81,6 +103,7 @@ function normalise(html: string): string {
     .replace(/<script type="module" src="[^"]*"><\/script>/g, '')
     .replace(/<!--[\s\S]*?-->/g, '')
     .replace(/\s*=\s*(""|'')/g, '')
+    .replace(/\s*\/>/g, '>')
     .replace(/>\s+</g, '><')
     .replace(/\s+/g, ' ')
     .trim();
@@ -442,4 +465,145 @@ describe('CardHead', () => {
     props: { withAction: true },
     html: '<div class="bb-card-head"><h3 class="bb-card-head__title">Recent</h3><a class="bb-card-head__more" href="/x">All</a></div>',
   });
+});
+
+/**
+ * Real element pairs.
+ *
+ * `html` is the golden: the exact contract markup both adapters owe, written
+ * out here so a change to what an element emits is an edit to this file. The
+ * CSS in ui/styles/elements/ selects on these class names and data attributes,
+ * so this table is also the readable index of what the contract IS.
+ *
+ * `slot` is the default-slot content, given to Astro as a slot string and to
+ * Svelte as a raw snippet. createRawSnippet is the only way to hand a server
+ * render a `children` without writing a wrapper .svelte per element; its
+ * `render()` output is emitted verbatim in SSR, which is what makes the two
+ * halves comparable at all.
+ */
+const PAIRS: {
+  name: string;
+  svelte: unknown;
+  astro: unknown;
+  props: Record<string, unknown>;
+  slot?: string;
+  html: string;
+}[] = [
+  {
+    name: 'Badge',
+    svelte: SvelteBadge,
+    astro: AstroBadge,
+    props: { tone: 'live', mark: 'solid', status: true },
+    slot: 'Live',
+    html:
+      '<span class="bb-tag bb-badge bb-tag--live" role="status">' +
+      '<i class="bb-mark" aria-hidden="true"></i>Live</span>',
+  },
+  {
+    name: 'Chip',
+    svelte: SvelteChip,
+    astro: AstroChip,
+    props: { on: true, tone: 'muted' },
+    slot: 'Timers',
+    html: '<button type="button" class="bb-chip bb-chip--muted" data-on>Timers</button>',
+  },
+  {
+    name: 'EmptyState',
+    svelte: SvelteEmptyState,
+    astro: AstroEmptyState,
+    props: { title: 'No timers yet', body: 'Add one to get started.' },
+    slot: 'cta',
+    html:
+      '<div class="bb-empty"><p class="bb-empty__title">No timers yet</p>' +
+      '<p class="bb-empty__body">Add one to get started.</p>' +
+      '<div class="bb-empty__cta">cta</div></div>',
+  },
+  {
+    name: 'Field',
+    svelte: SvelteField,
+    astro: AstroField,
+    props: { label: 'Cooldown', tag: 'default: 5', hint: 'Seconds.', hintId: 'h1' },
+    slot: 'control',
+    html:
+      '<label class="bb-field"><span class="bb-field__label">Cooldown' +
+      '<small class="bb-tag bb-tag--quiet bb-field__tag">default: 5</small></span>' +
+      // The spaces around the slot are content, not layout: they are the
+      // newline+indent between </span> and <slot/> in both templates, and a
+      // text node between two inline elements renders as a space. Both
+      // adapters emit them; normalising them away would hide a real
+      // difference in a case where one of them stopped.
+      ' control <small class="bb-field__hint" id="h1">Seconds.</small></label>',
+  },
+  {
+    name: 'SearchInput',
+    svelte: SvelteSearchInput,
+    astro: AstroSearchInput,
+    props: { placeholder: 'Find a command' },
+    html:
+      '<label class="bb-search bb-input">' +
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle>' +
+      '<path d="m20 20-3.5-3.5"></path></svg>' +
+      '<input type="search" class="bb-search__input" placeholder="Find a command" value>' +
+      '</label>',
+  },
+  {
+    name: 'StatTile',
+    svelte: SvelteStatTile,
+    astro: AstroStatTile,
+    props: { label: 'Messages', value: '12,904', unit: 'msg', delta: '+4.1%' },
+    html:
+      '<div class="bb-stat"><div class="bb-stat__head">' +
+      '<span class="bb-stat__label">Messages</span></div>' +
+      '<div class="bb-stat__value"><span data-count-up>12,904</span><small>msg</small></div>' +
+      '<div class="bb-stat__delta">+4.1%</div></div>',
+  },
+  {
+    name: 'Switch',
+    svelte: SvelteSwitch,
+    astro: AstroSwitch,
+    props: { checked: true, label: 'Enable timers', describedby: 'h2' },
+    html:
+      '<button type="button" class="bb-switch" role="switch" aria-checked="true" ' +
+      'aria-label="Enable timers" aria-describedby="h2" data-state="on"></button>',
+  },
+];
+
+for (const pair of PAIRS) {
+  test(`${pair.name}: svelte adapter emits the contract markup`, () => {
+    const props = { ...pair.props } as Record<string, unknown>;
+    if (pair.slot !== undefined) {
+      props.children = createRawSnippet(() => ({ render: () => pair.slot as string }));
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { body } = render(pair.svelte as any, { props });
+    expect(normalise(body)).toBe(pair.html);
+  });
+
+  test(`${pair.name}: astro adapter emits the contract markup`, async () => {
+    const container = await experimental_AstroContainer.create();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const html = await container.renderToString(pair.astro as any, {
+      props: pair.props,
+      ...(pair.slot === undefined ? {} : { slots: { default: pair.slot } }),
+    });
+    expect(normalise(html)).toBe(pair.html);
+  });
+}
+
+/**
+ * VIP is SILVER.
+ *
+ * It shipped purple (#d9aaff) once, and the house rule since is that VIP is
+ * #dfe4e9 -- free green, paid gold, VIP silver. The perm ladder itself is bot
+ * data and lives in @bagel/kit (PermBadge.svelte drives --badge-tone), so
+ * there is no ui-side token to pin. What CAN be pinned here is that the
+ * generic badge contract ships no colour ladder of its own to regress: the
+ * only colours badge.css may name are the caller's custom property and the
+ * neutral hairline fallback.
+ */
+test('badge.css ships no perm ladder and no purple', async () => {
+  const css = await Bun.file(new URL('../styles/elements/badge.css', import.meta.url)).text();
+  const rules = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  expect(rules).not.toMatch(/#d9aaff/i);
+  expect(rules).not.toMatch(/everyone|broadcaster|lead_mod/);
 });

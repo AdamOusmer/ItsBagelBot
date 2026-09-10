@@ -171,7 +171,7 @@
   {/if}
 
   <div class="deck">
-    <label class="search find">
+    <label class="bb-input find">
       <Icon name="search" size={15} />
       <span class="sr-only">{t('modules.searchLabel')}</span>
       <input

@@ -133,7 +133,7 @@
            below. -->
       <label class="counts-for">
         <span class="panel-title">{t('counters.fieldScope')}</span>
-        <select class="search" bind:value={countsFor}>
+        <select class="bb-input" bind:value={countsFor}>
           {#each COUNTS_FOR as s (s)}
             <option value={s}>{countsForLabel[s]}</option>
           {/each}
@@ -163,7 +163,7 @@
 
       <p class="panel-title new">{t('counters.pickerNew')}</p>
       <input
-        class="search"
+        class="bb-input"
         placeholder={t('counters.fieldNamePh')}
         maxlength="64"
         bind:value={newName}

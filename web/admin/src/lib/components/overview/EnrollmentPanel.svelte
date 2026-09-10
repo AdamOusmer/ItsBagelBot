@@ -13,10 +13,10 @@
   // the same answer, so the derived line went with the component.
   import Card from '@bagel/ui/svelte/Card.svelte';
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
-  import SegmentedControl from '@bagel/kit/components/SegmentedControl.svelte';
-  import StatTile from '@bagel/kit/components/StatTile.svelte';
+  import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
+  import StatTile from '@bagel/ui/svelte/StatTile.svelte';
   import AreaSeries from '@bagel/kit/components/AreaSeries.svelte';
-  import EmptyState from '@bagel/kit/components/EmptyState.svelte';
+  import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { EnrollmentWire } from '$lib/server/services';
   import { ENROLLMENT_WINDOWS, type EnrollmentWindow } from '$lib/enrollment-window';

@@ -234,7 +234,7 @@
     padding: 4px 8px;
   }
 
-  /* Read-only value box: styled like a disabled .search input so Access /
+  /* Read-only value box: styled like a disabled .bb-input so Access /
      Cooldown read as fields, just non-editable. */
   .ro {
     box-sizing: border-box;

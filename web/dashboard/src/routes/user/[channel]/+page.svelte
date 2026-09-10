@@ -155,7 +155,7 @@
   {/if}
 
   <div class="toolbar">
-    <label class="search">
+    <label class="bb-input">
       <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16">
         <circle cx="11" cy="11" r="7"></circle>
         <path d="m20 20-3.5-3.5"></path>
@@ -442,12 +442,12 @@
     background: linear-gradient(180deg, var(--bb-black) 78%, transparent);
   }
 
-  .search {
+  .bb-input {
     position: relative;
     flex: 1 1 260px;
     min-width: 0;
   }
-  .search svg {
+  .bb-input svg {
     position: absolute;
     left: 14px;
     top: 50%;
@@ -459,7 +459,7 @@
     stroke-linejoin: round;
     pointer-events: none;
   }
-  .search input {
+  .bb-input input {
     width: 100%;
     height: 42px;
     padding: 0 14px 0 40px;
@@ -472,8 +472,8 @@
     outline: none;
     transition: border-color 180ms, box-shadow 180ms;
   }
-  .search input::placeholder { color: var(--bb-muted); }
-  .search input:focus {
+  .bb-input input::placeholder { color: var(--bb-muted); }
+  .bb-input input:focus {
     border-color: rgba(82, 183, 136, 0.6);
     box-shadow: 0 0 0 1px rgba(82, 183, 136, 0.35), 0 0 24px rgba(82, 183, 136, 0.18);
   }

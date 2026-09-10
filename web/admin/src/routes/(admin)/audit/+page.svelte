@@ -16,13 +16,13 @@
   import { onMount } from 'svelte';
   import PageHead from '@bagel/kit/components/PageHead.svelte';
   import PageToolbar from '@bagel/kit/components/PageToolbar.svelte';
-  import SearchInput from '@bagel/kit/components/SearchInput.svelte';
-  import SegmentedControl from '@bagel/kit/components/SegmentedControl.svelte';
+  import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
+  import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
   import DeckList from '@bagel/kit/components/DeckList.svelte';
   import InspectorSurface from '@bagel/kit/components/InspectorSurface.svelte';
   import AlertBanner from '@bagel/kit/components/AlertBanner.svelte';
-  import EmptyState from '@bagel/kit/components/EmptyState.svelte';
-  import SkeletonStack from '@bagel/kit/components/SkeletonStack.svelte';
+  import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
+  import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { AuditEntry } from '$lib/server/services';
@@ -241,7 +241,7 @@
   .toolbar-search {
     width: 260px;
   }
-  .toolbar-search :global(.search) {
+  .toolbar-search :global(.bb-input) {
     width: 100%;
   }
 

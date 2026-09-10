@@ -20,10 +20,10 @@
   import ManagementRow from '@bagel/kit/components/ManagementRow.svelte';
   import InspectorSurface from '@bagel/kit/components/InspectorSurface.svelte';
   import AlertBanner from '@bagel/kit/components/AlertBanner.svelte';
-  import EmptyState from '@bagel/kit/components/EmptyState.svelte';
+  import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import ConfirmDialog from '@bagel/kit/components/ConfirmDialog.svelte';
-  import SkeletonStack from '@bagel/kit/components/SkeletonStack.svelte';
-  import Skeleton from '@bagel/kit/components/Skeleton.svelte';
+  import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
+  import Skeleton from '@bagel/ui/svelte/Skeleton.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import { createInspector } from '@bagel/kit/inspector';
   import { createDiscardGuard } from '@bagel/kit/discard-guard';

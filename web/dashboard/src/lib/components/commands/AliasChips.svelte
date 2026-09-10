@@ -43,7 +43,7 @@
 </script>
 
 <input
-  class="search"
+  class="bb-input"
   placeholder={t('commandEditor.aliasPlaceholder')}
   bind:value={draft}
   onkeydown={onKey}
@@ -82,5 +82,5 @@
     opacity: 1;
   }
 
-  input.search { width: 100%; box-sizing: border-box; }
+  input.bb-input { width: 100%; box-sizing: border-box; }
 </style>

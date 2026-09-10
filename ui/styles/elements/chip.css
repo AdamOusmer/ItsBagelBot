@@ -1,0 +1,32 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* Chip: the component layer on top of the .bb-chip control frame that
+   tags.css already ships (1px tan hairline, 6px corners, mono 12.5px).
+
+   Only two things live here, because everything else a chip needs is already
+   in the shared vocabulary and putting it here again is the duplication this
+   package exists to delete:
+
+     [data-on]   the selected state
+     :disabled   the non-interactive state
+
+   `data-on` replaces the `.is-on` class Chip.svelte wrote. The reason is the
+   Astro twin: a Svelte `class:on={on}` has no Astro spelling that survives
+   the parity normaliser, while `data-on={on || undefined}` and Astro's
+   `data-on={on}` both collapse to a bare `data-on`.
+
+   The third drawing of this control, console.css `.chip` / `.chip.on`, is
+   deleted in this PR. It was a near-duplicate of .bb-chip--muted (same
+   hairline, same radius, same 11.5px/7px-12px metrics) and its three
+   remaining call sites move to the Chip component with tone="muted". */
+
+@layer bb.elements {
+    .bb-chip[data-on] {
+        color: var(--bb-tan-pale);
+        background: rgba(var(--bb-tan-rgb), 0.10);
+        border-color: rgba(var(--bb-tan-rgb), 0.50);
+    }
+
+    .bb-chip:disabled { cursor: not-allowed; opacity: 0.55; }
+}
