@@ -96,6 +96,32 @@ export type DiscordCode = (typeof DISCORD_CODES)[number] | '';
 // discord-specific and the shared set deliberately does not carry them.
 export const replyCode: (r: CodedReply) => DiscordCode = codeReader(DISCORD_CODES);
 
+/**
+ * A refused guild RPC, carrying the code the reply named.
+ *
+ * The throwing readers used to raise a plain `Error(r.error)`, which threw the
+ * code away and left every caller with an English sentence it could only
+ * re-render as the generic failure. That is how a `not_bound` refusal on a
+ * first install reached the streamer as "Discord did not answer" about a
+ * server whose bot had just been added. Callers that do not branch on the
+ * refusal are unaffected: this is still an Error.
+ */
+export class DiscordRefusal extends Error {
+  readonly code: DiscordCode;
+
+  constructor(code: DiscordCode, message: string) {
+    super(message);
+    this.name = 'DiscordRefusal';
+    this.code = code;
+  }
+}
+
+/** The refusal code behind a thrown error, or '' for anything else (a
+ *  transport failure, a bug) -- neither of which is a named refusal. */
+export function refusalCode(err: unknown): DiscordCode {
+  return err instanceof DiscordRefusal ? err.code : '';
+}
+
 // The module row: the master switch and the Twitch login, plus every guild
 // this broadcaster has bound. No channel or role ids: those are per guild.
 export type DiscordView = {
@@ -328,7 +354,7 @@ export async function readGuildConfig(target: DiscordGuildTarget): Promise<Disco
     { user_id: target.userId, guild_id: target.guildId },
     CONFIG_GET_TIMEOUT_MS
   );
-  if (r.error) throw new Error(r.error);
+  if (r.error) throw new DiscordRefusal(replyCode(r), r.error);
   return {
     config: { ...parseDiscordConfig(r.config), guildId: target.guildId },
     version: parseConfigVersion(r.version),
