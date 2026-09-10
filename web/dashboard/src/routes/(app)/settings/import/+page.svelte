@@ -1285,7 +1285,7 @@
     gap: 8px;
     margin-bottom: 6px;
   }
-  .cred :global(.btn) {
+  .cred :global(.bb-btn) {
     align-self: flex-start;
   }
   .nb-connected {

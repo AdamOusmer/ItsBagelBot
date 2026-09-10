@@ -222,7 +222,29 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   // caller's side, which cost this file nothing, and a new MODIFIER here has to
   // justify itself against that.
   // Measured 2026-09-09: 1072 B gzip. 1072 + 150 = 1222, +10% -> 1350.
+  //
+  // RE-MEASURED 2026-09-09 at 1030 B, once `--cta` stopped hand-copying
+  // `.bb-btn--go-solid` and started composing it (the adapters emit the button
+  // classes; the fill, frame, colour and hover block deleted from this file).
+  // The budget is NOT lowered to match: the row shrank by deleting a
+  // duplicate, and 42 B is inside the platform delta this file already carries
+  // room for. Left at 1350 so the next real modifier is measured against the
+  // same line as the last one.
   { name: "elements/nav-link", budget: 1350 },
+  // The button contract: seven variants, two sizes, three states, and the
+  // raw-HTML pseudo fallbacks that let a call site with no adapter draw the
+  // same mark. It replaces the marketing site's .bb-btn block (~120 lines),
+  // the console's raw .btn block (~20) and two components' scoped copies, so
+  // the number to watch is not growth but the next surface's one-off rule
+  // landing here instead of behind a custom property.
+  // Measured 2026-09-09 (macOS/arm64): 1181 B gzip. 1181 + 150 = 1331, +10%.
+  { name: "elements/button", budget: 1470 },
+  // The card contract, its head, and the atmosphere composition. Measured
+  // WITH card-atmosphere.css, which card.css @imports and a bundler inlines:
+  // that is what a consumer actually pays, and budgeting the two halves apart
+  // would hide a move of bytes from one to the other.
+  // Measured 2026-09-09 (macOS/arm64): 1170 B gzip. 1170 + 150 = 1320, +10%.
+  { name: "elements/card", budget: 1460 },
 ];
 
 let failed = false;

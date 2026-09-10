@@ -89,8 +89,8 @@
   {/if}
 
   <div class="actions">
-    <button type="button" class="btn ghost" onclick={onCancel} disabled={busy}>{t('common.cancel')}</button>
-    <button type="button" class="btn primary" onclick={onSave} disabled={busy}>
+    <button type="button" class="bb-btn bb-btn--ghost" onclick={onCancel} disabled={busy}>{t('common.cancel')}</button>
+    <button type="button" class="bb-btn bb-btn--primary" onclick={onSave} disabled={busy}>
       {busy ? t('modules.loading') : t('modules.saveChanges')}
     </button>
   </div>
@@ -104,6 +104,6 @@
   .actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 12px; }
   @media (max-width: 480px) {
     .actions { flex-direction: column-reverse; }
-    .actions .btn { width: 100%; justify-content: center; min-height: 44px; }
+    .actions .bb-btn { width: 100%; justify-content: center; min-height: 44px; }
   }
 </style>

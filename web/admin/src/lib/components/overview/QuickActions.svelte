@@ -5,10 +5,10 @@
   // or tell everyone something. The lookup is a real GET form so it works
   // without JS and lands on /users with the query already applied -- the users
   // page owns the search, this only aims it.
-  import Card from '@bagel/kit/components/Card.svelte';
-  import CardHead from '@bagel/kit/components/CardHead.svelte';
-  import Button from '@bagel/kit/components/Button.svelte';
-  import ButtonLink from '@bagel/kit/components/ButtonLink.svelte';
+  import Card from '@bagel/ui/svelte/Card.svelte';
+  import CardHead from '@bagel/ui/svelte/CardHead.svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
+  import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import SearchInput from '@bagel/kit/components/SearchInput.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
 

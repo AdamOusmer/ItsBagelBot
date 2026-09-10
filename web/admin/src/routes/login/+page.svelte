@@ -34,7 +34,7 @@
     <div class="sub">{t('admin.login.sub')}</div>
     {#if notice}<p class="notice">{notice}</p>{/if}
     <p class="lede">{t('admin.login.lede')}</p>
-    <a href="/auth/login" class="btn primary twitch">
+    <a href="/auth/login" class="bb-btn bb-btn--primary twitch">
       <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
         <path
           fill="currentColor"

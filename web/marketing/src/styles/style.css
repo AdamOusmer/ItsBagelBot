@@ -21,6 +21,8 @@
 @import '@bagel/ui/styles/layers.css';
 @import '@bagel/ui/styles/brand.css';
 @import '@bagel/ui/styles/fonts.css';
+@import '@bagel/ui/styles/elements/button.css';
+@import '@bagel/ui/styles/elements/card.css';
 @import '@bagel/ui/styles/tags.css';
 @import '@bagel/ui/styles/reveal.css';
 @import '@bagel/ui/styles/orbs.css';
@@ -53,6 +55,16 @@
     --font-mono: var(--bb-font-mono);
     --font-body: var(--bb-font-body);
     --font-hand: "Caveat Variable", "Caveat", cursive;
+
+    /* Card scope. The shared contract defaults to the console's values because
+       that is where the density scale --d lives; this site's are flat numbers
+       and are set here rather than passed per call site (C3/C9). The band's
+       16/24 inset is the site's too: its housings hold a drawing, the
+       console's hold a title. */
+    --card-pad: 32px;
+    --card-body-pad: 24px;
+    --card-band-pad: 16px 24px;
+    --card-band-h: 104px;
 
     --nav-height: var(--bb-nav-height);
     /* Visual nav band (--nav-height) plus the iOS notch inset above it. Fixed
@@ -222,53 +234,13 @@ section {
 }
 
 /* ── Tier 2b · Buttons ("Mark") ──────────────────────────────────── */
-/* Nothing is filled at rest: every button is a 1px frame plus a 5px
-   rotated-square mark that inherits currentColor, so the mark inverts
-   with the fill on hover for free and turns solid green when done.
-   The filled tan slab with a translateY lift and a glow was the old
-   look on four separate components; it is the generic SaaS CTA and it
-   made the primary the only recognisable button. Only the primary
-   earns a full-colour tan border, and no variant is a pill. */
-.bb-btn {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    gap: 12px;
-    padding: 13px 20px 13px 16px;
-    border: 1px solid var(--tan);
-    border-radius: var(--radius-sm);
-    background: transparent;
-    color: var(--tan-light);
-    font-family: var(--font-mono);
-    font-size: 12.5px;
-    letter-spacing: 0.04em;
-    line-height: 1;
-    text-decoration: none;
-    cursor: pointer;
-    transition: all var(--dur-base) var(--ease-out-expo);
-}
-
-.bb-btn::before {
-    content: "";
-    flex-shrink: 0;
-    box-sizing: border-box;
-    width: 5px;
-    height: 5px;
-    border: 1px solid currentColor;
-    background: transparent;
-    transform: rotate(45deg);
-}
-
-.bb-btn:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
-    background: var(--tan);
-    color: var(--black);
-}
-
-.bb-btn--go { border-color: var(--green-light); color: var(--green-glow); }
-.bb-btn--go:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
-    background: var(--green);
-    color: var(--white);
-}
+/* The whole block is @bagel/ui/styles/elements/button.css now, imported at the
+   top of this file. It absorbed the console's raw `.btn` block and two Svelte
+   components' scoped copies along with this one; the modifiers this site
+   writes by hand (--go, --go-solid, --quiet, --danger) are kept there as
+   aliases, so every raw call site on the site is unchanged. A bare `.bb-btn`
+   is still the primary -- that was the question the merge had to answer, and
+   the answer was the site's. */
 
 /* Tier 2c · Rails. The tab pattern turned into actions: no frame at all, the
    label sits on the same tan hairline the tabs use and a green line draws in
@@ -354,106 +326,19 @@ section {
 
 .bb-rail:hover .bb-rail__arrow { transform: translateX(4px); }
 
-/* The one filled button in the system. 2b keeps every control hollow at rest,
-   but the nav CTA is the site's single conversion target and has to carry the
-   bar on its own: a hairline frame inside a glass pill read as another nav
-   link. Filled stays scoped to this modifier so nothing else drifts. */
-.bb-btn--go-solid {
-    border-color: var(--green-light);
-    background: var(--green);
-    color: var(--white);
+/* Cards tighten on a phone. Two custom properties rather than the two rules
+   Card.astro used to carry, because the contract reads both of them and a rule
+   here would have to out-specify it instead of just handing it a number. */
+@media (max-width: 480px) {
+    :root {
+        --card-pad: 24px;
+        --card-body-pad: 20px;
+    }
 }
-
-.bb-btn--go-solid:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
-    border-color: var(--green-glow);
-    background: var(--green-light);
-    color: var(--white);
-}
-
-.bb-btn--quiet { border-color: var(--border-chip); }
-.bb-btn--quiet:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
-    background: rgba(201, 168, 124, 0.08);
-    border-color: rgba(201, 168, 124, 0.50);
-    color: var(--tan-pale);
-}
-
-.bb-btn--ghost { border-color: transparent; color: var(--muted); }
-.bb-btn--ghost::before {
-    width: 6px;
-    height: 1px;
-    border: 0;
-    background: currentColor;
-    transform: none;
-}
-.bb-btn--ghost:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
-    background: transparent;
-    border-color: var(--border-chip);
-    color: var(--tan-light);
-}
-
-.bb-btn--danger { border-style: dashed; border-color: rgba(217, 138, 138, 0.40); color: #d98a8a; }
-.bb-btn--danger:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
-    background: rgba(217, 138, 138, 0.08);
-    border-color: rgba(217, 138, 138, 0.60);
-    color: #d98a8a;
-}
-
-.bb-btn--sm { gap: 9px; padding: 7px 12px 7px 10px; font-size: 11.5px; }
-.bb-btn--sm::before { width: 4px; height: 4px; }
-.bb-btn--sm.bb-btn--ghost::before { width: 6px; height: 1px; }
-
-.bb-btn--icon {
-    width: 40px;
-    height: 40px;
-    padding: 0;
-    justify-content: center;
-    border-color: var(--border-chip);
-}
-.bb-btn--icon::before { content: none; }
-.bb-btn--icon:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
-    background: rgba(201, 168, 124, 0.08);
-    border-color: rgba(201, 168, 124, 0.50);
-    color: var(--tan-light);
-}
-.bb-btn--icon svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-
-.bb-btn:disabled,
-.bb-btn[aria-disabled="true"] { opacity: 0.4; cursor: not-allowed; }
-
-/* The label keeps its width while it is hidden, so the button does not
-   collapse under the spinner. */
-.bb-btn.is-loading { color: transparent; cursor: progress; }
-.bb-btn.is-loading::before { border-color: transparent; background: transparent; }
-.bb-btn.is-loading::after {
-    content: "";
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 14px;
-    height: 14px;
-    margin: -7px 0 0 -7px;
-    border: 2px solid var(--tan-light);
-    border-right-color: transparent;
-    border-radius: 50%;
-    animation: bb-spin 0.6s linear infinite;
-}
-.bb-btn--go.is-loading::after { border-color: var(--green-glow); border-right-color: transparent; }
-.bb-btn--danger.is-loading::after { border-color: #d98a8a; border-right-color: transparent; }
-
-.bb-btn.is-done {
-    border-style: solid;
-    border-color: rgba(82, 183, 136, 0.40);
-    background: rgba(82, 183, 136, 0.07);
-    color: var(--green-glow);
-}
-.bb-btn.is-done::before { border: 0; background: currentColor; }
-
-@keyframes bb-spin { to { transform: rotate(360deg); } }
 
 @media (prefers-reduced-motion: reduce) {
     /* Park the sweep mid-rail rather than hiding it: the hairline still
        reads as "lit", it just stops travelling. */
     .bb-sweep { animation: none; left: 35%; opacity: 1; }
     .bb-drawline::after { animation: none; width: 100%; }
-    .bb-btn.is-loading::after { animation: none; }
 }

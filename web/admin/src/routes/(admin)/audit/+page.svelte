@@ -23,7 +23,7 @@
   import AlertBanner from '@bagel/kit/components/AlertBanner.svelte';
   import EmptyState from '@bagel/kit/components/EmptyState.svelte';
   import SkeletonStack from '@bagel/kit/components/SkeletonStack.svelte';
-  import Button from '@bagel/kit/components/Button.svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { AuditEntry } from '$lib/server/services';
   import AuditRow from '$lib/components/audit/AuditRow.svelte';

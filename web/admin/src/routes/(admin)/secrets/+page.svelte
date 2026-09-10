@@ -17,9 +17,9 @@
   import { invalidateAll } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
   import PageHead from '@bagel/kit/components/PageHead.svelte';
-  import Card from '@bagel/kit/components/Card.svelte';
-  import CardHead from '@bagel/kit/components/CardHead.svelte';
-  import Button from '@bagel/kit/components/Button.svelte';
+  import Card from '@bagel/ui/svelte/Card.svelte';
+  import CardHead from '@bagel/ui/svelte/CardHead.svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
   import Chip from '@bagel/kit/components/Chip.svelte';
   import Field from '@bagel/kit/components/Field.svelte';
   import ConfirmDialog from '@bagel/kit/components/ConfirmDialog.svelte';

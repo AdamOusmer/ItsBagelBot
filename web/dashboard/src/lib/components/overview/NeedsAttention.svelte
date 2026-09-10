@@ -10,7 +10,7 @@
   // active/total/pending as 0, which is indistinguishable from an empty account,
   // so a down read must never manufacture an "all disabled" / "invites pending"
   // row. Guard every issue on its read having actually landed.
-  import ButtonLink from '@bagel/kit/components/ButtonLink.svelte';
+  import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
 
   const { t } = getI18n();

@@ -189,8 +189,12 @@ const NAV_LINK_HTML =
   '<a class="bb-nav-link" href="/pricing">' +
   '<span class="bb-nav-link__label">Pricing</span></a>';
 
+// The CTA carries the BUTTON contract's classes as well as its own: since the
+// button element landed in this package, `--cta` composes `.bb-btn --go-solid`
+// rather than hand-copying its fill. Class order is part of the contract here
+// the same way attribute order is -- neither adapter sorts.
 const NAV_LINK_CTA_HTML =
-  '<a class="bb-nav-link bb-nav-link--cta" href="https://example.test/add" ' +
+  '<a class="bb-nav-link bb-nav-link--cta bb-btn bb-btn--go-solid" href="https://example.test/add" ' +
   'aria-current="page" target="_blank" rel="noopener noreferrer">' +
   '<span class="bb-nav-link__label">Add</span></a>';
 
@@ -251,3 +255,191 @@ for (const testCase of NAV_LINK_CASES) {
     expect(svelte).toBe(astro);
   });
 }
+/* ── button + card (PR8) ──────────────────────────────────────────────────
+ *
+ * The first real element pairs. Each case renders the SAME props through both
+ * adapters and asserts three things: the Svelte output, the Astro output, and
+ * that they are equal. The literal on the right is the contract -- editing one
+ * is a deliberate act, and nothing here regenerates itself.
+ *
+ * Rendered through ./fixtures/* rather than the adapters directly because
+ * children are a snippet on one side and a slot on the other, and hand-writing
+ * a Svelte snippet in the test would be testing the test.
+ */
+
+import { describe } from 'bun:test';
+import SvelteButton from './fixtures/button.svelte';
+import AstroButton from './fixtures/button.astro';
+import SvelteCard from './fixtures/card.svelte';
+import AstroCard from './fixtures/card.astro';
+import SvelteCardHead from './fixtures/cardhead.svelte';
+import AstroCardHead from './fixtures/cardhead.astro';
+
+/* Both adapters are `any` here, the same way types/components.d.ts declares
+ * them: naming svelte's `Component<Props>` or Astro's `AstroComponentFactory`
+ * would make this package's type check depend on a framework, which is what
+ * scripts/assert-framework-free.mjs exists to prevent. The assertions are on
+ * rendered HTML, so nothing is lost by the components being opaque to tsc. */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+type Adapter = any;
+
+/** Render both adapters of one element with identical props. */
+async function pair(
+  svelteComponent: Adapter,
+  astroComponent: Adapter,
+  props: Record<string, unknown>,
+): Promise<{ svelte: string; astro: string }> {
+  const container = await experimental_AstroContainer.create();
+  return {
+    svelte: normalise(render(svelteComponent, { props }).body),
+    astro: normalise(await container.renderToString(astroComponent, { props })),
+  };
+}
+
+/** One contract case: both adapters emit `html`, and they agree. */
+interface Case {
+  /** What this case is asserting, as the test name. */
+  name: string;
+  /** The Svelte adapter (or a fixture that renders it). */
+  svelte: Adapter;
+  /** The Astro adapter (or a fixture that renders it). */
+  astro: Adapter;
+  /** Handed to both adapters unchanged -- that is the point of the test. */
+  props: Record<string, unknown>;
+  /** The contract. Edit deliberately. */
+  html: string;
+}
+
+function contract({ name, svelte, astro, props, html }: Case) {
+  test(name, async () => {
+    const rendered = await pair(svelte, astro, props);
+    expect(rendered.svelte).toBe(html);
+    expect(rendered.astro).toBe(html);
+  });
+}
+
+describe('Button', () => {
+  contract({
+    name: 'default variant is primary',
+    svelte: SvelteButton,
+    astro: AstroButton,
+    props: {},
+    html: '<button class="bb-btn bb-btn--primary" type="button" data-mark><i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Save</span></button>',
+  });
+
+  contract({
+    name: 'ghost at sm',
+    svelte: SvelteButton,
+    astro: AstroButton,
+    props: { variant: 'ghost', size: 'sm' },
+    html: '<button class="bb-btn bb-btn--ghost bb-btn--sm" type="button" data-mark><i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Save</span></button>',
+  });
+
+  contract({
+    name: 'green solid, the one filled button',
+    svelte: SvelteButton,
+    astro: AstroButton,
+    props: { variant: 'green', solid: true },
+    html: '<button class="bb-btn bb-btn--green bb-btn--solid" type="button" data-mark><i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Save</span></button>',
+  });
+
+  contract({
+    name: 'destructive submit',
+    svelte: SvelteButton,
+    astro: AstroButton,
+    props: { variant: 'destructive', type: 'submit', class: 'row-act' },
+    html: '<button class="bb-btn bb-btn--destructive row-act" type="submit" data-mark><i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Save</span></button>',
+  });
+
+  // loading sets native disabled as well as aria-busy: a busy control that is
+  // still focusable and still submits is the bug this pair exists to prevent.
+  contract({
+    name: 'loading is disabled and busy, with a real spinner element',
+    svelte: SvelteButton,
+    astro: AstroButton,
+    props: { loading: true },
+    html: '<button class="bb-btn bb-btn--primary is-loading" type="button" disabled aria-busy="true" data-mark><i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Save</span><span class="bb-btn__spinner" aria-hidden="true"></span></button>',
+  });
+
+  contract({
+    name: 'done',
+    svelte: SvelteButton,
+    astro: AstroButton,
+    props: { done: true },
+    html: '<button class="bb-btn bb-btn--primary is-done" type="button" data-mark><i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Save</span></button>',
+  });
+
+  // The icon variant emits no mark at all -- that is the reason the mark is a
+  // real element rather than the ::before both sources used.
+  contract({
+    name: 'icon-only carries no mark and an author-supplied name',
+    svelte: SvelteButton,
+    astro: AstroButton,
+    props: { variant: 'icon', icon: true, label: 'Close' },
+    html: '<button class="bb-btn bb-btn--icon" type="button" data-mark aria-label="Close"><span class="bb-btn__content"><svg viewBox="0 0 24 24"></svg></span></button>',
+  });
+
+  // Divergence BL1: Astro switches on `href` inside one component, Svelte has
+  // a second component. Same markup either way, which is what makes that
+  // acceptable.
+  contract({
+    name: 'href renders an anchor (Astro Button) == ButtonLink (Svelte)',
+    svelte: SvelteButton,
+    astro: AstroButton,
+    props: { link: true, variant: 'secondary' },
+    html: '<a class="bb-btn bb-btn--secondary" href="/x" data-mark><i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Save</span></a>',
+  });
+});
+
+describe('Card', () => {
+  // Flat: no body wrapper (C6), no atmosphere, no hover.
+  contract({
+    name: 'flat card renders children directly',
+    svelte: SvelteCard,
+    astro: AstroCard,
+    props: {},
+    html: '<div class="bb-card" data-card>body</div>',
+  });
+
+  contract({
+    name: 'atmosphere and hover are opt-in attributes, not page classes',
+    svelte: SvelteCard,
+    astro: AstroCard,
+    props: { atmo: true, hover: true, label: '#lofi' },
+    html: '<div class="bb-card" data-card data-atmo data-hover><div class="bb-card-atmo" aria-hidden="true"><span class="bb-card-atmo__ring"></span><span class="bb-card-atmo__sheen"></span></div><span class="bb-card__label">#lofi</span>body</div>',
+  });
+
+  contract({
+    name: 'banded card grows a housing and a padded body',
+    svelte: SvelteCard,
+    astro: AstroCard,
+    props: { banded: true, atmo: true, label: '01' },
+    html: '<div class="bb-card bb-card--band" data-card data-atmo><span class="bb-card__band"><div class="bb-card-atmo" aria-hidden="true"><span class="bb-card-atmo__ring"></span><span class="bb-card-atmo__sheen"></span></div><span class="bb-card__label">01</span><span class="bb-card__band-inner"><i>B</i></span></span><span class="bb-card__body">body</span></div>',
+  });
+
+  contract({
+    name: 'stat and sheen modifiers, and an anchor card',
+    svelte: SvelteCard,
+    astro: AstroCard,
+    props: { as: 'a', href: '/x', stat: true, sheen: true, class: 'tile' },
+    html: '<a class="bb-card bb-card--stat bb-card--sheen tile" href="/x" data-card>body</a>',
+  });
+});
+
+describe('CardHead', () => {
+  contract({
+    name: 'title only',
+    svelte: SvelteCardHead,
+    astro: AstroCardHead,
+    props: {},
+    html: '<div class="bb-card-head"><h3 class="bb-card-head__title">Recent</h3></div>',
+  });
+
+  contract({
+    name: 'with an action link on the contract class',
+    svelte: SvelteCardHead,
+    astro: AstroCardHead,
+    props: { withAction: true },
+    html: '<div class="bb-card-head"><h3 class="bb-card-head__title">Recent</h3><a class="bb-card-head__more" href="/x">All</a></div>',
+  });
+});

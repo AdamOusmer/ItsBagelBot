@@ -74,7 +74,7 @@
     </div>
   {:else if data.top.length === 0}
     <div class="podium-wrap reveal" style="--i:3">
-      <Card atmosphere class="empty-card">
+      <Card atmo class="empty-card">
         <h2>{t('leaderboard.emptyTitle')}</h2>
         <p>{t('leaderboard.emptyBody', { channel: data.channelName })}</p>
       </Card>
@@ -85,7 +85,7 @@
     <section class="podium" aria-label={t('leaderboard.podiumLabel')}>
       {#each podium as viewer, i (viewer.viewerId)}
         <div class="spot-wrap reveal place-{i + 1}" style="--i:{3 + i * 0.5}">
-          <Card atmosphere hover class="spot">
+          <Card atmo hover class="spot">
             <span class="medal medal-{i + 1}" aria-hidden="true">{i + 1}</span>
             <span class="avatar" aria-hidden="true">{rowName(viewer).slice(0, 2)}</span>
             <span class="name" title={viewer.viewerLogin || viewer.viewerName}>{rowName(viewer)}</span>
@@ -102,7 +102,7 @@
     </section>
 
     <section class="board-wrap reveal" style="--i:5" aria-label={t('leaderboard.boardLabel')}>
-      <Card atmosphere class="board" label={t('leaderboard.boardCh')}>
+      <Card atmo class="board" label={t('leaderboard.boardCh')}>
         {#snippet band()}
           <header class="board-head">
             <div class="board-titles">
@@ -149,7 +149,7 @@
 
   {#if data.commands.length > 0 || commandTriggers.length > 0}
     <section class="cmds-wrap reveal" style="--i:6" aria-label={t('leaderboard.commandsLabel')}>
-      <Card atmosphere class="cmds-card" label={t('leaderboard.commandsCh')}>
+      <Card atmo class="cmds-card" label={t('leaderboard.commandsCh')}>
         {#snippet band()}
           <header class="cmds-head">
             <h2>{t('leaderboard.commandsTitle')}</h2>
@@ -307,7 +307,7 @@
     .place-1, .place-2, .place-3 { order: 0; }
   }
 
-  .podium :global(.card) {
+  .podium :global(.bb-card) {
     --card-pad: clamp(20px, 2.4vw, 30px);
     height: 100%;
     display: flex;
@@ -318,18 +318,18 @@
     min-width: 0;
     position: relative;
   }
-  .place-1 :global(.card) {
+  .place-1 :global(.bb-card) {
     padding-top: calc(clamp(20px, 2.4vw, 30px) + var(--bb-space-4));
   }
   /* Hairline of light along the top edge, as the stats tiles wear. */
-  .podium :global(.card)::before {
+  .podium :global(.bb-card)::before {
     content: '';
     position: absolute;
     inset: 0 0 auto;
     height: 1px;
     background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.14), transparent);
   }
-  :global(:root[data-theme='light']) .podium :global(.card)::before {
+  :global(:root[data-theme='light']) .podium :global(.bb-card)::before {
     background: linear-gradient(90deg, transparent, rgba(20, 17, 12, 0.12), transparent);
   }
 
@@ -440,17 +440,17 @@
 
   /* Banded Card: the head is the housing band; column layout moves to the
      body the Card renders below it. */
-  .board-wrap :global(.card) {
+  .board-wrap :global(.bb-card) {
     --card-pad: clamp(20px, 2.4vw, 30px);
     min-width: 0;
   }
   /* Sized for the note wrapped to three lines on a 375px screen (the same
      head shape as the stats boards). */
-  .board-wrap :global(.card__band) {
+  .board-wrap :global(.bb-card__band) {
     --card-band-h: calc(112px * var(--d, 1));
     padding: calc(16px * var(--d, 1)) var(--card-pad);
   }
-  .board-wrap :global(.card__body) {
+  .board-wrap :global(.bb-card__body) {
     display: flex;
     flex-direction: column;
     gap: var(--bb-space-4);

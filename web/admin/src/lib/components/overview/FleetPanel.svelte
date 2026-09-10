@@ -4,8 +4,8 @@
   // Shard roll-call. The summary line answers the only question this panel is
   // asked at a glance ("are they all up"); the rows are there for the one time
   // a month the answer is no.
-  import Card from '@bagel/kit/components/Card.svelte';
-  import CardHead from '@bagel/kit/components/CardHead.svelte';
+  import Card from '@bagel/ui/svelte/Card.svelte';
+  import CardHead from '@bagel/ui/svelte/CardHead.svelte';
   import EmptyState from '@bagel/kit/components/EmptyState.svelte';
   import { statusTone } from '@bagel/kit/status-tone';
   import { getI18n } from '@bagel/kit/i18n/context';
@@ -28,7 +28,7 @@
 <Card as="section">
   <CardHead title={t('admin.overview.fleetTitle')}>
     {#snippet action()}
-      <a class="more" href="/shards">{t('admin.overview.fleetAll')}</a>
+      <a class="bb-card-head__more" href="/shards">{t('admin.overview.fleetAll')}</a>
     {/snippet}
   </CardHead>
 

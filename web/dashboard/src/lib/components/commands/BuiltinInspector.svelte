@@ -118,7 +118,7 @@
         samples={def.previewSamples}
       />
       <div class="reply-actions">
-        <button class="btn primary" type="submit" disabled={busy}>
+        <button class="bb-btn bb-btn--primary" type="submit" disabled={busy}>
           {t('builtinInspector.saveReply')}
         </button>
       </div>
@@ -204,7 +204,7 @@
   .field .hint { color: var(--bb-muted); opacity: 0.7; font-size: 11px; }
   .reply-actions { display: flex; justify-content: flex-end; margin-top: 12px; }
   @media (max-width: 480px) {
-    .reply-actions .btn { width: 100%; justify-content: center; min-height: 44px; }
+    .reply-actions .bb-btn { width: 100%; justify-content: center; min-height: 44px; }
   }
 
   .field-row {

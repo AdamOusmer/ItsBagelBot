@@ -289,7 +289,7 @@
               {/if}
 
               {#if s.cta}
-                <a class="btn ghost step-cta" href={s.cta.href} onclick={onDone}>
+                <a class="bb-btn bb-btn--ghost step-cta" href={s.cta.href} onclick={onDone}>
                   {s.cta.label}
                 </a>
               {/if}
@@ -310,14 +310,14 @@
             </div>
             <div class="nav">
               {#if step > 0}
-                <button type="button" class="btn ghost" onclick={goBack}>{t('onboarding.back')}</button>
+                <button type="button" class="bb-btn bb-btn--ghost" onclick={goBack}>{t('onboarding.back')}</button>
               {:else if !s.consent}
-                <button type="button" class="btn ghost" onclick={onDone}>{t('onboarding.skip')}</button>
+                <button type="button" class="bb-btn bb-btn--ghost" onclick={onDone}>{t('onboarding.skip')}</button>
               {/if}
               {#if last}
-                <button type="button" class="btn primary" onclick={onDone} disabled={doneDisabled}>{t('onboarding.done')}</button>
+                <button type="button" class="bb-btn bb-btn--primary" onclick={onDone} disabled={doneDisabled}>{t('onboarding.done')}</button>
               {:else}
-                <button type="button" class="btn primary" onclick={goNext} disabled={nextDisabled}>{t('onboarding.next')}</button>
+                <button type="button" class="bb-btn bb-btn--primary" onclick={goNext} disabled={nextDisabled}>{t('onboarding.next')}</button>
               {/if}
             </div>
           </div>

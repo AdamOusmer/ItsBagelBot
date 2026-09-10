@@ -18,11 +18,11 @@
   import PageToolbar from '@bagel/kit/components/PageToolbar.svelte';
   import SegmentedControl from '@bagel/kit/components/SegmentedControl.svelte';
   import SearchInput from '@bagel/kit/components/SearchInput.svelte';
-  import Card from '@bagel/kit/components/Card.svelte';
-  import CardHead from '@bagel/kit/components/CardHead.svelte';
+  import Card from '@bagel/ui/svelte/Card.svelte';
+  import CardHead from '@bagel/ui/svelte/CardHead.svelte';
   import Scroller from '@bagel/kit/components/Scroller.svelte';
   import Switch from '@bagel/kit/components/Switch.svelte';
-  import Button from '@bagel/kit/components/Button.svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
   import EmptyState from '@bagel/kit/components/EmptyState.svelte';
   import type { StatusTone } from '@bagel/kit/status-tone';
   import { getI18n } from '@bagel/kit/i18n/context';

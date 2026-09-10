@@ -20,9 +20,9 @@
   // those are the moments the streamer actually has to read and act on.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import Button from '@bagel/kit/components/Button.svelte';
-  import ButtonLink from '@bagel/kit/components/ButtonLink.svelte';
-  import Card from '@bagel/kit/components/Card.svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
+  import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
+  import Card from '@bagel/ui/svelte/Card.svelte';
   import Skeleton from '@bagel/kit/components/Skeleton.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { ConnUi } from '@bagel/kit/connection-state';

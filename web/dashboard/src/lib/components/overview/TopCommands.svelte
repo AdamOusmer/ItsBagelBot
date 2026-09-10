@@ -4,7 +4,7 @@
   // Established accounts: the most-used commands, each a compact ledger line. The
   // section owns its <h2>; the card title role is folded into it so the heading
   // order stays h1 -> h2 with no decorative h3 in between.
-  import Card from '@bagel/kit/components/Card.svelte';
+  import Card from '@bagel/ui/svelte/Card.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { CommandView } from '@bagel/kit/types';
 

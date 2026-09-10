@@ -3,8 +3,8 @@
 	// Proprietary. No license granted. See LICENSE.md.
   // The last handful of operator actions. Managers only -- the caller gates the
   // whole panel on allows(role, 'audit.read'), matching the /audit route.
-  import Card from '@bagel/kit/components/Card.svelte';
-  import CardHead from '@bagel/kit/components/CardHead.svelte';
+  import Card from '@bagel/ui/svelte/Card.svelte';
+  import CardHead from '@bagel/ui/svelte/CardHead.svelte';
   import EmptyState from '@bagel/kit/components/EmptyState.svelte';
   import { statusTone } from '@bagel/kit/status-tone';
   import { ago } from '@bagel/kit';
@@ -24,7 +24,7 @@
 <Card as="section">
   <CardHead title={t('admin.overview.auditTitle')}>
     {#snippet action()}
-      <a class="more" href="/audit">{t('admin.overview.auditAll')}</a>
+      <a class="bb-card-head__more" href="/audit">{t('admin.overview.auditAll')}</a>
     {/snippet}
   </CardHead>
 

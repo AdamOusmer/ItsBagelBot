@@ -7,7 +7,7 @@
  * band: there is no visual to house, just a fact). One line, one fact per
  * card; anything longer belongs in prose. Columns collapse to one on phones.
  */
-import Card from '../../ui/Card.astro';
+import Card from '@bagel/ui/astro/Card.astro';
 
 interface Props {
     columns?: 2 | 3;
@@ -19,7 +19,7 @@ const { columns = 2, items } = Astro.props;
 
 <div class="gcards" style={`--gcards-cols: ${columns}`}>
     {items.map((item) => (
-        <Card class="gcards__item" label={item.badge}>
+        <Card atmo hover class="gcards__item" label={item.badge}>
             <b class="gcards__title">{item.title}</b>
             <div class="gcards__body" set:html={item.html}></div>
             {item.chips && item.chips.length > 0 && (

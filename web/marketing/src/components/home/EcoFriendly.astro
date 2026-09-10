@@ -10,7 +10,7 @@
  * Sustainable Energy" three times over (section title, card title, body), and
  * once is enough.
  */
-import Card from '../ui/Card.astro';
+import Card from '@bagel/ui/astro/Card.astro';
 import Icon from '../ui/Icon.astro';
 import { getLangFromUrl, useTranslations } from '../../i18n/ui';
 
@@ -20,7 +20,7 @@ const t = useTranslations(lang);
 
 <section class="eco" id="eco-friendly">
     <div class="eco__grid">
-        <Card class="eco__card" label={t('eco.ch')} data-reveal>
+        <Card atmo hover class="eco__card" label={t('eco.ch')} data-reveal>
             <div class="eco__demo" slot="band" aria-hidden="true">
                 <Icon name="leaf" size={96} strokeWidth={1.5} class="eco__leaf" />
             </div>

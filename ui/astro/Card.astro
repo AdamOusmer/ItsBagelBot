@@ -1,0 +1,85 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+/**
+ * Astro twin of ../svelte/Card.svelte; see it for the two shapes and for why
+ * `atmo` and `hover` are opt-in on both adapters. The look is entirely
+ * ../styles/elements/card.css.
+ *
+ * The one thing worth repeating here: a FLAT card renders its children
+ * directly, with no `.bb-card__body` wrapper (divergence C6). The site's
+ * previous Card.astro wrapped every card; the console's could not, because a
+ * card whose root is the flex container loses its children into a wrapper.
+ * The parity test forces one answer. What the wrapper bought marketing's flat
+ * cards -- content painting above the atmosphere -- comes from the
+ * atmosphere's own z-index:-1 instead.
+ */
+import CardAtmosphere from './CardAtmosphere.astro';
+import '../styles/elements/card.css';
+
+interface Props {
+    as?: string;
+    href?: string;
+    atmo?: boolean;
+    sheen?: boolean;
+    stat?: boolean;
+    hover?: boolean;
+    label?: string;
+    class?: string;
+    [key: string]: unknown;
+}
+
+const {
+    as = 'div',
+    href,
+    atmo = false,
+    sheen = false,
+    stat = false,
+    hover = false,
+    label = '',
+    class: cls = '',
+    ...rest
+} = Astro.props;
+
+const Tag = as;
+const banded = Astro.slots.has('band');
+
+// Same list, same order, same join as the Svelte adapter.
+const classes = [
+    'bb-card',
+    banded && 'bb-card--band',
+    stat && 'bb-card--stat',
+    sheen && 'bb-card--sheen',
+    cls,
+]
+    .filter(Boolean)
+    .join(' ');
+---
+
+<Tag
+    class={classes}
+    href={href}
+    data-card=""
+    data-atmo={atmo ? '' : undefined}
+    data-hover={hover ? '' : undefined}
+    {...rest}
+>
+    {/* No whitespace between this block and the closing tag: Astro keeps it,
+       and it reaches the DOM as a trailing space inside the card. */}{banded ? (
+        <Fragment>
+            <span class="bb-card__band">
+                {atmo && <CardAtmosphere />}
+                {label && <span class="bb-card__label">{label}</span>}
+                <span class="bb-card__band-inner"><slot name="band" /></span>
+            </span>
+            <span class="bb-card__body"><slot /></span>
+        </Fragment>
+    ) : (
+        <Fragment>
+            {atmo && <CardAtmosphere />}
+            {label && <span class="bb-card__label">{label}</span>}
+            {/* The slot closes the Fragment on the same line: a newline after
+                it is a text node and reaches the DOM as a trailing space. */}
+            <slot /></Fragment>
+    )}</Tag>

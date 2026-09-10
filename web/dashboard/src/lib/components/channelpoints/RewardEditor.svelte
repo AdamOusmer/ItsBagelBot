@@ -234,8 +234,8 @@
   </div>
 
   <div class="actions">
-    <button type="button" class="btn ghost" onclick={onCancel} disabled={busy}>{t('common.cancel')}</button>
-    <button type="submit" class="btn primary" disabled={busy || !draft.title.trim()}>
+    <button type="button" class="bb-btn bb-btn--ghost" onclick={onCancel} disabled={busy}>{t('common.cancel')}</button>
+    <button type="submit" class="bb-btn bb-btn--primary" disabled={busy || !draft.title.trim()}>
       {busy ? t('channelpoints.saving') : isNew ? t('channelpoints.create') : t('channelpoints.saveChanges')}
     </button>
   </div>
@@ -375,6 +375,6 @@
     .field-row { flex-direction: column; gap: 0; }
     .color-field { width: 100%; }
     .actions { flex-direction: column-reverse; }
-    .actions .btn { width: 100%; justify-content: center; min-height: 44px; }
+    .actions .bb-btn { width: 100%; justify-content: center; min-height: 44px; }
   }
 </style>

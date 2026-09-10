@@ -6,7 +6,7 @@
   // competes. A Settings shortcut appears as a third action ONLY while the bot
   // needs attention (anything but a healthy, online connection); a healthy board
   // leaves it out.
-  import ButtonLink from '@bagel/kit/components/ButtonLink.svelte';
+  import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
 
   const { t } = getI18n();

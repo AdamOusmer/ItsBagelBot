@@ -5,7 +5,7 @@
   // container padding + class across list pages (timers/commands/etc). The row
   // items themselves are supplied by callers as children.
   import type { Snippet } from 'svelte';
-  import Card from './Card.svelte';
+  import Card from '@bagel/ui/svelte/Card.svelte';
   let { children }: { children: Snippet } = $props();
 </script>
 

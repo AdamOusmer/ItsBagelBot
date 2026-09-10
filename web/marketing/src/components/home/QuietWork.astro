@@ -12,7 +12,7 @@
  * feature people arrive searching for, so it gets the full-width housing and
  * the section's first heading.
  */
-import Card from '../ui/Card.astro';
+import Card from '@bagel/ui/astro/Card.astro';
 import SectionHeading from '../ui/SectionHeading.astro';
 import IncomingBadge from '../ui/IncomingBadge.astro';
 import Icon from '../ui/Icon.astro';
@@ -27,7 +27,7 @@ const t = useTranslations(lang);
 
     <div class="qw__grid">
         <!-- Spotify song requests: chat's !sr lands in the real queue -->
-        <Card class="qw__card qw__card--full" data-reveal>
+        <Card atmo hover class="qw__card qw__card--full" data-reveal>
             <div class="qw__demo qw__demo--song" slot="band" aria-hidden="true">
                 <span class="qw-song__art">
                     <span class="qw-song__eq"><i></i><i></i><i></i><i></i><i></i></span>
@@ -50,7 +50,7 @@ const t = useTranslations(lang);
         </Card>
 
         <!-- Govee: bulb lights up and washes the stage in chat's colour -->
-        <Card class="qw__card qw__card--wide" data-reveal style="--reveal-i: 1">
+        <Card atmo hover class="qw__card qw__card--wide" data-reveal style="--reveal-i: 1">
             <div class="qw__demo qw__demo--govee" slot="band" aria-hidden="true">
                 <span class="qw-govee__glow"></span>
                 <span class="qw-govee__bulb">
@@ -66,7 +66,7 @@ const t = useTranslations(lang);
         </Card>
 
         <!-- Commands: typewriter call + response -->
-        <Card class="qw__card qw__card--wide" data-reveal style="--reveal-i: 2">
+        <Card atmo hover class="qw__card qw__card--wide" data-reveal style="--reveal-i: 2">
             <div class="qw__demo qw__demo--cmd" slot="band" aria-hidden="true">
                 <span class="qw-cmd__in">!welcome moth_lamp</span>
                 <span class="qw-cmd__out">{t('qw.cmdOut')}</span>
@@ -76,7 +76,7 @@ const t = useTranslations(lang);
         </Card>
 
         <!-- Polls: racing bars, triggered on reveal -->
-        <Card class="qw__card" data-reveal style="--reveal-i: 3">
+        <Card atmo hover class="qw__card" data-reveal style="--reveal-i: 3">
             <div class="qw__demo qw__demo--poll" slot="band" aria-hidden="true" data-qw-poll>
                 <span class="qw-poll__bar"><i style="--w: 68%"></i><b>68%</b></span>
                 <span class="qw-poll__bar"><i style="--w: 32%"></i><b>32%</b></span>
@@ -89,7 +89,7 @@ const t = useTranslations(lang);
         </Card>
 
         <!-- Giveaways: name shuffle that lands -->
-        <Card class="qw__card" data-reveal style="--reveal-i: 4">
+        <Card atmo hover class="qw__card" data-reveal style="--reveal-i: 4">
             <div class="qw__demo qw__demo--win" slot="band" aria-hidden="true">
                 <span class="qw-win__label">{t('qw.winLabel')}</span>
                 <span class="qw-win__name" data-qw-winner>night_owl_77</span>
@@ -99,7 +99,7 @@ const t = useTranslations(lang);
         </Card>
 
         <!-- Always on: heartbeat -->
-        <Card class="qw__card" data-reveal style="--reveal-i: 5">
+        <Card atmo hover class="qw__card" data-reveal style="--reveal-i: 5">
             <div class="qw__demo qw__demo--beat" slot="band" aria-hidden="true">
                 <svg viewBox="0 0 120 32" preserveAspectRatio="none">
                     <path class="qw-beat__path" d="M0 16 H30 L38 16 L44 4 L52 28 L58 16 H82 L88 10 L94 22 L100 16 H120"

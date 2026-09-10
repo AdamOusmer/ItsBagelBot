@@ -1,0 +1,9 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro half of the Button parity fixture; see ./button.svelte.
+import Button from '../../astro/Button.astro';
+const { label = 'Save', icon = false, link = false, ...props } = Astro.props;
+---
+{link ? <Button {...props} href="/x">{label}</Button> : icon ? <Button {...props} aria-label={label}><svg viewBox="0 0 24 24" /></Button> : <Button {...props}>{label}</Button>}

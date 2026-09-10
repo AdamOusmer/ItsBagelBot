@@ -10,6 +10,13 @@
   // Knows about links. Never about ItsBagelBot: every string arrives as a
   // prop, including the locked hint, which the console used to resolve with an
   // i18n call inside the component.
+    // button.css as well as nav-link.css, and in that order: the `--cta` variant
+  // composes `.bb-btn --go-solid` (button.css owns its fill, frame and label
+  // colour), so a surface that renders only NavLink would otherwise get an
+  // unstyled CTA. Imported here rather than @imported from nav-link.css so
+  // ui/scripts/size.ts keeps measuring the two contracts as two rows -- an
+  // @import inlines and the nav-link row would silently double-count the button.
+  import '../styles/elements/button.css';
   import '../styles/elements/nav-link.css';
   import type { Snippet } from 'svelte';
 
@@ -60,6 +67,12 @@
       'bb-nav-link',
       variant === 'cta' ? 'bb-nav-link--cta' : null,
       block ? 'bb-nav-link--block' : null,
+      // The CTA composes the button contract instead of restating it: button.css
+      // owns the green fill, the frame and the white label, and nav-link.css keeps
+      // only the geometry. Emitted here rather than by a `composes` in CSS because
+      // CSS has no such mechanism outside CSS Modules, which this package does not
+      // use -- the contracts are plain stylesheets a surface @imports.
+      variant === 'cta' ? 'bb-btn bb-btn--go-solid' : null,
       className || null,
     ]
       .filter(Boolean)

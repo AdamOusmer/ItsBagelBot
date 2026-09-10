@@ -15,7 +15,7 @@
   import { enhance } from '$app/forms';
   import Bolota from '@bagel/kit/components/Bolota.svelte';
   import Chip from '@bagel/kit/components/Chip.svelte';
-  import Button from '@bagel/kit/components/Button.svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
   import Scroller from '@bagel/kit/components/Scroller.svelte';
   import { statusTone, type StatusTone } from '@bagel/kit/status-tone';
   import { ago, fmtDate } from '@bagel/kit';

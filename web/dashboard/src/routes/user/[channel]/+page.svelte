@@ -176,7 +176,7 @@
 
   <div class="columns">
     <section class="list-wrap" aria-label="Commands">
-      <Card atmosphere class="list">
+      <Card atmo class="list">
         <div class="list__head">
           <span>{listHeading}</span>
           <span>Click a row to copy</span>
@@ -231,7 +231,7 @@
     </section>
 
     <aside class="side">
-      <Card atmosphere class="modules">
+      <Card atmo class="modules">
         <div class="side__head">
           <span>Active modules</span>
           <span class="side__count">{data.modules.length}</span>
@@ -503,12 +503,12 @@
 
   /* Shared Card, re-shaped: the list is a table so its padding goes to the
      rows; the modules panel keeps a plate. Both take the 16px public radius. */
-  .list-wrap :global(.card), .side :global(.card) {
+  .list-wrap :global(.bb-card), .side :global(.bb-card) {
     border-radius: var(--bb-radius-md);
     box-shadow: 0 1px 0 rgba(255, 255, 255, 0.02) inset, 0 8px 30px rgba(0, 0, 0, 0.35);
   }
-  .list-wrap :global(.card) { --card-pad: 0; }
-  .side :global(.card) { --card-pad: 22px; }
+  .list-wrap :global(.bb-card) { --card-pad: 0; }
+  .side :global(.bb-card) { --card-pad: 22px; }
 
   .list__head, .side__head {
     display: flex;

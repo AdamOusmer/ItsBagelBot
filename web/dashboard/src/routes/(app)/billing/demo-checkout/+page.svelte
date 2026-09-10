@@ -118,7 +118,7 @@
   .pay-form {
     margin-top: 16px;
   }
-  .pay-form :global(.btn) {
+  .pay-form :global(.bb-btn) {
     width: 100%;
   }
 
