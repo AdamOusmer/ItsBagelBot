@@ -296,3 +296,45 @@ func TestOddRateLimitDoesNotPanic(t *testing.T) {
 			provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop()})
 	})
 }
+
+// playerNamed is the single field the name-provenance test asserts on; both
+// reply shapes it covers carry it under the same wire key.
+type playerNamed struct {
+	Player string `json:"player"`
+}
+
+// A username the caller typed must come back as typed, even when Coral's
+// displayname disagrees: that field is only as fresh as Coral's own snapshot,
+// and a player renamed since then would otherwise be chatted under a dead IGN
+// (measured 2026-09-10, "!tag Ofxs" answered "Sho__YiYuan"). A uuid-shaped
+// account carries no name of its own, so there the API name still wins.
+func TestPlayerNamePrefersCallerSpellingOverStaleAPIName(t *testing.T) {
+	const uuid = "3bf23977c78843cbb55d96b87902d822"
+	cases := []struct{ name, ep, account, body, want string }{
+		{
+			name:    "username keeps the caller's spelling",
+			ep:      "tags",
+			account: "Ofxs",
+			body:    `{"uuid":"` + uuid + `","displayname":"Sho__YiYuan","tags":[]}`,
+			want:    "Ofxs",
+		},
+		{
+			name:    "uuid falls back to the API display name",
+			ep:      "daily",
+			account: uuid,
+			body:    `{"uuid":"` + uuid + `","displayname":"Sho__YiYuan","from":0,"delta":{}}`,
+			want:    "Sho__YiYuan",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			body := tc.body
+			p := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = w.Write([]byte(body))
+			}))
+			reply := asReply[playerNamed](t, endpoint(t, p, tc.ep)(context.Background(), gossiprpc.Request{Account: tc.account}))
+			assert.Equal(t, tc.want, reply.Player)
+		})
+	}
+}
