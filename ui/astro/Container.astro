@@ -1,0 +1,29 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro twin of ../svelte/Container.svelte. Three named widths and no free
+// max-width prop; the reason is recorded there.
+import '../styles/elements/layout.css';
+
+interface Props {
+    width?: 'default' | 'narrow' | 'text';
+    /** Drops the viewport gutter, for a container nested inside one. */
+    flush?: boolean;
+    as?: string;
+    class?: string;
+}
+
+const { width = 'default', flush = false, as: Tag = 'div', class: className = '', ...rest } =
+    Astro.props;
+const classes = [
+    'bb-container',
+    width === 'default' ? null : `bb-container--${width}`,
+    flush ? 'bb-container--flush' : null,
+    className,
+]
+    .filter(Boolean)
+    .join(' ');
+---
+
+<Tag class={classes} {...rest}><slot /></Tag>

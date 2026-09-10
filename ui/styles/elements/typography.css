@@ -1,0 +1,391 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* Layer order first. Every adapter in ../svelte JS-imports its own element
+   CSS, so a bundler can emit this file ahead of layers.css -- and layer order
+   is fixed by the first declaration seen, which would rank bb.elements BELOW
+   bb.base and let the button reset there strip the typography off every
+   contract that renders a <button>. Restating it is idempotent; the layers
+   themselves are documented in layers.css. */
+@layer bb.tokens, bb.base, bb.elements, bb.app;
+
+/* Type, as blocks rather than as bare element selectors.
+ *
+ * WHY THIS FILE EXISTS AT ALL, given that `h1` and `p` already had sizes.
+ * Because those sizes were bare element rules in web/kit/styles/tokens.css,
+ * and a bare element rule is a global that every component silently inherits
+ * and then locally un-inherits. Measured on this tree on 2026-09-10 there were
+ * 75 `<style>` rules across the four surfaces whose entire job was to restate
+ * a size on an `h1`, `h2`, `p`, `span` or `small` inside one component --
+ * three quarters of them setting a value that already exists in this scale,
+ * with no way to tell which quarter was deliberate.
+ *
+ * TWO SPELLINGS, ONE SCALE, and the split is the whole design:
+ *
+ *   `.bb-h` / `.bb-text` (bb.elements)  the contract. What a component asks
+ *       for by name, and what beats a bare element selector, because
+ *       bb.elements outranks bb.base.
+ *   `h1`-`h6`, `p`, `small`, `code`, `pre`, `kbd` (bb.base)  the FALLBACK.
+ *       What prose that nobody wrote a component for still looks like:
+ *       markdown bodies in docs, changelog entries, a guide's <p>. Same
+ *       numbers, weakest layer, so any contract wins over it.
+ *
+ * The fallback is deliberately NOT dropped once the sweep is done. The three
+ * surfaces render authored markdown (docs' Starlight pages, the marketing
+ * guides, the changelog), and content authors do not write class names.
+ * What the fallback must never do is out-rank a contract, which is exactly
+ * what it did while it sat unlayered: the regression is written up in
+ * web/kit/styles/tokens.css, where `.bb-page-head h1` resolved to the bare
+ * `h1` rule's 40px/700 instead of its own contract's clamp/800.
+ *
+ * WHY LEVEL AND VARIANT ARE TWO PROPS, not one. `level` is the DOCUMENT
+ * OUTLINE -- which heading rank this is, which is an accessibility fact and
+ * the thing screen readers navigate by. `variant` is the TREATMENT. A card's
+ * title is very often an `<h3>` by outline and `--card` by treatment, and a
+ * hero's is an `<h1>` by outline and `--display` by treatment, but a section
+ * inside a card is an `<h4>` that still wants `--card`. Folding the two into
+ * one prop is what makes people pick the wrong tag to get the right size,
+ * which is the most common way a heading outline gets broken.
+ *
+ * So: `.bb-h--l1`..`--l6` carry the size that goes with the rank, and the four
+ * `.bb-h--display|section|card|eyebrow` treatments OVERRIDE it when asked. A
+ * `Heading` with no variant is byte-identical to the old bare `h1`/`h2`/`h3`
+ * rules it replaces (checked against the values that were in
+ * web/kit/styles/tokens.css before this file existed).
+ */
+
+@layer bb.elements {
+    /* ── Headings ────────────────────────────────────────────────── */
+    .bb-h {
+        font-family: var(--bb-font-display);
+        color: var(--bb-white);
+        margin: 0;
+        text-wrap: balance;
+    }
+
+    /* `text-wrap: balance` on headings only, never on `.bb-text`. The
+       algorithm is capped by UA at a handful of lines (Chromium: 4) and is
+       O(n) in line count, so it is free on a 1-3 line heading and is either
+       ignored or measurable on a paragraph. Body text gets `pretty` below,
+       which only fixes the last line. */
+
+    .bb-h--l1 {
+        font-weight: 700;
+        font-size: clamp(40px, 5.5vw, 72px);
+        line-height: 1.02;
+        letter-spacing: var(--bb-tracking-display);
+    }
+
+    .bb-h--l2 {
+        font-weight: 600;
+        font-size: clamp(28px, 3.5vw, 44px);
+        line-height: 1.1;
+        letter-spacing: var(--bb-tracking-display);
+    }
+
+    .bb-h--l3 {
+        font-weight: 600;
+        font-size: 24px;
+        line-height: 1.2;
+    }
+
+    .bb-h--l4 {
+        font-weight: 600;
+        font-size: 20px;
+        line-height: 1.25;
+    }
+
+    .bb-h--l5 {
+        font-weight: 600;
+        font-size: 17px;
+        line-height: 1.3;
+    }
+
+    .bb-h--l6 {
+        font-weight: 600;
+        font-size: 15px;
+        line-height: 1.35;
+    }
+
+    /* Treatments. Each one replaces the level's size, so it is written after
+       the level rules and at the same specificity -- source order decides,
+       which is why nothing here uses `.bb-h.bb-h--display`. */
+    .bb-h--display {
+        font-weight: 700;
+        font-size: clamp(56px, 8vw, 120px);
+        line-height: 0.95;
+        letter-spacing: var(--bb-tracking-tight);
+    }
+
+    .bb-h--section {
+        font-weight: 600;
+        font-size: clamp(28px, 3.5vw, 44px);
+        line-height: 1.1;
+        letter-spacing: var(--bb-tracking-display);
+    }
+
+    .bb-h--card {
+        font-weight: 600;
+        font-size: 24px;
+        line-height: 1.2;
+        letter-spacing: normal;
+    }
+
+    /* The eyebrow treatment is mono, not display: it is a label ABOUT the
+       heading below it, and at 12px uppercase the display face's tight
+       sidebearings close the counters. Same rule as `.bb-eyebrow` below,
+       reached through `Heading variant="eyebrow"` when the eyebrow genuinely
+       IS the heading of its section rather than a label above one. */
+    .bb-h--eyebrow {
+        font-family: var(--bb-font-mono);
+        font-weight: 400;
+        font-size: var(--bb-text-xs);
+        line-height: 1.4;
+        letter-spacing: var(--bb-tracking-eyebrow);
+        text-transform: uppercase;
+        color: var(--bb-tan);
+    }
+
+    /* ── Body text ───────────────────────────────────────────────── */
+    .bb-text {
+        font-family: var(--bb-font-body);
+        font-weight: 400;
+        font-size: var(--bb-text-md);
+        line-height: 1.6;
+        color: var(--bb-white);
+        margin: 0;
+        text-wrap: pretty;
+    }
+
+    .bb-text--xs { font-size: var(--bb-text-xs); line-height: 1.45; }
+    .bb-text--sm { font-size: var(--bb-text-sm); line-height: 1.5; }
+    .bb-text--md { font-size: var(--bb-text-md); line-height: 1.6; }
+    .bb-text--lg { font-size: var(--bb-text-lg); line-height: 1.55; }
+    .bb-text--xl { font-size: var(--bb-text-xl); line-height: 1.5; }
+
+    /* Four tones and no more, and none of them is "success". Green is the
+       brand's accent AND its success colour on this canvas, so a fifth tone
+       would be the same value under a second name and the pair would drift the
+       first time one of them was tuned. A component that means "this worked"
+       reaches for `.bb-tag--live` or the alert contract, both of which carry a
+       shape as well as a colour; colour alone is not a status (WCAG 1.4.1). */
+    .bb-text--default { color: var(--bb-white); }
+    .bb-text--muted { color: var(--bb-muted); }
+    .bb-text--accent { color: var(--bb-tan-light); }
+    .bb-text--danger { color: var(--bb-danger, #d98a8a); }
+
+    .bb-text--mono {
+        font-family: var(--bb-font-mono);
+        /* Mono runs optically larger than the body face at the same px --
+           DM Mono's x-height is 8% taller than DM Sans's -- so inline mono is
+           stepped down rather than matched. Without this a `<code>` inside a
+           sentence sits proud of the line it is in. */
+        font-size: 0.92em;
+        letter-spacing: 0;
+    }
+
+    /* ── The named one-offs ──────────────────────────────────────── */
+    /* Lead: the paragraph directly under a display heading. Its own block and
+       not `.bb-text--lg`, because it also carries a measure and a colour: a
+       lead that runs the full container width under a centred hero is the
+       single most common reason a landing section reads as unedited. */
+    .bb-lead {
+        font-family: var(--bb-font-body);
+        font-weight: 400;
+        font-size: var(--bb-text-lg);
+        line-height: 1.55;
+        color: var(--bb-muted);
+        max-width: var(--bb-content-text);
+        margin: 0;
+        text-wrap: pretty;
+    }
+
+    .bb-eyebrow {
+        font-family: var(--bb-font-mono);
+        font-weight: 400;
+        font-size: var(--bb-text-xs);
+        line-height: 1.4;
+        letter-spacing: var(--bb-tracking-eyebrow);
+        text-transform: uppercase;
+        color: var(--bb-tan);
+        margin: 0;
+    }
+
+    /* Label: the text above a control. Sized with the caption ramp and NOT
+       with `.bb-field__label`, which is the field contract's own and carries
+       the field's 6px gap and its `<span>` position inside the label element.
+       This one is for a control that is not in a `Field`. */
+    .bb-label {
+        display: inline-block;
+        font-family: var(--bb-font-body);
+        font-weight: 500;
+        font-size: var(--bb-text-sm);
+        line-height: 1.4;
+        color: var(--bb-muted);
+    }
+
+    /* Inline code. Padding is asymmetric (2px top, 3px bottom) because the
+       mono face sits high in its box at this size and a symmetric pad reads
+       as if the chip is riding above the baseline. */
+    .bb-code {
+        font-family: var(--bb-font-mono);
+        font-size: 0.92em;
+        line-height: inherit;
+        color: var(--bb-tan-light);
+        background: rgba(201, 168, 124, 0.08);
+        border: 1px solid var(--bb-border);
+        border-radius: var(--bb-radius-xs);
+        padding: 2px 5px 3px;
+        /* Long identifiers in prose: break anywhere rather than push the
+           container wide. A `<code>` is the usual cause of a horizontal
+           scrollbar on a phone. */
+        overflow-wrap: anywhere;
+    }
+
+    /* The block form: `<pre class="bb-code-block"><code class="bb-code">`.
+       The <pre> owns the box (padding, frame, scroll) and the <code> inside it
+       drops back to a bare inline run, because the chip styling that reads
+       right for one identifier in a sentence reads as a box-inside-a-box
+       around eight lines.
+
+       `overflow-x: auto` on the <pre> and NOT wrapping: a wrapped code block
+       silently changes what the code says (a shell line broken mid-argument is
+       a different command), so the horizontal scrollbar is the correct
+       trade. */
+    .bb-code-block {
+        font-family: var(--bb-font-mono);
+        font-size: var(--bb-text-sm);
+        line-height: 1.6;
+        color: var(--bb-white);
+        background: var(--bb-card-bg);
+        border: 1px solid var(--bb-border);
+        border-radius: var(--bb-radius-md);
+        padding: var(--bb-space-4, 16px);
+        margin: 0;
+        overflow-x: auto;
+        tab-size: 2;
+    }
+
+    .bb-code-block .bb-code {
+        background: none;
+        border: 0;
+        border-radius: 0;
+        padding: 0;
+        color: inherit;
+        font-size: inherit;
+        overflow-wrap: normal;
+    }
+
+    /* Keycap. Same family as `.bb-code` and a different shape on purpose: the
+       inset highlight plus the 1px bottom shadow is what makes it read as a
+       key rather than as a snippet, which is the entire information the
+       element carries. */
+    .bb-kbd {
+        display: inline-block;
+        font-family: var(--bb-font-mono);
+        font-size: 0.85em;
+        line-height: 1.4;
+        color: var(--bb-white);
+        background: rgba(240, 236, 228, 0.06);
+        border: 1px solid var(--bb-border-strong);
+        border-radius: var(--bb-radius-xs);
+        box-shadow:
+            inset 0 1px 0 rgba(240, 236, 228, 0.08),
+            0 1px 0 rgba(0, 0, 0, 0.4);
+        padding: 1px 5px 2px;
+        min-width: 1.6em;
+        text-align: center;
+        white-space: nowrap;
+    }
+
+    /* Visually hidden, still announced.
+     *
+     * Written here ONCE. Two contracts had already written their own copy of
+     * this rule with the note that the package did not ship one
+     * (elements/nav-link.css and elements/shell.css both say so at the rule);
+     * those now use this class.
+     *
+     * The clip-path + 1px box, not `display:none` and not `visibility:hidden`
+     * -- both of those remove the node from the accessibility tree, which is
+     * the opposite of the point. Not `text-indent: -9999px` either: that
+     * leaves a 9999px-wide box that a horizontal scroll can reach on RTL.
+     * `white-space: nowrap` is load-bearing: inside a 1px box every space
+     * becomes a line break, so a screen reader announces the label one word
+     * per line.
+     */
+    .bb-sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        padding: 0;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+        border: 0;
+    }
+
+    /* The skip-link case: hidden until it takes focus, then a real control.
+       `:focus-within` as well as `:focus` so a wrapper carrying the class
+       still reveals when the thing inside it is focused. */
+    .bb-sr-only--focusable:is(:focus, :focus-within) {
+        position: static;
+        width: auto;
+        height: auto;
+        margin: 0;
+        overflow: visible;
+        clip-path: none;
+        white-space: normal;
+    }
+}
+
+/* ── The bare-element fallback ───────────────────────────────────────
+   Prose nobody wrote a component for. Same numbers as the contract above, in
+   the weakest layer, so every `.bb-*` contract out-ranks them. See the header
+   of this file for why they are kept and why they must stay in bb.base. */
+@layer bb.base {
+    h1, h2, h3, h4, h5, h6 {
+        font-family: var(--bb-font-display);
+        color: var(--bb-white);
+    }
+
+    h1 {
+        font-weight: 700;
+        font-size: clamp(40px, 5.5vw, 72px);
+        line-height: 1.02;
+        letter-spacing: var(--bb-tracking-display);
+    }
+
+    h2 {
+        font-weight: 600;
+        font-size: clamp(28px, 3.5vw, 44px);
+        line-height: 1.1;
+        letter-spacing: var(--bb-tracking-display);
+    }
+
+    h3 { font-weight: 600; font-size: 24px; line-height: 1.2; }
+    h4 { font-weight: 600; font-size: 20px; line-height: 1.25; }
+    h5 { font-weight: 600; font-size: 17px; line-height: 1.3; }
+    h6 { font-weight: 600; font-size: 15px; line-height: 1.35; }
+
+    p {
+        font-family: var(--bb-font-body);
+        font-weight: 400;
+        font-size: var(--bb-text-md);
+        line-height: 1.6;
+        color: var(--bb-white);
+    }
+
+    small {
+        font-family: var(--bb-font-body);
+        font-size: var(--bb-text-sm);
+        line-height: 1.5;
+        color: var(--bb-muted);
+    }
+
+    code, pre, kbd, samp {
+        font-family: var(--bb-font-mono);
+        font-size: 14px;
+        color: var(--bb-white);
+    }
+}

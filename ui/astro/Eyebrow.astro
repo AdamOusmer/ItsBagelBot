@@ -1,0 +1,18 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro twin of ../svelte/Eyebrow.svelte. A <span> by default and not an
+// <h*>: the reason is recorded there.
+import '../styles/elements/typography.css';
+
+interface Props {
+    as?: 'span' | 'p' | 'div';
+    class?: string;
+}
+
+const { as: Tag = 'span', class: className = '', ...rest } = Astro.props;
+const classes = ['bb-eyebrow', className].filter(Boolean).join(' ');
+---
+
+<Tag class={classes} {...rest}><slot /></Tag>

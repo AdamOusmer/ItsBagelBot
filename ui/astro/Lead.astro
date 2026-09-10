@@ -1,0 +1,19 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro twin of ../svelte/Lead.svelte. Its own element rather than a Text
+// preset because the contract also carries the reading measure; the record is
+// in the Svelte adapter.
+import '../styles/elements/typography.css';
+
+interface Props {
+    as?: 'p' | 'div';
+    class?: string;
+}
+
+const { as: Tag = 'p', class: className = '', ...rest } = Astro.props;
+const classes = ['bb-lead', className].filter(Boolean).join(' ');
+---
+
+<Tag class={classes} {...rest}><slot /></Tag>

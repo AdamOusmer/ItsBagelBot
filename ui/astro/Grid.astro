@@ -1,0 +1,31 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro twin of ../svelte/Grid.svelte. `min` (auto-fit) and `cols` (fixed) are
+// two modes rather than two composable props, and `min` wins; the reason is
+// recorded there.
+import '../styles/elements/layout.css';
+
+interface Props {
+    cols?: 1 | 2 | 3 | 4 | 5 | 6;
+    /** Step on the --bb-space ramp, not a length. */
+    gap?: 1 | 2 | 3 | 4 | 5 | 6;
+    /** Auto-fit mode: the narrowest a cell may be. Overrides `cols`. */
+    min?: string;
+    as?: string;
+    class?: string;
+}
+
+const { cols = 1, gap = 4, min, as: Tag = 'div', class: className = '', ...rest } = Astro.props;
+const classes = [
+    'bb-grid',
+    min ? 'bb-grid--auto' : `bb-grid--${cols}`,
+    `bb-grid--gap-${gap}`,
+    className,
+]
+    .filter(Boolean)
+    .join(' ');
+---
+
+<Tag class={classes} style={min ? `--grid-min: ${min};` : undefined} {...rest}><slot /></Tag>

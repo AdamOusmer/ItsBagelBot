@@ -1,0 +1,261 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* Layer order first. Every adapter in ../svelte JS-imports its own element
+   CSS, so a bundler can emit this file ahead of layers.css -- and layer order
+   is fixed by the first declaration seen, which would rank bb.elements BELOW
+   bb.base and let the button reset there strip the typography off every
+   contract that renders a <button>. Restating it is idempotent; the layers
+   themselves are documented in layers.css. */
+@layer bb.tokens, bb.base, bb.elements, bb.app;
+
+/* The seven layout primitives: container, section, stack, cluster, grid,
+ * divider, spacer.
+ *
+ * These are the flexbox and grid declarations that every surface writes by
+ * hand, in a scoped `<style>` block, once per component. They are not
+ * interesting individually -- `display:flex; flex-direction:column; gap:16px`
+ * is not a design decision. What makes them worth a contract is that the GAP
+ * is a design decision, and hand-written stacks pick their gap from whatever
+ * looked right in that component, which is why this tree contained gaps of
+ * 10, 14, 18 and 22px alongside the 8/12/16/24 ramp.
+ *
+ * Every one of them takes its size from `--bb-space-1..9` and exposes a single
+ * custom property so a caller can override the ONE number without re-declaring
+ * the layout. That is the shape: `--stack-gap`, `--cluster-gap`, `--grid-gap`,
+ * `--grid-cols`, `--grid-min`, `--section-pad`. A caller that needs a
+ * different gap sets the property; a caller that needs a different LAYOUT is
+ * not using these, and should not be made to.
+ *
+ * WHY `gap` AND NOT MARGINS, in all of them. A margin belongs to the child and
+ * therefore leaks: `.card + .card { margin-top: 16px }` breaks the moment a
+ * card is used somewhere else, and `:last-child { margin-bottom: 0 }` is the
+ * tell that someone hit it. `gap` belongs to the parent, is not inherited, and
+ * collapses to nothing when there is one child. The one place margins survive
+ * in this package is the bare-element prose fallback, where there is no
+ * parent to put the gap on.
+ */
+
+@layer bb.elements {
+    /* ── Container ───────────────────────────────────────────────────
+       Centres content and holds the measure. The inline padding is 24px and
+       not a space token: it is the gutter to the viewport edge, and it is the
+       one horizontal number that must NOT move with the spacing ramp -- it is
+       set by the phone, not by the rhythm. */
+    .bb-container {
+        --container-max: var(--bb-content-max);
+        width: 100%;
+        max-width: var(--container-max);
+        margin-inline: auto;
+        padding-inline: 24px;
+    }
+
+    .bb-container--narrow { --container-max: var(--bb-content-narrow); }
+
+    /* The reading measure is in `ch`, so it tracks the body font rather than
+       a viewport. See --bb-content-text in brand.css. */
+    .bb-container--text { --container-max: var(--bb-content-text); }
+
+    /* `flush` drops the gutter for a container that is already inside one --
+       a card body, a rail panel. Without it, nesting two containers pays the
+       24px twice and the inner content is 48px off the edge. */
+    .bb-container--flush { padding-inline: 0; }
+
+    /* ── Section ─────────────────────────────────────────────────────
+       Vertical rhythm between page bands. `--section-pad` is the knob; the
+       three sizes are the ones the marketing site actually uses.
+
+       Asymmetric clamp, not a fixed 96px: a landing band at 96px top and
+       bottom on a 667px-tall phone spends 29% of the viewport on nothing. The
+       clamp floors at the space-6/7 step and reaches the full ramp on a
+       desktop. */
+    .bb-section {
+        --section-pad: clamp(var(--bb-space-7), 8vw, var(--bb-space-9));
+        padding-block: var(--section-pad);
+    }
+
+    .bb-section--sm { --section-pad: clamp(var(--bb-space-5), 5vw, var(--bb-space-7)); }
+    .bb-section--lg { --section-pad: clamp(var(--bb-space-8), 11vw, 140px); }
+    .bb-section--flush { --section-pad: 0; }
+
+    /* `relative` is opt-in rather than default: a section that hosts an
+       absolutely-positioned ornament needs it, and a section that does not
+       should not become a containing block for a descendant that meant to
+       escape it (the light field and the orb layers both position against a
+       page-level ancestor). */
+    .bb-section--anchor { position: relative; }
+
+    /* ── Stack ───────────────────────────────────────────────────────
+       One column, one gap. The single most duplicated rule in the tree. */
+    .bb-stack {
+        --stack-gap: var(--bb-space-4);
+        display: flex;
+        flex-direction: column;
+        gap: var(--stack-gap);
+    }
+
+    .bb-stack--0 { --stack-gap: 0; }
+    .bb-stack--1 { --stack-gap: var(--bb-space-1); }
+    .bb-stack--2 { --stack-gap: var(--bb-space-2); }
+    .bb-stack--3 { --stack-gap: var(--bb-space-3); }
+    .bb-stack--4 { --stack-gap: var(--bb-space-4); }
+    .bb-stack--5 { --stack-gap: var(--bb-space-5); }
+    .bb-stack--6 { --stack-gap: var(--bb-space-6); }
+    .bb-stack--7 { --stack-gap: var(--bb-space-7); }
+    .bb-stack--8 { --stack-gap: var(--bb-space-8); }
+
+    .bb-stack--start { align-items: flex-start; }
+    .bb-stack--center { align-items: center; }
+    .bb-stack--end { align-items: flex-end; }
+
+    /* ── Cluster ─────────────────────────────────────────────────────
+       A row that wraps. `flex-wrap: wrap` is the DEFAULT and not a modifier,
+       which is the one real decision in this block: a non-wrapping row of
+       chips or buttons overflows its container on a phone, and every
+       hand-written row in this tree that did not wrap was a bug waiting for a
+       long label or a translated string. A caller that genuinely needs one
+       line asks for `--nowrap` and owns the overflow. */
+    .bb-cluster {
+        --cluster-gap: var(--bb-space-2);
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--cluster-gap);
+    }
+
+    .bb-cluster--1 { --cluster-gap: var(--bb-space-1); }
+    .bb-cluster--2 { --cluster-gap: var(--bb-space-2); }
+    .bb-cluster--3 { --cluster-gap: var(--bb-space-3); }
+    .bb-cluster--4 { --cluster-gap: var(--bb-space-4); }
+    .bb-cluster--5 { --cluster-gap: var(--bb-space-5); }
+    .bb-cluster--6 { --cluster-gap: var(--bb-space-6); }
+
+    .bb-cluster--nowrap { flex-wrap: nowrap; }
+    .bb-cluster--start { justify-content: flex-start; }
+    .bb-cluster--center { justify-content: center; }
+    .bb-cluster--end { justify-content: flex-end; }
+    /* `between` pushes the last child right: the toolbar shape (title on the
+       left, actions on the right) that eight components had written out. */
+    .bb-cluster--between { justify-content: space-between; }
+    .bb-cluster--baseline { align-items: baseline; }
+    .bb-cluster--stretch { align-items: stretch; }
+
+    /* ── Grid ────────────────────────────────────────────────────────
+       Two modes, and only two.
+
+       FIXED columns (`--grid-cols`): the caller knows it wants three. Collapses
+       to one column under 640px unconditionally, because a fixed 3-up on a
+       phone is three columns of two words each. There is no prop to keep it
+       from collapsing; a layout that must stay 3-up at 360px is not this
+       element.
+
+       AUTO-FIT (`--grid-min`): the caller knows the smallest a cell may be and
+       lets the browser decide the count. `minmax(min(--grid-min, 100%), 1fr)`
+       and not `minmax(--grid-min, 1fr)` -- the bare form overflows the
+       container when --grid-min exceeds the available width, which is exactly
+       what happens at 320px with a 280px minimum. The `min()` is the whole
+       reason auto-fit is safe here. */
+    .bb-grid {
+        --grid-gap: var(--bb-space-4);
+        --grid-cols: 1;
+        display: grid;
+        gap: var(--grid-gap);
+        grid-template-columns: repeat(var(--grid-cols), minmax(0, 1fr));
+    }
+
+    /* `minmax(0, 1fr)` and not `1fr` on the fixed track: the default `1fr` is
+       `minmax(auto, 1fr)`, whose auto floor is the content's min-content
+       width, so one long unbroken string (a command name, a URL) makes its
+       column wider than its share and pushes the grid past its container. */
+
+    .bb-grid--auto {
+        --grid-min: 240px;
+        grid-template-columns: repeat(auto-fit, minmax(min(var(--grid-min), 100%), 1fr));
+    }
+
+    .bb-grid--1 { --grid-cols: 1; }
+    .bb-grid--2 { --grid-cols: 2; }
+    .bb-grid--3 { --grid-cols: 3; }
+    .bb-grid--4 { --grid-cols: 4; }
+    .bb-grid--5 { --grid-cols: 5; }
+    .bb-grid--6 { --grid-cols: 6; }
+
+    .bb-grid--gap-1 { --grid-gap: var(--bb-space-1); }
+    .bb-grid--gap-2 { --grid-gap: var(--bb-space-2); }
+    .bb-grid--gap-3 { --grid-gap: var(--bb-space-3); }
+    .bb-grid--gap-4 { --grid-gap: var(--bb-space-4); }
+    .bb-grid--gap-5 { --grid-gap: var(--bb-space-5); }
+    .bb-grid--gap-6 { --grid-gap: var(--bb-space-6); }
+
+    @media (max-width: 640px) {
+        .bb-grid:not(.bb-grid--auto) { --grid-cols: 1; }
+    }
+
+    /* ── Divider ─────────────────────────────────────────────────────
+       An <hr> that does not look like a browser's. `border: 0` first because
+       the UA sheet gives <hr> an inset border, not a background. */
+    .bb-divider {
+        --divider-space: var(--bb-space-5);
+        border: 0;
+        margin: 0;
+        align-self: stretch;
+        background: var(--bb-border);
+        block-size: 1px;
+        inline-size: 100%;
+        margin-block: var(--divider-space);
+    }
+
+    /* Vertical: sized on the CROSS axis, and `align-self: stretch` above is
+       what gives it a height inside a flex row without the caller setting one.
+       In a non-flex parent it needs a height; that is the caller's, because
+       only the caller knows what it is dividing. */
+    .bb-divider--v {
+        block-size: auto;
+        inline-size: 1px;
+        min-block-size: 1em;
+        margin-block: 0;
+        margin-inline: var(--divider-space);
+    }
+
+    .bb-divider--flush { --divider-space: 0; }
+
+    /* Faded: the hairline that stops before the edges. Used where a divider
+       inside a card would otherwise touch the card's own border and read as
+       a seam. */
+    .bb-divider--fade {
+        background: linear-gradient(90deg, transparent, var(--bb-border-strong), transparent);
+    }
+
+    /* ── Spacer ──────────────────────────────────────────────────────
+       Deliberate empty space where a gap cannot reach: between two siblings
+       that are NOT in a stack, or as a flex push (`--grow`).
+
+       This one is the primitive most likely to be misused, so it is worth
+       saying what it is for. It is NOT for adding space between stack
+       children -- that is `--stack-gap`. It is for the two cases flexbox has
+       no other answer to: an explicit block of air in flowed content, and
+       "push everything after me to the other end".
+
+       `aria-hidden` is emitted by the adapters, not asserted here: an empty
+       <div> is already ignored by assistive tech, but a spacer that later
+       grows a border would not be. */
+    .bb-spacer {
+        --spacer-size: var(--bb-space-4);
+        flex: 0 0 auto;
+        block-size: var(--spacer-size);
+    }
+
+    .bb-spacer--1 { --spacer-size: var(--bb-space-1); }
+    .bb-spacer--2 { --spacer-size: var(--bb-space-2); }
+    .bb-spacer--3 { --spacer-size: var(--bb-space-3); }
+    .bb-spacer--4 { --spacer-size: var(--bb-space-4); }
+    .bb-spacer--5 { --spacer-size: var(--bb-space-5); }
+    .bb-spacer--6 { --spacer-size: var(--bb-space-6); }
+    .bb-spacer--7 { --spacer-size: var(--bb-space-7); }
+    .bb-spacer--8 { --spacer-size: var(--bb-space-8); }
+
+    .bb-spacer--grow {
+        flex: 1 1 auto;
+        block-size: 0;
+    }
+}

@@ -1,0 +1,70 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro twin of ../svelte/AppShell.svelte: the stage layout (call-sign strip,
+// one centred reading column, floating dock), for a static surface that wants
+// the whole console chrome rather than the pieces.
+//
+// THE ONE DIVERGENCE FROM THE SVELTE TWIN, and it is deliberate: the skip
+// link here is a plain in-page anchor, where the Svelte adapter also moves
+// focus in an onclick handler. That handler exists because a CLIENT ROUTER can
+// swallow the hash without moving focus, so the next Tab continues from the
+// chrome; a static page has no router and the browser's own hash navigation
+// already focuses the target (`tabindex="-1"` on <main> is what makes it a
+// valid one, and it is emitted identically here). The emitted MARKUP is the
+// same, which is why ../test/parity.test.ts can still diff the two: a Svelte
+// event handler is not markup and never reaches SSR output.
+//
+// Slots are forwarded through `<Fragment slot="…">` wrappers rather than
+// re-declared: Topbar and Rail own the names `actions`, `account` and `foot`,
+// and renaming them at this boundary would mean two vocabularies for the same
+// hole.
+import '../styles/elements/shell.css';
+import Topbar from './Topbar.astro';
+import Dock from './Dock.astro';
+import Rail from './Rail.astro';
+import type { UiBrand, UiCrumb, UiNavGroup, UiNavLink } from '../lib/nav-types';
+
+interface Props {
+  brand: UiBrand;
+  crumbs?: UiCrumb[];
+  groups?: UiNavGroup[];
+  /** The dock's flat items; empty falls back to every group's items. */
+  dockItems?: UiNavLink[];
+  rail?: boolean;
+  /** Reserve room above for a fixed banner. */
+  offset?: boolean;
+  skipLabel: string;
+  crumbAriaLabel?: string;
+  dockAriaLabel?: string;
+  railAriaLabel?: string;
+  clock?: boolean;
+  class?: string;
+  [key: string]: unknown;
+}
+
+const {
+  brand,
+  crumbs = [],
+  groups = [],
+  dockItems = [],
+  rail = false,
+  offset = false,
+  skipLabel,
+  crumbAriaLabel,
+  dockAriaLabel,
+  railAriaLabel,
+  clock = true,
+  class: className = '',
+  ...rest
+} = Astro.props;
+
+const classes = ['bb-shell', offset ? 'bb-shell--offset' : null, rail ? 'bb-shell--railed' : null, className]
+  .filter(Boolean)
+  .join(' ');
+
+const items = dockItems.length ? dockItems : groups.flatMap((group) => group.items);
+---
+
+<a class="bb-shell__skip" href="#main-content">{skipLabel}</a><slot name="banner" /><div class={classes} {...rest}>{rail && (<Rail brand={brand} groups={groups} ariaLabel={railAriaLabel}><Fragment slot="foot"><slot name="railFoot" /></Fragment></Rail>)}<div class="bb-shell__stage"><Topbar brand={brand} crumbs={crumbs} crumbAriaLabel={crumbAriaLabel} clock={clock} railed={rail}><Fragment slot="account"><slot name="account" /></Fragment><Fragment slot="actions"><slot name="topActions" /></Fragment></Topbar><main class="bb-shell__main" id="main-content" tabindex="-1"><div class="bb-shell__canvas"><slot /></div></main></div><div class="bb-shell__dock-slot"><Dock items={items} groups={groups} ariaLabel={dockAriaLabel} /></div></div>

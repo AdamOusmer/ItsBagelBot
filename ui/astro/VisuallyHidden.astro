@@ -1,0 +1,22 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro twin of ../svelte/VisuallyHidden.svelte, for `.bb-sr-only`
+// (../styles/elements/typography.css).
+import '../styles/elements/typography.css';
+
+interface Props {
+    /** Reveals itself when focused, for skip links. */
+    focusable?: boolean;
+    as?: 'span' | 'div' | 'p' | 'a';
+    class?: string;
+}
+
+const { focusable = false, as: Tag = 'span', class: className = '', ...rest } = Astro.props;
+const classes = ['bb-sr-only', focusable ? 'bb-sr-only--focusable' : null, className]
+    .filter(Boolean)
+    .join(' ');
+---
+
+<Tag class={classes} {...rest}><slot /></Tag>

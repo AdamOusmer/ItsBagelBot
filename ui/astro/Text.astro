@@ -1,0 +1,39 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro twin of ../svelte/Text.svelte, for the `.bb-text` contract
+// (../styles/elements/typography.css). The tone class is suppressed at its
+// default while the size class is always emitted; the reason is recorded in
+// the Svelte adapter.
+import '../styles/elements/typography.css';
+
+interface Props {
+    size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+    tone?: 'default' | 'muted' | 'accent' | 'danger';
+    /** Renders in the mono face, stepped down to match the body x-height. */
+    mono?: boolean;
+    as?: 'p' | 'span' | 'small' | 'div' | 'li' | 'dd' | 'dt';
+    class?: string;
+}
+
+const {
+    size = 'md',
+    tone = 'default',
+    mono = false,
+    as: Tag = 'p',
+    class: className = '',
+    ...rest
+} = Astro.props;
+const classes = [
+    'bb-text',
+    `bb-text--${size}`,
+    tone === 'default' ? null : `bb-text--${tone}`,
+    mono ? 'bb-text--mono' : null,
+    className,
+]
+    .filter(Boolean)
+    .join(' ');
+---
+
+<Tag class={classes} {...rest}><slot /></Tag>
