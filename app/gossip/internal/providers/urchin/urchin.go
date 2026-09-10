@@ -224,7 +224,7 @@ func (p *api) fetchSession(ctx context.Context, period string, acct account) (go
 	}
 
 	reply := gossiprpc.UrchinSessionReply{
-		Player:    displayOr(resp.DisplayName, acct.String()),
+		Player:    playerName(acct, resp.DisplayName),
 		SinceUnix: resp.From / 1000, // Coral timestamps are Unix milliseconds
 	}
 	if len(resp.Delta) > 0 {
@@ -301,7 +301,7 @@ func (p *api) tagsFetch(ctx context.Context, req gossiprpc.Request, id provider.
 		return nil, err
 	}
 	out := gossiprpc.UrchinTagsReply{
-		Player: displayOr(resp.DisplayName, acct.String()),
+		Player: playerName(acct, resp.DisplayName),
 		Tags:   make([]gossiprpc.UrchinTag, 0, len(resp.Tags)),
 	}
 	for _, t := range resp.Tags {
@@ -334,7 +334,7 @@ func (p *api) sniperFetch(ctx context.Context, req gossiprpc.Request, id provide
 	// The cubelify endpoint authenticates via the key query parameter (it is
 	// built for the overlay); the client's X-API-Key header rides along too.
 	var resp cubelifyResponse
-	name := displayOr(tags.DisplayName, acct.String())
+	name := playerName(acct, tags.DisplayName)
 	q := url.Values{"uuid": {tags.UUID}, "key": {p.key}, "name": {name}}
 	if err := p.http.GetJSON(ctx, "/v3/cubelify", q, &resp); err != nil {
 		return nil, err
@@ -345,6 +345,29 @@ func (p *api) sniperFetch(ctx context.Context, req gossiprpc.Request, id provide
 		Mode:     resp.Score.Mode,
 		TagCount: len(resp.Tags),
 	}, nil
+}
+
+// playerName is the name every reply chats the player under. A caller who
+// typed a username gets that spelling back verbatim; only a uuid-shaped
+// identifier falls through to the API's display name.
+//
+// Coral's displayname is as fresh as its own Hypixel-sourced snapshot, not as
+// fresh as Mojang. Measured 2026-09-10 on uuid 3bf23977c788...d822: Mojang's
+// session profile reported the current IGN "OFXs" while Coral still answered
+// "Sho__YiYuan", the name that account had renamed away from, so "!tag Ofxs"
+// chatted a dead IGN at a player watching in chat. Preferring the API name
+// (what this did before) is only correct when we have no name of our own.
+//
+// Resolving the name ourselves against Mojang was the alternative and was
+// rejected: it buys nothing for username input, which already arrives as a
+// name, and costs an extra upstream hop plus a second failure mode on a path
+// whose whole budget is measured against Coral's burst wall (see maxBurst).
+// Echoing the caller keeps the reply free of both.
+func playerName(acct account, display *string) string {
+	if _, isUUID := canonicalUUID(acct); !isUUID {
+		return acct.String()
+	}
+	return displayOr(display, acct.String())
 }
 
 // displayOr prefers the API's display name when present and non-empty.
