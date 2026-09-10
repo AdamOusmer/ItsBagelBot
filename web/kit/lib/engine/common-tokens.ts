@@ -29,13 +29,12 @@
 // it past five fails the suite rather than quietly widening the offer.
 //
 // WHY THESE FIVE, IN THIS ORDER. Who ran it, what they typed, where, a dice
-// roll, a number that goes up: `user`, `args`, `channel`, `random`, then
-// `count` when the catalog carries a counter and `uptime` when it does not.
-// `count` and not `counter` because the console replaces the `{counter:…}`
-// chip with the counter PICKER (which creates one in place) and would
-// otherwise show the same variable twice. Both catalogs curated here do carry
-// a `count` example, so `uptime` is the documented fallback rather than a
-// sixth entry -- it is what a surface without counters shows in that slot.
+// roll, how long the stream has been live: `user`, `args`, `channel`,
+// `random`, `uptime`. Every one is a real variable with no payload. `count`
+// was the fifth until 2026-09-10 and was cut on request: `{count:deaths}` is
+// an EXAMPLE payload, not a variable a streamer has, and counters already
+// arrive through the counter PICKER next to these chips, so offering one here
+// showed a made-up name twice. Payload-taking heads stay out of this set.
 //
 // WHY HEADS AND NOT WHOLE TOKENS. A token that takes a payload is spelled with
 // a DIFFERENT example payload on each surface -- the console's counter chip
@@ -64,24 +63,18 @@ export function tokenHead(token: string): string {
 }
 
 /**
- * The five heads a rehearsal surface offers, in preference order. A surface
- * whose catalog has no counter falls back to `uptime` for the fifth slot,
- * which is why six heads are spelled out for five slots and why the cap below
- * is what the test asserts.
+ * The five heads a rehearsal surface offers, in preference order.
  *
  * Order here is preference, NOT render order: each surface renders the picked
  * entries in its own catalog order, so the two never have to agree on
  * anything but membership.
  */
-export const COMMON_TOKEN_HEADS: readonly string[] = ['user', 'args', 'channel', 'random', 'count'];
-
-/** The fifth slot when a catalog carries no counter example. */
-export const FALLBACK_TOKEN_HEAD = 'uptime';
+export const COMMON_TOKEN_HEADS: readonly string[] = ['user', 'args', 'channel', 'random', 'uptime'];
 
 /** How many chips a rehearsal surface offers. Five, and nothing else. */
 export const COMMON_TOKEN_LIMIT = 5;
 
-const HEADS = new Set([...COMMON_TOKEN_HEADS, FALLBACK_TOKEN_HEAD]);
+const HEADS = new Set(COMMON_TOKEN_HEADS);
 
 /** Is this catalog entry one of the five a rehearsal surface can offer? */
 export function isCommonToken(token: string): boolean {
@@ -99,16 +92,9 @@ export function isCommonToken(token: string): boolean {
  * variable with and without a range -- and a plain filter would spend two of
  * the five slots on one variable. First one wins, because a catalog orders its
  * own entries plainest-first.
- *
- * The `uptime` fallback. It is only picked when the catalog carries no
- * counter, so a surface never shows six and never shows four when it has a
- * fifth to give.
  */
 export function pickCommonTokens<T>(items: readonly T[], tokenOf: (item: T) => string): T[] {
-  const heads = items.some((item) => tokenHead(tokenOf(item)) === 'count')
-    ? COMMON_TOKEN_HEADS
-    : [...COMMON_TOKEN_HEADS.filter((head) => head !== 'count'), FALLBACK_TOKEN_HEAD];
-  const wanted = new Set(heads);
+  const wanted = HEADS;
   const seen = new Set<string>();
   const picked: T[] = [];
   for (const item of items) {
