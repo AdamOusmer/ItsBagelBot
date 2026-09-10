@@ -197,7 +197,7 @@ type Feed struct {
 }
 
 // Read serves the dashboard's activity panel (and, indirectly, documents the
-// exact layout console/dashboard/src/lib/server/activity.ts reads directly
+// exact layout web/dashboard/src/lib/server/activity.ts reads directly
 // from Valkey, since that TypeScript reader cannot import this Go package).
 //
 // Uses Primary, not the node-local replica valkey.Do would pick: the feed is
@@ -251,7 +251,7 @@ func readMedian(resp valkey.ValkeyResult) *int {
 // cheap (a bounded LIST, no unbounded retention or reservoir sampling); a
 // footer figure does not need statistical rigor, but it must not be
 // presented as exact, which is why the doc comment on ActivityFeed.medianMs
-// (console/dashboard/src/lib/overview-live.ts) spells this out too.
+// (web/dashboard/src/lib/overview-live.ts) spells this out too.
 func median(raw []string) *int {
 	vals := make([]int, 0, len(raw))
 	for _, r := range raw {

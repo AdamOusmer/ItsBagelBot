@@ -171,14 +171,14 @@ jobs:
             },
             {
               "image": "console-dashboard",
-              "context": "console",
-              "containerfile": "console/dashboard/Containerfile",
+              "context": "web",
+              "containerfile": "web/dashboard/Containerfile",
               "description": "ItsBagelBot console dashboard (SvelteKit SSR)"
             },
             {
               "image": "console-admin",
-              "context": "console",
-              "containerfile": "console/admin/Containerfile",
+              "context": "web",
+              "containerfile": "web/admin/Containerfile",
               "description": "ItsBagelBot console admin (SvelteKit SSR)"
             }
           ]'
@@ -299,14 +299,14 @@ jobs:
               app/warp/*)
                 add "warp"
                 ;;
-              console/shared/*|console/bunfig.toml|console/bun.lock|console/package.json|console/tsconfig.base.json)
+              web/kit/*|web/bunfig.toml|web/bun.lock|web/package.json|web/tsconfig.base.json|web/sorted-readdir.mjs|web/serve-node.js|web/.containerignore)
                 add "console-dashboard"
                 add "console-admin"
                 ;;
-              console/dashboard/*)
+              web/dashboard/*)
                 add "console-dashboard"
                 ;;
-              console/admin/*)
+              web/admin/*)
                 add "console-admin"
                 ;;
             esac

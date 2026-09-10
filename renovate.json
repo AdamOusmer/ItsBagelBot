@@ -102,12 +102,25 @@
       "groupName": "Container images"
     },
     {
+      "description": "Hold the web workspace root on cookie 0.7. The root manifest declares cookie only so the hoisted node_modules the SSR images ship carries the version SvelteKit needs: adapter-node leaves `cookie` external, the runtime image has just /app/build and /app/node_modules, and @sveltejs/kit imports { parse, serialize }, which cookie 2 removed in favour of parseCookie/stringifySetCookie. 0.7 is also the floor that fixes CVE-2024-47764 in the 0.6 line kit still asks for. The two Astro sites pin cookie 2 in their own manifests and get nested copies; only this entry is held.",
+      "matchManagers": [
+        "bun"
+      ],
+      "matchFileNames": [
+        "web/package.json"
+      ],
+      "matchPackageNames": [
+        "cookie"
+      ],
+      "allowedVersions": "<1"
+    },
+    {
       "description": "Hold the console on TypeScript 6. svelte-check refuses to run against TypeScript 7 unless both 6 and 7 are installed and --tsgo is passed, and that mode resolves .svelte imports to the ambient module declaration -- component props degrade to any and a string passed to a boolean prop goes unreported. Lift this when svelte-check supports 7 outside its experimental path.",
       "matchManagers": [
         "bun"
       ],
       "matchFileNames": [
-        "console/package.json"
+        "web/package.json"
       ],
       "matchPackageNames": [
         "typescript"

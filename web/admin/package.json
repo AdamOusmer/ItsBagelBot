@@ -1,0 +1,25 @@
+{
+  "name": "admin",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "NEW_RELIC_ENABLED=false vite dev",
+    "build": "bun run verify:demo-gated && bun ../kit/scripts/check-i18n.mjs && bun ../kit/scripts/size.ts && vite build && bun run verify:production-clean",
+    "verify:demo-gated": "bun ../kit/scripts/assert-demo-gated.mjs admin",
+    "verify:production-clean": "bun scripts/assert-production-clean.ts",
+    "preview": "node build",
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
+  },
+  "dependencies": {
+    "@bagel/shared": "workspace:*",
+    "@nats-io/kv": "^3.4.0",
+    "@nats-io/transport-node": "^3.4.0",
+    "nanoid": "^6.0.1",
+    "newrelic": "^14.3.9",
+    "pino": "^10.3.1"
+  },
+  "devDependencies": {
+    "@sveltejs/adapter-node": "^5.5.5",
+    "terser": "^5.48.0"
+  }
+}

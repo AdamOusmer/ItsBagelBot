@@ -13,7 +13,7 @@ import (
 )
 
 // TestConfigFieldsMatchTheSharedFixture pins Config's JSON tags against
-// testdata/config_fields.json, the same file console/shared reads in its own
+// testdata/config_fields.json, the same file web/kit reads in its own
 // test.
 //
 // The two sides are one JSON object seen from two languages, and nothing in

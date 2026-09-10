@@ -1,0 +1,46 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+# Admin SSR — separate deploy from dashboard. Build with bun, run on distroless
+# Node (adapter-node output). Native per-node build (ARM/Intel); no emulation.
+FROM docker.io/oven/bun:1.4.2@sha256:9114c058aeae42162ee16dd5084b95fe9473970bb6bcb5b232ab1630f0546895 AS build
+WORKDIR /src
+# Pin SvelteKit's version metadata to the commit SHA. sorted-readdir.mjs also
+# makes route-node assignment deterministic across the native ARM/Intel builds.
+ARG BUILD_VERSION=dev
+ENV BUILD_VERSION=$BUILD_VERSION
+# bunfig.toml MUST be present so the hoisted linker applies (flat node_modules).
+COPY package.json bun.lock bunfig.toml ./
+COPY tsconfig.base.json tsconfig.base.json
+COPY sorted-readdir.mjs sorted-readdir.mjs
+COPY kit/package.json kit/package.json
+COPY dashboard/package.json dashboard/package.json
+COPY admin/package.json admin/package.json
+COPY marketing/package.json marketing/package.json
+COPY docs/package.json docs/package.json
+# The install skips marketing and docs. They are workspace members now (one
+# lockfile for the whole web/ tree), but astro, sharp and mermaid are build-time
+# deps of two static sites that this image never runs, and the hoisted linker
+# puts every workspace dep in ONE flat node_modules that the runtime stage
+# copies wholesale -- so without the filter the SSR image carries the entire
+# static-site toolchain. Their package.json files are still COPYed above:
+# --frozen-lockfile re-resolves the whole workspace graph and fails with
+# "lockfile had changes, but lockfile is frozen" if a member named in bun.lock
+# has no manifest on disk. Gate: the image must not contain node_modules/astro.
+RUN bun install --frozen-lockfile --filter '!marketing' --filter '!docs'
+COPY kit kit
+COPY admin admin
+# `bun run build` also scans the final adapter-node output and fails if any
+# development identity or seeded demo fixture was emitted into the image.
+RUN cd admin && bun run build && bun install --production --frozen-lockfile --filter '!marketing' --filter '!docs'
+
+FROM gcr.io/distroless/nodejs22-debian12@sha256:8a3e96fe3345b5d83ecec2066e7c498139a02a6d1214e4f6c39f9ce359f3f5bc AS run
+WORKDIR /app
+ENV NODE_ENV=production
+ENV PORT=3000
+COPY --from=build /src/admin/build ./build
+COPY --from=build /src/node_modules ./node_modules
+COPY serve-node.js ./serve-node.js
+EXPOSE 3000
+# Preload the New Relic APM agent (ESM --import) before the SvelteKit server.
+CMD ["--import", "newrelic", "serve-node.js"]

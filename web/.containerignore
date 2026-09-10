@@ -1,0 +1,21 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+# Build context for the dashboard and admin images (both build with `web` as
+# their context). The two static sites are workspace members but never ship in
+# an SSR image, so their sources stay out of the context entirely; only their
+# package.json survives, because `bun install --frozen-lockfile` re-resolves the
+# whole workspace graph and refuses to run when a member named in bun.lock has
+# no manifest on disk.
+marketing/*
+!marketing/package.json
+docs/*
+!docs/package.json
+
+**/node_modules
+**/dist
+**/build
+**/.svelte-kit
+**/.astro
+**/test-results
+**/*.log

@@ -29,7 +29,7 @@ import (
 // NATS_HUB_URL): the durable streams live on the hub, so routing JetStream
 // through the leaf is only an extra forwarding hop (the leaf runs no JetStream).
 // This mirrors the console lib's rpc/bus split in
-// console/shared/lib/server/nats.ts.
+// web/kit/lib/server/nats.ts.
 //
 // COUPLED TO the broker configs — this file is the client half of the topology
 // declared by deploy/messaging/nats-leaf-server.conf (leaf tier: plane split, TLS
@@ -267,7 +267,7 @@ func RPCURL(busURL string) string {
 // busURL resolves the JetStream-plane endpoint. The durable streams live on the
 // hub, so for JetStream the node-local leaf is only an extra forwarding hop:
 // dial the hub directly when NATS_HUB_URL is set (mirroring busServerList in
-// console/shared/lib/server/nats.ts). Falls back to the configured endpoint
+// web/kit/lib/server/nats.ts). Falls back to the configured endpoint
 // when no hub is configured (local dev / single-endpoint deploys). RPC stays
 // on the leaf via RPCURL/serverList.
 func busURL(url endpoint) string {

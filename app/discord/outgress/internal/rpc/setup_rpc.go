@@ -37,7 +37,7 @@ const layoutHandleTimeout = 10 * time.Second
 
 // Every dashboard-facing timeout below is deliberately SHORTER than the
 // console's own client deadline for the same call (see
-// console/dashboard/src/lib/server/discord-store.ts and the pairing table in
+// web/dashboard/src/lib/server/discord-store.ts and the pairing table in
 // timeouts_test.go). Whoever gives up first decides what the streamer sees:
 // when it is the server, the reply carries a code the page can explain; when
 // it is the console, the page shows a generic network failure and the handler

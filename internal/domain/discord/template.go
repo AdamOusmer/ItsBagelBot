@@ -20,7 +20,7 @@ package discord
 // bumped value here as a migration, never as a rollout.
 //
 // The dashboard carries this same number as a decimal literal
-// (console/dashboard/src/lib/server/discord-oauth.ts) because it builds the
+// (web/dashboard/src/lib/server/discord-oauth.ts) because it builds the
 // invite URL in TypeScript. permissions.test.ts recomputes this expression
 // from source and fails if the two drift.
 const BotPermissions = 2 | 4 | 16 | 64 | 1024 | 2048 | 8192 | 16384 | 32768 | 65536 | 1048576 | 16777216 | 67108864 | 268435456 | 2147483648 | 1<<40

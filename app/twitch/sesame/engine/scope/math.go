@@ -43,7 +43,7 @@ const MaxMathExpr = 64
 // four operators over integers: a library would add a dependency, a much
 // larger surface (variables, functions, floats, string coercion) than the
 // pinned grammar, and no way to promise the TypeScript preview in
-// console/shared/lib/pure.ts computes the identical answer. The two are
+// web/kit/lib/engine/pure.ts computes the identical answer. The two are
 // pinned against one another by testdata/pure.golden.json.
 func evalMath(expr string) string {
 	if len(expr) > MaxMathExpr {

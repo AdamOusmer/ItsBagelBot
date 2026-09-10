@@ -29,7 +29,7 @@ func Automod(_ engine.Deps) module.Module {
 	// Beta: premium-only while the gate matures. On the standard lane the
 	// pipeline treats the row as disabled (floor-only), see
 	// engine.automodLocked. Mirrored by `beta: true` on the dashboard catalog
-	// (console/shared/lib/catalog/automod.ts); drop both to ship it to all.
+	// (web/kit/lib/catalog/automod.ts); drop both to ship it to all.
 	m := module.NewModule("automod", module.KindDefault).Beta()
 	m.On("channel.chat.message", func(context.Context, *module.Context, module.Emit) error {
 		return nil

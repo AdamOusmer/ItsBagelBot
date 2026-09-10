@@ -42,8 +42,8 @@ go.work.sum
 /test-*.yaml
 
 # Console one-off diagnostics; maintained tests use *.test.ts
-/console/test-*.ts
-/console/admin/test-*.ts
+/web/test-*.ts
+/web/admin/test-*.ts
 
 
 .idea/

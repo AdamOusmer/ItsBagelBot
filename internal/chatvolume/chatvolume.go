@@ -220,7 +220,7 @@ type ChatVolume struct {
 	Peak         int
 }
 
-// Read serves the dashboard's chat-volume panel. console/dashboard's
+// Read serves the dashboard's chat-volume panel. web/dashboard's
 // chat-volume.ts reads the same Valkey layout directly (that TypeScript
 // reader cannot import this Go package), so a change to bumpScript's wire
 // format must be mirrored there.

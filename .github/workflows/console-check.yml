@@ -7,12 +7,12 @@ on:
   pull_request:
     branches: [ "main" ]
     paths:
-      - 'console/**'
+      - 'web/**'
       - '.github/workflows/console-check.yml'
   push:
     branches: [ "main" ]
     paths:
-      - 'console/**'
+      - 'web/**'
       - '.github/workflows/console-check.yml'
 
 jobs:
@@ -32,7 +32,7 @@ jobs:
           bun-version: 1.4.2
 
       - name: Install dependencies
-        working-directory: console
+        working-directory: web
         run: bun install --frozen-lockfile
 
       # Nothing ran `bun run check` in CI until this job existed, which is how a
@@ -40,5 +40,5 @@ jobs:
       # `bun run build`, and a SvelteKit build does not typecheck. The type
       # errors were only visible to whoever ran the script by hand.
       - name: Typecheck
-        working-directory: console
+        working-directory: web
         run: bun run check
