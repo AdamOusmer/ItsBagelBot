@@ -14,8 +14,8 @@
   import { untrack } from 'svelte';
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import PageHead from '@bagel/kit/components/PageHead.svelte';
-  import PageToolbar from '@bagel/kit/components/PageToolbar.svelte';
+  import PageHead from '@bagel/ui/svelte/PageHead.svelte';
+  import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
   import DeckList from '@bagel/kit/components/DeckList.svelte';
   import ManagementRow from '@bagel/kit/components/ManagementRow.svelte';
   import InspectorSurface from '@bagel/kit/components/InspectorSurface.svelte';
@@ -26,7 +26,7 @@
   import Skeleton from '@bagel/ui/svelte/Skeleton.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import Field from '@bagel/ui/svelte/Field.svelte';
-  import Scroller from '@bagel/kit/components/Scroller.svelte';
+  import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import EditorFooter from '@bagel/kit/components/EditorFooter.svelte';
   import { createInspector } from '@bagel/kit/inspector';
   import { createDiscardGuard } from '@bagel/kit/discard-guard';

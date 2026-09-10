@@ -12,7 +12,7 @@
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
   import { page } from '$app/state';
-  import Icon from '@bagel/kit/components/Icon.svelte';
+  import Icon from '@bagel/ui/svelte/Icon.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
 
   const { t } = getI18n();

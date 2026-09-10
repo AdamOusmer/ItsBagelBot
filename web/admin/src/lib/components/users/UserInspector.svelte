@@ -16,7 +16,7 @@
   import Bolota from '@bagel/kit/components/Bolota.svelte';
   import Chip from '@bagel/ui/svelte/Chip.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
-  import Scroller from '@bagel/kit/components/Scroller.svelte';
+  import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import { statusTone, type StatusTone } from '@bagel/kit/status-tone';
   import { ago, fmtDate } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';

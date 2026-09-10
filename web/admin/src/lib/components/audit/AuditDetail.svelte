@@ -8,7 +8,7 @@
   // `detail` and `error` are shown in full and wrap; they are the two fields the
   // row deliberately truncates, and truncating them here too would leave nowhere
   // to read them.
-  import Scroller from '@bagel/kit/components/Scroller.svelte';
+  import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import Bolota from '@bagel/kit/components/Bolota.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { AuditEntry } from '$lib/server/services';

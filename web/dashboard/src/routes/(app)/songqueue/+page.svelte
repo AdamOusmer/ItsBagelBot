@@ -8,6 +8,7 @@
   import {
     Card,
     PageHead,
+    PageToolbar,
     Scroller,
     ConfirmDialog,
     InspectorSurface,
@@ -309,16 +310,18 @@
   {/if}
 
   <!-- Master switch first, matching govee: the credential step follows. -->
-  <div class="toolbar">
-    <MasterToggle
-      action="?/toggle"
-      bind:enabled
-      label={t('spotify.masterLabel')}
-      hint={enabled ? t('spotify.masterHintOn') : t('spotify.masterHintOff')}
-      ariaLabel={t('spotify.masterAria')}
-      failMessage={t('spotify.masterFail')}
-    />
-  </div>
+  <PageToolbar>
+    {#snippet lead()}
+      <MasterToggle
+        action="?/toggle"
+        bind:enabled
+        label={t('spotify.masterLabel')}
+        hint={enabled ? t('spotify.masterHintOn') : t('spotify.masterHintOff')}
+        ariaLabel={t('spotify.masterAria')}
+        failMessage={t('spotify.masterFail')}
+      />
+    {/snippet}
+  </PageToolbar>
 
   <!-- Connect is the only prerequisite. Chat and channel-points are sibling
        paths (either can be on while the other is off), so they share a two-
@@ -647,8 +650,6 @@
   }
   .back:hover { color: var(--bb-white); }
   .back:focus-visible { outline: 2px solid var(--bb-focus, var(--bb-tan)); outline-offset: 2px; border-radius: var(--bb-radius-xs); }
-
-  .toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; }
 
   /* Gap between the connect card and the two request-path cards; `.screen` is
      `display: block` so sibling Cards otherwise sit flush. */

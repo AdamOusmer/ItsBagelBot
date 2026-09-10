@@ -1,0 +1,63 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro adapter for `.bb-dock`. Its Svelte twin is ../svelte/Dock.svelte and
+// ../test/parity.test.ts diffs the two closed renders.
+//
+// Static: a folded group renders its button (aria-expanded="false") and no
+// popover, which is exactly what the live dock looks like before anyone
+// touches it. The grouping arithmetic is the same module the twin calls, so
+// the two cannot disagree about which item is hoisted or which group folds.
+import '../styles/elements/shell.css';
+import Icon from './Icon.astro';
+import {
+  dockGroups,
+  groupActive,
+  groupCount,
+  groupIcon,
+  hoistHome,
+  isGrouped,
+} from '../lib/dock-groups';
+import type { IconName } from '../lib/icons';
+import type { UiNavGroup, UiNavLink } from '../lib/nav-types';
+
+interface Props {
+  /** The flat dock's items. Ignored in grouped mode. */
+  items?: UiNavLink[];
+  groups?: UiNavGroup[];
+  ariaLabel?: string;
+  /** The item hoisted out of its group as the way back. */
+  homeHref?: string;
+  /** Glyph for a folded group whose first item has none. */
+  fallbackIcon?: IconName;
+  class?: string;
+  [key: string]: unknown;
+}
+
+const {
+  items = [],
+  groups = [],
+  ariaLabel,
+  homeHref = '/',
+  fallbackIcon,
+  class: className = '',
+  ...rest
+} = Astro.props;
+
+const classes = ['bb-dock', className || null].filter(Boolean).join(' ');
+const grouped = isGrouped(groups);
+const home = grouped ? hoistHome(groups, homeHref) : null;
+const folded = grouped ? dockGroups(groups, homeHref) : [];
+const flat = grouped ? [] : items;
+---
+
+<nav class={classes} aria-label={ariaLabel} {...rest}><div class="bb-dock__inner">{home && <a class="bb-dock-item" href={home.href} data-active={home.active ? '' : undefined} aria-current={home.active ? 'page' : undefined}>{home.icon && <Icon name={home.icon} size={18} />}<span class="bb-dock-item__label">{home.label}</span></a>}{folded.map((group) => (
+  group.items.length === 1 ? (
+    <a class="bb-dock-item" href={group.items[0].href} data-active={group.items[0].active ? '' : undefined} aria-current={group.items[0].active ? 'page' : undefined}>{group.items[0].icon && <Icon name={group.items[0].icon} size={18} />}<span class="bb-dock-item__label">{group.items[0].label}</span>{group.items[0].count && <span class="bb-dock-item__count" aria-hidden="true">{group.items[0].count}</span>}</a>
+  ) : (
+    <div class="bb-dock__group"><button type="button" class="bb-dock-item" data-active={groupActive(group) ? '' : undefined} aria-expanded="false" aria-haspopup="menu">{groupIcon(group, fallbackIcon) && <Icon name={groupIcon(group, fallbackIcon) as IconName} size={18} />}<span class="bb-dock-item__label">{group.label}</span>{groupCount(group) && <span class="bb-dock-item__count" aria-hidden="true">{groupCount(group)}</span>}</button></div>
+  )
+))}{flat.map((item) => (
+  <a class="bb-dock-item" href={item.href} data-active={item.active ? '' : undefined} aria-current={item.active ? 'page' : undefined}>{item.icon && <Icon name={item.icon} size={18} />}<span class="bb-dock-item__label">{item.label}</span>{item.count && <span class="bb-dock-item__count" aria-hidden="true">{item.count}</span>}</a>
+))}</div></nav>

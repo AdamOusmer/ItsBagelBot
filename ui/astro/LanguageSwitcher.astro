@@ -1,0 +1,34 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro adapter for `.bb-lang-switch`. Its Svelte twin is
+// ../svelte/LanguageSwitcher.svelte and ../test/parity.test.ts diffs the two,
+// so the class order (`bb-lang-switch__opt bb-tab is-active`) and the
+// attribute order here match that file.
+import '../styles/elements/nav.css';
+import '../styles/tags.css';
+import type { UiLocaleOption } from '../lib/nav-types';
+
+interface Props {
+  options: UiLocaleOption[];
+  ariaLabel: string;
+  class?: string;
+  [key: string]: unknown;
+}
+
+const { options, ariaLabel, class: className = '', ...rest } = Astro.props;
+
+const classes = ['bb-lang-switch', 'bb-tabs', className || null]
+  .filter(Boolean)
+  .join(' ');
+---
+
+<div class={classes} role="group" aria-label={ariaLabel} {...rest}>{options.map((option) => (
+  <a
+    class={`bb-lang-switch__opt bb-tab ${option.current ? 'is-active' : ''}`}
+    href={option.href}
+    hreflang={option.code}
+    aria-current={option.current ? 'true' : undefined}
+  >{option.label}</a>
+))}</div>

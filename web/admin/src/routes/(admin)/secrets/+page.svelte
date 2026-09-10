@@ -16,7 +16,7 @@
   import { enhance } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import PageHead from '@bagel/kit/components/PageHead.svelte';
+  import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';

@@ -1,7 +1,11 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-export { default as Icon } from '../components/Icon.svelte';
+// The buttons, cards, fields, nav, footer and shell elements are the design
+// library's now. They are re-exported here under the names the console already
+// imports, so moving them was a zero-diff change for 200-odd call sites -- the
+// same trick the Cursor/LightField pair set below.
+export { default as Icon } from '@bagel/ui/svelte/Icon.svelte';
 export { default as Card } from '@bagel/ui/svelte/Card.svelte';
 export { default as Button } from '@bagel/ui/svelte/Button.svelte';
 export { default as ButtonLink } from '@bagel/ui/svelte/ButtonLink.svelte';
@@ -24,15 +28,19 @@ export { default as Modal } from '../components/Modal.svelte';
 export { default as AppShell } from '../components/AppShell.svelte';
 export { default as Rail } from '../components/Rail.svelte';
 export { default as RailItem } from '../components/RailItem.svelte';
-export { default as Brand } from '../components/Brand.svelte';
+export { default as Brand } from '@bagel/ui/svelte/Brand.svelte';
 export { default as NavGroup } from '../components/NavGroup.svelte';
 export { default as AccountFoot } from '../components/AccountFoot.svelte';
 export { default as Topbar } from '../components/Topbar.svelte';
+// The operator chip and its menu: the half of the old Topbar that binds a
+// session, an avatar engine and a POST /auth/logout form, and therefore the
+// half that could not move into the library.
+export { default as OperatorMenu } from '../components/OperatorMenu.svelte';
 export { default as Bolota } from '../components/Bolota.svelte';
 export { default as ImpersonationBanner } from '../components/ImpersonationBanner.svelte';
-export { default as PageHead } from '../components/PageHead.svelte';
-export { default as PageToolbar } from '../components/PageToolbar.svelte';
-export { default as SectionNav } from '../components/SectionNav.svelte';
+export { default as PageHead } from '@bagel/ui/svelte/PageHead.svelte';
+export { default as PageToolbar } from '@bagel/ui/svelte/PageToolbar.svelte';
+export { default as SectionNav } from '@bagel/ui/svelte/SectionNav.svelte';
 export { default as CardHead } from '@bagel/ui/svelte/CardHead.svelte';
 export { default as AlertBanner } from '../components/AlertBanner.svelte';
 export { default as Chip } from '@bagel/ui/svelte/Chip.svelte';
@@ -55,11 +63,11 @@ export { default as RadioGroup } from '@bagel/ui/svelte/RadioGroup.svelte';
 export { default as NotificationBell } from '../components/NotificationBell.svelte';
 export { default as SearchInput } from '@bagel/ui/svelte/SearchInput.svelte';
 export { default as DeckList } from '../components/DeckList.svelte';
-export { default as Scroller } from '../components/Scroller.svelte';
+export { default as Scroller } from '@bagel/ui/svelte/Scroller.svelte';
 
 export { initLenis, magnetic, countUp } from './actions';
 export { copyFlash } from '@bagel/ui/lib/clipboard';
-export { icons, type IconName } from './icons';
+export { icons, type IconName } from '@bagel/ui/lib/icons';
 export { customCursor } from './cursor';
 
 // i18n: context helpers for components + the pure runtime/detection surface.
@@ -79,6 +87,7 @@ export {
 export * from './types';
 export * from './module-index';
 export * from './nav';
+export * from './social';
 export * from './spotify';
 export * from './toast';
 export * from './connection-state';

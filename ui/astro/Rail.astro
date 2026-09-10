@@ -1,0 +1,44 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro adapter for `.bb-rail`. Its Svelte twin is ../svelte/Rail.svelte and
+// ../test/parity.test.ts diffs the two static renders.
+//
+// Static by design: no collapse state and no glide engine. This adapter exists
+// for the surfaces that DRAW a console rail rather than run one -- the guide
+// screens and the docs -- and those want the rail exactly as it looks on
+// arrival, which is groups expanded for the current page and the highlight not
+// yet measured.
+import '../styles/elements/shell.css';
+import Brand from './Brand.astro';
+import RailItem from './RailItem.astro';
+import type { UiBrand, UiNavGroup } from '../lib/nav-types';
+
+interface Props {
+  brand: UiBrand;
+  groups: UiNavGroup[];
+  ariaLabel?: string;
+  class?: string;
+  [key: string]: unknown;
+}
+
+const { brand, groups, ariaLabel, class: className = '', ...rest } = Astro.props;
+
+const classes = ['bb-rail', className || null].filter(Boolean).join(' ');
+---
+
+<aside class={classes} aria-label={ariaLabel} {...rest}><Brand title={brand.title} sub={brand.sub} href={brand.href} logoSrc={brand.logoSrc} logoAlt={brand.logoAlt} premium={brand.premium} /><span class="bb-rail__glide" aria-hidden="true"><span class="bb-rail__glide-edge"></span></span><div class="bb-rail__nav">{groups.map((group) => (
+  <>{group.label && <div class="bb-rail__label">{group.label}</div>}<div class="bb-rail__group">{group.items.map((item) => (
+    item.children && item.children.length ? (
+      <>
+        <div class="bb-rail__row"><RailItem href={item.href} icon={item.icon} label={item.label} active={item.active} locked={item.locked} lockedHint={item.lockedHint} count={item.count} /><button class="bb-rail__chev" type="button" aria-expanded={!!item.active} aria-label={item.label}><svg viewBox="0 0 24 24" width="14" height="14"><polyline points="9 6 15 12 9 18"></polyline></svg></button></div>
+        <div class="bb-rail__subs" data-open={item.active ? '' : undefined}><div class="bb-rail__subs-inner">{item.children.map((child) => (
+          <a class="bb-rail__sub" href={child.href}><span class="bb-rail__sub-label">{child.label}</span>{child.count !== undefined && <span class="bb-rail__sub-count">{child.count}</span>}</a>
+        ))}</div></div>
+      </>
+    ) : (
+      <RailItem href={item.href} icon={item.icon} label={item.label} active={item.active} locked={item.locked} lockedHint={item.lockedHint} count={item.count} />
+    )
+  ))}</div></>
+))}</div><div class="bb-rail__spacer"></div><slot name="foot" /></aside>

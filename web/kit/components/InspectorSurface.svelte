@@ -8,7 +8,7 @@
   // route's inspector behaves identically instead of each re-styling an <aside>.
   import type { Snippet } from 'svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
-  import Icon from './Icon.svelte';
+  import Icon from '@bagel/ui/svelte/Icon.svelte';
   import { pushOverlay, removeOverlay, isTopmost, overlayIndex, hasOpenOverlay, portal, trapFocus } from '../lib/overlay-stack';
 
   let {

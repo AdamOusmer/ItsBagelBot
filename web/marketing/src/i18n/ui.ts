@@ -148,6 +148,28 @@ export function languageName(lang: Lang): string {
 // the origin; only the CTA uses this.
 const DASHBOARD_LOGIN = 'https://dashboard.itsbagelbot.com/auth/login';
 
+/**
+ * The locale switch's options for the page at `url`, in the shape
+ * @bagel/ui's LanguageSwitcher takes.
+ *
+ * Lives here rather than in the component because TWO surfaces render the
+ * switch -- the nav bar and the mobile panel -- and they were computing the
+ * same fallback rule from two copies of it. A route with no translated
+ * counterpart keeps the default path, so the switch never creates a dead link.
+ */
+export function localeOptions(url: URL) {
+  const current = getLangFromUrl(url);
+  const { path } = splitLocale(url.pathname);
+
+  return locales.map((code) => ({
+    code,
+    href:
+      code === defaultLang || !LOCALIZED_PATHS.has(path) ? path : localizePath(path, code),
+    label: code.toUpperCase(),
+    current: code === current,
+  }));
+}
+
 export function dashLoginHref(lang: Lang): string {
   return lang === defaultLang ? DASHBOARD_LOGIN : `${DASHBOARD_LOGIN}?lang=${lang}`;
 }

@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import Icon from './Icon.svelte';
+  import Icon from '@bagel/ui/svelte/Icon.svelte';
   import { toasts, dismissToast, type ToastItem } from '../lib/toast';
 
   function undo(t: ToastItem) {

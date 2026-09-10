@@ -147,9 +147,11 @@
         }
     }
 
-    body.nav-menu-open {
-        overflow: hidden;
-    }
+    /* The nav panel's scroll lock used to be this class, toggled by the nav's
+       own script. The panel is @bagel/ui's now and locks the page with
+       `body:has(.bb-mobile-menu.is-open)` in its own contract: an element in a
+       shared library cannot assume the host page defines a rule for its state.
+       Deleted rather than left as a no-op, so nothing re-adds a caller for it. */
 
     body {
         background: var(--black);

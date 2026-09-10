@@ -14,8 +14,8 @@
   import { untrack } from 'svelte';
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import PageHead from '@bagel/kit/components/PageHead.svelte';
-  import PageToolbar from '@bagel/kit/components/PageToolbar.svelte';
+  import PageHead from '@bagel/ui/svelte/PageHead.svelte';
+  import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
   import DeckList from '@bagel/kit/components/DeckList.svelte';
   import ManagementRow from '@bagel/kit/components/ManagementRow.svelte';
   import InspectorSurface from '@bagel/kit/components/InspectorSurface.svelte';

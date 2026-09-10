@@ -1,0 +1,51 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro adapter for `.bb-mobile-menu`. Its Svelte twin is
+// ../svelte/MobileMenu.svelte and ../test/parity.test.ts diffs the two, so the
+// element order, the five engine data-attributes and the derived clip id here
+// match that file.
+import '../styles/elements/nav.css';
+import NavLink from './NavLink.astro';
+import type { UiNavLink } from '../lib/nav-types';
+
+interface Props {
+  links: UiNavLink[];
+  /** The one filled entry at the bottom of the panel. */
+  cta?: UiNavLink;
+  /** Also the hamburger's aria-controls; see the clip note in the twin. */
+  id?: string;
+  /** Accessible name of the dialog. */
+  panelLabel: string;
+  /** Fine print under the footer rows. */
+  meta?: string;
+  class?: string;
+  [key: string]: unknown;
+}
+
+const {
+  links,
+  cta,
+  id = 'bb-mobile-menu',
+  panelLabel,
+  meta,
+  class: className = '',
+  ...rest
+} = Astro.props;
+
+const classes = ['bb-mobile-menu', className || null].filter(Boolean).join(' ');
+const clipId = `${id}-clip`;
+---
+
+<div
+  class={classes}
+  id={id}
+  data-mobile-menu
+  aria-hidden="true"
+  inert
+  style={`--menu-clip:url(#${clipId})`}
+  {...rest}
+><svg class="bb-mobile-menu__curve" aria-hidden="true" focusable="false"><defs><clipPath id={clipId} clipPathUnits="userSpaceOnUse"><path class="bb-mobile-menu__curve-path" data-menu-curve-path d=""></path></clipPath></defs></svg><div class="bb-mobile-menu__panel" role="dialog" aria-label={panelLabel} aria-modal="true"><ul class="bb-mobile-menu__links">{links.map((link) => (
+  <li data-menu-item><NavLink class="bb-mobile-menu__link" href={link.href} label={link.label} current={link.active} external={link.external} block /></li>
+))}</ul><div class="bb-mobile-menu__footer" data-menu-footer>{cta && <NavLink class="bb-mobile-menu__cta" variant="cta" href={cta.href} label={cta.label} external={cta.external} block />}<slot name="footer" />{meta && <span class="bb-mobile-menu__meta">{meta}</span>}</div></div></div>

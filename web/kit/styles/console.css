@@ -263,9 +263,23 @@ kbd.hint {
 .feed-row .ft span { display: block; font-size: 12.5px; color: var(--bb-muted); margin-top: 2px; }
 .feed-row .fw { margin-left: auto; font-family: var(--bb-font-mono); font-size: 11px; color: var(--bb-muted); white-space: nowrap; }
 
-/* ── toolbars + filter pills ── */
-.toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
-.toolbar .grow { flex: 1; }
+/* ── filter pills ── */
+/* The raw `.toolbar` that used to head this block is gone. It was the same
+   five declarations as `.bb-toolbar` in @bagel/ui/styles/elements/shell.css
+   (12px gap, 18px bottom margin, flex-wrap under 600px), and keeping both is
+   how the two drifted by 6px of bottom margin in the first place -- the note
+   on ui/svelte/PageToolbar.svelte records that.
+
+   It was also already dead, which is worth writing down because the count
+   looked alarming: three pages wrote `class="toolbar"`, and all three ALSO
+   declared a scoped `.toolbar` of their own, which outranks a global by the
+   scoping attribute. Nothing on the site was rendering these declarations.
+   Govee and songqueue render <PageToolbar> now and their scoped copies are
+   deleted with it; the public channel page keeps its own, because that one is
+   a sticky gradient header rather than this row (its file says why).
+
+   `.toolbar .grow` went with it: nothing used it, and the contract spells
+   that spacer `.bb-toolbar__grow` and emits it itself. */
 .chip-row { display: flex; gap: 8px; }
 /* The raw `.chip` that used to live here was a near-duplicate of
    .bb-chip--muted (same hairline, same 6px corners, same 11.5px / 7px-12px
@@ -309,7 +323,6 @@ kbd.hint {
   .status-hero .actions form { flex: 1; }
   .status-hero .actions .btn { width: 100%; justify-content: center; }
 
-  .toolbar { flex-wrap: wrap; }
 }
 
 /* ══════════════════════════ accessibility ══════════════════════════
@@ -342,30 +355,9 @@ kbd.hint {
 
 /* Skip-to-content link: first focusable element in the shell, off-screen until
    focused, then pinned top-left over everything. */
-.skip-link {
-  position: fixed;
-  top: 0;
-  left: 0;
-  z-index: 1000;
-  transform: translateY(-120%);
-  margin: 8px;
-  padding: 10px 16px;
-  background: var(--bb-card-bg, #111110);
-  color: var(--bb-white, #f0ece4);
-  border: 1px solid var(--bb-focus, #e0c49a);
-  border-radius: var(--bb-radius-sm);
-  font-family: var(--bb-font-body);
-  font-weight: 600;
-  font-size: 13px;
-  text-decoration: none;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
-  transition: transform var(--bb-dur-fast, 180ms) var(--bb-ease-out-expo, ease);
-}
-.skip-link:focus,
-.skip-link:focus-visible {
-  transform: translateY(0);
-  outline-offset: 3px;
-}
+/* The skip link moved to @bagel/ui as `.bb-shell__skip`: it is rendered by the
+   shell element now, so its rule belongs with it. The marketing site keeps its
+   own scoped copy -- that page has no shell. */
 
 /* Labels, tags & controls (.bb-tag, .bb-mark, .bb-sweep, .bb-drawline,
    .bb-chip, .bb-tabs) are @bagel/ui/styles/tags.css, imported at the top of

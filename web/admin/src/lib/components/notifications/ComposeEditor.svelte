@@ -14,7 +14,7 @@
   import { enhance } from '$app/forms';
   import RadioGroup from '@bagel/ui/svelte/RadioGroup.svelte';
   import Field from '@bagel/ui/svelte/Field.svelte';
-  import Scroller from '@bagel/kit/components/Scroller.svelte';
+  import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import EditorFooter from '@bagel/kit/components/EditorFooter.svelte';
   import type { InspectorStatus } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';

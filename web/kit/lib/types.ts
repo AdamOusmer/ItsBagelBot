@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import type { IconName } from './icons';
+import type { IconName } from '@bagel/ui/lib/icons';
 // Wire types mirroring the Go NATS RPC contracts (JSON over core NATS).
 export type Perm = 'everyone' | 'sub' | 'vip' | 'mod' | 'lead_mod' | 'broadcaster';
 export type Tier = 'premium' | 'standard';

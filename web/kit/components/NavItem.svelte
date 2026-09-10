@@ -19,8 +19,8 @@
   // the left, next to the index, which is where every other surface marks the
   // current page. One active state, one place to look for it.
   import NavLink from '@bagel/ui/svelte/NavLink.svelte';
-  import Icon from './Icon.svelte';
-  import type { IconName } from '../lib/icons';
+  import Icon from '@bagel/ui/svelte/Icon.svelte';
+  import type { IconName } from '@bagel/ui/lib/icons';
   import { getI18n } from '../lib/i18n/context';
 
   const { t } = getI18n();

@@ -1,0 +1,28 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* The icon contract is almost entirely presentation ATTRIBUTES on the <svg>
+   itself (viewBox, width/height, stroke, stroke-width, linecaps), because an
+   icon has to draw correctly wherever it is dropped -- including inside a
+   surface that has no idea it is there. Attributes lose to CSS, so a caller
+   can still override any of them from its own stylesheet.
+
+   That leaves this file with the two things an attribute cannot express.
+
+   `flex: none` is the one that was being rediscovered per surface: the rail
+   row, the dock item and the topbar chip each carried their own
+   `flex-shrink: 0` on `svg`, because an icon in a flex row with a long label
+   is the first thing the browser squashes -- a 17px glyph rendering at 11px
+   next to an ellipsized label, which reads as a rendering bug rather than as
+   overflow. It belongs to the element.
+
+   `vertical-align` matters only for an icon inside running text (the copy
+   button in a code block, an external-link mark after a label), where the
+   default `baseline` drops the glyph by the font's descender. Every flex
+   container ignores it, so it costs the other surfaces nothing. */
+@layer bb.elements {
+  .bb-icon {
+    flex: none;
+    vertical-align: -0.125em;
+  }
+}

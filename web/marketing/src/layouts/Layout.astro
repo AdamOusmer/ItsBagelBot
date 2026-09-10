@@ -36,7 +36,8 @@ import { ClientRouter } from 'astro:transitions';
 import Cursor from '@bagel/ui/astro/Cursor.astro'
 import Footer from '../components/layout/Footer.astro'
 import Nav from "../components/layout/Nav.astro";
-import SocialRail from '../components/layout/SocialRail.astro'
+import SocialRail from '@bagel/ui/astro/SocialRail.astro'
+import { SOCIAL_LINKS } from '@bagel/kit/social'
 import Brackets from '../components/ui/Brackets.astro'
 import ReadingProgress from '../components/ui/ReadingProgress.astro'
 import { getLangFromUrl, LOCALIZED_PATHS, locales, defaultLang, splitLocale, localizePath, useTranslations } from '../i18n/ui';
@@ -272,7 +273,9 @@ const contentSecurityPolicy = [
         <slot/>
     </main>
     <Nav/>
-    <SocialRail/>
+    <!-- The rail is @bagel/ui's; the five accounts it points at are the
+         bot's, so they come from @bagel/kit. -->
+    <SocialRail items={SOCIAL_LINKS} ariaLabel={t('nav.social')}/>
     <ReadingProgress/>
     <Brackets/>
     <Footer/>
