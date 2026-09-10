@@ -139,7 +139,7 @@
     {#if guilds.length > 0}
       <section class="block reveal" style="--i:0" aria-labelledby="dc-stats-h">
         <h2 id="dc-stats-h" class="sr-only">{t('discord.hub.statsTitle')}</h2>
-        <div class="stat-grid three">
+        <div class="bb-stat-grid three">
           <StatTile
             label={t('discord.hub.statServers')}
             value={guilds.length.toLocaleString()}
@@ -239,9 +239,10 @@
   .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 
   /* Three tiles, not the shared grid's four. auto-fit rather than a media
-     query because app.css's own 1100px rule for .stat-grid would otherwise be
+     query because the contract's own 1100px rule for .bb-stat-grid
+     (@bagel/ui/styles/elements/stat-tile.css) would otherwise be
      out-specified by this selector and never apply. */
-  .stat-grid.three { grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); }
+  .bb-stat-grid.three { grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); }
 
   .servers {
     list-style: none;

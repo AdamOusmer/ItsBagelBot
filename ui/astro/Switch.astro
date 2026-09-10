@@ -1,0 +1,33 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+//
+// Astro twin of ../svelte/Switch.svelte: the same button, the same ARIA, no
+// click handler. Static on purpose -- the surfaces that render this one
+// (marketing guide screens, docs) are showing what the console looks like,
+// not offering a control. A caller that wants it live drives [data-state] and
+// aria-checked from its own script; the contract is the two attributes.
+const {
+  checked = false,
+  label,
+  describedby,
+  disabled = false,
+  pending = false,
+  type = 'button',
+  ...rest
+} = Astro.props;
+---
+
+<button
+  type={type}
+  class="bb-switch"
+  role="switch"
+  aria-checked={checked ? 'true' : 'false'}
+  aria-label={label}
+  aria-describedby={describedby}
+  aria-busy={pending ? 'true' : undefined}
+  disabled={disabled || pending}
+  data-state={checked ? 'on' : 'off'}
+  data-pending={pending ? '' : undefined}
+  {...rest}
+></button>

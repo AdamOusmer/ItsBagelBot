@@ -10,8 +10,8 @@
   import Card from '@bagel/ui/svelte/Card.svelte';
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import Modal from '@bagel/kit/components/Modal.svelte';
-  import Skeleton from '@bagel/kit/components/Skeleton.svelte';
-  import SkeletonStack from '@bagel/kit/components/SkeletonStack.svelte';
+  import Skeleton from '@bagel/ui/svelte/Skeleton.svelte';
+  import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
   import OverviewGrid from '@bagel/kit/components/OverviewGrid.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { connectionUiState, type ConnSignals, type ConnUi } from '@bagel/kit/connection-state';

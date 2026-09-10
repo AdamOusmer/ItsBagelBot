@@ -1,0 +1,85 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* Loading placeholders: one block (.bb-skel), a run of text lines
+   (.bb-skel-lines), a stack or grid of blocks (.bb-skel-stack), and the padded
+   container a list shows in place of its rows (.bb-skeletons).
+
+   Size comes from custom properties, never from an inline `style="width:…"`.
+   Skeleton.svelte built its width and height as a style STRING
+   (`style="{width ? `width:${width};` : ''}…"`), which is two problems in one:
+   a CSP `style-src` without 'unsafe-inline' drops the attribute and every
+   placeholder collapses to its default size, and the parity normaliser would
+   have to compare two frameworks' idea of how to serialise that string.
+   `--skel-w` / `--skel-h` are one shape, and a custom property in a style
+   attribute is still an inline style -- so the adapters set them through the
+   same single `style` attribute, which is the one thing both frameworks
+   spell identically.
+
+   The shimmer is a 100deg gradient at 200% width sliding across the block. It
+   is off under reduced motion; the block stays, because the block is the
+   information ("something is coming") and the shimmer is only the reassurance
+   that it has not hung. */
+
+@layer bb.elements {
+    .bb-skel {
+        display: inline-block;
+        width: var(--skel-w, 8ch);
+        height: var(--skel-h, 0.9em);
+        background: linear-gradient(
+            100deg,
+            rgba(255, 255, 255, 0.04) 40%,
+            rgba(255, 255, 255, 0.09) 50%,
+            rgba(255, 255, 255, 0.04) 60%
+        );
+        background-size: 200% 100%;
+        animation: bb-shimmer 1.4s ease-in-out infinite;
+        border-radius: var(--bb-radius-sm);
+    }
+
+    .bb-skel--text { vertical-align: middle; }
+    .bb-skel--pill { --skel-w: 72px; --skel-h: 22px; border-radius: var(--bb-radius-pill); }
+    .bb-skel--block { display: block; --skel-w: 100%; --skel-h: 64px; border-radius: var(--bb-radius-md); }
+
+    .bb-skel-lines {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        width: var(--skel-w, 100%);
+    }
+
+    .bb-skel-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .bb-skel-stack--grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+
+    /* The list-shaped variant: a run of rows inside a card that has not
+       resolved yet, so it carries the padding the rows would have had.
+       Was a global in console.css. */
+    .bb-skeletons {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 12px;
+    }
+
+    @keyframes bb-shimmer {
+        0%   { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
+
+    @media (max-width: 560px) {
+        .bb-skel-stack--grid { grid-template-columns: 1fr; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .bb-skel { animation: none; }
+    }
+}

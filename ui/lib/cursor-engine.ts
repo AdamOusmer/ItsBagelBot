@@ -82,12 +82,21 @@ export type CursorOptions = {
 };
 
 /**
- * `a, button` are the marketing list; `.search` is the console's search field,
- * which is a div with an inner input and so matches neither. `[data-cursor]` is
- * the opt-in for anything else, and is also what makes a nested element inside
- * a quiet region eligible again.
+ * `a, button` are the marketing list; `.bb-input` is the console's text-control
+ * frame (a <label> wrapping an inner <input>, so it matches neither of those)
+ * and is what the search box wears. `[data-cursor]` is the opt-in for anything
+ * else, and is also what makes a nested element inside a quiet region eligible
+ * again.
+ *
+ * It read `.search` until the field/toggle/badge contracts landed. That class
+ * was the console's search box and nothing else; `.bb-input` is the same frame
+ * renamed (field.css, declaration for declaration) and now worn by every text
+ * control, so the ring stamps a settings input as well as the search box. That
+ * is the intended widening, not an accident of the rename: the reason `.search`
+ * was ever in this list is that the ring should morph onto a text frame, and
+ * every `.bb-input` is one.
  */
-const SELECTOR = 'a, button, .search, [data-cursor]';
+const SELECTOR = 'a, button, .bb-input, [data-cursor]';
 const QUIET = '[data-cursor="quiet"]';
 const EASE: CursorEase = { hover: 0.3, release: 0.28 };
 

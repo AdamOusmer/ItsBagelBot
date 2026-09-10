@@ -9,7 +9,7 @@
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
-  import SearchInput from '@bagel/kit/components/SearchInput.svelte';
+  import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
 
   let { canNotify }: { canNotify: boolean } = $props();
@@ -46,7 +46,7 @@
     gap: 8px;
     align-items: center;
   }
-  .lookup :global(.search) {
+  .lookup :global(.bb-input) {
     flex: 1;
     min-width: 0;
   }

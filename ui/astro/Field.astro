@@ -1,0 +1,16 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+//
+// Astro twin of ../svelte/Field.svelte. Same contract markup, no scoped
+// <style>: the look is ui/styles/elements/field.css, which both adapters and
+// the raw class contract share. ui/test/parity.test.ts diffs the two.
+const { label, tag, hint, error, hintId, errorId, for: htmlFor, ...rest } = Astro.props;
+---
+
+<label class="bb-field" for={htmlFor} data-invalid={error ? '' : undefined} {...rest}>
+  <span class="bb-field__label">{label}{tag && <small class="bb-tag bb-tag--quiet bb-field__tag">{tag}</small>}</span>
+  <slot />
+  {hint && <small class="bb-field__hint" id={hintId}>{hint}</small>}
+  {error && <small class="bb-field__error" role="alert" id={errorId}>{error}</small>}
+</label>

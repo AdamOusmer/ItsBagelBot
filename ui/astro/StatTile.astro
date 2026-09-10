@@ -1,0 +1,24 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+//
+// Astro twin of ../svelte/StatTile.svelte.
+//
+// The numeral does NOT count up here: the count-up engine rewrites
+// textContent from 0, so a static page that never runs it would print "0"
+// where the value should be. Printing the final value and leaving the
+// animation to the Svelte adapter is the honest static rendering -- the same
+// thing the Svelte one does under prefers-reduced-motion. The marker attribute
+// is emitted so a surface that wants the animation can bind
+// @bagel/ui/lib/count-up to it on astro:page-load.
+const { label, value, unit = '', delta, flat = false, ...rest } = Astro.props;
+---
+
+<div class="bb-stat" {...rest}>
+  <div class="bb-stat__head">
+    <span class="bb-stat__label">{label}</span>
+    <slot name="trail" />
+  </div>
+  <div class="bb-stat__value"><span data-count-up>{value}</span>{unit && <small>{unit}</small>}</div>
+  <div class="bb-stat__delta" data-flat={flat ? '' : undefined}>{delta}</div>
+</div>

@@ -22,6 +22,16 @@
 @import '@bagel/ui/styles/reveal.css';
 @import '@bagel/ui/styles/orbs.css';
 @import '@bagel/ui/styles/a11y.css';
+@import '@bagel/ui/styles/elements/badge.css';
+@import '@bagel/ui/styles/elements/chip.css';
+@import '@bagel/ui/styles/elements/empty-state.css';
+@import '@bagel/ui/styles/elements/field.css';
+@import '@bagel/ui/styles/elements/radio-group.css';
+@import '@bagel/ui/styles/elements/search-input.css';
+@import '@bagel/ui/styles/elements/segmented.css';
+@import '@bagel/ui/styles/elements/skeleton.css';
+@import '@bagel/ui/styles/elements/stat-tile.css';
+@import '@bagel/ui/styles/elements/toggle.css';
 
 :root {
   /* Legacy "glass" variables, remapped to the ledger language so every
@@ -116,32 +126,24 @@ body {
   opacity: 1; transform: translate(0, 0);
 }
 
-/* ── search field: soft rounded input, brand-warm focus ── */
-.search { display: flex; align-items: center; gap: 9px; padding: 10px 14px;
-  background: rgba(0, 0, 0, 0.35); border: 1px solid var(--bb-border); border-radius: var(--bb-radius-sm);
-  width: 240px; color: var(--bb-muted);
-  transition: border-color var(--bb-dur-base) var(--bb-ease-out-expo), box-shadow var(--bb-dur-base) var(--bb-ease-out-expo); }
-.search:focus-within { border-color: var(--bb-border-strong); box-shadow: 0 0 0 3px rgba(201, 168, 124, 0.1); }
-.search svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.7; }
-.search input { background: none; border: 0; outline: 0; color: var(--bb-white); font-family: var(--bb-font-body); font-size: 13.5px; width: 100%; }
-.search input::placeholder { color: var(--bb-muted); }
+/* Legacy label shim. Markup in the overview shell still writes
+   .status-hero .live; it was a tinted pill carrying a glowing sine-pulsing
+   dot and now renders the Tier-1 hairline label shape. New markup uses
+   .bb-tag directly: see "Labels, tags & controls" below.
 
-/* Legacy label shims. Markup across the apps still writes .status-pill /
-   .status-hero .live / .badge; all three were tinted pills carrying a glowing
-   sine-pulsing dot and now render the Tier-1 hairline label shape. New markup
-   should use .bb-tag directly: see "Labels, tags & controls" below. */
-.status-pill,
-.status-hero .live,
-.badge {
+   Its two siblings are gone. `.status-pill` and `.badge` were the same shape
+   under two more names; grepped across web/dashboard, web/admin and web/kit
+   at the element move, both had zero markup call sites, and the perm ladder
+   that hung off `.badge` is @bagel/ui/styles/elements/badge.css plus
+   ../components/PermBadge.svelte now. */
+.status-hero .live {
   position: relative; display: inline-flex; align-items: center; gap: 8px;
   padding: 0 2px 7px; border: 0; border-bottom: 1px solid var(--bb-border); background: none;
   font-family: var(--bb-font-mono); font-weight: 400; font-size: 11px;
   letter-spacing: var(--bb-tracking-eyebrow); text-transform: uppercase; line-height: 1;
   color: var(--bb-fg-2); white-space: nowrap; overflow: hidden;
 }
-.status-pill { color: var(--bb-green-glow); border-bottom-color: rgba(82,183,136,0.30); }
 /* the "dot" is the 5px rotated square (.bb-mark): no radius, no glow */
-.status-pill .dot,
 .status-hero .live .dot { width: 5px; height: 5px; flex-shrink: 0; border-radius: 0; transform: rotate(45deg); background: currentColor; box-shadow: none; }
 
 /* ── page header: matches the marketing site's SectionHeading, plain mono
@@ -191,7 +193,6 @@ kbd.hint {
 
 /* channel strips + ledger lines check in one after another (CSS-only; also
    re-runs when a streamed section resolves and swaps its skeleton out) */
-.stat-grid .stat,
 .node-list .node-row,
 .feed .feed-row {
   /* bb-rise-in is @bagel/ui/styles/reveal.css's keyframe, the same one
@@ -200,16 +201,21 @@ kbd.hint {
      after the eye has already reached the bottom of the list. */
   animation: bb-rise-in 420ms var(--bb-ease-out-expo) both;
 }
-.stat-grid .stat:nth-child(1), .node-list .node-row:nth-child(1), .feed .feed-row:nth-child(1) { animation-delay: 30ms; }
-.stat-grid .stat:nth-child(2), .node-list .node-row:nth-child(2), .feed .feed-row:nth-child(2) { animation-delay: 90ms; }
-.stat-grid .stat:nth-child(3), .node-list .node-row:nth-child(3), .feed .feed-row:nth-child(3) { animation-delay: 150ms; }
-.stat-grid .stat:nth-child(4), .node-list .node-row:nth-child(4), .feed .feed-row:nth-child(4) { animation-delay: 210ms; }
-.stat-grid .stat:nth-child(n+5), .node-list .node-row:nth-child(n+5), .feed .feed-row:nth-child(n+5) { animation-delay: 260ms; }
+/* The .bb-stat-grid half of this ladder is
+   @bagel/ui/styles/elements/stat-tile.css. Splitting a shared nth-child
+   ladder is how the delays get lost on one branch, so the two rows that stay
+   keep their own copy of the delays until the list PR collapses all three
+   into one .bb-stagger utility. */
+.node-list .node-row:nth-child(1), .feed .feed-row:nth-child(1) { animation-delay: 30ms; }
+.node-list .node-row:nth-child(2), .feed .feed-row:nth-child(2) { animation-delay: 90ms; }
+.node-list .node-row:nth-child(3), .feed .feed-row:nth-child(3) { animation-delay: 150ms; }
+.node-list .node-row:nth-child(4), .feed .feed-row:nth-child(4) { animation-delay: 210ms; }
+.node-list .node-row:nth-child(n+5), .feed .feed-row:nth-child(n+5) { animation-delay: 260ms; }
 
 @media (prefers-reduced-motion: reduce) {
   .screen { animation: none; }
   .flash-save::after { animation: none; opacity: 0; }
-  .stat-grid .stat, .node-list .node-row, .feed .feed-row { animation: none; }
+  .node-list .node-row, .feed .feed-row { animation: none; }
 }
 
 /* ── overview: status hero ── */
@@ -230,25 +236,8 @@ kbd.hint {
    write `class="bb-btn bb-btn--ghost"`; `.btn.green`, which had no component
    path at all, is `variant="green"`. ── */
 
-/* ── stats: rounded surface cards with tinted accent chips, the marketing
-   site's bento feel. The numeral still leads; color carries the meaning. ── */
-.stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: calc(14px * var(--d)); }
-.stat { padding: calc(20px * var(--d)) calc(24px * var(--d)); background: var(--bb-card-bg); border: 1px solid var(--bb-border); border-radius: var(--bb-radius-md); position: relative;
-  transition: border-color var(--bb-dur-base) var(--bb-ease-out-expo), transform var(--bb-dur-base) var(--bb-ease-out-expo); }
-.stat:hover { border-color: rgba(201, 168, 124, 0.38); transform: translateY(-3px); }
-.stat .ico { width: 34px; height: 34px; border-radius: var(--bb-radius-sm); background: rgba(82,183,136,0.12); border: 1px solid rgba(82,183,136,0.3);
-  display: flex; align-items: center; justify-content: center; margin-bottom: 16px; }
-.stat .ico.tan { background: rgba(201,168,124,0.12); border-color: rgba(201,168,124,0.32); }
-.stat .ico svg { width: 16px; height: 16px; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; stroke: var(--bb-green-glow); }
-.stat .ico.tan svg { stroke: var(--bb-tan-light); }
-.stat .label { font-family: var(--bb-font-body); font-weight: 600; font-size: 12px; color: var(--bb-muted); }
-.stat .value { font-family: var(--bb-font-display); font-weight: 800; font-size: clamp(30px, 2.6vw, 40px); letter-spacing: -0.01em; color: var(--bb-white); margin-top: 8px; line-height: 1; }
-.stat .value small { font-size: 14px; font-weight: 500; color: var(--bb-muted); margin-left: 6px; letter-spacing: 0; font-family: var(--bb-font-body); }
-.stat .delta { font-family: var(--bb-font-mono); font-size: 11px; color: var(--bb-green-glow); margin-top: 10px; letter-spacing: 0.02em; }
-.stat .delta.flat { color: var(--bb-muted); font-family: var(--bb-font-body); }
-
 .grid-2 { display: grid; grid-template-columns: 1.5fr 1fr; gap: calc(16px * var(--d)); margin-top: var(--row-gap); }
-@media (max-width: 1100px) { .grid-2 { grid-template-columns: 1fr; } .stat-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 1100px) { .grid-2 { grid-template-columns: 1fr; } }
 
 /* node list (bot connection detail): soft rows */
 .node-list { display: flex; flex-direction: column; }
@@ -278,14 +267,11 @@ kbd.hint {
 .toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
 .toolbar .grow { flex: 1; }
 .chip-row { display: flex; gap: 8px; }
-/* was a pill (--bb-radius-pill) with a translucent white fill; now the Tier-2
-   control frame (.bb-chip --muted): 1px tan hairline, 6px corners. */
-.chip { font-family: var(--bb-font-mono); font-size: 11.5px; letter-spacing: 0.04em; line-height: 1; padding: 7px 12px; white-space: nowrap;
-  display: inline-flex; align-items: center; gap: 9px;
-  background: transparent; border: 1px solid var(--bb-border-chip); border-radius: var(--bb-radius-sm); color: var(--bb-fg-2); cursor: pointer;
-  transition: background var(--bb-dur-base) var(--bb-ease-out-expo), border-color var(--bb-dur-base) var(--bb-ease-out-expo), color var(--bb-dur-base) var(--bb-ease-out-expo); }
-.chip:hover { color: var(--bb-tan-light); background: rgba(201, 168, 124, 0.08); border-color: rgba(201, 168, 124, 0.50); }
-.chip.on { color: var(--bb-tan-pale); background: rgba(201, 168, 124, 0.10); border-color: rgba(201, 168, 124, 0.50); }
+/* The raw `.chip` that used to live here was a near-duplicate of
+   .bb-chip--muted (same hairline, same 6px corners, same 11.5px / 7px-12px
+   metrics). Its three filter-rail call sites render <Chip tone="muted">
+   instead; the frame is @bagel/ui/styles/tags.css and the state is
+   @bagel/ui/styles/elements/chip.css. */
 
 /* ── data tables: soft rows inside cards ── */
 .table { width: 100%; }
@@ -301,31 +287,6 @@ kbd.hint {
 .trow .uses { font-family: var(--bb-font-mono); font-size: 12.5px; color: var(--bb-white); }
 .trow .cd { font-family: var(--bb-font-mono); font-size: 12.5px; color: var(--bb-muted); }
 
-/* Perm badges: the pill and its tint are gone (base shape is the label shim
-   above); the hairline now carries the tone. House palette: steel for
-   everyone, tan for subs, SILVER for VIP (it shipped purple #d9aaff by
-   mistake; VIP is never purple here), green deepening with mod authority.
-   The first three read the account-tier tokens (tokens.css) so they cannot
-   drift from the same tiers spelled elsewhere; the mod ramp keeps its own
-   alphas because it encodes authority depth, not a tier. */
-.badge.everyone { color: var(--bb-tier-inactive); border-bottom-color: var(--bb-tier-inactive-border); }
-.badge.sub { color: var(--bb-tier-paid); border-bottom-color: var(--bb-tier-paid-border); }
-.badge.vip { color: var(--bb-tier-vip); border-bottom-color: var(--bb-tier-vip-border); }
-.badge.mod { color: var(--bb-green-glow); border-bottom-color: rgba(82,183,136,0.30); }
-.badge.lead_mod { color: var(--bb-green-glow); border-bottom-style: dashed; border-bottom-color: rgba(82,183,136,0.45); }
-.badge.broadcaster { color: var(--bb-green-glow); border-bottom-color: rgba(82,183,136,0.60); }
-
-/* toggle: rounded switch with a springy throw. The knob stretches while
-   travelling and snaps to rest. */
-.toggle { width: 42px; height: 24px; display: inline-block; border-radius: var(--bb-radius-pill); background: rgba(0,0,0,0.4); border: 1px solid var(--bb-border); position: relative; cursor: pointer; flex-shrink: 0;
-  transition: all var(--bb-dur-base) var(--bb-ease-out-expo); }
-.toggle::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--bb-muted);
-  transition: left 260ms var(--bb-ease-out-back), width 180ms ease, background var(--bb-dur-base) ease, box-shadow var(--bb-dur-base) ease; }
-.toggle:active::after { width: 20px; }
-.toggle.on { background: rgba(82,183,136,0.18); border-color: rgba(82,183,136,0.5); }
-.toggle.on::after { left: 21px; background: var(--bb-green-glow); box-shadow: 0 0 8px var(--bb-green-glow); }
-.toggle.on:active::after { left: 17px; }
-
 .row-act { display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
 .mini { width: 28px; height: 28px; border-radius: var(--bb-radius-sm); display: flex; align-items: center; justify-content: center; background: transparent; border: 1px solid transparent; color: var(--bb-muted); cursor: pointer; transition: all var(--bb-dur-base) var(--bb-ease-out-expo); }
 .mini svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.7; }
@@ -338,10 +299,6 @@ kbd.hint {
 @media (max-width: 760px) {
   /* Tighten the page gutter so cards get the width back on phones. */
   :root { --gutter: 16px; }
-  .stat-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
-  .stat { padding: 16px; }
-  .stat .ico { margin-bottom: 12px; }
-  .stat .value { font-size: clamp(24px, 7vw, 34px); }
   .grid-2, .mod-grid { gap: 14px; }
   .thead { display: none; }
   .trow { grid-template-columns: 1fr auto; gap: 8px; }
@@ -441,10 +398,6 @@ kbd.hint {
 .bb-tbl th[scope='row'] { text-align: left; font-weight: 600; }
 .bb-tbl .r { text-align: right; }
 .bb-tbl .mut { color: var(--bb-muted); }
-
-/* Loading rows: the stack of Skeletons a list shows before its data lands.
-   Six pages declared this identically. */
-.bb-skeletons { display: flex; flex-direction: column; gap: 8px; padding: 12px; }
 
 /* Unstyled list container: the rows carry their own chrome (.row-shell), so
    the <ul> only has to stop being a <ul>. Seven components reset it by hand. */

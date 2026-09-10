@@ -16,14 +16,14 @@
   import { onMount } from 'svelte';
   import PageHead from '@bagel/kit/components/PageHead.svelte';
   import PageToolbar from '@bagel/kit/components/PageToolbar.svelte';
-  import SegmentedControl from '@bagel/kit/components/SegmentedControl.svelte';
-  import SearchInput from '@bagel/kit/components/SearchInput.svelte';
+  import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
+  import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
   import Scroller from '@bagel/kit/components/Scroller.svelte';
-  import Switch from '@bagel/kit/components/Switch.svelte';
+  import Switch from '@bagel/ui/svelte/Switch.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
-  import EmptyState from '@bagel/kit/components/EmptyState.svelte';
+  import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import type { StatusTone } from '@bagel/kit/status-tone';
   import { getI18n } from '@bagel/kit/i18n/context';
   import StatusDot from '$lib/components/StatusDot.svelte';
@@ -205,7 +205,7 @@
   .toolbar-search {
     width: 240px;
   }
-  .toolbar-search :global(.search) {
+  .toolbar-search :global(.bb-input) {
     width: 100%;
   }
 

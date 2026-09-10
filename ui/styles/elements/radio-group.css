@@ -1,0 +1,72 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* Radio group: styled pills over real <input type="radio">.
+
+   The visible dot is a sibling <span>, not the input, and the input is not
+   `display: none` -- it is positioned and zero-sized so it stays focusable and
+   still posts. That is the whole difference from the segmented control above:
+   this one survives a no-JS form submission, the segmented control does not.
+   Keep both, and keep them named apart: SegmentedControl is an in-page filter,
+   RadioGroup is a form field.
+
+   The focus ring is drawn on the dot via `input:focus-visible ~ .bb-radio__dot`
+   because the input itself is invisible; without that sibling hop, keyboard
+   users get a focus ring on a zero-sized element and see nothing. */
+
+@layer bb.elements {
+    .bb-radio-group { display: flex; gap: 10px; flex-wrap: wrap; }
+
+    .bb-radio {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-family: var(--bb-font-mono);
+        font-size: 12px;
+        letter-spacing: 0.04em;
+        padding: 9px 14px;
+        border-radius: var(--bb-radius-pill);
+        border: 1px solid var(--glass-border, rgba(240, 236, 228, 0.11));
+        background: rgba(255, 255, 255, 0.03);
+        color: var(--bb-muted);
+        cursor: pointer;
+        user-select: none;
+        transition: all var(--bb-dur-base) var(--bb-ease-out-expo);
+    }
+
+    .bb-radio:hover { color: var(--bb-white); border-color: var(--bb-border-strong); }
+
+    .bb-radio[data-on] {
+        color: var(--bb-white);
+        background: var(--ui-accent-soft, rgba(var(--bb-green-glow-rgb), 0.12));
+        border-color: var(--bb-border-strong);
+    }
+
+    .bb-radio input {
+        position: absolute;
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+
+    .bb-radio__dot {
+        flex: 0 0 auto;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        border: 1px solid var(--glass-border, rgba(240, 236, 228, 0.11));
+        background: rgba(0, 0, 0, 0.22);
+        transition: all var(--bb-dur-fast) ease;
+    }
+
+    .bb-radio[data-on] .bb-radio__dot {
+        border-color: var(--bb-tan-light);
+        background: var(--bb-tan);
+        box-shadow: 0 0 0 3px rgba(var(--bb-tan-rgb), 0.18);
+    }
+
+    .bb-radio input:focus-visible ~ .bb-radio__dot {
+        outline: 2px solid var(--bb-green-glow);
+        outline-offset: 2px;
+    }
+}

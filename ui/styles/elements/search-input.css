@@ -1,0 +1,48 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* Search box: the .bb-input frame (field.css) plus an icon, an input that
+   takes the remaining width, and a clear button that only exists when there
+   is something to clear.
+
+   Deliberately thin. Everything that draws the frame -- background, hairline,
+   radius, focus ring, the 15px icon sizing, the inner input reset -- is
+   .bb-input, and this file adds only what a search box has that a text field
+   does not. The previous version had the opposite split: console.css `.search`
+   owned the frame and SearchInput.svelte's scoped block re-declared
+   `display: inline-flex; align-items: center` on top of the frame's own
+   `display: flex; align-items: center`, which is where the drift starts. */
+
+@layer bb.elements {
+    .bb-search { position: relative; }
+
+    .bb-search__input { flex: 1; min-width: 0; }
+
+    /* type="search" gets the engine's own clear affordance (a grey x in
+       WebKit, nothing in Firefox). This element ships its own clear button
+       with a real accessible name, so the native one is suppressed rather
+       than left to draw a second x that does the same thing without
+       telling the caller. */
+    .bb-search__input::-webkit-search-cancel-button,
+    .bb-search__input::-webkit-search-decoration { appearance: none; display: none; }
+
+    .bb-search__clear {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        flex: none;
+        border: none;
+        background: transparent;
+        color: var(--bb-muted);
+        cursor: pointer;
+        border-radius: var(--bb-radius-sm);
+    }
+
+    /* 12px, against the frame's 15px search glyph: the clear x is an action
+       on the field, not a peer of the field's own icon. */
+    .bb-search__clear svg { width: 12px; height: 12px; stroke-linecap: round; stroke-linejoin: round; }
+
+    .bb-search__clear:hover { color: var(--bb-white); }
+}

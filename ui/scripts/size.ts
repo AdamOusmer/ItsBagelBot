@@ -81,6 +81,10 @@ const ENTRIES: {
     // minus one of them. Budget 1700: 1364 + 150 B for CI's linux/x64 gzip
     // delta = 1514, +10% -> 1665, rounded up.
     //
+    // RE-MEASURED 2026-09-09 at 1373 B when the hover selector's `.search`
+    // became `.bb-input` (the field contract renamed the console's text-control
+    // frame). Two characters, 2 B gzip; the budget does not move.
+    //
     // The first number written here was 1341 against a 1650 budget, measured
     // before the frame loop was split into hovered()/paint()/tick() to clear
     // a CodeScene cyclomatic-complexity finding. Splitting one closure into
@@ -111,6 +115,28 @@ const ENTRIES: {
     external: [],
     source: `import { observeReveal } from "../../lib/reveal";
              globalThis.x = observeReveal;`,
+  },
+  {
+    // The count-up readout StatTile drives. Client-facing wherever a stat grid
+    // renders, and the entry most exposed to the shared-scheduler rewrite in
+    // the motion PR: it owns its own requestAnimationFrame loop today and will
+    // hand that to raf-loop later, so this row is what says the swap made it
+    // smaller rather than merely different.
+    //
+    // Initial measurement 2026-09-09 (macOS/arm64), at the move out of
+    // web/kit/lib/actions.ts: 414 B gzip. Budget 620: 414 + 150 B for CI's
+    // linux/x64 gzip delta = 564, +10% -> 620.
+    //
+    // RE-MEASURED 2026-09-09 at 471 B on the rebased stack, 149 B of room
+    // left. The module is byte-identical and imports nothing, so the 57 B is
+    // the gate's own floor moving, not this entry growing; recorded rather
+    // than left silent so the next reader is not comparing against a number
+    // this machine no longer produces. Budget unchanged.
+    name: "count-up",
+    budget: 620,
+    external: [],
+    source: `import { countUp } from "../../lib/count-up";
+             globalThis.x = countUp;`,
   },
   {
     // Copy-to-clipboard with the "Copied" flash. Tiny on purpose, and budgeted
@@ -245,6 +271,39 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   // would hide a move of bytes from one to the other.
   // Measured 2026-09-09 (macOS/arm64): 1170 B gzip. 1170 + 150 = 1320, +10%.
   { name: "elements/card", budget: 1460 },
+
+  /* The per-element contracts (styles/elements/*.css). Same arithmetic:
+   * measured + ~150 B for CI's linux/x64 gzip delta, then ~10%, rounded.
+   * All ten measured 2026-09-09 (macOS/arm64) at the move out of
+   * web/kit/styles/console.css and the components' scoped <style> blocks.
+   *
+   * Read them as a set: ~3.8 KB gzip of contract against the console.css
+   * rules and scoped blocks this PR deletes. An element whose row grows
+   * without a call site gaining a feature is a contract that has absorbed a
+   * surface's one-off instead of exposing a custom property. */
+  // 135 B. Deliberately tiny: the perm ladder is @bagel/kit's, and this row
+  // is what fails if it tries to come back.
+  { name: "elements/badge", budget: 320 },
+  // 153 B. [data-on] + :disabled only; the frame is tags.css's .bb-chip.
+  { name: "elements/chip", budget: 340 },
+  // 284 B.
+  { name: "elements/empty-state", budget: 500 },
+  // 517 B. Carries .bb-input, the frame every text control in the console
+  // wears, so it is the largest of the form rows and the one to watch.
+  { name: "elements/field", budget: 760 },
+  // 512 B.
+  { name: "elements/radio-group", budget: 760 },
+  // 298 B.
+  { name: "elements/search-input", budget: 520 },
+  // 160 B.
+  { name: "elements/segmented", budget: 360 },
+  // 454 B.
+  { name: "elements/skeleton", budget: 700 },
+  // 703 B. The biggest, and fairly: it carries the grid, the tile, three
+  // breakpoints and the entry stagger.
+  { name: "elements/stat-tile", budget: 980 },
+  // 562 B.
+  { name: "elements/toggle", budget: 820 },
 ];
 
 let failed = false;

@@ -27,6 +27,7 @@
     actionPayload,
     toastFailure,
     type ActionOk,
+    Chip,
   } from '@bagel/kit';
   import CounterRow from '$lib/components/counters/CounterRow.svelte';
 
@@ -393,7 +394,7 @@
        "Rename", so the field carries only its placeholder (sr-only label). -->
   <div class="rename-row">
     <input
-      class="search rename-input"
+      class="bb-input rename-input"
       name="new_name"
       form="counter-rename-form"
       placeholder={t('counters.renamePh')}
@@ -419,11 +420,11 @@
   <PageToolbar>
     {#snippet lead()}
       <div class="chip-row" role="group" aria-label={t('counters.filterAria')}>
-        <button class="chip {scopeFilter === 'all' ? 'on' : ''}" onclick={() => (scopeFilter = 'all')}>
+        <Chip tone="muted" on={scopeFilter === 'all'} onclick={() => (scopeFilter = 'all')}>
           {t('counters.filterAll')}
-        </button>
+        </Chip>
         {#each COUNTER_SCOPES as s}
-          <button class="chip {scopeFilter === s ? 'on' : ''}" onclick={() => (scopeFilter = s)}>{scopeTag[s]}</button>
+          <Chip tone="muted" on={scopeFilter === s} onclick={() => (scopeFilter = s)}>{scopeTag[s]}</Chip>
         {/each}
       </div>
     {/snippet}
@@ -476,7 +477,7 @@
               <Field label={t('counters.fieldName')}>
                 <input
                   id="counter-name"
-                  class="search"
+                  class="bb-input"
                   name="name"
                   placeholder={t('counters.fieldNamePh')}
                   maxlength="64"
@@ -491,7 +492,7 @@
               {/if}
 
               <Field label={t('counters.fieldScope')}>
-                <select class="search" name="scope" bind:value={newScope}>
+                <select class="bb-input" name="scope" bind:value={newScope}>
                   {#each COUNTER_SCOPES as s}
                     <option value={s}>{scopeLabel[s]}</option>
                   {/each}
@@ -517,7 +518,7 @@
 
               <div class="sec">
                 <Field label={t('counters.colValue')}>
-                  <input class="search num big-num" type="number" name="value" step="1" bind:value={setValue} use:focusSelect />
+                  <input class="bb-input num big-num" type="number" name="value" step="1" bind:value={setValue} use:focusSelect />
                 </Field>
               </div>
 
@@ -578,7 +579,7 @@
                               <span class="entry-edit">
                                 {#if entryEditable(selected.scope, e)}
                                   <input
-                                    class="search num entry-num"
+                                    class="bb-input num entry-num"
                                     type="number"
                                     step="1"
                                     aria-label={t('counters.colValue')}
@@ -628,7 +629,7 @@
                   {#if showViewer}
                     <Field label={t('counters.addUser')}>
                       <input
-                        class="search"
+                        class="bb-input"
                         name="username"
                         placeholder={t('counters.addUserPh')}
                         maxlength="32"
@@ -639,7 +640,7 @@
                   {#if showSource}
                     <Field label={t('counters.addCommand')}>
                       <input
-                        class="search"
+                        class="bb-input"
                         name="command"
                         placeholder={t('counters.addCommandPh')}
                         maxlength="64"
@@ -650,7 +651,7 @@
                   <div class="add-foot">
                     <div class="add-val">
                       <Field label={t('counters.colValue')}>
-                        <input class="search num" type="number" name="value" step="1" bind:value={addValue} />
+                        <input class="bb-input num" type="number" name="value" step="1" bind:value={addValue} />
                       </Field>
                     </div>
                     <Button variant="secondary" type="submit" loading={adding}>
@@ -802,7 +803,7 @@
   .sec { padding: 0 0 16px; }
   .sec + .sec { padding-top: 16px; border-top: 1px solid var(--rule, rgba(240, 236, 228, 0.08)); }
   /* The rename utility sits quieter than the sections above it. */
-  .sec-util :global(.search) { font-size: 12.5px; }
+  .sec-util :global(.bb-input) { font-size: 12.5px; }
 
   .sec-head {
     display: block;

@@ -23,7 +23,7 @@
   import Button from '@bagel/ui/svelte/Button.svelte';
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
-  import Skeleton from '@bagel/kit/components/Skeleton.svelte';
+  import Skeleton from '@bagel/ui/svelte/Skeleton.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { ConnUi } from '@bagel/kit/connection-state';
   import { statusTone } from '@bagel/kit/status-tone';

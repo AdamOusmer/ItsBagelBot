@@ -169,12 +169,12 @@
         <input type="hidden" name="config" value={payload} />
 
         <Field label={t('loyalty.fieldName')} tag={t('common.optional')}>
-          <input class="search" placeholder={t('loyalty.fieldNamePh')} maxlength="32" bind:value={config.pointsName} />
+          <input class="bb-input" placeholder={t('loyalty.fieldNamePh')} maxlength="32" bind:value={config.pointsName} />
         </Field>
 
         {#each rateFields as rf (rf.key)}
           <Field label={rf.label} tag={t('loyalty.defaultTag', { n: String(rf.dflt) })}>
-            <input class="search num" type="number" min="-1" max="1000000" bind:value={config[rf.key]} />
+            <input class="bb-input num" type="number" min="-1" max="1000000" bind:value={config[rf.key]} />
           </Field>
         {/each}
 

@@ -7,7 +7,7 @@
   // handlers so all optimistic-UI state lives in one place.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Icon, Badge, SaveStatus, ManagementRow, Switch, getI18n, usesCount, type CommandView, type Perm } from '@bagel/kit';
+  import { Icon, PermBadge, SaveStatus, ManagementRow, Switch, getI18n, usesCount, type CommandView, type Perm } from '@bagel/kit';
   import type { SaveState } from '@bagel/kit/components/SaveStatus.svelte';
 
   const { t } = getI18n();
@@ -78,7 +78,7 @@
           {/if}
         </span>
         <span class="resp">{c.response}</span>
-        <span class="m-perm"><Badge perm={(c.perm ?? 'everyone') as Perm} /></span>
+        <span class="m-perm"><PermBadge perm={(c.perm ?? 'everyone') as Perm} /></span>
         <span class="m-uses">
           <span class="u-line">
             <span class="m-val uses">{uses.toLocaleString()}</span>

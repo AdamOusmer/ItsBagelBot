@@ -149,7 +149,7 @@
 
 <form class="add-key" onsubmit={submitNew}>
   <input
-    class="search"
+    class="bb-input"
     placeholder={t('fetches.keyLabelPh')}
     aria-label={t('fetches.keyLabelAria')}
     autocomplete="off"
@@ -158,7 +158,7 @@
     bind:value={newLabel}
   />
   <input
-    class="search"
+    class="bb-input"
     type="password"
     placeholder={t('fetches.keyValuePh')}
     aria-label={t('fetches.keyValueNewAria')}
@@ -228,7 +228,7 @@
   .empty { margin: 0 0 14px; font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted); font-style: italic; }
 
   .add-key { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-  .add-key .search { flex: 1; min-width: 140px; box-sizing: border-box; }
+  .add-key .bb-input { flex: 1; min-width: 140px; box-sizing: border-box; }
 
   .note { display: block; margin-top: 8px; font-family: var(--bb-font-body); font-size: 11px; line-height: 1.5; color: var(--bb-muted); opacity: 0.7; }
 

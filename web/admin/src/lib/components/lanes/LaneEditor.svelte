@@ -17,8 +17,8 @@
   // so it never scrolls out of view.
   import type { SubmitFunction } from '@sveltejs/kit';
   import { enhance } from '$app/forms';
-  import Field from '@bagel/kit/components/Field.svelte';
-  import Switch from '@bagel/kit/components/Switch.svelte';
+  import Field from '@bagel/ui/svelte/Field.svelte';
+  import Switch from '@bagel/ui/svelte/Switch.svelte';
   import Scroller from '@bagel/kit/components/Scroller.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import EditorFooter from '@bagel/kit/components/EditorFooter.svelte';

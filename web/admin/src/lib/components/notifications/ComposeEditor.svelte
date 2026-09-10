@@ -12,8 +12,8 @@
   // JavaScript off.
   import type { SubmitFunction } from '@sveltejs/kit';
   import { enhance } from '$app/forms';
-  import RadioGroup from '@bagel/kit/components/RadioGroup.svelte';
-  import Field from '@bagel/kit/components/Field.svelte';
+  import RadioGroup from '@bagel/ui/svelte/RadioGroup.svelte';
+  import Field from '@bagel/ui/svelte/Field.svelte';
   import Scroller from '@bagel/kit/components/Scroller.svelte';
   import EditorFooter from '@bagel/kit/components/EditorFooter.svelte';
   import type { InspectorStatus } from '@bagel/kit';

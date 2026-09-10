@@ -1,6 +1,7 @@
 <script lang="ts">
-	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-	// Proprietary. No license granted. See LICENSE.md.
+  // Copyright (c) 2026 Adam Ousmer. All rights reserved.
+  // Proprietary. No license granted. See LICENSE.md.
+  //
   // A run of identical loading blocks, stacked or in a grid. Every streamed
   // section on an overview page renders one of these while its read is in
   // flight, and each had its own three-line flex/grid wrapper beside its own
@@ -27,24 +28,6 @@
   } = $props();
 </script>
 
-<div class={columns === 2 ? 'skel-stack grid' : 'skel-stack'} aria-hidden="true">
+<div class={columns === 2 ? 'bb-skel-stack bb-skel-stack--grid' : 'bb-skel-stack'} aria-hidden="true">
   {#each Array(rows) as _, i (i)}<Skeleton variant="block" {height} />{/each}
 </div>
-
-<style>
-  .skel-stack {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-  .skel-stack.grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
-  }
-  @media (max-width: 560px) {
-    .skel-stack.grid {
-      grid-template-columns: 1fr;
-    }
-  }
-</style>

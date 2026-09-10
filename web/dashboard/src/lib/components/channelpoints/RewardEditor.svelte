@@ -93,13 +93,13 @@
 
   <label class="field">
     <span>{t('channelpoints.fieldTitle')}</span>
-    <input class="search" placeholder={t('channelpoints.fieldTitlePh')} maxlength="45" required bind:value={draft.title} />
+    <input class="bb-input" placeholder={t('channelpoints.fieldTitlePh')} maxlength="45" required bind:value={draft.title} />
   </label>
 
   <div class="field-row">
     <label class="field">
       <span>{t('channelpoints.fieldCost')}</span>
-      <input class="search" type="number" min="1" bind:value={draft.cost} />
+      <input class="bb-input" type="number" min="1" bind:value={draft.cost} />
     </label>
     <label class="field color-field">
       <span>{t('channelpoints.fieldColor')}</span>
@@ -109,7 +109,7 @@
 
   <label class="field">
     <span>{t('channelpoints.fieldPrompt')} <small>{t('common.optional')}</small></span>
-    <input class="search" placeholder={t('channelpoints.fieldPromptPh')} maxlength="200" bind:value={draft.prompt} />
+    <input class="bb-input" placeholder={t('channelpoints.fieldPromptPh')} maxlength="200" bind:value={draft.prompt} />
   </label>
 
   <div class="check">
@@ -138,7 +138,7 @@
 
   <label class="field">
     <span>{t('channelpoints.queueTitle')}</span>
-    <select class="search" bind:value={draft.onRedeem}>
+    <select class="bb-input" bind:value={draft.onRedeem}>
       <option value="fulfill">{t('channelpoints.queueFulfill')}</option>
       <option value="cancel">{t('channelpoints.queueCancel')}</option>
       <option value="leave">{t('channelpoints.queueLeave')}</option>
@@ -160,7 +160,7 @@
         <div class="hook-body">
           <label class="field">
             <span>{t('rewardCounter.nameLabel')}</span>
-            <input class="search" placeholder={t('channelpoints.fieldCounterPh')} maxlength="64" bind:value={draft.counter} />
+            <input class="bb-input" placeholder={t('channelpoints.fieldCounterPh')} maxlength="64" bind:value={draft.counter} />
             <small>{t('rewardCounter.nameHint')}</small>
           </label>
 
@@ -183,7 +183,7 @@
             <span>{t('rewardCounter.pointsLabel')}</span>
             <div class="points-input">
               <span class="plus">+</span>
-              <input class="search num" type="number" min="1" bind:value={draft.points} />
+              <input class="bb-input num" type="number" min="1" bind:value={draft.points} />
             </div>
             <small>{t('rewardCounter.pointsHint')}</small>
           </label>
@@ -207,7 +207,7 @@
     <div class="limit">
       <CheckButton bind:checked={draft.maxPerStreamEnabled} label={t('channelpoints.limitPerStream')} />
       {#if draft.maxPerStreamEnabled}
-        <input class="search num" type="number" min="1" bind:value={draft.maxPerStream} />
+        <input class="bb-input num" type="number" min="1" bind:value={draft.maxPerStream} />
       {/if}
     </div>
     {#if draft.maxPerStreamEnabled}
@@ -217,14 +217,14 @@
     <div class="limit">
       <CheckButton bind:checked={draft.maxPerUserPerStreamEnabled} label={t('channelpoints.limitPerUser')} />
       {#if draft.maxPerUserPerStreamEnabled}
-        <input class="search num" type="number" min="1" bind:value={draft.maxPerUserPerStream} />
+        <input class="bb-input num" type="number" min="1" bind:value={draft.maxPerUserPerStream} />
       {/if}
     </div>
 
     <div class="limit">
       <CheckButton bind:checked={draft.globalCooldownEnabled} label={t('channelpoints.limitCooldown')} />
       {#if draft.globalCooldownEnabled}
-        <input class="search num" type="number" min="1" bind:value={draft.globalCooldownSeconds} />
+        <input class="bb-input num" type="number" min="1" bind:value={draft.globalCooldownSeconds} />
       {/if}
     </div>
   </div>
@@ -252,7 +252,7 @@
     letter-spacing: 0.01em;
   }
   .field small { color: var(--bb-muted); opacity: 0.7; font-size: 11px; }
-  .field :global(.search) { width: 100%; box-sizing: border-box; }
+  .field :global(.bb-input) { width: 100%; box-sizing: border-box; }
 
   .field-row { display: flex; gap: 12px; }
   .field-row .field { flex: 1; min-width: 0; }

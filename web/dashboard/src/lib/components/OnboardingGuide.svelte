@@ -11,7 +11,7 @@
   // for a refresher (both handled by the caller).
   import Icon from '@bagel/kit/components/Icon.svelte';
   import Bolota from '@bagel/kit/components/Bolota.svelte';
-  import Toggle from '@bagel/kit/components/Toggle.svelte';
+  import Toggle from '@bagel/ui/svelte/Toggle.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import LangSwitch from './LangSwitch.svelte';
   import CursorSwitch from './CursorSwitch.svelte';

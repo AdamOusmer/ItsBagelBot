@@ -20,10 +20,10 @@
   import Card from '@bagel/ui/svelte/Card.svelte';
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
-  import Chip from '@bagel/kit/components/Chip.svelte';
-  import Field from '@bagel/kit/components/Field.svelte';
+  import Chip from '@bagel/ui/svelte/Chip.svelte';
+  import Field from '@bagel/ui/svelte/Field.svelte';
   import ConfirmDialog from '@bagel/kit/components/ConfirmDialog.svelte';
-  import SkeletonStack from '@bagel/kit/components/SkeletonStack.svelte';
+  import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
   import { toast } from '@bagel/kit/toast';
   import { actionPayload, adminToastFailure, copyFlash } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';

@@ -1,0 +1,119 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* Labelled form field (.bb-field) and the canonical text-control frame
+   (.bb-input) every text input, select, textarea and search box in the system
+   wears.
+
+   Three drawings of one control existed before this file:
+     web/kit/styles/console.css `.search`   the live console frame
+     web/kit/components/Field.svelte        the label column, scoped
+     web/marketing .../dashframe.css `.df-input` + `.df-field`
+                                            a hand redraw for the guide
+                                            screenshots (deleted in PR12)
+   The console one was named `.search` because a toolbar search box was the
+   first thing that needed it; by the time this moved, 18 files were writing
+   `class="search"` on a <select>, a <textarea> and a date <input>. The class
+   is renamed to `.bb-input` here and every call site with it -- a pure rename,
+   declaration for declaration, so nothing on screen moves. */
+
+@layer bb.elements {
+    .bb-field {
+        display: flex;
+        flex-direction: column;
+        gap: var(--field-gap, 6px);
+        margin-bottom: var(--field-mb, 14px);
+    }
+
+    .bb-field__label {
+        font-family: var(--bb-font-body);
+        font-size: 12.5px;
+        color: var(--bb-muted);
+    }
+
+    /* The muted suffix ("default: 5"). Was a local `.tag` at opacity 0.65;
+       it is the shared quiet label now, so this only positions it. */
+    .bb-field__tag { margin-left: 4px; }
+
+    .bb-field__hint {
+        display: block;
+        font-family: var(--bb-font-body);
+        font-size: 11.5px;
+        color: var(--bb-muted);
+    }
+
+    .bb-field__error {
+        display: block;
+        font-family: var(--bb-font-body);
+        font-size: 11.5px;
+        /* #cf8a78 is the form-error red and predates --bb-danger (#d98a8a,
+           tags.css). Kept as the literal it has always been rather than
+           folded into --bb-danger: the two are 22 points apart in red and
+           read differently against a field label, and merging them is a
+           visible change to every invalid form in the console that belongs
+           in a palette PR with a screenshot, not in a file move. */
+        color: #cf8a78;
+        margin-top: 4px;
+    }
+
+    /* ── the control frame ─────────────────────────────────────────
+       Was `.search` in console.css:118-125, declaration for declaration. */
+    .bb-input {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 10px 14px;
+        background: rgba(0, 0, 0, 0.35);
+        border: 1px solid var(--bb-border);
+        border-radius: var(--bb-radius-sm);
+        width: var(--input-w, 240px);
+        color: var(--bb-muted);
+        transition: border-color var(--bb-dur-base) var(--bb-ease-out-expo),
+                    box-shadow var(--bb-dur-base) var(--bb-ease-out-expo);
+    }
+
+    .bb-input:focus-within {
+        border-color: var(--bb-border-strong);
+        box-shadow: 0 0 0 3px rgba(var(--bb-tan-rgb), 0.10);
+    }
+
+    .bb-input svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.7; }
+
+    .bb-input input {
+        background: none;
+        border: 0;
+        outline: 0;
+        color: var(--bb-white);
+        font-family: var(--bb-font-body);
+        font-size: 13.5px;
+        width: 100%;
+    }
+
+    .bb-input input::placeholder { color: var(--bb-muted); }
+
+    /* A control inside a field fills the field.
+
+       This is one ui element selecting another by class, which the rest of
+       this package does not do -- worth saying why it is here rather than
+       leaving the next reader to "clean it up".
+
+       It arrived as `.field :global(.search) { width: 100% }` inside
+       Field.svelte's scoped <style>, i.e. a component reaching through its
+       own scope to restyle a class it does not own. That is the shape being
+       deleted: Field had no way to know what `.search` was, and the rule
+       leaked onto SearchInput, which wants 240px.
+
+       Two alternatives were considered and rejected:
+         - Flip the default: `.bb-input { width: 100% }` and let the toolbar
+           search ask for 240px. Measured: ~45 `class="search"` call sites,
+           of which the ones NOT inside a field are toolbar controls that
+           would silently stretch to their container. A default that is wrong
+           for half the call sites is not a better default.
+         - A `--input-w` set by the caller on every field. 20-odd call sites
+           gain a style attribute to express "normal", and a CSP without
+           'unsafe-inline' loses them.
+       Both cost more than the coupling. The coupling is at least confined to
+       one file, between two parts of the SAME contract (a field and the
+       control it labels), which is the case the ban was never about. */
+    .bb-field .bb-input { width: 100%; box-sizing: border-box; }
+}

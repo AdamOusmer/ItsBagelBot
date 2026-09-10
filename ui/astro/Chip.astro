@@ -1,0 +1,14 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+//
+// Astro twin of ../svelte/Chip.svelte.
+//
+// type defaults to "button", NOT the HTML default "submit" -- the same record
+// the Svelte adapter carries, and it applies here too: a chip drawn inside a
+// static form on a guide screen would submit that form on the first click.
+const { on = false, type = 'button', tone, class: cls = '', ...rest } = Astro.props;
+const className = `bb-chip${tone ? ` bb-chip--${tone}` : ''}${cls ? ` ${cls}` : ''}`;
+---
+
+<button type={type} class={className} data-on={on ? '' : undefined} {...rest}><slot /></button>

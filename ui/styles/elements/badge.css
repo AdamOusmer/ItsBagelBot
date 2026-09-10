@@ -1,0 +1,40 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* Badge: a .bb-tag (tags.css) whose colour a caller can drive.
+
+   The tag vocabulary already carries the tones the system names -- live,
+   alpha, pre, quiet, incoming, bare. What it has no modifier for is a tone
+   that belongs to DATA rather than to the design system: the permission
+   ladder (everyone / sub / vip / mod / lead_mod / broadcaster) is a bot domain
+   type, and a design library that ships a `.bb-tag--broadcaster` has stopped
+   being bot-agnostic.
+
+   So the ladder does not live here. `--badge-tone` (and its hairline twin)
+   is the seam: ui draws the label, the consumer names the colour.
+   web/kit/components/PermBadge.svelte is the bot-side half.
+
+   Three copies of that ladder existed before this file:
+     web/kit/components/Badge.svelte     scoped .t-<perm> rules
+     console.css `.badge.<perm>`         the same ladder in --bb-tier-* tokens
+     console.css `.status-pill`          a third drawing of the same label
+   The last two are deleted in this PR; both had zero markup call sites
+   (grepped across web/dashboard, web/admin, web/kit).
+
+   VIP is SILVER (#dfe4e9 via --bb-tier-vip). It shipped purple (#d9aaff) once
+   by mistake; Badge.svelte carried that note and PermBadge.svelte still does,
+   and ui/test/parity.test.ts asserts the token's value so it cannot regress
+   here either. */
+
+@layer bb.elements {
+    .bb-badge {
+        color: var(--badge-tone, inherit);
+        border-bottom-color: var(--badge-tone-rule, rgba(var(--bb-tan-rgb), 0.20));
+    }
+
+    /* Dashed and heavier hairlines are the two variations the ladder needs
+       beyond a colour: a "derived from" tier (lead mod) and an emphatic one
+       (broadcaster). Expressed as modifiers rather than as two more custom
+       properties so the caller's map stays a colour map. */
+    .bb-badge--dashed { border-bottom-style: dashed; }
+}
