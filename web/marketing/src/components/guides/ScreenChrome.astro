@@ -18,6 +18,7 @@
  * through the block's `labels`, and never touches this DOM.
  */
 import Rail from '@bagel/ui/astro/Rail.astro';
+import Badge from '@bagel/ui/astro/Badge.astro';
 import Topbar from '@bagel/ui/astro/Topbar.astro';
 import PageHead from '@bagel/ui/astro/PageHead.astro';
 import type { UiNavLink } from '@bagel/ui/lib/nav-types';
@@ -83,7 +84,7 @@ const items: UiNavLink[] = SECTIONS.map((section) => ({
 <div class="dframe__screen">
     <Rail brand={brand} groups={[{ label: navLabel, items }]} ariaLabel={navLabel}>
         <Fragment slot="foot">
-            <span class="bb-tag bb-tag--quiet">{account}</span>
+            <Badge tone="quiet">{account}</Badge>
             {railNote && <i class="gs-mark" data-note={railNote}></i>}
         </Fragment>
     </Rail>

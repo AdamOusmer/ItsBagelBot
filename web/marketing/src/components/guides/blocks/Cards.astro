@@ -8,6 +8,7 @@
  * card; anything longer belongs in prose. Columns collapse to one on phones.
  */
 import Card from '@bagel/ui/astro/Card.astro';
+import Badge from '@bagel/ui/astro/Badge.astro';
 
 interface Props {
     columns?: 2 | 3;
@@ -24,7 +25,7 @@ const { columns = 2, items } = Astro.props;
             <div class="gcards__body" set:html={item.html}></div>
             {item.chips && item.chips.length > 0 && (
                 <div class="gcards__chips">
-                    {item.chips.map((chip) => <i class="bb-tag bb-tag--bare">{chip}</i>)}
+                    {item.chips.map((chip) => <Badge tone="bare">{chip}</Badge>)}
                 </div>
             )}
         </Card>

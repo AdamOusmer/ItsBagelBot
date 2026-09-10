@@ -4,8 +4,11 @@
 //
 // Astro twin of ../svelte/Badge.svelte. Marketing's IncomingBadge.astro was
 // this element with one tone hard-coded; it folds in here.
-const { tone, mark, sweep = false, dashed = false, status = false, ...rest } = Astro.props;
-const cls = `bb-tag bb-badge${tone ? ` bb-tag--${tone}` : ''}${dashed ? ' bb-badge--dashed' : ''}`;
+// `class` is merged rather than substituted: a caller adding a row-fit class
+// must not be able to drop the contract's own by passing one, and Astro hands
+// a scoped parent's cid class in through exactly this prop.
+const { tone, mark, sweep = false, dashed = false, status = false, class: className = '', ...rest } = Astro.props;
+const cls = `bb-tag bb-badge${tone ? ` bb-tag--${tone}` : ''}${dashed ? ' bb-badge--dashed' : ''}${className ? ` ${className}` : ''}`;
 ---
 
 <span class={cls} role={status ? 'status' : undefined} {...rest}>{mark && <i class={`bb-mark${mark === 'solid' ? '' : ` bb-mark--${mark}`}`} aria-hidden="true"></i>}<slot />{sweep && <i class="bb-sweep" aria-hidden="true"></i>}</span>

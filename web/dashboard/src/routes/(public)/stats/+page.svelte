@@ -4,7 +4,7 @@
   import { onMount, untrack } from 'svelte';
   import { AuroraBg, LightField, AlertBanner, Card, getI18n } from '@bagel/kit';
   import type { PageData } from './$types';
-  import { commandsHref } from '$lib/components/public/links';
+  import { commandsHref } from '@bagel/kit/site-links';
 
   let { data }: { data: PageData } = $props();
 

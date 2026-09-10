@@ -1,9 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { AlertBanner, Card, LightField } from '@bagel/kit';
-  import PublicNav from '$lib/components/public/PublicNav.svelte';
-  import PublicFooter from '$lib/components/public/PublicFooter.svelte';
+  import { AlertBanner, Card, LightField, SearchInput } from '@bagel/kit';
   import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();
@@ -128,9 +126,8 @@
   />
 </svelte:head>
 
-<!-- Shared public chrome (see lib/components/public): the marketing nav + footer,
-     and the same drifting mote field the leaderboard and stats pages wear. -->
-<PublicNav />
+<!-- The nav and the sign-off come from the (public) layout; this is the same
+     drifting mote field the leaderboard and stats pages wear. -->
 <div class="starfield" aria-hidden="true"><LightField /></div>
 <div class="glow" aria-hidden="true"></div>
 
@@ -159,15 +156,10 @@
   {/if}
 
   <div class="toolbar">
-    <label class="bb-input">
-      <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16">
-        <circle cx="11" cy="11" r="7"></circle>
-        <path d="m20 20-3.5-3.5"></path>
-      </svg>
-      <span class="sr-only">Search commands</span>
-      <input type="search" bind:value={query} placeholder="Search a command or what it does…" />
-    </label>
-    <div class="bb-tabs" role="tablist" aria-label="Command source">
+    <div class="search">
+      <SearchInput bind:value={query} placeholder="Search a command or what it does…" />
+    </div>
+    <div class="bb-tabs bb-tabs--wrap" role="tablist" aria-label="Command source">
       {#each FILTERS as f (f.id)}
         {@const on = !moduleId && filter === f.id}
         <button class="bb-tab" class:is-active={on} role="tab" type="button" aria-selected={on} onclick={() => pickFilter(f.id)}>
@@ -279,19 +271,9 @@
   </div>
 </main>
 
-<PublicFooter />
-
 <style>
   h1, p { margin: 0; }
 
-  .sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
-  }
 
   /* ── atmosphere ── */
 
@@ -444,44 +426,14 @@
     background: linear-gradient(180deg, var(--bb-black) 78%, transparent);
   }
 
-  .bb-input {
-    position: relative;
-    flex: 1 1 260px;
-    min-width: 0;
-  }
-  .bb-input svg {
-    position: absolute;
-    left: 14px;
-    top: 50%;
-    transform: translateY(-50%);
-    fill: none;
-    stroke: var(--bb-muted);
-    stroke-width: 1.6;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    pointer-events: none;
-  }
-  .bb-input input {
-    width: 100%;
-    height: 42px;
-    padding: 0 14px 0 40px;
-    border: 1px solid var(--bb-border);
-    border-radius: var(--bb-radius-sm);
-    background: var(--bb-card-bg);
-    color: var(--bb-white);
-    font-family: var(--bb-font-body);
-    font-size: 14px;
-    outline: none;
-    transition: border-color 180ms, box-shadow 180ms;
-  }
-  .bb-input input::placeholder { color: var(--bb-muted); }
-  .bb-input input:focus {
-    border-color: rgba(82, 183, 136, 0.6);
-    box-shadow: 0 0 0 1px rgba(82, 183, 136, 0.35), 0 0 24px rgba(82, 183, 136, 0.18);
-  }
+  /* The field is @bagel/ui's <SearchInput> (.bb-search on the .bb-input frame),
+     which owns the icon, the clear button, the height and the focus ring. This
+     page had hand-built all four: a label with an absolutely positioned svg at
+     left:14px and a 40px text indent, which is why the magnifier sat by itself
+     against the edge of a 500px-wide field instead of beside the placeholder.
+     All that is left here is how wide the field is in the wrapping row. */
+  .search { flex: 1 1 260px; min-width: 0; }
 
-  /* The rail wraps on narrow toolbars; .bb-tabs is inline-flex by default. */
-  .bb-tabs { display: flex; flex-wrap: wrap; }
   .tab__count { font-family: var(--bb-font-mono); font-size: 11px; color: var(--bb-muted); }
 
   /* ── columns ── */

@@ -1,6 +1,14 @@
 /* Copyright (c) 2026 Adam Ousmer. All rights reserved.
    Proprietary. No license granted. See LICENSE.md. */
 
+/* Layer order first. Every adapter in ../svelte JS-imports its own element
+   CSS, so a bundler can emit this file ahead of layers.css -- and layer order
+   is fixed by the first declaration seen, which would rank bb.elements BELOW
+   bb.base and let the button reset there strip the typography off every
+   contract that renders a <button>. Restating it is idempotent; the layers
+   themselves are documented in layers.css. */
+@layer bb.tokens, bb.base, bb.elements, bb.app;
+
 /* The sign-off: a warm goodbye line, the brand, link columns, and a bottom
    strip. Like the nav, the LINKS here are `.bb-nav-link` and nothing in this
    file restates them -- the columns light, draw a green line under the label
@@ -10,8 +18,17 @@
   .bb-footer {
     --footer-pad: 72px 4% 40px;
     --footer-signoff-sub-font: var(--bb-font-body);
+    /* Transparent by default: the marketing site and docs sit on the body's
+       solid ink and want the page ground to show through. The console's
+       signed-out pages do not -- they run fixed canvases (aurora, starfield)
+       the whole way down, so their footer has to occlude them. That used to be
+       a `:global(.bb-footer) { background: … }` rule in the console's layout,
+       which is a consumer reaching into a contract; it is a custom property
+       here so the consumer sets it the way it sets any other prop. */
+    --bb-footer-bg: transparent;
 
     position: relative;
+    background: var(--bb-footer-bg);
     border-top: 1px solid var(--bb-border);
     padding: var(--footer-pad);
     overflow: hidden;

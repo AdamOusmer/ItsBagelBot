@@ -3,9 +3,15 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 /**
- * Release-channel label. Each channel is a `.bb-tag` hairline plus its own
- * mark: alpha hollow, beta solid + sweep, pre-release triangle, release dash.
+ * Release-channel label: which tone and which mark a channel wears.
+ *
+ * The element itself is @bagel/ui's Badge. This file used to write the
+ * contract's class strings out by hand (`bb-tag bb-tag--alpha`, `bb-mark
+ * bb-mark--hollow`), which is the same element with the adapter skipped — the
+ * two tone maps below are the only part that is the changelog's.
  */
+import Badge from '@bagel/ui/astro/Badge.astro';
+
 interface Props {
     tag: 'alpha' | 'beta' | 'prerelease' | 'release';
     label: string;
@@ -13,26 +19,22 @@ interface Props {
 
 const { tag, label } = Astro.props;
 
-const TONE: Record<Props['tag'], string> = {
-    alpha: 'bb-tag--alpha',
-    beta: 'bb-tag--live',
-    prerelease: 'bb-tag--pre',
-    release: 'bb-tag--quiet',
-};
+const TONE = {
+    alpha: 'alpha',
+    beta: 'live',
+    prerelease: 'pre',
+    release: 'quiet',
+} as const;
 
-const MARK: Record<Props['tag'], string> = {
-    alpha: 'bb-mark bb-mark--hollow',
-    beta: 'bb-mark',
-    prerelease: 'bb-mark bb-mark--up',
-    release: 'bb-mark bb-mark--dash',
-};
+const MARK = {
+    alpha: 'hollow',
+    beta: 'solid',
+    prerelease: 'up',
+    release: 'dash',
+} as const;
 ---
 
-<span class:list={['rtag', `rtag--${tag}`, 'bb-tag', TONE[tag]]}>
-    <i class={MARK[tag]} aria-hidden="true"></i>
-    {label}
-    {tag === 'beta' && <i class="bb-sweep" aria-hidden="true"></i>}
-</span>
+<Badge class="rtag" tone={TONE[tag]} mark={MARK[tag]} sweep={tag === 'beta'}>{label}</Badge>
 
 <style>
     /* Was a translucent pill per channel (hatched alpha, glowing 50% dot on a

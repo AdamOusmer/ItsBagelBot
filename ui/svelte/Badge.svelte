@@ -20,6 +20,7 @@
     dashed = false,
     status = false,
     children,
+    class: className = '',
     ...rest
   }: {
     /** Tag vocabulary tone. Omit for a caller-driven --badge-tone. */
@@ -32,12 +33,17 @@
     /** role="status": announce changes to this label as they happen. */
     status?: boolean;
     children: Snippet;
+    /** Merged, not substituted: a caller adding a row-fit class must not be
+        able to drop the contract's own by passing `class`. */
+    class?: string;
     [key: string]: unknown;
   } = $props();
 </script>
 
 <span
-  class="bb-tag bb-badge{tone ? ` bb-tag--${tone}` : ''}{dashed ? ' bb-badge--dashed' : ''}"
+  class="bb-tag bb-badge{tone ? ` bb-tag--${tone}` : ''}{dashed
+    ? ' bb-badge--dashed'
+    : ''}{className ? ` ${className}` : ''}"
   role={status ? 'status' : undefined}
   {...rest}
 >{#if mark}<i class="bb-mark{mark === 'solid' ? '' : ` bb-mark--${mark}`}" aria-hidden="true"></i>{/if}{@render children()}{#if sweep}<i class="bb-sweep" aria-hidden="true"></i>{/if}</span>

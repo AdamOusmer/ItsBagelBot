@@ -3,10 +3,23 @@
 	// Proprietary. No license granted. See LICENSE.md.
   // Compact EN/FR toggle. Posts to /lang (plain form, no fetch) with the current
   // path as `next` so the switch keeps you on the same page in the new language.
+  //
+  // Wears @bagel/ui's `.bb-lang-switch` on the `.bb-tabs` rail, the same element
+  // the public bar renders through LanguageSwitcher.svelte. It used to draw its
+  // own 999px track with a tan-filled knob under `.lang` / `.lang-opt` — the
+  // pill the rail replaced, still alive in the console because nothing shared
+  // it. What stays here is the half the library cannot have: this is a FORM,
+  // not a row of links, because it also writes the choice to the account, and
+  // `.bb-tab` is already a bare `<button>` reset so the contract fits one.
   import { onMount } from 'svelte';
   import { page } from '$app/state';
   import { getI18n, LOCALES, type Locale } from '@bagel/kit';
   import { ensureCatalog, localeName } from '@bagel/kit/i18n';
+  // Side-effect imports: this is the one caller that writes the contract's
+  // classes itself (it is a form, see above) rather than through an adapter,
+  // so nothing else pulls the two stylesheets in on its behalf.
+  import '@bagel/ui/styles/elements/nav.css';
+  import '@bagel/ui/styles/tags.css';
 
   let { selected }: { selected?: Locale } = $props();
   const i18n = getI18n();
@@ -25,47 +38,22 @@
   });
 </script>
 
-<form method="POST" action="/lang" class="lang" aria-label={i18n.t('lang.switchAria')}>
+<form
+  method="POST"
+  action="/lang"
+  class="bb-lang-switch bb-tabs"
+  aria-label={i18n.t('lang.switchAria')}
+>
   <input type="hidden" name="next" value={next} />
   {#each LOCALES as l (l)}
     <button
       type="submit"
       name="to"
       value={l}
-      class="lang-opt"
-      class:active={l === active}
+      class="bb-lang-switch__opt bb-tab"
+      class:is-active={l === active}
       aria-pressed={l === active}
       title={named ? localeName(l) : l}
     >{short(l)}</button>
   {/each}
 </form>
-
-<style>
-  .lang {
-    display: inline-flex;
-    align-items: center;
-    gap: 2px;
-    padding: 2px;
-    border: 1px solid var(--bb-border, rgba(201, 168, 124, 0.15));
-    border-radius: var(--bb-radius-pill);
-    flex: none;
-  }
-  .lang-opt {
-    font-family: var(--bb-font-mono);
-    font-size: 10.5px;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    color: var(--bb-muted);
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 5px 9px;
-    border-radius: var(--bb-radius-pill);
-    transition: color var(--bb-dur-fast, 160ms) ease, background var(--bb-dur-fast, 160ms) ease;
-  }
-  .lang-opt:hover { color: var(--bb-tan-pale); }
-  .lang-opt.active {
-    color: #0a0a0a;
-    background: var(--bb-tan);
-  }
-</style>

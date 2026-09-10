@@ -9,7 +9,7 @@
  */
 import Card from '@bagel/ui/astro/Card.astro';
 import SectionHeading from '@bagel/ui/astro/SectionHeading.astro';
-import IncomingBadge from '../ui/IncomingBadge.astro';
+import Badge from '@bagel/ui/astro/Badge.astro';
 import LightField from '@bagel/ui/astro/LightField.astro';
 import { getLangFromUrl, useTranslations } from '../../i18n/ui';
 
@@ -23,7 +23,7 @@ const t = useTranslations(lang);
         down a row of three cards read as three separate disclaimers; the state
         belongs to the layer stack as a whole. */}
     <SectionHeading eyebrow={t('safe.eyebrow')} title={t('safe.title')}>
-        <IncomingBadge slot="badge" label={t('badge.beta')} />
+        <Badge slot="badge" tone="incoming" mark="plus">{t('badge.beta')}</Badge>
     </SectionHeading>
 
     <div class="safe__grid">

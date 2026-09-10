@@ -256,12 +256,11 @@
     flex: 1 1 auto;
     min-width: 8px;
   }
-  /* .ov-pillbtn was a 999px pill; these are controls, so they are .bb-chip
-     now and only the disabled state stays scoped. */
-  .bb-chip:disabled {
-    opacity: 0.5;
-    cursor: default;
-  }
+  /* .ov-pillbtn was a 999px pill; these are controls, so they are .bb-chip now.
+     The disabled state used to be restated here at opacity 0.5 / cursor
+     default, which forked the contract's own (0.55 / not-allowed, see
+     ui/styles/elements/chip.css) for this one panel: same intent, two answers,
+     and a change to the contract would never have reached this file. */
 
   .ov-status__mark {
     width: 58px;

@@ -33,14 +33,35 @@ import syneLatinWoff2 from '@bagel/ui/fonts/syne-latin.woff2?url';
 import dmSansLatinWoff2 from '@bagel/ui/fonts/dm-sans-latin.woff2?url';
 
 import { ClientRouter } from 'astro:transitions';
+import { getImage } from 'astro:assets';
+import logoImage from '../assets/LogoBOT.png';
 import Cursor from '@bagel/ui/astro/Cursor.astro'
-import Footer from '../components/layout/Footer.astro'
-import Nav from "../components/layout/Nav.astro";
+// The chrome is the design library's, rendered here rather than through a pair
+// of site-local wrappers. Nav.astro and Footer.astro used to sit in
+// components/layout/ and did nothing but resolve this site's links before
+// handing them to these same two components; the console had its own matching
+// pair. Four files, two implementations, one bar. What the library refuses to
+// know -- the copy and the destinations -- is resolved below, and the
+// destinations are @bagel/kit/site-links, the SAME list the console's
+// signed-out layout resolves in web/dashboard/src/routes/(public)/+layout.svelte.
+import Nav from '@bagel/ui/astro/Nav.astro'
+import Footer from '@bagel/ui/astro/Footer.astro'
+import LanguageSwitcher from '@bagel/ui/astro/LanguageSwitcher.astro'
 import SocialRail from '@bagel/ui/astro/SocialRail.astro'
 import { SOCIAL_LINKS } from '@bagel/kit/social'
+import {
+    SITE_NAV,
+    SITE_FOOTER,
+    SITE_LEGAL,
+    dashboardHref,
+    resolveSiteLinks,
+    resolveSiteColumns,
+    type SiteLinkContext,
+} from '@bagel/kit/site-links'
 import Brackets from '@bagel/ui/astro/Brackets.astro'
 import ReadingProgress from '@bagel/ui/astro/ReadingProgress.astro'
-import { getLangFromUrl, LOCALIZED_PATHS, locales, defaultLang, splitLocale, localizePath, useTranslations } from '../i18n/ui';
+import { OWNER_IGN, OWNER_PROFILE_URL } from '../owner';
+import { getLangFromUrl, LOCALIZED_PATHS, locales, defaultLang, splitLocale, localizePath, useTranslations, dashLoginHref, localeOptions } from '../i18n/ui';
 
 interface Props {
     title?: string;
@@ -169,6 +190,55 @@ const alternates = hasAlternates
     : [];
 const xDefaultHref = new URL(localizePath(basePath, defaultLang), Astro.site).href;
 
+// ─────────────────────────── the chrome's data ───────────────────────────
+// Trailing slashes normalized both sides: localizePath always emits one and
+// Astro serves both shapes, so a raw compare lights nothing.
+const currentPath = Astro.url.pathname.replace(/\/+$/, "") || "/";
+const isActive = (href: string) =>
+    href.startsWith("/") && href.replace(/\/+$/, "") === currentPath;
+
+// The console has no localized routes, so a link into it carries ?lang=.
+const langQuery = lang === defaultLang ? '' : `?lang=${lang}`;
+
+// Marketing keeps RELATIVE localized paths so its own links stay on-site and
+// keep Astro's prefetching; the console resolves the same defs to absolute
+// itsbagelbot.com URLs, because from there every one of them leaves the app.
+const navContext = {
+    path: (path: string) => localizePath(path, lang),
+    label: (key: string) => t(`nav.${key}` as Parameters<typeof t>[0]),
+    langQuery,
+    isActive,
+} satisfies SiteLinkContext;
+
+const footerContext = {
+    ...navContext,
+    label: (key: string) => t(`footer.${key}` as Parameters<typeof t>[0]),
+} satisfies SiteLinkContext;
+
+const navLinks = resolveSiteLinks(SITE_NAV, navContext);
+const footerColumns = resolveSiteColumns(SITE_FOOTER, footerContext);
+const footerLegal = resolveSiteLinks(SITE_LEGAL, footerContext);
+const navLocales = localeOptions(Astro.url);
+const getAppHref = dashboardHref('/?install=1', langQuery);
+
+// The marks are resolved through getImage rather than passed as the raw
+// import: LogoBOT.png is a 1 MB source file, and `logoImage.src` would put THAT
+// in the bar on every page. 52px is the nav's 26px mark at 2x, 110px the
+// footer's 55px. Same reason and same shape as the builder's avatar
+// (CommandBuilder.astro).
+const navLogo = await getImage({ src: logoImage, width: 52, height: 52, format: 'webp' });
+const footerLogo = await getImage({ src: logoImage, width: 110, height: 110, format: 'webp' });
+
+// The ownership colophon is NOT a copy decision: it is bot-specific,
+// homepage-only, and load-bearing for an external ownership check, which is
+// why @bagel/ui's footer takes it as a slot instead of owning it. It names the
+// owner, so it keeps the {ign} placeholder split that lets each locale put the
+// linked handle where its own prose needs it. The game trademark notices live
+// in the Terms of Service (11-third-party).
+const [ownerBefore, ownerAfter = ''] = t('about.line1').split('{ign}');
+const [keyBefore, keyAfter = ''] = t('about.mcLine').split('{ign}');
+const isHome = (currentPath === "/" ? "/" : `${currentPath}/`) === localizePath('/', lang);
+
 const devScriptSources = import.meta.env.DEV
     ? " 'unsafe-inline' 'unsafe-eval'"
     : "";
@@ -272,13 +342,58 @@ const contentSecurityPolicy = [
     <main id="main-content">
         <slot/>
     </main>
-    <Nav/>
+    <Nav
+        brand={{ title: 'ItsBagelBot', href: localizePath("/", lang), logoSrc: navLogo.src, logoAlt: '' }}
+        links={navLinks}
+        cta={{ href: dashLoginHref(lang), label: t('nav.cta') }}
+        locales={navLocales}
+        localeLabel="Language"
+        ariaLabel={t('nav.primary')}
+        menuLabels={{ open: t('nav.menuOpen'), close: t('nav.menuClose'), panel: t('menu.primary') }}
+        menuMeta={t('menu.meta')}
+    >
+        <Fragment slot="mobileFooter">
+            <a class="mobile-menu__app" href={getAppHref}>{t('nav.getApp')}</a>
+            <div class="mobile-menu__lang"><LanguageSwitcher options={navLocales} ariaLabel="Language" /></div>
+        </Fragment>
+    </Nav>
     <!-- The rail is @bagel/ui's; the five accounts it points at are the
          bot's, so they come from @bagel/kit. -->
     <SocialRail items={SOCIAL_LINKS} ariaLabel={t('nav.social')}/>
     <ReadingProgress/>
     <Brackets/>
-    <Footer/>
+    <Footer
+        brand={{ title: 'ItsBagelBot', sub: t('footer.tagline'), logoSrc: footerLogo.src, logoAlt: 'ItsBagelBot Logo' }}
+        signoff={{ line: t('footer.signoff'), sub: t('footer.signoffSub') }}
+        columns={footerColumns}
+        legal={footerLegal}
+        copyright="© 2026 ItsBagelBot"
+        note={t('footer.note')}
+        style="--footer-signoff-sub-font: var(--font-hand, 'Caveat', cursive);"
+    >
+        {/* Deliberately NOT gated behind data-reveal: every revealed block starts at
+            opacity 0 (reveal.css [data-reveal]) and only appears once the reveal
+            observer runs, and Hypixel verifies ownership by scanning served HTML for
+            the username as visible text. A reviewer with JS off has to find ItsMavey
+            here, so this stays statically visible. The id stays "about": it is the
+            ownership colophon; tests/site.spec.js scans #about for the NameMC links. */}
+        {isHome && <section class="colophon" slot="colophon">
+            <div class="colophon__owner" id="about">
+                <p>{ownerBefore}<a
+                    class="colophon__ign"
+                    href={OWNER_PROFILE_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                >{OWNER_IGN}</a>{ownerAfter}</p>
+                <p>{keyBefore}<a
+                    class="colophon__ign"
+                    href={OWNER_PROFILE_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                >{OWNER_IGN}</a>{keyAfter}</p>
+            </div>
+        </section>}
+    </Footer>
     <Cursor/>
 
     <script>
@@ -325,5 +440,63 @@ const contentSecurityPolicy = [
        sticky + scroll math (which assumes top-level sections are body children). */
     main {
         display: contents;
+    }
+
+    /* The two rows this site adds to the panel's footer. They are slotted into
+       @bagel/ui's panel, and slotted markup carries the scope attribute of the
+       file it is WRITTEN in -- this one -- so these rules reach it. */
+    .mobile-menu__app {
+        display: block;
+        text-align: center;
+        font-family: var(--font-mono, "DM Mono", monospace);
+        font-size: 0.78rem;
+        letter-spacing: 0;
+        text-transform: uppercase;
+        color: var(--tan-light, #e0c49a);
+        text-decoration: underline;
+        text-decoration-color: rgba(201, 168, 124, 0.4);
+        text-underline-offset: 4px;
+        transition: color 200ms ease;
+    }
+
+    .mobile-menu__app:active { color: var(--green-glow, #52b788); }
+
+    .mobile-menu__lang {
+        display: flex;
+        justify-content: center;
+    }
+
+    .colophon {
+        position: relative;
+        padding: 28px 24px;
+        border-top: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+        text-align: center;
+        font-family: var(--font-mono);
+        color: var(--muted);
+    }
+
+    .colophon__owner {
+        max-width: 760px;
+        margin: 0 auto;
+    }
+
+    .colophon__owner p {
+        margin: 0 0 8px;
+        font-size: 0.72rem;
+        letter-spacing: 0.05em;
+        line-height: 1.8;
+    }
+
+    .colophon__ign {
+        color: var(--tan-light);
+        text-decoration: underline;
+        text-decoration-color: rgba(224, 196, 154, 0.4);
+        text-underline-offset: 3px;
+        transition: color 180ms ease, text-decoration-color 180ms ease;
+    }
+
+    .colophon__ign:is(:hover, :focus-visible) {
+        color: var(--white);
+        text-decoration-color: rgba(240, 236, 228, 0.7);
     }
 </style>

@@ -1,6 +1,14 @@
 /* Copyright (c) 2026 Adam Ousmer. All rights reserved.
    Proprietary. No license granted. See LICENSE.md. */
 
+/* Layer order first. Every adapter in ../svelte JS-imports its own element
+   CSS, so a bundler can emit this file ahead of layers.css -- and layer order
+   is fixed by the first declaration seen, which would rank bb.elements BELOW
+   bb.base and let the button reset there strip the typography off every
+   contract that renders a <button>. Restating it is idempotent; the layers
+   themselves are documented in layers.css. */
+@layer bb.tokens, bb.base, bb.elements, bb.app;
+
 /* The application shell: the desktop rail, the call-sign strip, the floating
    dock, the stage they frame, and the four page-level pieces that live inside
    it (section nav, page head, toolbar, scroll region).
@@ -956,6 +964,33 @@
     color: var(--bb-muted);
     margin: 12px 0 0;
     max-width: 560px;
+  }
+
+  /* One step down, for a page whose visual anchor is not its title: the
+     console's Overview, where the bot-status panel underneath is what the eye
+     goes to and a full-size greeting above it competes for nothing. This used
+     to be a whole second component (the console's OverviewHead.svelte), which
+     reproduced the eyebrow, the title and the lede at these four sizes instead
+     of asking for them -- so the copy stayed in step with this file and the
+     type did not. A modifier rather than a size prop, because nothing else
+     about the head changes. */
+  .bb-page-head--compact {
+    margin-bottom: calc(22px * var(--d, 1));
+  }
+
+  .bb-page-head--compact .bb-page-head__eyebrow {
+    margin-bottom: 10px;
+  }
+
+  .bb-page-head--compact h1 {
+    font-size: clamp(26px, 3vw, 36px);
+    line-height: 1.06;
+  }
+
+  .bb-page-head--compact .bb-page-head__description {
+    font-size: 14px;
+    line-height: 1.5;
+    margin-top: 8px;
   }
 
   /* ── Toolbar ─────────────────────────────────────────────────────────── */

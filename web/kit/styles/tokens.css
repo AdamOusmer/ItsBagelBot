@@ -26,169 +26,208 @@
    rules and the woff2 payloads and a consumer resolves neither. */
 @import '@bagel/ui/styles/fonts.css';
 
-:root {
-  /* semantic aliases */
-  --bb-fg-1: var(--bb-white);
-  --bb-fg-2: var(--bb-muted);
-  --bb-bg-0: var(--bb-black);
-  --bb-bg-1: var(--bb-card-bg);
-  --bb-accent: var(--bb-green);
-  --bb-accent-glow: var(--bb-green-glow);
-  --bb-warm: var(--bb-tan);
+/* Layer order, restated. layers.css declares it too, but the statement is
+   idempotent and the file that OPENS a layer has to name the order first: the
+   order is fixed by whichever declaration the browser sees first, and a bundler
+   is free to emit a Svelte adapter's element CSS ahead of this stylesheet. Same
+   rule ui/scripts/assert-layer-order.mjs enforces inside the package. */
+@layer bb.tokens, bb.base, bb.elements, bb.app;
 
-  /* ────────────────────────── spacing ──────────────────────────── */
-  /* (the radius scale is in brand.css) */
+@layer bb.tokens {
+  :root {
+    /* semantic aliases */
+    --bb-fg-1: var(--bb-white);
+    --bb-fg-2: var(--bb-muted);
+    --bb-bg-0: var(--bb-black);
+    --bb-bg-1: var(--bb-card-bg);
+    --bb-accent: var(--bb-green);
+    --bb-accent-glow: var(--bb-green-glow);
+    --bb-warm: var(--bb-tan);
 
-  /* ────────────────────────── status system ────────────────────── */
-  /* Brand-coherent semantic states. Each triad is meant to be composed as:
-       background: var(--bb-status-X-bg);   (subtle dark tint)
-       color:      var(--bb-status-X-fg);   (body text, >=4.5:1 on -bg)
-       border:     var(--bb-status-X-border); (>=3:1 vs the dark canvas)
-     and the base --bb-status-X is the icon/accent (>=3:1 on -bg). Ratios are
-     computed, not guessed. See the numbers beside each value.
-     green = success, warm amber = warning, muted red = error, cool = info. */
-  --bb-status-success: #52b788;         /* icon 8.00:1 canvas / 6.78:1 on -bg */
-  --bb-status-success-fg: #8fe0b4;      /* text 10.78:1 on -bg */
-  --bb-status-success-bg: #0f2118;      /* subtle fill on the dark canvas */
-  --bb-status-success-border: #2f7355;  /* 3.49:1 vs canvas / 3.33:1 vs card */
+    /* ────────────────────────── spacing ──────────────────────────── */
+    /* (the radius scale is in brand.css) */
 
-  --bb-status-warning: #e0c49a;         /* icon 11.81:1 canvas / 10.04:1 on -bg */
-  --bb-status-warning-fg: #eccfa3;      /* text 11.23:1 on -bg */
-  --bb-status-warning-bg: #241c10;
-  --bb-status-warning-border: #8a6f43;  /* 4.18:1 vs canvas / 3.99:1 vs card */
+    /* ────────────────────────── status system ────────────────────── */
+    /* Brand-coherent semantic states. Each triad is meant to be composed as:
+    background: var(--bb-status-X-bg);   (subtle dark tint)
+    color:      var(--bb-status-X-fg);   (body text, >=4.5:1 on -bg)
+    border:     var(--bb-status-X-border); (>=3:1 vs the dark canvas)
+    and the base --bb-status-X is the icon/accent (>=3:1 on -bg). Ratios are
+    computed, not guessed. See the numbers beside each value.
+    green = success, warm amber = warning, muted red = error, cool = info. */
+    --bb-status-success: #52b788;         /* icon 8.00:1 canvas / 6.78:1 on -bg */
+    --bb-status-success-fg: #8fe0b4;      /* text 10.78:1 on -bg */
+    --bb-status-success-bg: #0f2118;      /* subtle fill on the dark canvas */
+    --bb-status-success-border: #2f7355;  /* 3.49:1 vs canvas / 3.33:1 vs card */
 
-  --bb-status-error: #cf8a78;           /* icon 7.13:1 canvas / 6.30:1 on -bg */
-  --bb-status-error-fg: #f0b0a4;        /* text 9.55:1 on -bg */
-  --bb-status-error-bg: #2a1310;
-  --bb-status-error-border: #b05a46;    /* 4.15:1 vs canvas / 3.96:1 vs card */
+    --bb-status-warning: #e0c49a;         /* icon 11.81:1 canvas / 10.04:1 on -bg */
+    --bb-status-warning-fg: #eccfa3;      /* text 11.23:1 on -bg */
+    --bb-status-warning-bg: #241c10;
+    --bb-status-warning-border: #8a6f43;  /* 4.18:1 vs canvas / 3.99:1 vs card */
 
-  --bb-status-info: #7bb5d9;            /* icon 8.91:1 canvas / 7.64:1 on -bg */
-  --bb-status-info-fg: #a9d0e8;        /* text 10.41:1 on -bg */
-  --bb-status-info-bg: #0f1e28;
-  --bb-status-info-border: #3f6d86;    /* 3.53:1 vs canvas / 3.37:1 vs card */
+    --bb-status-error: #cf8a78;           /* icon 7.13:1 canvas / 6.30:1 on -bg */
+    --bb-status-error-fg: #f0b0a4;        /* text 9.55:1 on -bg */
+    --bb-status-error-bg: #2a1310;
+    --bb-status-error-border: #b05a46;    /* 4.15:1 vs canvas / 3.96:1 vs card */
 
-  /* ────────────────────────── account tiers ────────────────────── */
-  /* One triad per account tier, composed the same way as the status system
-     above: the base is the text/icon colour, -bg the subtle fill, -border the
-     hairline. Both consoles label the same account in their own vocabulary
-     (the dashboard's perm badges, the admin console's status chips) and each
-     had spelled the rgba out by hand, which is how VIP once shipped purple
-     (#d9aaff) on one surface: VIP is SILVER here and never purple.
-     Two deliberate reuses rather than new colours: banned IS the error state
-     of an account, so it takes the error triad wholesale, and inactive is
-     plain muted foreground -- an account that is doing nothing should not be
-     louder than one that is.
-     Alphas are consolidated on the dashboard's badge values where the two apps
-     had drifted (VIP hairline 0.34 vs 0.40, paid 0.40 vs 0.38); the drift was
-     the reason for the tokens, so it is closed here rather than preserved. */
-  --bb-tier-free: var(--bb-green-glow);
-  --bb-tier-free-bg: rgba(82, 183, 136, 0.12);
-  --bb-tier-free-border: rgba(82, 183, 136, 0.35);
+    --bb-status-info: #7bb5d9;            /* icon 8.91:1 canvas / 7.64:1 on -bg */
+    --bb-status-info-fg: #a9d0e8;        /* text 10.41:1 on -bg */
+    --bb-status-info-bg: #0f1e28;
+    --bb-status-info-border: #3f6d86;    /* 3.53:1 vs canvas / 3.37:1 vs card */
 
-  --bb-tier-paid: var(--bb-tan-light);
-  --bb-tier-paid-bg: rgba(201, 168, 124, 0.12);
-  --bb-tier-paid-border: rgba(201, 168, 124, 0.40);
+    /* ────────────────────────── account tiers ────────────────────── */
+    /* One triad per account tier, composed the same way as the status system
+    above: the base is the text/icon colour, -bg the subtle fill, -border the
+    hairline. Both consoles label the same account in their own vocabulary
+    (the dashboard's perm badges, the admin console's status chips) and each
+    had spelled the rgba out by hand, which is how VIP once shipped purple
+    (#d9aaff) on one surface: VIP is SILVER here and never purple.
+    Two deliberate reuses rather than new colours: banned IS the error state
+    of an account, so it takes the error triad wholesale, and inactive is
+    plain muted foreground -- an account that is doing nothing should not be
+    louder than one that is.
+    Alphas are consolidated on the dashboard's badge values where the two apps
+    had drifted (VIP hairline 0.34 vs 0.40, paid 0.40 vs 0.38); the drift was
+    the reason for the tokens, so it is closed here rather than preserved. */
+    --bb-tier-free: var(--bb-green-glow);
+    --bb-tier-free-bg: rgba(82, 183, 136, 0.12);
+    --bb-tier-free-border: rgba(82, 183, 136, 0.35);
 
-  --bb-tier-vip: #dfe4e9;
-  --bb-tier-vip-bg: rgba(217, 222, 228, 0.12);
-  --bb-tier-vip-border: rgba(217, 222, 228, 0.34);
+    --bb-tier-paid: var(--bb-tan-light);
+    --bb-tier-paid-bg: rgba(201, 168, 124, 0.12);
+    --bb-tier-paid-border: rgba(201, 168, 124, 0.40);
 
-  --bb-tier-banned: var(--bb-status-error);
-  --bb-tier-banned-bg: var(--bb-status-error-bg);
-  --bb-tier-banned-border: var(--bb-status-error-border);
+    --bb-tier-vip: #dfe4e9;
+    --bb-tier-vip-bg: rgba(217, 222, 228, 0.12);
+    --bb-tier-vip-border: rgba(217, 222, 228, 0.34);
 
-  --bb-tier-inactive: var(--bb-fg-2);
-  --bb-tier-inactive-bg: rgba(255, 255, 255, 0.04);
-  --bb-tier-inactive-border: rgba(201, 168, 124, 0.20);
+    --bb-tier-banned: var(--bb-status-error);
+    --bb-tier-banned-bg: var(--bb-status-error-bg);
+    --bb-tier-banned-border: var(--bb-status-error-border);
 
-  /* (the type stack and the tracking scale are in brand.css) */
+    --bb-tier-inactive: var(--bb-fg-2);
+    --bb-tier-inactive-bg: rgba(255, 255, 255, 0.04);
+    --bb-tier-inactive-border: rgba(201, 168, 124, 0.20);
 
-  --bb-space-1: 4px;
-  --bb-space-2: 8px;
-  --bb-space-3: 12px;
-  --bb-space-4: 16px;
-  --bb-space-5: 24px;
-  --bb-space-6: 32px;
-  --bb-space-7: 48px;
-  --bb-space-8: 64px;
-  --bb-space-9: 96px;
+    /* (the type stack and the tracking scale are in brand.css) */
 
-  /* (the easing curves and the durations are in brand.css) */
+    --bb-space-1: 4px;
+    --bb-space-2: 8px;
+    --bb-space-3: 12px;
+    --bb-space-4: 16px;
+    --bb-space-5: 24px;
+    --bb-space-6: 32px;
+    --bb-space-7: 48px;
+    --bb-space-8: 64px;
+    --bb-space-9: 96px;
 
-  /* ────────────────────────── elevation ────────────────────────── */
-  --bb-shadow-soft: 0 1px 0 rgba(255,255,255,0.02) inset, 0 8px 30px rgba(0,0,0,0.35);
-  --bb-shadow-glow: 0 0 0 1px rgba(82,183,136,0.35), 0 0 24px rgba(82,183,136,0.25);
-  --bb-shadow-tan-glow: 0 0 0 1px rgba(201,168,124,0.35), 0 0 24px rgba(201,168,124,0.18);
+    /* (the easing curves and the durations are in brand.css) */
 
-  /* (--bb-nav-height and --bb-content-max are in brand.css) */
+    /* ────────────────────────── elevation ────────────────────────── */
+    --bb-shadow-soft: 0 1px 0 rgba(255,255,255,0.02) inset, 0 8px 30px rgba(0,0,0,0.35);
+    --bb-shadow-glow: 0 0 0 1px rgba(82,183,136,0.35), 0 0 24px rgba(82,183,136,0.25);
+    --bb-shadow-tan-glow: 0 0 0 1px rgba(201,168,124,0.35), 0 0 24px rgba(201,168,124,0.18);
+
+    /* (--bb-nav-height and --bb-content-max are in brand.css) */
+  }
 }
 
-/* ────────────────────────── base / reset ──────────────────────── */
-* , *::before, *::after { box-sizing: border-box; }
+/* The reset and the semantic type live in `bb.base`, NOT unlayered.
 
-/* ────────────────────────── semantic type ─────────────────────── */
-.bb-display, h1.bb {
-  font-family: var(--bb-font-display);
-  font-weight: 700;
-  font-size: clamp(56px, 8vw, 120px);
-  line-height: 0.95;
-  letter-spacing: var(--bb-tracking-tight);
-  color: var(--bb-fg-1);
-}
-.bb-h1, h1 {
-  font-family: var(--bb-font-display);
-  font-weight: 700;
-  font-size: clamp(40px, 5.5vw, 72px);
-  line-height: 1.02;
-  letter-spacing: var(--bb-tracking-display);
-  color: var(--bb-fg-1);
-}
-.bb-h2, h2 {
-  font-family: var(--bb-font-display);
-  font-weight: 600;
-  font-size: clamp(28px, 3.5vw, 44px);
-  line-height: 1.1;
-  letter-spacing: var(--bb-tracking-display);
-  color: var(--bb-fg-1);
-}
-.bb-h3, h3 {
-  font-family: var(--bb-font-display);
-  font-weight: 600;
-  font-size: 24px;
-  line-height: 1.2;
-  color: var(--bb-fg-1);
-}
-.bb-body, p {
-  font-family: var(--bb-font-body);
-  font-weight: 400;
-  font-size: 16px;
-  line-height: 1.6;
-  color: var(--bb-fg-1);
-}
-.bb-body-lg {
-  font-family: var(--bb-font-body);
-  font-weight: 400;
-  font-size: 18px;
-  line-height: 1.55;
-  color: var(--bb-fg-1);
-}
-.bb-small, small {
-  font-family: var(--bb-font-body);
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--bb-fg-2);
-}
-.bb-eyebrow {
-  font-family: var(--bb-font-mono);
-  font-weight: 400;
-  font-size: 12px;
-  letter-spacing: var(--bb-tracking-eyebrow);
-  text-transform: uppercase;
-  color: var(--bb-tan);
-}
-.bb-mono, code, pre, kbd {
-  font-family: var(--bb-font-mono);
-  font-size: 14px;
-  color: var(--bb-fg-1);
-}
+   Unlayered CSS beats every layer at any specificity, so while this block sat
+   outside the cascade layers its bare element selectors -- `h1`, `p`, `small`,
+   `code`, specificity 0,0,1 -- outranked every contract @bagel/ui ships in
+   `bb.elements`. Measured on the built console (build/client/_app/immutable/
+   assets, all 45 stylesheets loaded, getComputedStyle):
+     `.bb-page-head h1`  resolved to 40px / weight 700 from `.bb-h1, h1` below,
+        not the clamp(32px, 4vw, 48px) / 800 that ui/styles/elements/shell.css
+        asks for;
+     `.bb-page-head__description`  resolved to 16px from `.bb-body, p` below,
+        not 14.5px.
+   Contracts whose selectors never meet a bare element selector were unaffected
+   (`.bb-page-head__eyebrow` measured its correct 11.52px), which is why the
+   regression read as "body, headings and rail labels are all bigger" while
+   every size token in this file was byte-identical to the console's pre-split
+   copy. Nothing changed here; the contracts moved INTO a layer around it.
 
+   Ruled out first, both by measurement: the woff2 payloads (git ls-tree of
+   console/shared/styles/fonts at ac369cb2b and of ui/fonts are the same four
+   blobs, byte-for-byte) and font loading (document.fonts reports Syne, DM Sans
+   and DM Mono `loaded` on the built console, and the computed families are the
+   brand stacks, not a system-ui fallback).
+
+   `bb.base` is the layer layers.css reserves for element defaults and resets,
+   so a component contract in `bb.elements` overrides one with a plain class.
+   Do not lift this block back out of the layer to make a heading stick: a
+   heading that needs a different size inside a component belongs to that
+   component's contract. */
+@layer bb.base {
+  /* ────────────────────────── base / reset ──────────────────────── */
+  * , *::before, *::after { box-sizing: border-box; }
+
+  /* ────────────────────────── semantic type ─────────────────────── */
+  .bb-display, h1.bb {
+    font-family: var(--bb-font-display);
+    font-weight: 700;
+    font-size: clamp(56px, 8vw, 120px);
+    line-height: 0.95;
+    letter-spacing: var(--bb-tracking-tight);
+    color: var(--bb-fg-1);
+  }
+  .bb-h1, h1 {
+    font-family: var(--bb-font-display);
+    font-weight: 700;
+    font-size: clamp(40px, 5.5vw, 72px);
+    line-height: 1.02;
+    letter-spacing: var(--bb-tracking-display);
+    color: var(--bb-fg-1);
+  }
+  .bb-h2, h2 {
+    font-family: var(--bb-font-display);
+    font-weight: 600;
+    font-size: clamp(28px, 3.5vw, 44px);
+    line-height: 1.1;
+    letter-spacing: var(--bb-tracking-display);
+    color: var(--bb-fg-1);
+  }
+  .bb-h3, h3 {
+    font-family: var(--bb-font-display);
+    font-weight: 600;
+    font-size: 24px;
+    line-height: 1.2;
+    color: var(--bb-fg-1);
+  }
+  .bb-body, p {
+    font-family: var(--bb-font-body);
+    font-weight: 400;
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--bb-fg-1);
+  }
+  .bb-body-lg {
+    font-family: var(--bb-font-body);
+    font-weight: 400;
+    font-size: 18px;
+    line-height: 1.55;
+    color: var(--bb-fg-1);
+  }
+  .bb-small, small {
+    font-family: var(--bb-font-body);
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--bb-fg-2);
+  }
+  .bb-eyebrow {
+    font-family: var(--bb-font-mono);
+    font-weight: 400;
+    font-size: 12px;
+    letter-spacing: var(--bb-tracking-eyebrow);
+    text-transform: uppercase;
+    color: var(--bb-tan);
+  }
+  .bb-mono, code, pre, kbd {
+    font-family: var(--bb-font-mono);
+    font-size: 14px;
+    color: var(--bb-fg-1);
+  }
+}

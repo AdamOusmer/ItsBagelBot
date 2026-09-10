@@ -15,11 +15,13 @@ interface Props {
   /** The heading. The default slot wins when both are given. */
   title?: string;
   description?: string;
+  /** One step down in type and spacing, for a page anchored below its head. */
+  compact?: boolean;
   class?: string;
   [key: string]: unknown;
 }
 
-const { eyebrow, title, description, class: className = '', ...rest } = Astro.props;
+const { eyebrow, title, description, compact = false, class: className = '', ...rest } = Astro.props;
 
 // Astro cannot ask whether a named slot was filled without rendering it, so
 // the trailed modifier is driven by the slot's presence check, which is the
@@ -29,6 +31,7 @@ const trailed = Astro.slots.has('trail');
 const classes = [
   'bb-page-head',
   trailed ? 'bb-page-head--trailed' : null,
+  compact ? 'bb-page-head--compact' : null,
   className || null,
 ]
   .filter(Boolean)

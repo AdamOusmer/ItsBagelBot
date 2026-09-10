@@ -13,6 +13,7 @@
     description,
     children,
     trail,
+    compact = false,
     class: className = '',
     ...rest
   }: {
@@ -23,12 +24,19 @@
     children?: Snippet;
     /** A right-hand strip of page-level readouts. */
     trail?: Snippet;
+    /** One step down in type and spacing, for a page anchored below its head. */
+    compact?: boolean;
     class?: string;
     [key: string]: unknown;
   } = $props();
 
   const classes = $derived(
-    ['bb-page-head', trail ? 'bb-page-head--trailed' : null, className || null]
+    [
+      'bb-page-head',
+      trail ? 'bb-page-head--trailed' : null,
+      compact ? 'bb-page-head--compact' : null,
+      className || null,
+    ]
       .filter(Boolean)
       .join(' '),
   );
