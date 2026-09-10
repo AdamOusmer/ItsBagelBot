@@ -1,0 +1,30 @@
+{
+  "tag": "beta",
+  "version": "v0.2.0-beta",
+  "date": "2026-09-10",
+  "title": {
+    "en": "A real template language for commands, one design system everywhere, and a rebuilt admin console",
+    "fr": "Un vrai langage de gabarits pour les commandes, un seul système de design partout, et une console d'administration reconstruite"
+  },
+  "highlights": {
+    "en": [
+      "Custom commands get a real template language. Tokens for the viewer, positional arguments, followage, account age, loyalty points, uptime, stream title, game, viewer and chatter counts, quotes, counters, local time, now playing, emotes and per-command usage, plus countdowns, math and URL escaping, every one with a fallback and a conditional when you need it.",
+      "One design system across the whole product. The site, the dashboard and the admin console now draw their buttons, cards, fields, toggles, badges, navigation, footer and motion from a single shared library on one font set and one token set, so every surface looks and moves the same.",
+      "The admin console is rebuilt. Overview, users, staff and the operations pages sit on the shared deck and inspector, fully translated, and the admin role ladder is enforced on the server instead of hidden in the interface.",
+      "Bring your commands with you. Config import now runs through a source registry, and Fossabot and Wizebot custom commands join Nightbot as one-click imports.",
+      "Stat lookups can be kept to your own account. Streamers can restrict game and rank lookups to the account they linked, so the chat command answers about the channel rather than about anyone typed after it.",
+      "The Discord companion holds its connection. The gateway resumes sessions across reconnects, notices a missed heartbeat acknowledgement, records why a socket closed, carries its connect budget over a restart, and a first install no longer trips over an unwritten config.",
+      "Quieter under load. Profile stats collapse into a single query, the database pool jitters its lifetimes and keeps a warm floor, the connection gate is wider and reports its wait time, and reserved loyalty counters, ghost sessions, dead grants and chat bans are each handled for what they actually are."
+    ],
+    "fr": [
+      "Les commandes personnalisées reçoivent un vrai langage de gabarits. Des jetons pour le viewer, les arguments positionnels, l'ancienneté du suivi, l'âge du compte, les points de fidélité, la durée du live, le titre, le jeu, le nombre de viewers et de chatters, les citations, les compteurs, l'heure locale, le titre en cours d'écoute, les emotes et le nombre d'utilisations, plus les comptes à rebours, les calculs et l'échappement d'URL, chacun avec une valeur de repli et une condition au besoin.",
+      "Un seul système de design pour tout le produit. Le site, le tableau de bord et la console d'administration puisent désormais leurs boutons, cartes, champs, interrupteurs, badges, navigation, pied de page et animations dans une même bibliothèque partagée, sur un seul jeu de polices et de jetons, pour que chaque surface se ressemble et bouge pareil.",
+      "La console d'administration est reconstruite. La vue d'ensemble, les utilisateurs, l'équipe et les pages d'opérations reposent sur le deck et l'inspecteur partagés, entièrement traduits, et la hiérarchie des rôles admin est appliquée côté serveur plutôt que cachée dans l'interface.",
+      "Emportez vos commandes avec vous. L'import de configuration passe maintenant par un registre de sources, et les commandes personnalisées Fossabot et Wizebot rejoignent Nightbot en un clic.",
+      "Les recherches de stats peuvent être limitées à votre compte. Les streamers peuvent restreindre les recherches de jeu et de rang au compte qu'ils ont lié, pour que la commande réponde sur la chaîne plutôt que sur n'importe quel nom tapé après.",
+      "Le compagnon Discord tient sa connexion. La passerelle reprend ses sessions après une reconnexion, repère un accusé de battement manqué, note pourquoi un socket s'est fermé, conserve sa fenêtre de connexion entre les redémarrages, et une première installation ne bute plus sur une configuration jamais écrite.",
+      "Plus calme sous charge. Les stats de profil tiennent en une seule requête, le pool de base de données étale la durée de vie de ses connexions et garde un socle chaud, la porte de connexion est plus large et rapporte son temps d'attente, et les compteurs de fidélité réservés, les sessions fantômes, les autorisations mortes et les bannissements de chat sont chacun traités pour ce qu'ils sont."
+    ]
+  },
+  "github": "https://github.com/AdamOusmer/ItsBagelBot/releases/tag/v0.2.0-beta"
+}
