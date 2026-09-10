@@ -211,7 +211,7 @@
   <div class="deck {editorDraft ? 'inspecting' : ''}">
     <DeckList>
       {#if rows.length}
-        <ul class="bb-list" aria-label={t('channelpoints.listLabel')}>
+        <ul class="bb-list reward-list" aria-label={t('channelpoints.listLabel')}>
           {#each rows as r, i (r.id)}
             <RewardRow
               reward={r}
@@ -286,5 +286,7 @@
     .deck.inspecting { grid-template-columns: minmax(0, 1fr) 420px; }
   }
 
-  .bb-list :global(li:last-child .row-shell) { border-bottom: none; }
+  /* Keyed on this page's own class: the last row in THIS list drops its
+     separator because the deck's edge is right under it. */
+  .reward-list :global(li:last-child .row-shell) { border-bottom: none; }
 </style>

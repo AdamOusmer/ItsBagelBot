@@ -13,6 +13,7 @@
   import { browser } from '$app/environment';
   import { page } from '$app/state';
   import Icon from '@bagel/ui/svelte/Icon.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
 
   const { t } = getI18n();
@@ -169,7 +170,14 @@
     {#if iosOpen}
       <div class="sheet" role="dialog" aria-modal="false" aria-labelledby={titleId}>
         <div class="sheet-head">
-          <h2 id={titleId}>{t('install.ios.title')}</h2>
+          <!-- `level={6} as="h2"`: the two props are the two questions. The
+               TAG is h2 because this is the labelling heading of a
+               role="dialog" and `aria-labelledby` points at it; the SIZE is
+               the l6 step (15px) because that is what a bottom sheet's head
+               affords -- the next step up, l3 at 24px, is a quarter of the
+               sheet. This was a scoped `.sheet-head h2` at 15px/700, i.e. the
+               same decision written as a rule only this file could see. -->
+          <Heading level={6} as="h2" id={titleId}>{t('install.ios.title')}</Heading>
           <button
             class="sheet-x"
             type="button"
@@ -305,13 +313,6 @@
     justify-content: space-between;
     gap: 10px;
     margin-bottom: 12px;
-  }
-  .sheet-head h2 {
-    margin: 0;
-    font-family: var(--bb-font-display, sans-serif);
-    font-weight: 700;
-    font-size: 15px;
-    color: var(--bb-white);
   }
   .sheet-x {
     display: inline-flex;

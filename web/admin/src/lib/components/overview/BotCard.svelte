@@ -9,6 +9,7 @@
   import Card from '@bagel/ui/svelte/Card.svelte';
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
+  import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import { statusTone } from '@bagel/kit/status-tone';
   import { copyFlash } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
@@ -44,9 +45,9 @@
         {present ? t('admin.overview.botStoredMeta') : t('admin.overview.botMissingMeta')}
       </div>
     </div>
-    <a class="bb-btn bb-btn--ghost" href="/auth/bot/login">
+    <ButtonLink variant="ghost" href="/auth/bot/login" class="bot-cta">
       {present ? t('admin.overview.botReauthorize') : t('admin.overview.botAuthorize')}
-    </a>
+    </ButtonLink>
   </div>
 
   {#if botLink}
@@ -106,7 +107,10 @@
     font-size: 12.5px;
     color: var(--bb-muted);
   }
-  .row .bb-btn {
+  /* Keyed on the CTA's own class, not on `.bb-btn`: this is where the button
+     sits in THIS row, which is composition, and reaching into the contract
+     class made it look like a second definition of the button. */
+  :global(.bot-cta) {
     margin-left: auto;
     white-space: nowrap;
   }
@@ -141,10 +145,10 @@
     .row {
       flex-wrap: wrap;
     }
-    .row .bb-btn {
-      margin-left: 0;
-      width: 100%;
-      justify-content: center;
-    }
+    /* `--btn-w` / `--btn-justify` are the button contract's own knobs
+       (elements/button.css); the row hands them down instead of restating the
+       declarations they set. */
+    .row { --btn-w: 100%; --btn-justify: center; }
+    :global(.bot-cta) { margin-left: 0; }
   }
 </style>

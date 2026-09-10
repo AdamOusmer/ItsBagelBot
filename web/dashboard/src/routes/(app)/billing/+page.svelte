@@ -551,7 +551,7 @@
             {t('billing.giftCtaHint')}
           </p>
         </div>
-        <Button variant="secondary" onclick={openGift}>
+        <Button variant="secondary" onclick={openGift} class="gift-cta-btn">
           {t('billing.giftPremium')}
         </Button>
       </div>
@@ -1086,7 +1086,9 @@
     justify-content: space-between;
     gap: 18px;
   }
-  .gift-cta :global(.bb-btn) {
+  /* Keyed on the button's own class, not on the contract: this is where THIS
+     button sits in the gift row. */
+  :global(.gift-cta-btn) {
     flex-shrink: 0;
   }
 

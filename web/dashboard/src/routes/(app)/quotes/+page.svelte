@@ -17,6 +17,7 @@
     PageToolbar,
     AlertBanner,
     Card,
+    Text,
     DeckList,
     EmptyState,
     moduleDef,
@@ -360,7 +361,7 @@
   <div class="deck" class:inspecting={expanded === NEW || editTarget !== null}>
     <DeckList>
       {#if rows.length}
-        <ul class="bb-list" aria-label={t('quotes.listLabel')}>
+        <ul class="bb-list quote-list" aria-label={t('quotes.listLabel')}>
           {#each rows as quote (quote.number)}
             <QuoteRow
               {quote}
@@ -446,7 +447,7 @@
         </Scroller>
       {:else}
         <div class="inspector-idle">
-          <p>{t('quotes.inspectorIdle')}</p>
+          <Text size="sm" tone="muted" class="inspector-idle-note">{t('quotes.inspectorIdle')}</Text>
           <Button variant="ghost" onclick={openNew}>{t('quotes.newQuote')}</Button>
         </div>
       {/if}
@@ -501,22 +502,16 @@
     grid-template-columns: repeat(auto-fit, minmax(220px, 280px));
     gap: 16px;
   }
-  .perm-grid select {
-    width: 100%;
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-    color: var(--bb-white);
-    background: var(--bb-bg-1, #16130f);
-    border: 1px solid var(--rule);
-    border-radius: var(--bb-radius-sm);
-    padding: 8px 10px;
-  }
+  /* The selects wear `.bb-input` (elements/field.css) and fill their field
+     via `.bb-field .bb-input`; this page used to redraw the frame on top of
+     them, at a different padding and a different background, which is the
+     rule the block guard exists to catch. */
 
   /* Chat-commands reference below the book (same ModuleCommandList as /modules/[id]). */
   .cmd-block { margin-top: 26px; }
 
-  .toolbar-search { width: 220px; }
-  .toolbar-search .bb-input { width: 100%; }
+  /* `--input-w` is `.bb-input`'s own width knob (elements/field.css). */
+  .toolbar-search { width: 220px; --input-w: 100%; }
   .search-clear {
     display: inline-flex;
     align-items: center;
@@ -542,7 +537,9 @@
     .deck { grid-template-columns: minmax(0, 1fr) 300px; }
     .deck.inspecting { grid-template-columns: minmax(0, 1fr) 420px; }
   }
-  .bb-list :global(.row-shell:last-child) { border-bottom: none; }
+  /* Keyed on this page's own class: the last row in THIS list drops its
+     separator because the deck's edge is right under it. */
+  .quote-list :global(.row-shell:last-child) { border-bottom: none; }
 
   .inspector {
     position: sticky;
@@ -585,7 +582,8 @@
     align-items: center;
     gap: 12px;
   }
-  .inspector-idle p { margin: 0; max-width: 26ch; line-height: 1.5; }
+  /* 26ch: the measure the idle line stays readable at in the 300px column. */
+  :global(.inspector-idle-note) { max-width: 26ch; }
 
   .quote-detail { display: flex; flex-direction: column; gap: 18px; }
   .quote-number {

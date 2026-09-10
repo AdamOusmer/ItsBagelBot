@@ -14,6 +14,7 @@ import PageHero from '@bagel/ui/astro/PageHero.astro';
 import Card from '@bagel/ui/astro/Card.astro';
 import GuideCard from '../../../components/guides/GuideCard.astro';
 import TextLink from '@bagel/ui/astro/TextLink.astro';
+import Text from '@bagel/ui/astro/Text.astro';
 import { getLangFromUrl, localeStaticPaths } from '../../../i18n/ui';
 import { getGuide, getHub, guideIndex, guidePath, guideSlugs } from '../../../lib/guides/registry';
 
@@ -62,7 +63,7 @@ const [first, ...rest] = guides;
         </div>
 
         <div class="ghub__help" data-reveal style="--reveal-i: 6">
-            <p>{hub.help.prompt}</p>
+            <Text tone="muted" class="ghub__prompt">{hub.help.prompt}</Text>
             <div>
                 {hub.help.links.map((link) => (
                     <TextLink href={link.href} label={link.label} external={link.external} />
@@ -200,12 +201,10 @@ const [first, ...rest] = guides;
         border-top: 1px solid var(--border, rgba(201, 168, 124, 0.15));
     }
 
-    .ghub__help p {
-        font-family: var(--font-body, "DM Sans", sans-serif);
-        font-size: 0.95rem;
-        color: var(--muted, #888077);
-        margin: 0;
-    }
+    /* The type is the `Text` block; 0.95rem is this band's own step, between
+       the md (1rem) and sm sizes, so the prompt sits under the guide grid
+       without competing with a card title. */
+    :global(.ghub__prompt) { font-size: 0.95rem; }
 
     .ghub__help div { display: flex; flex-wrap: wrap; gap: 20px; }
 

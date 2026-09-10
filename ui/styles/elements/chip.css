@@ -37,4 +37,20 @@
     }
 
     .bb-chip:disabled { cursor: not-allowed; opacity: 0.55; }
+
+    /* The press. A chip is a CONTROL you click (that is the whole
+       .bb-tag/.bb-chip split in tags.css), and a control with no pressed
+       state reads as a label that happens to be clickable. 0.96 rather than a
+       colour change because the frame is already the affordance.
+
+       Here rather than at the one call site that had it (the marketing
+       Playground, as a `.bb-chip:active` rule in its own scoped styles): a
+       chip pressing on one page and not on the next is the drift this package
+       exists to delete, and a page reaching into `.bb-chip` to add a state to
+       it is the shape the block guard catches. */
+    .bb-chip:active { transform: scale(0.96); }
+
+    @media (prefers-reduced-motion: reduce) {
+        .bb-chip:active { transform: none; }
+    }
 }

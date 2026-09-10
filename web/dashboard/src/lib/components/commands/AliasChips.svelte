@@ -43,7 +43,7 @@
 </script>
 
 <input
-  class="bb-input"
+  class="bb-input bb-input--fill"
   placeholder={t('commandEditor.aliasPlaceholder')}
   bind:value={draft}
   onkeydown={onKey}
@@ -82,5 +82,4 @@
     opacity: 1;
   }
 
-  input.bb-input { width: 100%; box-sizing: border-box; }
 </style>

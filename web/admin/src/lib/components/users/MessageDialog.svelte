@@ -11,6 +11,9 @@
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';
+  import Field from '@bagel/ui/svelte/Field.svelte';
+  import Select from '@bagel/ui/svelte/Select.svelte';
+  import Textarea from '@bagel/ui/svelte/Textarea.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
 
   let {
@@ -67,22 +70,19 @@
   onConfirm={() => form?.requestSubmit()}
 >
   <div class="fields">
-    <label class="field">
-      {t('admin.users.messageFieldTitle')}
-      <input class="text-input" type="text" maxlength="120" bind:value={title} />
-    </label>
-    <label class="field">
-      {t('admin.users.messageFieldBody')}
-      <textarea class="text-input" rows="3" maxlength="2000" bind:value={body}></textarea>
-    </label>
-    <label class="field">
-      {t('admin.users.messageFieldLevel')}
-      <select class="text-input" bind:value={level}>
+    <Field label={t('admin.users.messageFieldTitle')}>
+      <input class="bb-input bb-input--fill" type="text" maxlength="120" bind:value={title} />
+    </Field>
+    <Field label={t('admin.users.messageFieldBody')}>
+      <Textarea rows={3} maxlength={2000} fill mono bind:value={body} />
+    </Field>
+    <Field label={t('admin.users.messageFieldLevel')}>
+      <Select fill bind:value={level}>
         {#each LEVELS as lvl (lvl.value)}
           <option value={lvl.value}>{t(lvl.label)}</option>
         {/each}
-      </select>
-    </label>
+      </Select>
+    </Field>
   </div>
 </ConfirmDialog>
 
@@ -97,35 +97,16 @@
 </form>
 
 <style>
+  /* Composition only: the fields are `Field` blocks and the three controls
+     wear `.bb-input`. This file used to draw its own control frame
+     (`.text-input`, plus a `textarea.text-input` rule for the resize handle),
+     which is the fourth redrawing of that frame the library exists to
+     delete. `--field-mb: 0` because this column already gaps at 12px. */
   .fields {
+    --field-mb: 0;
     display: flex;
     flex-direction: column;
     gap: 12px;
     margin: 12px 0 4px;
-  }
-  .field {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    font-family: var(--bb-font-body);
-    font-size: 12.5px;
-    color: var(--bb-muted);
-  }
-  .text-input {
-    padding: 8px 11px;
-    font-family: var(--bb-font-mono);
-    font-size: 12.5px;
-    border: 1px solid var(--bb-border);
-    border-radius: var(--bb-radius-sm);
-    background: var(--bb-bg-1, #16130f);
-    color: var(--bb-white);
-  }
-  .text-input:focus {
-    outline: none;
-    border-color: var(--bb-border-strong);
-  }
-  textarea.text-input {
-    resize: vertical;
-    font-family: var(--bb-font-body);
   }
 </style>

@@ -31,6 +31,7 @@
     expanded = false,
     controls,
     disabled = false,
+    accent = false,
     class: className = '',
     onselect,
     primary,
@@ -42,6 +43,8 @@
     /** id of the region the row's aria-controls points at. */
     controls?: string;
     disabled?: boolean;
+    /** Leading edge on the selected row, for a deck that docks an inspector. */
+    accent?: boolean;
     class?: string;
     onselect?: () => void;
     primary?: Snippet;
@@ -53,6 +56,7 @@
     [
       'bb-row',
       'row-shell',
+      accent ? 'bb-row--accent' : null,
       selected ? 'is-selected' : null,
       disabled ? 'is-off' : null,
       className || null,

@@ -19,7 +19,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 
 | Block | Props | Adapters | Contract |
 | --- | --- | --- | --- |
-| **Code** | `block`: boolean | svelte + astro | `styles/elements/typography.css` |
+| **Code** | `block`: boolean<br>`tone`: 'danger' | svelte + astro | `styles/elements/typography.css` |
 | **Eyebrow** | `as`: 'span' \| 'p' \| 'div' | svelte + astro | `styles/elements/typography.css` |
 | **Heading** | `level`: 1 \| 2 \| 3 \| 4 \| 5 \| 6<br>`variant`: 'display' \| 'section' \| 'card' \| 'eyebrow'<br>`as`: string | svelte + astro | `styles/elements/typography.css` |
 | **Kbd** | — | svelte + astro | `styles/elements/typography.css` |
@@ -114,7 +114,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **CardHead** | — | svelte + astro | `styles/elements/card.css` |
 | **DeckList** | `as`: string | svelte + astro | `styles/elements/card.css, styles/elements/deck-list.css` |
 | **Icon** | `name*`: IconName<br>`size`: number<br>`strokeWidth`: number<br>`fill`: string | svelte + astro | `styles/elements/icon.css` |
-| **ManagementRow** | `selected`: boolean<br>`expanded`: boolean<br>`controls`: string<br>`disabled`: boolean<br>`onselect`: () => void<br>`primary`: Snippet<br>`actions`: Snippet | svelte + astro | `styles/elements/management-row.css` |
+| **ManagementRow** | `selected`: boolean<br>`expanded`: boolean<br>`controls`: string<br>`disabled`: boolean<br>`accent`: boolean<br>`onselect`: () => void<br>`primary`: Snippet<br>`actions`: Snippet | svelte + astro | `styles/elements/management-row.css` |
 | **OverviewGrid** | `main`: Snippet<br>`side`: Snippet | svelte + astro | `styles/elements/overview-grid.css` |
 | **StatTile** | `label*`: string<br>`value*`: string<br>`unit`: string<br>`delta*`: string<br>`flat`: boolean<br>`trail`: Snippet | svelte + astro | — |
 | **Table** | `label*`: string<br>`zebra`: boolean<br>`compact`: boolean | svelte + astro | `styles/elements/table.css` |

@@ -11,6 +11,7 @@
   // The footer states the median answer time AND whether anything was shed. The
   // pipeline hook drops events under backpressure by design, so a feed that
   // silently omitted them would be claiming a completeness it does not have.
+  import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { clockFace, type ActivityFeed, type ActivityKind } from '$lib/overview-live';
 
@@ -69,7 +70,7 @@
     </ul>
     <div class="ov-log__foot">
       <span>{footer}</span>
-      <a href="/commands">{t('overview.fullLog')} →</a>
+      <TextLink href="/commands" label={`${t('overview.fullLog')} →`} />
     </div>
   {/if}
 </section>
@@ -172,13 +173,15 @@
     text-transform: uppercase;
     color: var(--bb-muted);
   }
-  .ov-log__foot a {
-    color: var(--bb-tan);
-    text-decoration: none;
-    letter-spacing: 0.12em;
-  }
-  .ov-log__foot a:hover {
-    color: var(--bb-tan-pale);
+  /* The link is the `TextLink` block. Its rest/lit colours are the two
+     custom properties the contract exposes (`--text-link-rest`,
+     `--text-link-lit`, elements/text-link.css); this footer runs tan rather
+     than the default muted because the row it sits in is already muted and
+     the link has to be the one thing in it you can click. */
+  .ov-log__foot {
+    --text-link-rest: var(--bb-tan);
+    --text-link-lit: var(--bb-tan-pale);
+    --text-link-size: 10.5px;
   }
   .ov-log__empty {
     margin: 0;

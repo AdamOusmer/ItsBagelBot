@@ -36,8 +36,8 @@ const storageKey = typeof props.storageKey === 'string' ? props.storageKey : 'gu
         {items.map((item, i) => (
             <li>
                 <label>
-                    <input type="checkbox" data-checklist-item={String(i)} />
-                    <span set:html={item}></span>
+                    <input class="gcheck__box" type="checkbox" data-checklist-item={String(i)} />
+                    <span class="gcheck__label" set:html={item}></span>
                 </label>
             </li>
         ))}
@@ -95,9 +95,11 @@ const storageKey = typeof props.storageKey === 'string' ? props.storageKey : 'gu
         cursor: pointer;
     }
 
-    .gcheck__list input { margin-top: 5px; accent-color: var(--green-glow, #52b788); }
+    .gcheck__box { margin-top: 5px; accent-color: var(--green-glow, #52b788); }
 
-    .gcheck__list input:checked + span { color: var(--muted, #888077); text-decoration: line-through; }
+    /* Named on both sides: the checkbox and the label are this widget's own
+       two parts, and a checked item strikes its own label. */
+    .gcheck__box:checked + .gcheck__label { color: var(--muted, #888077); text-decoration: line-through; }
 </style>
 
 <script>

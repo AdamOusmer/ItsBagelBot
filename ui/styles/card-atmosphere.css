@@ -53,6 +53,11 @@
        the hover wash at ~0.19 against the card ink. */
     --card-atmo-glow: 1;
     --card-atmo-ring: 0.16;
+    /* Mirror the light. A grid that alternates its cards left/right wants the
+       glow to alternate with them, or every second card reads as lit from the
+       wrong side. -1 flips; the changelog's zig-zag is the caller that needs
+       it, and it had the same rule as a `:global(.bb-card-atmo)` reach-in. */
+    transform: scaleX(var(--card-atmo-flip, 1));
 }
 
 /* Mini of the header's ring: a 1.5px tan->green arc, not a filled disc. A

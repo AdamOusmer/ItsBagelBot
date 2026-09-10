@@ -47,6 +47,7 @@
 
 <div class="row-wrap" class:flash-save={status === 'saved'}>
   <ManagementRow
+    accent
     selected={expanded}
     {expanded}
     disabled={!c.is_active}
@@ -73,7 +74,7 @@
           </span>
           {#if c.aliases?.length}
             <span class="aliases" title={t('commandRow.also', { aliases: c.aliases.join(', ') })}>
-              {#each c.aliases as a}<span class="bb-tag bb-tag--bare">{a}</span>{/each}
+              {#each c.aliases as a}<span class="bb-tag bb-tag--bare bb-tag--literal">{a}</span>{/each}
             </span>
           {/if}
         </span>
@@ -88,7 +89,7 @@
                proportion it is ranked on instead of leaving the reader to
                compare raw numbers down the column. -->
           <span class="u-track" aria-hidden="true">
-            <span class="u-fill" style="width:{barPct}%"></span>
+            <span class="u-fill" class:is-off={!c.is_active} style="width:{barPct}%"></span>
           </span>
         </span>
         <span class="m-cd">{cd}</span>
@@ -119,21 +120,9 @@
 </div>
 
 <style>
-  /* Selection accent: a 2px green edge on the selected row, so the list still
-     says which command the docked inspector is holding once the row scrolls
-     away from the inspector's own header. Applied from here rather than in the
-     shared ManagementRow: only the command deck docks an inspector beside its
-     list, and the other decks select without one. */
-  .row-wrap :global(.bb-row) { position: relative; }
-  .row-wrap :global(.bb-row.is-selected)::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 2px;
-    background: var(--bb-green-glow, #52b788);
-  }
+  /* The selection accent is `ManagementRow accent` now: the same 2px green
+     edge, owned by the contract instead of reached into from here. See
+     @bagel/ui/styles/elements/management-row.css. */
 
   .prow {
     display: grid;
@@ -179,9 +168,8 @@
 
   /* Gap widened from 4px: bare labels have no frame to separate them. */
   .aliases { display: flex; flex-wrap: nowrap; gap: 12px; min-width: 0; overflow: hidden; }
-  /* .bb-tag uppercases; an alias is a literal command name typed in chat, so
-     the casing the user saved has to survive. */
-  .aliases :global(.bb-tag) { text-transform: none; letter-spacing: 0.04em; }
+  /* The casing an alias was saved with survives via `.bb-tag--literal`, which
+     is the contract's own answer to "this tag's text is user data". */
 
   .resp {
     font-family: var(--bb-font-body);
@@ -204,8 +192,11 @@
     background: var(--bb-green-glow, #52b788);
     transition: width var(--bb-dur-base, 320ms) var(--bb-ease-out-expo, ease);
   }
-  /* A disabled command keeps its history but stops being a live signal. */
-  :global(.bb-row.is-off) .u-fill { background: var(--bb-muted); }
+  /* A disabled command keeps its history but stops being a live signal. Read
+     off this row's own `c.is_active` rather than off the row contract's
+     `.is-off` class, so the bar does not depend on which class ManagementRow
+     happens to emit. */
+  .u-fill.is-off { background: var(--bb-muted); }
 
   .m-cd {
     font-family: var(--bb-font-mono);

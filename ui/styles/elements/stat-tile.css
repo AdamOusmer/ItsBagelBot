@@ -136,6 +136,19 @@
         .bb-stat__value { font-size: clamp(24px, 7vw, 34px); }
     }
 
+    /* `auto`: as many tiles per row as fit, instead of the fixed four.
+
+       For a surface with three tiles, where the fourth column would be a hole
+       and the 1100px rule above would drop three tiles into a 2+1. Written
+       AFTER the media queries on purpose: media queries add no specificity, so
+       source order is what lets this win. The Discord page had it as a
+       `.bb-stat-grid.three` rule in its own scoped styles for exactly that
+       reason -- a compound selector bought the specificity, and bought a
+       second definition of the grid with it. */
+    .bb-stat-grid--auto {
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+    }
+
     @media (prefers-reduced-motion: reduce) {
         .bb-stat-grid .bb-stat { animation: none; }
     }

@@ -720,13 +720,15 @@ const REMAINING: {
   },
   {
     // Selected + expanded + controls: the three attributes that make the row
-    // announce its relationship to the inspector it opens.
+    // announce its relationship to the inspector it opens. `accent` rides
+    // along because it is the modifier that MARKS that relationship visually,
+    // and the two are always passed together.
     name: 'ManagementRow: selected',
     svelte: SvelteManagementRow,
     astro: AstroManagementRow,
-    props: { selected: true, expanded: true, controls: 'insp', disabled: true },
+    props: { selected: true, expanded: true, controls: 'insp', disabled: true, accent: true },
     html:
-      '<div class="bb-row row-shell is-selected is-off">' +
+      '<div class="bb-row row-shell bb-row--accent is-selected is-off">' +
       '<button class="bb-row__primary" type="button" data-cursor="quiet" aria-expanded="true" aria-controls="insp" aria-current="true"></button>' +
       '</div>',
   },
@@ -1195,6 +1197,17 @@ const PRIMITIVES: {
     props: {},
     slot: "bun run check",
     html: "<code class=\"bb-code\">bun run check</code>",
+  },
+  {
+    // The one tone. Pinned separately because it is the only reason `class` on
+    // this adapter is not the whole story, and a modifier that stopped being
+    // emitted would look like a missing stylesheet at the call site.
+    name: "Code|danger",
+    svelte: SvelteCode,
+    astro: AstroCode,
+    props: {"tone":"danger"},
+    slot: "!uptime",
+    html: "<code class=\"bb-code bb-code--danger\">!uptime</code>",
   },
   {
     name: "Code|block",

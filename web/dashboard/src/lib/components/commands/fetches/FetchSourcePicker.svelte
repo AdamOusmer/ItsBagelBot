@@ -31,7 +31,7 @@
   // in the tree means json + that path; skipping the tree means plain text. The
   // author answers "which value do you want?", not "what shape is your API?".
   import { deserialize } from '$app/forms';
-  import { Button, Modal, getI18n, slugifyName, buildJsonPath, DEFS_PER_BROADCASTER } from '@bagel/kit';
+  import { Button, Code, Field, Modal, getI18n, slugifyName, buildJsonPath, DEFS_PER_BROADCASTER } from '@bagel/kit';
   import PickerPanel from '$lib/components/PickerPanel.svelte';
   import JsonTree from './JsonTree.svelte';
 
@@ -300,13 +300,11 @@
   <div class="build">
     <p class="intro">{t('fetches.builderIntro')}</p>
 
-    <label class="fld">
-      <span>{t('fetches.displayName')}</span>
+    <Field label={t('fetches.displayName')}>
       <input class="in" placeholder={t('fetches.displayNamePh')} bind:value={displayName} oninput={onDisplayName} />
-    </label>
+    </Field>
 
-    <label class="fld">
-      <span>{t('fetches.slug')}</span>
+    <Field label={t('fetches.slug')} hint={t('fetches.slugHint')}>
       <input
         class="in mono"
         bind:value={slug}
@@ -315,24 +313,21 @@
           slug = slugifyName(slug);
         }}
       />
-      <small class="hint">{t('fetches.slugHint')}</small>
-    </label>
+    </Field>
 
-    <label class="fld">
-      <span>{t('fetches.builderUrl')}</span>
+    <Field label={t('fetches.builderUrl')}>
       <input class="in mono" placeholder="https://api.example.com/v1/…" spellcheck="false" bind:value={url} />
-    </label>
+    </Field>
 
     {#if keys.length > 0}
-      <label class="fld">
-        <span>{t('fetches.auth')}</span>
+      <Field label={t('fetches.auth')}>
         <select class="in" bind:value={keyLabel}>
           <option value="">{t('fetches.authNone')}</option>
           {#each keys.toSorted((a, b) => a.label.localeCompare(b.label)) as k (k.label)}
             <option value={k.label}>{k.label}</option>
           {/each}
         </select>
-      </label>
+      </Field>
     {/if}
 
     <div class="sample-row">
@@ -364,7 +359,7 @@
       <div class="chosen">
         {#if pathPicked && path.length > 0}
           <span class="chosen-tag bb-tag bb-tag--bare">{t('fetches.builderPicked')}</span>
-          <code>{buildJsonPath(path)}</code>
+          <Code class="chosen-path">{buildJsonPath(path)}</Code>
           <button type="button" class="link" onclick={useWholeResponse}>{t('fetches.builderWholeResponse')}</button>
         {:else}
           <span class="mut">{t('fetches.builderWholeSelected')}</span>
@@ -478,8 +473,11 @@
   .build { display: flex; flex-direction: column; gap: 12px; width: 100%; min-width: 0; }
   .intro { margin: 0; font-family: var(--bb-font-body); font-size: 12.5px; line-height: 1.55; color: var(--bb-muted); }
 
-  .fld { display: flex; flex-direction: column; gap: 5px; }
-  .fld > span { font-family: var(--bb-font-body); font-size: 11.5px; color: var(--bb-tan-light); }
+  /* The fields are `Field` blocks. This form is a popover, so its rhythm is
+     tighter than a page form's: 5px between label and control, no bottom
+     margin (the `.build` column already gaps at 12px). Both are the
+     contract's own knobs. */
+  .build { --field-gap: 5px; --field-mb: 0; }
   .in {
     width: 100%;
     box-sizing: border-box;
@@ -494,7 +492,6 @@
   .in.mono { font-family: var(--bb-font-mono); font-size: 12px; }
   .in:focus { outline: none; border-color: rgba(82, 183, 136, 0.5); }
   .paste { resize: vertical; min-height: 74px; line-height: 1.5; }
-  .hint { font-family: var(--bb-font-body); font-size: 11px; color: var(--bb-muted); }
 
   .sample-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
   .link {
@@ -516,15 +513,11 @@
   .chosen { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
   /* Was a plain muted body run; now the global .bb-tag--bare label. */
   .chosen-tag { flex: none; }
-  /* A deep path is longer than the card is wide; wrap it rather than let it
-     push the card's content box out from the inside. */
-  .chosen code {
-    font-family: var(--bb-font-mono);
-    font-size: 11.5px;
-    color: var(--bb-green-glow, #52b788);
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
+  /* A deep path is longer than the card is wide. `.bb-code` already breaks
+     anywhere; what is local here is that the picked path is GREEN -- it is
+     the thing you just clicked in the tree, not a neutral identifier -- and
+     that it may shrink below its content width inside the flex row. */
+  :global(.chosen-path) { color: var(--bb-green-glow, #52b788); min-width: 0; }
 
   .foot { display: flex; justify-content: flex-end; gap: 8px; padding-top: 4px; }
 </style>

@@ -27,10 +27,10 @@ const t = useTranslations(lang);
             <h3 class="eco__title">{t('eco.title')}</h3>
             <p class="eco__desc">{t('eco.desc')}</p>
             <div class="eco__links">
-                <a href="https://www.websitecarbon.com/website/itsbagelbot-com/" target="_blank" rel="noopener noreferrer">
+                <a class="eco__link" href="https://www.websitecarbon.com/website/itsbagelbot-com/" target="_blank" rel="noopener noreferrer">
                     Website Carbon: ItsBagelBot
                 </a>
-                <a href="https://www.websitecarbon.com/website/dashboard-itsbagelbot-com-login/" target="_blank" rel="noopener noreferrer">
+                <a class="eco__link" href="https://www.websitecarbon.com/website/dashboard-itsbagelbot-com-login/" target="_blank" rel="noopener noreferrer">
                     Website Carbon: Dashboard
                 </a>
             </div>
@@ -89,7 +89,12 @@ const t = useTranslations(lang);
         font-size: 0.8rem;
     }
 
-    .eco__links a {
+    /* Named, not `.eco__links a`. Each of these is a CITATION -- an external
+       measurement of this site's own carbon -- and it carries an icon beside
+       its label, so it is a component part rather than a link in prose (which
+       is `.bb-prose`, @bagel/ui/styles/elements/typography.css). Green
+       because everything in this band is. */
+    .eco__link {
         color: var(--green-glow, #52b788);
         text-decoration: none;
         display: inline-flex;
@@ -98,7 +103,7 @@ const t = useTranslations(lang);
         transition: color 0.2s ease;
     }
 
-    .eco__links a:hover {
+    .eco__link:hover {
         color: var(--white, #f0ece4);
     }
 

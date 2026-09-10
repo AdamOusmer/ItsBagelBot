@@ -100,13 +100,13 @@ const enterpriseFeatures = [
             <div class="tier__demo" slot="band" aria-hidden="true">
                 <div class="tier__demo-ent">
                     <div class="ent-server">
-                        <i class="bb-mark" aria-hidden="true"></i><span class="ent-line"></span><i class="bb-sweep" aria-hidden="true"></i>
+                        <i class="bb-mark ent-server__light" aria-hidden="true"></i><span class="ent-line"></span><i class="bb-sweep" aria-hidden="true"></i>
                     </div>
                     <div class="ent-server">
-                        <i class="bb-mark" aria-hidden="true"></i><span class="ent-line"></span><i class="bb-sweep" aria-hidden="true" style="animation-delay: 0.5s"></i>
+                        <i class="bb-mark ent-server__light" aria-hidden="true"></i><span class="ent-line"></span><i class="bb-sweep" aria-hidden="true" style="animation-delay: 0.5s"></i>
                     </div>
                     <div class="ent-server">
-                        <i class="bb-mark" aria-hidden="true"></i><span class="ent-line"></span><i class="bb-sweep" aria-hidden="true" style="animation-delay: 1s"></i>
+                        <i class="bb-mark ent-server__light" aria-hidden="true"></i><span class="ent-line"></span><i class="bb-sweep" aria-hidden="true" style="animation-delay: 1s"></i>
                     </div>
                 </div>
             </div>
@@ -156,7 +156,8 @@ const enterpriseFeatures = [
         .tiers__pair { grid-template-columns: repeat(2, 1fr); }
     }
 
-    .tiers__pair :global(.bb-card) { flex: 1; }
+    /* Keyed on the class this page puts ON its cards, not on `.bb-card`. */
+    :global(.tier) { flex: 1; }
 
     /* ── Card internals ── */
 
@@ -165,10 +166,15 @@ const enterpriseFeatures = [
        directly now (@bagel/ui C6: a card whose root carries the layout cannot
        have a mandatory wrapper), so it takes the same column on the card
        itself. */
-    .tier :global(.bb-card__body) {
-        display: flex;
-        flex-direction: column;
-        height: 100%;
+    /* The card contract's own body knobs
+       (@bagel/ui/styles/elements/card.css): a banded card whose body is a
+       full-height column, so each tier's CTA sits at its bottom edge whatever
+       the feature list above it does. Was a `.tier :global(.bb-card__body)`
+       reach-in here. */
+    .tiers {
+        --card-body-display: flex;
+        --card-body-dir: column;
+        --card-body-h: 100%;
     }
 
     .tier--free {
@@ -282,7 +288,10 @@ const enterpriseFeatures = [
     /* Was .ent-light, a 4px circle blinking a box-shadow glow (entBlink). The
        row is the bordered container, so the light is a bare .bb-mark and the
        row itself carries the .bb-sweep, keeping the per-row stagger. */
-    .ent-server .bb-mark {
+    /* Keyed on the mark's own class in this file's markup rather than on the
+       shared `.bb-mark`: the diamond is green HERE because it stands for a
+       server that is up. */
+    .ent-server__light {
         color: var(--green-glow, #52b788);
     }
 

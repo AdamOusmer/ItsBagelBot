@@ -217,7 +217,7 @@
         <EmptyState title={t('loyalty.topEmpty')} />
       {:else}
         <div class="bb-tbl-wrap">
-          <table class="bb-tbl">
+          <table class="bb-tbl standings">
             <caption class="sr-only">{t('loyalty.topCaption')}</caption>
             <thead>
               <tr>
@@ -303,8 +303,8 @@
 
   /* Standings are read down the column, so the row header is the tabular
      mono face the rest of the numeric UI uses. */
-  .bb-tbl th[scope='row'] { font-family: var(--bb-font-mono); font-variant-numeric: tabular-nums; }
-  .bb-tbl .rank { color: var(--bb-muted); }
+  .standings th[scope='row'] { font-family: var(--bb-font-mono); font-variant-numeric: tabular-nums; }
+  .standings .rank { color: var(--bb-muted); }
 
   @media (max-width: 480px) {
     .actions { flex-wrap: wrap; }

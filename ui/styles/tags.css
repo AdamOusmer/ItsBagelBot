@@ -98,6 +98,20 @@
     .bb-tag--quiet    { color: var(--bb-muted);      border-bottom-color: rgba(var(--bb-tan-rgb), 0.20); }
     .bb-tag--incoming { color: var(--bb-green-glow); border-bottom-style: dotted; border-bottom-color: rgba(var(--bb-green-glow-rgb), 0.50); }
 
+    /* Wrap: the tag's text is a SENTENCE, not a short label. Tags are
+       `white-space: nowrap` above because a two-word status label breaking in
+       half reads as two tags; a note long enough to be prose has the opposite
+       problem and gets clipped instead. Was a `.foot :global(.bb-tag)`
+       reach-in on the public leaderboard. */
+    .bb-tag--wrap { white-space: normal; text-align: left; }
+
+    /* Literal: the tag's text is USER DATA, not a label this system chose --
+       a command alias typed in chat, a channel name. The uppercase transform
+       above would rewrite it, and a viewer typing what the tag shows would
+       type the wrong thing. Was a `.aliases :global(.bb-tag)` reach-in in the
+       command deck's row. */
+    .bb-tag--literal { text-transform: none; letter-spacing: 0.04em; }
+
     /* Bare: no rule at all. For tags sitting inside an already-bordered row. */
     .bb-tag--bare { border-bottom: 0; padding-bottom: 0; overflow: visible; letter-spacing: 0.14em; }
 

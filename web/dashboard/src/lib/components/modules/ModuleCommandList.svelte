@@ -25,7 +25,7 @@
     <h2 id={headingId} class="section-title">{t('modules.commandsTitle')}</h2>
     <span class="cmd-head-hint">{t('modules.commandsHint')}</span>
   </div>
-  <ul class="bb-list" aria-labelledby={headingId}>
+  <ul class="bb-list cmd-list" aria-labelledby={headingId}>
     {#each commands as command, i (command.trigger)}
       <li><ModuleCommandRow {command} index={i + 1} /></li>
     {/each}
@@ -51,5 +51,8 @@
   .cmd-head { flex-direction: column; align-items: flex-start; gap: 2px; }
   .cmd-head-hint { font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
 
-  .bb-list > li:last-child :global(.row-shell) { border-bottom: none; }
+  /* Keyed on this list's own class, not on `.bb-list`: the last row in THIS
+     list drops its separator because the card's own edge is right under it,
+     which is a fact about this card and not about the list contract. */
+  .cmd-list > li:last-child :global(.row-shell) { border-bottom: none; }
 </style>

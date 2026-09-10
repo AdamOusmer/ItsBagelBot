@@ -8,6 +8,8 @@
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import {
+    Field,
+    Grid,
     FieldError,
     Scroller,
     EditorFooter,
@@ -117,24 +119,20 @@
     <input type="hidden" name="original_name" value={draft.originalName} />
   {/if}
 
-  <label class="field">
-    <span>{t('commandEditor.name')}</span>
+  <Field label={t('commandEditor.name')} hint={draft.edit ? t('commandEditor.renameHint') : undefined}>
     <input class="bb-input" name="name" placeholder={t('commandEditor.namePlaceholder')} bind:value={draft.name} required />
     <FieldError message={errors.name} />
-    {#if draft.edit}<small>{t('commandEditor.renameHint')}</small>{/if}
-  </label>
+  </Field>
 
-  <div class="field">
-    <span>{t('commandEditor.altNames')} <small>{t('common.optional')}</small></span>
+  <Field label={t('commandEditor.altNames')} tag={t('common.optional')}>
     <AliasChips bind:this={chips} bind:aliases={draft.aliases} bind:draft={aliasDraft} commandName={draft.name} />
     {#each draft.aliases as a}
       <input type="hidden" name="aliases" value={a} />
     {/each}
     <FieldError message={errors.aliases} />
-  </div>
+  </Field>
 
-  <label class="field">
-    <span>{t('commandEditor.response')}</span>
+  <Field label={t('commandEditor.response')}>
     <ResponseEditor
       bind:value={draft.response}
       maxLines={RESPONSE_MAX_LINES}
@@ -143,29 +141,32 @@
       onFetchDefsChanged={onFetchDefsChanged}
     />
     <FieldError message={errors.response} />
-  </label>
+  </Field>
 
   <ChatPreview name={draft.name} response={draft.response} />
 
-  <div class="field-row">
-    <label class="field">
-      <span>{t('commandEditor.access')}</span>
+  <!-- Two fields sharing a row: the `Grid` block, not a scoped flex rule.
+       Equal columns on the 12px step, which is what `.field-row`'s
+       `flex: 1; min-width: 0` pair spelled the long way. The phone collapse
+       comes with the contract (one column under 640px) and used to be a
+       480px media query here; the wider breakpoint is the system's, and a
+       select plus a number input at 480-640px was already tight. -->
+  <Grid cols={2} gap={3}>
+    <Field label={t('commandEditor.access')}>
       <select class="bb-input" name="perm" bind:value={draft.perm}>
         {#each PERMS as p}
           <option value={p}>{PERM_LABELS[p]}</option>
         {/each}
       </select>
-    </label>
+    </Field>
 
-    <label class="field">
-      <span>{t('commandEditor.cooldownS')}</span>
+    <Field label={t('commandEditor.cooldownS')}>
       <input class="bb-input" type="number" name="cooldown" min="0" max={COOLDOWN_MAX} bind:value={draft.cooldown} />
       <FieldError message={errors.cooldown} />
-    </label>
-  </div>
+    </Field>
+  </Grid>
 
-  <label class="field">
-    <span>{t('commandEditor.restrictUser')} <small>{t('common.optional')}</small></span>
+  <Field label={t('commandEditor.restrictUser')} tag={t('common.optional')}>
     <input
       class="bb-input"
       name="allowed_user_id"
@@ -174,7 +175,7 @@
       bind:value={draft.allowed_user_id}
     />
     <FieldError message={errors.allowed_user_id} />
-  </label>
+  </Field>
 
   <div class="check">
     {#if draft.edit && onToggleActive}
@@ -220,18 +221,6 @@
   .editor-form { display: flex; flex-direction: column; min-height: 0; flex: 1; }
   .editor { padding: 4px 2px 2px; }
 
-  .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
-  .field > span {
-    font-family: var(--bb-font-body);
-    font-size: 12.5px;
-    color: var(--bb-muted);
-    letter-spacing: 0.01em;
-  }
-  .field small { color: var(--bb-muted); opacity: 0.7; font-size: 11px; }
-  .field :global(.bb-input) { width: 100%; box-sizing: border-box; }
-
-  .field-row { display: flex; gap: 12px; }
-  .field-row .field { flex: 1; min-width: 0; }
 
   .check { margin: 4px 0 14px; }
   .check :global(.cb) { align-items: center; }
@@ -245,9 +234,5 @@
     font-family: var(--bb-font-body);
     font-size: 13.5px;
     color: var(--bb-white, var(--bb-text, #e8e0d6));
-  }
-
-  @media (max-width: 480px) {
-    .field-row { flex-direction: column; gap: 0; }
   }
 </style>

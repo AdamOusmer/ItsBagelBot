@@ -11,7 +11,7 @@
   //
   // Save/Cancel/Delete are handled by the page so the whole rule list persists in
   // one place.
-  import { getI18n } from '@bagel/kit';
+  import { Button, Cluster, Field, getI18n } from '@bagel/kit';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
 
@@ -78,23 +78,19 @@
 </script>
 
 <div class="editor">
-  <label class="field">
-    <span>Trigger phrase</span>
-    <input class="rule-input" type="text" placeholder="hello" bind:value={phrase} />
-  </label>
+  <Field label="Trigger phrase">
+    <input class="bb-input" type="text" placeholder="hello" bind:value={phrase} />
+  </Field>
 
-  <label class="field">
-    <span>Match</span>
-    <select class="rule-input" bind:value={match}>
+  <Field label="Match" hint={modeHint}>
+    <select class="bb-input" bind:value={match}>
       {#each MODES as m (m.value)}<option value={m.value}>{m.label}</option>{/each}
     </select>
-    <small>{modeHint}</small>
-  </label>
+  </Field>
 
-  <div class="field">
-    <span>Response</span>
+  <Field label="Response">
     <ResponseEditor bind:value={message} placeholder={DEFAULT_RESPONSE} tokens={TOKENS} />
-  </div>
+  </Field>
 
   <!-- kind="reply": trigger replies expand only {user} plus the dynamic
        tokens (see app/twitch/sesame/modules/triggers.go firstReply). -->
@@ -107,83 +103,38 @@
     response={effectiveMessage}
   />
 
+  <!-- Blocks, not a local re-skin. `.rule-btn` was this editor's own drawing
+       of a button (body font, 13px, its own quiet red for Delete) laid ON TOP
+       of `.bb-btn`, so three of its rules reached into the shared contract to
+       undo parts of it. Delete is the destructive variant now and the row is
+       a Cluster: the look changes slightly, the number of button definitions
+       in this repo goes from two to one. -->
   <div class="actions">
+  <Cluster gap={3}>
     {#if !isNew}
       <!-- Only an existing rule can be deleted; a new one is cancelled, not deleted. -->
-      <button type="button" class="bb-btn rule-btn danger" onclick={onDelete} disabled={busy}>
-        Delete
-      </button>
+      <Button variant="destructive" onclick={onDelete} disabled={busy}>Delete</Button>
     {/if}
     <span class="spacer"></span>
-    <button type="button" class="bb-btn rule-btn bb-btn--ghost" onclick={onCancel} disabled={busy}>{t('common.cancel')}</button>
-    <button type="button" class="bb-btn rule-btn bb-btn--primary" onclick={onSave} disabled={busy || !canSave}>
+    <Button variant="ghost" onclick={onCancel} disabled={busy}>{t('common.cancel')}</Button>
+    <Button onclick={onSave} disabled={busy || !canSave}>
       {busy ? t('modules.loading') : t('modules.saveChanges')}
-    </button>
+    </Button>
+  </Cluster>
   </div>
 </div>
 
 <style>
   .editor { padding: 4px 2px 2px; }
-  .field { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
-  .field > span { font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted); letter-spacing: 0.01em; }
-  .field small { color: var(--bb-muted); opacity: 0.75; font-size: 11px; }
 
-  .rule-input {
-    width: 100%;
-    box-sizing: border-box;
-    padding: 12px 14px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid var(--glass-border);
-    border-radius: var(--bb-radius-sm);
-    color: var(--bb-white);
-    font-family: var(--bb-font-body);
-    font-size: 13.5px;
-    transition: border-color var(--bb-dur-base, 160ms) ease, box-shadow var(--bb-dur-base, 160ms) ease;
-  }
-  .rule-input::placeholder { color: var(--bb-muted); opacity: 0.7; }
-  .rule-input:focus {
-    outline: none;
-    border-color: rgba(82, 183, 136, 0.5);
-    box-shadow: 0 0 0 3px rgba(82, 183, 136, 0.12);
-    background: rgba(255, 255, 255, 0.04);
-  }
-
-  .actions { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+  /* Composition only. The fields are `Field` blocks, the controls wear
+     `.bb-input` and the buttons are `Button` blocks; what is left here is
+     where this editor's action row sits and how it behaves on a phone. */
+  .actions { margin-top: 12px; }
   .spacer { flex: 1; }
-  /* A local re-skin, not a second definition of the contract: this editor's
-     actions are body-font 13px controls on the rule hairline, and only the
-     mark and the frame come from .bb-btn. The rules below key on `.rule-btn`
-     so `.bb-btn` has exactly one definition in the repo
-     (@bagel/ui/styles/elements/button.css) and this file cannot silently
-     become a second one. */
-  .rule-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 14px;
-    border-radius: var(--bb-radius-sm);
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-    cursor: pointer;
-    border: 1px solid var(--rule);
-    background: transparent;
-    color: var(--bb-muted);
-    transition: all var(--bb-dur-fast, 140ms) ease;
-  }
-  .rule-btn.bb-btn--ghost:hover { color: var(--bb-white); }
-  .rule-btn.bb-btn--primary { background: rgba(82, 183, 136, 0.16); border-color: rgba(82, 183, 136, 0.5); color: var(--bb-green-glow, #52b788); }
-  .rule-btn.bb-btn--primary:disabled { opacity: 0.5; cursor: default; }
-  .rule-btn.danger { border-color: transparent; color: #cf8a78; }
-  /* `color` is re-declared on hover on purpose: this editor's `.danger` is its
-     own look (a quiet red text button, not the dashed .bb-btn--destructive),
-     and the shared contract's base hover paints the label --bb-black now that
-     a bare .bb-btn is the primary. Before the contract move a bare `.btn` had
-     no hover rule at all, so this rule only had to name what changed. */
-  .rule-btn.danger:hover { border-color: rgba(176, 90, 70, 0.5); background: rgba(176, 90, 70, 0.08); color: #cf8a78; }
 
   @media (max-width: 480px) {
-    .actions { flex-wrap: wrap; }
-    .actions .rule-btn { flex: 1; justify-content: center; min-height: 44px; }
+    .actions { --btn-w: 100%; --btn-justify: center; --btn-min-h: 44px; }
     .spacer { display: none; }
   }
 </style>

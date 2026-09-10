@@ -30,7 +30,7 @@ const { title = '#your_channel', lines, caption } = Astro.props;
     <div class="cmock__win" role="img" aria-label={caption ?? title}>
         <div class="cmock__bar">
             <i></i>
-            <span>{title}</span>
+            <span class="cmock__title">{title}</span>
             <b>chat</b>
         </div>
         <div class="cmock__feed">
@@ -81,7 +81,10 @@ const { title = '#your_channel', lines, caption } = Astro.props;
         box-shadow: 0 0 8px rgba(224, 98, 98, 0.6);
     }
 
-    .cmock__bar span {
+    /* Named, not `.cmock__bar span`: this is the mock window's OWN title
+       part, which is composition inside this widget, and a bare element rule
+       here would be a second answer to what small text looks like. */
+    .cmock__title {
         font-family: var(--font-mono, "DM Mono", monospace);
         font-size: 0.75rem;
         color: var(--white, #f0ece4);

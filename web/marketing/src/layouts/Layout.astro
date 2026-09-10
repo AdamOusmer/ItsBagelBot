@@ -379,7 +379,7 @@ const contentSecurityPolicy = [
             ownership colophon; tests/site.spec.js scans #about for the NameMC links. */}
         {isHome && <section class="colophon" slot="colophon">
             <div class="colophon__owner" id="about">
-                <p>{ownerBefore}<a
+                <p class="colophon__line">{ownerBefore}<a
                     class="colophon__ign"
                     href={OWNER_PROFILE_URL}
                     target="_blank"
@@ -480,7 +480,11 @@ const contentSecurityPolicy = [
         margin: 0 auto;
     }
 
-    .colophon__owner p {
+    /* Named, not `.colophon__owner p`: the colophon's own line. 0.72rem is
+       below the type scale's smallest step on purpose -- this is the legal
+       footer under the footer, and it is sized to be findable rather than
+       read. */
+    .colophon__line {
         margin: 0 0 8px;
         font-size: 0.72rem;
         letter-spacing: 0.05em;

@@ -9,7 +9,7 @@
   import { tick } from 'svelte';
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Button, Field, EditorFooter, Switch, getI18n, type GoveeDevice, type GoveeBinding } from '@bagel/kit';
+  import { Button, Code, Field, EditorFooter, Switch, getI18n, type GoveeDevice, type GoveeBinding } from '@bagel/kit';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
 
@@ -94,7 +94,7 @@
   <input type="hidden" name="deviceName" value={device.name} />
 
   <p class="hint">
-    {t('govee.editorHintNames')} <code>{colors.join(', ')}</code>. {t('govee.editorHintHex')} <code>#00ccff</code>.
+    {t('govee.editorHintNames')} <Code>{colors.join(', ')}</Code>. {t('govee.editorHintHex')} <Code>#00ccff</Code>.
   </p>
 
   <Field label={t('govee.fieldTitle')}>
@@ -239,8 +239,6 @@
   .muted-text { margin: 0; font-family: var(--bb-font-body); font-size: 12px; line-height: 1.5; color: var(--bb-muted); }
 
   .del-row { display: flex; }
-
-  code { font-family: var(--bb-font-mono, monospace); font-size: 0.86em; color: var(--bb-tan-light); }
 
   @media (max-width: 480px) {
     .field-row { flex-direction: column; gap: 12px; }

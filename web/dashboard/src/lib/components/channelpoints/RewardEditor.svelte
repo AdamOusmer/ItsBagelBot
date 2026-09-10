@@ -6,7 +6,7 @@
   // travels as one JSON field; the server validates and normalizes it.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { RadioGroup, getI18n, type ChannelPointReward, type CounterScope } from '@bagel/kit';
+  import { Field, Grid, RadioGroup, getI18n, type ChannelPointReward, type CounterScope } from '@bagel/kit';
   import CheckButton from '$lib/components/CheckButton.svelte';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
@@ -91,26 +91,24 @@
 <form method="POST" action={isNew ? '?/create' : '?/update'} class="editor" novalidate use:enhance={onSubmit}>
   <input type="hidden" name="reward" value={payload} />
 
-  <label class="field">
-    <span>{t('channelpoints.fieldTitle')}</span>
+  <Field label={t('channelpoints.fieldTitle')}>
     <input class="bb-input" placeholder={t('channelpoints.fieldTitlePh')} maxlength="45" required bind:value={draft.title} />
-  </label>
+  </Field>
 
+  <!-- Cost and colour share a row. `Cluster` and not `Grid`: the colour swatch
+       is a fixed 110px, so the two are not equal columns. -->
   <div class="field-row">
-    <label class="field">
-      <span>{t('channelpoints.fieldCost')}</span>
+    <Field label={t('channelpoints.fieldCost')} class="cost-field">
       <input class="bb-input" type="number" min="1" bind:value={draft.cost} />
-    </label>
-    <label class="field color-field">
-      <span>{t('channelpoints.fieldColor')}</span>
+    </Field>
+    <Field label={t('channelpoints.fieldColor')} class="color-field">
       <input class="color-in" type="color" bind:value={color} />
-    </label>
+    </Field>
   </div>
 
-  <label class="field">
-    <span>{t('channelpoints.fieldPrompt')} <small>{t('common.optional')}</small></span>
+  <Field label={t('channelpoints.fieldPrompt')} tag={t('common.optional')}>
     <input class="bb-input" placeholder={t('channelpoints.fieldPromptPh')} maxlength="200" bind:value={draft.prompt} />
-  </label>
+  </Field>
 
   <div class="check">
     <CheckButton bind:checked={draft.isUserInputRequired} label={t('channelpoints.requireInput')} />
@@ -121,10 +119,9 @@
   </div>
 
   {#if replyOn}
-    <label class="field">
-      <span>{t('channelpoints.fieldMessage')}</span>
+    <Field label={t('channelpoints.fieldMessage')}>
       <ResponseEditor bind:value={draft.message} tokens={TOKENS} placeholder={DEFAULT_MESSAGE} />
-    </label>
+    </Field>
     <!-- kind="reply": expandReward substitutes the reward tokens plus the
          dynamic set ({random}/{choice:…}); nothing else. -->
     <ChatPreview
@@ -136,15 +133,13 @@
     />
   {/if}
 
-  <label class="field">
-    <span>{t('channelpoints.queueTitle')}</span>
+  <Field label={t('channelpoints.queueTitle')} hint={t('channelpoints.queueHint')}>
     <select class="bb-input" bind:value={draft.onRedeem}>
       <option value="fulfill">{t('channelpoints.queueFulfill')}</option>
       <option value="cancel">{t('channelpoints.queueCancel')}</option>
       <option value="leave">{t('channelpoints.queueLeave')}</option>
     </select>
-    <small>{t('channelpoints.queueHint')}</small>
-  </label>
+  </Field>
 
   <!-- Loyalty hooks: an opt-in counter and/or a points award per redemption.
        Each is a toggle that reveals its own controls, so a plain reward's
@@ -158,17 +153,13 @@
       <CheckButton bind:checked={counterOn} label={t('rewardCounter.enable')} />
       {#if counterOn}
         <div class="hook-body">
-          <label class="field">
-            <span>{t('rewardCounter.nameLabel')}</span>
+          <Field label={t('rewardCounter.nameLabel')} hint={t('rewardCounter.nameHint')}>
             <input class="bb-input" placeholder={t('channelpoints.fieldCounterPh')} maxlength="64" bind:value={draft.counter} />
-            <small>{t('rewardCounter.nameHint')}</small>
-          </label>
+          </Field>
 
-          <div class="field">
-            <span class="field-label">{t('rewardCounter.scopeLabel')}</span>
+          <Field label={t('rewardCounter.scopeLabel')} hint={scopeDesc}>
             <RadioGroup name="counterScope" bind:value={draft.counterScope} options={scopeOptions} label={t('rewardCounter.scopeLabel')} />
-            <small>{scopeDesc}</small>
-          </div>
+          </Field>
 
           <p class="token-note">{t('rewardCounter.tokenNote')}</p>
         </div>
@@ -179,14 +170,12 @@
       <CheckButton bind:checked={pointsOn} label={t('rewardCounter.pointsEnable')} />
       {#if pointsOn}
         <div class="hook-body">
-          <label class="field points-field">
-            <span>{t('rewardCounter.pointsLabel')}</span>
+          <Field label={t('rewardCounter.pointsLabel')} hint={t('rewardCounter.pointsHint')} class="points-field">
             <div class="points-input">
               <span class="plus">+</span>
               <input class="bb-input num" type="number" min="1" bind:value={draft.points} />
             </div>
-            <small>{t('rewardCounter.pointsHint')}</small>
-          </label>
+          </Field>
         </div>
       {/if}
     </div>
@@ -244,19 +233,12 @@
 <style>
   .editor { padding: 4px 2px 2px; }
 
-  .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
-  .field > span {
-    font-family: var(--bb-font-body);
-    font-size: 12.5px;
-    color: var(--bb-muted);
-    letter-spacing: 0.01em;
-  }
-  .field small { color: var(--bb-muted); opacity: 0.7; font-size: 11px; }
-  .field :global(.bb-input) { width: 100%; box-sizing: border-box; }
-
+  /* Composition only: the fields are `Field` blocks
+     (@bagel/ui/styles/elements/field.css). What is left is how two of them
+     share a row on this form, which no library can know. */
   .field-row { display: flex; gap: 12px; }
-  .field-row .field { flex: 1; min-width: 0; }
-  .color-field { flex: none; width: 110px; }
+  :global(.cost-field) { flex: 1; min-width: 0; }
+  :global(.color-field) { flex: none; width: 110px; }
   .color-in {
     width: 100%;
     height: 39px;
@@ -304,13 +286,11 @@
     padding-left: 14px;
     border-left: 2px solid var(--ui-accent-soft, rgba(240, 236, 228, 0.1));
   }
-  .hook-body .field { margin-bottom: 0; }
-  .field-label {
-    font-family: var(--bb-font-body);
-    font-size: 12.5px;
-    color: var(--bb-muted);
-    letter-spacing: 0.01em;
-  }
+  /* `--field-mb` is `.bb-field`'s own knob (elements/field.css): the revealed
+     block is already indented and ruled, so its fields do not each need the
+     14px they carry in a flat form. Set on the container rather than reached
+     into per field. */
+  .hook-body { --field-mb: 0; }
 
   .token-note {
     margin: 0;
@@ -333,7 +313,7 @@
     margin: 2px 0 0 26px;
   }
 
-  .points-field { max-width: 220px; }
+  :global(.points-field) { max-width: 220px; }
   .points-input { display: flex; align-items: center; gap: 8px; }
   .points-input .plus {
     font-family: var(--bb-font-display);
@@ -373,7 +353,7 @@
 
   @media (max-width: 480px) {
     .field-row { flex-direction: column; gap: 0; }
-    .color-field { width: 100%; }
+    :global(.color-field) { width: 100%; }
     .actions { flex-direction: column-reverse; }
     .actions { --btn-w: 100%; --btn-justify: center; --btn-min-h: 44px; }
   }
