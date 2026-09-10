@@ -123,5 +123,27 @@
        Both cost more than the coupling. The coupling is at least confined to
        one file, between two parts of the SAME contract (a field and the
        control it labels), which is the case the ban was never about. */
+    /* ── Fill ────────────────────────────────────────────────────────
+       The control takes the width its container gives it instead of the
+       240px default.
+
+       A modifier rather than the eight scoped copies of
+       `.something :global(.bb-input) { width: 100% }` / `{ flex: 1 }` this
+       replaces. They were the same intent written two ways, and the `flex`
+       spelling silently did nothing outside a flex row while the `width`
+       spelling silently overflowed inside one without `min-width: 0`. This
+       sets all three, so it is right in both.
+
+       Not the default: the note above records the measurement -- ~45 call
+       sites, and the ones NOT inside a field are toolbar controls that would
+       stretch to their container. A default that is wrong for half the call
+       sites is not a better default. */
+    .bb-input--fill {
+        width: 100%;
+        flex: 1;
+        min-width: 0;
+        box-sizing: border-box;
+    }
+
     .bb-field .bb-input { width: 100%; box-sizing: border-box; }
 }

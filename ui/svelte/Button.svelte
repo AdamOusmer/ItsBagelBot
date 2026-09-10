@@ -19,6 +19,7 @@
   let {
     variant = 'primary',
     solid = false,
+    block = false,
     size = 'md',
     type = 'button',
     onclick,
@@ -36,6 +37,8 @@
     // Only meaningful with `green`: the nav CTA is the one filled button in
     // the system.
     solid?: boolean;
+    /** Full width, centred, >=44px tall: the mobile action-row shape. */
+    block?: boolean;
     size?: 'md' | 'sm';
     type?: 'button' | 'submit' | 'reset';
     onclick?: (e: MouseEvent) => void;
@@ -72,6 +75,7 @@
       'bb-btn',
       `bb-btn--${variant}`,
       solid && 'bb-btn--solid',
+      block && 'bb-btn--block',
       size === 'sm' && 'bb-btn--sm',
       loading && 'is-loading',
       done && 'is-done',

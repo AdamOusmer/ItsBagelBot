@@ -21,19 +21,24 @@
   let {
     value = $bindable(''),
     invalid = false,
+    fill = false,
     class: className = '',
     children,
     ...rest
   }: {
     value?: string;
     invalid?: boolean;
+    /** Take the container's width instead of the 240px default. */
+    fill?: boolean;
     class?: string;
     children: Snippet;
     [key: string]: unknown;
   } = $props();
 
   const classes = $derived(
-    ['bb-input', 'bb-input--select', className || null].filter(Boolean).join(' '),
+    ['bb-input', 'bb-input--select', fill ? 'bb-input--fill' : null, className || null]
+      .filter(Boolean)
+      .join(' '),
   );
 </script>
 

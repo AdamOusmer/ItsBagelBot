@@ -26,7 +26,7 @@
     <!-- SearchInput is itself a <label> wrapping an unnamed input, so the value
          is carried by a hidden field rather than by naming that input: nesting
          a second label around it would be invalid. -->
-    <SearchInput bind:value={q} placeholder={t('admin.overview.quickLookupPlaceholder')} />
+    <SearchInput fill bind:value={q} placeholder={t('admin.overview.quickLookupPlaceholder')} />
     <input type="hidden" name="q" value={q} />
     <Button variant="ghost" type="submit">{t('admin.overview.quickLookupCta')}</Button>
   </form>
@@ -46,10 +46,7 @@
     gap: 8px;
     align-items: center;
   }
-  .lookup :global(.bb-input) {
-    flex: 1;
-    min-width: 0;
-  }
+  
   .jumps {
     display: flex;
     gap: 8px;

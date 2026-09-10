@@ -25,6 +25,7 @@
     value = $bindable(''),
     type = 'text',
     invalid = false,
+    fill = false,
     mono = false,
     class: className = '',
     icon,
@@ -35,6 +36,8 @@
     type?: 'text' | 'email' | 'url' | 'tel' | 'number' | 'password' | 'search';
     /** Draws the error frame. Set when the value has been JUDGED wrong. */
     invalid?: boolean;
+    /** Take the container's width instead of the 240px default. */
+    fill?: boolean;
     mono?: boolean;
     class?: string;
     icon?: Snippet;
@@ -43,7 +46,9 @@
   } = $props();
 
   const classes = $derived(
-    ['bb-input', mono ? 'bb-input--mono' : null, className || null].filter(Boolean).join(' '),
+    ['bb-input', fill ? 'bb-input--fill' : null, mono ? 'bb-input--mono' : null, className || null]
+      .filter(Boolean)
+      .join(' '),
   );
 </script>
 

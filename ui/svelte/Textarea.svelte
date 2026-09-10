@@ -19,6 +19,7 @@
     value = $bindable(''),
     rows = 3,
     invalid = false,
+    fill = false,
     mono = false,
     class: className = '',
     ...rest
@@ -26,13 +27,15 @@
     value?: string;
     rows?: number;
     invalid?: boolean;
+    /** Take the container's width instead of the 240px default. */
+    fill?: boolean;
     mono?: boolean;
     class?: string;
     [key: string]: unknown;
   } = $props();
 
   const classes = $derived(
-    ['bb-input', 'bb-input--area', mono ? 'bb-input--mono' : null, className || null]
+    ['bb-input', 'bb-input--area', fill ? 'bb-input--fill' : null, mono ? 'bb-input--mono' : null, className || null]
       .filter(Boolean)
       .join(' '),
   );

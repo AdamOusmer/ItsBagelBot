@@ -11,14 +11,23 @@ interface Props {
     value?: string;
     rows?: number;
     invalid?: boolean;
+    /** Take the container's width instead of the 240px default. */
+    fill?: boolean;
     mono?: boolean;
     class?: string;
     [key: string]: unknown;
 }
 
-const { value = '', rows = 3, invalid = false, mono = false, class: className = '', ...rest } =
-    Astro.props;
-const classes = ['bb-input', 'bb-input--area', mono ? 'bb-input--mono' : null, className]
+const {
+    value = '',
+    rows = 3,
+    invalid = false,
+    fill = false,
+    mono = false,
+    class: className = '',
+    ...rest
+} = Astro.props;
+const classes = ['bb-input', 'bb-input--area', fill ? 'bb-input--fill' : null, mono ? 'bb-input--mono' : null, className]
     .filter(Boolean)
     .join(' ');
 ---

@@ -22,6 +22,7 @@
   import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
   import Skeleton from '@bagel/ui/svelte/Skeleton.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
+  import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import { toast } from '@bagel/ui/svelte/toast';
   import { actionPayload, adminToastFailure } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
@@ -348,7 +349,7 @@
           submitSearch();
         }}
       >
-        <SearchInput bind:value={search} placeholder={t('admin.users.searchPlaceholder')} />
+        <SearchInput fill bind:value={search} placeholder={t('admin.users.searchPlaceholder')} />
         <Button variant="ghost" type="submit">{t('admin.overview.quickLookupCta')}</Button>
       </form>
       <Button variant="ghost" onclick={exportCsv} disabled={rows.length === 0}>
@@ -396,25 +397,27 @@
 
       {#if dir && (dir.page > 1 || dir.hasMore)}
         <div class="pager">
-          <a
-            class="bb-btn bb-btn--ghost"
-            class:disabled={dir.page <= 1}
+          <!-- ButtonLink, not raw `.bb-btn` markup: the dimming and the
+               click-swallowing a disabled pager arrow needs are the button
+               contract's `[aria-disabled]` state, which this page used to
+               fork locally at a different opacity. -->
+          <ButtonLink
+            variant="ghost"
             href={href({ q: data.search, state: data.state, page: dir.page - 1 })}
             aria-disabled={dir.page <= 1}
           >
             {t('admin.users.pagerPrev')}
-          </a>
+          </ButtonLink>
           <span class="pager-label">
             {t('admin.users.pagerLabel', { page: String(dir.page), max: String(dir.maxPages) })}
           </span>
-          <a
-            class="bb-btn bb-btn--ghost"
-            class:disabled={!dir.hasMore}
+          <ButtonLink
+            variant="ghost"
             href={href({ q: data.search, state: data.state, page: dir.page + 1 })}
             aria-disabled={!dir.hasMore}
           >
             {t('admin.users.pagerNext')}
-          </a>
+          </ButtonLink>
         </div>
       {/if}
     </DeckList>
@@ -568,10 +571,6 @@
     font-size: 11.5px;
     color: var(--bb-muted);
   }
-  .pager .bb-btn.disabled {
-    opacity: 0.35;
-    pointer-events: none;
-  }
 
   .field {
     display: flex;
@@ -600,8 +599,5 @@
     .searchbar {
       width: 100%;
     }
-    .searchbar :global(.bb-input) {
-      flex: 1;
     }
-  }
 </style>

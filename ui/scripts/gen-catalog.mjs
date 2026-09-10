@@ -103,7 +103,7 @@ function propsFromSvelte(source, file) {
   // attribute type writes `} & HTMLAttributes<HTMLDivElement> = $props()`, and
   // slicing to the call would leave that intersection inside the body.
   const literal = source.slice(start + 4, end);
-  return parseProps(literal.slice(0, literal.lastIndexOf('}')), file);
+  return parseProps(literal.slice(0, literal.lastIndexOf('}')));
 }
 
 function propsFromAstro(source, file) {
@@ -111,7 +111,7 @@ function propsFromAstro(source, file) {
   if (start === -1) return null;
   const end = source.indexOf('\n}', start);
   if (end === -1) throw new Error(`${file}: "interface Props {" is never closed at column 0`);
-  return parseProps(source.slice(start + 'interface Props {'.length, end), file);
+  return parseProps(source.slice(start + 'interface Props {'.length, end));
 }
 
 /**
@@ -122,28 +122,31 @@ function propsFromAstro(source, file) {
  * if they were props of the element. Depth is tracked on braces and parens,
  * and only depth-0 lines are read.
  */
-function parseProps(body, file) {
+/** Lines that carry no prop: blank, or part of a JSDoc/line comment. */
+const isNoise = (line) =>
+  !line || line.startsWith('//') || line.startsWith('*') || line.startsWith('/*');
+
+/** `class` and `children` are on nearly every element and say nothing about
+ *  it; listing them 81 times would bury the props that differ. */
+const isInteresting = (prop) => {
+  const bare = prop.name.replace(/\*$/, '');
+  return bare !== 'class' && bare !== 'children';
+};
+
+function collectProp(props, rawLine) {
+  const match = PROP_RE.exec(rawLine);
+  if (!match || match[1] === '[key') return;
+  props.push({ name: match[1] + (match[2] === '?' ? '' : '*'), type: tidy(match[3]) });
+}
+
+function parseProps(body) {
   const props = [];
   let depth = 0;
   for (const rawLine of body.split('\n')) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith('//') || line.startsWith('*') || line.startsWith('/*')) {
-      depth += countDepth(rawLine);
-      continue;
-    }
-    if (depth === 0) {
-      const match = PROP_RE.exec(rawLine);
-      if (match && match[1] !== '[key') {
-        props.push({ name: match[1] + (match[2] === '?' ? '' : '*'), type: tidy(match[3]) });
-      }
-    }
-    depth += countDepth(rawLine);
-    if (depth < 0) depth = 0;
+    if (depth === 0 && !isNoise(rawLine.trim())) collectProp(props, rawLine);
+    depth = Math.max(0, depth + countDepth(rawLine));
   }
-  // The index signature and `class` are on nearly every element and say
-  // nothing about it; listing them 120 times would bury the props that differ.
-  const bare = (p) => p.name.replace(/\*$/, '');
-  return props.filter((p) => bare(p) !== 'class' && bare(p) !== 'children');
+  return props.filter(isInteresting);
 }
 
 const countDepth = (line) =>

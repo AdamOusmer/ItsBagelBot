@@ -50,19 +50,19 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 
 | Block | Props | Adapters | Contract |
 | --- | --- | --- | --- |
-| **Button** | `variant`: 'primary' \| 'secondary' \| 'ghost' \| 'green' \| 'destructive' \| 'icon' \| 'tan' \| 'quiet' \| 'go'<br>`solid`: boolean<br>`size`: 'md' \| 'sm'<br>`type`: 'button' \| 'submit' \| 'reset'<br>`onclick`: (e: MouseEvent) => void<br>`loading`: boolean<br>`done`: boolean<br>`disabled`: boolean | svelte + astro | `styles/elements/button.css` |
-| **ButtonLink** | `href*`: string<br>`variant`: 'primary' \| 'secondary' \| 'ghost' \| 'green' \| 'destructive' \| 'icon' \| 'tan' \| 'quiet' \| 'go'<br>`solid`: boolean<br>`size`: 'md' \| 'sm'<br>`done`: boolean | svelte + astro | `styles/elements/button.css` |
+| **Button** | `variant`: 'primary' \| 'secondary' \| 'ghost' \| 'green' \| 'destructive' \| 'icon' \| 'tan' \| 'quiet' \| 'go'<br>`solid`: boolean<br>`block`: boolean<br>`size`: 'md' \| 'sm'<br>`type`: 'button' \| 'submit' \| 'reset'<br>`onclick`: (e: MouseEvent) => void<br>`loading`: boolean<br>`done`: boolean<br>`disabled`: boolean | svelte + astro | `styles/elements/button.css` |
+| **ButtonLink** | `href*`: string<br>`variant`: 'primary' \| 'secondary' \| 'ghost' \| 'green' \| 'destructive' \| 'icon' \| 'tan' \| 'quiet' \| 'go'<br>`solid`: boolean<br>`block`: boolean<br>`size`: 'md' \| 'sm'<br>`done`: boolean | svelte + astro | `styles/elements/button.css` |
 | **Checkbox** | `checked`: boolean | svelte + astro | `styles/elements/input.css` |
 | **Field** | `label*`: string<br>`tag`: string<br>`hint`: string<br>`error`: string<br>`hintId`: string<br>`errorId`: string<br>`for`: string | svelte + astro | — |
 | **FieldError** | — | svelte<br>*Svelte only: it renders only when a form action has returned an error, which a static page has not.* | — |
 | **IconButton** | `label*`: string<br>`tooltip`: boolean<br>`size`: 'md' \| 'sm'<br>`type`: 'button' \| 'submit' \| 'reset'<br>`onclick`: (e: MouseEvent) => void<br>`disabled`: boolean | svelte + astro | `styles/elements/button.css, styles/elements/tooltip.css` |
-| **Input** | `value`: string<br>`type`: 'text' \| 'email' \| 'url' \| 'tel' \| 'number' \| 'password' \| 'search'<br>`invalid`: boolean<br>`mono`: boolean<br>`icon`: Snippet<br>`trail`: Snippet | svelte + astro | `styles/elements/field.css, styles/elements/input.css` |
+| **Input** | `value`: string<br>`type`: 'text' \| 'email' \| 'url' \| 'tel' \| 'number' \| 'password' \| 'search'<br>`invalid`: boolean<br>`fill`: boolean<br>`mono`: boolean<br>`icon`: Snippet<br>`trail`: Snippet | svelte + astro | `styles/elements/field.css, styles/elements/input.css` |
 | **RadioGroup** | `name*`: string<br>`options*`: readonly { value: string; label: string }[]<br>`value*`: string<br>`label`: string | svelte + astro | `styles/elements/radio-group.css` |
 | **SearchInput** | — | svelte + astro | — |
 | **SegmentedControl** | `options*`: readonly string[]<br>`value*`: string<br>`label`: string | svelte + astro | `styles/elements/segmented.css, styles/tags.css` |
-| **Select** | `value`: string<br>`invalid`: boolean | svelte + astro | `styles/elements/field.css, styles/elements/input.css` |
+| **Select** | `value`: string<br>`invalid`: boolean<br>`fill`: boolean | svelte + astro | `styles/elements/field.css, styles/elements/input.css` |
 | **Switch** | `checked`: boolean<br>`label*`: string<br>`describedby`: string<br>`disabled`: boolean<br>`pending`: boolean<br>`type`: 'button' \| 'submit'<br>`onchange`: (v: boolean) => void | svelte + astro | — |
-| **Textarea** | `value`: string<br>`rows`: number<br>`invalid`: boolean<br>`mono`: boolean | svelte + astro | `styles/elements/field.css, styles/elements/input.css` |
+| **Textarea** | `value`: string<br>`rows`: number<br>`invalid`: boolean<br>`fill`: boolean<br>`mono`: boolean | svelte + astro | `styles/elements/field.css, styles/elements/input.css` |
 | **Toggle** | `on`: boolean<br>`onchange`: (v: boolean) => void<br>`label`: string<br>`disabled`: boolean<br>`pending`: boolean | svelte<br>*Svelte only: bindable checkbox state; the static spelling is Switch.* | — |
 
 ## Feedback

@@ -10,12 +10,16 @@ import '../styles/elements/input.css';
 interface Props {
     value?: string;
     invalid?: boolean;
+    /** Take the container's width instead of the 240px default. */
+    fill?: boolean;
     class?: string;
     [key: string]: unknown;
 }
 
-const { value, invalid = false, class: className = '', ...rest } = Astro.props;
-const classes = ['bb-input', 'bb-input--select', className].filter(Boolean).join(' ');
+const { value, invalid = false, fill = false, class: className = '', ...rest } = Astro.props;
+const classes = ['bb-input', 'bb-input--select', fill ? 'bb-input--fill' : null, className]
+    .filter(Boolean)
+    .join(' ');
 ---
 
 <span class={classes} data-invalid={invalid ? '' : undefined}><select value={value} {...rest}><slot /></select><svg class="bb-input__chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></span>

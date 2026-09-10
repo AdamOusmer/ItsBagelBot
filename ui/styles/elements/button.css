@@ -51,6 +51,26 @@
     display: inline-flex;
     align-items: center;
     gap: var(--btn-gap, 12px);
+    /* Three properties as knobs rather than as fixed values, because the
+       shape a button takes is nearly always decided by the ROW it is in and
+       at which breakpoint -- and a row expressing that had no way to say so
+       except by reaching in with `.actions :global(.bb-btn) { width: 100% }`.
+       Fourteen rules in eleven files did exactly that, at three different
+       min-heights and two different opinions about centring.
+
+       Custom properties inherit, so a caller sets them on the ROW, inside its
+       own media query, and never names this contract:
+
+         @media (max-width: 480px) {
+           .actions { --btn-w: 100%; --btn-justify: center; --btn-min-h: 44px; }
+         }
+
+       That is the whole reason this is three properties and not one
+       `--block` modifier: the breakpoint belongs to the app, and a library
+       that shipped `--block-sm` would be shipping the app's breakpoints. */
+    width: var(--btn-w, auto);
+    justify-content: var(--btn-justify, flex-start);
+    min-height: var(--btn-min-h, auto);
     /* One shorthand rather than the block/inline pair the rest of the system
        uses: the padding is asymmetric because the mark hangs on the leading
        edge only (16/20 at md, 10/12 at sm), and the two insets do not move
@@ -69,6 +89,31 @@
     cursor: pointer;
     --btn-spinner: var(--bb-tan-light);
     transition: all var(--bb-dur-base) var(--bb-ease-out-expo);
+  }
+
+  /* ── Block ───────────────────────────────────────────────────────
+     Full-width, centred, and at least a 44px tap target.
+
+     A modifier rather than fourteen scoped copies of
+     `.actions :global(.bb-btn) { width: 100%; justify-content: center;
+     min-height: 44px }`, which is what the console had: fourteen rules in
+     eleven files, reaching into this contract from outside it, and already
+     disagreeing — three of them had dropped the min-height, one had 36px,
+     one centred without stretching.
+
+     44px is WCAG 2.5.8's enhanced target size (AAA at 44x44); the AA
+     minimum is 24x24, which the md button already clears at 38px tall. It
+     is here because every one of those call sites was a mobile action row,
+     where the button is the whole width of the screen and the extra 6px is
+     free.
+
+     `--btn-min-h` is the knob rather than a second modifier: the settings
+     page wants 36px on its small buttons and 44px on the rest, and that is
+     one number, not two shapes. */
+  .bb-btn--block {
+    --btn-w: 100%;
+    --btn-justify: center;
+    --btn-min-h: 44px;
   }
 
   .bb-btn svg {
@@ -290,6 +335,22 @@
   .bb-btn[aria-disabled="true"] {
     opacity: 0.4;
     cursor: not-allowed;
+  }
+
+  /* `pointer-events: none` on the ARIA form only, never on `:disabled`.
+     A native disabled <button> already swallows the click; an <a href> marked
+     `aria-disabled` does NOT, so a "disabled" pager arrow still navigated.
+     The admin users page had noticed and forked this rule locally
+     (`.pager .bb-btn.disabled { opacity: .35; pointer-events: none }`), at a
+     different opacity, which is how a fork announces itself. The behaviour is
+     the contract's now; the fork is deleted.
+
+     It does not touch keyboard access: pointer-events is a hit-testing
+     property, so the link stays focusable and stays announced as disabled,
+     which is what aria-disabled is for (as opposed to removing href, which
+     would make it unreachable). */
+  .bb-btn[aria-disabled="true"] {
+    pointer-events: none;
   }
 
   /* Loading hides the label with `color: transparent` rather than replacing

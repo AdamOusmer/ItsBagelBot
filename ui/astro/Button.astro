@@ -24,6 +24,8 @@ import '../styles/elements/button.css';
 interface Props {
     variant?: 'primary' | 'secondary' | 'ghost' | 'green' | 'destructive' | 'icon' | 'tan' | 'quiet' | 'go';
     solid?: boolean;
+    /** Full width, centred, >=44px tall: the mobile action-row shape. */
+    block?: boolean;
     size?: 'md' | 'sm';
     type?: 'button' | 'submit' | 'reset';
     href?: string;
@@ -37,6 +39,7 @@ interface Props {
 const {
     variant = 'primary',
     solid = false,
+    block = false,
     size = 'md',
     type = 'button',
     href,
@@ -59,6 +62,7 @@ const classes = [
     'bb-btn',
     `bb-btn--${variant}`,
     solid && 'bb-btn--solid',
+    block && 'bb-btn--block',
     size === 'sm' && 'bb-btn--sm',
     loading && 'is-loading',
     done && 'is-done',

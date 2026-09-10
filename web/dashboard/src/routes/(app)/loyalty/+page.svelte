@@ -308,6 +308,6 @@
 
   @media (max-width: 480px) {
     .actions { flex-wrap: wrap; }
-    .actions :global(.bb-btn) { min-height: 44px; }
+    .actions { --btn-min-h: 44px; }
   }
 </style>

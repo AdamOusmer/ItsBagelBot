@@ -241,9 +241,7 @@
   .toolbar-search {
     width: 260px;
   }
-  .toolbar-search :global(.bb-input) {
-    width: 100%;
-  }
+  
 
   .filters {
     margin: 0 0 14px;

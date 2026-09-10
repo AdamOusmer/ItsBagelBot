@@ -118,9 +118,7 @@
   .pay-form {
     margin-top: 16px;
   }
-  .pay-form :global(.bb-btn) {
-    width: 100%;
-  }
+  .pay-form { --btn-w: 100%; }
 
   .cancel-link {
     display: block;

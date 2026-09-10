@@ -265,7 +265,7 @@
     {/snippet}
     {#snippet trail()}
       <div class="toolbar-search">
-        <SearchInput bind:value={search} placeholder={t('admin.lanes.searchPlaceholder')} />
+        <SearchInput fill bind:value={search} placeholder={t('admin.lanes.searchPlaceholder')} />
       </div>
     {/snippet}
   </PageToolbar>
@@ -406,9 +406,7 @@
   .toolbar-search {
     width: 240px;
   }
-  .toolbar-search :global(.bb-input) {
-    width: 100%;
-  }
+  
 
   .filters {
     margin: 0 0 14px;

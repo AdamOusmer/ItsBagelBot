@@ -20,6 +20,11 @@
     placeholder = 'Search…',
     debounceMs = 0,
     clearLabel = 'Clear search',
+    // Take the container's width instead of the frame's 240px default. The
+    // toolbar search boxes on five pages each carried a scoped
+    // `:global(.bb-input) { width: 100% }` for this; the modifier is the
+    // contract's own (../styles/elements/field.css).
+    fill = false,
     oninput = undefined as ((value: string) => void) | undefined
   } = $props();
 
@@ -42,7 +47,7 @@
   }
 </script>
 
-<label class="bb-search bb-input">
+<label class="bb-search bb-input{fill ? ' bb-input--fill' : ''}">
   <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
   <input type="search" class="bb-search__input" {placeholder} bind:value oninput={changed} />
   {#if value}

@@ -136,7 +136,7 @@
     {/snippet}
     {#snippet trail()}
       <div class="toolbar-search">
-        <SearchInput bind:value={search} placeholder={t('admin.events.searchPlaceholder')} />
+        <SearchInput fill bind:value={search} placeholder={t('admin.events.searchPlaceholder')} />
       </div>
       <!-- Switch renders no visible text of its own (its label is the
            accessible name), so the toolbar supplies one. -->
@@ -205,9 +205,7 @@
   .toolbar-search {
     width: 240px;
   }
-  .toolbar-search :global(.bb-input) {
-    width: 100%;
-  }
+  
 
   .switch-field {
     display: inline-flex;
