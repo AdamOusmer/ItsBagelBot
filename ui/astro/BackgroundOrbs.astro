@@ -1,0 +1,16 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro twin of ../svelte/BackgroundOrbs.svelte: the shell's ambient backdrop,
+// a faint evergreen field low in the frame and a warm tan one high on the
+// opposite side.
+//
+// Rendered as the FIRST nodes of whatever wraps it so it stays behind the
+// content in paint order without a negative z-index, which would sink it under
+// the page background instead.
+import '../styles/orbs.css';
+import '../styles/elements/bg-orbs.css';
+---
+
+<div class="bb-orb bb-orb--fixed bb-orb--wash-green bb-bg-orb"></div><div class="bb-orb bb-orb--fixed bb-orb--wash-tan bb-bg-orb bb-bg-orb--two"></div>

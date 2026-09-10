@@ -1,0 +1,226 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* Layer order first. Every adapter in ../svelte JS-imports its own element
+   CSS, so a bundler can emit this file ahead of layers.css -- and layer order
+   is fixed by the first declaration seen, which would rank bb.elements BELOW
+   bb.base and let the button reset there strip the typography off every
+   contract that renders a <button>. Restating it is idempotent; the layers
+   themselves are documented in layers.css. */
+@layer bb.tokens, bb.base, bb.elements, bb.app;
+
+/* The three native controls the frame in field.css did not cover, plus the
+ * checkbox.
+ *
+ * WHY THIS IS A SECOND FILE AND NOT MORE OF field.css. `.bb-input` is the
+ * FRAME -- 10px/14px of padding, a hairline, a focus ring -- and it was
+ * extracted from the console's `.search`, so it only ever knew about
+ * `<input>`. A `<select>` and a `<textarea>` need the same frame and three
+ * things it cannot give them: the UA appearance reset, a chevron the caller
+ * cannot draw with a background-image under a CSP that forbids inline styles,
+ * and a resize policy. Every adapter here imports BOTH files; splitting them
+ * is what keeps a page that only renders a search box from paying for the
+ * select chevron.
+ *
+ * The checkbox is not framed at all and shares nothing with `.bb-input`
+ * except its tokens, so it gets its own block below.
+ */
+
+@layer bb.elements {
+    /* ── Select ──────────────────────────────────────────────────────
+       `appearance: none` on the <select>, and the chevron drawn as a real
+       <svg> sibling rather than a `background-image: url("data:image/svg…")`.
+       The data-URI is the usual spelling and it is wrong here twice: the
+       console ships a CSP without `unsafe-inline`, under which a background
+       image declared in a style attribute is dropped (in a stylesheet it
+       survives, but the same rule then cannot recolour with currentColor);
+       and an SVG in a URL cannot inherit the control's colour, so the chevron
+       stays one grey through focus, hover and the disabled state. As an
+       element it inherits, so it is one rule instead of four encoded copies. */
+    .bb-input--select {
+        position: relative;
+        padding-right: 10px;
+    }
+
+    .bb-input select {
+        appearance: none;
+        -webkit-appearance: none;
+        background: none;
+        border: 0;
+        outline: 0;
+        color: var(--bb-white);
+        font-family: var(--bb-font-body);
+        font-size: 13.5px;
+        width: 100%;
+        /* Room for the chevron, which is absolutely positioned and therefore
+           does not take part in the flex row. */
+        padding-right: 18px;
+        cursor: pointer;
+    }
+
+    /* The dropdown list itself is drawn by the platform and cannot be styled
+       past this: on a dark canvas the UA renders the popup with the page's
+       colours only if the <option> carries them explicitly. Firefox and
+       Chromium both honour these two; Safari ignores them and draws its own
+       light popup, which is a platform decision and not a bug to chase. */
+    .bb-input select option {
+        background: var(--bb-card-bg);
+        color: var(--bb-white);
+    }
+
+    .bb-input__chevron {
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        translate: 0 -50%;
+        width: 13px;
+        height: 13px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 1.8;
+        pointer-events: none;
+    }
+
+    /* ── Textarea ────────────────────────────────────────────────────
+       `resize: vertical` and never `both`. A textarea a user can drag WIDER
+       escapes its grid cell and pushes the form's layout, and there is no
+       CSS that clamps a manual resize back to the container. Vertical-only is
+       the whole of the fix and costs nothing anyone wanted. */
+    .bb-input--area {
+        align-items: stretch;
+        padding: 10px 12px;
+    }
+
+    .bb-input textarea {
+        background: none;
+        border: 0;
+        outline: 0;
+        color: var(--bb-white);
+        font-family: var(--bb-font-body);
+        font-size: 13.5px;
+        line-height: 1.55;
+        width: 100%;
+        min-height: calc(1.55em * 3);
+        resize: vertical;
+    }
+
+    .bb-input textarea::placeholder,
+    .bb-input select:invalid {
+        color: var(--bb-muted);
+    }
+
+    /* Mono variant: the template editor and anything else where the caller is
+       typing something whose alignment matters. */
+    .bb-input--mono :is(input, textarea) {
+        font-family: var(--bb-font-mono);
+        font-size: 13px;
+    }
+
+    /* ── Shared control states ───────────────────────────────────────
+       `data-invalid` on the FRAME, not `:invalid` on the control. `:invalid`
+       matches from first paint, so a required field is red before the user has
+       had a chance to type in it; the attribute is set by the caller when it
+       has actually decided the value is wrong. Same channel Field already
+       uses for its error row. */
+    .bb-input[data-invalid] {
+        border-color: rgba(207, 138, 120, 0.55);
+    }
+
+    .bb-input[data-invalid]:focus-within {
+        box-shadow: 0 0 0 3px rgba(207, 138, 120, 0.12);
+    }
+
+    .bb-input:has(:disabled) {
+        opacity: 0.55;
+        cursor: not-allowed;
+    }
+
+    .bb-input :is(input, select, textarea):disabled {
+        cursor: not-allowed;
+    }
+
+    /* ── Checkbox ────────────────────────────────────────────────────
+       The native input is kept in the DOM and hidden with the visually-hidden
+       recipe, NOT with `display: none` or `opacity: 0` on a zero-size box.
+       Reasons, in the order they bit:
+         - `display:none` / `visibility:hidden` remove the control from the
+           accessibility tree and from form submission in some engines.
+         - A zero-size focusable input makes the focus ring have nowhere to
+           draw, so the drawn box below wears it via `:has(:focus-visible)`.
+       The drawn box is a sibling <span>, so the checked and focus states are
+       pure CSS off the real input's state and there is no JS in the adapter.
+
+       The tick is a clip-path polygon rather than a `content: "✓"`: the glyph
+       renders in whatever font resolves first, which on a surface with a
+       custom font stack is a coin flip between three different tick shapes,
+       and it cannot be animated from nothing. */
+    .bb-check {
+        display: inline-flex;
+        align-items: flex-start;
+        gap: 9px;
+        cursor: pointer;
+        font-family: var(--bb-font-body);
+        font-size: 13.5px;
+        line-height: 1.45;
+        color: var(--bb-white);
+    }
+
+    .bb-check__input {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        padding: 0;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+        border: 0;
+    }
+
+    .bb-check__box {
+        flex: 0 0 auto;
+        position: relative;
+        width: 16px;
+        height: 16px;
+        /* Half a line's worth of nudge so the box sits on the first line's
+           optical centre rather than its top edge, which is what
+           `align-items: flex-start` gives on a two-line label. */
+        margin-top: 2px;
+        border: 1px solid var(--bb-border-strong);
+        border-radius: var(--bb-radius-xs);
+        background: rgba(0, 0, 0, 0.35);
+        transition:
+            background-color var(--bb-dur-base) var(--bb-ease-out-expo),
+            border-color var(--bb-dur-base) var(--bb-ease-out-expo);
+    }
+
+    .bb-check__box::after {
+        content: "";
+        position: absolute;
+        inset: 3px;
+        background: var(--bb-black, #0a0a0a);
+        clip-path: polygon(14% 46%, 0 60%, 39% 100%, 100% 22%, 86% 8%, 39% 72%);
+        scale: 0;
+        transition: scale var(--bb-dur-base) var(--bb-ease-out-back);
+    }
+
+    .bb-check__input:checked + .bb-check__box {
+        background: var(--bb-green-glow);
+        border-color: var(--bb-green-glow);
+    }
+
+    .bb-check__input:checked + .bb-check__box::after { scale: 1; }
+
+    .bb-check__input:focus-visible + .bb-check__box {
+        outline: 2px solid var(--bb-focus);
+        outline-offset: 2px;
+    }
+
+    .bb-check__input:disabled + .bb-check__box { opacity: 0.55; }
+    .bb-check:has(:disabled) { cursor: not-allowed; opacity: 0.55; }
+
+    @media (prefers-reduced-motion: reduce) {
+        .bb-check__box,
+        .bb-check__box::after { transition: none; }
+    }
+}

@@ -365,31 +365,13 @@ kbd.hint {
    token spelling, and --bb-border-chip was declared in both. */
 
 /* ── Tier 2 · Data table ──────────────────────────────────────
-   The scrolling data table three pages had rebuilt line for line
-   (admin counters, dashboard counters, dashboard loyalty). The wrapper is
-   not decoration: the table scrolls inside its own box so the PAGE never
-   scrolls sideways at 320px, which is the rule the copies existed to keep
-   and the one a fourth page would have been most likely to miss.
-   Row padding lives here at the value two of the three used; a page that
-   wants a different rhythm overrides it (scoped styles outrank this). */
-.bb-tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-.bb-tbl { width: 100%; border-collapse: collapse; font-family: var(--bb-font-body); font-size: 13px; }
-.bb-tbl caption { text-align: left; }
-.bb-tbl th[scope='col'] {
-  text-align: left;
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--bb-muted);
-  padding: 4px 8px;
-  border-bottom: 1px solid var(--bb-border);
-  font-weight: 600;
-}
-.bb-tbl td,
-.bb-tbl th[scope='row'] { padding: 7px 8px; border-bottom: 1px solid rgba(240, 236, 228, 0.05); color: var(--bb-white); }
-.bb-tbl th[scope='row'] { text-align: left; font-weight: 600; }
-.bb-tbl .r { text-align: right; }
-.bb-tbl .mut { color: var(--bb-muted); }
+   Moved to @bagel/ui/styles/elements/table.css, imported globally from
+   styles/tokens.css and by the Table adapter. Same selectors
+   (`.bb-tbl-wrap`, `.bb-tbl th[scope='col']`, `.r`, `.mut`) and the same
+   values, so the raw-markup call sites on the counters and loyalty pages did
+   not change; what the move adds is the Table/TableScroll adapter pair, the
+   `role="region"` + `tabindex="0"` the scroll wrapper needs to be reachable
+   by keyboard, and a zebra modifier. */
 
 /* Unstyled list container: the rows carry their own chrome (.row-shell), so
    the <ul> only has to stop being a <ul>. Seven components reset it by hand. */

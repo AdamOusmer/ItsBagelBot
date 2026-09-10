@@ -1,0 +1,35 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro twin of ../svelte/NavGroup.svelte: a labelled stack of nav links, the
+// console's numbered register.
+//
+// The rows are `.bb-nav-link` — the same element the marketing bar and the
+// footer columns render — and what this adds is the LEDGER: an index column
+// and a trailing count, which is what makes the list read as a register rather
+// than a menu.
+//
+// The hairline between rows belongs to this group and not to a row: a row
+// drawing its own would double it against the group's top border, which is why
+// `.bb-nav-link`'s own rule is transparent by default.
+import '../styles/elements/nav.css';
+import NavLink from './NavLink.astro';
+import Icon from './Icon.astro';
+import type { UiNavLink } from '../lib/nav-types';
+
+interface Props {
+    label?: string;
+    items: UiNavLink[];
+    /** First row's number. A second group continues rather than restarts. */
+    startIndex?: number;
+    class?: string;
+    [key: string]: unknown;
+}
+
+const { label, items, startIndex = 1, class: className = '', ...rest } = Astro.props;
+const classes = ['bb-nav-group', className].filter(Boolean).join(' ');
+const pad = (n: number) => String(n).padStart(2, '0');
+---
+
+{label && (<div class="bb-nav-group__label">{label}</div>)}<nav class={classes} {...rest}>{items.map((item, i) => (<NavLink href={item.locked ? undefined : item.href} label={item.label} current={item.active} disabled={item.locked} hint={item.locked ? item.lockedHint : undefined} block><Fragment slot="icon"><span class="bb-nav-group__index" data-active={item.active ? '' : undefined}>{pad(startIndex + i)}</span>{item.icon && <Icon name={item.icon} />}</Fragment><Fragment slot="trail">{item.locked && <Icon name="lock" size={13} />}{item.count !== undefined && (<span class="bb-nav-group__count">{item.count}</span>)}</Fragment></NavLink>))}</nav>

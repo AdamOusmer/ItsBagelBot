@@ -11,6 +11,8 @@
     "./styles/*": "./styles/*",
     "./fonts/*": "./fonts/*",
     "./lib/*": "./lib/*.ts",
+    "./svelte": "./svelte/index.ts",
+    "./astro": "./astro/index.ts",
     "./svelte/toast": "./svelte/toast.svelte.ts",
     "./svelte/inspector": "./svelte/inspector.svelte.ts",
     "./svelte/discard-guard": "./svelte/discard-guard.svelte.ts",
@@ -19,7 +21,7 @@
     "./astro/*": "./astro/*"
   },
   "scripts": {
-    "check": "tsc --noEmit && svelte-check --tsconfig ./tsconfig.json && bun scripts/assert-framework-free.mjs && bun scripts/assert-layer-order.mjs",
+    "check": "tsc --noEmit && svelte-check --tsconfig ./tsconfig.json && bun scripts/assert-framework-free.mjs && bun scripts/assert-layer-order.mjs && bun scripts/gen-catalog.mjs --check",
     "test": "bun test && bun scripts/size.ts"
   },
   "dependencies": {

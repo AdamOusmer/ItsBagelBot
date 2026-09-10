@@ -1,0 +1,27 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro twin of ../svelte/Table.svelte, for `.bb-tbl`
+// (../styles/elements/table.css).
+//
+// The scroll wrapper is part of the element and `label` is required; both
+// records are in the Svelte adapter and at the contract.
+import '../styles/elements/table.css';
+
+interface Props {
+    /** Accessible name for the scroll region. Required. */
+    label: string;
+    zebra?: boolean;
+    compact?: boolean;
+    class?: string;
+    [key: string]: unknown;
+}
+
+const { label, zebra = false, compact = false, class: className = '', ...rest } = Astro.props;
+const classes = ['bb-tbl', zebra ? 'bb-tbl--zebra' : null, compact ? 'bb-tbl--compact' : null, className]
+    .filter(Boolean)
+    .join(' ');
+---
+
+<div class="bb-tbl-wrap" role="region" aria-label={label} tabindex="0"><table class={classes} {...rest}><slot /></table></div>

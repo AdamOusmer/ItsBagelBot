@@ -1,0 +1,106 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* Layer order first. Every adapter in ../svelte JS-imports its own element
+   CSS, so a bundler can emit this file ahead of layers.css -- and layer order
+   is fixed by the first declaration seen, which would rank bb.elements BELOW
+   bb.base and let the button reset there strip the typography off every
+   contract that renders a <button>. Restating it is idempotent; the layers
+   themselves are documented in layers.css. */
+@layer bb.tokens, bb.base, bb.elements, bb.app;
+
+/* `.bb-tbl` — the one real <table> contract.
+ *
+ * Lifted from web/kit/styles/console.css, declaration for declaration, where
+ * it was console-only and where the surrounding scroll wrapper was written by
+ * hand at each of its call sites (or, more often, not written at all).
+ *
+ * THE SCROLL WRAPPER IS PART OF THE CONTRACT, not an optional nicety. A
+ * <table> is the one element that refuses to shrink below its content: a
+ * six-column table on a 375px phone makes the PAGE scroll sideways, and every
+ * other element on it goes with it. `overflow-x: auto` on a wrapper (`.bb-tbl-wrap`) is the
+ * only fix that keeps the table readable; `display: block` on the table drops
+ * its row/column semantics, and a card-per-row responsive rewrite is a
+ * different component (that is `.bb-row` / ManagementRow).
+ *
+ * `tabindex="0"` on that wrapper is emitted by the adapters and is NOT
+ * decoration: a scroll container that is not focusable cannot be scrolled by
+ * keyboard, which fails WCAG 2.1.1 for exactly the users least able to swipe
+ * it. It carries `role="region"` and a label for the same reason.
+ *
+ * `border-collapse: collapse` and hairlines on the CELLS, not on the rows: a
+ * border on <tr> is ignored in the collapsed model by every engine, which is
+ * the reason the original had its rules on `td`/`th`. */
+
+@layer bb.elements {
+    .bb-tbl-wrap {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        /* The focus ring has to be visible on the wrapper itself, since the
+           wrapper is what takes focus. Inside a card the default offset would
+           be clipped by the card's own overflow, so it is drawn inward. */
+        border-radius: var(--bb-radius-sm);
+    }
+
+    .bb-tbl-wrap:focus-visible {
+        outline: 2px solid var(--bb-focus);
+        outline-offset: -2px;
+    }
+
+    .bb-tbl {
+        width: 100%;
+        border-collapse: collapse;
+        font-family: var(--bb-font-body);
+        font-size: 13px;
+    }
+
+    .bb-tbl caption { text-align: left; }
+
+    /* `th[scope="col"]` and not a bare `th`: the row-header form below is a
+       different treatment, and the two would otherwise fight on specificity
+       order rather than on meaning. This is also the selector the console's
+       existing raw-markup call sites are written against, so the contract
+       keeps it rather than renaming what works. */
+    .bb-tbl th[scope="col"] {
+        font-family: var(--bb-font-mono);
+        font-size: 11px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--bb-muted);
+        padding: 4px 8px;
+        border-bottom: 1px solid var(--bb-border);
+        font-weight: 600;
+        text-align: left;
+    }
+
+    .bb-tbl td,
+    .bb-tbl th[scope="row"] {
+        padding: 7px 8px;
+        border-bottom: 1px solid rgba(240, 236, 228, 0.05);
+        color: var(--bb-white);
+    }
+
+    .bb-tbl th[scope="row"] {
+        text-align: left;
+        font-weight: 600;
+        font-family: var(--bb-font-body);
+        font-size: 13px;
+        letter-spacing: normal;
+        text-transform: none;
+    }
+
+    /* Two cell modifiers, kept from the console copy because the call sites
+       are numeric columns and muted secondary values, and both are alignment
+       and colour rather than a component. */
+    .bb-tbl .r { text-align: right; }
+    .bb-tbl .mut { color: var(--bb-muted); }
+
+    /* Zebra is opt-in. On this canvas the alternating fill has to be under 3%
+       to stay quiet, and at that alpha it is invisible on a table of three
+       rows while still costing a repaint on one of 300. */
+    .bb-tbl--zebra tbody tr:nth-child(even) td {
+        background: rgba(240, 236, 228, 0.02);
+    }
+
+    .bb-tbl--compact :is(td, th) { padding-block: 4px; }
+}

@@ -1,0 +1,37 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro twin of ../svelte/IconButton.svelte. `label` is required rather than
+// warned about, which is the whole reason this is a separate element from
+// `<Button variant="icon">`; the record is there.
+import '../styles/elements/button.css';
+import '../styles/elements/tooltip.css';
+
+interface Props {
+    /** The accessible name. Required: an icon carries none of its own. */
+    label: string;
+    /** Also show `label` as a hover hint. */
+    tooltip?: boolean;
+    size?: 'md' | 'sm';
+    type?: 'button' | 'submit' | 'reset';
+    disabled?: boolean;
+    class?: string;
+    [key: string]: unknown;
+}
+
+const {
+    label,
+    tooltip = false,
+    size = 'md',
+    type = 'button',
+    disabled = false,
+    class: className = '',
+    ...rest
+} = Astro.props;
+const classes = ['bb-btn', 'bb-btn--icon', size === 'sm' ? 'bb-btn--sm' : null, className]
+    .filter(Boolean)
+    .join(' ');
+---
+
+{tooltip ? (<span class="bb-tooltip"><button class={classes} type={type} disabled={disabled} aria-label={label} data-mark="" {...rest}><span class="bb-btn__content"><slot /></span></button><span class="bb-tooltip__bubble" aria-hidden="true">{label}</span></span>) : (<button class={classes} type={type} disabled={disabled} aria-label={label} data-mark="" {...rest}><span class="bb-btn__content"><slot /></span></button>)}

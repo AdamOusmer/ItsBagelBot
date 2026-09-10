@@ -1,0 +1,26 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro twin of ../svelte/Textarea.svelte. `resize: vertical` is the
+// contract's rather than a prop; the reason is at the rule in input.css.
+import '../styles/elements/field.css';
+import '../styles/elements/input.css';
+
+interface Props {
+    value?: string;
+    rows?: number;
+    invalid?: boolean;
+    mono?: boolean;
+    class?: string;
+    [key: string]: unknown;
+}
+
+const { value = '', rows = 3, invalid = false, mono = false, class: className = '', ...rest } =
+    Astro.props;
+const classes = ['bb-input', 'bb-input--area', mono ? 'bb-input--mono' : null, className]
+    .filter(Boolean)
+    .join(' ');
+---
+
+<span class={classes} data-invalid={invalid ? '' : undefined}><textarea rows={rows} {...rest}>{value}</textarea></span>

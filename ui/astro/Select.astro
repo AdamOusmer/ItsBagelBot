@@ -1,0 +1,21 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro twin of ../svelte/Select.svelte. The chevron is a real <svg> sibling
+// and the options are children; both records are in the Svelte adapter.
+import '../styles/elements/field.css';
+import '../styles/elements/input.css';
+
+interface Props {
+    value?: string;
+    invalid?: boolean;
+    class?: string;
+    [key: string]: unknown;
+}
+
+const { value, invalid = false, class: className = '', ...rest } = Astro.props;
+const classes = ['bb-input', 'bb-input--select', className].filter(Boolean).join(' ');
+---
+
+<span class={classes} data-invalid={invalid ? '' : undefined}><select value={value} {...rest}><slot /></select><svg class="bb-input__chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></span>

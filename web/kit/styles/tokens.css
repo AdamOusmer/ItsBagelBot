@@ -37,6 +37,11 @@
    page author writes, not only through the adapter. */
 @import '@bagel/ui/styles/elements/layout.css';
 
+/* The data table, which used to live in console.css. Global because three
+   pages write the `<table class="bb-tbl">` markup by hand rather than through
+   the adapter. */
+@import '@bagel/ui/styles/elements/table.css';
+
 /* Layer order, restated. layers.css declares it too, but the statement is
    idempotent and the file that OPENS a layer has to name the order first: the
    order is fixed by whichever declaration the browser sees first, and a bundler

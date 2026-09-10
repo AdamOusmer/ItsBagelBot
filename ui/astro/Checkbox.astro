@@ -1,0 +1,19 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro twin of ../svelte/Checkbox.svelte. The native input stays in the DOM
+// visually hidden, and sibling order is contract; both records are there.
+import '../styles/elements/input.css';
+
+interface Props {
+    checked?: boolean;
+    class?: string;
+    [key: string]: unknown;
+}
+
+const { checked = false, class: className = '', ...rest } = Astro.props;
+const classes = ['bb-check', className].filter(Boolean).join(' ');
+---
+
+<label class={classes}><input type="checkbox" class="bb-check__input" checked={checked} {...rest} /><span class="bb-check__box" aria-hidden="true"></span><span class="bb-check__label"><slot /></span></label>

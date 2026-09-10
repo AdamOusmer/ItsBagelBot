@@ -393,6 +393,40 @@ const ENTRIES: {
  * delta, then ~10% of room, rounded.
  */
 const CSS_ENTRIES: { name: string; budget: number }[] = [
+  // The type scale, twice: the `.bb-h` / `.bb-text` contract in bb.elements and
+  // the bare-element prose fallback in bb.base. Both halves are deliberate and
+  // the file's header says why, so the number to watch here is a THIRD spelling
+  // arriving -- a `.bb-title`, a `.bb-caption` -- rather than the two growing.
+  // It replaces the semantic-type block that was in web/kit/styles/tokens.css
+  // (console-only) plus 75 scoped rules across the four surfaces that restated
+  // a size on a bare h1/h2/p/small.
+  // Measured 2026-09-10 (macOS/arm64): 1036 B gzip. 1036 + 150 = 1186, +10%.
+  { name: "elements/typography", budget: 1320 },
+  // Container, section, stack, cluster, grid, divider, spacer. Almost all of it
+  // is the step ladders (`--stack-gap` 0-8, `--cluster-gap` 1-6, `--grid-cols`
+  // 1-6, `--grid-gap` 1-6, `--spacer-size` 1-8): 38 one-declaration rules that
+  // gzip to very little because they are near-identical lines. That is the
+  // shape to preserve -- a modifier that carries three declarations instead of
+  // one costs several times its apparent size here.
+  // Measured 2026-09-10 (macOS/arm64): 939 B gzip. 939 + 150 = 1089, +10%.
+  { name: "elements/layout", budget: 1210 },
+  // Select, textarea and checkbox: the three native controls the `.bb-input`
+  // frame in field.css never covered. The checkbox is the larger half (its
+  // drawn box, the clip-path tick and four state rules); the select's chevron
+  // is an element rather than an encoded data URI, which is the reason this
+  // file is smaller than the equivalent would have been.
+  // Measured 2026-09-10 (macOS/arm64): 959 B gzip. 959 + 150 = 1109, +10%.
+  { name: "elements/input", budget: 1230 },
+  // The CSS-only hover hint. It is a row precisely because the alternative was
+  // floating-ui at 5-8 KB: this budget is the receipt for that trade, and a
+  // future "just add a flip" that starts measuring positions in JS would not
+  // show up here at all -- which is why the contract file carries the argument
+  // in prose as well.
+  // Measured 2026-09-10 (macOS/arm64): 502 B gzip. 502 + 150 = 652, +10%.
+  { name: "elements/tooltip", budget: 730 },
+  // The data table and its scroll wrapper, lifted out of console.css.
+  // Measured 2026-09-10 (macOS/arm64): 474 B gzip. 474 + 150 = 624, +10%.
+  { name: "elements/table", budget: 700 },
   // Labels, tags, marks, sweeps and chips. Was ~120 lines in the marketing
   // style.css and ~110 in the console app.css; both are deleted.
   // Measured 2026-09-09 (macOS/arm64): 1336 B gzip. 1336 + 150 = 1486, +10%.

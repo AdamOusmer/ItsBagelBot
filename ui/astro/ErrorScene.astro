@@ -1,0 +1,58 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro twin of ../svelte/ErrorScene.svelte, for the `.bb-error-scene`
+// contract (../styles/elements/error-scene.css).
+//
+// The Svelte adapter used to say there would be no Astro twin, on the grounds
+// that "an error page is rendered by the app that failed, and both of those
+// are SvelteKit". That was wrong by one: the marketing site renders its own
+// 404 and 500 as static Astro pages, and it had a 303-line copy of this scene
+// at src/components/errors/ErrorScene.astro to do it — orbits, glow, outline
+// code treatment and all, with its own numbers. This file replaces that copy
+// and the copy is deleted.
+//
+// IT CARRIES NO COPY AND NO STATUS LOGIC, exactly as the Svelte twin does not:
+// "404 means the page wandered off" is a sentence about ItsBagelBot, and the
+// status→copy mapping stays in the app (web/kit/components/ErrorView.svelte on
+// the console side, the page frontmatter on the marketing side).
+import '../styles/elements/error-scene.css';
+import LightField from './LightField.astro';
+
+interface Props {
+    /** The status code, drawn oversized and repeated in the eyebrow. */
+    status: number | string;
+    eyebrow: string;
+    title: string;
+    description: string;
+    /** The quiet footnote under the actions. Optional; omitted renders nothing. */
+    aside?: string;
+    class?: string;
+    /**
+     * id given to the title and pointed at by the scene's aria-labelledby.
+     * Overridable only so a page rendering two scenes (a preview grid) keeps
+     * them distinct.
+     */
+    labelledBy?: string;
+    [key: string]: unknown;
+}
+
+const {
+    status,
+    eyebrow,
+    title,
+    description,
+    aside,
+    class: className = '',
+    labelledBy = 'bb-error-title',
+    ...rest
+} = Astro.props;
+
+const classes = ['bb-error-scene', className].filter(Boolean).join(' ');
+const hasActions = Astro.slots.has('actions');
+---
+
+<main class={classes} aria-labelledby={labelledBy} {...rest}><LightField /><div class="bb-error-scene__glow" aria-hidden="true"></div><div class="bb-error-scene__orbits" aria-hidden="true"><span class="bb-error-scene__orbit"></span><span class="bb-error-scene__orbit bb-error-scene__orbit--two"></span></div><div class="bb-error-scene__content"><p class="bb-error-scene__eyebrow"><span>{status}</span> · {eyebrow}</p><!-- The code is aria-hidden: it is an outline treatment
+     (-webkit-text-stroke over transparent text) and it is already announced,
+     as a number rather than as decoration, in the eyebrow. --><p class="bb-error-scene__code" aria-hidden="true">{status}</p><h1 class="bb-error-scene__title" id={labelledBy}>{title}</h1><p class="bb-error-scene__desc">{description}</p>{hasActions && (<div class="bb-error-scene__actions"><slot name="actions" /></div>)}{aside && (<p class="bb-error-scene__aside">{aside}</p>)}</div></main>

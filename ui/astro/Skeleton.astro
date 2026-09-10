@@ -1,0 +1,27 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro twin of ../svelte/Skeleton.svelte: a loading placeholder whose shape
+// follows the content it stands in for — text lines, a pill, or a block.
+//
+// Size travels as custom properties (--skel-w / --skel-h), never as a
+// hand-built `style="width:…"`. See ../styles/elements/skeleton.css for why: a
+// CSP style-src without 'unsafe-inline' drops the attribute, and the parity
+// normaliser needs one serialisation to compare, not two.
+import '../styles/elements/skeleton.css';
+
+interface Props {
+    variant?: 'text' | 'pill' | 'block';
+    width?: string;
+    height?: string;
+    lines?: number;
+}
+
+const { variant = 'text', width, height, lines = 1 } = Astro.props;
+
+const size = (w?: string, h?: string) =>
+    `${w ? `--skel-w:${w};` : ''}${h ? `--skel-h:${h};` : ''}` || undefined;
+---
+
+{variant === 'text' && lines > 1 ? (<span class="bb-skel-lines" style={size(width ?? '100%')}>{Array.from({ length: lines }, (_, i) => (<span class="bb-skel bb-skel--text" style={size(i === lines - 1 ? '60%' : '100%')}></span>))}</span>) : (<span class={`bb-skel bb-skel--${variant}`} style={size(width, height)}></span>)}

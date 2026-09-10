@@ -15,6 +15,15 @@
  *  1. Svelte's SSR output wraps each component in `<!--[-->` / `<!--]-->`
  *     hydration markers. They are instructions to Svelte's client runtime and
  *     never reach the CSSOM. All comments go.
+ *  1b. Svelte 5 also emits a BARE `<!>` anchor in places where the client
+ *     runtime has to find a node again — inside a `<select>` carrying
+ *     `bind:value`, for instance, which is where this first showed up
+ *     (Select.astro emitted the identical markup minus that one token).
+ *     It is the same class of thing as the `<!--[-->` markers above and is
+ *     equally invisible to the CSSOM, but it is not a well-formed comment, so
+ *     the comment rule below does not reach it and it needs its own. Checked
+ *     against the committed goldens when this was added: none contained the
+ *     token, so no golden changed meaning.
  *  2. Svelte serialises a boolean attribute as `data-fixture=""`; Astro emits it
  *     bare as `data-fixture`. `[data-fixture]` matches both. Empty values are
  *     dropped so the two spellings converge on the bare form.
@@ -50,6 +59,7 @@ export function normalise(html: string): string {
     .replace(/<script type="module" src="[^"]*"><\/script>/g, '')
     .replace(/\s*\/>/g, '>')
     .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<!>/g, '')
     .replace(/\s*=\s*(""|'')/g, '')
     .replace(/>\s+</g, '><')
     .replace(/\s+/g, ' ')
