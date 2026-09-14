@@ -12,7 +12,7 @@
   import NotificationBell from '@bagel/ui/svelte/NotificationBell.svelte';
   import ToastHost from '@bagel/ui/svelte/ToastHost.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import { sectionForPath, dashboardNavItems, dashboardNavGroups } from '@bagel/kit/nav';
+  import { sectionForPath, dashboardNavItems, dashboardNavGroups } from '@bagel/kit/nav-dashboard';
   let { data, children } = $props();
 
   const i18n = getI18n();
@@ -104,7 +104,10 @@
 
   // Notifications deliberately have NO nav entry: the topbar bell (badge +
   // dropdown, "View all" link) is the only way in.
-  const items = $derived(dashboardNavItems({ isDelegate, sections, section, t }));
+  const items = $derived(dashboardNavItems({
+    isDelegate, sections, section, t,
+    moduleLinks: data.moduleNav.map((link) => ({ ...link, label: t(link.label) }))
+  }));
   const groups = $derived(dashboardNavGroups(items, t));
   const showBanner = $derived(isDelegate || !!data.impersonatorLogin);
 </script>

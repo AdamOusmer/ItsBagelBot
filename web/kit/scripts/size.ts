@@ -32,6 +32,18 @@ const ENTRIES: {
   source: string;
 }[] = [
   {
+    // The dashboard shell receives category links from its server load. Keep
+    // MODULE_CATALOG out of this client entry: counting its categories in the
+    // browser added 56 KB raw / 17 KB gzip to the production shell (2026-09-14).
+    // Measured 678 B gzip on macOS/arm64; 900 allows the platform delta and
+    // small registry additions without accommodating a catalog import.
+    name: "dashboard nav registry",
+    budget: 900,
+    external: [],
+    source: `import { sectionForPath, dashboardNavItems, dashboardNavGroups } from "../../lib/nav-dashboard";
+             globalThis.x = [sectionForPath, dashboardNavItems, dashboardNavGroups];`,
+  },
+  {
     // The client-side imports of the dashboard's import page: the Moobot JSON
     // parser, the shared per-kind caps, and the source strategy registry.
     // Initial measurement 2026-08-24: 18577 B gzip at introduction of this

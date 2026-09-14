@@ -15,6 +15,7 @@ import {
 } from './nav';
 import { MODULE_CATALOG } from './types';
 import { MODULE_CATEGORY_ORDER } from './module-index';
+import { dashboardNavItems as clientNavItems } from './nav-dashboard';
 
 describe('nav registry', () => {
   test('every bespoke page prefix resolves to its owning section', () => {
@@ -100,6 +101,20 @@ describe('nav registry', () => {
     const withKids = items.filter((i) => i.children?.length);
     expect(withKids.map((i) => i.href)).toEqual(['/modules']);
     expect(withKids[0].children).toHaveLength(MODULE_CATEGORY_ORDER.length);
+  });
+
+  test('serialized category links preserve translated owner and delegate navigation', () => {
+    const wire: ReturnType<typeof moduleSectionLinks> = JSON.parse(JSON.stringify(moduleSectionLinks()));
+    for (const sections of [null, [], ['commands'], ['modules'], [...GRANTABLE_SECTIONS]]) {
+      for (const locale of ['en', 'fr']) {
+        const t = (key: string) => `${locale}:${key}`;
+        const opts = { isDelegate: sections !== null, sections: sections ?? [], section: 'modules' as const, t };
+        expect(clientNavItems({
+          ...opts,
+          moduleLinks: wire.map((link) => ({ ...link, label: t(link.label) }))
+        })).toEqual(dashboardNavItems(opts));
+      }
+    }
   });
 
   test('groups wrap items under the single Manage group', () => {
