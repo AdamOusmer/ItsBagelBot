@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Kbd, SearchInput } from '@bagel/kit';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { onMount, untrack } from 'svelte';
@@ -739,7 +740,7 @@
 
   // --- Keyboard control: "/" jumps to search, "n" starts a new command,
   // Escape closes the inspector. Ignored while typing in any field. ---
-  let searchInput = $state<HTMLInputElement | null>(null);
+  let searchInput = $state<HTMLInputElement | undefined>(undefined);
 
   function isTyping(e: KeyboardEvent): boolean {
     const t = e.target as HTMLElement | null;
@@ -805,11 +806,11 @@
       />
     {/snippet}
     {#snippet trail()}
-      <span class="keys" aria-hidden="true"><kbd class="hint">/</kbd> {t('commands.keysSearch')} <kbd class="hint">N</kbd> {t('commands.keysNew')}</span>
-      <label class="bb-input toolbar-search">
-        <Icon name="search" size={15} />
-        <input type="text" placeholder={t('commands.searchPlaceholder')} bind:value={search} bind:this={searchInput} />
-      </label>
+      <span class="keys" aria-hidden="true"><Kbd>/</Kbd> {t('commands.keysSearch')} <Kbd>N</Kbd> {t('commands.keysNew')}</span>
+      <div class="toolbar-search">
+        <SearchInput placeholder={t('commands.searchPlaceholder')} clearLabel={t('quotes.searchClear')}
+          aria-label={t('commands.searchPlaceholder')} bind:value={search} bind:element={searchInput} fill />
+      </div>
       <!-- No "Fetch definitions" link any more: data sources are created from
            the {urlfetch:…} chip inside the command editor, where they are used.
            Their API keys live in Settings. -->

@@ -2,6 +2,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import Tag from '@bagel/ui/astro/Tag.astro';
+
 /**
  * The Modules page as the dashboard draws it TODAY: the search box, the
  * category rail, and one card per category holding a row per module. It shows
@@ -135,11 +137,11 @@ const categories: { label: string; count: string }[] = [
                 <DeckList>
                     <ManagementRow>
                         <span class="gs-copy">
-                            <span class="gs-name">{L.row1Name}<span class="bb-tag bb-tag--alpha">{L.beta}</span></span>
+                            <span class="gs-name">{L.row1Name}<Tag tone="alpha">{L.beta}</Tag></span>
                             <span class="gs-grow">{L.row1Desc}</span>
                         </span>
                         <Fragment slot="actions">
-                            <span class="bb-tag bb-tag--pre">{L.row1Beta}</span>
+                            <Tag tone="pre">{L.row1Beta}</Tag>
                             {L.dot5 && <i class="gs-mark" data-note={L.dot5}></i>}
                         </Fragment>
                     </ManagementRow>
@@ -152,7 +154,7 @@ const categories: { label: string; count: string }[] = [
                         <span class="gs-copy">
                             <span class="gs-name">{L.row2Name}</span>
                             <span class="gs-grow">{L.row2Desc}</span>
-                            <span class="gs-cmds"><span class="bb-tag bb-tag--bare">{L.row2Cmds}</span></span>
+                            <span class="gs-cmds"><Tag tone="bare">{L.row2Cmds}</Tag></span>
                             {L.dot2 && <i class="gs-mark" data-note={L.dot2}></i>}
                         </span>
                         <Fragment slot="actions"><Switch label={L.row2Name} /></Fragment>
@@ -161,7 +163,7 @@ const categories: { label: string; count: string }[] = [
                         <span class="gs-copy">
                             <span class="gs-name">{L.row3Name}</span>
                             <span class="gs-grow">{L.row3Desc}</span>
-                            <span class="gs-cmds"><span class="bb-tag bb-tag--bare">{L.row3Cmds}</span></span>
+                            <span class="gs-cmds"><Tag tone="bare">{L.row3Cmds}</Tag></span>
                         </span>
                         <Fragment slot="actions">
                             <Switch label={L.row3Name} />
@@ -177,7 +179,7 @@ const categories: { label: string; count: string }[] = [
                         <span class="gs-copy">
                             <span class="gs-name">{L.row4Name}</span>
                             <span class="gs-grow">{L.row4Desc}</span>
-                            <span class="gs-cmds"><span class="bb-tag bb-tag--bare">{L.row4Cmds}</span></span>
+                            <span class="gs-cmds"><Tag tone="bare">{L.row4Cmds}</Tag></span>
                         </span>
                         <Fragment slot="actions">
                             <Badge tone="live" mark="solid">{L.statusOn}</Badge>
@@ -189,10 +191,10 @@ const categories: { label: string; count: string }[] = [
                         <span class="gs-copy">
                             <span class="gs-name">{L.row5Name}</span>
                             <span class="gs-grow">{L.row5Desc}</span>
-                            <span class="gs-cmds"><span class="bb-tag bb-tag--bare">{L.row5Cmds}</span></span>
+                            <span class="gs-cmds"><Tag tone="bare">{L.row5Cmds}</Tag></span>
                         </span>
                         <Fragment slot="actions">
-                            <span class="bb-tag bb-tag--quiet">{L.row5State}</span>
+                            <Tag tone="quiet">{L.row5State}</Tag>
                             {L.dot6 && <i class="gs-mark" data-note={L.dot6}></i>}
                         </Fragment>
                     </ManagementRow>

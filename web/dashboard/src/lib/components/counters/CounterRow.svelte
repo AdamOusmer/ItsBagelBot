@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Button } from '@bagel/kit';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   // One ledger line in the counters deck, built on the shared ManagementRow so
@@ -59,7 +60,7 @@
       <span class="meta">
         {#if isChannel}
           <span class="m-val">
-            <span class="sr-only">{t('counters.colValue')} </span>{c.value.toLocaleString()}
+            <span class="bb-sr-only">{t('counters.colValue')} </span>{c.value.toLocaleString()}
           </span>
         {:else}
           <span class="m-note">{perScopeNote}</span>
@@ -68,9 +69,7 @@
     </span>
   {/snippet}
   {#snippet actions()}
-    <button class="mini" type="button" aria-label={t('counters.deleteAria', { name: c.name })} onclick={onDelete}>
-      <Icon name="trash" size={15} />
-    </button>
+    <Button variant="icon" size="sm" class="delete-action" danger type="button" aria-label={t('counters.deleteAria', { name: c.name })} onclick={onDelete} ><Icon name="trash" size={15} /></Button>
   {/snippet}
 </ManagementRow>
 
@@ -112,20 +111,7 @@
   }
   .m-note { font-family: var(--bb-font-body); font-size: 11px; color: var(--bb-muted); white-space: nowrap; }
 
-  .mini {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    border: 1px solid transparent;
-    border-radius: var(--bb-radius-sm);
-    background: none;
-    color: var(--bb-muted);
-    cursor: pointer;
-  }
-  .mini:hover { color: #cf8a78; border-color: rgba(176, 90, 70, 0.4); }
-  .mini:focus-visible { outline: 2px solid var(--bb-green-glow, #52b788); outline-offset: 2px; }
+  :global(.delete-action) { width: 32px; height: 32px; min-height: 32px; }
 
   @media (max-width: 760px) {
     .prow {
@@ -138,6 +124,6 @@
     .idx { display: none; }
     .name { grid-area: name; }
     .meta { grid-area: meta; justify-content: flex-start; }
-    .mini { min-width: 44px; min-height: 44px; }
+    :global(.delete-action) { min-width: 44px; min-height: 44px; }
   }
 </style>

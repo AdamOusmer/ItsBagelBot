@@ -154,9 +154,13 @@
        renders in whatever font resolves first, which on a surface with a
        custom font stack is a coin flip between three different tick shapes,
        and it cannot be animated from nothing. */
+    /* Rows may center short labels and give the control the available space
+       without reaching into the checkbox's selector. Multiline labels keep
+       their first-line alignment by default. */
     .bb-check {
         display: inline-flex;
-        align-items: flex-start;
+        flex: var(--bb-check-flex, 0 1 auto);
+        align-items: var(--bb-check-align, flex-start);
         gap: 9px;
         cursor: pointer;
         font-family: var(--bb-font-body);

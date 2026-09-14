@@ -4,9 +4,15 @@
 // Twitch OAuth via the shared in-repo client (@bagel/kit/server/oauth),
 // which replaced the deprecated arctic package. One Twitch client built from
 // env. Helix user fetch lives here too so the callback route stays thin.
+import { safeReturnPath } from '@bagel/kit/return-path';
 import { Twitch } from '@bagel/kit/server/oauth';
 import { env } from '$env/dynamic/private';
 import { scopeGap } from '@bagel/kit';
+
+function requiredTwitchConfig(value: string | undefined): string {
+  if (!value) throw new Error('TWITCH_CLIENT_ID/SECRET/REDIRECT_URI not set');
+  return value;
+}
 
 // Identity + the elevated bot scopes the old dashboard requested. Driven by
 // DASHBOARD_BOT_SCOPES (Doppler) so the consent matches what it always asked
@@ -37,10 +43,9 @@ export function scopes(): string[] {
 }
 
 export function twitch(): Twitch {
-  const id = env.TWITCH_CLIENT_ID;
-  const secret = env.TWITCH_CLIENT_SECRET;
-  const redirect = env.TWITCH_REDIRECT_URI;
-  if (!id || !secret || !redirect) throw new Error('TWITCH_CLIENT_ID/SECRET/REDIRECT_URI not set');
+  const id = requiredTwitchConfig(env.TWITCH_CLIENT_ID);
+  const secret = requiredTwitchConfig(env.TWITCH_CLIENT_SECRET);
+  const redirect = requiredTwitchConfig(env.TWITCH_REDIRECT_URI);
   return new Twitch(id, secret, redirect);
 }
 
@@ -146,9 +151,9 @@ export async function fetchAccountEmail(accessToken: string): Promise<string | n
 // routes themselves. Used on both sides of the OAuth round trip: when the
 // login route stores the destination and when the callback consumes it.
 export function safeNextPath(value: string | null | undefined): string | null {
-  if (!value || !value.startsWith('/')) return null;
-  if (value.startsWith('//') || value.startsWith('/\\')) return null;
-  if (value === '/login' || value.startsWith('/login?') || value.startsWith('/auth/')) return null;
-  return value;
+  const path = safeReturnPath(value);
+  if (!path) return null;
+  const pathname = path.split(/[?#]/, 1)[0];
+  if (pathname === '/login' || pathname.startsWith('/auth/')) return null;
+  return path;
 }
-

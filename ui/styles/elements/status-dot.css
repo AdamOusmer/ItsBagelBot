@@ -1,0 +1,29 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+@layer bb.tokens, bb.base, bb.elements, bb.app;
+
+@layer bb.elements {
+
+  .bb-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex: none;
+  }
+  .bb-status-dot.success {
+    background: var(--bb-green-glow);
+    box-shadow: 0 0 8px var(--bb-green-glow);
+  }
+  .bb-status-dot.warning {
+    background: var(--bb-tan);
+    box-shadow: 0 0 8px var(--bb-tan);
+  }
+  .bb-status-dot.error {
+    background: var(--bb-status-error);
+    box-shadow: 0 0 8px var(--bb-status-error);
+  }
+  .bb-status-dot.neutral {
+    background: transparent;
+    border: 1px solid var(--bb-border-strong);
+  }
+}

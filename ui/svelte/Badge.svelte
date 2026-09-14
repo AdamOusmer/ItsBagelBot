@@ -12,9 +12,12 @@
   // the library. That half is @bagel/kit's PermBadge.svelte now, and it drives
   // the colour through --badge-tone. Same pixels, one direction of dependency.
   import type { Snippet } from 'svelte';
+  import '../styles/tags.css';
+  import '../styles/elements/badge.css';
 
   let {
     tone = undefined,
+    shape = 'tag',
     mark = undefined,
     sweep = false,
     dashed = false,
@@ -23,6 +26,8 @@
     class: className = '',
     ...rest
   }: {
+    /** Rounded label for compact tier and state rows. */
+    shape?: 'tag' | 'pill';
     /** Tag vocabulary tone. Omit for a caller-driven --badge-tone. */
     tone?: 'quiet' | 'live' | 'alpha' | 'pre' | 'incoming' | 'bare';
     /** The 5px rotated-square dot family. */
@@ -41,7 +46,7 @@
 </script>
 
 <span
-  class="bb-tag bb-badge{tone ? ` bb-tag--${tone}` : ''}{dashed
+  class="bb-tag bb-badge{shape === 'pill' ? ' bb-badge--pill' : ''}{tone ? ` bb-tag--${tone}` : ''}{dashed
     ? ' bb-badge--dashed'
     : ''}{className ? ` ${className}` : ''}"
   role={status ? 'status' : undefined}

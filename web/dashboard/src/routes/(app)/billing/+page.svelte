@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { Bolota, PageHead, Card, Modal, AlertBanner, Button, ConfirmDialog, FieldError, AuroraBg, LightField, portal, toast, getI18n, containsLink } from '@bagel/kit';
@@ -95,8 +96,6 @@
 
   const INTENT_KEY = 'bagel_checkout_intent';
 
-  const prefersReducedMotion = () =>
-    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   function stashIntent(kind: 'premium' | 'gift', recipient = '') {
     try {
@@ -403,7 +402,7 @@
     </p>
 
     <!-- 3. Plan comparison. Heading kept for structure, hidden visually. -->
-    <h2 class="sr-only">{t('billing.comparePlans')}</h2>
+    <h2 class="bb-sr-only">{t('billing.comparePlans')}</h2>
     <div class="plans">
       <!-- Free: the whole product -->
       <Card class="plan-card">

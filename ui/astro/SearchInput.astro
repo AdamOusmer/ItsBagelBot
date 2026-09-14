@@ -6,6 +6,8 @@
 // input. No debounce and no clear button -- the clear button only exists when
 // there is a value to clear, and on a static render there never is, so drawing
 // it would be drawing a control that does nothing.
+import '../styles/elements/field.css';
+import '../styles/elements/search-input.css';
 const { placeholder = 'Search…', value = '', fill = false, ...rest } = Astro.props;
 ---
 

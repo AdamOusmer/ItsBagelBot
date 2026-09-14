@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { onMount, untrack } from 'svelte';
@@ -219,7 +220,7 @@
   }
 
   onMount(() => {
-    reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    reduced = prefersReducedMotion();
     const now = performance.now();
     snapAt = now;
     introAt = now;

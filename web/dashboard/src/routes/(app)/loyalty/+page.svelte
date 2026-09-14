@@ -218,7 +218,7 @@
       {:else}
         <div class="bb-tbl-wrap">
           <table class="bb-tbl standings">
-            <caption class="sr-only">{t('loyalty.topCaption')}</caption>
+            <caption class="bb-sr-only">{t('loyalty.topCaption')}</caption>
             <thead>
               <tr>
                 <th scope="col" class="r">{t('loyalty.colRank')}</th>

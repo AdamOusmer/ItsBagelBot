@@ -150,7 +150,7 @@
 
       {#if loading}
         <p class="ov-status__state" aria-busy="true">
-          <span class="sr-only">{checkingText}</span>
+          <span class="bb-sr-only">{checkingText}</span>
           <span aria-hidden="true"><Skeleton variant="text" width="14ch" /></span>
         </p>
         <p class="ov-status__detail" aria-hidden="true"><Skeleton variant="text" lines={2} width="90%" /></p>

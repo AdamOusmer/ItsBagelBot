@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { copyFlash } from '@bagel/ui/lib/clipboard';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { AlertBanner, Card, Code, LightField, SearchInput, Text } from '@bagel/kit';
@@ -109,13 +110,14 @@
     filter = 'all';
   }
 
-  let copyTimer: ReturnType<typeof setTimeout> | undefined;
+  let copyGeneration = 0;
   function copy(text: string, key: string) {
-    navigator.clipboard?.writeText(text).catch(() => {});
-    clearTimeout(copyTimer);
-    copied = key;
-    copyTimer = setTimeout(() => (copied = null), 1400);
+    const generation = ++copyGeneration;
+    void copyFlash(text, (on) => {
+      if (generation === copyGeneration) copied = on ? key : null;
+    }, 1400);
   }
+
 </script>
 
 <svelte:head>

@@ -72,6 +72,7 @@
     "./nav-core": "./lib/nav-core.ts",
     "./nav-admin": "./lib/nav-admin.ts",
     "./staff-role": "./lib/staff-role.ts",
+    "./return-path": "./lib/return-path.ts",
     "./status-tone": "./lib/status-tone.ts",
     "./live-poll": "./lib/live-poll.ts",
     "./social": "./lib/social.ts",

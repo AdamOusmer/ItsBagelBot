@@ -2,6 +2,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import Tag from '@bagel/ui/astro/Tag.astro';
+
 /**
  * GuideShell: long-form visual guides that respect the reader. Same reading
  * contract as LegalShell (sticky scrollspy TOC) with a
@@ -81,7 +83,7 @@ const hubHref = localizePath('/guides', lang);
                     <h2><i>{String(i + 1).padStart(2, '0')}</i>{section.heading}</h2>
                     {section.note && (
                         <p class="gshell__glance">
-                            <span class="gshell__glance-tag bb-tag bb-tag--bare">{labels.glance}</span>
+                            <Tag tone="bare" class="gshell__glance-tag">{labels.glance}</Tag>
                             {section.note}
                         </p>
                     )}

@@ -1,4 +1,7 @@
 <script lang="ts">
+  import Textarea from '@bagel/ui/svelte/Textarea.svelte';
+  import Select from '@bagel/ui/svelte/Select.svelte';
+  import Input from '@bagel/ui/svelte/Input.svelte';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   // The compose half of the notifications inspector. The <form> wraps the fields
@@ -70,8 +73,8 @@
         <!-- Either identifier will do; the send path resolves the username when
              only that is given, so neither field is individually required. -->
         <Field label={t('admin.notifications.fieldUserId')}>
-          <input
-            class="text-input"
+          <Input
+            fill mono
             type="text"
             name="target_user_id"
             inputmode="numeric"
@@ -81,8 +84,8 @@
           />
         </Field>
         <Field label={t('admin.notifications.fieldUsername')}>
-          <input
-            class="text-input"
+          <Input
+            fill mono
             type="text"
             name="target_username"
             autocomplete="off"
@@ -93,8 +96,8 @@
       {/if}
 
       <Field label={t('admin.notifications.fieldTitle')}>
-        <input
-          class="text-input"
+        <Input
+          fill mono
           type="text"
           name="title"
           maxlength="120"
@@ -105,28 +108,28 @@
       </Field>
 
       <Field label={t('admin.notifications.fieldBody')}>
-        <textarea
-          class="text-input"
+        <Textarea
+          fill
           name="body"
           maxlength="2000"
-          rows="4"
+          rows={4}
           required
           placeholder={t('admin.notifications.fieldBodyPlaceholder')}
           bind:value={draft.body}
-        ></textarea>
+        ></Textarea>
       </Field>
 
       <Field label={t('admin.notifications.fieldLevel')}>
-        <select class="text-input" name="level" bind:value={draft.level}>
+        <Select fill name="level" bind:value={() => draft.level, (value) => (draft.level = value as NotificationLevel)}>
           {#each LEVELS as level (level)}
             <option value={level}>{t(LEVEL_LABEL[level as NotificationLevel])}</option>
           {/each}
-        </select>
+        </Select>
       </Field>
 
       <Field label={t('admin.notifications.fieldExpires')} tag={t('common.optional')}>
-        <input
-          class="text-input"
+        <Input
+          fill mono
           type="datetime-local"
           name="expires_at"
           bind:value={draft.expiresAt}

@@ -11,6 +11,7 @@
   // is a browser-only upgrade, dynamically imported so it never enters the SSR
   // graph and never ships to a client that will not animate.
   import { onDestroy } from 'svelte';
+  import { prefersReducedMotion as reducedMotion } from '@bagel/ui/lib/motion-query';
   import { parts } from '@luzir/bolota';
   import type { EngineHandle } from '@luzir/bolota/engine';
 
@@ -126,9 +127,6 @@
   const loadEngine = () => (enginePromise ??= import('@luzir/bolota/engine'));
   let sequencePromise: Promise<typeof import('@luzir/bolota/sequences')> | null = null;
   const loadSequences = () => (sequencePromise ??= import('@luzir/bolota/sequences'));
-
-  const reducedMotion = () =>
-    typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   function tickExpression() {
     if (!handle) return;

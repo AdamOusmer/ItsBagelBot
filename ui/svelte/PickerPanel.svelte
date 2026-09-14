@@ -1,8 +1,8 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // The dropdown shell shared by the command editor's palette menus (counters,
-  // data sources).
+  // Responsive picker shell: an anchored dropdown on desktop and a modal
+  // bottom sheet on mobile. Callers own the picker contents and selection.
   //
   // It exists because an in-flow dropdown cannot work there. The palette lives
   // inside InspectorSurface, which sets `overflow: hidden` to clip its own
@@ -16,7 +16,9 @@
   // covering the field you are editing. It becomes a bottom sheet instead, which
   // is the same shape the inspector already takes at that width.
   import type { Snippet } from 'svelte';
-  import { portal, pushOverlay, removeOverlay, isTopmost, overlayIndex } from '@bagel/kit';
+  import '../styles/elements/picker-panel.css';
+  import { mediaQuery } from '../lib/motion-query';
+  import { portal, pushOverlay, removeOverlay, isTopmost, overlayIndex, trapFocus } from '../lib/overlay-stack';
 
   let {
     open = false,
@@ -42,14 +44,15 @@
 
   // Initialised synchronously so the first render is already the right shape; a
   // false->true swap on mount would tear the panel down and rebuild it.
-  let isSheet = $state(typeof window !== 'undefined' && window.matchMedia(MOBILE_QUERY).matches);
+  const sheetQuery = mediaQuery(MOBILE_QUERY);
+  let isSheet = $state(sheetQuery.matches);
   let pos = $state({ top: 0, left: 0 });
   let panelEl = $state<HTMLDivElement>();
   let overlayId = 0;
   let zIndex = $state(300);
 
   $effect(() => {
-    const mq = window.matchMedia(MOBILE_QUERY);
+    const mq = sheetQuery;
     const update = () => (isSheet = mq.matches);
     update();
     mq.addEventListener('change', update);
@@ -124,16 +127,16 @@
 
 {#if open}
   {#if isSheet}
-    <div class="sheet-shell" data-overlay style="z-index: {zIndex}" use:portal>
-      <button class="sheet-scrim" type="button" aria-label={label} onclick={onClose}></button>
-      <div class="panel sheet" role="dialog" aria-modal="true" aria-label={label} bind:this={panelEl}>
-        <span class="grabber" aria-hidden="true"></span>
+    <div class="bb-picker-panel__shell" data-overlay style="z-index: {zIndex}" use:portal>
+      <button class="bb-picker-panel__scrim" type="button" aria-label={label} onclick={onClose}></button>
+      <div class="bb-picker-panel bb-picker-panel--sheet" role="dialog" aria-modal="true" aria-label={label} bind:this={panelEl} tabindex="-1" use:trapFocus>
+        <span class="bb-picker-panel__grabber" aria-hidden="true"></span>
         {@render children()}
       </div>
     </div>
   {:else}
     <div
-      class="panel drop"
+      class="bb-picker-panel bb-picker-panel--dropdown"
       data-overlay
       role="dialog"
       aria-label={label}
@@ -145,74 +148,3 @@
     </div>
   {/if}
 {/if}
-
-<style>
-  .panel {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 12px;
-    background: var(--bb-bg-1, #111);
-    border: 1px solid var(--bb-border);
-    overscroll-behavior: contain;
-  }
-
-  .drop {
-    position: fixed;
-    z-index: 300;
-    overflow-y: auto;
-    border-radius: var(--bb-radius-md);
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
-  }
-  :global(:root[data-theme='light']) .drop { box-shadow: 0 12px 32px rgba(20, 17, 12, 0.15); }
-
-  /* Mobile: bottom sheet, same shape the inspector takes at this width. */
-  .sheet-shell { position: fixed; inset: 0; }
-  .sheet-scrim {
-    position: absolute;
-    inset: 0;
-    padding: 0;
-    border: 0;
-    background: rgba(0, 0, 0, 0.55);
-  }
-  .sheet {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    /* Leaves the top of the screen visible so the sheet reads as covering the
-       page rather than being the whole page. */
-    max-height: 82dvh;
-    overflow-y: auto;
-    border-radius: var(--bb-radius-md) var(--bb-radius-md) 0 0;
-    padding: 8px 16px calc(16px + env(safe-area-inset-bottom, 0px));
-    /* No fill mode on purpose: the element's resting state is then the visible
-       one, and the slide-in is decoration layered over it. With `both` the
-       resting state before the animation starts is translateY(100%) (fully
-       off-screen), so anything that keeps the animation from starting leaves
-       the sheet permanently invisible.
-
-       This does not cover a suspended mid-run animation (a pane that is not
-       painting holds currentTime at 0, and the `from` keyframe applies during
-       the active phase whatever the fill), but that resolves on its own the
-       moment the compositor runs. Reduced motion drops the animation entirely
-       below, which is the case that would otherwise strand it. */
-    animation: sheet-in var(--bb-dur-base, 320ms) var(--bb-ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
-  }
-  .grabber {
-    align-self: center;
-    width: 36px;
-    height: 4px;
-    flex: none;
-    margin-bottom: 4px;
-    border-radius: var(--bb-radius-pill);
-    background: var(--rule, rgba(255, 255, 255, 0.18));
-  }
-  @keyframes sheet-in {
-    from { transform: translateY(100%); }
-    to { transform: translateY(0); }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .sheet { animation: none; }
-  }
-</style>

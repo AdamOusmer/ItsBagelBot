@@ -259,3 +259,8 @@
         block-size: 0;
     }
 }
+
+@layer bb.elements {
+    /* Semantic lists whose rows supply their own presentation. */
+    .bb-list { list-style: none; margin: 0; padding: 0; }
+}

@@ -63,13 +63,6 @@ const componentsDir = join(kitRoot, 'components');
  */
 const ALLOWLIST = new Map([
   [
-    'AccountFoot.svelte',
-    // The rail's footer slot: it positions the session menu against the rail's
-    // own width and collapsed state, which are the shell's geometry and not
-    // this component's. The menu itself is ui.
-    'positions the session menu inside the rail slot it is given',
-  ],
-  [
     'Bolota.svelte',
     // Not a ui element and deliberately not becoming one (user decision,
     // 2026-09-09): it is a thin binding over @luzir/bolota, a third-party
@@ -81,36 +74,6 @@ const ALLOWLIST = new Map([
     // rejected: it would make a bot-specific avatar renderer a dependency of
     // every consumer of the design library.
     'wraps the third-party @luzir/bolota engine and its own class namespace',
-  ],
-  [
-    'NavItem.svelte',
-    // The rail's ledger entry. Everything that was LINK styling here moved to
-    // @bagel/ui/styles/elements/nav-link.css; the two rules left describe the
-    // registry's own columns -- the entry's index and its live count -- which
-    // are what make the rail a numbered register rather than a menu. No other
-    // surface that renders a nav link has either, so a `.bb-nav-link--ledger`
-    // modifier in the library would be a modifier with one caller, named after
-    // this wrapper. Same shape as NotificationBell below: a live number pinned
-    // to a control the library drew.
-    'positions the nav registry index and live count inside the link it renders',
-  ],
-  [
-    'NotificationBell.svelte',
-    // The unread count is absolutely positioned against the bell trigger, and
-    // its offset depends on the live count's digit width. A ui Badge cannot
-    // know that it is being pinned to a bell.
-    'pins the live unread count to its trigger',
-  ],
-  [
-    'OperatorMenu.svelte',
-    // Same shape as AccountFoot: anchors a session popover to the topbar.
-    'anchors the session popover to the topbar',
-  ],
-  [
-    'RootShell.svelte',
-    // The app-level stacking context and the skip-link landing box. Layout of
-    // the whole document, which is the one thing that is not an element.
-    'owns the app-level stacking context',
   ],
 ]);
 

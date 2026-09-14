@@ -3,6 +3,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { page } from '$app/state';
   import AuroraBg from '@bagel/ui/svelte/AuroraBg.svelte';
+  import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import LightField from '@bagel/ui/svelte/LightField.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
 
@@ -34,7 +35,7 @@
     <div class="sub">{t('admin.login.sub')}</div>
     {#if notice}<p class="notice">{notice}</p>{/if}
     <p class="lede">{t('admin.login.lede')}</p>
-    <a href="/auth/login" class="bb-btn bb-btn--primary twitch">
+    <ButtonLink href="/auth/login" class="twitch">
       <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
         <path
           fill="currentColor"
@@ -42,7 +43,7 @@
         />
       </svg>
       {t('admin.login.cta')}
-    </a>
+    </ButtonLink>
   </div>
 </main>
 
@@ -110,14 +111,14 @@
     color: var(--bb-muted);
     margin: 18px 0 24px;
   }
-  .twitch {
+  .panel :global(.twitch) {
     width: 100%;
     justify-content: center;
     background: #9146ff;
     color: #fff;
     border-color: #9146ff;
   }
-  .twitch:hover {
+  .panel :global(.twitch:hover) {
     background: #7d2ff5;
     border-color: #7d2ff5;
     box-shadow: 0 0 24px rgba(145, 70, 255, 0.35);

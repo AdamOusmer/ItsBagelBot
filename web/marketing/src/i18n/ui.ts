@@ -9,6 +9,7 @@
 // i18n routing (astro.config) owns the /<locale>/ URL prefix; this module owns
 // the copy and the locale-aware link/switch helpers.
 
+import { dashboardHref } from '@bagel/kit/site-links';
 import en from './locales/en.json';
 // The guide URLs come from the slug list, not a second hand-kept copy. Imported
 // from lib/guides/slugs (which imports nothing) rather than from the registry,
@@ -146,7 +147,6 @@ export function languageName(lang: Lang): string {
 // /login first (an extra click) and never bound CSRF to the dashboard host if
 // we ever built the authorize URL on this site. Footer "Dashboard" still uses
 // the origin; only the CTA uses this.
-const DASHBOARD_LOGIN = 'https://dashboard.itsbagelbot.com/auth/login';
 
 /**
  * The locale switch's options for the page at `url`, in the shape
@@ -171,7 +171,7 @@ export function localeOptions(url: URL) {
 }
 
 export function dashLoginHref(lang: Lang): string {
-  return lang === defaultLang ? DASHBOARD_LOGIN : `${DASHBOARD_LOGIN}?lang=${lang}`;
+  return dashboardHref('/auth/login', lang === defaultLang ? '' : `?lang=${lang}`);
 }
 
 // Build-time parity warning: for every non-English locale, list the keys it is

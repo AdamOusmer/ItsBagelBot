@@ -24,13 +24,13 @@
     getI18n,
     type CommandErrors
   } from '@bagel/kit';
-  import CheckButton from '$lib/components/CheckButton.svelte';
+  import { Checkbox } from '@bagel/kit';
   import AliasChips from './AliasChips.svelte';
   import ResponseEditor from './ResponseEditor.svelte';
   import type { SourceDef } from './fetches/FetchSourcePicker.svelte';
   import ChatPreview from './ChatPreview.svelte';
   import { draftKey, type CommandDraft } from './drafts';
-  import { focusFirstInvalid } from '$lib/forms/validation';
+  import { focusFirstInvalid } from '@bagel/kit';
 
   let {
     draft = $bindable<CommandDraft>(),
@@ -227,12 +227,12 @@
         />
       </div>
     {:else}
-      <CheckButton name="is_active" bind:checked={draft.is_active} label={t('commandEditor.active')} />
+      <Checkbox name="is_active" bind:checked={draft.is_active}>{t('commandEditor.active')}</Checkbox>
     {/if}
   </div>
 
   <div class="check">
-    <CheckButton name="stream_online_only" bind:checked={draft.stream_online_only} label={t('commandEditor.onlyWhileLive')} />
+    <Checkbox name="stream_online_only" bind:checked={draft.stream_online_only}>{t('commandEditor.onlyWhileLive')}</Checkbox>
   </div>
    </div>
   </Scroller>
@@ -256,8 +256,7 @@
   .editor { padding: 4px 2px 2px; }
 
 
-  .check { margin: 4px 0 14px; }
-  .check :global(.cb) { align-items: center; }
+  .check { margin: 4px 0 14px; --bb-check-align: center; }
   .live-active {
     display: flex;
     align-items: center;

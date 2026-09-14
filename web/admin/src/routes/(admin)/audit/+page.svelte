@@ -29,7 +29,7 @@
   import AuditRow from '$lib/components/audit/AuditRow.svelte';
   import AuditDetail from '$lib/components/audit/AuditDetail.svelte';
   import { auditCsv } from '$lib/components/audit/csv';
-  import { downloadCsv } from '$lib/csv';
+  import { downloadCsv } from '@bagel/ui/lib/csv';
   import { AUDIT_KINDS, KIND_LABEL, inKind, type AuditKind } from '$lib/components/audit/audit-kinds';
 
   let { data } = $props();

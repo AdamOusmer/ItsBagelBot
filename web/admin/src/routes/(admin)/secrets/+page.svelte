@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Input from '@bagel/ui/svelte/Input.svelte';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   // Runtime database credentials, one Card per service.
@@ -182,7 +183,7 @@
         <div class="gen-row">
           <Button variant="primary" onclick={generate}>{t('admin.secrets.generate')}</Button>
           {#if generated}
-            <input class="text-input" type="text" readonly value={generated} />
+            <Input fill mono type="text" readonly value={generated} />
             <Button variant="ghost" onclick={copyGenerated}>
               {genCopied ? t('common.copied') : t('common.copy')}
             </Button>
@@ -217,8 +218,8 @@
 
       {#if dialog.needsUser}
         <Field label={t('admin.secrets.fieldDbUser')}>
-          <input
-            class="text-input"
+          <Input
+            fill mono
             type="text"
             autocomplete="off"
             placeholder={`${pendingService.expectedUserPrefix}_…`}
@@ -232,12 +233,12 @@
              operator screen often enough that the value should not be shoulder-
              readable, and the generator above is where it comes from anyway. -->
         <Field label={t('admin.secrets.fieldDbPass')}>
-          <input class="text-input" type="password" autocomplete="new-password" bind:value={dbPass} />
+          <Input fill mono type="password" autocomplete="new-password" bind:value={dbPass} />
         </Field>
       {/if}
 
       <Field label={t('admin.secrets.fieldConfirm', { phrase })}>
-        <input class="text-input" type="text" autocomplete="off" bind:value={confirmText} />
+        <Input fill mono type="text" autocomplete="off" bind:value={confirmText} />
       </Field>
       {#if !phraseMatches}
         <p class="note quiet">{t('admin.secrets.confirmHint')}</p>
@@ -291,10 +292,6 @@
     gap: 8px;
     align-items: center;
     flex-wrap: wrap;
-  }
-  .gen-row .text-input {
-    flex: 1;
-    min-width: 140px;
   }
 
   :global(.gen-card) {

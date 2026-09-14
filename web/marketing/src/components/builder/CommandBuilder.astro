@@ -2,6 +2,9 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import Tag from '@bagel/ui/astro/Tag.astro';
+import Chip from '@bagel/ui/astro/Chip.astro';
+
 /**
  * CommandBuilder: the interactive command workbench. Non-technical streamers
  * compose a command (or a module reply) by clicking variables instead of
@@ -31,7 +34,7 @@
  */
 import { getImage } from 'astro:assets';
 import logoImage from '../../assets/LogoBOT.png';
-import { builderData, builderUI, builderRecipes } from '../../i18n/builder';
+import { builderData, builderUI, builderRecipes, LIMITS } from '../../i18n/builder';
 
 // The chat mock renders the bot avatar at 14px; `logoImage.src` would inline
 // the URL of the original 1 MB PNG into data-avatar. getImage resolves a
@@ -83,11 +86,11 @@ for (const surface of data.surfaces) {
 
             <div class="f-name" data-command-fields>
                 <label for="cb-name">{ui.nameLabel}</label>
-                <span class="f-wrap"><span class="prefix">!</span><input id="cb-name" value="welcome" maxlength="64" data-name aria-describedby="cb-name-hint" /></span>
+                <span class="f-wrap"><span class="prefix">!</span><input id="cb-name" value="welcome" maxlength={LIMITS.nameMax} data-name aria-describedby="cb-name-hint" /></span>
                 <small class="hint" id="cb-name-hint">{ui.nameHint}</small>
             </div>
 
-            <label class="response">{ui.responseLabel} <small><b data-count>0</b>/500</small><textarea id="cb-template" name="template" rows="4" maxlength="2504" data-template></textarea></label>
+            <label class="response">{ui.responseLabel} <small><b data-count>0</b>/{LIMITS.lineMax}</small><textarea id="cb-template" name="template" rows="4" maxlength={LIMITS.lineMax * LIMITS.linesMax + LIMITS.linesMax - 1} data-template></textarea></label>
             <div class="recipes" data-recipes><span>{ui.recipesLabel}</span></div>
 
             <section class="palette">
@@ -106,7 +109,7 @@ for (const surface of data.surfaces) {
                             {data.perms.map((p) => <option value={p.value}>{p.label}</option>)}
                         </select>
                     </label>
-                    <div><label for="cb-cooldown">{ui.cooldownLabel}</label><input id="cb-cooldown" type="number" min="0" max="86400" value="0" data-cooldown aria-describedby="cb-cd-hint" /><small class="hint" id="cb-cd-hint">{ui.cooldownHint}</small></div>
+                    <div><label for="cb-cooldown">{ui.cooldownLabel}</label><input id="cb-cooldown" type="number" min="0" max={LIMITS.cooldownMax} value="0" data-cooldown aria-describedby="cb-cd-hint" /><small class="hint" id="cb-cd-hint">{ui.cooldownHint}</small></div>
                     <label class="span2">{ui.styleLabel}
                         <select id="cb-style" name="style" data-style>
                             {data.styles.map((s) => <option value={s.value}>{s.label}</option>)}
@@ -120,7 +123,7 @@ for (const surface of data.surfaces) {
             <section class="preview card">
                 <header><b><i class="bb-mark" aria-hidden="true"></i> {ui.previewTitle}</b><span data-context></span></header>
                 <div class="chat" data-chat data-avatar={avatarImage.src}>
-                    <span class="chat-tag bb-tag bb-tag--bare" data-chat-tag>{ui.rehearsal}</span>
+                    <Tag tone="bare" class="chat-tag" data-chat-tag>{ui.rehearsal}</Tag>
                 </div>
                 <small data-preview-note></small>
             </section>
@@ -136,7 +139,7 @@ for (const surface of data.surfaces) {
                 <div class="copyw" data-copy-wrap>
                     <p class="copyw__label" data-copy-title>{ui.copyTitleCustom}</p>
                     <pre data-output></pre>
-                    <button type="button" class="bb-chip" data-copy><span>{ui.copyCta}</span></button>
+                    <Chip data-copy><span>{ui.copyCta}</span></Chip>
                     <a class="copyw__module-link" data-module-link hidden target="_blank" rel="noopener noreferrer" href={data.dashboardOrigin}>{ui.openModule} →</a>
                 </div>
             </section>

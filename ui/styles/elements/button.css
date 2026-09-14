@@ -303,6 +303,9 @@
   /* icon-only: a 40px square, no mark, secondary frame. The adapters omit the
      mark element; `content: none` covers the raw-HTML fallback. */
   .bb-btn--icon {
+    /* The containing row owns its touch breakpoint and minimum target size. */
+    min-width: var(--btn-icon-min-size, 0);
+    min-height: var(--btn-icon-min-size, var(--btn-min-h, auto));
     width: 40px;
     height: 40px;
     padding: 0;
@@ -337,6 +340,12 @@
     background: transparent;
     border-color: var(--bb-border-chip);
     color: var(--bb-tan-light);
+  }
+
+  /* Destructive feedback shared by compact delete actions. */
+  .bb-btn.bb-btn--danger-hover:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
+    color: #cf8a78;
+    border-color: rgba(176, 90, 70, 0.4);
   }
 
   /* ── states ───────────────────────────────────────────────────── */

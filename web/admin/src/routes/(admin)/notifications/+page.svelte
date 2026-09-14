@@ -24,6 +24,7 @@
   import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';
   import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
   import Skeleton from '@bagel/ui/svelte/Skeleton.svelte';
+  import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import { createInspector } from '@bagel/ui/svelte/inspector';
   import { createDiscardGuard } from '@bagel/ui/svelte/discard-guard';
@@ -267,28 +268,28 @@
 
       {#if loaded && (page > 1 || hasMore)}
         <div class="pager">
-          <a
-            class="bb-btn bb-btn--ghost"
-            class:disabled={page <= 1}
+          <ButtonLink
+            variant="ghost"
+            class={page <= 1 ? 'disabled' : ''}
             href={pageHref(page - 1)}
             aria-disabled={page <= 1}
           >
             {t('admin.notifications.pagerPrev')}
-          </a>
+          </ButtonLink>
           <span class="pager-label">
             {t('admin.notifications.pagerLabel', {
               page: String(page),
               max: String(maxPages)
             })}
           </span>
-          <a
-            class="bb-btn bb-btn--ghost"
-            class:disabled={!hasMore}
+          <ButtonLink
+            variant="ghost"
+            class={!hasMore ? 'disabled' : ''}
             href={pageHref(page + 1)}
             aria-disabled={!hasMore}
           >
             {t('admin.notifications.pagerNext')}
-          </a>
+          </ButtonLink>
         </div>
       {/if}
     </DeckList>
@@ -423,7 +424,7 @@
     font-size: 11.5px;
     color: var(--bb-muted);
   }
-  .disabled {
+  .pager :global(.disabled) {
     pointer-events: none;
     opacity: 0.4;
   }

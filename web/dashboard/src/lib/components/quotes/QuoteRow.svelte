@@ -123,6 +123,6 @@
     .quote { grid-area: quote; }
     .date { grid-area: date; justify-self: end; }
     /* Touch: keep the delete control at a >=44px hit target. */
-    .row-act :global(.mini) { min-width: 44px; min-height: 44px; }
+    .row-act { --btn-icon-min-size: 44px; }
   }
 </style>

@@ -31,7 +31,7 @@
     SegmentedControl,
   } from '@bagel/kit';
   import CounterRow from '$lib/components/counters/CounterRow.svelte';
-  import { focusFirstInvalid } from '$lib/forms/validation';
+  import { focusFirstInvalid } from '@bagel/kit';
 
   let { data } = $props();
   const { t } = getI18n();
@@ -425,7 +425,7 @@
 {#snippet renameBlock()}
   <!-- The input joins the hidden ?/rename form via form=, so it can sit inside
        the set form without nesting forms. The section head already says
-       "Rename", so the field carries only its placeholder (sr-only label). -->
+       "Rename", so the field carries only its placeholder (bb-sr-only label). -->
 <div class="rename-row">
     <input
       class="bb-input rename-input"
@@ -595,13 +595,13 @@
                 {:else}
                   <div class="bb-tbl-wrap">
                     <table class="bb-tbl entries">
-                      <caption class="sr-only">{t('counters.entriesTitle', { name: selected.name })}</caption>
+                      <caption class="bb-sr-only">{t('counters.entriesTitle', { name: selected.name })}</caption>
                       <thead>
                         <tr>
                           {#if showViewer}<th scope="col">{t('counters.colViewer')}</th>{/if}
                           {#if showSource}<th scope="col">{t('counters.colSource')}</th>{/if}
                           <th scope="col" class="r">{t('counters.colValue')}</th>
-                          <th scope="col" class="act"><span class="sr-only">{t('counters.colActions')}</span></th>
+                          <th scope="col" class="act"><span class="bb-sr-only">{t('counters.colActions')}</span></th>
                         </tr>
                       </thead>
                       <tbody>

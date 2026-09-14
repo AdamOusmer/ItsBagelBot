@@ -40,6 +40,17 @@
         border-bottom-color: var(--badge-tone-rule, rgba(var(--bb-tan-rgb), 0.20));
     }
 
+    .bb-badge--pill {
+        display: inline;
+        padding: 2px 8px;
+        font-size: 10px;
+        letter-spacing: 0.08em;
+        line-height: inherit;
+        border: 1px solid var(--badge-tone-rule, transparent);
+        border-radius: var(--bb-radius-pill);
+        background: var(--badge-bg, transparent);
+    }
+
     /* Dashed and heavier hairlines are the two variations the ladder needs
        beyond a colour: a "derived from" tier (lead mod) and an emphatic one
        (broadcaster). Expressed as modifiers rather than as two more custom

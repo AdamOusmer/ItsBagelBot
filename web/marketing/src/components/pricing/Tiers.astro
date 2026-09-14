@@ -2,6 +2,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import { dashboardHref } from '@bagel/kit/site-links';
+
 /**
  * Tiers, pricing with the convention flipped: Free is the hero card because
  * Free is the product. Premium is framed as the tip jar it actually is, and
@@ -88,7 +90,7 @@ const enterpriseFeatures = [
                  and lands on billing with checkout auto-opened. -->
             <a
                 class="bb-btn bb-btn--quiet tier__btn tier__btn--outline"
-                href={`https://dashboard.itsbagelbot.com/billing?subscribe=1${lang === defaultLang ? '' : `&lang=${lang}`}`}
+                href={dashboardHref('/billing?subscribe=1', lang === defaultLang ? '' : `?lang=${lang}`)}
                 target="_blank"
                 rel="noopener noreferrer"
             >{t('tier.chipIn')}</a>
@@ -430,7 +432,7 @@ const enterpriseFeatures = [
 
 <script>
     import { bindOnce } from '../../script/bind';
-    import { prefersReducedMotion } from '../../script/motion';
+    import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
 
     /* Price count-up when the amount scrolls into view */
     function runCountUp(el: HTMLElement) {

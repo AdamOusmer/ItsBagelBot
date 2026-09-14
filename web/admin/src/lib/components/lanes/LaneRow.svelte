@@ -9,7 +9,7 @@
   import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { LaneView } from '$lib/server/lanes';
-  import StatusDot from '../StatusDot.svelte';
+  import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
   import StatePill from '../StatePill.svelte';
   import { laneTone } from './lane-view';
 

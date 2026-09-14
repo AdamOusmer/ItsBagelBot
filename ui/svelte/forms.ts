@@ -4,7 +4,7 @@
 import { tick } from 'svelte';
 
 /**
- * Move focus to the first field a dashboard editor has marked invalid.
+ * Move focus to the first field a editor has marked invalid.
  *
  * Validation messages are rendered reactively, so wait for Svelte to attach
  * the aria state before querying. Editors keep ownership of their rules and

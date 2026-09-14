@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Input from '@bagel/ui/svelte/Input.svelte';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   // Bot-global counters: the reserved loyalty namespace shared across every
@@ -274,8 +275,8 @@
               <div class="body">
                 {#if creating}
                   <Field label={t('admin.counters.fieldName')}>
-                    <input
-                      class="text-input"
+                    <Input
+                      fill mono
                       type="text"
                       maxlength="64"
                       placeholder={t('admin.counters.fieldNamePlaceholder')}
@@ -292,8 +293,8 @@
                 {/if}
 
                 <Field label={t('admin.counters.fieldValue')}>
-                  <input
-                    class="text-input"
+                  <Input
+                    fill mono
                     type="number"
                     step="1"
                     bind:value={draft.value}

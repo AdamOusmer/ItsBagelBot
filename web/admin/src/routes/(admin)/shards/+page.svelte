@@ -21,6 +21,8 @@
   import DeckList from '@bagel/ui/svelte/DeckList.svelte';
   import StatTile from '@bagel/ui/svelte/StatTile.svelte';
   import Switch from '@bagel/ui/svelte/Switch.svelte';
+  import Input from '@bagel/ui/svelte/Input.svelte';
+  import IconButton from '@bagel/ui/svelte/IconButton.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
@@ -32,7 +34,7 @@
   import type { ShardSnapshot } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { allows } from '$lib/access';
-  import StatusDot from '$lib/components/StatusDot.svelte';
+  import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
   import ShardRow from '$lib/components/shards/ShardRow.svelte';
   import { rateLabel } from '$lib/components/shards/shard-state';
   import { eventsPerSecond, resolveCapacity, utilizationPct } from '$lib/throughput';
@@ -279,29 +281,25 @@
                muted) so an operator can pre-set the floor before turning it
                off. -->
           <span class="stepper" class:dim={autoscaleOn}>
-            <button
-              type="button"
-              class="step"
-              aria-label={t('admin.shards.decrease')}
+            <IconButton
+              size="sm"
+              label={t('admin.shards.decrease')}
               disabled={scaleCount <= minShards}
-              onclick={() => stepScale(-1)}>&minus;</button
-            >
-            <input
-              class="step-input"
+              onclick={() => stepScale(-1)}>&minus;</IconButton>
+            <Input
+              mono
               type="number"
               min={minShards}
               max={maxShards}
               value={scaleCount}
               aria-label={t('admin.shards.countLabel')}
-              oninput={(e) => typeScale((e.target as HTMLInputElement).value)}
+              oninput={(e: Event) => typeScale((e.target as HTMLInputElement).value)}
             />
-            <button
-              type="button"
-              class="step"
-              aria-label={t('admin.shards.increase')}
+            <IconButton
+              size="sm"
+              label={t('admin.shards.increase')}
               disabled={scaleCount >= maxShards}
-              onclick={() => stepScale(1)}>+</button
-            >
+              onclick={() => stepScale(1)}>+</IconButton>
           </span>
           <Button
             variant="secondary"
@@ -414,52 +412,13 @@
   }
 
   .stepper {
+    --input-w: 76px;
     display: inline-flex;
     align-items: center;
-    border: 1px solid var(--bb-border-strong);
-    border-radius: var(--bb-radius-sm);
-    overflow: hidden;
+    gap: 4px;
     transition: opacity 0.15s;
   }
   .stepper.dim {
     opacity: 0.45;
-  }
-  .step {
-    background: rgba(255, 255, 255, 0.04);
-    border: none;
-    color: var(--bb-white);
-    font-family: var(--bb-font-mono);
-    font-size: 16px;
-    width: 34px;
-    height: 34px;
-    cursor: pointer;
-    line-height: 1;
-  }
-  .step:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.09);
-  }
-  .step:disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
-  }
-  .step-input {
-    width: 50px;
-    height: 34px;
-    text-align: center;
-    background: transparent;
-    border: none;
-    border-left: 1px solid var(--bb-border-strong);
-    border-right: 1px solid var(--bb-border-strong);
-    color: var(--bb-white);
-    font-family: var(--bb-font-mono);
-    font-size: 14px;
-    font-weight: 600;
-    -moz-appearance: textfield;
-    appearance: textfield;
-  }
-  .step-input::-webkit-outer-spin-button,
-  .step-input::-webkit-inner-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
   }
 </style>

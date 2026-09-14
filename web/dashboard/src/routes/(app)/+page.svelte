@@ -327,7 +327,7 @@
        which can be down on its own without blanking the others. -->
   {#await Promise.all([data.stream, data.counters, data.volume])}
     <section class="ov-loading" aria-busy="true" aria-label={t('overview.checking')}>
-      <span class="sr-only">{t('overview.checking')}</span>
+      <span class="bb-sr-only">{t('overview.checking')}</span>
       <SkeletonStack rows={1} height="260px" />
     </section>
   {:then [meta, counters, volume]}
@@ -397,7 +397,7 @@
        setup guidance. -->
   {#await Promise.all([data.commands, data.conn, data.modules])}
     <section class="ov-loading" aria-busy="true" aria-label={t('overview.checking')}>
-      <span class="sr-only">{t('overview.checking')}</span>
+      <span class="bb-sr-only">{t('overview.checking')}</span>
       <SkeletonStack rows={3} height="52px" />
     </section>
   {:then [cd, c, md]}

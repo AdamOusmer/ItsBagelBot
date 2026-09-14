@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Input from '@bagel/ui/svelte/Input.svelte';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   // The bot account's own OAuth state, plus the link that starts its consent
@@ -13,7 +14,7 @@
   import { statusTone } from '@bagel/kit/status-tone';
   import { copyFlash } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import StatusDot from '../StatusDot.svelte';
+  import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
 
   let { present }: { present: boolean } = $props();
 
@@ -54,8 +55,8 @@
     <div class="link">
       <p class="hint">{t('admin.overview.botHint')}</p>
       <div class="link-row">
-        <input
-          class="link-url"
+        <Input
+          fill mono
           type="text"
           readonly
           value={botLink}
@@ -128,17 +129,6 @@
     display: flex;
     gap: 8px;
     align-items: center;
-  }
-  .link-url {
-    flex: 1;
-    min-width: 0;
-    padding: 7px 10px;
-    font-family: var(--bb-font-mono);
-    font-size: 12px;
-    border: 1px solid var(--bb-border);
-    border-radius: var(--bb-radius-sm);
-    background: var(--bb-bg-1, #16130f);
-    color: var(--bb-white);
   }
 
   @media (max-width: 760px) {

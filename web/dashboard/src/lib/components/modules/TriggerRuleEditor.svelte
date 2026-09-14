@@ -12,7 +12,7 @@
   // Save/Cancel/Delete are handled by the page so the whole rule list persists in
   // one place.
   import { Button, Cluster, Field, getI18n } from '@bagel/kit';
-  import { focusFirstInvalid } from '$lib/forms/validation';
+  import { focusFirstInvalid } from '@bagel/kit';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
 

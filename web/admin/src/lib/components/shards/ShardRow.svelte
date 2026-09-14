@@ -12,7 +12,7 @@
   // plain <div> that borrows the deck's rule and padding instead.
   import type { Shard } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import StatusDot from '../StatusDot.svelte';
+  import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
   import StatePill from '../StatePill.svelte';
   import { loadTone, podIndex, rateLabel, shardBadge } from './shard-state';
 

@@ -32,8 +32,8 @@
     trail,
     ...rest
   }: {
-    value?: string;
-    type?: 'text' | 'email' | 'url' | 'tel' | 'number' | 'password' | 'search';
+    value?: string | number | null;
+    type?: 'text' | 'email' | 'url' | 'tel' | 'number' | 'password' | 'search' | 'date' | 'datetime-local' | 'month' | 'time' | 'week';
     /** Draws the error frame. Set when the value has been JUDGED wrong. */
     invalid?: boolean;
     /** Take the container's width instead of the 240px default. */

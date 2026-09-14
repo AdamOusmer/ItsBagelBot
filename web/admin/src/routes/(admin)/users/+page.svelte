@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Field from '@bagel/ui/svelte/Field.svelte';
+  import Input from '@bagel/ui/svelte/Input.svelte';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   // The user directory, on the shared deck + inspector.
@@ -32,7 +34,7 @@
   import UserInspector from '$lib/components/users/UserInspector.svelte';
   import MessageDialog from '$lib/components/users/MessageDialog.svelte';
   import { usersCsv } from '$lib/components/users/csv';
-  import { downloadCsv } from '$lib/csv';
+  import { downloadCsv } from '@bagel/ui/lib/csv';
   import { USER_STATES, USER_STATE_LABEL, type UserStateFilter } from '$lib/components/users/user-state';
   import { USER_ACTIONS, type UserActionDef } from '$lib/components/users/user-actions';
   import type { UserDirectory } from './+page.server';
@@ -511,15 +513,14 @@
   onCancel={() => (grantOpen = false)}
   onConfirm={() => statusForms['paid']?.requestSubmit()}
 >
-  <label class="field">
-    {t('admin.users.grantEndsOn')}
-    <input
-      class="text-input"
+  <Field label={t('admin.users.grantEndsOn')}>
+    <Input
+      fill mono
       type="date"
       bind:value={grantDate}
       min={new Date(Date.now() + 864e5).toISOString().slice(0, 10)}
     />
-  </label>
+  </Field>
 </ConfirmDialog>
 
 {#if selected}
@@ -572,28 +573,6 @@
     color: var(--bb-muted);
   }
 
-  .field {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin: 12px 0 4px;
-    font-family: var(--bb-font-body);
-    font-size: 12.5px;
-    color: var(--bb-muted);
-  }
-  .text-input {
-    padding: 8px 11px;
-    font-family: var(--bb-font-mono);
-    font-size: 12.5px;
-    border: 1px solid var(--bb-border);
-    border-radius: var(--bb-radius-sm);
-    background: var(--bb-bg-1, #16130f);
-    color: var(--bb-white);
-  }
-  .text-input:focus {
-    outline: none;
-    border-color: var(--bb-border-strong);
-  }
 
   @media (max-width: 680px) {
     .searchbar {

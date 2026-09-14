@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import { safeReturnPath } from '@bagel/kit/return-path';
 import { redirect } from '@sveltejs/kit';
 import { isLocale, LOCALE_COOKIE } from '@bagel/kit/i18n';
 import { setLocale } from '$lib/server/services';
@@ -37,6 +38,6 @@ export const POST: RequestHandler = async ({ request, url, cookies, locals }) =>
 
   // Same-origin relative paths only: never honour an absolute/protocol-relative
   // `next`, which would turn this into an open redirect.
-  const dest = next.startsWith('/') && !next.startsWith('//') ? next : '/';
+  const dest = safeReturnPath(next) ?? '/';
   throw redirect(303, dest);
 };

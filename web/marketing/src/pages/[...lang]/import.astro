@@ -2,6 +2,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import { dashboardHref } from '@bagel/kit/site-links';
+
 // Landing page for switchers ("switch from nightbot", "streamelements
 // alternative"). Describes the dashboard's import wizard; the source list
 // mirrors what the wizard actually accepts.
@@ -13,7 +15,7 @@ export const getStaticPaths = localeStaticPaths;
 
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
-const importHref = `https://dashboard.itsbagelbot.com/settings/import${lang === defaultLang ? '' : `?lang=${lang}`}`;
+const importHref = dashboardHref('/settings/import', lang === defaultLang ? '' : `?lang=${lang}`);
 ---
 
 <Layout title={t('imp.metaTitle')} description={t('imp.metaDesc')}>

@@ -2,6 +2,9 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import Tag from '@bagel/ui/astro/Tag.astro';
+import Chip from '@bagel/ui/astro/Chip.astro';
+
 /**
  * Playground: the first thing after the Encryption act. Not a claim, the
  * actual product. A live-simulated Twitch chat you can poke. Ambient viewers
@@ -55,11 +58,11 @@ const playStrings = {
 
         <div class="play__chips" data-reveal style="--reveal-i: 3">
             {chips.map((chip) => (
-                <button type="button" class="bb-chip" data-play-cmd={chip.cmd}>{chip.label}</button>
+                <Chip data-play-cmd={chip.cmd}>{chip.label}</Chip>
             ))}
-            <button type="button" class="bb-chip bb-chip--danger" data-play-spam>
+            <Chip tone="danger" data-play-spam>
                 {t('play.sendSpam')}<span aria-hidden="true"> ☠</span>
-            </button>
+            </Chip>
         </div>
 
         <p class="play__hint" data-reveal style="--reveal-i: 4">
@@ -71,7 +74,7 @@ const playStrings = {
         <div class="play__window">
             <div class="play__bar">
                 <span class="play__channel">#your_channel</span>
-                <span class="play__live bb-tag bb-tag--live"><i class="bb-mark" aria-hidden="true"></i>{t('play.live')}<i class="bb-sweep" aria-hidden="true"></i></span>
+                <Tag tone="live" class="play__live" mark="solid" sweep>{t('play.live')}</Tag>
             </div>
 
             <div class="play__feed" data-play-feed role="log" aria-label={t('play.feedAria')}></div>
@@ -409,7 +412,7 @@ const playStrings = {
 </style>
 
 <script>
-    import { reduceMotion } from '../../script/motion';
+    import { reduceMotion } from '@bagel/ui/lib/motion-query';
 
     /**
      * Simulated chat. All content is inserted with textContent; the only

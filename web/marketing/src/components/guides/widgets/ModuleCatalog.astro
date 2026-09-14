@@ -2,6 +2,9 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import VisuallyHidden from '@bagel/ui/astro/VisuallyHidden.astro';
+import Chip from '@bagel/ui/astro/Chip.astro';
+
 /**
  * ModuleCatalog: the whole module list, filterable. Every module is a cell
  * with its dashboard name, its dashboard one-liner, its category, whether it
@@ -57,13 +60,13 @@ const haystack = (m: Module) => `${m.name} ${m.tagline} ${m.commands ?? ''}`.toL
 <div class="mcat" data-mcat data-count-all={L.countAll} data-count-cat={L.countCat} data-count-match={L.countMatch}>
     <div class="mcat__bar" data-mcat-bar hidden>
         <div class="mcat__chips" role="group" aria-label={L.searchLabel}>
-            <button type="button" class="bb-chip mcat__chip is-on" data-mcat-chip="" aria-pressed="true">{L.all}</button>
+            <Chip class="mcat__chip is-on" data-mcat-chip="" aria-pressed="true">{L.all}</Chip>
             {categories.map((cat, i) => (
-                <button type="button" class="bb-chip mcat__chip" data-mcat-chip={String(i)} aria-pressed="false">{cat}</button>
+                <Chip class="mcat__chip" data-mcat-chip={String(i)} aria-pressed="false">{cat}</Chip>
             ))}
         </div>
         <label class="mcat__search">
-            <span class="mcat__sr">{L.searchLabel}</span>
+            <VisuallyHidden>{L.searchLabel}</VisuallyHidden>
             <input type="search" class="mcat__input" placeholder={L.searchPlaceholder} data-mcat-input />
         </label>
     </div>
@@ -104,7 +107,6 @@ const haystack = (m: Module) => `${m.name} ${m.tagline} ${m.commands ?? ''}`.toL
 
     .mcat__search { display: block; }
 
-    .mcat__sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
     .mcat__input {
         width: 100%; max-width: 340px; padding: 9px 12px;

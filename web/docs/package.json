@@ -12,6 +12,7 @@
     "adr:new": "./bin/adr new"
   },
   "dependencies": {
+    "@bagel/kit": "workspace:*",
     "@astrojs/starlight": "^0.42.0",
     "astro": "^7.0.6",
     "cookie": "^2.0.1",

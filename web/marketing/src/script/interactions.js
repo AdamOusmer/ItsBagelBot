@@ -18,7 +18,7 @@
  */
 
 import { copyFlash } from '@bagel/ui/lib/clipboard';
-import { finePointer, reduceMotion } from './motion';
+import { finePointer, reduceMotion } from '@bagel/ui/lib/motion-query';
 
 /**
  * Which copy is currently allowed to own an element's flash.

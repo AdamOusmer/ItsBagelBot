@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Input from '@bagel/ui/svelte/Input.svelte';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   // Direct notification composer. It posts to the NOTIFICATIONS route's send
@@ -71,7 +72,7 @@
 >
   <div class="fields">
     <Field label={t('admin.users.messageFieldTitle')}>
-      <input class="bb-input bb-input--fill" type="text" maxlength="120" bind:value={title} />
+      <Input fill mono type="text" maxlength="120" bind:value={title} />
     </Field>
     <Field label={t('admin.users.messageFieldBody')}>
       <Textarea rows={3} maxlength={2000} fill mono bind:value={body} />

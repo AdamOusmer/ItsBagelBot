@@ -39,6 +39,7 @@ export { default as Divider } from './Divider.svelte';
 export { default as Grid } from './Grid.svelte';
 export { default as InspectorSurface } from './InspectorSurface.svelte';
 export { default as PageHero } from './PageHero.svelte';
+export { default as PickerPanel } from './PickerPanel.svelte';
 export { default as Scroller } from './Scroller.svelte';
 export { default as Section } from './Section.svelte';
 export { default as Spacer } from './Spacer.svelte';
@@ -121,3 +122,9 @@ export { toast, toasts, dismissToast, type ToastItem } from './toast.svelte';
 export * from './inspector.svelte';
 export * from './discard-guard.svelte';
 export { reveal, decode, magnetic } from './actions';
+
+export { focusFirstInvalid } from './forms';
+
+export { default as StatusDot } from './StatusDot.svelte';
+
+export { default as NotificationBell } from './NotificationBell.svelte';

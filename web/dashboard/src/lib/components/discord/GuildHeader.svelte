@@ -130,7 +130,7 @@
         bind:value={() => switchValue, switchToLabel}
       />
     {:else if guilds.length > SEGMENTED_MAX}
-      <label class="sr-only" for="dc-switcher">{t('discord.switcherLabel')}</label>
+      <label class="bb-sr-only" for="dc-switcher">{t('discord.switcherLabel')}</label>
       <!-- The `Select` block. This was a bare <select> with its own frame,
            its own 6px radius and an `option { color: #1a1814 }` rule for the
            native dropdown; the contract (@bagel/ui/styles/elements/input.css)

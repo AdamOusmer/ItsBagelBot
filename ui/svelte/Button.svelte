@@ -19,6 +19,7 @@
   let {
     variant = 'primary',
     solid = false,
+    danger = false,
     block = false,
     size = 'md',
     type = 'button',
@@ -37,6 +38,8 @@
     // Only meaningful with `green`: the nav CTA is the one filled button in
     // the system.
     solid?: boolean;
+    /** Use destructive feedback on hover, for icon actions such as delete. */
+    danger?: boolean;
     /** Full width, centred, >=44px tall: the mobile action-row shape. */
     block?: boolean;
     size?: 'md' | 'sm';
@@ -75,6 +78,7 @@
       'bb-btn',
       `bb-btn--${variant}`,
       solid && 'bb-btn--solid',
+      danger && 'bb-btn--danger-hover',
       block && 'bb-btn--block',
       size === 'sm' && 'bb-btn--sm',
       loading && 'is-loading',

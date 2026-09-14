@@ -24,23 +24,14 @@
  * and drag events register anywhere in the modal — not just over the
  * pre's bounding box.
  *
- * Lenis (smooth scroll) intercepts wheel at the document level. We
- * `lenis.stop()` while the modal is open so wheel-to-zoom doesn't
- * also scroll the page underneath.
+ * The shared overlay stack owns scroll locking, Lenis suspension, background
+ * inertness and Escape ordering; its focus trap restores the opener on close.
  */
 ---
 
 <script>
+  import { pushOverlay, removeOverlay, isTopmost, trapFocus } from '@bagel/ui/lib/overlay-stack';
   import panzoom, { type PanZoom } from 'panzoom';
-
-  // The scroller publishes itself on `window.__lenis` (see SmoothScroll.astro
-  // and the naming record in ui/lib/lenis.ts). Mirror the minimal shape used
-  // here so TS is happy without importing the library into this island.
-  declare global {
-    interface Window {
-      __lenis?: { stop: () => void; start: () => void };
-    }
-  }
 
   const READY = 'mermaid-interactive-ready';
   const MODAL_OPEN = 'mermaid-modal--open';
@@ -50,10 +41,14 @@
   let target: HTMLElement | null = null; // the pre.mermaid wrapper, panzoom target
   let instance: PanZoom | null = null;
   let observer: MutationObserver | null = null;
+  let overlayId: number | null = null;
+  let focusTrap: ReturnType<typeof trapFocus> | null = null;
 
   function buildModal(): HTMLDivElement {
     const root = document.createElement('div');
     root.className = 'mermaid-modal';
+    root.setAttribute('data-overlay', '');
+    root.tabIndex = -1;
     root.setAttribute('role', 'dialog');
     root.setAttribute('aria-modal', 'true');
     root.setAttribute('aria-label', 'Diagram viewer');
@@ -153,9 +148,8 @@
     target = host;
 
     m.classList.add(MODAL_OPEN);
-    document.documentElement.style.overflow = 'hidden';
-    // Stop Lenis so wheel-to-zoom doesn't also smooth-scroll the page.
-    window.__lenis?.stop();
+    overlayId = pushOverlay();
+    focusTrap = trapFocus(m);
 
     instance?.dispose();
     instance = panzoom(host, {
@@ -173,8 +167,10 @@
   function closeModal() {
     if (!modal) return;
     modal.classList.remove(MODAL_OPEN);
-    document.documentElement.style.overflow = '';
-    window.__lenis?.start();
+    if (overlayId !== null) removeOverlay(overlayId);
+    overlayId = null;
+    focusTrap?.destroy();
+    focusTrap = null;
     instance?.dispose();
     instance = null;
     target = null;
@@ -234,7 +230,7 @@
   }
 
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && modal?.classList.contains(MODAL_OPEN)) closeModal();
+    if (e.key === 'Escape' && overlayId !== null && isTopmost(overlayId)) closeModal();
   });
 
   document.addEventListener('astro:before-swap', () => {

@@ -2,6 +2,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import Tag from '@bagel/ui/astro/Tag.astro';
+
 /**
  * ChatMock: a static Twitch-chat vignette for the guides. Server-rendered
  * from props (no client JS): a titled chat window with viewer / mod / bot /
@@ -41,7 +43,7 @@ const { title = '#your_channel', lines, caption } = Astro.props;
                     <p class="cmock__msg">
                         {line.time && <time>{line.time}</time>}
                         <b class:list={['cmock__name', `cmock__name--${line.who}`]}>
-                            {line.who === 'mod' && <span class="cmock__badge bb-tag bb-tag--bare" aria-hidden="true">⚔</span>}
+                            {line.who === 'mod' && <Tag tone="bare" class="cmock__badge" aria-hidden="true">⚔</Tag>}
                             {line.who === 'bot' ? 'ItsBagelBot' : (line.name ?? 'viewer')}
                         </b>
                         <span class="cmock__text">{line.text}</span>
