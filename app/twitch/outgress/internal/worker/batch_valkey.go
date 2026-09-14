@@ -46,8 +46,8 @@ func (s *ValkeyBatchStore) Next(ctx context.Context, batchID string) (int, error
 	return strconv.Atoi(value)
 }
 
-func (s *ValkeyBatchStore) SaveNext(ctx context.Context, batchID string, next int, ttl time.Duration) error {
-	return s.client.Do(ctx, s.client.B().Set().Key(batchProgressKey(batchID)).
+func (s *ValkeyBatchStore) SaveNext(ctx context.Context, lease BatchLease, next int, ttl time.Duration) error {
+	return s.client.Do(ctx, s.client.B().Set().Key(batchProgressKey(lease.ID)).
 		Value(strconv.Itoa(next)).Px(ttl).Build()).Error()
 }
 

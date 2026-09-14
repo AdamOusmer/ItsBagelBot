@@ -22,6 +22,7 @@ import (
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/ratelimit"
 	"ItsBagelBot/pkg/svcboot"
+	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/newrelic"
@@ -81,7 +82,8 @@ func main() {
 	svcboot.FatalIf(log, bus.EnsureStreams(ctx, cfg.NATSURL, []bus.StreamSpec{bus.OutgressStream, bus.OutgressSystemStream}, log),
 		"failed to provision outgress streams")
 
-	valkeyClient := svcboot.MustValkey(core)
+	valkeyClient, err := pkg_valkey.NewOptionalClient(core.ValkeyAddr, core.ValkeyPassword)
+	svcboot.FatalIf(log, err, "invalid optional Valkey configuration")
 	defer valkeyClient.Close()
 
 	// Real Overview activity sink: the modactions.go/redemption.go Emit call
@@ -93,8 +95,6 @@ func main() {
 
 	nc := svcboot.MustRPCConn(core, cfg.NATSRPCURL)
 	defer nc.Close()
-	svcboot.FatalIf(log, registry.StartInvalidationListener(nc, cfg.CacheInvalidatePrefix, log.Named("channels")),
-		"failed to subscribe channel cache invalidation")
 	defer registry.Close()
 
 	// pub is the pooled async publisher for derived-fact events outgress
@@ -119,10 +119,12 @@ func main() {
 	defer tw.CloseIdleConnections()
 	warmupTwitch(ctx, tw, log)
 
-	limiter, closeLimiter := d.newLeaseLimiter(ctx)
-	defer closeLimiter()
+	limiter, batch, closeCoordination := d.newSendingCoordination(ctx, registry)
+	defer closeCoordination()
+	svcboot.FatalIf(log, registry.StartInvalidationListener(nc, cfg.CacheInvalidatePrefix, log.Named("channels")),
+		"failed to subscribe channel cache invalidation")
 
-	premium, standard, system, closeWorkers := d.newLaneWorkers(tw, limiter, registry)
+	premium, standard, system, closeWorkers := d.newLaneWorkers(tw, limiter, registry, batch)
 	defer closeWorkers()
 
 	closeTokenWarm := d.startTokenWarmListener(system)
@@ -347,35 +349,6 @@ func warmupTwitch(ctx context.Context, tw *twitch.Client, log *zap.Logger) {
 	log.Info("twitch client warmed", zap.Duration("duration", time.Since(warmupStarted)))
 }
 
-// newLeaseLimiter assembles the lease-based rate limiter: the local bucket
-// store, the permit RPC service, the lease manager, and its coordinator. The
-// returned cleanup releases them in reverse order.
-func (d *deps) newLeaseLimiter(ctx context.Context) (ratelimit.Manager, func()) {
-	// Sized for the working set of lease buckets (active chat channels plus the
-	// fixed Helix buckets); DeleteExpired prunes idle channels every epoch and
-	// the store grows past the presize if a burst ever needs it.
-	buckets := ratelimit.NewBucketStore(2048)
-
-	permitSvc, err := ratelimit.NewPermitService(d.nc, d.cfg.RateRegion, d.host, buckets)
-	svcboot.FatalIf(d.log, err, "failed to initialize permit service")
-
-	limiter := ratelimit.NewLeaseManager(ratelimit.New(d.valkey), buckets, permitSvc,
-		ratelimit.Identity{Region: d.cfg.RateRegion, PodID: d.host})
-	permitSvc.SetGrantor(limiter)
-
-	coordinator := ratelimit.NewLeaseCoordinator(d.valkey, limiter, d.cfg.RateRegion, d.host,
-		ratelimit.CoordinatorConfig{
-			Epoch: d.cfg.LeaseEpoch, Guard: d.cfg.LeaseGuard, MinMembers: d.cfg.LeaseMinMembers,
-			Replicas: d.cfg.LeaseReplicas, ReplicaTimeout: d.cfg.LeaseReplicaTimeout,
-		}, d.log.Named("leases"))
-	svcboot.FatalIf(d.log, coordinator.Start(ctx), "failed to initialize lease coordinator")
-
-	return limiter, func() {
-		coordinator.Close()
-		permitSvc.Close()
-	}
-}
-
 // newLaneWorkers builds the three lane workers over the shared collaborators,
 // plus the mod verifier and live writer they hang off. The system lane carries
 // the dashboard's EventSub create/delete jobs; it pays only the reserved
@@ -383,8 +356,7 @@ func (d *deps) newLeaseLimiter(ctx context.Context) (ratelimit.Manager, func()) 
 // traffic for the general budget. It also resolves live re-checks
 // (stream_status jobs) and writes the result back into the live projection for
 // the worker fleet.
-func (d *deps) newLaneWorkers(tw *twitch.Client, limiter ratelimit.Manager, registry *channels.Registry) (premium, standard, system *worker.Worker, cleanup func()) {
-	batch := worker.NewValkeyBatchStore(d.valkey)
+func (d *deps) newLaneWorkers(tw *twitch.Client, limiter ratelimit.Manager, registry *channels.Registry, batch worker.BatchStore) (premium, standard, system *worker.Worker, cleanup func()) {
 	base := worker.Config{
 		Limiter:  limiter,
 		Registry: registry,

@@ -70,11 +70,8 @@ func (w *Worker) preparePin(ctx context.Context, payload *outgress.Message) (out
 
 func (w *Worker) takePinChat(ctx context.Context, payload *outgress.Message) error {
 	registryStarted := time.Now()
-	ch, found, err := w.registry.Get(ctx, payload.BroadcasterID)
+	ch, found := w.chatChannel(ctx, payload.BroadcasterID)
 	recordStageDuration(ctx, "outgress.registry_ms", registryStarted)
-	if err != nil {
-		return err
-	}
 	return w.takeChat(ctx, payload.BroadcasterID, w.modStatus(ctx, payload, ch, found))
 }
 
