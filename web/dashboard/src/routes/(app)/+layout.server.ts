@@ -5,6 +5,7 @@ import { redirect } from '@sveltejs/kit';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import type { LayoutServerLoad } from './$types';
+import { moduleSectionLinks } from '@bagel/kit/nav';
 import { bestEffort } from '@bagel/kit/server/best-effort';
 import type { Session } from '$lib/server/session';
 import { accountState, notificationsForUser, delegationAccess, type AccountState, type NotificationWire } from '$lib/server/services';
@@ -86,6 +87,8 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
   const isPremium = acc ? acc.status === 'vip' || acc.status === 'paid' : false;
 
   return {
+    // Send only labels, anchors and counts; the catalog stays on the server.
+    moduleNav: moduleSectionLinks(),
     role: s.role,
     displayName: s.display_name,
     login: s.login,

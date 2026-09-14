@@ -69,6 +69,7 @@
     "./connection-state": "./lib/connection-state.ts",
     "./types": "./lib/types.ts",
     "./nav": "./lib/nav.ts",
+    "./nav-dashboard": "./lib/nav-dashboard.ts",
     "./nav-core": "./lib/nav-core.ts",
     "./nav-admin": "./lib/nav-admin.ts",
     "./staff-role": "./lib/staff-role.ts",
