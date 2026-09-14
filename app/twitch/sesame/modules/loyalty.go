@@ -127,6 +127,12 @@ type accrual struct {
 	points              int64
 }
 
+type pointsGiveRequest struct {
+	login    string
+	value    int64
+	senderID uint64
+}
+
 // onAccrual builds the shared event-handler shell for every point source:
 // decode the module config and the event subset, ask award what it is worth,
 // and hand the result to the store. The per-event logic shrinks to the award
@@ -145,7 +151,7 @@ func onAccrual[T any](d engine.Deps, award func(cfg engine.LoyaltyModuleConfig, 
 			return err
 		}
 		a := award(cfg, ev)
-		earn(ctx, d, c, a.userID, a.login, a.name, a.points)
+		earn(ctx, d, c, a)
 		return nil
 	}
 }
@@ -350,18 +356,12 @@ func (lc loyaltyCmd) pointsGive(ctx context.Context, target, amount string, enab
 		lc.reply("loyalty.points.disabled", "name", cfg.Name())
 		return nil
 	}
-	value, ok := boundedAmount(amount, true)
+	req, ok := lc.pointsGiveRequest(target, amount)
 	if !ok {
 		lc.reply("loyalty.points.give.usage", "name", cfg.Name())
 		return nil
 	}
-	login := strings.ToLower(strings.TrimPrefix(target, "@"))
-	senderID, _ := strconv.ParseUint(lc.c.Env.ChatterUserID, 10, 64)
-	if login == "" || senderID == 0 {
-		lc.reply("loyalty.points.give.usage", "name", cfg.Name())
-		return nil
-	}
-	if login == strings.ToLower(lc.c.Env.ChatterUserLogin) {
+	if req.login == strings.ToLower(lc.c.Env.ChatterUserLogin) {
 		lc.reply("loyalty.points.self", "name", cfg.Name())
 		return nil
 	}
@@ -369,7 +369,7 @@ func (lc loyaltyCmd) pointsGive(ctx context.Context, target, amount string, enab
 	if duplicate {
 		return nil
 	}
-	bal, found, moved, err := lc.d.Loyalty.BalanceTransfer(ctx, lc.c.BroadcasterID, senderID, login, value)
+	bal, found, moved, err := lc.d.Loyalty.BalanceTransfer(ctx, lc.c.BroadcasterID, req.senderID, req.login, req.value)
 	if err != nil {
 		release()
 		lc.log.Warn("loyalty: balance transfer failed", lc.c.BID(), zap.Error(err))
@@ -377,7 +377,7 @@ func (lc loyaltyCmd) pointsGive(ctx context.Context, target, amount string, enab
 		return nil
 	}
 	if !found {
-		lc.reply("loyalty.points.unknown", "target", login)
+		lc.reply("loyalty.points.unknown", "target", req.login)
 		return nil
 	}
 	if !moved {
@@ -388,12 +388,25 @@ func (lc loyaltyCmd) pointsGive(ctx context.Context, target, amount string, enab
 		return nil
 	}
 	lc.reply("loyalty.points.gave",
-		"target", login,
-		"amount", strconv.FormatInt(value, 10),
+		"target", req.login,
+		"amount", strconv.FormatInt(req.value, 10),
 		"points", strconv.FormatInt(bal.Points, 10),
 		"name", cfg.Name(),
 	)
 	return nil
+}
+
+func (lc loyaltyCmd) pointsGiveRequest(target, amount string) (pointsGiveRequest, bool) {
+	value, ok := boundedAmount(amount, true)
+	if !ok {
+		return pointsGiveRequest{}, false
+	}
+	login := strings.ToLower(strings.TrimPrefix(target, "@"))
+	senderID, _ := strconv.ParseUint(lc.c.Env.ChatterUserID, 10, 64)
+	if login == "" || senderID == 0 {
+		return pointsGiveRequest{}, false
+	}
+	return pointsGiveRequest{login: login, value: value, senderID: senderID}, true
 }
 
 // pointsRemove subtracts from a viewer's balance ("!points remove @user 100"),
@@ -491,18 +504,18 @@ func (lc loyaltyCmd) pointsShow(ctx context.Context) error {
 // earn parses the event's viewer identity and hands the accrual to the store.
 // A non-positive award (a source switched off, a sub-100-bit cheer at low
 // rates) is skipped before it can publish an empty entry.
-func earn(ctx context.Context, d engine.Deps, c *module.Context, userID, login, name string, points int64) {
-	if points <= 0 {
+func earn(ctx context.Context, d engine.Deps, c *module.Context, a accrual) {
+	if a.points <= 0 {
 		return
 	}
-	viewerID, err := strconv.ParseUint(userID, 10, 64)
+	viewerID, err := strconv.ParseUint(a.userID, 10, 64)
 	if err != nil || viewerID == 0 {
 		return
 	}
 	if d.Dedup.Duplicate(ctx, engine.EffectRef{Identity: engine.EventIdentity(&c.Env), Effect: engine.EffectEarn}) {
 		return
 	}
-	d.Loyalty.Earn(c.BroadcasterID, viewerID, login, name, points, 0)
+	d.Loyalty.Earn(c.BroadcasterID, viewerID, a.login, a.name, a.points, 0)
 }
 
 // runCounterCommand routes "!counter ..." — a bare name shows it, the
