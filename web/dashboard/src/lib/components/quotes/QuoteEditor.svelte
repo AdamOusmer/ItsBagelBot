@@ -68,6 +68,7 @@
       placeholder={t('quotes.addPlaceholder')}
       maxlength={MAX}
       required
+      data-invalid={textError ? '' : undefined}
       aria-invalid={textError ? 'true' : undefined}
       aria-describedby={textError ? 'quote-text-err' : undefined}
       rows="4"
@@ -82,6 +83,7 @@
       type="date"
       name="quote_date"
       required
+      data-invalid={dayError ? '' : undefined}
       aria-invalid={dayError ? 'true' : undefined}
       aria-describedby={dayError ? 'quote-day-hint quote-day-err' : 'quote-day-hint'}
       bind:value={draft.quoteDate}

@@ -62,7 +62,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **SegmentedControl** | `options*`: readonly string[]<br>`value*`: string<br>`label`: string | svelte + astro | `styles/tags.css` |
 | **Select** | `value`: string<br>`invalid`: boolean<br>`fill`: boolean | svelte + astro | `styles/elements/field.css, styles/elements/input.css` |
 | **Switch** | `checked`: boolean<br>`label*`: string<br>`describedby`: string<br>`disabled`: boolean<br>`pending`: boolean<br>`type`: 'button' \| 'submit'<br>`onchange`: (v: boolean) => void | svelte + astro | — |
-| **Textarea** | `value`: string<br>`rows`: number<br>`invalid`: boolean<br>`fill`: boolean<br>`mono`: boolean | svelte + astro | `styles/elements/field.css, styles/elements/input.css` |
+| **Textarea** | `value`: string<br>`element`: HTMLTextAreaElement<br>`rows`: number<br>`invalid`: boolean<br>`fill`: boolean<br>`mono`: boolean | svelte + astro | `styles/elements/field.css, styles/elements/input.css` |
 | **Toggle** | `on`: boolean<br>`onchange`: (v: boolean) => void<br>`label`: string<br>`disabled`: boolean<br>`pending`: boolean | svelte<br>*Svelte only: bindable checkbox state; the static spelling is Switch.* | — |
 
 ## Feedback

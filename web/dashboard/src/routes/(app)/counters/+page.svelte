@@ -434,6 +434,7 @@
       placeholder={t('counters.renamePh')}
       aria-label={t('counters.rename')}
       required
+      data-invalid={renameError ? '' : undefined}
       aria-invalid={renameError ? 'true' : undefined}
       aria-describedby={renameError ? 'counter-rename-err' : undefined}
       maxlength="64"
@@ -679,6 +680,7 @@
                         placeholder={t('counters.addUserPh')}
                         maxlength="32"
                         required
+                        data-invalid={addUserError ? '' : undefined}
                         aria-invalid={addUserError ? 'true' : undefined}
                         aria-describedby={addUserError ? 'counter-add-user-err' : undefined}
                         bind:value={addUser}
@@ -693,6 +695,7 @@
                         placeholder={t('counters.addCommandPh')}
                         maxlength="64"
                         required
+                        data-invalid={addCommandError ? '' : undefined}
                         aria-invalid={addCommandError ? 'true' : undefined}
                         aria-describedby={addCommandError ? 'counter-add-command-err' : undefined}
                         bind:value={addCommand}

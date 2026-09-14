@@ -10,7 +10,7 @@
   // range in the help line. Blurring a field or attempting Save surfaces an
   // inline error wired to the input via aria-invalid + aria-describedby; the
   // owning form performs the matching submit-time gate.
-  import { getI18n, type TimerDef, Field, FieldError } from '@bagel/kit';
+  import { getI18n, type TimerDef, Field } from '@bagel/kit';
   import CheckButton from '$lib/components/CheckButton.svelte';
 
   // Whole minutes; mirrors the server clamp (60s–24h => 1–1440 min).
@@ -49,28 +49,29 @@
 </script>
 
 <div class="editor">
-  <Field label={t('timers.fieldMessage')}>
+  <Field label={t('timers.fieldMessage')} error={messageError} errorId="timer-msg-err">
     <textarea
       class="bb-input msg-area"
       placeholder={t('timers.fieldMessagePh')}
       maxlength="500"
       rows="3"
       required
+      data-invalid={messageError ? '' : undefined}
       aria-invalid={messageError ? 'true' : undefined}
       aria-describedby={messageError ? 'timer-msg-err' : undefined}
       bind:value={draft.message}
       onblur={() => (touched.message = true)}
     ></textarea>
-    <span id="timer-msg-err"><FieldError message={messageError} /></span>
   </Field>
 
-  <Field label={t('timers.fieldInterval')}>
+  <Field label={t('timers.fieldInterval')} error={intervalError} errorId="timer-int-err">
     <div class="interval-row">
       <input
         class="bb-input num"
         type="number"
         min={MIN}
         max={MAX}
+        data-invalid={intervalError ? '' : undefined}
         aria-invalid={intervalError ? 'true' : undefined}
         aria-describedby={intervalError ? 'timer-int-help timer-int-err' : 'timer-int-help'}
         bind:value={minutes}
@@ -79,7 +80,6 @@
       <span class="unit">{t('timers.unitMinutes')}</span>
     </div>
     <small id="timer-int-help" class="help">{t('timers.fieldIntervalHint')}</small>
-    <span id="timer-int-err"><FieldError message={intervalError} /></span>
   </Field>
 
   <div class="check">

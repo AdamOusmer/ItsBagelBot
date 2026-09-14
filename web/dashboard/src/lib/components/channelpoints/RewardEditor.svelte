@@ -130,6 +130,7 @@
       placeholder={t('channelpoints.fieldTitlePh')}
       maxlength="45"
       required
+      data-invalid={titleError ? '' : undefined}
       aria-invalid={titleError ? 'true' : undefined}
       aria-describedby={titleError ? TITLE_ERR_ID : undefined}
       bind:value={draft.title}
@@ -205,6 +206,7 @@
               placeholder={t('channelpoints.fieldCounterPh')}
               maxlength="64"
               required
+              data-invalid={counterError ? '' : undefined}
               aria-invalid={counterError ? 'true' : undefined}
               aria-describedby={counterError ? COUNTER_ERR_ID : undefined}
               bind:value={draft.counter}

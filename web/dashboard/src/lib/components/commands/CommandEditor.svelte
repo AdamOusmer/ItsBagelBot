@@ -122,17 +122,22 @@
     <input type="hidden" name="original_name" value={draft.originalName} />
   {/if}
 
-  <Field label={t('commandEditor.name')} hint={draft.edit ? t('commandEditor.renameHint') : undefined}>
+  <Field
+    label={t('commandEditor.name')}
+    hint={draft.edit ? t('commandEditor.renameHint') : undefined}
+    error={errors.name}
+    errorId="command-name-err"
+  >
     <input
       class="bb-input"
       name="name"
       placeholder={t('commandEditor.namePlaceholder')}
       required
+      data-invalid={errors.name ? '' : undefined}
       aria-invalid={errors.name ? 'true' : undefined}
       aria-describedby={errors.name ? 'command-name-err' : undefined}
       bind:value={draft.name}
     />
-    <FieldError id="command-name-err" message={errors.name} />
   </Field>
 
   <Field label={t('commandEditor.altNames')} tag={t('common.optional')}>
@@ -143,7 +148,7 @@
     <FieldError message={errors.aliases} />
   </Field>
 
-  <Field label={t('commandEditor.response')}>
+  <Field label={t('commandEditor.response')} error={errors.response} errorId="command-response-err">
     <ResponseEditor
       bind:value={draft.response}
       maxLines={RESPONSE_MAX_LINES}
@@ -154,7 +159,6 @@
       {fetchKeys}
       onFetchDefsChanged={onFetchDefsChanged}
     />
-    <FieldError id="command-response-err" message={errors.response} />
   </Field>
 
   <ChatPreview name={draft.name} response={draft.response} />
@@ -174,32 +178,37 @@
       </select>
     </Field>
 
-    <Field label={t('commandEditor.cooldownS')}>
+    <Field label={t('commandEditor.cooldownS')} error={errors.cooldown} errorId="command-cooldown-err">
       <input
         class="bb-input"
         type="number"
         name="cooldown"
         min="0"
         max={COOLDOWN_MAX}
+        data-invalid={errors.cooldown ? '' : undefined}
         aria-invalid={errors.cooldown ? 'true' : undefined}
         aria-describedby={errors.cooldown ? 'command-cooldown-err' : undefined}
         bind:value={draft.cooldown}
       />
-      <FieldError id="command-cooldown-err" message={errors.cooldown} />
     </Field>
   </Grid>
 
-  <Field label={t('commandEditor.restrictUser')} tag={t('common.optional')}>
+  <Field
+    label={t('commandEditor.restrictUser')}
+    tag={t('common.optional')}
+    error={errors.allowed_user_id}
+    errorId="command-user-err"
+  >
     <input
       class="bb-input"
       name="allowed_user_id"
       inputmode="numeric"
       placeholder={t('commandEditor.restrictPlaceholder')}
+      data-invalid={errors.allowed_user_id ? '' : undefined}
       aria-invalid={errors.allowed_user_id ? 'true' : undefined}
       aria-describedby={errors.allowed_user_id ? 'command-user-err' : undefined}
       bind:value={draft.allowed_user_id}
     />
-    <FieldError id="command-user-err" message={errors.allowed_user_id} />
   </Field>
 
   <div class="check">

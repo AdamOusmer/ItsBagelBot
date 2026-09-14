@@ -17,6 +17,7 @@
 
   let {
     value = $bindable(''),
+    element = $bindable<HTMLTextAreaElement | undefined>(undefined),
     rows = 3,
     invalid = false,
     fill = false,
@@ -25,6 +26,8 @@
     ...rest
   }: {
     value?: string;
+    /** The underlying textarea, for editors that manage selection/caret state. */
+    element?: HTMLTextAreaElement;
     rows?: number;
     invalid?: boolean;
     /** Take the container's width instead of the 240px default. */
@@ -41,5 +44,5 @@
   );
 </script>
 
-<span class={classes} data-invalid={invalid ? '' : undefined}><textarea {rows} bind:value {...rest}
+<span class={classes} data-invalid={invalid ? '' : undefined}><textarea {rows} bind:value bind:this={element} {...rest}
   ></textarea></span>

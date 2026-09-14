@@ -83,6 +83,18 @@ function parseReward(raw: string): ChannelPointReward | null {
   };
 }
 
+// The JSON cannot carry the editor's "counter enabled" state: a deliberately
+// disabled counter and an enabled-but-empty counter both serialize as an empty
+// name. Keep that UI intent as a separate form field and reject the latter at
+// the server boundary, even if client-side validation is bypassed.
+function parseRewardForm(form: FormData): ChannelPointReward | null {
+  const draft = parseReward(String(form.get('reward') ?? ''));
+  if (!draft) return null;
+  if (form.get('counter_enabled') !== 'true') return draft;
+  if (!draft.counter) return null;
+  return draft;
+}
+
 // resultFail maps a store RewardResult failure to a SvelteKit fail(): a
 // missing-scope rejection carries a flag so the page shows the reconnect CTA.
 // Returned from the verb rather than thrown: it is a reason the broadcaster
@@ -101,18 +113,16 @@ function mutate(op: string, invalid: string, run: ModuleMutation) {
 
 export const actions: Actions = {
   create: mutate('create', 'Invalid reward.', async (uid, f) => {
-    const draft = parseReward(String(f.get('reward') ?? ''));
-    // `counter_enabled` preserves the editor's intent. Without it, an enabled
-    // but nameless hook is indistinguishable from a deliberately disabled hook
-    // once the reward JSON reaches this action.
-    if (!draft || (f.get('counter_enabled') === 'true' && !draft.counter)) return null;
+    const draft = parseRewardForm(f);
+    if (!draft) return null;
     const res = await createReward(uid, draft);
     return res.ok ? draft.title : resultFail(res);
   }),
 
   update: mutate('update', 'Invalid reward.', async (uid, f) => {
-    const draft = parseReward(String(f.get('reward') ?? ''));
-    if (!draft || !draft.id || (f.get('counter_enabled') === 'true' && !draft.counter)) return null;
+    const draft = parseRewardForm(f);
+    if (!draft) return null;
+    if (!draft.id) return null;
     const res = await updateReward(uid, draft);
     return res.ok ? draft.title : resultFail(res);
   }),

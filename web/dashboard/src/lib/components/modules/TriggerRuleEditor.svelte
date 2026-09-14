@@ -102,6 +102,7 @@
       type="text"
       placeholder="e.g. hello"
       required
+      data-invalid={phraseError ? '' : undefined}
       aria-invalid={phraseError ? 'true' : undefined}
       aria-describedby={phraseError ? PHRASE_ERR_ID : undefined}
       bind:value={phrase}

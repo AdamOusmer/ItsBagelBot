@@ -9,7 +9,7 @@
   // each field is one chat message the bot will send (commands allow up to 5).
   // The default stays a single field for callers whose reply is one message
   // (module replies); there pasted newlines collapse to spaces.
-  import { RESPONSE_MAX, getI18n, Chip } from '@bagel/kit';
+  import { RESPONSE_MAX, getI18n, Chip, Textarea } from '@bagel/kit';
   import { pickCommonTokens } from '@bagel/kit/engine/common-tokens';
   import CounterPicker from '$lib/components/counters/CounterPicker.svelte';
   import FetchSourcePicker, { type SourceDef } from '$lib/components/commands/fetches/FetchSourcePicker.svelte';
@@ -241,19 +241,21 @@
       <div class="line-field">
         <span class="line-idx" aria-hidden="true">{i + 1}</span>
         <div class="resp-wrap slim">
-          <textarea
+          <Textarea
             class="resp-area slim"
-            rows="2"
+            rows={2}
+            fill
+            {invalid}
             placeholder={fieldPlaceholder(i)}
             aria-invalid={invalid ? 'true' : undefined}
             aria-describedby={describedby}
             {required}
             bind:value={fields[i]}
-            bind:this={areas[i]}
+            bind:element={areas[i]}
             onfocus={() => (focused = i)}
-            onkeydown={(e) => onKeydown(e, i)}
+            onkeydown={(e: KeyboardEvent) => onKeydown(e, i)}
             oninput={() => onInput(i)}
-          ></textarea>
+          />
           <span class="resp-count" class:over={fields[i].length > RESPONSE_MAX}>{fields[i].length}/{RESPONSE_MAX}</span>
         </div>
         {#if fields.length > 1}
@@ -278,20 +280,22 @@
   </div>
 {:else}
   <div class="resp-wrap">
-    <textarea
+    <Textarea
       class="resp-area"
       {name}
-      rows="4"
+      rows={4}
+      fill
+      {invalid}
       placeholder={fieldPlaceholder(0)}
       aria-invalid={invalid ? 'true' : undefined}
       aria-describedby={describedby}
       {required}
       bind:value={fields[0]}
-      bind:this={areas[0]}
+      bind:element={areas[0]}
       onfocus={() => (focused = 0)}
-      onkeydown={(e) => onKeydown(e, 0)}
+      onkeydown={(e: KeyboardEvent) => onKeydown(e, 0)}
       oninput={() => onInput(0)}
-    ></textarea>
+    />
     <span class="resp-count" class:over={fields[0].length > RESPONSE_MAX}>{fields[0].length}/{RESPONSE_MAX}</span>
   </div>
 {/if}
@@ -329,29 +333,10 @@
     color: var(--bb-muted);
   }
 
-  .resp-area {
-    width: 100%;
-    box-sizing: border-box;
-    resize: vertical;
-    min-height: 96px;
-    padding: 12px 14px 26px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid var(--glass-border);
-    border-radius: var(--bb-radius-sm);
-    color: var(--bb-white);
-    font-family: var(--bb-font-body);
-    font-size: 13.5px;
-    line-height: 1.6;
-    transition: border-color var(--bb-dur-base, 160ms) ease, box-shadow var(--bb-dur-base, 160ms) ease;
-  }
-  .resp-area.slim { min-height: 54px; padding: 9px 12px 22px; }
-  .resp-area::placeholder { color: var(--bb-muted); opacity: 0.7; }
-  .resp-area:focus {
-    outline: none;
-    border-color: rgba(82, 183, 136, 0.5);
-    box-shadow: 0 0 0 3px rgba(82, 183, 136, 0.12);
-    background: rgba(255, 255, 255, 0.04);
-  }
+  /* Textarea owns the frame, focus and invalid highlight. These two knobs only
+     reserve room for the per-message counter inside that shared control. */
+  :global(.resp-area textarea) { min-height: 96px; padding-bottom: 16px; }
+  :global(.resp-area.slim textarea) { min-height: 54px; padding-bottom: 12px; }
 
   .resp-count {
     position: absolute;
