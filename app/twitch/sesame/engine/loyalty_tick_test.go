@@ -7,7 +7,13 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
+	"ItsBagelBot/internal/domain/rpc/manage"
+	"ItsBagelBot/internal/projection"
+	"github.com/nats-io/nats.go"
+
+	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/pkg/codec"
 
@@ -28,7 +34,7 @@ func TestRearmAfterFailure(t *testing.T) {
 }
 
 func TestWatchTickFailureStreak(t *testing.T) {
-	c := &ValkeyLoyaltyClock{log: zap.NewNop(), failures: map[uint64]int{}, fires: map[uint64]int{}}
+	c := &ValkeyLoyaltyClock{log: zap.NewNop(), failures: map[uint64]int{}}
 
 	assert.Equal(t, watchTickQuickRetry, c.settleFailure(7, errors.New("boom")))
 	assert.Equal(t, watchTickQuickRetry, c.settleFailure(7, errors.New("boom")))
@@ -37,41 +43,147 @@ func TestWatchTickFailureStreak(t *testing.T) {
 }
 
 func TestWatchTickSettleSuccess(t *testing.T) {
-	pub := &rawPublisher{payloads: map[string][][]byte{}}
-	c := &ValkeyLoyaltyClock{
-		log:                   zap.NewNop(),
-		failures:              map[uint64]int{},
-		fires:                 map[uint64]int{},
-		pub:                   pub,
-		outgressSystemSubject: "test.system",
-	}
+	client := newHotPathTestClient(t)
 	ctx := context.Background()
-
-	// A success clears a prior failure streak and re-arms at the interval.
-	c.settleFailure(7, errors.New("boom"))
-	assert.Equal(t, watchTickInterval, c.settleSuccess(ctx, 7))
-	assert.Empty(t, c.failures, "a good tick clears the streak")
-
-	// The next ten successes stay quiet; the twelfth fire since the streak
-	// reset fires exactly one live re-check (watchTickReconfirmEvery),
-	// addressed to the channel.
-	for i := 0; i < watchTickReconfirmEvery-2; i++ {
-		assert.Equal(t, watchTickInterval, c.settleSuccess(ctx, 7))
+	pub := &rawPublisher{}
+	clock := func() *ValkeyLoyaltyClock {
+		return NewValkeyLoyaltyClock(client, nil, nil, nil, nil, LoyaltyClockConfig{
+			Publisher: pub, OutgressSystemSubject: "test.system",
+		})
 	}
-	require.Empty(t, pub.payloads, "no re-check before the cadence is due")
-	assert.Equal(t, watchTickInterval, c.settleSuccess(ctx, 7))
-
-	frames := pub.payloads["test.system"]
-	require.Len(t, frames, 1)
+	key := loyaltyReconfirmKeyPrefix + "77001"
+	require.NoError(t, client.Do(ctx, client.B().Del().Key(key).Build()).Error())
+	t.Cleanup(func() { client.Do(ctx, client.B().Del().Key(key).Build()) })
+	c := clock()
+	c.settleFailure(77001, errors.New("boom"))
+	assert.Equal(t, watchTickInterval, c.settleSuccess(ctx, 77001))
+	assert.Empty(t, c.failures)
+	for range 20 {
+		clock().settleSuccess(ctx, 77001) // a fresh replica cannot reset the cadence
+	}
+	require.Len(t, pub.payloads["test.system"], 1)
 	var msg outgress.Message
-	require.NoError(t, codec.Unmarshal(frames[0], &msg))
+	require.NoError(t, codec.Unmarshal(pub.payloads["test.system"][0], &msg))
 	assert.Equal(t, outgress.TypeStreamStatus, msg.Type)
-	assert.Equal(t, "7", msg.BroadcasterID)
+	assert.Equal(t, "77001", msg.BroadcasterID)
+	ttl, err := client.Do(ctx, client.B().Pttl().Key(key).Build()).AsInt64()
+	require.NoError(t, err)
+	assert.InDelta(t, watchTickReconfirmInterval.Milliseconds(), ttl, 5000)
 
-	// Channels ledger independently: channel 9's own twelfth fire is what
-	// triggers its confirm.
-	for i := 0; i < watchTickReconfirmEvery; i++ {
-		c.settleSuccess(ctx, 9)
+	// Expiring the shared guard allows the next replica to reconfirm.
+	require.NoError(t, client.Do(ctx, client.B().Del().Key(key).Build()).Error())
+	clock().settleSuccess(ctx, 77001)
+	require.Len(t, pub.payloads["test.system"], 2)
+
+	// Publish failures release the guard so the next tick retries.
+	require.NoError(t, client.Do(ctx, client.B().Del().Key(key).Build()).Error())
+	c.pub = &fakePublisher{failErr: errors.New("offline")}
+	c.settleSuccess(ctx, 77001)
+	clock().settleSuccess(ctx, 77001)
+	require.Len(t, pub.payloads["test.system"], 3)
+}
+
+func TestWatchTickAccrual(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		config       string
+		live         bool
+		enabled      bool
+		missingScope bool
+		wantErr      bool
+		wantPoints   int64
+		wantEarn     bool
+	}{
+		{name: "deduplicates and excludes bot", live: true, enabled: true, wantPoints: 10, wantEarn: true},
+		{name: "watch points off still tracks time", config: `{"watchPointsPerTick":-1}`, live: true, enabled: true, wantEarn: true},
+		{name: "stream ended during fetch", enabled: true},
+		{name: "disabled during fetch", live: true},
+		{name: "bad config", config: `{"watchPointsPerTick":"bad"}`, live: true, enabled: true},
+		{name: "missing scope without error text", missingScope: true, wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			pub := &rawPublisher{}
+			reporter := NewLoyaltyReporter(pub, zap.NewNop())
+			c := NewValkeyLoyaltyClock(nil, nil, fakeReader{modules: map[string]projection.ModuleView{
+				LoyaltyModuleName: {IsEnabled: tc.enabled, Configs: []byte(tc.config)},
+			}}, fakeLive{live: tc.live}, reporter, LoyaltyClockConfig{BotUserID: "99"})
+			c.request = func(_ context.Context, subject string, body []byte) (*nats.Msg, error) {
+				assert.Equal(t, "bagel.rpc.outgress.chatters.get", subject)
+				var req manage.ChattersRequest
+				require.NoError(t, codec.Unmarshal(body, &req))
+				assert.Equal(t, "7", req.BroadcasterID)
+				body, err := codec.Marshal(manage.ChattersReply{MissingScope: tc.missingScope, Chatters: []manage.Chatter{
+					{ID: "8", Login: "viewer"}, {ID: "8", Login: "viewer"}, {ID: "99", Login: "bot"}, {ID: "0"}, {ID: "bad"},
+				}})
+				return &nats.Msg{Data: body}, err
+			}
+			accrued, err := c.accrue(context.Background(), 7)
+			assert.Equal(t, tc.wantEarn, accrued)
+			assert.Equal(t, tc.wantErr, err != nil)
+			reporter.Close()
+			if !tc.wantEarn {
+				assert.Empty(t, pub.payloads)
+				return
+			}
+			require.Len(t, pub.payloads[data.SubjectLoyaltyEarned], 1)
+			var dto struct {
+				Entries []struct {
+					Points       int64
+					WatchSeconds uint64 `json:"watch_seconds"`
+				}
+			}
+			require.NoError(t, codec.Unmarshal(pub.payloads[data.SubjectLoyaltyEarned][0], &dto))
+			require.Len(t, dto.Entries, 1)
+			assert.Equal(t, tc.wantPoints, dto.Entries[0].Points)
+			assert.Equal(t, uint64((5 * time.Minute).Seconds()), dto.Entries[0].WatchSeconds)
+		})
 	}
-	assert.Len(t, pub.payloads["test.system"], 2)
+}
+
+func TestWatchTickFireLifecycle(t *testing.T) {
+	client := newHotPathTestClient(t)
+	ctx := context.Background()
+	const id = uint64(77002)
+	for _, scenario := range []string{"success", "fetch failed", "offline during fetch", "disabled during fetch"} {
+		t.Run(scenario, func(t *testing.T) {
+			keys := []string{loyaltyTickKey(id), loyaltyTickClaimPrefix + "77002"}
+			require.NoError(t, client.Do(ctx, client.B().Del().Key(keys...).Build()).Error())
+			t.Cleanup(func() { client.Do(ctx, client.B().Del().Key(keys...).Build()) })
+			pub := &rawPublisher{}
+			reporter := NewLoyaltyReporter(pub, zap.NewNop())
+			proj := fakeReader{modules: map[string]projection.ModuleView{LoyaltyModuleName: {IsEnabled: true}}}
+			c := NewValkeyLoyaltyClock(client, nil, proj, fakeLive{live: true}, reporter, LoyaltyClockConfig{})
+			calls := 0
+			c.request = func(_ context.Context, _ string, _ []byte) (*nats.Msg, error) {
+				calls++
+				switch scenario {
+				case "fetch failed":
+					return nil, errors.New("timeout")
+				case "offline during fetch":
+					c.live = fakeLive{live: false}
+				case "disabled during fetch":
+					proj.modules[LoyaltyModuleName] = projection.ModuleView{IsEnabled: false}
+				}
+				body, err := codec.Marshal(manage.ChattersReply{Chatters: []manage.Chatter{{ID: "8", Login: "viewer"}}})
+				return &nats.Msg{Data: body}, err
+			}
+			c.fire(ctx, id)
+			c.fire(ctx, id) // a second replica's same-expiry claim must lose
+			reporter.Close()
+			assert.Equal(t, 1, calls)
+			ttl, err := client.Do(ctx, client.B().Ttl().Key(loyaltyTickKey(id)).Build()).AsInt64()
+			require.NoError(t, err)
+			switch scenario {
+			case "success":
+				assert.InDelta(t, watchTickInterval.Seconds(), ttl, 1)
+				require.Len(t, pub.payloads[data.SubjectLoyaltyEarned], 1)
+			case "fetch failed":
+				assert.InDelta(t, watchTickQuickRetry.Seconds(), ttl, 1)
+				assert.Empty(t, pub.payloads)
+			default:
+				assert.EqualValues(t, -2, ttl, "stopped streams/modules must not rearm")
+				assert.Empty(t, pub.payloads)
+			}
+		})
+	}
 }

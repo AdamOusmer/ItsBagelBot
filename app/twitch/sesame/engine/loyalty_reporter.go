@@ -67,10 +67,11 @@ type bumpAgg struct {
 // the worker-side rate limiter for the loyalty pipeline, the same role the
 // useReporter plays for command uses.
 type LoyaltyReporter struct {
-	pub  bus.Publisher
-	log  *zap.Logger
-	done chan struct{}
-	wake chan struct{}
+	pub      bus.Publisher
+	log      *zap.Logger
+	done     chan struct{}
+	finished chan struct{}
+	wake     chan struct{}
 
 	mu    sync.Mutex
 	earn  map[earnKey]*earnAgg
@@ -79,14 +80,16 @@ type LoyaltyReporter struct {
 
 func NewLoyaltyReporter(pub bus.Publisher, log *zap.Logger) *LoyaltyReporter {
 	r := &LoyaltyReporter{
-		pub:   pub,
-		log:   log,
-		done:  make(chan struct{}),
-		wake:  make(chan struct{}, 1),
-		earn:  map[earnKey]*earnAgg{},
-		bumps: map[counterAgg]*bumpAgg{},
+		pub:      pub,
+		log:      log,
+		done:     make(chan struct{}),
+		finished: make(chan struct{}),
+		wake:     make(chan struct{}, 1),
+		earn:     map[earnKey]*earnAgg{},
+		bumps:    map[counterAgg]*bumpAgg{},
 	}
 	go func() {
+		defer close(r.finished)
 		ticker := time.NewTicker(loyaltyFlushInterval)
 		defer ticker.Stop()
 		for {
@@ -303,5 +306,8 @@ func publishPerUser[E any](ctx context.Context, r *LoyaltyReporter, perUser map[
 // Close stops the ticker and flushes what is pending.
 func (r *LoyaltyReporter) Close() {
 	close(r.done)
+	// An in-flight flush owns a drained snapshot. Wait for its publish before
+	// returning, or the caller can close the bus while that snapshot is pending.
+	<-r.finished
 	r.flush(context.Background())
 }

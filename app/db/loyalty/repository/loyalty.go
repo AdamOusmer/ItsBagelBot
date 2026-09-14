@@ -128,6 +128,11 @@ type Loyalty struct {
 	// must not spawn concurrent flush goroutines, which would hold two DB
 	// gate slots doing the same work.
 	flushing atomic.Bool
+	// Coordinate background flush admission with shutdown so Close waits for
+	// snapshots already drained by another goroutine before closing the DB.
+	lifecycleMu sync.Mutex
+	closed      bool
+	flushWG     sync.WaitGroup
 }
 
 // NewLoyalty builds the repository. driver is the same *entsql.Driver the ent
@@ -296,10 +301,15 @@ func (r *Loyalty) maybeFlush(overflow bool) {
 // work. Losing a tick to the guard is safe: the deltas stay in the
 // accumulators and the next tick, or the overflow path, lands them.
 func (r *Loyalty) tryFlush() {
-	if !r.flushing.CompareAndSwap(false, true) {
+	r.lifecycleMu.Lock()
+	if r.closed || !r.flushing.CompareAndSwap(false, true) {
+		r.lifecycleMu.Unlock()
 		return
 	}
+	r.flushWG.Add(1)
+	r.lifecycleMu.Unlock()
 	go func() {
+		defer r.flushWG.Done()
 		defer r.flushing.Store(false)
 		ctx, cancel := context.WithTimeout(context.Background(), flushTimeout)
 		defer cancel()
@@ -537,7 +547,13 @@ func (r *Loyalty) flushEntryBumps(ctx context.Context, txn *newrelic.Transaction
 
 // Close stops the ticker and flushes what is pending.
 func (r *Loyalty) Close(ctx context.Context) {
-	r.ticker.Stop()
+	r.lifecycleMu.Lock()
+	r.closed = true
+	if r.ticker != nil {
+		r.ticker.Stop()
+	}
 	close(r.done)
+	r.lifecycleMu.Unlock()
+	r.flushWG.Wait()
 	r.Flush(ctx)
 }
