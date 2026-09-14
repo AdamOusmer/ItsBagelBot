@@ -190,6 +190,14 @@
     queueMicrotask(() => areas[i]?.focus());
   }
 
+  // Textarea forwards native focus events, so the editor can retain its caret
+  // target without adding a dashboard-specific element-ref prop to the shared
+  // design-system component.
+  function rememberArea(event: FocusEvent, i: number) {
+    if (event.currentTarget instanceof HTMLTextAreaElement) areas[i] = event.currentTarget;
+    focused = i;
+  }
+
   function addLine(after: number = fields.length - 1) {
     if (fields.length >= maxLines) return;
     fields.splice(after + 1, 0, '');
@@ -251,8 +259,7 @@
             aria-describedby={describedby}
             {required}
             bind:value={fields[i]}
-            bind:element={areas[i]}
-            onfocus={() => (focused = i)}
+            onfocus={(e: FocusEvent) => rememberArea(e, i)}
             onkeydown={(e: KeyboardEvent) => onKeydown(e, i)}
             oninput={() => onInput(i)}
           />
@@ -291,8 +298,7 @@
       aria-describedby={describedby}
       {required}
       bind:value={fields[0]}
-      bind:element={areas[0]}
-      onfocus={() => (focused = 0)}
+      onfocus={(e: FocusEvent) => rememberArea(e, 0)}
       onkeydown={(e: KeyboardEvent) => onKeydown(e, 0)}
       oninput={() => onInput(0)}
     />
