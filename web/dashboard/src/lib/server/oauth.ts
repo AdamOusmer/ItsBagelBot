@@ -9,6 +9,11 @@ import { Twitch } from '@bagel/kit/server/oauth';
 import { env } from '$env/dynamic/private';
 import { scopeGap } from '@bagel/kit';
 
+function requiredTwitchConfig(value: string | undefined): string {
+  if (!value) throw new Error('TWITCH_CLIENT_ID/SECRET/REDIRECT_URI not set');
+  return value;
+}
+
 // Identity + the elevated bot scopes the old dashboard requested. Driven by
 // DASHBOARD_BOT_SCOPES (Doppler) so the consent matches what it always asked
 // for; DASHBOARD_LOGIN_SCOPES can override the whole set.
@@ -38,10 +43,9 @@ export function scopes(): string[] {
 }
 
 export function twitch(): Twitch {
-  const id = env.TWITCH_CLIENT_ID;
-  const secret = env.TWITCH_CLIENT_SECRET;
-  const redirect = env.TWITCH_REDIRECT_URI;
-  if (!id || !secret || !redirect) throw new Error('TWITCH_CLIENT_ID/SECRET/REDIRECT_URI not set');
+  const id = requiredTwitchConfig(env.TWITCH_CLIENT_ID);
+  const secret = requiredTwitchConfig(env.TWITCH_CLIENT_SECRET);
+  const redirect = requiredTwitchConfig(env.TWITCH_REDIRECT_URI);
   return new Twitch(id, secret, redirect);
 }
 

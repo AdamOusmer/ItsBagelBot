@@ -25,11 +25,25 @@
 // is empty: a subscriber that never settles would make "until empty" hang
 // forever, and a CI hang is a far worse failure report than a wrong count.
 
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterAll, afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { copyFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 // Type-only: erased at compile time, so it does not pull the module in above
 // the global stubs the way a value import would.
 import type { Tick } from "../lib/raf-loop";
+
+const savedGlobals = new Map(
+  ['document', 'requestAnimationFrame', 'cancelAnimationFrame'].map((key) =>
+    [key, Object.getOwnPropertyDescriptor(globalThis, key)] as const),
+);
+afterAll(() => {
+  for (const [key, descriptor] of savedGlobals) {
+    if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+    else Reflect.deleteProperty(globalThis, key);
+  }
+});
 
 let queue: Array<(time: number) => void> = [];
 let now = 0;
@@ -62,7 +76,14 @@ globalThis.cancelAnimationFrame = ((handle: number) => {
   removeEventListener() {},
 };
 
-const loop = await import("../lib/raf-loop");
+// Other suites render adapters that import the production singleton before
+// this fake document exists. Use a private module instance so its visibility
+// listener always belongs to this test, independent of file discovery order.
+const isolatedDir = mkdtempSync(join(tmpdir(), 'bagel-raf-test-'));
+afterAll(() => rmSync(isolatedDir, { recursive: true, force: true }));
+const schedulerPath = join(isolatedDir, 'raf-loop.ts');
+copyFileSync(new URL('../lib/raf-loop.ts', import.meta.url), schedulerPath);
+const loop = await import(schedulerPath) as typeof import('../lib/raf-loop');
 
 /** Run every callback queued so far, exactly once, `count` times over. */
 function frames(count = 1): void {

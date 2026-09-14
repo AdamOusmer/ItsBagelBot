@@ -46,11 +46,9 @@ test.describe('ItsBagelBot site', () => {
     async function expectPageTop(page) {
         await page.waitForFunction(() => {
             const lenis = window.__lenis;
-            const lenisScroll = typeof lenis?.scroll === 'number' ? lenis.scroll : 0;
-            const lenisTarget = typeof lenis?.targetScroll === 'number' ? lenis.targetScroll : 0;
-            const savedScroll = typeof history.state?.scrollY === 'number' ? history.state.scrollY : 0;
-
-            return window.scrollY < 2 && lenisScroll < 2 && lenisTarget < 2 && savedScroll < 2;
+            const scrollPositions = [window.scrollY, lenis?.scroll, lenis?.targetScroll, history.state?.scrollY];
+            const numericOrZero = (value) => typeof value === 'number' ? value : 0;
+            return Math.max(...scrollPositions.map(numericOrZero)) < 2;
         });
     }
 
@@ -58,16 +56,19 @@ test.describe('ItsBagelBot site', () => {
         await page.waitForFunction((previousId) => {
             const canvas = document.querySelector('#enc-canvas');
             const active = window.__itsbagelbotPreload?.activeEncryption;
-            return Boolean(
-                canvas &&
-                active?.id > previousId &&
-                active.section === document.querySelector('#enc-section') &&
-                canvas.clientWidth > 0 &&
-                canvas.clientHeight > 0 &&
-                canvas.width >= canvas.clientWidth &&
-                canvas.height >= canvas.clientHeight &&
-                (canvas.width !== 300 || canvas.height !== 150)
-            );
+            if (!canvas) return false;
+            if (!(active?.id > previousId)) return false;
+            const section = document.querySelector('#enc-section');
+            const hasDisplaySize = () => canvas.clientWidth > 0 && canvas.clientHeight > 0;
+            const backingCoversDisplay = () =>
+                canvas.width >= canvas.clientWidth && canvas.height >= canvas.clientHeight;
+            const isPlaceholder = () => canvas.width === 300 && canvas.height === 150;
+            return [
+                active.section === section,
+                hasDisplaySize(),
+                backingCoversDisplay(),
+                !isPlaceholder(),
+            ].every(Boolean);
         }, previousId);
     }
 
@@ -183,7 +184,8 @@ test.describe('ItsBagelBot site', () => {
             const lane = document.querySelector('.gates__lane');
             const packet = document.querySelector('.gates__packet');
             const gates = [...document.querySelectorAll('.gates__gate i')];
-            if (!lane || !packet || gates.length !== 3) return [];
+            if (!lane || !packet) return [];
+            if (gates.length !== 3) return [];
 
             const animated = [packet, ...gates];
             const animations = animated.map((element) => element.getAnimations()[0]);

@@ -50,7 +50,12 @@ remain enabled without adding exceptions or counted debt.
   sitemap link optionality, Encryption nullability, guide tone values, and a
   readonly SocialRail input. One guide browser test expects seven links although
   HEAD already contains fourteen; the other three selected tests pass.
+- CodeScene follow-up: Luna agents simplified Twitch configuration validation
+  and browser-test readiness checks; both reviewed files score 10.0. Hosted
+  CodeScene passed. The scheduler tests now isolate their module instance and
+  restore fake globals, fixing the CI file-order dependency. The UI suite also
+  passes with randomized test order.
 - Installed Bun is 1.3.10; the workspace specifies 1.4.2 and lockfile format 3.
   The docs workspace dependency was mirrored in the existing lockfile without
-  re-resolving packages. Frozen installation could not be verified with this
-  older runtime; builds and tests used the installed dependencies.
+  re-resolving packages. CI verified frozen installation using the pinned
+  Bun 1.4.2 runtime; local verification uses the installed dependencies.
