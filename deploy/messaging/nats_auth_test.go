@@ -80,6 +80,10 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 				flowControl:     flowControlStreams[user],
 				pullFetch:       pullFetchStreams[user],
 			})
+			if user == "outgress_bus" {
+				want = append(want, outgressCoordinationSubjects()...)
+				slices.Sort(want)
+			}
 			if !slices.Equal(got, want) {
 				t.Fatalf("JetStream grants differ (-want +got):\nwant %v\n got %v", want, got)
 			}

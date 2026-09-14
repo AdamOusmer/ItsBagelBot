@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"ItsBagelBot/internal/domain/outgress"
+	"github.com/google/uuid"
 
 	"go.uber.org/zap"
 )
@@ -29,7 +30,7 @@ var (
 type BatchStore interface {
 	Acquire(context.Context, BatchLease, time.Duration) (bool, error)
 	Next(context.Context, string) (int, error)
-	SaveNext(context.Context, string, int, time.Duration) error
+	SaveNext(context.Context, BatchLease, int, time.Duration) error
 	Release(context.Context, BatchLease) error
 }
 
@@ -44,7 +45,7 @@ func (w *Worker) processBatch(ctx context.Context, batch *outgress.Batch, broadc
 		return err
 	}
 
-	runErr := w.resumeBatch(ctx, batch, broadcasterID)
+	runErr := w.resumeBatch(ctx, batch, broadcasterID, lease)
 	w.releaseBatch(lease)
 	return runErr
 }
@@ -58,7 +59,7 @@ func (w *Worker) acquireBatch(ctx context.Context, batch *outgress.Batch, owner 
 		return BatchLease{}, false, errBatchStoreUnavailable
 	}
 
-	lease := BatchLease{ID: batch.ID, Owner: owner}
+	lease := BatchLease{ID: batch.ID, Owner: owner + ":" + uuid.NewString()}
 	acquired, err := w.batch.Acquire(ctx, lease, batchStateTTL)
 	if err != nil {
 		return BatchLease{}, false, err
@@ -69,7 +70,7 @@ func (w *Worker) acquireBatch(ctx context.Context, batch *outgress.Batch, owner 
 	return lease, true, nil
 }
 
-func (w *Worker) resumeBatch(ctx context.Context, batch *outgress.Batch, broadcasterID string) error {
+func (w *Worker) resumeBatch(ctx context.Context, batch *outgress.Batch, broadcasterID string, lease BatchLease) error {
 	next, err := w.batch.Next(ctx, batch.ID)
 	if err != nil {
 		return err
@@ -78,7 +79,7 @@ func (w *Worker) resumeBatch(ctx context.Context, batch *outgress.Batch, broadca
 		return nil
 	}
 	return runBatchItems(batch.Items, next,
-		func(next int) error { return w.batch.SaveNext(ctx, batch.ID, next, batchStateTTL) },
+		func(next int) error { return w.batch.SaveNext(ctx, lease, next, batchStateTTL) },
 		func(item outgress.Message) error { return w.processBatchItem(ctx, item, broadcasterID) },
 	)
 }

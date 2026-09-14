@@ -15,11 +15,8 @@ func (w *Worker) processChat(ctx context.Context, payload *outgress.Message) err
 	// time a chat send reaches here it is already authorized. Outgress only reads
 	// the registry for the bot's mod status (which sets the chat rate capacity).
 	registryStarted := time.Now()
-	ch, found, err := w.registry.Get(ctx, payload.BroadcasterID)
+	ch, found := w.chatChannel(ctx, payload.BroadcasterID)
 	recordStageDuration(ctx, "outgress.registry_ms", registryStarted)
-	if err != nil {
-		return err
-	}
 
 	if err := w.takeChat(ctx, payload.BroadcasterID, w.modStatus(ctx, payload, ch, found)); err != nil {
 		return err

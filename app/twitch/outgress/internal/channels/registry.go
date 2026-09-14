@@ -23,6 +23,7 @@ import (
 	"ItsBagelBot/internal/utils"
 	"ItsBagelBot/pkg/cache"
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/kvstate"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 
 	"github.com/nats-io/nats.go"
@@ -70,8 +71,9 @@ type pauseEvent struct {
 }
 
 type Registry struct {
-	client valkey.Client
-	cache  *cache.Cache[manage.Channel]
+	pauseStore kvstate.Store
+	client     valkey.Client
+	cache      *cache.Cache[manage.Channel]
 
 	nc               *nats.Conn
 	invalidatePrefix string
@@ -151,6 +153,9 @@ func (r *Registry) subscribeChannelInvalidation(prefix string, log *zap.Logger) 
 
 func (r *Registry) subscribePauseInvalidation(prefix string, log *zap.Logger) (*nats.Subscription, error) {
 	return r.nc.Subscribe(prefix+"."+pauseInvalidateScope, func(msg *nats.Msg) {
+		if r.pauseStore != nil {
+			return
+		} // Legacy events have a different revision namespace.
 		var event pauseEvent
 		if err := codec.Unmarshal(msg.Data, &event); err != nil || event.Version < 1 {
 			log.Debug("pause cache invalidation: bad payload", zap.Error(err))
@@ -500,6 +505,9 @@ func (r *Registry) List(ctx context.Context) ([]manage.Channel, error) {
 // message; redelivery pacing holds them for a while, but messages older
 // than the retry budget are dropped, which is the right call for chat.
 func (r *Registry) SetPaused(ctx context.Context, paused bool) error {
+	if r.pauseStore != nil {
+		return r.setDurablePause(ctx, paused)
+	}
 	var version int64
 	err := r.client.Dedicated(func(client valkey.DedicatedClient) error {
 		var txnErr error
@@ -616,6 +624,9 @@ func (r *Registry) publishPause(paused bool, version int64) {
 }
 
 func (r *Registry) loadPauseSnapshot(ctx context.Context) (pauseSnapshot, error) {
+	if r.pauseStore != nil {
+		return r.loadDurablePause(ctx)
+	}
 	values, err := r.client.Do(ctx, r.client.B().Mget().Key(pausedKey, pausedVersionKey).Build()).ToArray()
 	if err != nil {
 		return pauseSnapshot{}, err
