@@ -10,7 +10,7 @@
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { Field, Button, getI18n } from '@bagel/kit';
-  import { focusFirstInvalid } from '$lib/forms/validation';
+  import { focusFirstInvalid } from '@bagel/kit';
 
   let {
     draft = $bindable<{ text: string; quoteDate: string }>(),

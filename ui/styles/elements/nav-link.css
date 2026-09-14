@@ -374,3 +374,11 @@
       }
     }
 } /* @layer bb.elements */
+
+@layer bb.elements {
+    /* Optional ordinal and trailing count supplied by a navigation registry. */
+    .bb-nav-link__index { font-size: 10px; color: var(--bb-muted); opacity: .6; min-width: 18px; transition: color var(--bb-dur-base) ease, opacity var(--bb-dur-base) ease; }
+    .bb-nav-link__index--current { color: var(--bb-tan); opacity: 1; }
+    .bb-nav-link:hover .bb-nav-link__index { opacity: 1; }
+    .bb-nav-link__count { margin-left: auto; font-size: 10px; color: var(--bb-muted); }
+}

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Button } from '@bagel/kit';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   // One ledger line in the timers deck, built on the shared ManagementRow so the
@@ -8,7 +9,7 @@
   //
   // The row spells out both the schedule and the active/paused state as TEXT, so
   // neither needs opening the timer to learn and neither is conveyed by colour
-  // alone: the schedule value carries an sr-only "Repeat every" prefix, and the
+  // alone: the schedule value carries an bb-sr-only "Repeat every" prefix, and the
   // state pill reads "Active"/"Paused" with colour only tinting it.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
@@ -61,10 +62,10 @@
         <span class="msg-text">{r.message}</span>
       </span>
       <!-- Metadata as labelled TEXT (no title tooltips): schedule value with an
-           sr-only prefix, and the state pill spelling out Active / Paused. -->
+           bb-sr-only prefix, and the state pill spelling out Active / Paused. -->
       <span class="meta">
         <span class="m-sched">
-          <span class="sr-only">{t('timers.fieldInterval')} </span>
+          <span class="bb-sr-only">{t('timers.fieldInterval')} </span>
           <span class="sched-val">{schedule}</span>
         </span>
         <span class="m-state bb-tag {r.enabled ? 'bb-tag--live' : 'bb-tag--quiet'}">
@@ -79,9 +80,7 @@
       <input type="hidden" name="timer" value={togglePayload} />
       <Switch type="submit" checked={r.enabled} label={t('timers.toggleAria', { name: r.message })} />
     </form>
-    <button class="mini" type="button" aria-label={t('timers.deleteAria', { name: r.message })} onclick={onDelete}>
-      <Icon name="trash" size={15} />
-    </button>
+    <Button variant="icon" size="sm" class="delete-action" danger type="button" aria-label={t('timers.deleteAria', { name: r.message })} onclick={onDelete} ><Icon name="trash" size={15} /></Button>
   {/snippet}
 </ManagementRow>
 
@@ -121,20 +120,7 @@
      Active vs Paused survives without colour. */
   .m-state { flex: none; }
 
-  .mini {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    border: 1px solid transparent;
-    border-radius: var(--bb-radius-sm);
-    background: none;
-    color: var(--bb-muted);
-    cursor: pointer;
-  }
-  .mini:hover { color: #cf8a78; border-color: rgba(176, 90, 70, 0.4); }
-  .mini:focus-visible { outline: 2px solid var(--bb-green-glow, #52b788); outline-offset: 2px; }
+  :global(.delete-action) { width: 32px; height: 32px; min-height: 32px; }
 
   /* Narrow: stack the schedule + state under the message and keep 44px targets;
      reflows cleanly down to 320px. */
@@ -149,6 +135,6 @@
     .idx { display: none; }
     .msg { grid-area: msg; }
     .meta { grid-area: meta; justify-content: flex-start; flex-wrap: wrap; gap: 8px 12px; }
-    .mini { min-width: 44px; min-height: 44px; }
+    :global(.delete-action) { min-width: 44px; min-height: 44px; }
   }
 </style>

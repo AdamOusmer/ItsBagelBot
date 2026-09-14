@@ -9,7 +9,7 @@
   // path (see routes/+layout.svelte).
   import AppShell from '@bagel/kit/components/AppShell.svelte';
   import ImpersonationBanner from '@bagel/kit/components/ImpersonationBanner.svelte';
-  import NotificationBell from '@bagel/kit/components/NotificationBell.svelte';
+  import NotificationBell from '@bagel/ui/svelte/NotificationBell.svelte';
   import ToastHost from '@bagel/ui/svelte/ToastHost.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { sectionForPath, dashboardNavItems, dashboardNavGroups } from '@bagel/kit/nav';

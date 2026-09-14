@@ -1,0 +1,94 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+@layer bb.tokens, bb.base, bb.elements, bb.app;
+
+/* Notification popover: data and read actions are supplied by the host. */
+@layer bb.elements {
+
+  .bb-notifications__bell-wrap { position: relative; display: inline-flex; }
+
+  .bb-notifications__icon-btn {
+    width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    background: none; border: 1px solid var(--bb-border, rgba(201, 168, 124, 0.15)); color: var(--bb-tan-light); cursor: pointer;
+    transition: all var(--bb-dur-base) var(--bb-ease-out-expo); flex: none; position: relative;
+  }
+  .bb-notifications__icon-btn:hover, .bb-notifications__icon-btn.bb-notifications__open { border-color: var(--bb-border-strong, rgba(201, 168, 124, 0.35)); color: var(--bb-tan-pale); }
+  .bb-notifications__icon-btn.bb-notifications__open { background: rgba(201, 168, 124, 0.1); }
+
+  /* Was a filled 999px counter circle; the count is an indicator, not a
+     control, so it is a bare .bb-tag with a .bb-mark beside the number. */
+  .bb-notifications__icon-btn .bb-notifications__badge {
+    position: absolute; top: -7px; right: -11px;
+    gap: 4px; font-size: 9.5px; letter-spacing: 0.08em;
+    color: var(--bb-tan, #c9a87c); pointer-events: none;
+  }
+
+  .bb-notifications__scrim { position: fixed; inset: 0; z-index: 89; }
+
+  /* anchored dropdown card, popping from the bell */
+  .bb-notifications__dropdown {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    z-index: 90;
+    width: min(380px, calc(100vw - 24px));
+    background: var(--bb-card-bg, #111110);
+    border: 1px solid var(--bb-border-strong, rgba(201, 168, 124, 0.35));
+    border-radius: var(--bb-radius-md);
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+    padding: 14px;
+    transform-origin: top right;
+    animation: bb-notifications-in 240ms var(--bb-ease-out-back, ease-out) both;
+  }
+  @keyframes bb-notifications-in {
+    from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  .bb-notifications__drop-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+  .bb-notifications__drop-head h4 { font-family: var(--bb-font-display); font-weight: 700; font-size: 15px; letter-spacing: -0.01em; color: var(--bb-white); margin: 0; }
+
+  .bb-notifications__empty { color: var(--bb-muted); font-family: var(--bb-font-body); font-size: 13px; margin: 4px 0 4px; }
+
+  .bb-notifications__items { display: flex; flex-direction: column; gap: 8px; max-height: min(420px, 60vh); overflow-y: auto; }
+  /* Level pill + Read share the top row; title/body take the full card width
+     below, so the text never gets squeezed into a sliver between them. */
+  .bb-notifications__item {
+    display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px 10px;
+    border: 1px solid var(--bb-border, rgba(201, 168, 124, 0.15)); border-radius: var(--bb-radius-sm);
+    padding: 10px 12px; background: rgba(255, 255, 255, 0.02);
+  }
+  .bb-notifications__item .bb-notifications__level { justify-self: start; grid-row: 1; }
+  .bb-notifications__item .bb-notifications__text { grid-column: 1 / -1; }
+  .bb-notifications__item.bb-notifications__unread { border-color: rgba(201, 168, 124, 0.3); background: rgba(201, 168, 124, 0.05); }
+
+  .bb-notifications__text { flex: 1; min-width: 0; }
+  .bb-notifications__text b { font-family: var(--bb-font-body); font-size: 13.5px; color: var(--bb-white); }
+  .bb-notifications__text p { margin: 4px 0 0; font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted); line-height: 1.45; }
+
+  /* Pill triad retired: the .bb-tag variants above carry info/success/warning.
+     Only the layout and critical's red survive as scoped rules. */
+  .bb-notifications__item .bb-notifications__level { font-size: 10px; white-space: nowrap; }
+  .bb-notifications__item .bb-notifications__level.bb-notifications__critical { color: #d98a8a; border-bottom-color: rgba(217, 138, 138, 0.45); }
+
+  /* The row fit for the mark-read button, set through the contract's own
+     custom properties. It used to restate `.bb-btn--sm { padding; font-size }`,
+     which forks a shared modifier for one row: every other `--sm` button in
+     the product kept the contract's 7px/11.5px while this one quietly did not,
+     and a change to the modifier would never have reached here. */
+  .bb-notifications__item .bb-notifications__mark-read {
+    grid-column: 2; grid-row: 1; justify-self: end;
+    --btn-pad: 4px 10px; --btn-size: 11px; white-space: nowrap;
+  }
+
+  .bb-notifications__view-all {
+    font-family: var(--bb-font-body); font-weight: 600; font-size: 12px;
+    color: var(--bb-tan); text-decoration: none;
+  }
+  .bb-notifications__view-all:hover { color: var(--bb-tan-pale); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bb-notifications__dropdown { animation: none; }
+  }
+}

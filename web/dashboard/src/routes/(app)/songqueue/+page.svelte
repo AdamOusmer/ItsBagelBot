@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { copyText } from '@bagel/ui/lib/clipboard';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { enhance } from '$app/forms';
@@ -118,10 +119,9 @@
     };
 
   async function copyRedirect() {
-    try {
-      await navigator.clipboard.writeText(data.redirectUri ?? '');
+    if (await copyText(data.redirectUri ?? '')) {
       toast('ok', t('spotify.redirectCopied'));
-    } catch {
+    } else {
       // Clipboard permission is the only realistic failure and the URL is on
       // screen anyway, so this degrades to "select it yourself".
       toast('err', t('spotify.redirectCopyFailed'));

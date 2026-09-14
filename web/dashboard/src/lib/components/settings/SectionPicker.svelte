@@ -2,11 +2,11 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   // The permission group for a share link: a real <fieldset><legend> so the set
-  // of section checkboxes is announced as one labelled group. Each CheckButton
+  // of section checkboxes is announced as one labelled group. Each Checkbox
   // carries its own name so the enclosing form submits `<section>=on`. When the
   // caller passes an `error`, the fieldset is marked invalid and points at the
   // message via aria-describedby.
-  import CheckButton from '../CheckButton.svelte';
+  import { Checkbox } from '@bagel/kit';
   import { FieldError } from '@bagel/kit';
 
   let {
@@ -38,7 +38,7 @@
   <legend>{legend}</legend>
   <div class="picks">
     {#each options as opt (opt.value)}
-      <CheckButton name={opt.value} checked={opt.checked} label={opt.label} />
+      <Checkbox name={opt.value} checked={opt.checked}>{opt.label}</Checkbox>
     {/each}
   </div>
   {#if invalid}<div id={errorId}><FieldError message={error} /></div>{/if}

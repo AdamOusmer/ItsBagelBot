@@ -4,6 +4,7 @@
 // Twitch OAuth via the shared in-repo client (@bagel/kit/server/oauth),
 // which replaced the deprecated arctic package. One Twitch client built from
 // env. Helix user fetch lives here too so the callback route stays thin.
+import { safeReturnPath } from '@bagel/kit/return-path';
 import { Twitch } from '@bagel/kit/server/oauth';
 import { env } from '$env/dynamic/private';
 import { scopeGap } from '@bagel/kit';
@@ -146,9 +147,9 @@ export async function fetchAccountEmail(accessToken: string): Promise<string | n
 // routes themselves. Used on both sides of the OAuth round trip: when the
 // login route stores the destination and when the callback consumes it.
 export function safeNextPath(value: string | null | undefined): string | null {
-  if (!value || !value.startsWith('/')) return null;
-  if (value.startsWith('//') || value.startsWith('/\\')) return null;
-  if (value === '/login' || value.startsWith('/login?') || value.startsWith('/auth/')) return null;
-  return value;
+  const path = safeReturnPath(value);
+  if (!path) return null;
+  const pathname = path.split(/[?#]/, 1)[0];
+  if (pathname === '/login' || pathname.startsWith('/auth/')) return null;
+  return path;
 }
-

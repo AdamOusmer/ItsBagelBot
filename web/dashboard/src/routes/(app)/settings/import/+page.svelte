@@ -766,8 +766,8 @@
       <div class="review-bar">
         {#each statChips as c (c)}<span class="stat">{c}</span>{/each}
         <span class="review-spacer"></span>
-        <button type="button" class="mini" onclick={() => setAll(true)}>{t('import.selectAll')}</button>
-        <button type="button" class="mini" onclick={() => setAll(false)}>{t('import.selectNone')}</button>
+        <button type="button" class="selection-action" onclick={() => setAll(true)}>{t('import.selectAll')}</button>
+        <button type="button" class="selection-action" onclick={() => setAll(false)}>{t('import.selectNone')}</button>
       </div>
     </Card>
 
@@ -1546,7 +1546,7 @@
   .review-spacer {
     flex: 1;
   }
-  .mini {
+  .selection-action {
     font: inherit;
     cursor: pointer;
     font-family: var(--bb-font-mono);
@@ -1562,7 +1562,7 @@
       color var(--bb-dur-fast, 140ms) ease,
       background var(--bb-dur-fast, 140ms) ease;
   }
-  .mini:hover {
+  .selection-action:hover {
     color: var(--bb-white);
     background: rgba(201, 168, 124, 0.08);
   }

@@ -9,6 +9,7 @@
   // dialog stepper, but the blob walks the screen instead of sitting still in
   // a card. Dismissal is remembered in localStorage; `?welcome=1` re-opens it
   // for a refresher (both handled by the caller).
+  import { copyText } from '@bagel/ui/lib/clipboard';
   import Icon from '@bagel/ui/svelte/Icon.svelte';
   import Code from '@bagel/ui/svelte/Code.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
@@ -52,25 +53,7 @@
   const MOD_COMMAND = '/mod ItsBagelBot';
   let copied = $state(false);
   async function copyMod() {
-    let ok = false;
-    try {
-      await navigator.clipboard.writeText(MOD_COMMAND);
-      ok = true;
-    } catch {
-      // Clipboard API blocked (permissions/insecure context): legacy fallback.
-      const ta = document.createElement('textarea');
-      ta.value = MOD_COMMAND;
-      ta.style.position = 'fixed';
-      ta.style.opacity = '0';
-      document.body.appendChild(ta);
-      ta.select();
-      try {
-        ok = document.execCommand('copy');
-      } catch {
-        ok = false;
-      }
-      ta.remove();
-    }
+    const ok = await copyText(MOD_COMMAND, { legacyFallback: true });
     if (ok) {
       copied = true;
       setTimeout(() => (copied = false), 2000);

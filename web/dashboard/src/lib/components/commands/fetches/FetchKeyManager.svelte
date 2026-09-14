@@ -103,9 +103,9 @@
           <!-- The same 28px icon buttons every management row uses (timers,
                rewards, commands), so key rows read as part of the family.
                Rotation is re-entering the value, which is the edit affordance. -->
-          <button
+          <Button
             type="button"
-            class="mini"
+            variant="icon" size="sm"
             title={t('fetches.keyRotate')}
             aria-label={t('fetches.keyRotateAria', { label: k.label })}
             onclick={() => {
@@ -113,18 +113,14 @@
               rotateValue = '';
               err = '';
             }}
-          >
-            <Icon name="edit" size={15} />
-          </button>
-          <button
+           ><Icon name="edit" size={15} /></Button>
+          <Button
             type="button"
-            class="mini"
+            variant="icon" size="sm"
             title={t('common.delete')}
             aria-label={t('fetches.keyDeleteAria', { label: k.label })}
             onclick={() => (deleteTarget = k)}
-          >
-            <Icon name="trash" size={15} />
-          </button>
+           ><Icon name="trash" size={15} /></Button>
         </span>
         {#if rotating === k.label}
           <form class="rotate" onsubmit={submitRotate}>

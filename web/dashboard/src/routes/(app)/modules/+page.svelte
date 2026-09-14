@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { Kbd } from '@bagel/kit';
+  import { SearchInput } from '@bagel/kit';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   // The whole catalog is on the page. A Chat/Community/Games menu hid Song
@@ -141,7 +143,7 @@
       };
     };
 
-  let searchInput = $state<HTMLInputElement | null>(null);
+  let searchInput = $state<HTMLInputElement | undefined>(undefined);
   function isTyping(e: KeyboardEvent): boolean {
     const el = e.target as HTMLElement | null;
     return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
@@ -173,28 +175,14 @@
   {/if}
 
   <div class="deck">
-    <label class="bb-input find">
-      <Icon name="search" size={15} />
-      <span class="sr-only">{t('modules.searchLabel')}</span>
-      <input
-        type="search"
-        bind:value={searchQuery}
-        bind:this={searchInput}
-        placeholder={t('modules.searchPlaceholder')}
-        autocomplete="off"
-        enterkeyhint="search"
-      />
-      {#if searchQuery}
-        <button type="button" class="clear" aria-label={t('modules.searchClear')} onclick={clearSearch}>
-          <Icon name="x" size={12} />
-        </button>
-      {:else}
-        <span class="keys" aria-hidden="true"><kbd class="hint">/</kbd></span>
-      {/if}
-    </label>
+    <div class="find">
+      <SearchInput bind:value={searchQuery} bind:element={searchInput} placeholder={t('modules.searchPlaceholder')}
+        aria-label={t('modules.searchLabel')} clearLabel={t('modules.searchClear')} autocomplete="off" enterkeyhint="search" fill />
+      {#if !searchQuery}<span class="keys" aria-hidden="true"><Kbd>/</Kbd></span>{/if}
+    </div>
   </div>
 
-  <p class="sr-only" aria-live="polite">{t('modules.resultCount', { shown: filtered.length, total: items.length })}</p>
+  <p class="bb-sr-only" aria-live="polite">{t('modules.resultCount', { shown: filtered.length, total: items.length })}</p>
 
   {#if groups.length === 0}
     <EmptyState title={t('modules.noMatch')} body={t('modules.noMatchBody')}>
@@ -241,8 +229,8 @@
     background: var(--bb-bg-0);
     border-bottom: 1px solid var(--rule);
   }
-  .find { width: 100%; min-width: 0; }
-  .find input[type="search"]::-webkit-search-cancel-button { display: none; }
+  .find { width: 100%; min-width: 0; position: relative; }
+  .find .keys { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); pointer-events: none; }
   .keys {
     font-family: var(--bb-font-mono);
     font-size: 11px;
@@ -250,20 +238,6 @@
     letter-spacing: 0.04em;
     white-space: nowrap;
   }
-  .clear {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 22px;
-    height: 22px;
-    flex: none;
-    border: none;
-    background: transparent;
-    color: var(--bb-muted);
-    cursor: pointer;
-    border-radius: var(--bb-radius-sm);
-  }
-  .clear:hover { color: var(--bb-white); }
 
   .index {
     display: grid;

@@ -2,6 +2,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import { SITE } from '@bagel/kit/site-links';
+
 /**
  * Starlight `Header` override: the docs wear the same nav bar as the rest of
  * the site.
@@ -44,7 +46,7 @@ const isActive = (href: string) => path === href || path.startsWith(href);
   menu={false}
   brand={{ title: 'ItsBagelBot', sub: 'DOCS', href: '/' }}
   links={links.map((link) => ({ ...link, active: isActive(link.href) }))}
-  cta={{ href: 'https://itsbagelbot.com', label: 'Main site', external: true }}
+  cta={{ href: SITE.web, label: 'Main site', external: true }}
   ariaLabel="Documentation"
   menuLabels={{ open: 'Open menu', close: 'Close menu', panel: 'Menu' }}
 >

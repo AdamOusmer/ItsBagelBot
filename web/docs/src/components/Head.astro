@@ -2,6 +2,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import { SITE } from '@bagel/kit/site-links';
+
 import Default from '@astrojs/starlight/components/Head.astro';
 import { ClientRouter } from 'astro:transitions';
 import SmoothScroll from './SmoothScroll.astro';
@@ -22,7 +24,7 @@ const pageDescription = entry?.data.description
 // Structured data. @id values point at the marketing origin so search engines
 // merge this Organization with the one on itsbagelbot.com (one entity across
 // subdomains); the WebSite entity is the docs site itself.
-const MAIN = 'https://itsbagelbot.com';
+const MAIN = SITE.web;
 const structuredData = {
   '@context': 'https://schema.org',
   '@graph': [
@@ -33,9 +35,9 @@ const structuredData = {
       url: `${MAIN}/`,
       logo: `${MAIN}/android-chrome-512x512.png`,
       sameAs: [
-        'https://twitch.tv/itsbagelbot',
-        'https://discord.gg/SZ2remwSDv',
-        'https://github.com/AdamOusmer/ItsBagelBot',
+        SITE.twitch,
+        SITE.discord,
+        SITE.github,
       ],
     },
     {

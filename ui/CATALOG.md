@@ -4,11 +4,11 @@
 
 # @bagel/ui — block catalog
 
-Every block the library ships, by family. **81** blocks;
-**77** ship both adapters.
+Every block the library ships, by family. **84** blocks;
+**78** ship both adapters.
 
 A `*` after a prop name means it is required. `class` and `children` are
-omitted: nearly every block takes both, and listing them 81 times
+omitted: nearly every block takes both, and listing them 84 times
 would bury the props that differ. Every block also forwards unknown attributes
 to its outermost element.
 
@@ -41,6 +41,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **Grid** | `cols`: 1 \| 2 \| 3 \| 4 \| 5 \| 6<br>`gap`: 1 \| 2 \| 3 \| 4 \| 5 \| 6<br>`min`: string<br>`as`: string | svelte + astro | `styles/elements/layout.css` |
 | **InspectorSurface** | `open`: boolean<br>`title*`: string<br>`controls`: string<br>`closeLabel`: string<br>`onClose*`: () => void | svelte + astro | `styles/elements/card.css, styles/elements/surface.css` |
 | **PageHero** | `eyebrow`: string<br>`title*`: string<br>`description`: string | svelte + astro | `styles/elements/page-hero.css` |
+| **PickerPanel** | `open`: boolean<br>`anchor`: HTMLElement<br>`label*`: string<br>`width`: number<br>`maxHeight`: number<br>`onClose*`: () => void | svelte<br>*Svelte only: interactive anchored dropdown that becomes a modal sheet on mobile.* | `styles/elements/picker-panel.css` |
 | **Scroller** | `maxHeight`: string<br>`fill`: boolean<br>`padding`: string | svelte + astro | `styles/elements/shell.css` |
 | **Section** | `size`: 'default' \| 'sm' \| 'lg' \| 'flush'<br>`anchor`: boolean<br>`reveal`: boolean<br>`as`: string | svelte + astro | `styles/elements/layout.css` |
 | **Spacer** | `size`: 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8<br>`grow`: boolean | svelte + astro | `styles/elements/layout.css` |
@@ -50,15 +51,15 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 
 | Block | Props | Adapters | Contract |
 | --- | --- | --- | --- |
-| **Button** | `variant`: 'primary' \| 'secondary' \| 'ghost' \| 'green' \| 'destructive' \| 'icon' \| 'tan' \| 'quiet' \| 'go'<br>`solid`: boolean<br>`block`: boolean<br>`size`: 'md' \| 'sm'<br>`type`: 'button' \| 'submit' \| 'reset'<br>`onclick`: (e: MouseEvent) => void<br>`loading`: boolean<br>`done`: boolean<br>`disabled`: boolean | svelte + astro | `styles/elements/button.css` |
+| **Button** | `variant`: 'primary' \| 'secondary' \| 'ghost' \| 'green' \| 'destructive' \| 'icon' \| 'tan' \| 'quiet' \| 'go'<br>`solid`: boolean<br>`danger`: boolean<br>`block`: boolean<br>`size`: 'md' \| 'sm'<br>`type`: 'button' \| 'submit' \| 'reset'<br>`onclick`: (e: MouseEvent) => void<br>`loading`: boolean<br>`done`: boolean<br>`disabled`: boolean | svelte + astro | `styles/elements/button.css` |
 | **ButtonLink** | `href*`: string<br>`variant`: 'primary' \| 'secondary' \| 'ghost' \| 'green' \| 'destructive' \| 'icon' \| 'tan' \| 'quiet' \| 'go'<br>`solid`: boolean<br>`block`: boolean<br>`size`: 'md' \| 'sm'<br>`done`: boolean | svelte + astro | `styles/elements/button.css` |
 | **Checkbox** | `checked`: boolean | svelte + astro | `styles/elements/input.css` |
 | **Field** | `label*`: string<br>`tag`: string<br>`hint`: string<br>`error`: string<br>`hintId`: string<br>`errorId`: string<br>`for`: string | svelte + astro | — |
 | **FieldError** | — | svelte<br>*Svelte only: it renders only when a form action has returned an error, which a static page has not.* | — |
 | **IconButton** | `label*`: string<br>`tooltip`: boolean<br>`size`: 'md' \| 'sm'<br>`type`: 'button' \| 'submit' \| 'reset'<br>`onclick`: (e: MouseEvent) => void<br>`disabled`: boolean | svelte + astro | `styles/elements/button.css, styles/elements/tooltip.css` |
-| **Input** | `value`: string<br>`type`: 'text' \| 'email' \| 'url' \| 'tel' \| 'number' \| 'password' \| 'search'<br>`invalid`: boolean<br>`fill`: boolean<br>`mono`: boolean<br>`icon`: Snippet<br>`trail`: Snippet | svelte + astro | `styles/elements/field.css, styles/elements/input.css` |
+| **Input** | `value`: string \| number \| null<br>`type`: 'text' \| 'email' \| 'url' \| 'tel' \| 'number' \| 'password' \| 'search' \| 'date' \| 'datetime-local' \| 'month' \| 'time' \| 'week'<br>`invalid`: boolean<br>`fill`: boolean<br>`mono`: boolean<br>`icon`: Snippet<br>`trail`: Snippet | svelte + astro | `styles/elements/field.css, styles/elements/input.css` |
 | **RadioGroup** | `name*`: string<br>`options*`: readonly { value: string; label: string }[]<br>`value*`: string<br>`label`: string | svelte + astro | `styles/tags.css` |
-| **SearchInput** | — | svelte + astro | — |
+| **SearchInput** | `value`: string<br>`element`: HTMLInputElement<br>`placeholder`: string<br>`debounceMs`: number<br>`clearLabel`: string<br>`fill`: boolean<br>`oninput`: (value: string) => void | svelte + astro | `styles/elements/field.css, styles/elements/search-input.css` |
 | **SegmentedControl** | `options*`: readonly string[]<br>`value*`: string<br>`label`: string | svelte + astro | `styles/tags.css` |
 | **Select** | `value`: string<br>`invalid`: boolean<br>`fill`: boolean | svelte + astro | `styles/elements/field.css, styles/elements/input.css` |
 | **Switch** | `checked`: boolean<br>`label*`: string<br>`describedby`: string<br>`disabled`: boolean<br>`pending`: boolean<br>`type`: 'button' \| 'submit'<br>`onchange`: (v: boolean) => void | svelte + astro | — |
@@ -70,15 +71,17 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | Block | Props | Adapters | Contract |
 | --- | --- | --- | --- |
 | **AlertBanner** | `variant`: 'danger' \| 'warn' \| 'impersonation'<br>`role`: 'alert' \| 'status'<br>`action`: Snippet | svelte + astro | `styles/elements/alert.css` |
-| **Badge** | `tone`: 'quiet' \| 'live' \| 'alpha' \| 'pre' \| 'incoming' \| 'bare'<br>`mark`: 'solid' \| 'hollow' \| 'dash' \| 'up' \| 'plus'<br>`sweep`: boolean<br>`dashed`: boolean<br>`status`: boolean | svelte + astro | — |
+| **Badge** | `shape`: 'tag' \| 'pill'<br>`tone`: 'quiet' \| 'live' \| 'alpha' \| 'pre' \| 'incoming' \| 'bare'<br>`mark`: 'solid' \| 'hollow' \| 'dash' \| 'up' \| 'plus'<br>`sweep`: boolean<br>`dashed`: boolean<br>`status`: boolean | svelte + astro | `styles/elements/badge.css, styles/tags.css` |
 | **Chip** | `on`: boolean<br>`onclick`: () => void<br>`type`: 'button' \| 'submit' \| 'reset'<br>`tone`: 'muted' \| 'danger' \| 'eyebrow' | svelte + astro | — |
 | **ConfirmDialog** | `open*`: boolean<br>`title*`: string<br>`body`: string<br>`confirmLabel`: string<br>`cancelLabel`: string<br>`busyLabel`: string<br>`danger`: boolean<br>`busy`: boolean<br>`onConfirm*`: () => void<br>`onCancel*`: () => void | svelte<br>*Svelte only: a composition of Modal + Button with no CSS of its own, and its two callbacks are the element.* | `styles/elements/modal.css` |
 | **EmptyState** | `title*`: string<br>`body`: string | svelte + astro | — |
 | **ErrorScene** | `status*`: number \| string<br>`eyebrow*`: string<br>`title*`: string<br>`description*`: string<br>`aside`: string<br>`labelledBy`: string<br>`actions`: Snippet | svelte + astro | `styles/elements/error-scene.css` |
 | **Modal** | `open*`: boolean<br>`title`: string<br>`closeModal*`: () => void<br>`busy`: boolean<br>`closeLabel`: string<br>`ariaLabel`: string | svelte + astro | `styles/elements/modal.css` |
+| **NotificationBell** | `notifications*`: BellNotification[]<br>`unreadCount`: number<br>`viewAllHref*`: string<br>`onMarkRead`: (id: number) => void<br>`onOpen`: () => void<br>`emptyLabel`: string<br>`title`: string<br>`viewAllLabel`: string<br>`readLabel`: string | svelte<br>*Svelte only: interactive notification popover with caller-owned callbacks.* | `styles/elements/notifications.css` |
 | **SaveStatus** | `state`: SaveState<br>`compact`: boolean<br>`savingLabel`: string<br>`savedLabel`: string<br>`liveLabel`: string<br>`errorLabel`: string | svelte + astro | `styles/elements/save-status.css` |
 | **Skeleton** | `variant`: 'text' \| 'pill' \| 'block'<br>`width`: string<br>`height`: string<br>`lines`: number | svelte + astro | `styles/elements/skeleton.css` |
 | **SkeletonStack** | `rows*`: number<br>`height*`: string<br>`columns`: 1 \| 2 | svelte + astro | `styles/elements/skeleton.css` |
+| **StatusDot** | — | svelte + astro | `styles/elements/status-dot.css` |
 | **Tag** | `tone`: 'quiet' \| 'live' \| 'alpha' \| 'pre' \| 'incoming' \| 'bare' \| 'error'<br>`mark`: 'solid' \| 'hollow' \| 'dash' \| 'up' \| 'plus'<br>`sweep`: boolean<br>`status`: boolean<br>`as`: 'span' \| 'small' \| 'div' | svelte + astro | `styles/tags.css` |
 | **ToastHost** | `dismissLabel`: string<br>`undoLabel`: string | svelte<br>*Svelte only: it subscribes to the toast store, and a host with nothing to subscribe to renders nothing.* | `styles/elements/toast.css` |
 | **Tooltip** | `text*`: string<br>`placement`: 'top' \| 'bottom'<br>`id`: string | svelte + astro | `styles/elements/tooltip.css` |

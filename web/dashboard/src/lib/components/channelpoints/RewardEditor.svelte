@@ -7,8 +7,8 @@
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { Field, RadioGroup, getI18n, type ChannelPointReward, type CounterScope } from '@bagel/kit';
-  import CheckButton from '$lib/components/CheckButton.svelte';
-  import { focusFirstInvalid } from '$lib/forms/validation';
+  import { Checkbox } from '@bagel/kit';
+  import { focusFirstInvalid } from '@bagel/kit';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
 
@@ -153,11 +153,11 @@
   </Field>
 
   <div class="check">
-    <CheckButton bind:checked={draft.isUserInputRequired} label={t('channelpoints.requireInput')} />
+    <Checkbox bind:checked={draft.isUserInputRequired}>{t('channelpoints.requireInput')}</Checkbox>
   </div>
 
   <div class="check">
-    <CheckButton bind:checked={replyOn} label={t('channelpoints.replyToggle')} />
+    <Checkbox bind:checked={replyOn}>{t('channelpoints.replyToggle')}</Checkbox>
   </div>
 
   {#if replyOn}
@@ -192,7 +192,7 @@
     </header>
 
     <div class="hook">
-      <CheckButton bind:checked={counterOn} label={t('rewardCounter.enable')} />
+      <Checkbox bind:checked={counterOn}>{t('rewardCounter.enable')}</Checkbox>
       {#if counterOn}
         <div class="hook-body">
           <Field
@@ -223,7 +223,7 @@
     </div>
 
     <div class="hook">
-      <CheckButton bind:checked={pointsOn} label={t('rewardCounter.pointsEnable')} />
+      <Checkbox bind:checked={pointsOn}>{t('rewardCounter.pointsEnable')}</Checkbox>
       {#if pointsOn}
         <div class="hook-body">
           <Field label={t('rewardCounter.pointsLabel')} hint={t('rewardCounter.pointsHint')} class="points-field">
@@ -240,7 +240,7 @@
       <!-- Live-only gate: offline redeems still reply in chat, but don't touch
            the counter or grant points. Only meaningful when a hook is on. -->
       <div class="hook live-gate">
-        <CheckButton bind:checked={draft.liveOnly} label={t('rewardCounter.liveOnly')} />
+        <Checkbox bind:checked={draft.liveOnly}>{t('rewardCounter.liveOnly')}</Checkbox>
         <small class="live-hint">{t('rewardCounter.liveOnlyHint')}</small>
       </div>
     {/if}
@@ -250,7 +250,7 @@
     <span class="limits-title">{t('channelpoints.limits')}</span>
 
     <div class="limit">
-      <CheckButton bind:checked={draft.maxPerStreamEnabled} label={t('channelpoints.limitPerStream')} />
+      <Checkbox bind:checked={draft.maxPerStreamEnabled}>{t('channelpoints.limitPerStream')}</Checkbox>
       {#if draft.maxPerStreamEnabled}
         <input class="bb-input num" type="number" min="1" bind:value={draft.maxPerStream} />
       {/if}
@@ -260,14 +260,14 @@
     {/if}
 
     <div class="limit">
-      <CheckButton bind:checked={draft.maxPerUserPerStreamEnabled} label={t('channelpoints.limitPerUser')} />
+      <Checkbox bind:checked={draft.maxPerUserPerStreamEnabled}>{t('channelpoints.limitPerUser')}</Checkbox>
       {#if draft.maxPerUserPerStreamEnabled}
         <input class="bb-input num" type="number" min="1" bind:value={draft.maxPerUserPerStream} />
       {/if}
     </div>
 
     <div class="limit">
-      <CheckButton bind:checked={draft.globalCooldownEnabled} label={t('channelpoints.limitCooldown')} />
+      <Checkbox bind:checked={draft.globalCooldownEnabled}>{t('channelpoints.limitCooldown')}</Checkbox>
       {#if draft.globalCooldownEnabled}
         <input class="bb-input num" type="number" min="1" bind:value={draft.globalCooldownSeconds} />
       {/if}
@@ -275,7 +275,7 @@
   </div>
 
   <div class="check">
-    <CheckButton bind:checked={draft.isEnabled} label={t('channelpoints.visible')} />
+    <Checkbox bind:checked={draft.isEnabled}>{t('channelpoints.visible')}</Checkbox>
   </div>
 
   <div class="actions">
@@ -305,8 +305,7 @@
     cursor: pointer;
   }
 
-  .check { margin: 4px 0 14px; }
-  .check :global(.cb) { align-items: center; }
+  .check { margin: 4px 0 14px; --bb-check-align: center; }
 
   /* ── Loyalty hooks: two toggle-gated blocks ───────────────────────────── */
   .hooks {
@@ -328,9 +327,8 @@
     color: var(--bb-muted);
     margin-bottom: 4px;
   }
-  .hook { display: flex; flex-direction: column; }
+  .hook { display: flex; flex-direction: column; --bb-check-align: center; }
   .hook + .hook { border-top: 1px solid rgba(240, 236, 228, 0.06); padding-top: 12px; margin-top: 6px; }
-  .hook :global(.cb) { align-items: center; }
 
   /* Revealed controls sit indented under their toggle, with a soft rail so the
      grouping reads at a glance. */
@@ -394,8 +392,7 @@
     color: var(--bb-muted);
     letter-spacing: 0.01em;
   }
-  .limit { display: flex; align-items: center; gap: 10px; }
-  .limit :global(.cb) { flex: 1; align-items: center; }
+  .limit { display: flex; align-items: center; gap: 10px; --bb-check-flex: 1; --bb-check-align: center; }
   .limit .num { width: 88px; flex: none; }
   .limit-hint {
     color: var(--bb-muted);

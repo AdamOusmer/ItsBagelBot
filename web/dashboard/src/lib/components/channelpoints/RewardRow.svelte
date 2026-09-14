@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Button } from '@bagel/kit';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   // One ledger line in the reward deck, on the shared ManagementRow: the
@@ -70,7 +71,7 @@
         </span>
         <!-- Cost + visibility STATE as labelled TEXT (never colour alone). -->
         <span class="meta">
-          <span class="cost"><span class="sr-only">{t('channelpoints.fieldCost')}: </span>{r.cost.toLocaleString()}</span>
+          <span class="cost"><span class="bb-sr-only">{t('channelpoints.fieldCost')}: </span>{r.cost.toLocaleString()}</span>
           <span class="bb-tag {r.isEnabled ? 'bb-tag--live' : 'bb-tag--quiet'}">
             <i class="bb-mark {r.isEnabled ? '' : 'bb-mark--hollow'}" aria-hidden="true"></i>
             {r.isEnabled ? t('channelpoints.stateVisible') : t('channelpoints.stateHidden')}
@@ -83,9 +84,7 @@
         <input type="hidden" name="reward" value={togglePayload} />
         <Switch type="submit" checked={r.isEnabled} label={t('channelpoints.toggleAria', { name: r.title })} />
       </form>
-      <button class="mini" type="button" aria-label={t('channelpoints.deleteAria', { name: r.title })} onclick={onDelete}>
-        <Icon name="trash" size={15} />
-      </button>
+      <Button variant="icon" size="sm" class="delete-action" danger type="button" aria-label={t('channelpoints.deleteAria', { name: r.title })} onclick={onDelete} ><Icon name="trash" size={15} /></Button>
     {/snippet}
   </ManagementRow>
 </li>
@@ -148,20 +147,7 @@
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
   }
-  .mini {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    border: 1px solid transparent;
-    border-radius: var(--bb-radius-sm);
-    background: none;
-    color: var(--bb-muted);
-    cursor: pointer;
-  }
-  .mini:hover { color: #cf8a78; border-color: rgba(176, 90, 70, 0.4); }
-  .mini:focus-visible { outline: 2px solid var(--bb-green-glow, #52b788); outline-offset: 2px; }
+  :global(.delete-action) { width: 32px; height: 32px; min-height: 32px; }
 
   @media (max-width: 760px) {
     .prow {
@@ -185,6 +171,6 @@
       -webkit-box-orient: vertical;
     }
     .meta { grid-area: meta; flex-direction: row; align-items: center; gap: 12px; }
-    .mini { min-width: 44px; min-height: 44px; }
+    :global(.delete-action) { min-width: 44px; min-height: 44px; }
   }
 </style>

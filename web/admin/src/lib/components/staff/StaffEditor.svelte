@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Input from '@bagel/ui/svelte/Input.svelte';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   // The staff inspector, in both of its modes. `creating` swaps the identity
@@ -23,7 +24,7 @@
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { AdminRole } from '$lib/access';
   import type { AdminAcct, AuditEntry } from '$lib/server/services';
-  import StatusDot from '../StatusDot.svelte';
+  import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
   import { ROLE_LABEL, type StaffDraft } from './staff-roles';
 
   let {
@@ -74,8 +75,8 @@
     <div class="body">
       {#if creating}
         <Field label={t('admin.staff.fieldUserId')}>
-          <input
-            class="text-input"
+          <Input
+            fill mono
             type="text"
             inputmode="numeric"
             pattern="[0-9]+"
@@ -84,16 +85,16 @@
           />
         </Field>
         <Field label={t('admin.staff.fieldLogin')}>
-          <input
-            class="text-input"
+          <Input
+            fill mono
             type="text"
             placeholder={t('admin.staff.fieldLoginPlaceholder')}
             bind:value={draft.login}
           />
         </Field>
         <Field label={t('admin.staff.fieldDisplayName')}>
-          <input
-            class="text-input"
+          <Input
+            fill mono
             type="text"
             placeholder={t('admin.staff.fieldDisplayNamePlaceholder')}
             bind:value={draft.displayName}

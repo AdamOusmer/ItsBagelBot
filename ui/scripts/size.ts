@@ -151,8 +151,12 @@ const ENTRIES: {
     // Re-measured 2026-09-09 after the flash constant became 1600: 139 B,
     // unchanged. Recorded rather than left silent because the number in the
     // source moved and the next person will check.
+    // 2026-09-14: copyText now centralizes the legacy selection fallback and
+    // restores focus/selection, replacing inline browser-copy implementations.
+    // Measured 484 B gzip on macOS/arm64; 700 covers the ~150 B platform
+    // allowance plus 66 B headroom. No toast or application state is imported.
     name: "clipboard",
-    budget: 320,
+    budget: 700,
     external: [],
     source: `import { copyFlash } from "../../lib/clipboard";
              globalThis.x = copyFlash;`,

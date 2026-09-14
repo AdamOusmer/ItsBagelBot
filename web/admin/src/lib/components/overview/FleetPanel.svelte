@@ -10,7 +10,7 @@
   import { statusTone } from '@bagel/kit/status-tone';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { ShardSnapshot } from '@bagel/kit';
-  import StatusDot from '../StatusDot.svelte';
+  import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
 
   let { snapshot, ok }: { snapshot: ShardSnapshot; ok: boolean } = $props();
 

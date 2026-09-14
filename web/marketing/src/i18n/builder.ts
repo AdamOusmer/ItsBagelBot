@@ -13,6 +13,8 @@
 // as literal text.
 
 import { defaultLang, type Lang } from './ui';
+import { SITE } from '@bagel/kit/site-links';
+import { COMMAND_NAME_MAX, RESPONSE_MAX, RESPONSE_MAX_LINES, COOLDOWN_MAX } from '@bagel/kit/engine/commands-validate';
 
 type L10n = Record<Lang, string>;
 
@@ -719,16 +721,16 @@ export const PERMS: { value: string; label: L10n }[] = [
   { value: 'broadcaster', label: { en: 'Broadcaster only', fr: 'Diffuseur seulement' } },
 ];
 
-// Validation limits, mirrored from internal/domain/validate/validate.go.
+// The builder uses the same validation limits as the dashboard.
 export const LIMITS = {
-  nameMax: 64,
+  nameMax: COMMAND_NAME_MAX,
   aliasMax: 25,
-  lineMax: 500,
-  linesMax: 5,
-  cooldownMax: 86400,
+  lineMax: RESPONSE_MAX,
+  linesMax: RESPONSE_MAX_LINES,
+  cooldownMax: COOLDOWN_MAX,
 } as const;
 
-export const DASHBOARD_ORIGIN = 'https://dashboard.itsbagelbot.com';
+export const DASHBOARD_ORIGIN = SITE.dashboard;
 
 // Quick-start recipes offered under the response field, both locales.
 const RECIPES: { label: L10n; text: L10n }[] = [

@@ -32,8 +32,8 @@
   // author answers "which value do you want?", not "what shape is your API?".
   import { deserialize } from '$app/forms';
   import { Button, Code, Field, Input, Modal, getI18n, slugifyName, buildJsonPath, DEFS_PER_BROADCASTER } from '@bagel/kit';
-  import PickerPanel from '$lib/components/PickerPanel.svelte';
-  import { focusFirstInvalid } from '$lib/forms/validation';
+  import { PickerPanel } from '@bagel/kit';
+  import { focusFirstInvalid } from '@bagel/kit';
   import JsonTree from './JsonTree.svelte';
 
   const { t } = getI18n();

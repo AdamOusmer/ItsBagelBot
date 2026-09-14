@@ -2,6 +2,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import Tag from '@bagel/ui/astro/Tag.astro';
+
 /**
  * The chat rehearsal strip the command and module editors carry under a
  * response: what the bot would say, with the sample values marked.
@@ -36,7 +38,7 @@ const { tag, lines, note } = Astro.props;
 ---
 
 <div class="chat">
-    <span class="bb-tag bb-tag--bare chat-tag">{tag}</span>
+    <Tag tone="bare" class="chat-tag">{tag}</Tag>
     {lines.map((line) => (
         <p class:list={['line', line.who]}>
             {line.name && <span class:list={['who', `${line.who}-name`]}>{line.name}</span>}

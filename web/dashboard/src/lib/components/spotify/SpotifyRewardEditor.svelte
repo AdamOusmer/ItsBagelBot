@@ -8,7 +8,7 @@
   import { Button, Code, Field, EditorFooter, getI18n, type SpotifyRedeemConfig } from '@bagel/kit';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
-  import { focusFirstInvalid } from '$lib/forms/validation';
+  import { focusFirstInvalid } from '@bagel/kit';
 
   let {
     redeem,

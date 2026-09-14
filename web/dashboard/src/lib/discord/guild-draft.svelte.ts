@@ -20,6 +20,7 @@ import { untrack } from 'svelte';
 import type { SubmitFunction } from '@sveltejs/kit';
 import {
   actionPayload,
+  createDiscardGuard,
   fieldErrorsByField,
   flagValue,
   toast,
@@ -109,8 +110,6 @@ export function createGuildDraft(init: DraftInit) {
   let saveState = $state<SaveState>('idle');
   let saving = $state(false);
   let invalidFields = $state<string[]>([]);
-  let pendingHref = $state('');
-  let discardOpen = $state(false);
   let guarded = true;
 
   const payload = $derived(slice(config, fields));
@@ -221,28 +220,16 @@ export function createGuildDraft(init: DraftInit) {
    * server list too: clicking "Discord" in the nav with unsaved changes threw
    * them away silently, which is the exact case the guard exists for.
    */
-  beforeNavigate((nav) => {
-    if (!guarded) return;
-    if (!dirty) return;
-    if (!nav.to) return;
-    if (pendingHref === nav.to.url.href) return;
-    nav.cancel();
-    pendingHref = nav.to.url.href;
-    discardOpen = true;
-  });
-
-  function confirmDiscard() {
-    discardOpen = false;
-    // Baseline moves to the current draft so the second navigation is no longer
-    // dirty and beforeNavigate lets it through.
+  const discard = createDiscardGuard(() => dirty, () => {
+    // The replayed navigation must see a clean draft and pass beforeNavigate.
     baseline = payload;
-    if (pendingHref) goto(pendingHref);
-  }
-
-  function cancelDiscard() {
-    discardOpen = false;
-    pendingHref = '';
-  }
+  });
+  beforeNavigate((nav) => {
+    if (!guarded || !dirty || !nav.to) return;
+    nav.cancel();
+    const href = nav.to.url.href;
+    discard.guard(() => { void goto(href); });
+  });
 
   return {
     get config() {
@@ -276,7 +263,7 @@ export function createGuildDraft(init: DraftInit) {
       return invalidBanner;
     },
     get discardOpen() {
-      return discardOpen;
+      return discard.open;
     },
     set(field: keyof DiscordConfig, value: string) {
       config[field] = value;
@@ -288,8 +275,8 @@ export function createGuildDraft(init: DraftInit) {
     actionSubmit,
     saveSubmit,
     reload,
-    confirmDiscard,
-    cancelDiscard,
+    confirmDiscard: discard.confirm,
+    cancelDiscard: discard.cancel,
     /** Stand the guard down for exactly one navigation (the disconnect redirect). */
     releaseGuard() {
       guarded = false;

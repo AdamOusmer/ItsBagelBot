@@ -7,8 +7,8 @@
  * builder's live preview but scoped to one response line. Edit the response,
  * who is typing, and the args, and the chat line below updates.
  *
- * The script's expand() mirrors the bot's own token grammar (engine/vars.go,
- * module/vars.go): user/sender, touser/target, args, channel, counter:<name>,
+ * The script uses the shared token lexer and fallback resolver. Its tutorial
+ * samples cover user/sender, touser/target, args, channel, counter:<name>,
  * urlfetch:<name[.path]>, random, random:a-b, choice:a,b,c. An unrecognized
  * token is left exactly as typed, braces included, same as the live bot. A
  * counter always shows a fixed sample (128) since there is no real store
@@ -183,21 +183,15 @@ const L = {
 </style>
 
 <script>
-    import { prefersReducedMotion } from '../../../script/motion';
+    import { lex, resolveToken } from '@bagel/kit/engine/tmpl';
+    import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
 
     import { bindOnce } from '../../../script/bind';
 
     // Bundled by Astro, so it satisfies the site's script-src 'self' CSP.
-    // Token grammar mirrored from engine/vars.go + module/vars.go: see the
-    // frontmatter comment above for the full list and the rationale.
+    // Grammar and fallback handling are shared; these random samples and
+    // fetched-value pills belong to this interactive tutorial.
     type Segment = { pill: false; text: string } | { pill: true };
-
-    function parseKey(raw: string) {
-        const i = raw.indexOf(':');
-        return i === -1
-            ? { name: raw.toLowerCase(), payload: '', hasPayload: false }
-            : { name: raw.slice(0, i).toLowerCase(), payload: raw.slice(i + 1), hasPayload: true };
-    }
 
     function expand(template: string, who: string, args: string, counterSample: string): Segment[] {
         const cleanWho = (who.trim() || 'sesame_sam').replace(/^@/, '');
@@ -205,21 +199,19 @@ const L = {
         const touser = firstArg ? firstArg.replace(/^@/, '') : cleanWho;
         const segments: Segment[] = [];
         let buf = '';
-        let i = 0;
-        while (i < template.length) {
-            if (template[i] !== '{') { buf += template[i]; i += 1; continue; }
-            const end = template.indexOf('}', i + 1);
-            if (end === -1) { buf += template.slice(i); break; }
-            const raw = template.slice(i + 1, end);
-            const { name, payload, hasPayload } = parseKey(raw);
+        for (const token of lex(template)) {
+            if (token.kind === 'literal') { buf += token.text; continue; }
+            const { name } = token;
+            const payload = token.payload ?? '';
+            const hasPayload = token.payload !== null;
             let resolved: string | null = null;
             let pill = false;
-            if (name === 'user' || name === 'sender') resolved = cleanWho;
-            else if (name === 'touser' || name === 'target') resolved = touser;
-            else if (name === 'args') resolved = args;
-            else if (name === 'channel') resolved = 'your_channel';
-            else if (name === 'counter' && hasPayload) resolved = counterSample;
-            else if (name === 'urlfetch' && hasPayload) pill = true;
+            if (!hasPayload && (name === 'user' || name === 'sender')) resolved = cleanWho;
+            else if (!hasPayload && (name === 'touser' || name === 'target')) resolved = touser;
+            else if (!hasPayload && name === 'args') resolved = args;
+            else if (!hasPayload && name === 'channel') resolved = 'your_channel';
+            else if (name === 'counter' && payload.trim() !== '') resolved = counterSample;
+            else if (name === 'urlfetch' && payload.trim() !== '') pill = true;
             else if (name === 'random') {
                 if (!hasPayload) resolved = String(1 + Math.floor(Math.random() * 100));
                 else {
@@ -237,12 +229,9 @@ const L = {
             if (pill) {
                 if (buf) { segments.push({ pill: false, text: buf }); buf = ''; }
                 segments.push({ pill: true });
-            } else if (resolved !== null) {
-                buf += resolved;
             } else {
-                buf += `{${raw}}`;
+                buf += resolveToken(token, resolved);
             }
-            i = end + 1;
         }
         if (buf) segments.push({ pill: false, text: buf });
         return segments;

@@ -536,7 +536,7 @@ const t = useTranslations(lang);
 
 <script>
     import { bindOnce } from '../../script/bind';
-    import { reduceMotion } from '../../script/motion';
+    import { reduceMotion } from '@bagel/ui/lib/motion-query';
 
     /* Poll bars fill the first time the card scrolls into view */
     const pollsIn = new IntersectionObserver((entries, obs) => {

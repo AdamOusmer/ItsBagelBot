@@ -59,38 +59,11 @@
   block
 >
   {#snippet icon()}
-    {#if idx}<span class="idx" class:is-active={active}>{idx}</span>{/if}
+    {#if idx}<span class="bb-nav-link__index" class:bb-nav-link__index--current={active}>{idx}</span>{/if}
     {#if iconName}<Icon name={iconName} />{/if}
   {/snippet}
   {#snippet trail()}
     {#if locked}<Icon name="lock" size={13} />{/if}
-    {#if count !== undefined}<span class="count">{count}</span>{/if}
+    {#if count !== undefined}<span class="bb-nav-link__count">{count}</span>{/if}
   {/snippet}
 </NavLink>
-
-<style>
-  /* The index column and the count are the LEDGER, not the link: they are what
-     makes this rail a numbered register rather than a menu, and no other
-     surface that renders a nav link has them. Everything that WAS link styling
-     here -- the mono type, the hover colour, the active state, the green square
-     -- now comes from @bagel/ui/styles/elements/nav-link.css.
-
-     `.nav-item` is still passed to NavLink and still styled, but only by
-     NavGroup, which draws the hairline BETWEEN rows. That rule stays there
-     because it is a property of the group, not of one entry. */
-  .idx {
-    font-size: 10px;
-    color: var(--bb-muted);
-    opacity: 0.6;
-    min-width: 18px;
-    transition: color var(--bb-dur-base) ease, opacity var(--bb-dur-base) ease;
-  }
-
-  .idx.is-active { color: var(--bb-tan); opacity: 1; }
-
-  /* Reached through :global because the class it hangs off lives on the child
-     component's root, which Svelte cannot scope-mark from here. */
-  :global(.bb-nav-link):hover .idx { opacity: 1; }
-
-  .count { margin-left: auto; font-size: 10px; color: var(--bb-muted); }
-</style>

@@ -7,7 +7,7 @@
   // through the counters page's own ?/create action.
   import { deserialize } from '$app/forms';
   import { getI18n, type CounterScope } from '@bagel/kit';
-  import PickerPanel from '$lib/components/PickerPanel.svelte';
+  import { PickerPanel } from '@bagel/kit';
 
   const { t } = getI18n();
 

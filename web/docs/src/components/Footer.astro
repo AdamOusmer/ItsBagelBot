@@ -2,6 +2,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import { SITE } from '@bagel/kit/site-links';
+
 /**
  * Starlight `Footer` override: the page's own footer, then the site's.
  *
@@ -29,16 +31,16 @@ const columns = [
   {
     title: 'Product',
     links: [
-      { href: 'https://itsbagelbot.com', label: 'Main site', external: true },
-      { href: 'https://itsbagelbot.com/pricing', label: 'Pricing', external: true },
-      { href: 'https://dashboard.itsbagelbot.com', label: 'Dashboard', external: true },
+      { href: SITE.web, label: 'Main site', external: true },
+      { href: `${SITE.web}/pricing`, label: 'Pricing', external: true },
+      { href: SITE.dashboard, label: 'Dashboard', external: true },
     ],
   },
   {
     title: 'Community',
     links: [
-      { href: 'https://discord.gg/SZ2remwSDv', label: 'Discord', external: true },
-      { href: 'https://github.com/AdamOusmer/ItsBagelBot', label: 'GitHub', external: true },
+      { href: SITE.discord, label: 'Discord', external: true },
+      { href: SITE.github, label: 'GitHub', external: true },
     ],
   },
 ];
@@ -47,11 +49,11 @@ const columns = [
 <Default><slot /></Default>
 <Footer
   class="docs-footer"
-  brand={{ title: 'ItsBagelBot', sub: 'Documentation', href: 'https://itsbagelbot.com' }}
+  brand={{ title: 'ItsBagelBot', sub: 'Documentation', href: SITE.web }}
   columns={columns}
   legal={[
-    { href: 'https://itsbagelbot.com/privacy', label: 'Privacy', external: true },
-    { href: 'https://itsbagelbot.com/terms', label: 'Terms', external: true },
+    { href: `${SITE.web}/privacy`, label: 'Privacy', external: true },
+    { href: `${SITE.web}/terms`, label: 'Terms', external: true },
   ]}
   copyright="© 2026 ItsBagelBot"
 />

@@ -355,6 +355,14 @@ describe('Button', () => {
     html: '<button class="bb-btn bb-btn--icon" type="button" data-mark aria-label="Close"><span class="bb-btn__content"><svg viewBox="0 0 24 24"></svg></span></button>',
   });
 
+  contract({
+    name: 'compact destructive icon preserves its accessible name and glyph',
+    svelte: SvelteButton,
+    astro: AstroButton,
+    props: { variant: 'icon', size: 'sm', danger: true, icon: true, label: 'Delete' },
+    html: '<button class="bb-btn bb-btn--icon bb-btn--danger-hover bb-btn--sm" type="button" data-mark aria-label="Delete"><span class="bb-btn__content"><svg viewBox="0 0 24 24"></svg></span></button>',
+  });
+
   // Divergence BL1: Astro switches on `href` inside one component, Svelte has
   // a second component. Same markup either way, which is what makes that
   // acceptable.

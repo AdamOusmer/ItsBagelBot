@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Input from '@bagel/ui/svelte/Input.svelte';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   // The lane inspector. Three verbs, three shapes:
@@ -99,8 +100,8 @@
       </dl>
 
       <Field label={t('admin.lanes.fieldAlias')}>
-        <input
-          class="text-input"
+        <Input
+          fill mono
           type="text"
           maxlength={ALIAS_MAX}
           disabled={!canMutate}

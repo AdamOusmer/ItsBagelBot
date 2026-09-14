@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Input from '@bagel/ui/svelte/Input.svelte';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   // The body of the user inspector: what this account IS, followed by what an
@@ -22,7 +23,7 @@
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { AccessKey } from '$lib/access';
   import type { AdminUserWire, AuditEntry, ChannelSubState } from '$lib/server/services';
-  import StatusDot from '../StatusDot.svelte';
+  import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
   import StatePill from '../StatePill.svelte';
   import { stateOf } from './user-state';
   import { actionLabel, actionsFor, type UserActionDef } from './user-actions';
@@ -207,8 +208,8 @@
         <h3 class="block-label">{t('admin.users.creatorTitle')}</h3>
         <form class="inline" method="POST" action="?/setCreatorCode" use:enhance={creatorSubmit}>
           <input type="hidden" name="user_id" value={user.id} />
-          <input
-            class="text-input"
+          <Input
+            fill mono
             type="text"
             name="creator_code"
             maxlength="64"
@@ -239,8 +240,8 @@
       </div>
       {#if viewAsUrl}
         <div class="inline">
-          <input
-            class="text-input"
+          <Input
+            fill mono
             type="text"
             readonly
             value={viewAsUrl}
@@ -430,21 +431,6 @@
   .inline {
     display: flex;
     gap: 8px;
-  }
-  .text-input {
-    flex: 1;
-    min-width: 0;
-    padding: 8px 11px;
-    font-family: var(--bb-font-mono);
-    font-size: 12.5px;
-    border: 1px solid var(--bb-border);
-    border-radius: var(--bb-radius-sm);
-    background: var(--bb-bg-1, #16130f);
-    color: var(--bb-white);
-  }
-  .text-input:focus {
-    outline: none;
-    border-color: var(--bb-border-strong);
   }
 
   .hist {

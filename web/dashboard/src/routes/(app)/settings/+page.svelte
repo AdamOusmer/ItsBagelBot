@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { copyText } from '@bagel/ui/lib/clipboard';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import {
@@ -179,12 +180,11 @@
   // copied -> consumed).
   let copied = $state<Record<string, boolean>>({});
   async function copy(token: string) {
-    try {
-      await navigator.clipboard.writeText(linkFor(token));
+    if (await copyText(linkFor(token))) {
       copied = { ...copied, [token]: true };
       toast('ok', t('settings.toastInviteCopied'));
       setTimeout(() => (copied = { ...copied, [token]: false }), 4000);
-    } catch {
+    } else {
       toast('err', t('settings.toastClipboardBlocked'));
     }
   }

@@ -191,6 +191,7 @@ const t = useTranslations(lang);
 </style>
 
 <script>
+    import { getSmoothScroll } from "@bagel/ui/lib/lenis";
     import { bindOnce } from '../../script/bind';
 
     /* Clicking the cue is the same gesture as scrolling one viewport: it hands
@@ -204,7 +205,7 @@ const t = useTranslations(lang);
        is also exactly where --hero-p reaches 1 and the hero has fully faded. */
     function onClick() {
         const top = window.scrollY + window.innerHeight;
-        const lenis = (window as any).__lenis;
+        const lenis = getSmoothScroll();
 
         if (lenis?.scrollTo) {
             lenis.scrollTo(top, { duration: 1.1 });

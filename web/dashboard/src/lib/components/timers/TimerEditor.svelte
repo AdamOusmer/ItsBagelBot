@@ -11,7 +11,7 @@
   // inline error wired to the input via aria-invalid + aria-describedby; the
   // owning form performs the matching submit-time gate.
   import { getI18n, type TimerDef, Field } from '@bagel/kit';
-  import CheckButton from '$lib/components/CheckButton.svelte';
+  import { Checkbox } from '@bagel/kit';
 
   // Whole minutes; mirrors the server clamp (60s–24h => 1–1440 min).
   const MIN = 1;
@@ -83,7 +83,7 @@
   </Field>
 
   <div class="check">
-    <CheckButton bind:checked={draft.enabled} label={t('timers.active')} />
+    <Checkbox bind:checked={draft.enabled}>{t('timers.active')}</Checkbox>
   </div>
 </div>
 
@@ -109,6 +109,5 @@
   .editor .interval-row .num { width: 100px; flex: none; }
   .unit { font-family: var(--bb-font-body); font-size: 13px; color: var(--bb-muted); }
 
-  .check { margin: 4px 0 6px; }
-  .check :global(.cb) { align-items: center; }
+  .check { margin: 4px 0 6px; --bb-check-align: center; }
 </style>

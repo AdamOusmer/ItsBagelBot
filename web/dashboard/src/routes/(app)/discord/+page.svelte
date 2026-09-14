@@ -138,7 +138,7 @@
          state does not say better. -->
     {#if guilds.length > 0}
       <section class="block reveal" style="--i:0" aria-labelledby="dc-stats-h">
-        <h2 id="dc-stats-h" class="sr-only">{t('discord.hub.statsTitle')}</h2>
+        <h2 id="dc-stats-h" class="bb-sr-only">{t('discord.hub.statsTitle')}</h2>
         <div class="bb-stat-grid bb-stat-grid--auto">
           <StatTile
             label={t('discord.hub.statServers')}

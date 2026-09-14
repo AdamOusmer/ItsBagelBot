@@ -24,6 +24,8 @@ import '../styles/elements/button.css';
 interface Props {
     variant?: 'primary' | 'secondary' | 'ghost' | 'green' | 'destructive' | 'icon' | 'tan' | 'quiet' | 'go';
     solid?: boolean;
+    /** Use destructive feedback on hover, for icon actions such as delete. */
+    danger?: boolean;
     /** Full width, centred, >=44px tall: the mobile action-row shape. */
     block?: boolean;
     size?: 'md' | 'sm';
@@ -39,6 +41,7 @@ interface Props {
 const {
     variant = 'primary',
     solid = false,
+    danger = false,
     block = false,
     size = 'md',
     type = 'button',
@@ -62,6 +65,7 @@ const classes = [
     'bb-btn',
     `bb-btn--${variant}`,
     solid && 'bb-btn--solid',
+    danger && 'bb-btn--danger-hover',
     block && 'bb-btn--block',
     size === 'sm' && 'bb-btn--sm',
     loading && 'is-loading',

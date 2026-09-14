@@ -6,6 +6,7 @@
   import type { SubmitFunction } from '@sveltejs/kit';
   import {
     Button,
+    createDiscardGuard,
     PageHead,
     Scroller,
     ConfirmDialog,
@@ -28,7 +29,7 @@
   import { createInspector } from '@bagel/ui/svelte/inspector';
   import TimerRow from '$lib/components/timers/TimerRow.svelte';
   import TimerEditor from '$lib/components/timers/TimerEditor.svelte';
-  import { focusFirstInvalid } from '$lib/forms/validation';
+  import { focusFirstInvalid } from '@bagel/kit';
 
   let { data } = $props();
   const { t } = getI18n();
@@ -75,29 +76,11 @@
   const canSave = $derived(creating || inspector.dirty);
 
   // --- Dirty guard: every close/switch/new routes through one confirmation ----
-  let discardOpen = $state(false);
-  let afterDiscard: (() => void) | null = null;
-
-  function guarded(action: () => void) {
-    if (inspector.dirty) {
-      afterDiscard = action;
-      discardOpen = true;
-    } else {
-      action();
-    }
-  }
-  function confirmDiscard() {
-    discardOpen = false;
+  const discard = createDiscardGuard(() => inspector.dirty, () => {
     inspector.reset();
     draft = null;
-    const a = afterDiscard;
-    afterDiscard = null;
-    a?.();
-  }
-  function cancelDiscard() {
-    discardOpen = false;
-    afterDiscard = null;
-  }
+  });
+  const guarded = discard.guard;
 
   function openNew() {
     guarded(() => {
@@ -313,14 +296,14 @@
 
 <!-- Dirty guard: one confirmation for close / row-switch / new / cancel. -->
 <ConfirmDialog
-  open={discardOpen}
+  open={discard.open}
   title={t('timers.discardTitle')}
   body={t('timers.discardBody')}
   confirmLabel={t('timers.discard')}
   cancelLabel={t('timers.keepEditing')}
   danger
-  onCancel={cancelDiscard}
-  onConfirm={confirmDiscard}
+  onCancel={discard.cancel}
+  onConfirm={discard.confirm}
 />
 
 <style>

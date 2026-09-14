@@ -7,6 +7,7 @@
   import {
     Icon,
     Button,
+    SearchInput,
     Field,
     PageHead,
     Scroller,
@@ -296,22 +297,8 @@
     {#snippet trail()}
       <div class="toolbar-actions">
         <div class="toolbar-search">
-          <label for="quotes-search" class="sr-only">{t('quotes.searchLabel')}</label>
-          <div class="bb-input">
-            <Icon name="search" size={15} />
-            <input
-              id="quotes-search"
-              type="text"
-              autocomplete="off"
-              placeholder={t('quotes.searchLabel')}
-              bind:value={search}
-            />
-            {#if search}
-              <button type="button" class="search-clear" aria-label={t('quotes.searchClear')} onclick={() => (search = '')}>
-                <Icon name="x" size={12} />
-              </button>
-            {/if}
-          </div>
+          <SearchInput id="quotes-search" aria-label={t('quotes.searchLabel')} autocomplete="off"
+            placeholder={t('quotes.searchLabel')} clearLabel={t('quotes.searchClear')} bind:value={search} fill />
         </div>
 
         <Button variant="primary" onclick={openNew} disabled={expanded === NEW}>
@@ -354,7 +341,7 @@
   </section>
 
   <!-- Polite live region: announces the match count as the search narrows. -->
-  <p class="sr-only" role="status" aria-live="polite">
+  <p class="bb-sr-only" role="status" aria-live="polite">
     {searching ? t('quotes.resultsCount', { n: rows.length }) : ''}
   </p>
 
@@ -402,9 +389,7 @@
                 : t('quotes.inspector')}
         </span>
         {#if expanded}
-          <button class="mini" type="button" aria-label={t('common.cancel')} onclick={closeInspector}>
-            <Icon name="x" size={14} />
-          </button>
+          <Button variant="icon" size="sm" type="button" aria-label={t('common.cancel')} onclick={closeInspector} ><Icon name="x" size={15} /></Button>
         {/if}
       </div>
 
@@ -512,20 +497,6 @@
 
   /* `--input-w` is `.bb-input`'s own width knob (elements/field.css). */
   .toolbar-search { width: 220px; --input-w: 100%; }
-  .search-clear {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 22px;
-    height: 22px;
-    flex: none;
-    border: none;
-    background: transparent;
-    color: var(--bb-muted);
-    cursor: pointer;
-    border-radius: var(--bb-radius-sm);
-  }
-  .search-clear:hover { color: var(--bb-white); }
 
   .deck {
     display: grid;

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { onMount } from 'svelte';
@@ -62,7 +63,7 @@
     if (!h1 || h1.dataset.heroMotionReady === 'true') return;
     h1.dataset.heroMotionReady = 'true';
     // Reduced motion never hides them in the first place.
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (prefersReducedMotion()) return;
     if (document.hidden) {
       revealGlyphs(h1);
       return;

@@ -59,7 +59,7 @@ export { default as Bolota } from '../components/Bolota.svelte';
 export { default as ImpersonationBanner } from '../components/ImpersonationBanner.svelte';
 export { default as MiniButton } from '../components/MiniButton.svelte';
 export { default as ErrorView } from '../components/ErrorView.svelte';
-export { default as NotificationBell } from '../components/NotificationBell.svelte';
+export { default as NotificationBell } from '@bagel/ui/svelte/NotificationBell.svelte';
 
 export { initLenis, magnetic, countUp } from './actions';
 export { copyFlash } from '@bagel/ui/lib/clipboard';

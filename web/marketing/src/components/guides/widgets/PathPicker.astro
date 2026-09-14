@@ -108,11 +108,12 @@ const sample =
 </style>
 
 <script>
+    import { JSON_PATH_MAX_DEPTH, PATH_SEGMENT_RE } from '@bagel/kit/engine/fetch-validate';
+    import { buildJsonPath } from '@bagel/kit/engine/fetch-tokens';
+    import { intactSpan } from '@bagel/kit/engine/tmpl';
     import { bindOnce } from '../../../script/bind';
 
     // Bundled by Astro, so it satisfies the site's script-src 'self' CSP.
-    const SEGMENT = /^[A-Za-z0-9_-]{1,64}$/;
-    const MAX_DEPTH = 8;
     const CAP = 100;
 
     function capBytes(text: string): { out: string; cut: boolean } {
@@ -141,7 +142,7 @@ const sample =
     }
 
     function refusal(segs: string[], strings: DOMStringMap): string {
-        if (segs.length > MAX_DEPTH) return strings.tooDeep ?? '';
+        if (segs.length > JSON_PATH_MAX_DEPTH) return strings.tooDeep ?? '';
         return strings.badSegment ?? '';
     }
 
@@ -155,10 +156,10 @@ const sample =
 
         function show(segs: string[] | null, value: string) {
             const cleaned = chatValue(value);
-            const path = segs ? segs.join('.') : '';
+            const path = segs ? buildJsonPath(segs) : '';
             field('[data-pp-path]').textContent = segs ? path : (strings.whole ?? '');
-            field('[data-pp-token]').textContent = `{urlfetch:${name}}`;
-            field('[data-pp-override]').textContent = segs ? `{urlfetch:${name}.${path}}` : '';
+            field('[data-pp-token]').textContent = intactSpan('urlfetch', name);
+            field('[data-pp-override]').textContent = segs ? intactSpan('urlfetch', `${name}.${path}`) : '';
             field('[data-pp-override-row]').hidden = !segs;
             field('[data-pp-chat]').textContent = cleaned.out;
             field('[data-pp-cut]').hidden = !cleaned.cut;
@@ -171,7 +172,7 @@ const sample =
             button.type = 'button';
             button.className = 'leaf';
             const usable = value !== null && value !== undefined;
-            const pickable = usable && segs.length <= MAX_DEPTH && segs.every((s) => SEGMENT.test(s));
+            const pickable = usable && segs.length <= JSON_PATH_MAX_DEPTH && segs.every((s) => PATH_SEGMENT_RE.test(s));
             button.disabled = !pickable;
             if (!pickable) button.title = usable ? refusal(segs, strings) : (strings.notUsable ?? '');
             button.innerHTML = '<span></span><em></em>';

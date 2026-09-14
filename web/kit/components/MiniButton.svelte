@@ -20,8 +20,6 @@
   // it. It stays as a kit-local alias for the ~40 console call sites that spell
   // it `MiniButton`, and it is deleted, not moved, when they are renamed.
   //
-  // The raw `.mini` rule stays in console.css: 13 markup sites still write
-  // `class="mini"` by hand, and they are not this PR's to migrate.
   import Icon from '@bagel/ui/svelte/Icon.svelte';
   import type { IconName } from '@bagel/ui/lib/icons';
   let { icon, onclick, class: cls = '', ...rest }:

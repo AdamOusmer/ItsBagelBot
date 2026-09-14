@@ -416,6 +416,13 @@ test.describe('guides & command builder', () => {
 
         await widget.locator('[data-rh-who]').fill('maya_live');
         await expect(widget.locator('[data-rh-output]')).toContainText('maya_live');
+
+        // The guide uses the same fallback and payload grammar as the builder.
+        await widget.locator('[data-rh-args]').fill('');
+        await widget.locator('[data-rh-response]').fill('{USER} {args|no args} {user:other}');
+        await expect(widget.locator('[data-rh-content]')).toHaveText('maya_live no args {user:other}');
+        await widget.locator('[data-rh-response]').fill('{URLFETCH:weather|waiting}');
+        await expect(widget.locator('.rh__pill')).toHaveText('fetched at send time');
     });
 
     test('data sources guide teaches the path with a live picker', async ({ page }) => {

@@ -26,7 +26,7 @@
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import type { StatusTone } from '@bagel/kit/status-tone';
   import { getI18n } from '@bagel/kit/i18n/context';
-  import StatusDot from '$lib/components/StatusDot.svelte';
+  import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
 
   interface FeedEvent {
     subject: string;

@@ -2,6 +2,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import Tag from '@bagel/ui/astro/Tag.astro';
+
 /**
  * The "Add a data source" dialog as the command editor opens it: the two
  * names, the web address, the optional key, the sample button, and the JSON
@@ -88,7 +90,7 @@ const L = {
             </div>
         </div>
         <div class="gs-actions">
-            <span class="bb-tag bb-tag--live"><i class="bb-mark" aria-hidden="true"></i>{L.picked}</span>
+            <Tag tone="live" mark="solid">{L.picked}</Tag>
             <span class="dsm__link">{L.wholeResponse}</span>
             <i class="gs-mark" data-note="5"></i>
         </div>

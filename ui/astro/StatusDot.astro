@@ -1,0 +1,9 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+import '../styles/elements/status-dot.css';
+interface Props { tone: 'success' | 'warning' | 'error' | 'neutral' }
+const { tone } = Astro.props;
+---
+
+<span class={`bb-status-dot ${tone}`} aria-hidden="true"></span>

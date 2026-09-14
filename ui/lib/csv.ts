@@ -1,19 +1,13 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// CSV export, once. Two pages offer it (the user directory and the audit
-// trail) and both had written their own `csvEscape` plus their own
-// Blob/anchor/revokeObjectURL dance. The two escapes had already drifted: one
-// tested for `[",\n]`, the other only for a comma, so an audit `detail`
-// containing a quote shifted every column after it.
-
 /**
  * RFC 4180 quoting: a field containing a quote, comma or newline is wrapped and
  * its own quotes doubled. Spelled out rather than joined naively because both
  * exports carry operator-supplied free text (a creator code, an audit detail).
  */
 export function csvCell(value: string): string {
-  return /[",\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
+  return /[",\r\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
 }
 
 /** A header row plus quoted body rows, newline-joined. */

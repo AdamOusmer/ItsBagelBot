@@ -2,6 +2,9 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import PageToolbar from '@bagel/ui/astro/PageToolbar.astro';
+import Tag from '@bagel/ui/astro/Tag.astro';
+
 /**
  * The Commands page with the editor docked beside the list: the toolbar's
  * filter chips and search, two command rows, and the "New command" inspector
@@ -86,24 +89,25 @@ const nav = {
     eyebrow={L.eyebrow}
     titleHtml={L.titleHtml}
 >
-    <div class="bb-toolbar">
-        <div class="gs-actions">
+    <PageToolbar>
+        <div class="gs-actions" slot="lead">
             <Chip on>{L.filterAll}</Chip>
             <Chip tone="muted">{L.filterActive}</Chip>
             <Chip tone="muted">{L.filterCustom}</Chip>
         </div>
-        <div class="bb-toolbar__grow"></div>
+        <Fragment slot="trail">
         <SearchInput placeholder={L.searchPlaceholder} readonly />
         <Button size="sm">{L.newCommand}</Button>
         <i class="gs-mark" data-note="1"></i>
-    </div>
+        </Fragment>
+    </PageToolbar>
     <div class="gs-cols">
         <DeckList>
             <ManagementRow>
                 <span class="gs-row">
                     <span class="gs-num">01</span>
                     <code>{L.row1Name}</code>
-                    <span class="bb-tag bb-tag--quiet">{L.builtIn}</span>
+                    <Tag tone="quiet">{L.builtIn}</Tag>
                     <span class="gs-grow"></span>
                     <span class="gs-meta">{L.row1Meta}</span>
                 </span>

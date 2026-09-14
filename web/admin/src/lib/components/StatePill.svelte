@@ -1,14 +1,8 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // The tier badge and the state chip are the same mark in different colours,
-  // so they are one component. Both are plain <span>s, NOT the shared Chip:
-  // Chip is a <button>, and these sit inside ManagementRow's primary button.
-  // A button inside a button is invalid markup and a screen-reader trap -- the
-  // exact defect ManagementRow was built to stop.
-  //
-  // Colour is a --bb-tier-* token, never a literal, so the dashboard's perm
-  // badges and this roster cannot drift apart again. VIP is silver.
+  // Domain colors stay here; the shared Badge owns the non-interactive pill.
+  import Badge from '@bagel/ui/svelte/Badge.svelte';
   import type { Snippet } from 'svelte';
 
   let {
@@ -29,62 +23,52 @@
   } = $props();
 </script>
 
-<span class="pill {tone}">{@render children()}</span>
+<Badge shape="pill" class="state-pill {tone}">{@render children()}</Badge>
 
 <style>
-  .pill {
-    font-family: var(--bb-font-mono);
-    font-size: 10px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    padding: 2px 8px;
-    border-radius: var(--bb-radius-pill);
-    border: 1px solid transparent;
-    white-space: nowrap;
+  :global(.state-pill.free) {
+    --badge-tone: var(--bb-tier-free);
+    --badge-bg: var(--bb-tier-free-bg);
+    --badge-tone-rule: var(--bb-tier-free-border);
   }
-  .free {
-    color: var(--bb-tier-free);
-    background: var(--bb-tier-free-bg);
-    border-color: var(--bb-tier-free-border);
+  :global(.state-pill.paid) {
+    --badge-tone: var(--bb-tier-paid);
+    --badge-bg: var(--bb-tier-paid-bg);
+    --badge-tone-rule: var(--bb-tier-paid-border);
   }
-  .paid {
-    color: var(--bb-tier-paid);
-    background: var(--bb-tier-paid-bg);
-    border-color: var(--bb-tier-paid-border);
+  :global(.state-pill.vip) {
+    --badge-tone: var(--bb-tier-vip);
+    --badge-bg: var(--bb-tier-vip-bg);
+    --badge-tone-rule: var(--bb-tier-vip-border);
   }
-  .vip {
-    color: var(--bb-tier-vip);
-    background: var(--bb-tier-vip-bg);
-    border-color: var(--bb-tier-vip-border);
+  :global(.state-pill.banned) {
+    --badge-tone: var(--bb-tier-banned);
+    --badge-bg: var(--bb-tier-banned-bg);
+    --badge-tone-rule: var(--bb-tier-banned-border);
   }
-  .banned {
-    color: var(--bb-tier-banned);
-    background: var(--bb-tier-banned-bg);
-    border-color: var(--bb-tier-banned-border);
+  :global(.state-pill.inactive) {
+    --badge-tone: var(--bb-tier-inactive);
+    --badge-bg: var(--bb-tier-inactive-bg);
+    --badge-tone-rule: var(--bb-tier-inactive-border);
   }
-  .inactive {
-    color: var(--bb-tier-inactive);
-    background: var(--bb-tier-inactive-bg);
-    border-color: var(--bb-tier-inactive-border);
-  }
-  .neutral,
-  .moderator {
-    color: var(--bb-muted);
-    background: rgba(255, 255, 255, 0.03);
-    border-color: var(--glass-border);
+  :global(.state-pill.neutral),
+  :global(.state-pill.moderator) {
+    --badge-tone: var(--bb-muted);
+    --badge-bg: rgba(255, 255, 255, 0.03);
+    --badge-tone-rule: var(--glass-border);
   }
   /* The staff ladder borrows the tier palette rather than inventing a second
      three-step scale: the eye already reads tan < silver as "higher" from the
      user rows, and two palettes for two ladders is how they end up disagreeing
      about which colour means "most authority". */
-  .admin {
-    color: var(--bb-tier-paid);
-    background: var(--bb-tier-paid-bg);
-    border-color: var(--bb-tier-paid-border);
+  :global(.state-pill.admin) {
+    --badge-tone: var(--bb-tier-paid);
+    --badge-bg: var(--bb-tier-paid-bg);
+    --badge-tone-rule: var(--bb-tier-paid-border);
   }
-  .owner {
-    color: var(--bb-tier-vip);
-    background: var(--bb-tier-vip-bg);
-    border-color: var(--bb-tier-vip-border);
+  :global(.state-pill.owner) {
+    --badge-tone: var(--bb-tier-vip);
+    --badge-bg: var(--bb-tier-vip-bg);
+    --badge-tone-rule: var(--bb-tier-vip-border);
   }
 </style>

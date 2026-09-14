@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Button } from '@bagel/kit';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   // One ledger line in the command deck, on the shared ManagementRow: the
@@ -109,9 +110,7 @@
         <Switch type="submit" checked={c.is_active} label={t('commandRow.toggleAria', { name: c.name })} />
       </form>
       {#if !c.builtin}
-        <button class="mini" type="button" aria-label={t('commandRow.deleteAria', { name: c.name })} onclick={onDelete}>
-          <Icon name="trash" size={15} />
-        </button>
+        <Button variant="icon" size="sm" class="delete-action" danger type="button" aria-label={t('commandRow.deleteAria', { name: c.name })} onclick={onDelete} ><Icon name="trash" size={15} /></Button>
       {:else}
         <span class="mini-spacer" aria-hidden="true"></span>
       {/if}
@@ -225,20 +224,7 @@
   .m-val.uses { color: var(--bb-white); }
   .state { min-width: 0; }
 
-  .mini {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    border: 1px solid transparent;
-    border-radius: var(--bb-radius-sm);
-    background: none;
-    color: var(--bb-muted);
-    cursor: pointer;
-  }
-  .mini:hover { color: #cf8a78; border-color: rgba(176, 90, 70, 0.4); }
-  .mini:focus-visible { outline: 2px solid var(--bb-green-glow, #52b788); outline-offset: 2px; }
+  :global(.delete-action) { width: 32px; height: 32px; min-height: 32px; }
   .mini-spacer { width: 32px; height: 32px; flex: none; }
 
   /* Mid width: the index and the cooldown are the first things to go, the
@@ -264,6 +250,6 @@
     .m-perm { grid-area: perm; }
     .m-uses { grid-area: uses; width: 130px; }
     .state { display: none; }
-    .mini, .mini-spacer { min-width: 44px; min-height: 44px; }
+    :global(.delete-action), .mini-spacer { min-width: 44px; min-height: 44px; }
   }
 </style>
