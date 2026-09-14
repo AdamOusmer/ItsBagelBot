@@ -97,6 +97,8 @@ func TestAtomicOverlapResolvesEachCohortOnItsOwnCommit(t *testing.T) {
 		return &stubAtomicPublisher{}, nil
 	})
 	first, second := confirmedBatch(3), confirmedBatch(2)
+	admitTestBatch(worker.owner, first)
+	admitTestBatch(worker.owner, second)
 
 	worker.publishAtomicOverlapped(first, false)
 	worker.publishAtomicOverlapped(second, false)

@@ -72,6 +72,57 @@ func TestAFailedRebuildKeepsTheLoopRunning(t *testing.T) {
 	}
 }
 
+// A fetch snapshots its handle under handleMu and then snapshots the primary
+// consumer under consumerMu. Rebuild must release consumerMu after swapping the
+// primary binding before it rebinds extra handles, or the two paths invert those
+// locks and deadlock while the durable is being recovered.
+func TestRebuildDoesNotDeadlockWithPrimaryHandleLookup(t *testing.T) {
+	s := &pullSubscriber{log: zap.NewNop()}
+	rebindEntered := make(chan struct{})
+	releaseRebind := make(chan struct{})
+	s.rebind = func() (jsapi.Consumer, error) {
+		close(rebindEntered)
+		<-releaseRebind
+		return &pullConsumerHandle{}, nil
+	}
+
+	rebuilt := make(chan struct{})
+	go func() {
+		s.rebuildConsumer()
+		close(rebuilt)
+	}()
+	<-rebindEntered // rebuild holds consumerMu while provisioning.
+
+	fetched := make(chan struct{})
+	go func() {
+		s.handleFor(0)
+		close(fetched)
+	}()
+
+	// handleFor has handleMu and is waiting for consumerMu. Releasing the
+	// rebind used to make rebuild wait for handleMu while retaining consumerMu.
+	deadline := time.Now().Add(time.Second)
+	for s.handleMu.TryLock() {
+		s.handleMu.Unlock()
+		if time.Now().After(deadline) {
+			t.Fatal("primary handle lookup never acquired handleMu")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	close(releaseRebind)
+
+	select {
+	case <-rebuilt:
+	case <-time.After(time.Second):
+		t.Fatal("rebuild and primary handle lookup deadlocked")
+	}
+	select {
+	case <-fetched:
+	case <-time.After(time.Second):
+		t.Fatal("primary handle lookup did not complete after rebuild")
+	}
+}
+
 // Readiness has to separate an idle lane from a wedged one. A NATS connection
 // check cannot: a pod that has lost its durable stays connected and consumes
 // nothing, which is how sesame reported green through seven hours of silence.

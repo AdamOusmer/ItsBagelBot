@@ -95,20 +95,22 @@ type batchPublisher struct {
 	workers map[string]*publishBatchWorker
 
 	stateMu sync.Mutex
-	// accepted counts messages a worker has taken, and is deliberately outside
-	// stateMu because nothing ever waits on it: Flush snapshots it once as its
-	// target and then waits only for completed to reach that snapshot. An
-	// accept-side notification could not satisfy any waiter, so accepting costs
-	// no lock, no channel close and no channel allocation.
+	// accepted counts admission reservations, including a cancelled send until
+	// that reservation is resolved. It remains atomic because admissions do not
+	// need to notify Flush; a Flush captures this counter and registers its
+	// snapshot under stateMu as one operation.
 	accepted  atomic.Uint64
 	completed uint64
-	// firstErr is the first cohort failure no Flush has reported yet, and
-	// firstErrAt the completion position its cohort started at. Flush is a
-	// per-call result, so it takes the error out on the way past instead of
-	// latching it; a latch would fail every later Flush on this connection for
-	// the life of the process.
-	firstErr   error
-	firstErrAt uint64
+	// resolved is a grow-on-demand ring of admission results. Cohorts may finish
+	// out of order, so a scalar completed count cannot be a Flush barrier.
+	// Normal publishes only write an existing slot; growth is proportional to
+	// outstanding work, not total throughput.
+	resolved []publishResolution
+	// errors crossed the ordered completion frontier but have not yet been
+	// returned by a Flush. This is only populated on failed cohorts.
+	errors        []publishError
+	activeFlushes map[uint64]flushState
+	nextFlush     uint64
 
 	// signal wakes every Flush waiting on completed, one Broadcast per cohort
 	// instead of the close-and-reallocate channel this replaced. A generation
@@ -122,7 +124,27 @@ type batchPublisher struct {
 type publishRequest struct {
 	msg       *nats.Msg
 	confirmed chan error
+	sequence  uint64
 }
+
+type publishResolution struct {
+	sequence uint64
+	err      error
+}
+
+type publishError struct {
+	first uint64
+	last  uint64
+	cause error
+	count uint64
+}
+
+type flushState struct {
+	target uint64
+	err    error
+}
+
+const maxPendingPublishErrors = 128
 
 type publishCommand struct {
 	ctx       context.Context
@@ -250,7 +272,10 @@ func newBatchPublisherConnection(url string, index int, wire wireMode, log *zap.
 	if err != nil {
 		return nil, fmt.Errorf("bus: connect batch publisher: %w", err)
 	}
-	js, err := nc.JetStream(jsDomainOption()...)
+	// Expire nats.go's async futures too. A local waiter timeout alone leaves
+	// them registered forever after a lost PubAck and eventually fills the
+	// client's pending-future limit.
+	js, err := nc.JetStream(append(jsDomainOption(), nats.PublishAsyncTimeout(publishAckWait()))...)
 	if err != nil {
 		nc.Close()
 		return nil, fmt.Errorf("bus: jetstream batch publisher: %w", err)
@@ -331,12 +356,25 @@ func (p *publisherPool) connectionFor(command publishCommand) *batchPublisher {
 }
 
 func (p *publisherPool) Flush(ctx context.Context) error {
-	for _, member := range p.members {
-		if err := member.Flush(ctx); err != nil {
-			return err
+	// Start every member together so this call is a pool-wide barrier. In
+	// particular, do not return one member's publish failure while a different
+	// member still has pre-call messages in flight.
+	errors := make(chan error, len(p.members))
+	targets := make([]uint64, len(p.members))
+	flushIDs := make([]uint64, len(p.members))
+	for i, member := range p.members {
+		targets[i], flushIDs[i] = member.snapshotFlush()
+	}
+	for i, member := range p.members {
+		go func(member *batchPublisher, target, flushID uint64) { errors <- member.waitFlush(ctx, target, flushID) }(member, targets[i], flushIDs[i])
+	}
+	var first error
+	for range p.members {
+		if err := <-errors; err != nil && first == nil {
+			first = err
 		}
 	}
-	return nil
+	return first
 }
 
 func (p *publisherPool) Close() error {
@@ -355,9 +393,19 @@ func (p *publisherPool) Close() error {
 func (p *batchPublisher) publish(command publishCommand) error {
 	request := newPublishRequest(command, publishMessage(command))
 	if err := p.admit(command.ctx, command.stream, request); err != nil {
+		releaseUnadmittedRequest(request)
 		return err
 	}
 	return awaitPublishConfirmation(command.ctx, request)
+}
+
+func releaseUnadmittedRequest(request publishRequest) {
+	request.msg.Subject = ""
+	request.msg.Data = nil
+	wireMsgPool.Put(request.msg)
+	if request.confirmed != nil {
+		putConfirmChan(request.confirmed)
+	}
 }
 
 // resetWireHeader prepares a pooled envelope's header map for reuse: nil gets
@@ -508,11 +556,15 @@ func (p *batchPublisher) admit(ctx context.Context, stream string, request publi
 // The caller holds p.mu for reading across the whole call — see admit for why
 // that hold deliberately spans even a send parked on a full queue.
 func (p *batchPublisher) admitLocked(ctx context.Context, worker *publishBatchWorker, request publishRequest) error {
+	request.sequence = p.markAccepted()
 	select {
 	case worker.requests <- request:
-		p.markAccepted()
 		return nil
 	case <-ctx.Done():
+		// Reserve before send so a worker receives its sequence with the request.
+		// A cancelled send must resolve that reservation or ordered Flush would
+		// wait forever on a sequence which never reached a worker.
+		p.completeSequences([]uint64{request.sequence}, nil)
 		return ctx.Err()
 	}
 }
@@ -596,35 +648,124 @@ func (p *batchPublisher) Close() error {
 	return flushErr
 }
 
-// markAccepted records one message a worker has taken. It takes no lock and
-// wakes nobody: see the accepted field for why an accept can never be what a
-// Flush is waiting for. complete is still the only notifier, once per cohort.
-func (p *batchPublisher) markAccepted() {
-	p.accepted.Add(1)
+// markAccepted reserves an admission sequence. It takes no lock and wakes
+// nobody; completion is still the only Flush notifier.
+func (p *batchPublisher) markAccepted() uint64 {
+	return p.accepted.Add(1)
 }
 
-func (p *batchPublisher) complete(count int, err error) {
+func (p *batchPublisher) completeBatch(batch []publishRequest, err error) {
 	p.stateMu.Lock()
-	if err != nil && p.firstErr == nil {
-		p.firstErr = err
-		// Record the failure at the cohort's first message so a Flush can tell a
-		// cohort overlapping its window from one made only of messages admitted
-		// after the call returned its own result.
-		p.firstErrAt = p.completed
+	p.ensureResolutionCapacityLocked()
+	for i := range batch {
+		sequence := batch[i].sequence
+		p.resolved[sequence%uint64(len(p.resolved))] = publishResolution{sequence: sequence, err: err}
 	}
-	p.completed += uint64(count)
+	p.advanceCompletedLocked()
 	p.signal.Broadcast()
 	p.stateMu.Unlock()
 	if err != nil {
-		p.log.Error("asynchronous NATS publish failed", zap.Int("messages", count), zap.Error(err))
+		p.log.Error("asynchronous NATS publish failed", zap.Int("messages", len(batch)), zap.Error(err))
 	}
+}
+
+func (p *batchPublisher) completeSequences(sequences []uint64, err error) {
+	p.stateMu.Lock()
+	p.ensureResolutionCapacityLocked()
+	for _, sequence := range sequences {
+		p.resolved[sequence%uint64(len(p.resolved))] = publishResolution{sequence: sequence, err: err}
+	}
+	p.advanceCompletedLocked()
+	p.signal.Broadcast()
+	p.stateMu.Unlock()
+	if err != nil {
+		p.log.Error("asynchronous NATS publish failed", zap.Int("messages", len(sequences)), zap.Error(err))
+	}
+}
+
+func (p *batchPublisher) advanceCompletedLocked() {
+	for p.completed < p.accepted.Load() {
+		next := p.completed + 1
+		resolved := p.resolved[next%uint64(len(p.resolved))]
+		if resolved.sequence != next {
+			break
+		}
+		p.resolved[next%uint64(len(p.resolved))] = publishResolution{}
+		p.completed = next
+		if resolved.err != nil {
+			p.recordErrorLocked(next, resolved.err)
+		}
+	}
+}
+
+func (p *batchPublisher) recordErrorLocked(sequence uint64, err error) {
+	if len(p.errors) < maxPendingPublishErrors {
+		p.errors = append(p.errors, publishError{first: sequence, last: sequence, cause: err, count: 1})
+		return
+	}
+	// A publisher may run for a long time without Flush while every cohort is
+	// failing. Keep this bookkeeping bounded. The final entry coalesces the
+	// tail and is conservatively reported by any Flush that crosses it; a later
+	// healthy Flush is unaffected once that error is consumed.
+	tail := &p.errors[len(p.errors)-1]
+	tail.last = sequence
+	tail.count++
+}
+
+func (p *batchPublisher) ensureResolutionCapacityLocked() {
+	needed := p.accepted.Load() - p.completed + 1
+	if uint64(len(p.resolved)) >= needed {
+		return
+	}
+	size := 1024
+	for uint64(size) < needed {
+		size *= 2
+	}
+	resized := make([]publishResolution, size)
+	for _, resolved := range p.resolved {
+		if resolved.sequence > p.completed {
+			resized[resolved.sequence%uint64(size)] = resolved
+		}
+	}
+	p.resolved = resized
 }
 
 func (p *batchPublisher) Flush(ctx context.Context) error {
 	// The target is a snapshot on purpose: a message accepted after this read
 	// belongs to a later Flush, so the wait cannot be extended out from under
 	// the caller by traffic it never emitted.
-	target := p.accepted.Load()
+	target, flushID := p.snapshotFlush()
+	return p.waitFlush(ctx, target, flushID)
+}
+
+// snapshotFlush atomically captures the admission horizon and registers the
+// caller which will observe failures in that horizon. Keeping both under
+// stateMu prevents another Flush from reporting and trimming a relevant error
+// in the gap between the two operations.
+func (p *batchPublisher) snapshotFlush() (target, flushID uint64) {
+	p.stateMu.Lock()
+	defer p.stateMu.Unlock()
+	target = p.accepted.Load()
+	return target, p.registerFlushLocked(target)
+}
+
+func (p *batchPublisher) registerFlush(target uint64) uint64 {
+	p.stateMu.Lock()
+	defer p.stateMu.Unlock()
+	return p.registerFlushLocked(target)
+}
+
+func (p *batchPublisher) registerFlushLocked(target uint64) uint64 {
+	p.nextFlush++
+	flushID := p.nextFlush
+	if p.activeFlushes == nil {
+		p.activeFlushes = make(map[uint64]flushState)
+	}
+	p.activeFlushes[flushID] = flushState{target: target}
+	return flushID
+}
+
+func (p *batchPublisher) waitFlush(ctx context.Context, target, flushID uint64) error {
 	p.stateMu.Lock()
 	// Cond.Wait has no select arm for ctx.Done, so a watcher broadcasts the
 	// cancellation into the same cond; cancel plus this reap guarantee it exits
@@ -646,27 +787,76 @@ func (p *batchPublisher) Flush(ctx context.Context) error {
 		}
 		p.signal.Wait()
 	}
+	resolved := err == nil
 	if err == nil {
-		err = p.takeWindowErrLocked(target)
+		p.captureFlushErrorsLocked()
+		err = p.activeFlushes[flushID].err
 	}
+	p.finishFlushLocked(flushID, target, resolved)
 	p.stateMu.Unlock()
 	cancel()
 	<-wake
 	return err
 }
 
-// takeWindowErrLocked returns the pending cohort failure that overlaps this
-// flush window and clears it, so the next Flush answers for its own window. A
-// failure recorded once the window had already fully resolved belongs to a later
-// call and is left in place for it.
-func (p *batchPublisher) takeWindowErrLocked(target uint64) error {
-	if p.firstErr == nil || p.firstErrAt >= target {
-		return nil
+func (p *batchPublisher) captureFlushErrorsLocked() {
+	// This runs only when Flush completes. Publishing merely appends a bounded
+	// failure record; it never walks active Flush callers on the hot path.
+	for id, state := range p.activeFlushes {
+		captured, ok := captureFlushError(state, p.errors)
+		if !ok {
+			continue
+		}
+		state = captured
+		p.activeFlushes[id] = state
 	}
-	err := p.firstErr
-	p.firstErr = nil
-	p.firstErrAt = 0
-	return err
+}
+
+func captureFlushError(state flushState, failures []publishError) (flushState, bool) {
+	if state.err != nil {
+		return state, false
+	}
+	err := flushErrorForTarget(state.target, failures)
+	if err == nil {
+		return state, false
+	}
+	state.err = err
+	return state, true
+}
+
+func flushErrorForTarget(target uint64, failures []publishError) error {
+	for _, failure := range failures {
+		if failure.first > target {
+			break
+		}
+		if failure.count > 1 {
+			return fmt.Errorf("bus: %d asynchronous publish messages failed (first: %w)", failure.count, failure.cause)
+		}
+		return failure.cause
+	}
+	return nil
+}
+
+func (p *batchPublisher) finishFlushLocked(flushID, target uint64, resolved bool) {
+	delete(p.activeFlushes, flushID)
+	if !resolved {
+		return
+	}
+	p.dropReportedErrorsLocked(target)
+}
+
+func (p *batchPublisher) dropReportedErrorsLocked(target uint64) {
+	for len(p.errors) > 0 {
+		failure := &p.errors[0]
+		if failure.first > target {
+			return
+		}
+		if failure.last > target {
+			failure.first = target + 1
+			return
+		}
+		p.errors = p.errors[1:]
+	}
 }
 
 func (w *publishBatchWorker) run() {
@@ -924,10 +1114,10 @@ func (w *publishBatchWorker) awaitAsync(futures []nats.PubAckFuture) error {
 // Reset needs no drain.
 func (w *publishBatchWorker) ackTimer() *time.Timer {
 	if timer, ok := w.ackTimers.Get().(*time.Timer); ok {
-		timer.Reset(defaultPublishAckWait)
+		timer.Reset(publishAckWait())
 		return timer
 	}
-	return time.NewTimer(defaultPublishAckWait)
+	return time.NewTimer(publishAckWait())
 }
 
 // putAckTimer stops and returns a borrowed timer. Stop after a fire is a no-op
@@ -943,7 +1133,7 @@ func (w *publishBatchWorker) fail(batch []publishRequest, err error) {
 }
 
 func (w *publishBatchWorker) finish(batch []publishRequest, err error) {
-	w.owner.complete(len(batch), err)
+	w.owner.completeBatch(batch, err)
 	for i := range batch {
 		if batch[i].confirmed != nil {
 			batch[i].confirmed <- err

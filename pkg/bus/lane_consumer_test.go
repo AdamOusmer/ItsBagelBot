@@ -4,11 +4,94 @@
 package bus
 
 import (
+	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/nats-io/nats.go"
 )
+
+type laneConsumerManagerSpy struct {
+	nats.JetStreamManager
+	info      *nats.ConsumerInfo
+	updateErr error
+	updated   *nats.ConsumerConfig
+	deleted   int
+	added     *nats.ConsumerConfig
+}
+
+func (s *laneConsumerManagerSpy) ConsumerInfo(string, string, ...nats.JSOpt) (*nats.ConsumerInfo, error) {
+	return s.info, nil
+}
+
+func (s *laneConsumerManagerSpy) UpdateConsumer(_ string, config *nats.ConsumerConfig, _ ...nats.JSOpt) (*nats.ConsumerInfo, error) {
+	copy := *config
+	s.updated = &copy
+	return nil, s.updateErr
+}
+
+func (s *laneConsumerManagerSpy) DeleteConsumer(string, string, ...nats.JSOpt) error {
+	s.deleted++
+	return nil
+}
+
+func (s *laneConsumerManagerSpy) AddConsumer(_ string, config *nats.ConsumerConfig, _ ...nats.JSOpt) (*nats.ConsumerInfo, error) {
+	copy := *config
+	s.added = &copy
+	return &nats.ConsumerInfo{Config: copy}, nil
+}
+
+func TestEnsureConsumerDoesNotReplaceAfterTransientUpdateFailure(t *testing.T) {
+	spy := &laneConsumerManagerSpy{
+		info:      &nats.ConsumerInfo{Config: nats.ConsumerConfig{Name: "worker", DeliverSubject: "_INBOX.existing"}},
+		updateErr: context.DeadlineExceeded,
+	}
+
+	err := ensureConsumer(spy, "LANE", &nats.ConsumerConfig{Name: "worker", DeliverSubject: "_INBOX.desired"})
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("ensureConsumer() error = %v, want deadline exceeded", err)
+	}
+	if spy.deleted != 0 || spy.added != nil {
+		t.Fatalf("transient update failure replaced live durable: deletes=%d recreated=%v", spy.deleted, spy.added != nil)
+	}
+}
+
+func TestEnsureConsumerReplacesRecognizedImmutableTransitionAtAckFloor(t *testing.T) {
+	spy := &laneConsumerManagerSpy{
+		info: &nats.ConsumerInfo{
+			Config: nats.ConsumerConfig{
+				Name:           "worker",
+				DeliverSubject: "_INBOX.existing",
+				DeliverPolicy:  nats.DeliverByStartSequencePolicy,
+				OptStartSeq:    17,
+			},
+			AckFloor: nats.SequenceInfo{Stream: 41},
+		},
+		updateErr: errors.New("nats: ack policy can not be updated"),
+	}
+
+	if err := ensureConsumer(spy, "LANE", &nats.ConsumerConfig{Name: "worker", DeliverSubject: "_INBOX.desired"}); err != nil {
+		t.Fatalf("ensureConsumer() error = %v", err)
+	}
+	assertLaneConsumerReplacement(t, spy)
+}
+
+func assertLaneConsumerReplacement(t *testing.T, spy *laneConsumerManagerSpy) {
+	t.Helper()
+	if spy.deleted != 1 || spy.added == nil {
+		t.Fatalf("immutable transition deletes=%d recreated=%v, want one replacement", spy.deleted, spy.added != nil)
+	}
+	if spy.updated.DeliverSubject != "_INBOX.existing" || spy.updated.OptStartSeq != 17 {
+		t.Fatalf("update lost legacy binding/start position: subject=%q start=%d", spy.updated.DeliverSubject, spy.updated.OptStartSeq)
+	}
+	if spy.added.DeliverSubject != "_INBOX.existing" {
+		t.Fatalf("replacement binding = %q, want existing binding", spy.added.DeliverSubject)
+	}
+	if spy.added.DeliverPolicy != nats.DeliverByStartSequencePolicy || spy.added.OptStartSeq != 42 {
+		t.Fatalf("replacement resumes at policy=%v start=%d, want ack floor + 1", spy.added.DeliverPolicy, spy.added.OptStartSeq)
+	}
+}
 
 func TestReplaceConsumerCarriesAckFloor(t *testing.T) {
 	desired := laneConsumerConfig(

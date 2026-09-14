@@ -128,18 +128,25 @@ func ensureConsumer(js nats.JetStreamManager, stream string, desired *nats.Consu
 	desired.DeliverPolicy = info.Config.DeliverPolicy
 	desired.OptStartSeq = info.Config.OptStartSeq
 	if _, err := js.UpdateConsumer(stream, desired); err != nil {
+		// A failed update does not imply the configuration is immutable. In
+		// particular, a deadline while the JetStream meta leader is busy leaves
+		// this durable healthy and serving its bound replicas. Deleting it in
+		// response would discard that state and replay its retained work.
+		if !requiresConsumerReplacement(err) {
+			return fmt.Errorf("bus: update consumer %q: %w", desired.Name, err)
+		}
+
 		carryAckFloor(desired, info)
 		return replaceConsumer(js, stream, desired, err)
 	}
 	return nil
 }
 
-// replaceConsumer falls back to delete + recreate for transitions that are not
-// updatable in place (notably clearing a legacy BackOff schedule on older
-// servers). The deliver subject and group are deterministic, so replicas
-// already bound keep receiving from the recreated consumer. The caller has
-// already rewritten desired's delivery position to the predecessor's ack
-// floor (see carryAckFloor), so the recreation never replays retained
+// replaceConsumer performs the delete + recreate required by a recognized
+// immutable-field transition. The deliver subject and group are deterministic,
+// so replicas already bound keep receiving from the recreated consumer. The
+// caller has already rewritten desired's delivery position to the predecessor's
+// ack floor (see carryAckFloor), so the recreation never replays retained
 // messages the group has handled.
 func replaceConsumer(js nats.JetStreamManager, stream string, desired *nats.ConsumerConfig, cause error) error {
 	if derr := js.DeleteConsumer(stream, desired.Name); derr != nil && !errors.Is(derr, nats.ErrConsumerNotFound) {
