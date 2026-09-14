@@ -238,6 +238,7 @@ func TestFastCohortStoredPrefixNeverClaimsAFailedCohort(t *testing.T) {
 func TestFinishFastSplitsTheAcknowledgedPrefixFromTheFailedSuffix(t *testing.T) {
 	worker := &publishBatchWorker{owner: newTestBatchPublisher()}
 	batch := confirmedBatch(5)
+	admitTestBatch(worker.owner, batch)
 	want := errors.New("session aborted")
 
 	worker.finishFast(batch, fastCohortOutcome{acked: 2, err: want})

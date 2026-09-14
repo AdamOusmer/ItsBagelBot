@@ -8,9 +8,33 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/nats-io/nats.go"
 )
+
+func (p *batchPublisher) complete(count int, err error) {
+	sequences := make([]uint64, count)
+	for i := range sequences {
+		sequences[i] = p.completed + uint64(i+1)
+	}
+	p.completeSequences(sequences, err)
+}
+
+func (p *batchPublisher) takeWindowErrLocked(target uint64) error {
+	for i, failure := range p.errors {
+		if failure.first > target {
+			break
+		}
+		if failure.last > target {
+			p.errors[i].first = target + 1
+			return failure.cause
+		}
+		p.errors = append(p.errors[:i], p.errors[i+1:]...)
+		return failure.cause
+	}
+	return nil
+}
 
 func TestPublishPartitionIsScopedAndStable(t *testing.T) {
 	base := context.Background()
@@ -67,8 +91,7 @@ func TestFlushReportsAWindowFailureOnceInsteadOfLatchingIt(t *testing.T) {
 func TestFlushWindowLeavesALaterCohortsFailureInPlace(t *testing.T) {
 	pub := newTestBatchPublisher()
 	want := errors.New("later cohort aborted")
-	pub.firstErr = want
-	pub.firstErrAt = 8
+	pub.errors = []publishError{{first: 9, last: 9, cause: want, count: 1}}
 
 	if err := pub.takeWindowErrLocked(8); err != nil {
 		t.Fatalf("window ending at 8 reported a failure that started at 8: %v", err)
@@ -76,8 +99,73 @@ func TestFlushWindowLeavesALaterCohortsFailureInPlace(t *testing.T) {
 	if err := pub.takeWindowErrLocked(9); !errors.Is(err, want) {
 		t.Fatalf("overlapping window = %v, want the failed cohort", err)
 	}
-	if pub.firstErr != nil {
+	if len(pub.errors) != 0 {
 		t.Fatal("a reported failure must not stay pending for the next window")
+	}
+}
+
+func TestFlushWaitsForItsAdmissionsRatherThanLaterCompletion(t *testing.T) {
+	pub := newTestBatchPublisher()
+	first := pub.markAccepted()
+
+	finished := make(chan error, 1)
+	go func() { finished <- pub.Flush(context.Background()) }()
+	waitForRegisteredFlushes(t, pub, 1)
+
+	// This is the original failure mode: a later admission resolves first and
+	// must not satisfy the snapshot taken before it was admitted.
+	second := pub.markAccepted()
+	pub.completeSequences([]uint64{second}, nil)
+	select {
+	case err := <-finished:
+		t.Fatalf("Flush returned after later completion: %v", err)
+	default:
+	}
+
+	pub.completeSequences([]uint64{first}, nil)
+	if err := <-finished; err != nil {
+		t.Fatalf("Flush() = %v, want nil", err)
+	}
+}
+
+func TestConcurrentFlushesBothReportTheSameFailedWindow(t *testing.T) {
+	pub := newTestBatchPublisher()
+	sequence := pub.markAccepted()
+	want := errors.New("cohort aborted")
+	results := make(chan error, 2)
+	go func() { results <- pub.Flush(context.Background()) }()
+	go func() { results <- pub.Flush(context.Background()) }()
+
+	waitForRegisteredFlushes(t, pub, 2)
+
+	pub.completeSequences([]uint64{sequence}, want)
+	for range 2 {
+		if err := <-results; !errors.Is(err, want) {
+			t.Fatalf("concurrent Flush() = %v, want %v", err, want)
+		}
+	}
+
+	next := pub.markAccepted()
+	pub.completeSequences([]uint64{next}, nil)
+	if err := pub.Flush(context.Background()); err != nil {
+		t.Fatalf("healthy Flush after reporting failure = %v", err)
+	}
+}
+
+func waitForRegisteredFlushes(t *testing.T, pub *batchPublisher, count int) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for {
+		pub.stateMu.Lock()
+		waiting := len(pub.activeFlushes)
+		pub.stateMu.Unlock()
+		if waiting == count {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("registered Flush calls = %d, want %d", waiting, count)
+		}
+		time.Sleep(time.Millisecond)
 	}
 }
 
