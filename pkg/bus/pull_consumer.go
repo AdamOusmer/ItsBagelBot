@@ -818,9 +818,9 @@ func (s *pullSubscriber) rebuildConsumer() {
 	s.takePending()
 
 	s.consumerMu.Lock()
-	defer s.consumerMu.Unlock()
 	consumer, err := s.rebind()
 	if err != nil {
+		s.consumerMu.Unlock()
 		s.log.Warn("lane consumer rebuild failed",
 			zap.String("stream", s.stream),
 			zap.String("subject", s.subject),
@@ -829,6 +829,12 @@ func (s *pullSubscriber) rebuildConsumer() {
 		return
 	}
 	s.consumer = consumer
+	// handleFor holds handleMu while it snapshots the primary consumer. Do not
+	// take handleMu while consumerMu is held: a fetch and a rebuild would then
+	// wait on each other forever. The consumer swap is complete and visible
+	// before rebinding the extra connections; a pump that races this relookup
+	// can use its old handle once and will recover through the usual error path.
+	s.consumerMu.Unlock()
 	s.relookupHandles()
 	s.log.Warn("lane consumer was missing and has been rebuilt",
 		zap.String("stream", s.stream),

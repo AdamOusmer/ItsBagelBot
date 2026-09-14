@@ -124,6 +124,12 @@ func confirmedBatch(n int) []publishRequest {
 	return batch
 }
 
+func admitTestBatch(publisher *batchPublisher, batch []publishRequest) {
+	for i := range batch {
+		batch[i].sequence = publisher.markAccepted()
+	}
+}
+
 // newTestBatchPublisher builds the connection-side state cohort resolution
 // touches, without a broker connection.
 func newTestBatchPublisher() *batchPublisher {
