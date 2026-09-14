@@ -28,6 +28,7 @@
   import { createInspector } from '@bagel/ui/svelte/inspector';
   import TimerRow from '$lib/components/timers/TimerRow.svelte';
   import TimerEditor from '$lib/components/timers/TimerEditor.svelte';
+  import { focusFirstInvalid } from '$lib/forms/validation';
 
   let { data } = $props();
   const { t } = getI18n();
@@ -56,6 +57,8 @@
   // The editor binds this draft; edits flow into the machine for dirty tracking.
   let draft = $state<TimerDef | null>(null);
   let busy = $state(false);
+  let validationAttempted = $state(false);
+  let formEl = $state<HTMLFormElement | null>(null);
 
   // Push editor changes into the machine for dirty tracking. The spread reads
   // each field so the effect re-runs on any field mutation; the edit itself is
@@ -67,17 +70,9 @@
   });
 
   const creating = $derived(inspector.selectedId === NEW);
-  // Enforce the server's clamp range (60s–24h) before submitting, so the saved
-  // snapshot equals what the server stores and "Saved" is never shown for a
-  // value the server silently normalized. Mirrors clampInt in +page.server.ts.
-  const canSave = $derived(
-    inspector.dirty &&
-      !!draft &&
-      draft.message.trim().length > 0 &&
-      Number.isFinite(draft.intervalSeconds) &&
-      draft.intervalSeconds >= 60 &&
-      draft.intervalSeconds <= 86_400
-  );
+  // New editors always let Create be attempted so validation can explain an
+  // empty required field. Existing clean timers still have nothing to save.
+  const canSave = $derived(creating || inspector.dirty);
 
   // --- Dirty guard: every close/switch/new routes through one confirmation ----
   let discardOpen = $state(false);
@@ -106,6 +101,7 @@
 
   function openNew() {
     guarded(() => {
+      validationAttempted = false;
       const b = blankTimer();
       inspector.open(NEW, b);
       draft = { ...b };
@@ -117,12 +113,14 @@
       return;
     }
     guarded(() => {
+      validationAttempted = false;
       inspector.open(tmr.id, { ...tmr });
       draft = { ...tmr };
     });
   }
   function closeInspector() {
     guarded(() => {
+      validationAttempted = false;
       inspector.reset();
       draft = null;
     });
@@ -130,7 +128,19 @@
   const failed = toastFailure(toast, t);
 
   // --- Save: immutable snapshot + request id; a late response can't cross rows -
-  const saveSubmit: SubmitFunction = () => {
+  const saveSubmit: SubmitFunction = (input) => {
+    if (
+      !draft ||
+      !draft.message.trim() ||
+      !Number.isFinite(draft.intervalSeconds) ||
+      draft.intervalSeconds < 60 ||
+      draft.intervalSeconds > 86_400
+    ) {
+      validationAttempted = true;
+      input.cancel();
+      void focusFirstInvalid(formEl);
+      return;
+    }
     const started = inspector.beginSave();
     const requestId = started?.requestId;
     const wasCreating = creating;
@@ -265,7 +275,14 @@
         closeLabel={t('common.cancel')}
         onClose={closeInspector}
       >
-        <form method="POST" action={creating ? '?/create' : '?/update'} novalidate use:enhance={saveSubmit} class="inspector-form">
+        <form
+          method="POST"
+          action={creating ? '?/create' : '?/update'}
+          novalidate
+          use:enhance={saveSubmit}
+          class="inspector-form"
+          bind:this={formEl}
+        >
           <input type="hidden" name="timer" value={JSON.stringify(draft)} />
           <Scroller fill padding="16px" data-lenis-prevent>
             <!-- Keyed on the selection so switching timers mounts a FRESH editor;
@@ -273,7 +290,7 @@
                  one instance would write the previous timer's interval into the
                  new draft. -->
             {#key inspector.selectedId}
-              <TimerEditor bind:draft />
+              <TimerEditor bind:draft attempted={validationAttempted} />
             {/key}
           </Scroller>
           <EditorFooter

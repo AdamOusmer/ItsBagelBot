@@ -31,8 +31,9 @@
   // in the tree means json + that path; skipping the tree means plain text. The
   // author answers "which value do you want?", not "what shape is your API?".
   import { deserialize } from '$app/forms';
-  import { Button, Code, Field, Modal, getI18n, slugifyName, buildJsonPath, DEFS_PER_BROADCASTER } from '@bagel/kit';
+  import { Button, Code, Field, Input, Modal, getI18n, slugifyName, buildJsonPath, DEFS_PER_BROADCASTER } from '@bagel/kit';
   import PickerPanel from '$lib/components/PickerPanel.svelte';
+  import { focusFirstInvalid } from '$lib/forms/validation';
   import JsonTree from './JsonTree.svelte';
 
   const { t } = getI18n();
@@ -91,7 +92,11 @@
   let showPaste = $state(false);
 
   const atQuota = $derived(defs.length >= DEFS_PER_BROADCASTER);
-  const canCreate = $derived(slug !== '' && url.trim() !== '' && !creating);
+  let nameAttempted = $state(false);
+  let urlAttempted = $state(false);
+  let buildEl = $state<HTMLDivElement | null>(null);
+  const nameError = $derived(nameAttempted && !slug ? t('fetches.errNameRequired') : undefined);
+  const urlError = $derived(urlAttempted && !url.trim() ? t('fetches.errUrlRequired') : undefined);
 
   function onDisplayName() {
     if (!slugTouched) slug = slugifyName(displayName);
@@ -109,6 +114,8 @@
     notice = '';
     err = '';
     showPaste = false;
+    nameAttempted = false;
+    urlAttempted = false;
     open = false;
     building = true;
   }
@@ -134,6 +141,11 @@
   // with an EMPTY path on purpose: we want the whole document to build a tree
   // from, and a path the author has not chosen yet would fail validation.
   async function fetchSample() {
+    urlAttempted = true;
+    if (!url.trim()) {
+      void focusFirstInvalid(buildEl);
+      return;
+    }
     err = '';
     notice = '';
     fetching = true;
@@ -178,7 +190,12 @@
   }
 
   async function create() {
-    if (!canCreate) return;
+    nameAttempted = true;
+    urlAttempted = true;
+    if (!slug || !url.trim()) {
+      void focusFirstInvalid(buildEl);
+      return;
+    }
     err = '';
     creating = true;
     try {
@@ -297,16 +314,21 @@
 </div>
 
 <Modal open={building} title={t('fetches.builderTitle')} busy={creating} closeModal={() => (building = false)}>
-  <div class="build">
+  <div class="build" bind:this={buildEl}>
     <p class="intro">{t('fetches.builderIntro')}</p>
 
     <Field label={t('fetches.displayName')}>
       <input class="in" placeholder={t('fetches.displayNamePh')} bind:value={displayName} oninput={onDisplayName} />
     </Field>
 
-    <Field label={t('fetches.slug')} hint={t('fetches.slugHint')}>
-      <input
-        class="in mono"
+    <Field label={t('fetches.slug')} hint={t('fetches.slugHint')} error={nameError} errorId="fetch-name-err">
+      <Input
+        fill
+        mono
+        invalid={!!nameError}
+        required
+        aria-invalid={nameError ? 'true' : undefined}
+        aria-describedby={nameError ? 'fetch-name-err' : undefined}
         bind:value={slug}
         oninput={() => {
           slugTouched = true;
@@ -315,8 +337,19 @@
       />
     </Field>
 
-    <Field label={t('fetches.builderUrl')}>
-      <input class="in mono" placeholder="https://api.example.com/v1/…" spellcheck="false" bind:value={url} />
+    <Field label={t('fetches.builderUrl')} error={urlError} errorId="fetch-url-err">
+      <Input
+        fill
+        mono
+        invalid={!!urlError}
+        type="url"
+        placeholder="https://api.example.com/v1/…"
+        spellcheck="false"
+        required
+        aria-invalid={urlError ? 'true' : undefined}
+        aria-describedby={urlError ? 'fetch-url-err' : undefined}
+        bind:value={url}
+      />
     </Field>
 
     {#if keys.length > 0}
@@ -331,7 +364,7 @@
     {/if}
 
     <div class="sample-row">
-      <Button variant="secondary" loading={fetching} disabled={url.trim() === ''} onclick={fetchSample}>
+      <Button variant="secondary" loading={fetching} onclick={fetchSample}>
         {fetching ? t('fetches.builderFetching') : t('fetches.builderFetch')}
       </Button>
       {#if !showPaste && sample === ''}
@@ -369,7 +402,7 @@
 
     <div class="foot">
       <Button variant="ghost" onclick={() => (building = false)}>{t('common.cancel')}</Button>
-      <Button variant="primary" loading={creating} disabled={!canCreate} onclick={create}>
+      <Button variant="primary" loading={creating} onclick={create}>
         {creating ? t('fetches.builderCreating') : t('fetches.builderCreate')}
       </Button>
     </div>

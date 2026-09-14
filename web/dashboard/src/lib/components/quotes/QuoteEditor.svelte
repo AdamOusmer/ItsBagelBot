@@ -10,6 +10,7 @@
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { Field, Button, getI18n } from '@bagel/kit';
+  import { focusFirstInvalid } from '$lib/forms/validation';
 
   let {
     draft = $bindable<{ text: string; quoteDate: string }>(),
@@ -30,35 +31,69 @@
   const MAX = 450;
 
   const editing = $derived(number !== null);
-  const valid = $derived(draft.text.trim().length > 0 && /^\d{4}-\d{2}-\d{2}$/.test(draft.quoteDate));
+  let attempted = $state(false);
+  let formEl = $state<HTMLFormElement | null>(null);
+  const textError = $derived(attempted && !draft.text.trim() ? t('quotes.errText') : undefined);
+  const dayError = $derived(
+    attempted && !/^\d{4}-\d{2}-\d{2}$/.test(draft.quoteDate) ? t('quotes.errDay') : undefined
+  );
+
+  const submit: SubmitFunction = (input) => {
+    attempted = true;
+    if (!draft.text.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(draft.quoteDate)) {
+      input.cancel();
+      void focusFirstInvalid(formEl);
+      return;
+    }
+    return onSubmit(input);
+  };
 </script>
 
-<form method="POST" action={editing ? '?/edit' : '?/add'} class="editor" novalidate use:enhance={onSubmit}>
+<form
+  method="POST"
+  action={editing ? '?/edit' : '?/add'}
+  class="editor"
+  novalidate
+  use:enhance={submit}
+  bind:this={formEl}
+>
   {#if editing}
     <input type="hidden" name="number" value={number} />
   {/if}
 
-  <Field label={t('quotes.fieldQuote')}>
+  <Field label={t('quotes.fieldQuote')} error={textError} errorId="quote-text-err">
     <textarea
       class="bb-input quote-area"
       name="text"
       placeholder={t('quotes.addPlaceholder')}
       maxlength={MAX}
       required
+      data-invalid={textError ? '' : undefined}
+      aria-invalid={textError ? 'true' : undefined}
+      aria-describedby={textError ? 'quote-text-err' : undefined}
       rows="4"
       bind:value={draft.text}
     ></textarea>
     <small class="counter">{draft.text.length}/{MAX}</small>
   </Field>
 
-  <Field label={t('quotes.fieldDay')}>
-    <input class="bb-input date-input" type="date" name="quote_date" required bind:value={draft.quoteDate} />
-    <small class="hint">{t('quotes.fieldDayHint')}</small>
+  <Field label={t('quotes.fieldDay')} error={dayError} errorId="quote-day-err">
+    <input
+      class="bb-input date-input"
+      type="date"
+      name="quote_date"
+      required
+      data-invalid={dayError ? '' : undefined}
+      aria-invalid={dayError ? 'true' : undefined}
+      aria-describedby={dayError ? 'quote-day-hint quote-day-err' : 'quote-day-hint'}
+      bind:value={draft.quoteDate}
+    />
+    <small id="quote-day-hint" class="hint">{t('quotes.fieldDayHint')}</small>
   </Field>
 
   <div class="actions">
     <Button variant="ghost" onclick={onCancel} disabled={busy}>{t('common.cancel')}</Button>
-    <Button variant="primary" type="submit" loading={busy} disabled={!valid}>
+    <Button variant="primary" type="submit" loading={busy}>
       {editing ? t('quotes.editBtn') : t('quotes.addBtn')}
     </Button>
   </div>
