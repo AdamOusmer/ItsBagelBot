@@ -5,10 +5,10 @@ package ratelimit
 
 import (
 	"context"
-	"encoding/json"
 	"math"
 	"time"
 
+	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/kvstate"
 )
 
@@ -42,12 +42,12 @@ func (m *JetStreamManager) allow(ctx context.Context, shared Request, requests [
 	_, err := kvstate.Change(ctx, m.store, kvstate.Key(requestID(shared)), func(old kvstate.Value) ([]byte, error) {
 		state := durableBudget{}
 		if len(old.Data) != 0 {
-			if err := json.Unmarshal(old.Data, &state); err != nil {
+			if err := codec.Unmarshal(old.Data, &state); err != nil {
 				return nil, err
 			}
 		}
 		denied = evaluateBudget(state, requests, old.Created)
-		return json.Marshal(state)
+		return codec.Marshal(state)
 	})
 	return denied, err
 }

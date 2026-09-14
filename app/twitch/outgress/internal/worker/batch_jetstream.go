@@ -5,9 +5,9 @@ package worker
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
+	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/kvstate"
 )
 
@@ -29,7 +29,7 @@ func decodeBatchRecord(value kvstate.Value) (batchRecord, error) {
 	if len(value.Data) == 0 {
 		return record, nil
 	}
-	err := json.Unmarshal(value.Data, &record)
+	err := codec.Unmarshal(value.Data, &record)
 	return record, err
 }
 
@@ -42,7 +42,7 @@ func (s *JetStreamBatchStore) change(ctx context.Context, id string, edit func(*
 		if err := edit(&record); err != nil {
 			return nil, err
 		}
-		return json.Marshal(record)
+		return codec.Marshal(record)
 	})
 	return err
 }
