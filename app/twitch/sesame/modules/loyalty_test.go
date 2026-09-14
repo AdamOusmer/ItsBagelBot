@@ -7,6 +7,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
@@ -425,4 +426,74 @@ func TestChannelPointsCounterBinding(t *testing.T) {
 	assert.Equal(t, bumpCall{2, "deaths", 7, "+1 death", 1}, fake.bumps[0])
 	require.Len(t, col.out, 1)
 	assert.Equal(t, "CoolViewer death #1", col.out[0].Text)
+}
+
+func TestLoyaltyRejectsMalformedConfig(t *testing.T) {
+	fake := &fakeLoyalty{}
+	m := loyaltyModule(t, fake)
+	var col collector
+	c := loyaltyCtx("channel.subscribe", loyaltySubJSON, `{"subPoints":"bad"}`)
+	require.Error(t, m.Events["channel.subscribe"](context.Background(), c, col.emit))
+	assert.Empty(t, fake.earns)
+	c.Config = []byte(`{"viewerTransfers":"bad"}`)
+	require.Error(t, loyaltyCommand(t, m, "points").Run(context.Background(), c, "give @receiver 100", col.emit))
+	assert.Empty(t, fake.transfers)
+}
+
+// loyaltyClaims models the shared claim store across two worker replicas.
+type loyaltyClaims map[string]bool
+
+func (s loyaltyClaims) Seen(_ context.Context, key string, _ time.Duration) (bool, error) {
+	seen := s[key]
+	s[key] = true
+	return seen, nil
+}
+
+func (s loyaltyClaims) Release(_ context.Context, key string) error {
+	delete(s, key)
+	return nil
+}
+
+func TestLoyaltyAwardsDeduplicateRedelivery(t *testing.T) {
+	for _, tc := range []struct{ event, body string }{
+		{"channel.subscribe", loyaltySubJSON},
+		{"channel.subscription.message", loyaltySubJSON},
+		{"channel.subscription.gift", `{"user_id":"7","total":5}`},
+		{"channel.cheer", `{"user_id":"7","bits":100}`},
+	} {
+		t.Run(tc.event, func(t *testing.T) {
+			fake := &fakeLoyalty{}
+			claims := loyaltyClaims{}
+			c := loyaltyCtx(tc.event, tc.body, "")
+			c.Env.EventID = "event-one"
+			var col collector
+			for range 2 {
+				m := Loyalty(engine.Deps{Loyalty: fake, Dedup: engine.NewEventDedup(claims, "", time.Hour, nil)})
+				require.NoError(t, m.Events[tc.event](context.Background(), c, col.emit))
+			}
+			require.Len(t, fake.earns, 1, "a redelivery on another replica must not award again")
+			c.Env.EventID = "event-two"
+			m := Loyalty(engine.Deps{Loyalty: fake, Dedup: engine.NewEventDedup(claims, "", time.Hour, nil)})
+			require.NoError(t, m.Events[tc.event](context.Background(), c, col.emit))
+			require.Len(t, fake.earns, 2, "a distinct event must still earn")
+		})
+	}
+}
+
+func TestLoyaltyPointMutationsDeduplicateRedelivery(t *testing.T) {
+	for _, verb := range []string{"add", "remove", "set", "give"} {
+		t.Run(verb, func(t *testing.T) {
+			fake := &fakeLoyalty{}
+			claims := loyaltyClaims{}
+			c := loyaltyCtx("channel.chat.message", "", "")
+			c.Env.ChatterUserID = c.Env.BroadcasterUserID // broadcaster can use every verb
+			c.Env.MsgID = "chat-one"
+			var col collector
+			for range 2 {
+				m := Loyalty(engine.Deps{Loyalty: fake, Dedup: engine.NewEventDedup(claims, "", time.Hour, nil)})
+				require.NoError(t, loyaltyCommand(t, m, "points").Run(context.Background(), c, verb+" @receiver 100", col.emit))
+			}
+			assert.Equal(t, 1, len(fake.adjusts)+len(fake.transfers))
+		})
+	}
 }

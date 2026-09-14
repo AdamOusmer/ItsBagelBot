@@ -6,9 +6,11 @@ package engine
 import (
 	"context"
 	"testing"
+	"time"
 
 	"ItsBagelBot/app/twitch/sesame/engine/scope"
 	"ItsBagelBot/internal/domain/event/data"
+	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/codec"
 
 	"github.com/stretchr/testify/assert"
@@ -202,4 +204,51 @@ func TestCounterBumpRefusesSystemCounters(t *testing.T) {
 	}
 	_, err := s.CounterBump(context.Background(), CounterBump{BroadcasterID: 1, Name: " !Commands_Answered ", Delta: 1})
 	assert.ErrorIs(t, err, ErrReservedCounter, "normalization must not open a way around the guard")
+}
+
+func TestLoyaltyConfigRejectsMalformedRates(t *testing.T) {
+	for _, raw := range []string{`{"watchPointsPerTick":"off"}`, `{"subPoints":`, `[]`} {
+		cfg, enabled := ReadLoyaltyConfig(context.Background(), fakeReader{modules: map[string]projection.ModuleView{
+			LoyaltyModuleName: {IsEnabled: true, Configs: []byte(raw)},
+		}}, 7)
+		assert.False(t, enabled, raw)
+		assert.Equal(t, LoyaltyModuleConfig{}, cfg)
+	}
+}
+
+// blockedLoyaltyPublisher holds a drained reporter snapshot in flight.
+type blockedLoyaltyPublisher struct {
+	rawPublisher
+	started chan struct{}
+	release chan struct{}
+}
+
+func (p *blockedLoyaltyPublisher) PublishOwned(ctx context.Context, subject string, body []byte) error {
+	if len(p.payloads) == 0 {
+		close(p.started)
+		<-p.release
+	}
+	return p.rawPublisher.PublishOwned(ctx, subject, body)
+}
+
+func TestLoyaltyReporterCloseWaitsForPublish(t *testing.T) {
+	pub := &blockedLoyaltyPublisher{started: make(chan struct{}), release: make(chan struct{})}
+	r := NewLoyaltyReporter(pub, zap.NewNop())
+	r.Earn(1, 7, "viewer", "", 10, 300)
+	r.nudge()
+	<-pub.started
+	closed := make(chan struct{})
+	go func() { r.Close(); close(closed) }()
+	select {
+	case <-closed:
+		t.Error("Close returned before its in-flight publish completed")
+	case <-time.After(20 * time.Millisecond):
+	}
+	close(pub.release)
+	select {
+	case <-closed:
+	case <-time.After(time.Second):
+		t.Fatal("Close did not finish after publishing")
+	}
+	require.Len(t, pub.payloads[data.SubjectLoyaltyEarned], 1)
 }

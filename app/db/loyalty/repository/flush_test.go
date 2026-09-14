@@ -175,3 +175,35 @@ func TestFlushContinuesAfterFailedChunk(t *testing.T) {
 	r.Flush(context.Background())
 	assert.Equal(t, 2, f.count(), "the chunk after the failed one must still run")
 }
+
+func TestCloseWaitsForInFlightLoyaltyFlush(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	f := &fakeExecDB{onExec: func(call int) error {
+		if call == 1 {
+			close(started)
+			<-release
+		}
+		return nil
+	}}
+	r := flushRepo(t, f)
+	r.RecordEarned(data.LoyaltyEarnedDTO{UserID: 1, Entries: []data.LoyaltyEarnEntry{{ViewerID: 7, Points: 10, WatchSeconds: 300}}})
+	r.tryFlush()
+	<-started
+	r.RecordEarned(data.LoyaltyEarnedDTO{UserID: 1, Entries: []data.LoyaltyEarnEntry{{ViewerID: 8, Points: 20, WatchSeconds: 300}}})
+	closed := make(chan struct{})
+	go func() { r.Close(context.Background()); close(closed) }()
+	select {
+	case <-closed:
+		t.Error("Close returned while a drained snapshot was still being written")
+	case <-time.After(20 * time.Millisecond):
+	}
+	close(release)
+	select {
+	case <-closed:
+	case <-time.After(time.Second):
+		t.Fatal("Close did not finish after the in-flight flush completed")
+	}
+	assert.Equal(t, 2, f.count(), "both the in-flight and final snapshots must land")
+	assert.False(t, r.flushing.Load())
+}

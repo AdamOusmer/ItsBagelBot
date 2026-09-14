@@ -148,7 +148,9 @@ func loyaltyModuleConfig(ctx context.Context, proj projection.Reader, broadcaste
 	}
 	var cfg LoyaltyModuleConfig
 	if len(view.Configs) > 0 {
-		_ = codec.Unmarshal(view.Configs, &cfg)
+		if err := codec.Unmarshal(view.Configs, &cfg); err != nil {
+			return LoyaltyModuleConfig{}, false
+		}
 	}
 	return cfg, true
 }

@@ -132,9 +132,11 @@ type accrual struct {
 // and hand the result to the store. The per-event logic shrinks to the award
 // closure.
 func onAccrual[T any](d engine.Deps, award func(cfg engine.LoyaltyModuleConfig, ev T) accrual) module.EventHandler {
-	return func(_ context.Context, c *module.Context, _ module.Emit) error {
+	return func(ctx context.Context, c *module.Context, _ module.Emit) error {
 		var cfg engine.LoyaltyModuleConfig
-		_ = c.Decode(&cfg)
+		if err := c.Decode(&cfg); err != nil {
+			return err
+		}
 		if d.Loyalty == nil || len(c.Env.Event) == 0 {
 			return nil
 		}
@@ -143,7 +145,7 @@ func onAccrual[T any](d engine.Deps, award func(cfg engine.LoyaltyModuleConfig, 
 			return err
 		}
 		a := award(cfg, ev)
-		earn(d, c, a.userID, a.login, a.name, a.points)
+		earn(ctx, d, c, a.userID, a.login, a.name, a.points)
 		return nil
 	}
 }
@@ -183,6 +185,10 @@ func loyaltyRun(d engine.Deps, log *zap.Logger, fn func(loyaltyCmd, context.Cont
 	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
 		if d.Loyalty == nil {
 			return nil
+		}
+		var cfg engine.LoyaltyModuleConfig
+		if err := c.Decode(&cfg); err != nil {
+			return err
 		}
 		return fn(loyaltyCmd{newChatReplier(c), d, emit, log}, ctx, args)
 	}
@@ -298,8 +304,13 @@ func (lc loyaltyCmd) pointsAdjust(ctx context.Context, target, amount string, ab
 	var cfg engine.LoyaltyModuleConfig
 	_ = lc.c.Decode(&cfg)
 
+	duplicate, release := lc.d.Dedup.Claim(ctx, engine.EffectRef{Identity: engine.EventIdentity(&lc.c.Env), Effect: engine.EffectPointsAdjust})
+	if duplicate {
+		return nil
+	}
 	bal, found, err := lc.d.Loyalty.BalanceAdjust(ctx, lc.c.BroadcasterID, login, value, absolute)
 	if err != nil {
+		release()
 		lc.log.Warn("loyalty: balance adjust failed", lc.c.BID(), zap.Error(err))
 		lc.reply("loyalty.counter.err")
 		return nil
@@ -354,8 +365,13 @@ func (lc loyaltyCmd) pointsGive(ctx context.Context, target, amount string, enab
 		lc.reply("loyalty.points.self", "name", cfg.Name())
 		return nil
 	}
+	duplicate, release := lc.d.Dedup.Claim(ctx, engine.EffectRef{Identity: engine.EventIdentity(&lc.c.Env), Effect: engine.EffectPointsAdjust})
+	if duplicate {
+		return nil
+	}
 	bal, found, moved, err := lc.d.Loyalty.BalanceTransfer(ctx, lc.c.BroadcasterID, senderID, login, value)
 	if err != nil {
+		release()
 		lc.log.Warn("loyalty: balance transfer failed", lc.c.BID(), zap.Error(err))
 		lc.reply("loyalty.counter.err")
 		return nil
@@ -475,12 +491,15 @@ func (lc loyaltyCmd) pointsShow(ctx context.Context) error {
 // earn parses the event's viewer identity and hands the accrual to the store.
 // A non-positive award (a source switched off, a sub-100-bit cheer at low
 // rates) is skipped before it can publish an empty entry.
-func earn(d engine.Deps, c *module.Context, userID, login, name string, points int64) {
+func earn(ctx context.Context, d engine.Deps, c *module.Context, userID, login, name string, points int64) {
 	if points <= 0 {
 		return
 	}
 	viewerID, err := strconv.ParseUint(userID, 10, 64)
 	if err != nil || viewerID == 0 {
+		return
+	}
+	if d.Dedup.Duplicate(ctx, engine.EffectRef{Identity: engine.EventIdentity(&c.Env), Effect: engine.EffectEarn}) {
 		return
 	}
 	d.Loyalty.Earn(c.BroadcasterID, viewerID, login, name, points, 0)
