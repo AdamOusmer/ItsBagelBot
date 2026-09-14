@@ -30,6 +30,7 @@
   import type { SourceDef } from './fetches/FetchSourcePicker.svelte';
   import ChatPreview from './ChatPreview.svelte';
   import { draftKey, type CommandDraft } from './drafts';
+  import { focusFirstInvalid } from '$lib/forms/validation';
 
   let {
     draft = $bindable<CommandDraft>(),
@@ -70,6 +71,7 @@
   let aliasDraft = $state('');
   let chips = $state<ReturnType<typeof AliasChips>>();
   let clientErrors = $state<CommandErrors>({});
+  let formEl = $state<HTMLFormElement | null>(null);
   const errors = $derived<CommandErrors>({ ...(serverErrors ?? {}), ...clientErrors });
 
   // Mirror the working draft to sessionStorage (skip the initial unmodified
@@ -101,6 +103,7 @@
     });
     if (Object.keys(clientErrors).length) {
       input.cancel();
+      void focusFirstInvalid(formEl);
       return;
     }
     return onSubmit(input);
@@ -111,7 +114,7 @@
      not the browser's native tooltips. enhance must always run. The fields
      scroll; the EditorFooter stays pinned so Save/Cancel never fall below the
      fold. -->
-<form method="POST" action="?/save" class="editor-form" novalidate use:enhance={submit}>
+<form method="POST" action="?/save" class="editor-form" novalidate use:enhance={submit} bind:this={formEl}>
   <Scroller fill padding="16px" data-lenis-prevent>
    <div class="editor">
   {#if draft.edit}
@@ -119,9 +122,22 @@
     <input type="hidden" name="original_name" value={draft.originalName} />
   {/if}
 
-  <Field label={t('commandEditor.name')} hint={draft.edit ? t('commandEditor.renameHint') : undefined}>
-    <input class="bb-input" name="name" placeholder={t('commandEditor.namePlaceholder')} bind:value={draft.name} required />
-    <FieldError message={errors.name} />
+  <Field
+    label={t('commandEditor.name')}
+    hint={draft.edit ? t('commandEditor.renameHint') : undefined}
+    error={errors.name}
+    errorId="command-name-err"
+  >
+    <input
+      class="bb-input"
+      name="name"
+      placeholder={t('commandEditor.namePlaceholder')}
+      required
+      data-invalid={errors.name ? '' : undefined}
+      aria-invalid={errors.name ? 'true' : undefined}
+      aria-describedby={errors.name ? 'command-name-err' : undefined}
+      bind:value={draft.name}
+    />
   </Field>
 
   <Field label={t('commandEditor.altNames')} tag={t('common.optional')}>
@@ -132,15 +148,17 @@
     <FieldError message={errors.aliases} />
   </Field>
 
-  <Field label={t('commandEditor.response')}>
+  <Field label={t('commandEditor.response')} error={errors.response} errorId="command-response-err">
     <ResponseEditor
       bind:value={draft.response}
       maxLines={RESPONSE_MAX_LINES}
+      required
+      invalid={!!errors.response}
+      describedby={errors.response ? 'command-response-err' : undefined}
       {fetchDefs}
       {fetchKeys}
       onFetchDefsChanged={onFetchDefsChanged}
     />
-    <FieldError message={errors.response} />
   </Field>
 
   <ChatPreview name={draft.name} response={draft.response} />
@@ -160,21 +178,37 @@
       </select>
     </Field>
 
-    <Field label={t('commandEditor.cooldownS')}>
-      <input class="bb-input" type="number" name="cooldown" min="0" max={COOLDOWN_MAX} bind:value={draft.cooldown} />
-      <FieldError message={errors.cooldown} />
+    <Field label={t('commandEditor.cooldownS')} error={errors.cooldown} errorId="command-cooldown-err">
+      <input
+        class="bb-input"
+        type="number"
+        name="cooldown"
+        min="0"
+        max={COOLDOWN_MAX}
+        data-invalid={errors.cooldown ? '' : undefined}
+        aria-invalid={errors.cooldown ? 'true' : undefined}
+        aria-describedby={errors.cooldown ? 'command-cooldown-err' : undefined}
+        bind:value={draft.cooldown}
+      />
     </Field>
   </Grid>
 
-  <Field label={t('commandEditor.restrictUser')} tag={t('common.optional')}>
+  <Field
+    label={t('commandEditor.restrictUser')}
+    tag={t('common.optional')}
+    error={errors.allowed_user_id}
+    errorId="command-user-err"
+  >
     <input
       class="bb-input"
       name="allowed_user_id"
       inputmode="numeric"
       placeholder={t('commandEditor.restrictPlaceholder')}
+      data-invalid={errors.allowed_user_id ? '' : undefined}
+      aria-invalid={errors.allowed_user_id ? 'true' : undefined}
+      aria-describedby={errors.allowed_user_id ? 'command-user-err' : undefined}
       bind:value={draft.allowed_user_id}
     />
-    <FieldError message={errors.allowed_user_id} />
   </Field>
 
   <div class="check">

@@ -907,7 +907,7 @@
               {serverErrors}
               status={footerStatus()}
               dirty={isDirty}
-              canSave={isDirty && editorDraft.name.trim().length > 0}
+              canSave={editorDraft.edit ? isDirty : true}
               {fetchDefs}
               fetchKeys={data.keys ?? []}
               onFetchDefsChanged={(next) => (fetchDefs = next)}
