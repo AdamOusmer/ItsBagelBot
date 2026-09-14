@@ -6,8 +6,9 @@
   // travels as one JSON field; the server validates and normalizes it.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Field, Grid, RadioGroup, getI18n, type ChannelPointReward, type CounterScope } from '@bagel/kit';
+  import { Field, RadioGroup, getI18n, type ChannelPointReward, type CounterScope } from '@bagel/kit';
   import CheckButton from '$lib/components/CheckButton.svelte';
+  import { focusFirstInvalid } from '$lib/forms/validation';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
 
@@ -86,13 +87,53 @@
   ];
   const scopeOptions = SCOPES.map((s) => ({ value: s.value, label: s.label }));
   const scopeDesc = $derived(SCOPES.find((s) => s.value === draft.counterScope)?.desc ?? '');
+
+  // Required-field feedback belongs on the attempted save, not behind a
+  // disabled button. In particular, an enabled counter with no name used to
+  // serialize as an empty binding and appear to save; reopening the reward then
+  // showed the counter switch as off. Keep the user's intent explicit and land
+  // focus on the first field that needs attention.
+  const TITLE_ERR_ID = 'reward-title-err';
+  const COUNTER_ERR_ID = 'reward-counter-err';
+  let attempted = $state(false);
+  let formEl = $state<HTMLFormElement | null>(null);
+  const titleError = $derived(attempted && !draft.title.trim() ? t('channelpoints.errTitleRequired') : undefined);
+  const counterError = $derived(
+    attempted && counterOn && !draft.counter.trim() ? t('rewardCounter.errNameRequired') : undefined
+  );
+
+  const submit: SubmitFunction = (input) => {
+    attempted = true;
+    if (!draft.title.trim() || (counterOn && !draft.counter.trim())) {
+      input.cancel();
+      void focusFirstInvalid(formEl);
+      return;
+    }
+    return onSubmit(input);
+  };
 </script>
 
-<form method="POST" action={isNew ? '?/create' : '?/update'} class="editor" novalidate use:enhance={onSubmit}>
+<form
+  method="POST"
+  action={isNew ? '?/create' : '?/update'}
+  class="editor"
+  novalidate
+  use:enhance={submit}
+  bind:this={formEl}
+>
   <input type="hidden" name="reward" value={payload} />
+  <input type="hidden" name="counter_enabled" value={counterOn ? 'true' : 'false'} />
 
-  <Field label={t('channelpoints.fieldTitle')}>
-    <input class="bb-input" placeholder={t('channelpoints.fieldTitlePh')} maxlength="45" required bind:value={draft.title} />
+  <Field label={t('channelpoints.fieldTitle')} error={titleError} errorId={TITLE_ERR_ID}>
+    <input
+      class="bb-input"
+      placeholder={t('channelpoints.fieldTitlePh')}
+      maxlength="45"
+      required
+      aria-invalid={titleError ? 'true' : undefined}
+      aria-describedby={titleError ? TITLE_ERR_ID : undefined}
+      bind:value={draft.title}
+    />
   </Field>
 
   <!-- Cost and colour share a row. `Cluster` and not `Grid`: the colour swatch
@@ -153,8 +194,21 @@
       <CheckButton bind:checked={counterOn} label={t('rewardCounter.enable')} />
       {#if counterOn}
         <div class="hook-body">
-          <Field label={t('rewardCounter.nameLabel')} hint={t('rewardCounter.nameHint')}>
-            <input class="bb-input" placeholder={t('channelpoints.fieldCounterPh')} maxlength="64" bind:value={draft.counter} />
+          <Field
+            label={t('rewardCounter.nameLabel')}
+            hint={t('rewardCounter.nameHint')}
+            error={counterError}
+            errorId={COUNTER_ERR_ID}
+          >
+            <input
+              class="bb-input"
+              placeholder={t('channelpoints.fieldCounterPh')}
+              maxlength="64"
+              required
+              aria-invalid={counterError ? 'true' : undefined}
+              aria-describedby={counterError ? COUNTER_ERR_ID : undefined}
+              bind:value={draft.counter}
+            />
           </Field>
 
           <Field label={t('rewardCounter.scopeLabel')} hint={scopeDesc}>
@@ -224,7 +278,7 @@
 
   <div class="actions">
     <button type="button" class="bb-btn bb-btn--ghost" onclick={onCancel} disabled={busy}>{t('common.cancel')}</button>
-    <button type="submit" class="bb-btn bb-btn--primary" disabled={busy || !draft.title.trim()}>
+    <button type="submit" class="bb-btn bb-btn--primary" disabled={busy}>
       {busy ? t('channelpoints.saving') : isNew ? t('channelpoints.create') : t('channelpoints.saveChanges')}
     </button>
   </div>

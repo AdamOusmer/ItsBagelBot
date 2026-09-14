@@ -3,12 +3,12 @@
   // Inspector body: create/edit the one channel-points reward bound to song
   // requests. Named form inputs post straight to ?/saveReward (the page owns
   // the enhance handler); local state drives the live ChatPreview rehearsal.
-  import { tick } from 'svelte';
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { Button, Code, Field, EditorFooter, getI18n, type SpotifyRedeemConfig } from '@bagel/kit';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
+  import { focusFirstInvalid } from '$lib/forms/validation';
 
   let {
     redeem,
@@ -63,16 +63,11 @@
   let titleError = $state<string | undefined>(undefined);
   let formEl = $state<HTMLFormElement | null>(null);
 
-  async function focusFirstInvalid() {
-    await tick();
-    formEl?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
-  }
-
   const submit: SubmitFunction = (input) => {
     titleError = title.trim() ? undefined : t('spotify.errTitleRequired');
     if (titleError) {
       input.cancel();
-      void focusFirstInvalid();
+      void focusFirstInvalid(formEl);
       return;
     }
     return onSubmit(input);

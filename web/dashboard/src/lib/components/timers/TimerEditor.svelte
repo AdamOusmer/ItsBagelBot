@@ -7,9 +7,9 @@
   //
   // Every input is wrapped in the shared <Field> (visible, associated label). The
   // interval field states its unit (minutes) beside the control and its valid
-  // range in the help line. Blurring a field surfaces an inline error that is
-  // wired to the input via aria-invalid + aria-describedby; the page's own
-  // canSave still gates the actual submit, so this is display-only.
+  // range in the help line. Blurring a field or attempting Save surfaces an
+  // inline error wired to the input via aria-invalid + aria-describedby; the
+  // owning form performs the matching submit-time gate.
   import { getI18n, type TimerDef, Field, FieldError } from '@bagel/kit';
   import CheckButton from '$lib/components/CheckButton.svelte';
 
@@ -18,9 +18,12 @@
   const MAX = 1440;
 
   let {
-    draft = $bindable<TimerDef>()
+    draft = $bindable<TimerDef>(),
+    attempted = false
   }: {
     draft: TimerDef;
+    /** True after the owning form rejected a submit attempt. */
+    attempted?: boolean;
   } = $props();
 
   const { t } = getI18n();
@@ -32,14 +35,14 @@
     draft.intervalSeconds = minutes * 60;
   });
 
-  // Errors surface only after a field is touched, so a fresh "new timer" form is
-  // not pre-flagged. Display-only: the page's canSave owns the real save gate.
+  // Errors surface only after a field is touched or Save is attempted, so a
+  // fresh "new timer" form is not pre-flagged.
   let touched = $state({ message: false, interval: false });
   const messageError = $derived(
-    touched.message && draft.message.trim().length === 0 ? t('timers.errMessage') : undefined
+    (attempted || touched.message) && draft.message.trim().length === 0 ? t('timers.errMessage') : undefined
   );
   const intervalError = $derived(
-    touched.interval && !(Number.isInteger(minutes) && minutes >= MIN && minutes <= MAX)
+    (attempted || touched.interval) && !(Number.isInteger(minutes) && minutes >= MIN && minutes <= MAX)
       ? t('timers.errInterval')
       : undefined
   );

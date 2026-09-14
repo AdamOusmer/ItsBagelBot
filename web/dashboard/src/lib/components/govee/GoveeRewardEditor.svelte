@@ -6,12 +6,12 @@
   // local state drives the live ChatPreview rehearsal. The page keys this on the
   // device id so switching lights re-seeds it. Save/Cancel live in the sticky
   // EditorFooter (this form's submit button); Delete is a separate control.
-  import { tick } from 'svelte';
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { Button, Code, Field, EditorFooter, Switch, getI18n, type GoveeDevice, type GoveeBinding } from '@bagel/kit';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
+  import { focusFirstInvalid } from '$lib/forms/validation';
 
   let {
     device,
@@ -72,16 +72,11 @@
   let titleError = $state<string | undefined>(undefined);
   let formEl = $state<HTMLFormElement | null>(null);
 
-  async function focusFirstInvalid() {
-    await tick();
-    formEl?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
-  }
-
   const submit: SubmitFunction = (input) => {
     titleError = title.trim() ? undefined : t('govee.errTitleRequired');
     if (titleError) {
       input.cancel();
-      void focusFirstInvalid();
+      void focusFirstInvalid(formEl);
       return;
     }
     return onSubmit(input);

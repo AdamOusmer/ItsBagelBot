@@ -12,6 +12,7 @@
   // Save/Cancel/Delete are handled by the page so the whole rule list persists in
   // one place.
   import { Button, Cluster, Field, getI18n } from '@bagel/kit';
+  import { focusFirstInvalid } from '$lib/forms/validation';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
 
@@ -74,12 +75,37 @@
     }
   });
 
-  const canSave = $derived(phrase.trim().length > 0 && message.trim().length > 0);
+  // Issue #967 exposed the same silent gate as the reward editor: the example
+  // text looked like a value while Save was disabled. Let Save explain what's
+  // missing, associate the feedback with each control, and focus the first one.
+  const PHRASE_ERR_ID = 'trigger-phrase-err';
+  const RESPONSE_ERR_ID = 'trigger-response-err';
+  let attempted = $state(false);
+  let editorEl = $state<HTMLDivElement | null>(null);
+  const phraseError = $derived(attempted && !phrase.trim() ? t('modules.errTriggerPhraseRequired') : undefined);
+  const responseError = $derived(attempted && !message.trim() ? t('modules.errTriggerResponseRequired') : undefined);
+
+  function save() {
+    attempted = true;
+    if (!phrase.trim() || !message.trim()) {
+      void focusFirstInvalid(editorEl);
+      return;
+    }
+    onSave();
+  }
 </script>
 
-<div class="editor">
-  <Field label="Trigger phrase">
-    <input class="bb-input" type="text" placeholder="hello" bind:value={phrase} />
+<div class="editor" bind:this={editorEl}>
+  <Field label="Trigger phrase" error={phraseError} errorId={PHRASE_ERR_ID}>
+    <input
+      class="bb-input"
+      type="text"
+      placeholder="e.g. hello"
+      required
+      aria-invalid={phraseError ? 'true' : undefined}
+      aria-describedby={phraseError ? PHRASE_ERR_ID : undefined}
+      bind:value={phrase}
+    />
   </Field>
 
   <Field label="Match" hint={modeHint}>
@@ -88,8 +114,15 @@
     </select>
   </Field>
 
-  <Field label="Response">
-    <ResponseEditor bind:value={message} placeholder={DEFAULT_RESPONSE} tokens={TOKENS} />
+  <Field label="Response" error={responseError} errorId={RESPONSE_ERR_ID}>
+    <ResponseEditor
+      bind:value={message}
+      placeholder={`e.g. ${DEFAULT_RESPONSE}`}
+      tokens={TOKENS}
+      required
+      invalid={!!responseError}
+      describedby={responseError ? RESPONSE_ERR_ID : undefined}
+    />
   </Field>
 
   <!-- kind="reply": trigger replies expand only {user} plus the dynamic
@@ -117,7 +150,7 @@
     {/if}
     <span class="spacer"></span>
     <Button variant="ghost" onclick={onCancel} disabled={busy}>{t('common.cancel')}</Button>
-    <Button onclick={onSave} disabled={busy || !canSave}>
+    <Button onclick={save} disabled={busy}>
       {busy ? t('modules.loading') : t('modules.saveChanges')}
     </Button>
   </Cluster>

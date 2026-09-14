@@ -16,6 +16,7 @@
     SearchInput,
     Button,
     Field,
+    FieldError,
     ConfirmDialog,
     MiniButton,
     toast,
@@ -30,6 +31,7 @@
     SegmentedControl,
   } from '@bagel/kit';
   import CounterRow from '$lib/components/counters/CounterRow.svelte';
+  import { focusFirstInvalid } from '$lib/forms/validation';
 
   let { data } = $props();
   const { t } = getI18n();
@@ -152,9 +154,11 @@
     }
     nameError = '';
     renameValue = '';
+    renameError = '';
     addUser = '';
     addCommand = '';
     addValue = 0;
+    addAttempted = false;
     expanded = c.name;
     if (c.scope === 'channel') {
       setValue = c.value;
@@ -167,6 +171,8 @@
   function closeEditor() {
     expanded = null;
     nameError = '';
+    renameError = '';
+    addAttempted = false;
     if (data.selected) void goto('/counters', { noScroll: true, keepFocus: true });
   }
 
@@ -229,13 +235,16 @@
   // visible input lives inside the inspector's own form, so it joins the
   // hidden rename form through the HTML form= attribute, like delete/reset. --
   let renameValue = $state('');
+  let renameError = $state('');
   let renameForm = $state<HTMLFormElement | null>(null);
   let renaming = $state(false);
   const renameSubmit: SubmitFunction = (input) => {
     const target = expanded;
     const next = normCounterName(renameValue);
+    renameError = !next ? t('counters.errName') : next === target ? t('counters.errRenameSame') : '';
     if (!next || next === target) {
       input.cancel();
+      void focusFirstInvalid(document);
       return;
     }
     renaming = true;
@@ -244,6 +253,7 @@
       if (result.type === 'success' && actionPayload(result)?.ok) {
         toast('ok', t('counters.toastRenamed'));
         renameValue = '';
+        renameError = '';
         closeEditor();
         await invalidateAll();
         return;
@@ -277,11 +287,24 @@
   let addCommand = $state('');
   let addValue = $state(0);
   let adding = $state(false);
+  let addAttempted = $state(false);
+  let addForm = $state<HTMLFormElement | null>(null);
+  const addUserError = $derived(
+    addAttempted && selected?.scope !== 'command' && !addUser.trim() ? t('counters.errAddUser') : undefined
+  );
+  const addCommandError = $derived(
+    addAttempted && selected?.scope !== 'viewer' && !normCounterName(addCommand)
+      ? t('counters.errAddCommand')
+      : undefined
+  );
   const addSubmit: SubmitFunction = (input) => {
     const scope = selected?.scope;
-    const missing = scope === 'command' ? !normCounterName(addCommand) : !addUser.trim();
-    if (!scope || missing) {
+    addAttempted = true;
+    const missingUser = scope !== 'command' && !addUser.trim();
+    const missingCommand = scope !== 'viewer' && !normCounterName(addCommand);
+    if (!scope || missingUser || missingCommand) {
       input.cancel();
+      void focusFirstInvalid(addForm);
       return;
     }
     adding = true;
@@ -292,6 +315,7 @@
         addUser = '';
         addCommand = '';
         addValue = 0;
+        addAttempted = false;
         await invalidateAll();
         return;
       }
@@ -402,13 +426,16 @@
   <!-- The input joins the hidden ?/rename form via form=, so it can sit inside
        the set form without nesting forms. The section head already says
        "Rename", so the field carries only its placeholder (sr-only label). -->
-  <div class="rename-row">
+<div class="rename-row">
     <input
       class="bb-input rename-input"
       name="new_name"
       form="counter-rename-form"
       placeholder={t('counters.renamePh')}
       aria-label={t('counters.rename')}
+      required
+      aria-invalid={renameError ? 'true' : undefined}
+      aria-describedby={renameError ? 'counter-rename-err' : undefined}
       maxlength="64"
       bind:value={renameValue}
     />
@@ -416,6 +443,7 @@
       {t('counters.rename')}
     </Button>
   </div>
+  <FieldError id="counter-rename-err" message={renameError} />
 {/snippet}
 
 <section class="screen active">
@@ -634,26 +662,39 @@
                    the counter's scope decides which key fields show. -->
               <div class="sec">
                 <span class="sec-head">{t('counters.addTitle')}</span>
-                <form method="POST" action="?/addEntry" class="add" novalidate use:enhance={addSubmit}>
+                <form
+                  method="POST"
+                  action="?/addEntry"
+                  class="add"
+                  novalidate
+                  use:enhance={addSubmit}
+                  bind:this={addForm}
+                >
                   <input type="hidden" name="name" value={selected.name} />
                   {#if showViewer}
-                    <Field label={t('counters.addUser')}>
+                    <Field label={t('counters.addUser')} error={addUserError} errorId="counter-add-user-err">
                       <input
                         class="bb-input"
                         name="username"
                         placeholder={t('counters.addUserPh')}
                         maxlength="32"
+                        required
+                        aria-invalid={addUserError ? 'true' : undefined}
+                        aria-describedby={addUserError ? 'counter-add-user-err' : undefined}
                         bind:value={addUser}
                       />
                     </Field>
                   {/if}
                   {#if showSource}
-                    <Field label={t('counters.addCommand')}>
+                    <Field label={t('counters.addCommand')} error={addCommandError} errorId="counter-add-command-err">
                       <input
                         class="bb-input"
                         name="command"
                         placeholder={t('counters.addCommandPh')}
                         maxlength="64"
+                        required
+                        aria-invalid={addCommandError ? 'true' : undefined}
+                        aria-describedby={addCommandError ? 'counter-add-command-err' : undefined}
                         bind:value={addCommand}
                       />
                     </Field>

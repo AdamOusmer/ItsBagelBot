@@ -107,6 +107,9 @@
     name = 'response',
     tokens = DEFAULT_TOKENS,
     placeholder,
+    invalid = false,
+    describedby,
+    required = false,
     maxLines = 1,
     fetchDefs = [],
     fetchKeys = [],
@@ -116,6 +119,11 @@
     name?: string;
     tokens?: PaletteToken[];
     placeholder?: string;
+    /** Validation state supplied by the form that owns this editor. */
+    invalid?: boolean;
+    /** Id(s) of help or error text associated with the textarea. */
+    describedby?: string;
+    required?: boolean;
     maxLines?: number;
     // The channel's saved data sources. Supplied only on the command surface:
     // module replies and rewards have no defs to pick, and the chip hides
@@ -237,6 +245,9 @@
             class="resp-area slim"
             rows="2"
             placeholder={fieldPlaceholder(i)}
+            aria-invalid={invalid ? 'true' : undefined}
+            aria-describedby={describedby}
+            {required}
             bind:value={fields[i]}
             bind:this={areas[i]}
             onfocus={() => (focused = i)}
@@ -272,6 +283,9 @@
       {name}
       rows="4"
       placeholder={fieldPlaceholder(0)}
+      aria-invalid={invalid ? 'true' : undefined}
+      aria-describedby={describedby}
+      {required}
       bind:value={fields[0]}
       bind:this={areas[0]}
       onfocus={() => (focused = 0)}

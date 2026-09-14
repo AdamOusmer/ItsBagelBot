@@ -102,14 +102,17 @@ function mutate(op: string, invalid: string, run: ModuleMutation) {
 export const actions: Actions = {
   create: mutate('create', 'Invalid reward.', async (uid, f) => {
     const draft = parseReward(String(f.get('reward') ?? ''));
-    if (!draft) return null;
+    // `counter_enabled` preserves the editor's intent. Without it, an enabled
+    // but nameless hook is indistinguishable from a deliberately disabled hook
+    // once the reward JSON reaches this action.
+    if (!draft || (f.get('counter_enabled') === 'true' && !draft.counter)) return null;
     const res = await createReward(uid, draft);
     return res.ok ? draft.title : resultFail(res);
   }),
 
   update: mutate('update', 'Invalid reward.', async (uid, f) => {
     const draft = parseReward(String(f.get('reward') ?? ''));
-    if (!draft || !draft.id) return null;
+    if (!draft || !draft.id || (f.get('counter_enabled') === 'true' && !draft.counter)) return null;
     const res = await updateReward(uid, draft);
     return res.ok ? draft.title : resultFail(res);
   }),
