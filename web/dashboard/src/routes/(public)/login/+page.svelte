@@ -4,7 +4,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { onMount } from 'svelte';
   import { page } from '$app/state';
-  import { LightField, getI18n } from '@bagel/kit';
+  import { LightField, getI18n, Tag } from '@bagel/kit';
   import { SITE } from '@bagel/kit/site-links';
 
   const { t } = getI18n();
@@ -181,9 +181,9 @@
     {/if}
 
     <a class="eyebrow" href={SITE.discord} target="_blank" rel="noopener noreferrer">
-      <span class="eyebrow__badge">
-        <span class="eyebrow__dot"></span>{t('login.badge')}
-      </span>
+      <Tag tone="live" mark="solid" sweep>
+        {t('login.badge')}
+      </Tag>
       <span class="eyebrow__text">{t('login.topText')}</span>
     </a>
 
@@ -366,30 +366,10 @@
     animation: fadeUp 800ms 200ms var(--bb-ease-out-expo) forwards;
   }
 
-  .eyebrow__badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
+  /* Was .eyebrow__badge (green pill) + .eyebrow__dot (pulsing circle); now
+     .bb-tag--live + .bb-mark + .bb-sweep. Only no-shrink stays local. */
+  .eyebrow :global(.bb-tag) {
     flex-shrink: 0;
-    padding: 4px 11px;
-    border-radius: var(--bb-radius-pill);
-    background: rgba(45, 106, 79, 0.15);
-    border: 1px solid rgba(64, 145, 108, 0.3);
-    font-family: var(--bb-font-mono);
-    font-size: 0.7rem;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--bb-green-light);
-    transition: border-color 0.2s;
-  }
-
-  .eyebrow__dot {
-    width: 7px;
-    height: 7px;
-    flex-shrink: 0;
-    border-radius: 50%;
-    background: var(--bb-green-glow);
-    animation: pulse-dot 1.8s ease-in-out infinite;
   }
 
   .eyebrow__text {
@@ -401,8 +381,8 @@
     transition: color 0.2s;
   }
 
-  .eyebrow:hover .eyebrow__badge {
-    border-color: rgba(64, 145, 108, 0.7);
+  .eyebrow:hover :global(.bb-tag--live) {
+    border-bottom-color: rgba(82, 183, 136, 0.70);
   }
   .eyebrow:hover .eyebrow__text {
     color: var(--bb-white);
@@ -566,11 +546,6 @@
     animation-delay: var(--d, 0s);
   }
 
-  @keyframes pulse-dot {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.3; transform: scale(0.75); }
-  }
-
   @keyframes fadeUp {
     from { opacity: 0; transform: translateY(24px); }
     to { opacity: 1; transform: translateY(0); }
@@ -613,10 +588,6 @@
       font-size: 0.78rem;
       letter-spacing: 0.16em;
     }
-    .eyebrow__badge {
-      padding: 3px 9px;
-      font-size: 0.62rem;
-    }
 
     .lede {
       max-width: min(520px, 100%);
@@ -651,7 +622,6 @@
 
     .eyebrow { gap: 8px; margin-bottom: 12px; }
     .eyebrow__text { font-size: 0.68rem; letter-spacing: 0.14em; }
-    .eyebrow__dot { width: 6px; height: 6px; }
 
     h1 {
       font-size: clamp(1.75rem, min(8.4vw, 7.6vh), 2.25rem);
@@ -725,6 +695,6 @@
       animation: none;
       opacity: 1;
     }
-    .bg-ring svg, .orb::before, .eyebrow__dot { animation: none; }
+    .bg-ring svg, .orb::before { animation: none; }
   }
 </style>
