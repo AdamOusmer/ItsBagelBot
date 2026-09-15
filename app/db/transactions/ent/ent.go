@@ -10,6 +10,7 @@ import (
 	"ItsBagelBot/app/db/transactions/ent/giveawayaward"
 	"ItsBagelBot/app/db/transactions/ent/giveawaycandidate"
 	"ItsBagelBot/app/db/transactions/ent/giveawaydraw"
+	"ItsBagelBot/app/db/transactions/ent/giveawayfulfillmentplan"
 	"ItsBagelBot/app/db/transactions/ent/giveawayoutbox"
 	"ItsBagelBot/app/db/transactions/ent/giveawayuserlease"
 	"ItsBagelBot/app/db/transactions/ent/tebexagreement"
@@ -83,17 +84,18 @@ var (
 func checkColumn(t, c string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
-			awardemail.Table:         awardemail.ValidColumn,
-			billingoperation.Table:   billingoperation.ValidColumn,
-			giveaway.Table:           giveaway.ValidColumn,
-			giveawayalert.Table:      giveawayalert.ValidColumn,
-			giveawayaward.Table:      giveawayaward.ValidColumn,
-			giveawaycandidate.Table:  giveawaycandidate.ValidColumn,
-			giveawaydraw.Table:       giveawaydraw.ValidColumn,
-			giveawayoutbox.Table:     giveawayoutbox.ValidColumn,
-			giveawayuserlease.Table:  giveawayuserlease.ValidColumn,
-			tebexagreement.Table:     tebexagreement.ValidColumn,
-			tebexwebhookevents.Table: tebexwebhookevents.ValidColumn,
+			awardemail.Table:              awardemail.ValidColumn,
+			billingoperation.Table:        billingoperation.ValidColumn,
+			giveaway.Table:                giveaway.ValidColumn,
+			giveawayalert.Table:           giveawayalert.ValidColumn,
+			giveawayaward.Table:           giveawayaward.ValidColumn,
+			giveawaycandidate.Table:       giveawaycandidate.ValidColumn,
+			giveawaydraw.Table:            giveawaydraw.ValidColumn,
+			giveawayfulfillmentplan.Table: giveawayfulfillmentplan.ValidColumn,
+			giveawayoutbox.Table:          giveawayoutbox.ValidColumn,
+			giveawayuserlease.Table:       giveawayuserlease.ValidColumn,
+			tebexagreement.Table:          tebexagreement.ValidColumn,
+			tebexwebhookevents.Table:      tebexwebhookevents.ValidColumn,
 		})
 	})
 	return columnCheck(t, c)

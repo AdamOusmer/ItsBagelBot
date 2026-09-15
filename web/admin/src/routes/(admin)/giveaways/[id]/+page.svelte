@@ -90,9 +90,9 @@
 
     <div class="facts">
       <div><span>{t('admin.giveaways.selection')}</span><strong>{t(giveaway.winnerCount === 1 ? 'admin.giveaways.prizePlanOne' : 'admin.giveaways.prizePlan', { winners: giveaway.winnerCount, months: giveaway.prizeMonths })}</strong></div>
-      <div><span>{t('admin.giveaways.eligible')}</span><strong>{giveaway.eligible?.eligible ?? t('admin.giveaways.noDate')}</strong></div>
-      <div><span>{t('admin.giveaways.selection')}</span><strong>{label(giveaway.selectionMethod ?? 'secure_random_without_replacement')}</strong></div>
-      <div><span>{t('admin.giveaways.drawAlgorithm')}</span><strong>{giveaway.algorithmVersion ?? t('admin.giveaways.noDate')}</strong></div>
+      <div><span>{t('admin.giveaways.eligible')}</span><strong>{giveaway.eligible?.eligible ?? giveaway.eligibleCount ?? t('admin.giveaways.notAvailable')}</strong></div>
+      {#if giveaway.selectionMethod === 'random_draw'}<div><span>{t('admin.giveaways.selectionMethod')}</span><strong>{t('admin.giveaways.randomDraw')}</strong></div>{/if}
+      <div><span>{t('admin.giveaways.drawAlgorithm')}</span><strong>{giveaway.algorithmVersion ?? t('admin.giveaways.notAvailable')}</strong></div>
     </div>
 
     {#if giveaway.status === 'draft' || giveaway.status === 'frozen'}
@@ -127,9 +127,9 @@
             {#each giveaway.winners as winner (winner.id)}
               <tr>
                 <td><a href={`/users?q=${encodeURIComponent(winner.userId)}`}>@{winner.login}</a><small>{winner.userId}</small></td>
-                <td><StatePill tone={tone(winner.awardState)}>{label(winner.awardState)}</StatePill><small>{t('admin.giveaways.start')}: {date(winner.startAt)}</small><small>{t('admin.giveaways.end')}: {date(winner.endAt)}</small></td>
-                <td><StatePill tone={tone(winner.billingState)}>{winner.billingState === 'not_required' ? t('admin.giveaways.notRequired') : label(winner.billingState)}</StatePill><small>{t('admin.giveaways.nextCharge')}: {date(winner.nextChargeAt)}</small></td>
-                <td><StatePill tone={tone(winner.emailState)}>{winner.emailState === 'missing_contact' ? t('admin.giveaways.missingEmail') : label(winner.emailState)}</StatePill>{#if winner.emailState === 'missing_contact'}<small>{t('admin.giveaways.missingEmail')}</small>{:else if winner.emailWarning}<small>{winner.emailWarning}</small>{/if}</td>
+                <td><StatePill shape="tag" tone={tone(winner.awardState)}>{label(winner.awardState)}</StatePill><small>{t('admin.giveaways.start')}: {date(winner.startAt)}</small><small>{t('admin.giveaways.end')}: {date(winner.endAt)}</small></td>
+                <td><StatePill shape="tag" tone={tone(winner.billingState)}>{winner.billingState === 'not_required' ? t('admin.giveaways.notRequired') : label(winner.billingState)}</StatePill><small>{t('admin.giveaways.nextCharge')}: {date(winner.nextChargeAt)}</small></td>
+                <td><StatePill shape="tag" tone={tone(winner.emailState)}>{winner.emailState === 'missing_contact' ? t('admin.giveaways.missingEmail') : label(winner.emailState)}</StatePill>{#if winner.emailState === 'missing_contact'}<small>{t('admin.giveaways.missingEmail')}</small>{:else if winner.emailWarning}<small>{winner.emailWarning}</small>{/if}</td>
                 <td><small>{date(winner.selectedAt)}</small><small>{t('admin.giveaways.providerVerified')}: {date(winner.providerVerifiedAt)}</small></td>
                 <td>{#if winner.awardState === 'needs_review' || winner.billingState === 'pending' || winner.billingState === 'uncertain'}<form method="POST" action="?/retry" use:enhance={mutationSubmit}><input type="hidden" name="award_id" value={winner.id} /><Button type="submit" variant="secondary">{t('admin.giveaways.retry')}</Button></form>{/if}</td>
               </tr>

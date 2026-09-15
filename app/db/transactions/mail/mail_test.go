@@ -6,6 +6,7 @@ package mail
 import (
 	"context"
 	"errors"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -44,6 +45,12 @@ func TestGiveawayDeliveryKeepsAcceptanceIdentityAndPendingCopy(t *testing.T) {
 	assert.NotContains(t, sender.request.Text, "0001")
 	assert.Contains(t, sender.request.Html, "the folks behind the bagel")
 	assert.Contains(t, sender.request.Html, "https://dashboard.example.com/billing")
+	assert.Contains(t, sender.request.Html, `src="`+logoSrc+`"`)
+	require.Len(t, sender.request.Attachments, 1)
+	assert.Empty(t, sender.request.Attachments[0].Path)
+	assert.Equal(t, logoCID, sender.request.Attachments[0].ContentId)
+	assert.Equal(t, "image/png", sender.request.Attachments[0].ContentType)
+	assert.Equal(t, []byte{0x89, 'P', 'N', 'G'}, sender.request.Attachments[0].Content[:4])
 }
 
 func TestDeliveryDoesNotExposeProviderErrorText(t *testing.T) {
@@ -108,10 +115,24 @@ func TestGiftAndGiveawayShareBrandedLayout(t *testing.T) {
 	require.NoError(t, err)
 	giveaway, err := renderGiveawayHTML(GiveawayMessage{Months: 2}, "https://dashboard.example.com")
 	require.NoError(t, err)
-	for _, marker := range []string{logoURL, "Staying safe.", "Access to beta features.", "the folks behind the bagel", "Every premium perk.", "width=\"560\""} {
+	for _, marker := range []string{logoSrc, "Staying safe.", "Access to beta features.", "the folks behind the bagel", "Every premium perk.", "width=\"560\""} {
 		assert.True(t, strings.Contains(gift, marker), "gift is missing shared branding")
 		assert.True(t, strings.Contains(giveaway, marker), "giveaway is missing shared branding")
 	}
 	assert.NotContains(t, gift, "feTurbulence")
 	assert.NotContains(t, giveaway, "feTurbulence")
+}
+
+func TestSharedEmailLogoUsesEmbeddedPNG(t *testing.T) {
+	parsed, err := url.Parse(legacyLogoURL)
+	require.NoError(t, err)
+	assert.Equal(t, "https", parsed.Scheme)
+	assert.Equal(t, "itsbagelbot.com", parsed.Host)
+	assert.Equal(t, "/logo.png", parsed.Path)
+	assert.Equal(t, []byte{0x89, 'P', 'N', 'G'}, logoPNG[:4])
+	assert.NotEmpty(t, logoPNG)
+
+	html, err := giftHTML("Friend", "", "https://dashboard.example.com")
+	require.NoError(t, err)
+	assert.Contains(t, html, `src="`+logoSrc+`" width="52" height="52" alt="ItsBagelBot"`)
 }

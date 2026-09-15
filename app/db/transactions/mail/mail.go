@@ -7,6 +7,7 @@ package mail
 
 import (
 	"context"
+	_ "embed"
 	"errors"
 	"fmt"
 	stdmail "net/mail"
@@ -47,6 +48,9 @@ type GiftMessage struct {
 type renderedMessage struct {
 	To, From, Subject, HTML, Text, IdempotencyKey string
 }
+
+//go:embed assets/itsbagelbot-logo-v1.png
+var logoPNG []byte
 
 func New(apiKey, from, dashboardURL string) *Mailer {
 	return &Mailer{sender: resend.NewClient(apiKey).Emails, from: from, dashboardURL: dashboardURL}
@@ -99,8 +103,10 @@ func (m *Mailer) send(ctx context.Context, msg renderedMessage) (Receipt, error)
 	if from == "" {
 		from = m.from
 	}
+	attachments := inlineLogoAttachments(msg.HTML)
 	reply, err := m.sender.SendWithOptions(ctx, &resend.SendEmailRequest{
 		From: from, To: []string{msg.To}, Subject: msg.Subject, Html: msg.HTML, Text: msg.Text,
+		Attachments: attachments,
 	}, &resend.SendEmailOptions{IdempotencyKey: msg.IdempotencyKey})
 	if err != nil {
 		return Receipt{}, safeDeliveryError(err)
@@ -109,6 +115,15 @@ func (m *Mailer) send(ctx context.Context, msg renderedMessage) (Receipt, error)
 		return Receipt{}, ErrUnconfirmed
 	}
 	return Receipt{ProviderID: reply.Id}, nil
+}
+
+func inlineLogoAttachments(html string) []*resend.Attachment {
+	if !strings.Contains(html, `src="`+logoSrc+`"`) {
+		return nil
+	}
+	return []*resend.Attachment{{
+		Content: logoPNG, Filename: "itsbagelbot-logo.png", ContentType: "image/png", ContentId: logoCID,
+	}}
 }
 
 func (msg renderedMessage) valid() bool {

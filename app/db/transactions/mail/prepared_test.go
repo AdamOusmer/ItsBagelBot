@@ -5,6 +5,7 @@ package mail
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -25,6 +26,20 @@ func TestPreparedGiveawayKeepsBodyAndSenderAcrossConfigurationChanges(t *testing
 	assert.Contains(t, sender.request.Html, "https://original.example.com/billing")
 	assert.NotContains(t, sender.request.Html, "changed.example.com")
 	assert.Equal(t, content.HTML, sender.request.Html)
+	require.Len(t, sender.request.Attachments, 1)
+	assert.Empty(t, sender.request.Attachments[0].Path)
+	assert.Equal(t, logoCID, sender.request.Attachments[0].ContentId)
+}
+
+func TestPreparedLegacyBodyDoesNotGainNewLogoAttachment(t *testing.T) {
+	sender := &recordingSender{reply: &resend.SendEmailResponse{Id: "receipt"}}
+	m := &Mailer{sender: sender, from: "Original <original@example.com>", dashboardURL: "https://original.example.com"}
+	content, err := m.PrepareGiveaway(GiveawayMessage{Months: 2, BillingPending: true})
+	require.NoError(t, err)
+	content.HTML = strings.Replace(content.HTML, `src="`+logoSrc+`"`, `src="`+legacyLogoURL+`"`, 1)
+	_, err = m.DeliverPrepared(context.Background(), Delivery{To: "winner@example.com", Key: "legacy-delivery", Content: content})
+	require.NoError(t, err)
+	assert.Empty(t, sender.request.Attachments)
 }
 
 func TestConfirmationAdaptsTheExistingLayout(t *testing.T) {

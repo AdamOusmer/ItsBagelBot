@@ -36,7 +36,7 @@ export type GiveawayAlertWire = {
 
 export type GiveawayDetailWire = GiveawayWire & {
   winners: GiveawayWinnerWire[]; eligible?: GiveawayEligibility; poolDigest?: string | null;
-  selectionMethod?: string; algorithmVersion?: string | null; alerts?: GiveawayAlertWire[];
+  eligibleCount?: number; selectionMethod?: 'random_draw'; algorithmVersion?: string | null; alerts?: GiveawayAlertWire[];
 };
 
 export type GiveawayPreviewWire = {
@@ -79,8 +79,9 @@ type AlertRaw = {
 type CampaignReply = { campaign?: CampaignRaw; capabilities?: CapabilitiesRaw };
 type ListReply = { campaigns?: CampaignRaw[]; capabilities?: CapabilitiesRaw };
 type PreviewReply = { campaign?: CampaignRaw; candidates?: CandidateRaw[]; summary: PoolSummaryRaw; pool_digest?: string; capabilities: CapabilitiesRaw };
-type GetReply = { campaign?: CampaignRaw; awards?: AwardRaw[]; candidates?: CandidateRaw[]; draw?: { pool_digest: string; algorithm_version: string }; capabilities?: CapabilitiesRaw };
-type DrawReply = { awards?: AwardRaw[]; draw?: { pool_digest: string; algorithm_version: string }; capabilities?: CapabilitiesRaw };
+type DrawRaw = { pool_digest: string; algorithm_version: string };
+type GetReply = { campaign?: CampaignRaw; awards?: AwardRaw[]; candidates?: CandidateRaw[]; draw?: DrawRaw; capabilities?: CapabilitiesRaw };
+type DrawReply = { awards?: AwardRaw[]; draw?: DrawRaw; capabilities?: CapabilitiesRaw };
 type MutationInput = { actorId: string; idempotencyKey?: string; expectedVersion?: number; reason?: string };
 
 export function buildMutation(input: MutationInput): Record<string, string | number> {
@@ -124,6 +125,26 @@ export function mapAward(raw: AwardRaw, login = String(raw.user_id)): GiveawayWi
   };
 }
 
+const DRAW_ALGORITHM = 'crypto-rand-partial-fisher-yates-v1';
+
+export function persistedEligibleCount(status: GiveawayStatus, candidates: ReadonlyArray<{ eligible: boolean }>): number | undefined {
+  if (!['frozen', 'drawn', 'cancelled', 'complete'].includes(status) || candidates.length === 0) return undefined;
+  return candidates.filter((candidate) => candidate.eligible).length;
+}
+
+export function selectionMethodForAlgorithm(algorithmVersion?: string): 'random_draw' | undefined {
+  return algorithmVersion === DRAW_ALGORITHM ? 'random_draw' : undefined;
+}
+
+export function mapDrawMetadata(draw?: DrawRaw): { poolDigest?: string; algorithmVersion?: string; selectionMethod?: 'random_draw' } {
+  if (!draw) return {};
+  return {
+    poolDigest: draw.pool_digest,
+    algorithmVersion: draw.algorithm_version,
+    selectionMethod: selectionMethodForAlgorithm(draw.algorithm_version)
+  };
+}
+
 export function mapPreview(reply: PreviewReply): GiveawayPreviewWire {
   return {
     eligible: eligibility(reply.summary), exclusions: { ...reply.summary.exclusions }, summary: summary(reply.summary),
@@ -149,9 +170,10 @@ export async function giveawayGet(input: { actorId: string; campaignId: string }
   const reply = await rpc<GetReply>('bagel.rpc.admin.giveaways.get', { ...buildMutation(input), campaign_id: input.campaignId }, READ_TIMEOUT);
   const campaign = mapCampaign(requireCampaign(reply.campaign));
   const logins = new Map((reply.candidates ?? []).map((candidate) => [String(candidate.user_id), candidate.username ?? String(candidate.user_id)]));
+  const draw = mapDrawMetadata(reply.draw);
   return {
-    ...campaign, winners: (reply.awards ?? []).map((award) => mapAward(award, logins.get(String(award.user_id)))), poolDigest: reply.draw?.pool_digest,
-    algorithmVersion: reply.draw?.algorithm_version, selectionMethod: reply.draw?.algorithm_version,
+    ...campaign, winners: (reply.awards ?? []).map((award) => mapAward(award, logins.get(String(award.user_id)))),
+    ...draw, eligibleCount: persistedEligibleCount(campaign.status, reply.candidates ?? []),
     capabilities: capabilities(reply.capabilities)
   };
 }

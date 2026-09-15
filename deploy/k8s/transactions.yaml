@@ -158,10 +158,11 @@ spec:
               value: "8"
             - name: DB_AUTO_MIGRATE
               value: "true"
-            # Selecting winners records an obligation. Fulfillment remains
-            # pending until the monthly interval and provider behavior are
-            # verified; a successful Checkout GET does not establish either.
+            # Nonrecurring awards can deliver same-date monthly grants.
+            # Provider-dependent billing protection remains separately gated.
             - name: GIVEAWAYS_NEW_AWARDS_ENABLED
+              value: "true"
+            - name: GIVEAWAYS_PROMOTIONAL_GRANTS_ENABLED
               value: "true"
             - name: GIVEAWAYS_INTERVAL_RULE_VERIFIED
               value: "false"
