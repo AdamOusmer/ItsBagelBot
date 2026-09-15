@@ -76,6 +76,36 @@ describe('module catalog', () => {
     expect(def?.replies).toHaveLength(0);
   });
 
+  test('CODM is a generic Stats profile module with the shared account settings', () => {
+    const def = moduleDef('codm');
+    expect(def).toBeDefined();
+    if (!def) throw new Error('CODM module missing');
+    expect(def.label).toBe('CODM Profile');
+    expect(def.category).toBe('Stats');
+    expect(def.defaultEnabled).toBe(false);
+    expect(def.replies).toHaveLength(1);
+
+    const profile = def.replies[0];
+    expect(profile).toMatchObject({
+      key: 'profile',
+      label: '!codm',
+      command: 'codm',
+      event: '!codm [UID/exact nickname]',
+      enableKey: 'profileEnabled',
+      messageKey: 'profileMessage',
+      defaultMessage: '{player} · level {level} · MP {rank} · {rating} rating · {country}',
+      previewArgs: 'iFerg',
+      tokens: ['player', 'level', 'rank', 'rankclass', 'rating', 'country', 'shortid']
+    });
+    expect(def.settings![0]).toMatchObject({
+      key: 'account',
+      help: 'Default profile for the command. If blank, enter a CODM UID or exact nickname after !codm.'
+    });
+    expect(profile.previewSamples).toMatchObject({ level: '414', rank: 'Master I', rankclass: '21', rating: '4590' });
+    expect(profile.previewSamples!.player).toBe(profile.previewArgs);
+    expect(def.settings!.map((field) => field.key)).toEqual(['account', 'linkedOnly']);
+  });
+
   test('govee shares Gear with Song Requests and Discord', () => {
     expect(moduleDef('govee')?.category).toBe('Gear');
     expect(moduleDef('songqueue')?.category).toBe('Gear');

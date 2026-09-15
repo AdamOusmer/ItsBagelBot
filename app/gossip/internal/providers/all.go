@@ -10,6 +10,7 @@ import (
 	"ItsBagelBot/app/gossip/internal/config"
 	"ItsBagelBot/app/gossip/internal/provider"
 	"ItsBagelBot/app/gossip/internal/providers/clashroyale"
+	"ItsBagelBot/app/gossip/internal/providers/codm"
 	"ItsBagelBot/app/gossip/internal/providers/custom"
 	"ItsBagelBot/app/gossip/internal/providers/fortnite"
 	"ItsBagelBot/app/gossip/internal/providers/govee"
@@ -39,6 +40,7 @@ func All(cfg *config.Config, d provider.Deps) []provider.Provider {
 	out = appendMcsr(out, cfg, d, log)
 	out = appendPaceman(out, cfg, d, log)
 	out = appendFortnite(out, cfg, d, log)
+	out = appendCODM(out, cfg, d, log)
 	out = appendGovee(out, cfg, d, log)
 	out = appendClashRoyale(out, cfg, d, log)
 	out = appendValorant(out, cfg, d, log)
@@ -129,6 +131,14 @@ func appendFortnite(out []provider.Provider, cfg *config.Config, d provider.Deps
 		StatsRateLimit:  cfg.FortniteStatsRateLimit,
 		SeasonStartUnix: cfg.FortniteSeasonStart,
 	}, d))
+}
+
+func appendCODM(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
+	return gated(out, log, !cfg.CODMEnabled, "codm provider disabled: CODM_ENABLED=false", codm.New, codm.Config{
+		BaseURL:   cfg.CODMBaseURL,
+		Country:   cfg.CODMCountry,
+		RateLimit: cfg.CODMRateLimit,
+	}, d)
 }
 
 // appendGovee adds the govee provider. It needs no service key — each

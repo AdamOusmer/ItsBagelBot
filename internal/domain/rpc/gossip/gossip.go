@@ -283,6 +283,21 @@ type McsrSnapshotReply struct {
 	Error    string `json:"error,omitempty"`
 }
 
+// CODMProfileReply is the read-only codm.profile answer from the CODM Global
+// web store's account validation flow. Rating and Rank describe MP ranked play.
+type CODMProfileReply struct {
+	// Player echoes the supplied nickname or UID; store nicknames may be masked
+	// by streamer mode and must never replace the caller's account label.
+	Player    string `json:"player"`
+	Level     int    `json:"level"`
+	Rank      string `json:"rank"`
+	RankClass int    `json:"rank_class"`
+	Rating    int    `json:"rating"`
+	Country   string `json:"country"`
+	ShortID   string `json:"short_id,omitempty"`
+	Error     string `json:"error,omitempty"`
+}
+
 // --- fortnite (fortnite-api.com) ---------------------------------------------
 
 // FortniteModeStats is one queue's normalized Battle Royale counters inside

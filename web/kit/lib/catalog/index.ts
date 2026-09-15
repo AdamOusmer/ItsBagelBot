@@ -17,6 +17,7 @@ import { ALERTS_MODULE } from './alerts';
 import { AUTOMOD_MODULE } from './automod';
 import { CHANNELPOINTS_MODULE } from './channelpoints';
 import { CLASHROYALE_MODULE } from './clashroyale';
+import { CODM_MODULE } from './codm';
 import { COUNTERS_MODULE } from './counters';
 import { DISCORD_MODULE } from './discord';
 import { EMOTEPLAY_MODULE } from './emoteplay';
@@ -51,6 +52,7 @@ export const MOD = {
   urchin: 'urchin',
   mcsr: 'mcsr',
   fortnite: 'fortnite',
+  codm: 'codm',
   clashroyale: 'clashroyale',
   valorant: 'valorant',
   queue: 'queue',
@@ -83,6 +85,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
   URCHIN_MODULE,
   MCSR_MODULE,
   FORTNITE_MODULE,
+  CODM_MODULE,
   CLASHROYALE_MODULE,
   VALORANT_MODULE_DEF,
   QUEUE_MODULE,

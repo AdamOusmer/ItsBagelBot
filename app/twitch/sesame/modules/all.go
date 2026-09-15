@@ -26,6 +26,7 @@ func All(d engine.Deps) []module.Module {
 		Urchin(d),
 		Mcsr(d),
 		Fortnite(d),
+		CODM(d),
 		ClashRoyale(d),
 		Valorant(d),
 		// Raffle before Queue: both declare !join, and the registry's first-wins
