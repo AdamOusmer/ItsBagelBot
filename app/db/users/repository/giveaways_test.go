@@ -5,20 +5,26 @@ package repository_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"ItsBagelBot/app/db/users/ent"
 	"ItsBagelBot/app/db/users/ent/adminuser"
+	"ItsBagelBot/app/db/users/ent/enttest"
 	"ItsBagelBot/app/db/users/ent/user"
 	"ItsBagelBot/app/db/users/repository"
 	"ItsBagelBot/internal/domain/event/data"
 	billingrpc "ItsBagelBot/internal/domain/rpc/billing"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
+	"ItsBagelBot/internal/testdb"
+	"ItsBagelBot/pkg/bus/bustest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func TestGiveawayPoolUsesAuthoritativeRulesAndPendingFlags(t *testing.T) {
@@ -186,6 +192,61 @@ func TestPremiumGrantBoundarySweepAdvancesProjectionPhase(t *testing.T) {
 	grant := client.PremiumGrant.Query().OnlyX(ctx)
 	assert.Equal(t, "active", string(grant.ProjectionPhase))
 	assert.NotEmpty(t, pub.On(data.SubjectUserChanged))
+	count, err = repo.ExpirePremiumGrants(ctx, end)
+	require.NoError(t, err)
+	assert.Equal(t, 1, count)
+	grant = client.PremiumGrant.Query().OnlyX(ctx)
+	assert.Equal(t, "expired", string(grant.ProjectionPhase))
+}
+
+// rejectInvalidateStatus is the production JetStream catalog: bagel.cache.invalidate.status
+// has no stream. The sweep used to PublishJSON through this publisher and stall
+// projection_phase at pending. Core NATS (nc) is the invalidate path now; with
+// prefix set and nc nil the sweep must still advance.
+type rejectInvalidateStatus struct {
+	inner *bustest.Publisher
+}
+
+func (p *rejectInvalidateStatus) PublishOwned(ctx context.Context, subject string, payload []byte) error {
+	if strings.Contains(subject, "cache.invalidate") && strings.HasSuffix(subject, ".status") {
+		return errors.New(`bus: no stream matches subject "bagel.cache.invalidate.status"`)
+	}
+	return p.inner.PublishOwned(ctx, subject, payload)
+}
+
+func (p *rejectInvalidateStatus) PublishOwnedWithID(ctx context.Context, subject, _ string, payload []byte) error {
+	return p.PublishOwned(ctx, subject, payload)
+}
+
+func (p *rejectInvalidateStatus) Flush(ctx context.Context) error { return p.inner.Flush(ctx) }
+func (p *rejectInvalidateStatus) Close() error                    { return p.inner.Close() }
+
+func TestPremiumGrantBoundarySweepIgnoresJetStreamStatusInvalidation(t *testing.T) {
+	client := testdb.Open(t, "grantinvalidate", func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
+	inner := bustest.NewPublisher()
+	repo := repository.NewUsers(client, newPacker(t), &rejectInvalidateStatus{inner: inner}, nil, zap.NewNop())
+	t.Cleanup(func() { repo.Close(context.Background()) })
+	repo.SetInvalidationPrefix("bagel.cache.invalidate")
+
+	ctx := context.Background()
+	require.NoError(t, repo.Register(ctx, 33, "jsboundary", "jsboundary", "jsboundary@example.com"))
+	start := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	end := start.AddDate(0, 1, 0)
+	_, err := repo.PreparePremiumGrant(ctx, usersrpc.PreparePremiumGrantRequest{
+		GiveawayID: "g-js", AwardID: "a-js", UserID: 33, StartAt: start, EndAt: end, IntervalRuleVersion: "tebex-monthly-v1",
+	})
+	require.NoError(t, err)
+	_, err = repo.CommitPremiumGrant(ctx, usersrpc.CommitPremiumGrantRequest{GiveawayID: "g-js", AwardID: "a-js", UserID: 33})
+	require.NoError(t, err)
+
+	count, err := repo.ExpirePremiumGrants(ctx, start)
+	require.NoError(t, err)
+	assert.Zero(t, count)
+	grant := client.PremiumGrant.Query().OnlyX(ctx)
+	assert.Equal(t, "active", string(grant.ProjectionPhase))
+	assert.NotEmpty(t, inner.On(data.SubjectUserChanged))
+	assert.Empty(t, inner.On("bagel.cache.invalidate.status"))
+
 	count, err = repo.ExpirePremiumGrants(ctx, end)
 	require.NoError(t, err)
 	assert.Equal(t, 1, count)
