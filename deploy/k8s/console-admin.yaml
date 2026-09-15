@@ -139,7 +139,7 @@ spec:
       priorityClassName: bagel-edge
       containers:
         - name: console-admin
-          image: ghcr.io/adamousmer/itsbagelbot/console-admin:v0.2.1-beta@sha256:701d1d1f70446ab742c2c7f86ea8764c5d39987555bc28ce30f3803ce3c9c241
+          image: ghcr.io/adamousmer/itsbagelbot/console-admin:sha-110bb58fe227@sha256:8e9b896b41337b32cc3cd16f190cdca247fc5d7eba5e6bbcfc2db299aa215de0
           imagePullPolicy: IfNotPresent
           env:
             # mTLS client identity for both NATS planes (nats-client-tls,
