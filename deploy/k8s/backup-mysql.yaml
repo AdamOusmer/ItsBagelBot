@@ -225,7 +225,7 @@ spec:
               # ever costs more than it is worth, lts-oracle (9.7.x) is the
               # conservative lane -- do not silently fall back to 8.4, which is
               # the era being left behind here.
-              image: mysql:26.7-oracle@sha256:66aec17cd21a956029b83f083b813073859e8355dc1a00e55df6ba02f0e32345
+              image: mysql:26.7-oracle@sha256:45abdd9b4144660b5c93a5b7d0ebb21e024f0ba9851ecb4ab43bf83c6bf83592
               imagePullPolicy: IfNotPresent
               command: ["/bin/sh", "/scripts/dump.sh"]
               env:
