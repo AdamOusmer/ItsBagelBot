@@ -241,25 +241,24 @@ function familyId(surfaceId: string, token: string): string {
   return name;
 }
 
+const FAMILY_SYNTAX = new Map<string, string>([
+  ['argument-word', '{1}'],
+  ['argument-tail', '{1:}'],
+  ['counter-increment', '{counter:name}'],
+  ['counter-read', '{count:name}'],
+  ['random', '{random:min-max}'],
+  ['choice', '{choice:one,two,three}'],
+  ['song', '{song}'],
+]);
+
+const VIEWER_PAYLOAD_FAMILIES = new Set([
+  'followage', 'accountage', 'points', 'watchtime', 'quote', 'uptime', 'title', 'game',
+]);
+
 function familySyntax(id: string, firstToken: string): string {
-  switch (id) {
-    case 'argument-word': return '{1}';
-    case 'argument-tail': return '{1:}';
-    case 'counter-increment': return '{counter:name}';
-    case 'counter-read': return '{count:name}';
-    case 'random': return '{random:min-max}';
-    case 'choice': return '{choice:one,two,three}';
-    case 'followage':
-    case 'accountage':
-    case 'points':
-    case 'watchtime':
-    case 'quote':
-    case 'uptime':
-    case 'title':
-    case 'game': return `${firstToken.slice(0, -1)}:viewer}`;
-    case 'song': return '{song}';
-    default: return firstToken;
-  }
+  const syntax = FAMILY_SYNTAX.get(id);
+  if (syntax) return syntax;
+  return VIEWER_PAYLOAD_FAMILIES.has(id) ? `${firstToken.slice(0, -1)}:viewer}` : firstToken;
 }
 
 function familyParameterized(id: string, token: string): boolean {
