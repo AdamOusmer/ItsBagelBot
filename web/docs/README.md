@@ -18,6 +18,19 @@ This directory contains the documentation for ItsBagelBot, built with [Astro Sta
 - `public/`: Static assets like favicons.
 - `astro.config.mjs`: Starlight configuration (sidebar, theme, etc.).
 
+## Cloudflare Pages
+
+This site deploys as the `itsbagelbotdocs` Pages project. Production and
+preview both pin `BUN_VERSION=1.4.2` and `SKIP_DEPENDENCY_INSTALL=true`,
+because Pages v3 still defaults to Bun 1.2.15 and will `npm install` unless
+told not to.
+
+| Setting | Value |
+| :------ | :---- |
+| Root directory | `web/docs` |
+| Build command | `bun --version && bun install --cwd .. --frozen-lockfile && bun run build` |
+| Build output directory | `dist` |
+
 ## 🧞 Commands
 
 Run these from the `docs/` directory using `bun`:
