@@ -67,6 +67,22 @@ func TestDurationNoProductCapAndNoWrap(t *testing.T) {
 	}
 }
 
+func TestPromotionalCalendarRuleUsesVersionedCalendarMath(t *testing.T) {
+	start := time.Date(2026, 9, 15, 12, 0, 0, 0, time.UTC)
+	end, err := PrizeInterval(start, 12, PromotionalCalendarMonthRule)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := time.Date(2027, 9, 15, 12, 0, 0, 0, time.UTC)
+	if !end.Equal(want) {
+		t.Fatalf("end=%s want=%s", end, want)
+	}
+	_, err = PrizeInterval(time.Date(2028, 2, 29, 12, 0, 0, 0, time.UTC), 12, PromotionalCalendarMonthRule)
+	if !errors.Is(err, ErrAmbiguousInterval) {
+		t.Fatalf("leap-year boundary err=%v", err)
+	}
+}
+
 func TestDurationRejectsUnrepresentableYears(t *testing.T) {
 	if _, err := PrizeInterval(time.Date(0, 1, 1, 0, 0, 0, 0, time.UTC), 1, "verified"); !errors.Is(err, ErrUnrepresentable) {
 		t.Fatalf("year zero err=%v", err)

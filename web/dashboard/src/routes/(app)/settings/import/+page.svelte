@@ -766,8 +766,8 @@
       <div class="review-bar">
         {#each statChips as c (c)}<span class="stat">{c}</span>{/each}
         <span class="review-spacer"></span>
-        <button type="button" class="selection-action" onclick={() => setAll(true)}>{t('import.selectAll')}</button>
-        <button type="button" class="selection-action" onclick={() => setAll(false)}>{t('import.selectNone')}</button>
+        <Button type="button" variant="ghost" size="sm" onclick={() => setAll(true)}>{t('import.selectAll')}</Button>
+        <Button type="button" variant="ghost" size="sm" onclick={() => setAll(false)}>{t('import.selectNone')}</Button>
       </div>
     </Card>
 
@@ -1545,26 +1545,6 @@
   }
   .review-spacer {
     flex: 1;
-  }
-  .selection-action {
-    font: inherit;
-    cursor: pointer;
-    font-family: var(--bb-font-mono);
-    font-size: 10.5px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
-    background: transparent;
-    border: 1px solid var(--bb-border);
-    border-radius: var(--bb-radius-pill);
-    padding: 6px 13px;
-    transition:
-      color var(--bb-dur-fast, 140ms) ease,
-      background var(--bb-dur-fast, 140ms) ease;
-  }
-  .selection-action:hover {
-    color: var(--bb-white);
-    background: rgba(201, 168, 124, 0.08);
   }
 
   /* Each collection is its own panel, so a long commands list cannot push the

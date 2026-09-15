@@ -124,7 +124,7 @@
           })}
         </div>
       </div>
-      <StatePill tone={state}>{state}</StatePill>
+      <StatePill shape="tag" tone={state}>{state}</StatePill>
     </div>
 
     <section class="block">

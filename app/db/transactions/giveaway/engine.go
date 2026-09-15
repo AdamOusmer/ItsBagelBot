@@ -17,6 +17,7 @@ import (
 	"ItsBagelBot/app/db/transactions/ent/billingoperation"
 	"ItsBagelBot/app/db/transactions/ent/giveawayalert"
 	"ItsBagelBot/app/db/transactions/ent/giveawayaward"
+	"ItsBagelBot/app/db/transactions/ent/giveawayfulfillmentplan"
 	"ItsBagelBot/app/db/transactions/ent/giveawayoutbox"
 	"ItsBagelBot/app/db/transactions/ent/giveawayuserlease"
 	"ItsBagelBot/app/db/transactions/tebex"
@@ -199,14 +200,14 @@ func (e *Engine) fulfillAward(ctx context.Context, awardID string, award *ent.Gi
 	if err != nil {
 		return err
 	}
-	start, end, err := e.planAward(workCtx, award, coverage)
+	plan, err := e.planAward(workCtx, award, coverage)
 	if err != nil {
 		return err
 	}
-	if _, err = award.Update().SetPlannedStart(start).SetPlannedEnd(end).SetState(string(giveawaysrpc.AwardPreparing)).SetBillingState(string(giveawaysrpc.BillingPending)).SetVersion(award.Version + 1).SetUpdatedAt(e.now()).Save(ctx); err != nil {
+	if award, err = e.saveFulfillmentPlan(ctx, award, plan); err != nil {
 		return err
 	}
-	ref, err := e.prepareBilling(workCtx, billingPlan{award: award, coverage: coverage, start: start, end: end})
+	ref, err := e.prepareBilling(workCtx, billingPlan{award: award, coverage: coverage, start: plan.start, end: plan.end})
 	if err != nil {
 		return err
 	}
@@ -247,45 +248,6 @@ func (e *Engine) requireUsers(ctx context.Context, awardID string) error {
 
 func terminalAward(award *ent.GiveawayAward) bool {
 	return award.State == string(giveawaysrpc.AwardScheduled) || award.State == string(giveawaysrpc.AwardActive) || award.State == string(giveawaysrpc.AwardCompleted) || award.State == string(giveawaysrpc.AwardVoided)
-}
-
-func (e *Engine) planAward(ctx context.Context, award *ent.GiveawayAward, coverage usersrpc.PremiumCoverage) (time.Time, time.Time, error) {
-	if !e.config.IntervalRuleVerified {
-		return time.Time{}, time.Time{}, e.needsReview(ctx, award, "interval rule is not verified")
-	}
-	if !award.PlannedStart.IsZero() && !award.PlannedEnd.IsZero() {
-		return award.PlannedStart, award.PlannedEnd, nil
-	}
-	start := e.coverageStart(coverage)
-	end, err := PrizeInterval(start, award.PrizeMonths, e.config.IntervalRuleVersion())
-	if err != nil {
-		return time.Time{}, time.Time{}, e.needsReview(ctx, award, err.Error())
-	}
-	return start, end, nil
-}
-
-func (e *Engine) coverageStart(coverage usersrpc.PremiumCoverage) time.Time {
-	start := e.now().UTC().Truncate(time.Microsecond)
-	if coverage.PaidThrough != nil && coverage.PaidThrough.After(start) {
-		start = coverage.PaidThrough.UTC().Truncate(time.Microsecond)
-	}
-	for _, grant := range coverage.Grants {
-		if coverageGrantExtends(grant, start) {
-			start = grant.EndAt.UTC().Truncate(time.Microsecond)
-		}
-	}
-	return start
-}
-
-func coverageGrantExtends(grant usersrpc.PremiumGrant, start time.Time) bool {
-	return grant.State == "committed" && grant.EndAt.After(start) && !grant.StartAt.After(start)
-}
-
-func recurringReference(coverage usersrpc.PremiumCoverage) string {
-	if coverage.RecurringReference == nil {
-		return ""
-	}
-	return *coverage.RecurringReference
 }
 
 func (e *Engine) needsReview(ctx context.Context, award *ent.GiveawayAward, reason any) error {
@@ -354,13 +316,6 @@ func lifecycleActive(row *ent.GiveawayAward, now time.Time) bool {
 	return !row.PlannedStart.IsZero() && !now.Before(row.PlannedStart) && row.State != string(giveawaysrpc.AwardActive)
 }
 
-func (c Config) IntervalRuleVersion() string {
-	if c.IntervalRuleVerified {
-		return "tebex-monthly-verified-v1"
-	}
-	return "provider-monthly-unverified"
-}
-
 type engineAwardAdapter struct {
 	db           *ent.Client
 	required     bool
@@ -373,7 +328,11 @@ func (a *engineAwardAdapter) Load(ctx context.Context, id string) (WorkAward, er
 	if err != nil {
 		return WorkAward{}, err
 	}
-	return WorkAward{ID: row.ID, GiveawayID: row.GiveawayID, UserID: strconv.FormatUint(row.UserID, 10), Start: valueTime(row.PlannedStart), End: valueTime(row.PlannedEnd), BillingRequired: a.required, RecurringReference: a.ref}, nil
+	plan, err := a.db.GiveawayFulfillmentPlan.Query().Where(giveawayfulfillmentplan.AwardIDEQ(id)).Only(ctx)
+	if err != nil {
+		return WorkAward{}, err
+	}
+	return WorkAward{ID: row.ID, GiveawayID: row.GiveawayID, UserID: strconv.FormatUint(row.UserID, 10), Start: valueTime(plan.StartAt), End: valueTime(plan.EndAt), BillingRequired: a.required, RecurringReference: a.ref, IntervalRule: plan.IntervalRule}, nil
 }
 func (a *engineAwardAdapter) Preparing(ctx context.Context, id string) error {
 	_, err := a.db.GiveawayAward.UpdateOneID(id).SetState(string(giveawaysrpc.AwardPreparing)).SetUpdatedAt(time.Now()).Save(ctx)
@@ -448,28 +407,51 @@ func (request userLeaseRequest) save(ctx context.Context, tx *ent.Tx, row *ent.G
 	return err
 }
 func (a *engineAwardAdapter) Scheduled(ctx context.Context, id, grantID string) error {
+	tx, err := a.db.Tx(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err = a.scheduleInTx(ctx, tx, id, grantID); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (a *engineAwardAdapter) scheduleInTx(ctx context.Context, tx *ent.Tx, id, grantID string) error {
+	award, err := tx.GiveawayAward.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+	now := time.Now()
 	billing := string(giveawaysrpc.BillingProtected)
 	if !a.required {
 		billing = string(giveawaysrpc.BillingNotRequired)
 	}
-	award, err := a.db.GiveawayAward.Get(ctx, id)
-	if err != nil {
+	update := award.Update().SetState(string(giveawaysrpc.AwardScheduled)).SetBillingState(billing).SetGrantID(grantID).SetUpdatedAt(now).ClearFailureReason()
+	setConfirmedPeriod(update, award)
+	if _, err = update.Save(ctx); err != nil {
 		return err
 	}
-	update := award.Update().SetState(string(giveawaysrpc.AwardScheduled)).SetBillingState(billing).SetGrantID(grantID).SetUpdatedAt(time.Now())
+	// A fulfillment review alert describes the failed transition that has now
+	// succeeded. Resolve it in the same transaction as the award transition so
+	// readers cannot observe an active award with a stale fulfillment failure.
+	if _, err = tx.GiveawayAlert.Update().Where(giveawayalert.AwardIDEQ(id), giveawayalert.CategoryEQ("fulfillment")).SetState("resolved").SetResolvedAt(now).SetLastSeenAt(now).Save(ctx); err != nil {
+		return err
+	}
+	if a.required {
+		_, err = tx.BillingOperation.Update().Where(billingoperation.AwardIDEQ(id)).SetState("verified").SetVerifiedAt(now).SetUpdatedAt(now).Save(ctx)
+	}
+	return err
+}
+
+func setConfirmedPeriod(update *ent.GiveawayAwardUpdateOne, award *ent.GiveawayAward) {
 	if !award.PlannedStart.IsZero() {
 		update.SetConfirmedStart(award.PlannedStart)
 	}
 	if !award.PlannedEnd.IsZero() {
 		update.SetConfirmedEnd(award.PlannedEnd)
 	}
-	if _, err = update.Save(ctx); err != nil {
-		return err
-	}
-	if a.required {
-		_, err = a.db.BillingOperation.Update().Where(billingoperation.AwardIDEQ(id)).SetState("verified").SetVerifiedAt(time.Now()).SetUpdatedAt(time.Now()).Save(ctx)
-	}
-	return err
 }
 
 func markBillingReview(ctx context.Context, db *ent.Client, awardID string, reason error) error {
@@ -512,7 +494,7 @@ type engineGrantAdapter struct{ users UsersPort }
 
 func (a engineGrantAdapter) Prepare(ctx context.Context, award WorkAward) (string, error) {
 	uid, _ := strconv.ParseUint(award.UserID, 10, 64)
-	grant, err := a.users.Prepare(ctx, usersrpc.PreparePremiumGrantRequest{GiveawayID: award.GiveawayID, AwardID: award.ID, UserID: uid, StartAt: award.Start, EndAt: award.End, IntervalRuleVersion: "tebex-monthly-verified-v1"})
+	grant, err := a.users.Prepare(ctx, usersrpc.PreparePremiumGrantRequest{GiveawayID: award.GiveawayID, AwardID: award.ID, UserID: uid, StartAt: award.Start, EndAt: award.End, IntervalRuleVersion: award.IntervalRule})
 	if err != nil {
 		return "", err
 	}

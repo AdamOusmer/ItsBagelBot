@@ -14,6 +14,7 @@ import (
 	"ItsBagelBot/app/db/transactions/ent/giveawayaward"
 	"ItsBagelBot/app/db/transactions/ent/giveawaycandidate"
 	"ItsBagelBot/app/db/transactions/ent/giveawaydraw"
+	"ItsBagelBot/app/db/transactions/ent/giveawayfulfillmentplan"
 	giveawayengine "ItsBagelBot/app/db/transactions/giveaway"
 	"ItsBagelBot/internal/domain/rpc"
 	giveaways "ItsBagelBot/internal/domain/rpc/giveaways"
@@ -57,13 +58,31 @@ func SubscribeGiveaways(w bus.RPCWiring, service *GiveawayRPC) error {
 }
 
 func (g *GiveawayRPC) capabilities() giveaways.Capabilities {
-	c := giveaways.Capabilities{NewAwardsEnabled: g.config.NewAwardsEnabled, SchedulingEnabled: g.config.CanScheduleAwards(), ProviderMutations: g.config.CanMutateProvider(), IntervalRuleVerified: g.config.IntervalRuleVerified}
-	if !c.NewAwardsEnabled {
-		c.Reason = "new awards are disabled by launch gate"
-	} else if !c.IntervalRuleVerified {
-		c.Reason = "provider interval rule is not verified"
-	}
+	c := giveaways.Capabilities{NewAwardsEnabled: g.config.NewAwardsEnabled, SchedulingEnabled: g.config.CanScheduleAwards() || g.config.CanSchedulePromotionalGrants(), ProviderMutations: g.config.CanMutateProvider(), IntervalRuleVerified: g.config.IntervalRuleVerified}
+	c.Reason = capabilityReason(c, g.config.CanSchedulePromotionalGrants())
 	return c
+}
+
+func capabilityReason(c giveaways.Capabilities, promotionalEnabled bool) string {
+	switch {
+	case !c.NewAwardsEnabled:
+		return "new awards are disabled by launch gate"
+	case !c.SchedulingEnabled:
+		return "award scheduling is disabled; subscriber protection is unavailable"
+	case !c.IntervalRuleVerified:
+		return intervalRuleReason(promotionalEnabled)
+	case !c.ProviderMutations:
+		return "subscriber protection mutations are disabled; affected awards remain pending"
+	default:
+		return ""
+	}
+}
+
+func intervalRuleReason(promotionalEnabled bool) string {
+	if promotionalEnabled {
+		return "subscriber protection is unavailable; nonrecurring promotional grants may be scheduled"
+	}
+	return "subscriber protection is unavailable and promotional grant scheduling is disabled"
 }
 
 func (g *GiveawayRPC) newAwardsGate() rpc.Refusal {
@@ -212,9 +231,11 @@ func (g *GiveawayRPC) get(ctx context.Context, req giveaways.GetRequest) giveawa
 		return giveaways.GetReply{Refusal: refusal(err), Capabilities: g.capabilities()}
 	}
 	out := giveaways.GetReply{Campaign: campaignView(row), Capabilities: g.capabilities()}
-	for _, a := range awards {
-		out.Awards = append(out.Awards, awardView(a))
+	views, err := g.awardViews(ctx, awards)
+	if err != nil {
+		return giveaways.GetReply{Refusal: refusal(err), Capabilities: g.capabilities()}
 	}
+	out.Awards = views
 	for _, c := range candidates {
 		out.Candidates = append(out.Candidates, candidateView(c))
 	}
@@ -238,7 +259,11 @@ func (g *GiveawayRPC) retry(ctx context.Context, req giveaways.AwardRetryRequest
 	if err != nil {
 		return giveaways.AwardRetryReply{Refusal: refusal(err), Capabilities: g.capabilities()}
 	}
-	view := awardView(a)
+	views, err := g.awardViews(ctx, []*ent.GiveawayAward{a})
+	if err != nil {
+		return giveaways.AwardRetryReply{Refusal: refusal(err), Capabilities: g.capabilities()}
+	}
+	view := views[0]
 	return giveaways.AwardRetryReply{Award: &view, Capabilities: g.capabilities()}
 }
 
@@ -280,7 +305,11 @@ func (g *GiveawayRPC) history(ctx context.Context, req giveaways.HistoryRequest)
 	if err != nil {
 		return giveaways.HistoryReply{Refusal: refusal(err), Capabilities: g.capabilities()}
 	}
-	out := giveaways.HistoryReply{Awards: mapSlice(rows, awardView), Capabilities: g.capabilities()}
+	views, err := g.awardViews(ctx, rows)
+	if err != nil {
+		return giveaways.HistoryReply{Refusal: refusal(err), Capabilities: g.capabilities()}
+	}
+	out := giveaways.HistoryReply{Awards: views, Capabilities: g.capabilities()}
 	return out
 }
 
@@ -303,9 +332,11 @@ func (g *GiveawayRPC) mine(ctx context.Context, req giveaways.MineRequest) givea
 		return giveaways.MineReply{Refusal: refusal(err)}
 	}
 	out := giveaways.MineReply{}
-	for _, a := range rows {
-		out.Awards = append(out.Awards, awardView(a))
+	views, err := g.awardViews(ctx, rows)
+	if err != nil {
+		return giveaways.MineReply{Refusal: refusal(err)}
 	}
+	out.Awards = views
 	return out
 }
 
@@ -381,7 +412,38 @@ func campaignView(c *ent.Giveaway) *giveaways.Campaign {
 	return &giveaways.Campaign{ID: c.ID, Title: c.Title, Reason: c.Reason, RulesVersion: c.RulesVersion, WinnerCount: c.WinnerCount, PrizeMonths: c.PrizeMonths, Status: giveaways.Status(c.Status), CreatedBy: c.CreatedBy, Version: c.Version, CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt, FrozenAt: timePtr(c.FrozenAt), DrawnAt: timePtr(c.DrawnAt)}
 }
 func awardView(a *ent.GiveawayAward) giveaways.Award {
-	return giveaways.Award{ID: a.ID, CampaignID: a.GiveawayID, DrawID: a.DrawID, UserID: a.UserID, Ordinal: a.Ordinal, PrizeMonths: a.PrizeMonths, IntervalRule: a.IntervalRule, State: giveaways.AwardState(a.State), BillingState: giveaways.BillingState(a.BillingState), EmailState: giveaways.EmailState(a.EmailState), PlannedStart: timePtr(a.PlannedStart), PlannedEnd: timePtr(a.PlannedEnd), ConfirmedStart: timePtr(a.ConfirmedStart), ConfirmedEnd: timePtr(a.ConfirmedEnd), GrantID: a.GrantID, BillingOperationID: a.BillingOperationID, FailureReason: a.FailureReason, RetryCount: a.RetryCount, Version: a.Version, SelectedAt: a.SelectedAt, UpdatedAt: a.UpdatedAt}
+	return awardViewWithRule(a, a.IntervalRule)
+}
+
+func (g *GiveawayRPC) awardViews(ctx context.Context, rows []*ent.GiveawayAward) ([]giveaways.Award, error) {
+	if len(rows) == 0 {
+		return []giveaways.Award{}, nil
+	}
+	ids := make([]string, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, row.ID)
+	}
+	plans, err := g.db.GiveawayFulfillmentPlan.Query().Where(giveawayfulfillmentplan.AwardIDIn(ids...)).All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rules := make(map[string]string, len(plans))
+	for _, plan := range plans {
+		rules[plan.AwardID] = plan.IntervalRule
+	}
+	views := make([]giveaways.Award, 0, len(rows))
+	for _, row := range rows {
+		rule := rules[row.ID]
+		if rule == "" {
+			rule = row.IntervalRule
+		}
+		views = append(views, awardViewWithRule(row, rule))
+	}
+	return views, nil
+}
+
+func awardViewWithRule(a *ent.GiveawayAward, rule string) giveaways.Award {
+	return giveaways.Award{ID: a.ID, CampaignID: a.GiveawayID, DrawID: a.DrawID, UserID: a.UserID, Ordinal: a.Ordinal, PrizeMonths: a.PrizeMonths, IntervalRule: rule, State: giveaways.AwardState(a.State), BillingState: giveaways.BillingState(a.BillingState), EmailState: giveaways.EmailState(a.EmailState), PlannedStart: timePtr(a.PlannedStart), PlannedEnd: timePtr(a.PlannedEnd), ConfirmedStart: timePtr(a.ConfirmedStart), ConfirmedEnd: timePtr(a.ConfirmedEnd), GrantID: a.GrantID, BillingOperationID: a.BillingOperationID, FailureReason: a.FailureReason, RetryCount: a.RetryCount, Version: a.Version, SelectedAt: a.SelectedAt, UpdatedAt: a.UpdatedAt}
 }
 func candidateView(c *ent.GiveawayCandidate) giveaways.Candidate {
 	var v any

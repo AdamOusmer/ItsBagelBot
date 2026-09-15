@@ -149,7 +149,7 @@
     {#each history as giveaway (giveaway.id)}
       <a class="history-row" href={`/giveaways/${encodeURIComponent(giveaway.id)}`}>
         <span><strong>{giveaway.title}</strong><small>{giveaway.winnerCount} × {giveaway.prizeMonths} · {date(giveaway.createdAt)}</small></span>
-        <span class="row-meta"><StatePill tone={giveaway.status === 'complete' ? 'positive' : giveaway.status === 'drawn' ? 'warning' : 'neutral'}>{statusLabel(giveaway.status)}</StatePill>{#if giveaway.pendingAwards}<b class="pending">{giveaway.pendingAwards}</b>{/if}</span>
+        <span class="row-meta"><StatePill shape="tag" tone={giveaway.status === 'complete' ? 'positive' : giveaway.status === 'drawn' ? 'warning' : 'neutral'}>{statusLabel(giveaway.status)}</StatePill>{#if giveaway.pendingAwards}<b class="pending">{giveaway.pendingAwards}</b>{/if}</span>
       </a>
     {/each}
   </div>

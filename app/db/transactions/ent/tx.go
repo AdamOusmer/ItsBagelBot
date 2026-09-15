@@ -26,6 +26,8 @@ type Tx struct {
 	GiveawayCandidate *GiveawayCandidateClient
 	// GiveawayDraw is the client for interacting with the GiveawayDraw builders.
 	GiveawayDraw *GiveawayDrawClient
+	// GiveawayFulfillmentPlan is the client for interacting with the GiveawayFulfillmentPlan builders.
+	GiveawayFulfillmentPlan *GiveawayFulfillmentPlanClient
 	// GiveawayOutbox is the client for interacting with the GiveawayOutbox builders.
 	GiveawayOutbox *GiveawayOutboxClient
 	// GiveawayUserLease is the client for interacting with the GiveawayUserLease builders.
@@ -172,6 +174,7 @@ func (tx *Tx) init() {
 	tx.GiveawayAward = NewGiveawayAwardClient(tx.config)
 	tx.GiveawayCandidate = NewGiveawayCandidateClient(tx.config)
 	tx.GiveawayDraw = NewGiveawayDrawClient(tx.config)
+	tx.GiveawayFulfillmentPlan = NewGiveawayFulfillmentPlanClient(tx.config)
 	tx.GiveawayOutbox = NewGiveawayOutboxClient(tx.config)
 	tx.GiveawayUserLease = NewGiveawayUserLeaseClient(tx.config)
 	tx.TebexAgreement = NewTebexAgreementClient(tx.config)

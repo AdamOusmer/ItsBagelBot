@@ -92,6 +92,18 @@ func (f GiveawayDrawFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.GiveawayDrawMutation", m)
 }
 
+// The GiveawayFulfillmentPlanFunc type is an adapter to allow the use of ordinary
+// function as GiveawayFulfillmentPlan mutator.
+type GiveawayFulfillmentPlanFunc func(context.Context, *ent.GiveawayFulfillmentPlanMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f GiveawayFulfillmentPlanFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.GiveawayFulfillmentPlanMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.GiveawayFulfillmentPlanMutation", m)
+}
+
 // The GiveawayOutboxFunc type is an adapter to allow the use of ordinary
 // function as GiveawayOutbox mutator.
 type GiveawayOutboxFunc func(context.Context, *ent.GiveawayOutboxMutation) (ent.Value, error)

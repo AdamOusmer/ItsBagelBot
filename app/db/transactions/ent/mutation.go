@@ -10,6 +10,7 @@ import (
 	"ItsBagelBot/app/db/transactions/ent/giveawayaward"
 	"ItsBagelBot/app/db/transactions/ent/giveawaycandidate"
 	"ItsBagelBot/app/db/transactions/ent/giveawaydraw"
+	"ItsBagelBot/app/db/transactions/ent/giveawayfulfillmentplan"
 	"ItsBagelBot/app/db/transactions/ent/giveawayoutbox"
 	"ItsBagelBot/app/db/transactions/ent/giveawayuserlease"
 	"ItsBagelBot/app/db/transactions/ent/predicate"
@@ -34,17 +35,18 @@ const (
 	OpUpdateOne = ent.OpUpdateOne
 
 	// Node types.
-	TypeAwardEmail         = "AwardEmail"
-	TypeBillingOperation   = "BillingOperation"
-	TypeGiveaway           = "Giveaway"
-	TypeGiveawayAlert      = "GiveawayAlert"
-	TypeGiveawayAward      = "GiveawayAward"
-	TypeGiveawayCandidate  = "GiveawayCandidate"
-	TypeGiveawayDraw       = "GiveawayDraw"
-	TypeGiveawayOutbox     = "GiveawayOutbox"
-	TypeGiveawayUserLease  = "GiveawayUserLease"
-	TypeTebexAgreement     = "TebexAgreement"
-	TypeTebexWebhookEvents = "TebexWebhookEvents"
+	TypeAwardEmail              = "AwardEmail"
+	TypeBillingOperation        = "BillingOperation"
+	TypeGiveaway                = "Giveaway"
+	TypeGiveawayAlert           = "GiveawayAlert"
+	TypeGiveawayAward           = "GiveawayAward"
+	TypeGiveawayCandidate       = "GiveawayCandidate"
+	TypeGiveawayDraw            = "GiveawayDraw"
+	TypeGiveawayFulfillmentPlan = "GiveawayFulfillmentPlan"
+	TypeGiveawayOutbox          = "GiveawayOutbox"
+	TypeGiveawayUserLease       = "GiveawayUserLease"
+	TypeTebexAgreement          = "TebexAgreement"
+	TypeTebexWebhookEvents      = "TebexWebhookEvents"
 )
 
 // AwardEmailMutation represents an operation that mutates the AwardEmail nodes in the graph.
@@ -8478,6 +8480,554 @@ func (m *GiveawayDrawMutation) ClearEdge(name string) error {
 // It returns an error if the edge is not defined in the schema.
 func (m *GiveawayDrawMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown GiveawayDraw edge %s", name)
+}
+
+// GiveawayFulfillmentPlanMutation represents an operation that mutates the GiveawayFulfillmentPlan nodes in the graph.
+type GiveawayFulfillmentPlanMutation struct {
+	config
+	op            Op
+	typ           string
+	id            *string
+	award_id      *string
+	interval_rule *string
+	start_at      *time.Time
+	end_at        *time.Time
+	created_at    *time.Time
+	clearedFields map[string]struct{}
+	done          bool
+	oldValue      func(context.Context) (*GiveawayFulfillmentPlan, error)
+	predicates    []predicate.GiveawayFulfillmentPlan
+}
+
+var _ ent.Mutation = (*GiveawayFulfillmentPlanMutation)(nil)
+
+// giveawayfulfillmentplanOption allows management of the mutation configuration using functional options.
+type giveawayfulfillmentplanOption func(*GiveawayFulfillmentPlanMutation)
+
+// newGiveawayFulfillmentPlanMutation creates new mutation for the GiveawayFulfillmentPlan entity.
+func newGiveawayFulfillmentPlanMutation(c config, op Op, opts ...giveawayfulfillmentplanOption) *GiveawayFulfillmentPlanMutation {
+	m := &GiveawayFulfillmentPlanMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeGiveawayFulfillmentPlan,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withGiveawayFulfillmentPlanID sets the ID field of the mutation.
+func withGiveawayFulfillmentPlanID(id string) giveawayfulfillmentplanOption {
+	return func(m *GiveawayFulfillmentPlanMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *GiveawayFulfillmentPlan
+		)
+		m.oldValue = func(ctx context.Context) (*GiveawayFulfillmentPlan, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().GiveawayFulfillmentPlan.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withGiveawayFulfillmentPlan sets the old GiveawayFulfillmentPlan of the mutation.
+func withGiveawayFulfillmentPlan(node *GiveawayFulfillmentPlan) giveawayfulfillmentplanOption {
+	return func(m *GiveawayFulfillmentPlanMutation) {
+		m.oldValue = func(context.Context) (*GiveawayFulfillmentPlan, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m GiveawayFulfillmentPlanMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m GiveawayFulfillmentPlanMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of GiveawayFulfillmentPlan entities.
+func (m *GiveawayFulfillmentPlanMutation) SetID(id string) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *GiveawayFulfillmentPlanMutation) ID() (id string, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *GiveawayFulfillmentPlanMutation) IDs(ctx context.Context) ([]string, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []string{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().GiveawayFulfillmentPlan.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetAwardID sets the "award_id" field.
+func (m *GiveawayFulfillmentPlanMutation) SetAwardID(s string) {
+	m.award_id = &s
+}
+
+// AwardID returns the value of the "award_id" field in the mutation.
+func (m *GiveawayFulfillmentPlanMutation) AwardID() (r string, exists bool) {
+	v := m.award_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAwardID returns the old "award_id" field's value of the GiveawayFulfillmentPlan entity.
+// If the GiveawayFulfillmentPlan object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GiveawayFulfillmentPlanMutation) OldAwardID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAwardID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAwardID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAwardID: %w", err)
+	}
+	return oldValue.AwardID, nil
+}
+
+// ResetAwardID resets all changes to the "award_id" field.
+func (m *GiveawayFulfillmentPlanMutation) ResetAwardID() {
+	m.award_id = nil
+}
+
+// SetIntervalRule sets the "interval_rule" field.
+func (m *GiveawayFulfillmentPlanMutation) SetIntervalRule(s string) {
+	m.interval_rule = &s
+}
+
+// IntervalRule returns the value of the "interval_rule" field in the mutation.
+func (m *GiveawayFulfillmentPlanMutation) IntervalRule() (r string, exists bool) {
+	v := m.interval_rule
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldIntervalRule returns the old "interval_rule" field's value of the GiveawayFulfillmentPlan entity.
+// If the GiveawayFulfillmentPlan object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GiveawayFulfillmentPlanMutation) OldIntervalRule(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldIntervalRule is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldIntervalRule requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldIntervalRule: %w", err)
+	}
+	return oldValue.IntervalRule, nil
+}
+
+// ResetIntervalRule resets all changes to the "interval_rule" field.
+func (m *GiveawayFulfillmentPlanMutation) ResetIntervalRule() {
+	m.interval_rule = nil
+}
+
+// SetStartAt sets the "start_at" field.
+func (m *GiveawayFulfillmentPlanMutation) SetStartAt(t time.Time) {
+	m.start_at = &t
+}
+
+// StartAt returns the value of the "start_at" field in the mutation.
+func (m *GiveawayFulfillmentPlanMutation) StartAt() (r time.Time, exists bool) {
+	v := m.start_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStartAt returns the old "start_at" field's value of the GiveawayFulfillmentPlan entity.
+// If the GiveawayFulfillmentPlan object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GiveawayFulfillmentPlanMutation) OldStartAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStartAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStartAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStartAt: %w", err)
+	}
+	return oldValue.StartAt, nil
+}
+
+// ResetStartAt resets all changes to the "start_at" field.
+func (m *GiveawayFulfillmentPlanMutation) ResetStartAt() {
+	m.start_at = nil
+}
+
+// SetEndAt sets the "end_at" field.
+func (m *GiveawayFulfillmentPlanMutation) SetEndAt(t time.Time) {
+	m.end_at = &t
+}
+
+// EndAt returns the value of the "end_at" field in the mutation.
+func (m *GiveawayFulfillmentPlanMutation) EndAt() (r time.Time, exists bool) {
+	v := m.end_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEndAt returns the old "end_at" field's value of the GiveawayFulfillmentPlan entity.
+// If the GiveawayFulfillmentPlan object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GiveawayFulfillmentPlanMutation) OldEndAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEndAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEndAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEndAt: %w", err)
+	}
+	return oldValue.EndAt, nil
+}
+
+// ResetEndAt resets all changes to the "end_at" field.
+func (m *GiveawayFulfillmentPlanMutation) ResetEndAt() {
+	m.end_at = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *GiveawayFulfillmentPlanMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *GiveawayFulfillmentPlanMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the GiveawayFulfillmentPlan entity.
+// If the GiveawayFulfillmentPlan object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GiveawayFulfillmentPlanMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *GiveawayFulfillmentPlanMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// Where appends a list predicates to the GiveawayFulfillmentPlanMutation builder.
+func (m *GiveawayFulfillmentPlanMutation) Where(ps ...predicate.GiveawayFulfillmentPlan) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the GiveawayFulfillmentPlanMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *GiveawayFulfillmentPlanMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.GiveawayFulfillmentPlan, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *GiveawayFulfillmentPlanMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *GiveawayFulfillmentPlanMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (GiveawayFulfillmentPlan).
+func (m *GiveawayFulfillmentPlanMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *GiveawayFulfillmentPlanMutation) Fields() []string {
+	fields := make([]string, 0, 5)
+	if m.award_id != nil {
+		fields = append(fields, giveawayfulfillmentplan.FieldAwardID)
+	}
+	if m.interval_rule != nil {
+		fields = append(fields, giveawayfulfillmentplan.FieldIntervalRule)
+	}
+	if m.start_at != nil {
+		fields = append(fields, giveawayfulfillmentplan.FieldStartAt)
+	}
+	if m.end_at != nil {
+		fields = append(fields, giveawayfulfillmentplan.FieldEndAt)
+	}
+	if m.created_at != nil {
+		fields = append(fields, giveawayfulfillmentplan.FieldCreatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *GiveawayFulfillmentPlanMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case giveawayfulfillmentplan.FieldAwardID:
+		return m.AwardID()
+	case giveawayfulfillmentplan.FieldIntervalRule:
+		return m.IntervalRule()
+	case giveawayfulfillmentplan.FieldStartAt:
+		return m.StartAt()
+	case giveawayfulfillmentplan.FieldEndAt:
+		return m.EndAt()
+	case giveawayfulfillmentplan.FieldCreatedAt:
+		return m.CreatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *GiveawayFulfillmentPlanMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case giveawayfulfillmentplan.FieldAwardID:
+		return m.OldAwardID(ctx)
+	case giveawayfulfillmentplan.FieldIntervalRule:
+		return m.OldIntervalRule(ctx)
+	case giveawayfulfillmentplan.FieldStartAt:
+		return m.OldStartAt(ctx)
+	case giveawayfulfillmentplan.FieldEndAt:
+		return m.OldEndAt(ctx)
+	case giveawayfulfillmentplan.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown GiveawayFulfillmentPlan field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *GiveawayFulfillmentPlanMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case giveawayfulfillmentplan.FieldAwardID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAwardID(v)
+		return nil
+	case giveawayfulfillmentplan.FieldIntervalRule:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetIntervalRule(v)
+		return nil
+	case giveawayfulfillmentplan.FieldStartAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStartAt(v)
+		return nil
+	case giveawayfulfillmentplan.FieldEndAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEndAt(v)
+		return nil
+	case giveawayfulfillmentplan.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown GiveawayFulfillmentPlan field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *GiveawayFulfillmentPlanMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *GiveawayFulfillmentPlanMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *GiveawayFulfillmentPlanMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown GiveawayFulfillmentPlan numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *GiveawayFulfillmentPlanMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *GiveawayFulfillmentPlanMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *GiveawayFulfillmentPlanMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown GiveawayFulfillmentPlan nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *GiveawayFulfillmentPlanMutation) ResetField(name string) error {
+	switch name {
+	case giveawayfulfillmentplan.FieldAwardID:
+		m.ResetAwardID()
+		return nil
+	case giveawayfulfillmentplan.FieldIntervalRule:
+		m.ResetIntervalRule()
+		return nil
+	case giveawayfulfillmentplan.FieldStartAt:
+		m.ResetStartAt()
+		return nil
+	case giveawayfulfillmentplan.FieldEndAt:
+		m.ResetEndAt()
+		return nil
+	case giveawayfulfillmentplan.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown GiveawayFulfillmentPlan field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *GiveawayFulfillmentPlanMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *GiveawayFulfillmentPlanMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *GiveawayFulfillmentPlanMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *GiveawayFulfillmentPlanMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *GiveawayFulfillmentPlanMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *GiveawayFulfillmentPlanMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *GiveawayFulfillmentPlanMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown GiveawayFulfillmentPlan unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *GiveawayFulfillmentPlanMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown GiveawayFulfillmentPlan edge %s", name)
 }
 
 // GiveawayOutboxMutation represents an operation that mutates the GiveawayOutbox nodes in the graph.

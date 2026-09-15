@@ -6,7 +6,7 @@ Status: Product interview decisions accepted; implementation authorized after th
 ### Confirmed decisions — review rounds 1–3 and follow-ups
 
 - Select winners randomly from eligible registered bot accounts with completed onboarding; VIP, current staff, test, and inactive accounts are excluded. Former staff may enter when otherwise eligible.
-- A prize month must match a month of the Tebex monthly Premium offer. Exact interval and boundary behavior must be verified; an independent calendar-month or 30-day definition is not approved.
+- Subscriber prize months must match the Tebex monthly Premium offer and pass provider verification. The fulfillment correction below enables same-date nonrecurring grants, while ambiguous month-end behavior stays pending; a 30-day approximation is not used.
 - Admins select 1–12 whole prize months per winner. The winner count cannot exceed the eligible pool.
 - If renewal postponement cannot be confirmed, keep the award pending and raise an alert in the admin dashboard.
 - Store the authoritative winner records in the Transactions database.
@@ -20,6 +20,24 @@ Status: Product interview decisions accepted; implementation authorized after th
 - Turning the bot off after winning leaves that prize and its original schedule intact. The inactive account cannot enter subsequent draws while disabled.
 
 The sections below apply these decisions and state the proposed implementation approach and operational defaults for final review. Shared terms are recorded in [CONTEXT.md](../../CONTEXT.md).
+
+### Fulfillment correction — September 15
+
+After the first live draw, the user requested that fulfillment be fixed and
+enabled. The global provider-verification switch had incorrectly blocked a
+free winner with no recurring agreement. Nonrecurring grants now have their
+own explicit enable switch and use consecutive same-date UTC monthly
+anniversaries. Every monthly transition must preserve the day of month;
+ambiguous month-end arithmetic stays pending rather than being clamped,
+normalized into a different month, or approximated as 30 days. This enables
+ordinary free-account fulfillment without claiming that Tebex billing behavior
+has been verified. Subscriber protection retains the verification requirements
+below. No new subscription is created for a free winner.
+
+The original draw keeps its immutable pending interval-rule intent. On first
+successful planning, Transactions saves a separate immutable fulfillment plan
+containing the applied rule and absolute dates. That plan is preserved on
+retries and sent to Users unchanged.
 
 ### Review round 3 outcomes
 
@@ -159,13 +177,13 @@ Random selection, completed onboarding, current-staff/VIP/test/inactive exclusio
 ### Prize duration
 
 - The admin selects a whole number from 1 to 12 months. Proposed UI default: 1 month; increments of 1. One duration applies to every winner in a giveaway.
-- Each prize month follows the verified interval semantics of the Tebex monthly Premium offer. Calculate X consecutive monthly intervals using those rules; do not multiply a first month's day count or approximate with X times 30 days.
+- Subscriber prize months follow the verified interval semantics of the Tebex monthly Premium offer. Nonrecurring grants follow the bounded same-date rule described in the fulfillment correction. Calculate X consecutive monthly intervals; do not multiply a first month's day count or approximate with X times 30 days.
 - The product limit is 12 months per winner, confirmed by the user during implementation. Enforce 1–12 in the form, admin server, and Transactions. Winner count is 1 through the eligible pool size and must be validated again against the frozen snapshot. Reject invalid values explicitly; never clamp or silently shorten an award. Repeated wins can accumulate beyond one campaign’s duration, so date arithmetic must still be overflow-safe and report storage representability limits.
-- Copy the chosen duration and interval-rule version into each winner record when the draw commits. Subsequent configuration changes must not alter an existing prize.
+- Copy the chosen duration into each winner record when the draw commits. Keep the draw intent immutable and save the applied interval rule in a separate immutable fulfillment plan with the first absolute dates; reuse that plan on retries. Subsequent configuration changes must not alter an existing prize.
 - For an existing subscriber, use verified provider period boundaries and distinguish the paid-through date from the next collection date. Do not infer purchased coverage from a pause-adjusted next charge.
-- For a free winner, apply the same verified monthly interval rule to their prize start; no checkout or paid subscription is created to establish the dates.
+- For a free winner, the fulfillment correction above permits same-date monthly anniversaries when every transition is unambiguous; no checkout or paid subscription is created to establish the dates. Unsupported month-end behavior remains pending.
 - Confirm subscriber fulfillment only after protection covers the whole requested interval. If Tebex cannot protect that duration, retain the full X-month obligation as pending and alert admins. Do not silently shorten the prize or report a partly protected interval as fully delivered.
-- Record the interval rule and version used. Month-end, leap-year, time-zone, and consecutive-prize behavior must match Tebex; the former independent UTC calendar-clamping proposal is superseded.
+- Record the interval rule and version used. Subscriber month-end, leap-year, time-zone, and consecutive-prize behavior must match Tebex. Nonrecurring month-end transitions that cannot preserve the date stay pending; no calendar-clamping shortcut is substituted.
 - Store explicit start and end instants; access applies from the start inclusive to the end exclusive.
 - Display dates in the user's locale/time zone with the time zone available. The admin detail view also shows UTC.
 - Already-paid time is preserved. Future grants are appended to the end of continuous valid coverage; a disconnected future grant must not make a free user wait through an uncovered gap.

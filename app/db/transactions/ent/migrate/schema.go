@@ -280,6 +280,28 @@ var (
 			},
 		},
 	}
+	// GiveawayFulfillmentPlansColumns holds the columns for the "giveaway_fulfillment_plans" table.
+	GiveawayFulfillmentPlansColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true},
+		{Name: "award_id", Type: field.TypeString},
+		{Name: "interval_rule", Type: field.TypeString},
+		{Name: "start_at", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(6)"}},
+		{Name: "end_at", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(6)"}},
+		{Name: "created_at", Type: field.TypeTime},
+	}
+	// GiveawayFulfillmentPlansTable holds the schema information for the "giveaway_fulfillment_plans" table.
+	GiveawayFulfillmentPlansTable = &schema.Table{
+		Name:       "giveaway_fulfillment_plans",
+		Columns:    GiveawayFulfillmentPlansColumns,
+		PrimaryKey: []*schema.Column{GiveawayFulfillmentPlansColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "giveawayfulfillmentplan_award_id",
+				Unique:  true,
+				Columns: []*schema.Column{GiveawayFulfillmentPlansColumns[1]},
+			},
+		},
+	}
 	// GiveawayOutboxesColumns holds the columns for the "giveaway_outboxes" table.
 	GiveawayOutboxesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString, Unique: true},
@@ -428,6 +450,7 @@ var (
 		GiveawayAwardsTable,
 		GiveawayCandidatesTable,
 		GiveawayDrawsTable,
+		GiveawayFulfillmentPlansTable,
 		GiveawayOutboxesTable,
 		GiveawayUserLeasesTable,
 		TebexAgreementsTable,

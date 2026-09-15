@@ -218,10 +218,12 @@
 
     /* ── Tier 3 · The rail ───────────────────────────────────────
      * THE ONE RAIL. Every row of mutually exclusive choices in the
-     * product wears this: page filters, in-page section jumps, the
-     * locale switch, and radio form fields. Tabs on a hairline, a
+     * product wears this: page filters, in-page section jumps, and
+     * radio form fields. Tabs on a hairline, a
      * green line that draws in under the active one, a diamond
-     * beside its label.
+     * beside its label. The locale switch is not a rail wearer:
+     * two-letter codes in the nav pill live in elements/nav.css
+     * (`.bb-lang-switch`), a compact cluster matching the bar links.
      *
      * It was three idioms for one question. A page filter was a row
      * of boxed pills (`.bb-seg`, elements/segmented.css, and
@@ -237,8 +239,7 @@
      * Three item shapes wear the rail and the contract makes all
      * three the same box:
      *   <button>          an in-page filter (SegmentedControl)
-     *   <a>               a section jump or a locale
-     *                     (SectionNav, LanguageSwitcher)
+     *   <a>               a section jump (SectionNav)
      *   <label> + <input> a filter that is also a FORM CONTROL and
      *                     has to survive a no-JS submit
      *                     (RadioGroup, SegmentedControl+`name`).
