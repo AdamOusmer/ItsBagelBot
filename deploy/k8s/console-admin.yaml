@@ -153,7 +153,7 @@ spec:
               value: "3000"
             - name: NODE_ENV
               value: production
-            # adapter-bun sits behind cloudflared+traefik+tailscale; ORIGIN lets
+            # The bun-hosted adapter-node handler sits behind the Tailscale operator; ORIGIN lets
             # SvelteKit validate form POSTs (origin-checked CSRF) against the
             # public URL instead of the internal http://:3000 origin (was 403).
             - name: ORIGIN
