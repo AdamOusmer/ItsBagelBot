@@ -55,14 +55,30 @@
  * that it was measured, and the sort belongs here.
  */
 export function normalise(html: string): string {
-  return html
-    .replace(/<script type="module" src="[^"]*"><\/script>/g, '')
-    .replace(/\s*\/>/g, '>')
-    .replace(/<!--[\s\S]*?-->/g, '')
+  const stripped = stripHtmlComments(
+    html
+      .replace(/<script type="module" src="[^"]*"><\/script>/g, '')
+      .replace(/\s*\/>/g, '>'),
+  );
+  return stripped
     .replace(/<!>/g, '')
     .replace(/\s*=\s*(""|'')/g, '')
     .replace(/>\s+</g, '><')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+// Nested `<!--<!-- -->` leaves a `<!--` prefix after one pass — the
+// incomplete-multi-character-sanitization shape. Svelte's hydration markers
+// are well-formed (`<!--[-->` / `<!--]-->`) so one pass was enough in
+// practice; the loop is the overlapping case. Each match is at least seven
+// characters, so the string strictly shrinks and the loop is bounded.
+function stripHtmlComments(html: string): string {
+  let prev;
+  do {
+    prev = html;
+    html = html.replace(/<!--[\s\S]*?-->/g, '');
+  } while (html !== prev);
+  return html;
 }
 
