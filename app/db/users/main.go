@@ -56,6 +56,7 @@ func main() {
 
 	repo := repository.NewUsers(client, packer, n.Pub, core.NR, log)
 	repo.SetInvalidationPrefix(env.Get("NATS_CACHE_INVALIDATION_PREFIX", "bagel.cache.invalidate"))
+	repo.SetInvalidationConn(n.RPC)
 	defer func() {
 		// Bounded so a shutdown cannot hang on the final preference drain;
 		// the batcher's own flush deadline caps each window inside it.

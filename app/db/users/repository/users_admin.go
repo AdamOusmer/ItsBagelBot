@@ -12,6 +12,7 @@ import (
 
 	"ItsBagelBot/app/db/users/ent"
 	"ItsBagelBot/app/db/users/ent/predicate"
+	"ItsBagelBot/app/db/users/ent/premiumgrant"
 	"ItsBagelBot/app/db/users/ent/tokens"
 	"ItsBagelBot/app/db/users/ent/user"
 	"ItsBagelBot/pkg/db"
@@ -115,22 +116,42 @@ func (r *Users) ListUsers(ctx context.Context, query AdminUserQuery) ([]*ent.Use
 
 // AdminStatePredicate maps one effective user state to a predicate. Precedence
 // mirrors the console's row color: banned beats inactive beats tier, so a
-// banned VIP shows under "banned", not "vip".
+// banned VIP shows under "banned", not "vip". paid/free follow dashboard
+// EffectiveStatus: a committed grant covering now is paid without writing
+// users.status. VIP is never selected that way.
 func AdminStatePredicate(state string) (predicate.User, bool) {
+	now := time.Now().UTC()
 	switch state {
 	case "banned":
 		return user.BannedEQ(true), true
 	case "inactive":
 		return user.And(user.BannedEQ(false), user.IsActiveEQ(false)), true
-	case "vip", "paid", "free":
+	case "vip":
+		return user.And(user.BannedEQ(false), user.IsActiveEQ(true), user.StatusEQ(user.StatusVip)), true
+	case "paid":
 		return user.And(
 			user.BannedEQ(false),
 			user.IsActiveEQ(true),
-			user.StatusEQ(user.Status(state)),
+			user.Or(user.StatusEQ(user.StatusPaid), user.And(user.StatusEQ(user.StatusFree), activeCommittedGrant(now))),
+		), true
+	case "free":
+		return user.And(
+			user.BannedEQ(false),
+			user.IsActiveEQ(true),
+			user.StatusEQ(user.StatusFree),
+			user.Not(activeCommittedGrant(now)),
 		), true
 	default:
 		return nil, false
 	}
+}
+
+func activeCommittedGrant(now time.Time) predicate.User {
+	return user.HasPremiumGrantsWith(
+		premiumgrant.StateEQ(premiumgrant.StateCommitted),
+		premiumgrant.StartAtLTE(now),
+		premiumgrant.EndAtGT(now),
+	)
 }
 
 // userStatsRow is the single-row result of the conditional-aggregate stats
