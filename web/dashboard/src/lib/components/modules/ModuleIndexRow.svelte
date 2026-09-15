@@ -7,7 +7,7 @@
   // glance as the name rather than behind a "Configure" button.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { SaveStatus, Switch, getI18n, moduleCommandChips, moduleHref, type ModuleState } from '@bagel/kit';
+  import { SaveStatus, Switch, Tag, getI18n, moduleCommandChips, moduleHref, type ModuleState } from '@bagel/kit';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
 
   const { t } = getI18n();
@@ -40,7 +40,7 @@
     <span class="copy">
       <span class="name">
         {def.label}
-        {#if beta}<span class="beta">{t('modules.betaChip')}</span>{/if}
+        {#if beta}<span class="beta"><Tag tone="alpha">{t('modules.betaChip')}</Tag></span>{/if}
       </span>
       <span class="tagline">{def.tagline}</span>
       {#if chips.chips.length}
@@ -150,25 +150,14 @@
   .cmd { color: var(--bb-tan-light); text-transform: none; letter-spacing: 0.02em; }
   .cmd.more { color: var(--bb-muted); }
 
-  /* Filled rather than a hairline outline, and a size up: at 9.5px with a
-     45%-alpha border this read as decoration and people missed that the
-     module was gated at all. The label carries "Premium" too, so the chip
-     answers "why can I not turn this on" without a hover or a click. */
+  /* Offset only: the beta label is Tag alpha (dashed tan), the same
+     "not generally available" mark the login and module catalog use. A
+     filled chip was tried so people would not miss the gate; it read as
+     the retired status pill this system replaced. */
   .beta {
-    display: inline-block;
+    display: inline-flex;
     vertical-align: 1px;
     margin-left: 8px;
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--bb-ink, #1b1409);
-    background: var(--bb-tan-light);
-    border: 1px solid var(--bb-tan-light);
-    border-radius: var(--bb-radius-xs);
-    padding: 2px 7px;
-    line-height: 1.35;
   }
   .side {
     display: inline-flex;

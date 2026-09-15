@@ -60,7 +60,7 @@ export const DISCORD_SLUG_KEYS: Record<
   ...DISCORD_CODE_KEYS
 };
 
-// The bot pill, per state. Four states, not a boolean: a guild whose install
+// The bot-state copy, per state. Four states, not a boolean: a guild whose install
 // predates a permission needs the streamer to act, and "offline" would send
 // them to wait for a reconnect that already happened -- while `unknown` is the
 // listing admitting it never read this guild's reauth flag, which must not be
@@ -71,6 +71,18 @@ export const DISCORD_PILL_KEYS = {
   reauth: 'discord.statusReauth',
   unknown: 'discord.statusUnknown'
 } as const;
+
+// System Tag look for each bot state. Kept next to the copy keys so a fifth
+// state cannot land as a string without also choosing a tone and a mark.
+export const DISCORD_STATE_TAG = {
+  online: { tone: 'live', mark: 'solid' },
+  offline: { tone: 'error', mark: 'solid' },
+  reauth: { tone: 'alpha', mark: 'dash' },
+  unknown: { tone: 'quiet', mark: 'hollow' }
+} as const satisfies Record<
+  keyof typeof DISCORD_PILL_KEYS,
+  { tone: 'live' | 'error' | 'alpha' | 'quiet'; mark: 'solid' | 'dash' | 'hollow' }
+>;
 
 export const DISCORD_BADGE_KEYS = {
   mine: 'discord.pickMine',

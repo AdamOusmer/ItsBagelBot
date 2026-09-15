@@ -19,7 +19,8 @@
     guildBotState,
     guildMonogram
   } from '@bagel/kit';
-  import { DISCORD_PILL_KEYS, DISCORD_SLUG_KEYS } from '$lib/discord-messages';
+  import { DISCORD_SLUG_KEYS } from '$lib/discord-messages';
+  import DiscordStateTag from '$lib/components/discord/DiscordStateTag.svelte';
   import { sinceParts } from '$lib/discord/guild-view';
   import type { DiscordGuildSummary } from '$lib/server/discord-store';
 
@@ -39,7 +40,7 @@
 
   const guilds = $derived<DiscordGuildSummary[]>(data.guilds ?? []);
 
-  // Never colour alone: every pill carries its own icon and its own word, and
+  // Never colour alone: every state tag carries its own mark and its own word, and
   // `unknown` gets a neutral one because the listing never read that guild's
   // reauth flag.
 
@@ -201,9 +202,7 @@
                        img-src 'self' data:, so a CDN <img> renders as a broken
                        box and leaks the visit to Discord besides. -->
                   <span class="crest" aria-hidden="true">{guildMonogram(g.name || t('discord.unknownServer'))}</span>
-                  <span class="pill {state}">
-                    {t(DISCORD_PILL_KEYS[state])}
-                  </span>
+                  <DiscordStateTag {state} />
                 </span>
                 <span class="server-name">{g.name || t('discord.unknownServer')}</span>
                 <span class="tr-help">{memberLabel(g)}</span>
@@ -284,26 +283,4 @@
     overflow-wrap: anywhere;
   }
   .tr-help { font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted); line-height: 1.45; }
-
-  .pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 5px 12px;
-    border-radius: var(--bb-radius-pill);
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    border: 1px solid var(--glass-border);
-    white-space: nowrap;
-  }
-  /* Never colour alone: each pill carries its own icon and its own word. */
-  .pill.online { color: var(--bb-green-glow); background: rgba(82, 183, 136, 0.12); }
-  .pill.offline { color: #cf8a78; background: rgba(176, 90, 70, 0.12); }
-  .pill.reauth { color: var(--bb-tan-light); background: rgba(201, 168, 124, 0.14); }
-  /* Steel, deliberately neither green nor red: this guild's reauth flag was
-     never read, so a coloured pill would assert health or a fault that nobody
-     checked. */
-  .pill.unknown { color: var(--bb-muted); background: rgba(136, 128, 119, 0.14); }
 </style>

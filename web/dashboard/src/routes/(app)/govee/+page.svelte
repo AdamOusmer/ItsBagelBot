@@ -24,6 +24,7 @@
     actionPayload,
     toastFailure,
     type ActionOk,
+    Tag,
   } from '@bagel/kit';
   import GoveeLightRow from '$lib/components/govee/GoveeLightRow.svelte';
   import GoveeRewardEditor from '$lib/components/govee/GoveeRewardEditor.svelte';
@@ -184,7 +185,7 @@
         </p>
         {#if keyPresent}
           <div class="row">
-            <span class="ok-pill">{t('govee.keyOnFile')}</span>
+            <Tag tone="live" mark="solid">{t('govee.keyOnFile')}</Tag>
             <form method="POST" action="?/clearKey" use:enhance={formResult(t('govee.keyRemoved'), t('govee.keyRemoveFailed'), () => (keyPresent = false))}>
               <Button variant="destructive" type="submit">{t('govee.keyRemove')}</Button>
             </form>
@@ -331,8 +332,6 @@
   }
   .input:focus { outline: none; border-color: var(--bb-tan, #c9a87c); }
   .input::placeholder { color: var(--bb-muted); opacity: 0.7; }
-
-  .ok-pill { display: inline-flex; align-items: center; gap: 6px; color: var(--bb-green-glow); font-family: var(--bb-font-body); font-size: 13px; font-weight: 600; }
 
   /* Deck (list + docked inspector), mirroring the channel-points page. The
      step-2 heading spans both columns as a lead row. */

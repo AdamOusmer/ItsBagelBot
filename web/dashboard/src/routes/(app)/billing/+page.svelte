@@ -2,7 +2,7 @@
   import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Bolota, PageHead, Card, Modal, AlertBanner, Button, ConfirmDialog, FieldError, AuroraBg, LightField, portal, toast, getI18n, containsLink } from '@bagel/kit';
+  import { Bolota, PageHead, Card, Modal, AlertBanner, Button, ConfirmDialog, FieldError, AuroraBg, LightField, Tag, portal, toast, getI18n, containsLink } from '@bagel/kit';
   import { fmtDateTime } from '@bagel/kit/format';
   import { page } from '$app/state';
   import { replaceState } from '$app/navigation';
@@ -433,9 +433,9 @@
     <!-- ────── SELECTION VIEW (free plan) ────── -->
 
     <!-- 1. Current plan + status: TEXT, announced on change. -->
-    <p class="plan-status" role="status">
-      <span class="ps-label">{t('billing.currentPlan')}</span>
-      <span class="ps-value">{statusLabel}</span>
+    <p class="plan-status">
+      <Tag tone="quiet">{t('billing.currentPlan')}</Tag>
+      <Tag tone="live" status>{statusLabel}</Tag>
     </p>
 
     <!-- 3. Plan comparison. Heading kept for structure, hidden visually. -->
@@ -456,7 +456,9 @@
             <li>{feature}</li>
           {/each}
         </ul>
-        <p class="plan-current">{t('billing.onThisPlan')}</p>
+        <div class="plan-current">
+          <Tag tone="live">{t('billing.onThisPlan')}</Tag>
+        </div>
       </Card>
 
       <!-- Premium: the upgrade -->
@@ -788,26 +790,12 @@
     font-size: 12px;
   }
 
-  /* ── Current-plan status strip (selection view) ── */
+  /* ── Current-plan status (selection view) ── */
   .plan-status {
     display: inline-flex;
     align-items: center;
     gap: 10px;
     margin: 0 0 4px;
-    padding: 8px 16px;
-    border: 1px solid var(--bb-border);
-    border-radius: var(--bb-radius-pill);
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-  }
-  .ps-label {
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
-  }
-  .ps-value {
-    color: var(--bb-green-light, #74c69d);
-    font-weight: 600;
   }
 
   /* ── Selection view: plan cards ── */
@@ -912,15 +900,6 @@
   }
   .plan-current {
     margin: auto 0 0;
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--bb-green-light, #74c69d);
-    border: 1px solid rgba(82, 183, 136, 0.3);
-    border-radius: var(--bb-radius-pill);
-    padding: 9px 16px;
-    text-align: center;
   }
   .plan-buttons {
     display: flex;

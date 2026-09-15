@@ -36,6 +36,7 @@
     toastFailure,
     type ActionOk,
     Code,
+    Tag,
   } from '@bagel/kit';
   import SpotifyRewardEditor from '$lib/components/spotify/SpotifyRewardEditor.svelte';
   import SpotifyRewardRow from '$lib/components/spotify/SpotifyRewardRow.svelte';
@@ -355,7 +356,7 @@
 
       {#if app.present && !editingApp}
         <div class="row">
-          <span class="ok-pill">{t('spotify.appPill')}</span>
+          <Tag tone="live" mark="solid">{t('spotify.appPill')}</Tag>
           <Code class="setup-code">{app.clientId}</Code>
           <Button variant="secondary" type="button" onclick={() => (editingApp = true)}>{t('spotify.appReplace')}</Button>
           <form method="POST" action="?/clearApp" use:enhance={formResult(t('spotify.appRemoved'), t('spotify.appRemoveFailed'), () => { app = { present: false, clientId: '' }; connected = false; })}>
@@ -390,7 +391,7 @@
       <p class="muted-text">{connected ? t('spotify.connectedHelp') : t('spotify.connectHelp')}</p>
       {#if connected}
         <div class="row">
-          <span class="ok-pill">{t('spotify.connectedPill')}</span>
+          <Tag tone="live" mark="solid">{t('spotify.connectedPill')}</Tag>
           <!-- Reconnect is a plain re-run of the consent flow, NOT a disconnect
                first: the stored token stays usable until a new one replaces it,
                and a broadcaster who backs out of Spotify's screen keeps working.
@@ -661,8 +662,6 @@
   .enable-text .muted-text { margin: 0; font-size: 12px; }
 
   .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-
-  .ok-pill { display: inline-flex; align-items: center; gap: 6px; color: var(--bb-green-glow); font-family: var(--bb-font-body); font-size: 13px; font-weight: 600; }
 
   /* Setup steps for the broadcaster's own Spotify app. Numbered because the
      order matters on Spotify's side: the redirect URI has to be registered

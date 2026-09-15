@@ -16,7 +16,7 @@
     guildMonogram,
     type GuildBotState
   } from '@bagel/kit';
-  import { DISCORD_PILL_KEYS } from '$lib/discord-messages';
+  import DiscordStateTag from './DiscordStateTag.svelte';
   import { sinceParts } from '$lib/discord/guild-view';
   import type { DiscordGuildSummary } from '$lib/server/discord-store';
 
@@ -109,9 +109,7 @@
   <div class="copy">
     <h1 class="name">{guildName}</h1>
     <div class="facts">
-      <span class="pill {pillState}">
-        {t(DISCORD_PILL_KEYS[pillState])}
-      </span>
+      <DiscordStateTag state={pillState} />
       <span class="tr-help">
         {#if members}{t('discord.statusMembers', { n: members })}{:else}{t('discord.statusNoMembers')}{/if}
       </span>
@@ -196,40 +194,6 @@
     font-size: 12.5px;
     color: var(--bb-muted);
     line-height: 1.45;
-  }
-
-  .pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 11px;
-    border-radius: var(--bb-radius-pill);
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    border: 1px solid var(--glass-border);
-    white-space: nowrap;
-  }
-  /* Never colour alone: each pill carries its own icon and its own word. */
-  .pill.online {
-    color: var(--bb-green-glow);
-    background: rgba(82, 183, 136, 0.12);
-  }
-  .pill.offline {
-    color: #cf8a78;
-    background: rgba(176, 90, 70, 0.12);
-  }
-  .pill.reauth {
-    color: var(--bb-tan-light);
-    background: rgba(201, 168, 124, 0.14);
-  }
-  /* Steel, deliberately neither green nor red: this guild's reauth flag was
-     never read, so a coloured pill would assert health or a fault nobody
-     checked. */
-  .pill.unknown {
-    color: var(--bb-muted);
-    background: rgba(136, 128, 119, 0.14);
   }
 
   .switcher {
