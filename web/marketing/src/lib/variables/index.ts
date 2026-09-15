@@ -18,113 +18,25 @@
 import { lex, type VarToken } from '@bagel/kit/engine/tmpl';
 import { SURFACES } from '../../i18n/builder';
 import type { Lang } from '../../i18n/ui';
-
-// `builder.ts` accepts the site's open locale set (`Lang` is intentionally an
-// open string), so the catalog keeps the same shape while always shipping the
-// en/fr source copy.
-export type LocaleText = Readonly<Record<string, string>>;
-
-export type VariableCategory =
-  | 'basics'
-  | 'arguments'
-  | 'counters'
-  | 'dynamic'
-  | 'utilities'
-  | 'viewer'
-  | 'channel'
-  | 'chat'
-  | 'emotes'
-  | 'alerts'
-  | 'rewards'
-  | 'queue'
-  | 'game-stats';
-
-export interface VariableAvailability {
-  readonly id: string;
-  readonly group: LocaleText;
-  readonly label: LocaleText;
-  readonly dashPath: string;
-}
-
-export interface VariableExample {
-  /** The concrete token a broadcaster can paste. */
-  readonly syntax: string;
-  /** The representative value shown by the builder for that token. */
-  readonly output: string;
-  readonly surfaceId: string;
-}
-
-export interface VariableLexerResult {
-  readonly valid: boolean;
-  readonly name?: string;
-  readonly payload?: string | null;
-  readonly reason?: string;
-}
-
-/** One canonical family in the public reference. */
-export interface VariableReference {
-  readonly id: string;
-  /** The simplest concrete spelling, useful for a primary copy button. */
-  readonly token: string;
-  /** Canonical syntax. Parameterized families use readable placeholders. */
-  readonly syntax: string;
-  /** Primary concrete syntax used by simple reference cards/copy buttons. */
-  readonly example: string;
-  /** Representative output for the primary example. */
-  readonly output: string;
-  /** All accepted syntax shapes represented by the source surfaces. */
-  readonly syntaxes: readonly string[];
-  /** Concrete source examples, including distinct payload forms. */
-  readonly examples: readonly VariableExample[];
-  readonly name: LocaleText;
-  readonly description: LocaleText;
-  readonly category: VariableCategory;
-  readonly categories: readonly VariableCategory[];
-  /** Bare token names, without braces, for search and display. */
-  readonly aliases: readonly string[];
-  /** Alias spellings including braces, convenient for a copy/search UI. */
-  readonly aliasTokens: readonly string[];
-  /** Surface ids are stable and compact for URL filters. */
-  readonly surfaceIds: readonly string[];
-  readonly surfaces: readonly VariableAvailability[];
-  /** Module/toggle hints found in the source descriptions. */
-  readonly requirements: readonly string[];
-  /** Convenience form for a compact card; `requirements` is authoritative. */
-  readonly requirement: string;
-  readonly payload: string;
-  readonly behavior: string;
-  readonly legacy: boolean;
-  readonly parameterized: boolean;
-  readonly lexer: VariableLexerResult;
-  /** Kept as a direct boolean for simple consumers and tests. */
-  readonly lexerValid: boolean;
-}
-
-export interface LocalizedVariableReference {
-  readonly id: string;
-  readonly token: string;
-  readonly syntax: string;
-  readonly example: string;
-  readonly output: string;
-  readonly syntaxes: readonly string[];
-  readonly examples: readonly { syntax: string; output: string; surfaceId: string }[];
-  readonly name: string;
-  readonly description: string;
-  readonly category: VariableCategory;
-  readonly categories: readonly VariableCategory[];
-  readonly aliases: readonly string[];
-  readonly aliasTokens: readonly string[];
-  readonly surfaceIds: readonly string[];
-  readonly surfaces: readonly { id: string; group: string; label: string; dashPath: string }[];
-  readonly requirements: readonly string[];
-  readonly requirement: string;
-  readonly payload: string;
-  readonly behavior: string;
-  readonly legacy: boolean;
-  readonly parameterized: boolean;
-  readonly lexer: VariableLexerResult;
-  readonly lexerValid: boolean;
-}
+export type {
+  LocaleText,
+  VariableAvailability,
+  VariableCategory,
+  VariableExample,
+  VariableLexerResult,
+  VariableReference,
+  LocalizedVariableReference,
+} from './types';
+import type {
+  LocaleText,
+  VariableAvailability,
+  VariableCategory,
+  VariableExample,
+  VariableLexerResult,
+  VariableReference,
+  LocalizedVariableReference,
+  MutableVariableReference,
+} from './types';
 
 const CATEGORY_ORDER: readonly VariableCategory[] = [
   'basics',
@@ -284,29 +196,6 @@ function familyParameterized(id: string, token: string): boolean {
   return Boolean(parsed?.payload !== null) || id === 'argument-word' || id === 'argument-tail' || id === 'random' || id === 'choice';
 }
 
-interface MutableReference {
-  id: string;
-  token: string;
-  syntax: string;
-  example: string;
-  output: string;
-  syntaxes: string[];
-  examples: VariableExample[];
-  name: LocaleText;
-  description: LocaleText;
-  categories: VariableCategory[];
-  aliases: string[];
-  aliasTokens: string[];
-  surfaceIds: string[];
-  surfaces: VariableAvailability[];
-  requirements: string[];
-  requirement: string;
-  payload: string;
-  behavior: string;
-  legacy: boolean;
-  parameterized: boolean;
-}
-
 function addUnique<T>(items: T[], value: T): void {
   if (!items.includes(value)) items.push(value);
 }
@@ -326,7 +215,7 @@ function isAliasForm(surfaceId: string, id: string, token: string): boolean {
   return CUSTOM_ALIASES[parsed.name] === id;
 }
 
-function createReference(surface: typeof SURFACES[number], variable: typeof SURFACES[number]['vars'][number], id: string, category: VariableCategory, token: string, syntax: string): MutableReference {
+function createReference(surface: typeof SURFACES[number], variable: typeof SURFACES[number]['vars'][number], id: string, category: VariableCategory, token: string, syntax: string): MutableVariableReference {
   const requirements = cleanRequirement(variable.desc.en);
   const parameterized = familyParameterized(id, variable.token);
   return {
@@ -340,7 +229,7 @@ function createReference(surface: typeof SURFACES[number], variable: typeof SURF
   };
 }
 
-function mergeReference(reference: MutableReference, surface: typeof SURFACES[number], variable: typeof SURFACES[number]['vars'][number], syntax: string, category: VariableCategory): void {
+function mergeReference(reference: MutableVariableReference, surface: typeof SURFACES[number], variable: typeof SURFACES[number]['vars'][number], syntax: string, category: VariableCategory): void {
   addUnique(reference.syntaxes, syntax);
   if (!reference.examples.some((example) => example.syntax === variable.token && example.surfaceId === surface.id)) {
     reference.examples.push({ syntax: variable.token, output: variable.sample, surfaceId: surface.id });
@@ -355,7 +244,7 @@ function mergeReference(reference: MutableReference, surface: typeof SURFACES[nu
   reference.parameterized ||= familyParameterized(reference.id, variable.token);
 }
 
-function addSurfaceVariable(byId: Map<string, MutableReference>, surface: typeof SURFACES[number], variable: typeof SURFACES[number]['vars'][number]): void {
+function addSurfaceVariable(byId: Map<string, MutableVariableReference>, surface: typeof SURFACES[number], variable: typeof SURFACES[number]['vars'][number]): void {
   const parsed = tokenParts(variable.token);
   if (!parsed) return;
   const id = familyId(surface.id, variable.token);
@@ -372,7 +261,7 @@ function addSurfaceVariable(byId: Map<string, MutableReference>, surface: typeof
   }
 }
 
-function addSupplementalForms(byId: Map<string, MutableReference>): void {
+function addSupplementalForms(byId: Map<string, MutableVariableReference>): void {
   const song = byId.get('song');
   if (song) for (const token of ['{song.title}', '{song.artist}']) addUnique(song.syntaxes, token);
   for (const [id, aliases] of Object.entries({ user: ['sender'], touser: ['target'] })) {
@@ -384,7 +273,7 @@ function addSupplementalForms(byId: Map<string, MutableReference>): void {
   }
 }
 
-function finalizeReference(mutable: MutableReference): VariableReference {
+function finalizeReference(mutable: MutableVariableReference): VariableReference {
   const categories = [...mutable.categories].sort((a, b) => (CATEGORY_RANK.get(a) ?? 99) - (CATEGORY_RANK.get(b) ?? 99));
   const aliases = mutable.aliases.filter((alias) => alias !== mutable.token.slice(1, -1));
   const aliasTokens = mutable.aliasTokens.filter((alias) => alias !== mutable.token);
@@ -396,7 +285,7 @@ function finalizeReference(mutable: MutableReference): VariableReference {
 }
 
 function buildCatalog(): VariableReference[] {
-  const byId = new Map<string, MutableReference>();
+  const byId = new Map<string, MutableVariableReference>();
   for (const surface of SURFACES) for (const variable of surface.vars) addSurfaceVariable(byId, surface, variable);
   addSupplementalForms(byId);
   return [...byId.values()].map(finalizeReference).sort((a, b) => {
