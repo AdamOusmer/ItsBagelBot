@@ -82,6 +82,12 @@ type Config struct {
 	FortniteStatsRateLimit float64
 	FortniteSeasonStart    int64
 
+	// CODM Global web-store profile lookup; no credentials required.
+	CODMBaseURL   string
+	CODMCountry   string
+	CODMEnabled   bool
+	CODMRateLimit float64
+
 	// Valorant provider (rank/MMR, recent matches, leaderboards, account
 	// lookups, featured-bundle viewer) riding the community HenrikDev API. Key
 	// empty = provider disabled. The bundle viewer additionally reads Riot's
@@ -195,6 +201,11 @@ func Load() *Config {
 		// day; the default leaves headroom.
 		FortniteStatsRateLimit: env.GetFloat("FORTNITE_STATS_RATE_LIMIT", 9000.0),
 		FortniteSeasonStart:    int64(env.GetInt("FORTNITE_SEASON_START_UNIX", 0)),
+
+		CODMBaseURL:   env.Get("CODM_BASE_URL", "https://order-sg.codashop.com"),
+		CODMCountry:   env.Get("CODM_COUNTRY", "IN"),
+		CODMEnabled:   env.GetBool("CODM_ENABLED", true),
+		CODMRateLimit: env.GetFloat("CODM_RATE_LIMIT", 12.0),
 
 		ValorantBaseURL:        env.Get("VALORANT_BASE_URL", "https://api.henrikdev.xyz"),
 		ValorantContentBaseURL: env.Get("VALORANT_CONTENT_BASE_URL", "https://valorant-api.com"),

@@ -1,0 +1,270 @@
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Package codm provides read-only Call of Duty: Mobile profile lookups
+// through CODashop's public account validation endpoint.
+package codm
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net/http"
+	"strings"
+	"time"
+	"unicode"
+	"unicode/utf8"
+
+	"ItsBagelBot/app/gossip/internal/core"
+	"ItsBagelBot/app/gossip/internal/provider"
+	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
+	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/ratelimit"
+
+	"github.com/google/uuid"
+	"go.uber.org/zap"
+)
+
+const (
+	providerName      = "codm"
+	defaultBase       = "https://order-sg.codashop.com"
+	defaultCountry    = "IN"
+	defaultRateLimit  = 12.0
+	rateWindowSeconds = 60.0
+
+	profileTTL     = 5 * time.Minute
+	negativeTTL    = time.Minute
+	httpTimeout    = 10 * time.Second
+	handlerTimeout = 15 * time.Second
+
+	maxAccountRunes = 64
+	maxCountryRunes = 32
+	maxRedirects    = 3
+)
+
+// Config carries the public CODM validation endpoint settings.
+type Config struct {
+	BaseURL   string
+	Country   string
+	RateLimit float64
+}
+
+type api struct {
+	http     *core.HTTPClient
+	cache    *core.Cache
+	log      *zap.Logger
+	limiter  *ratelimit.Limiter
+	buckets  core.Buckets
+	country  string
+	deviceID string
+}
+
+// New builds the read-only CODM profile provider. The builder's default lane
+// is WARP; this provider deliberately does not call Trusted because the
+// upstream is not a config-owned trusted host.
+func New(cfg Config, d provider.Deps) provider.Provider {
+	b := provider.NewProvider(providerName, d)
+	p := newAPI(cfg, d, b)
+	b.Endpoint("profile").Timeout(handlerTimeout).
+		Cached(profileTTL, negativeTTL).
+		ID(profileID).
+		Reply(func(id, msg string) any {
+			return gossiprpc.CODMProfileReply{Player: id, Error: msg}
+		}).
+		Fallback("profile lookup failed").
+		Budget(p.admit).
+		Fetch(func(ctx context.Context, req gossiprpc.Request, id provider.ID) (any, error) {
+			return p.fetchProfile(ctx, req, id)
+		})
+	return b.Build()
+}
+
+func newAPI(cfg Config, d provider.Deps, b *provider.Builder) *api {
+	base := strings.TrimSuffix(strings.TrimSpace(cfg.BaseURL), "/")
+	if base == "" {
+		base = defaultBase
+	}
+	country, err := normalizeCountry(cfg.Country)
+	if err != nil {
+		country = defaultCountry
+	}
+	if cfg.RateLimit <= 0 {
+		cfg.RateLimit = defaultRateLimit
+	}
+	return &api{
+		http:    b.Client(base, nil, httpTimeout),
+		cache:   d.Cache,
+		log:     d.Logger(),
+		limiter: d.Limiter,
+		// One cache miss can spend up to maxRedirects+1 validations. Scale the
+		// bucket to lookup slots so one admission reserves that whole bound
+		// atomically; with the default 12/min this allows three worst-case
+		// lookup slots/minute. Cached hits do not reach Budget and are free.
+		buckets:  core.NewBuckets("ratelimit:gossip:codm", cfg.RateLimit/float64(maxRedirects+1), rateWindowSeconds),
+		country:  country,
+		deviceID: uuid.NewString(),
+	}
+}
+
+type validateRequest struct {
+	Country         string `json:"country"`
+	VoucherTypeName string `json:"voucherTypeName"`
+	WhiteLabelID    string `json:"whiteLabelId"`
+	DeviceID        string `json:"deviceId"`
+	UserID          string `json:"userId"`
+}
+
+type validateResponse struct {
+	Success              *bool          `json:"success"`
+	ErrorCode            int            `json:"errorCode"`
+	ErrorMsg             string         `json:"errorMsg"`
+	HomeBaseCountry2Name string         `json:"homeBaseCountry2Name"`
+	Result               *profileResult `json:"result"`
+}
+
+type profileResult struct {
+	Type                 string `json:"type"`
+	Result               int    `json:"result"`
+	Nickname             string `json:"nickname"`
+	Level                int    `json:"level"`
+	CustomReadableMPRank string `json:"customReadableMpRank"`
+	RankClass            int    `json:"rankClass"`
+	Rating               int    `json:"rating"`
+	CountryID            int    `json:"countryId"`
+	ShortID              string `json:"shortId"`
+}
+
+func profileID(req gossiprpc.Request) (provider.ID, string) {
+	account := strings.TrimSpace(req.Account)
+	if err := validateText(account, maxAccountRunes); err != nil {
+		return provider.ID{Display: account}, "invalid account"
+	}
+	// CODM nicknames and UIDs are case-sensitive. In particular, do not use
+	// provider.Account here: its lower-cased key would merge distinct names.
+	return provider.ID{Display: account, Key: account}, ""
+}
+
+func validateText(s string, maxRunes int) error {
+	if s == "" {
+		return errors.New("invalid text")
+	}
+	if !utf8.ValidString(s) {
+		return errors.New("invalid text")
+	}
+	if utf8.RuneCountInString(s) > maxRunes {
+		return errors.New("invalid text")
+	}
+	for _, r := range s {
+		if unicode.IsControl(r) {
+			return errors.New("control character")
+		}
+	}
+	return nil
+}
+
+func normalizeCountry(country string) (string, error) {
+	country = strings.ToUpper(strings.TrimSpace(country))
+	if err := validateText(country, maxCountryRunes); err != nil {
+		return "", err
+	}
+	return country, nil
+}
+
+// admit spends one bounded lookup slot per caller before Cached joins
+// singleflight. The bucket's capacity was divided by maxRedirects+1, so that
+// slot conservatively reserves enough upstream quota for the entire redirect
+// chain without charging the shared flight's winner or contaminating a
+// premium caller with a standard caller's lane decision.
+func (p *api) admit(ctx context.Context, req gossiprpc.Request) error {
+	return p.buckets.Enforce(ctx, p.limiter, req.IsPremium)
+}
+
+func (p *api) fetchProfile(ctx context.Context, _ gossiprpc.Request, id provider.ID) (gossiprpc.CODMProfileReply, error) {
+	country := p.country
+	visited := map[string]struct{}{country: {}}
+
+	for hop := 0; ; hop++ {
+		response, err := p.validateAccount(ctx, country, id.Display)
+		if err != nil {
+			return gossiprpc.CODMProfileReply{}, err
+		}
+		if response.ErrorCode != -200 {
+			return p.profileReply(response, country, id.Display)
+		}
+		next, err := normalizeCountry(response.HomeBaseCountry2Name)
+		if err != nil {
+			return gossiprpc.CODMProfileReply{}, fmt.Errorf("invalid codm country redirect: %w", err)
+		}
+		if _, seen := visited[next]; seen {
+			return gossiprpc.CODMProfileReply{}, errors.New("codm country redirect loop")
+		}
+		if hop >= maxRedirects {
+			return gossiprpc.CODMProfileReply{}, errors.New("codm country redirect limit exceeded")
+		}
+		visited[next] = struct{}{}
+		country = next
+	}
+}
+
+func (p *api) validateAccount(ctx context.Context, country, account string) (validateResponse, error) {
+	payload, err := codec.Marshal(validateRequest{
+		Country: country, VoucherTypeName: "CALL_OF_DUTY_MOBILE_WL",
+		WhiteLabelID: "1", DeviceID: p.deviceID, UserID: account,
+	})
+	if err != nil {
+		return validateResponse{}, fmt.Errorf("encode codm validation request: %w", err)
+	}
+	var response validateResponse
+	err = p.http.Do(ctx, core.Request{Method: http.MethodPost, Path: "/validate", Body: payload}, &response)
+	return response, err
+}
+
+func (p *api) profileReply(response validateResponse, country, player string) (gossiprpc.CODMProfileReply, error) {
+	if response.Success != nil && !*response.Success {
+		return gossiprpc.CODMProfileReply{}, &core.UpstreamError{
+			Status:  404,
+			Message: "player not found",
+		}
+	}
+	if response.Result == nil {
+		return gossiprpc.CODMProfileReply{}, errors.New("codm response missing profile")
+	}
+	result := response.Result
+	if result.Type != "SUCCESS" || result.Result != 0 {
+		return gossiprpc.CODMProfileReply{}, errors.New("codm response profile is not successful")
+	}
+	if err := validateProfile(*result); err != nil {
+		return gossiprpc.CODMProfileReply{}, err
+	}
+	return gossiprpc.CODMProfileReply{
+		// The upstream nickname is streamer-mode data and must never cross the
+		// gossip boundary. The caller's account is the public label instead.
+		Player:    player,
+		Level:     result.Level,
+		Rank:      result.CustomReadableMPRank,
+		RankClass: result.RankClass,
+		Rating:    result.Rating,
+		Country:   country,
+		ShortID:   result.ShortID,
+	}, nil
+}
+
+func validateProfile(result profileResult) error {
+	if err := validateText(result.Nickname, maxAccountRunes); err != nil {
+		return fmt.Errorf("codm response nickname is malformed: %w", err)
+	}
+	if err := validateText(result.CustomReadableMPRank, maxCountryRunes); err != nil {
+		return fmt.Errorf("codm response rank is malformed: %w", err)
+	}
+	for _, field := range []struct{ value, minimum int }{
+		{result.Level, 1}, {result.RankClass, 0}, {result.Rating, 0}, {result.CountryID, 1},
+	} {
+		if field.value < field.minimum {
+			return errors.New("codm response profile is malformed")
+		}
+	}
+	if result.ShortID != "" && validateText(result.ShortID, 64) != nil {
+		return errors.New("codm response short id is malformed")
+	}
+	return nil
+}
