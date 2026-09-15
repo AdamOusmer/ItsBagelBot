@@ -154,6 +154,15 @@ const CUSTOM_ALIASES: Readonly<Record<string, string>> = {
 
 const POSITIONAL = /^\{(\d{1,2})\}$/;
 const POSITIONAL_TAIL = /^\{(\d{1,2}):\}$/;
+const ARGUMENT_FAMILY_RULES: readonly [RegExp, string][] = [
+  [POSITIONAL, 'argument-word'],
+  [POSITIONAL_TAIL, 'argument-tail'],
+];
+const PAYLOAD_FAMILY_IDS: Readonly<Record<string, readonly [string, string]>> = {
+  counter: ['bound-counter', 'counter-increment'],
+  count: ['queue-count', 'counter-read'],
+};
+const SONG_PARTS = new Set(['song.title', 'song.artist']);
 
 const CUSTOM_CATEGORY_RULES: readonly [VariableCategory, RegExp][] = [
   ['arguments', /^\{(?:\d+|\d+:)\}$|^\{args\}$/],
@@ -225,19 +234,28 @@ function isGameSurface(surfaceId: string): boolean {
   return GAME_SURFACES.has(surfaceId) || GAME_SURFACE_PREFIXES.some((prefix) => surfaceId.startsWith(prefix));
 }
 
+function argumentFamilyId(token: string): string | undefined {
+  return ARGUMENT_FAMILY_RULES.find(([rule]) => rule.test(token))?.[1];
+}
+
+function payloadFamilyId(name: string, payload: string | null): string | undefined {
+  const families = PAYLOAD_FAMILY_IDS[name];
+  if (families) return families[payload === null ? 0 : 1];
+  return name === 'random' && payload !== null ? 'random' : undefined;
+}
+
 function familyId(surfaceId: string, token: string): string {
   const parsed = tokenParts(token);
   if (!parsed) return token;
   const name = parsed.name;
   if (surfaceId === 'custom' && name in CUSTOM_ALIASES) return CUSTOM_ALIASES[name];
-  if (POSITIONAL.test(token)) return 'argument-word';
-  if (POSITIONAL_TAIL.test(token)) return 'argument-tail';
-  if (name === 'counter') return parsed.payload === null ? 'bound-counter' : 'counter-increment';
-  if (name === 'count') return parsed.payload === null ? 'queue-count' : 'counter-read';
-  if (name === 'random' && parsed.payload !== null) return 'random';
+  const argumentFamily = argumentFamilyId(token);
+  if (argumentFamily) return argumentFamily;
+  const payloadFamily = payloadFamilyId(name, parsed.payload);
+  if (payloadFamily) return payloadFamily;
   // `{song.title}` and `{song.artist}` are documented as parts of the song
   // family even though the builder only needs the complete `{song}` chip.
-  if (name === 'song.title' || name === 'song.artist') return 'song';
+  if (SONG_PARTS.has(name)) return 'song';
   return name;
 }
 
