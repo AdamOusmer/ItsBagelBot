@@ -18,6 +18,8 @@ type Tx struct {
 	AdminUser *AdminUserClient
 	// Delegation is the client for interacting with the Delegation builders.
 	Delegation *DelegationClient
+	// PremiumGrant is the client for interacting with the PremiumGrant builders.
+	PremiumGrant *PremiumGrantClient
 	// Tokens is the client for interacting with the Tokens builders.
 	Tokens *TokensClient
 	// User is the client for interacting with the User builders.
@@ -156,6 +158,7 @@ func (tx *Tx) init() {
 	tx.AdminAudit = NewAdminAuditClient(tx.config)
 	tx.AdminUser = NewAdminUserClient(tx.config)
 	tx.Delegation = NewDelegationClient(tx.config)
+	tx.PremiumGrant = NewPremiumGrantClient(tx.config)
 	tx.Tokens = NewTokensClient(tx.config)
 	tx.User = NewUserClient(tx.config)
 }

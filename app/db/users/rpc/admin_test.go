@@ -313,6 +313,7 @@ func TestAdminVerbsCoverEverySubject(t *testing.T) {
 		"set_status":       adminuser.RoleAdmin,
 		"set_active":       adminuser.RoleAdmin,
 		"set_creator_code": adminuser.RoleAdmin,
+		"test.set":         adminuser.RoleAdmin,
 		"reset":            adminuser.RoleAdmin,
 		"token_set":        adminuser.RoleAdmin,
 		"token_clear":      adminuser.RoleAdmin,

@@ -13,6 +13,7 @@ import (
 	// Wire the ent schema runtime (field defaults/hooks); without this blank
 	// import every write fails: "forgotten import ent/runtime?".
 	_ "ItsBagelBot/app/db/transactions/ent/runtime"
+	giveawayengine "ItsBagelBot/app/db/transactions/giveaway"
 	"ItsBagelBot/app/db/transactions/mail"
 	"ItsBagelBot/app/db/transactions/repository"
 	"ItsBagelBot/app/db/transactions/rpc"
@@ -55,15 +56,36 @@ func main() {
 	defer nc.Close()
 
 	dashboardOrigin := env.Get("DASHBOARD_ORIGIN", "https://dashboard.itsbagelbot.com")
-	checkoutConfigured, checkoutAuth := setupCheckout(nc, core.NR, dashboardOrigin, log)
+	checkoutConfigured, checkoutAuth := setupCheckout(checkoutRuntime{nc: nc, db: client, nrApp: core.NR, dashboardOrigin: dashboardOrigin, log: log})
 
 	sendSubject := env.Get("NATS_ADMIN_NOTIFICATIONS_SUBJECT_PREFIX", "bagel.rpc.admin.notifications") + ".send"
 	mailer := newMailer(dashboardOrigin, log)
 
 	emailSubject := env.Get("NATS_INTERNAL_USERS_EMAIL_SUBJECT", "bagel.rpc.internal.users.email.get")
-	notifier := rpc.NewGiftNotifier(nc, sendSubject, emailSubject, mailer, log.Named("gift"))
+	notifier := rpc.NewGiftNotifier(bus.RPCWiring{NC: nc, Log: log.Named("gift")}, rpc.GiftNotifierConfig{SendSubject: sendSubject, EmailSubject: emailSubject, Mailer: mailer})
 	billingSubject := env.Get("NATS_INTERNAL_BILLING_SUBJECT", "bagel.rpc.internal.billing.apply")
 	billing := rpc.NewBillingApplier(nc, billingSubject)
+
+	// Giveaways are a durable Transactions workflow. Users remains the source
+	// of eligibility and premium grants; this service owns campaign state and
+	// the retryable outbox dispatcher.
+	giveawayConfig := giveawayengine.ConfigFromEnv()
+	usersGiveaways := rpc.NewUsersGiveawayClient(nc)
+	giveawayStore := giveawayengine.NewStore(client)
+	giveawayProvider, providerAvailable := newGiveawayProvider(giveawayConfig, log.Named("giveaways"))
+	if !providerAvailable {
+		giveawayConfig.ProviderMutations = false
+	}
+	giveawayEngine := newGiveawayEngine(giveawayRuntimeConfig{Store: giveawayStore, Users: usersGiveaways, Mailer: mailer, Provider: giveawayProvider, Config: giveawayConfig})
+	giveawayRPC := rpc.NewGiveawayRPC(rpc.GiveawayRPCConfig{Store: giveawayStore, DB: client, Users: usersGiveaways, Config: giveawayConfig, RulesVersion: env.Get("GIVEAWAYS_RULES_VERSION", "premium-giveaway-v1"), Log: log.Named("giveaways")})
+	if err := rpc.SubscribeGiveaways(bus.RPCWiring{NC: nc, App: core.NR, Queue: queueGroup, Log: log.Named("giveaways")}, giveawayRPC); err != nil {
+		log.Fatal("failed to subscribe giveaways rpc", zap.Error(err))
+	}
+	go func() {
+		if err := giveawayEngine.Run(core.Ctx); err != nil && core.Ctx.Err() == nil {
+			log.Warn("giveaway engine stopped", zap.Error(err))
+		}
+	}()
 
 	// The Set is built here rather than served by svcboot.ServeHealth because
 	// this service owns its own HTTP server: the same handler that answers the
@@ -85,7 +107,10 @@ func main() {
 		Health:        healthSet,
 		NotifyGift:    notifier.Notify,
 		ApplyBilling:  billing.Apply,
-		App:           core.NR,
+		RecordBillingIncident: func(ctx context.Context, incident web.BillingIncident) error {
+			return recordGiveawayBillingIncident(ctx, client, incident)
+		},
+		App: core.NR,
 	}, log.Named("http"))
 
 	httpServer := &http.Server{
@@ -122,6 +147,9 @@ func main() {
 		zap.Bool("tebex_checkout_configured", checkoutConfigured),
 		zap.Bool("tebex_checkout_auth_configured", checkoutAuth),
 		zap.Bool("tebex_checkout_username_configured", env.GetBool("TEBEX_INCLUDE_USERNAME", false)),
+		zap.Bool("giveaways_new_awards_enabled", giveawayConfig.NewAwardsEnabled),
+		zap.Bool("giveaways_interval_rule_verified", giveawayConfig.IntervalRuleVerified),
+		zap.Bool("giveaways_provider_mutations_enabled", giveawayConfig.CanMutateProvider()),
 	)
 
 	serveHTTP(core.Ctx, listener{srv: httpServer}, log)
@@ -131,7 +159,16 @@ func main() {
 // the Tebex Headless credentials the service stays webhook-only, exactly as
 // before. Returns whether checkout is live and whether an API private key is
 // configured, both reported in the ready log line.
-func setupCheckout(nc *nats.Conn, nrApp *newrelic.Application, dashboardOrigin string, log *zap.Logger) (configured, auth bool) {
+type checkoutRuntime struct {
+	nc              *nats.Conn
+	db              *ent.Client
+	nrApp           *newrelic.Application
+	dashboardOrigin string
+	log             *zap.Logger
+}
+
+func setupCheckout(runtime checkoutRuntime) (configured, auth bool) {
+	nc, db, nrApp, dashboardOrigin, log := runtime.nc, runtime.db, runtime.nrApp, runtime.dashboardOrigin, runtime.log
 
 	// TEBEX_HEADLESS_TOKEN is the legacy name for the same webstore public token.
 	webstoreToken := env.Get("TEBEX_WEBSTORE_TOKEN", env.Get("TEBEX_HEADLESS_TOKEN", ""))
@@ -157,10 +194,12 @@ func setupCheckout(nc *nats.Conn, nrApp *newrelic.Application, dashboardOrigin s
 
 	userGetSubject := env.Get("NATS_INTERNAL_USERS_GET_SUBJECT", "bagel.rpc.internal.users.get")
 	prefix := env.Get("NATS_TRANSACTIONS_SUBJECT_PREFIX", "bagel.rpc.transactions")
+	usersGiveaways := rpc.NewUsersGiveawayClient(nc)
+	guard := rpc.NewCheckoutGuard(db, usersGiveaways)
 	if err := rpc.SubscribeCheckout(
 		bus.RPCWiring{NC: nc, App: nrApp, Queue: queueGroup, Log: log},
 		tebexClient,
-		rpc.CheckoutConfig{Prefix: prefix, UserGetSubject: userGetSubject},
+		rpc.CheckoutConfig{Prefix: prefix, UserGetSubject: userGetSubject, Guard: guard},
 	); err != nil {
 		log.Fatal("failed to subscribe checkout rpc", zap.Error(err))
 	}

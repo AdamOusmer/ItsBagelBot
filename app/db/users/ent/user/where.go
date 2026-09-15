@@ -140,6 +140,11 @@ func Onboarded(v bool) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldOnboarded, v))
 }
 
+// TestAccount applies equality check predicate on the "test_account" field. It's identical to TestAccountEQ.
+func TestAccount(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldTestAccount, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldCreatedAt, v))
@@ -960,6 +965,16 @@ func OnboardedNEQ(v bool) predicate.User {
 	return predicate.User(sql.FieldNEQ(FieldOnboarded, v))
 }
 
+// TestAccountEQ applies the EQ predicate on the "test_account" field.
+func TestAccountEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldTestAccount, v))
+}
+
+// TestAccountNEQ applies the NEQ predicate on the "test_account" field.
+func TestAccountNEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldTestAccount, v))
+}
+
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
 func CreatedAtEQ(v time.Time) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldCreatedAt, v))
@@ -1055,6 +1070,29 @@ func HasTokens() predicate.User {
 func HasTokensWith(preds ...predicate.Tokens) predicate.User {
 	return predicate.User(func(s *sql.Selector) {
 		step := newTokensStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasPremiumGrants applies the HasEdge predicate on the "premium_grants" edge.
+func HasPremiumGrants() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, PremiumGrantsTable, PremiumGrantsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasPremiumGrantsWith applies the HasEdge predicate on the "premium_grants" edge with a given conditions (other predicates).
+func HasPremiumGrantsWith(preds ...predicate.PremiumGrant) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newPremiumGrantsStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

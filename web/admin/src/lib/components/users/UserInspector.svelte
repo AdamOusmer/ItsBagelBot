@@ -23,6 +23,7 @@
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { AccessKey } from '$lib/access';
   import type { AdminUserWire, AuditEntry, ChannelSubState } from '$lib/server/services';
+  import type { GiveawayWinnerWire } from '$lib/server/giveaways';
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
   import StatePill from '../StatePill.svelte';
   import { stateOf } from './user-state';
@@ -35,6 +36,8 @@
     viewAsUrl,
     history,
     historyError,
+    prizeHistory,
+    prizeHistoryError,
     canReadHistory,
     busy,
     can,
@@ -50,6 +53,8 @@
     viewAsUrl: string;
     history: AuditEntry[] | null;
     historyError: string;
+    prizeHistory: GiveawayWinnerWire[] | null;
+    prizeHistoryError: string;
     canReadHistory: boolean;
     busy: string | null;
     can: (key: AccessKey) => boolean;
@@ -159,6 +164,20 @@
         </dl>
       {/if}
     </section>
+
+    {#if can('users.test')}
+      <section class="block">
+        <h3 class="block-label">{t('admin.users.testAccountTitle')}</h3>
+        <p class="note">{t('admin.users.testAccountHint')}</p>
+        <form class="inline" method="POST" action="?/setTestAccount" use:enhance>
+          <input type="hidden" name="user_id" value={user.id} />
+          <input type="hidden" name="active" value={user.test_account ? 'false' : 'true'} />
+          <Button variant="ghost" type="submit" disabled={locked} loading={busy === 'setTestAccount'}>
+            {user.test_account ? t('admin.users.markOrdinary') : t('admin.users.markTest')}
+          </Button>
+        </form>
+      </section>
+    {/if}
 
     <section class="block">
       <h3 class="block-label">{t('admin.users.connectionTitle')}</h3>
@@ -272,6 +291,25 @@
             {/each}
           </ul>
           <a class="note more" href={`/audit?q=${user.id}`}>{t('admin.users.historyMore')}</a>
+        {/if}
+      </section>
+    {/if}
+
+    {#if can('giveaways.manage')}
+      <section class="block">
+        <h3 class="block-label">{t('admin.users.prizeHistoryTitle')}</h3>
+        {#if prizeHistory === null}
+          <p class="note">{t('admin.users.prizeHistoryLoading')}</p>
+        {:else if prizeHistoryError}
+          <p class="probe-err">{prizeHistoryError}</p>
+        {:else if prizeHistory.length === 0}
+          <p class="note">{t('admin.users.prizeHistoryEmpty')}</p>
+        {:else}
+          <ul class="bb-list hist">
+            {#each prizeHistory as award (award.id)}
+              <li class="hist-row"><StatusDot tone={statusTone(award.awardState === 'completed' ? 'online' : 'degraded')} /><span class="hist-act">{t('admin.users.prizeMonths', { n: award.prizeMonths })} · {award.awardState}</span><span class="hist-when">{award.startAt ? fmtDate(award.startAt) : t('admin.giveaways.noDate')}</span></li>
+            {/each}
+          </ul>
         {/if}
       </section>
     {/if}

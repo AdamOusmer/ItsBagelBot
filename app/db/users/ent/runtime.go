@@ -6,6 +6,7 @@ import (
 	"ItsBagelBot/app/db/users/ent/adminaudit"
 	"ItsBagelBot/app/db/users/ent/adminuser"
 	"ItsBagelBot/app/db/users/ent/delegation"
+	"ItsBagelBot/app/db/users/ent/premiumgrant"
 	"ItsBagelBot/app/db/users/ent/schema"
 	"ItsBagelBot/app/db/users/ent/user"
 	"time"
@@ -75,6 +76,72 @@ func init() {
 	delegationDescCreatedAt := delegationFields[7].Descriptor()
 	// delegation.DefaultCreatedAt holds the default value on creation for the created_at field.
 	delegation.DefaultCreatedAt = delegationDescCreatedAt.Default.(func() time.Time)
+	premiumgrantFields := schema.PremiumGrant{}.Fields()
+	_ = premiumgrantFields
+	// premiumgrantDescGiveawayID is the schema descriptor for giveaway_id field.
+	premiumgrantDescGiveawayID := premiumgrantFields[1].Descriptor()
+	// premiumgrant.GiveawayIDValidator is a validator for the "giveaway_id" field. It is called by the builders before save.
+	premiumgrant.GiveawayIDValidator = func() func(string) error {
+		validators := premiumgrantDescGiveawayID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(giveaway_id string) error {
+			for _, fn := range fns {
+				if err := fn(giveaway_id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// premiumgrantDescAwardID is the schema descriptor for award_id field.
+	premiumgrantDescAwardID := premiumgrantFields[2].Descriptor()
+	// premiumgrant.AwardIDValidator is a validator for the "award_id" field. It is called by the builders before save.
+	premiumgrant.AwardIDValidator = func() func(string) error {
+		validators := premiumgrantDescAwardID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(award_id string) error {
+			for _, fn := range fns {
+				if err := fn(award_id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// premiumgrantDescIntervalRuleVersion is the schema descriptor for interval_rule_version field.
+	premiumgrantDescIntervalRuleVersion := premiumgrantFields[7].Descriptor()
+	// premiumgrant.IntervalRuleVersionValidator is a validator for the "interval_rule_version" field. It is called by the builders before save.
+	premiumgrant.IntervalRuleVersionValidator = func() func(string) error {
+		validators := premiumgrantDescIntervalRuleVersion.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(interval_rule_version string) error {
+			for _, fn := range fns {
+				if err := fn(interval_rule_version); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// premiumgrantDescCreatedAt is the schema descriptor for created_at field.
+	premiumgrantDescCreatedAt := premiumgrantFields[8].Descriptor()
+	// premiumgrant.DefaultCreatedAt holds the default value on creation for the created_at field.
+	premiumgrant.DefaultCreatedAt = premiumgrantDescCreatedAt.Default.(func() time.Time)
+	// premiumgrantDescUpdatedAt is the schema descriptor for updated_at field.
+	premiumgrantDescUpdatedAt := premiumgrantFields[9].Descriptor()
+	// premiumgrant.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	premiumgrant.DefaultUpdatedAt = premiumgrantDescUpdatedAt.Default.(func() time.Time)
+	// premiumgrant.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	premiumgrant.UpdateDefaultUpdatedAt = premiumgrantDescUpdatedAt.UpdateDefault.(func() time.Time)
 	tokensFields := schema.Tokens{}.Fields()
 	_ = tokensFields
 	userFields := schema.User{}.Fields()
@@ -131,12 +198,16 @@ func init() {
 	userDescOnboarded := userFields[18].Descriptor()
 	// user.DefaultOnboarded holds the default value on creation for the onboarded field.
 	user.DefaultOnboarded = userDescOnboarded.Default.(bool)
+	// userDescTestAccount is the schema descriptor for test_account field.
+	userDescTestAccount := userFields[19].Descriptor()
+	// user.DefaultTestAccount holds the default value on creation for the test_account field.
+	user.DefaultTestAccount = userDescTestAccount.Default.(bool)
 	// userDescCreatedAt is the schema descriptor for created_at field.
-	userDescCreatedAt := userFields[19].Descriptor()
+	userDescCreatedAt := userFields[20].Descriptor()
 	// user.DefaultCreatedAt holds the default value on creation for the created_at field.
 	user.DefaultCreatedAt = userDescCreatedAt.Default.(func() time.Time)
 	// userDescUpdatedAt is the schema descriptor for updated_at field.
-	userDescUpdatedAt := userFields[20].Descriptor()
+	userDescUpdatedAt := userFields[21].Descriptor()
 	// user.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	user.DefaultUpdatedAt = userDescUpdatedAt.Default.(func() time.Time)
 	// user.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.

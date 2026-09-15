@@ -41,6 +41,7 @@ export const ROLE_FOR = {
   'users.read': 'moderator',
   'users.ban': 'moderator',
   'users.grant': 'admin',
+  'users.test': 'admin',
   'users.token': 'admin',
   'users.delete': 'owner',
   // console-only surfaces
@@ -49,6 +50,7 @@ export const ROLE_FOR = {
   'shards.scale': 'admin',
   'lanes.mutate': 'admin',
   'notifications.send': 'admin',
+  'giveaways.manage': 'admin',
   'counters.manage': 'owner',
   'staff.manage': 'admin',
   'audit.read': 'admin',

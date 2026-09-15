@@ -5,15 +5,21 @@ package rpc
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net"
 	"strings"
 	"time"
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/google/uuid"
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 
+	"ItsBagelBot/app/db/transactions/ent"
+	"ItsBagelBot/app/db/transactions/ent/giveawayaward"
+	"ItsBagelBot/app/db/transactions/ent/giveawayuserlease"
 	"ItsBagelBot/app/db/transactions/tebex"
 	domainrpc "ItsBagelBot/internal/domain/rpc"
 	transactionsrpc "ItsBagelBot/internal/domain/rpc/transactions"
@@ -28,6 +34,7 @@ type checkoutRPC struct {
 	nc             *nats.Conn
 	userGetSubject string
 	log            *zap.Logger
+	guard          *CheckoutGuard
 }
 
 // CheckoutConfig names the subjects the checkout RPC binds and resolves
@@ -39,6 +46,166 @@ type checkoutRPC struct {
 type CheckoutConfig struct {
 	Prefix         string
 	UserGetSubject string
+	Guard          *CheckoutGuard
+}
+
+type CoverageReader interface {
+	Coverage(context.Context, uint64) (usersrpc.PremiumCoverage, error)
+}
+type AwardReader interface {
+	HasPendingOrActiveAward(context.Context, uint64) (bool, error)
+}
+type CheckoutLease interface {
+	AcquireUserLease(context.Context, uint64) (func(), error)
+}
+
+// CheckoutGuard fails closed when coverage or durable award state cannot be
+// read. This prevents duplicate paid purchases during grant preparation,
+// scheduling, and webhook/retry races.
+type CheckoutGuard struct {
+	Coverage CoverageReader
+	Awards   AwardReader
+	Lease    CheckoutLease
+}
+
+func NewCheckoutGuard(db *ent.Client, coverage CoverageReader) *CheckoutGuard {
+	return &CheckoutGuard{Coverage: coverage, Awards: entAwardReader{db: db}, Lease: entCheckoutLease{db: db}}
+}
+
+func (g *CheckoutGuard) Allow(ctx context.Context, userID uint64) error {
+	release, err := g.Begin(ctx, userID)
+	if err != nil {
+		return err
+	}
+	release()
+	return nil
+}
+
+func (g *CheckoutGuard) Begin(ctx context.Context, userID uint64) (func(), error) {
+	if !g.ready() {
+		return nil, errors.New("premium coverage guard unavailable")
+	}
+	release := func() {}
+	if g.Lease != nil {
+		var err error
+		release, err = g.Lease.AcquireUserLease(ctx, userID)
+		if err != nil {
+			return nil, errors.New("could not serialize premium coverage check")
+		}
+	}
+	if err := g.check(ctx, userID); err != nil {
+		release()
+		return nil, err
+	}
+	return release, nil
+}
+
+func (g *CheckoutGuard) check(ctx context.Context, userID uint64) error {
+	if err := g.checkAward(ctx, userID); err != nil {
+		return err
+	}
+	coverage, err := g.Coverage.Coverage(ctx, userID)
+	if err != nil || coverage.BillingUncertain {
+		return errors.New("could not verify premium coverage")
+	}
+	if blockedAccount(coverage) {
+		return errAlreadyPremium
+	}
+	if hasFutureCoverage(coverage, time.Now().UTC()) {
+		return errAlreadyPremium
+	}
+	return nil
+}
+
+func blockedAccount(coverage usersrpc.PremiumCoverage) bool {
+	return coverage.Banned || strings.EqualFold(coverage.Status, "vip")
+}
+
+func (g *CheckoutGuard) ready() bool {
+	return g != nil && g.Coverage != nil && g.Awards != nil
+}
+
+func (g *CheckoutGuard) checkAward(ctx context.Context, userID uint64) error {
+	covered, err := g.Awards.HasPendingOrActiveAward(ctx, userID)
+	if err != nil {
+		return errors.New("could not verify premium coverage")
+	}
+	if covered {
+		return errAlreadyPremium
+	}
+	return nil
+}
+
+func hasFutureCoverage(coverage usersrpc.PremiumCoverage, now time.Time) bool {
+	if coverage.PaidThrough != nil && coverage.PaidThrough.After(now) {
+		return true
+	}
+	for _, grant := range coverage.Grants {
+		if grant.EndAt.After(now) {
+			return true
+		}
+	}
+	return false
+}
+
+type entAwardReader struct{ db *ent.Client }
+
+type entCheckoutLease struct{ db *ent.Client }
+
+func (r entCheckoutLease) AcquireUserLease(ctx context.Context, userID uint64) (func(), error) {
+	if userID == 0 {
+		return nil, errors.New("invalid user id")
+	}
+	req := checkoutLeaseRequest{userID: userID, owner: uuid.NewString(), now: time.Now().UTC()}
+	tx, err := r.db.Tx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	row, findErr := checkoutLeaseRow(ctx, tx, userID)
+	if err = req.save(ctx, tx, row, findErr); err != nil {
+		_ = tx.Rollback()
+		return nil, err
+	}
+	if err = tx.Commit(); err != nil {
+		return nil, err
+	}
+	return func() {
+		now := time.Now().UTC()
+		_, _ = r.db.GiveawayUserLease.UpdateOneID("user:" + fmt.Sprint(userID)).Where(giveawayuserlease.OwnerEQ(req.owner)).SetLeaseUntil(now).SetUpdatedAt(now).Save(context.Background())
+	}, nil
+}
+
+type checkoutLeaseRequest struct {
+	userID uint64
+	owner  string
+	now    time.Time
+}
+
+func checkoutLeaseRow(ctx context.Context, tx *ent.Tx, userID uint64) (*ent.GiveawayUserLease, error) {
+	row, err := tx.GiveawayUserLease.Query().Where(giveawayuserlease.UserIDEQ(userID)).ForUpdate().Only(ctx)
+	if err != nil && err.Error() == "sql: SELECT .. FOR UPDATE/SHARE not supported in SQLite" {
+		return tx.GiveawayUserLease.Query().Where(giveawayuserlease.UserIDEQ(userID)).Only(ctx)
+	}
+	return row, err
+}
+
+func (r checkoutLeaseRequest) save(ctx context.Context, tx *ent.Tx, row *ent.GiveawayUserLease, findErr error) error {
+	if findErr == nil {
+		if row.LeaseUntil.After(r.now) {
+			return errors.New("user checkout already in progress")
+		}
+		_, err := row.Update().SetOwner(r.owner).SetLeaseUntil(r.now.Add(30 * time.Second)).SetUpdatedAt(r.now).Save(ctx)
+		return err
+	}
+	if !ent.IsNotFound(findErr) {
+		return findErr
+	}
+	_, err := tx.GiveawayUserLease.Create().SetID("user:" + fmt.Sprint(r.userID)).SetUserID(r.userID).SetOwner(r.owner).SetLeaseUntil(r.now.Add(30 * time.Second)).SetUpdatedAt(r.now).Save(ctx)
+	return err
+}
+
+func (r entAwardReader) HasPendingOrActiveAward(ctx context.Context, userID uint64) (bool, error) {
+	return r.db.GiveawayAward.Query().Where(giveawayaward.UserIDEQ(userID), giveawayaward.StateIn("selected", "preparing", "needs_review", "scheduled", "active")).Exist(ctx)
 }
 
 // basketBudget is the widest handler budget in the service. Basket creation is
@@ -50,7 +217,7 @@ const basketBudget = 15 * time.Second
 // Tebex basket so the dashboard can redirect to Tebex-hosted checkout, either
 // for the signed-in buyer or as a gift to another registered user.
 func SubscribeCheckout(w bus.RPCWiring, client *tebex.Client, cfg CheckoutConfig) error {
-	c := &checkoutRPC{tebex: client, nc: w.NC, userGetSubject: cfg.UserGetSubject, log: w.Log}
+	c := &checkoutRPC{tebex: client, nc: w.NC, userGetSubject: cfg.UserGetSubject, log: w.Log, guard: cfg.Guard}
 
 	return bus.Serve(w.Within(basketBudget), cfg.Prefix+".basket_create", c.basketCreate)
 }
@@ -63,29 +230,16 @@ type buyer struct {
 
 func (c *checkoutRPC) basketCreate(ctx context.Context, req transactionsrpc.BasketCreateRequest) transactionsrpc.BasketCreateReply {
 	log := monitor.TxnLogger(ctx, c.log)
-	// Not the bind-time bus.ServeForUser guard: a basket for user 0 is
-	// meaningless, and that extra rejection has to ride the same refusal.
-	buyerID, err := bus.UserID(req.UserID)
-	if err != nil || buyerID == 0 {
-		return transactionsrpc.BasketCreateReply{Refusal: domainrpc.Refused(domainrpc.CodeInvalid, bus.ErrInvalidUserID.Error())}
+	b, packageType, err := parseBuyer(req)
+	if err != nil {
+		return transactionsrpc.BasketCreateReply{Refusal: domainrpc.Refused(domainrpc.CodeInvalid, err.Error())}
 	}
-	packageType, ok := normalizePackageType(req.PackageType)
-	if !ok {
-		return transactionsrpc.BasketCreateReply{Refusal: domainrpc.Refused(domainrpc.CodeInvalid, "package_type must be single or subscription")}
+	spec, recipientLogin, release, refusal := c.buildBasket(ctx, req, b, packageType)
+	if refusal != nil {
+		return transactionsrpc.BasketCreateReply{Refusal: domainrpc.Refused(refusal.code, refusal.message)}
 	}
-
-	b := buyer{id: buyerID, login: clampLogin(req.Username)}
-	spec := tebex.BasketSpec{UserID: b.id, Username: b.login, IPAddress: validIPv4(req.IPAddress), PackageType: packageType}
-	recipientLogin := ""
-
-	// A recipient turns this into a gift: the spec is rebuilt against the vetted
-	// recipient with the buyer as gifter.
-	if !normalizeLogin(req.RecipientUsername).empty() {
-		giftSpec, recipient, errReply := c.buildGiftSpec(ctx, req, b)
-		if errReply != "" {
-			return transactionsrpc.BasketCreateReply{Refusal: domainrpc.Refused(domainrpc.CodeInvalid, errReply)}
-		}
-		spec, recipientLogin = giftSpec, recipient
+	if release != nil {
+		defer release()
 	}
 
 	basket, err := c.tebex.CreateBasket(ctx, spec)
@@ -100,6 +254,52 @@ func (c *checkoutRPC) basketCreate(ctx context.Context, req transactionsrpc.Bask
 		CheckoutURL:    basket.CheckoutURL,
 		RecipientLogin: recipientLogin,
 	}
+}
+
+type basketRefusal struct {
+	code    domainrpc.Code
+	message string
+}
+
+func parseBuyer(req transactionsrpc.BasketCreateRequest) (buyer, string, error) {
+	buyerID, err := bus.UserID(req.UserID)
+	if err != nil || buyerID == 0 {
+		return buyer{}, "", bus.ErrInvalidUserID
+	}
+	packageType, ok := normalizePackageType(req.PackageType)
+	if !ok {
+		return buyer{}, "", errors.New("package_type must be single or subscription")
+	}
+	return buyer{id: buyerID, login: clampLogin(req.Username)}, packageType, nil
+}
+
+func (c *checkoutRPC) buildBasket(ctx context.Context, req transactionsrpc.BasketCreateRequest, b buyer, packageType string) (tebex.BasketSpec, string, func(), *basketRefusal) {
+	if recipient := normalizeLogin(req.RecipientUsername); !recipient.empty() {
+		return c.buildGiftBasket(ctx, req, b)
+	}
+	if c.guard != nil {
+		release, err := c.guard.Begin(ctx, b.id)
+		if err != nil {
+			return tebex.BasketSpec{}, "", nil, &basketRefusal{code: domainrpc.CodeConflict, message: err.Error()}
+		}
+		return tebex.BasketSpec{UserID: b.id, Username: b.login, IPAddress: validIPv4(req.IPAddress), PackageType: packageType}, "", release, nil
+	}
+	return tebex.BasketSpec{UserID: b.id, Username: b.login, IPAddress: validIPv4(req.IPAddress), PackageType: packageType}, "", nil, nil
+}
+
+func (c *checkoutRPC) buildGiftBasket(ctx context.Context, req transactionsrpc.BasketCreateRequest, b buyer) (tebex.BasketSpec, string, func(), *basketRefusal) {
+	spec, recipient, errReply := c.buildGiftSpec(ctx, req, b)
+	if errReply != "" {
+		return tebex.BasketSpec{}, "", nil, &basketRefusal{code: domainrpc.CodeInvalid, message: errReply}
+	}
+	if c.guard != nil {
+		release, err := c.guard.Begin(ctx, spec.UserID)
+		if err != nil {
+			return tebex.BasketSpec{}, "", nil, &basketRefusal{code: domainrpc.CodeConflict, message: err.Error()}
+		}
+		return spec, recipient, release, nil
+	}
+	return spec, recipient, nil, nil
 }
 
 // normalizePackageType accepts the empty, single, or subscription package
@@ -166,7 +366,14 @@ func (l login) empty() bool { return l == "" }
 // paid or VIP plan. Error strings are user-facing (the dashboard surfaces them
 // on the gift form verbatim).
 func (c *checkoutRPC) resolveRecipient(ctx context.Context, l login) (*usersrpc.AdminUserView, error) {
+	view, err := c.lookupRecipient(ctx, l)
+	if err != nil {
+		return nil, err
+	}
+	return c.validateRecipient(ctx, view)
+}
 
+func (c *checkoutRPC) lookupRecipient(ctx context.Context, l login) (*usersrpc.AdminUserView, error) {
 	reply, err := bus.RequestJSONTimeout[usersrpc.AdminReply](ctx, c.nc, c.userGetSubject,
 		usersrpc.AdminRequest{Username: string(l)}, 3*time.Second)
 	if err != nil {
@@ -179,20 +386,25 @@ func (c *checkoutRPC) resolveRecipient(ctx context.Context, l login) (*usersrpc.
 	if reply.User == nil {
 		return nil, errRecipientNotRegistered
 	}
-	if reply.User.Banned {
+	return reply.User, nil
+}
+
+func (c *checkoutRPC) validateRecipient(ctx context.Context, view *usersrpc.AdminUserView) (*usersrpc.AdminUserView, error) {
+	if view.Banned {
 		return nil, errRecipientNotEligible
 	}
-	switch strings.ToLower(reply.User.Status) {
+	switch strings.ToLower(view.Status) {
 	case "paid", "vip":
 		return nil, errRecipientAlreadyPremium
 	}
-	return reply.User, nil
+	return view, nil
 }
 
 var (
 	errRecipientNotRegistered  = constError("that user hasn't signed in to ItsBagelBot yet, so premium can't be gifted to them")
 	errRecipientNotEligible    = constError("that account can't receive premium")
 	errRecipientAlreadyPremium = constError("that user already has premium")
+	errAlreadyPremium          = constError("that account already has premium coverage")
 	errRecipientLookup         = constError("could not verify the recipient right now — try again in a moment")
 	errGiftMessageLink         = constError("gift notes can't contain links or web addresses — please remove it and try again")
 )

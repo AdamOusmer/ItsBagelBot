@@ -22,4 +22,6 @@ const (
 	// billingBudget is the widest here: applying a Tebex grant is a
 	// transaction plus the cache invalidation publish that follows it.
 	billingBudget = 5 * time.Second
+	// giveawayBudget covers an unpaged pool snapshot plus one grant write.
+	giveawayBudget = 5 * time.Second
 )

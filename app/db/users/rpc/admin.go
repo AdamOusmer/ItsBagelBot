@@ -72,6 +72,7 @@ func (a *adminRPC) verbs() []adminVerb {
 		{"set_status", admin, a.setStatus},
 		{"set_active", admin, a.setActive},
 		{"set_creator_code", admin, a.setCreatorCode},
+		{"test.set", admin, a.setTestAccount},
 		{"reset", admin, a.reset},
 		{"token_set", admin, a.tokenSet},
 		{"token_clear", admin, a.tokenClear},
@@ -415,6 +416,24 @@ func (a *adminRPC) setCreatorCode(ctx context.Context, req usersrpc.AdminRequest
 	return a.get(ctx, usersrpc.AdminRequest{UserID: fmt.Sprint(u.ID)})
 }
 
+func (a *adminRPC) setTestAccount(ctx context.Context, req usersrpc.AdminRequest) usersrpc.AdminReply {
+	u, err := a.findUser(ctx, req)
+	if err != nil {
+		return adminError(refusal(err))
+	}
+	actorID, err := bus.UserID(req.ActorID)
+	if err != nil {
+		return adminError(refusal(err))
+	}
+	if err := a.repo.SetTestAccount(ctx, u.ID, req.TestAccount, actorID); err != nil {
+		return adminError(refusal(err))
+	}
+	a.invalidate(u.ID)
+	monitor.TxnLogger(ctx, a.log).Info("admin test-account marker change",
+		zap.Uint64("user", u.ID), zap.Bool("enabled", req.TestAccount))
+	return a.get(ctx, idRequest(u.ID))
+}
+
 // ban blocks the user from the service entirely. The ingress drops banned
 // users, so their traffic never reaches a worker.
 func (a *adminRPC) ban(ctx context.Context, req usersrpc.AdminRequest) usersrpc.AdminReply {
@@ -565,6 +584,7 @@ func viewOf(u *ent.User) usersrpc.AdminUserView {
 		SubscriptionSource:        u.SubscriptionSource,
 		SubscriptionRef:           u.SubscriptionRef,
 		SubscriptionCancelPending: u.SubscriptionCancelPending,
+		TestAccount:               u.TestAccount,
 		CreatedAt:                 u.CreatedAt,
 		UpdatedAt:                 u.UpdatedAt,
 	}

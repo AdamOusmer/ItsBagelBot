@@ -28,6 +28,7 @@ export type AdminSectionId =
   | 'events'
   | 'users'
   | 'notifications'
+  | 'giveaways'
   | 'staff'
   | 'audit'
   | 'secrets'
@@ -70,6 +71,15 @@ export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
     icon: 'bell',
     href: '/notifications',
     match: ['/notifications']
+  },
+  {
+    id: 'giveaways',
+    group: 'accounts',
+    labelKey: 'adminNav.giveaways',
+    icon: 'activity',
+    href: '/giveaways',
+    match: ['/giveaways'],
+    minRole: 'admin'
   },
   // Access: every row here is gated server-side too (access.ts ROLE_FOR); the
   // minRole is what keeps the link from being offered in the first place.

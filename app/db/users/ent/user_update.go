@@ -4,6 +4,7 @@ package ent
 
 import (
 	"ItsBagelBot/app/db/users/ent/predicate"
+	"ItsBagelBot/app/db/users/ent/premiumgrant"
 	"ItsBagelBot/app/db/users/ent/tokens"
 	"ItsBagelBot/app/db/users/ent/user"
 	"context"
@@ -316,6 +317,20 @@ func (_u *UserUpdate) SetNillableOnboarded(v *bool) *UserUpdate {
 	return _u
 }
 
+// SetTestAccount sets the "test_account" field.
+func (_u *UserUpdate) SetTestAccount(v bool) *UserUpdate {
+	_u.mutation.SetTestAccount(v)
+	return _u
+}
+
+// SetNillableTestAccount sets the "test_account" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableTestAccount(v *bool) *UserUpdate {
+	if v != nil {
+		_u.SetTestAccount(*v)
+	}
+	return _u
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_u *UserUpdate) SetCreatedAt(v time.Time) *UserUpdate {
 	_u.mutation.SetCreatedAt(v)
@@ -351,6 +366,21 @@ func (_u *UserUpdate) AddTokens(v ...*Tokens) *UserUpdate {
 	return _u.AddTokenIDs(ids...)
 }
 
+// AddPremiumGrantIDs adds the "premium_grants" edge to the PremiumGrant entity by IDs.
+func (_u *UserUpdate) AddPremiumGrantIDs(ids ...int) *UserUpdate {
+	_u.mutation.AddPremiumGrantIDs(ids...)
+	return _u
+}
+
+// AddPremiumGrants adds the "premium_grants" edges to the PremiumGrant entity.
+func (_u *UserUpdate) AddPremiumGrants(v ...*PremiumGrant) *UserUpdate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddPremiumGrantIDs(ids...)
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (_u *UserUpdate) Mutation() *UserMutation {
 	return _u.mutation
@@ -375,6 +405,27 @@ func (_u *UserUpdate) RemoveTokens(v ...*Tokens) *UserUpdate {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveTokenIDs(ids...)
+}
+
+// ClearPremiumGrants clears all "premium_grants" edges to the PremiumGrant entity.
+func (_u *UserUpdate) ClearPremiumGrants() *UserUpdate {
+	_u.mutation.ClearPremiumGrants()
+	return _u
+}
+
+// RemovePremiumGrantIDs removes the "premium_grants" edge to PremiumGrant entities by IDs.
+func (_u *UserUpdate) RemovePremiumGrantIDs(ids ...int) *UserUpdate {
+	_u.mutation.RemovePremiumGrantIDs(ids...)
+	return _u
+}
+
+// RemovePremiumGrants removes "premium_grants" edges to PremiumGrant entities.
+func (_u *UserUpdate) RemovePremiumGrants(v ...*PremiumGrant) *UserUpdate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemovePremiumGrantIDs(ids...)
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -535,6 +586,9 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.Onboarded(); ok {
 		_spec.SetField(user.FieldOnboarded, field.TypeBool, value)
 	}
+	if value, ok := _u.mutation.TestAccount(); ok {
+		_spec.SetField(user.FieldTestAccount, field.TypeBool, value)
+	}
 	if value, ok := _u.mutation.CreatedAt(); ok {
 		_spec.SetField(user.FieldCreatedAt, field.TypeTime, value)
 	}
@@ -579,6 +633,51 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(tokens.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.PremiumGrantsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.PremiumGrantsTable,
+			Columns: []string{user.PremiumGrantsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(premiumgrant.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedPremiumGrantsIDs(); len(nodes) > 0 && !_u.mutation.PremiumGrantsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.PremiumGrantsTable,
+			Columns: []string{user.PremiumGrantsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(premiumgrant.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.PremiumGrantsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.PremiumGrantsTable,
+			Columns: []string{user.PremiumGrantsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(premiumgrant.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {
@@ -893,6 +992,20 @@ func (_u *UserUpdateOne) SetNillableOnboarded(v *bool) *UserUpdateOne {
 	return _u
 }
 
+// SetTestAccount sets the "test_account" field.
+func (_u *UserUpdateOne) SetTestAccount(v bool) *UserUpdateOne {
+	_u.mutation.SetTestAccount(v)
+	return _u
+}
+
+// SetNillableTestAccount sets the "test_account" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableTestAccount(v *bool) *UserUpdateOne {
+	if v != nil {
+		_u.SetTestAccount(*v)
+	}
+	return _u
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_u *UserUpdateOne) SetCreatedAt(v time.Time) *UserUpdateOne {
 	_u.mutation.SetCreatedAt(v)
@@ -928,6 +1041,21 @@ func (_u *UserUpdateOne) AddTokens(v ...*Tokens) *UserUpdateOne {
 	return _u.AddTokenIDs(ids...)
 }
 
+// AddPremiumGrantIDs adds the "premium_grants" edge to the PremiumGrant entity by IDs.
+func (_u *UserUpdateOne) AddPremiumGrantIDs(ids ...int) *UserUpdateOne {
+	_u.mutation.AddPremiumGrantIDs(ids...)
+	return _u
+}
+
+// AddPremiumGrants adds the "premium_grants" edges to the PremiumGrant entity.
+func (_u *UserUpdateOne) AddPremiumGrants(v ...*PremiumGrant) *UserUpdateOne {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddPremiumGrantIDs(ids...)
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (_u *UserUpdateOne) Mutation() *UserMutation {
 	return _u.mutation
@@ -952,6 +1080,27 @@ func (_u *UserUpdateOne) RemoveTokens(v ...*Tokens) *UserUpdateOne {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveTokenIDs(ids...)
+}
+
+// ClearPremiumGrants clears all "premium_grants" edges to the PremiumGrant entity.
+func (_u *UserUpdateOne) ClearPremiumGrants() *UserUpdateOne {
+	_u.mutation.ClearPremiumGrants()
+	return _u
+}
+
+// RemovePremiumGrantIDs removes the "premium_grants" edge to PremiumGrant entities by IDs.
+func (_u *UserUpdateOne) RemovePremiumGrantIDs(ids ...int) *UserUpdateOne {
+	_u.mutation.RemovePremiumGrantIDs(ids...)
+	return _u
+}
+
+// RemovePremiumGrants removes "premium_grants" edges to PremiumGrant entities.
+func (_u *UserUpdateOne) RemovePremiumGrants(v ...*PremiumGrant) *UserUpdateOne {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemovePremiumGrantIDs(ids...)
 }
 
 // Where appends a list predicates to the UserUpdate builder.
@@ -1142,6 +1291,9 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	if value, ok := _u.mutation.Onboarded(); ok {
 		_spec.SetField(user.FieldOnboarded, field.TypeBool, value)
 	}
+	if value, ok := _u.mutation.TestAccount(); ok {
+		_spec.SetField(user.FieldTestAccount, field.TypeBool, value)
+	}
 	if value, ok := _u.mutation.CreatedAt(); ok {
 		_spec.SetField(user.FieldCreatedAt, field.TypeTime, value)
 	}
@@ -1186,6 +1338,51 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(tokens.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.PremiumGrantsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.PremiumGrantsTable,
+			Columns: []string{user.PremiumGrantsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(premiumgrant.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedPremiumGrantsIDs(); len(nodes) > 0 && !_u.mutation.PremiumGrantsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.PremiumGrantsTable,
+			Columns: []string{user.PremiumGrantsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(premiumgrant.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.PremiumGrantsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.PremiumGrantsTable,
+			Columns: []string{user.PremiumGrantsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(premiumgrant.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {

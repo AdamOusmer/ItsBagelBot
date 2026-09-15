@@ -53,6 +53,8 @@ type User struct {
 	GiftsSent uint32 `json:"gifts_sent,omitempty"`
 	// Onboarded holds the value of the "onboarded" field.
 	Onboarded bool `json:"onboarded,omitempty"`
+	// TestAccount holds the value of the "test_account" field.
+	TestAccount bool `json:"test_account,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// UpdatedAt holds the value of the "updated_at" field.
@@ -67,9 +69,11 @@ type User struct {
 type UserEdges struct {
 	// Tokens holds the value of the tokens edge.
 	Tokens []*Tokens `json:"tokens,omitempty"`
+	// PremiumGrants holds the value of the premium_grants edge.
+	PremiumGrants []*PremiumGrant `json:"premium_grants,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [1]bool
+	loadedTypes [2]bool
 }
 
 // TokensOrErr returns the Tokens value or an error if the edge
@@ -81,6 +85,15 @@ func (e UserEdges) TokensOrErr() ([]*Tokens, error) {
 	return nil, &NotLoadedError{edge: "tokens"}
 }
 
+// PremiumGrantsOrErr returns the PremiumGrants value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) PremiumGrantsOrErr() ([]*PremiumGrant, error) {
+	if e.loadedTypes[1] {
+		return e.PremiumGrants, nil
+	}
+	return nil, &NotLoadedError{edge: "premium_grants"}
+}
+
 // scanValues returns the types for scanning values from sql.Rows.
 func (*User) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
@@ -88,7 +101,7 @@ func (*User) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case user.FieldEmailEnc:
 			values[i] = new([]byte)
-		case user.FieldIsActive, user.FieldBanned, user.FieldCustomCursor, user.FieldSubscriptionCancelPending, user.FieldOnboarded:
+		case user.FieldIsActive, user.FieldBanned, user.FieldCustomCursor, user.FieldSubscriptionCancelPending, user.FieldOnboarded, user.FieldTestAccount:
 			values[i] = new(sql.NullBool)
 		case user.FieldID, user.FieldGiftsSent:
 			values[i] = new(sql.NullInt64)
@@ -230,6 +243,12 @@ func (_m *User) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.Onboarded = value.Bool
 			}
+		case user.FieldTestAccount:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field test_account", values[i])
+			} else if value.Valid {
+				_m.TestAccount = value.Bool
+			}
 		case user.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field created_at", values[i])
@@ -258,6 +277,11 @@ func (_m *User) Value(name string) (ent.Value, error) {
 // QueryTokens queries the "tokens" edge of the User entity.
 func (_m *User) QueryTokens() *TokensQuery {
 	return NewUserClient(_m.config).QueryTokens(_m)
+}
+
+// QueryPremiumGrants queries the "premium_grants" edge of the User entity.
+func (_m *User) QueryPremiumGrants() *PremiumGrantQuery {
+	return NewUserClient(_m.config).QueryPremiumGrants(_m)
 }
 
 // Update returns a builder for updating this User.
@@ -344,6 +368,9 @@ func (_m *User) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("onboarded=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Onboarded))
+	builder.WriteString(", ")
+	builder.WriteString("test_account=")
+	builder.WriteString(fmt.Sprintf("%v", _m.TestAccount))
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))

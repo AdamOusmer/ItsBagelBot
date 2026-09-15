@@ -8,6 +8,126 @@ import (
 	"fmt"
 )
 
+// The AwardEmailFunc type is an adapter to allow the use of ordinary
+// function as AwardEmail mutator.
+type AwardEmailFunc func(context.Context, *ent.AwardEmailMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f AwardEmailFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.AwardEmailMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AwardEmailMutation", m)
+}
+
+// The BillingOperationFunc type is an adapter to allow the use of ordinary
+// function as BillingOperation mutator.
+type BillingOperationFunc func(context.Context, *ent.BillingOperationMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f BillingOperationFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.BillingOperationMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.BillingOperationMutation", m)
+}
+
+// The GiveawayFunc type is an adapter to allow the use of ordinary
+// function as Giveaway mutator.
+type GiveawayFunc func(context.Context, *ent.GiveawayMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f GiveawayFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.GiveawayMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.GiveawayMutation", m)
+}
+
+// The GiveawayAlertFunc type is an adapter to allow the use of ordinary
+// function as GiveawayAlert mutator.
+type GiveawayAlertFunc func(context.Context, *ent.GiveawayAlertMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f GiveawayAlertFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.GiveawayAlertMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.GiveawayAlertMutation", m)
+}
+
+// The GiveawayAwardFunc type is an adapter to allow the use of ordinary
+// function as GiveawayAward mutator.
+type GiveawayAwardFunc func(context.Context, *ent.GiveawayAwardMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f GiveawayAwardFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.GiveawayAwardMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.GiveawayAwardMutation", m)
+}
+
+// The GiveawayCandidateFunc type is an adapter to allow the use of ordinary
+// function as GiveawayCandidate mutator.
+type GiveawayCandidateFunc func(context.Context, *ent.GiveawayCandidateMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f GiveawayCandidateFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.GiveawayCandidateMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.GiveawayCandidateMutation", m)
+}
+
+// The GiveawayDrawFunc type is an adapter to allow the use of ordinary
+// function as GiveawayDraw mutator.
+type GiveawayDrawFunc func(context.Context, *ent.GiveawayDrawMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f GiveawayDrawFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.GiveawayDrawMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.GiveawayDrawMutation", m)
+}
+
+// The GiveawayOutboxFunc type is an adapter to allow the use of ordinary
+// function as GiveawayOutbox mutator.
+type GiveawayOutboxFunc func(context.Context, *ent.GiveawayOutboxMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f GiveawayOutboxFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.GiveawayOutboxMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.GiveawayOutboxMutation", m)
+}
+
+// The GiveawayUserLeaseFunc type is an adapter to allow the use of ordinary
+// function as GiveawayUserLease mutator.
+type GiveawayUserLeaseFunc func(context.Context, *ent.GiveawayUserLeaseMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f GiveawayUserLeaseFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.GiveawayUserLeaseMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.GiveawayUserLeaseMutation", m)
+}
+
+// The TebexAgreementFunc type is an adapter to allow the use of ordinary
+// function as TebexAgreement mutator.
+type TebexAgreementFunc func(context.Context, *ent.TebexAgreementMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f TebexAgreementFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.TebexAgreementMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.TebexAgreementMutation", m)
+}
+
 // The TebexWebhookEventsFunc type is an adapter to allow the use of ordinary
 // function as TebexWebhookEvents mutator.
 type TebexWebhookEventsFunc func(context.Context, *ent.TebexWebhookEventsMutation) (ent.Value, error)

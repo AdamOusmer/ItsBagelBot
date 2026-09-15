@@ -6,6 +6,7 @@ import (
 	"ItsBagelBot/app/db/users/ent/adminaudit"
 	"ItsBagelBot/app/db/users/ent/adminuser"
 	"ItsBagelBot/app/db/users/ent/delegation"
+	"ItsBagelBot/app/db/users/ent/premiumgrant"
 	"ItsBagelBot/app/db/users/ent/tokens"
 	"ItsBagelBot/app/db/users/ent/user"
 	"context"
@@ -77,11 +78,12 @@ var (
 func checkColumn(t, c string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
-			adminaudit.Table: adminaudit.ValidColumn,
-			adminuser.Table:  adminuser.ValidColumn,
-			delegation.Table: delegation.ValidColumn,
-			tokens.Table:     tokens.ValidColumn,
-			user.Table:       user.ValidColumn,
+			adminaudit.Table:   adminaudit.ValidColumn,
+			adminuser.Table:    adminuser.ValidColumn,
+			delegation.Table:   delegation.ValidColumn,
+			premiumgrant.Table: premiumgrant.ValidColumn,
+			tokens.Table:       tokens.ValidColumn,
+			user.Table:         user.ValidColumn,
 		})
 	})
 	return columnCheck(t, c)

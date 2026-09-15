@@ -24,6 +24,7 @@ import type { ShardSnapshot } from '@bagel/kit';
 // so the users service's per-window cache key is hit by a real navigation
 // instead of a client refetch.
 import { parseEnrollmentWindow, type EnrollmentWindow } from '$lib/enrollment-window';
+import { giveawayAlerts, type GiveawayAlertWire } from '$lib/server/giveaways';
 
 const AUDIT_PEEK = 6;
 const DEMO = dev && process.env.DEMO === '1';
@@ -50,9 +51,10 @@ type OverviewReads = {
   health: Promise<Panel<ServiceHealth[]>>;
   audit: Promise<Panel<AuditEntry[]>>;
   bot: Promise<Panel<boolean>>;
+  giveawayAlerts: Promise<Panel<GiveawayAlertWire[]>>;
 };
 
-function liveReads(actorId: string, days: EnrollmentWindow, withAudit: boolean): OverviewReads {
+function liveReads(actorId: string, days: EnrollmentWindow, withAudit: boolean, withGiveaways: boolean): OverviewReads {
   const botId = env.ADMIN_BOT_USER_ID ?? '';
   return {
     enrollment: panel(userEnrollment(actorId, days), emptyEnrollment()),
@@ -62,7 +64,8 @@ function liveReads(actorId: string, days: EnrollmentWindow, withAudit: boolean):
     bot: panel(
       botId ? tokenStatus({ actorId, userId: botId }).then((t) => t.present) : Promise.resolve(false),
       false
-    )
+    ),
+    giveawayAlerts: panel(withGiveaways ? giveawayAlerts({ actorId }) : Promise.resolve([]), [])
   };
 }
 
@@ -75,7 +78,8 @@ function demoReads(days: EnrollmentWindow, withAudit: boolean): OverviewReads {
     fleet: from((f) => f.sampleSnapshot),
     health: from((f) => f.sampleHealth),
     audit: from((f) => (withAudit ? f.sampleAudit : [])),
-    bot: from(() => true)
+    bot: from(() => true),
+    giveawayAlerts: from(() => [])
   };
 }
 
@@ -85,11 +89,12 @@ function demoReads(days: EnrollmentWindow, withAudit: boolean): OverviewReads {
 export const load: PageServerLoad = async ({ url, parent }) => {
   const { id, role } = await parent();
   const withAudit = allows(role, 'audit.read');
+  const withGiveaways = allows(role, 'giveaways.manage');
   const days = parseEnrollmentWindow(url.searchParams.get('days'));
 
   return {
     days,
-    ...(DEMO ? demoReads(days, withAudit) : liveReads(id, days, withAudit)),
+    ...(DEMO ? demoReads(days, withAudit) : liveReads(id, days, withAudit, withGiveaways)),
     // Client-side visibility mirrors of the server ladder. The bot consent flow
     // mints a live Twitch credential, so its card is owner-only; a moderator
     // simply never sees the panel rather than being bounced by the route.

@@ -127,6 +127,7 @@ export interface AdminUserWire {
   subscription_cancel_pending?: boolean;
   created_at?: string;
   updated_at?: string;
+  test_account?: boolean;
 }
 
 export interface TokenStatus {
@@ -377,16 +378,20 @@ export async function userDelete(ref: UserRef): Promise<void> {
   invalidateUser(ref.userId);
 }
 
-export const userSetActive = defineWrite({
-  subject: `${SUB.user}.set_active`,
-  request: (ref: UserRef, active: boolean) => ({
-    actor_id: ref.actorId,
-    user_id: ref.userId,
-    active
-  }),
-  map: (reply: { user: AdminUserWire }) => reply.user,
-  after: (user, ref) => refreshUser(user, ref)
-});
+type UserBooleanSetting = { subject: string; field: 'active' | 'test_account' };
+
+function userSetBoolean(setting: UserBooleanSetting) {
+  return defineWrite({
+    subject: setting.subject,
+    request: (ref: UserRef, enabled: boolean) => ({ actor_id: ref.actorId, user_id: ref.userId, [setting.field]: enabled }),
+    map: (reply: { user: AdminUserWire }) => reply.user,
+    after: (user, ref) => refreshUser(user, ref)
+  });
+}
+
+export const userSetActive = userSetBoolean({ subject: `${SUB.user}.set_active`, field: 'active' });
+
+export const userSetTestAccount = userSetBoolean({ subject: 'bagel.rpc.admin.user.test.set', field: 'test_account' });
 
 export const userSetCreatorCode = defineWrite({
   subject: `${SUB.user}.set_creator_code`,

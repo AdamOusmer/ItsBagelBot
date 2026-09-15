@@ -98,6 +98,46 @@ var (
 			},
 		},
 	}
+	// PremiumGrantsColumns holds the columns for the "premium_grants" table.
+	PremiumGrantsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "giveaway_id", Type: field.TypeString, Size: 128},
+		{Name: "award_id", Type: field.TypeString, Size: 128},
+		{Name: "state", Type: field.TypeEnum, Enums: []string{"prepared", "committed", "cancelled", "expired"}, Default: "prepared"},
+		{Name: "projection_phase", Type: field.TypeEnum, Enums: []string{"pending", "active", "expired"}, Default: "pending"},
+		{Name: "start_at", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(6)"}},
+		{Name: "end_at", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(6)"}},
+		{Name: "interval_rule_version", Type: field.TypeString, Size: 128},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "user_id", Type: field.TypeUint64},
+	}
+	// PremiumGrantsTable holds the schema information for the "premium_grants" table.
+	PremiumGrantsTable = &schema.Table{
+		Name:       "premium_grants",
+		Columns:    PremiumGrantsColumns,
+		PrimaryKey: []*schema.Column{PremiumGrantsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "premium_grants_users_premium_grants",
+				Columns:    []*schema.Column{PremiumGrantsColumns[10]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "premiumgrant_giveaway_id_award_id",
+				Unique:  true,
+				Columns: []*schema.Column{PremiumGrantsColumns[1], PremiumGrantsColumns[2]},
+			},
+			{
+				Name:    "premiumgrant_user_id_state_start_at_end_at",
+				Unique:  false,
+				Columns: []*schema.Column{PremiumGrantsColumns[10], PremiumGrantsColumns[3], PremiumGrantsColumns[5], PremiumGrantsColumns[6]},
+			},
+		},
+	}
 	// TokensColumns holds the columns for the "tokens" table.
 	TokensColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -150,6 +190,7 @@ var (
 		{Name: "billing_event_id", Type: field.TypeString, Nullable: true},
 		{Name: "gifts_sent", Type: field.TypeUint32, Default: 0},
 		{Name: "onboarded", Type: field.TypeBool, Default: false},
+		{Name: "test_account", Type: field.TypeBool, Default: false},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
 	}
@@ -176,11 +217,13 @@ var (
 		AdminAuditsTable,
 		AdminUsersTable,
 		DelegationsTable,
+		PremiumGrantsTable,
 		TokensTable,
 		UsersTable,
 	}
 )
 
 func init() {
+	PremiumGrantsTable.ForeignKeys[0].RefTable = UsersTable
 	TokensTable.ForeignKeys[0].RefTable = UsersTable
 }

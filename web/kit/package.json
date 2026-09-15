@@ -75,6 +75,8 @@
     "./staff-role": "./lib/staff-role.ts",
     "./return-path": "./lib/return-path.ts",
     "./status-tone": "./lib/status-tone.ts",
+    "./giveaway": "./lib/giveaway.ts",
+    "./format": "./lib/format.ts",
     "./live-poll": "./lib/live-poll.ts",
     "./social": "./lib/social.ts",
     "./site-links": "./lib/site-links.ts"
