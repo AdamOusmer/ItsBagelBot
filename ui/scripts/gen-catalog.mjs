@@ -154,13 +154,19 @@ function parseProps(body) {
 const countDepth = (line) =>
   (line.match(/[{(]/g) ?? []).length - (line.match(/[})]/g) ?? []).length;
 
-const tidy = (type) => type.replace(/\s+/g, ' ').trim().replace(/\|/g, '\\|');
+// Backslash first: escaping `|` alone turns `\|` into `\\|`, which markdown
+// reads as a literal backslash plus a cell-breaking pipe. The catalog is
+// committed markdown, so a type containing a backslash would otherwise split
+// the table (js/incomplete-sanitization).
+const tidy = (type) =>
+  type.replace(/\s+/g, ' ').trim().replace(/\\/g, '\\\\').replace(/\|/g, '\\|');
 
 /** The contract stylesheet an adapter imports, if it imports one. */
 function contractOf(source) {
-  return [...source.matchAll(/import\s+'(\.\.\/styles\/[^']+\.css)'/g)].map((m) =>
-    m[1].replace('../', ''),
-  );
+  // Capture after the `../` prefix rather than stripping it: `.replace('../', '')`
+  // only drops the first occurrence, which is the incomplete-sanitization shape
+  // even though the regex already pins the path to `../styles/…css`.
+  return [...source.matchAll(/import\s+'\.\.\/(styles\/[^']+\.css)'/g)].map((m) => m[1]);
 }
 
 function read(dir, ext) {
