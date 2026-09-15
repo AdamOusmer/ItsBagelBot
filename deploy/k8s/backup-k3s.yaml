@@ -214,7 +214,7 @@ spec:
             # host. Every capability is still dropped -- uid 0 passes the
             # owner-bits check on those files without CAP_DAC_OVERRIDE.
             - name: snapshot
-              image: alpine/sqlite:3.53.4@sha256:f340775fd07a79dd9a713a253a4624b86c70222a1ac5a423270afda09497082e
+              image: alpine/sqlite:3.53.4@sha256:66bef37427a54bf74251220104626df8ca1a3574ad674448b265452a7c271232
               imagePullPolicy: IfNotPresent
               command: ["/bin/sh", "/scripts/snapshot.sh"]
               volumeMounts:
@@ -235,7 +235,7 @@ spec:
                 requests: {cpu: 50m, memory: 128Mi}
                 limits: {memory: 512Mi}
             - name: encrypt
-              image: alpine/openssl:3.5.8@sha256:80b347d7b4d58e28aae515cf808ba3ce1c4a2a69a323b2cb2cb2d6d278729684
+              image: alpine/openssl:3.5.8@sha256:f6def4887e8413b228b66f314d0bcf5c25b128d918a258f3b0b9d66a0327edcb
               imagePullPolicy: IfNotPresent
               command: ["/bin/sh", "/scripts/encrypt.sh"]
               envFrom:
