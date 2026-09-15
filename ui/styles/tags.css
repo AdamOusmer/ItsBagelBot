@@ -97,6 +97,12 @@
                         background: linear-gradient(90deg, var(--bb-tan), var(--bb-green-glow)) bottom / 100% 1px no-repeat; }
     .bb-tag--quiet    { color: var(--bb-muted);      border-bottom-color: rgba(var(--bb-tan-rgb), 0.20); }
     .bb-tag--incoming { color: var(--bb-green-glow); border-bottom-style: dotted; border-bottom-color: rgba(var(--bb-green-glow-rgb), 0.50); }
+    /* Tag.svelte already exposes tone="error"; the rule used to live only in
+       elements/save-status.css, which Tag does not import. Without this, a
+       Tag used for a fault (Discord offline, a failed audit peek) was an
+       unstyled class. Same #cf8a78 / rgba(176,90,70,0.45) pair save-status
+       already ships: --bb-status-error is console-only. */
+    .bb-tag--error    { color: #cf8a78;             border-bottom-color: rgba(176, 90, 70, 0.45); }
 
     /* Wrap: the tag's text is a SENTENCE, not a short label. Tags are
        `white-space: nowrap` above because a two-word status label breaking in

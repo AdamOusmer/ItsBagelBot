@@ -16,6 +16,7 @@
     toast,
     getI18n,
     toastFailure,
+    Tag,
     type Locale
   } from '@bagel/kit';
   import { page } from '$app/state';
@@ -238,7 +239,7 @@
 </script>
 
 {#snippet sectionChips(sections: string[])}
-  {#each sections as s (s)}<span class="section-chip">{sectionLabel(s)}</span>{/each}
+  {#each sections as s (s)}<Tag tone="quiet">{sectionLabel(s)}</Tag>{/each}
 {/snippet}
 
 {#snippet editSections(g: DelegationGrant)}
@@ -301,7 +302,7 @@
       <div class="identity-main">
         <div class="identity-line">
           <b>{data.displayName || data.login}</b>
-          <span class="pill ok">{t('settings.connectedPill')}</span>
+          <Tag tone="live" mark="solid">{t('settings.connectedPill')}</Tag>
         </div>
         <span class="identity-meta">{t('settings.reconnectTwitchHint')}</span>
       </div>
@@ -382,7 +383,7 @@
       <ul class="grants">
         {#each pending as g (g.token)}
           <li class="grant pending">
-            <span class="pill warn">{t('settings.stageWaiting')}</span>
+            <Tag tone="alpha" mark="dash">{t('settings.stageWaiting')}</Tag>
             <code class="grant-link">{linkFor(g.token)}</code>
             <div class="actions">
               <Button
@@ -714,20 +715,6 @@
   .identity-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .identity-line b { font-size: 15px; color: var(--bb-white); }
   .identity-meta { font-size: 12.5px; color: var(--bb-muted); }
-  .pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-family: var(--bb-font-mono);
-    font-size: 10px;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    border-radius: var(--bb-radius-pill);
-    padding: 3px 10px;
-    white-space: nowrap;
-  }
-  .pill.ok { color: var(--bb-green-glow); background: rgba(82, 183, 136, 0.12); border: 1px solid rgba(82, 183, 136, 0.3); }
-  .pill.warn { color: var(--bb-tan-light); background: rgba(201, 168, 124, 0.12); border: 1px solid rgba(201, 168, 124, 0.3); }
   .row {
     display: flex;
     align-items: center;
@@ -736,9 +723,6 @@
     padding: 12px 0 0;
   }
   .row b, .pref-label { font-size: 14px; color: var(--bb-white); font-family: var(--bb-font-body); }
-  /* Connected pill mirrors the songqueue Spotify pill so both integrations
-     read as the same "linked account" state. */
-  .ok-pill { display: inline-flex; align-items: center; gap: 6px; color: var(--bb-green-glow); font-family: var(--bb-font-body); font-size: 13px; font-weight: 600; }
   .row .hint { margin: 4px 0 0; }
   .create {
     margin-top: 18px;
@@ -782,15 +766,6 @@
   .grant.pending .grant-sections { grid-column: 1 / -1; }
   .grant-edit { grid-column: 1 / -1; margin-top: 4px; display: flex; flex-direction: column; gap: 12px; }
   .grant-edit-actions { display: flex; gap: 10px; justify-content: flex-end; }
-  .section-chip {
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    color: var(--bb-tan-light);
-    background: rgba(201, 168, 124, 0.1);
-    border: 1px solid rgba(201, 168, 124, 0.28);
-    border-radius: var(--bb-radius-pill);
-    padding: 2px 10px;
-  }
 
   .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   /* Standalone actions get a full 44px target; the dense inline "sm" buttons stay

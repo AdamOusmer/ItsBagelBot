@@ -8,7 +8,7 @@
   // handlers so all optimistic-UI state lives in one place.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Icon, PermBadge, SaveStatus, ManagementRow, Switch, getI18n, usesCount, type CommandView, type Perm } from '@bagel/kit';
+  import { Icon, PermBadge, SaveStatus, ManagementRow, Switch, Tag, getI18n, usesCount, type CommandView, type Perm } from '@bagel/kit';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
 
   const { t } = getI18n();
@@ -67,10 +67,14 @@
               <span class="lock" title={t('commandRow.liveOnly')}><Icon name="pulse" size={11} /></span>
             {/if}
             {#if c.builtin}
-              <span class="builtin-tag bb-tag bb-tag--bare" title={t('commandRow.builtinTitle')}>{t('commandRow.builtin')}</span>
+              <span class="name-tag">
+                <Tag tone="bare" title={t('commandRow.builtinTitle')}>{t('commandRow.builtin')}</Tag>
+              </span>
             {/if}
             {#if unsaved}
-              <span class="unsaved" title={t('commandRow.unsavedTitle')}>{t('commandRow.unsaved')}</span>
+              <span class="name-tag">
+                <Tag tone="alpha" title={t('commandRow.unsavedTitle')}>{t('commandRow.unsaved')}</Tag>
+              </span>
             {/if}
           </span>
           {#if c.aliases?.length}
@@ -150,20 +154,8 @@
   }
   .lock { display: inline-flex; color: var(--bb-muted); margin-left: 6px; vertical-align: middle; }
 
-  .unsaved {
-    margin-left: 8px;
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 9.5px;
-    letter-spacing: 0.02em;
-    color: var(--bb-tan-light);
-    border: 1px solid rgba(201, 168, 124, 0.4);
-    border-radius: var(--bb-radius-pill);
-    padding: 1px 8px;
-  }
-  /* Was a green outlined pill; now the global .bb-tag--bare label. Only the
-     inline offset from the command name stays scoped here. */
-  .builtin-tag { margin-left: 8px; }
+  /* Offset from the command name; the label itself is Tag. */
+  .name-tag { margin-left: 8px; display: inline-flex; }
 
   /* Gap widened from 4px: bare labels have no frame to separate them. */
   .aliases { display: flex; flex-wrap: nowrap; gap: 12px; min-width: 0; overflow: hidden; }

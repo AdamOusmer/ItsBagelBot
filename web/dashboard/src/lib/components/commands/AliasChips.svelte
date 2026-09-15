@@ -4,7 +4,7 @@
   // Alternate-name (alias) chip input. Commits on Enter/comma/blur, pops the
   // last chip on Backspace in an empty input, de-duplicates case-insensitively
   // against the command's own name and existing chips.
-  import { Icon, getI18n } from '@bagel/kit';
+  import { Chip, Icon, getI18n } from '@bagel/kit';
 
   const { t } = getI18n();
 
@@ -50,36 +50,37 @@
   onblur={commit}
 />
 {#if aliases.length}
-  <div class="pills">
+  <div class="aliases">
     {#each aliases as a (a)}
-      <button type="button" class="pill bb-chip bb-chip--muted" onclick={() => remove(a)} aria-label={t('commandEditor.removeAlias', { name: a })}>
+      <Chip tone="muted" class="alias" onclick={() => remove(a)} aria-label={t('commandEditor.removeAlias', { name: a })}>
         <span>{a}</span>
         <Icon name="x" size={11} />
-      </button>
+      </Chip>
     {/each}
   </div>
 {/if}
 
 <style>
-  .pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-  /* Frame/typography now come from the global .bb-chip control. What stays
-     scoped is the removal affordance: the x is width:0 until hover so the
-     chip does not jump, and hover turns red because the click deletes. */
-  .pill { padding: 5px 10px; }
-  .pill :global(svg) {
+  .aliases { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  /* Frame/typography come from the Chip contract. What stays scoped is the
+     removal affordance: the x is width:0 until hover so the chip does not
+     jump, and hover turns red because the click deletes. */
+  .aliases :global(.alias) { padding: 5px 10px; }
+  .aliases :global(.alias svg) {
     width: 0;
     opacity: 0;
     transition: width var(--bb-dur-fast, 140ms) ease, opacity var(--bb-dur-fast, 140ms) ease;
   }
-  .pill:hover, .pill:focus-visible {
+  .aliases :global(.alias:hover),
+  .aliases :global(.alias:focus-visible) {
     color: #cf8a78;
     background: rgba(176, 90, 70, 0.16);
     border-color: rgba(176, 90, 70, 0.45);
     outline: none;
   }
-  .pill:hover :global(svg), .pill:focus-visible :global(svg) {
+  .aliases :global(.alias:hover svg),
+  .aliases :global(.alias:focus-visible svg) {
     width: 11px;
     opacity: 1;
   }
-
 </style>

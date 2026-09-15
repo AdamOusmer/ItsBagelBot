@@ -407,7 +407,7 @@
     flex: none;
   }
   @media (max-width: 560px) {
-    .marks :global(.pill:last-child) {
+    .marks :global(.state-badge:last-child) {
       display: none;
     }
   }

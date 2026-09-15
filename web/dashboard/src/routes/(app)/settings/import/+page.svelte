@@ -42,6 +42,7 @@
     Heading,
     Icon,
     PageHead,
+    Tag,
     Textarea,
     toast,
     getI18n
@@ -622,7 +623,7 @@
               <span class="tile-top">
                 <span class="glyph" aria-hidden="true">{s.initials}</span>
                 <span class="tile-name">{s.label}</span>
-                <span class="chip">{t(CHIP_LABEL_KEYS[s.chip])}</span>
+                <Tag tone="pre">{t(CHIP_LABEL_KEYS[s.chip])}</Tag>
               </span>
               <span class="tile-desc">{t(s.i18n.desc)}</span>
               <span class="tile-cta">{t('import.tileCta')}</span>
@@ -632,7 +633,7 @@
               <span class="tile-top">
                 <span class="glyph" aria-hidden="true">{s.initials}</span>
                 <span class="tile-name">{s.label}</span>
-                <span class="chip soon">{t('import.chipSoon')}</span>
+                <Tag tone="quiet">{t('import.chipSoon')}</Tag>
               </span>
               <span class="tile-desc">{t(s.i18n.desc)}</span>
             </div>
@@ -764,7 +765,7 @@
       <p class="hint">{reviewHint}</p>
 
       <div class="review-bar">
-        {#each statChips as c (c)}<span class="stat">{c}</span>{/each}
+        {#each statChips as c (c)}<Tag tone="quiet">{c}</Tag>{/each}
         <span class="review-spacer"></span>
         <Button type="button" variant="ghost" size="sm" onclick={() => setAll(true)}>{t('import.selectAll')}</Button>
         <Button type="button" variant="ghost" size="sm" onclick={() => setAll(false)}>{t('import.selectNone')}</Button>
@@ -807,16 +808,16 @@
                   <span class="row-response">{c.responses?.join(' / ')}</span>
                   <span class="chips">
                     {#if c.permission && c.permission !== 'everyone'}<PermBadge perm={c.permission} />{/if}
-                    {#if c.cooldown_seconds}<span class="chip">{t('import.cooldownChip', { n: c.cooldown_seconds })}</span>{/if}
-                    {#each c.aliases ?? [] as a (a)}<span class="alias-chip">!{a}</span>{/each}
+                    {#if c.cooldown_seconds}<Tag tone="bare">{t('import.cooldownChip', { n: c.cooldown_seconds })}</Tag>{/if}
+                    {#each c.aliases ?? [] as a (a)}<Tag tone="bare" class="bb-tag--literal">!{a}</Tag>{/each}
                     {#each diags.filter((d) => d.severity === 'warn') as d (d.code + d.message)}
-                      <span class="warn-chip" title={d.message}>{d.message}</span>
+                      <Tag tone="alpha" title={d.message}>{d.message}</Tag>
                     {/each}
                     {#each diags.filter((d) => d.severity === 'error') as d (d.code + d.message)}
-                      <span class="error-chip" title={d.message}>{t('import.cannotImport', { m: d.message })}</span>
+                      <Tag tone="error" title={d.message}>{t('import.cannotImport', { m: d.message })}</Tag>
                     {/each}
                     {#if collidedCommands.has(normalizeName(c.name))}
-                      <span class="collision-chip">{t('import.alreadyExists')}</span>
+                      <Tag tone="error">{t('import.alreadyExists')}</Tag>
                     {/if}
                   </span>
                 </div>
@@ -846,12 +847,12 @@
                 <div class="row-body">
                   <span class="row-response">{tm.message}</span>
                   <span class="chips">
-                    <span class="chip">{t('import.everySeconds', { n: tm.interval_seconds })}</span>
+                    <Tag tone="bare">{t('import.everySeconds', { n: tm.interval_seconds })}</Tag>
                     {#each diags.filter((d) => d.severity === 'warn') as d (d.code + d.message)}
-                      <span class="warn-chip" title={d.message}>{d.message}</span>
+                      <Tag tone="alpha" title={d.message}>{d.message}</Tag>
                     {/each}
                     {#each diags.filter((d) => d.severity === 'error') as d (d.code + d.message)}
-                      <span class="error-chip" title={d.message}>{t('import.cannotImport', { m: d.message })}</span>
+                      <Tag tone="error" title={d.message}>{t('import.cannotImport', { m: d.message })}</Tag>
                     {/each}
                   </span>
                 </div>
@@ -883,10 +884,10 @@
                   <span class="row-response">{tg.response}</span>
                   <span class="chips">
                     {#each diags.filter((d) => d.severity === 'warn') as d (d.code + d.message)}
-                      <span class="warn-chip" title={d.message}>{d.message}</span>
+                      <Tag tone="alpha" title={d.message}>{d.message}</Tag>
                     {/each}
                     {#each diags.filter((d) => d.severity === 'error') as d (d.code + d.message)}
-                      <span class="error-chip" title={d.message}>{t('import.cannotImport', { m: d.message })}</span>
+                      <Tag tone="error" title={d.message}>{t('import.cannotImport', { m: d.message })}</Tag>
                     {/each}
                   </span>
                 </div>
@@ -928,10 +929,10 @@
                   <span class="row-response">{t('import.startsAt', { n: ctr.value })}</span>
                   <span class="chips">
                     {#each diags.filter((d) => d.severity === 'warn') as d (d.code + d.message)}
-                      <span class="warn-chip" title={d.message}>{d.message}</span>
+                      <Tag tone="alpha" title={d.message}>{d.message}</Tag>
                     {/each}
                     {#each diags.filter((d) => d.severity === 'error') as d (d.code + d.message)}
-                      <span class="error-chip" title={d.message}>{t('import.cannotImport', { m: d.message })}</span>
+                      <Tag tone="error" title={d.message}>{t('import.cannotImport', { m: d.message })}</Tag>
                     {/each}
                   </span>
                 </div>
@@ -1237,27 +1238,6 @@
     flex: 1;
     min-width: 0;
   }
-  /* This page draws its own chip and always has; the only thing it took
-     from the deleted global .chip was the box, so the box is declared here
-     now. Without it a padded inline <span>/<code> leaves its vertical
-     padding out of the line box and the row height changes. */
-  .chip {
-    display: inline-flex;
-    align-items: center;
-    font-family: var(--bb-font-mono);
-    font-size: 10px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--bb-tan-light);
-    border: 1px solid rgba(201, 168, 124, 0.3);
-    border-radius: var(--bb-radius-pill);
-    padding: 3px 9px;
-    white-space: nowrap;
-  }
-  .chip.soon {
-    color: var(--bb-muted);
-    border-color: var(--glass-border);
-  }
   .tile-desc {
     color: var(--bb-muted);
     font-size: 13px;
@@ -1379,18 +1359,6 @@
   }
 
   /* --- step 2: stats strip + review rows --- */
-  .stat {
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    letter-spacing: 0.06em;
-    color: var(--bb-tan-light);
-    background: rgba(201, 168, 124, 0.08);
-    border: 1px solid rgba(201, 168, 124, 0.28);
-    border-radius: var(--bb-radius-pill);
-    padding: 5px 12px;
-    white-space: nowrap;
-  }
-
   .rows {
     list-style: none;
     margin: 0;
@@ -1443,43 +1411,6 @@
     flex-wrap: wrap;
     gap: 6px;
     align-items: center;
-  }
-  .alias-chip,
-  .collision-chip {
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    color: var(--bb-muted);
-    border: 1px solid var(--glass-border);
-    border-radius: var(--bb-radius-pill);
-    padding: 2px 8px;
-  }
-  .collision-chip {
-    color: #e5484d;
-    border-color: rgba(229, 72, 77, 0.4);
-  }
-  .warn-chip {
-    font-size: 11px;
-    color: var(--bb-tan-light);
-    background: rgba(201, 168, 124, 0.1);
-    border: 1px solid rgba(201, 168, 124, 0.28);
-    border-radius: var(--bb-radius-pill);
-    padding: 2px 8px;
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .error-chip {
-    font-size: 11px;
-    color: #e5484d;
-    background: rgba(229, 72, 77, 0.08);
-    border: 1px solid rgba(229, 72, 77, 0.35);
-    border-radius: var(--bb-radius-pill);
-    padding: 2px 8px;
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
   .collision-note {

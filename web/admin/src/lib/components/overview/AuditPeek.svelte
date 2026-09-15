@@ -11,6 +11,7 @@
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { AuditEntry } from '$lib/server/services';
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
+  import Tag from '@bagel/ui/svelte/Tag.svelte';
 
   let { entries }: { entries: AuditEntry[] } = $props();
 
@@ -36,7 +37,9 @@
           <span class="nm">@{e.actor_login}</span>
           <span class="sv mono">{line(e)}</span>
           {#if !e.ok}
-            <span class="err">{e.error || t('admin.overview.auditFailed')}</span>
+            <span class="err">
+              <Tag tone="error">{e.error || t('admin.overview.auditFailed')}</Tag>
+            </span>
           {/if}
           <span class="pg">{ago(e.created_at)}</span>
         </div>
@@ -56,17 +59,9 @@
     white-space: nowrap;
   }
   .err {
-    font-family: var(--bb-font-mono);
-    font-size: 10.5px;
-    color: var(--bb-status-error);
-    background: var(--bb-status-error-bg);
-    border: 1px solid var(--bb-status-error-border);
-    border-radius: var(--bb-radius-pill);
-    padding: 2px 8px;
     max-width: 180px;
+    min-width: 0;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
   @media (max-width: 760px) {
     .err {

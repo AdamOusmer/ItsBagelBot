@@ -124,7 +124,9 @@
           })}
         </div>
       </div>
-      <StatePill shape="tag" tone={state}>{state}</StatePill>
+      <span class="ident-mark">
+        <StatePill tone={state}>{state}</StatePill>
+      </span>
     </div>
 
     <section class="block">
@@ -358,7 +360,7 @@
     color: var(--bb-muted);
     margin-top: 2px;
   }
-  .ident :global(.pill) {
+  .ident-mark {
     margin-left: auto;
   }
 

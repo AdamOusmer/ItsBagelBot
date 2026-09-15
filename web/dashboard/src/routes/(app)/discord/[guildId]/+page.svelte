@@ -12,9 +12,8 @@
   import { AlertBanner, ButtonLink, Card, getI18n, guildModuleTiles, tilesNeedingSetup, type ModuleTileId } from '@bagel/kit';
   import ModuleTile from '$lib/components/discord/ModuleTile.svelte';
   import { CLOSE_KEYS, type I18nKey } from '$lib/discord/guild-fields';
-  import { botOnlineOf, layoutDownOf } from '$lib/discord/guild-view';
-  import { DISCORD_PILL_KEYS } from '$lib/discord-messages';
-  import { pillStateOf } from '$lib/discord/guild-view';
+  import { botOnlineOf, layoutDownOf, pillStateOf } from '$lib/discord/guild-view';
+  import DiscordStateTag from '$lib/components/discord/DiscordStateTag.svelte';
 
   let { data } = $props();
   const { t } = getI18n();
@@ -79,9 +78,7 @@
       <div class="fact">
         <dt>{t('discord.overview.botState')}</dt>
         <dd>
-          <span class="pill {pillState}">
-            {t(DISCORD_PILL_KEYS[pillState])}
-          </span>
+          <DiscordStateTag state={pillState} />
         </dd>
       </div>
       <div class="fact">
@@ -159,37 +156,6 @@
   }
   .state {
     margin: 16px 0 0;
-  }
-
-  .pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 11px;
-    border-radius: var(--bb-radius-pill);
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    border: 1px solid var(--glass-border);
-    white-space: nowrap;
-  }
-  /* Never colour alone: each pill carries its own icon and its own word. */
-  .pill.online {
-    color: var(--bb-green-glow);
-    background: rgba(82, 183, 136, 0.12);
-  }
-  .pill.offline {
-    color: #cf8a78;
-    background: rgba(176, 90, 70, 0.12);
-  }
-  .pill.reauth {
-    color: var(--bb-tan-light);
-    background: rgba(201, 168, 124, 0.14);
-  }
-  .pill.unknown {
-    color: var(--bb-muted);
-    background: rgba(136, 128, 119, 0.14);
   }
 
   .tiles {
