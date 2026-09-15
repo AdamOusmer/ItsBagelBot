@@ -33,6 +33,17 @@
     --nav-blur: 18px;
     --nav-bg: rgba(10, 10, 10, 0.55);
     --nav-link-gap: 30px;
+    /* 8px so two-letter codes read as one cluster; 14px already sits
+       between the cluster and the CTA on `.bb-nav__actions`. Tightens
+       at the 1120px squeeze below so the cluster yields to the links.
+       Rest/hover/lit live on the bar, not on `.bb-nav-link`: those
+       vars are set on the link itself and never inherit here. Hover
+       is tan because current is colour-only (no drawline); sharing
+       white with current made both codes look selected. */
+    --bb-lang-switch-gap: 8px;
+    --bb-lang-switch-rest: rgba(240, 236, 228, 0.5);
+    --bb-lang-switch-hover: var(--bb-tan-light);
+    --bb-lang-switch-lit: var(--bb-white);
     --nav-z: 50;
 
     position: fixed;
@@ -141,6 +152,12 @@
     padding: 0;
     justify-content: stretch;
     pointer-events: auto;
+    /* Same undo as the bar's resting links: 50%-white on cream is ~1.2:1.
+       Docs omit locales today; this is so a later locale row takes the
+       host colour instead of the dark-pill fallback. */
+    --bb-lang-switch-rest: currentColor;
+    --bb-lang-switch-hover: currentColor;
+    --bb-lang-switch-lit: currentColor;
   }
 
   .bb-nav[data-variant="bar"] .bb-nav__inner {
@@ -174,10 +191,13 @@
      stops fitting five links at a 30px gap, and only at 1023px -- the same
      query the panel and the hamburger use -- do the links leave for the panel.
      One number in two places is a bug waiting to happen, so the panel reads
-     the breakpoint from its own rule below and this comment is the link. */
+     the breakpoint from its own rule below and this comment is the link.
+     The locale cluster tightens here too (8px -> 4px) so it yields space
+     to the links rather than competing at the desktop gap. */
   @media (max-width: 1120px) {
     .bb-nav {
       --nav-link-gap: 18px;
+      --bb-lang-switch-gap: 4px;
     }
 
     .bb-nav__inner {
@@ -509,16 +529,84 @@
 
   /* ── Locale switch ───────────────────────────────────────────────────── */
 
-  /* Rides the shared `.bb-tabs` rail (ui/styles/tags.css): the green underline
-     marks the current locale. It was a 999px track with a tan-filled knob, a
-     two-way pill toggle that could only ever show two locales; the rail scales
-     to as many as the site discovers. Only the link reset is local. */
+  /* Compact locale cluster for the bar's action row, not the filter rail.
+
+     Left `.bb-tabs` because that rail is a page-filter: 22px gap, a reserved
+     5px diamond on every option (13px of empty mark once you add the item's
+     own 8px gap), and a container hairline. Two-letter codes inside the
+     glass pill next to a 0.7rem nav-link row and a pill CTA were wearing
+     all three, which is why EN/FR read as a second toolbar instead of as
+     one cluster.
+
+     Riding the rail with a gap override was tried (`.bb-lang-switch { gap:
+     16px }`). It failed: the reserved diamond and the container hairline
+     ARE the rail, and a gap override cannot delete them. The two-way 999px
+     EN/FR pill is also not coming back; a row of codes still scales to N
+     locales.
+
+     No drawline: a 1px green rule under the active code is a second
+     underline next to the CTA, which is the hairline we just left.
+     Hover is tan and current is white so the two codes do not share
+     one lit colour (WCAG 1.4.1 — current is colour-only). */
   .bb-lang-switch {
-    gap: 16px;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--bb-lang-switch-gap, 8px);
   }
 
+  /* Type matches `.bb-nav__inner .bb-nav-link` (mono 0.7rem / .14em /
+     uppercase). Rest colour is the bar's 50% white, not `--bb-muted`, for
+     the same reason the links use it: the pill's glass sits over live page
+     content. The reset is for `<button type="submit">` (dashboard
+     LangSwitch) as well as `<a>` (LanguageSwitcher). */
   .bb-lang-switch__opt {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    min-height: 24px;
+    margin: 0;
+    padding: 0 2px;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    font: inherit;
+    font-family: var(--bb-font-mono);
+    font-size: 0.7rem;
+    font-weight: 400;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    line-height: 1;
     text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+    /* Fallbacks: the settings LangSwitch is a form outside `.bb-nav`, so
+       the bar's custom properties are not in scope. Unset `var()` made
+       both codes inherit the page's white. */
+    color: var(--bb-lang-switch-rest, rgba(240, 236, 228, 0.5));
+    transition: color var(--bb-dur-base) var(--bb-ease-out-expo);
+  }
+
+  .bb-lang-switch__opt:is(:hover, :focus-visible) {
+    color: var(--bb-lang-switch-hover, var(--bb-tan-light));
+  }
+
+  .bb-lang-switch__opt.is-active,
+  .bb-lang-switch__opt[aria-current="true"],
+  .bb-lang-switch__opt[aria-pressed="true"] {
+    color: var(--bb-lang-switch-lit, var(--bb-white));
+  }
+
+  .bb-lang-switch__opt:focus-visible {
+    outline: 1px solid var(--bb-focus);
+    outline-offset: 3px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bb-lang-switch__opt {
+      transition: none;
+    }
   }
 
   /* ── Nav group ───────────────────────────────────────────────────────── */
