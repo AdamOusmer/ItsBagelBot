@@ -724,7 +724,7 @@ func (c *HTTPClient) FetchBounded(ctx context.Context, r Request) ([]byte, error
 		return nil, err
 	}
 
-	resp, err := c.roundTrip(ctx, req)
+	resp, err := c.roundTrip(ctx, req, r.NoRedirects)
 	if err != nil {
 		return nil, err
 	}
@@ -795,6 +795,8 @@ type Request struct {
 	Query   url.Values
 	Headers map[string]string
 	Body    []byte
+	// NoRedirects prevents replaying a request to another endpoint.
+	NoRedirects bool
 }
 
 // GetJSON fetches base+path?query and decodes the JSON body into out. A non-2xx
@@ -817,7 +819,7 @@ func (c *HTTPClient) Do(ctx context.Context, r Request, out any) error {
 		return err
 	}
 
-	resp, err := c.roundTrip(ctx, req)
+	resp, err := c.roundTrip(ctx, req, r.NoRedirects)
 	if err != nil {
 		return err
 	}
@@ -830,7 +832,7 @@ func (c *HTTPClient) Do(ctx context.Context, r Request, out any) error {
 // lane attribute on WARP-lane segments (wrong-lane egress is visible in the
 // trace that owns the whole picture), and the typed ErrWARPDown wrap that
 // makes a dead sidecar distinguishable from any other failure.
-func (c *HTTPClient) roundTrip(ctx context.Context, req *http.Request) (*http.Response, error) {
+func (c *HTTPClient) roundTrip(ctx context.Context, req *http.Request, noRedirects bool) (*http.Response, error) {
 	// Report the call to New Relic as an external segment. Without this a
 	// handler's transaction is one opaque block, so "the provider is slow" and
 	// "we are slow" are indistinguishable in the only place that has the whole
@@ -843,7 +845,13 @@ func (c *HTTPClient) roundTrip(ctx context.Context, req *http.Request) (*http.Re
 	if c.lane == LaneWARP {
 		segment.AddAttribute("lane", "warp")
 	}
-	resp, err := c.hc.Do(req)
+	client := c.hc
+	if noRedirects {
+		isolated := *client
+		isolated.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+		client = &isolated
+	}
+	resp, err := client.Do(req)
 	segment.Response = resp
 	segment.End()
 	if err != nil {

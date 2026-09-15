@@ -271,7 +271,7 @@ func (p *api) validateAccount(ctx context.Context, country, account string) (val
 		return validateResponse{}, err
 	}
 	var response validateResponse
-	err = p.http.Do(ctx, core.Request{Method: http.MethodPost, Path: "/validate", Body: payload}, &response)
+	err = p.http.Do(ctx, core.Request{Method: http.MethodPost, Path: "/validate", Body: payload, NoRedirects: true}, &response)
 	p.recordThrottle(ctx, err)
 	return response, err
 }

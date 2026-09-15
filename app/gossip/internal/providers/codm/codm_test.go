@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -217,10 +218,16 @@ func TestProfileRedirectsAndPreservesExactIDs(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, http.MethodPost, r.Method)
 		require.Equal(t, "/validate", r.URL.Path)
+		require.Empty(t, r.URL.RawQuery)
+		require.Equal(t, "application/json", r.Header.Get("Content-Type"))
 		body, err := io.ReadAll(r.Body)
 		require.NoError(t, err)
 		var got map[string]any
 		require.NoError(t, codec.Unmarshal(body, &got))
+		require.Len(t, got, 5)
+		for _, key := range []string{"country", "voucherTypeName", "whiteLabelId", "deviceId", "userId"} {
+			require.Contains(t, got, key)
+		}
 		mu.Lock()
 		bodies = append(bodies, got)
 		mu.Unlock()
@@ -264,6 +271,26 @@ func TestProfileRedirectsAndPreservesExactIDs(t *testing.T) {
 		assert.Equal(t, "1", initial["whiteLabelId"])
 		assert.NotEmpty(t, initial["deviceId"])
 		assert.Equal(t, initial["deviceId"], redirected["deviceId"])
+	}
+}
+
+func TestProfileNeverFollowsHTTPRedirects(t *testing.T) {
+	newFakeSOCKS(t)
+	for _, status := range []int{301, 302, 303, 307, 308} {
+		t.Run(strconv.Itoa(status), func(t *testing.T) {
+			var forbiddenCalls atomic.Int32
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/validate" {
+					forbiddenCalls.Add(1)
+				}
+				http.Redirect(w, r, "/purchase", status)
+			}))
+			defer srv.Close()
+			p := New(Config{BaseURL: srv.URL}, provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop()})
+			got := replyOf[gossiprpc.CODMProfileReply](t, endpoint(t, p)(context.Background(), gossiprpc.Request{Account: "7081192462291238913"}))
+			require.Equal(t, "profile lookup failed", got.Error)
+			assert.Zero(t, forbiddenCalls.Load())
+		})
 	}
 }
 
