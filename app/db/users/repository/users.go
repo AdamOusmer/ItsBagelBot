@@ -27,6 +27,7 @@ import (
 	"ItsBagelBot/pkg/db"
 
 	entsql "entgo.io/ent/dialect/sql"
+	"github.com/nats-io/nats.go"
 	"github.com/newrelic/go-agent/v3/newrelic"
 
 	"go.uber.org/zap"
@@ -82,10 +83,15 @@ type Users struct {
 	app                *newrelic.Application
 	log                *zap.Logger
 	invalidationPrefix string
+	nc                 *nats.Conn
 }
 
 func (r *Users) SetInvalidationPrefix(prefix string) {
 	r.invalidationPrefix = strings.TrimSuffix(strings.TrimSpace(prefix), ".")
+}
+
+func (r *Users) SetInvalidationConn(nc *nats.Conn) {
+	r.nc = nc
 }
 
 func NewUsers(client *ent.Client, packer domaincrypto.Packer, pub bus.Publisher, app *newrelic.Application, log *zap.Logger) *Users {
@@ -240,6 +246,30 @@ func (r *Users) effectiveStatus(ctx context.Context, u *ent.User, now time.Time)
 		return user.StatusPaid, nil
 	}
 	return u.Status, nil
+}
+
+// ActiveGrantUserIDs returns the subset of ids with a committed grant covering
+// now. Admin list overlays a page in one query instead of N Exists calls.
+func (r *Users) ActiveGrantUserIDs(ctx context.Context, ids []uint64, now time.Time) (map[uint64]struct{}, error) {
+	out := make(map[uint64]struct{}, len(ids))
+	if len(ids) == 0 {
+		return out, nil
+	}
+	rows, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.PremiumGrant, error) {
+		return r.client.PremiumGrant.Query().Where(
+			premiumgrant.UserIDIn(ids...),
+			premiumgrant.StateEQ(premiumgrant.StateCommitted),
+			premiumgrant.StartAtLTE(now),
+			premiumgrant.EndAtGT(now),
+		).Select(premiumgrant.FieldUserID).All(ctx)
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		out[row.UserID] = struct{}{}
+	}
+	return out, nil
 }
 
 // IDByUsername resolves a Twitch login to its broadcaster id. It backs the
@@ -433,11 +463,17 @@ func (r *Users) publishChanged(ctx context.Context, id uint64) error {
 	})
 }
 
-func (r *Users) publishStatusInvalidation(ctx context.Context, id uint64) error {
-	if r.invalidationPrefix == "" || r.pub == nil {
+func (r *Users) publishStatusInvalidation(_ context.Context, id uint64) error {
+	// Core NATS, not JetStream. bagel.cache.invalidate.* has no stream in the
+	// catalog (only data.>, twitch, discord, youtube). Publishing here through
+	// bus.PublishJSON failed production every 30s with "no stream matches
+	// subject bagel.cache.invalidate.status" and left grant projection_phase
+	// stuck at pending. Billing and admin already use invalidate.Publish on
+	// the RPC connection. Empty nc/prefix is a no-op so tests stay JetStream-free.
+	if r.nc == nil || r.invalidationPrefix == "" {
 		return nil
 	}
-	return bus.PublishJSON(ctx, r.pub, r.invalidationPrefix+".status", invalidate.DTO{BroadcasterID: strconv.FormatUint(id, 10)})
+	return invalidate.Publish(r.nc, r.invalidationPrefix, "status", strconv.FormatUint(id, 10))
 }
 
 // Reproject republishes the current state of every user as ordinary change

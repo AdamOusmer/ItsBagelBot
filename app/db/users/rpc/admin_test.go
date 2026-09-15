@@ -12,6 +12,7 @@ import (
 	"ItsBagelBot/app/db/users/ent"
 	"ItsBagelBot/app/db/users/ent/adminuser"
 	"ItsBagelBot/app/db/users/ent/enttest"
+	"ItsBagelBot/app/db/users/ent/premiumgrant"
 	"ItsBagelBot/app/db/users/ent/user"
 	"ItsBagelBot/app/db/users/repository"
 	domainrpc "ItsBagelBot/internal/domain/rpc"
@@ -341,4 +342,78 @@ func TestInternalGetAnswersWithoutActor(t *testing.T) {
 	assert.NotEqual(t, domainrpc.CodeForbidden, internal.Code)
 	assert.Equal(t, domainrpc.CodeNotFound, internal.Code)
 	assert.Nil(t, internal.User)
+}
+
+func TestAdminGetAndListOverlayCommittedGrant(t *testing.T) {
+	a, client := setupAdminRPCTest(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+
+	client.User.Create().
+		SetID(1514230534).
+		SetUsername("winksmc").
+		SetEmail("winksmc@example.invalid").
+		SetStatus(user.StatusFree).
+		SetUpdatedAt(now).
+		ExecX(ctx)
+	client.User.Create().
+		SetID(1514230535).
+		SetUsername("vip-with-grant").
+		SetEmail("vip-grant@example.invalid").
+		SetStatus(user.StatusVip).
+		SetUpdatedAt(now.Add(time.Minute)).
+		ExecX(ctx)
+
+	start := now.Add(-time.Hour)
+	end := now.AddDate(0, 1, 0)
+	// Insert committed grants directly: CommitPremiumGrant publishes on the
+	// JetStream bus, and the admin RPC fixture leaves pub nil.
+	client.PremiumGrant.Create().
+		SetUserID(1514230534).
+		SetGiveawayID("g-admin").
+		SetAwardID("a-admin").
+		SetState(premiumgrant.StateCommitted).
+		SetStartAt(start).
+		SetEndAt(end).
+		SetIntervalRuleVersion("promotional-calendar-month-v1").
+		ExecX(ctx)
+	client.PremiumGrant.Create().
+		SetUserID(1514230535).
+		SetGiveawayID("g-admin-vip").
+		SetAwardID("a-admin-vip").
+		SetState(premiumgrant.StateCommitted).
+		SetStartAt(start).
+		SetEndAt(end).
+		SetIntervalRuleVersion("promotional-calendar-month-v1").
+		ExecX(ctx)
+
+	got := a.get(ctx, usersrpc.AdminRequest{UserID: "1514230534"})
+	require.Empty(t, got.Error)
+	require.NotNil(t, got.User)
+	assert.Equal(t, "paid", got.User.Status)
+
+	vip := a.get(ctx, usersrpc.AdminRequest{UserID: "1514230535"})
+	require.Empty(t, vip.Error)
+	require.NotNil(t, vip.User)
+	assert.Equal(t, "vip", vip.User.Status, "VIP stays VIP; grant overlay must not demote")
+
+	paid := a.list(ctx, usersrpc.AdminRequest{Page: 1, Limit: adminUserPageSize, State: "paid"})
+	require.Empty(t, paid.Error)
+	assert.Equal(t, []uint64{1514230534}, replyIDs(paid))
+
+	free := a.list(ctx, usersrpc.AdminRequest{Page: 1, Limit: adminUserPageSize, State: "free"})
+	require.Empty(t, free.Error)
+	assert.Empty(t, replyIDs(free))
+
+	listedVIP := a.list(ctx, usersrpc.AdminRequest{Page: 1, Limit: adminUserPageSize, State: "vip"})
+	require.Empty(t, listedVIP.Error)
+	assert.Equal(t, []uint64{1514230535}, replyIDs(listedVIP))
+}
+
+func replyIDs(reply usersrpc.AdminReply) []uint64 {
+	ids := make([]uint64, 0, len(reply.Users))
+	for _, u := range reply.Users {
+		ids = append(ids, u.ID)
+	}
+	return ids
 }

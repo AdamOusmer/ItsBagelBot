@@ -223,8 +223,11 @@ func (a *adminRPC) get(ctx context.Context, req usersrpc.AdminRequest) usersrpc.
 	if err != nil {
 		return adminError(refusal(err))
 	}
-	view := viewOf(u)
-	return usersrpc.AdminReply{User: &view}
+	views, err := a.adminViews(ctx, []*ent.User{u})
+	if err != nil {
+		return adminError(refusal(err))
+	}
+	return usersrpc.AdminReply{User: &views[0]}
 }
 
 func adminListLimit(limit int) int {
@@ -246,7 +249,11 @@ func (a *adminRPC) list(ctx context.Context, req usersrpc.AdminRequest) usersrpc
 	if err != nil {
 		return adminError(refusal(err))
 	}
-	return usersrpc.AdminReply{Users: userViewsOf(rows)}
+	views, err := a.adminViews(ctx, rows)
+	if err != nil {
+		return adminError(refusal(err))
+	}
+	return usersrpc.AdminReply{Users: views}
 }
 
 // listPage returns one clamped page, fetching one extra row (except on the last
@@ -271,8 +278,12 @@ func (a *adminRPC) listPage(ctx context.Context, req usersrpc.AdminRequest) user
 	if hasMore {
 		rows = rows[:pageSize]
 	}
+	views, err := a.adminViews(ctx, rows)
+	if err != nil {
+		return adminError(refusal(err))
+	}
 	return usersrpc.AdminReply{
-		Users:    userViewsOf(rows),
+		Users:    views,
 		Page:     page,
 		PageSize: pageSize,
 		MaxPages: adminUserMaxPages,
@@ -590,10 +601,23 @@ func viewOf(u *ent.User) usersrpc.AdminUserView {
 	}
 }
 
-func userViewsOf(rows []*ent.User) []usersrpc.AdminUserView {
+func (a *adminRPC) adminViews(ctx context.Context, rows []*ent.User) ([]usersrpc.AdminUserView, error) {
 	views := make([]usersrpc.AdminUserView, 0, len(rows))
+	ids := make([]uint64, 0, len(rows))
 	for _, u := range rows {
 		views = append(views, viewOf(u))
+		if u.Status != user.StatusVip {
+			ids = append(ids, u.ID)
+		}
 	}
-	return views
+	granted, err := a.repo.ActiveGrantUserIDs(ctx, ids, time.Now().UTC())
+	if err != nil {
+		return nil, err
+	}
+	for i, u := range rows {
+		if _, ok := granted[u.ID]; ok && u.Status != user.StatusVip {
+			views[i].Status = string(user.StatusPaid)
+		}
+	}
+	return views, nil
 }
