@@ -84,8 +84,9 @@ version is not a resolution for an existing provider-side pause or owed prize.
 - Use the existing email layout for selection and confirmation messages. A
   pending selection message must work without confirmed start/end dates and
   must mention an existing subscription when one is known.
-- Gift, selection, and confirmation emails share a flat background, separate
-  content boxes, beta-feature access, and the safety footer. Confirmation
+- Gift, selection, and confirmation emails share a flat background, clear text
+  spacing, beta-feature access, and the safety footer. Only existing subscribers
+  see a subscription notice box; fulfillment status is plain text. Confirmation
   describes automatic activation at the confirmed start; pending copy must
   never claim access or billing protection is already active.
 

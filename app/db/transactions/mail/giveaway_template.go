@@ -25,6 +25,7 @@ type GiveawayMessage struct {
 }
 
 type giveawayData struct {
+	Subscriber   bool
 	MonthsText   string
 	PeriodText   string
 	Situation    string
@@ -48,6 +49,7 @@ func (msg GiveawayMessage) copy() (giveawayData, error) {
 
 func (msg GiveawayMessage) pendingCopy() giveawayData {
 	data := giveawayData{
+		Subscriber: msg.Subscriber,
 		MonthsText: prizeMonthsText(msg.Months),
 		PeriodText: "Your prize period is being arranged; confirmed dates will appear in your dashboard.",
 		StatusLine: "Your prize is recorded and awaiting confirmation",
@@ -65,7 +67,7 @@ func (msg GiveawayMessage) confirmedCopy() (giveawayData, error) {
 	if msg.NextPayment != nil && msg.NextPayment.Before(msg.End) {
 		return giveawayData{}, errors.New("next payment precedes confirmed prize end")
 	}
-	data := giveawayData{MonthsText: prizeMonthsText(msg.Months)}
+	data := giveawayData{MonthsText: prizeMonthsText(msg.Months), Subscriber: msg.Subscriber}
 	data.PeriodText = "Your prize starts " + emailDate(msg.Start) + " and ends " + emailDate(msg.End) + "."
 	data.StatusLine = "Your Premium prize period is confirmed"
 	data.StatusDetail = "Premium activates automatically when your confirmed prize period starts."

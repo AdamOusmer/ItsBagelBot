@@ -81,19 +81,16 @@ var premiumTmpl = template.Must(template.New("premium").Parse(strings.TrimSpace(
           <div style="font-family:` + fontBody + `;font-size:15px;line-height:1.65;color:#a89f92;padding-bottom:20px;">
             You won <strong style="color:` + colorTanLt + `;font-weight:600;">{{.Giveaway.MonthsText}} of ItsBagelBot Premium</strong>.
           </div>
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 16px;">
-            <tr><td style="background-color:#0d0d0c;border:1px solid ` + colorBorder + `;border-radius:8px;padding:16px 18px;">
-              <div style="font-family:` + fontMono + `;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:` + colorTan + `;padding-bottom:9px;">Your prize period</div>
-              <div style="font-family:` + fontBody + `;font-size:15px;line-height:1.6;color:#d8d0c4;">{{.Giveaway.PeriodText}}</div>
-            </td></tr>
-          </table>
-{{if .Giveaway.Situation}}
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 16px;">
+          <div style="font-family:` + fontBody + `;font-size:15px;line-height:1.65;color:#d8d0c4;padding-bottom:18px;">{{.Giveaway.PeriodText}}</div>
+{{if .Giveaway.Subscriber}}
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px;">
             <tr><td style="background-color:#0d0d0c;border:1px solid ` + colorBorder + `;border-radius:8px;padding:16px 18px;">
               <div style="font-family:` + fontMono + `;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:` + colorTan + `;padding-bottom:9px;">Your subscription</div>
               <div style="font-family:` + fontBody + `;font-size:14px;line-height:1.65;color:#a89f92;">{{.Giveaway.Situation}}</div>
             </td></tr>
           </table>
+{{else if .Giveaway.Situation}}
+          <div style="font-family:` + fontBody + `;font-size:14px;line-height:1.65;color:#a89f92;padding-bottom:24px;">{{.Giveaway.Situation}}</div>
 {{end}}
 {{else}}
           <div style="font-family:` + fontBody + `;font-size:15px;line-height:1.65;color:#a89f92;padding-bottom:20px;">
@@ -112,14 +109,12 @@ var premiumTmpl = template.Must(template.New("premium").Parse(strings.TrimSpace(
 {{end}}
 {{end}}
           <!-- fulfillment status -->
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 26px;">
-            <tr><td style="background-color:#101713;border:1px solid {{.StatusColor}};border-radius:8px;padding:16px 18px;">
-              <div style="font-family:` + fontMono + `;font-size:12px;line-height:1.6;letter-spacing:0.5px;color:{{.StatusColor}};">{{.StatusLine}}</div>
+          <div style="padding-bottom:26px;">
+            <div style="font-family:` + fontMono + `;font-size:12px;line-height:1.6;letter-spacing:0.5px;color:{{.StatusColor}};">{{.StatusLine}}</div>
 {{if .StatusDetail}}
-              <div style="font-family:` + fontBody + `;font-size:14px;line-height:1.6;color:{{.StatusColor}};padding-top:7px;">{{.StatusDetail}}</div>
+            <div style="font-family:` + fontBody + `;font-size:14px;line-height:1.6;color:{{.StatusColor}};padding-top:7px;">{{.StatusDetail}}</div>
 {{end}}
-            </td></tr>
-          </table>
+          </div>
 
           <!-- divider -->
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
