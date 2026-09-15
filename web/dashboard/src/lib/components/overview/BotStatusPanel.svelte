@@ -24,6 +24,7 @@
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import Skeleton from '@bagel/ui/svelte/Skeleton.svelte';
+  import Tag from '@bagel/ui/svelte/Tag.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { ConnUi } from '@bagel/kit/connection-state';
   import { statusTone } from '@bagel/kit/status-tone';
@@ -163,11 +164,7 @@
 
         {#if planLabel}
           <div class="ov-status__meta">
-            {#if isPremium}
-              <span class="tag tag--premium">{planLabel}</span>
-            {:else}
-              <span class="tag">{planLabel}</span>
-            {/if}
+            <Tag tone={isPremium ? 'pre' : 'quiet'}>{planLabel}</Tag>
           </div>
         {/if}
       {/if}
@@ -348,25 +345,6 @@
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
-  }
-  .tag {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    padding: 5px 12px;
-    border-radius: var(--bb-radius-pill);
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid var(--bb-border);
-    color: var(--bb-muted);
-  }
-  .tag--premium {
-    background: rgba(201, 168, 124, 0.12);
-    border-color: rgba(201, 168, 124, 0.35);
-    color: var(--bb-tan-light);
   }
   .ov-status__actions {
     display: flex;

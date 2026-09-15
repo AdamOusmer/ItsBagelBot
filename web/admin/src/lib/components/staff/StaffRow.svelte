@@ -10,6 +10,7 @@
   import { ago } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { AdminAcct } from '$lib/server/services';
+  import Tag from '@bagel/ui/svelte/Tag.svelte';
   import StatePill from '../StatePill.svelte';
   import { ROLE_LABEL } from './staff-roles';
 
@@ -37,7 +38,7 @@
       <span class="who">
         <span class="name">
           {member.display_name || member.login}
-          {#if isSelf}<span class="you">{t('admin.staff.you')}</span>{/if}
+          {#if isSelf}<Tag tone="quiet">{t('admin.staff.you')}</Tag>{/if}
         </span>
         <span class="meta">
           {t('admin.staff.rowMeta', {
@@ -80,16 +81,6 @@
     font-size: 13.5px;
     color: var(--bb-white);
   }
-  .you {
-    font-family: var(--bb-font-mono);
-    font-size: 9.5px;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--bb-tan-light);
-    border: 1px solid rgba(201, 168, 124, 0.3);
-    border-radius: var(--bb-radius-pill);
-    padding: 1px 7px;
-  }
   .meta {
     font-family: var(--bb-font-mono);
     font-size: 11px;
@@ -104,7 +95,7 @@
     flex: none;
   }
   @media (max-width: 560px) {
-    .marks :global(.pill:last-child) {
+    .marks :global(.state-badge:last-child) {
       display: none;
     }
   }
