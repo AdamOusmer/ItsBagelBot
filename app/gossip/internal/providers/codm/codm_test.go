@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -21,9 +22,13 @@ import (
 	"ItsBagelBot/app/gossip/internal/provider"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/ratelimit"
+	"ItsBagelBot/pkg/valkey"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	valkeygo "github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
 )
 
@@ -359,18 +364,106 @@ func TestProfileMapsUpstream429AndDoesNotRefetchDuringThrottleCache(t *testing.T
 	calls := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls++
+		w.Header().Set("Retry-After", "90")
 		w.WriteHeader(http.StatusTooManyRequests)
 		_, _ = io.WriteString(w, `{"error":"too many requests"}`)
 	}))
 	defer srv.Close()
-	h := endpoint(t, New(Config{BaseURL: srv.URL}, provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop()}))
+	store := newMemStore()
+	d := provider.Deps{Cache: core.NewCache(store), Log: zap.NewNop()}
+	h := endpoint(t, New(Config{BaseURL: srv.URL}, d))
 
 	first := replyOf[gossiprpc.CODMProfileReply](t, h(context.Background(), gossiprpc.Request{Account: "busy"}))
 	second := replyOf[gossiprpc.CODMProfileReply](t, h(context.Background(), gossiprpc.Request{Account: "busy"}))
 	assert.Equal(t, "stats provider is rate limiting us, try again in a minute", first.Error)
 	assert.Equal(t, first, second)
+	otherReplica := endpoint(t, New(Config{BaseURL: srv.URL}, d))
+	other := replyOf[gossiprpc.CODMProfileReply](t, otherReplica(context.Background(), gossiprpc.Request{Account: "different-player"}))
+	assert.Equal(t, first.Error, other.Error)
+	assert.Equal(t, 90*time.Second, store.ttls[cooldownKey])
 	assert.Equal(t, 1, calls)
 }
+
+func TestLocalDenialDoesNotArmCooldown(t *testing.T) {
+	store := newMemStore()
+	d := provider.Deps{Cache: core.NewCache(store), Log: zap.NewNop()}
+	p := newAPI(Config{}, d, provider.NewProvider(providerName, d))
+	p.recordThrottle(context.Background(), &core.UpstreamError{Status: 429, LocalDeny: true})
+	_, found, err := store.Get(context.Background(), cooldownKey)
+	require.NoError(t, err)
+	assert.False(t, found)
+}
+
+// Run against a disposable local Valkey with VALKEY_TEST_ADDR set.
+func TestValidationRateAccountingIntegration(t *testing.T) {
+	newFakeSOCKS(t)
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		var request validateRequest
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		require.NoError(t, codec.Unmarshal(body, &request))
+		if request.Country == "IN" {
+			_, _ = io.WriteString(w, `{"errorCode":-200,"homeBaseCountry2Name":"CA"}`)
+			return
+		}
+		_, _ = io.WriteString(w, `{"result":{"type":"SUCCESS","result":0,"countryId":124,"level":414,"nickname":"StreamerMode","rankClass":21,"customReadableMpRank":"Master I","rating":4590}}`)
+	}))
+	defer srv.Close()
+	p, client := rateTestAPI(t, srv.URL)
+	ctx := context.Background()
+	_, err := p.fetchProfile(ctx, gossiprpc.Request{}, provider.ID{Display: "first"})
+	require.NoError(t, err)
+	assert.Equal(t, 2, calls, "one country redirect sends exactly two validations")
+	raw, err := client.Do(ctx, client.B().Hget().Key(rateTestHTTPKey(p)).Field("tokens").Build()).ToString()
+	require.NoError(t, err)
+	tokens, err := strconv.ParseFloat(raw, 64)
+	require.NoError(t, err)
+	assert.InDelta(t, 2.0, tokens, 0.5, "only two of the four burst tokens were spent")
+	otherReplica := *p
+	_, err = otherReplica.fetchProfile(ctx, gossiprpc.Request{}, provider.ID{Display: "second"})
+	require.NoError(t, err)
+	_, err = p.fetchProfile(ctx, gossiprpc.Request{}, provider.ID{Display: "third"})
+	var denial *core.UpstreamError
+	require.ErrorAs(t, err, &denial)
+	assert.True(t, denial.LocalDeny)
+	assert.Equal(t, 4, calls, "replicas share the HTTP burst and a denial sends nothing")
+}
+
+func TestRateAdmissionPreservesPremiumReserveIntegration(t *testing.T) {
+	p, client := rateTestAPI(t, "https://example.test")
+	ctx := context.Background()
+	key := "test:codm:" + p.deviceID + ":lookups:standard"
+	future := strconv.FormatInt(time.Now().Add(time.Hour).UnixMilli(), 10)
+	err := client.Do(ctx, client.B().Hset().Key(key).FieldValue().
+		FieldValue("tokens", "0").FieldValue("last_ms", future).Build()).Error()
+	require.NoError(t, err)
+	var denial *core.UpstreamError
+	require.ErrorAs(t, p.admit(ctx, gossiprpc.Request{}), &denial)
+	assert.True(t, denial.LocalDeny)
+	require.NoError(t, p.admit(ctx, gossiprpc.Request{IsPremium: true}))
+	require.NoError(t, p.spendValidation(ctx), "actual HTTP budget is independent of the flight winner's lane")
+}
+
+func rateTestAPI(t *testing.T, base string) (*api, valkeygo.Client) {
+	t.Helper()
+	address := os.Getenv("VALKEY_TEST_ADDR")
+	if address == "" {
+		t.Skip("VALKEY_TEST_ADDR is not set")
+	}
+	client, err := valkey.NewClient(address, os.Getenv("VALKEY_TEST_PASSWORD"))
+	require.NoError(t, err)
+	t.Cleanup(client.Close)
+	d := provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop(), Limiter: ratelimit.New(client)}
+	p := newAPI(Config{BaseURL: base}, d, provider.NewProvider(providerName, d))
+	p.deviceID = uuid.NewString()
+	p.buckets = p.buckets.WithKey("test:codm:" + p.deviceID + ":lookups")
+	p.requests = p.requests.WithKey(rateTestHTTPKey(p))
+	return p, client
+}
+
+func rateTestHTTPKey(p *api) string { return "test:codm:" + p.deviceID + ":http" }
 
 func TestNewUsesProtectedDefaultWARPClient(t *testing.T) {
 	b := provider.NewProvider(providerName, provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop()})

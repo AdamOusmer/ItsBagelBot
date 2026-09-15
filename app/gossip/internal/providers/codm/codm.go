@@ -26,11 +26,13 @@ import (
 )
 
 const (
-	providerName      = "codm"
-	defaultBase       = "https://order-sg.codashop.com"
-	defaultCountry    = "IN"
-	defaultRateLimit  = 12.0
+	providerName   = "codm"
+	defaultBase    = "https://order-sg.codashop.com"
+	defaultCountry = "IN"
+	// Operating cap, not a published Coda quota. Pace bursts and honor 429s.
+	defaultRateLimit  = 60.0
 	rateWindowSeconds = 60.0
+	cooldownKey       = "gossip:codm:cooldown"
 
 	profileTTL     = 5 * time.Minute
 	negativeTTL    = time.Minute
@@ -55,6 +57,7 @@ type api struct {
 	log      *zap.Logger
 	limiter  *ratelimit.Limiter
 	buckets  core.Buckets
+	requests core.Buckets
 	country  string
 	deviceID string
 }
@@ -96,11 +99,11 @@ func newAPI(cfg Config, d provider.Deps, b *provider.Builder) *api {
 		cache:   d.Cache,
 		log:     d.Logger(),
 		limiter: d.Limiter,
-		// One cache miss can spend up to maxRedirects+1 validations. Scale the
-		// bucket to lookup slots so one admission reserves that whole bound
-		// atomically; with the default 12/min this allows three worst-case
-		// lookup slots/minute. Cached hits do not reach Budget and are free.
-		buckets:  core.NewBuckets("ratelimit:gossip:codm", cfg.RateLimit/float64(maxRedirects+1), rateWindowSeconds),
+		// Caller admission protects the standard/premium reserve before flights
+		// join. Actual HTTP spend is separately charged once per validation,
+		// including redirects, with a small fleet-wide burst.
+		buckets:  core.NewPacedBuckets("ratelimit:gossip:codm:lookups", cfg.RateLimit, rateWindowSeconds, maxRedirects+1),
+		requests: core.NewPacedBuckets("ratelimit:gossip:codm:http", cfg.RateLimit, rateWindowSeconds, maxRedirects+1),
 		country:  country,
 		deviceID: uuid.NewString(),
 	}
@@ -170,13 +173,63 @@ func normalizeCountry(country string) (string, error) {
 	return country, nil
 }
 
-// admit spends one bounded lookup slot per caller before Cached joins
-// singleflight. The bucket's capacity was divided by maxRedirects+1, so that
-// slot conservatively reserves enough upstream quota for the entire redirect
-// chain without charging the shared flight's winner or contaminating a
-// premium caller with a standard caller's lane decision.
+// admit checks each caller's lane independently; it does not reserve redirects.
 func (p *api) admit(ctx context.Context, req gossiprpc.Request) error {
+	if err := p.checkCooldown(ctx); err != nil {
+		return err
+	}
 	return p.buckets.Enforce(ctx, p.limiter, req.IsPremium)
+}
+
+func (p *api) checkCooldown(ctx context.Context) error {
+	if p.cache == nil {
+		return nil
+	}
+	blocked, err := p.cache.Exists(ctx, cooldownKey)
+	if err != nil {
+		return err
+	}
+	if blocked {
+		return &core.UpstreamError{Status: http.StatusTooManyRequests, Message: "CODM validation cooldown"}
+	}
+	return nil
+}
+
+func (p *api) spendValidation(ctx context.Context) error {
+	if err := p.checkCooldown(ctx); err != nil {
+		return err
+	}
+	// Lane admission already ran per caller. Shared HTTP spend uses only the
+	// general bucket so a standard flight winner cannot deny premium joiners.
+	err := p.requests.Enforce(ctx, p.limiter, true)
+	var denial *core.UpstreamError
+	if errors.As(err, &denial) {
+		denial.Message = "validation rate limit exceeded"
+	}
+	return err
+}
+
+func (p *api) recordThrottle(ctx context.Context, err error) {
+	var throttle *core.UpstreamError
+	if !errors.As(err, &throttle) {
+		return
+	}
+	if throttle.Status != http.StatusTooManyRequests {
+		return
+	}
+	if throttle.LocalDeny {
+		return
+	}
+	if p.cache == nil {
+		return
+	}
+	delay := throttle.RetryAfter
+	if delay <= 0 {
+		delay = negativeTTL
+	}
+	if err := p.cache.SetJSON(ctx, cooldownKey, true, delay); err != nil {
+		p.log.Warn("codm cooldown write failed", zap.Error(err))
+	}
 }
 
 func (p *api) fetchProfile(ctx context.Context, _ gossiprpc.Request, id provider.ID) (gossiprpc.CODMProfileReply, error) {
@@ -214,8 +267,12 @@ func (p *api) validateAccount(ctx context.Context, country, account string) (val
 	if err != nil {
 		return validateResponse{}, fmt.Errorf("encode codm validation request: %w", err)
 	}
+	if err := p.spendValidation(ctx); err != nil {
+		return validateResponse{}, err
+	}
 	var response validateResponse
 	err = p.http.Do(ctx, core.Request{Method: http.MethodPost, Path: "/validate", Body: payload}, &response)
+	p.recordThrottle(ctx, err)
 	return response, err
 }
 

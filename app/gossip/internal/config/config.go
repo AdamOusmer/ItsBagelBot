@@ -205,7 +205,7 @@ func Load() *Config {
 		CODMBaseURL:   env.Get("CODM_BASE_URL", "https://order-sg.codashop.com"),
 		CODMCountry:   env.Get("CODM_COUNTRY", "IN"),
 		CODMEnabled:   env.GetBool("CODM_ENABLED", true),
-		CODMRateLimit: env.GetFloat("CODM_RATE_LIMIT", 12.0),
+		CODMRateLimit: env.GetFloat("CODM_RATE_LIMIT", 60.0),
 
 		ValorantBaseURL:        env.Get("VALORANT_BASE_URL", "https://api.henrikdev.xyz"),
 		ValorantContentBaseURL: env.Get("VALORANT_CONTENT_BASE_URL", "https://valorant-api.com"),
