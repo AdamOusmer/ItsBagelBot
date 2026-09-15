@@ -15,13 +15,14 @@ import Card from '@bagel/ui/astro/Card.astro';
 import GuideCard from '../../../components/guides/GuideCard.astro';
 import TextLink from '@bagel/ui/astro/TextLink.astro';
 import Text from '@bagel/ui/astro/Text.astro';
-import { getLangFromUrl, localeStaticPaths } from '../../../i18n/ui';
+import { getLangFromUrl, localeStaticPaths, localizePath, useTranslations } from '../../../i18n/ui';
 import { getGuide, getHub, guideIndex, guidePath, guideSlugs } from '../../../lib/guides/registry';
 
 export const getStaticPaths = localeStaticPaths;
 
 const lang = getLangFromUrl(Astro.url);
 const hub = getHub(lang);
+const t = useTranslations(lang);
 const guides = guideSlugs.map((slug) => ({
     index: guideIndex(slug),
     href: guidePath(slug, lang),
@@ -49,6 +50,19 @@ const [first, ...rest] = guides;
                     <span class="ghub__tool-desc">{hub.tool.description}</span>
                 </span>
                 <span class="bb-btn bb-btn--primary ghub__tool-btn" data-cursor>{hub.tool.cta}</span>
+            </span>
+        </Card>
+
+        <Card atmo hover as="a" href={localizePath('/guides/variables', lang)} label={t('guide.variablesEyebrow')} class="ghub__variables" data-cursor="quiet" data-reveal style="--reveal-i: 2">
+            <span class="ghub__variables-band" slot="band" aria-hidden="true">
+                <i>{'{user}'}</i><i>{'{counter:name}'}</i><i>{'{random}'}</i><i>{'{...}'}</i>
+            </span>
+            <span class="ghub__variables-body">
+                <span>
+                    <b class="ghub__variables-name">{t('guide.variablesTitle')}</b>
+                    <span class="ghub__variables-desc">{t('guide.variablesDescription')}</span>
+                </span>
+                <span class="bb-btn bb-btn--quiet" data-cursor>{t('guide.variablesCta')}</span>
             </span>
         </Card>
 
@@ -174,6 +188,17 @@ const [first, ...rest] = guides;
         outline-offset: 3px;
     }
 
+    /* The reference is intentionally a sibling of the numbered guides: it is
+       a lookup table, not the next chapter in the reading order. */
+    .ghub__variables { --card-band-h: 78px; margin-bottom: 40px; }
+    .ghub__variables-band { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; height: 100%; padding-right: 48px; }
+    .ghub__variables-band i { font-style: normal; font-family: var(--font-mono, "DM Mono", monospace); font-size: 0.76rem; color: var(--green-glow, #52b788); padding: 4px 8px; border: 1px solid rgba(82, 183, 136, 0.2); border-radius: var(--radius-xs); background: rgba(82, 183, 136, 0.06); }
+    .ghub__variables-body { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+    .ghub__variables-body > span:first-child { display: block; min-width: 0; }
+    .ghub__variables-name { display: block; margin-bottom: 6px; font-family: var(--font-display, "Syne", sans-serif); font-size: 1.3rem; color: var(--white, #f0ece4); }
+    .ghub__variables-desc { display: block; max-width: 62ch; color: #a39c92; font-size: 0.94rem; line-height: 1.55; }
+    .ghub__variables-body .bb-btn { white-space: nowrap; }
+
     /* ── Guides ── */
     /* One housing height per section so every seam in a row lands on the
        same line (Card's band is a fixed height). */
@@ -212,6 +237,7 @@ const [first, ...rest] = guides;
         .ghub__grid { grid-template-columns: 1fr; }
         .ghub__tool-body { grid-template-columns: 1fr; }
         .ghub__tool-demo { padding-right: 0; }
+        .ghub__variables-body { align-items: flex-start; flex-direction: column; }
     }
 
     @media (max-width: 760px) {
