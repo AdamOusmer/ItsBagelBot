@@ -118,7 +118,7 @@ spec:
       priorityClassName: bagel-service
       containers:
         - name: transactions
-          image: ghcr.io/adamousmer/itsbagelbot/transactions:v0.2.1-beta@sha256:fccc1842b7de79931756e956674ee0e129209883a4be4e31ad9c48e1b104c4dc
+          image: ghcr.io/adamousmer/itsbagelbot/transactions:sha-110bb58fe227@sha256:d9c1fc51a0f8ff1d50255a91a04bad6ca5f35fa1f7d6d47a10ffb1f8817a8882
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
