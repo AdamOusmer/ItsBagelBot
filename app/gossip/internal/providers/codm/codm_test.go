@@ -6,7 +6,6 @@ package codm
 import (
 	"context"
 	"encoding/binary"
-	"encoding/json"
 	"errors"
 	"io"
 	"net"
@@ -216,7 +215,7 @@ func TestProfileRedirectsAndPreservesExactIDs(t *testing.T) {
 		body, err := io.ReadAll(r.Body)
 		require.NoError(t, err)
 		var got map[string]any
-		require.NoError(t, json.Unmarshal(body, &got))
+		require.NoError(t, codec.Unmarshal(body, &got))
 		mu.Lock()
 		bodies = append(bodies, got)
 		mu.Unlock()
