@@ -21,7 +21,10 @@
 # Coda's store validation endpoint on the WARP lane. No key is required;
 # CODM_ENABLED=false disables it. CODM_COUNTRY defaults to IN (home-country
 # redirects are handled automatically), CODM_BASE_URL defaults to
-# https://order-sg.codashop.com, and CODM_RATE_LIMIT defaults to 12/min.
+# https://order-sg.codashop.com. CODM_RATE_LIMIT is an operating cap, not a
+# published upstream quota: default 60 validations/min, burst at most 4.
+# Each actual validation (including redirects) consumes one shared HTTP token;
+# cache hits are free. Upstream 429s arm a shared Retry-After cooldown.
 # clashroyale (!cr / !crstats / !crdecks / !crranked / !crroad) needs a
 # Supercell key from developer.clashroyale.com with RoyaleAPI's proxy egress
 # IP 45.79.218.79 whitelisted on the key; set CLASHROYALE_API_KEY in Doppler
