@@ -9,7 +9,7 @@ description: "Architecture decision record: giveaway winner history belongs to T
 
 ## Status
 
-Accepted and implemented. Prize interval fulfillment and provider mutations remain gated until Tebex billing behavior is verified.
+Accepted and implemented. Nonrecurring promotional grants have an independent fulfillment switch. Subscriber intervals and provider mutations remain gated until Tebex billing behavior is verified.
 
 ## Context
 

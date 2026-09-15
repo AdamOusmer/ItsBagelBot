@@ -17,9 +17,9 @@ var (
 // WorkAward is a snapshot loaded by the durable worker. Start/end are an
 // absolute saved obligation: retries never add months to a newly-read date.
 type WorkAward struct {
-	ID, GiveawayID, UserID, RecurringReference string
-	Start, End                                 time.Time
-	BillingRequired                            bool
+	ID, GiveawayID, UserID, RecurringReference, IntervalRule string
+	Start, End                                               time.Time
+	BillingRequired                                          bool
 }
 
 type ProviderState struct {

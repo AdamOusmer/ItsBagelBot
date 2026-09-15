@@ -27,6 +27,9 @@ type GiveawayCandidate func(*sql.Selector)
 // GiveawayDraw is the predicate function for giveawaydraw builders.
 type GiveawayDraw func(*sql.Selector)
 
+// GiveawayFulfillmentPlan is the predicate function for giveawayfulfillmentplan builders.
+type GiveawayFulfillmentPlan func(*sql.Selector)
+
 // GiveawayOutbox is the predicate function for giveawayoutbox builders.
 type GiveawayOutbox func(*sql.Selector)
 

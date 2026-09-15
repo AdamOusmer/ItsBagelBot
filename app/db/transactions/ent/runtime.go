@@ -10,6 +10,7 @@ import (
 	"ItsBagelBot/app/db/transactions/ent/giveawayaward"
 	"ItsBagelBot/app/db/transactions/ent/giveawaycandidate"
 	"ItsBagelBot/app/db/transactions/ent/giveawaydraw"
+	"ItsBagelBot/app/db/transactions/ent/giveawayfulfillmentplan"
 	"ItsBagelBot/app/db/transactions/ent/giveawayoutbox"
 	"ItsBagelBot/app/db/transactions/ent/giveawayuserlease"
 	"ItsBagelBot/app/db/transactions/ent/schema"
@@ -378,6 +379,24 @@ func init() {
 	giveawaydrawDescID := giveawaydrawFields[0].Descriptor()
 	// giveawaydraw.IDValidator is a validator for the "id" field. It is called by the builders before save.
 	giveawaydraw.IDValidator = giveawaydrawDescID.Validators[0].(func(string) error)
+	giveawayfulfillmentplanFields := schema.GiveawayFulfillmentPlan{}.Fields()
+	_ = giveawayfulfillmentplanFields
+	// giveawayfulfillmentplanDescAwardID is the schema descriptor for award_id field.
+	giveawayfulfillmentplanDescAwardID := giveawayfulfillmentplanFields[1].Descriptor()
+	// giveawayfulfillmentplan.AwardIDValidator is a validator for the "award_id" field. It is called by the builders before save.
+	giveawayfulfillmentplan.AwardIDValidator = giveawayfulfillmentplanDescAwardID.Validators[0].(func(string) error)
+	// giveawayfulfillmentplanDescIntervalRule is the schema descriptor for interval_rule field.
+	giveawayfulfillmentplanDescIntervalRule := giveawayfulfillmentplanFields[2].Descriptor()
+	// giveawayfulfillmentplan.IntervalRuleValidator is a validator for the "interval_rule" field. It is called by the builders before save.
+	giveawayfulfillmentplan.IntervalRuleValidator = giveawayfulfillmentplanDescIntervalRule.Validators[0].(func(string) error)
+	// giveawayfulfillmentplanDescCreatedAt is the schema descriptor for created_at field.
+	giveawayfulfillmentplanDescCreatedAt := giveawayfulfillmentplanFields[5].Descriptor()
+	// giveawayfulfillmentplan.DefaultCreatedAt holds the default value on creation for the created_at field.
+	giveawayfulfillmentplan.DefaultCreatedAt = giveawayfulfillmentplanDescCreatedAt.Default.(func() time.Time)
+	// giveawayfulfillmentplanDescID is the schema descriptor for id field.
+	giveawayfulfillmentplanDescID := giveawayfulfillmentplanFields[0].Descriptor()
+	// giveawayfulfillmentplan.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	giveawayfulfillmentplan.IDValidator = giveawayfulfillmentplanDescID.Validators[0].(func(string) error)
 	giveawayoutboxFields := schema.GiveawayOutbox{}.Fields()
 	_ = giveawayoutboxFields
 	// giveawayoutboxDescAggregateID is the schema descriptor for aggregate_id field.

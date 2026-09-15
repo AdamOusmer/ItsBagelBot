@@ -47,12 +47,12 @@
         </span>
       </span>
       <span class="marks">
-        <StatePill tone={user.status as 'free' | 'paid' | 'vip'}>{user.status}</StatePill>
+        <StatePill shape="tag" tone={user.status as 'free' | 'paid' | 'vip'}>{user.status}</StatePill>
         {#if state === 'banned' || state === 'inactive'}
-          <StatePill tone={state}>{state}</StatePill>
+          <StatePill shape="tag" tone={state}>{state}</StatePill>
         {/if}
         {#if user.creator_code}
-          <StatePill tone="neutral">{t('admin.users.rowCode')}</StatePill>
+          <StatePill shape="tag" tone="neutral">{t('admin.users.rowCode')}</StatePill>
         {/if}
       </span>
     </span>

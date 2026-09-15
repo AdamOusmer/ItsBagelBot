@@ -3,33 +3,44 @@ package giveaway
 import (
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestConfigGatesKeepDrawRecoverySeparate(t *testing.T) {
 	c := Config{NewAwardsEnabled: true}
-	if !c.CanCreateNewAwards() {
-		t.Fatal("new award gate should permit durable selection")
-	}
-	if c.CanScheduleAwards() || c.CanMutateProvider() {
-		t.Fatal("unverified interval must block fulfillment and provider mutation")
-	}
+	require.True(t, c.CanCreateNewAwards())
+	require.False(t, c.CanScheduleAwards())
+	require.False(t, c.CanMutateProvider())
+	c.PromotionalGrantsEnabled = true
+	require.True(t, c.CanSchedulePromotionalGrants())
 	c.IntervalRuleVerified = true
-	if !c.CanScheduleAwards() || c.CanMutateProvider() {
-		t.Fatal("provider gate must remain closed until explicitly enabled")
-	}
+	require.True(t, c.CanScheduleAwards())
+	require.False(t, c.CanMutateProvider())
 	c.NewAwardsEnabled = false
-	if !c.CanScheduleAwards() {
-		t.Fatal("disabling new draws must not stop recovery of existing awards")
-	}
+	require.True(t, c.CanScheduleAwards())
 	c.ProviderMutations = true
-	if !c.CanMutateProvider() {
-		t.Fatal("explicit provider gate should enable mutation")
-	}
+	require.True(t, c.CanMutateProvider())
 }
 
 func TestConfigDefaultsRenewalBuffer(t *testing.T) {
 	t.Setenv(EnvRenewalBuffer, "")
 	if got := ConfigFromEnv().RenewalBuffer; got != 72*time.Hour {
 		t.Fatalf("renewal buffer = %s, want 72h", got)
+	}
+}
+
+func TestConfigPromotionalGrantsRequireExplicitEnable(t *testing.T) {
+	t.Setenv(EnvPromotionalGrants, "")
+	if ConfigFromEnv().PromotionalGrantsEnabled {
+		t.Fatal("promotional grants should remain off until explicitly enabled")
+	}
+	t.Setenv(EnvPromotionalGrants, "true")
+	if !ConfigFromEnv().PromotionalGrantsEnabled {
+		t.Fatal("promotional grant gate should honor an explicit enable")
+	}
+	t.Setenv(EnvPromotionalGrants, "invalid")
+	if ConfigFromEnv().PromotionalGrantsEnabled {
+		t.Fatal("malformed promotional grant gate should fail closed")
 	}
 }

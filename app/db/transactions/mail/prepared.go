@@ -5,7 +5,7 @@ package mail
 
 import "context"
 
-const GiveawayTemplateVersion = "giveaway-v1"
+const GiveawayTemplateVersion = "giveaway-v2-inline-logo"
 
 // PreparedContent contains the rendered, recipient-free message. The outbox
 // stores it before delivery so a deployment or configuration change cannot

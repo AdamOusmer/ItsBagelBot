@@ -1,7 +1,7 @@
 // @ts-ignore Bun supplies this module at test runtime; it is not a production dependency.
 import { describe, expect, it } from 'bun:test';
 import { actionPayload } from '../../kit/lib/action-result';
-import { buildMutation, mapAward, mapCampaign, mapPreview } from '../src/lib/server/giveaways';
+import { buildMutation, mapAward, mapCampaign, mapDrawMetadata, mapPreview, persistedEligibleCount, selectionMethodForAlgorithm } from '../src/lib/server/giveaways';
 import { freezePoolDigest } from '../src/lib/giveaway-workflow';
 
 describe('giveaway RPC wire mapping', () => {
@@ -45,6 +45,19 @@ describe('giveaway RPC wire mapping', () => {
     });
     expect(preview.exclusions).toEqual({ banned: 1, inactive: 1, not_onboarded: 1, test_account: 1, vip: 1, current_staff: 1 });
     expect(preview.poolDigest).toBe('sha256:preview');
+  });
+
+  it('keeps draw algorithm metadata separate from the selection method', () => {
+    expect(mapDrawMetadata({ pool_digest: 'sha256:draw', algorithm_version: 'fisher-yates-v1' })).toEqual({
+      poolDigest: 'sha256:draw', algorithmVersion: 'fisher-yates-v1', selectionMethod: undefined
+    });
+    expect(selectionMethodForAlgorithm('crypto-rand-partial-fisher-yates-v1')).toBe('random_draw');
+    expect(selectionMethodForAlgorithm('unknown')).toBeUndefined();
+  });
+
+  it('projects the persisted eligible count only for a saved pool', () => {
+    expect(persistedEligibleCount('frozen', [{ eligible: true }, { eligible: false }, { eligible: true }])).toBe(2);
+    expect(persistedEligibleCount('draft', [{ eligible: true }])).toBeUndefined();
   });
 
   it('consumes the SvelteKit enhanced form result envelope', () => {

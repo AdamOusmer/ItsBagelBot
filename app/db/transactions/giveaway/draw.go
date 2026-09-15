@@ -23,13 +23,19 @@ import (
 const DrawAlgorithmVersion = "crypto-rand-partial-fisher-yates-v1"
 const MaxPrizeMonths = 12
 
+const (
+	PromotionalCalendarMonthRule = "promotional-calendar-month-v1"
+	ProviderMonthlyRule          = "tebex-monthly-verified-v1"
+)
+
 var (
-	ErrInvalidMonths   = errors.New("prize duration must be a positive whole number of months")
-	ErrTooManyWinners  = errors.New("winner count exceeds eligible candidate count")
-	ErrDuplicateUser   = errors.New("candidate pool contains a duplicate user")
-	ErrSecureRandom    = errors.New("secure random source failed")
-	ErrMissingPool     = errors.New("candidate pool is empty")
-	ErrUnrepresentable = errors.New("prize interval cannot be represented")
+	ErrInvalidMonths     = errors.New("prize duration must be a positive whole number of months")
+	ErrTooManyWinners    = errors.New("winner count exceeds eligible candidate count")
+	ErrDuplicateUser     = errors.New("candidate pool contains a duplicate user")
+	ErrSecureRandom      = errors.New("secure random source failed")
+	ErrMissingPool       = errors.New("candidate pool is empty")
+	ErrUnrepresentable   = errors.New("prize interval cannot be represented")
+	ErrAmbiguousInterval = errors.New("promotional interval crosses an ambiguous calendar boundary")
 )
 
 // Candidate is the minimum immutable identity required for a draw. Eligibility
@@ -132,6 +138,9 @@ func PrizeInterval(start time.Time, months int, rule string) (time.Time, error) 
 	if !representableInterval(start, months) {
 		return time.Time{}, ErrUnrepresentable
 	}
+	if rule == PromotionalCalendarMonthRule {
+		return addPromotionalCalendarMonths(start, months)
+	}
 	return addCalendarMonths(start, months)
 }
 
@@ -151,6 +160,25 @@ func addCalendarMonths(start time.Time, months int) (time.Time, error) {
 	end := start
 	for i := 0; i < months; i++ {
 		next := end.AddDate(0, 1, 0)
+		if !next.After(end) || next.Year() > 9999 {
+			return time.Time{}, ErrUnrepresentable
+		}
+		end = next
+	}
+	return end, nil
+}
+
+func addPromotionalCalendarMonths(start time.Time, months int) (time.Time, error) {
+	end := start
+	for i := 0; i < months; i++ {
+		targetMonth := end.Month() + 1
+		if targetMonth == 13 {
+			targetMonth = 1
+		}
+		next := end.AddDate(0, 1, 0)
+		if next.Month() != targetMonth {
+			return time.Time{}, ErrAmbiguousInterval
+		}
 		if !next.After(end) || next.Year() > 9999 {
 			return time.Time{}, ErrUnrepresentable
 		}

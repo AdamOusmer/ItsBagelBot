@@ -27,7 +27,11 @@ const (
 	fontBody    = "'DM Sans','Helvetica Neue',Arial,sans-serif"
 	fontMono    = "'DM Mono',Menlo,Consolas,monospace"
 
-	logoURL        = "https://itsbagelbot.com/logo.png"
+	// The v1 CID remains stable for prepared envelopes. The old external URL is
+	// kept only so legacy prepared HTML can be recognized and sent unchanged.
+	legacyLogoURL  = "https://itsbagelbot.com/logo.png"
+	logoCID        = "itsbagelbot-logo-v1"
+	logoSrc        = "cid:" + logoCID
 	discordURL     = "https://discord.gg/SZ2remwSDv"
 	safetyNotice   = "ItsBagelBot will never ask for your password, payment or card details, or login and verification codes by email. We only send from @itsbagelbot.com. If a message asks for any of that, it isn't us. Ignore it and reach the real team on Discord."
 	betaAccessText = "Access to beta features. Try new features during your Premium period."
@@ -56,7 +60,7 @@ var premiumTmpl = template.Must(template.New("premium").Parse(strings.TrimSpace(
 
     <!-- logo + wordmark, centered -->
     <tr><td align="center" style="padding:0 0 24px;">
-      <img src="` + logoURL + `" width="52" height="52" alt="" style="display:inline-block;width:52px;height:52px;vertical-align:middle;">
+      <img src="` + logoSrc + `" width="52" height="52" alt="ItsBagelBot" style="display:inline-block;width:52px;height:52px;vertical-align:middle;">
       <span style="font-family:` + fontDisplay + `;font-size:20px;font-weight:800;letter-spacing:0.01em;color:` + colorWhite + `;vertical-align:middle;padding-left:12px;">ItsBagelBot</span>
     </td></tr>
 
