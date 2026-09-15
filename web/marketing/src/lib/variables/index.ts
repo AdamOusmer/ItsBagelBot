@@ -155,6 +155,22 @@ const CUSTOM_ALIASES: Readonly<Record<string, string>> = {
 const POSITIONAL = /^\{(\d{1,2})\}$/;
 const POSITIONAL_TAIL = /^\{(\d{1,2}):\}$/;
 
+const CUSTOM_CATEGORY_RULES: readonly [VariableCategory, RegExp][] = [
+  ['arguments', /^\{(?:\d+|\d+:)\}$|^\{args\}$/],
+  ['counters', /^\{(?:counter|count):|^\{uses\}$/],
+  ['chat', /^\{(?:chatters|random\.chatter)/],
+  ['emotes', /^\{(?:7tv|bttv|ffz|random\.emote)/],
+  ['dynamic', /^\{(?:random|choice)/],
+  ['utilities', /^\{(?:math|query|path|repeat|countdown|countup|if)/],
+  ['viewer', /^\{(?:followage|accountage|points|pointsname|watchtime)/],
+  ['channel', /^\{(?:channel|uptime|title|game|channel\.)/],
+];
+
+const ALERT_SURFACES = new Set(['follow', 'subscribe', 'cheer', 'raid']);
+const CHAT_SURFACES = new Set(['shoutout', 'triggers', 'clip', 'time']);
+const GAME_SURFACE_PREFIXES = ['bw-', 'mcsr-', 'fn-'];
+const GAME_SURFACES = new Set(['bwstats', 'elo', 'sniper', 'tags']);
+
 function pickLocale(text: LocaleText, lang: Lang): string {
   return text[lang as 'en' | 'fr'] ?? text.en;
 }
@@ -192,23 +208,21 @@ function cleanRequirement(description: string): string[] {
 }
 
 function categoryFor(surfaceId: string, token: string, hasPayload: boolean): VariableCategory {
-  if (surfaceId === 'custom') {
-    if (/^\{(?:\d+|\d+:)\}$/.test(token) || token === '{args}') return 'arguments';
-    if (/^\{(?:counter|count):/.test(token) || token === '{uses}') return 'counters';
-    if (/^\{(?:chatters|random\.chatter)/.test(token)) return 'chat';
-    if (/^\{(?:7tv|bttv|ffz|random\.emote)/.test(token)) return 'emotes';
-    if (/^\{(?:random|choice)/.test(token)) return 'dynamic';
-    if (/^\{(?:math|query|path|repeat|countdown|countup|if)/.test(token)) return 'utilities';
-    if (/^\{(?:followage|accountage|points|pointsname|watchtime)/.test(token)) return 'viewer';
-    if (/^\{(?:channel|uptime|title|game|channel\.)/.test(token)) return 'channel';
-    return 'basics';
-  }
-  if (surfaceId === 'follow' || surfaceId === 'subscribe' || surfaceId === 'cheer' || surfaceId === 'raid') return 'alerts';
+  if (surfaceId === 'custom') return customCategoryFor(token);
+  if (ALERT_SURFACES.has(surfaceId)) return 'alerts';
   if (surfaceId === 'channelpoints') return 'rewards';
   if (surfaceId.startsWith('queue-')) return 'queue';
-  if (surfaceId.startsWith('bw-') || surfaceId === 'bwstats' || surfaceId.startsWith('mcsr-') || surfaceId === 'elo' || surfaceId === 'sniper' || surfaceId === 'tags' || surfaceId.startsWith('fn-')) return 'game-stats';
-  if (surfaceId === 'shoutout' || surfaceId === 'triggers' || surfaceId === 'clip' || surfaceId === 'time') return 'chat';
+  if (isGameSurface(surfaceId)) return 'game-stats';
+  if (CHAT_SURFACES.has(surfaceId)) return 'chat';
   return hasPayload ? 'dynamic' : 'basics';
+}
+
+function customCategoryFor(token: string): VariableCategory {
+  return CUSTOM_CATEGORY_RULES.find(([, rule]) => rule.test(token))?.[0] ?? 'basics';
+}
+
+function isGameSurface(surfaceId: string): boolean {
+  return GAME_SURFACES.has(surfaceId) || GAME_SURFACE_PREFIXES.some((prefix) => surfaceId.startsWith(prefix));
 }
 
 function familyId(surfaceId: string, token: string): string {
@@ -295,114 +309,80 @@ function isAliasForm(surfaceId: string, id: string, token: string): boolean {
   return CUSTOM_ALIASES[parsed.name] === id;
 }
 
-function buildCatalog(): VariableReference[] {
-  const byId = new Map<string, MutableReference>();
+function createReference(surface: typeof SURFACES[number], variable: typeof SURFACES[number]['vars'][number], id: string, category: VariableCategory, token: string, syntax: string): MutableReference {
+  const requirements = cleanRequirement(variable.desc.en);
+  const parameterized = familyParameterized(id, variable.token);
+  return {
+    id, token, syntax, example: variable.token, output: variable.sample,
+    syntaxes: [syntax], examples: [{ syntax: variable.token, output: variable.sample, surfaceId: surface.id }],
+    name: variable.name, description: variable.desc, categories: [category], aliases: [], aliasTokens: [],
+    surfaceIds: [surface.id], surfaces: [{ id: surface.id, group: surface.group, label: surface.label, dashPath: surface.dashPath }],
+    requirements, requirement: requirements.join(', '), payload: parameterized ? syntax : '',
+    behavior: 'Unknown or disabled variables stay visible as written; an empty value can use a |fallback.',
+    legacy: false, parameterized,
+  };
+}
 
-  for (const surface of SURFACES) {
-    for (const variable of surface.vars) {
-      const id = familyId(surface.id, variable.token);
-      const category = categoryFor(surface.id, variable.token, variable.token.includes(':'));
-      const parsed = tokenParts(variable.token);
-      if (!parsed) continue;
-      const existing = byId.get(id);
-      const syntax = familySyntax(id, sourceTokenForFamily(id, variable.token));
-      const availability: VariableAvailability = {
-        id: surface.id,
-        group: surface.group,
-        label: surface.label,
-        dashPath: surface.dashPath,
-      };
-      if (!existing) {
-        byId.set(id, {
-          id,
-          token: sourceTokenForFamily(id, variable.token),
-          syntax,
-          example: variable.token,
-          output: variable.sample,
-          syntaxes: [syntax],
-          examples: [{ syntax: variable.token, output: variable.sample, surfaceId: surface.id }],
-          name: variable.name,
-          description: variable.desc,
-          categories: [category],
-          aliases: [],
-          aliasTokens: [],
-          surfaceIds: [surface.id],
-          surfaces: [availability],
-          requirements: cleanRequirement(variable.desc.en),
-          requirement: cleanRequirement(variable.desc.en).join(', '),
-          payload: familyParameterized(id, variable.token) ? syntax : '',
-          behavior: 'Unknown or disabled variables stay visible as written; an empty value can use a |fallback.',
-          legacy: false,
-          parameterized: familyParameterized(id, variable.token),
-        });
-      } else {
-        addUnique(existing.syntaxes, syntax);
-        if (!existing.examples.some((example) => example.syntax === variable.token && example.surfaceId === surface.id)) {
-          existing.examples.push({ syntax: variable.token, output: variable.sample, surfaceId: surface.id });
-        }
-        addUnique(existing.categories, category);
-        addUnique(existing.surfaceIds, surface.id);
-        if (!existing.surfaces.some((item) => item.id === surface.id)) existing.surfaces.push(availability);
-        for (const requirement of cleanRequirement(variable.desc.en)) addUnique(existing.requirements, requirement);
-        existing.requirement = existing.requirements.join(', ');
-        existing.parameterized ||= familyParameterized(id, variable.token);
-      }
-
-      // A concrete spelling that differs from the canonical family spelling is
-      // a searchable form, not a duplicate card. Canonical examples such as
-      // `{counter:name}` are not aliases because they are the family syntax.
-      if (isAliasForm(surface.id, id, variable.token)) {
-        addUnique(byId.get(id)!.aliases, parsed.name);
-        addUnique(byId.get(id)!.aliasTokens, variable.token);
-      }
-    }
+function mergeReference(reference: MutableReference, surface: typeof SURFACES[number], variable: typeof SURFACES[number]['vars'][number], syntax: string, category: VariableCategory): void {
+  addUnique(reference.syntaxes, syntax);
+  if (!reference.examples.some((example) => example.syntax === variable.token && example.surfaceId === surface.id)) {
+    reference.examples.push({ syntax: variable.token, output: variable.sample, surfaceId: surface.id });
   }
+  addUnique(reference.categories, category);
+  addUnique(reference.surfaceIds, surface.id);
+  if (!reference.surfaces.some((item) => item.id === surface.id)) {
+    reference.surfaces.push({ id: surface.id, group: surface.group, label: surface.label, dashPath: surface.dashPath });
+  }
+  for (const requirement of cleanRequirement(variable.desc.en)) addUnique(reference.requirements, requirement);
+  reference.requirement = reference.requirements.join(', ');
+  reference.parameterized ||= familyParameterized(reference.id, variable.token);
+}
 
-  // These forms are explicitly supported by the module description but are
-  // not separate chips in SURFACES. Keeping them here makes the reference
-  // exhaustive without making the beginner builder wider.
+function addSurfaceVariable(byId: Map<string, MutableReference>, surface: typeof SURFACES[number], variable: typeof SURFACES[number]['vars'][number]): void {
+  const parsed = tokenParts(variable.token);
+  if (!parsed) return;
+  const id = familyId(surface.id, variable.token);
+  const category = categoryFor(surface.id, variable.token, variable.token.includes(':'));
+  const token = sourceTokenForFamily(id, variable.token);
+  const syntax = familySyntax(id, token);
+  const reference = byId.get(id);
+  if (reference) mergeReference(reference, surface, variable, syntax, category);
+  else byId.set(id, createReference(surface, variable, id, category, token, syntax));
+  if (isAliasForm(surface.id, id, variable.token)) {
+    const target = byId.get(id)!;
+    addUnique(target.aliases, parsed.name);
+    addUnique(target.aliasTokens, variable.token);
+  }
+}
+
+function addSupplementalForms(byId: Map<string, MutableReference>): void {
   const song = byId.get('song');
-  if (song) {
-    for (const token of ['{song.title}', '{song.artist}']) {
-      addUnique(song.syntaxes, token);
-    }
-  }
-
-  // Aliases are often mentioned in the canonical description rather than
-  // emitted as a second builder chip, so preserve them explicitly here.
+  if (song) for (const token of ['{song.title}', '{song.artist}']) addUnique(song.syntaxes, token);
   for (const [id, aliases] of Object.entries({ user: ['sender'], touser: ['target'] })) {
     const reference = byId.get(id);
-    if (!reference) continue;
-    for (const alias of aliases) {
+    if (reference) for (const alias of aliases) {
       addUnique(reference.aliases, alias);
       addUnique(reference.aliasTokens, `{${alias}}`);
     }
   }
+}
 
-  const refs: VariableReference[] = [];
-  for (const mutable of byId.values()) {
-    const categories = [...mutable.categories].sort((a, b) => (CATEGORY_RANK.get(a) ?? 99) - (CATEGORY_RANK.get(b) ?? 99));
-    const aliases = mutable.aliases.filter((alias) => alias !== mutable.token.slice(1, -1));
-    const aliasTokens = mutable.aliasTokens.filter((alias) => alias !== mutable.token);
-    const lexerValid = validateVariableReference({ syntax: mutable.syntax, syntaxes: mutable.syntaxes, examples: mutable.examples, aliasTokens });
-    const lexer = validateVariableSyntax(mutable.syntax);
-    refs.push({
-      ...mutable,
-      categories,
-      category: categories[0],
-      aliases,
-      aliasTokens,
-      lexer,
-      lexerValid,
-      syntaxes: [...mutable.syntaxes],
-      examples: [...mutable.examples],
-      surfaceIds: [...mutable.surfaceIds],
-      surfaces: [...mutable.surfaces],
-      requirements: [...mutable.requirements],
-    });
-  }
+function finalizeReference(mutable: MutableReference): VariableReference {
+  const categories = [...mutable.categories].sort((a, b) => (CATEGORY_RANK.get(a) ?? 99) - (CATEGORY_RANK.get(b) ?? 99));
+  const aliases = mutable.aliases.filter((alias) => alias !== mutable.token.slice(1, -1));
+  const aliasTokens = mutable.aliasTokens.filter((alias) => alias !== mutable.token);
+  const lexerValid = validateVariableReference({ syntax: mutable.syntax, syntaxes: mutable.syntaxes, examples: mutable.examples, aliasTokens });
+  const lexer = validateVariableSyntax(mutable.syntax);
+  return { ...mutable, categories, category: categories[0], aliases, aliasTokens, lexer, lexerValid,
+    syntaxes: [...mutable.syntaxes], examples: [...mutable.examples], surfaceIds: [...mutable.surfaceIds],
+    surfaces: [...mutable.surfaces], requirements: [...mutable.requirements] };
+}
 
-  return refs.sort((a, b) => {
+function buildCatalog(): VariableReference[] {
+  const byId = new Map<string, MutableReference>();
+  for (const surface of SURFACES) for (const variable of surface.vars) addSurfaceVariable(byId, surface, variable);
+  addSupplementalForms(byId);
+  return [...byId.values()].map(finalizeReference).sort((a, b) => {
     const category = (CATEGORY_RANK.get(a.category) ?? 99) - (CATEGORY_RANK.get(b.category) ?? 99);
     return category || a.id.localeCompare(b.id);
   });
