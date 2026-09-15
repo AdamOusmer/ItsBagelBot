@@ -95,28 +95,34 @@ func TestEmotePlaySameWidthDuplicatesNeverDoubleStep(t *testing.T) {
 	require.False(t, f.bump(emoteBump{channel: ch, msgID: "f", width: 4, copies: 1}).PyramidDone)
 }
 
-func TestEmotePlayForeignEmoteRestartsAndApexTurnStillDescends(t *testing.T) {
+func TestEmotePlayRejectsPartialPyramids(t *testing.T) {
 	f := newEmotePlayFixture(t)
-	ch := f.channel()
-	f.bump(emoteBump{channel: ch, msgID: "a", width: 1, copies: 1})
-	f.bump(emoteBump{channel: ch, msgID: "b", width: 2, copies: 1})
-	// Different emote mid-pyramid: the old attempt is abandoned and the new
-	// attempt anchors at this line (width 2).
-	f.bump(emoteBump{channel: ch, msgID: "c", width: 2, copies: 1})
-	done := f.bump(emoteBump{channel: ch, msgID: "d", width: 1, copies: 1})
-	require.True(t, done.PyramidDone, "a fresh attempt may descend straight off its anchor")
-	require.Equal(t, 2, done.Apex)
+	for _, tc := range []struct {
+		name   string
+		widths []int
+	}{
+		{"descent without an ascent", []int{3, 2, 1}},
+		{"missing initial base", []int{2, 3, 2, 1}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ch := f.channel()
+			for i, width := range tc.widths {
+				res := f.bump(emoteBump{channel: ch, msgID: tc.name + strconv.Itoa(i), width: width, copies: 1})
+				require.False(t, res.PyramidDone)
+			}
+		})
+	}
 }
 
-func TestEmotePlayWidthJumpRestartsInsteadOfCompleting(t *testing.T) {
+func TestEmotePlayRejectsWidthJumps(t *testing.T) {
 	f := newEmotePlayFixture(t)
 	ch := f.channel()
 	f.bump(emoteBump{channel: ch, msgID: "a", width: 1, copies: 1})
 	f.bump(emoteBump{channel: ch, msgID: "b", width: 2, copies: 1})
-	f.bump(emoteBump{channel: ch, msgID: "c", width: 5, copies: 1}) // jump: attempt restarts anchored at 5
-	// Descending from that anchor is legal by the apex-turn rule; what matters
-	// is that the jump did not preserve the old ascent as a taller pyramid.
-	require.False(t, f.bump(emoteBump{channel: ch, msgID: "d", width: 4, copies: 1}).PyramidDone)
+	f.bump(emoteBump{channel: ch, msgID: "c", width: 5, copies: 1}) // jump: attempt is abandoned
+	for _, width := range []int{4, 3, 2, 1} {
+		require.False(t, f.bump(emoteBump{channel: ch, msgID: "after-jump" + strconv.Itoa(width), width: width, copies: 1}).PyramidDone)
+	}
 }
 
 func TestEmotePlayReplayedMessageIDAppliesNothing(t *testing.T) {
