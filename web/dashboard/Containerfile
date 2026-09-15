@@ -1,9 +1,9 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 
-# Dashboard SSR — separate deploy from admin. Build with bun, run on distroless
-# Node (adapter-node output). Native per-node build (ARM on node1, Intel on
-# node2); no cross-arch emulation.
+# Dashboard SSR — separate deploy from admin. Build with bun, run on
+# distroless bun (adapter-node handler hosted by serve-node.js). Native
+# per-node build (ARM on node1, Intel on node2); no cross-arch emulation.
 #
 # BUILD CONTEXT IS THE REPOSITORY ROOT, not web/. It has to be: the design
 # library @bagel/ui is a standalone package at the root (its own lockfile, its
@@ -60,7 +60,7 @@ COPY web/kit kit
 COPY web/dashboard dashboard
 RUN cd dashboard && bun run build && bun install --production --frozen-lockfile --filter '!marketing' --filter '!docs'
 
-FROM gcr.io/distroless/nodejs22-debian12@sha256:8a3e96fe3345b5d83ecec2066e7c498139a02a6d1214e4f6c39f9ce359f3f5bc AS run
+FROM docker.io/oven/bun:1.4.2-distroless@sha256:1a0c31c7c5f9d193aedf60fe1cebdeb76ac8f6e29f24be8dd8cbd6df72df26ec AS run
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
@@ -71,5 +71,10 @@ COPY --from=build /src/web/dashboard/build ./build
 COPY --from=build /src/web/node_modules ./node_modules
 COPY web/serve-node.js ./serve-node.js
 EXPOSE 3000
-# Preload the New Relic APM agent (ESM --import) before the SvelteKit server.
+# Distroless bun's ENTRYPOINT is already `bun`, so this argv is the same
+# `--import newrelic serve-node.js` the Node image used. The Node agent is
+# unofficial on bun: keep node:http (serve-node.js) rather than Bun.serve, and
+# do not require @newrelic/native-metrics (optional Node addon). Manual
+# startSegment/noticeError keep working; outbound HTTP auto-instrumentation
+# is the gap.
 CMD ["--import", "newrelic", "serve-node.js"]

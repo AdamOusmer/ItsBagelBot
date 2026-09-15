@@ -1,8 +1,9 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 
-# Admin SSR — separate deploy from dashboard. Build with bun, run on distroless
-# Node (adapter-node output). Native per-node build (ARM/Intel); no emulation.
+# Admin SSR — separate deploy from dashboard. Build with bun, run on
+# distroless bun (adapter-node handler hosted by serve-node.js). Native
+# per-node build (ARM/Intel); no emulation.
 #
 # BUILD CONTEXT IS THE REPOSITORY ROOT, not web/, so that the standalone design
 # library at ui/ is inside it; see web/dashboard/Containerfile for the full
@@ -54,15 +55,16 @@ COPY web/admin admin
 # development identity or seeded demo fixture was emitted into the image.
 RUN cd admin && bun run build && bun install --production --frozen-lockfile --filter '!marketing' --filter '!docs'
 
-FROM gcr.io/distroless/nodejs22-debian12@sha256:8a3e96fe3345b5d83ecec2066e7c498139a02a6d1214e4f6c39f9ce359f3f5bc AS run
+FROM docker.io/oven/bun:1.4.2-distroless@sha256:1a0c31c7c5f9d193aedf60fe1cebdeb76ac8f6e29f24be8dd8cbd6df72df26ec AS run
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 # @bagel/ui needs no entry here: it ships source and vite.config.ts lists it
-# under ssr.noExternal, so the adapter bundles it into build/.
+# under ssr.noExternal, so the adapter bundles it into build/. Runtime image
+# reasoning (distroless bun ENTRYPOINT, New Relic --import) is on the
+# dashboard Containerfile.
 COPY --from=build /src/web/admin/build ./build
 COPY --from=build /src/web/node_modules ./node_modules
 COPY web/serve-node.js ./serve-node.js
 EXPOSE 3000
-# Preload the New Relic APM agent (ESM --import) before the SvelteKit server.
 CMD ["--import", "newrelic", "serve-node.js"]

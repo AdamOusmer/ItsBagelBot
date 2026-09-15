@@ -11,7 +11,7 @@
         "@astrojs/compiler": "^4.0.0",
         "@iconify-json/lucide": "1.2.132",
         "@iconify-json/simple-icons": "1.2.96",
-        "@types/bun": "^1.4.0",
+        "@types/bun": "1.4.2",
         "astro": "^7.0.6",
         "svelte": "^5.56.4",
         "svelte-check": "^4.7.6",

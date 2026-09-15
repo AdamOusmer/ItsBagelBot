@@ -35,10 +35,16 @@ web/
 
 ## Cloudflare Pages
 
-This site deploys as a static Cloudflare Pages project:
+This site deploys as the `itsbagelbot` Pages project. Production and
+preview both pin `BUN_VERSION=1.4.2` and `SKIP_DEPENDENCY_INSTALL=true`,
+because Pages v3 still defaults to Bun 1.2.15 and will `npm install` unless
+told not to.
 
-- Build command: `bun run build`
-- Build output directory: `dist`
+| Setting | Value |
+| :------ | :---- |
+| Root directory | `web/marketing` |
+| Build command | `bun --version && bun install --cwd .. --frozen-lockfile && bun run build` |
+| Build output directory | `dist` |
 
 ## Guides
 

@@ -151,7 +151,7 @@ spec:
           env:
             - name: PORT
               value: "3000"
-            # Serve HTTPS from adapter-node (serve-node.js) using the cert-manager
+            # Serve HTTPS from serve-node.js (bun) using the cert-manager
             # console-dashboard-tls cert, so the traefik->console hop is TLS.
             # Traefik re-encrypts via the console-dashboard-transport
             # ServersTransport.
@@ -168,7 +168,7 @@ spec:
               value: /etc/nats-client/tls/tls.key
             - name: NODE_ENV
               value: production
-            # adapter-node sits behind cloudflared+traefik. The app answers
+            # The bun-hosted adapter-node handler sits behind cloudflared+traefik. The app answers
             # under three public hostnames (dashboard., stats. and
             # commands.itsbagelbot.com),
             # so instead of pinning one ORIGIN it derives each request's origin

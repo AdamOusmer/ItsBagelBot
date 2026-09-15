@@ -1,6 +1,17 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+// Production HTTP(S) front for both consoles. The SvelteKit adapter stays
+// adapter-node (it emits handler.js + precompressed client assets); this file
+// is the process that serves them. It runs under bun — the runtime image is
+// oven/bun:*-distroless, whose ENTRYPOINT is already `bun` — not Node.
+//
+// Bun.serve was not used. sirv is a Node (req, res, next) stack; adapter-node's
+// handler is the same; TLS is node:https with the cert-manager cert; and the
+// New Relic Node agent documents that bun.serve is the path that loses request
+// instrumentation. bun's node:http/https implement server.listen, which is
+// what all four of those require. @newrelic/native-metrics is an optional
+// Node addon and must stay optional (it will not load under bun).
 import { createServer as createHttpServer } from 'node:http';
 import { createServer as createHttpsServer } from 'node:https';
 import { existsSync, readFileSync } from 'node:fs';
