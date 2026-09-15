@@ -113,14 +113,13 @@ func NewValkeyEmotePlay(client valkey.Client) *ValkeyEmotePlay {
 // RESP2 bulk starting '-' would parse as an error.
 //
 // Pyramid rules. State: emote, width, apex, phase (0 ascending / 1 descending).
-// From any line: same width repeats are neutral no-ops (two chatters racing the
-// same step, or two pods delivering near-simultaneously, must not double-step);
-// width+1 ascends while phase=asc; width-1 descends, but only straight off the
-// apex (phase flips there); landing the descent at 1 completes and clears.
-// Anything else — different emote, a width jump, re-ascending mid-descent —
-// restarts the attempt anchored AT the offending line rather than clearing:
-// a troll wall should not erase the fun, it just becomes the new base. Window
-// expiry behaves like a clear.
+// An attempt must begin at width 1. Same-width repeats are neutral no-ops (two
+// chatters racing the same step, or two pods delivering near-simultaneously,
+// must not double-step); width+1 ascends while phase=asc; width-1 descends,
+// but only straight off the apex (phase flips there); landing the descent at 1
+// completes and clears. Anything else — different emote, a width jump, or
+// re-ascending mid-descent — abandons the attempt. Only a new width-1 line can
+// start another one. Window expiry behaves like a clear.
 //
 // Streak rules. Only single-token lines (width==1) count; a wider pure-emote
 // line (someone building something else) breaks the current streak silently.
@@ -150,14 +149,24 @@ end
 
 local flags, milestone, done_apex = 0, 0, 0
 
--- Pyramid.
+-- Pyramid. A valid attempt always starts at width 1, then rises one line at a
+-- time before it may descend. In particular, a descending fragment such as
+-- 3,2,1 or a partial 2,3,2,1 is not a pyramid.
 if pts == nil or now - pts > pwin then
-  pem, pw, pa, pp = emote, width, width, 0
+  if width == 1 then
+    pem, pw, pa, pp = emote, 1, 1, 0
+  else
+    pem, pw, pa, pp = nil, nil, nil, nil
+  end
 elseif pem ~= emote then
-  pem, pw, pa, pp = emote, width, width, 0
+  if width == 1 then
+    pem, pw, pa, pp = emote, 1, 1, 0
+  else
+    pem, pw, pa, pp = nil, nil, nil, nil
+  end
 elseif width == pw + 1 then
   if pp == 1 then
-    pem, pw, pa, pp = emote, width, width, 0
+    pem, pw, pa, pp = nil, nil, nil, nil
   else
     pw, pa = width, width
   end
@@ -174,14 +183,22 @@ elseif width == pw - 1 then
       pem, pw, pa, pp, pts = nil, nil, nil, nil, nil
     end
   else
-    pem, pw, pa, pp = emote, width, width, 0
+    if width == 1 then
+      pem, pw, pa, pp = emote, 1, 1, 0
+    else
+      pem, pw, pa, pp = nil, nil, nil, nil
+    end
   end
 elseif width ~= pw then
-  pem, pw, pa, pp = emote, width, width, 0
+  if width == 1 then
+    pem, pw, pa, pp = emote, 1, 1, 0
+  else
+    pem, pw, pa, pp = nil, nil, nil, nil
+  end
 end
 -- width == pw falls through: duplicate step, neutral.
 
-if done_apex > 0 then
+if done_apex > 0 or pem == nil then
   redis.call('HDEL', KEYS[1], 'pem', 'pw', 'pa', 'pp', 'pts')
 else
   redis.call('HMSET', KEYS[1], 'pem', pem, 'pw', pw, 'pa', pa, 'pp', pp, 'pts', now)
