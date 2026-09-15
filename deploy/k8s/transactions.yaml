@@ -158,6 +158,19 @@ spec:
               value: "8"
             - name: DB_AUTO_MIGRATE
               value: "true"
+            # Selecting winners records an obligation. Fulfillment remains
+            # pending until the monthly interval and provider behavior are
+            # verified; a successful Checkout GET does not establish either.
+            - name: GIVEAWAYS_NEW_AWARDS_ENABLED
+              value: "true"
+            - name: GIVEAWAYS_INTERVAL_RULE_VERIFIED
+              value: "false"
+            - name: TEBEX_CHECKOUT_MUTATIONS_ENABLED
+              value: "false"
+            - name: GIVEAWAYS_RECONCILE_INTERVAL
+              value: 15m
+            - name: GIVEAWAYS_BOUNDARY_RECONCILE_INTERVAL
+              value: 1m
             # Tebex Developers > Webhooks > Endpoints secret. The Fiber webhook
             # handler refuses requests until this is configured.
             - name: TEBEX_WEBHOOK_SECRET

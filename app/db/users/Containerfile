@@ -22,7 +22,7 @@ COPY internal/domain internal/domain
 COPY internal/utils internal/utils
 COPY pkg pkg
 COPY app/db/users app/db/users
-RUN go run -mod=mod entgo.io/ent/cmd/ent generate --feature sql/upsert ./app/db/users/ent/schema \
+RUN go run -mod=mod entgo.io/ent/cmd/ent generate --feature sql/upsert,sql/lock ./app/db/users/ent/schema \
  && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /users ./app/db/users
 
 # ---------------------------------------------------------------------------

@@ -4,6 +4,7 @@ package ent
 
 import (
 	"ItsBagelBot/app/db/users/ent/predicate"
+	"ItsBagelBot/app/db/users/ent/premiumgrant"
 	"ItsBagelBot/app/db/users/ent/tokens"
 	"ItsBagelBot/app/db/users/ent/user"
 	"context"
@@ -21,12 +22,13 @@ import (
 // UserQuery is the builder for querying User entities.
 type UserQuery struct {
 	config
-	ctx        *QueryContext
-	order      []user.OrderOption
-	inters     []Interceptor
-	predicates []predicate.User
-	withTokens *TokensQuery
-	modifiers  []func(*sql.Selector)
+	ctx               *QueryContext
+	order             []user.OrderOption
+	inters            []Interceptor
+	predicates        []predicate.User
+	withTokens        *TokensQuery
+	withPremiumGrants *PremiumGrantQuery
+	modifiers         []func(*sql.Selector)
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -78,6 +80,28 @@ func (_q *UserQuery) QueryTokens() *TokensQuery {
 			sqlgraph.From(user.Table, user.FieldID, selector),
 			sqlgraph.To(tokens.Table, tokens.FieldID),
 			sqlgraph.Edge(sqlgraph.O2M, false, user.TokensTable, user.TokensColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryPremiumGrants chains the current query on the "premium_grants" edge.
+func (_q *UserQuery) QueryPremiumGrants() *PremiumGrantQuery {
+	query := (&PremiumGrantClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(premiumgrant.Table, premiumgrant.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.PremiumGrantsTable, user.PremiumGrantsColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
 		return fromU, nil
@@ -272,12 +296,13 @@ func (_q *UserQuery) Clone() *UserQuery {
 		return nil
 	}
 	return &UserQuery{
-		config:     _q.config,
-		ctx:        _q.ctx.Clone(),
-		order:      append([]user.OrderOption{}, _q.order...),
-		inters:     append([]Interceptor{}, _q.inters...),
-		predicates: append([]predicate.User{}, _q.predicates...),
-		withTokens: _q.withTokens.Clone(),
+		config:            _q.config,
+		ctx:               _q.ctx.Clone(),
+		order:             append([]user.OrderOption{}, _q.order...),
+		inters:            append([]Interceptor{}, _q.inters...),
+		predicates:        append([]predicate.User{}, _q.predicates...),
+		withTokens:        _q.withTokens.Clone(),
+		withPremiumGrants: _q.withPremiumGrants.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
@@ -292,6 +317,17 @@ func (_q *UserQuery) WithTokens(opts ...func(*TokensQuery)) *UserQuery {
 		opt(query)
 	}
 	_q.withTokens = query
+	return _q
+}
+
+// WithPremiumGrants tells the query-builder to eager-load the nodes that are connected to
+// the "premium_grants" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *UserQuery) WithPremiumGrants(opts ...func(*PremiumGrantQuery)) *UserQuery {
+	query := (&PremiumGrantClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withPremiumGrants = query
 	return _q
 }
 
@@ -373,8 +409,9 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 	var (
 		nodes       = []*User{}
 		_spec       = _q.querySpec()
-		loadedTypes = [1]bool{
+		loadedTypes = [2]bool{
 			_q.withTokens != nil,
+			_q.withPremiumGrants != nil,
 		}
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
@@ -402,6 +439,13 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 		if err := _q.loadTokens(ctx, query, nodes,
 			func(n *User) { n.Edges.Tokens = []*Tokens{} },
 			func(n *User, e *Tokens) { n.Edges.Tokens = append(n.Edges.Tokens, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withPremiumGrants; query != nil {
+		if err := _q.loadPremiumGrants(ctx, query, nodes,
+			func(n *User) { n.Edges.PremiumGrants = []*PremiumGrant{} },
+			func(n *User, e *PremiumGrant) { n.Edges.PremiumGrants = append(n.Edges.PremiumGrants, e) }); err != nil {
 			return nil, err
 		}
 	}
@@ -434,6 +478,36 @@ func (_q *UserQuery) loadTokens(ctx context.Context, query *TokensQuery, nodes [
 		node, ok := nodeids[*fk]
 		if !ok {
 			return fmt.Errorf(`unexpected referenced foreign-key "user_tokens" returned %v for node %v`, *fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *UserQuery) loadPremiumGrants(ctx context.Context, query *PremiumGrantQuery, nodes []*User, init func(*User), assign func(*User, *PremiumGrant)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[uint64]*User)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(premiumgrant.FieldUserID)
+	}
+	query.Where(predicate.PremiumGrant(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(user.PremiumGrantsColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.UserID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "user_id" returned %v for node %v`, fk, n.ID)
 		}
 		assign(node, n)
 	}

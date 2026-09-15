@@ -43,6 +43,43 @@ type GiftNotice struct {
 	GiftMessage string
 }
 
+// BillingIncident is an allowlisted summary of a verified provider event.
+// Raw webhook payloads and contact data never cross this callback boundary.
+type BillingIncident struct {
+	EventID       string
+	EventType     string
+	Action        string
+	TransactionID string
+	UserID        uint64
+	OccurredAt    time.Time
+}
+
+type billingWork struct {
+	event  tebexEvent
+	action billingrpc.Action
+	notify bool
+}
+
+type eventAudit struct {
+	event   tebexEvent
+	status  repository.WebhookStatus
+	payment recordablePayment
+	message string
+}
+
+type eventFailure struct {
+	event   tebexEvent
+	payment recordablePayment
+	status  int
+	cause   error
+}
+
+type appliedEvent struct {
+	event   tebexEvent
+	payment recordablePayment
+	action  billingrpc.Action
+}
+
 type Config struct {
 	WebhookSecret string
 	// Health owns /healthz, /readyz, /status and /drain. Nil falls back to a
@@ -56,7 +93,8 @@ type Config struct {
 	// ApplyBilling synchronously updates the users service after signature
 	// verification. Returning an error makes Tebex retry the webhook, so a
 	// transient NATS/users outage cannot lose a paid entitlement.
-	ApplyBilling func(ctx context.Context, req billingrpc.ApplyRequest) error
+	ApplyBilling          func(ctx context.Context, req billingrpc.ApplyRequest) error
+	RecordBillingIncident func(ctx context.Context, incident BillingIncident) error
 	// App instruments the Tebex webhook routes with New Relic transactions.
 	// Health probes stay uninstrumented. Nil (no license key) is a no-op.
 	App *newrelic.Application
@@ -158,7 +196,7 @@ func (s *Server) tebexWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if spec, ok := billingEventActions[event.Type]; ok {
-		s.processBillingEvent(ctx, w, event, spec.action, spec.notify)
+		s.processBillingEvent(ctx, w, billingWork{event: event, action: spec.action, notify: spec.notify})
 		return
 	}
 	// Trial webhooks exist in the Tebex panel but not (yet) in their docs, so
@@ -205,19 +243,19 @@ func (s *Server) verifiedBody(w http.ResponseWriter, r *http.Request) ([]byte, b
 // audit row, and (for activations) notify the gift recipient. A parse or apply
 // failure is recorded and surfaced so Tebex retries; a persist failure alone
 // returns 500.
-func (s *Server) processBillingEvent(ctx context.Context, w http.ResponseWriter, event tebexEvent, action billingrpc.Action, notify bool) {
+func (s *Server) processBillingEvent(ctx context.Context, w http.ResponseWriter, work billingWork) {
+	event, action, notify := work.event, work.action, work.notify
 
 	payment, err := recordableFromEvent(event)
 	if err != nil {
-		s.failEvent(ctx, w, event, payment, http.StatusUnprocessableEntity, err)
+		s.failEvent(ctx, w, eventFailure{event: event, payment: payment, status: http.StatusUnprocessableEntity, cause: err})
 		return
 	}
 	if err := s.applyBilling(ctx, event, payment, action); err != nil {
-		s.failEvent(ctx, w, event, payment, http.StatusInternalServerError, err)
+		s.failEvent(ctx, w, eventFailure{event: event, payment: payment, status: http.StatusInternalServerError, cause: err})
 		return
 	}
-	if err := s.saveEvent(ctx, event, repository.WebhookProcessed, payment, ""); err != nil {
-		s.saveError(w)
+	if !s.finishApplied(ctx, w, appliedEvent{event: event, payment: payment, action: action}) {
 		return
 	}
 	if notify {
@@ -229,7 +267,7 @@ func (s *Server) processBillingEvent(ctx context.Context, w http.ResponseWriter,
 // handleValidation acknowledges Tebex's endpoint-validation ping: record it and
 // echo the id back.
 func (s *Server) handleValidation(ctx context.Context, w http.ResponseWriter, event tebexEvent) {
-	if err := s.saveEvent(ctx, event, repository.WebhookValidation, recordablePayment{}, ""); err != nil {
+	if err := s.saveEvent(ctx, eventAudit{event: event, status: repository.WebhookValidation, payment: recordablePayment{}}); err != nil {
 		s.saveError(w)
 		return
 	}
@@ -238,7 +276,7 @@ func (s *Server) handleValidation(ctx context.Context, w http.ResponseWriter, ev
 
 // auditIgnored records an event that changes no entitlement and acknowledges it.
 func (s *Server) auditIgnored(ctx context.Context, w http.ResponseWriter, event tebexEvent) {
-	if err := s.saveEvent(ctx, event, repository.WebhookIgnored, recordablePayment{}, ""); err != nil {
+	if err := s.saveEvent(ctx, eventAudit{event: event, status: repository.WebhookIgnored, payment: recordablePayment{}}); err != nil {
 		s.saveError(w)
 		return
 	}
@@ -265,37 +303,58 @@ func (s *Server) trialLifecycle(ctx context.Context, w http.ResponseWriter, even
 		return
 	}
 
-	payment, err := recordableFromEvent(event)
-	if err != nil {
-		// A trial subject may carry no payment (nothing has been charged), so
-		// attribution can be impossible. Retries cannot fix that — audit the
-		// event and acknowledge instead of making Tebex redeliver forever.
-		if errors.Is(err, errNoRecordablePayment) || errors.Is(err, errPaymentUserMissing) {
-			monitor.TxnLogger(ctx, s.log).Warn("tebex trial webhook without attributable payment",
-				zap.String("webhook_id", event.ID),
-				zap.String("webhook_type", event.Type),
-				zap.Error(err),
-			)
-			if err := s.saveEvent(ctx, event, repository.WebhookIgnored, payment, err.Error()); err != nil {
-				s.saveError(w)
-				return
-			}
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-		s.failEvent(ctx, w, event, payment, http.StatusUnprocessableEntity, err)
+	payment, ok := s.trialPayment(ctx, w, event)
+	if !ok {
 		return
 	}
 
 	if err := s.applyBilling(ctx, event, payment, action); err != nil {
-		s.failEvent(ctx, w, event, payment, http.StatusInternalServerError, err)
+		s.failEvent(ctx, w, eventFailure{event: event, payment: payment, status: http.StatusInternalServerError, cause: err})
 		return
 	}
-	if err := s.saveEvent(ctx, event, repository.WebhookProcessed, payment, ""); err != nil {
-		s.saveError(w)
+	if !s.finishApplied(ctx, w, appliedEvent{event: event, payment: payment, action: action}) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) finishApplied(ctx context.Context, w http.ResponseWriter, applied appliedEvent) bool {
+	if s.cfg.RecordBillingIncident != nil {
+		occurredAt, err := time.Parse(time.RFC3339, applied.event.Date)
+		if err != nil {
+			s.failEvent(ctx, w, eventFailure{event: applied.event, payment: applied.payment, status: http.StatusUnprocessableEntity, cause: err})
+			return false
+		}
+		incident := BillingIncident{EventID: applied.event.ID, EventType: applied.event.Type, Action: string(applied.action), TransactionID: applied.payment.TransactionID, UserID: applied.payment.UserID, OccurredAt: occurredAt}
+		if err := s.cfg.RecordBillingIncident(ctx, incident); err != nil {
+			s.failEvent(ctx, w, eventFailure{event: applied.event, payment: applied.payment, status: http.StatusInternalServerError, cause: err})
+			return false
+		}
+	}
+	if err := s.saveEvent(ctx, eventAudit{event: applied.event, status: repository.WebhookProcessed, payment: applied.payment}); err != nil {
+		s.saveError(w)
+		return false
+	}
+	return true
+}
+
+func (s *Server) trialPayment(ctx context.Context, w http.ResponseWriter, event tebexEvent) (recordablePayment, bool) {
+	payment, err := recordableFromEvent(event)
+	if err == nil {
+		return payment, true
+	}
+	if !errors.Is(err, errNoRecordablePayment) && !errors.Is(err, errPaymentUserMissing) {
+		s.failEvent(ctx, w, eventFailure{event: event, payment: payment, status: http.StatusUnprocessableEntity, cause: err})
+		return recordablePayment{}, false
+	}
+	monitor.TxnLogger(ctx, s.log).Warn("tebex trial webhook without attributable payment",
+		zap.String("webhook_id", event.ID), zap.String("webhook_type", event.Type), zap.Error(err))
+	if saveErr := s.saveEvent(ctx, eventAudit{event: event, status: repository.WebhookIgnored, payment: payment, message: err.Error()}); saveErr != nil {
+		s.saveError(w)
+		return recordablePayment{}, false
+	}
+	w.WriteHeader(http.StatusNoContent)
+	return recordablePayment{}, false
 }
 
 func (s *Server) applyBilling(ctx context.Context, event tebexEvent, payment recordablePayment, action billingrpc.Action) error {
@@ -334,13 +393,13 @@ func (s *Server) applyBilling(ctx context.Context, event tebexEvent, payment rec
 	})
 }
 
-func (s *Server) failEvent(ctx context.Context, w http.ResponseWriter, event tebexEvent, payment recordablePayment, status int, cause error) {
+func (s *Server) failEvent(ctx context.Context, w http.ResponseWriter, failure eventFailure) {
 	log := monitor.TxnLogger(ctx, s.log)
 
-	if err := s.saveEvent(ctx, event, repository.WebhookFailed, payment, cause.Error()); err != nil {
+	if err := s.saveEvent(ctx, eventAudit{event: failure.event, status: repository.WebhookFailed, payment: failure.payment, message: failure.cause.Error()}); err != nil {
 		log.Error("failed to persist tebex webhook failure",
-			zap.String("webhook_id", event.ID),
-			zap.String("webhook_type", event.Type),
+			zap.String("webhook_id", failure.event.ID),
+			zap.String("webhook_type", failure.event.Type),
 			zap.Error(err),
 		)
 		s.saveError(w)
@@ -348,13 +407,13 @@ func (s *Server) failEvent(ctx context.Context, w http.ResponseWriter, event teb
 	}
 
 	log.Warn("tebex webhook failed",
-		zap.String("webhook_id", event.ID),
-		zap.String("webhook_type", event.Type),
-		zap.String("transaction_id", payment.TransactionID),
-		zap.Uint64("user_id", payment.UserID),
-		zap.Error(cause),
+		zap.String("webhook_id", failure.event.ID),
+		zap.String("webhook_type", failure.event.Type),
+		zap.String("transaction_id", failure.payment.TransactionID),
+		zap.Uint64("user_id", failure.payment.UserID),
+		zap.Error(failure.cause),
 	)
-	sendJSON(w, status, errorBody{Error: cause.Error()})
+	sendJSON(w, failure.status, errorBody{Error: failure.cause.Error()})
 }
 
 // notifyGift tells the recipient their gifted premium landed. Initial payments
@@ -386,7 +445,8 @@ func (s *Server) notifyGift(ctx context.Context, event tebexEvent, payment recor
 	}
 }
 
-func (s *Server) saveEvent(ctx context.Context, event tebexEvent, status repository.WebhookStatus, payment recordablePayment, message string) error {
+func (s *Server) saveEvent(ctx context.Context, audit eventAudit) error {
+	event, status, payment, message := audit.event, audit.status, audit.payment, audit.message
 
 	return s.store.SaveWebhookEvent(ctx, repository.WebhookEvent{
 		ID:            event.ID,

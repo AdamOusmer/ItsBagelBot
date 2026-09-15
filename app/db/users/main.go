@@ -55,6 +55,7 @@ func main() {
 	defer func() { _ = n.Pub.Close() }()
 
 	repo := repository.NewUsers(client, packer, n.Pub, core.NR, log)
+	repo.SetInvalidationPrefix(env.Get("NATS_CACHE_INVALIDATION_PREFIX", "bagel.cache.invalidate"))
 	defer func() {
 		// Bounded so a shutdown cannot hang on the final preference drain;
 		// the batcher's own flush deadline caps each window inside it.
@@ -68,6 +69,7 @@ func main() {
 	startConsumers(ctx, n, repo, log)
 
 	go expireSubscriptions(ctx, repo, log)
+	go expirePremiumGrants(ctx, repo, log)
 
 	wiring := rpc.Wiring{
 		RPCWiring: bus.RPCWiring{NC: n.RPC, App: core.NR, Queue: queueGroup, Log: log},
@@ -128,6 +130,7 @@ type rpcSubjects struct {
 	admin      string
 	billing    string
 	projection string
+	giveaway   string
 }
 
 func (s rpcSubjects) logReady(log *zap.Logger) {
@@ -135,7 +138,8 @@ func (s rpcSubjects) logReady(log *zap.Logger) {
 		zap.String("dashboard_prefix", s.dashboard),
 		zap.String("admin_prefix", s.admin),
 		zap.String("billing_subject", s.billing),
-		zap.String("projection_subject", s.projection))
+		zap.String("projection_subject", s.projection),
+		zap.String("giveaway_prefix", s.giveaway))
 }
 
 // subscribeRPCs binds every RPC surface the users service serves and seeds the
@@ -148,6 +152,7 @@ func subscribeRPCs(ctx context.Context, wiring rpc.Wiring, client *ent.Client, l
 		admin:      env.Get("NATS_ADMIN_USER_SUBJECT_PREFIX", "bagel.rpc.admin.user"),
 		billing:    env.Get("NATS_INTERNAL_BILLING_SUBJECT", "bagel.rpc.internal.billing.apply"),
 		projection: env.Get("NATS_INTERNAL_PROJECTION_USERS_SUBJECT", "bagel.rpc.internal.projection.users.get"),
+		giveaway:   env.Get("NATS_INTERNAL_USERS_GIVEAWAY_SUBJECT_PREFIX", "bagel.rpc.internal.users.giveaway"),
 	}
 
 	svcboot.FatalIf(log, rpc.SubscribeDashboard(wiring, s.dashboard, invalidationPrefix), "failed to subscribe dashboard rpc")
@@ -158,6 +163,7 @@ func subscribeRPCs(ctx context.Context, wiring rpc.Wiring, client *ent.Client, l
 	}
 	svcboot.FatalIf(log, rpc.SubscribeAdmin(wiring, client, adminCfg), "failed to subscribe admin rpc")
 	svcboot.FatalIf(log, rpc.SubscribeBilling(wiring, s.billing, invalidationPrefix), "failed to subscribe billing rpc")
+	svcboot.FatalIf(log, rpc.SubscribeGiveaways(wiring, s.giveaway, invalidationPrefix), "failed to subscribe giveaway rpc")
 
 	// Admin authorization + audit. Seed the bootstrap owners/admins so a fresh
 	// DB is never locked out, then serve the auth.check / auth.* / audit.*
@@ -220,21 +226,45 @@ func subscriptionSweepInterval() time.Duration {
 
 func expireSubscriptions(ctx context.Context, repo *repository.Users, log *zap.Logger) {
 	const tebexGrace = 24 * time.Hour
-	ticker := time.NewTicker(subscriptionSweepInterval())
-	defer ticker.Stop()
+	runPeriodicSweep(ctx, log, subscriptionSweepInterval(), 30*time.Second,
+		"failed to expire subscriptions", "expired subscriptions",
+		func(runCtx context.Context, now time.Time) (int, error) {
+			return repo.ExpireSubscriptions(runCtx, now, tebexGrace)
+		})
+}
 
+// Premium access expiry is kept on a short independent sweep because the
+// historical subscription sweep intentionally defaults to five minutes for a
+// full users-table scan. Grant rows are indexed and cheap to sweep, so a
+// committed giveaway never remains effective for an entire five-minute
+// interval after its end.
+func premiumGrantSweepInterval() time.Duration {
+	return env.GetDuration("USERS_PREMIUM_GRANT_SWEEP_INTERVAL", 30*time.Second)
+}
+
+func expirePremiumGrants(ctx context.Context, repo *repository.Users, log *zap.Logger) {
+	runPeriodicSweep(ctx, log, premiumGrantSweepInterval(), 10*time.Second,
+		"failed to expire premium grants", "expired premium grants",
+		func(runCtx context.Context, now time.Time) (int, error) {
+			return repo.ExpirePremiumGrants(runCtx, now)
+		})
+}
+
+func runPeriodicSweep(ctx context.Context, log *zap.Logger, interval, timeout time.Duration, errorMessage, successMessage string, sweep func(context.Context, time.Time) (int, error)) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case now := <-ticker.C:
-			runCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-			count, err := repo.ExpireSubscriptions(runCtx, now, tebexGrace)
+			runCtx, cancel := context.WithTimeout(ctx, timeout)
+			count, err := sweep(runCtx, now)
 			cancel()
 			if err != nil {
-				log.Error("failed to expire subscriptions", zap.Error(err))
+				log.Error(errorMessage, zap.Error(err))
 			} else if count > 0 {
-				log.Info("expired subscriptions", zap.Int("count", count))
+				log.Info(successMessage, zap.Int("count", count))
 			}
 		}
 	}

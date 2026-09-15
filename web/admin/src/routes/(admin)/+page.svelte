@@ -22,7 +22,8 @@
   import AuditPeek from '$lib/components/overview/AuditPeek.svelte';
   import QuickActions from '$lib/components/overview/QuickActions.svelte';
   import BotCard from '$lib/components/overview/BotCard.svelte';
-  import type { EnrollmentWindow } from '$lib/enrollment-window';
+import type { EnrollmentWindow } from '$lib/enrollment-window';
+  import StatePill from '$lib/components/StatePill.svelte';
 
   let { data } = $props();
 
@@ -85,6 +86,30 @@
           <BotCard present={p.value} />
         {/await}
       {/if}
+
+      {#await data.giveawayAlerts}
+        <SkeletonStack rows={1} height="120px" />
+      {:then p}
+        {#if !p.ok}
+          <AlertBanner>{t('admin.giveaways.alertsUnavailable')}</AlertBanner>
+        {:else if p.value.length}
+          <section class="pending-awards" aria-labelledby="pending-awards-title">
+            <div class="pending-head"><h2 id="pending-awards-title">{t('admin.giveaways.alerts')}</h2><StatePill tone="warning">{p.value.length}</StatePill></div>
+            {#each p.value.slice(0, 4) as alert (alert.id)}
+              <a href="/giveaways"><strong>{alert.awardId}</strong><span>{alert.reason}</span></a>
+            {/each}
+          </section>
+        {/if}
+      {/await}
     {/snippet}
   </OverviewGrid>
 </section>
+
+<style>
+  .pending-awards { padding:16px; border:1px solid rgba(242,200,121,.35); border-radius:14px; background:rgba(242,200,121,.06); }
+  .pending-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; }
+  .pending-head h2 { margin:0; font-size:14px; }
+  .pending-awards a { display:block; padding:9px 0; border-top:1px solid var(--bb-border); color:inherit; text-decoration:none; }
+  .pending-awards a:hover strong { color:var(--bb-tan-pale); }
+  .pending-awards span { display:block; color:var(--bb-muted); font-size:12px; margin-top:3px; }
+</style>

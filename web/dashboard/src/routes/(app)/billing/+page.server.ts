@@ -10,6 +10,7 @@ import { logger } from '@bagel/kit/server/logger';
 import { containsLink } from '@bagel/kit/validation';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
+import { giveawayPrizes, type PrizeAward } from '$lib/server/giveaways';
 
 // Gated on the build-time `dev` constant first, so Rollup erases every demo
 // branch (and the dynamic demo-data import inside it) from production builds.
@@ -101,12 +102,16 @@ async function premiumAlreadyHeld(
 ): Promise<{ status: number; data: { error: string } } | null> {
   try {
     const state = await billingState(ownerId);
-    if (state.status === 'free') return null;
+    // A missing giveaway read must fail closed: allowing checkout while an
+    // award is being reconciled could create duplicate Premium coverage.
+    const prizes = await giveawayPrizes(ownerId);
+    const pendingPrize = prizes.some((prize) => ['selected', 'preparing', 'needs_review', 'scheduled', 'active'].includes(prize.state));
+    if (state.status === 'free' && !pendingPrize) return null;
     return {
       status: 409,
       data: {
         error:
-          'This account already has premium. Subscribing again is blocked so nobody is double-charged.'
+          'This account already has Premium coverage. Subscribing again is blocked while the current prize or plan is being reconciled.'
       }
     };
   } catch {
@@ -194,6 +199,23 @@ async function giftCheckout(
   };
 }
 
+async function billingPageData(input: { uid: string }): Promise<{ account: BillingState; prizes: PrizeAward[]; degraded: boolean; prizeDegraded: boolean }> {
+  const { uid } = input;
+  const [accountResult, prizeResult] = await Promise.all([
+    billingState(uid).then((value) => ({ status: 'fulfilled' as const, value }), () => ({ status: 'rejected' as const })),
+    giveawayPrizes(uid).then((value) => ({ status: 'fulfilled' as const, value }), () => ({ status: 'rejected' as const }))
+  ]);
+  const account = accountResult.status === 'fulfilled'
+    ? accountResult.value
+    : ({ active: false, status: 'free', expiresAt: null, source: '', subscriptionRef: null, cancelPending: false } as BillingState);
+  return {
+    account,
+    prizes: prizeResult.status === 'fulfilled' ? prizeResult.value : [],
+    degraded: accountResult.status !== 'fulfilled' || prizeResult.status !== 'fulfilled',
+    prizeDegraded: prizeResult.status !== 'fulfilled'
+  };
+}
+
 export const load: PageServerLoad = async ({ locals, url }) => {
   // ?subscribe=1 comes from the marketing site's pricing page (rides through
   // the login flow); the page auto-opens checkout when the plan allows it.
@@ -202,7 +224,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   if (DEMO) {
     const { demoBilling } = await import('$lib/server/demo-data');
     const { account, links } = demoBilling();
-    return { account, links: links satisfies BillingLinks, degraded: false, autostart };
+    return { account, links: links satisfies BillingLinks, degraded: false, prizeDegraded: false, autostart, prizes: [] as PrizeAward[] };
   }
 
   const s = locals.session;
@@ -220,19 +242,14 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   // invalidation on the cache bus; that both drops the server cache and (via the
   // live SSE stream) re-fetches this page, so the view flips to premium on its
   // own. No special-casing needed in the load.
-  const accountResult = await billingState(uid).then(
-    (value) => ({ status: 'fulfilled' as const, value }),
-    () => ({ status: 'rejected' as const })
-  );
-
+  const board = await billingPageData({ uid });
   return {
-    account:
-      accountResult.status === 'fulfilled'
-        ? accountResult.value
-        : ({ active: false, status: 'free', expiresAt: null, source: '', subscriptionRef: null, cancelPending: false } as BillingState),
+    account: board.account,
     links: links(),
-    degraded: accountResult.status !== 'fulfilled',
-    autostart
+    degraded: board.degraded,
+    autostart,
+    prizes: board.prizes,
+    prizeDegraded: board.prizeDegraded
   };
 };
 

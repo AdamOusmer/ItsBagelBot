@@ -18,7 +18,10 @@
       | 'neutral'
       | 'moderator'
       | 'admin'
-      | 'owner';
+      | 'owner'
+      | 'positive'
+      | 'warning'
+      | 'danger';
     children: Snippet;
   } = $props();
 </script>
@@ -71,4 +74,7 @@
     --badge-bg: var(--bb-tier-vip-bg);
     --badge-tone-rule: var(--bb-tier-vip-border);
   }
+  :global(.state-pill.positive) { --badge-tone: var(--bb-green-light, #74c69d); --badge-bg: rgba(82,183,136,.1); --badge-tone-rule: rgba(82,183,136,.3); }
+  :global(.state-pill.warning) { --badge-tone: #f2c879; --badge-bg: rgba(242,200,121,.1); --badge-tone-rule: rgba(242,200,121,.3); }
+  :global(.state-pill.danger) { --badge-tone: #f28c8c; --badge-bg: rgba(242,140,140,.1); --badge-tone-rule: rgba(242,140,140,.3); }
 </style>

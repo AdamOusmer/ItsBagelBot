@@ -11,6 +11,7 @@ import {
   userLookup,
   userSetStatus,
   userSetActive,
+  userSetTestAccount,
   userSetCreatorCode,
   userBan,
   userUnban,
@@ -437,6 +438,15 @@ export const actions: Actions = {
         sync: p.active ? 'enroll-after' : 'unenroll-first',
         mutate: () => userSetActive(ref, p.active)
       })
+  }),
+
+  setTestAccount: userAction<{ active: boolean }>({
+    name: 'set_test_account',
+    key: 'users.test',
+    parse: parseActive,
+    demo: (ctx) => okReply(`test account=${ctx.payload.active} (demo)`),
+    notice: (user) => `test account=${user?.test_account ? 'on' : 'off'}`,
+    run: (ref, p) => userSetTestAccount(ref, p.active)
   }),
 
   setCreatorCode: userAction<CreatorCode>({

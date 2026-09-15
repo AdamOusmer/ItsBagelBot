@@ -3,6 +3,7 @@
 package ent
 
 import (
+	"ItsBagelBot/app/db/users/ent/premiumgrant"
 	"ItsBagelBot/app/db/users/ent/tokens"
 	"ItsBagelBot/app/db/users/ent/user"
 	"context"
@@ -251,6 +252,20 @@ func (_c *UserCreate) SetNillableOnboarded(v *bool) *UserCreate {
 	return _c
 }
 
+// SetTestAccount sets the "test_account" field.
+func (_c *UserCreate) SetTestAccount(v bool) *UserCreate {
+	_c.mutation.SetTestAccount(v)
+	return _c
+}
+
+// SetNillableTestAccount sets the "test_account" field if the given value is not nil.
+func (_c *UserCreate) SetNillableTestAccount(v *bool) *UserCreate {
+	if v != nil {
+		_c.SetTestAccount(*v)
+	}
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *UserCreate) SetCreatedAt(v time.Time) *UserCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -298,6 +313,21 @@ func (_c *UserCreate) AddTokens(v ...*Tokens) *UserCreate {
 		ids[i] = v[i].ID
 	}
 	return _c.AddTokenIDs(ids...)
+}
+
+// AddPremiumGrantIDs adds the "premium_grants" edge to the PremiumGrant entity by IDs.
+func (_c *UserCreate) AddPremiumGrantIDs(ids ...int) *UserCreate {
+	_c.mutation.AddPremiumGrantIDs(ids...)
+	return _c
+}
+
+// AddPremiumGrants adds the "premium_grants" edges to the PremiumGrant entity.
+func (_c *UserCreate) AddPremiumGrants(v ...*PremiumGrant) *UserCreate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddPremiumGrantIDs(ids...)
 }
 
 // Mutation returns the UserMutation object of the builder.
@@ -374,6 +404,10 @@ func (_c *UserCreate) defaults() {
 	if _, ok := _c.mutation.Onboarded(); !ok {
 		v := user.DefaultOnboarded
 		_c.mutation.SetOnboarded(v)
+	}
+	if _, ok := _c.mutation.TestAccount(); !ok {
+		v := user.DefaultTestAccount
+		_c.mutation.SetTestAccount(v)
 	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := user.DefaultCreatedAt()
@@ -452,6 +486,9 @@ func (_c *UserCreate) check() error {
 	}
 	if _, ok := _c.mutation.Onboarded(); !ok {
 		return &ValidationError{Name: "onboarded", err: errors.New(`ent: missing required field "User.onboarded"`)}
+	}
+	if _, ok := _c.mutation.TestAccount(); !ok {
+		return &ValidationError{Name: "test_account", err: errors.New(`ent: missing required field "User.test_account"`)}
 	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		return &ValidationError{Name: "created_at", err: errors.New(`ent: missing required field "User.created_at"`)}
@@ -564,6 +601,10 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 		_spec.SetField(user.FieldOnboarded, field.TypeBool, value)
 		_node.Onboarded = value
 	}
+	if value, ok := _c.mutation.TestAccount(); ok {
+		_spec.SetField(user.FieldTestAccount, field.TypeBool, value)
+		_node.TestAccount = value
+	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(user.FieldCreatedAt, field.TypeTime, value)
 		_node.CreatedAt = value
@@ -581,6 +622,22 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(tokens.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.PremiumGrantsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.PremiumGrantsTable,
+			Columns: []string{user.PremiumGrantsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(premiumgrant.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {
@@ -895,6 +952,18 @@ func (u *UserUpsert) SetOnboarded(v bool) *UserUpsert {
 // UpdateOnboarded sets the "onboarded" field to the value that was provided on create.
 func (u *UserUpsert) UpdateOnboarded() *UserUpsert {
 	u.SetExcluded(user.FieldOnboarded)
+	return u
+}
+
+// SetTestAccount sets the "test_account" field.
+func (u *UserUpsert) SetTestAccount(v bool) *UserUpsert {
+	u.Set(user.FieldTestAccount, v)
+	return u
+}
+
+// UpdateTestAccount sets the "test_account" field to the value that was provided on create.
+func (u *UserUpsert) UpdateTestAccount() *UserUpsert {
+	u.SetExcluded(user.FieldTestAccount)
 	return u
 }
 
@@ -1268,6 +1337,20 @@ func (u *UserUpsertOne) SetOnboarded(v bool) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateOnboarded() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateOnboarded()
+	})
+}
+
+// SetTestAccount sets the "test_account" field.
+func (u *UserUpsertOne) SetTestAccount(v bool) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetTestAccount(v)
+	})
+}
+
+// UpdateTestAccount sets the "test_account" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateTestAccount() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateTestAccount()
 	})
 }
 
@@ -1811,6 +1894,20 @@ func (u *UserUpsertBulk) SetOnboarded(v bool) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdateOnboarded() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateOnboarded()
+	})
+}
+
+// SetTestAccount sets the "test_account" field.
+func (u *UserUpsertBulk) SetTestAccount(v bool) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetTestAccount(v)
+	})
+}
+
+// UpdateTestAccount sets the "test_account" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateTestAccount() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateTestAccount()
 	})
 }
 

@@ -3,10 +3,12 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { Bolota, PageHead, Card, Modal, AlertBanner, Button, ConfirmDialog, FieldError, AuroraBg, LightField, portal, toast, getI18n, containsLink } from '@bagel/kit';
+  import { fmtDateTime } from '@bagel/kit/format';
   import { page } from '$app/state';
   import { replaceState } from '$app/navigation';
   import { onMount } from 'svelte';
   import type { BillingState } from '$lib/server/services';
+  import type { PrizeAward } from '$lib/server/giveaways';
 
   let { data, form } = $props();
 
@@ -14,6 +16,7 @@
   const { t } = i18n;
 
   const account = $derived(data.account as BillingState);
+  const prizes = $derived((data.prizes ?? []) as PrizeAward[]);
 
   let optimisticPaid = $state(false);
 
@@ -273,6 +276,17 @@
     if (cancelling) return;
     cancelDialogOpen = false;
   }
+
+  function prizeDate(value?: string | null): string {
+    return fmtDateTime(value, '');
+  }
+
+  function prizeCopy(prize: PrizeAward): string {
+    if (prize.state === 'completed') return t('billing.prizeCompleted');
+    if (prize.state === 'active') return t('billing.prizeActive');
+    if (prize.state === 'scheduled') return t('billing.prizeScheduled');
+    return t('billing.prizePending');
+  }
   function confirmCancel() {
     cancelling = true;
     cancelForm?.requestSubmit();
@@ -390,6 +404,29 @@
   <!-- 6. Error / unavailable state: announced (AlertBanner is role="alert"). -->
   {#if data.degraded}
     <AlertBanner>{t('billing.degraded')}</AlertBanner>
+  {/if}
+  {#if data.prizeDegraded}
+    <AlertBanner>{t('billing.prizeUnavailable')}</AlertBanner>
+  {/if}
+
+  {#if prizes.length}
+    <section class="prize-card" aria-labelledby="prize-title">
+      <div class="prize-card-head">
+        <div><span class="premium-eyebrow">{t('billing.prizeTitle')}</span><h2 id="prize-title">{t('billing.prizeTimeline')}</h2></div>
+        <span class="prize-mark" aria-hidden="true">✦</span>
+      </div>
+      {#each prizes as prize (prize.id)}
+        <article class="prize-row">
+          <div><strong>{t('billing.prizeMonths', { n: prize.prizeMonths })}</strong><span>{prizeCopy(prize)}</span></div>
+          <div class="prize-dates">
+            {#if prize.confirmedStart || prize.plannedStart}<span>{prizeDate(prize.confirmedStart ?? prize.plannedStart)}</span>{/if}
+            {#if prize.confirmedEnd || prize.plannedEnd}<span>{prizeDate(prize.confirmedEnd ?? prize.plannedEnd)}</span>{/if}
+            {#if prize.billingState === 'pending' || prize.billingState === 'uncertain'}<small>{t('billing.prizeBillingPending')}</small>{/if}
+          </div>
+          {#if prize.emailState === 'missing_contact'}<small class="prize-warning">{t('billing.prizeEmailMissing')}</small>{/if}
+        </article>
+      {/each}
+    </section>
   {/if}
 
   {#if !isPaid}
@@ -726,6 +763,14 @@
   :global(.billing-card) {
     margin-top: 18px;
   }
+  .prize-card { margin:18px 0 22px; padding:22px; border:1px solid rgba(201,168,124,.38); border-radius:18px; background:linear-gradient(135deg,rgba(201,168,124,.1),rgba(255,255,255,.025)); }
+  .prize-card-head { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:14px; }
+  .prize-card-head h2 { margin:4px 0 0; font-family:var(--bb-font-display); font-size:18px; color:var(--bb-white); }
+  .premium-eyebrow { font-family:var(--bb-font-mono); font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--bb-muted); }
+  .prize-mark { color:var(--bb-tan-pale); font-size:24px; }
+  .prize-row { display:grid; grid-template-columns:minmax(160px,1fr) minmax(180px,1fr) minmax(160px,1fr); gap:16px; padding:14px 0; border-top:1px solid var(--bb-border); }
+  .prize-row strong,.prize-row span,.prize-row small { display:block; } .prize-row span { color:var(--bb-muted); font-size:12px; margin-top:5px; } .prize-dates span { color:var(--bb-tan-pale); } .prize-dates small,.prize-warning { color:#f2c879; font-size:12px; line-height:1.45; }
+  @media (max-width:700px) { .prize-row { grid-template-columns:1fr; gap:7px; } }
   .gift-h {
     margin: 0 0 6px;
     font-size: 16px;

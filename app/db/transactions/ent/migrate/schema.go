@@ -8,6 +8,378 @@ import (
 )
 
 var (
+	// AwardEmailsColumns holds the columns for the "award_emails" table.
+	AwardEmailsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true},
+		{Name: "award_id", Type: field.TypeString},
+		{Name: "kind", Type: field.TypeString},
+		{Name: "template_version", Type: field.TypeString},
+		{Name: "delivery_key", Type: field.TypeString},
+		{Name: "months", Type: field.TypeInt},
+		{Name: "period_start", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"mysql": "datetime(6)"}},
+		{Name: "period_end", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"mysql": "datetime(6)"}},
+		{Name: "subscriber", Type: field.TypeBool, Default: false},
+		{Name: "billing_pending", Type: field.TypeBool, Default: true},
+		{Name: "confirmation_queued", Type: field.TypeBool, Default: false},
+		{Name: "state", Type: field.TypeString, Default: "queued"},
+		{Name: "recipient_hash", Type: field.TypeString, Nullable: true},
+		{Name: "content_json", Type: field.TypeString, Nullable: true, Size: 2147483647},
+		{Name: "first_attempt_at", Type: field.TypeTime, Nullable: true},
+		{Name: "provider_message_id", Type: field.TypeString, Nullable: true},
+		{Name: "attempts", Type: field.TypeUint64, Default: 0},
+		{Name: "error_category", Type: field.TypeString, Nullable: true},
+		{Name: "last_error", Type: field.TypeString, Nullable: true, Size: 1000},
+		{Name: "accepted_at", Type: field.TypeTime, Nullable: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+	}
+	// AwardEmailsTable holds the schema information for the "award_emails" table.
+	AwardEmailsTable = &schema.Table{
+		Name:       "award_emails",
+		Columns:    AwardEmailsColumns,
+		PrimaryKey: []*schema.Column{AwardEmailsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "awardemail_award_id_kind",
+				Unique:  true,
+				Columns: []*schema.Column{AwardEmailsColumns[1], AwardEmailsColumns[2]},
+			},
+			{
+				Name:    "awardemail_state",
+				Unique:  false,
+				Columns: []*schema.Column{AwardEmailsColumns[11]},
+			},
+			{
+				Name:    "awardemail_delivery_key",
+				Unique:  true,
+				Columns: []*schema.Column{AwardEmailsColumns[4]},
+			},
+		},
+	}
+	// BillingOperationsColumns holds the columns for the "billing_operations" table.
+	BillingOperationsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true},
+		{Name: "award_id", Type: field.TypeString},
+		{Name: "agreement_id", Type: field.TypeString},
+		{Name: "recurring_reference", Type: field.TypeString},
+		{Name: "requested_start", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(6)"}},
+		{Name: "requested_end", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(6)"}},
+		{Name: "state", Type: field.TypeString, Default: "pending"},
+		{Name: "before_snapshot_json", Type: field.TypeString, Nullable: true},
+		{Name: "after_snapshot_json", Type: field.TypeString, Nullable: true},
+		{Name: "attempts", Type: field.TypeUint64, Default: 0},
+		{Name: "last_error", Type: field.TypeString, Nullable: true, Size: 1000},
+		{Name: "lease_until", Type: field.TypeTime, Nullable: true},
+		{Name: "version", Type: field.TypeUint64, Default: 1},
+		{Name: "verified_at", Type: field.TypeTime, Nullable: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+	}
+	// BillingOperationsTable holds the schema information for the "billing_operations" table.
+	BillingOperationsTable = &schema.Table{
+		Name:       "billing_operations",
+		Columns:    BillingOperationsColumns,
+		PrimaryKey: []*schema.Column{BillingOperationsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "billingoperation_award_id",
+				Unique:  true,
+				Columns: []*schema.Column{BillingOperationsColumns[1]},
+			},
+			{
+				Name:    "billingoperation_state",
+				Unique:  false,
+				Columns: []*schema.Column{BillingOperationsColumns[6]},
+			},
+			{
+				Name:    "billingoperation_lease_until",
+				Unique:  false,
+				Columns: []*schema.Column{BillingOperationsColumns[11]},
+			},
+		},
+	}
+	// GiveawaysColumns holds the columns for the "giveaways" table.
+	GiveawaysColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true},
+		{Name: "idempotency_key", Type: field.TypeString, Unique: true},
+		{Name: "title", Type: field.TypeString, Size: 200},
+		{Name: "reason", Type: field.TypeString, Nullable: true, Size: 1000},
+		{Name: "rules_version", Type: field.TypeString},
+		{Name: "winner_count", Type: field.TypeInt},
+		{Name: "prize_months", Type: field.TypeInt},
+		{Name: "status", Type: field.TypeString, Default: "draft"},
+		{Name: "created_by", Type: field.TypeUint64},
+		{Name: "version", Type: field.TypeUint64, Default: 1},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "frozen_at", Type: field.TypeTime, Nullable: true},
+		{Name: "drawn_at", Type: field.TypeTime, Nullable: true},
+		{Name: "freeze_idempotency_key", Type: field.TypeString, Nullable: true},
+		{Name: "frozen_pool_digest", Type: field.TypeString, Nullable: true},
+	}
+	// GiveawaysTable holds the schema information for the "giveaways" table.
+	GiveawaysTable = &schema.Table{
+		Name:       "giveaways",
+		Columns:    GiveawaysColumns,
+		PrimaryKey: []*schema.Column{GiveawaysColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "giveaway_status",
+				Unique:  false,
+				Columns: []*schema.Column{GiveawaysColumns[7]},
+			},
+			{
+				Name:    "giveaway_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{GiveawaysColumns[10]},
+			},
+		},
+	}
+	// GiveawayAlertsColumns holds the columns for the "giveaway_alerts" table.
+	GiveawayAlertsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true},
+		{Name: "award_id", Type: field.TypeString},
+		{Name: "operation_id", Type: field.TypeString, Nullable: true},
+		{Name: "category", Type: field.TypeString},
+		{Name: "state", Type: field.TypeString, Default: "unresolved"},
+		{Name: "message", Type: field.TypeString, Size: 2000},
+		{Name: "affected_boundary", Type: field.TypeTime, Nullable: true},
+		{Name: "first_seen_at", Type: field.TypeTime},
+		{Name: "last_seen_at", Type: field.TypeTime},
+		{Name: "acknowledged_by", Type: field.TypeUint64, Nullable: true},
+		{Name: "acknowledged_at", Type: field.TypeTime, Nullable: true},
+		{Name: "resolved_at", Type: field.TypeTime, Nullable: true},
+	}
+	// GiveawayAlertsTable holds the schema information for the "giveaway_alerts" table.
+	GiveawayAlertsTable = &schema.Table{
+		Name:       "giveaway_alerts",
+		Columns:    GiveawayAlertsColumns,
+		PrimaryKey: []*schema.Column{GiveawayAlertsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "giveawayalert_award_id_category",
+				Unique:  true,
+				Columns: []*schema.Column{GiveawayAlertsColumns[1], GiveawayAlertsColumns[3]},
+			},
+			{
+				Name:    "giveawayalert_state",
+				Unique:  false,
+				Columns: []*schema.Column{GiveawayAlertsColumns[4]},
+			},
+			{
+				Name:    "giveawayalert_affected_boundary",
+				Unique:  false,
+				Columns: []*schema.Column{GiveawayAlertsColumns[6]},
+			},
+		},
+	}
+	// GiveawayAwardsColumns holds the columns for the "giveaway_awards" table.
+	GiveawayAwardsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true},
+		{Name: "giveaway_id", Type: field.TypeString},
+		{Name: "draw_id", Type: field.TypeString},
+		{Name: "user_id", Type: field.TypeUint64},
+		{Name: "ordinal", Type: field.TypeUint64},
+		{Name: "prize_months", Type: field.TypeInt},
+		{Name: "interval_rule", Type: field.TypeString},
+		{Name: "state", Type: field.TypeString, Default: "selected"},
+		{Name: "billing_state", Type: field.TypeString, Default: "not_required"},
+		{Name: "email_state", Type: field.TypeString, Default: "queued"},
+		{Name: "planned_start", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"mysql": "datetime(6)"}},
+		{Name: "planned_end", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"mysql": "datetime(6)"}},
+		{Name: "confirmed_start", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"mysql": "datetime(6)"}},
+		{Name: "confirmed_end", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"mysql": "datetime(6)"}},
+		{Name: "grant_id", Type: field.TypeString, Nullable: true},
+		{Name: "billing_operation_id", Type: field.TypeString, Nullable: true},
+		{Name: "failure_reason", Type: field.TypeString, Nullable: true, Size: 1000},
+		{Name: "retry_count", Type: field.TypeUint64, Default: 0},
+		{Name: "version", Type: field.TypeUint64, Default: 1},
+		{Name: "selected_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+	}
+	// GiveawayAwardsTable holds the schema information for the "giveaway_awards" table.
+	GiveawayAwardsTable = &schema.Table{
+		Name:       "giveaway_awards",
+		Columns:    GiveawayAwardsColumns,
+		PrimaryKey: []*schema.Column{GiveawayAwardsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "giveawayaward_giveaway_id_user_id",
+				Unique:  true,
+				Columns: []*schema.Column{GiveawayAwardsColumns[1], GiveawayAwardsColumns[3]},
+			},
+			{
+				Name:    "giveawayaward_state",
+				Unique:  false,
+				Columns: []*schema.Column{GiveawayAwardsColumns[7]},
+			},
+			{
+				Name:    "giveawayaward_billing_state",
+				Unique:  false,
+				Columns: []*schema.Column{GiveawayAwardsColumns[8]},
+			},
+		},
+	}
+	// GiveawayCandidatesColumns holds the columns for the "giveaway_candidates" table.
+	GiveawayCandidatesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true},
+		{Name: "giveaway_id", Type: field.TypeString},
+		{Name: "user_id", Type: field.TypeUint64},
+		{Name: "twitch_login", Type: field.TypeString, Nullable: true, Size: 25},
+		{Name: "eligibility_json", Type: field.TypeString},
+		{Name: "exclusion_reason", Type: field.TypeString, Nullable: true, Size: 200},
+		{Name: "eligible", Type: field.TypeBool, Default: true},
+		{Name: "pool_digest", Type: field.TypeString},
+		{Name: "created_at", Type: field.TypeTime},
+	}
+	// GiveawayCandidatesTable holds the schema information for the "giveaway_candidates" table.
+	GiveawayCandidatesTable = &schema.Table{
+		Name:       "giveaway_candidates",
+		Columns:    GiveawayCandidatesColumns,
+		PrimaryKey: []*schema.Column{GiveawayCandidatesColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "giveawaycandidate_giveaway_id_user_id",
+				Unique:  true,
+				Columns: []*schema.Column{GiveawayCandidatesColumns[1], GiveawayCandidatesColumns[2]},
+			},
+			{
+				Name:    "giveawaycandidate_giveaway_id_eligible",
+				Unique:  false,
+				Columns: []*schema.Column{GiveawayCandidatesColumns[1], GiveawayCandidatesColumns[6]},
+			},
+		},
+	}
+	// GiveawayDrawsColumns holds the columns for the "giveaway_draws" table.
+	GiveawayDrawsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true},
+		{Name: "giveaway_id", Type: field.TypeString},
+		{Name: "operation_key", Type: field.TypeString},
+		{Name: "pool_digest", Type: field.TypeString},
+		{Name: "algorithm_version", Type: field.TypeString},
+		{Name: "audit_json", Type: field.TypeString},
+		{Name: "winner_ids_json", Type: field.TypeString},
+		{Name: "actor_id", Type: field.TypeUint64},
+		{Name: "created_at", Type: field.TypeTime},
+	}
+	// GiveawayDrawsTable holds the schema information for the "giveaway_draws" table.
+	GiveawayDrawsTable = &schema.Table{
+		Name:       "giveaway_draws",
+		Columns:    GiveawayDrawsColumns,
+		PrimaryKey: []*schema.Column{GiveawayDrawsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "giveawaydraw_giveaway_id",
+				Unique:  true,
+				Columns: []*schema.Column{GiveawayDrawsColumns[1]},
+			},
+			{
+				Name:    "giveawaydraw_operation_key",
+				Unique:  true,
+				Columns: []*schema.Column{GiveawayDrawsColumns[2]},
+			},
+		},
+	}
+	// GiveawayOutboxesColumns holds the columns for the "giveaway_outboxes" table.
+	GiveawayOutboxesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true},
+		{Name: "aggregate_id", Type: field.TypeString},
+		{Name: "event_type", Type: field.TypeString},
+		{Name: "payload_json", Type: field.TypeString},
+		{Name: "state", Type: field.TypeString, Default: "queued"},
+		{Name: "attempts", Type: field.TypeUint64, Default: 0},
+		{Name: "last_error", Type: field.TypeString, Nullable: true, Size: 1000},
+		{Name: "lease_until", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"mysql": "datetime(6)"}},
+		{Name: "lease_owner", Type: field.TypeString, Nullable: true},
+		{Name: "next_attempt_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"mysql": "datetime(6)"}},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+	}
+	// GiveawayOutboxesTable holds the schema information for the "giveaway_outboxes" table.
+	GiveawayOutboxesTable = &schema.Table{
+		Name:       "giveaway_outboxes",
+		Columns:    GiveawayOutboxesColumns,
+		PrimaryKey: []*schema.Column{GiveawayOutboxesColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "giveawayoutbox_aggregate_id_event_type",
+				Unique:  true,
+				Columns: []*schema.Column{GiveawayOutboxesColumns[1], GiveawayOutboxesColumns[2]},
+			},
+			{
+				Name:    "giveawayoutbox_state_lease_until",
+				Unique:  false,
+				Columns: []*schema.Column{GiveawayOutboxesColumns[4], GiveawayOutboxesColumns[7]},
+			},
+		},
+	}
+	// GiveawayUserLeasesColumns holds the columns for the "giveaway_user_leases" table.
+	GiveawayUserLeasesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true},
+		{Name: "user_id", Type: field.TypeUint64},
+		{Name: "owner", Type: field.TypeString},
+		{Name: "lease_until", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(6)"}},
+		{Name: "updated_at", Type: field.TypeTime},
+	}
+	// GiveawayUserLeasesTable holds the schema information for the "giveaway_user_leases" table.
+	GiveawayUserLeasesTable = &schema.Table{
+		Name:       "giveaway_user_leases",
+		Columns:    GiveawayUserLeasesColumns,
+		PrimaryKey: []*schema.Column{GiveawayUserLeasesColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "giveawayuserlease_user_id",
+				Unique:  true,
+				Columns: []*schema.Column{GiveawayUserLeasesColumns[1]},
+			},
+			{
+				Name:    "giveawayuserlease_lease_until",
+				Unique:  false,
+				Columns: []*schema.Column{GiveawayUserLeasesColumns[3]},
+			},
+		},
+	}
+	// TebexAgreementsColumns holds the columns for the "tebex_agreements" table.
+	TebexAgreementsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true},
+		{Name: "user_id", Type: field.TypeUint64},
+		{Name: "store_id", Type: field.TypeString},
+		{Name: "recurring_reference", Type: field.TypeString},
+		{Name: "interval", Type: field.TypeString},
+		{Name: "provider_status", Type: field.TypeString},
+		{Name: "cancel_requested", Type: field.TypeBool, Default: false},
+		{Name: "next_collection_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"mysql": "datetime(6)"}},
+		{Name: "paid_through_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"mysql": "datetime(6)"}},
+		{Name: "paid_through_source", Type: field.TypeString, Nullable: true},
+		{Name: "paused_until", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"mysql": "datetime(6)"}},
+		{Name: "last_snapshot_json", Type: field.TypeString, Nullable: true},
+		{Name: "verified_at", Type: field.TypeTime, Nullable: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+	}
+	// TebexAgreementsTable holds the schema information for the "tebex_agreements" table.
+	TebexAgreementsTable = &schema.Table{
+		Name:       "tebex_agreements",
+		Columns:    TebexAgreementsColumns,
+		PrimaryKey: []*schema.Column{TebexAgreementsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "tebexagreement_recurring_reference",
+				Unique:  true,
+				Columns: []*schema.Column{TebexAgreementsColumns[3]},
+			},
+			{
+				Name:    "tebexagreement_user_id",
+				Unique:  false,
+				Columns: []*schema.Column{TebexAgreementsColumns[1]},
+			},
+			{
+				Name:    "tebexagreement_provider_status",
+				Unique:  false,
+				Columns: []*schema.Column{TebexAgreementsColumns[5]},
+			},
+		},
+	}
 	// TebexWebhookEventsColumns holds the columns for the "tebex_webhook_events" table.
 	TebexWebhookEventsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString, Unique: true},
@@ -49,6 +421,16 @@ var (
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
+		AwardEmailsTable,
+		BillingOperationsTable,
+		GiveawaysTable,
+		GiveawayAlertsTable,
+		GiveawayAwardsTable,
+		GiveawayCandidatesTable,
+		GiveawayDrawsTable,
+		GiveawayOutboxesTable,
+		GiveawayUserLeasesTable,
+		TebexAgreementsTable,
 		TebexWebhookEventsTable,
 	}
 )

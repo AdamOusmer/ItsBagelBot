@@ -11,6 +11,16 @@ import (
 
 	"ItsBagelBot/app/db/transactions/ent/migrate"
 
+	"ItsBagelBot/app/db/transactions/ent/awardemail"
+	"ItsBagelBot/app/db/transactions/ent/billingoperation"
+	"ItsBagelBot/app/db/transactions/ent/giveaway"
+	"ItsBagelBot/app/db/transactions/ent/giveawayalert"
+	"ItsBagelBot/app/db/transactions/ent/giveawayaward"
+	"ItsBagelBot/app/db/transactions/ent/giveawaycandidate"
+	"ItsBagelBot/app/db/transactions/ent/giveawaydraw"
+	"ItsBagelBot/app/db/transactions/ent/giveawayoutbox"
+	"ItsBagelBot/app/db/transactions/ent/giveawayuserlease"
+	"ItsBagelBot/app/db/transactions/ent/tebexagreement"
 	"ItsBagelBot/app/db/transactions/ent/tebexwebhookevents"
 
 	"entgo.io/ent"
@@ -23,6 +33,26 @@ type Client struct {
 	config
 	// Schema is the client for creating, migrating and dropping schema.
 	Schema *migrate.Schema
+	// AwardEmail is the client for interacting with the AwardEmail builders.
+	AwardEmail *AwardEmailClient
+	// BillingOperation is the client for interacting with the BillingOperation builders.
+	BillingOperation *BillingOperationClient
+	// Giveaway is the client for interacting with the Giveaway builders.
+	Giveaway *GiveawayClient
+	// GiveawayAlert is the client for interacting with the GiveawayAlert builders.
+	GiveawayAlert *GiveawayAlertClient
+	// GiveawayAward is the client for interacting with the GiveawayAward builders.
+	GiveawayAward *GiveawayAwardClient
+	// GiveawayCandidate is the client for interacting with the GiveawayCandidate builders.
+	GiveawayCandidate *GiveawayCandidateClient
+	// GiveawayDraw is the client for interacting with the GiveawayDraw builders.
+	GiveawayDraw *GiveawayDrawClient
+	// GiveawayOutbox is the client for interacting with the GiveawayOutbox builders.
+	GiveawayOutbox *GiveawayOutboxClient
+	// GiveawayUserLease is the client for interacting with the GiveawayUserLease builders.
+	GiveawayUserLease *GiveawayUserLeaseClient
+	// TebexAgreement is the client for interacting with the TebexAgreement builders.
+	TebexAgreement *TebexAgreementClient
 	// TebexWebhookEvents is the client for interacting with the TebexWebhookEvents builders.
 	TebexWebhookEvents *TebexWebhookEventsClient
 }
@@ -36,6 +66,16 @@ func NewClient(opts ...Option) *Client {
 
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
+	c.AwardEmail = NewAwardEmailClient(c.config)
+	c.BillingOperation = NewBillingOperationClient(c.config)
+	c.Giveaway = NewGiveawayClient(c.config)
+	c.GiveawayAlert = NewGiveawayAlertClient(c.config)
+	c.GiveawayAward = NewGiveawayAwardClient(c.config)
+	c.GiveawayCandidate = NewGiveawayCandidateClient(c.config)
+	c.GiveawayDraw = NewGiveawayDrawClient(c.config)
+	c.GiveawayOutbox = NewGiveawayOutboxClient(c.config)
+	c.GiveawayUserLease = NewGiveawayUserLeaseClient(c.config)
+	c.TebexAgreement = NewTebexAgreementClient(c.config)
 	c.TebexWebhookEvents = NewTebexWebhookEventsClient(c.config)
 }
 
@@ -129,6 +169,16 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	return &Tx{
 		ctx:                ctx,
 		config:             cfg,
+		AwardEmail:         NewAwardEmailClient(cfg),
+		BillingOperation:   NewBillingOperationClient(cfg),
+		Giveaway:           NewGiveawayClient(cfg),
+		GiveawayAlert:      NewGiveawayAlertClient(cfg),
+		GiveawayAward:      NewGiveawayAwardClient(cfg),
+		GiveawayCandidate:  NewGiveawayCandidateClient(cfg),
+		GiveawayDraw:       NewGiveawayDrawClient(cfg),
+		GiveawayOutbox:     NewGiveawayOutboxClient(cfg),
+		GiveawayUserLease:  NewGiveawayUserLeaseClient(cfg),
+		TebexAgreement:     NewTebexAgreementClient(cfg),
 		TebexWebhookEvents: NewTebexWebhookEventsClient(cfg),
 	}, nil
 }
@@ -149,6 +199,16 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	return &Tx{
 		ctx:                ctx,
 		config:             cfg,
+		AwardEmail:         NewAwardEmailClient(cfg),
+		BillingOperation:   NewBillingOperationClient(cfg),
+		Giveaway:           NewGiveawayClient(cfg),
+		GiveawayAlert:      NewGiveawayAlertClient(cfg),
+		GiveawayAward:      NewGiveawayAwardClient(cfg),
+		GiveawayCandidate:  NewGiveawayCandidateClient(cfg),
+		GiveawayDraw:       NewGiveawayDrawClient(cfg),
+		GiveawayOutbox:     NewGiveawayOutboxClient(cfg),
+		GiveawayUserLease:  NewGiveawayUserLeaseClient(cfg),
+		TebexAgreement:     NewTebexAgreementClient(cfg),
 		TebexWebhookEvents: NewTebexWebhookEventsClient(cfg),
 	}, nil
 }
@@ -156,7 +216,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 // Debug returns a new debug-client. It's used to get verbose logging on specific operations.
 //
 //	client.Debug().
-//		TebexWebhookEvents.
+//		AwardEmail.
 //		Query().
 //		Count(ctx)
 func (c *Client) Debug() *Client {
@@ -178,22 +238,1384 @@ func (c *Client) Close() error {
 // Use adds the mutation hooks to all the entity clients.
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
-	c.TebexWebhookEvents.Use(hooks...)
+	for _, n := range []interface{ Use(...Hook) }{
+		c.AwardEmail, c.BillingOperation, c.Giveaway, c.GiveawayAlert, c.GiveawayAward,
+		c.GiveawayCandidate, c.GiveawayDraw, c.GiveawayOutbox, c.GiveawayUserLease,
+		c.TebexAgreement, c.TebexWebhookEvents,
+	} {
+		n.Use(hooks...)
+	}
 }
 
 // Intercept adds the query interceptors to all the entity clients.
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
-	c.TebexWebhookEvents.Intercept(interceptors...)
+	for _, n := range []interface{ Intercept(...Interceptor) }{
+		c.AwardEmail, c.BillingOperation, c.Giveaway, c.GiveawayAlert, c.GiveawayAward,
+		c.GiveawayCandidate, c.GiveawayDraw, c.GiveawayOutbox, c.GiveawayUserLease,
+		c.TebexAgreement, c.TebexWebhookEvents,
+	} {
+		n.Intercept(interceptors...)
+	}
 }
 
 // Mutate implements the ent.Mutator interface.
 func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
+	case *AwardEmailMutation:
+		return c.AwardEmail.mutate(ctx, m)
+	case *BillingOperationMutation:
+		return c.BillingOperation.mutate(ctx, m)
+	case *GiveawayMutation:
+		return c.Giveaway.mutate(ctx, m)
+	case *GiveawayAlertMutation:
+		return c.GiveawayAlert.mutate(ctx, m)
+	case *GiveawayAwardMutation:
+		return c.GiveawayAward.mutate(ctx, m)
+	case *GiveawayCandidateMutation:
+		return c.GiveawayCandidate.mutate(ctx, m)
+	case *GiveawayDrawMutation:
+		return c.GiveawayDraw.mutate(ctx, m)
+	case *GiveawayOutboxMutation:
+		return c.GiveawayOutbox.mutate(ctx, m)
+	case *GiveawayUserLeaseMutation:
+		return c.GiveawayUserLease.mutate(ctx, m)
+	case *TebexAgreementMutation:
+		return c.TebexAgreement.mutate(ctx, m)
 	case *TebexWebhookEventsMutation:
 		return c.TebexWebhookEvents.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
+	}
+}
+
+// AwardEmailClient is a client for the AwardEmail schema.
+type AwardEmailClient struct {
+	config
+}
+
+// NewAwardEmailClient returns a client for the AwardEmail from the given config.
+func NewAwardEmailClient(c config) *AwardEmailClient {
+	return &AwardEmailClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `awardemail.Hooks(f(g(h())))`.
+func (c *AwardEmailClient) Use(hooks ...Hook) {
+	c.hooks.AwardEmail = append(c.hooks.AwardEmail, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `awardemail.Intercept(f(g(h())))`.
+func (c *AwardEmailClient) Intercept(interceptors ...Interceptor) {
+	c.inters.AwardEmail = append(c.inters.AwardEmail, interceptors...)
+}
+
+// Create returns a builder for creating a AwardEmail entity.
+func (c *AwardEmailClient) Create() *AwardEmailCreate {
+	mutation := newAwardEmailMutation(c.config, OpCreate)
+	return &AwardEmailCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of AwardEmail entities.
+func (c *AwardEmailClient) CreateBulk(builders ...*AwardEmailCreate) *AwardEmailCreateBulk {
+	return &AwardEmailCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *AwardEmailClient) MapCreateBulk(slice any, setFunc func(*AwardEmailCreate, int)) *AwardEmailCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &AwardEmailCreateBulk{err: fmt.Errorf("calling to AwardEmailClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*AwardEmailCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &AwardEmailCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for AwardEmail.
+func (c *AwardEmailClient) Update() *AwardEmailUpdate {
+	mutation := newAwardEmailMutation(c.config, OpUpdate)
+	return &AwardEmailUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *AwardEmailClient) UpdateOne(_m *AwardEmail) *AwardEmailUpdateOne {
+	mutation := newAwardEmailMutation(c.config, OpUpdateOne, withAwardEmail(_m))
+	return &AwardEmailUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *AwardEmailClient) UpdateOneID(id string) *AwardEmailUpdateOne {
+	mutation := newAwardEmailMutation(c.config, OpUpdateOne, withAwardEmailID(id))
+	return &AwardEmailUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for AwardEmail.
+func (c *AwardEmailClient) Delete() *AwardEmailDelete {
+	mutation := newAwardEmailMutation(c.config, OpDelete)
+	return &AwardEmailDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *AwardEmailClient) DeleteOne(_m *AwardEmail) *AwardEmailDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *AwardEmailClient) DeleteOneID(id string) *AwardEmailDeleteOne {
+	builder := c.Delete().Where(awardemail.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &AwardEmailDeleteOne{builder}
+}
+
+// Query returns a query builder for AwardEmail.
+func (c *AwardEmailClient) Query() *AwardEmailQuery {
+	return &AwardEmailQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeAwardEmail},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a AwardEmail entity by its id.
+func (c *AwardEmailClient) Get(ctx context.Context, id string) (*AwardEmail, error) {
+	return c.Query().Where(awardemail.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *AwardEmailClient) GetX(ctx context.Context, id string) *AwardEmail {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *AwardEmailClient) Hooks() []Hook {
+	return c.hooks.AwardEmail
+}
+
+// Interceptors returns the client interceptors.
+func (c *AwardEmailClient) Interceptors() []Interceptor {
+	return c.inters.AwardEmail
+}
+
+func (c *AwardEmailClient) mutate(ctx context.Context, m *AwardEmailMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&AwardEmailCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&AwardEmailUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&AwardEmailUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&AwardEmailDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown AwardEmail mutation op: %q", m.Op())
+	}
+}
+
+// BillingOperationClient is a client for the BillingOperation schema.
+type BillingOperationClient struct {
+	config
+}
+
+// NewBillingOperationClient returns a client for the BillingOperation from the given config.
+func NewBillingOperationClient(c config) *BillingOperationClient {
+	return &BillingOperationClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `billingoperation.Hooks(f(g(h())))`.
+func (c *BillingOperationClient) Use(hooks ...Hook) {
+	c.hooks.BillingOperation = append(c.hooks.BillingOperation, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `billingoperation.Intercept(f(g(h())))`.
+func (c *BillingOperationClient) Intercept(interceptors ...Interceptor) {
+	c.inters.BillingOperation = append(c.inters.BillingOperation, interceptors...)
+}
+
+// Create returns a builder for creating a BillingOperation entity.
+func (c *BillingOperationClient) Create() *BillingOperationCreate {
+	mutation := newBillingOperationMutation(c.config, OpCreate)
+	return &BillingOperationCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of BillingOperation entities.
+func (c *BillingOperationClient) CreateBulk(builders ...*BillingOperationCreate) *BillingOperationCreateBulk {
+	return &BillingOperationCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *BillingOperationClient) MapCreateBulk(slice any, setFunc func(*BillingOperationCreate, int)) *BillingOperationCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &BillingOperationCreateBulk{err: fmt.Errorf("calling to BillingOperationClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*BillingOperationCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &BillingOperationCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for BillingOperation.
+func (c *BillingOperationClient) Update() *BillingOperationUpdate {
+	mutation := newBillingOperationMutation(c.config, OpUpdate)
+	return &BillingOperationUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *BillingOperationClient) UpdateOne(_m *BillingOperation) *BillingOperationUpdateOne {
+	mutation := newBillingOperationMutation(c.config, OpUpdateOne, withBillingOperation(_m))
+	return &BillingOperationUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *BillingOperationClient) UpdateOneID(id string) *BillingOperationUpdateOne {
+	mutation := newBillingOperationMutation(c.config, OpUpdateOne, withBillingOperationID(id))
+	return &BillingOperationUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for BillingOperation.
+func (c *BillingOperationClient) Delete() *BillingOperationDelete {
+	mutation := newBillingOperationMutation(c.config, OpDelete)
+	return &BillingOperationDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *BillingOperationClient) DeleteOne(_m *BillingOperation) *BillingOperationDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *BillingOperationClient) DeleteOneID(id string) *BillingOperationDeleteOne {
+	builder := c.Delete().Where(billingoperation.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &BillingOperationDeleteOne{builder}
+}
+
+// Query returns a query builder for BillingOperation.
+func (c *BillingOperationClient) Query() *BillingOperationQuery {
+	return &BillingOperationQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeBillingOperation},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a BillingOperation entity by its id.
+func (c *BillingOperationClient) Get(ctx context.Context, id string) (*BillingOperation, error) {
+	return c.Query().Where(billingoperation.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *BillingOperationClient) GetX(ctx context.Context, id string) *BillingOperation {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *BillingOperationClient) Hooks() []Hook {
+	return c.hooks.BillingOperation
+}
+
+// Interceptors returns the client interceptors.
+func (c *BillingOperationClient) Interceptors() []Interceptor {
+	return c.inters.BillingOperation
+}
+
+func (c *BillingOperationClient) mutate(ctx context.Context, m *BillingOperationMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&BillingOperationCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&BillingOperationUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&BillingOperationUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&BillingOperationDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown BillingOperation mutation op: %q", m.Op())
+	}
+}
+
+// GiveawayClient is a client for the Giveaway schema.
+type GiveawayClient struct {
+	config
+}
+
+// NewGiveawayClient returns a client for the Giveaway from the given config.
+func NewGiveawayClient(c config) *GiveawayClient {
+	return &GiveawayClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `giveaway.Hooks(f(g(h())))`.
+func (c *GiveawayClient) Use(hooks ...Hook) {
+	c.hooks.Giveaway = append(c.hooks.Giveaway, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `giveaway.Intercept(f(g(h())))`.
+func (c *GiveawayClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Giveaway = append(c.inters.Giveaway, interceptors...)
+}
+
+// Create returns a builder for creating a Giveaway entity.
+func (c *GiveawayClient) Create() *GiveawayCreate {
+	mutation := newGiveawayMutation(c.config, OpCreate)
+	return &GiveawayCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Giveaway entities.
+func (c *GiveawayClient) CreateBulk(builders ...*GiveawayCreate) *GiveawayCreateBulk {
+	return &GiveawayCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *GiveawayClient) MapCreateBulk(slice any, setFunc func(*GiveawayCreate, int)) *GiveawayCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &GiveawayCreateBulk{err: fmt.Errorf("calling to GiveawayClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*GiveawayCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &GiveawayCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Giveaway.
+func (c *GiveawayClient) Update() *GiveawayUpdate {
+	mutation := newGiveawayMutation(c.config, OpUpdate)
+	return &GiveawayUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *GiveawayClient) UpdateOne(_m *Giveaway) *GiveawayUpdateOne {
+	mutation := newGiveawayMutation(c.config, OpUpdateOne, withGiveaway(_m))
+	return &GiveawayUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *GiveawayClient) UpdateOneID(id string) *GiveawayUpdateOne {
+	mutation := newGiveawayMutation(c.config, OpUpdateOne, withGiveawayID(id))
+	return &GiveawayUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Giveaway.
+func (c *GiveawayClient) Delete() *GiveawayDelete {
+	mutation := newGiveawayMutation(c.config, OpDelete)
+	return &GiveawayDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *GiveawayClient) DeleteOne(_m *Giveaway) *GiveawayDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *GiveawayClient) DeleteOneID(id string) *GiveawayDeleteOne {
+	builder := c.Delete().Where(giveaway.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &GiveawayDeleteOne{builder}
+}
+
+// Query returns a query builder for Giveaway.
+func (c *GiveawayClient) Query() *GiveawayQuery {
+	return &GiveawayQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeGiveaway},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Giveaway entity by its id.
+func (c *GiveawayClient) Get(ctx context.Context, id string) (*Giveaway, error) {
+	return c.Query().Where(giveaway.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *GiveawayClient) GetX(ctx context.Context, id string) *Giveaway {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *GiveawayClient) Hooks() []Hook {
+	return c.hooks.Giveaway
+}
+
+// Interceptors returns the client interceptors.
+func (c *GiveawayClient) Interceptors() []Interceptor {
+	return c.inters.Giveaway
+}
+
+func (c *GiveawayClient) mutate(ctx context.Context, m *GiveawayMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&GiveawayCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&GiveawayUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&GiveawayUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&GiveawayDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Giveaway mutation op: %q", m.Op())
+	}
+}
+
+// GiveawayAlertClient is a client for the GiveawayAlert schema.
+type GiveawayAlertClient struct {
+	config
+}
+
+// NewGiveawayAlertClient returns a client for the GiveawayAlert from the given config.
+func NewGiveawayAlertClient(c config) *GiveawayAlertClient {
+	return &GiveawayAlertClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `giveawayalert.Hooks(f(g(h())))`.
+func (c *GiveawayAlertClient) Use(hooks ...Hook) {
+	c.hooks.GiveawayAlert = append(c.hooks.GiveawayAlert, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `giveawayalert.Intercept(f(g(h())))`.
+func (c *GiveawayAlertClient) Intercept(interceptors ...Interceptor) {
+	c.inters.GiveawayAlert = append(c.inters.GiveawayAlert, interceptors...)
+}
+
+// Create returns a builder for creating a GiveawayAlert entity.
+func (c *GiveawayAlertClient) Create() *GiveawayAlertCreate {
+	mutation := newGiveawayAlertMutation(c.config, OpCreate)
+	return &GiveawayAlertCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of GiveawayAlert entities.
+func (c *GiveawayAlertClient) CreateBulk(builders ...*GiveawayAlertCreate) *GiveawayAlertCreateBulk {
+	return &GiveawayAlertCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *GiveawayAlertClient) MapCreateBulk(slice any, setFunc func(*GiveawayAlertCreate, int)) *GiveawayAlertCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &GiveawayAlertCreateBulk{err: fmt.Errorf("calling to GiveawayAlertClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*GiveawayAlertCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &GiveawayAlertCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for GiveawayAlert.
+func (c *GiveawayAlertClient) Update() *GiveawayAlertUpdate {
+	mutation := newGiveawayAlertMutation(c.config, OpUpdate)
+	return &GiveawayAlertUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *GiveawayAlertClient) UpdateOne(_m *GiveawayAlert) *GiveawayAlertUpdateOne {
+	mutation := newGiveawayAlertMutation(c.config, OpUpdateOne, withGiveawayAlert(_m))
+	return &GiveawayAlertUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *GiveawayAlertClient) UpdateOneID(id string) *GiveawayAlertUpdateOne {
+	mutation := newGiveawayAlertMutation(c.config, OpUpdateOne, withGiveawayAlertID(id))
+	return &GiveawayAlertUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for GiveawayAlert.
+func (c *GiveawayAlertClient) Delete() *GiveawayAlertDelete {
+	mutation := newGiveawayAlertMutation(c.config, OpDelete)
+	return &GiveawayAlertDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *GiveawayAlertClient) DeleteOne(_m *GiveawayAlert) *GiveawayAlertDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *GiveawayAlertClient) DeleteOneID(id string) *GiveawayAlertDeleteOne {
+	builder := c.Delete().Where(giveawayalert.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &GiveawayAlertDeleteOne{builder}
+}
+
+// Query returns a query builder for GiveawayAlert.
+func (c *GiveawayAlertClient) Query() *GiveawayAlertQuery {
+	return &GiveawayAlertQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeGiveawayAlert},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a GiveawayAlert entity by its id.
+func (c *GiveawayAlertClient) Get(ctx context.Context, id string) (*GiveawayAlert, error) {
+	return c.Query().Where(giveawayalert.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *GiveawayAlertClient) GetX(ctx context.Context, id string) *GiveawayAlert {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *GiveawayAlertClient) Hooks() []Hook {
+	return c.hooks.GiveawayAlert
+}
+
+// Interceptors returns the client interceptors.
+func (c *GiveawayAlertClient) Interceptors() []Interceptor {
+	return c.inters.GiveawayAlert
+}
+
+func (c *GiveawayAlertClient) mutate(ctx context.Context, m *GiveawayAlertMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&GiveawayAlertCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&GiveawayAlertUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&GiveawayAlertUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&GiveawayAlertDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown GiveawayAlert mutation op: %q", m.Op())
+	}
+}
+
+// GiveawayAwardClient is a client for the GiveawayAward schema.
+type GiveawayAwardClient struct {
+	config
+}
+
+// NewGiveawayAwardClient returns a client for the GiveawayAward from the given config.
+func NewGiveawayAwardClient(c config) *GiveawayAwardClient {
+	return &GiveawayAwardClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `giveawayaward.Hooks(f(g(h())))`.
+func (c *GiveawayAwardClient) Use(hooks ...Hook) {
+	c.hooks.GiveawayAward = append(c.hooks.GiveawayAward, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `giveawayaward.Intercept(f(g(h())))`.
+func (c *GiveawayAwardClient) Intercept(interceptors ...Interceptor) {
+	c.inters.GiveawayAward = append(c.inters.GiveawayAward, interceptors...)
+}
+
+// Create returns a builder for creating a GiveawayAward entity.
+func (c *GiveawayAwardClient) Create() *GiveawayAwardCreate {
+	mutation := newGiveawayAwardMutation(c.config, OpCreate)
+	return &GiveawayAwardCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of GiveawayAward entities.
+func (c *GiveawayAwardClient) CreateBulk(builders ...*GiveawayAwardCreate) *GiveawayAwardCreateBulk {
+	return &GiveawayAwardCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *GiveawayAwardClient) MapCreateBulk(slice any, setFunc func(*GiveawayAwardCreate, int)) *GiveawayAwardCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &GiveawayAwardCreateBulk{err: fmt.Errorf("calling to GiveawayAwardClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*GiveawayAwardCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &GiveawayAwardCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for GiveawayAward.
+func (c *GiveawayAwardClient) Update() *GiveawayAwardUpdate {
+	mutation := newGiveawayAwardMutation(c.config, OpUpdate)
+	return &GiveawayAwardUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *GiveawayAwardClient) UpdateOne(_m *GiveawayAward) *GiveawayAwardUpdateOne {
+	mutation := newGiveawayAwardMutation(c.config, OpUpdateOne, withGiveawayAward(_m))
+	return &GiveawayAwardUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *GiveawayAwardClient) UpdateOneID(id string) *GiveawayAwardUpdateOne {
+	mutation := newGiveawayAwardMutation(c.config, OpUpdateOne, withGiveawayAwardID(id))
+	return &GiveawayAwardUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for GiveawayAward.
+func (c *GiveawayAwardClient) Delete() *GiveawayAwardDelete {
+	mutation := newGiveawayAwardMutation(c.config, OpDelete)
+	return &GiveawayAwardDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *GiveawayAwardClient) DeleteOne(_m *GiveawayAward) *GiveawayAwardDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *GiveawayAwardClient) DeleteOneID(id string) *GiveawayAwardDeleteOne {
+	builder := c.Delete().Where(giveawayaward.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &GiveawayAwardDeleteOne{builder}
+}
+
+// Query returns a query builder for GiveawayAward.
+func (c *GiveawayAwardClient) Query() *GiveawayAwardQuery {
+	return &GiveawayAwardQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeGiveawayAward},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a GiveawayAward entity by its id.
+func (c *GiveawayAwardClient) Get(ctx context.Context, id string) (*GiveawayAward, error) {
+	return c.Query().Where(giveawayaward.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *GiveawayAwardClient) GetX(ctx context.Context, id string) *GiveawayAward {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *GiveawayAwardClient) Hooks() []Hook {
+	return c.hooks.GiveawayAward
+}
+
+// Interceptors returns the client interceptors.
+func (c *GiveawayAwardClient) Interceptors() []Interceptor {
+	return c.inters.GiveawayAward
+}
+
+func (c *GiveawayAwardClient) mutate(ctx context.Context, m *GiveawayAwardMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&GiveawayAwardCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&GiveawayAwardUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&GiveawayAwardUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&GiveawayAwardDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown GiveawayAward mutation op: %q", m.Op())
+	}
+}
+
+// GiveawayCandidateClient is a client for the GiveawayCandidate schema.
+type GiveawayCandidateClient struct {
+	config
+}
+
+// NewGiveawayCandidateClient returns a client for the GiveawayCandidate from the given config.
+func NewGiveawayCandidateClient(c config) *GiveawayCandidateClient {
+	return &GiveawayCandidateClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `giveawaycandidate.Hooks(f(g(h())))`.
+func (c *GiveawayCandidateClient) Use(hooks ...Hook) {
+	c.hooks.GiveawayCandidate = append(c.hooks.GiveawayCandidate, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `giveawaycandidate.Intercept(f(g(h())))`.
+func (c *GiveawayCandidateClient) Intercept(interceptors ...Interceptor) {
+	c.inters.GiveawayCandidate = append(c.inters.GiveawayCandidate, interceptors...)
+}
+
+// Create returns a builder for creating a GiveawayCandidate entity.
+func (c *GiveawayCandidateClient) Create() *GiveawayCandidateCreate {
+	mutation := newGiveawayCandidateMutation(c.config, OpCreate)
+	return &GiveawayCandidateCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of GiveawayCandidate entities.
+func (c *GiveawayCandidateClient) CreateBulk(builders ...*GiveawayCandidateCreate) *GiveawayCandidateCreateBulk {
+	return &GiveawayCandidateCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *GiveawayCandidateClient) MapCreateBulk(slice any, setFunc func(*GiveawayCandidateCreate, int)) *GiveawayCandidateCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &GiveawayCandidateCreateBulk{err: fmt.Errorf("calling to GiveawayCandidateClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*GiveawayCandidateCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &GiveawayCandidateCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for GiveawayCandidate.
+func (c *GiveawayCandidateClient) Update() *GiveawayCandidateUpdate {
+	mutation := newGiveawayCandidateMutation(c.config, OpUpdate)
+	return &GiveawayCandidateUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *GiveawayCandidateClient) UpdateOne(_m *GiveawayCandidate) *GiveawayCandidateUpdateOne {
+	mutation := newGiveawayCandidateMutation(c.config, OpUpdateOne, withGiveawayCandidate(_m))
+	return &GiveawayCandidateUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *GiveawayCandidateClient) UpdateOneID(id string) *GiveawayCandidateUpdateOne {
+	mutation := newGiveawayCandidateMutation(c.config, OpUpdateOne, withGiveawayCandidateID(id))
+	return &GiveawayCandidateUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for GiveawayCandidate.
+func (c *GiveawayCandidateClient) Delete() *GiveawayCandidateDelete {
+	mutation := newGiveawayCandidateMutation(c.config, OpDelete)
+	return &GiveawayCandidateDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *GiveawayCandidateClient) DeleteOne(_m *GiveawayCandidate) *GiveawayCandidateDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *GiveawayCandidateClient) DeleteOneID(id string) *GiveawayCandidateDeleteOne {
+	builder := c.Delete().Where(giveawaycandidate.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &GiveawayCandidateDeleteOne{builder}
+}
+
+// Query returns a query builder for GiveawayCandidate.
+func (c *GiveawayCandidateClient) Query() *GiveawayCandidateQuery {
+	return &GiveawayCandidateQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeGiveawayCandidate},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a GiveawayCandidate entity by its id.
+func (c *GiveawayCandidateClient) Get(ctx context.Context, id string) (*GiveawayCandidate, error) {
+	return c.Query().Where(giveawaycandidate.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *GiveawayCandidateClient) GetX(ctx context.Context, id string) *GiveawayCandidate {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *GiveawayCandidateClient) Hooks() []Hook {
+	return c.hooks.GiveawayCandidate
+}
+
+// Interceptors returns the client interceptors.
+func (c *GiveawayCandidateClient) Interceptors() []Interceptor {
+	return c.inters.GiveawayCandidate
+}
+
+func (c *GiveawayCandidateClient) mutate(ctx context.Context, m *GiveawayCandidateMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&GiveawayCandidateCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&GiveawayCandidateUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&GiveawayCandidateUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&GiveawayCandidateDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown GiveawayCandidate mutation op: %q", m.Op())
+	}
+}
+
+// GiveawayDrawClient is a client for the GiveawayDraw schema.
+type GiveawayDrawClient struct {
+	config
+}
+
+// NewGiveawayDrawClient returns a client for the GiveawayDraw from the given config.
+func NewGiveawayDrawClient(c config) *GiveawayDrawClient {
+	return &GiveawayDrawClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `giveawaydraw.Hooks(f(g(h())))`.
+func (c *GiveawayDrawClient) Use(hooks ...Hook) {
+	c.hooks.GiveawayDraw = append(c.hooks.GiveawayDraw, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `giveawaydraw.Intercept(f(g(h())))`.
+func (c *GiveawayDrawClient) Intercept(interceptors ...Interceptor) {
+	c.inters.GiveawayDraw = append(c.inters.GiveawayDraw, interceptors...)
+}
+
+// Create returns a builder for creating a GiveawayDraw entity.
+func (c *GiveawayDrawClient) Create() *GiveawayDrawCreate {
+	mutation := newGiveawayDrawMutation(c.config, OpCreate)
+	return &GiveawayDrawCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of GiveawayDraw entities.
+func (c *GiveawayDrawClient) CreateBulk(builders ...*GiveawayDrawCreate) *GiveawayDrawCreateBulk {
+	return &GiveawayDrawCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *GiveawayDrawClient) MapCreateBulk(slice any, setFunc func(*GiveawayDrawCreate, int)) *GiveawayDrawCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &GiveawayDrawCreateBulk{err: fmt.Errorf("calling to GiveawayDrawClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*GiveawayDrawCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &GiveawayDrawCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for GiveawayDraw.
+func (c *GiveawayDrawClient) Update() *GiveawayDrawUpdate {
+	mutation := newGiveawayDrawMutation(c.config, OpUpdate)
+	return &GiveawayDrawUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *GiveawayDrawClient) UpdateOne(_m *GiveawayDraw) *GiveawayDrawUpdateOne {
+	mutation := newGiveawayDrawMutation(c.config, OpUpdateOne, withGiveawayDraw(_m))
+	return &GiveawayDrawUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *GiveawayDrawClient) UpdateOneID(id string) *GiveawayDrawUpdateOne {
+	mutation := newGiveawayDrawMutation(c.config, OpUpdateOne, withGiveawayDrawID(id))
+	return &GiveawayDrawUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for GiveawayDraw.
+func (c *GiveawayDrawClient) Delete() *GiveawayDrawDelete {
+	mutation := newGiveawayDrawMutation(c.config, OpDelete)
+	return &GiveawayDrawDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *GiveawayDrawClient) DeleteOne(_m *GiveawayDraw) *GiveawayDrawDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *GiveawayDrawClient) DeleteOneID(id string) *GiveawayDrawDeleteOne {
+	builder := c.Delete().Where(giveawaydraw.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &GiveawayDrawDeleteOne{builder}
+}
+
+// Query returns a query builder for GiveawayDraw.
+func (c *GiveawayDrawClient) Query() *GiveawayDrawQuery {
+	return &GiveawayDrawQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeGiveawayDraw},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a GiveawayDraw entity by its id.
+func (c *GiveawayDrawClient) Get(ctx context.Context, id string) (*GiveawayDraw, error) {
+	return c.Query().Where(giveawaydraw.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *GiveawayDrawClient) GetX(ctx context.Context, id string) *GiveawayDraw {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *GiveawayDrawClient) Hooks() []Hook {
+	return c.hooks.GiveawayDraw
+}
+
+// Interceptors returns the client interceptors.
+func (c *GiveawayDrawClient) Interceptors() []Interceptor {
+	return c.inters.GiveawayDraw
+}
+
+func (c *GiveawayDrawClient) mutate(ctx context.Context, m *GiveawayDrawMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&GiveawayDrawCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&GiveawayDrawUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&GiveawayDrawUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&GiveawayDrawDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown GiveawayDraw mutation op: %q", m.Op())
+	}
+}
+
+// GiveawayOutboxClient is a client for the GiveawayOutbox schema.
+type GiveawayOutboxClient struct {
+	config
+}
+
+// NewGiveawayOutboxClient returns a client for the GiveawayOutbox from the given config.
+func NewGiveawayOutboxClient(c config) *GiveawayOutboxClient {
+	return &GiveawayOutboxClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `giveawayoutbox.Hooks(f(g(h())))`.
+func (c *GiveawayOutboxClient) Use(hooks ...Hook) {
+	c.hooks.GiveawayOutbox = append(c.hooks.GiveawayOutbox, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `giveawayoutbox.Intercept(f(g(h())))`.
+func (c *GiveawayOutboxClient) Intercept(interceptors ...Interceptor) {
+	c.inters.GiveawayOutbox = append(c.inters.GiveawayOutbox, interceptors...)
+}
+
+// Create returns a builder for creating a GiveawayOutbox entity.
+func (c *GiveawayOutboxClient) Create() *GiveawayOutboxCreate {
+	mutation := newGiveawayOutboxMutation(c.config, OpCreate)
+	return &GiveawayOutboxCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of GiveawayOutbox entities.
+func (c *GiveawayOutboxClient) CreateBulk(builders ...*GiveawayOutboxCreate) *GiveawayOutboxCreateBulk {
+	return &GiveawayOutboxCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *GiveawayOutboxClient) MapCreateBulk(slice any, setFunc func(*GiveawayOutboxCreate, int)) *GiveawayOutboxCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &GiveawayOutboxCreateBulk{err: fmt.Errorf("calling to GiveawayOutboxClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*GiveawayOutboxCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &GiveawayOutboxCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for GiveawayOutbox.
+func (c *GiveawayOutboxClient) Update() *GiveawayOutboxUpdate {
+	mutation := newGiveawayOutboxMutation(c.config, OpUpdate)
+	return &GiveawayOutboxUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *GiveawayOutboxClient) UpdateOne(_m *GiveawayOutbox) *GiveawayOutboxUpdateOne {
+	mutation := newGiveawayOutboxMutation(c.config, OpUpdateOne, withGiveawayOutbox(_m))
+	return &GiveawayOutboxUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *GiveawayOutboxClient) UpdateOneID(id string) *GiveawayOutboxUpdateOne {
+	mutation := newGiveawayOutboxMutation(c.config, OpUpdateOne, withGiveawayOutboxID(id))
+	return &GiveawayOutboxUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for GiveawayOutbox.
+func (c *GiveawayOutboxClient) Delete() *GiveawayOutboxDelete {
+	mutation := newGiveawayOutboxMutation(c.config, OpDelete)
+	return &GiveawayOutboxDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *GiveawayOutboxClient) DeleteOne(_m *GiveawayOutbox) *GiveawayOutboxDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *GiveawayOutboxClient) DeleteOneID(id string) *GiveawayOutboxDeleteOne {
+	builder := c.Delete().Where(giveawayoutbox.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &GiveawayOutboxDeleteOne{builder}
+}
+
+// Query returns a query builder for GiveawayOutbox.
+func (c *GiveawayOutboxClient) Query() *GiveawayOutboxQuery {
+	return &GiveawayOutboxQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeGiveawayOutbox},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a GiveawayOutbox entity by its id.
+func (c *GiveawayOutboxClient) Get(ctx context.Context, id string) (*GiveawayOutbox, error) {
+	return c.Query().Where(giveawayoutbox.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *GiveawayOutboxClient) GetX(ctx context.Context, id string) *GiveawayOutbox {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *GiveawayOutboxClient) Hooks() []Hook {
+	return c.hooks.GiveawayOutbox
+}
+
+// Interceptors returns the client interceptors.
+func (c *GiveawayOutboxClient) Interceptors() []Interceptor {
+	return c.inters.GiveawayOutbox
+}
+
+func (c *GiveawayOutboxClient) mutate(ctx context.Context, m *GiveawayOutboxMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&GiveawayOutboxCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&GiveawayOutboxUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&GiveawayOutboxUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&GiveawayOutboxDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown GiveawayOutbox mutation op: %q", m.Op())
+	}
+}
+
+// GiveawayUserLeaseClient is a client for the GiveawayUserLease schema.
+type GiveawayUserLeaseClient struct {
+	config
+}
+
+// NewGiveawayUserLeaseClient returns a client for the GiveawayUserLease from the given config.
+func NewGiveawayUserLeaseClient(c config) *GiveawayUserLeaseClient {
+	return &GiveawayUserLeaseClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `giveawayuserlease.Hooks(f(g(h())))`.
+func (c *GiveawayUserLeaseClient) Use(hooks ...Hook) {
+	c.hooks.GiveawayUserLease = append(c.hooks.GiveawayUserLease, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `giveawayuserlease.Intercept(f(g(h())))`.
+func (c *GiveawayUserLeaseClient) Intercept(interceptors ...Interceptor) {
+	c.inters.GiveawayUserLease = append(c.inters.GiveawayUserLease, interceptors...)
+}
+
+// Create returns a builder for creating a GiveawayUserLease entity.
+func (c *GiveawayUserLeaseClient) Create() *GiveawayUserLeaseCreate {
+	mutation := newGiveawayUserLeaseMutation(c.config, OpCreate)
+	return &GiveawayUserLeaseCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of GiveawayUserLease entities.
+func (c *GiveawayUserLeaseClient) CreateBulk(builders ...*GiveawayUserLeaseCreate) *GiveawayUserLeaseCreateBulk {
+	return &GiveawayUserLeaseCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *GiveawayUserLeaseClient) MapCreateBulk(slice any, setFunc func(*GiveawayUserLeaseCreate, int)) *GiveawayUserLeaseCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &GiveawayUserLeaseCreateBulk{err: fmt.Errorf("calling to GiveawayUserLeaseClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*GiveawayUserLeaseCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &GiveawayUserLeaseCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for GiveawayUserLease.
+func (c *GiveawayUserLeaseClient) Update() *GiveawayUserLeaseUpdate {
+	mutation := newGiveawayUserLeaseMutation(c.config, OpUpdate)
+	return &GiveawayUserLeaseUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *GiveawayUserLeaseClient) UpdateOne(_m *GiveawayUserLease) *GiveawayUserLeaseUpdateOne {
+	mutation := newGiveawayUserLeaseMutation(c.config, OpUpdateOne, withGiveawayUserLease(_m))
+	return &GiveawayUserLeaseUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *GiveawayUserLeaseClient) UpdateOneID(id string) *GiveawayUserLeaseUpdateOne {
+	mutation := newGiveawayUserLeaseMutation(c.config, OpUpdateOne, withGiveawayUserLeaseID(id))
+	return &GiveawayUserLeaseUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for GiveawayUserLease.
+func (c *GiveawayUserLeaseClient) Delete() *GiveawayUserLeaseDelete {
+	mutation := newGiveawayUserLeaseMutation(c.config, OpDelete)
+	return &GiveawayUserLeaseDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *GiveawayUserLeaseClient) DeleteOne(_m *GiveawayUserLease) *GiveawayUserLeaseDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *GiveawayUserLeaseClient) DeleteOneID(id string) *GiveawayUserLeaseDeleteOne {
+	builder := c.Delete().Where(giveawayuserlease.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &GiveawayUserLeaseDeleteOne{builder}
+}
+
+// Query returns a query builder for GiveawayUserLease.
+func (c *GiveawayUserLeaseClient) Query() *GiveawayUserLeaseQuery {
+	return &GiveawayUserLeaseQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeGiveawayUserLease},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a GiveawayUserLease entity by its id.
+func (c *GiveawayUserLeaseClient) Get(ctx context.Context, id string) (*GiveawayUserLease, error) {
+	return c.Query().Where(giveawayuserlease.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *GiveawayUserLeaseClient) GetX(ctx context.Context, id string) *GiveawayUserLease {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *GiveawayUserLeaseClient) Hooks() []Hook {
+	return c.hooks.GiveawayUserLease
+}
+
+// Interceptors returns the client interceptors.
+func (c *GiveawayUserLeaseClient) Interceptors() []Interceptor {
+	return c.inters.GiveawayUserLease
+}
+
+func (c *GiveawayUserLeaseClient) mutate(ctx context.Context, m *GiveawayUserLeaseMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&GiveawayUserLeaseCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&GiveawayUserLeaseUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&GiveawayUserLeaseUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&GiveawayUserLeaseDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown GiveawayUserLease mutation op: %q", m.Op())
+	}
+}
+
+// TebexAgreementClient is a client for the TebexAgreement schema.
+type TebexAgreementClient struct {
+	config
+}
+
+// NewTebexAgreementClient returns a client for the TebexAgreement from the given config.
+func NewTebexAgreementClient(c config) *TebexAgreementClient {
+	return &TebexAgreementClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `tebexagreement.Hooks(f(g(h())))`.
+func (c *TebexAgreementClient) Use(hooks ...Hook) {
+	c.hooks.TebexAgreement = append(c.hooks.TebexAgreement, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `tebexagreement.Intercept(f(g(h())))`.
+func (c *TebexAgreementClient) Intercept(interceptors ...Interceptor) {
+	c.inters.TebexAgreement = append(c.inters.TebexAgreement, interceptors...)
+}
+
+// Create returns a builder for creating a TebexAgreement entity.
+func (c *TebexAgreementClient) Create() *TebexAgreementCreate {
+	mutation := newTebexAgreementMutation(c.config, OpCreate)
+	return &TebexAgreementCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of TebexAgreement entities.
+func (c *TebexAgreementClient) CreateBulk(builders ...*TebexAgreementCreate) *TebexAgreementCreateBulk {
+	return &TebexAgreementCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *TebexAgreementClient) MapCreateBulk(slice any, setFunc func(*TebexAgreementCreate, int)) *TebexAgreementCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &TebexAgreementCreateBulk{err: fmt.Errorf("calling to TebexAgreementClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*TebexAgreementCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &TebexAgreementCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for TebexAgreement.
+func (c *TebexAgreementClient) Update() *TebexAgreementUpdate {
+	mutation := newTebexAgreementMutation(c.config, OpUpdate)
+	return &TebexAgreementUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *TebexAgreementClient) UpdateOne(_m *TebexAgreement) *TebexAgreementUpdateOne {
+	mutation := newTebexAgreementMutation(c.config, OpUpdateOne, withTebexAgreement(_m))
+	return &TebexAgreementUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *TebexAgreementClient) UpdateOneID(id string) *TebexAgreementUpdateOne {
+	mutation := newTebexAgreementMutation(c.config, OpUpdateOne, withTebexAgreementID(id))
+	return &TebexAgreementUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for TebexAgreement.
+func (c *TebexAgreementClient) Delete() *TebexAgreementDelete {
+	mutation := newTebexAgreementMutation(c.config, OpDelete)
+	return &TebexAgreementDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *TebexAgreementClient) DeleteOne(_m *TebexAgreement) *TebexAgreementDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *TebexAgreementClient) DeleteOneID(id string) *TebexAgreementDeleteOne {
+	builder := c.Delete().Where(tebexagreement.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &TebexAgreementDeleteOne{builder}
+}
+
+// Query returns a query builder for TebexAgreement.
+func (c *TebexAgreementClient) Query() *TebexAgreementQuery {
+	return &TebexAgreementQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeTebexAgreement},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a TebexAgreement entity by its id.
+func (c *TebexAgreementClient) Get(ctx context.Context, id string) (*TebexAgreement, error) {
+	return c.Query().Where(tebexagreement.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *TebexAgreementClient) GetX(ctx context.Context, id string) *TebexAgreement {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *TebexAgreementClient) Hooks() []Hook {
+	return c.hooks.TebexAgreement
+}
+
+// Interceptors returns the client interceptors.
+func (c *TebexAgreementClient) Interceptors() []Interceptor {
+	return c.inters.TebexAgreement
+}
+
+func (c *TebexAgreementClient) mutate(ctx context.Context, m *TebexAgreementMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&TebexAgreementCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&TebexAgreementUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&TebexAgreementUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&TebexAgreementDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown TebexAgreement mutation op: %q", m.Op())
 	}
 }
 
@@ -333,9 +1755,13 @@ func (c *TebexWebhookEventsClient) mutate(ctx context.Context, m *TebexWebhookEv
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		TebexWebhookEvents []ent.Hook
+		AwardEmail, BillingOperation, Giveaway, GiveawayAlert, GiveawayAward,
+		GiveawayCandidate, GiveawayDraw, GiveawayOutbox, GiveawayUserLease,
+		TebexAgreement, TebexWebhookEvents []ent.Hook
 	}
 	inters struct {
-		TebexWebhookEvents []ent.Interceptor
+		AwardEmail, BillingOperation, Giveaway, GiveawayAlert, GiveawayAward,
+		GiveawayCandidate, GiveawayDraw, GiveawayOutbox, GiveawayUserLease,
+		TebexAgreement, TebexWebhookEvents []ent.Interceptor
 	}
 )

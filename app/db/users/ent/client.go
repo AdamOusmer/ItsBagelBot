@@ -14,6 +14,7 @@ import (
 	"ItsBagelBot/app/db/users/ent/adminaudit"
 	"ItsBagelBot/app/db/users/ent/adminuser"
 	"ItsBagelBot/app/db/users/ent/delegation"
+	"ItsBagelBot/app/db/users/ent/premiumgrant"
 	"ItsBagelBot/app/db/users/ent/tokens"
 	"ItsBagelBot/app/db/users/ent/user"
 
@@ -34,6 +35,8 @@ type Client struct {
 	AdminUser *AdminUserClient
 	// Delegation is the client for interacting with the Delegation builders.
 	Delegation *DelegationClient
+	// PremiumGrant is the client for interacting with the PremiumGrant builders.
+	PremiumGrant *PremiumGrantClient
 	// Tokens is the client for interacting with the Tokens builders.
 	Tokens *TokensClient
 	// User is the client for interacting with the User builders.
@@ -52,6 +55,7 @@ func (c *Client) init() {
 	c.AdminAudit = NewAdminAuditClient(c.config)
 	c.AdminUser = NewAdminUserClient(c.config)
 	c.Delegation = NewDelegationClient(c.config)
+	c.PremiumGrant = NewPremiumGrantClient(c.config)
 	c.Tokens = NewTokensClient(c.config)
 	c.User = NewUserClient(c.config)
 }
@@ -144,13 +148,14 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	cfg := c.config
 	cfg.driver = tx
 	return &Tx{
-		ctx:        ctx,
-		config:     cfg,
-		AdminAudit: NewAdminAuditClient(cfg),
-		AdminUser:  NewAdminUserClient(cfg),
-		Delegation: NewDelegationClient(cfg),
-		Tokens:     NewTokensClient(cfg),
-		User:       NewUserClient(cfg),
+		ctx:          ctx,
+		config:       cfg,
+		AdminAudit:   NewAdminAuditClient(cfg),
+		AdminUser:    NewAdminUserClient(cfg),
+		Delegation:   NewDelegationClient(cfg),
+		PremiumGrant: NewPremiumGrantClient(cfg),
+		Tokens:       NewTokensClient(cfg),
+		User:         NewUserClient(cfg),
 	}, nil
 }
 
@@ -168,13 +173,14 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	cfg := c.config
 	cfg.driver = &txDriver{tx: tx, drv: c.driver}
 	return &Tx{
-		ctx:        ctx,
-		config:     cfg,
-		AdminAudit: NewAdminAuditClient(cfg),
-		AdminUser:  NewAdminUserClient(cfg),
-		Delegation: NewDelegationClient(cfg),
-		Tokens:     NewTokensClient(cfg),
-		User:       NewUserClient(cfg),
+		ctx:          ctx,
+		config:       cfg,
+		AdminAudit:   NewAdminAuditClient(cfg),
+		AdminUser:    NewAdminUserClient(cfg),
+		Delegation:   NewDelegationClient(cfg),
+		PremiumGrant: NewPremiumGrantClient(cfg),
+		Tokens:       NewTokensClient(cfg),
+		User:         NewUserClient(cfg),
 	}, nil
 }
 
@@ -203,21 +209,21 @@ func (c *Client) Close() error {
 // Use adds the mutation hooks to all the entity clients.
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
-	c.AdminAudit.Use(hooks...)
-	c.AdminUser.Use(hooks...)
-	c.Delegation.Use(hooks...)
-	c.Tokens.Use(hooks...)
-	c.User.Use(hooks...)
+	for _, n := range []interface{ Use(...Hook) }{
+		c.AdminAudit, c.AdminUser, c.Delegation, c.PremiumGrant, c.Tokens, c.User,
+	} {
+		n.Use(hooks...)
+	}
 }
 
 // Intercept adds the query interceptors to all the entity clients.
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
-	c.AdminAudit.Intercept(interceptors...)
-	c.AdminUser.Intercept(interceptors...)
-	c.Delegation.Intercept(interceptors...)
-	c.Tokens.Intercept(interceptors...)
-	c.User.Intercept(interceptors...)
+	for _, n := range []interface{ Intercept(...Interceptor) }{
+		c.AdminAudit, c.AdminUser, c.Delegation, c.PremiumGrant, c.Tokens, c.User,
+	} {
+		n.Intercept(interceptors...)
+	}
 }
 
 // Mutate implements the ent.Mutator interface.
@@ -229,6 +235,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.AdminUser.mutate(ctx, m)
 	case *DelegationMutation:
 		return c.Delegation.mutate(ctx, m)
+	case *PremiumGrantMutation:
+		return c.PremiumGrant.mutate(ctx, m)
 	case *TokensMutation:
 		return c.Tokens.mutate(ctx, m)
 	case *UserMutation:
@@ -637,6 +645,155 @@ func (c *DelegationClient) mutate(ctx context.Context, m *DelegationMutation) (V
 	}
 }
 
+// PremiumGrantClient is a client for the PremiumGrant schema.
+type PremiumGrantClient struct {
+	config
+}
+
+// NewPremiumGrantClient returns a client for the PremiumGrant from the given config.
+func NewPremiumGrantClient(c config) *PremiumGrantClient {
+	return &PremiumGrantClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `premiumgrant.Hooks(f(g(h())))`.
+func (c *PremiumGrantClient) Use(hooks ...Hook) {
+	c.hooks.PremiumGrant = append(c.hooks.PremiumGrant, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `premiumgrant.Intercept(f(g(h())))`.
+func (c *PremiumGrantClient) Intercept(interceptors ...Interceptor) {
+	c.inters.PremiumGrant = append(c.inters.PremiumGrant, interceptors...)
+}
+
+// Create returns a builder for creating a PremiumGrant entity.
+func (c *PremiumGrantClient) Create() *PremiumGrantCreate {
+	mutation := newPremiumGrantMutation(c.config, OpCreate)
+	return &PremiumGrantCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of PremiumGrant entities.
+func (c *PremiumGrantClient) CreateBulk(builders ...*PremiumGrantCreate) *PremiumGrantCreateBulk {
+	return &PremiumGrantCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *PremiumGrantClient) MapCreateBulk(slice any, setFunc func(*PremiumGrantCreate, int)) *PremiumGrantCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &PremiumGrantCreateBulk{err: fmt.Errorf("calling to PremiumGrantClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*PremiumGrantCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &PremiumGrantCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for PremiumGrant.
+func (c *PremiumGrantClient) Update() *PremiumGrantUpdate {
+	mutation := newPremiumGrantMutation(c.config, OpUpdate)
+	return &PremiumGrantUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *PremiumGrantClient) UpdateOne(_m *PremiumGrant) *PremiumGrantUpdateOne {
+	mutation := newPremiumGrantMutation(c.config, OpUpdateOne, withPremiumGrant(_m))
+	return &PremiumGrantUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *PremiumGrantClient) UpdateOneID(id int) *PremiumGrantUpdateOne {
+	mutation := newPremiumGrantMutation(c.config, OpUpdateOne, withPremiumGrantID(id))
+	return &PremiumGrantUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for PremiumGrant.
+func (c *PremiumGrantClient) Delete() *PremiumGrantDelete {
+	mutation := newPremiumGrantMutation(c.config, OpDelete)
+	return &PremiumGrantDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *PremiumGrantClient) DeleteOne(_m *PremiumGrant) *PremiumGrantDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *PremiumGrantClient) DeleteOneID(id int) *PremiumGrantDeleteOne {
+	builder := c.Delete().Where(premiumgrant.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &PremiumGrantDeleteOne{builder}
+}
+
+// Query returns a query builder for PremiumGrant.
+func (c *PremiumGrantClient) Query() *PremiumGrantQuery {
+	return &PremiumGrantQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypePremiumGrant},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a PremiumGrant entity by its id.
+func (c *PremiumGrantClient) Get(ctx context.Context, id int) (*PremiumGrant, error) {
+	return c.Query().Where(premiumgrant.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *PremiumGrantClient) GetX(ctx context.Context, id int) *PremiumGrant {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUser queries the user edge of a PremiumGrant.
+func (c *PremiumGrantClient) QueryUser(_m *PremiumGrant) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(premiumgrant.Table, premiumgrant.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, premiumgrant.UserTable, premiumgrant.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *PremiumGrantClient) Hooks() []Hook {
+	return c.hooks.PremiumGrant
+}
+
+// Interceptors returns the client interceptors.
+func (c *PremiumGrantClient) Interceptors() []Interceptor {
+	return c.inters.PremiumGrant
+}
+
+func (c *PremiumGrantClient) mutate(ctx context.Context, m *PremiumGrantMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&PremiumGrantCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&PremiumGrantUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&PremiumGrantUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&PremiumGrantDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown PremiumGrant mutation op: %q", m.Op())
+	}
+}
+
 // TokensClient is a client for the Tokens schema.
 type TokensClient struct {
 	config
@@ -910,6 +1067,22 @@ func (c *UserClient) QueryTokens(_m *User) *TokensQuery {
 	return query
 }
 
+// QueryPremiumGrants queries the premium_grants edge of a User.
+func (c *UserClient) QueryPremiumGrants(_m *User) *PremiumGrantQuery {
+	query := (&PremiumGrantClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(premiumgrant.Table, premiumgrant.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.PremiumGrantsTable, user.PremiumGrantsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // Hooks returns the client hooks.
 func (c *UserClient) Hooks() []Hook {
 	return c.hooks.User
@@ -938,9 +1111,9 @@ func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error)
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		AdminAudit, AdminUser, Delegation, Tokens, User []ent.Hook
+		AdminAudit, AdminUser, Delegation, PremiumGrant, Tokens, User []ent.Hook
 	}
 	inters struct {
-		AdminAudit, AdminUser, Delegation, Tokens, User []ent.Interceptor
+		AdminAudit, AdminUser, Delegation, PremiumGrant, Tokens, User []ent.Interceptor
 	}
 )

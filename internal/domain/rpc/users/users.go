@@ -34,7 +34,8 @@ type AdminRequest struct {
 	// State filters list/overview to one effective user state: vip, paid,
 	// free, banned, or inactive. Empty means no filter. Precedence matches
 	// the console: banned beats inactive beats tier.
-	State string `json:"state,omitempty"`
+	State       string `json:"state,omitempty"`
+	TestAccount bool   `json:"test_account,omitempty"`
 }
 
 // AdminUserView is a single user row in an admin reply.
@@ -49,6 +50,7 @@ type AdminUserView struct {
 	SubscriptionSource        string     `json:"subscription_source,omitempty"`
 	SubscriptionRef           *string    `json:"subscription_ref,omitempty"`
 	SubscriptionCancelPending bool       `json:"subscription_cancel_pending"`
+	TestAccount               bool       `json:"test_account"`
 	CreatedAt                 time.Time  `json:"created_at"`
 	UpdatedAt                 time.Time  `json:"updated_at"`
 }

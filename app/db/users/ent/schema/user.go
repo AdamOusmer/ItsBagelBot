@@ -81,6 +81,11 @@ func (User) Fields() []ent.Field {
 
 		field.Bool("onboarded").Default(false),
 
+		// Explicit operator-controlled marker for system/test accounts. It is
+		// intentionally independent from username, email, or Twitch identity
+		// heuristics so giveaway eligibility is deterministic and auditable.
+		field.Bool("test_account").Default(false),
+
 		field.Time("created_at").Default(time.Now),
 
 		field.Time("updated_at").
@@ -96,6 +101,10 @@ func (User) Edges() []ent.Edge {
 	return []ent.Edge{
 
 		edge.To("tokens", Tokens.Type).
+			Annotations(entsql.Annotation{
+				OnDelete: entsql.Cascade,
+			}),
+		edge.To("premium_grants", PremiumGrant.Type).
 			Annotations(entsql.Annotation{
 				OnDelete: entsql.Cascade,
 			}),

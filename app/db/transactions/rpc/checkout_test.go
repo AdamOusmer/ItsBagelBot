@@ -4,6 +4,9 @@
 package rpc
 
 import (
+	usersrpc "ItsBagelBot/internal/domain/rpc/users"
+	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -59,21 +62,20 @@ func TestClampLogin(t *testing.T) {
 // smuggled through control chars or spacing must survive sanitization and still
 // be caught. This proves the sanitize -> ContainsLink pairing the RPC relies on.
 func TestGiftNoteLinkAfterSanitize(t *testing.T) {
-	blocked := []string{
-		"visit example.com now",
-		"go to example . com",
-		"hey\x00example[.]com",
-		"ping me user (at) gmail dot com",
+	cases := []struct {
+		note    string
+		blocked bool
+	}{
+		{"visit example.com now", true},
+		{"go to example . com", true},
+		{"hey\x00example[.]com", true},
+		{"ping me user (at) gmail dot com", true},
+		{"thanks so much, enjoy premium!", false},
+		{"see you at 3 p.m.", false},
 	}
-	for _, in := range blocked {
-		if !noteHasLink(sanitizeGiftMessage(in)) {
-			t.Errorf("gift note %q should be rejected as a link", in)
-		}
-	}
-	clean := []string{"thanks so much, enjoy premium!", "see you at 3 p.m."}
-	for _, in := range clean {
-		if noteHasLink(sanitizeGiftMessage(in)) {
-			t.Errorf("gift note %q should be allowed", in)
+	for _, tc := range cases {
+		if noteHasLink(sanitizeGiftMessage(tc.note)) != tc.blocked {
+			t.Errorf("gift note %q link detection mismatch", tc.note)
 		}
 	}
 }
@@ -86,5 +88,51 @@ func TestGiftNoteLinkAfterSanitize(t *testing.T) {
 func TestBasketBudget(t *testing.T) {
 	if want := 15 * time.Second; basketBudget != want {
 		t.Fatalf("basketBudget = %v, want %v", basketBudget, want)
+	}
+}
+
+type fakeCoverage struct {
+	value usersrpc.PremiumCoverage
+	err   error
+}
+
+func (f fakeCoverage) Coverage(context.Context, uint64) (usersrpc.PremiumCoverage, error) {
+	return f.value, f.err
+}
+
+type fakeAwards struct {
+	found bool
+	err   error
+}
+
+func (f fakeAwards) HasPendingOrActiveAward(context.Context, uint64) (bool, error) {
+	return f.found, f.err
+}
+
+func TestCheckoutGuardFailsClosedAndBlocksCoverage(t *testing.T) {
+	guard := &CheckoutGuard{Coverage: fakeCoverage{err: errors.New("users unavailable")}, Awards: fakeAwards{}}
+	if err := guard.Allow(context.Background(), 7); err == nil {
+		t.Fatal("coverage outage was allowed")
+	}
+	paidUntil := time.Now().UTC().Add(time.Hour)
+	guard = &CheckoutGuard{Coverage: fakeCoverage{value: usersrpc.PremiumCoverage{PaidThrough: &paidUntil}}, Awards: fakeAwards{}}
+	if err := guard.Allow(context.Background(), 7); err == nil {
+		t.Fatal("paid coverage was allowed")
+	}
+	guard = &CheckoutGuard{Coverage: fakeCoverage{}, Awards: fakeAwards{found: true}}
+	if err := guard.Allow(context.Background(), 7); err == nil {
+		t.Fatal("durable award was allowed")
+	}
+}
+
+func TestCheckoutGuardBlocksVipAndBannedAccountsWithoutPaidThrough(t *testing.T) {
+	for _, coverage := range []usersrpc.PremiumCoverage{
+		{Status: "vip", IsActive: true},
+		{Banned: true, IsActive: true},
+	} {
+		guard := &CheckoutGuard{Coverage: fakeCoverage{value: coverage}, Awards: fakeAwards{}}
+		if err := guard.Allow(context.Background(), 7); err == nil {
+			t.Fatalf("premium checkout was allowed for coverage=%+v", coverage)
+		}
 	}
 }

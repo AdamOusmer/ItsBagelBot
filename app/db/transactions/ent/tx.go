@@ -12,6 +12,26 @@ import (
 // Tx is a transactional client that is created by calling Client.Tx().
 type Tx struct {
 	config
+	// AwardEmail is the client for interacting with the AwardEmail builders.
+	AwardEmail *AwardEmailClient
+	// BillingOperation is the client for interacting with the BillingOperation builders.
+	BillingOperation *BillingOperationClient
+	// Giveaway is the client for interacting with the Giveaway builders.
+	Giveaway *GiveawayClient
+	// GiveawayAlert is the client for interacting with the GiveawayAlert builders.
+	GiveawayAlert *GiveawayAlertClient
+	// GiveawayAward is the client for interacting with the GiveawayAward builders.
+	GiveawayAward *GiveawayAwardClient
+	// GiveawayCandidate is the client for interacting with the GiveawayCandidate builders.
+	GiveawayCandidate *GiveawayCandidateClient
+	// GiveawayDraw is the client for interacting with the GiveawayDraw builders.
+	GiveawayDraw *GiveawayDrawClient
+	// GiveawayOutbox is the client for interacting with the GiveawayOutbox builders.
+	GiveawayOutbox *GiveawayOutboxClient
+	// GiveawayUserLease is the client for interacting with the GiveawayUserLease builders.
+	GiveawayUserLease *GiveawayUserLeaseClient
+	// TebexAgreement is the client for interacting with the TebexAgreement builders.
+	TebexAgreement *TebexAgreementClient
 	// TebexWebhookEvents is the client for interacting with the TebexWebhookEvents builders.
 	TebexWebhookEvents *TebexWebhookEventsClient
 
@@ -145,6 +165,16 @@ func (tx *Tx) Client() *Client {
 }
 
 func (tx *Tx) init() {
+	tx.AwardEmail = NewAwardEmailClient(tx.config)
+	tx.BillingOperation = NewBillingOperationClient(tx.config)
+	tx.Giveaway = NewGiveawayClient(tx.config)
+	tx.GiveawayAlert = NewGiveawayAlertClient(tx.config)
+	tx.GiveawayAward = NewGiveawayAwardClient(tx.config)
+	tx.GiveawayCandidate = NewGiveawayCandidateClient(tx.config)
+	tx.GiveawayDraw = NewGiveawayDrawClient(tx.config)
+	tx.GiveawayOutbox = NewGiveawayOutboxClient(tx.config)
+	tx.GiveawayUserLease = NewGiveawayUserLeaseClient(tx.config)
+	tx.TebexAgreement = NewTebexAgreementClient(tx.config)
 	tx.TebexWebhookEvents = NewTebexWebhookEventsClient(tx.config)
 }
 
@@ -155,7 +185,7 @@ func (tx *Tx) init() {
 // of them in order to commit or rollback the transaction.
 //
 // If a closed transaction is embedded in one of the generated entities, and the entity
-// applies a query, for example: TebexWebhookEvents.QueryXXX(), the query will be executed
+// applies a query, for example: AwardEmail.QueryXXX(), the query will be executed
 // through the driver which created this transaction.
 //
 // Note that txDriver is not goroutine safe.

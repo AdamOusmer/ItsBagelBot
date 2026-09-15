@@ -51,12 +51,16 @@ const (
 	FieldGiftsSent = "gifts_sent"
 	// FieldOnboarded holds the string denoting the onboarded field in the database.
 	FieldOnboarded = "onboarded"
+	// FieldTestAccount holds the string denoting the test_account field in the database.
+	FieldTestAccount = "test_account"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// FieldUpdatedAt holds the string denoting the updated_at field in the database.
 	FieldUpdatedAt = "updated_at"
 	// EdgeTokens holds the string denoting the tokens edge name in mutations.
 	EdgeTokens = "tokens"
+	// EdgePremiumGrants holds the string denoting the premium_grants edge name in mutations.
+	EdgePremiumGrants = "premium_grants"
 	// Table holds the table name of the user in the database.
 	Table = "users"
 	// TokensTable is the table that holds the tokens relation/edge.
@@ -66,6 +70,13 @@ const (
 	TokensInverseTable = "tokens"
 	// TokensColumn is the table column denoting the tokens relation/edge.
 	TokensColumn = "user_tokens"
+	// PremiumGrantsTable is the table that holds the premium_grants relation/edge.
+	PremiumGrantsTable = "premium_grants"
+	// PremiumGrantsInverseTable is the table name for the PremiumGrant entity.
+	// It exists in this package in order to avoid circular dependency with the "premiumgrant" package.
+	PremiumGrantsInverseTable = "premium_grants"
+	// PremiumGrantsColumn is the table column denoting the premium_grants relation/edge.
+	PremiumGrantsColumn = "user_id"
 )
 
 // Columns holds all SQL columns for user fields.
@@ -89,6 +100,7 @@ var Columns = []string{
 	FieldBillingEventID,
 	FieldGiftsSent,
 	FieldOnboarded,
+	FieldTestAccount,
 	FieldCreatedAt,
 	FieldUpdatedAt,
 }
@@ -132,6 +144,8 @@ var (
 	DefaultGiftsSent uint32
 	// DefaultOnboarded holds the default value on creation for the "onboarded" field.
 	DefaultOnboarded bool
+	// DefaultTestAccount holds the default value on creation for the "test_account" field.
+	DefaultTestAccount bool
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 	// DefaultUpdatedAt holds the default value on creation for the "updated_at" field.
@@ -260,6 +274,11 @@ func ByOnboarded(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldOnboarded, opts...).ToFunc()
 }
 
+// ByTestAccount orders the results by the test_account field.
+func ByTestAccount(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldTestAccount, opts...).ToFunc()
+}
+
 // ByCreatedAt orders the results by the created_at field.
 func ByCreatedAt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldCreatedAt, opts...).ToFunc()
@@ -283,10 +302,31 @@ func ByTokens(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newTokensStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// ByPremiumGrantsCount orders the results by premium_grants count.
+func ByPremiumGrantsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newPremiumGrantsStep(), opts...)
+	}
+}
+
+// ByPremiumGrants orders the results by premium_grants terms.
+func ByPremiumGrants(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newPremiumGrantsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newTokensStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(TokensInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, TokensTable, TokensColumn),
+	)
+}
+func newPremiumGrantsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(PremiumGrantsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, PremiumGrantsTable, PremiumGrantsColumn),
 	)
 }

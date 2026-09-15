@@ -44,6 +44,16 @@ export function fmtDate(
   );
 }
 
+/** Absolute date and time with an explicit option set; dateStyle cannot be combined with timeZoneName. */
+export function fmtDateTime(iso: string | null | undefined, missing = 'unknown'): string {
+  if (!iso) return missing;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return missing;
+  return new Intl.DateTimeFormat(undefined, {
+    year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: 'numeric', timeZoneName: 'short'
+  }).format(date);
+}
+
 /**
  * A `YYYY-MM-DD` bucket label. Analytics days are UTC buckets, so they are
  * rendered as UTC too: parsing one as a local date drifts the label a day for

@@ -3,7 +3,17 @@
 package ent
 
 import (
+	"ItsBagelBot/app/db/transactions/ent/awardemail"
+	"ItsBagelBot/app/db/transactions/ent/billingoperation"
+	"ItsBagelBot/app/db/transactions/ent/giveaway"
+	"ItsBagelBot/app/db/transactions/ent/giveawayalert"
+	"ItsBagelBot/app/db/transactions/ent/giveawayaward"
+	"ItsBagelBot/app/db/transactions/ent/giveawaycandidate"
+	"ItsBagelBot/app/db/transactions/ent/giveawaydraw"
+	"ItsBagelBot/app/db/transactions/ent/giveawayoutbox"
+	"ItsBagelBot/app/db/transactions/ent/giveawayuserlease"
 	"ItsBagelBot/app/db/transactions/ent/schema"
+	"ItsBagelBot/app/db/transactions/ent/tebexagreement"
 	"ItsBagelBot/app/db/transactions/ent/tebexwebhookevents"
 	"time"
 )
@@ -12,6 +22,462 @@ import (
 // (default values, validators, hooks and policies) and stitches it
 // to their package variables.
 func init() {
+	awardemailFields := schema.AwardEmail{}.Fields()
+	_ = awardemailFields
+	// awardemailDescAwardID is the schema descriptor for award_id field.
+	awardemailDescAwardID := awardemailFields[1].Descriptor()
+	// awardemail.AwardIDValidator is a validator for the "award_id" field. It is called by the builders before save.
+	awardemail.AwardIDValidator = awardemailDescAwardID.Validators[0].(func(string) error)
+	// awardemailDescKind is the schema descriptor for kind field.
+	awardemailDescKind := awardemailFields[2].Descriptor()
+	// awardemail.KindValidator is a validator for the "kind" field. It is called by the builders before save.
+	awardemail.KindValidator = awardemailDescKind.Validators[0].(func(string) error)
+	// awardemailDescTemplateVersion is the schema descriptor for template_version field.
+	awardemailDescTemplateVersion := awardemailFields[3].Descriptor()
+	// awardemail.TemplateVersionValidator is a validator for the "template_version" field. It is called by the builders before save.
+	awardemail.TemplateVersionValidator = awardemailDescTemplateVersion.Validators[0].(func(string) error)
+	// awardemailDescDeliveryKey is the schema descriptor for delivery_key field.
+	awardemailDescDeliveryKey := awardemailFields[4].Descriptor()
+	// awardemail.DeliveryKeyValidator is a validator for the "delivery_key" field. It is called by the builders before save.
+	awardemail.DeliveryKeyValidator = awardemailDescDeliveryKey.Validators[0].(func(string) error)
+	// awardemailDescMonths is the schema descriptor for months field.
+	awardemailDescMonths := awardemailFields[5].Descriptor()
+	// awardemail.MonthsValidator is a validator for the "months" field. It is called by the builders before save.
+	awardemail.MonthsValidator = awardemailDescMonths.Validators[0].(func(int) error)
+	// awardemailDescSubscriber is the schema descriptor for subscriber field.
+	awardemailDescSubscriber := awardemailFields[8].Descriptor()
+	// awardemail.DefaultSubscriber holds the default value on creation for the subscriber field.
+	awardemail.DefaultSubscriber = awardemailDescSubscriber.Default.(bool)
+	// awardemailDescBillingPending is the schema descriptor for billing_pending field.
+	awardemailDescBillingPending := awardemailFields[9].Descriptor()
+	// awardemail.DefaultBillingPending holds the default value on creation for the billing_pending field.
+	awardemail.DefaultBillingPending = awardemailDescBillingPending.Default.(bool)
+	// awardemailDescConfirmationQueued is the schema descriptor for confirmation_queued field.
+	awardemailDescConfirmationQueued := awardemailFields[10].Descriptor()
+	// awardemail.DefaultConfirmationQueued holds the default value on creation for the confirmation_queued field.
+	awardemail.DefaultConfirmationQueued = awardemailDescConfirmationQueued.Default.(bool)
+	// awardemailDescState is the schema descriptor for state field.
+	awardemailDescState := awardemailFields[11].Descriptor()
+	// awardemail.DefaultState holds the default value on creation for the state field.
+	awardemail.DefaultState = awardemailDescState.Default.(string)
+	// awardemailDescAttempts is the schema descriptor for attempts field.
+	awardemailDescAttempts := awardemailFields[16].Descriptor()
+	// awardemail.DefaultAttempts holds the default value on creation for the attempts field.
+	awardemail.DefaultAttempts = awardemailDescAttempts.Default.(uint64)
+	// awardemailDescLastError is the schema descriptor for last_error field.
+	awardemailDescLastError := awardemailFields[18].Descriptor()
+	// awardemail.LastErrorValidator is a validator for the "last_error" field. It is called by the builders before save.
+	awardemail.LastErrorValidator = awardemailDescLastError.Validators[0].(func(string) error)
+	// awardemailDescCreatedAt is the schema descriptor for created_at field.
+	awardemailDescCreatedAt := awardemailFields[20].Descriptor()
+	// awardemail.DefaultCreatedAt holds the default value on creation for the created_at field.
+	awardemail.DefaultCreatedAt = awardemailDescCreatedAt.Default.(func() time.Time)
+	// awardemailDescUpdatedAt is the schema descriptor for updated_at field.
+	awardemailDescUpdatedAt := awardemailFields[21].Descriptor()
+	// awardemail.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	awardemail.DefaultUpdatedAt = awardemailDescUpdatedAt.Default.(func() time.Time)
+	// awardemail.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	awardemail.UpdateDefaultUpdatedAt = awardemailDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// awardemailDescID is the schema descriptor for id field.
+	awardemailDescID := awardemailFields[0].Descriptor()
+	// awardemail.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	awardemail.IDValidator = awardemailDescID.Validators[0].(func(string) error)
+	billingoperationFields := schema.BillingOperation{}.Fields()
+	_ = billingoperationFields
+	// billingoperationDescAwardID is the schema descriptor for award_id field.
+	billingoperationDescAwardID := billingoperationFields[1].Descriptor()
+	// billingoperation.AwardIDValidator is a validator for the "award_id" field. It is called by the builders before save.
+	billingoperation.AwardIDValidator = billingoperationDescAwardID.Validators[0].(func(string) error)
+	// billingoperationDescAgreementID is the schema descriptor for agreement_id field.
+	billingoperationDescAgreementID := billingoperationFields[2].Descriptor()
+	// billingoperation.AgreementIDValidator is a validator for the "agreement_id" field. It is called by the builders before save.
+	billingoperation.AgreementIDValidator = billingoperationDescAgreementID.Validators[0].(func(string) error)
+	// billingoperationDescRecurringReference is the schema descriptor for recurring_reference field.
+	billingoperationDescRecurringReference := billingoperationFields[3].Descriptor()
+	// billingoperation.RecurringReferenceValidator is a validator for the "recurring_reference" field. It is called by the builders before save.
+	billingoperation.RecurringReferenceValidator = billingoperationDescRecurringReference.Validators[0].(func(string) error)
+	// billingoperationDescState is the schema descriptor for state field.
+	billingoperationDescState := billingoperationFields[6].Descriptor()
+	// billingoperation.DefaultState holds the default value on creation for the state field.
+	billingoperation.DefaultState = billingoperationDescState.Default.(string)
+	// billingoperationDescAttempts is the schema descriptor for attempts field.
+	billingoperationDescAttempts := billingoperationFields[9].Descriptor()
+	// billingoperation.DefaultAttempts holds the default value on creation for the attempts field.
+	billingoperation.DefaultAttempts = billingoperationDescAttempts.Default.(uint64)
+	// billingoperationDescLastError is the schema descriptor for last_error field.
+	billingoperationDescLastError := billingoperationFields[10].Descriptor()
+	// billingoperation.LastErrorValidator is a validator for the "last_error" field. It is called by the builders before save.
+	billingoperation.LastErrorValidator = billingoperationDescLastError.Validators[0].(func(string) error)
+	// billingoperationDescVersion is the schema descriptor for version field.
+	billingoperationDescVersion := billingoperationFields[12].Descriptor()
+	// billingoperation.DefaultVersion holds the default value on creation for the version field.
+	billingoperation.DefaultVersion = billingoperationDescVersion.Default.(uint64)
+	// billingoperationDescCreatedAt is the schema descriptor for created_at field.
+	billingoperationDescCreatedAt := billingoperationFields[14].Descriptor()
+	// billingoperation.DefaultCreatedAt holds the default value on creation for the created_at field.
+	billingoperation.DefaultCreatedAt = billingoperationDescCreatedAt.Default.(func() time.Time)
+	// billingoperationDescUpdatedAt is the schema descriptor for updated_at field.
+	billingoperationDescUpdatedAt := billingoperationFields[15].Descriptor()
+	// billingoperation.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	billingoperation.DefaultUpdatedAt = billingoperationDescUpdatedAt.Default.(func() time.Time)
+	// billingoperation.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	billingoperation.UpdateDefaultUpdatedAt = billingoperationDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// billingoperationDescID is the schema descriptor for id field.
+	billingoperationDescID := billingoperationFields[0].Descriptor()
+	// billingoperation.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	billingoperation.IDValidator = billingoperationDescID.Validators[0].(func(string) error)
+	giveawayFields := schema.Giveaway{}.Fields()
+	_ = giveawayFields
+	// giveawayDescIdempotencyKey is the schema descriptor for idempotency_key field.
+	giveawayDescIdempotencyKey := giveawayFields[1].Descriptor()
+	// giveaway.IdempotencyKeyValidator is a validator for the "idempotency_key" field. It is called by the builders before save.
+	giveaway.IdempotencyKeyValidator = giveawayDescIdempotencyKey.Validators[0].(func(string) error)
+	// giveawayDescTitle is the schema descriptor for title field.
+	giveawayDescTitle := giveawayFields[2].Descriptor()
+	// giveaway.TitleValidator is a validator for the "title" field. It is called by the builders before save.
+	giveaway.TitleValidator = func() func(string) error {
+		validators := giveawayDescTitle.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(title string) error {
+			for _, fn := range fns {
+				if err := fn(title); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// giveawayDescReason is the schema descriptor for reason field.
+	giveawayDescReason := giveawayFields[3].Descriptor()
+	// giveaway.ReasonValidator is a validator for the "reason" field. It is called by the builders before save.
+	giveaway.ReasonValidator = giveawayDescReason.Validators[0].(func(string) error)
+	// giveawayDescRulesVersion is the schema descriptor for rules_version field.
+	giveawayDescRulesVersion := giveawayFields[4].Descriptor()
+	// giveaway.RulesVersionValidator is a validator for the "rules_version" field. It is called by the builders before save.
+	giveaway.RulesVersionValidator = giveawayDescRulesVersion.Validators[0].(func(string) error)
+	// giveawayDescWinnerCount is the schema descriptor for winner_count field.
+	giveawayDescWinnerCount := giveawayFields[5].Descriptor()
+	// giveaway.WinnerCountValidator is a validator for the "winner_count" field. It is called by the builders before save.
+	giveaway.WinnerCountValidator = giveawayDescWinnerCount.Validators[0].(func(int) error)
+	// giveawayDescPrizeMonths is the schema descriptor for prize_months field.
+	giveawayDescPrizeMonths := giveawayFields[6].Descriptor()
+	// giveaway.PrizeMonthsValidator is a validator for the "prize_months" field. It is called by the builders before save.
+	giveaway.PrizeMonthsValidator = giveawayDescPrizeMonths.Validators[0].(func(int) error)
+	// giveawayDescStatus is the schema descriptor for status field.
+	giveawayDescStatus := giveawayFields[7].Descriptor()
+	// giveaway.DefaultStatus holds the default value on creation for the status field.
+	giveaway.DefaultStatus = giveawayDescStatus.Default.(string)
+	// giveawayDescCreatedBy is the schema descriptor for created_by field.
+	giveawayDescCreatedBy := giveawayFields[8].Descriptor()
+	// giveaway.CreatedByValidator is a validator for the "created_by" field. It is called by the builders before save.
+	giveaway.CreatedByValidator = giveawayDescCreatedBy.Validators[0].(func(uint64) error)
+	// giveawayDescVersion is the schema descriptor for version field.
+	giveawayDescVersion := giveawayFields[9].Descriptor()
+	// giveaway.DefaultVersion holds the default value on creation for the version field.
+	giveaway.DefaultVersion = giveawayDescVersion.Default.(uint64)
+	// giveawayDescCreatedAt is the schema descriptor for created_at field.
+	giveawayDescCreatedAt := giveawayFields[10].Descriptor()
+	// giveaway.DefaultCreatedAt holds the default value on creation for the created_at field.
+	giveaway.DefaultCreatedAt = giveawayDescCreatedAt.Default.(func() time.Time)
+	// giveawayDescUpdatedAt is the schema descriptor for updated_at field.
+	giveawayDescUpdatedAt := giveawayFields[11].Descriptor()
+	// giveaway.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	giveaway.DefaultUpdatedAt = giveawayDescUpdatedAt.Default.(func() time.Time)
+	// giveaway.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	giveaway.UpdateDefaultUpdatedAt = giveawayDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// giveawayDescID is the schema descriptor for id field.
+	giveawayDescID := giveawayFields[0].Descriptor()
+	// giveaway.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	giveaway.IDValidator = giveawayDescID.Validators[0].(func(string) error)
+	giveawayalertFields := schema.GiveawayAlert{}.Fields()
+	_ = giveawayalertFields
+	// giveawayalertDescAwardID is the schema descriptor for award_id field.
+	giveawayalertDescAwardID := giveawayalertFields[1].Descriptor()
+	// giveawayalert.AwardIDValidator is a validator for the "award_id" field. It is called by the builders before save.
+	giveawayalert.AwardIDValidator = giveawayalertDescAwardID.Validators[0].(func(string) error)
+	// giveawayalertDescCategory is the schema descriptor for category field.
+	giveawayalertDescCategory := giveawayalertFields[3].Descriptor()
+	// giveawayalert.CategoryValidator is a validator for the "category" field. It is called by the builders before save.
+	giveawayalert.CategoryValidator = giveawayalertDescCategory.Validators[0].(func(string) error)
+	// giveawayalertDescState is the schema descriptor for state field.
+	giveawayalertDescState := giveawayalertFields[4].Descriptor()
+	// giveawayalert.DefaultState holds the default value on creation for the state field.
+	giveawayalert.DefaultState = giveawayalertDescState.Default.(string)
+	// giveawayalertDescMessage is the schema descriptor for message field.
+	giveawayalertDescMessage := giveawayalertFields[5].Descriptor()
+	// giveawayalert.MessageValidator is a validator for the "message" field. It is called by the builders before save.
+	giveawayalert.MessageValidator = func() func(string) error {
+		validators := giveawayalertDescMessage.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(message string) error {
+			for _, fn := range fns {
+				if err := fn(message); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// giveawayalertDescFirstSeenAt is the schema descriptor for first_seen_at field.
+	giveawayalertDescFirstSeenAt := giveawayalertFields[7].Descriptor()
+	// giveawayalert.DefaultFirstSeenAt holds the default value on creation for the first_seen_at field.
+	giveawayalert.DefaultFirstSeenAt = giveawayalertDescFirstSeenAt.Default.(func() time.Time)
+	// giveawayalertDescLastSeenAt is the schema descriptor for last_seen_at field.
+	giveawayalertDescLastSeenAt := giveawayalertFields[8].Descriptor()
+	// giveawayalert.DefaultLastSeenAt holds the default value on creation for the last_seen_at field.
+	giveawayalert.DefaultLastSeenAt = giveawayalertDescLastSeenAt.Default.(func() time.Time)
+	// giveawayalert.UpdateDefaultLastSeenAt holds the default value on update for the last_seen_at field.
+	giveawayalert.UpdateDefaultLastSeenAt = giveawayalertDescLastSeenAt.UpdateDefault.(func() time.Time)
+	// giveawayalertDescID is the schema descriptor for id field.
+	giveawayalertDescID := giveawayalertFields[0].Descriptor()
+	// giveawayalert.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	giveawayalert.IDValidator = giveawayalertDescID.Validators[0].(func(string) error)
+	giveawayawardFields := schema.GiveawayAward{}.Fields()
+	_ = giveawayawardFields
+	// giveawayawardDescGiveawayID is the schema descriptor for giveaway_id field.
+	giveawayawardDescGiveawayID := giveawayawardFields[1].Descriptor()
+	// giveawayaward.GiveawayIDValidator is a validator for the "giveaway_id" field. It is called by the builders before save.
+	giveawayaward.GiveawayIDValidator = giveawayawardDescGiveawayID.Validators[0].(func(string) error)
+	// giveawayawardDescDrawID is the schema descriptor for draw_id field.
+	giveawayawardDescDrawID := giveawayawardFields[2].Descriptor()
+	// giveawayaward.DrawIDValidator is a validator for the "draw_id" field. It is called by the builders before save.
+	giveawayaward.DrawIDValidator = giveawayawardDescDrawID.Validators[0].(func(string) error)
+	// giveawayawardDescUserID is the schema descriptor for user_id field.
+	giveawayawardDescUserID := giveawayawardFields[3].Descriptor()
+	// giveawayaward.UserIDValidator is a validator for the "user_id" field. It is called by the builders before save.
+	giveawayaward.UserIDValidator = giveawayawardDescUserID.Validators[0].(func(uint64) error)
+	// giveawayawardDescOrdinal is the schema descriptor for ordinal field.
+	giveawayawardDescOrdinal := giveawayawardFields[4].Descriptor()
+	// giveawayaward.OrdinalValidator is a validator for the "ordinal" field. It is called by the builders before save.
+	giveawayaward.OrdinalValidator = giveawayawardDescOrdinal.Validators[0].(func(uint64) error)
+	// giveawayawardDescPrizeMonths is the schema descriptor for prize_months field.
+	giveawayawardDescPrizeMonths := giveawayawardFields[5].Descriptor()
+	// giveawayaward.PrizeMonthsValidator is a validator for the "prize_months" field. It is called by the builders before save.
+	giveawayaward.PrizeMonthsValidator = giveawayawardDescPrizeMonths.Validators[0].(func(int) error)
+	// giveawayawardDescIntervalRule is the schema descriptor for interval_rule field.
+	giveawayawardDescIntervalRule := giveawayawardFields[6].Descriptor()
+	// giveawayaward.IntervalRuleValidator is a validator for the "interval_rule" field. It is called by the builders before save.
+	giveawayaward.IntervalRuleValidator = giveawayawardDescIntervalRule.Validators[0].(func(string) error)
+	// giveawayawardDescState is the schema descriptor for state field.
+	giveawayawardDescState := giveawayawardFields[7].Descriptor()
+	// giveawayaward.DefaultState holds the default value on creation for the state field.
+	giveawayaward.DefaultState = giveawayawardDescState.Default.(string)
+	// giveawayawardDescBillingState is the schema descriptor for billing_state field.
+	giveawayawardDescBillingState := giveawayawardFields[8].Descriptor()
+	// giveawayaward.DefaultBillingState holds the default value on creation for the billing_state field.
+	giveawayaward.DefaultBillingState = giveawayawardDescBillingState.Default.(string)
+	// giveawayawardDescEmailState is the schema descriptor for email_state field.
+	giveawayawardDescEmailState := giveawayawardFields[9].Descriptor()
+	// giveawayaward.DefaultEmailState holds the default value on creation for the email_state field.
+	giveawayaward.DefaultEmailState = giveawayawardDescEmailState.Default.(string)
+	// giveawayawardDescFailureReason is the schema descriptor for failure_reason field.
+	giveawayawardDescFailureReason := giveawayawardFields[16].Descriptor()
+	// giveawayaward.FailureReasonValidator is a validator for the "failure_reason" field. It is called by the builders before save.
+	giveawayaward.FailureReasonValidator = giveawayawardDescFailureReason.Validators[0].(func(string) error)
+	// giveawayawardDescRetryCount is the schema descriptor for retry_count field.
+	giveawayawardDescRetryCount := giveawayawardFields[17].Descriptor()
+	// giveawayaward.DefaultRetryCount holds the default value on creation for the retry_count field.
+	giveawayaward.DefaultRetryCount = giveawayawardDescRetryCount.Default.(uint64)
+	// giveawayawardDescVersion is the schema descriptor for version field.
+	giveawayawardDescVersion := giveawayawardFields[18].Descriptor()
+	// giveawayaward.DefaultVersion holds the default value on creation for the version field.
+	giveawayaward.DefaultVersion = giveawayawardDescVersion.Default.(uint64)
+	// giveawayawardDescSelectedAt is the schema descriptor for selected_at field.
+	giveawayawardDescSelectedAt := giveawayawardFields[19].Descriptor()
+	// giveawayaward.DefaultSelectedAt holds the default value on creation for the selected_at field.
+	giveawayaward.DefaultSelectedAt = giveawayawardDescSelectedAt.Default.(func() time.Time)
+	// giveawayawardDescUpdatedAt is the schema descriptor for updated_at field.
+	giveawayawardDescUpdatedAt := giveawayawardFields[20].Descriptor()
+	// giveawayaward.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	giveawayaward.DefaultUpdatedAt = giveawayawardDescUpdatedAt.Default.(func() time.Time)
+	// giveawayaward.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	giveawayaward.UpdateDefaultUpdatedAt = giveawayawardDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// giveawayawardDescID is the schema descriptor for id field.
+	giveawayawardDescID := giveawayawardFields[0].Descriptor()
+	// giveawayaward.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	giveawayaward.IDValidator = giveawayawardDescID.Validators[0].(func(string) error)
+	giveawaycandidateFields := schema.GiveawayCandidate{}.Fields()
+	_ = giveawaycandidateFields
+	// giveawaycandidateDescGiveawayID is the schema descriptor for giveaway_id field.
+	giveawaycandidateDescGiveawayID := giveawaycandidateFields[1].Descriptor()
+	// giveawaycandidate.GiveawayIDValidator is a validator for the "giveaway_id" field. It is called by the builders before save.
+	giveawaycandidate.GiveawayIDValidator = giveawaycandidateDescGiveawayID.Validators[0].(func(string) error)
+	// giveawaycandidateDescUserID is the schema descriptor for user_id field.
+	giveawaycandidateDescUserID := giveawaycandidateFields[2].Descriptor()
+	// giveawaycandidate.UserIDValidator is a validator for the "user_id" field. It is called by the builders before save.
+	giveawaycandidate.UserIDValidator = giveawaycandidateDescUserID.Validators[0].(func(uint64) error)
+	// giveawaycandidateDescTwitchLogin is the schema descriptor for twitch_login field.
+	giveawaycandidateDescTwitchLogin := giveawaycandidateFields[3].Descriptor()
+	// giveawaycandidate.TwitchLoginValidator is a validator for the "twitch_login" field. It is called by the builders before save.
+	giveawaycandidate.TwitchLoginValidator = giveawaycandidateDescTwitchLogin.Validators[0].(func(string) error)
+	// giveawaycandidateDescEligibilityJSON is the schema descriptor for eligibility_json field.
+	giveawaycandidateDescEligibilityJSON := giveawaycandidateFields[4].Descriptor()
+	// giveawaycandidate.EligibilityJSONValidator is a validator for the "eligibility_json" field. It is called by the builders before save.
+	giveawaycandidate.EligibilityJSONValidator = giveawaycandidateDescEligibilityJSON.Validators[0].(func(string) error)
+	// giveawaycandidateDescExclusionReason is the schema descriptor for exclusion_reason field.
+	giveawaycandidateDescExclusionReason := giveawaycandidateFields[5].Descriptor()
+	// giveawaycandidate.ExclusionReasonValidator is a validator for the "exclusion_reason" field. It is called by the builders before save.
+	giveawaycandidate.ExclusionReasonValidator = giveawaycandidateDescExclusionReason.Validators[0].(func(string) error)
+	// giveawaycandidateDescEligible is the schema descriptor for eligible field.
+	giveawaycandidateDescEligible := giveawaycandidateFields[6].Descriptor()
+	// giveawaycandidate.DefaultEligible holds the default value on creation for the eligible field.
+	giveawaycandidate.DefaultEligible = giveawaycandidateDescEligible.Default.(bool)
+	// giveawaycandidateDescPoolDigest is the schema descriptor for pool_digest field.
+	giveawaycandidateDescPoolDigest := giveawaycandidateFields[7].Descriptor()
+	// giveawaycandidate.PoolDigestValidator is a validator for the "pool_digest" field. It is called by the builders before save.
+	giveawaycandidate.PoolDigestValidator = giveawaycandidateDescPoolDigest.Validators[0].(func(string) error)
+	// giveawaycandidateDescCreatedAt is the schema descriptor for created_at field.
+	giveawaycandidateDescCreatedAt := giveawaycandidateFields[8].Descriptor()
+	// giveawaycandidate.DefaultCreatedAt holds the default value on creation for the created_at field.
+	giveawaycandidate.DefaultCreatedAt = giveawaycandidateDescCreatedAt.Default.(func() time.Time)
+	// giveawaycandidateDescID is the schema descriptor for id field.
+	giveawaycandidateDescID := giveawaycandidateFields[0].Descriptor()
+	// giveawaycandidate.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	giveawaycandidate.IDValidator = giveawaycandidateDescID.Validators[0].(func(string) error)
+	giveawaydrawFields := schema.GiveawayDraw{}.Fields()
+	_ = giveawaydrawFields
+	// giveawaydrawDescGiveawayID is the schema descriptor for giveaway_id field.
+	giveawaydrawDescGiveawayID := giveawaydrawFields[1].Descriptor()
+	// giveawaydraw.GiveawayIDValidator is a validator for the "giveaway_id" field. It is called by the builders before save.
+	giveawaydraw.GiveawayIDValidator = giveawaydrawDescGiveawayID.Validators[0].(func(string) error)
+	// giveawaydrawDescOperationKey is the schema descriptor for operation_key field.
+	giveawaydrawDescOperationKey := giveawaydrawFields[2].Descriptor()
+	// giveawaydraw.OperationKeyValidator is a validator for the "operation_key" field. It is called by the builders before save.
+	giveawaydraw.OperationKeyValidator = giveawaydrawDescOperationKey.Validators[0].(func(string) error)
+	// giveawaydrawDescPoolDigest is the schema descriptor for pool_digest field.
+	giveawaydrawDescPoolDigest := giveawaydrawFields[3].Descriptor()
+	// giveawaydraw.PoolDigestValidator is a validator for the "pool_digest" field. It is called by the builders before save.
+	giveawaydraw.PoolDigestValidator = giveawaydrawDescPoolDigest.Validators[0].(func(string) error)
+	// giveawaydrawDescAlgorithmVersion is the schema descriptor for algorithm_version field.
+	giveawaydrawDescAlgorithmVersion := giveawaydrawFields[4].Descriptor()
+	// giveawaydraw.AlgorithmVersionValidator is a validator for the "algorithm_version" field. It is called by the builders before save.
+	giveawaydraw.AlgorithmVersionValidator = giveawaydrawDescAlgorithmVersion.Validators[0].(func(string) error)
+	// giveawaydrawDescAuditJSON is the schema descriptor for audit_json field.
+	giveawaydrawDescAuditJSON := giveawaydrawFields[5].Descriptor()
+	// giveawaydraw.AuditJSONValidator is a validator for the "audit_json" field. It is called by the builders before save.
+	giveawaydraw.AuditJSONValidator = giveawaydrawDescAuditJSON.Validators[0].(func(string) error)
+	// giveawaydrawDescWinnerIdsJSON is the schema descriptor for winner_ids_json field.
+	giveawaydrawDescWinnerIdsJSON := giveawaydrawFields[6].Descriptor()
+	// giveawaydraw.WinnerIdsJSONValidator is a validator for the "winner_ids_json" field. It is called by the builders before save.
+	giveawaydraw.WinnerIdsJSONValidator = giveawaydrawDescWinnerIdsJSON.Validators[0].(func(string) error)
+	// giveawaydrawDescActorID is the schema descriptor for actor_id field.
+	giveawaydrawDescActorID := giveawaydrawFields[7].Descriptor()
+	// giveawaydraw.ActorIDValidator is a validator for the "actor_id" field. It is called by the builders before save.
+	giveawaydraw.ActorIDValidator = giveawaydrawDescActorID.Validators[0].(func(uint64) error)
+	// giveawaydrawDescCreatedAt is the schema descriptor for created_at field.
+	giveawaydrawDescCreatedAt := giveawaydrawFields[8].Descriptor()
+	// giveawaydraw.DefaultCreatedAt holds the default value on creation for the created_at field.
+	giveawaydraw.DefaultCreatedAt = giveawaydrawDescCreatedAt.Default.(func() time.Time)
+	// giveawaydrawDescID is the schema descriptor for id field.
+	giveawaydrawDescID := giveawaydrawFields[0].Descriptor()
+	// giveawaydraw.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	giveawaydraw.IDValidator = giveawaydrawDescID.Validators[0].(func(string) error)
+	giveawayoutboxFields := schema.GiveawayOutbox{}.Fields()
+	_ = giveawayoutboxFields
+	// giveawayoutboxDescAggregateID is the schema descriptor for aggregate_id field.
+	giveawayoutboxDescAggregateID := giveawayoutboxFields[1].Descriptor()
+	// giveawayoutbox.AggregateIDValidator is a validator for the "aggregate_id" field. It is called by the builders before save.
+	giveawayoutbox.AggregateIDValidator = giveawayoutboxDescAggregateID.Validators[0].(func(string) error)
+	// giveawayoutboxDescEventType is the schema descriptor for event_type field.
+	giveawayoutboxDescEventType := giveawayoutboxFields[2].Descriptor()
+	// giveawayoutbox.EventTypeValidator is a validator for the "event_type" field. It is called by the builders before save.
+	giveawayoutbox.EventTypeValidator = giveawayoutboxDescEventType.Validators[0].(func(string) error)
+	// giveawayoutboxDescPayloadJSON is the schema descriptor for payload_json field.
+	giveawayoutboxDescPayloadJSON := giveawayoutboxFields[3].Descriptor()
+	// giveawayoutbox.PayloadJSONValidator is a validator for the "payload_json" field. It is called by the builders before save.
+	giveawayoutbox.PayloadJSONValidator = giveawayoutboxDescPayloadJSON.Validators[0].(func(string) error)
+	// giveawayoutboxDescState is the schema descriptor for state field.
+	giveawayoutboxDescState := giveawayoutboxFields[4].Descriptor()
+	// giveawayoutbox.DefaultState holds the default value on creation for the state field.
+	giveawayoutbox.DefaultState = giveawayoutboxDescState.Default.(string)
+	// giveawayoutboxDescAttempts is the schema descriptor for attempts field.
+	giveawayoutboxDescAttempts := giveawayoutboxFields[5].Descriptor()
+	// giveawayoutbox.DefaultAttempts holds the default value on creation for the attempts field.
+	giveawayoutbox.DefaultAttempts = giveawayoutboxDescAttempts.Default.(uint64)
+	// giveawayoutboxDescLastError is the schema descriptor for last_error field.
+	giveawayoutboxDescLastError := giveawayoutboxFields[6].Descriptor()
+	// giveawayoutbox.LastErrorValidator is a validator for the "last_error" field. It is called by the builders before save.
+	giveawayoutbox.LastErrorValidator = giveawayoutboxDescLastError.Validators[0].(func(string) error)
+	// giveawayoutboxDescCreatedAt is the schema descriptor for created_at field.
+	giveawayoutboxDescCreatedAt := giveawayoutboxFields[10].Descriptor()
+	// giveawayoutbox.DefaultCreatedAt holds the default value on creation for the created_at field.
+	giveawayoutbox.DefaultCreatedAt = giveawayoutboxDescCreatedAt.Default.(func() time.Time)
+	// giveawayoutboxDescUpdatedAt is the schema descriptor for updated_at field.
+	giveawayoutboxDescUpdatedAt := giveawayoutboxFields[11].Descriptor()
+	// giveawayoutbox.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	giveawayoutbox.DefaultUpdatedAt = giveawayoutboxDescUpdatedAt.Default.(func() time.Time)
+	// giveawayoutbox.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	giveawayoutbox.UpdateDefaultUpdatedAt = giveawayoutboxDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// giveawayoutboxDescID is the schema descriptor for id field.
+	giveawayoutboxDescID := giveawayoutboxFields[0].Descriptor()
+	// giveawayoutbox.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	giveawayoutbox.IDValidator = giveawayoutboxDescID.Validators[0].(func(string) error)
+	giveawayuserleaseFields := schema.GiveawayUserLease{}.Fields()
+	_ = giveawayuserleaseFields
+	// giveawayuserleaseDescUserID is the schema descriptor for user_id field.
+	giveawayuserleaseDescUserID := giveawayuserleaseFields[1].Descriptor()
+	// giveawayuserlease.UserIDValidator is a validator for the "user_id" field. It is called by the builders before save.
+	giveawayuserlease.UserIDValidator = giveawayuserleaseDescUserID.Validators[0].(func(uint64) error)
+	// giveawayuserleaseDescOwner is the schema descriptor for owner field.
+	giveawayuserleaseDescOwner := giveawayuserleaseFields[2].Descriptor()
+	// giveawayuserlease.OwnerValidator is a validator for the "owner" field. It is called by the builders before save.
+	giveawayuserlease.OwnerValidator = giveawayuserleaseDescOwner.Validators[0].(func(string) error)
+	// giveawayuserleaseDescUpdatedAt is the schema descriptor for updated_at field.
+	giveawayuserleaseDescUpdatedAt := giveawayuserleaseFields[4].Descriptor()
+	// giveawayuserlease.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	giveawayuserlease.DefaultUpdatedAt = giveawayuserleaseDescUpdatedAt.Default.(func() time.Time)
+	// giveawayuserlease.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	giveawayuserlease.UpdateDefaultUpdatedAt = giveawayuserleaseDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// giveawayuserleaseDescID is the schema descriptor for id field.
+	giveawayuserleaseDescID := giveawayuserleaseFields[0].Descriptor()
+	// giveawayuserlease.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	giveawayuserlease.IDValidator = giveawayuserleaseDescID.Validators[0].(func(string) error)
+	tebexagreementFields := schema.TebexAgreement{}.Fields()
+	_ = tebexagreementFields
+	// tebexagreementDescUserID is the schema descriptor for user_id field.
+	tebexagreementDescUserID := tebexagreementFields[1].Descriptor()
+	// tebexagreement.UserIDValidator is a validator for the "user_id" field. It is called by the builders before save.
+	tebexagreement.UserIDValidator = tebexagreementDescUserID.Validators[0].(func(uint64) error)
+	// tebexagreementDescStoreID is the schema descriptor for store_id field.
+	tebexagreementDescStoreID := tebexagreementFields[2].Descriptor()
+	// tebexagreement.StoreIDValidator is a validator for the "store_id" field. It is called by the builders before save.
+	tebexagreement.StoreIDValidator = tebexagreementDescStoreID.Validators[0].(func(string) error)
+	// tebexagreementDescRecurringReference is the schema descriptor for recurring_reference field.
+	tebexagreementDescRecurringReference := tebexagreementFields[3].Descriptor()
+	// tebexagreement.RecurringReferenceValidator is a validator for the "recurring_reference" field. It is called by the builders before save.
+	tebexagreement.RecurringReferenceValidator = tebexagreementDescRecurringReference.Validators[0].(func(string) error)
+	// tebexagreementDescInterval is the schema descriptor for interval field.
+	tebexagreementDescInterval := tebexagreementFields[4].Descriptor()
+	// tebexagreement.IntervalValidator is a validator for the "interval" field. It is called by the builders before save.
+	tebexagreement.IntervalValidator = tebexagreementDescInterval.Validators[0].(func(string) error)
+	// tebexagreementDescProviderStatus is the schema descriptor for provider_status field.
+	tebexagreementDescProviderStatus := tebexagreementFields[5].Descriptor()
+	// tebexagreement.ProviderStatusValidator is a validator for the "provider_status" field. It is called by the builders before save.
+	tebexagreement.ProviderStatusValidator = tebexagreementDescProviderStatus.Validators[0].(func(string) error)
+	// tebexagreementDescCancelRequested is the schema descriptor for cancel_requested field.
+	tebexagreementDescCancelRequested := tebexagreementFields[6].Descriptor()
+	// tebexagreement.DefaultCancelRequested holds the default value on creation for the cancel_requested field.
+	tebexagreement.DefaultCancelRequested = tebexagreementDescCancelRequested.Default.(bool)
+	// tebexagreementDescCreatedAt is the schema descriptor for created_at field.
+	tebexagreementDescCreatedAt := tebexagreementFields[13].Descriptor()
+	// tebexagreement.DefaultCreatedAt holds the default value on creation for the created_at field.
+	tebexagreement.DefaultCreatedAt = tebexagreementDescCreatedAt.Default.(func() time.Time)
+	// tebexagreementDescUpdatedAt is the schema descriptor for updated_at field.
+	tebexagreementDescUpdatedAt := tebexagreementFields[14].Descriptor()
+	// tebexagreement.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	tebexagreement.DefaultUpdatedAt = tebexagreementDescUpdatedAt.Default.(func() time.Time)
+	// tebexagreement.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	tebexagreement.UpdateDefaultUpdatedAt = tebexagreementDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// tebexagreementDescID is the schema descriptor for id field.
+	tebexagreementDescID := tebexagreementFields[0].Descriptor()
+	// tebexagreement.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	tebexagreement.IDValidator = tebexagreementDescID.Validators[0].(func(string) error)
 	tebexwebhookeventsFields := schema.TebexWebhookEvents{}.Fields()
 	_ = tebexwebhookeventsFields
 	// tebexwebhookeventsDescEventType is the schema descriptor for event_type field.

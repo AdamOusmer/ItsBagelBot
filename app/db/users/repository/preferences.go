@@ -60,7 +60,42 @@ type prefWrite struct {
 func (r *Users) queuePref(id uint64, field prefField, w prefWrite) {
 	w.userID = id
 	w.field = field
+	r.pendingMu.Lock()
+	r.pendingPrefs[prefKey{userID: id, field: field}] = w
+	r.pendingMu.Unlock()
 	r.batcher.Add(prefKey{userID: id, field: field}, w)
+}
+
+func (r *Users) clearPendingPrefs(items []prefWrite) {
+	r.pendingMu.Lock()
+	defer r.pendingMu.Unlock()
+	for _, item := range items {
+		key := prefKey{userID: item.userID, field: item.field}
+		if current, ok := r.pendingPrefs[key]; ok && samePrefWrite(current, item) {
+			delete(r.pendingPrefs, key)
+		}
+	}
+}
+
+func samePrefWrite(a, b prefWrite) bool {
+	if !samePrefKey(a, b) {
+		return false
+	}
+	if a.str != b.str {
+		return false
+	}
+	return sameCode(a.code, b.code)
+}
+
+func samePrefKey(a, b prefWrite) bool {
+	return a.userID == b.userID && a.field == b.field && a.flag == b.flag
+}
+
+func sameCode(a, b *string) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return *a == *b
 }
 
 // applyPref stamps one queued write onto an update builder.
@@ -100,6 +135,7 @@ func (r *Users) flushPrefs(ctx context.Context, items []prefWrite) error {
 		return writeAllUserPrefs(ctx, tx, perUser)
 	})
 	if err == nil {
+		r.clearPendingPrefs(items)
 		r.announcePrefs(ctx, log, perUser)
 		return nil
 	}
@@ -208,6 +244,7 @@ func (r *Users) applyPrefEach(ctx context.Context, txn *newrelic.Transaction, lo
 
 		switch {
 		case err == nil:
+			r.clearPendingPrefs(writes)
 			r.announcePrefs(ctx, log, map[uint64][]prefWrite{id: writes})
 		case unpersistablePrefErr(err):
 			txnNotice(txn, err)

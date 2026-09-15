@@ -30,6 +30,7 @@
   import { getI18n } from '@bagel/kit/i18n/context';
   import { allows, type AccessKey } from '$lib/access';
   import type { AdminUserWire, AuditEntry, ChannelSubState } from '$lib/server/services';
+  import type { GiveawayWinnerWire } from '$lib/server/giveaways';
   import UserRow from '$lib/components/users/UserRow.svelte';
   import UserInspector from '$lib/components/users/UserInspector.svelte';
   import MessageDialog from '$lib/components/users/MessageDialog.svelte';
@@ -109,6 +110,8 @@
   let viewAsUrl = $state('');
   let history = $state<AuditEntry[] | null>(null);
   let historyError = $state('');
+  let prizeHistory = $state<GiveawayWinnerWire[] | null>(null);
+  let prizeHistoryError = $state('');
 
   let lookupForm = $state<HTMLFormElement | null>(null);
   let lookupQ = $state('');
@@ -117,6 +120,8 @@
     selectedId = null;
     detached = null;
     viewAsUrl = '';
+    prizeHistory = null;
+    prizeHistoryError = '';
   }
 
   function openUser(u: AdminUserWire) {
@@ -132,6 +137,21 @@
     lookupQ = String(u.id);
     queueMicrotask(() => lookupForm?.requestSubmit());
     if (can('audit.read')) loadHistory(String(u.id));
+    loadPrizeHistory(String(u.id));
+  }
+
+  async function loadPrizeHistory(id: string) {
+    prizeHistory = null;
+    prizeHistoryError = '';
+    try {
+      const response = await fetch(`/users/prizes?q=${encodeURIComponent(id)}`);
+      const body = (await response.json()) as { awards?: GiveawayWinnerWire[]; error?: string };
+      if (!response.ok || body.error) throw new Error(body.error ?? `history fetch failed (${response.status})`);
+      prizeHistory = body.awards ?? [];
+    } catch (error) {
+      prizeHistoryError = error instanceof Error ? error.message : String(error);
+      prizeHistory = [];
+    }
   }
 
   async function loadHistory(id: string) {
@@ -439,6 +459,8 @@
           {viewAsUrl}
           {history}
           {historyError}
+          {prizeHistory}
+          {prizeHistoryError}
           canReadHistory={can('audit.read')}
           {busy}
           {can}

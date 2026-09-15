@@ -6,5 +6,35 @@ import (
 	"entgo.io/ent/dialect/sql"
 )
 
+// AwardEmail is the predicate function for awardemail builders.
+type AwardEmail func(*sql.Selector)
+
+// BillingOperation is the predicate function for billingoperation builders.
+type BillingOperation func(*sql.Selector)
+
+// Giveaway is the predicate function for giveaway builders.
+type Giveaway func(*sql.Selector)
+
+// GiveawayAlert is the predicate function for giveawayalert builders.
+type GiveawayAlert func(*sql.Selector)
+
+// GiveawayAward is the predicate function for giveawayaward builders.
+type GiveawayAward func(*sql.Selector)
+
+// GiveawayCandidate is the predicate function for giveawaycandidate builders.
+type GiveawayCandidate func(*sql.Selector)
+
+// GiveawayDraw is the predicate function for giveawaydraw builders.
+type GiveawayDraw func(*sql.Selector)
+
+// GiveawayOutbox is the predicate function for giveawayoutbox builders.
+type GiveawayOutbox func(*sql.Selector)
+
+// GiveawayUserLease is the predicate function for giveawayuserlease builders.
+type GiveawayUserLease func(*sql.Selector)
+
+// TebexAgreement is the predicate function for tebexagreement builders.
+type TebexAgreement func(*sql.Selector)
+
 // TebexWebhookEvents is the predicate function for tebexwebhookevents builders.
 type TebexWebhookEvents func(*sql.Selector)

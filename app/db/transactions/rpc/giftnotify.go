@@ -31,15 +31,21 @@ type GiftNotifier struct {
 	log          *zap.Logger
 }
 
-// NewGiftNotifier wires both channels. mailer may be nil: the email channel
-// is then skipped entirely (RESEND_API_KEY not configured).
-func NewGiftNotifier(nc *nats.Conn, sendSubject, emailSubject string, mailer *mail.Mailer, log *zap.Logger) *GiftNotifier {
+type GiftNotifierConfig struct {
+	SendSubject  string
+	EmailSubject string
+	Mailer       *mail.Mailer
+}
+
+// NewGiftNotifier wires both channels. A nil Mailer keeps the existing
+// in-app-only behavior when Resend is not configured.
+func NewGiftNotifier(w bus.RPCWiring, cfg GiftNotifierConfig) *GiftNotifier {
 	return &GiftNotifier{
-		nc:           nc,
-		sendSubject:  sendSubject,
-		emailSubject: emailSubject,
-		mailer:       mailer,
-		log:          log,
+		nc:           w.NC,
+		sendSubject:  cfg.SendSubject,
+		emailSubject: cfg.EmailSubject,
+		mailer:       cfg.Mailer,
+		log:          w.Log,
 	}
 }
 
@@ -111,7 +117,7 @@ func (g *GiftNotifier) sendEmail(ctx context.Context, notice web.GiftNotice) {
 		return
 	}
 
-	if err := g.mailer.SendGift(ctx, reply.Email, notice.GiftedByLogin, notice.GiftMessage, "tebex-gift-"+notice.WebhookID); err != nil {
+	if err := g.mailer.SendGift(ctx, mail.GiftMessage{To: reply.Email, GiftedByLogin: notice.GiftedByLogin, PersonalMessage: notice.GiftMessage, IdempotencyKey: "tebex-gift-" + notice.WebhookID}); err != nil {
 		g.log.Warn("gift email send failed",
 			zap.String("webhook_id", notice.WebhookID),
 			zap.Uint64("recipient", notice.RecipientID),

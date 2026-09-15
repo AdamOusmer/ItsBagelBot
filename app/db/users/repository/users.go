@@ -8,15 +8,18 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
 	"ItsBagelBot/app/db/users/ent"
 	"ItsBagelBot/app/db/users/ent/predicate"
+	"ItsBagelBot/app/db/users/ent/premiumgrant"
 	"ItsBagelBot/app/db/users/ent/tokens"
 	"ItsBagelBot/app/db/users/ent/user"
 	domaincrypto "ItsBagelBot/internal/domain/crypto"
 	"ItsBagelBot/internal/domain/event/data"
+	"ItsBagelBot/internal/domain/invalidate"
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/pkg/batch"
 	"ItsBagelBot/pkg/bus"
@@ -68,14 +71,21 @@ type UserView struct {
 // surface at flush and are requeued or dropped there. Money (status tier),
 // moderation (banned) and tokens write through immediately.
 type Users struct {
-	client  *ent.Client
-	views   *cache.Cache[UserView]
-	stats   *cache.Cache[userStatsRow]
-	packer  domaincrypto.Packer
-	pub     bus.Publisher
-	batcher *batch.Batcher[prefKey, prefWrite]
-	app     *newrelic.Application
-	log     *zap.Logger
+	client             *ent.Client
+	views              *cache.Cache[UserView]
+	stats              *cache.Cache[userStatsRow]
+	packer             domaincrypto.Packer
+	pub                bus.Publisher
+	batcher            *batch.Batcher[prefKey, prefWrite]
+	pendingMu          sync.RWMutex
+	pendingPrefs       map[prefKey]prefWrite
+	app                *newrelic.Application
+	log                *zap.Logger
+	invalidationPrefix string
+}
+
+func (r *Users) SetInvalidationPrefix(prefix string) {
+	r.invalidationPrefix = strings.TrimSuffix(strings.TrimSpace(prefix), ".")
 }
 
 func NewUsers(client *ent.Client, packer domaincrypto.Packer, pub bus.Publisher, app *newrelic.Application, log *zap.Logger) *Users {
@@ -85,13 +95,14 @@ func NewUsers(client *ent.Client, packer domaincrypto.Packer, pub bus.Publisher,
 	}
 
 	r := &Users{
-		client: client,
-		views:  cache.New[UserView](userCacheCapacity, userCacheTTL),
-		stats:  cache.New[userStatsRow](userStatsCapacity, userStatsTTL),
-		packer: packer,
-		pub:    pub,
-		app:    app,
-		log:    log,
+		client:       client,
+		views:        cache.New[UserView](userCacheCapacity, userCacheTTL),
+		stats:        cache.New[userStatsRow](userStatsCapacity, userStatsTTL),
+		packer:       packer,
+		pub:          pub,
+		app:          app,
+		log:          log,
+		pendingPrefs: make(map[prefKey]prefWrite),
 	}
 
 	r.batcher = batch.New[prefKey, prefWrite](prefsFlushInterval, prefsFlushMaxSize, r.flushPrefs, log)
@@ -186,12 +197,17 @@ func (r *Users) Get(ctx context.Context, id uint64) (UserView, error) {
 				return UserView{}, err
 			}
 
+			status, statusErr := r.effectiveStatus(ctx, u, time.Now().UTC())
+			if statusErr != nil {
+				return UserView{}, statusErr
+			}
+
 			return UserView{
 				ID:                        u.ID,
 				Username:                  u.Username,
 				DisplayName:               u.DisplayName,
 				IsActive:                  u.IsActive,
-				Status:                    string(u.Status),
+				Status:                    string(status),
 				Banned:                    u.Banned,
 				Locale:                    u.Locale,
 				CustomCursor:              u.CustomCursor,
@@ -204,6 +220,26 @@ func (r *Users) Get(ctx context.Context, id uint64) (UserView, error) {
 			}, nil
 		})
 	})
+}
+
+// effectiveStatus overlays currently active committed giveaway coverage on
+// the historical paid/VIP row. It never promotes VIP or changes billing
+// ownership; the overlay is solely the access status exposed to projections.
+func (r *Users) effectiveStatus(ctx context.Context, u *ent.User, now time.Time) (user.Status, error) {
+	if u.Status == user.StatusVip {
+		return u.Status, nil
+	}
+	active, err := r.client.PremiumGrant.Query().Where(
+		premiumgrant.UserIDEQ(u.ID), premiumgrant.StateEQ(premiumgrant.StateCommitted),
+		premiumgrant.StartAtLTE(now), premiumgrant.EndAtGT(now),
+	).Exist(ctx)
+	if err != nil {
+		return "", err
+	}
+	if active {
+		return user.StatusPaid, nil
+	}
+	return u.Status, nil
 }
 
 // IDByUsername resolves a Twitch login to its broadcaster id. It backs the
@@ -397,6 +433,13 @@ func (r *Users) publishChanged(ctx context.Context, id uint64) error {
 	})
 }
 
+func (r *Users) publishStatusInvalidation(ctx context.Context, id uint64) error {
+	if r.invalidationPrefix == "" || r.pub == nil {
+		return nil
+	}
+	return bus.PublishJSON(ctx, r.pub, r.invalidationPrefix+".status", invalidate.DTO{BroadcasterID: strconv.FormatUint(id, 10)})
+}
+
 // Reproject republishes the current state of every user as ordinary change
 // events, paged by ID so the table is never loaded at once. The projector
 // requests this on a cold start to rebuild the Valkey projection.
@@ -419,14 +462,7 @@ func (r *Users) Reproject(ctx context.Context) error {
 		}
 
 		for _, row := range rows {
-			if err := bus.PublishJSON(ctx, r.pub, data.SubjectUserChanged, data.UserChangedDTO{
-				UserID:   row.ID,
-				Username: row.Username,
-				IsActive: row.IsActive,
-				Status:   string(row.Status),
-				Banned:   row.Banned,
-				Locale:   row.Locale,
-			}); err != nil {
+			if err := r.publishReprojectedUser(ctx, row); err != nil {
 				return err
 			}
 		}
@@ -437,6 +473,17 @@ func (r *Users) Reproject(ctx context.Context) error {
 
 		afterID = rows[len(rows)-1].ID
 	}
+}
+
+func (r *Users) publishReprojectedUser(ctx context.Context, row *ent.User) error {
+	status, err := r.effectiveStatus(ctx, row, time.Now().UTC())
+	if err != nil {
+		return err
+	}
+	return bus.PublishJSON(ctx, r.pub, data.SubjectUserChanged, data.UserChangedDTO{
+		UserID: row.ID, Username: row.Username, IsActive: row.IsActive,
+		Status: string(status), Banned: row.Banned, Locale: row.Locale,
+	})
 }
 
 // UpsertToken encrypts and stores an OAuth token. The associated data binds

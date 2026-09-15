@@ -15,6 +15,9 @@ type AdminUser func(*sql.Selector)
 // Delegation is the predicate function for delegation builders.
 type Delegation func(*sql.Selector)
 
+// PremiumGrant is the predicate function for premiumgrant builders.
+type PremiumGrant func(*sql.Selector)
+
 // Tokens is the predicate function for tokens builders.
 type Tokens func(*sql.Selector)
 

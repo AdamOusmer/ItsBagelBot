@@ -7,6 +7,7 @@ import (
 	"ItsBagelBot/app/db/users/ent/adminuser"
 	"ItsBagelBot/app/db/users/ent/delegation"
 	"ItsBagelBot/app/db/users/ent/predicate"
+	"ItsBagelBot/app/db/users/ent/premiumgrant"
 	"ItsBagelBot/app/db/users/ent/tokens"
 	"ItsBagelBot/app/db/users/ent/user"
 	"context"
@@ -28,11 +29,12 @@ const (
 	OpUpdateOne = ent.OpUpdateOne
 
 	// Node types.
-	TypeAdminAudit = "AdminAudit"
-	TypeAdminUser  = "AdminUser"
-	TypeDelegation = "Delegation"
-	TypeTokens     = "Tokens"
-	TypeUser       = "User"
+	TypeAdminAudit   = "AdminAudit"
+	TypeAdminUser    = "AdminUser"
+	TypeDelegation   = "Delegation"
+	TypePremiumGrant = "PremiumGrant"
+	TypeTokens       = "Tokens"
+	TypeUser         = "User"
 )
 
 // AdminAuditMutation represents an operation that mutates the AdminAudit nodes in the graph.
@@ -2450,6 +2452,875 @@ func (m *DelegationMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown Delegation edge %s", name)
 }
 
+// PremiumGrantMutation represents an operation that mutates the PremiumGrant nodes in the graph.
+type PremiumGrantMutation struct {
+	config
+	op                    Op
+	typ                   string
+	id                    *int
+	giveaway_id           *string
+	award_id              *string
+	state                 *premiumgrant.State
+	projection_phase      *premiumgrant.ProjectionPhase
+	start_at              *time.Time
+	end_at                *time.Time
+	interval_rule_version *string
+	created_at            *time.Time
+	updated_at            *time.Time
+	clearedFields         map[string]struct{}
+	user                  *uint64
+	cleareduser           bool
+	done                  bool
+	oldValue              func(context.Context) (*PremiumGrant, error)
+	predicates            []predicate.PremiumGrant
+}
+
+var _ ent.Mutation = (*PremiumGrantMutation)(nil)
+
+// premiumgrantOption allows management of the mutation configuration using functional options.
+type premiumgrantOption func(*PremiumGrantMutation)
+
+// newPremiumGrantMutation creates new mutation for the PremiumGrant entity.
+func newPremiumGrantMutation(c config, op Op, opts ...premiumgrantOption) *PremiumGrantMutation {
+	m := &PremiumGrantMutation{
+		config:        c,
+		op:            op,
+		typ:           TypePremiumGrant,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withPremiumGrantID sets the ID field of the mutation.
+func withPremiumGrantID(id int) premiumgrantOption {
+	return func(m *PremiumGrantMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *PremiumGrant
+		)
+		m.oldValue = func(ctx context.Context) (*PremiumGrant, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().PremiumGrant.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withPremiumGrant sets the old PremiumGrant of the mutation.
+func withPremiumGrant(node *PremiumGrant) premiumgrantOption {
+	return func(m *PremiumGrantMutation) {
+		m.oldValue = func(context.Context) (*PremiumGrant, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m PremiumGrantMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m PremiumGrantMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *PremiumGrantMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *PremiumGrantMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().PremiumGrant.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetUserID sets the "user_id" field.
+func (m *PremiumGrantMutation) SetUserID(u uint64) {
+	m.user = &u
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *PremiumGrantMutation) UserID() (r uint64, exists bool) {
+	v := m.user
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the PremiumGrant entity.
+// If the PremiumGrant object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PremiumGrantMutation) OldUserID(ctx context.Context) (v uint64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *PremiumGrantMutation) ResetUserID() {
+	m.user = nil
+}
+
+// SetGiveawayID sets the "giveaway_id" field.
+func (m *PremiumGrantMutation) SetGiveawayID(s string) {
+	m.giveaway_id = &s
+}
+
+// GiveawayID returns the value of the "giveaway_id" field in the mutation.
+func (m *PremiumGrantMutation) GiveawayID() (r string, exists bool) {
+	v := m.giveaway_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGiveawayID returns the old "giveaway_id" field's value of the PremiumGrant entity.
+// If the PremiumGrant object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PremiumGrantMutation) OldGiveawayID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGiveawayID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGiveawayID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGiveawayID: %w", err)
+	}
+	return oldValue.GiveawayID, nil
+}
+
+// ResetGiveawayID resets all changes to the "giveaway_id" field.
+func (m *PremiumGrantMutation) ResetGiveawayID() {
+	m.giveaway_id = nil
+}
+
+// SetAwardID sets the "award_id" field.
+func (m *PremiumGrantMutation) SetAwardID(s string) {
+	m.award_id = &s
+}
+
+// AwardID returns the value of the "award_id" field in the mutation.
+func (m *PremiumGrantMutation) AwardID() (r string, exists bool) {
+	v := m.award_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAwardID returns the old "award_id" field's value of the PremiumGrant entity.
+// If the PremiumGrant object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PremiumGrantMutation) OldAwardID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAwardID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAwardID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAwardID: %w", err)
+	}
+	return oldValue.AwardID, nil
+}
+
+// ResetAwardID resets all changes to the "award_id" field.
+func (m *PremiumGrantMutation) ResetAwardID() {
+	m.award_id = nil
+}
+
+// SetState sets the "state" field.
+func (m *PremiumGrantMutation) SetState(pr premiumgrant.State) {
+	m.state = &pr
+}
+
+// State returns the value of the "state" field in the mutation.
+func (m *PremiumGrantMutation) State() (r premiumgrant.State, exists bool) {
+	v := m.state
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldState returns the old "state" field's value of the PremiumGrant entity.
+// If the PremiumGrant object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PremiumGrantMutation) OldState(ctx context.Context) (v premiumgrant.State, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldState is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldState requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldState: %w", err)
+	}
+	return oldValue.State, nil
+}
+
+// ResetState resets all changes to the "state" field.
+func (m *PremiumGrantMutation) ResetState() {
+	m.state = nil
+}
+
+// SetProjectionPhase sets the "projection_phase" field.
+func (m *PremiumGrantMutation) SetProjectionPhase(pp premiumgrant.ProjectionPhase) {
+	m.projection_phase = &pp
+}
+
+// ProjectionPhase returns the value of the "projection_phase" field in the mutation.
+func (m *PremiumGrantMutation) ProjectionPhase() (r premiumgrant.ProjectionPhase, exists bool) {
+	v := m.projection_phase
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldProjectionPhase returns the old "projection_phase" field's value of the PremiumGrant entity.
+// If the PremiumGrant object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PremiumGrantMutation) OldProjectionPhase(ctx context.Context) (v premiumgrant.ProjectionPhase, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldProjectionPhase is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldProjectionPhase requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldProjectionPhase: %w", err)
+	}
+	return oldValue.ProjectionPhase, nil
+}
+
+// ResetProjectionPhase resets all changes to the "projection_phase" field.
+func (m *PremiumGrantMutation) ResetProjectionPhase() {
+	m.projection_phase = nil
+}
+
+// SetStartAt sets the "start_at" field.
+func (m *PremiumGrantMutation) SetStartAt(t time.Time) {
+	m.start_at = &t
+}
+
+// StartAt returns the value of the "start_at" field in the mutation.
+func (m *PremiumGrantMutation) StartAt() (r time.Time, exists bool) {
+	v := m.start_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStartAt returns the old "start_at" field's value of the PremiumGrant entity.
+// If the PremiumGrant object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PremiumGrantMutation) OldStartAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStartAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStartAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStartAt: %w", err)
+	}
+	return oldValue.StartAt, nil
+}
+
+// ResetStartAt resets all changes to the "start_at" field.
+func (m *PremiumGrantMutation) ResetStartAt() {
+	m.start_at = nil
+}
+
+// SetEndAt sets the "end_at" field.
+func (m *PremiumGrantMutation) SetEndAt(t time.Time) {
+	m.end_at = &t
+}
+
+// EndAt returns the value of the "end_at" field in the mutation.
+func (m *PremiumGrantMutation) EndAt() (r time.Time, exists bool) {
+	v := m.end_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEndAt returns the old "end_at" field's value of the PremiumGrant entity.
+// If the PremiumGrant object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PremiumGrantMutation) OldEndAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEndAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEndAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEndAt: %w", err)
+	}
+	return oldValue.EndAt, nil
+}
+
+// ResetEndAt resets all changes to the "end_at" field.
+func (m *PremiumGrantMutation) ResetEndAt() {
+	m.end_at = nil
+}
+
+// SetIntervalRuleVersion sets the "interval_rule_version" field.
+func (m *PremiumGrantMutation) SetIntervalRuleVersion(s string) {
+	m.interval_rule_version = &s
+}
+
+// IntervalRuleVersion returns the value of the "interval_rule_version" field in the mutation.
+func (m *PremiumGrantMutation) IntervalRuleVersion() (r string, exists bool) {
+	v := m.interval_rule_version
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldIntervalRuleVersion returns the old "interval_rule_version" field's value of the PremiumGrant entity.
+// If the PremiumGrant object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PremiumGrantMutation) OldIntervalRuleVersion(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldIntervalRuleVersion is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldIntervalRuleVersion requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldIntervalRuleVersion: %w", err)
+	}
+	return oldValue.IntervalRuleVersion, nil
+}
+
+// ResetIntervalRuleVersion resets all changes to the "interval_rule_version" field.
+func (m *PremiumGrantMutation) ResetIntervalRuleVersion() {
+	m.interval_rule_version = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *PremiumGrantMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *PremiumGrantMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the PremiumGrant entity.
+// If the PremiumGrant object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PremiumGrantMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *PremiumGrantMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *PremiumGrantMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *PremiumGrantMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the PremiumGrant entity.
+// If the PremiumGrant object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PremiumGrantMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *PremiumGrantMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// ClearUser clears the "user" edge to the User entity.
+func (m *PremiumGrantMutation) ClearUser() {
+	m.cleareduser = true
+	m.clearedFields[premiumgrant.FieldUserID] = struct{}{}
+}
+
+// UserCleared reports if the "user" edge to the User entity was cleared.
+func (m *PremiumGrantMutation) UserCleared() bool {
+	return m.cleareduser
+}
+
+// UserIDs returns the "user" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// UserID instead. It exists only for internal usage by the builders.
+func (m *PremiumGrantMutation) UserIDs() (ids []uint64) {
+	if id := m.user; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetUser resets all changes to the "user" edge.
+func (m *PremiumGrantMutation) ResetUser() {
+	m.user = nil
+	m.cleareduser = false
+}
+
+// Where appends a list predicates to the PremiumGrantMutation builder.
+func (m *PremiumGrantMutation) Where(ps ...predicate.PremiumGrant) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the PremiumGrantMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *PremiumGrantMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.PremiumGrant, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *PremiumGrantMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *PremiumGrantMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (PremiumGrant).
+func (m *PremiumGrantMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *PremiumGrantMutation) Fields() []string {
+	fields := make([]string, 0, 10)
+	if m.user != nil {
+		fields = append(fields, premiumgrant.FieldUserID)
+	}
+	if m.giveaway_id != nil {
+		fields = append(fields, premiumgrant.FieldGiveawayID)
+	}
+	if m.award_id != nil {
+		fields = append(fields, premiumgrant.FieldAwardID)
+	}
+	if m.state != nil {
+		fields = append(fields, premiumgrant.FieldState)
+	}
+	if m.projection_phase != nil {
+		fields = append(fields, premiumgrant.FieldProjectionPhase)
+	}
+	if m.start_at != nil {
+		fields = append(fields, premiumgrant.FieldStartAt)
+	}
+	if m.end_at != nil {
+		fields = append(fields, premiumgrant.FieldEndAt)
+	}
+	if m.interval_rule_version != nil {
+		fields = append(fields, premiumgrant.FieldIntervalRuleVersion)
+	}
+	if m.created_at != nil {
+		fields = append(fields, premiumgrant.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, premiumgrant.FieldUpdatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *PremiumGrantMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case premiumgrant.FieldUserID:
+		return m.UserID()
+	case premiumgrant.FieldGiveawayID:
+		return m.GiveawayID()
+	case premiumgrant.FieldAwardID:
+		return m.AwardID()
+	case premiumgrant.FieldState:
+		return m.State()
+	case premiumgrant.FieldProjectionPhase:
+		return m.ProjectionPhase()
+	case premiumgrant.FieldStartAt:
+		return m.StartAt()
+	case premiumgrant.FieldEndAt:
+		return m.EndAt()
+	case premiumgrant.FieldIntervalRuleVersion:
+		return m.IntervalRuleVersion()
+	case premiumgrant.FieldCreatedAt:
+		return m.CreatedAt()
+	case premiumgrant.FieldUpdatedAt:
+		return m.UpdatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *PremiumGrantMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case premiumgrant.FieldUserID:
+		return m.OldUserID(ctx)
+	case premiumgrant.FieldGiveawayID:
+		return m.OldGiveawayID(ctx)
+	case premiumgrant.FieldAwardID:
+		return m.OldAwardID(ctx)
+	case premiumgrant.FieldState:
+		return m.OldState(ctx)
+	case premiumgrant.FieldProjectionPhase:
+		return m.OldProjectionPhase(ctx)
+	case premiumgrant.FieldStartAt:
+		return m.OldStartAt(ctx)
+	case premiumgrant.FieldEndAt:
+		return m.OldEndAt(ctx)
+	case premiumgrant.FieldIntervalRuleVersion:
+		return m.OldIntervalRuleVersion(ctx)
+	case premiumgrant.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case premiumgrant.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown PremiumGrant field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *PremiumGrantMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case premiumgrant.FieldUserID:
+		v, ok := value.(uint64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case premiumgrant.FieldGiveawayID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGiveawayID(v)
+		return nil
+	case premiumgrant.FieldAwardID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAwardID(v)
+		return nil
+	case premiumgrant.FieldState:
+		v, ok := value.(premiumgrant.State)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetState(v)
+		return nil
+	case premiumgrant.FieldProjectionPhase:
+		v, ok := value.(premiumgrant.ProjectionPhase)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetProjectionPhase(v)
+		return nil
+	case premiumgrant.FieldStartAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStartAt(v)
+		return nil
+	case premiumgrant.FieldEndAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEndAt(v)
+		return nil
+	case premiumgrant.FieldIntervalRuleVersion:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetIntervalRuleVersion(v)
+		return nil
+	case premiumgrant.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case premiumgrant.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown PremiumGrant field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *PremiumGrantMutation) AddedFields() []string {
+	var fields []string
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *PremiumGrantMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *PremiumGrantMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown PremiumGrant numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *PremiumGrantMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *PremiumGrantMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *PremiumGrantMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown PremiumGrant nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *PremiumGrantMutation) ResetField(name string) error {
+	switch name {
+	case premiumgrant.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case premiumgrant.FieldGiveawayID:
+		m.ResetGiveawayID()
+		return nil
+	case premiumgrant.FieldAwardID:
+		m.ResetAwardID()
+		return nil
+	case premiumgrant.FieldState:
+		m.ResetState()
+		return nil
+	case premiumgrant.FieldProjectionPhase:
+		m.ResetProjectionPhase()
+		return nil
+	case premiumgrant.FieldStartAt:
+		m.ResetStartAt()
+		return nil
+	case premiumgrant.FieldEndAt:
+		m.ResetEndAt()
+		return nil
+	case premiumgrant.FieldIntervalRuleVersion:
+		m.ResetIntervalRuleVersion()
+		return nil
+	case premiumgrant.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case premiumgrant.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown PremiumGrant field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *PremiumGrantMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.user != nil {
+		edges = append(edges, premiumgrant.EdgeUser)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *PremiumGrantMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case premiumgrant.EdgeUser:
+		if id := m.user; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *PremiumGrantMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *PremiumGrantMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *PremiumGrantMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.cleareduser {
+		edges = append(edges, premiumgrant.EdgeUser)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *PremiumGrantMutation) EdgeCleared(name string) bool {
+	switch name {
+	case premiumgrant.EdgeUser:
+		return m.cleareduser
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *PremiumGrantMutation) ClearEdge(name string) error {
+	switch name {
+	case premiumgrant.EdgeUser:
+		m.ClearUser()
+		return nil
+	}
+	return fmt.Errorf("unknown PremiumGrant unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *PremiumGrantMutation) ResetEdge(name string) error {
+	switch name {
+	case premiumgrant.EdgeUser:
+		m.ResetUser()
+		return nil
+	}
+	return fmt.Errorf("unknown PremiumGrant edge %s", name)
+}
+
 // TokensMutation represents an operation that mutates the Tokens nodes in the graph.
 type TokensMutation struct {
 	config
@@ -3125,12 +3996,16 @@ type UserMutation struct {
 	gifts_sent                  *uint32
 	addgifts_sent               *int32
 	onboarded                   *bool
+	test_account                *bool
 	created_at                  *time.Time
 	updated_at                  *time.Time
 	clearedFields               map[string]struct{}
 	tokens                      map[int]struct{}
 	removedtokens               map[int]struct{}
 	clearedtokens               bool
+	premium_grants              map[int]struct{}
+	removedpremium_grants       map[int]struct{}
+	clearedpremium_grants       bool
 	done                        bool
 	oldValue                    func(context.Context) (*User, error)
 	predicates                  []predicate.User
@@ -3986,6 +4861,42 @@ func (m *UserMutation) ResetOnboarded() {
 	m.onboarded = nil
 }
 
+// SetTestAccount sets the "test_account" field.
+func (m *UserMutation) SetTestAccount(b bool) {
+	m.test_account = &b
+}
+
+// TestAccount returns the value of the "test_account" field in the mutation.
+func (m *UserMutation) TestAccount() (r bool, exists bool) {
+	v := m.test_account
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTestAccount returns the old "test_account" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldTestAccount(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTestAccount is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTestAccount requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTestAccount: %w", err)
+	}
+	return oldValue.TestAccount, nil
+}
+
+// ResetTestAccount resets all changes to the "test_account" field.
+func (m *UserMutation) ResetTestAccount() {
+	m.test_account = nil
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (m *UserMutation) SetCreatedAt(t time.Time) {
 	m.created_at = &t
@@ -4112,6 +5023,60 @@ func (m *UserMutation) ResetTokens() {
 	m.removedtokens = nil
 }
 
+// AddPremiumGrantIDs adds the "premium_grants" edge to the PremiumGrant entity by ids.
+func (m *UserMutation) AddPremiumGrantIDs(ids ...int) {
+	if m.premium_grants == nil {
+		m.premium_grants = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.premium_grants[ids[i]] = struct{}{}
+	}
+}
+
+// ClearPremiumGrants clears the "premium_grants" edge to the PremiumGrant entity.
+func (m *UserMutation) ClearPremiumGrants() {
+	m.clearedpremium_grants = true
+}
+
+// PremiumGrantsCleared reports if the "premium_grants" edge to the PremiumGrant entity was cleared.
+func (m *UserMutation) PremiumGrantsCleared() bool {
+	return m.clearedpremium_grants
+}
+
+// RemovePremiumGrantIDs removes the "premium_grants" edge to the PremiumGrant entity by IDs.
+func (m *UserMutation) RemovePremiumGrantIDs(ids ...int) {
+	if m.removedpremium_grants == nil {
+		m.removedpremium_grants = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.premium_grants, ids[i])
+		m.removedpremium_grants[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedPremiumGrants returns the removed IDs of the "premium_grants" edge to the PremiumGrant entity.
+func (m *UserMutation) RemovedPremiumGrantsIDs() (ids []int) {
+	for id := range m.removedpremium_grants {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// PremiumGrantsIDs returns the "premium_grants" edge IDs in the mutation.
+func (m *UserMutation) PremiumGrantsIDs() (ids []int) {
+	for id := range m.premium_grants {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetPremiumGrants resets all changes to the "premium_grants" edge.
+func (m *UserMutation) ResetPremiumGrants() {
+	m.premium_grants = nil
+	m.clearedpremium_grants = false
+	m.removedpremium_grants = nil
+}
+
 // Where appends a list predicates to the UserMutation builder.
 func (m *UserMutation) Where(ps ...predicate.User) {
 	m.predicates = append(m.predicates, ps...)
@@ -4146,7 +5111,7 @@ func (m *UserMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserMutation) Fields() []string {
-	fields := make([]string, 0, 20)
+	fields := make([]string, 0, 21)
 	if m.username != nil {
 		fields = append(fields, user.FieldUsername)
 	}
@@ -4201,6 +5166,9 @@ func (m *UserMutation) Fields() []string {
 	if m.onboarded != nil {
 		fields = append(fields, user.FieldOnboarded)
 	}
+	if m.test_account != nil {
+		fields = append(fields, user.FieldTestAccount)
+	}
 	if m.created_at != nil {
 		fields = append(fields, user.FieldCreatedAt)
 	}
@@ -4251,6 +5219,8 @@ func (m *UserMutation) Field(name string) (ent.Value, bool) {
 		return m.GiftsSent()
 	case user.FieldOnboarded:
 		return m.Onboarded()
+	case user.FieldTestAccount:
+		return m.TestAccount()
 	case user.FieldCreatedAt:
 		return m.CreatedAt()
 	case user.FieldUpdatedAt:
@@ -4300,6 +5270,8 @@ func (m *UserMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldGiftsSent(ctx)
 	case user.FieldOnboarded:
 		return m.OldOnboarded(ctx)
+	case user.FieldTestAccount:
+		return m.OldTestAccount(ctx)
 	case user.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	case user.FieldUpdatedAt:
@@ -4438,6 +5410,13 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetOnboarded(v)
+		return nil
+	case user.FieldTestAccount:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTestAccount(v)
 		return nil
 	case user.FieldCreatedAt:
 		v, ok := value.(time.Time)
@@ -4610,6 +5589,9 @@ func (m *UserMutation) ResetField(name string) error {
 	case user.FieldOnboarded:
 		m.ResetOnboarded()
 		return nil
+	case user.FieldTestAccount:
+		m.ResetTestAccount()
+		return nil
 	case user.FieldCreatedAt:
 		m.ResetCreatedAt()
 		return nil
@@ -4622,9 +5604,12 @@ func (m *UserMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *UserMutation) AddedEdges() []string {
-	edges := make([]string, 0, 1)
+	edges := make([]string, 0, 2)
 	if m.tokens != nil {
 		edges = append(edges, user.EdgeTokens)
+	}
+	if m.premium_grants != nil {
+		edges = append(edges, user.EdgePremiumGrants)
 	}
 	return edges
 }
@@ -4639,15 +5624,24 @@ func (m *UserMutation) AddedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case user.EdgePremiumGrants:
+		ids := make([]ent.Value, 0, len(m.premium_grants))
+		for id := range m.premium_grants {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *UserMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 1)
+	edges := make([]string, 0, 2)
 	if m.removedtokens != nil {
 		edges = append(edges, user.EdgeTokens)
+	}
+	if m.removedpremium_grants != nil {
+		edges = append(edges, user.EdgePremiumGrants)
 	}
 	return edges
 }
@@ -4662,15 +5656,24 @@ func (m *UserMutation) RemovedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case user.EdgePremiumGrants:
+		ids := make([]ent.Value, 0, len(m.removedpremium_grants))
+		for id := range m.removedpremium_grants {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *UserMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 1)
+	edges := make([]string, 0, 2)
 	if m.clearedtokens {
 		edges = append(edges, user.EdgeTokens)
+	}
+	if m.clearedpremium_grants {
+		edges = append(edges, user.EdgePremiumGrants)
 	}
 	return edges
 }
@@ -4681,6 +5684,8 @@ func (m *UserMutation) EdgeCleared(name string) bool {
 	switch name {
 	case user.EdgeTokens:
 		return m.clearedtokens
+	case user.EdgePremiumGrants:
+		return m.clearedpremium_grants
 	}
 	return false
 }
@@ -4699,6 +5704,9 @@ func (m *UserMutation) ResetEdge(name string) error {
 	switch name {
 	case user.EdgeTokens:
 		m.ResetTokens()
+		return nil
+	case user.EdgePremiumGrants:
+		m.ResetPremiumGrants()
 		return nil
 	}
 	return fmt.Errorf("unknown User edge %s", name)
