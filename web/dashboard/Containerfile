@@ -58,7 +58,20 @@ COPY web/docs/package.json docs/package.json
 RUN bun install --frozen-lockfile --filter '!marketing' --filter '!docs'
 COPY web/kit kit
 COPY web/dashboard dashboard
-RUN cd dashboard && bun run build && bun install --production --frozen-lockfile --filter '!marketing' --filter '!docs'
+RUN cd dashboard && bun run build && bun install --production --omit=optional --frozen-lockfile --filter '!marketing' --filter '!docs'
+# newrelic's optionalDependencies are Node/V8 native addons. The first
+# `bun install` above must keep optional=true: vite/rolldown/lightningcss
+# ship platform bindings as optionalDependencies, and `bun run build` needs
+# those. bun install --production on the v0.2.2-beta image still left
+# @newrelic/fn-inspect on disk — bun does not prune already-installed
+# optional packages. Distroless bun then dlopens the .node and aborts
+# (`undefined symbol GetScriptOrigin`); that is not a catchable
+# MODULE_NOT_FOUND. The JS agent listened, then the first public request
+# 502'd dashboard and stats. native-metrics already failed closed (no
+# libstdc++). --omit=optional is the from-scratch gate; the kit script is
+# the crash we measured (2026-09-15). Runtime stage has no shell, so strip
+# here. Do not set [install] optional=false in bunfig.toml.
+RUN bun kit/scripts/strip-newrelic-node-addons.ts node_modules
 
 FROM docker.io/oven/bun:1.4.2-distroless@sha256:1a0c31c7c5f9d193aedf60fe1cebdeb76ac8f6e29f24be8dd8cbd6df72df26ec AS run
 WORKDIR /app
@@ -72,9 +85,8 @@ COPY --from=build /src/web/node_modules ./node_modules
 COPY web/serve-node.js ./serve-node.js
 EXPOSE 3000
 # Distroless bun's ENTRYPOINT is already `bun`, so this argv is the same
-# `--import newrelic serve-node.js` the Node image used. The Node agent is
-# unofficial on bun: keep node:http (serve-node.js) rather than Bun.serve, and
-# do not require @newrelic/native-metrics (optional Node addon). Manual
-# startSegment/noticeError keep working; outbound HTTP auto-instrumentation
-# is the gap.
+# `--import newrelic serve-node.js` the Node image used. Keep node:http
+# (serve-node.js) rather than Bun.serve. Optional Node/V8 addons are stripped
+# in the build stage so the JS agent loads; startSegment/noticeError keep
+# working. Outbound HTTP auto-instrumentation is the remaining gap.
 CMD ["--import", "newrelic", "serve-node.js"]
