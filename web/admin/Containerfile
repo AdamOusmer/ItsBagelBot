@@ -53,7 +53,10 @@ COPY web/kit kit
 COPY web/admin admin
 # `bun run build` also scans the final adapter-node output and fails if any
 # development identity or seeded demo fixture was emitted into the image.
-RUN cd admin && bun run build && bun install --production --frozen-lockfile --filter '!marketing' --filter '!docs'
+RUN cd admin && bun run build && bun install --production --omit=optional --frozen-lockfile --filter '!marketing' --filter '!docs'
+# Same strip as web/dashboard/Containerfile (kit script). Runtime stage has
+# no shell. bun + a present @newrelic/fn-inspect .node aborts the process.
+RUN bun kit/scripts/strip-newrelic-node-addons.ts node_modules
 
 FROM docker.io/oven/bun:1.4.2-distroless@sha256:1a0c31c7c5f9d193aedf60fe1cebdeb76ac8f6e29f24be8dd8cbd6df72df26ec AS run
 WORKDIR /app

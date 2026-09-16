@@ -266,14 +266,12 @@ spec:
               value: stdout
             - name: NEW_RELIC_LOG_LEVEL
               value: info
-            # bun distroless plus the Node New Relic agent: native addons abort
-            # the process. @newrelic/native-metrics fails closed (no libstdc++).
-            # @newrelic/fn-inspect's linux-x64 glibc .node still loads and then
-            # dies with undefined symbol GetScriptOrigin. Measured 2026-09-16 on
-            # the v0.2.2-beta image: NEW_RELIC_CODE_LEVEL_METRICS_ENABLED=false
-            # was not enough — the pid still aborted on the first public request
-            # and Cloudflare 502'd dashboard and stats. Disable the agent until
-            # it has a bun-safe path; startSegment/noticeError no-ops.
+            # bun works with the JS agent. What 502'd v0.2.2-beta was shipping
+            # Node/V8 .node addons (@newrelic/fn-inspect): bun dlopens a present
+            # addon and aborts (`undefined symbol GetScriptOrigin`). The bun-safe
+            # path is stripping those packages in web/dashboard/Containerfile.
+            # Keep the agent off until that image is pinned; flipping this first
+            # re-502s the current digest. CLM=false was not enough (2026-09-15).
             - name: NEW_RELIC_ENABLED
               value: "false"
             - name: NEW_RELIC_SPAN_EVENTS_ENABLED

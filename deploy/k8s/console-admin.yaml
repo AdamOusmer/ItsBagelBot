@@ -255,9 +255,8 @@ spec:
               value: stdout
             - name: NEW_RELIC_LOG_LEVEL
               value: info
-            # Same bun + New Relic native abort as console-dashboard. Disabling
-            # code-level metrics was not enough; disable the agent until it has
-            # a bun-safe path. Measurement 2026-09-16 on console-dashboard.
+            # Same as console-dashboard: bun + a present fn-inspect .node aborts.
+            # Re-enable with the image that strips the addons; not before.
             - name: NEW_RELIC_ENABLED
               value: "false"
             - name: NEW_RELIC_DISTRIBUTED_TRACING_ENABLED

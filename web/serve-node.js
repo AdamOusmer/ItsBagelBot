@@ -10,8 +10,11 @@
 // handler is the same; TLS is node:https with the cert-manager cert; and the
 // New Relic Node agent documents that bun.serve is the path that loses request
 // instrumentation. bun's node:http/https implement server.listen, which is
-// what all four of those require. @newrelic/native-metrics is an optional
-// Node addon and must stay optional (it will not load under bun).
+// what all four of those require. New Relic's optional native addons
+// (@newrelic/fn-inspect, @newrelic/native-metrics, @datadog/pprof) are
+// Node/V8 .node files: bun dlopens a present addon and aborts the process
+// (`undefined symbol GetScriptOrigin`) instead of throwing, so the
+// Containerfile strips those packages and the JS agent stays up.
 import { createServer as createHttpServer } from 'node:http';
 import { createServer as createHttpsServer } from 'node:https';
 import { existsSync, readFileSync } from 'node:fs';
