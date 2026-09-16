@@ -5,7 +5,7 @@ Shared language for ItsBagelBot's Premium access and giveaways.
 ## Language
 
 **Premium**:
-ItsBagelBot's enhanced access tier, obtainable through a purchase or a promotional award.
+ItsBagelBot's enhanced access tier. A purchase and a promotional award are both Premium while they cover now. A promotional award is not a Tebex subscription.
 _Avoid_: Subscription when referring only to access.
 
 **Giveaway**:

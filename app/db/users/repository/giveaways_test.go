@@ -14,6 +14,7 @@ import (
 	"ItsBagelBot/app/db/users/ent"
 	"ItsBagelBot/app/db/users/ent/adminuser"
 	"ItsBagelBot/app/db/users/ent/enttest"
+	"ItsBagelBot/app/db/users/ent/premiumgrant"
 	"ItsBagelBot/app/db/users/ent/user"
 	"ItsBagelBot/app/db/users/repository"
 	"ItsBagelBot/internal/domain/event/data"
@@ -186,17 +187,22 @@ func TestPremiumGrantBoundarySweepAdvancesProjectionPhase(t *testing.T) {
 	require.NoError(t, err)
 	_, err = repo.CommitPremiumGrant(ctx, usersrpc.CommitPremiumGrantRequest{GiveawayID: "g-boundary", AwardID: "a-boundary", UserID: 31})
 	require.NoError(t, err)
+	assert.Equal(t, user.StatusFree, client.User.GetX(ctx, 31).Status, "future interval is not paid until it covers now")
 	count, err := repo.ExpirePremiumGrants(ctx, start)
 	require.NoError(t, err)
 	assert.Zero(t, count)
 	grant := client.PremiumGrant.Query().OnlyX(ctx)
 	assert.Equal(t, "active", string(grant.ProjectionPhase))
+	assert.Equal(t, user.StatusPaid, client.User.GetX(ctx, 31).Status)
+	assert.Equal(t, "giveaway", client.User.GetX(ctx, 31).SubscriptionSource)
 	assert.NotEmpty(t, pub.On(data.SubjectUserChanged))
 	count, err = repo.ExpirePremiumGrants(ctx, end)
 	require.NoError(t, err)
 	assert.Equal(t, 1, count)
 	grant = client.PremiumGrant.Query().OnlyX(ctx)
 	assert.Equal(t, "expired", string(grant.ProjectionPhase))
+	assert.Equal(t, user.StatusFree, client.User.GetX(ctx, 31).Status)
+	assert.Equal(t, "", client.User.GetX(ctx, 31).SubscriptionSource)
 }
 
 // rejectInvalidateStatus is the production JetStream catalog: bagel.cache.invalidate.status
@@ -293,6 +299,9 @@ func TestCommittedGrantOverlaysBillingAndRevokeKeepsPrize(t *testing.T) {
 	_, err = repo.ApplyBilling(ctx, billingrpc.ApplyRequest{UserID: 40, EventID: "paid-revoke", Action: billingrpc.ActionRevoke,
 		OccurredAt: now.Add(time.Minute), RecurringReference: "tbx-r-40"})
 	require.NoError(t, err)
+	stored := client.User.GetX(ctx, 40)
+	assert.Equal(t, user.StatusPaid, stored.Status)
+	assert.Equal(t, "giveaway", stored.SubscriptionSource)
 	view, err = repo.Get(ctx, 40)
 	require.NoError(t, err)
 	assert.Equal(t, "paid", view.Status)
@@ -300,14 +309,87 @@ func TestCommittedGrantOverlaysBillingAndRevokeKeepsPrize(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, coverage.RecurringReference)
 	assert.Len(t, coverage.Grants, 1)
-	assert.Nil(t, client.User.GetX(ctx, 40).SubscriptionRef)
+	assert.Nil(t, stored.SubscriptionRef)
 
-	// Ending the grant restores the source row's effective free state.
+	// Ending the grant restores the source row's stored free state.
 	require.NoError(t, client.PremiumGrant.UpdateOneID(grant.ID).SetEndAt(now.Add(-time.Second)).Exec(ctx))
 	count, err := repo.ExpirePremiumGrants(ctx, now)
 	require.NoError(t, err)
 	assert.Equal(t, 1, count)
+	stored = client.User.GetX(ctx, 40)
+	assert.Equal(t, user.StatusFree, stored.Status)
+	assert.Equal(t, "", stored.SubscriptionSource)
 	view, err = repo.Get(ctx, 40)
 	require.NoError(t, err)
 	assert.Equal(t, "free", view.Status)
+}
+
+func TestGrantSweepWritesPaidForAlreadyActiveCoverage(t *testing.T) {
+	client, _, repo := setup(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	require.NoError(t, repo.Register(ctx, 34, "already", "already", "already@example.com"))
+	client.PremiumGrant.Create().
+		SetUserID(34).
+		SetGiveawayID("g-already").
+		SetAwardID("a-already").
+		SetState(premiumgrant.StateCommitted).
+		SetProjectionPhase(premiumgrant.ProjectionPhaseActive).
+		SetStartAt(now.Add(-time.Hour)).
+		SetEndAt(now.AddDate(0, 1, 0)).
+		SetIntervalRuleVersion("promotional-calendar-month-v1").
+		ExecX(ctx)
+	assert.Equal(t, user.StatusFree, client.User.GetX(ctx, 34).Status)
+
+	count, err := repo.ExpirePremiumGrants(ctx, now)
+	require.NoError(t, err)
+	assert.Zero(t, count)
+	row := client.User.GetX(ctx, 34)
+	assert.Equal(t, user.StatusPaid, row.Status)
+	assert.Equal(t, "giveaway", row.SubscriptionSource)
+	_, _, paid, _, err := repo.UserStats(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 1, paid)
+}
+
+func TestCommittedGrantDoesNotDemoteVIP(t *testing.T) {
+	client, _, repo := setup(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	require.NoError(t, repo.Register(ctx, 35, "vipgrant", "vipgrant", "vipgrant@example.com"))
+	require.NoError(t, repo.SetStatus(ctx, 35, user.StatusVip))
+	_, err := repo.PreparePremiumGrant(ctx, usersrpc.PreparePremiumGrantRequest{
+		GiveawayID: "g-vip", AwardID: "a-vip", UserID: 35, StartAt: now.Add(-time.Minute), EndAt: now.AddDate(0, 1, 0), IntervalRuleVersion: "tebex-monthly-v1",
+	})
+	require.NoError(t, err)
+	_, err = repo.CommitPremiumGrant(ctx, usersrpc.CommitPremiumGrantRequest{GiveawayID: "g-vip", AwardID: "a-vip", UserID: 35})
+	require.NoError(t, err)
+	assert.Equal(t, user.StatusVip, client.User.GetX(ctx, 35).Status)
+}
+
+func TestExpireSubscriptionsKeepsCoveringGrantPaid(t *testing.T) {
+	client, _, repo := setup(t)
+	ctx := context.Background()
+	now := time.Date(2026, 7, 2, 12, 0, 0, 0, time.UTC)
+	require.NoError(t, repo.Register(ctx, 36, "gracegrant", "gracegrant", "gracegrant@example.com"))
+	expiry := now.Add(-time.Minute)
+	_, err := repo.ApplyBilling(ctx, billingrpc.ApplyRequest{
+		UserID: 36, EventID: "evt-g", Action: billingrpc.ActionActivate,
+		OccurredAt: now.Add(-48 * time.Hour), ExpiresAt: &expiry, RecurringReference: "tbx-r-36",
+	})
+	require.NoError(t, err)
+	_, err = repo.PreparePremiumGrant(ctx, usersrpc.PreparePremiumGrantRequest{
+		GiveawayID: "g-grace", AwardID: "a-grace", UserID: 36, StartAt: now.Add(-time.Hour), EndAt: now.AddDate(0, 1, 0), IntervalRuleVersion: "tebex-monthly-v1",
+	})
+	require.NoError(t, err)
+	_, err = repo.CommitPremiumGrant(ctx, usersrpc.CommitPremiumGrantRequest{GiveawayID: "g-grace", AwardID: "a-grace", UserID: 36})
+	require.NoError(t, err)
+
+	count, err := repo.ExpireSubscriptions(ctx, now, 0)
+	require.NoError(t, err)
+	assert.Equal(t, 1, count)
+	row := client.User.GetX(ctx, 36)
+	assert.Equal(t, user.StatusPaid, row.Status)
+	assert.Equal(t, "giveaway", row.SubscriptionSource)
+	assert.Nil(t, row.SubscriptionRef)
 }
