@@ -139,7 +139,7 @@ spec:
       priorityClassName: bagel-edge
       containers:
         - name: console-admin
-          image: ghcr.io/adamousmer/itsbagelbot/console-admin:v0.2.2-beta@sha256:37f0af17dfef2b158790531f061d3a9a3adc7389be9ab86577aa5a5a7c7f2214
+          image: ghcr.io/adamousmer/itsbagelbot/console-admin:v0.2.2-beta@sha256:1de64ab3871f745e769d8589d3a3398a79e3668c73feaba9f2de81c1054dcd9b
           imagePullPolicy: IfNotPresent
           env:
             # mTLS client identity for both NATS planes (nats-client-tls,
@@ -255,16 +255,14 @@ spec:
               value: stdout
             - name: NEW_RELIC_LOG_LEVEL
               value: info
-            # Same as console-dashboard: bun + a present fn-inspect .node aborts.
-            # Re-enable with the image that strips the addons; not before.
-            - name: NEW_RELIC_ENABLED
-              value: "false"
+            # Same bun-safe path as console-dashboard: addons stripped in the
+            # image, so the JS agent stays up. Do not ship fn-inspect .node files.
             - name: NEW_RELIC_DISTRIBUTED_TRACING_ENABLED
               value: "true"
             - name: NEW_RELIC_SPAN_EVENTS_ENABLED
               value: "true"
             - name: NEW_RELIC_CODE_LEVEL_METRICS_ENABLED
-              value: "false"
+              value: "true"
             # Logs-in-context: the cluster Fluent Bit DaemonSet already forwards
             # stdout to New Relic, so the agent must NOT forward too (double-send).
             # It decorates stdout with trace/entity linking metadata and emits

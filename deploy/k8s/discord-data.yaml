@@ -129,7 +129,7 @@ spec:
       containers:
         - name: discord-data
           # Placeholder digest: pin after the first publish-images run.
-          image: ghcr.io/adamousmer/itsbagelbot/discord-data:v0.2.2-beta@sha256:6b89e9fb136960e662ecc95fae28acc78d60e9ee47011d9177ef62a54e3b2f38
+          image: ghcr.io/adamousmer/itsbagelbot/discord-data:v0.2.2-beta@sha256:063a5edade8b4606e06cfe8b0cf35cd5ceb0b08f43f9f17eb9c411535da89631
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
