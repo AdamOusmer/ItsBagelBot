@@ -22,7 +22,7 @@ const (
 
 // MaxEmoteLine caps how many BYTES of joined emote codes one span may render.
 //
-// Decision record. A Twitch line is 500 bytes and emitResponse splits a longer
+// Decision record. A Twitch line is 500 bytes and emitCommand splits a longer
 // response across lines, so an uncapped list — 7TV's global set alone is well
 // over a thousand bytes of codes — would not print a longer list, it would
 // push the broadcaster's own words onto a second line and then a third. 480 is

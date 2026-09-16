@@ -138,7 +138,7 @@ func messageVars(run commandRun) scope.Message {
 // slashes, which is the right rule for {args}: it renders where the chatter's
 // own first word renders, so a "/me" in the middle of it stays in the middle.
 // A positional token moves a word: "!so hey /me is a cat" puts "/me" at the
-// START of the rendered line through {2}, and emitResponse's per-line split
+// START of the rendered line through {2}, and emitCommand's per-line split
 // would then hand outgress a moderation verb the chatter chose. Every word is
 // therefore trimmed as if it began a line, because through a positional token
 // it can.
@@ -248,7 +248,7 @@ func (f urlFetches) Fetch(ctx context.Context, names []string) map[string]string
 // sanitizeVar neutralizes a user-supplied command variable so it cannot inject
 // a leading slash-verb into the expanded response. Control characters (C0 plus
 // DEL) are stripped first — an embedded newline would otherwise survive into
-// the expansion and emitResponse's per-line split would mint it a fresh line,
+// the expansion and emitCommand's per-line split would mint it a fresh line,
 // which a leading slash then turns into a remote moderation verb — and
 // leading spaces/slashes are trimmed after. The rest is untouched: a URL's
 // "http://" keeps its slashes because they are not leading.
@@ -268,7 +268,7 @@ type rawText string
 
 // stripControls removes every ASCII control rune before an external value can
 // reach a template: an embedded \n or \r would mint extra chat lines through
-// emitResponse's per-line split, an ESC poisons terminal/IRC rendering, and a
+// emitCommand's per-line split, an ESC poisons terminal/IRC rendering, and a
 // NUL truncates downstream writers. Returns s unchanged when it carries none
 // (the overwhelmingly common case pays only the scan).
 func stripControls(s rawText) rawText {

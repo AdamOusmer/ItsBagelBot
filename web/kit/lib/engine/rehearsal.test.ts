@@ -113,7 +113,7 @@ describe('rehearseCommand', () => {
     expect(textOf(line.segments)).toBe('42 {counter:target:} {counter:target:bot:x}');
   });
 
-  test('caps at 5 messages, one per line, like emitResponse', () => {
+  test('caps at 5 messages, one per line, like emitCommand', () => {
     expect(rehearseCommand('a\nb\nc\nd\ne\nf')).toHaveLength(5);
   });
 
@@ -190,7 +190,7 @@ describe('rehearseCommand', () => {
   });
 
   test('verbs route AFTER expansion, matching the engine order', () => {
-    // emitResponse expands first, then translates: a verb minted by a token
+    // emitCommand expands first, then translates: a verb minted by a token
     // still becomes the native action.
     const [line] = rehearseCommand('{choice:/pin read the rules,/announce hi}');
     expect(line.mode).toBe('pin');

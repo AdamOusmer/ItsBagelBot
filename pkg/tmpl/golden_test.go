@@ -104,7 +104,7 @@ func condRows() []goldenRow {
 		{"a half-written conditional stays literal", "{if:user}", vals, "{if:user}"},
 		{"a bare {if} stays literal", "{if}", vals, "{if}"},
 		// The line itself is left empty here: dropping a blank line is the
-		// EMITTER's job (engine emitResponse, mirrored by the rehearsal), not
+		// EMITTER's job (engine emitCommand, mirrored by the rehearsal), not
 		// the lexer's, and each is pinned on its own side.
 		{"a false test can empty a whole line", "one\n{if:1:two}\nthree", vals, "one\n\nthree"},
 	}
