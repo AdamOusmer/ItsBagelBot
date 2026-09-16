@@ -16,7 +16,6 @@ import (
 	"ItsBagelBot/app/db/users/ent/user"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/internal/domain/validate"
-	"ItsBagelBot/pkg/cache"
 	"ItsBagelBot/pkg/db"
 )
 
@@ -563,97 +562,4 @@ func (r *Users) publishGrantPhase(ctx context.Context, row *ent.PremiumGrant, ph
 	}
 	_, err := r.client.PremiumGrant.UpdateOneID(row.ID).SetProjectionPhase(phase).Save(ctx)
 	return err
-}
-
-// projectAccess writes users.status from grant coverage. VIP is never
-// touched. Tebex/admin billing identity stays on its own columns: a covering
-// grant promotes free→paid, and a grant-only paid row whose coverage ended
-// returns to free. Billing-sourced paid rows are left for ApplyBilling and
-// ExpireSubscriptions so Tebex grace is not duplicated here.
-func (r *Users) projectAccess(ctx context.Context, id uint64, now time.Time) error {
-	u, err := r.FindUser(ctx, id)
-	if err != nil {
-		return err
-	}
-	if u.Status == user.StatusVip {
-		return nil
-	}
-	covering, err := r.hasCoveringGrant(ctx, id, now)
-	if err != nil {
-		return err
-	}
-	if covering {
-		if u.Status == user.StatusPaid {
-			return nil
-		}
-		return r.writeAccessStatus(ctx, u, user.StatusPaid)
-	}
-	if u.SubscriptionSource == "tebex" || u.SubscriptionSource == "admin" {
-		return nil
-	}
-	if u.Status != user.StatusPaid {
-		return nil
-	}
-	return r.writeAccessStatus(ctx, u, user.StatusFree)
-}
-
-func (r *Users) hasCoveringGrant(ctx context.Context, userID uint64, now time.Time) (bool, error) {
-	return db.WithQuery(ctx, func(ctx context.Context) (bool, error) {
-		return r.client.PremiumGrant.Query().Where(
-			premiumgrant.UserIDEQ(userID),
-			premiumgrant.StateEQ(premiumgrant.StateCommitted),
-			premiumgrant.StartAtLTE(now),
-			premiumgrant.EndAtGT(now),
-		).Exist(ctx)
-	})
-}
-
-func (r *Users) writeAccessStatus(ctx context.Context, u *ent.User, status user.Status) error {
-	err := db.WithExec(ctx, func(ctx context.Context) error {
-		q := r.client.User.UpdateOneID(u.ID).Where(user.StatusNEQ(user.StatusVip)).SetStatus(status)
-		if status == user.StatusPaid && u.SubscriptionSource == "" {
-			q.SetSubscriptionSource("giveaway")
-		}
-		if status == user.StatusFree && u.SubscriptionSource == "giveaway" {
-			q.SetSubscriptionSource("")
-		}
-		return q.Exec(ctx)
-	})
-	if err != nil {
-		return err
-	}
-	r.views.Invalidate(cache.UserKey(userKeyPrefix, u.ID))
-	r.stats.Invalidate(userStatsKey)
-	return nil
-}
-
-// reconcileGrantAccess promotes already-announced covering grants whose user
-// row is still free. Commit-time projection covers new awards; this catches
-// winners whose grant was committed before status was stored.
-func (r *Users) reconcileGrantAccess(ctx context.Context, now time.Time) error {
-	rows, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.User, error) {
-		return r.client.User.Query().Where(
-			user.StatusEQ(user.StatusFree),
-			user.HasPremiumGrantsWith(
-				premiumgrant.StateEQ(premiumgrant.StateCommitted),
-				premiumgrant.StartAtLTE(now),
-				premiumgrant.EndAtGT(now),
-			),
-		).Select(user.FieldID).All(ctx)
-	})
-	if err != nil {
-		return err
-	}
-	for _, row := range rows {
-		if err := r.projectAccess(ctx, row.ID, now); err != nil {
-			return err
-		}
-		if err := r.publishChanged(ctx, row.ID); err != nil {
-			return err
-		}
-		if err := r.publishStatusInvalidation(ctx, row.ID); err != nil {
-			return err
-		}
-	}
-	return nil
 }
