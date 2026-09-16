@@ -176,7 +176,7 @@ spec:
       # "warp" package private right after its first publish.
       initContainers:
         - name: warp
-          image: ghcr.io/adamousmer/itsbagelbot/warp:v0.2.1-beta@sha256:6a86cf64cb9318a46697cc2b76b189359a0da3d6e161d0807e8dd9407a1a798a
+          image: ghcr.io/adamousmer/itsbagelbot/warp:v0.2.2-beta@sha256:c2ce5bbbd8f0fac041757645562b39752507f89a45f5a0cf86666522efb330a3
           imagePullPolicy: IfNotPresent
           restartPolicy: Always # native sidecar: runs for the pod's lifetime
           # Bootstrap (consumer WARP, deliberately NO Zero Trust org). Two
@@ -293,7 +293,7 @@ spec:
               memory: 256Mi
       containers:
         - name: gossip
-          image: ghcr.io/adamousmer/itsbagelbot/gossip:main-1789490759-204d2273b685@sha256:b8c28186b59c31a7cdba7d261007d5c81bc778f5c3bbb55546513325b63b07f5
+          image: ghcr.io/adamousmer/itsbagelbot/gossip:v0.2.2-beta@sha256:9e536837d76049e0b3a6ddf4405acee91ee2cf2a039727792131e1a422088f2c
           imagePullPolicy: IfNotPresent
           env:
             # gossip is RPC-only: it answers sesame's requests over
