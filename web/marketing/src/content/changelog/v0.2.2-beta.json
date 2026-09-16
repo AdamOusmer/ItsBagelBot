@@ -13,7 +13,8 @@
       "Command template variables have a public searchable reference. Filter by family, copy a token, and keep a shareable query, in English and French, from the same catalog the command builder uses.",
       "CODM profile lookups stay validation-only and honour the provider's rate limits and cooldown, so a lookup cannot mutate an Activision account or stampede the API.",
       "Login, import, the dashboard and the admin console share the same tags, buttons and compact language switch. Status labels are hairline tags, so paid, free and VIP read as labels rather than pills.",
-      "The admin user list overlays committed giveaway grants. A free winner with an active prize reads as paid without rewriting account status, paid and free filters follow that overlay, and VIP is never demoted."
+      "A covering committed giveaway grant writes premium onto the stored user status so admin overview, listing, stats and Get agree. A free winner with an active prize reads as paid. Tebex identity is not replaced, VIP is never demoted, and already-committed winners are promoted on the next sweep.",
+      "Dashboard and admin keep New Relic APM under bun. Console images strip Node/V8 native addons that bun would otherwise load and abort on, so the JS agent stays up."
     ],
     "fr": [
       "Les administrateurs peuvent lancer des tirages Premium. Prévisualisez les comptes éligibles, figez ce groupe, et tirez un ensemble de gagnants au hasard cryptographique parmi les comptes inscrits qui ont terminé l'intégration. Les comptes VIP, le personnel actuel, les comptes de test, inactifs et bannis ne peuvent pas participer. Gagner à nouveau lors d'un tirage ultérieur reste un prix distinct.",
@@ -21,7 +22,8 @@
       "Les variables des gabarits de commandes ont une référence publique consultable. Filtrez par famille, copiez un jeton, et conservez une requête partageable, en anglais et en français, à partir du même catalogue que le constructeur de commandes.",
       "Les recherches de profil CODM restent limitées à la validation et respectent les limites de débit et le temps de pause du fournisseur, pour qu'une recherche ne puisse ni modifier un compte Activision ni saturer l'API.",
       "La connexion, l'import, le tableau de bord et la console d'administration partagent les mêmes étiquettes, boutons et sélecteur de langue compact. Les libellés d'état sont des étiquettes au trait fin, pour que payant, gratuit et VIP se lisent comme des libellés plutôt que comme des pastilles.",
-      "La liste des utilisateurs de l'admin superpose les attributions de tirage confirmées. Un gagnant gratuit avec un prix actif s'affiche comme payant sans réécrire le statut du compte, les filtres payant et gratuit suivent cette superposition, et un VIP n'est jamais rétrogradé."
+      "Une attribution de tirage confirmée qui couvre le compte écrit le premium dans le statut stocké, pour que l'aperçu admin, la liste, les statistiques et Get s'accordent. Un gagnant gratuit avec un prix actif s'affiche comme payant. L'identité Tebex n'est pas remplacée, un VIP n'est jamais rétrogradé, et les gagnants déjà confirmés sont promus au prochain balayage.",
+      "Le tableau de bord et l'admin gardent l'APM New Relic sous bun. Les images des consoles retirent les modules natifs Node/V8 que bun chargerait sinon jusqu'à l'arrêt du processus, pour que l'agent JS reste en service."
     ]
   },
   "github": "https://github.com/AdamOusmer/ItsBagelBot/releases/tag/v0.2.2-beta"
