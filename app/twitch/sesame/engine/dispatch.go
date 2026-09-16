@@ -207,26 +207,40 @@ func (p *Pipeline) emitCommand(ctx context.Context, run commandRun, o *module.Ou
 	return true, nil
 }
 
-// expandCommandText runs one command body through the command lexer. A body
-// with no '{' is left alone (ping-style copy, provider errors). Plan happens
-// once, before chatLines walks the result, so no lookup can hide inside the
-// loop that writes a chat line.
+// expandCommandText runs one command body through the command lexer. Plan
+// happens once, before chatLines walks the result, so no lookup can hide
+// inside the loop that writes a chat line. A body with no spans is left
+// alone after Lex (ping-style copy, provider errors) — the skip reads the
+// token list, not a substring search for '{', which is the scanner this
+// package is not allowed to grow.
 func (p *Pipeline) expandCommandText(ctx context.Context, run commandRun, o *module.Output) {
 	switch o.Type {
 	case outgress.TypeChat, outgress.TypeAnnounce, outgress.TypePin:
 	default:
 		return
 	}
-	if o.Text == "" || !strings.Contains(o.Text, "{") {
+	if o.Text == "" {
 		return
 	}
 	toks := tmpl.Lex(o.Text)
+	if !hasVarToken(toks) {
+		return
+	}
 	chain := p.commandChain(ctx, run, tmpl.WithCondRefs(toks))
 	values := chain.Plan(ctx, toks, p.logScopeFailure(run.c))
 	buf := GetBuf()
 	buf = chain.Render(buf, toks, values)
 	o.Text = string(buf)
 	PutBuf(buf)
+}
+
+func hasVarToken(toks []tmpl.Token) bool {
+	for _, tok := range toks {
+		if tok.Kind == tmpl.KindVar {
+			return true
+		}
+	}
+	return false
 }
 
 // chatLines fans one expanded TypeChat body into one action per non-empty
