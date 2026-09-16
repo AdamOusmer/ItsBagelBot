@@ -161,10 +161,10 @@ export function moduleSearchHaystack(def: ModuleDef): string {
   return parts.join('\n').toLowerCase();
 }
 
-export function moduleMatchesQuery(def: ModuleDef, query: string): boolean {
+export function moduleMatchesQuery(def: ModuleDef, query: string, extraHay = ''): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
-  const hay = moduleSearchHaystack(def);
+  const hay = moduleSearchHaystack(def) + '\n' + extraHay.toLowerCase();
   if (hay.includes(q)) return true;
   // "songrequest" must still hit "Song Requests" after the ledger hid the
   // long aliases (!songrequest) so the detail page would not list every
@@ -177,7 +177,8 @@ export function moduleMatchesQuery(def: ModuleDef, query: string): boolean {
 
 export function filterModuleIndex(
   items: readonly ModuleState[],
-  query: ModuleIndexQuery
+  query: ModuleIndexQuery,
+  extraHay?: (def: ModuleDef) => string
 ): ModuleState[] {
   return items.filter((item) => {
     // Nested children (gamble/duel) arm from Loyalty, not a second tile.
@@ -185,7 +186,7 @@ export function filterModuleIndex(
     if (query.category && item.def.category !== query.category) return false;
     if (query.status === 'on' && !item.enabled) return false;
     if (query.status === 'off' && item.enabled) return false;
-    return moduleMatchesQuery(item.def, query.q);
+    return moduleMatchesQuery(item.def, query.q, extraHay?.(item.def) ?? '');
   });
 }
 

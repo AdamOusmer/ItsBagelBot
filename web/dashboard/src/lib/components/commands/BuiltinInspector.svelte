@@ -17,7 +17,7 @@
     Field,
     Switch,
     getI18n,
-    PERM_LABELS,
+    tPerm,
     type CommandView,
     type BuiltinCommandDef,
     type Perm
@@ -131,7 +131,7 @@
   <div class="field-row">
     <div class="field">
       <span>{t('builtinInspector.access')}</span>
-      <div class="ro">{PERM_LABELS[(c.perm ?? def.defaultPerm) as Perm]}</div>
+      <div class="ro">{tPerm(t, (c.perm ?? def.defaultPerm) as Perm)}</div>
     </div>
     <div class="field">
       <span>{t('builtinInspector.cooldown')}</span>

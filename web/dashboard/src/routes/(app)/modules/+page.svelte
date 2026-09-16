@@ -31,6 +31,9 @@
     SectionNav,
     categoryAnchorId,
     categoryHref,
+    tModuleLabel,
+    tModuleTagline,
+    tModuleDescription,
     type ModuleState
   } from '@bagel/kit';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
@@ -60,7 +63,11 @@
   let searchQuery = $state(initial.q);
 
   const activeCount = $derived(items.filter((m) => m.enabled).length);
-  const filtered = $derived(filterModuleIndex(items, { q: searchQuery, category: '', status: 'all' }));
+  const filtered = $derived(
+    filterModuleIndex(items, { q: searchQuery, category: '', status: 'all' }, (def) =>
+      [tModuleLabel(t, def), tModuleTagline(t, def), tModuleDescription(t, def)].join('\n')
+    )
+  );
   const groups = $derived(
     groupModulesByCategory(filtered).map((group) => ({
       ...group,
@@ -138,7 +145,7 @@
           items = items.map((x) => (x.def.id === m.def.id ? { ...x, enabled: was } : x));
           setStatus(m.def.id, 'error');
           timers.set(m.def.id, [setTimeout(() => (modStatus = { ...modStatus, [m.def.id]: 'idle' }), 4000)]);
-          toast('err', t('modules.couldNotToggle', { label: m.def.label }));
+          toast('err', t('modules.couldNotToggle', { label: tModuleLabel(t, m.def) }));
         }
       };
     };

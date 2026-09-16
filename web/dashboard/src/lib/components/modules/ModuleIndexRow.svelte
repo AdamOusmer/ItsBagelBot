@@ -7,7 +7,7 @@
   // glance as the name rather than behind a "Configure" button.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { SaveStatus, Switch, Tag, getI18n, moduleCommandChips, moduleHref, type ModuleState } from '@bagel/kit';
+  import { SaveStatus, Switch, Tag, getI18n, moduleCommandChips, moduleHref, tModuleLabel, tModuleTagline, type ModuleState } from '@bagel/kit';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
 
   const { t } = getI18n();
@@ -39,10 +39,10 @@
   <a class="main" {href} data-cursor="quiet">
     <span class="copy">
       <span class="name">
-        {def.label}
+        {tModuleLabel(t, def)}
         {#if beta}<span class="beta"><Tag tone="alpha">{t('modules.betaChip')}</Tag></span>{/if}
       </span>
-      <span class="tagline">{def.tagline}</span>
+      <span class="tagline">{tModuleTagline(t, def)}</span>
       {#if chips.chips.length}
         <span class="cmds">
           {#each chips.chips as chip (chip)}
@@ -69,7 +69,7 @@
         <Switch
           type="submit"
           checked={module.enabled}
-          label={module.enabled ? t('modules.disableAria', { label: def.label }) : t('modules.enableAria', { label: def.label })}
+          label={module.enabled ? t('modules.disableAria', { label: tModuleLabel(t, def) }) : t('modules.enableAria', { label: tModuleLabel(t, def) })}
           pending={status === 'saving'}
         />
       </form>

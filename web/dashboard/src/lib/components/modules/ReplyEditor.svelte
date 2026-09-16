@@ -16,17 +16,19 @@
   //
   // Save/Cancel are handled by the page so the whole-module config persists in
   // one place.
-  import { Field, getI18n, intactSpan, type ModuleReply } from '@bagel/kit';
+  import { Field, getI18n, intactSpan, tModuleReplyPart, type ModuleReply } from '@bagel/kit';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
 
   let {
+    moduleId,
     reply,
     message = $bindable(''),
     busy = false,
     onCancel,
     onSave
   }: {
+    moduleId: string;
     reply: ModuleReply;
     message: string;
     busy?: boolean;
@@ -60,7 +62,7 @@
 </script>
 
 <div class="editor">
-  <Field label={t('modules.replyMessage', { label: reply.label })} hint={t('modules.replyBlankHint')}>
+  <Field label={t('modules.replyMessage', { label: tModuleReplyPart(t, moduleId, reply, 'label') })} hint={t('modules.replyBlankHint')}>
     <ResponseEditor bind:value={message} placeholder={reply.defaultMessage} tokens={palette} />
   </Field>
 
@@ -80,7 +82,7 @@
       kind="reply"
       name=""
       showViewer={false}
-      tag={reply.event}
+      tag={tModuleReplyPart(t, moduleId, reply, 'event')}
       samples={reply.previewSamples}
       response={effectiveMessage}
     />

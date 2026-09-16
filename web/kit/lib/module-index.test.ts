@@ -48,6 +48,12 @@ describe('module index matching', () => {
     expect(moduleMatchesQuery(fn!, 'songrequest')).toBe(false);
   });
 
+  test('localized extra haystack finds CODM by copy that is not in the English catalog', () => {
+    const def = moduleDef('codm')!;
+    expect(moduleMatchesQuery(def, 'consultation', 'Consultation de profil Call of Duty: Mobile')).toBe(true);
+    expect(moduleMatchesQuery(def, 'consultation')).toBe(false);
+  });
+
   test('finds loyalty by a nested game command', () => {
     const loyalty = moduleDef('loyalty');
     expect(loyalty).toBeDefined();

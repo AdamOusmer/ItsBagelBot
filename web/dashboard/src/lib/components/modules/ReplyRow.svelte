@@ -5,12 +5,13 @@
   // primary is a real button and the per-reply on/off switch is its sibling, not
   // nested inside it. The page passes the toggle handler so all optimistic state
   // stays in one place.
-  import { SaveStatus, ManagementRow, Switch, getI18n, type ModuleReply } from '@bagel/kit';
+  import { SaveStatus, ManagementRow, Switch, getI18n, tModuleReplyPart, type ModuleReply } from '@bagel/kit';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
 
   const { t } = getI18n();
 
   let {
+    moduleId,
     reply,
     message = '',
     index = undefined as number | undefined,
@@ -20,6 +21,7 @@
     onExpand,
     onToggle
   }: {
+    moduleId: string;
     reply: ModuleReply;
     message?: string;
     index?: number;
@@ -46,7 +48,7 @@
       <span class="prow">
         {#if idx}<span class="idx" aria-hidden="true">{idx}</span>{/if}
         <span class="cmd">
-          <span class="cmd-name">{reply.label}</span>
+          <span class="cmd-name">{tModuleReplyPart(t, moduleId, reply, 'label')}</span>
           <span class="resp">{preview}</span>
         </span>
         <span class="state"><SaveStatus state={status} /></span>
@@ -54,7 +56,7 @@
     {/snippet}
     {#snippet actions()}
       {#if enabled !== undefined}
-        <Switch checked={enabled} label={t('modules.toggleAria', { label: reply.label })} onchange={() => onToggle?.()} />
+        <Switch checked={enabled} label={t('modules.toggleAria', { label: tModuleReplyPart(t, moduleId, reply, 'label') })} onchange={() => onToggle?.()} />
       {:else}
         <span class="mini-spacer" aria-hidden="true"></span>
       {/if}

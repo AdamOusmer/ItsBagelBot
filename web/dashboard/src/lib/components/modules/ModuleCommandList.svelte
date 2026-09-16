@@ -13,9 +13,11 @@
 
   let {
     commands,
+    moduleId,
     headingId = 'module-cmds-h'
   }: {
     commands: readonly ModuleCommandInfo[];
+    moduleId: string;
     headingId?: string;
   } = $props();
 </script>
@@ -27,7 +29,7 @@
   </div>
   <ul class="bb-list cmd-list" aria-labelledby={headingId}>
     {#each commands as command, i (command.trigger)}
-      <li><ModuleCommandRow {command} index={i + 1} /></li>
+      <li><ModuleCommandRow {moduleId} {command} index={i + 1} /></li>
     {/each}
   </ul>
 {/if}

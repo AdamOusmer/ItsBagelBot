@@ -11,6 +11,8 @@
     Switch,
     toast,
     getI18n,
+    tModuleLabel,
+    tModuleTagline,
     type ModuleDef
   } from '@bagel/kit';
 
@@ -50,7 +52,7 @@
       pending = false;
       if (result.type !== 'success') {
         enabled = was;
-        toast('err', t('loyalty.toastGameToggleFailed', { label: def.label }));
+        toast('err', t('loyalty.toastGameToggleFailed', { label: tModuleLabel(t, def) }));
       }
     };
   };
@@ -62,8 +64,8 @@
        tan box covered the switch and read against the dock. -->
   <a class="main" {href} data-cursor="quiet">
     <span class="copy">
-      <span class="name">{def.label}</span>
-      <span class="tagline">{def.tagline}</span>
+      <span class="name">{tModuleLabel(t, def)}</span>
+      <span class="tagline">{tModuleTagline(t, def)}</span>
       {#if chips.length}
         <span class="cmds">
           {#each chips as chip (chip)}
@@ -82,7 +84,7 @@
         checked={enabled}
         disabled={!loyaltyOn}
         pending={pending}
-        label={enabled ? t('modules.disableAria', { label: def.label }) : t('modules.enableAria', { label: def.label })}
+        label={enabled ? t('modules.disableAria', { label: tModuleLabel(t, def) }) : t('modules.enableAria', { label: tModuleLabel(t, def) })}
       />
     </form>
   </div>
