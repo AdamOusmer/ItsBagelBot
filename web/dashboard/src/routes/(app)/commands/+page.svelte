@@ -21,6 +21,7 @@
     toast,
     normName,
     getI18n,
+    tPerm,
     toastFailure,
     builtinDef,
     BUILTIN_NAMES,
@@ -29,7 +30,6 @@
     overlayLiveActive,
     commandContentSnapshot,
     usesCount,
-    PERM_LABELS,
     PERMS,
     COMMAND_NAME_MAX,
     COOLDOWN_MAX,
@@ -936,7 +936,7 @@
 >
   {#if composeDraft}
     <div class="compose-meta">
-      <span>{PERM_LABELS[composeDraft.perm]}</span>
+      <span>{tPerm(t, composeDraft.perm)}</span>
       <span>{t('commandRow.cooldown')} {composeDraft.cooldown}s</span>
       {#if composeDraft.aliases.length}
         <span>{t('commandRow.also', { aliases: composeDraft.aliases.map((a) => '!' + a).join(' ') })}</span>

@@ -3,7 +3,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { deserialize } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
-  import { Card, PageHead, Scroller, SaveStatus, Switch, Button, ButtonLink, InspectorSurface, ConfirmDialog, AlertBanner, DeckList, EmptyState, toast, getI18n, automodToggleDefault, moduleDef, type ModuleField, type ModuleReply, MOD } from '@bagel/kit';
+  import { Card, PageHead, Scroller, SaveStatus, Switch, Button, ButtonLink, InspectorSurface, ConfirmDialog, AlertBanner, DeckList, EmptyState, toast, getI18n, automodToggleDefault, moduleDef, tModuleLabel, tModuleDescription, tModuleFieldPart, tModuleFieldOption, tModuleReplyPart, type ModuleField, type ModuleReply, MOD } from '@bagel/kit';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
   import ReplyRow from '$lib/components/modules/ReplyRow.svelte';
   import { createDiscardGuard } from '@bagel/ui/svelte/discard-guard';
@@ -15,6 +15,8 @@
 
   const { t } = getI18n();
   const def = $derived(data.def);
+  const modLabel = $derived(tModuleLabel(t, def));
+  const modDescription = $derived(tModuleDescription(t, def));
   // A module with no editable replies (its lines are fixed system text, e.g. the
   // play queue) shows only its read-only command list: no builder inspector.
   const hasReplies = $derived(def.replies.length > 0);
@@ -126,7 +128,7 @@
     else {
       enabled = before;
       flagError('module');
-      toast('err', t('modules.couldNotToggle', { label: def.label }));
+      toast('err', t('modules.couldNotToggle', { label: modLabel }));
     }
   }
 
@@ -177,7 +179,7 @@
     else {
       config = { ...config, [key]: was ? 'on' : 'off' };
       flagError(reply.key);
-      toast('err', t('modules.couldNotToggle', { label: reply.label }));
+      toast('err', t('modules.couldNotToggle', { label: tModuleReplyPart(t, def.id, reply, 'label') }));
     }
   }
 
@@ -222,7 +224,7 @@
     if (ok) {
       ackSaved(r.key);
       // Save keeps the inspector open on the saved reply (now clean); no close.
-      toast('ok', t('modules.saved', { label: def.label }));
+      toast('ok', t('modules.saved', { label: modLabel }));
     } else {
       config = { ...config, [r.messageKey]: prev ?? '' };
       flagError(r.key);
@@ -382,7 +384,7 @@
         ruleIndex = next.length - 1;
         expanded = `rule:${next.length - 1}`;
       }
-      toast('ok', t('modules.saved', { label: def.label }));
+      toast('ok', t('modules.saved', { label: modLabel }));
     } else {
       flagError(key);
       toast('err', t('modules.saveFailed'));
@@ -395,7 +397,7 @@
     if (await persistRules(next)) {
       rules = next;
       if (expanded === `rule:${i}`) doClose();
-      toast('ok', t('modules.saved', { label: def.label }));
+      toast('ok', t('modules.saved', { label: modLabel }));
     } else {
       flagError(`rule:${i}`);
       toast('err', t('modules.saveFailed'));
@@ -453,8 +455,12 @@
   // The inspector is open whenever a row (reply or rule) is expanded.
   const editing = $derived(!!expanded);
   const inspectorTitle = $derived(
-    isTriggers ? (ruleIndex === -1 ? t('modules.newTrigger') : t('modules.editTrigger')) : selectedReply ? selectedReply.label : t('modules.inspector')
+    isTriggers ? (ruleIndex === -1 ? t('modules.newTrigger') : t('modules.editTrigger')) : selectedReply ? tModuleReplyPart(t, def.id, selectedReply, 'label') : t('modules.inspector')
   );
+
+  function fieldCopy(field: ModuleField, part: 'label' | 'help' | 'placeholder'): string {
+    return tModuleFieldPart(t, def.id, field, part);
+  }
 
 </script>
 
@@ -483,12 +489,12 @@
         </a>
       </li>
       <li class="crumb-sep" aria-hidden="true">/</li>
-      <li><span aria-current="page">{def.label}</span></li>
+      <li><span aria-current="page">{modLabel}</span></li>
     </ol>
   </nav>
 
   <!-- PageHead: the module name is the page h1 (tabindex=-1 for route focus). -->
-  <PageHead eyebrow={t('modules.detailEyebrow')} description={def.description}>{def.label}</PageHead>
+  <PageHead eyebrow={t('modules.detailEyebrow')} description={modDescription}>{modLabel}</PageHead>
 
   {#if data.degraded}
     <AlertBanner>{t('modules.degraded')}</AlertBanner>
@@ -507,9 +513,9 @@
 
   {#if parentDef}
     <AlertBanner variant="warn">
-      {t('modules.nestedUnder', { parent: parentDef.label })}
+      {t('modules.nestedUnder', { parent: tModuleLabel(t, parentDef) })}
       {#snippet action()}
-        <ButtonLink href={parentDef.href ?? `/modules/${parentDef.id}`} variant="ghost">{t('modules.nestedUnderLink', { parent: parentDef.label })}</ButtonLink>
+        <ButtonLink href={parentDef.href ?? `/modules/${parentDef.id}`} variant="ghost">{t('modules.nestedUnderLink', { parent: tModuleLabel(t, parentDef) })}</ButtonLink>
       {/snippet}
     </AlertBanner>
   {/if}
@@ -533,7 +539,7 @@
         <SaveStatus state={modStatus['module'] ?? 'idle'} />
         <Switch
           checked={enabled}
-          label={t('modules.toggleAria', { label: def.label })}
+          label={t('modules.toggleAria', { label: modLabel })}
           pending={modStatus['module'] === 'saving'}
           onchange={toggleModule}
         />
@@ -558,14 +564,14 @@
         {#if field.type === 'toggle'}
           <div class="setting-row">
             <div class="tr-text">
-              <span class="tr-label" id="sl-{field.key}">{field.label}</span>
-              {#if field.help}<span class="tr-help" id="sh-{field.key}">{field.help}</span>{/if}
+              <span class="tr-label" id="sl-{field.key}">{fieldCopy(field, 'label')}</span>
+              {#if fieldCopy(field, 'help')}<span class="tr-help" id="sh-{field.key}">{fieldCopy(field, 'help')}</span>{/if}
             </div>
             <SaveStatus state={modStatus[`setting:${field.key}`] ?? 'idle'} />
             <Switch
               checked={settingToggleOn(field)}
-              label={field.label}
-              describedby={field.help ? `sh-${field.key}` : undefined}
+              label={fieldCopy(field, 'label')}
+              describedby={fieldCopy(field, 'help') ? `sh-${field.key}` : undefined}
               pending={modStatus[`setting:${field.key}`] === 'saving'}
               onchange={(v) => saveSetting(field, v ? 'on' : 'off')}
             />
@@ -573,8 +579,8 @@
         {:else if field.type === 'timezone'}
           <div class="setting-row">
             <label class="tr-text" for="mod-setting-{field.key}">
-              <span class="tr-label">{field.label}</span>
-              {#if field.help}<span class="tr-help">{field.help}</span>{/if}
+              <span class="tr-label">{fieldCopy(field, 'label')}</span>
+              {#if fieldCopy(field, 'help')}<span class="tr-help">{fieldCopy(field, 'help')}</span>{/if}
             </label>
             <SaveStatus state={modStatus[`setting:${field.key}`] ?? 'idle'} />
             <select
@@ -598,8 +604,8 @@
         {:else}
           <div class="setting-row {field.type === 'textarea' ? 'stacked' : ''}">
             <label class="tr-text" for="mod-setting-{field.key}">
-              <span class="tr-label">{field.label}</span>
-              {#if field.help}<span class="tr-help">{field.help}</span>{/if}
+              <span class="tr-label">{fieldCopy(field, 'label')}</span>
+              {#if fieldCopy(field, 'help')}<span class="tr-help">{fieldCopy(field, 'help')}</span>{/if}
             </label>
             <SaveStatus state={modStatus[`setting:${field.key}`] ?? 'idle'} />
             {#if field.type === 'select'}
@@ -610,14 +616,14 @@
                 onchange={(e) => saveSetting(field, e.currentTarget.value)}
               >
                 {#each field.options ?? [] as opt (opt.value)}
-                  <option value={opt.value}>{opt.label}</option>
+                  <option value={opt.value}>{tModuleFieldOption(t, def.id, field.key, opt)}</option>
                 {/each}
               </select>
             {:else if field.type === 'textarea'}
               <textarea
                 id="mod-setting-{field.key}"
                 class="setting-input setting-textarea"
-                placeholder={field.placeholder ?? ''}
+                placeholder={fieldCopy(field, 'placeholder')}
                 value={config[field.key] ?? ''}
                 onchange={(e) => saveSetting(field, e.currentTarget.value)}
               ></textarea>
@@ -626,7 +632,7 @@
                 id="mod-setting-{field.key}"
                 class="setting-input"
                 type={field.type === 'number' ? 'number' : 'text'}
-                placeholder={field.placeholder ?? ''}
+                placeholder={fieldCopy(field, 'placeholder')}
                 value={config[field.key] ?? ''}
                 onchange={(e) => saveSetting(field, e.currentTarget.value)}
                 onkeydown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
@@ -658,6 +664,7 @@
               {#each ruleRows as reply, i (reply.key)}
                 <li>
                   <ReplyRow
+                    moduleId={def.id}
                     {reply}
                     message={rules[i].response}
                     index={i + 1}
@@ -678,6 +685,7 @@
             {#each def.replies as reply, i (reply.key)}
               <li>
                 <ReplyRow
+                  moduleId={def.id}
                   {reply}
                   message={config[reply.messageKey] ?? ''}
                   index={i + 1}
@@ -692,7 +700,7 @@
           </ul>
         {/if}
 
-        <ModuleCommandList commands={def.commands ?? []} />
+        <ModuleCommandList moduleId={def.id} commands={def.commands ?? []} />
       </DeckList>
 
       {#if hasInspector && editing}
@@ -721,7 +729,7 @@
           {:else if selectedReply}
             <Scroller fill padding="16px" data-lenis-prevent>
               {#key selectedReply.key}
-                <ReplyEditor reply={selectedReply} bind:message={editMessage} {busy} onCancel={closeInspector} onSave={saveReply} />
+                <ReplyEditor moduleId={def.id} reply={selectedReply} bind:message={editMessage} {busy} onCancel={closeInspector} onSave={saveReply} />
               {/key}
             </Scroller>
           {/if}

@@ -587,7 +587,7 @@
   {#if songCommands.length}
     <div class="cmd-block">
       <DeckList>
-        <ModuleCommandList commands={songCommands} headingId="spotify-cmds-h" />
+        <ModuleCommandList moduleId="songqueue" commands={songCommands} headingId="spotify-cmds-h" />
       </DeckList>
     </div>
   {/if}

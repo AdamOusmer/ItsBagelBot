@@ -15,7 +15,7 @@
     EditorFooter,
     Switch,
     PERMS,
-    PERM_LABELS,
+    tPerm,
     validateCommand,
     commandContentSnapshot,
     normName,
@@ -173,7 +173,7 @@
     <Field label={t('commandEditor.access')}>
       <select class="bb-input" name="perm" bind:value={draft.perm}>
         {#each PERMS as p}
-          <option value={p}>{PERM_LABELS[p]}</option>
+          <option value={p}>{tPerm(t, p)}</option>
         {/each}
       </select>
     </Field>

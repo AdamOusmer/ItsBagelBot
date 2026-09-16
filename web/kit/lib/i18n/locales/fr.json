@@ -1466,7 +1466,8 @@
     "pickerRoot": "(réponse)",
     "pickerExistingTitle": "Définitions enregistrées",
     "pickerNoneYet": "Aucune définition pour le moment. Créez-en une dans Commandes → Définitions de récupération.",
-    "manageLink": "Gérer les définitions de récupération →"
+    "manageLink": "Gérer les définitions de récupération →",
+    "builderUrlPh": "https://api.example.com/v1/…"
   },
   "goodbye": {
     "title": "Au revoir",
@@ -1824,7 +1825,7 @@
     "catPoints": "Points",
     "catPointsHint": "Monnaie de fidélité, compteurs, et les jeux qui les dépensent.",
     "catStats": "Stats",
-    "catStatsHint": "Commandes de stats pour le jeu en cours : Fortnite, Valorant, Minecraft, et plus.",
+    "catStatsHint": "Commandes de stats pour le jeu en cours : Fortnite, Valorant, Minecraft, Call of Duty: Mobile, et plus.",
     "categories": "Catégories",
     "categoriesAria": "Catégories de modules",
     "closeEditor": "Fermer",
@@ -1898,7 +1899,645 @@
     "triggerRulesTitle": "Règles de déclenchement",
     "tzApply": "Utiliser la suggestion",
     "tzSuggested": "Votre navigateur indique {tz}. Détecté uniquement sur votre appareil : rien n'est enregistré tant que vous ne l'appliquez pas.",
-    "tzUnset": "Non défini"
+    "tzUnset": "Non défini",
+    "catalog": {
+      "shared": {
+        "linkedOnly": {
+          "label": "Ne chercher que mon compte lié",
+          "help": "Une fois activé, les viewers ne peuvent pas nommer un autre joueur : chaque commande affiche votre compte lié (ou votre pseudo Twitch si aucun n'est lié) et tout nom saisi est ignoré, sans réponse dans le chat. Désactivé par défaut."
+        }
+      },
+      "channelpoints": {
+        "label": "Points de chaîne",
+        "tagline": "Transformez les échanges de points de chaîne en actions du bot.",
+        "description": "Créez les récompenses personnalisées que les viewers échangent avec des points de chaîne (créées sous le bot sur Twitch, au style natif) et liez chacune à une action du bot, comme poster une ligne dans le chat. Choisissez si chaque échange est validé, remboursé, ou laissé à un modo. Gérez les récompenses sur cette page."
+      },
+      "stream": {
+        "label": "Gestion du direct",
+        "tagline": "Changez le titre, la catégorie et les tags, lancez des pubs et posez des marqueurs depuis le chat.",
+        "description": "Les lead modos éditent le direct depuis le chat comme avec Nightbot et StreamElements : !title / !settitle, !game / !setgame, !tags, !commercial / !ad, et !marker. Chaque commande se bascule sur cette page. Elles arrivent activées. Il faut un nouveau consentement Twitch pour channel:manage:broadcast et channel:edit:commercial si vous vous êtes inscrit avant ces autorisations.",
+        "commands": {
+          "title": "Affiche ou change le titre du direct.",
+          "game": "Affiche ou change la catégorie du direct.",
+          "tags": "Affiche ou change les tags du direct.",
+          "commercial": "Lance une pause publicitaire (en direct seulement).",
+          "marker": "Pose un marqueur de stream (en direct seulement).",
+          "cmd": "Liste les commandes, ou ajoute/modifie/supprime les commandes perso."
+        }
+      },
+      "timers": {
+        "label": "Minuteurs",
+        "tagline": "Publiez des messages de chat répétitifs selon un horaire pendant le direct.",
+        "description": "Définissez des messages que le bot répète selon un horaire pendant le direct : annonces, réseaux, rappels. Chaque minuteur a son propre intervalle et ne s'enclenche que pendant le stream. Ajoutez, modifiez et armez-les sur cette page."
+      },
+      "loyalty": {
+        "label": "Points de fidélité",
+        "tagline": "Les viewers gagnent une monnaie de chaîne pour les subs, cheers et le temps de visionnage.",
+        "description": "Donnez à votre communauté sa propre monnaie : les viewers gagnent des points en s'abonnant, en se réabonnant, en offrant des subs, en cheerant des bits, et simplement en regardant (tout le chat gagne à chaque tick de 5 minutes pendant le direct). Nommez la monnaie, réglez chaque taux, et laissez les modos accorder des points avec !points set/add. Les viewers voient leur solde avec !points. Gamble et Duels dépensent ce registre et s'arment depuis cette page. Ils ne tournent pas tant que la monnaie est éteinte. Se couple aux Compteurs et aux récompenses de points de chaîne qui donnent des points.",
+        "commands": {
+          "points": "Voir votre solde et votre temps de visionnage.",
+          "points_give_user_500": "Donner une partie de vos propres points à un autre viewer.",
+          "leaderboard": "Afficher le classement de la chaîne.",
+          "points_set_user_500": "Fixer le solde d'un viewer.",
+          "points_add_user_500": "Accorder des points à un viewer.",
+          "points_remove_user_500": "Retirer des points à un viewer.",
+          "counter": "Gérer les compteurs (aussi sur la page Compteurs)."
+        }
+      },
+      "counters": {
+        "label": "Compteurs",
+        "tagline": "Comptez les victoires, morts, câlins, échanges, tout ce que le chat peut dénombrer.",
+        "description": "Créez des totaux pour la chaîne, par commande, ou par viewer. Ajustez-les depuis le tableau de bord ou le chat, et incrémentez-les depuis les réponses de commandes et les récompenses de points de chaîne."
+      },
+      "gamble": {
+        "label": "Gamble",
+        "tagline": "Laissez les viewers miser leurs points sur un lancer avec !gamble.",
+        "description": "Donnez un jeu à vos points de fidélité : les viewers tapent !gamble <montant> (ou half/all de leur solde) et le bot lance 1-100. Tomber dans votre chance de gain rembourse la mise plus son égal ; le reste la prend. Réglez les cotes, les limites de mise et le cooldown par viewer ci-dessous, et personnalisez les lignes de gain/perte. Chaque paiement et débit déplace de vrais points de fidélité via le même registre que !points. Activé depuis la page Fidélité. Il ne tourne pas tant que la monnaie est éteinte, et il utilise le même nom de monnaie.",
+        "settings": {
+          "winPercent": {
+            "label": "Chance de gain %",
+            "help": "Un lancer inférieur ou égal à ce nombre gagne. 50 est une pièce équitable ; 1-99 autorisés.",
+            "placeholder": "50"
+          },
+          "minBet": {
+            "label": "Mise minimum",
+            "placeholder": "1"
+          },
+          "maxBet": {
+            "label": "Mise maximum",
+            "placeholder": "1000"
+          },
+          "cooldownSeconds": {
+            "label": "Cooldown (secondes)",
+            "help": "Par viewer. Un chatter qui mise n'en bloque jamais un autre.",
+            "placeholder": "10"
+          }
+        },
+        "replies": {
+          "won": {
+            "label": "Ligne de gain",
+            "tagline": "Quand le lancer tombe dans la chance de gain.",
+            "event": "!gamble 100"
+          },
+          "lost": {
+            "label": "Ligne de perte",
+            "tagline": "Quand le lancer rate la chance de gain.",
+            "event": "!gamble 100"
+          }
+        },
+        "commands": {
+          "gamble_amount": "Miser ce nombre de points sur un lancer.",
+          "gamble_half_all": "Miser la moitié / la totalité du solde."
+        }
+      },
+      "duel": {
+        "label": "Duels",
+        "tagline": "Duels de points entre viewers : pots ouverts et défis 1v1.",
+        "description": "Deux façons de dueller pour des points. Un pot : quelqu'un tape !duel <mise> et tout le monde a la fenêtre pour ajouter sa propre mise ; à la fin le bot tire un gagnant pondéré par la mise, qui prend tout le pot. Ou un défi : !duel <utilisateur> <mise> nomme un adversaire qui doit taper !duel accept avant la fin de la fenêtre ; mises égales, pile ou face, le gagnant prend les deux. Refus, annulation et absences remboursent toujours chaque point en séquestre, et chaque mouvement passe par la dépense protégée du service de fidélité, donc personne ne mise ce qu'il n'a pas. Activé depuis la page Fidélité ; il utilise le même nom de monnaie et reste éteint tant que la fidélité l'est.",
+        "settings": {
+          "minStake": {
+            "label": "Mise minimum",
+            "placeholder": "1"
+          },
+          "maxStake": {
+            "label": "Mise maximum",
+            "placeholder": "1000"
+          },
+          "potSeconds": {
+            "label": "Fenêtre du pot (secondes)",
+            "help": "Combien de temps un pot accepte des mises.",
+            "placeholder": "60"
+          },
+          "challengeSeconds": {
+            "label": "Fenêtre d'acceptation (secondes)",
+            "help": "Combien de temps la partie défiée a pour accepter.",
+            "placeholder": "120"
+          }
+        },
+        "replies": {
+          "opened": {
+            "label": "Pot ouvert",
+            "tagline": "Quand un pot démarre et que les mises s'ouvrent.",
+            "event": "!duel 100"
+          },
+          "joined": {
+            "label": "Confirmation d'entrée",
+            "tagline": "Quand un viewer ajoute sa mise à un pot en cours.",
+            "event": "!duel 250"
+          },
+          "challenge": {
+            "label": "Défi envoyé",
+            "tagline": "Quand un viewer défie un autre à mises égales.",
+            "event": "!duel @maya_live 500"
+          },
+          "won": {
+            "label": "Ligne de résultat",
+            "tagline": "Quand un défi est accepté et réglé.",
+            "event": "!duel accept"
+          }
+        },
+        "commands": {
+          "duel": "Voir ce qui tourne : un pot (entrants, cagnotte, secondes) ou un défi en attente.",
+          "duel_stake": "Ouvrir un pot, ou rejoindre un pot en cours.",
+          "duel_user_stake": "Défier quelqu'un à mises égales ; le gagnant prend les deux.",
+          "duel_accept": "La partie défiée égale la mise et règle instantanément.",
+          "duel_decline": "Refuser un défi ; l'ouvreur est remboursé.",
+          "duel_cancel": "Annuler le duel en cours avec remboursement intégral (ouvreur ou modo)."
+        }
+      },
+      "triggers": {
+        "label": "Mots déclencheurs",
+        "tagline": "Réponse automatique quand un mot apparaît dans le chat, sans « ! ».",
+        "description": "Donnez au bot une liste de mots ou de phrases et la ligne à poster quand il en voit une dans le chat ordinaire, sans préfixe de commande. Chaque règle associe une phrase à une réponse : choisissez comment la phrase correspond (mot entier, contient, message exact ou commence par ; le défaut est le mot entier, donc « hi » ne se déclenche pas dans « this »), écrivez la réponse, et activez ou désactivez les règles une par une sans les supprimer. Les réponses gèrent {user}, {random} et {choice:a,b,c}. La première règle qui correspond gagne, donc un message n'obtient qu'une réponse au plus."
+      },
+      "time": {
+        "label": "Heure locale",
+        "tagline": "Les viewers demandent quelle heure il est chez vous avec !time.",
+        "description": "Les viewers tapent !time et le bot répond avec votre heure locale actuelle. Choisissez votre fuseau ci-dessous. La page propose celui que votre navigateur indique, calculé uniquement sur votre appareil (rien n'est lu ni enregistré tant que vous ne sauvegardez pas). Choisissez une horloge 12 ou 24 heures et personnalisez la réponse.",
+        "settings": {
+          "timezone": {
+            "label": "Fuseau horaire",
+            "help": "Nom de fuseau IANA utilisé pour afficher {time} et {date}. La suggestion vient de votre navigateur et n'est jamais enregistrée tant que vous ne sauvegardez pas.",
+            "placeholder": "America/Toronto"
+          },
+          "format": {
+            "label": "Format d'horloge",
+            "placeholder": "12",
+            "options": {
+              "12": "12 heures (2:30 PM)",
+              "24": "24 heures (14:30)"
+            }
+          }
+        },
+        "replies": {
+          "time": {
+            "tagline": "Votre heure locale actuelle."
+          }
+        }
+      },
+      "emoteplay": {
+        "label": "Pyramides et séries d'emotes",
+        "tagline": "Célébrez les pyramides et les séries d'emotes construites par le chat.",
+        "description": "Regardez le chat construire des pyramides d'emotes (la même emote empilée 1, 2, 3 puis redescendue à 1) et des séries d'emotes (une suite de messages d'une seule emote), et laissez le bot applaudir quand elles aboutissent. Entièrement automatique : pas de commande, pas de réglage. Une pyramide ne compte que si elle est construite proprement, ligne par ligne, sans rien d'autre entre-temps."
+      },
+      "automod": {
+        "label": "AutoMod",
+        "tagline": "Attrapez les arnaques, les voleurs d'IP et le spam de raid avant vos modos.",
+        "description": "Le bot examine chaque ligne du chat pour le contenu nuisible et les vagues de raid coordonnées, et avertit, supprime, exclut ou ban l'auteur. Les chatters de confiance (VIP, modos, le streamer) sont toujours exemptés, et tout ce qui est limite est laissé à vos modos humains. Choisissez un niveau de Aucun à Tout, puis affinez chaque contrôle ci-dessous. Le plancher de sécurité (insultes haineuses et liens voleurs d'IP) s'applique toujours, à chaque niveau et même avec le module éteint : les héberger met en danger votre chaîne et le compte du bot sur toute la plateforme. Le reste est à vous.",
+        "settings": {
+          "level": {
+            "label": "Niveau d'application",
+            "help": "Définit le défaut de chaque contrôle ci-dessous. Le plancher de sécurité s'applique à tous les niveaux.",
+            "placeholder": "moderate",
+            "options": {
+              "none": "Aucun — plancher de sécurité seulement",
+              "basic": "Basique — plancher + harcèlement",
+              "moderate": "Modéré — recommandé (défaut)",
+              "strict": "Tout — chaque contrôle, strict famille"
+            }
+          },
+          "harassment": {
+            "label": "Harcèlement",
+            "help": "Attaques dirigées (« kys » et consorts) : avertit l'auteur et retire le message ; les récidivistes sont exclus, puis bannis."
+          },
+          "sexual": {
+            "label": "Contenu sexuel",
+            "help": "Retire les messages avec des termes sexuels explicites."
+          },
+          "profanity": {
+            "label": "Grossièretés",
+            "help": "Retire les jurons simples. Désactivé par défaut : la plupart des chaînes les autorisent."
+          },
+          "style": {
+            "label": "Spam de majuscules et de symboles",
+            "help": "Retire les cris, les murs de symboles et les inondations de caractères. Les murs d'emotes (spam KEKW) sont reconnus et jamais signalés."
+          },
+          "links": {
+            "label": "Radar anti-liens en masse",
+            "help": "Surveille le même modèle de lien posté par beaucoup de comptes différents et retire la vague. Un lien isolé n'est jamais touché."
+          },
+          "clips_only": {
+            "label": "Clips Twitch seulement",
+            "help": "Retire les messages qui contiennent un lien autre qu'un clip Twitch (clips.twitch.tv/… ou twitch.tv/…/clip/…). Désactivé par défaut : activez-le si le chat ne doit partager que des clips."
+          },
+          "block_terms": {
+            "label": "Termes bloqués",
+            "help": "Mots ou phrases supplémentaires à signaler sur votre chaîne. Séparez par des virgules ou des sauts de ligne. Correspond même à travers l'obfuscation (l33t, lettres ressemblantes).",
+            "placeholder": "terme un, terme deux"
+          },
+          "allow_terms": {
+            "label": "Termes autorisés",
+            "help": "Mots qui passent sur votre chaîne : une ligne qui en contient un n'est jamais signalée par les contrôles ci-dessus ni par vos termes bloqués. Ne peut pas outrepasser le plancher de sécurité."
+          }
+        }
+      },
+      "shoutout": {
+        "label": "Shoutout auto",
+        "tagline": "Accueillez les raids entrants avec un shoutout automatique.",
+        "description": "Quand une autre chaîne raid, le bot poste un shoutout qui pointe votre chat vers le raider. Activez le module et personnalisez la ligne de shoutout.",
+        "settings": {
+          "native_shoutout": {
+            "label": "Envoyer aussi le shoutout Twitch",
+            "help": "Lance le /shoutout natif de Twitch sur le raider en plus de la ligne de chat, ce qui affiche sa catégorie actuelle et sa carte de profil. Désactivé par défaut."
+          }
+        },
+        "replies": {
+          "shoutout": {
+            "label": "Shoutout de raid",
+            "tagline": "Shoutout automatique dans le chat lors d'un raid",
+            "event": "au raid"
+          }
+        }
+      },
+      "alerts": {
+        "label": "Alertes de chat",
+        "tagline": "Annoncez les follows, subs, cheers, raids et pauses pub dans le chat.",
+        "description": "Le bot poste une ligne dans le chat quand quelqu'un follow, s'abonne, cheer ou raid, et peut annoncer les pauses pub. Activez ou désactivez chaque alerte et personnalisez son message. Les nouvelles alertes arrivent activées, sauf l'alerte de pause pub qui reste éteinte jusqu'à ce que vous l'activiez. Une alerte de follow se déclenche au plus une fois par viewer tous les trois jours, donc unfollow puis refollow ne peut pas spammer le chat.",
+        "replies": {
+          "follow": {
+            "label": "Alerte de follow",
+            "tagline": "Quand quelqu'un follow votre chaîne. Une fois par viewer tous les trois jours.",
+            "event": "au follow"
+          },
+          "sub": {
+            "label": "Alerte d'abonnement",
+            "tagline": "Quand quelqu'un s'abonne ou se réabonne.",
+            "event": "à l'abonnement"
+          },
+          "gift": {
+            "label": "Alerte de sub offert",
+            "tagline": "Quand quelqu'un offre des subs. Une ligne par offreur, jamais par destinataire.",
+            "event": "aux subs offerts"
+          },
+          "cheer": {
+            "label": "Alerte de cheer",
+            "tagline": "Quand quelqu'un cheer des bits.",
+            "event": "au cheer"
+          },
+          "raid": {
+            "label": "Alerte de raid",
+            "tagline": "Quand une autre chaîne raid.",
+            "event": "au raid"
+          },
+          "ads": {
+            "label": "Alerte de pause pub",
+            "tagline": "Quand une pause pub commence. Éteinte par défaut.",
+            "event": "à la pause pub"
+          }
+        }
+      },
+      "urchin": {
+        "label": "Stats Bedwars",
+        "tagline": "Stats Hypixel Bedwars, score urchin et tags de blacklist dans le chat.",
+        "description": "Commandes viewers via urchin.gg : sessions Bedwars quotidiennes, hebdomadaires et mensuelles, stats à vie, le score sniper Urchin et les tags de blacklist actifs. Les commandes ciblent par défaut votre compte Minecraft lié ; les viewers peuvent aussi nommer n'importe quel joueur, par ex. « !daily Technoblade ».",
+        "settings": {
+          "account": {
+            "label": "Compte Minecraft lié",
+            "help": "Joueur par défaut de chaque commande. Laissez vide pour utiliser votre pseudo Twitch. Le bot stocke l'UUID du compte quand Mojang le permet, donc les commandes survivent à un changement de nom.",
+            "placeholder": "Votre pseudo Minecraft"
+          }
+        },
+        "replies": {
+          "daily": {
+            "tagline": "Session Bedwars depuis le reset quotidien."
+          },
+          "weekly": {
+            "tagline": "Session Bedwars depuis le reset hebdomadaire."
+          },
+          "monthly": {
+            "tagline": "Session Bedwars depuis le reset mensuel."
+          },
+          "stats": {
+            "tagline": "Stats Bedwars à vie."
+          },
+          "sniper": {
+            "tagline": "Score Urchin (overlay Cubelify)."
+          },
+          "tags": {
+            "tagline": "Tags de blacklist Urchin actifs."
+          },
+          "tagdescription": {
+            "tagline": "Tags de blacklist avec leurs raisons."
+          }
+        }
+      },
+      "mcsr": {
+        "label": "MCSR Ranked",
+        "tagline": "Elo classé et stats de session par stream pour les runners MCSR.",
+        "description": "Commandes viewers via l'API MCSR Ranked : !elo affiche la cote actuelle et le bilan de saison ; !session affiche l'elo et les victoires/défaites depuis le début du stream, en photographiant votre standing dès que vous passez en live. !elo peut nommer n'importe quel joueur (ex. « !elo Feinberg ») ; !session suit toujours votre compte lié. !lastmatch montre le match le plus récent ; !record compare le face-à-face de deux joueurs ; !lb montre le top 5 du classement elo, points de phase ou palmarès ; !race montre le leader de la course de la semaine et votre temps. !elo, !lastmatch, !record et !lb acceptent tous un « season:11 » à la fin pour une saison passée. !pace, !nethers et !lastfort tirent les splits live de PaceMan.gg pour le même compte lié. !pb montre un record personnel : quotidien/hebdomadaire/mensuel depuis PaceMan, ou « ranked » pour le meilleur de saison MCSR Ranked ; un nom de joueur peut suivre n'importe lequel, ou rester seul pour le meilleur PaceMan de tous les temps.",
+        "settings": {
+          "account": {
+            "label": "Compte Minecraft lié",
+            "help": "Joueur par défaut de chaque commande. Laissez vide pour utiliser votre pseudo Twitch. Le bot stocke l'UUID du compte quand Mojang le permet, donc les commandes Ranked survivent à un changement de nom. PaceMan utilise encore le pseudo.",
+            "placeholder": "Votre pseudo Minecraft"
+          }
+        },
+        "replies": {
+          "elo": {
+            "tagline": "Elo actuel, rang et bilan de saison."
+          },
+          "session": {
+            "tagline": "Elo et bilan depuis le début du stream."
+          },
+          "pace": {
+            "tagline": "Moyennes de splits de la session en cours, via PaceMan.gg."
+          },
+          "nethers": {
+            "tagline": "Nombre d'entrées Nether et pace de la session en cours."
+          },
+          "lastfort": {
+            "tagline": "Splits de la run la plus récente qui a atteint une forteresse ou un bastion."
+          },
+          "lastmatch": {
+            "tagline": "Le match le plus récent : adversaire, résultat, seed et changement d'elo."
+          },
+          "record": {
+            "tagline": "Victoires en face-à-face entre deux joueurs.",
+            "event": "!record <joueur> [joueur2]"
+          },
+          "lb": {
+            "tagline": "Top 5 du classement elo, points de phase ou palmarès.",
+            "event": "!lb [phase [predicted]|record] [country:xx]"
+          },
+          "race": {
+            "tagline": "Leader de la course de la semaine et le temps du joueur."
+          },
+          "pb": {
+            "tagline": "Meilleur temps : PaceMan quotidien/hebdomadaire/mensuel/tous temps, ou le meilleur de saison MCSR Ranked.",
+            "event": "!pb [daily|weekly|monthly|ranked] [joueur]"
+          }
+        }
+      },
+      "fortnite": {
+        "label": "Stats Fortnite",
+        "tagline": "Stats Fortnite BR et boutique du jour dans le chat.",
+        "description": "Une commande, quatre regards : !fn montre les victoires, matchs, kills, K/D et taux de victoire à vie d'un joueur, avec un détail solo/duo/squad ; !fn season montre la même chose pour la saison en cours (le bot suit les changements de saison tout seul) ; !fn session montre victoires, kills et K/D depuis le début du stream, en photographiant votre standing dès que vous passez en live ; !fn store liste le contenu de la boutique du jour. Les formes compactes !fnstats, !fnseason, !fnsession et !fnstore marchent aussi. Liez votre nom affiché Epic ci-dessous. Les viewers peuvent aussi nommer n'importe quel joueur, ex. « !fn Ninja » ; !fn session suit toujours votre compte lié. Les recherches de noms PlayStation et Xbox ne sont pas encore prises en charge.",
+        "settings": {
+          "account": {
+            "label": "Nom de compte lié",
+            "help": "Joueur par défaut des commandes de stats. Laissez vide pour utiliser votre pseudo Twitch.",
+            "placeholder": "Votre nom affiché Epic"
+          },
+          "accountType": {
+            "label": "Plateforme du compte",
+            "help": "Seuls les noms affichés Epic se résolvent pour l'instant ; les recherches PlayStation et Xbox viendront plus tard. Joueurs console : votre nom affiché Epic fonctionne.",
+            "placeholder": "epic",
+            "options": {
+              "epic": "Epic Games",
+              "psn": "PlayStation (bientôt)",
+              "xbl": "Xbox Live (bientôt)"
+            }
+          }
+        },
+        "replies": {
+          "stats": {
+            "tagline": "Stats Battle Royale à vie : !fn, !fn stats ou !fnstats."
+          },
+          "season": {
+            "tagline": "Stats de la saison en cours (aussi !fnseason) ; les changements de saison sont suivis automatiquement.",
+            "event": "!fn season"
+          },
+          "session": {
+            "tagline": "Victoires, kills et K/D depuis le début du stream (aussi !fnsession).",
+            "event": "!fn session"
+          },
+          "store": {
+            "tagline": "Rotation de la boutique du jour (aussi !fnstore).",
+            "event": "!fn store"
+          }
+        }
+      },
+      "codm": {
+        "label": "Profil CODM",
+        "tagline": "Consultation de profil Call of Duty: Mobile Global dans le chat.",
+        "description": "Cherchez un profil CODM Global par UID ou pseudo exact avec !codm, !codmprofile ou !codmrank. Le profil en lecture seule inclut le niveau, le rang et la cote Multijoueur, le pays et l'identifiant court. Prend en charge l'édition CODM Global et n'inclut pas le KD, l'historique des parties ni les stats Battle Royale.",
+        "settings": {
+          "account": {
+            "label": "Compte CODM lié",
+            "help": "Profil par défaut de la commande. Si le champ est vide, saisissez un UID CODM ou un pseudo exact après !codm.",
+            "placeholder": "UID CODM ou pseudo exact"
+          },
+          "linkedOnly": {
+            "help": "Une fois activé, chaque recherche utilise votre compte CODM lié et ignore les noms fournis par les viewers. Liez d'abord un UID CODM ou un pseudo exact."
+          }
+        },
+        "replies": {
+          "profile": {
+            "tagline": "Profil CODM Global : !codm, !codmprofile ou !codmrank.",
+            "event": "!codm [UID/pseudo exact]"
+          }
+        }
+      },
+      "clashroyale": {
+        "label": "Stats Clash Royale",
+        "tagline": "Profils Clash Royale, decks et classement Chemin des Légendes dans le chat.",
+        "description": "Une commande, quatre regards : !cr montre le profil à vie d'un joueur (niveau, bilan victoires/défaites, taux de victoire, victoires à trois couronnes, clan) ; !cr decks liste son deck de combat actuel avec le coût d'élixir moyen ; !cr ranked montre son standing Chemin des Légendes (avec repli sur les saisons de ligue héritées pour les vieux comptes) ; !cr road montre son palmarès de la route des trophées et son arène. Les formes compactes !crstats, !crdecks, !crranked et !crroad marchent aussi. Liez votre tag joueur ci-dessous. Clash Royale n'a pas de recherche par nom, donc un tag du genre #P2LQ0GR est obligatoire. Les viewers peuvent aussi nommer n'importe quel tag, ex. « !cr #P2LQ0GR ».",
+        "settings": {
+          "account": {
+            "label": "Tag joueur lié",
+            "help": "Joueur par défaut de chaque commande. Clash Royale n'a pas de recherche par nom, donc ce doit être un tag joueur ; laissez vide seulement si vous en tapez toujours un.",
+            "placeholder": "#P2LQ0GR"
+          }
+        },
+        "replies": {
+          "stats": {
+            "tagline": "Profil à vie : !cr, !cr stats ou !crstats."
+          },
+          "decks": {
+            "tagline": "Le deck de combat actuel avec son élixir moyen (aussi !crdecks).",
+            "event": "!cr decks"
+          },
+          "ranked": {
+            "tagline": "Standing Chemin des Légendes (aussi !crranked) ; les saisons de ligue héritées complètent les vieux palmarès.",
+            "event": "!cr ranked"
+          },
+          "road": {
+            "tagline": "Palmarès de la route des trophées et arène (aussi !crroad).",
+            "event": "!cr road"
+          }
+        }
+      },
+      "valorant": {
+        "label": "Stats Valorant",
+        "tagline": "Rangs Valorant, historique de matchs, classements et rotation boutique du jour dans le chat.",
+        "description": "Une commande, cinq regards : !val montre le standing compétitif d'un joueur (palier, RR, variation de RR de la dernière partie, palier max) ; !val matches liste ses parties classées récentes en résultats agent K/D/A ; !val account montre à qui un Riot ID correspond, avec le niveau de compte ; !val lb affiche le top 10 de n'importe quel classement régional, PC ou console ; !val shop montre la rotation mondiale de skins du jour avec les prix VP et le compte à rebours. Les formes compactes !valrank, !valmatches, !valaccount, !vallb et !valshop marchent aussi. Liez votre Riot ID ci-dessous (« Nom#Tag »). Les viewers peuvent aussi nommer n'importe quel joueur, ex. « !val Frosty#EUW1 », et ajouter un shard ou une ladder n'importe où dans la ligne pour cadrer cette recherche (« !val eu Frosty#EUW1 », « !val lb console ap »). Laissez la région vide et le bot détecte le shard depuis le compte lui-même.",
+        "settings": {
+          "account": {
+            "label": "Riot ID lié",
+            "help": "Joueur par défaut de chaque commande, au format « Nom#Tag ». Valorant n'a pas de recherche par nom seul, donc le #tag est obligatoire.",
+            "placeholder": "Frosty#EUW1"
+          },
+          "region": {
+            "label": "Shard de région",
+            "help": "na, eu, ap, kr, br ou latam. Laissez vide et le bot détecte le shard depuis le compte lui-même.",
+            "placeholder": "eu"
+          },
+          "platform": {
+            "label": "Ladder",
+            "help": "Les rangs et classements sont suivis comme des ladders séparés par plateforme ; vide signifie PC.",
+            "placeholder": "pc",
+            "options": {
+              "pc": "PC",
+              "console": "Console"
+            }
+          }
+        },
+        "replies": {
+          "rank": {
+            "tagline": "Standing compétitif : !val, !val rank ou !valrank."
+          },
+          "matches": {
+            "tagline": "Parties classées récentes (aussi !valmatches).",
+            "event": "!val matches"
+          },
+          "account": {
+            "tagline": "À qui un ID correspond, avec le niveau de compte (aussi !valaccount).",
+            "event": "!val account"
+          },
+          "board": {
+            "tagline": "Top 10 régional, PC ou console (aussi !vallb).",
+            "event": "!val lb"
+          },
+          "shop": {
+            "tagline": "Rotation mondiale de skins du jour avec compte à rebours (aussi !valshop).",
+            "event": "!val shop"
+          }
+        }
+      },
+      "queue": {
+        "label": "File d'attente",
+        "tagline": "Laissez les viewers se mettre en file pour jouer avec vous, premier arrivé premier servi.",
+        "description": "Les viewers tapent !join pour entrer dans la file et !list pour voir qui est suivant (les 10 premiers). Vous (et vos modos) gérez la file depuis le chat : !queue open et !queue close acceptent ou stoppent les nouvelles entrées, !queue next fait monter le joueur suivant, !queue remove <utilisateur> en retire quelqu'un, et !queue clear la vide. Les viewers peuvent sortir à tout moment avec !leave. Activez le module pour débloquer les commandes ; la file survit à la fermeture pour que vous puissiez jouer avec ceux déjà en attente.",
+        "replies": {
+          "join": {
+            "label": "Confirmation d'entrée",
+            "tagline": "Quand un viewer rejoint la file."
+          },
+          "already": {
+            "label": "Déjà dans la file",
+            "tagline": "Quand un viewer déjà en file retape !join."
+          },
+          "leave": {
+            "label": "Confirmation de sortie",
+            "tagline": "Quand un viewer sort de la file."
+          },
+          "next": {
+            "label": "Joueur suivant",
+            "tagline": "Quand vous faites monter le joueur suivant.",
+            "event": "!queue next"
+          },
+          "opened": {
+            "label": "File ouverte",
+            "tagline": "Annoncé quand vous ouvrez la file.",
+            "event": "!queue open"
+          },
+          "closed": {
+            "label": "File fermée",
+            "tagline": "Annoncé quand vous fermez la file.",
+            "event": "!queue close"
+          }
+        },
+        "commands": {
+          "join": "Entrer dans la file pour jouer (aussi !queue join).",
+          "leave": "Sortir de la file (aussi !queue leave).",
+          "list": "Afficher les 10 prochains joueurs en attente (aussi !queue list).",
+          "queue": "Voir si la file est ouverte et combien de personnes attendent.",
+          "queue_open": "Commencer à accepter les entrées.",
+          "queue_close": "Arrêter d'accepter les entrées ; la file est conservée.",
+          "queue_next": "Faire monter le joueur suivant et l'annoncer.",
+          "queue_remove_user": "Retirer quelqu'un de la file.",
+          "queue_clear": "Vider la file."
+        }
+      },
+      "raffle": {
+        "label": "Tirage",
+        "tagline": "Tirages au sort chronométrés auxquels le chat s'inscrit avec !join.",
+        "description": "Ouvrez un tirage et les viewers tapent !join pour s'inscrire. Pendant qu'il tourne, le bot poste un rappel du temps restant toutes les quelques minutes (le rythme est à vous), et à la fin du temps il tire automatiquement. Les gagnants sont tirés uniformément au hasard parmi tous les inscrits, chaque inscription compte une fois, et le tirage laisse un reçu vérifiable. Les gagnants confirment avec !claim dans une fenêtre de 15 minutes. Vous (et vos modos) contrôlez aussi tout depuis le chat : !raffle open en lance un, !raffle draw clôt plus tôt et annonce, !raffle cancel l'annule sans tirer. Quand celui-ci et la File d'attente sont tous les deux actifs, !join appartient au tirage et la file se rejoint via !queue join.",
+        "replies": {
+          "joined": {
+            "label": "Confirmation d'inscription",
+            "tagline": "Quand un viewer rejoint le tirage."
+          },
+          "already": {
+            "label": "Déjà inscrit",
+            "tagline": "Quand un viewer déjà inscrit retape !join."
+          },
+          "noRaffle": {
+            "label": "Aucun tirage en cours",
+            "tagline": "Quand quelqu'un rejoint alors qu'aucun tirage n'est ouvert."
+          },
+          "opened": {
+            "label": "Tirage ouvert",
+            "tagline": "Quand un tirage démarre et que les inscriptions s'ouvrent.",
+            "event": "!raffle open"
+          },
+          "won": {
+            "label": "Gagnants annoncés",
+            "tagline": "Quand un tirage nomme ses gagnants (manuel ou chronométré).",
+            "event": "!raffle draw"
+          },
+          "claimOk": {
+            "label": "Prix confirmé",
+            "tagline": "Quand un gagnant confirme avec !claim."
+          }
+        },
+        "commands": {
+          "winner": "Rappeler les gagnants du dernier tirage et combien ont confirmé.",
+          "raffle": "Voir si un tirage tourne, les inscriptions et le temps restant.",
+          "raffle_open_minutes_winners_remind": "Lancer un tirage (défauts 10 min, 1 gagnant, rappels toutes les 5 min ; remind 0 coupe les rappels).",
+          "raffle_draw_winners": "Clore maintenant et annoncer les gagnants.",
+          "raffle_close": "Identique à draw avec le nombre de gagnants configuré.",
+          "raffle_cancel": "Annuler sans tirer."
+        }
+      },
+      "quotes": {
+        "label": "Citations",
+        "tagline": "Gardez les meilleures phrases du stream et rejouez-les dans le chat.",
+        "description": "Tenez un carnet de citations de chaîne. Quelqu'un enregistre une phrase avec !addquote le texte (ou !quote « le texte ») et le bot la numérote et tamponne la date. N'importe qui en rejoue une avec !quote pour un tirage au sort, !quote 12 pour un numéro précis, ou !quote ferret pour une citation au hasard contenant ce mot. Le bot répond « Quote #12: le texte (2026-07-11) ». Choisissez qui a le droit d'enregistrer et qui peut en réécrire une (!quote edit 12 le texte corrigé) ci-dessous ; les deux par défaut aux modérateurs. Les modos retirent une erreur avec !quote remove 12 ; les numéros ne sont jamais réutilisés, donc un ancien numéro continue de pointer vers la même citation. Les réponses sont du texte système fixe (localisé dans la langue de votre console).",
+        "commands": {
+          "quote": "Poster une citation enregistrée au hasard (aussi !quotes).",
+          "quote_number": "Poster cette citation exacte.",
+          "quote_word": "Poster une citation au hasard contenant ce mot.",
+          "addquote_text": "Enregistrer une nouvelle citation (aussi !quoteadd ou !quote « texte » ; qui peut enregistrer se règle ci-dessus) ; la date est conservée.",
+          "quote_edit_number_text": "Réécrire une citation sur place (qui peut éditer se règle ci-dessus) ; son numéro et sa date restent.",
+          "quote_remove_number": "Supprimer une citation ; son numéro est retiré."
+        }
+      },
+      "govee": {
+        "label": "Lumières Govee",
+        "tagline": "Laissez les viewers recolorer vos lumières Govee avec des points de chaîne.",
+        "description": "Les viewers échangent une récompense de points de chaîne, tapent une couleur (un nom comme « blue » ou un hex comme #00ccff), et le bot allume votre lumière Govee et la règle. Direct seulement : les échanges hors stream sont remboursés automatiquement. Pour obtenir votre clé API Govee : ouvrez l'appli Govee Home, touchez Profil (en bas à droite), touchez l'engrenage des réglages (en haut à droite), touchez « Apply for API Key », remplissez le court formulaire, et Govee vous envoie une clé par e-mail en quelques minutes. Puis sur cette page : collez la clé (nous la stockons chiffrée et ne la réaffichons jamais), choisissez la lumière à contrôler, et créez la récompense."
+      },
+      "discord": {
+        "label": "Discord",
+        "tagline": "Un seul bot sur Twitch et Discord. Go-live, clips, bienvenues, tickets et vocal.",
+        "description": "Connectez un serveur Discord existant ou créez-en un depuis le modèle de Bagel. Les go-live et les clips partent d'outgress directement. Ils n'attendent jamais sesame. Les raids, gift bombs et subs jalons se copient dans #announcements quand vous les activez. La passerelle Discord (dingress) gère les bienvenues, le vocal join-to-create, les tickets de support, les logs staff, la modération slash, et les rangs crumb."
+      },
+      "songqueue": {
+        "label": "Demandes de morceaux",
+        "tagline": "!sr et une récompense de points de chaîne qui mettent des morceaux Spotify en file.",
+        "description": "Enregistrez votre propre appli Spotify et connectez-y votre compte une fois, puis laissez les viewers mettre de la musique en file de deux façons : la commande !sr (avec un palier de permission que vous choisissez, de tout le monde jusqu'à vous seul) et une récompense de points de chaîne dont le texte saisi est la recherche : un nom, « artiste - morceau », ou un lien Spotify collé. Le bot annonce ce qui joue, résout les liens et les noms contre Spotify, et garde un morceau par viewer dans la liste suivante. !current lit votre lecteur Spotify directement, donc il répond même pour des pistes que personne n'a demandées. Les modérateurs gèrent la file avec !sr next, remove et clear.",
+        "commands": {
+          "sr": "Afficher ce qui joue, ou mettre une piste en file par nom, « artiste - morceau », ou un lien Spotify.",
+          "remove": "Retirer votre demande en file, ou enlever une position en tant que modo.",
+          "skip": "Marquer la piste actuelle comme jouée et promouvoir la suivante (aussi !next).",
+          "clear": "Vider la file.",
+          "srlist": "Afficher les cinq prochains morceaux de la file (aussi !songlist).",
+          "current": "Dire ce que votre Spotify joue en ce moment (aussi !song, !np)."
+        }
+      }
+    },
+    "matchHintContains": "Se déclenche quand la phrase apparaît n'importe où, même à l'intérieur d'un autre mot.",
+    "matchHintExact": "Se déclenche seulement quand le message entier égale la phrase.",
+    "matchHintPrefix": "Se déclenche quand le message commence par la phrase.",
+    "matchHintWord": "Se déclenche quand la phrase apparaît comme un mot à part (donc « hi » ne se déclenche pas dans « this »).",
+    "matchLabel": "Correspondance",
+    "responseLabel": "Réponse",
+    "triggerDefaultResponse": "salut {user} !",
+    "triggerPhrase": "Expression déclencheuse",
+    "triggerPhraseExample": "hello",
+    "triggerPhrasePh": "ex. hello",
+    "triggerPreviewTag": "sur « {phrase} »"
   },
   "nav": {
     "lockedBroadcaster": "Réservé au diffuseur",
@@ -2494,5 +3133,21 @@
     "notifications": "Notifications",
     "logout": "Se déconnecter",
     "dashboards": "Tableaux partagés"
+  },
+  "perm": {
+    "everyone": "Tout le monde",
+    "sub": "Abonnés",
+    "vip": "VIP",
+    "mod": "Modérateurs",
+    "lead_mod": "Modérateurs principaux",
+    "broadcaster": "Diffuseur",
+    "badge": {
+      "everyone": "Tous",
+      "sub": "Abos",
+      "vip": "VIP",
+      "mod": "Modos",
+      "lead_mod": "Lead modos",
+      "broadcaster": "Diffuseur"
+    }
   }
 }

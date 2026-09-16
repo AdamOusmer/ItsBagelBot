@@ -343,7 +343,7 @@
         mono
         invalid={!!urlError}
         type="url"
-        placeholder="https://api.example.com/v1/…"
+        placeholder={t('fetches.builderUrlPh')}
         spellcheck="false"
         required
         aria-invalid={urlError ? 'true' : undefined}

@@ -246,7 +246,7 @@
   {#if loyaltyCommands.length}
     <div class="cmd-block">
       <DeckList>
-        <ModuleCommandList commands={loyaltyCommands} headingId="loy-chat-h" />
+        <ModuleCommandList moduleId="loyalty" commands={loyaltyCommands} headingId="loy-chat-h" />
       </DeckList>
     </div>
   {/if}

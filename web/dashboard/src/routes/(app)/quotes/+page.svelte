@@ -444,7 +444,7 @@
   {#if quoteCommands.length}
     <div class="cmd-block">
       <DeckList>
-        <ModuleCommandList commands={quoteCommands} headingId="quotes-cmds-h" />
+        <ModuleCommandList moduleId="quotes" commands={quoteCommands} headingId="quotes-cmds-h" />
       </DeckList>
     </div>
   {/if}

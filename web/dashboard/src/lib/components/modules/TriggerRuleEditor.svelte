@@ -40,31 +40,31 @@
 
   const { t } = getI18n();
 
-  const MODES: { value: Match; label: string; hint: string }[] = [
-    { value: 'word', label: 'Whole word', hint: 'Fires when the phrase appears as its own word (so "hi" will not fire inside "this").' },
-    { value: 'contains', label: 'Contains', hint: 'Fires when the phrase appears anywhere, even inside another word.' },
-    { value: 'exact', label: 'Exact message', hint: 'Fires only when the whole message equals the phrase.' },
-    { value: 'prefix', label: 'Starts with', hint: 'Fires when the message begins with the phrase.' }
-  ];
+  const modes = $derived([
+    { value: 'word' as Match, label: t('modules.matchWord'), hint: t('modules.matchHintWord') },
+    { value: 'contains' as Match, label: t('modules.matchContains'), hint: t('modules.matchHintContains') },
+    { value: 'exact' as Match, label: t('modules.matchExact'), hint: t('modules.matchHintExact') },
+    { value: 'prefix' as Match, label: t('modules.matchPrefix'), hint: t('modules.matchHintPrefix') }
+  ]);
 
   // The response palette: the tokens sesame expands (module.ParseDynamic + {user}).
   // Labels go through t() like every other palette on this screen; they used to
   // be English literals, which is what made this the one reward-shaped surface
   // that stayed English under /fr.
-  const TOKENS = [
+  const TOKENS = $derived([
     { token: '{user}', label: t('modules.trigTokUser') },
     { token: '{random}', label: t('modules.trigTokRandom') },
     { token: '{choice:a,b,c}', label: t('modules.trigTokChoice') }
-  ];
+  ]);
 
-  const DEFAULT_RESPONSE = 'hi {user}!';
+  const DEFAULT_RESPONSE = $derived(t('modules.triggerDefaultResponse'));
   const effectiveMessage = $derived(message.trim() ? message : DEFAULT_RESPONSE);
-  const modeHint = $derived(MODES.find((m) => m.value === match)?.hint ?? '');
+  const modeHint = $derived(modes.find((m) => m.value === match)?.hint ?? '');
 
   // A sample chat line that would fire this rule, shaped per match mode so the
   // rehearsed viewer message actually triggers the reply.
   const sampleMessage = $derived.by(() => {
-    const p = phrase.trim() || 'hello';
+    const p = phrase.trim() || t('modules.triggerPhraseExample');
     switch (match) {
       case 'exact':
         return p;
@@ -96,11 +96,11 @@
 </script>
 
 <div class="editor" bind:this={editorEl}>
-  <Field label="Trigger phrase" error={phraseError} errorId={PHRASE_ERR_ID}>
+  <Field label={t('modules.triggerPhrase')} error={phraseError} errorId={PHRASE_ERR_ID}>
     <input
       class="bb-input"
       type="text"
-      placeholder="e.g. hello"
+      placeholder={t('modules.triggerPhrasePh')}
       required
       data-invalid={phraseError ? '' : undefined}
       aria-invalid={phraseError ? 'true' : undefined}
@@ -109,16 +109,16 @@
     />
   </Field>
 
-  <Field label="Match" hint={modeHint}>
+  <Field label={t('modules.matchLabel')} hint={modeHint}>
     <select class="bb-input" bind:value={match}>
-      {#each MODES as m (m.value)}<option value={m.value}>{m.label}</option>{/each}
+      {#each modes as m (m.value)}<option value={m.value}>{m.label}</option>{/each}
     </select>
   </Field>
 
-  <Field label="Response" error={responseError} errorId={RESPONSE_ERR_ID}>
+  <Field label={t('modules.responseLabel')} error={responseError} errorId={RESPONSE_ERR_ID}>
     <ResponseEditor
       bind:value={message}
-      placeholder={`e.g. ${DEFAULT_RESPONSE}`}
+      placeholder={DEFAULT_RESPONSE}
       tokens={TOKENS}
       required
       invalid={!!responseError}
@@ -132,7 +132,7 @@
     kind="reply"
     name=""
     viewerText={sampleMessage}
-    tag={`on "${phrase.trim() || 'hello'}"`}
+    tag={t('modules.triggerPreviewTag', { phrase: phrase.trim() || t('modules.triggerPhraseExample') })}
     samples={{ user: 'sesame_sam' }}
     response={effectiveMessage}
   />
@@ -147,7 +147,7 @@
   <Cluster gap={3}>
     {#if !isNew}
       <!-- Only an existing rule can be deleted; a new one is cancelled, not deleted. -->
-      <Button variant="destructive" onclick={onDelete} disabled={busy}>Delete</Button>
+      <Button variant="destructive" onclick={onDelete} disabled={busy}>{t('common.delete')}</Button>
     {/if}
     <span class="spacer"></span>
     <Button variant="ghost" onclick={onCancel} disabled={busy}>{t('common.cancel')}</Button>

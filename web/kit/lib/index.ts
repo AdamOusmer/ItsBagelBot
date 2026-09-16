@@ -82,6 +82,7 @@ export {
 } from './i18n/messages';
 export * from './types';
 export * from './module-index';
+export * from './module-copy';
 export * from './nav';
 export * from './social';
 export * from './spotify';

@@ -6,11 +6,11 @@
   // role tag when the command is moderator- or lead-mod-only. Unlike ReplyRow it is not a
   // button and carries no toggle or inspector: nothing here is editable, so it
   // is deliberately not clickable.
-  import { Code, getI18n, type ModuleCommandInfo } from '@bagel/kit';
+  import { Code, getI18n, tModuleCommandSummary, type ModuleCommandInfo } from '@bagel/kit';
 
   const { t } = getI18n();
 
-  let { command, index }: { command: ModuleCommandInfo; index: number } = $props();
+  let { moduleId, command, index }: { moduleId: string; command: ModuleCommandInfo; index: number } = $props();
 
   const idx = $derived(String(index).padStart(2, '0'));
 </script>
@@ -20,7 +20,7 @@
     <span class="idx" aria-hidden="true">{idx}</span>
     <span class="cmd">
       <span class="cmd-name"><Code>{command.trigger}</Code></span>
-      <span class="resp">{command.summary}</span>
+      <span class="resp">{tModuleCommandSummary(t, moduleId, command)}</span>
     </span>
     {#if command.perm === 'mod'}
       <span class="bb-tag bb-tag--bare">{t('modules.permMods')}</span>

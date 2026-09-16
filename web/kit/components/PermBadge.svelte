@@ -7,7 +7,7 @@
   // shape and the permission ladder in one file, in @bagel/kit's ancestor.
   // The shape is @bagel/ui/svelte/Badge.svelte now; what stays here is the
   // part that could never move, because `Perm` is a bot domain type
-  // (../lib/types.ts) and the six strings below are bot copy. A design
+  // (../lib/types.ts) and the six permission labels are bot copy. A design
   // library that ships `.bb-tag--broadcaster` has stopped being reusable.
   //
   // The seam is --badge-tone (colour) and --badge-tone-rule (its hairline).
@@ -18,18 +18,12 @@
   // same tiers spelled elsewhere; the mod ramp keeps its own alphas because
   // it encodes authority depth, not a tier.
   import Badge from '@bagel/ui/svelte/Badge.svelte';
+  import { getI18n } from '../lib/i18n/context';
+  import { tPermBadge } from '../lib/module-copy';
   import type { Perm } from '../lib/types';
 
   let { perm }: { perm: Perm } = $props();
-
-  const label: Record<Perm, string> = {
-    everyone: 'Everyone',
-    sub: 'Subs',
-    vip: 'VIPs',
-    mod: 'Mods',
-    lead_mod: 'Lead Mods',
-    broadcaster: 'Broadcaster'
-  };
+  const { t } = getI18n();
 
   const tone: Record<Perm, [string, string]> = {
     everyone: ['var(--bb-tier-inactive)', 'var(--bb-tier-inactive-border)'],
@@ -46,4 +40,4 @@
 <Badge
   dashed={perm === 'lead_mod'}
   style="--badge-tone:{swatch[0]};--badge-tone-rule:{swatch[1]}"
->{label[perm] ?? perm}</Badge>
+>{tPermBadge(t, perm)}</Badge>
