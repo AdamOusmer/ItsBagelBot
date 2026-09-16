@@ -14,7 +14,6 @@ import (
 
 	"ItsBagelBot/app/db/users/ent"
 	"ItsBagelBot/app/db/users/ent/predicate"
-	"ItsBagelBot/app/db/users/ent/premiumgrant"
 	"ItsBagelBot/app/db/users/ent/tokens"
 	"ItsBagelBot/app/db/users/ent/user"
 	domaincrypto "ItsBagelBot/internal/domain/crypto"
@@ -203,17 +202,12 @@ func (r *Users) Get(ctx context.Context, id uint64) (UserView, error) {
 				return UserView{}, err
 			}
 
-			status, statusErr := r.effectiveStatus(ctx, u, time.Now().UTC())
-			if statusErr != nil {
-				return UserView{}, statusErr
-			}
-
 			return UserView{
 				ID:                        u.ID,
 				Username:                  u.Username,
 				DisplayName:               u.DisplayName,
 				IsActive:                  u.IsActive,
-				Status:                    string(status),
+				Status:                    string(u.Status),
 				Banned:                    u.Banned,
 				Locale:                    u.Locale,
 				CustomCursor:              u.CustomCursor,
@@ -226,50 +220,6 @@ func (r *Users) Get(ctx context.Context, id uint64) (UserView, error) {
 			}, nil
 		})
 	})
-}
-
-// effectiveStatus overlays currently active committed giveaway coverage on
-// the historical paid/VIP row. It never promotes VIP or changes billing
-// ownership; the overlay is solely the access status exposed to projections.
-func (r *Users) effectiveStatus(ctx context.Context, u *ent.User, now time.Time) (user.Status, error) {
-	if u.Status == user.StatusVip {
-		return u.Status, nil
-	}
-	active, err := r.client.PremiumGrant.Query().Where(
-		premiumgrant.UserIDEQ(u.ID), premiumgrant.StateEQ(premiumgrant.StateCommitted),
-		premiumgrant.StartAtLTE(now), premiumgrant.EndAtGT(now),
-	).Exist(ctx)
-	if err != nil {
-		return "", err
-	}
-	if active {
-		return user.StatusPaid, nil
-	}
-	return u.Status, nil
-}
-
-// ActiveGrantUserIDs returns the subset of ids with a committed grant covering
-// now. Admin list overlays a page in one query instead of N Exists calls.
-func (r *Users) ActiveGrantUserIDs(ctx context.Context, ids []uint64, now time.Time) (map[uint64]struct{}, error) {
-	out := make(map[uint64]struct{}, len(ids))
-	if len(ids) == 0 {
-		return out, nil
-	}
-	rows, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.PremiumGrant, error) {
-		return r.client.PremiumGrant.Query().Where(
-			premiumgrant.UserIDIn(ids...),
-			premiumgrant.StateEQ(premiumgrant.StateCommitted),
-			premiumgrant.StartAtLTE(now),
-			premiumgrant.EndAtGT(now),
-		).Select(premiumgrant.FieldUserID).All(ctx)
-	})
-	if err != nil {
-		return nil, err
-	}
-	for _, row := range rows {
-		out[row.UserID] = struct{}{}
-	}
-	return out, nil
 }
 
 // IDByUsername resolves a Twitch login to its broadcaster id. It backs the
@@ -512,13 +462,9 @@ func (r *Users) Reproject(ctx context.Context) error {
 }
 
 func (r *Users) publishReprojectedUser(ctx context.Context, row *ent.User) error {
-	status, err := r.effectiveStatus(ctx, row, time.Now().UTC())
-	if err != nil {
-		return err
-	}
 	return bus.PublishJSON(ctx, r.pub, data.SubjectUserChanged, data.UserChangedDTO{
 		UserID: row.ID, Username: row.Username, IsActive: row.IsActive,
-		Status: string(status), Banned: row.Banned, Locale: row.Locale,
+		Status: string(row.Status), Banned: row.Banned, Locale: row.Locale,
 	})
 }
 

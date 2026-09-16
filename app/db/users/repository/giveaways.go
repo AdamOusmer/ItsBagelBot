@@ -355,7 +355,9 @@ func grantIntervalMatches(row *ent.PremiumGrant, req usersrpc.PreparePremiumGran
 }
 
 // CommitPremiumGrant transitions prepared to committed and is idempotent for
-// an already committed award. It never changes the interval or billing row.
+// an already committed award. It never changes the interval or billing
+// identity. Access status is projected into users.status so admin stats and
+// listing read the same paid column dashboard Get does.
 func (r *Users) CommitPremiumGrant(ctx context.Context, req usersrpc.CommitPremiumGrantRequest) (usersrpc.PremiumGrant, error) {
 	if err := validate.UserID(req.UserID); err != nil {
 		return usersrpc.PremiumGrant{}, err
@@ -405,7 +407,10 @@ func (r *Users) committedAfterRace(ctx context.Context, req usersrpc.CommitPremi
 
 func (r *Users) reannounceCommitted(ctx context.Context, row *ent.PremiumGrant) (usersrpc.PremiumGrant, error) {
 	// A prior commit may have succeeded while invalidation failed. Replaying
-	// the idempotent commit re-announces effective entitlement.
+	// the idempotent commit re-projects access and re-announces it.
+	if err := r.projectAccess(ctx, row.UserID, time.Now().UTC()); err != nil {
+		return usersrpc.PremiumGrant{}, err
+	}
 	if err := r.publishChanged(ctx, row.UserID); err != nil {
 		return usersrpc.PremiumGrant{}, err
 	}
@@ -477,10 +482,15 @@ func uncertainBilling(u *ent.User) bool {
 	if u.SubscriptionSource == "" {
 		return true
 	}
+	if u.SubscriptionSource == "giveaway" {
+		return false
+	}
 	return u.SubscriptionSource == "tebex" && (u.SubscriptionRef == nil || strings.TrimSpace(*u.SubscriptionRef) == "")
 }
 
-// ExpirePremiumGrants advances terminal state without touching paid billing.
+// ExpirePremiumGrants advances terminal state and projects users.status from
+// grant coverage. Tebex/admin billing identity is left alone; a grant-only
+// promotion records source "giveaway" so it is not an unknown Tebex agreement.
 func (r *Users) ExpirePremiumGrants(ctx context.Context, now time.Time) (int, error) {
 	active, err := r.pendingActiveGrants(ctx, now)
 	if err != nil {
@@ -490,10 +500,17 @@ func (r *Users) ExpirePremiumGrants(ctx context.Context, now time.Time) (int, er
 	if err != nil {
 		return 0, err
 	}
-	if err := r.announceGrantRows(ctx, active, premiumgrant.ProjectionPhaseActive); err != nil {
+	if err := r.announceGrantRows(ctx, active, premiumgrant.ProjectionPhaseActive, now); err != nil {
 		return 0, err
 	}
-	return r.expireGrantRows(ctx, expired)
+	count, err := r.expireGrantRows(ctx, expired, now)
+	if err != nil {
+		return count, err
+	}
+	if err := r.reconcileGrantAccess(ctx, now); err != nil {
+		return count, err
+	}
+	return count, nil
 }
 
 func (r *Users) pendingActiveGrants(ctx context.Context, now time.Time) ([]*ent.PremiumGrant, error) {
@@ -508,16 +525,16 @@ func (r *Users) pendingExpiredGrants(ctx context.Context, now time.Time) ([]*ent
 	})
 }
 
-func (r *Users) announceGrantRows(ctx context.Context, rows []*ent.PremiumGrant, phase premiumgrant.ProjectionPhase) error {
+func (r *Users) announceGrantRows(ctx context.Context, rows []*ent.PremiumGrant, phase premiumgrant.ProjectionPhase, now time.Time) error {
 	for _, row := range rows {
-		if err := r.publishGrantPhase(ctx, row, phase); err != nil {
+		if err := r.publishGrantPhase(ctx, row, phase, now); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (r *Users) expireGrantRows(ctx context.Context, rows []*ent.PremiumGrant) (int, error) {
+func (r *Users) expireGrantRows(ctx context.Context, rows []*ent.PremiumGrant, now time.Time) (int, error) {
 	count := 0
 	for _, row := range rows {
 		if row.State == premiumgrant.StateCommitted {
@@ -526,14 +543,17 @@ func (r *Users) expireGrantRows(ctx context.Context, rows []*ent.PremiumGrant) (
 			}
 			count++
 		}
-		if err := r.publishGrantPhase(ctx, row, premiumgrant.ProjectionPhaseExpired); err != nil {
+		if err := r.publishGrantPhase(ctx, row, premiumgrant.ProjectionPhaseExpired, now); err != nil {
 			return count, err
 		}
 	}
 	return count, nil
 }
 
-func (r *Users) publishGrantPhase(ctx context.Context, row *ent.PremiumGrant, phase premiumgrant.ProjectionPhase) error {
+func (r *Users) publishGrantPhase(ctx context.Context, row *ent.PremiumGrant, phase premiumgrant.ProjectionPhase, now time.Time) error {
+	if err := r.projectAccess(ctx, row.UserID, now); err != nil {
+		return err
+	}
 	if err := r.publishChanged(ctx, row.UserID); err != nil {
 		return err
 	}

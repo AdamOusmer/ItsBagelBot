@@ -82,6 +82,9 @@ func (r *Users) ApplyBilling(ctx context.Context, req billingrpc.ApplyRequest) (
 		return false, err
 	}
 	r.countGiftForGifter(ctx, req)
+	if err := r.projectAccess(ctx, req.UserID, time.Now().UTC()); err != nil {
+		return false, err
+	}
 	if err := r.publishChanged(ctx, req.UserID); err != nil {
 		return false, err
 	}
@@ -175,6 +178,9 @@ func (r *Users) SetAdminStatus(ctx context.Context, id uint64, status user.Statu
 	if err != nil {
 		return err
 	}
+	if err := r.projectAccess(ctx, id, time.Now().UTC()); err != nil {
+		return err
+	}
 	return r.publishChanged(ctx, id)
 }
 
@@ -240,6 +246,9 @@ func (r *Users) ExpireSubscriptions(ctx context.Context, now time.Time, tebexGra
 			continue
 		}
 		count++
+		if err := r.projectAccess(ctx, candidate.ID, now); err != nil {
+			return count, err
+		}
 		if err := r.publishChanged(ctx, candidate.ID); err != nil {
 			return count, err
 		}

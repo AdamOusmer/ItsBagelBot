@@ -223,7 +223,8 @@ func (a *adminRPC) get(ctx context.Context, req usersrpc.AdminRequest) usersrpc.
 	if err != nil {
 		return adminError(refusal(err))
 	}
-	return a.userViewReply(ctx, u)
+	view := viewOf(u)
+	return usersrpc.AdminReply{User: &view}
 }
 
 func adminListLimit(limit int) int {
@@ -245,7 +246,7 @@ func (a *adminRPC) list(ctx context.Context, req usersrpc.AdminRequest) usersrpc
 	if err != nil {
 		return adminError(refusal(err))
 	}
-	return a.usersViewReply(ctx, rows, usersrpc.AdminReply{})
+	return usersrpc.AdminReply{Users: userViewsOf(rows)}
 }
 
 // listPage returns one clamped page, fetching one extra row (except on the last
@@ -270,12 +271,13 @@ func (a *adminRPC) listPage(ctx context.Context, req usersrpc.AdminRequest) user
 	if hasMore {
 		rows = rows[:pageSize]
 	}
-	return a.usersViewReply(ctx, rows, usersrpc.AdminReply{
+	return usersrpc.AdminReply{
+		Users:    userViewsOf(rows),
 		Page:     page,
 		PageSize: pageSize,
 		MaxPages: adminUserMaxPages,
 		HasMore:  hasMore,
-	})
+	}
 }
 
 func (a *adminRPC) overview(ctx context.Context, req usersrpc.AdminRequest) usersrpc.AdminReply {
@@ -588,49 +590,10 @@ func viewOf(u *ent.User) usersrpc.AdminUserView {
 	}
 }
 
-func (a *adminRPC) userViewReply(ctx context.Context, u *ent.User) usersrpc.AdminReply {
-	views, err := a.overlayViews(ctx, []*ent.User{u})
-	if err != nil {
-		return adminError(refusal(err))
-	}
-	return usersrpc.AdminReply{User: &views[0]}
-}
-
-func (a *adminRPC) usersViewReply(ctx context.Context, rows []*ent.User, reply usersrpc.AdminReply) usersrpc.AdminReply {
-	views, err := a.overlayViews(ctx, rows)
-	if err != nil {
-		return adminError(refusal(err))
-	}
-	reply.Users = views
-	return reply
-}
-
-func (a *adminRPC) overlayViews(ctx context.Context, rows []*ent.User) ([]usersrpc.AdminUserView, error) {
-	granted, err := a.repo.ActiveGrantUserIDs(ctx, nonVIPUserIDs(rows), time.Now().UTC())
-	if err != nil {
-		return nil, err
-	}
-	return overlayGrantStatus(rows, granted), nil
-}
-
-func nonVIPUserIDs(rows []*ent.User) []uint64 {
-	ids := make([]uint64, 0, len(rows))
-	for _, u := range rows {
-		if u.Status != user.StatusVip {
-			ids = append(ids, u.ID)
-		}
-	}
-	return ids
-}
-
-func overlayGrantStatus(rows []*ent.User, granted map[uint64]struct{}) []usersrpc.AdminUserView {
+func userViewsOf(rows []*ent.User) []usersrpc.AdminUserView {
 	views := make([]usersrpc.AdminUserView, 0, len(rows))
 	for _, u := range rows {
-		view := viewOf(u)
-		if _, ok := granted[u.ID]; ok {
-			view.Status = string(user.StatusPaid)
-		}
-		views = append(views, view)
+		views = append(views, viewOf(u))
 	}
 	return views
 }

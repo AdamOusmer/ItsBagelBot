@@ -344,7 +344,7 @@ func TestInternalGetAnswersWithoutActor(t *testing.T) {
 	assert.Nil(t, internal.User)
 }
 
-func TestAdminGetAndListOverlayCommittedGrant(t *testing.T) {
+func TestAdminListAndStatsReadStoredStatus(t *testing.T) {
 	a, client := setupAdminRPCTest(t)
 	ctx := context.Background()
 	now := time.Now().UTC()
@@ -356,58 +356,40 @@ func TestAdminGetAndListOverlayCommittedGrant(t *testing.T) {
 		SetStatus(user.StatusFree).
 		SetUpdatedAt(now).
 		ExecX(ctx)
-	client.User.Create().
-		SetID(1514230535).
-		SetUsername("vip-with-grant").
-		SetEmail("vip-grant@example.invalid").
-		SetStatus(user.StatusVip).
-		SetUpdatedAt(now.Add(time.Minute)).
-		ExecX(ctx)
-
-	start := now.Add(-time.Hour)
-	end := now.AddDate(0, 1, 0)
-	// Insert committed grants directly: CommitPremiumGrant publishes on the
-	// JetStream bus, and the admin RPC fixture leaves pub nil.
 	client.PremiumGrant.Create().
 		SetUserID(1514230534).
 		SetGiveawayID("g-admin").
 		SetAwardID("a-admin").
 		SetState(premiumgrant.StateCommitted).
-		SetStartAt(start).
-		SetEndAt(end).
-		SetIntervalRuleVersion("promotional-calendar-month-v1").
-		ExecX(ctx)
-	client.PremiumGrant.Create().
-		SetUserID(1514230535).
-		SetGiveawayID("g-admin-vip").
-		SetAwardID("a-admin-vip").
-		SetState(premiumgrant.StateCommitted).
-		SetStartAt(start).
-		SetEndAt(end).
+		SetStartAt(now.Add(-time.Hour)).
+		SetEndAt(now.AddDate(0, 1, 0)).
 		SetIntervalRuleVersion("promotional-calendar-month-v1").
 		ExecX(ctx)
 
 	got := a.get(ctx, usersrpc.AdminRequest{UserID: "1514230534"})
 	require.Empty(t, got.Error)
 	require.NotNil(t, got.User)
-	assert.Equal(t, "paid", got.User.Status)
-
-	vip := a.get(ctx, usersrpc.AdminRequest{UserID: "1514230535"})
-	require.Empty(t, vip.Error)
-	require.NotNil(t, vip.User)
-	assert.Equal(t, "vip", vip.User.Status, "VIP stays VIP; grant overlay must not demote")
+	assert.Equal(t, "free", got.User.Status, "admin reads users.status; a grant does not overlay")
 
 	paid := a.list(ctx, usersrpc.AdminRequest{Page: 1, Limit: adminUserPageSize, State: "paid"})
 	require.Empty(t, paid.Error)
+	assert.Empty(t, replyIDs(paid))
+
+	client.User.UpdateOneID(1514230534).SetStatus(user.StatusPaid).ExecX(ctx)
+
+	got = a.get(ctx, usersrpc.AdminRequest{UserID: "1514230534"})
+	require.Empty(t, got.Error)
+	assert.Equal(t, "paid", got.User.Status)
+
+	paid = a.list(ctx, usersrpc.AdminRequest{Page: 1, Limit: adminUserPageSize, State: "paid"})
+	require.Empty(t, paid.Error)
 	assert.Equal(t, []uint64{1514230534}, replyIDs(paid))
 
-	free := a.list(ctx, usersrpc.AdminRequest{Page: 1, Limit: adminUserPageSize, State: "free"})
-	require.Empty(t, free.Error)
-	assert.Empty(t, replyIDs(free))
-
-	listedVIP := a.list(ctx, usersrpc.AdminRequest{Page: 1, Limit: adminUserPageSize, State: "vip"})
-	require.Empty(t, listedVIP.Error)
-	assert.Equal(t, []uint64{1514230535}, replyIDs(listedVIP))
+	stats := a.stats(ctx, usersrpc.AdminRequest{})
+	require.Empty(t, stats.Error)
+	require.NotNil(t, stats.Stats)
+	assert.Equal(t, 1, stats.Stats.PaidUsers)
+	assert.Equal(t, 1, stats.Stats.PremiumUsers)
 }
 
 func replyIDs(reply usersrpc.AdminReply) []uint64 {
