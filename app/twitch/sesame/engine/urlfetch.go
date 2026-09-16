@@ -180,7 +180,7 @@ func (p *Pipeline) claimedUrlValue(ctx context.Context, c *module.Context, name 
 // regardless of gossip's own 5x256 server-side cap — the variable-provider
 // boundary does not trust upstream capping (the sanitizeVar slash-strip also
 // stops a hostile upstream from minting a "/ban ..." line through
-// emitResponse's per-line split). An ok reply with nothing extractable counts
+// emitCommand's per-line split). An ok reply with nothing extractable counts
 // as upstream-shaped breakage, not a missing definition. Unknown future
 // statuses fail toward "unavailable". Upstream bodies are never logged.
 func (p *Pipeline) resolveUrlToken(ctx context.Context, c *module.Context, name string) (render string, resolved bool) {

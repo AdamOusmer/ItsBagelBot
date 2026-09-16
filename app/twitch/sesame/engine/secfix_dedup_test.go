@@ -19,7 +19,7 @@ import (
 // --- sanitizeVar: the newline-smuggling fix ---
 
 // A viewer-supplied {args}/{touser} must never be able to mint per-line
-// slash-verbs: emitResponse splits the expanded response on "\n" and routes
+// slash-verbs: emitCommand splits the expanded response on "\n" and routes
 // each line through Translate independently, so an embedded newline plus a
 // leading slash was a remote moderation verb executed as the bot.
 func TestSanitizeVarStripsControlChars(t *testing.T) {

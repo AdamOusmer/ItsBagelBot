@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"ItsBagelBot/app/twitch/sesame/engine/scope"
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/domain/validate"
@@ -55,10 +54,11 @@ func (p *Pipeline) dispatchCommand(ctx context.Context, c *module.Context, views
 }
 
 // runBaked gates and runs a command a module owns. Every output the command
-// emits is routed through the post-processing middleware (see emitCommand), so a
-// baked command can write "/announce ..." the same way a custom one does. num is
-// the inline numeric suffix the trigger absorbed ("" when none / not a
-// NumericSuffix command); it is exposed on the Context for the command to read.
+// emits is routed through emitCommand, which always lexes the reply and then
+// applies the shared slash-verb middleware, so a baked command can write
+// "/announce ..." the same way a custom one does. num is the inline numeric
+// suffix the trigger absorbed ("" when none / not a NumericSuffix command); it
+// is exposed on the Context for the command to read.
 func (p *Pipeline) runBaked(ctx context.Context, c *module.Context, cmd module.Command, num, args string, emit module.Emit) error {
 	pass, err := p.gate(ctx, c, gateRule{cmd.Name, cmd.AllowedUserID, cmd.Perm, cmd.LiveOnly, cmd.Cooldown})
 	if err != nil || !pass {
@@ -71,12 +71,23 @@ func (p *Pipeline) runBaked(ctx context.Context, c *module.Context, cmd module.C
 	if u, uerr := p.proj.User(ctx, c.BroadcasterID); uerr == nil {
 		c.Locale = u.Locale
 	}
-	return cmd.Run(ctx, c, args, func(o *module.Output) { p.emitCommand(o, emit) })
+	run := commandRun{c: c, command: cmd.Name, args: args}
+	var emitErr error
+	err = cmd.Run(ctx, c, args, func(o *module.Output) {
+		if emitErr != nil {
+			return
+		}
+		_, emitErr = p.emitCommand(ctx, run, o, emit)
+	})
+	if err != nil {
+		return err
+	}
+	return emitErr
 }
 
 // runCustom resolves a broadcaster's custom command, gates it with the same rule
-// as a baked command, then expands its response, translates any slash-verb, and
-// emits one chat line.
+// as a baked command, then hands the stored template to emitCommand — the same
+// lexer, line split, and slash-verb path baked replies use.
 func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, name, args string, emit module.Emit) error {
 	cc, found, err := p.proj.Command(ctx, c.BroadcasterID, name)
 	if err != nil || !found || !cc.IsActive {
@@ -98,25 +109,14 @@ func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, name, args 
 		module.BIDField(c.BroadcasterID),
 	)
 
-	// Route the expanded response through the post-processing middleware, one
-	// output per line — a multi-line response sends one chat message per line,
-	// each with its own slash-verb translation. A line left with no payload (an
-	// "/announce" with no text, a "/shoutout" with no target) is dropped; the
-	// run counts once if anything was emitted.
-	// The chain mounts per token family from the token list, so it is built
-	// from the template PLUS the tokens the {if:…} conds read: a cond names a
-	// token that may be the only mention of its family in the response, and a
-	// scope that never mounted would leave the conditional unresolvable
-	// (literal) instead of testing the value it was written about.
-	toks := tmpl.Lex(cc.Response)
-	chain := p.commandChain(ctx, commandRun{c: c, command: cc.Name, args: args, uses: cc.Uses}, tmpl.WithCondRefs(toks))
-	values := chain.Plan(ctx, toks, p.logScopeFailure(c))
-	emitted, err := p.emitResponse(c, toks, chain, values, emit)
-	if err != nil {
+	run := commandRun{c: c, command: cc.Name, args: args, uses: cc.Uses}
+	emitted, err := p.emitCommand(ctx, run, &module.Output{
+		Type:          outgress.TypeChat,
+		BroadcasterID: c.Env.BroadcasterUserID,
+		Text:          cc.Response,
+	}, emit)
+	if err != nil || !emitted {
 		return err
-	}
-	if !emitted {
-		return nil
 	}
 
 	// Count the successful run. cc.Name is the canonical key (an alias lookup
@@ -135,44 +135,6 @@ func (p *Pipeline) recordUse(ctx context.Context, c *module.Context, name string
 		return
 	}
 	p.uses.Record(c.BroadcasterID, name)
-}
-
-// emitResponse renders a custom command's already-planned tokens once and
-// prepares one action per non-empty line. Multiple actions are packed into one
-// outgress batch so one worker owns their execution order; a single action
-// keeps the ordinary wire shape. Each line gets its own slash-verb
-// translation. The line count is capped at validate.MaxResponseLines as an
-// emit-side backstop.
-//
-// It takes the planned Values rather than a ctx on purpose: every lookup this
-// renders is already in memory, so no network call can hide inside the loop
-// that writes a chat line.
-func (p *Pipeline) emitResponse(c *module.Context, toks []tmpl.Token, chain scope.Chain, values scope.Values, emit module.Emit) (bool, error) {
-	buf := GetBuf()
-	buf = chain.Render(buf, toks, values)
-	expanded := string(buf)
-	PutBuf(buf)
-
-	outputs := make([]module.Output, 0, validate.MaxResponseLines)
-	lines := 0
-	for line := range strings.SplitSeq(expanded, "\n") {
-		if blankLine(line) {
-			continue
-		}
-		lines++
-		if lines > validate.MaxResponseLines {
-			break
-		}
-		out := GetOutput()
-		out.Type = outgress.TypeChat
-		out.BroadcasterID = c.Env.BroadcasterUserID
-		out.Text = line
-		if p.prepareCommand(out) {
-			outputs = append(outputs, *out)
-		}
-		PutOutput(out)
-	}
-	return p.emitPreparedResponse(c, outputs, emit)
 }
 
 // blankLine reports whether an expanded line has nothing left to say.
@@ -224,15 +186,74 @@ func (p *Pipeline) prepareCommand(o *module.Output) bool {
 	return !isEmptyAction(o) && !p.floorSuppressed(o)
 }
 
-// emitCommand prepares and publishes one baked-command output. Custom
-// responses prepare all lines first so multiple actions can be packed into one
-// ordered batch job.
-func (p *Pipeline) emitCommand(o *module.Output, emit module.Emit) bool {
+// emitCommand is the one command emit path. Baked modules and custom-command
+// templates both hand it a chat body; it lexes, splits lines, then translates
+// each line's slash-verb. Two expanders is how songqueue posted a literal
+// "@{user}" — the baked path skipped the lexer the custom path already had.
+//
+// Expansion lives HERE, not in newEmit. newEmit also publishes event-handler
+// lines and would re-lex a value already substituted into {args}, turning a
+// viewer's "{user}" into a token, which is the injection sanitizeVar exists
+// to keep as literal text.
+func (p *Pipeline) emitCommand(ctx context.Context, run commandRun, o *module.Output, emit module.Emit) (bool, error) {
+	p.expandCommandText(ctx, run, o)
+	if o.Type == outgress.TypeChat {
+		return p.emitPreparedResponse(run.c, p.chatLines(o), emit)
+	}
 	if !p.prepareCommand(o) {
-		return false
+		return false, nil
 	}
 	emit(o)
-	return true
+	return true, nil
+}
+
+// expandCommandText runs one command body through the command lexer. A body
+// with no '{' is left alone (ping-style copy, provider errors). Plan happens
+// once, before chatLines walks the result, so no lookup can hide inside the
+// loop that writes a chat line.
+func (p *Pipeline) expandCommandText(ctx context.Context, run commandRun, o *module.Output) {
+	switch o.Type {
+	case outgress.TypeChat, outgress.TypeAnnounce, outgress.TypePin:
+	default:
+		return
+	}
+	if o.Text == "" || !strings.Contains(o.Text, "{") {
+		return
+	}
+	toks := tmpl.Lex(o.Text)
+	chain := p.commandChain(ctx, run, tmpl.WithCondRefs(toks))
+	values := chain.Plan(ctx, toks, p.logScopeFailure(run.c))
+	buf := GetBuf()
+	buf = chain.Render(buf, toks, values)
+	o.Text = string(buf)
+	PutBuf(buf)
+}
+
+// chatLines fans one expanded TypeChat body into one action per non-empty
+// line, each with its own slash-verb translation, capped at
+// validate.MaxResponseLines. User-controlled values are sanitizeVar'd before
+// they reach here, so an embedded newline in {args} cannot mint a second line.
+func (p *Pipeline) chatLines(o *module.Output) []module.Output {
+	outputs := make([]module.Output, 0, validate.MaxResponseLines)
+	lines := 0
+	for line := range strings.SplitSeq(o.Text, "\n") {
+		if blankLine(line) {
+			continue
+		}
+		lines++
+		if lines > validate.MaxResponseLines {
+			break
+		}
+		out := GetOutput()
+		out.Type = outgress.TypeChat
+		out.BroadcasterID = o.BroadcasterID
+		out.Text = line
+		if p.prepareCommand(out) {
+			outputs = append(outputs, *out)
+		}
+		PutOutput(out)
+	}
+	return outputs
 }
 
 // claimedCounterValue applies one event's counter bump exactly once: a fresh
@@ -285,7 +306,7 @@ func (p *Pipeline) claimedCounterValue(ctx context.Context, c *module.Context, n
 }
 
 // firstArg returns the first whitespace-delimited word of a command's
-// arguments — the same word emitResponse renders as {touser}. Fields rather
+// arguments — the same word emitCommand renders as {touser}. Fields rather
 // than a space Cut so a tab after the mention cannot glue itself to the name.
 func firstArg(args string) string {
 	fields := strings.Fields(args)

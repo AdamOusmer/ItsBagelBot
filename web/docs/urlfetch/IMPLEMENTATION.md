@@ -206,7 +206,7 @@ The gossip reply carries a typed status; sesame maps it to short static text aut
 | `timeout` / infra error | `[source timed out]` |
 | `bad_def` (missing/inactive) | token left verbatim (unknown-token convention) |
 
-Any body gossip *does* return for interpolation passes through `ExternalVar` regardless (external_var.go:22-24): control-char strip + leading-slash trim via `sanitizeVar` (vars.go:107-109) and the 100-byte rune-safe cap (external_var.go:15,29-38). Gossip capping its own replies is not trusted — defense in depth at the variable-provider boundary is the stated contract (external_var.go:8-14). The slash-strip matters doubly here: a hostile upstream must not mint a `/ban` line through `emitResponse`'s per-line split (dispatch.go:142-148 guards user input; this closes the upstream side).
+Any body gossip *does* return for interpolation passes through `ExternalVar` regardless (external_var.go:22-24): control-char strip + leading-slash trim via `sanitizeVar` (vars.go:107-109) and the 100-byte rune-safe cap (external_var.go:15,29-38). Gossip capping its own replies is not trusted — defense in depth at the variable-provider boundary is the stated contract (external_var.go:8-14). The slash-strip matters doubly here: a hostile upstream must not mint a `/ban` line through `emitCommand`'s per-line split (dispatch.go: emitCommand's chatLines guards user input; this closes the upstream side).
 
 ### Gate interaction
 

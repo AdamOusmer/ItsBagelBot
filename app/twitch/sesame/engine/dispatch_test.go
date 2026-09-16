@@ -253,6 +253,56 @@ func TestBakedCommandRuns(t *testing.T) {
 	assert.Equal(t, "pong", got[0].Text)
 }
 
+// TestBakedReplyAlwaysHitsTheLexer is the engine-side backstop for catalog
+// copy a module emitted without expanding: songqueue's upstream-failure path
+// used to publish "@{user} the music lookup is down" verbatim because its
+// emit skipped the lexer. The command emit is what must fill {user}, so a
+// module cannot opt out by writing a "raw" chat line.
+func TestBakedReplyAlwaysHitsTheLexer(t *testing.T) {
+	p := newPipelineWith(&fakePublisher{}, fakeReader{},
+		cmdEmit("", module.KindCore, "sr", "@{user} the music lookup is down"))
+	got := collectDispatch(p, chatCtx("!sr brightside", ""))
+	require.Len(t, got, 1)
+	assert.Equal(t, "@alice the music lookup is down", got[0].Text)
+
+	choice := newPipelineWith(&fakePublisher{}, fakeReader{},
+		cmdEmit("", module.KindCore, "pick", "{choice:yes,yes} @{user}"))
+	got = collectDispatch(choice, chatCtx("!pick", ""))
+	require.Len(t, got, 1)
+	assert.Equal(t, "yes @alice", got[0].Text)
+}
+
+func TestBakedReplySlashVerbExpandsThenRoutes(t *testing.T) {
+	b := module.NewModule("", module.KindCore)
+	b.Command("hype").Everyone().Run(func(_ context.Context, c *module.Context, _ string, emit module.Emit) error {
+		emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: "/announce @{user} go"})
+		return nil
+	})
+	p := newPipelineWith(&fakePublisher{}, fakeReader{}, b.Build())
+
+	got := collectDispatch(p, chatCtx("!hype", ""))
+	require.Len(t, got, 1)
+	assert.Equal(t, outgress.TypeAnnounce, got[0].Type)
+	assert.Equal(t, "@alice go", got[0].Text)
+}
+
+// TestBakedAndCustomShareEmitPath pins that a stored custom template and a
+// baked module that emits the same body produce the same outputs: one lexer,
+// one line split, one slash-verb translation. A second expander is how a
+// baked path leaked "{user}" while custom commands already filled it.
+func TestBakedAndCustomShareEmitPath(t *testing.T) {
+	const body = "hi {user}\n/announce {args}"
+	c := chatCtx("!so raid incoming", "")
+	c.Env.MsgID = "shared-emit"
+
+	custom := collectDispatch(customPipeline(body, "everyone"), c)
+	baked := collectDispatch(
+		newPipelineWith(&fakePublisher{}, fakeReader{}, cmdEmit("", module.KindCore, "so", body)),
+		c,
+	)
+	require.Equal(t, custom, baked)
+}
+
 func TestBakedCommandPermGate(t *testing.T) {
 	// A mod-only command: an everyone chatter is gated out.
 	b := module.NewModule("", module.KindCore)

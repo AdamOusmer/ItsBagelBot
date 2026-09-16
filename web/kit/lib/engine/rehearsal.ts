@@ -10,7 +10,7 @@
 //   - chain wiring per run:  app/twitch/sesame/engine/vars.go (commandChain)
 //   - counter normalization: app/twitch/sesame/engine/scope/store.go (NormalizeName)
 //   - slash-verb routing:    internal/domain/outgress/slash.go (CutSlash)
-//   - emit order + line cap: app/twitch/sesame/engine/dispatch.go (emitResponse)
+//   - emit order + line cap: app/twitch/sesame/engine/dispatch.go (emitCommand)
 //
 // The engine resolves a template through an ordered chain of scopes: the first
 // scope that owns a token name answers it, a scope whose dependency is missing
@@ -226,7 +226,7 @@ const GAME_SAMPLE = 'Just Chatting';
 const CHANNEL_VIEWERS_SAMPLE = '128';
 
 /** Rehearse a custom command response: expand, split into messages, then
- * route each line's leading slash-verb (the same order as emitResponse).
+ * route each line's leading slash-verb (the same order as emitCommand).
  * (Expansion per line equals whole-template expansion: no token value can
  * carry a newline, so line boundaries never move.) */
 export function rehearseCommand(response: string, overrides?: Samples): RehearsedLine[] {

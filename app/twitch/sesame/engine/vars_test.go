@@ -15,8 +15,8 @@ import (
 
 // renderScopes runs the two phases a custom command run does — lex, plan the
 // chain, render — and returns the chat text. It is the test-side stand-in for
-// runCustom + emitResponse, so a table can pin expansion without building a
-// pipeline. dst is the caller's buffer, mirroring the pooled one emitResponse
+// runCustom + emitCommand, so a table can pin expansion without building a
+// pipeline. dst is the caller's buffer, mirroring the pooled one emitCommand
 // passes in.
 func renderScopes(dst []byte, template string, scopes ...scope.Scope) string {
 	toks := tmpl.Lex(template)
@@ -98,7 +98,7 @@ func TestRenderCommandTokens(t *testing.T) {
 	}
 }
 
-// TestRenderAppendsIntoDst covers the pooled path emitResponse uses: Render
+// TestRenderAppendsIntoDst covers the pooled path emitCommand uses: Render
 // writes into the caller's buffer rather than returning a fresh one.
 func TestRenderAppendsIntoDst(t *testing.T) {
 	got := renderScopes([]byte("prefix: "), "hi {user}", commandScopes()...)
