@@ -176,8 +176,8 @@ func detectProfile(capacity int, refill float64) uint8 {
 	case 20:
 		return profileChat
 	case 100:
-		// Chat-mod and Helix-system share a burst but not a refill window.
-		if refill > 2 {
+		const chatModRefillFloor = 2.0
+		if refill > chatModRefillFloor {
 			return profileChatMod
 		}
 		return profileHelixSystem

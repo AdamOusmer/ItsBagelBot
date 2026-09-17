@@ -17,7 +17,7 @@ func Respond(msg *nats.Msg, v any) error {
 	if err != nil {
 		return err
 	}
-	return sendResponse(msg, body)
+	return msg.Respond(body)
 }
 
 // marshalResponse encodes handler replies on the fast config: like PublishJSON,

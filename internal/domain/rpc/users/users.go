@@ -82,7 +82,6 @@ type AdminTokenView struct {
 	Present bool `json:"present"`
 }
 
-// AdminReply is the reply shape for all admin verbs.
 type AdminReply struct {
 	User       *AdminUserView       `json:"user,omitempty"`
 	Users      []AdminUserView      `json:"users,omitempty"`
@@ -150,7 +149,6 @@ type AuditView struct {
 	CreatedAt  time.Time `json:"created_at"`
 }
 
-// AuthReply is the reply shape for all adminauth verbs.
 type AuthReply struct {
 	Admin       bool            `json:"admin"`
 	Role        string          `json:"role,omitempty"`
@@ -165,7 +163,6 @@ type AuthReply struct {
 	rpc.Refusal
 }
 
-// UpsertUserRequest is the payload for the dashboard upsert_user verb.
 type UpsertUserRequest struct {
 	UserID      string `json:"user_id"`
 	Username    string `json:"username"`
@@ -224,36 +221,30 @@ type CountsReply struct {
 	rpc.Refusal
 }
 
-// GrantSaveRequest is the payload for the dashboard grant_save verb.
 type GrantSaveRequest struct {
 	BroadcasterUserID string `json:"broadcaster_user_id"`
 	AccessToken       string `json:"access_token"`
 	RefreshToken      string `json:"refresh_token"`
 }
 
-// GrantHasRequest is the payload for the dashboard grant_has verb.
 type GrantHasRequest struct {
 	BroadcasterUserID string `json:"broadcaster_user_id"`
 }
 
-// ActiveSetRequest is the payload for the dashboard active_set verb.
 type ActiveSetRequest struct {
 	BroadcasterUserID string `json:"broadcaster_user_id"`
 	Active            bool   `json:"active"`
 }
 
-// DeleteSelfRequest is the payload for the dashboard delete_self verb.
 type DeleteSelfRequest struct {
 	UserID string `json:"user_id"`
 }
 
-// LocaleSetRequest is the payload for the dashboard locale_set verb.
 type LocaleSetRequest struct {
 	BroadcasterUserID string `json:"broadcaster_user_id"`
 	Locale            string `json:"locale"`
 }
 
-// StateGetRequest is the payload for the dashboard state_get verb.
 type StateGetRequest struct {
 	BroadcasterUserID string `json:"broadcaster_user_id"`
 }
@@ -269,43 +260,36 @@ type StateGetReply struct {
 	rpc.Refusal
 }
 
-// OnboardedSetRequest is the payload for the dashboard onboarded_set verb.
 type OnboardedSetRequest struct {
 	BroadcasterUserID string `json:"broadcaster_user_id"`
 	Onboarded         bool   `json:"onboarded"`
 }
 
-// CursorSetRequest is the payload for the dashboard cursor_set verb.
 type CursorSetRequest struct {
 	BroadcasterUserID string `json:"broadcaster_user_id"`
 	CustomCursor      bool   `json:"custom_cursor"`
 }
 
-// CreateDelegationRequest is the payload for the delegation create verb.
 type CreateDelegationRequest struct {
 	OwnerUserID string   `json:"owner_user_id"`
 	OwnerLogin  string   `json:"owner_login"`
 	Sections    []string `json:"sections"`
 }
 
-// TokenRequest is the payload for the delegation get verb.
 type TokenRequest struct {
 	Token string `json:"token"`
 }
 
-// ConsumeDelegationRequest is the payload for the delegation consume verb.
 type ConsumeDelegationRequest struct {
 	Token          string `json:"token"`
 	DelegateUserID string `json:"delegate_user_id"`
 	DelegateLogin  string `json:"delegate_login"`
 }
 
-// OwnerRequest is the payload for the delegation list verb.
 type OwnerRequest struct {
 	OwnerUserID string `json:"owner_user_id"`
 }
 
-// RevokeDelegationRequest is the payload for the delegation revoke verb.
 type RevokeDelegationRequest struct {
 	OwnerUserID string `json:"owner_user_id"`
 	Token       string `json:"token"`
@@ -319,12 +303,10 @@ type UpdateDelegationRequest struct {
 	Sections    []string `json:"sections"`
 }
 
-// AccessRequest is the payload for the delegation access verb.
 type AccessRequest struct {
 	DelegateUserID string `json:"delegate_user_id"`
 }
 
-// OptOutDelegationRequest is the payload for the delegation opt_out verb.
 type OptOutDelegationRequest struct {
 	OwnerUserID    string `json:"owner_user_id"`
 	DelegateUserID string `json:"delegate_user_id"`

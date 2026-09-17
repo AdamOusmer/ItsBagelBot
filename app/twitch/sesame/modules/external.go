@@ -163,7 +163,6 @@ func signed(n int) string {
 	}
 }
 
-// orDefault returns tmpl unless it is blank, then def.
 func orDefault(tmpl, def string) string {
 	if strings.TrimSpace(tmpl) == "" {
 		return def

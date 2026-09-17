@@ -4,18 +4,11 @@
 package main
 
 import (
-	"time"
-
 	"ItsBagelBot/app/plain/internal/config"
 	"ItsBagelBot/pkg/svcboot"
 )
 
-const serviceName = "outgress"
-
-const (
-	nakDelay        = 1 * time.Second
-	maxRedeliveries = 2
-)
+const serviceName = "plain"
 
 func main() {
 	core, done := svcboot.NewCore(serviceName)

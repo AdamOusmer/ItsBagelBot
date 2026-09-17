@@ -44,20 +44,17 @@ type ChannelRequest struct {
 	IsMod         *bool  `json:"is_mod,omitempty"`
 }
 
-// ChannelReply is the reply shape for channel.get and channel.set verbs.
 type ChannelReply struct {
 	Channel *Channel `json:"channel,omitempty"`
 	Found   bool     `json:"found"`
 	Error   string   `json:"error,omitempty"`
 }
 
-// ChannelListReply is the reply shape for the channel.list verb.
 type ChannelListReply struct {
 	Channels []Channel `json:"channels"`
 	Error    string    `json:"error,omitempty"`
 }
 
-// SystemStatusReply is the reply shape for the system.status verb.
 type SystemStatusReply struct {
 	Paused                   bool   `json:"paused"`
 	AppTokenExpiresInSeconds int64  `json:"app_token_expires_in_seconds"`
@@ -70,7 +67,6 @@ type SystemPauseRequest struct {
 	Paused bool `json:"paused"`
 }
 
-// SystemPauseReply is the reply shape for the system.pause verb.
 type SystemPauseReply struct {
 	Paused bool   `json:"paused"`
 	Error  string `json:"error,omitempty"`

@@ -34,8 +34,6 @@ import { FETCH_NAME_MAX } from '../engine/fetch-validate';
 import { lex, type VarToken } from '../engine/tmpl';
 export { intactSpan } from '../engine/tmpl';
 
-// --- emitted-token guard -----------------------------------------------------
-
 // An importer does not merely COPY response text: it MINTS this bot's own {…}
 // tokens out of strings another product controls — a Moobot random-text
 // option, a Nightbot word number, a StreamElements definition slug. Those
@@ -189,8 +187,6 @@ function chatLine(piece: string, itemIndex: number, diags: ImportDiagnostic[]): 
   return line;
 }
 
-// --- permissions -------------------------------------------------------------
-
 // PERM_TIERS is the tier order, least to most privileged. Exported because a
 // source can grant one command to SEVERAL roles at once (Fossabot lists role
 // ids per command, Wizebot publishes "Subscribers VIPs Moderators" on one
@@ -251,8 +247,6 @@ export function mapPermission(raw: string): { perm: Perm; recognized: boolean } 
   return { perm: 'everyone', recognized: false };
 }
 
-// --- stats + collisions ------------------------------------------------------
-
 // Stats tallies one manifest by collection. It counts what the manifest holds,
 // regardless of validity: preview renders this number, commit computes its own
 // applied tally from what actually wrote.
@@ -298,8 +292,6 @@ function collisionRef(kind: 'command' | 'counter' | 'fetch', name: string): Coll
   return { kind, name: normalizeName(name) };
 }
 
-// --- whole-manifest validation -----------------------------------------------
-
 // Caps mirror IMPORT_ITEM_CAPS exactly; restated locally so the cap, its
 // diagnostics and the client truncation read together (asserted equal by test).
 const MAX_IMPORT_COMMANDS = IMPORT_ITEM_CAPS.commands;
@@ -320,7 +312,6 @@ export const MIN_TIMER_INTERVAL_SECONDS = 30;
 // headroom for the merged blob (2 x 200 terms x ~100 bytes), so hitting the cap
 // mid-commit becomes impossible rather than handled.
 export const MAX_AUTOMOD_TERMS = 200;
-// --- synthesized fetch-definition slugs --------------------------------------
 
 // MAX_FETCH_SLUG_SUFFIX reserves room for the widest slot suffix a synthesis
 // pass can append ("_2000" at the commands cap): pre-truncating the command
@@ -388,8 +379,6 @@ function errDiag(itemIndex: number, code: string, message: string): ImportDiagno
 export function warnDiag(itemIndex: number, code: string, message: string): ImportDiagnostic {
   return { severity: 'warn', item_index: itemIndex, code, message };
 }
-
-// --- the three Go validators this layer's messages lean on -------------------
 
 // commandNameProblem mirrors validate.CommandName's error strings: 1-64 bytes
 // of printable ASCII without spaces. Returns null when valid.
@@ -537,8 +526,6 @@ function automodDiags(terms: NonNullable<ImportManifest['automod']>): ImportDiag
   ];
 }
 
-// --- item validators (one per manifest collection, all pure) -----------------
-
 // CommandItem is one manifest command under validation: the row as imported,
 // its folded name and its index in the collection. The three checks below all
 // need the same three values, so they travel as one rather than as a row plus
@@ -684,8 +671,6 @@ function isLeapYear(y: number): boolean {
 function validClock(time: ClockTime): boolean {
   return time.h <= 23 && time.mi <= 59 && time.s <= 60;
 }
-
-// --- failed-item lookup (commit's drop filter) -------------------------------
 
 // FailedCollection names the manifest collections the commit drop filter
 // addresses: the diagnostic-code prefixes map onto exactly these.

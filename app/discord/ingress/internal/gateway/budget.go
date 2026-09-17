@@ -93,7 +93,6 @@ type ConnectLog interface {
 	// Load reports every attempt still inside the window, oldest first, and
 	// is free to prune the ones before since as it reads.
 	Load(ctx context.Context, since time.Time) ([]time.Time, error)
-	// Add appends one attempt.
 	Add(ctx context.Context, at time.Time) error
 }
 
@@ -403,7 +402,7 @@ func (b *connectBudget) spacing(now time.Time) time.Duration {
 	if b.flapping {
 		gap = b.sched.flapWait
 	}
-	return until(b.last.Add(gap), now)
+	return timeRemaining(b.last.Add(gap), now)
 }
 
 // ceilingWait is rule (c): at the ceiling, the next connect waits for the
@@ -414,7 +413,7 @@ func (b *connectBudget) ceilingWait(now time.Time) time.Duration {
 	if len(b.attempts) < b.sched.ceiling {
 		return 0
 	}
-	return until(b.attempts[0].Add(b.sched.window), now)
+	return timeRemaining(b.attempts[0].Add(b.sched.window), now)
 }
 
 // prune drops attempts that have aged out of the rolling window.
@@ -427,8 +426,7 @@ func (b *connectBudget) prune(now time.Time) {
 	b.attempts = b.attempts[i:]
 }
 
-// until is the non-negative distance from now to deadline.
-func until(deadline, now time.Time) time.Duration {
+func timeRemaining(deadline, now time.Time) time.Duration {
 	if d := deadline.Sub(now); d > 0 {
 		return d
 	}

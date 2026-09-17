@@ -44,7 +44,6 @@ const (
 type Token struct {
 	Kind Kind
 
-	// Text is the literal run (KindLiteral only).
 	Text string
 
 	// Name is the span's name, lowercased: token names are case-insensitive,
@@ -121,7 +120,7 @@ func Lex(s string) []Token {
 		}
 		end := closeBrace(s, i+1)
 		if end < 0 {
-			break // no closing brace: the rest is one literal run
+			break
 		}
 		out = appendLiteral(out, s[from:i])
 		out = append(out, parseSpan(s[i:end+1]))
@@ -174,7 +173,6 @@ func Append(dst []byte, s string, repl func(tok Token) (val string, ok bool)) []
 		}
 		end := closeBrace(s, i+1)
 		if end < 0 {
-			// No closing brace: copy the rest literally.
 			return append(dst, s[i:]...)
 		}
 		dst = appendSpan(dst, s[i:end+1], repl)
@@ -193,7 +191,6 @@ func Expand(s string, repl func(tok Token) (val string, ok bool)) string {
 	return string(Append(make([]byte, 0, len(s)+32), s, repl))
 }
 
-// closeBrace returns the index of the next '}' at or after from, or -1.
 func closeBrace(s string, from int) int {
 	for j := from; j < len(s); j++ {
 		if s[j] == '}' {

@@ -115,12 +115,15 @@ func (b *Batcher[K, V]) Add(key K, value V) {
 // write for the same key arrived while the flush ran — the newer value wins,
 // exactly like the batcher's own whole-batch retry. Flush callbacks use this
 // to retry individual items instead of failing the entire batch.
-func (b *Batcher[K, V]) Requeue(key K, value V) {
-
-	b.mu.Lock()
+func (b *Batcher[K, V]) restoreUnlessReplacedLocked(key K, value V) {
 	if _, exists := b.pending[key]; !exists {
 		b.pending[key] = value
 	}
+}
+
+func (b *Batcher[K, V]) Requeue(key K, value V) {
+	b.mu.Lock()
+	b.restoreUnlessReplacedLocked(key, value)
 	// A failed flush requeues through here after flushPending zeroed the
 	// gauge; without this, Stats reports an empty backlog while retries sit
 	// in pending and staleness alerts stay silent.
@@ -231,12 +234,9 @@ func (b *Batcher[K, V]) flushPending(ctx context.Context) {
 			zap.Error(err),
 		)
 
-		// Put the failed values back unless a newer write already replaced them.
 		b.mu.Lock()
 		for k, v := range taken {
-			if _, exists := b.pending[k]; !exists {
-				b.pending[k] = v
-			}
+			b.restoreUnlessReplacedLocked(k, v)
 		}
 		b.pendingGauge.Store(int64(len(b.pending)))
 		b.mu.Unlock()

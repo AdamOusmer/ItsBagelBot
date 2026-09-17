@@ -68,7 +68,8 @@ func nonceSeen(scope, nonce string, now time.Time) bool {
 		return true
 	}
 	nonces.seen[k] = now.UnixMilli()
-	if len(nonces.seen) > 8192 { // hard cap against memory abuse
+	const maxTrackedNonces = 8192
+	if len(nonces.seen) > maxTrackedNonces {
 		nonces.seen = map[string]int64{k: now.UnixMilli()}
 	}
 	return false

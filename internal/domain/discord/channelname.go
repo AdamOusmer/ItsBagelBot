@@ -17,9 +17,8 @@ import (
 // this is reachable in practice rather than theoretically.
 const ChannelNameMax = 100
 
-// ticketNameHead is the fixed head of every ticket channel's name. Kept as a
-// constant because both the open path and the archive path have to agree on it.
 const ticketNameHead = "ticket"
+const separatorHyphenLen = 1
 
 // SanitizeChannelName folds an arbitrary string into the character set Discord
 // normalises text-channel names into: lowercase, and only [a-z0-9-].
@@ -77,8 +76,7 @@ func TicketChannelName(name string, ticketID int) string {
 	if ticketID > 0 {
 		tail = "-" + strconv.Itoa(ticketID)
 	}
-	// The extra byte is the hyphen that would join the head to the base.
-	room := ChannelNameMax - len(ticketNameHead) - len(tail) - 1
+	room := ChannelNameMax - len(ticketNameHead) - len(tail) - separatorHyphenLen
 	base := trimBase(SanitizeChannelName(name), room)
 	if base == "" {
 		return ticketNameHead + tail
