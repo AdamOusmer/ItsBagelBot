@@ -36,7 +36,6 @@ type Store interface {
 	// each make the same decision. It takes no value — presence alone is the
 	// claim, and every caller was writing the same one-byte placeholder.
 	SetNX(ctx context.Context, key string, ttl time.Duration) (bool, error)
-	// Del removes key.
 	Del(ctx context.Context, key string) error
 }
 

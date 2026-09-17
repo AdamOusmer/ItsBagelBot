@@ -116,9 +116,8 @@
 <svelte:window
   onkeydown={(e) => {
     if (!open || e.key !== 'Escape') return;
-    // Sheet: only when frontmost on the overlay stack. Docked (non-modal): only
-    // when no modal (e.g. a discard confirmation) is stacked on top of it.
-    if (isSheet ? isTopmost(overlayId) : !hasOpenOverlay()) {
+    const canDismiss = isSheet ? isTopmost(overlayId) : !hasOpenOverlay();
+    if (canDismiss) {
       e.preventDefault();
       onClose();
     }

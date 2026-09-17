@@ -82,16 +82,18 @@ func Username(username string) error {
 	return nil
 }
 
-func Email(email string) error {
+func isPrintableAsciiNoSpace(c byte) bool {
+	return c > ' ' && c <= '~'
+}
 
+func Email(email string) error {
 	if len(email) == 0 || len(email) > maxEmailLength {
 		return ErrEmailInvalid
 	}
 
 	parsed, err := mail.ParseAddress(email)
-	if err != nil || parsed.Address != email {
-		// A mismatch means the input smuggled a display name or comment
-		// around the address, which we never accept as an email value.
+	hasSmuggledCommentOrDisplayName := parsed != nil && parsed.Address != email
+	if err != nil || hasSmuggledCommentOrDisplayName {
 		return ErrEmailInvalid
 	}
 
@@ -99,15 +101,12 @@ func Email(email string) error {
 }
 
 func CommandName(name string) error {
-
 	if len(name) == 0 || len(name) > maxCommandNameLength {
 		return ErrCommandName
 	}
 
 	for i := 0; i < len(name); i++ {
-		// Printable ASCII without space: blocks control characters,
-		// whitespace tricks and invisible unicode in command lookups.
-		if name[i] <= ' ' || name[i] > '~' {
+		if !isPrintableAsciiNoSpace(name[i]) {
 			return ErrCommandName
 		}
 	}
@@ -222,7 +221,6 @@ func Perm(perm string) error {
 	return ErrPermInvalid
 }
 
-// Cooldown caps the per-command cooldown in seconds.
 func Cooldown(seconds uint) error {
 
 	if seconds > maxCooldownSeconds {
@@ -284,7 +282,6 @@ func ConfigsJSON(configs []byte) error {
 	return floorCleanValues(doc)
 }
 
-// floorCleanValues walks a decoded JSON value and floor-checks every string.
 func floorCleanValues(v any) error {
 	switch t := v.(type) {
 	case string:
@@ -297,8 +294,6 @@ func floorCleanValues(v any) error {
 	return nil
 }
 
-// floorCleanEach floor-checks every element of a decoded JSON array (or a map's
-// values), recursing into nested shapes.
 func floorCleanEach(values []any) error {
 	for _, e := range values {
 		if err := floorCleanValues(e); err != nil {
@@ -308,7 +303,6 @@ func floorCleanEach(values []any) error {
 	return nil
 }
 
-// mapValues collects a decoded JSON object's values; keys carry no free text.
 func mapValues(m map[string]any) []any {
 	out := make([]any, 0, len(m))
 	for _, v := range m {

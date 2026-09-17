@@ -113,9 +113,8 @@ func (a *adminRPC) guarded(v adminVerb) func(context.Context, usersrpc.AdminRequ
 }
 
 const (
-	adminUserPageSize     = repository.AdminUserPageSize
-	adminUserMaxPages     = repository.AdminUserMaxPages
-	adminUserMaxSearchLen = repository.AdminUserMaxSearchLen
+	adminUserPageSize = repository.AdminUserPageSize
+	adminUserMaxPages = repository.AdminUserMaxPages
 )
 
 // AdminConfig carries the subjects the admin RPC surface answers on and

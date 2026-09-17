@@ -51,7 +51,6 @@
     }
   });
 
-  // --- Search + scope filter + sorted rows ------------------------------------
   let search = $state('');
   // SegmentedControl keys its options by their DISPLAYED string, the same
   // contract every other filter in the console uses, so the bound state is the
@@ -111,7 +110,6 @@
     node.select();
   }
 
-  // --- Inspector: new counter, or an existing one's value / entries ----------
   const NEW = '__new__';
   let expanded = $state<string | null>(null);
 
@@ -191,7 +189,6 @@
         : (selected?.name ?? '')
   );
 
-  // --- Create (wraps main's ?/create action) ----------------------------------
   const createSubmit: SubmitFunction = (input) => {
     const norm = normCounterName(newName);
     nameError = norm ? '' : t('counters.errName');
@@ -216,7 +213,6 @@
     };
   };
 
-  // --- Set value on a channel counter (wraps main's ?/set action) -------------
   const setSubmit: SubmitFunction = () => {
     setting = true;
     return async ({ result }) => {
@@ -231,9 +227,6 @@
     };
   };
 
-  // --- Rename (any scope; the service moves the row and its buckets). The
-  // visible input lives inside the inspector's own form, so it joins the
-  // hidden rename form through the HTML form= attribute, like delete/reset. --
   let renameValue = $state('');
   let renameError = $state('');
   let renameForm = $state<HTMLFormElement | null>(null);
@@ -262,7 +255,6 @@
     };
   };
 
-  // --- Reset (entry scopes: main's ?/set with value 0 clears every bucket) -----
   let resetTarget = $state<CounterDef | null>(null);
   let resetForm = $state<HTMLFormElement | null>(null);
   let resetting = $state(false);
@@ -280,7 +272,6 @@
     };
   };
 
-  // --- Manual bucket add (entry scopes; wraps ?/addEntry) ---------------------
   // The typed username resolves to its Twitch id server-side; the scope decides
   // which fields the form shows (viewer, command, or both).
   let addUser = $state('');
@@ -324,7 +315,6 @@
     };
   };
 
-  // --- Per-entry value edit (entry scopes; wraps ?/set with a bucket target) --
   // Drafts are keyed by (viewer, command) bucket and hold the raw input text;
   // a row is dirty once the parsed draft differs from the stored value. Saving
   // posts a targeted set and resyncs through invalidateAll.
@@ -376,7 +366,6 @@
     return e.viewerName || e.viewerLogin || e.command || e.viewerId;
   }
 
-  // --- Per-entry delete (entry scopes; confirmed; wraps ?/deleteEntry) ---------
   let entryDeleteTarget = $state<CounterEntryView | null>(null);
   let entryDeleteForm = $state<HTMLFormElement | null>(null);
   let entryDeleting = $state(false);
@@ -394,7 +383,6 @@
     };
   };
 
-  // --- Delete (optimistic removal, confirmed + named; wraps ?/delete) ----------
   let deleteTarget = $state<CounterDef | null>(null);
   let deleteForm = $state<HTMLFormElement | null>(null);
   let deleting = $state(false);

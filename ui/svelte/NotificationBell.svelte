@@ -60,9 +60,8 @@
     }
   }
 
-  // Suppress the badge only for peek-capable hosts (dashboard); the admin bell
-  // has no per-user read state and keeps its badge behavior unchanged.
-  const showBadge = $derived(unreadCount > 0 && !(onOpen && peeked));
+  const isBadgeSuppressed = $derived(Boolean(onOpen && peeked));
+  const showBadge = $derived(unreadCount > 0 && !isBadgeSuppressed);
 
   // Severity -> Badge tone. Same map as the settings notification list, so one
   // level reads identically in both surfaces. No tone is red, so critical takes

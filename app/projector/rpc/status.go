@@ -104,41 +104,47 @@ func tierFromStatus(status string) string {
 	return "standard"
 }
 
+func (s *statusRPC) tierFromValkey(ctx context.Context, id uint64) (statusEntry, bool) {
+	statusStr, active, banned, _, err := s.valkey.GetUser(ctx, id)
+	if err == nil && statusStr != "" {
+		if !active {
+			return statusEntry{Tier: "standard", Banned: banned}, true
+		}
+		return statusEntry{Tier: tierFromStatus(statusStr), Banned: banned}, true
+	}
+	return statusEntry{}, false
+}
+
+func (s *statusRPC) fetchUserFallback(ctx context.Context, id uint64) statusEntry {
+	reply, err := bus.RequestJSON[struct {
+		Status   string `json:"status"`
+		IsActive bool   `json:"is_active"`
+		Banned   bool   `json:"banned"`
+		Locale   string `json:"locale"`
+	}](ctx, s.nc, s.usersTopic, map[string]string{"user_id": fmt.Sprint(id)})
+	if err != nil {
+		return statusEntry{Tier: "standard"}
+	}
+
+	_ = s.valkey.SetUser(ctx, id, projection.UserProjection{
+		Status:   reply.Status,
+		IsActive: reply.IsActive,
+		Banned:   reply.Banned,
+		Locale:   reply.Locale,
+	})
+
+	if !reply.IsActive {
+		return statusEntry{Tier: "standard", Banned: reply.Banned}
+	}
+	return statusEntry{Tier: tierFromStatus(reply.Status), Banned: reply.Banned}
+}
+
 func (s *statusRPC) tierOf(ctx context.Context, id uint64) statusEntry {
-	// 1. In-process cache check
 	entry, err := s.views.GetOrLoad(ctx, tierKey(id), func(ctx context.Context) (statusEntry, error) {
-		// 2. Valkey check
-		statusStr, active, banned, _, err := s.valkey.GetUser(ctx, id)
-		if err == nil && statusStr != "" {
-			if !active {
-				return statusEntry{Tier: "standard", Banned: banned}, nil
-			}
-			return statusEntry{Tier: tierFromStatus(statusStr), Banned: banned}, nil
+		if entry, found := s.tierFromValkey(ctx, id); found {
+			return entry, nil
 		}
-
-		// 3. NATS RPC Lazy Load Fallback
-		reply, err := bus.RequestJSON[struct {
-			Status   string `json:"status"`
-			IsActive bool   `json:"is_active"`
-			Banned   bool   `json:"banned"`
-			Locale   string `json:"locale"`
-		}](ctx, s.nc, s.usersTopic, map[string]string{"user_id": fmt.Sprint(id)})
-		if err != nil {
-			return statusEntry{Tier: "standard"}, nil
-		}
-
-		// Populate cache (seeds locale too when the users service returned one).
-		_ = s.valkey.SetUser(ctx, id, projection.UserProjection{
-			Status:   reply.Status,
-			IsActive: reply.IsActive,
-			Banned:   reply.Banned,
-			Locale:   reply.Locale,
-		})
-
-		if !reply.IsActive {
-			return statusEntry{Tier: "standard", Banned: reply.Banned}, nil
-		}
-		return statusEntry{Tier: tierFromStatus(reply.Status), Banned: reply.Banned}, nil
+		return s.fetchUserFallback(ctx, id), nil
 	})
 
 	if err != nil {

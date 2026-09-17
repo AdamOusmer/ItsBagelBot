@@ -73,22 +73,16 @@ type localStore interface {
 	// Store.Broadcaster does on the Valkey store; named separately so the RPC
 	// store's fallback path reads as a cache read at the call site.
 	cachedBroadcaster(ctx context.Context, g Guild) (Broadcaster, bool)
-	// cacheBroadcaster stores one binding with bindingCacheTTL.
 	cacheBroadcaster(ctx context.Context, g Guild, b Broadcaster)
-	// dropBroadcaster invalidates one binding.
 	dropBroadcaster(ctx context.Context, g Guild)
 	// cachedConfig reads the guild settings cache. Unlike cachedBroadcaster
 	// this is NOT what Store.GuildConfig does on the Valkey store: settings
 	// have no Valkey store of record, so only the RPC store may serve them,
 	// and only as a cache in front of discord-data.
 	cachedConfig(ctx context.Context, g Guild) (ddiscord.Config, int, bool)
-	// cacheConfig stores one guild's settings with configCacheTTL.
 	cacheConfig(ctx context.Context, g Guild, cfg ddiscord.Config, version int)
-	// dropConfig invalidates one guild's settings.
 	dropConfig(ctx context.Context, g Guild)
-	// cachedGuilds reads one broadcaster's cached guild list.
 	cachedGuilds(ctx context.Context, b Broadcaster) ([]Binding, bool)
-	// cacheGuilds stores one broadcaster's guild list with guildsCacheTTL.
 	cacheGuilds(ctx context.Context, b Broadcaster, guilds []Binding)
 	// dropGuilds invalidates one broadcaster's guild list. Both write verbs
 	// call it, which is what keeps the listing symmetric with the binding
@@ -150,8 +144,6 @@ func (s valkeyStore) cacheConfig(ctx context.Context, g Guild, cfg ddiscord.Conf
 	if g.ID == "" {
 		return
 	}
-	// Failing to cache is not failing the read, same as cacheBroadcaster: the
-	// next event pays another round trip rather than being dropped.
 	at := pkg_valkey.Key{Name: cfgKey(g), TTL: configCacheTTL}
 	_ = pkg_valkey.SetJSON(ctx, s.kv(), at, cachedConfigEntry{Config: cfg, Version: version})
 }
@@ -184,7 +176,6 @@ func (s valkeyStore) cacheGuilds(ctx context.Context, b Broadcaster, guilds []Bi
 	if b.ID == "" {
 		return
 	}
-	// Failing to cache is not failing the read, same as cacheBroadcaster.
 	_ = pkg_valkey.SetJSON(ctx, s.kv(), pkg_valkey.Key{Name: guildsKey(b), TTL: guildsCacheTTL}, guilds)
 }
 

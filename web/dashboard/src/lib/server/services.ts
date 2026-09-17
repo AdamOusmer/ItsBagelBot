@@ -543,13 +543,13 @@ export const saveGrant = defineWrite({
 // ---------------------------------------------------------------------------
 // Billing (local entitlement status; checkout/account management live on Tebex)
 
+export type BillingGrantSource = 'tebex' | 'admin' | '';
+
 export type BillingState = {
   active: boolean;
   status: AccountStatus;
-  // End of the current paid period (Tebex or staff grant); absent for free/vip.
   expiresAt: string | null;
-  // 'tebex' | 'admin' | '': who granted the paid period.
-  source: string;
+  source: BillingGrantSource;
   subscriptionRef: string | null;
   cancelPending: boolean;
 };
@@ -601,7 +601,7 @@ export const billingState = defineRead({
     active: !!r.active,
     status: normalizeStatus(r.status),
     expiresAt: r.expires_at ?? null,
-    source: r.source ?? '',
+    source: (r.source as BillingGrantSource) ?? '',
     subscriptionRef: r.subscription_ref ?? null,
     cancelPending: !!r.subscription_cancel_pending
   }),

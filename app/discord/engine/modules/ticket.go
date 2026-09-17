@@ -261,7 +261,7 @@ func (h ticketModule) createTicket(ctx context.Context, call deskCall) error {
 	})
 	if rpcFailed(err, reply.Error) {
 		h.log.Warn("ticket open failed", zap.Error(err), zap.String("outgress_error", reply.Error))
-		h.rollback(ctx, reply.ChannelID)
+		h.deleteOrphanChannel(ctx, reply.ChannelID)
 		call.reply("Could not open a ticket right now.")
 		return nil
 	}
@@ -279,14 +279,14 @@ func (h ticketModule) recordTicket(ctx context.Context, call deskCall, reply dis
 		// leave a ticket the desk can never close, claim or transcribe.
 		h.log.Error("ticket row not recorded; rolling the channel back",
 			zap.String("channel_id", reply.ChannelID), zap.Error(err))
-		h.rollback(ctx, reply.ChannelID)
+		h.deleteOrphanChannel(ctx, reply.ChannelID)
 		call.reply("Could not open a ticket right now.")
 		return nil
 	}
 	if got.AtLimit {
 		// The pre-check passed and the insert still refused: two presses
 		// raced. Same rollback, and the opener is told the real number.
-		h.rollback(ctx, reply.ChannelID)
+		h.deleteOrphanChannel(ctx, reply.ChannelID)
 		call.reply(atLimitText(got.OpenCount))
 		return nil
 	}
@@ -316,14 +316,13 @@ func (h ticketModule) nameTicket(ctx context.Context, in decode.InteractionEvent
 	}
 }
 
-// rollback deletes a channel whose ticket row does not exist.
-func (h ticketModule) rollback(ctx context.Context, channelID string) {
+func (h ticketModule) deleteOrphanChannel(ctx context.Context, channelID string) {
 	if channelID == "" {
 		return
 	}
 	reply, err := h.tickets.DeleteChannel(ctx, discordoutgress.ChannelDeleteRequest{ChannelID: channelID})
 	if rpcFailed(err, reply.Error) {
-		h.log.Warn("ticket rollback failed", zap.String("channel_id", channelID), zap.Error(err))
+		h.log.Warn("ticket delete orphan channel failed", zap.String("channel_id", channelID), zap.Error(err))
 	}
 }
 

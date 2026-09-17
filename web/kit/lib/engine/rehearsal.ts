@@ -751,12 +751,13 @@ const COUNTER_SCOPE: SampleScope = {
   get: counterSample
 };
 
+function normalizeCounterName(payload: string | null): string {
+  const name = (payload ?? '').trim().replace(/^!/, '').trim().toLowerCase();
+  return name.startsWith('target:') ? name.slice('target:'.length) : name;
+}
+
 function counterSample(token: Token): string | null {
-  // A bare {counter} / {count} is not the counter form: with no payload it
-  // names no counter and falls through literal, exactly as HasPayload does in
-  // the engine.
-  const name = (token.payload ?? '').trim().replace(/^!/, '').trim().toLowerCase();
-  const base = name.startsWith('target:') ? name.slice('target:'.length) : name;
+  const base = normalizeCounterName(token.payload);
   if (base === '' || base.startsWith('bot:')) return null;
   return COUNTER_SAMPLE;
 }

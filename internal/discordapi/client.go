@@ -45,7 +45,6 @@ const (
 	maxErrorBody = 2048
 )
 
-// Client calls the Discord REST API under the bot token.
 type Client struct {
 	http  *http.Client
 	base  string
@@ -75,7 +74,6 @@ var (
 	ErrRateLimited = errors.New("discord: rate limited")
 )
 
-// NewClient builds the REST client against the production endpoint.
 func NewClient(botToken string) *Client {
 	return &Client{
 		http:  &http.Client{Timeout: requestTimeout},
@@ -84,17 +82,14 @@ func NewClient(botToken string) *Client {
 	}
 }
 
-// SetTransport swaps the HTTP transport (tests inject fakes here).
 func (c *Client) SetTransport(rt http.RoundTripper) { c.http.Transport = rt }
 
-// ChatPost is one text message into a channel.
 type ChatPost struct {
 	ChannelID string
 	Content   string
 	TTS       bool
 }
 
-// SendChat posts one text message into a channel.
 func (c *Client) SendChat(ctx context.Context, post ChatPost) error {
 	return c.SendMessage(ctx, post.ChannelID, post.Content, post.TTS)
 }

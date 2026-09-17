@@ -43,7 +43,6 @@ type ModuleView struct {
 	Revision int `json:"revision,omitempty"`
 }
 
-// UserReply is the reply shape for the users projection subject.
 type UserReply struct {
 	UserID   string `json:"user_id"`
 	Status   string `json:"status"`
@@ -53,14 +52,12 @@ type UserReply struct {
 	rpc.Refusal
 }
 
-// CommandsReply is the reply shape for the commands projection subject.
 type CommandsReply struct {
 	UserID   string        `json:"user_id"`
 	Commands []CommandView `json:"commands"`
 	rpc.Refusal
 }
 
-// ModulesReply is the reply shape for the modules projection subject.
 type ModulesReply struct {
 	UserID  string       `json:"user_id"`
 	Modules []ModuleView `json:"modules"`
