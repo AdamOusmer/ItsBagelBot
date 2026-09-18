@@ -176,7 +176,7 @@
 
     <!-- aria-live off on purpose: a lifecycle firehose announced item by item is
          unusable, and the counts above already carry the summary. -->
-    <Scroller maxHeight="60vh" aria-live="off" data-lenis-prevent>
+    <Scroller maxHeight="60vh" aria-live="off">
       {#if rows.length === 0}
         {#if events.length === 0}
           <EmptyState title={statusLabel} body={t('admin.events.idleBody')} />

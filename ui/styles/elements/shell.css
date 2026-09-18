@@ -39,6 +39,12 @@
     min-height: 100vh;
     display: flex;
     flex-direction: column;
+    /* Expanding a deck row (or a rail group) grows content above the fold.
+       Default scroll-anchoring then shifts the document to keep the click
+       target in view, which on this flex shell moved the sticky rail and
+       the docked rehearsal together and left a blank band under the
+       rehearsal. The click already named what should stay put. */
+    overflow-anchor: none;
   }
 
   .bb-shell__stage {
@@ -934,7 +940,12 @@
     --bb-scrollbar-size: 6px;
 
     overflow-y: auto;
-    overscroll-behavior: contain;
+    /* Not `contain`. A fill scroller in a docked inspector is often shorter
+       than its box (a short rehearsal, an empty editor). `overflow: auto` +
+       `overscroll-behavior: contain` still traps the wheel in Chromium even
+       when there is nothing to scroll, so hovering the inspector froze the
+       page. Lenis `allowNestedScroll` yields to this pane only while it can
+       actually move; chaining at the edges is what lets the page take over. */
   }
 
   .bb-scroller--fill {

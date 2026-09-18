@@ -107,7 +107,7 @@
 {#if parsed.error}
   <small class="err" role="alert">{parsed.error}</small>
 {:else if parsed.tree.length > 0}
-  <div class="tree" data-lenis-prevent>
+  <div class="tree">
     {#each parsed.tree as root (root.segs.join('.'))}
       {@render node(root)}
     {/each}

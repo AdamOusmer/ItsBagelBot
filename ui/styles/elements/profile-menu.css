@@ -17,7 +17,7 @@
   .bb-profile-rail__account--btn:hover, .bb-profile-rail__account--btn.bb-profile-rail__open { background: rgba(201, 168, 124, 0.1); }
   .bb-profile-rail__avatar { width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
     background: linear-gradient(135deg, var(--bb-green-light), var(--bb-tan)); position: relative;
-    display: flex; align-items: center; justify-content: center; }
+    display: flex; align-items: center; justify-content: center; overflow: hidden; }
   .bb-profile-rail__who { line-height: 1.2; min-width: 0; flex: 1; display: block; }
   .bb-profile-rail__who b { font-size: 13px; font-weight: 600; color: var(--bb-white); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .bb-profile-rail__who span { font-family: var(--bb-font-mono); font-size: 10px; letter-spacing: 0.08em; color: var(--bb-tan); }
@@ -59,6 +59,7 @@
     width: 84px; height: 84px; border-radius: 50%; flex: none;
     background: linear-gradient(135deg, var(--bb-green-light), var(--bb-tan));
     display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
   }
   .bb-profile__head b {
     font-family: var(--bb-font-body); font-weight: 600; font-size: 14px; color: var(--bb-white);
@@ -83,6 +84,7 @@
     width: 26px; height: 26px; border-radius: 50%; flex: none;
     background: linear-gradient(135deg, var(--bb-green-light), var(--bb-tan));
     display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
   }
   .bb-profile__name {
     font-family: var(--bb-font-body); font-weight: 600; font-size: 13px; color: var(--bb-muted);
@@ -106,6 +108,7 @@
     width: 30px; height: 30px; border-radius: 50%; flex: none;
     background: linear-gradient(135deg, var(--bb-green-light), var(--bb-tan));
     display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
   }
   .bb-profile-topbar__op-id { display: none; flex-direction: column; line-height: 1; text-align: left; }
   .bb-profile-topbar__op-id b { font-family: var(--bb-font-body); font-weight: 600; font-size: 12px; color: var(--bb-white); max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

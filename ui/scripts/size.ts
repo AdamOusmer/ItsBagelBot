@@ -644,6 +644,11 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   // custom property in). 5 B; budget unchanged. Note that the composition
   // means a consumer of the docked form now also pays card.css, which is a row
   // of its own above and not a cost this row hides.
+  //
+  // Re-measured 2026-09-18 at 792 B: railed desktop no longer subtracts the
+  // hidden dock from the sticky rehearsal's max-height, and the panel opts
+  // out of scroll-anchoring so opening a field cannot yank the rail. 64 B;
+  // budget unchanged, 188 B of room left.
   { name: "elements/surface", budget: 980 },
   // The per-glyph roll, the ember rail and the glint, in three pointer
   // stories. Expensive for a text link, which is exactly why the nav and the

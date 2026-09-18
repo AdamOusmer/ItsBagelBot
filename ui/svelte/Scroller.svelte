@@ -6,10 +6,12 @@
   // default chrome bar. Drop it anywhere a panel needs to scroll: the account
   // menu's board list, the command inspector, a long popover.
   //
-  // Extra attributes (role, aria-*, data-lenis-prevent) pass straight through
-  // to the scrolling element -- `data-lenis-prevent` in particular has to land
-  // on the element that actually scrolls or the smooth scroller eats the wheel
-  // event and the panel never moves.
+  // Extra attributes (role, aria-*, data-*) pass straight through to the
+  // scrolling element. `data-lenis-prevent` is for overlays (a `<dialog>`,
+  // a modal card) that must never chain the wheel to the page, even when
+  // they cannot scroll. Do not put it on fill inspectors: Lenis
+  // `allowNestedScroll` already yields while this pane can move, and a
+  // prevent on a short pane freezes the page under the pointer.
   import '../styles/elements/shell.css';
   import type { Snippet } from 'svelte';
   import type { HTMLAttributes } from 'svelte/elements';

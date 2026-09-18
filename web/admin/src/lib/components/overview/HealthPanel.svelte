@@ -41,7 +41,7 @@
   </p>
 
   {#if probes.length}
-    <Scroller maxHeight="220px" data-lenis-prevent>
+    <Scroller maxHeight="220px">
       <div class="node-list">
         {#each probes as p (p.id)}
           <div class="node-row">
