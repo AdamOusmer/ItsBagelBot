@@ -32,7 +32,7 @@
 </script>
 
 <div class="detail">
-  <Scroller fill padding="18px" data-lenis-prevent>
+  <Scroller fill padding="18px">
     <div class="body">
       <div class="marks">
         <StatePill tone={LEVEL_TONE[notification.level]}>

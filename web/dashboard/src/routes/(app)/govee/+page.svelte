@@ -248,7 +248,7 @@
           closeLabel={t('govee.closeEditor')}
           onClose={closeInspector}
         >
-          <Scroller fill padding="16px" data-lenis-prevent>
+          <Scroller fill padding="16px">
             {#key selected.device}
               <GoveeRewardEditor
                 device={selected}

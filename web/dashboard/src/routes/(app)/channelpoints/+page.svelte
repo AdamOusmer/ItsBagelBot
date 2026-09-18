@@ -238,7 +238,7 @@
         closeLabel={t('common.cancel')}
         onClose={closeEditor}
       >
-        <Scroller fill padding="16px" data-lenis-prevent>
+        <Scroller fill padding="16px">
           {#key expanded}
             <RewardEditor bind:draft={editorDraft} isNew={expanded === NEW} {busy} onCancel={closeEditor} onSubmit={saveSubmit} />
           {/key}

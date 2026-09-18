@@ -566,7 +566,7 @@
               closeLabel={t('spotify.closeEditor')}
               onClose={closeInspector}
             >
-              <Scroller fill padding="16px" data-lenis-prevent>
+              <Scroller fill padding="16px">
                 {#key (redeem.rewardId || 'new')}
                   <SpotifyRewardEditor
                     {redeem}

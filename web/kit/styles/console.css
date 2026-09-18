@@ -71,10 +71,16 @@
 }
 
 html, body { margin: 0; padding: 0; height: 100%; }
-/* Clip horizontal overflow on the root, NOT body: `overflow-x: hidden` on body
- * computes to `overflow: hidden auto`, which turns body into its own scroll
- * container and steals scrolling from the window that lenis drives. */
-html { overflow-x: hidden; }
+/* Clip horizontal overflow on the root, NOT body, and with `clip` not
+ * `hidden`. `overflow-x: hidden` on either element computes the other axis
+ * to `auto` (CSS Overflow: a non-visible axis forces its partner off
+ * `visible`), which turns that element into a scrollport. On body that
+ * stole scrolling from the window Lenis drives. On html it was subtler:
+ * html became the scrollport, `position: sticky` on the rail and the
+ * docked rehearsal bound to it, and expanding an inspector row scrolled
+ * the whole shell — sidebar included — leaving a blank band where the
+ * rehearsal had been. `clip` clips without creating a scroller. */
+html { overflow-x: clip; }
 
 /* In bb.base, BELOW the element contracts: this is an element selector, so
    it loses to .bb-chip and .bb-btn on specificity the way it always did, but

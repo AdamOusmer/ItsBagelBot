@@ -100,7 +100,7 @@ describe("createSmoothScroll", () => {
     expect((globalThis as unknown as LenisWindow).__lenis).toBe(handle!.lenis);
   });
 
-  test("fixes lerp, smoothWheel and syncTouch, and passes the caller's knobs through", () => {
+  test("fixes lerp, smoothWheel, syncTouch and allowNestedScroll, and passes the caller's knobs through", () => {
     const prevent = () => true;
     createSmoothScroll({ prevent });
 
@@ -108,6 +108,7 @@ describe("createSmoothScroll", () => {
       lerp: 0.1,
       smoothWheel: true,
       syncTouch: false,
+      allowNestedScroll: true,
       prevent,
     });
   });

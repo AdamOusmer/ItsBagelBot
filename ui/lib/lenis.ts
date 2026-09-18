@@ -49,14 +49,22 @@ const LERP = 0.1;
 type LenisWindow = Window & { __lenis?: Lenis };
 
 /**
- * The per-surface knobs. Everything else (lerp, `smoothWheel`, `syncTouch`) is
- * fixed by this module so the three sites cannot drift apart again.
+ * The per-surface knobs. Everything else (lerp, `smoothWheel`, `syncTouch`,
+ * `allowNestedScroll`) is fixed by this module so the three sites cannot
+ * drift apart again.
  *
  * `prevent` is docs': Lenis preventDefaults wheel and touch at the document
  * level, which kills native overflow scrolling inside every nested pane, so
  * Starlight's sidebars and any `<dialog>` have to be handed back to the browser.
  * `virtualScroll` is marketing's: the encryption scene damps the wheel delta
  * near a snap point.
+ *
+ * `allowNestedScroll` is on because the console's inspector is a
+ * `overflow-y: auto` fill pane that often has nothing to scroll (short
+ * rehearsal, empty editor). Without this, a `data-lenis-prevent` on that pane
+ * makes Lenis ignore the wheel AND native overscroll-contain eats it, so the
+ * page freezes under the pointer. With it, Lenis yields only while the pane
+ * can actually move, and takes the page again when it cannot.
  */
 export type SmoothScrollOptions = Pick<LenisOptions, 'prevent' | 'virtualScroll'>;
 
@@ -94,6 +102,7 @@ export function createSmoothScroll(options: SmoothScrollOptions = {}): SmoothScr
         lerp: LERP,
         smoothWheel: true,
         syncTouch: false,
+        allowNestedScroll: true,
         ...options,
     });
 

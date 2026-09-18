@@ -110,7 +110,7 @@
   );
 </script>
 
-<Scroller fill padding="18px" data-lenis-prevent>
+<Scroller fill padding="18px">
   <div class="detail">
     <div class="ident">
       <Bolota name={user.username} size={44} active />
