@@ -215,6 +215,9 @@
   "time.minutes": "minutes",
   "time.month": "month",
   "time.months": "months",
+  "time.unavailable": "The time is unavailable right now.",
+  "time.unknown": "I don't know where \"{place}\" is. Try a city (Tokyo), a zone (Europe/Paris) or an offset (UTC+2).",
+  "time.unset": "The streamer hasn't set their timezone yet.",
   "time.year": "year",
   "time.years": "years"
 }
