@@ -24,7 +24,9 @@ import { VARIABLES as KIT_VARIABLES, type VariableDef } from '@bagel/kit/variabl
 import { builtinDef } from '@bagel/kit/catalog/builtin-commands';
 import { moduleDef } from '@bagel/kit/catalog';
 import { SURFACES, kitText, type VarDef as SurfaceVarDef, type SurfaceDef } from '../../i18n/builder';
-import type { Lang } from '../../i18n/ui';
+// From lang.ts, not ui.ts: ui.ts's module body runs import.meta.glob, which
+// bun test cannot evaluate (see lang.ts).
+import type { Lang } from '../../i18n/lang';
 import type {
   LocaleText,
   VariableAvailability,
