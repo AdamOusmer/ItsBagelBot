@@ -20,12 +20,21 @@
 // of the guard is that they can stay exactly where the person editing the copy
 // expects to find them. This is the same shape as the Go side's
 // internal/buildguard, which reads source to assert a fact no type can.
-
+//
+// The command palette is the one exception (docs/specs/variables-catalog.md
+// D5, D8): ResponseEditor.svelte's DEFAULT_TOKENS is generated from
+// forSurface('custom') rather than hand-written, so there is no `{ token:
+// '…' }` literal left in its source to scrape. variables/parity.test.ts
+// already guards the manifest itself (every form example lexes to one span,
+// every head resolves); this block reruns the same three checks against
+// forSurface('custom') so a regression in either the manifest or this file's
+// own checks still fails here, not just there.
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, test } from 'bun:test';
 import { lex, type VarToken } from './engine/tmpl';
 import { ownedByCore } from './engine/rehearsal';
+import { chipsFor } from './variables';
 
 const dashboard = join(dirname(import.meta.path), '..', '..', 'dashboard', 'src', 'lib', 'components');
 
@@ -45,7 +54,15 @@ function soleSpan(chip: string): VarToken | null {
 }
 
 describe('command token palette (ResponseEditor DEFAULT_TOKENS)', () => {
-  const chips = chipsOf(join('commands', 'ResponseEditor.svelte'));
+  // Mirrors ResponseEditor.svelte's own paletteTokens filter: {counter} and
+  // {urlfetch} chips are never inserted as literal text there (each opens its
+  // own picker instead), so {urlfetch:weather} in particular would fail
+  // "names a token the core resolves" here for a reason that has nothing to
+  // do with the chip strip being wrong (scope.External is not mounted on the
+  // rehearsal's core chain; see variables/samples.ts's URLFETCH_SAMPLE).
+  const chips = chipsFor('custom')
+    .map((c) => c.token)
+    .filter((token) => !token.startsWith('{counter') && !token.startsWith('{urlfetch'));
 
   test('the palette is not empty', () => {
     expect(chips.length).toBeGreaterThan(30);

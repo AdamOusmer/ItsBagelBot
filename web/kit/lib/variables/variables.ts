@@ -70,7 +70,7 @@ export const VARIABLES: readonly VariableDef[] = [
     category: 'arguments',
     forms: [
       { syntax: '{1}', example: '{1}', output: POSITIONAL_WORD_SAMPLE },
-      { syntax: '{2:}', example: '{2:}', output: POSITIONAL_REST_SAMPLE }
+      { syntax: '{2:}', example: '{2:}', output: POSITIONAL_REST_SAMPLE, chipHint: 'restHint' }
     ]
   },
   { id: 'channel', head: 'channel', category: 'basics', forms: [{ syntax: '{channel}', example: '{channel}', output: CHANNEL_SAMPLE }] },
@@ -95,6 +95,13 @@ export const VARIABLES: readonly VariableDef[] = [
   { id: 'repeat', head: 'repeat', category: 'utilities', forms: [{ syntax: '{repeat:<n>:<text>}', example: '{repeat:3:bagel}', output: 'bagel bagel bagel' }] },
   { id: 'countdown', head: 'countdown', category: 'utilities', forms: [{ syntax: '{countdown:<date>}', example: '{countdown:2026-12-25}', output: COUNTDOWN_SAMPLE }] },
   { id: 'countup', head: 'countup', category: 'utilities', forms: [{ syntax: '{countup:<date>}', example: '{countup:2020-01-01}', output: COUNTDOWN_SAMPLE }] },
+  // One form, deliberately: the two-branch shape with a plain name. Every
+  // other shape ({if:name=value:…:…}, a one-branch form, a cond carrying its
+  // own payload) is a small edit away from this one, and a chip surface only
+  // ever shows forms[0] as the literal it inserts (docs/specs/
+  // variables-catalog.md D5), so a second form here would just be a form
+  // nothing renders. Moved from ResponseEditor.svelte's old DEFAULT_TOKENS,
+  // which explained the same choice next to the hand-written chip.
   { id: 'if', head: 'if', category: 'utilities', forms: [{ syntax: '{if:<name>:<then>:<else>}', example: '{if:touser:hi there:hi everyone}', output: IF_SAMPLE }] },
   {
     id: 'followage',

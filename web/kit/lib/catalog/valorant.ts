@@ -5,7 +5,7 @@
 // same reason as games.ts: five customizable replies plus settings
 // make it one of the longest MODULE_CATALOG entries, and its token palettes
 // mirror app/twitch/sesame/modules/valorant.go (same config keys, same defaults).
-import type { ModuleDef } from './module-def';
+import { replyTokens, type ModuleDef } from './module-def';
 import { LINKED_ONLY_FIELD } from './shared-fields';
 
 export const VALORANT_MODULE_DEF: ModuleDef = {
@@ -28,11 +28,10 @@ export const VALORANT_MODULE_DEF: ModuleDef = {
       enableKey: 'rankEnabled',
       messageKey: 'rankMessage',
       defaultMessage: '{player} · {tier} · {rr} RR ({lastchange}) · peak {peaktier}',
-      tokens: ['player', 'region', 'tier', 'elo', 'rr', 'lastchange', 'peaktier', 'placement'],
-      previewSamples: {
+      tokens: replyTokens(['player', 'region', 'tier', 'elo', 'rr', 'lastchange', 'peaktier', 'placement'], {
         player: 'Frosty#EUW1', region: 'eu', tier: 'Immortal 2', elo: '1832', rr: '67',
         lastchange: '-12', peaktier: 'Immortal 1', placement: '513'
-      }
+      })
     },
     {
       key: 'matches',
@@ -43,11 +42,10 @@ export const VALORANT_MODULE_DEF: ModuleDef = {
       enableKey: 'matchesEnabled',
       messageKey: 'matchesMessage',
       defaultMessage: "{player}'s last {count}: {matches}",
-      tokens: ['player', 'region', 'count', 'matches', 'lastago'],
-      previewSamples: {
+      tokens: replyTokens(['player', 'region', 'count', 'matches', 'lastago'], {
         player: 'Frosty#EUW1', region: 'eu', count: '2',
         matches: 'Jett 20/14/7 win on Haven, Omen 9/17/3 loss on Ascent', lastago: '2h ago'
-      }
+      })
     },
     {
       key: 'account',
@@ -58,11 +56,10 @@ export const VALORANT_MODULE_DEF: ModuleDef = {
       enableKey: 'accountEnabled',
       messageKey: 'accountMessage',
       defaultMessage: '{player} · account level {level}',
-      tokens: ['player', 'puuid', 'region', 'level', 'card', 'title'],
-      previewSamples: {
+      tokens: replyTokens(['player', 'puuid', 'region', 'level', 'card', 'title'], {
         player: 'Frosty#EUW1', puuid: 'a1b2c3d4-05e6-47f8-89a0-b1c2d3e4f5a6',
         region: 'eu', level: '142', card: 'Silver Card', title: 'Radiant'
-      }
+      })
     },
     {
       key: 'board',
@@ -73,11 +70,10 @@ export const VALORANT_MODULE_DEF: ModuleDef = {
       enableKey: 'boardEnabled',
       messageKey: 'boardMessage',
       defaultMessage: '{board}: {entries}',
-      tokens: ['player', 'board', 'count', 'entries'],
-      previewSamples: {
+      tokens: replyTokens(['player', 'board', 'count', 'entries'], {
         player: 'Frosty#EUW1', board: 'ap/console', count: '2',
         entries: '#4 Zekken#5221 (431 RR), #5 Frosty#EUW1 (402 RR)'
-      }
+      })
     },
     {
       key: 'shop',
@@ -88,10 +84,9 @@ export const VALORANT_MODULE_DEF: ModuleDef = {
       enableKey: 'shopEnabled',
       messageKey: 'shopMessage',
       defaultMessage: 'Daily rotation ({count}): {items} · resets in {reset}',
-      tokens: ['count', 'items', 'reset'],
-      previewSamples: {
+      tokens: replyTokens(['count', 'items', 'reset'], {
         count: '2', items: 'Reaver Vandal (1775 VP), Ion Frenzy (875 VP)', reset: '2h 30m'
-      }
+      })
     }
   ],
   settings: [

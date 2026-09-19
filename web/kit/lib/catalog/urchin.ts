@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import type { ModuleDef } from './module-def';
+import { replyTokens, type ModuleDef } from './module-def';
 import { LINKED_ONLY_FIELD, MINECRAFT_UUID_FIELD } from './shared-fields';
 import { BW_SESSION_SAMPLES, BW_SESSION_TOKENS } from './rehearsal-tokens';
 
@@ -27,8 +27,7 @@ export const URCHIN_MODULE: ModuleDef =
       enableKey: 'dailyEnabled',
       messageKey: 'dailyMessage',
       defaultMessage: '{player} today: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR',
-      tokens: BW_SESSION_TOKENS,
-      previewSamples: BW_SESSION_SAMPLES
+      tokens: replyTokens(BW_SESSION_TOKENS, BW_SESSION_SAMPLES)
     },
     {
       key: 'weekly',
@@ -39,8 +38,7 @@ export const URCHIN_MODULE: ModuleDef =
       enableKey: 'weeklyEnabled',
       messageKey: 'weeklyMessage',
       defaultMessage: '{player} this week: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR',
-      tokens: BW_SESSION_TOKENS,
-      previewSamples: BW_SESSION_SAMPLES
+      tokens: replyTokens(BW_SESSION_TOKENS, BW_SESSION_SAMPLES)
     },
     {
       key: 'monthly',
@@ -51,8 +49,7 @@ export const URCHIN_MODULE: ModuleDef =
       enableKey: 'monthlyEnabled',
       messageKey: 'monthlyMessage',
       defaultMessage: '{player} this month: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR',
-      tokens: BW_SESSION_TOKENS,
-      previewSamples: BW_SESSION_SAMPLES
+      tokens: replyTokens(BW_SESSION_TOKENS, BW_SESSION_SAMPLES)
     },
     {
       key: 'stats',
@@ -63,8 +60,7 @@ export const URCHIN_MODULE: ModuleDef =
       enableKey: 'statsEnabled',
       messageKey: 'statsMessage',
       defaultMessage: '{player}: {stars} stars · {wins} wins · {finals} finals · {fkdr} FKDR · {beds} beds broken',
-      tokens: ['player', 'stars', 'wins', 'losses', 'finals', 'finaldeaths', 'beds', 'fkdr', 'wlr'],
-      previewSamples: {
+      tokens: replyTokens(['player', 'stars', 'wins', 'losses', 'finals', 'finaldeaths', 'beds', 'fkdr', 'wlr'], {
         player: 'Technoblade',
         stars: '402',
         wins: '1000',
@@ -74,7 +70,7 @@ export const URCHIN_MODULE: ModuleDef =
         beds: '2000',
         fkdr: '10.00',
         wlr: '10.00'
-      }
+      })
     },
     {
       key: 'sniper',
@@ -85,8 +81,7 @@ export const URCHIN_MODULE: ModuleDef =
       enableKey: 'sniperEnabled',
       messageKey: 'sniperMessage',
       defaultMessage: '{player} urchin score: {score}',
-      tokens: ['player', 'score', 'mode', 'tagcount'],
-      previewSamples: { player: 'Technoblade', score: '7.5', mode: 'warn', tagcount: '1' }
+      tokens: replyTokens(['player', 'score', 'mode', 'tagcount'], { player: 'Technoblade', score: '7.5', mode: 'warn', tagcount: '1' })
     },
     {
       key: 'tags',
@@ -97,12 +92,11 @@ export const URCHIN_MODULE: ModuleDef =
       enableKey: 'tagsEnabled',
       messageKey: 'tagsMessage',
       defaultMessage: '{player}: {tags}',
-      tokens: ['player', 'tags', 'tagcount'],
-      previewSamples: {
+      tokens: replyTokens(['player', 'tags', 'tagcount'], {
         player: 'Technoblade',
         tags: 'Blatant Cheater (added Jul 3, 2024)',
         tagcount: '1'
-      }
+      })
     },
     {
       key: 'tagdescription',
@@ -113,12 +107,11 @@ export const URCHIN_MODULE: ModuleDef =
       enableKey: 'tagDescriptionEnabled',
       messageKey: 'tagDescriptionMessage',
       defaultMessage: '{player}: {tags}',
-      tokens: ['player', 'tags', 'tagcount'],
-      previewSamples: {
+      tokens: replyTokens(['player', 'tags', 'tagcount'], {
         player: 'Technoblade',
         tags: 'Blatant Cheater (bhop - added Jul 3, 2024)',
         tagcount: '1'
-      }
+      })
     }
   ],
   settings: [

@@ -10,6 +10,7 @@ export * from './types';
 export * from './variables';
 export * from './samples';
 export * from './surfaces';
+export * from './hint-keys';
 import { VARIABLES } from './variables';
 import type { VariableDef } from './types';
 

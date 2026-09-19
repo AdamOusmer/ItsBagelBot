@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import type { ModuleDef } from './module-def';
+import { replyTokens, type ModuleDef } from './module-def';
 import { LINKED_ONLY_FIELD, MINECRAFT_UUID_FIELD } from './shared-fields';
 
 export const MCSR_MODULE: ModuleDef = 
@@ -23,8 +23,7 @@ export const MCSR_MODULE: ModuleDef =
       enableKey: 'eloEnabled',
       messageKey: 'eloMessage',
       defaultMessage: '{player}: {elo} elo · rank #{rank} · {wins}W {losses}L this season',
-      tokens: ['player', 'elo', 'rank', 'wins', 'losses', 'draws', 'matches', 'country'],
-      previewSamples: {
+      tokens: replyTokens(['player', 'elo', 'rank', 'wins', 'losses', 'draws', 'matches', 'country'], {
         player: 'Feinberg',
         elo: '1650',
         rank: '12',
@@ -33,7 +32,7 @@ export const MCSR_MODULE: ModuleDef =
         draws: '1',
         matches: '61',
         country: 'us'
-      }
+      })
     },
     {
       key: 'session',
@@ -44,8 +43,7 @@ export const MCSR_MODULE: ModuleDef =
       enableKey: 'sessionEnabled',
       messageKey: 'sessionMessage',
       defaultMessage: '{player} this stream: {elochange} elo ({elo} now) · {wins}W {losses}L {draws}D in {matches} matches',
-      tokens: ['player', 'elo', 'elochange', 'wins', 'losses', 'draws', 'matches'],
-      previewSamples: {
+      tokens: replyTokens(['player', 'elo', 'elochange', 'wins', 'losses', 'draws', 'matches'], {
         player: 'Feinberg',
         elo: '1660',
         elochange: '+24',
@@ -53,7 +51,7 @@ export const MCSR_MODULE: ModuleDef =
         losses: '1',
         draws: '0',
         matches: '4'
-      }
+      })
     },
     {
       key: 'pace',
@@ -65,7 +63,7 @@ export const MCSR_MODULE: ModuleDef =
       messageKey: 'paceMessage',
       defaultMessage:
         '{player} this session: {nethers} nethers (avg {nether}) · bastion {bastion} · fortress {fortress} · fp {firstportal} · {nph} nph',
-      tokens: [
+      tokens: replyTokens([
         'player',
         'nethers',
         'nether',
@@ -78,8 +76,7 @@ export const MCSR_MODULE: ModuleDef =
         'end',
         'finish',
         'nph'
-      ],
-      previewSamples: {
+      ], {
         player: 'Feinberg',
         nethers: '3',
         nether: '1:42',
@@ -92,7 +89,7 @@ export const MCSR_MODULE: ModuleDef =
         end: '13:50',
         finish: '0:00',
         nph: '5.3'
-      }
+      })
     },
     {
       key: 'nethers',
@@ -103,8 +100,7 @@ export const MCSR_MODULE: ModuleDef =
       enableKey: 'nethersEnabled',
       messageKey: 'nethersMessage',
       defaultMessage: '{player}: {nethers} nethers this session (avg {nether}) · {nph} nph',
-      tokens: ['player', 'nethers', 'nether', 'nph'],
-      previewSamples: { player: 'Feinberg', nethers: '3', nether: '1:42', nph: '5.3' }
+      tokens: replyTokens(['player', 'nethers', 'nether', 'nph'], { player: 'Feinberg', nethers: '3', nether: '1:42', nph: '5.3' })
     },
     {
       key: 'lastfort',
@@ -116,7 +112,7 @@ export const MCSR_MODULE: ModuleDef =
       messageKey: 'lastFortMessage',
       defaultMessage:
         '{player} last fort: nether {nether} · bastion {bastion} · fortress {fortress} · fp {firstportal} · sh {stronghold} · {ago} ago',
-      tokens: [
+      tokens: replyTokens([
         'player',
         'nether',
         'bastion',
@@ -126,8 +122,7 @@ export const MCSR_MODULE: ModuleDef =
         'end',
         'finish',
         'ago'
-      ],
-      previewSamples: {
+      ], {
         player: 'Feinberg',
         nether: '1:42',
         bastion: '3:55',
@@ -137,7 +132,7 @@ export const MCSR_MODULE: ModuleDef =
         end: '-',
         finish: '-',
         ago: '12m'
-      }
+      })
     },
     {
       key: 'lastmatch',
@@ -149,8 +144,7 @@ export const MCSR_MODULE: ModuleDef =
       messageKey: 'lastMatchMessage',
       defaultMessage:
         '{player} vs {opponent}: {result} · {time} · {seed} {structure} · {elochange} elo · {ago} ago',
-      tokens: ['player', 'opponent', 'result', 'time', 'seed', 'structure', 'elochange', 'ago'],
-      previewSamples: {
+      tokens: replyTokens(['player', 'opponent', 'result', 'time', 'seed', 'structure', 'elochange', 'ago'], {
         player: 'Feinberg',
         opponent: 'lowk3y_',
         result: 'won',
@@ -159,7 +153,7 @@ export const MCSR_MODULE: ModuleDef =
         structure: 'Treasure',
         elochange: '+21',
         ago: '2m'
-      }
+      })
     },
     {
       key: 'record',
@@ -171,8 +165,7 @@ export const MCSR_MODULE: ModuleDef =
       enableKey: 'recordEnabled',
       messageKey: 'recordMessage',
       defaultMessage: '{playera} {winsa} - {winsb} {playerb} · {played} played',
-      tokens: ['playera', 'playerb', 'winsa', 'winsb', 'played'],
-      previewSamples: { playera: 'Feinberg', playerb: 'lowk3y_', winsa: '20', winsb: '14', played: '34' }
+      tokens: replyTokens(['playera', 'playerb', 'winsa', 'winsb', 'played'], { playera: 'Feinberg', playerb: 'lowk3y_', winsa: '20', winsb: '14', played: '34' })
     },
     {
       key: 'lb',
@@ -183,8 +176,7 @@ export const MCSR_MODULE: ModuleDef =
       enableKey: 'lbEnabled',
       messageKey: 'lbMessage',
       defaultMessage: '{board}: {list}',
-      tokens: ['board', 'list'],
-      previewSamples: { board: 'Elo', list: '#1 Feinberg 2464 · #2 lowk3y_ 2436' }
+      tokens: replyTokens(['board', 'list'], { board: 'Elo', list: '#1 Feinberg 2464 · #2 lowk3y_ 2436' })
     },
     {
       key: 'race',
@@ -195,8 +187,7 @@ export const MCSR_MODULE: ModuleDef =
       enableKey: 'raceEnabled',
       messageKey: 'raceMessage',
       defaultMessage: '#1 {leader} ({leadertime}) · {player}: {time} (#{rank})',
-      tokens: ['leader', 'leadertime', 'player', 'time', 'rank'],
-      previewSamples: { leader: 'gharfyy', leadertime: '2:27.374', player: 'Feinberg', time: '2:40.000', rank: '2' }
+      tokens: replyTokens(['leader', 'leadertime', 'player', 'time', 'rank'], { leader: 'gharfyy', leadertime: '2:27.374', player: 'Feinberg', time: '2:40.000', rank: '2' })
     },
     {
       key: 'pb',
@@ -208,8 +199,7 @@ export const MCSR_MODULE: ModuleDef =
       enableKey: 'pbEnabled',
       messageKey: 'pbMessage',
       defaultMessage: '{player}: {time} ({window} PB)',
-      tokens: ['player', 'time', 'window'],
-      previewSamples: { player: 'Feinberg', time: '6:40.123', window: 'daily' }
+      tokens: replyTokens(['player', 'time', 'window'], { player: 'Feinberg', time: '6:40.123', window: 'daily' })
     }
   ],
   settings: [

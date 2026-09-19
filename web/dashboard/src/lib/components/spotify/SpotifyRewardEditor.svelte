@@ -33,7 +33,7 @@
     { token: '{input}', label: t('spotify.replyTokInput') }
   ];
   const replySamples: Record<string, string> = {
-    user: t('spotify.previewSamplesUser'),
+    user: t('spotify.previewUserSample'),
     track: 'Never Gonna Give You Up',
     input: 'rick roll'
   };

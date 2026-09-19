@@ -31,6 +31,13 @@ export interface VariableForm {
   readonly syntax: string;
   readonly example: string;
   readonly output: string;
+  /** Locale key suffix under vars.<id> when this form is offered as its own
+   * dashboard chip beside the first form. Only positional's {2:} needs it: a
+   * chip inserts literal text, and "the rest of the line" is a different
+   * thing to insert than "word 1", so folding it into the first chip would
+   * hide the form broadcasters reach for most. Everything else stays one
+   * chip per Variable; extra forms are guide-only. */
+  readonly chipHint?: string;
 }
 
 export interface VariableDef {

@@ -11,8 +11,9 @@
   //  - command replies (gossip modules: reply.command set): same surface as a
   //    custom command ("Chat rehearsal" border, a sample viewer typing the
   //    trigger), and the token palette swaps to the reply's supported variables.
-  // Both rehearse with kind="reply": ONLY this reply's previewSamples (plus the
-  //    dynamic tokens) substitute, so foreign tokens stay marked as unknown.
+  // Both rehearse with kind="reply": ONLY this reply's own token samples
+  //    (plus the dynamic tokens) substitute, so foreign tokens stay marked
+  //    as unknown.
   //
   // Save/Cancel are handled by the page so the whole-module config persists in
   // one place.
@@ -53,12 +54,16 @@
   // spelled is dropped from the palette instead of being offered broken.
   const palette = $derived(
     reply.tokens?.flatMap((tk) => {
-      const token = intactSpan(tk, null);
+      const token = intactSpan(tk.name, null);
       if (token === null) return [];
-      const sample = reply.previewSamples?.[tk];
-      return [{ token, label: sample ? `${token} → ${sample}` : token }];
+      return [{ token, label: tk.sample ? `${token} → ${tk.sample}` : token }];
     })
   );
+  // ChatPreview's samples prop is a bare name->sample record (it feeds the
+  // shared rehearsal in engine/rehearsal.ts, which knows nothing about
+  // ReplyToken); derive it from the same tokens the palette reads so the two
+  // never disagree.
+  const rehearsalSamples = $derived(Object.fromEntries((reply.tokens ?? []).map((tk) => [tk.name, tk.sample])));
 </script>
 
 <div class="editor">
@@ -74,7 +79,7 @@
       kind="reply"
       name={reply.command}
       args={reply.previewArgs ?? ''}
-      samples={reply.previewSamples}
+      samples={rehearsalSamples}
       response={effectiveMessage}
     />
   {:else}
@@ -83,7 +88,7 @@
       name=""
       showViewer={false}
       tag={tModuleReplyPart(t, moduleId, reply, 'event')}
-      samples={reply.previewSamples}
+      samples={rehearsalSamples}
       response={effectiveMessage}
     />
   {/if}

@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import type { ModuleDef } from './module-def';
+import { replyTokens, type ModuleDef } from './module-def';
 import { LINKED_ONLY_FIELD } from './shared-fields';
 
 export const CLASHROYALE_MODULE: ModuleDef = 
@@ -25,12 +25,11 @@ export const CLASHROYALE_MODULE: ModuleDef =
       enableKey: 'statsEnabled',
       messageKey: 'statsMessage',
       defaultMessage: '{player} · level {level} · {wins}W/{losses}L · {winrate}% WR · {crowns} three-crowns · {clan}',
-      tokens: ['player', 'tag', 'level', 'wins', 'losses', 'draws', 'battles', 'winrate', 'crowns', 'challengemax', 'donations', 'totaldonations', 'clan', 'favcard'],
-      previewSamples: {
+      tokens: replyTokens(['player', 'tag', 'level', 'wins', 'losses', 'draws', 'battles', 'winrate', 'crowns', 'challengemax', 'donations', 'totaldonations', 'clan', 'favcard'], {
         player: 'Bagel', tag: '#P2LQ0GR', level: '62', wins: '600', losses: '300', draws: '100',
         battles: '1000', winrate: '60', crowns: '120', challengemax: '12', donations: '50',
         totaldonations: '10000', clan: 'Bakery', favcard: 'Knight'
-      }
+      })
     },
     {
       key: 'decks',
@@ -41,12 +40,11 @@ export const CLASHROYALE_MODULE: ModuleDef =
       enableKey: 'decksEnabled',
       messageKey: 'decksMessage',
       defaultMessage: "{player}'s deck ({count}/8): {cards} · avg elixir {elixir}",
-      tokens: ['player', 'tag', 'cards', 'support', 'elixir', 'count'],
-      previewSamples: {
+      tokens: replyTokens(['player', 'tag', 'cards', 'support', 'elixir', 'count'], {
         player: 'Bagel', tag: '#P2LQ0GR',
         cards: 'Knight, Archers, Goblins, Giant, P.E.K.K.A, Minions, Fireball, Cannon',
         support: 'Tower Troop', elixir: '3.75', count: '8'
-      }
+      })
     },
     {
       key: 'ranked',
@@ -57,11 +55,10 @@ export const CLASHROYALE_MODULE: ModuleDef =
       enableKey: 'rankedEnabled',
       messageKey: 'rankedMessage',
       defaultMessage: '{player} Path of Legends: league {league} · {trophies} trophies · rank #{rank} · best {besttrophies}',
-      tokens: ['player', 'tag', 'league', 'trophies', 'rank', 'prevleague', 'prevtrophies', 'bestleague', 'besttrophies', 'bestrank'],
-      previewSamples: {
+      tokens: replyTokens(['player', 'tag', 'league', 'trophies', 'rank', 'prevleague', 'prevtrophies', 'bestleague', 'besttrophies', 'bestrank'], {
         player: 'Bagel', tag: '#P2LQ0GR', league: '10', trophies: '2100', rank: '321',
         prevleague: '10', prevtrophies: '2050', bestleague: '10', besttrophies: '2400', bestrank: '42'
-      }
+      })
     },
     {
       key: 'road',
@@ -72,8 +69,7 @@ export const CLASHROYALE_MODULE: ModuleDef =
       enableKey: 'roadEnabled',
       messageKey: 'roadMessage',
       defaultMessage: '{player}: {trophies} trophies · best {besttrophies} · {arena}',
-      tokens: ['player', 'tag', 'trophies', 'besttrophies', 'arena'],
-      previewSamples: { player: 'Bagel', tag: '#P2LQ0GR', trophies: '9123', besttrophies: '9345', arena: 'Legendary Arena' }
+      tokens: replyTokens(['player', 'tag', 'trophies', 'besttrophies', 'arena'], { player: 'Bagel', tag: '#P2LQ0GR', trophies: '9123', besttrophies: '9345', arena: 'Legendary Arena' })
     }
   ],
   settings: [

@@ -258,7 +258,7 @@
   <button
     type="button"
     class="picker bb-chip bb-chip--muted"
-    title={t('commandEditor.tokUrlfetch')}
+    title={t('vars.urlfetch.hint')}
     aria-haspopup="dialog"
     aria-expanded={open}
     onclick={toggle}

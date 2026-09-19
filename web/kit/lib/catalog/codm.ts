@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import type { ModuleDef } from './module-def';
+import { replyTokens, type ModuleDef } from './module-def';
 import { LINKED_ONLY_FIELD } from './shared-fields';
 
 export const CODM_MODULE: ModuleDef = {
@@ -23,8 +23,7 @@ export const CODM_MODULE: ModuleDef = {
       enableKey: 'profileEnabled',
       messageKey: 'profileMessage',
       defaultMessage: '{player} · level {level} · MP {rank} · {rating} rating · {country}',
-      tokens: ['player', 'level', 'rank', 'rankclass', 'rating', 'country', 'shortid'],
-      previewSamples: {
+      tokens: replyTokens(['player', 'level', 'rank', 'rankclass', 'rating', 'country', 'shortid'], {
         player: 'iFerg',
         level: '414',
         rank: 'Master I',
@@ -32,7 +31,7 @@ export const CODM_MODULE: ModuleDef = {
         rating: '4590',
         country: 'US',
         shortid: 'IFERG'
-      }
+      })
     }
   ],
   settings: [

@@ -98,6 +98,11 @@ describe('variables parity (engine/scope/testdata/token_catalog.golden.json)', (
         expect(entry?.name, `${locale}.json vars.${v.id}.name is missing`).toBeTruthy();
         expect(entry?.hint, `${locale}.json vars.${v.id}.hint is missing`).toBeTruthy();
         expect(entry?.desc, `${locale}.json vars.${v.id}.desc is missing`).toBeTruthy();
+        for (const form of v.forms) {
+          if (!form.chipHint) continue;
+          const chip = (entry as Record<string, unknown> | undefined)?.[form.chipHint];
+          expect(chip, `${locale}.json vars.${v.id}.${form.chipHint} is missing (chipHint on ${form.syntax})`).toBeTruthy();
+        }
       }
     }
   });
