@@ -57,6 +57,8 @@ export interface VariableReference {
   /** Concrete source examples, including distinct payload forms. */
   readonly examples: readonly VariableExample[];
   readonly name: LocaleText;
+  /** One-line summary for a collapsed guide row; empty when the source kit variable has none, which the guide falls back from to the description's first sentence. */
+  readonly hint: LocaleText;
   readonly description: LocaleText;
   readonly category: VariableCategory;
   readonly categories: readonly VariableCategory[];
@@ -67,12 +69,14 @@ export interface VariableReference {
   /** Surface ids are stable and compact for URL filters. */
   readonly surfaceIds: readonly string[];
   readonly surfaces: readonly VariableAvailability[];
+  /** Module ids a requirement label was resolved from, parallel to `requirements`; empty entries have no owning module id. Lets a locale-aware consumer look up its own label per module instead of trusting the English one baked in at catalog-build time. */
+  readonly requirementIds: readonly string[];
   /** Module/toggle hints found in the source descriptions. */
   readonly requirements: readonly string[];
   /** Convenience form for a compact card; `requirements` is authoritative. */
   readonly requirement: string;
-  readonly payload: string;
-  readonly behavior: string;
+  readonly payload: LocaleText;
+  readonly behavior: LocaleText;
   readonly legacy: boolean;
   readonly parameterized: boolean;
   readonly lexer: VariableLexerResult;
@@ -89,6 +93,7 @@ export interface LocalizedVariableReference {
   readonly syntaxes: readonly string[];
   readonly examples: readonly { syntax: string; output: string; surfaceId: string }[];
   readonly name: string;
+  readonly hint: string;
   readonly description: string;
   readonly category: VariableCategory;
   readonly categories: readonly VariableCategory[];
@@ -96,6 +101,7 @@ export interface LocalizedVariableReference {
   readonly aliasTokens: readonly string[];
   readonly surfaceIds: readonly string[];
   readonly surfaces: readonly { id: string; group: string; label: string; dashPath: string }[];
+  readonly requirementIds: readonly string[];
   readonly requirements: readonly string[];
   readonly requirement: string;
   readonly payload: string;

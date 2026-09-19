@@ -1,0 +1,131 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+/**
+ * Shell for the variables guide (docs/specs/variables-catalog.md D7):
+ * header + search span the top, a sticky category/surface rail sits left of
+ * a main column grouped by category. Replaces the flat single-list design
+ * (deleted VariablesReference.astro at ../VariablesReference.astro) with the
+ * grouped, anchor-linkable one the spec calls for, split into Rail/Group/
+ * Entry/Forms so each piece stays under the CodeScene complexity gate.
+ *
+ * Still takes the manifest as data (`catalog: variableReferenceData(lang)`)
+ * rather than importing it itself -- the page owns the localization call,
+ * this component only presents the result.
+ */
+import SearchInput from '@bagel/ui/astro/SearchInput.astro';
+import Eyebrow from '@bagel/ui/astro/Eyebrow.astro';
+import Rail from './Rail.astro';
+import Group from './Group.astro';
+import './reference.css';
+import { getLangFromUrl, useTranslations, localizePath, defaultLang, type Lang, type UIKey } from '../../../i18n/ui';
+import { DASHBOARD_ORIGIN } from '../../../i18n/builder';
+import { CATEGORY_ORDER, type LocalizedVariableReference } from '../../../lib/variables';
+
+interface Props {
+    catalog: readonly LocalizedVariableReference[];
+    lang?: Lang;
+}
+
+const { catalog, lang: providedLang } = Astro.props;
+const lang = providedLang ?? getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+
+const groups = CATEGORY_ORDER
+    .map((category) => ({
+        id: category,
+        label: t(`guides.variables.category.${category}` as UIKey),
+        entries: catalog.filter((entry) => entry.category === category),
+    }))
+    .filter((group) => group.entries.length > 0);
+
+const surfaceMap = new Map<string, string>();
+for (const entry of catalog) {
+    for (const surface of entry.surfaces) surfaceMap.set(surface.id, surface.label);
+}
+const surfaces = [...surfaceMap.entries()].map(([id, label]) => ({ id, label }));
+
+const searchState = Astro.url.searchParams.get('q') ?? '';
+const categoryState = Astro.url.searchParams.get('category') ?? '';
+const surfaceState = Astro.url.searchParams.get('surface') ?? '';
+const builderLang = lang === defaultLang ? '' : lang;
+
+const entryCopy = {
+    formsLabel: t('guides.variables.formSyntax'),
+    formSyntax: t('guides.variables.formSyntax'),
+    formExample: t('guides.variables.formExample'),
+    formOutput: t('guides.variables.formOutput'),
+    available: t('guides.variables.available'),
+    needs: t('guides.variables.needs'),
+    payload: t('guides.variables.payload'),
+    behavior: t('guides.variables.behavior'),
+    aliases: t('guides.variables.aliases'),
+    legacy: t('guides.variables.legacy'),
+    copy: t('guides.variables.copy'),
+    copied: t('guides.variables.copied'),
+    copyFailed: t('guides.variables.copyFailed'),
+    composeInDashboard: t('guides.variables.composeInDashboard'),
+    surfaceCount: t('guides.variables.surfaceCount'),
+};
+
+const clientCopy = {
+    showing: t('guides.variables.showing'),
+    copy: entryCopy.copy,
+    copied: entryCopy.copied,
+    copyFailed: entryCopy.copyFailed,
+};
+---
+
+<section class="vref" data-vref-root data-initial-query={searchState} data-initial-category={categoryState} data-initial-surface={surfaceState}>
+    <div class="vref__head" data-reveal style="--reveal-i: 0">
+        <Eyebrow>{t('guides.variables.eyebrow')}</Eyebrow>
+        <h1>{t('guides.variables.title')}</h1>
+        <p class="vref__lead">{t('guides.variables.lead')}</p>
+        <p class="vref__note">{t('guides.variables.note')}</p>
+        <div class="vref__search">
+            <SearchInput data-vref-search placeholder={t('guides.variables.searchPlaceholder')} value={searchState} aria-label={t('guides.variables.searchLabel')} fill />
+        </div>
+    </div>
+
+    <div class="vref__grid">
+        <Rail
+            categories={groups.map((group) => ({ id: group.id, label: group.label, count: group.entries.length }))}
+            surfaces={surfaces}
+            activeCategory={categoryState}
+            activeSurface={surfaceState}
+            categoryLabel={t('guides.variables.categoryLabel')}
+            surfacesLabel={t('guides.variables.surfacesLabel')}
+            allSurfacesLabel={t('guides.variables.allSurfaces')}
+        />
+
+        <div>
+            <p class="vref__count" data-vref-count aria-live="polite">{`${catalog.length} ${t('guides.variables.showing')}`}</p>
+
+            <div class="vref__main">
+                {groups.map((group, index) => (
+                    <Group category={group.id} label={group.label} entries={group.entries} dashboardOrigin={DASHBOARD_ORIGIN} builderLang={builderLang} revealIndex={Math.min(index + 1, 6)} copy={entryCopy} />
+                ))}
+            </div>
+
+            <div class="vref__empty" data-vref-empty hidden>
+                <p>{t('guides.variables.empty')}</p>
+                <small>{t('guides.variables.emptyHint')}</small>
+            </div>
+        </div>
+    </div>
+
+    <p class="vref__back">
+        <a href={localizePath('/guides', lang)}>&larr; {t('guides.variables.backToGuides')}</a>
+        <span aria-hidden="true">&middot;</span>
+        <a href={localizePath('/command-builder', lang)}>{t('guides.variables.openBuilder')} &rarr;</a>
+    </p>
+
+    <script is:inline type="application/json" data-vref-copy-text set:html={JSON.stringify(clientCopy)} />
+</section>
+
+<script>
+    import { bootAllVariableReferences } from './reference';
+    bootAllVariableReferences();
+    document.addEventListener('astro:page-load', bootAllVariableReferences);
+</script>
