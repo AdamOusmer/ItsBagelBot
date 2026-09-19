@@ -59,7 +59,7 @@ describe('command token palette (ResponseEditor DEFAULT_TOKENS)', () => {
   // own picker instead), so {urlfetch:weather} in particular would fail
   // "names a token the core resolves" here for a reason that has nothing to
   // do with the chip strip being wrong (scope.External is not mounted on the
-  // rehearsal's core chain; see variables/samples.ts's URLFETCH_SAMPLE).
+  // rehearsal's core chain; see variables/preview-values.ts's URLFETCH_SAMPLE).
   const chips = chipsFor('custom')
     .map((c) => c.token)
     .filter((token) => !token.startsWith('{counter') && !token.startsWith('{urlfetch'));
