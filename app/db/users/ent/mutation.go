@@ -3986,6 +3986,7 @@ type UserMutation struct {
 	status                      *user.Status
 	locale                      *string
 	custom_cursor               *bool
+	commands_page_hidden        *bool
 	creator_code                *string
 	subscription_source         *string
 	subscription_expires_at     *time.Time
@@ -4450,6 +4451,42 @@ func (m *UserMutation) OldCustomCursor(ctx context.Context) (v bool, err error) 
 // ResetCustomCursor resets all changes to the "custom_cursor" field.
 func (m *UserMutation) ResetCustomCursor() {
 	m.custom_cursor = nil
+}
+
+// SetCommandsPageHidden sets the "commands_page_hidden" field.
+func (m *UserMutation) SetCommandsPageHidden(b bool) {
+	m.commands_page_hidden = &b
+}
+
+// CommandsPageHidden returns the value of the "commands_page_hidden" field in the mutation.
+func (m *UserMutation) CommandsPageHidden() (r bool, exists bool) {
+	v := m.commands_page_hidden
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCommandsPageHidden returns the old "commands_page_hidden" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldCommandsPageHidden(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCommandsPageHidden is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCommandsPageHidden requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCommandsPageHidden: %w", err)
+	}
+	return oldValue.CommandsPageHidden, nil
+}
+
+// ResetCommandsPageHidden resets all changes to the "commands_page_hidden" field.
+func (m *UserMutation) ResetCommandsPageHidden() {
+	m.commands_page_hidden = nil
 }
 
 // SetCreatorCode sets the "creator_code" field.
@@ -5111,7 +5148,7 @@ func (m *UserMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserMutation) Fields() []string {
-	fields := make([]string, 0, 21)
+	fields := make([]string, 0, 22)
 	if m.username != nil {
 		fields = append(fields, user.FieldUsername)
 	}
@@ -5138,6 +5175,9 @@ func (m *UserMutation) Fields() []string {
 	}
 	if m.custom_cursor != nil {
 		fields = append(fields, user.FieldCustomCursor)
+	}
+	if m.commands_page_hidden != nil {
+		fields = append(fields, user.FieldCommandsPageHidden)
 	}
 	if m.creator_code != nil {
 		fields = append(fields, user.FieldCreatorCode)
@@ -5201,6 +5241,8 @@ func (m *UserMutation) Field(name string) (ent.Value, bool) {
 		return m.Locale()
 	case user.FieldCustomCursor:
 		return m.CustomCursor()
+	case user.FieldCommandsPageHidden:
+		return m.CommandsPageHidden()
 	case user.FieldCreatorCode:
 		return m.CreatorCode()
 	case user.FieldSubscriptionSource:
@@ -5252,6 +5294,8 @@ func (m *UserMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldLocale(ctx)
 	case user.FieldCustomCursor:
 		return m.OldCustomCursor(ctx)
+	case user.FieldCommandsPageHidden:
+		return m.OldCommandsPageHidden(ctx)
 	case user.FieldCreatorCode:
 		return m.OldCreatorCode(ctx)
 	case user.FieldSubscriptionSource:
@@ -5347,6 +5391,13 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetCustomCursor(v)
+		return nil
+	case user.FieldCommandsPageHidden:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCommandsPageHidden(v)
 		return nil
 	case user.FieldCreatorCode:
 		v, ok := value.(string)
@@ -5561,6 +5612,9 @@ func (m *UserMutation) ResetField(name string) error {
 		return nil
 	case user.FieldCustomCursor:
 		m.ResetCustomCursor()
+		return nil
+	case user.FieldCommandsPageHidden:
+		m.ResetCommandsPageHidden()
 		return nil
 	case user.FieldCreatorCode:
 		m.ResetCreatorCode()

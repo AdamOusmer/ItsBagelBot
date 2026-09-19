@@ -181,6 +181,7 @@ var (
 		{Name: "status", Type: field.TypeEnum, Enums: []string{"free", "paid", "vip"}, Default: "free"},
 		{Name: "locale", Type: field.TypeString, Size: 8, Default: "en"},
 		{Name: "custom_cursor", Type: field.TypeBool, Default: true},
+		{Name: "commands_page_hidden", Type: field.TypeBool, Default: false},
 		{Name: "creator_code", Type: field.TypeString, Nullable: true, Size: 64},
 		{Name: "subscription_source", Type: field.TypeString, Default: ""},
 		{Name: "subscription_expires_at", Type: field.TypeTime, Nullable: true},
@@ -203,7 +204,7 @@ var (
 			{
 				Name:    "user_status_subscription_source_subscription_expires_at",
 				Unique:  false,
-				Columns: []*schema.Column{UsersColumns[7], UsersColumns[11], UsersColumns[12]},
+				Columns: []*schema.Column{UsersColumns[7], UsersColumns[12], UsersColumns[13]},
 			},
 			{
 				Name:    "user_username",

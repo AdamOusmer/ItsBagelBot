@@ -42,6 +42,10 @@ type UserChangedDTO struct {
 	// the projector treats an empty value as "unchanged" and never clobbers a
 	// previously projected locale.
 	Locale string `json:"locale,omitempty"`
+	// CommandsPageHidden mirrors the inverted flag (D2): a publisher that lacks
+	// this field zero-values to false, so a projector still on the old shape
+	// folds "visible", the pre-feature behaviour.
+	CommandsPageHidden bool `json:"commands_page_hidden"`
 }
 
 type UserDeletedDTO struct {

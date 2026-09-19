@@ -105,7 +105,7 @@ func tierFromStatus(status string) string {
 }
 
 func (s *statusRPC) tierFromValkey(ctx context.Context, id uint64) (statusEntry, bool) {
-	statusStr, active, banned, _, err := s.valkey.GetUser(ctx, id)
+	statusStr, active, banned, _, _, err := s.valkey.GetUser(ctx, id)
 	if err == nil && statusStr != "" {
 		if !active {
 			return statusEntry{Tier: "standard", Banned: banned}, true
@@ -117,20 +117,22 @@ func (s *statusRPC) tierFromValkey(ctx context.Context, id uint64) (statusEntry,
 
 func (s *statusRPC) fetchUserFallback(ctx context.Context, id uint64) statusEntry {
 	reply, err := bus.RequestJSON[struct {
-		Status   string `json:"status"`
-		IsActive bool   `json:"is_active"`
-		Banned   bool   `json:"banned"`
-		Locale   string `json:"locale"`
+		Status             string `json:"status"`
+		IsActive           bool   `json:"is_active"`
+		Banned             bool   `json:"banned"`
+		Locale             string `json:"locale"`
+		CommandsPageHidden bool   `json:"commands_page_hidden"`
 	}](ctx, s.nc, s.usersTopic, map[string]string{"user_id": fmt.Sprint(id)})
 	if err != nil {
 		return statusEntry{Tier: "standard"}
 	}
 
 	_ = s.valkey.SetUser(ctx, id, projection.UserProjection{
-		Status:   reply.Status,
-		IsActive: reply.IsActive,
-		Banned:   reply.Banned,
-		Locale:   reply.Locale,
+		Status:             reply.Status,
+		IsActive:           reply.IsActive,
+		Banned:             reply.Banned,
+		Locale:             reply.Locale,
+		CommandsPageHidden: reply.CommandsPageHidden,
 	})
 
 	if !reply.IsActive {
