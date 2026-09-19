@@ -17,6 +17,7 @@
     getI18n,
     toastFailure,
     Tag,
+    Switch,
     type Locale
   } from '@bagel/kit';
   import { page } from '$app/state';
@@ -25,6 +26,7 @@
   import LangSwitch from '$lib/components/LangSwitch.svelte';
   import CursorSwitch from '$lib/components/CursorSwitch.svelte';
   import SectionPicker from '$lib/components/settings/SectionPicker.svelte';
+  import { commandsHref } from '@bagel/kit/site-links';
   import type { DelegationGrant, NotificationWire } from '$lib/server/services';
 
   let { data, form } = $props();
@@ -34,6 +36,8 @@
 
   const notifications = $derived((data.notifications ?? []) as NotificationWire[]);
   const savedLocale = $derived((data.savedLocale ?? 'en') as Locale);
+  const commandsPageUrl = $derived(commandsHref((data.login ?? '').toLowerCase()));
+  const commandsPageDelayed = $derived(form?.action === 'commands_page' && !!form?.edgeDelayed);
   const levelLabel = (l: string) => l.charAt(0).toUpperCase() + l.slice(1);
   // Severity -> shared .bb-tag variant. Same map as NotificationBell, so one
   // level reads identically in both surfaces. No variant is red, so critical
@@ -92,6 +96,7 @@
     { href: '#access', label: t('settings.sharedAccess') },
     { href: '#notifications', label: t('settings.notifications') },
     { href: '#preferences', label: t('settings.preferences') },
+    { href: '#public-pages', label: t('settings.publicPages') },
     { href: '#api-keys', label: t('fetches.keysTitle') },
     { href: '#import', label: t('settings.importNav') },
     { href: '#danger-zone', label: t('settings.dangerZone') }
@@ -485,6 +490,26 @@
         <p class="hint" id="cursor-hint">{t('settings.customCursorHint')}</p>
       </div>
       <CursorSwitch describedby="cursor-hint" />
+    </div>
+  </Card>
+
+  <!-- PUBLIC PAGES: the owner-only off switch for the public commands page
+       (/user/<login>). Off answers 404 to viewers and stops !cmd sharing the
+       link; see docs/specs/commands-page-toggle.md. -->
+  <Card as="section" id="public-pages" class="settings-section" tabindex="-1" aria-labelledby="h-public-pages">
+    <Heading level={2} class="sec-title" id="h-public-pages">{t('settings.publicPages')}</Heading>
+    <div class="row">
+      <div>
+        <span class="pref-label" id="commands-page-label">{t('settings.commandsPage')}</span>
+        <p class="hint" id="commands-page-hint">{t('settings.commandsPageHint', { url: commandsPageUrl })}</p>
+        {#if commandsPageDelayed}
+          <p class="hint">{t('settings.commandsPageDelayed')}</p>
+        {/if}
+      </div>
+      <form method="POST" action="?/setCommandsPage" use:enhance>
+        <input type="hidden" name="enabled" value={data.commandsPage ? '' : 'on'} />
+        <Switch type="submit" checked={!!data.commandsPage} label={t('settings.commandsPage')} describedby="commands-page-hint" />
+      </form>
     </div>
   </Card>
 

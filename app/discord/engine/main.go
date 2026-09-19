@@ -276,7 +276,7 @@ func startTwitchConsumers(deps twitchDeps) (bus.Subscriber, func()) {
 // onGuild comment for why guessing free is the dangerous direction.
 func statusReader(p *projection.Store) modules.StatusReader {
 	return func(ctx context.Context, broadcasterID uint64) (string, bool) {
-		status, _, _, _, err := p.GetUser(ctx, broadcasterID)
+		status, _, _, _, _, err := p.GetUser(ctx, broadcasterID)
 		if err != nil || status == "" {
 			return "", false
 		}

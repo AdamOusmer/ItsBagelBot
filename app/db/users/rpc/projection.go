@@ -21,11 +21,12 @@ func SubscribeProjection(w Wiring, subject string) error {
 				return projection.UserReply{}, err
 			}
 			return projection.UserReply{
-				UserID:   req.UserID,
-				Status:   view.Status,
-				IsActive: view.IsActive,
-				Banned:   view.Banned,
-				Locale:   view.Locale,
+				UserID:             req.UserID,
+				Status:             view.Status,
+				IsActive:           view.IsActive,
+				Banned:             view.Banned,
+				Locale:             view.Locale,
+				CommandsPageHidden: view.CommandsPageHidden,
 			}, nil
 		})
 }

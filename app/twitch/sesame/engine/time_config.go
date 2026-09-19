@@ -7,12 +7,10 @@ import (
 	"strings"
 	"time"
 
-	// The sesame image is distroless/static: there is no /usr/share/zoneinfo on
-	// disk, so the IANA database must ride the binary for LoadLocation to work.
-	// The import lives beside the only two callers that load a zone (the !time
-	// module and the {time} token), not in main, so a build that drops one of
-	// them drops the 450 kB table with it.
-	_ "time/tzdata"
+	// The embedded tzdata table now rides in via pkg/tzname (its blank import
+	// of time/tzdata), so LoadLocation below resolves through tzname.Load
+	// instead of pulling in a second copy of the same side-effect import.
+	"ItsBagelBot/pkg/tzname"
 )
 
 // TimeModuleName is the per-broadcaster row that gates the Local Time module —
@@ -35,6 +33,10 @@ type TimeModuleConfig struct {
 	Timezone string `json:"timezone"`
 	Format   string `json:"format"`
 	Message  string `json:"message"`
+	// LookupMessage is the !time <place> reply template. Empty means the
+	// module's built-in default; unlike Message, the {time} token never
+	// reads this field, since the token only ever renders the home zone.
+	LookupMessage string `json:"lookupMessage"`
 }
 
 // Zone loads the configured timezone. ok=false means the broadcaster has not
@@ -44,7 +46,7 @@ func (c TimeModuleConfig) Zone() (*time.Location, bool) {
 	if tz == "" {
 		return nil, false
 	}
-	loc, err := time.LoadLocation(tz)
+	loc, err := tzname.Load(tz)
 	return loc, err == nil
 }
 

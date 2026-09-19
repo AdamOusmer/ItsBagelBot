@@ -12,6 +12,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/event/lane"
+	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/projection"
 
@@ -45,10 +46,12 @@ func (f *fakeCommandManager) Delete(_ context.Context, userID, name string) erro
 type fakeProj struct {
 	commands map[string]projection.Command
 	modules  []projection.ModuleView
+	user     projection.User
+	userErr  error
 }
 
 func (f *fakeProj) User(context.Context, uint64) (projection.User, error) {
-	return projection.User{}, nil
+	return f.user, f.userErr
 }
 
 func (f *fakeProj) Modules(context.Context, uint64) (map[string]projection.ModuleView, error) {
@@ -382,6 +385,50 @@ func TestCmdLinkBase(t *testing.T) {
 			assert.NotContains(t, col.out[0].Text, "example.com//user")
 		})
 	}
+}
+
+// --- commands-page gate ---
+
+// A hidden commands page answers with the one-liner, no URL.
+func TestCmdLinkHiddenPage(t *testing.T) {
+	proj := &fakeProj{commands: map[string]projection.Command{}, user: projection.User{CommandsPageHidden: true}}
+	m := Cmd(cmdDeps(proj, &fakeCommandManager{}))
+	cmd := findCmd(t, m, "cmd")
+
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), viewerCtx("vic", "!cmd"), "", col.emit))
+
+	require.Len(t, col.out, 1)
+	assert.NotContains(t, col.out[0].Text, "http")
+	want := strings.NewReplacer("{user}", "vic", "{channel}", "streamer").Replace(i18n.T("", "cmd.page_off"))
+	assert.Equal(t, want, col.out[0].Text)
+}
+
+// A visible commands page (the default) is unaffected by the gate.
+func TestCmdLinkVisiblePage(t *testing.T) {
+	proj := &fakeProj{commands: map[string]projection.Command{}, user: projection.User{CommandsPageHidden: false}}
+	m := Cmd(cmdDeps(proj, &fakeCommandManager{}))
+	cmd := findCmd(t, m, "cmd")
+
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), viewerCtx("vic", "!cmd"), "", col.emit))
+
+	require.Len(t, col.out, 1)
+	assert.Contains(t, col.out[0].Text, "/user/streamer")
+}
+
+// A projection read error fails open: the link still prints (spec D6) rather
+// than hiding every channel's page on an outage.
+func TestCmdLinkProjectionErrorFailsOpen(t *testing.T) {
+	proj := &fakeProj{commands: map[string]projection.Command{}, userErr: errors.New("projection unavailable")}
+	m := Cmd(cmdDeps(proj, &fakeCommandManager{}))
+	cmd := findCmd(t, m, "cmd")
+
+	var col collector
+	require.NoError(t, cmd.Run(context.Background(), viewerCtx("vic", "!cmd"), "", col.emit))
+
+	require.Len(t, col.out, 1)
+	assert.Contains(t, col.out[0].Text, "/user/streamer")
 }
 
 func TestCmdAddRPCError(t *testing.T) {

@@ -270,6 +270,11 @@ type CursorSetRequest struct {
 	CustomCursor      bool   `json:"custom_cursor"`
 }
 
+type CommandsPageSetRequest struct {
+	BroadcasterUserID string `json:"broadcaster_user_id"`
+	Hidden            bool   `json:"hidden"`
+}
+
 type CreateDelegationRequest struct {
 	OwnerUserID string   `json:"owner_user_id"`
 	OwnerLogin  string   `json:"owner_login"`

@@ -10,6 +10,7 @@
   "bot.banned.body": "Votre chaîne a banni le compte Twitch du bot, il ne peut donc plus lire ni répondre au chat. Débannissez-le dans votre chat Twitch, puis ouvrez {dashboard_url} et appuyez sur Activer pour le rétablir.",
   "bot.banned.title": "Le bot est banni de votre chat",
   "cmd.link": "@{user} parcourez les commandes de {channel} ici : {url}",
+  "cmd.page_off": "@{user} la liste des commandes de {channel} n'est pas publique.",
   "cmd.modified": "@{user} la commande {command} a été modifiée",
   "cmd.removed": "@{user} la commande {command} a été supprimée",
   "duel.accept.none": "@{user} aucun défi ne t'attend. Lance-en un avec !duel <utilisateur> \u003cmontant\u003e.",
@@ -215,6 +216,9 @@
   "time.minutes": "minutes",
   "time.month": "mois",
   "time.months": "mois",
+  "time.unavailable": "L'heure n'est pas disponible pour le moment.",
+  "time.unknown": "Je ne connais pas « {place} ». Essaie une ville (Tokyo), un fuseau (Europe/Paris) ou un décalage (UTC+2).",
+  "time.unset": "Le streamer n'a pas encore choisi son fuseau horaire.",
   "time.year": "an",
   "time.years": "ans"
 }
