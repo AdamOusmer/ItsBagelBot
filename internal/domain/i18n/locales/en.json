@@ -10,6 +10,7 @@
   "bot.banned.body": "Your channel banned the bot's Twitch account, so it can't read or answer chat. Unban it in your Twitch chat, then open {dashboard_url} and press Enable to bring it back.",
   "bot.banned.title": "The bot is banned from your chat",
   "cmd.link": "@{user} browse {channel}'s commands here: {url}",
+  "cmd.page_off": "@{user} {channel}'s command list isn't public.",
   "cmd.modified": "@{user} the command {command} has been modified",
   "cmd.removed": "@{user} the command {command} has been removed",
   "duel.accept.none": "@{user} no challenge is waiting for you. Start one with !duel <user> \u003camount\u003e.",
