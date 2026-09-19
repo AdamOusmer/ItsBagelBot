@@ -401,6 +401,8 @@
   "guides.variables.copyFailed": "Copy failed",
   "guides.variables.composeInDashboard": "Compose it in the dashboard",
   "guides.variables.surfaceCount": "{n} surfaces",
+  "guides.variables.tryIt": "Try it",
+  "guides.variables.tryItHint": "Edit the token and watch the result.",
   "guides.variables.backToGuides": "All guides",
   "guides.variables.openBuilder": "Open the builder",
   "guides.variables.category.basics": "Basics",

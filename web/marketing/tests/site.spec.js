@@ -507,6 +507,16 @@ test.describe('guides & command builder', () => {
         await expect(page.locator('#followage .vref-entry__name')).toHaveText('Temps de follow');
     });
 
+    test('the "Try it" row re-evaluates a parameterized token live', async ({ page }) => {
+        await page.goto('/guides/variables/#math');
+
+        const entry = page.locator('#math[data-vref-entry]');
+        await expect(entry).toHaveAttribute('open', '');
+
+        await entry.locator('[data-vref-try]').fill('{math:2*21}');
+        await expect(entry.locator('[data-vref-result]')).toContainText('42');
+    });
+
     test('builder composes a command end to end', async ({ page }) => {
         await page.goto('/command-builder');
         await page.waitForSelector('[data-builder][data-ready="1"]');
