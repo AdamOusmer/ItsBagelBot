@@ -9,6 +9,7 @@
 import Tag from '@bagel/ui/astro/Tag.astro';
 import Code from '@bagel/ui/astro/Code.astro';
 import TextLink from '@bagel/ui/astro/TextLink.astro';
+import Field from '@bagel/ui/astro/Field.astro';
 import Forms from './Forms.astro';
 import type { LocalizedVariableReference } from '../../../lib/variables';
 
@@ -28,6 +29,8 @@ interface EntryCopy {
     copyFailed: string;
     composeInDashboard: string;
     surfaceCount: string;
+    tryIt: string;
+    tryItHint: string;
 }
 
 interface Props {
@@ -56,6 +59,7 @@ const surfaceCountLabel = copy.surfaceCount.replace('{n}', String(entry.surfaces
 // chip read "NécessiteLoyalty Points"). One interpolated string sidesteps it.
 const needsLabel = `${copy.needs} ${entry.requirement}`;
 const composeHref = `${dashboardOrigin}/commands?compose=1&response=${encodeURIComponent(entry.example)}${builderLang ? `&lang=${builderLang}` : ''}`;
+const tryItHintId = `${entry.id}-tryit-hint`;
 
 const searchText = [
     entry.id, entry.syntax, ...entry.syntaxes, entry.example,
@@ -80,6 +84,23 @@ const searchText = [
         {entry.description && <p class="vref-entry__description">{entry.description}</p>}
 
         <Forms syntaxes={entry.syntaxes} examples={entry.examples} copy={{ label: `${entry.name} - ${copy.formsLabel}`, formSyntax: copy.formSyntax, formExample: copy.formExample, formOutput: copy.formOutput }} />
+
+        {entry.parameterized && (
+            <div class="vref-tryit">
+                <Field label={copy.tryIt} hint={copy.tryItHint} hintId={tryItHintId}>
+                    <input
+                        type="text"
+                        class="bb-input vref-tryit__input"
+                        data-vref-try
+                        value={entry.example}
+                        aria-describedby={tryItHintId}
+                        autocomplete="off"
+                        spellcheck="false"
+                    />
+                </Field>
+                <p class="vref-tryit__result"><span>{copy.formOutput}</span> <output data-vref-result>{entry.output}</output></p>
+            </div>
+        )}
 
         {aliasSpellings.length > 0 && (
             <p class="vref-entry__line"><span>{copy.aliases}</span> {aliasSpellings.map((alias) => <Code>{alias}</Code>)}{entry.legacy && <em>{copy.legacy}</em>}</p>

@@ -137,6 +137,27 @@ const ENTRIES: {
     source: `import { parseStreamLabsDesktop } from "../../lib/importer/streamlabs-desktop";
              globalThis.x = parseStreamLabsDesktop;`,
   },
+  {
+    // The marketing variables guide's "Try it" row
+    // (docs/specs/variables-catalog.md D7, second half) pulls rehearsal.ts
+    // into the guide's bundle: the lexer, every sample scope and the
+    // response-line splitter, none of which the guide otherwise ships.
+    // Initial measurement 2026-09-19 (macOS/arm64): 3664 B gzip for
+    // rehearseCommand alone; the whole guide module measured 3866 B the day
+    // before. Budget 4150: +150 B for CI's linux/x64 runner, which gzips the
+    // same bytes ~100-150 B larger than macOS/arm64 (see the size-budgets
+    // skill), plus room for the ~300 B of DOM wiring around it.
+    name: "guide try-it evaluator (engine/rehearsal)",
+    budget: 4150,
+    external: [],
+    // The guide's evaluate.ts is ~300 B of DOM wiring around rehearseCommand;
+    // rehearsal is the whole cost. Measured from the kit side because this
+    // script also runs inside the console image builds, where marketing/ is
+    // not copied (Containerfile COPY list) and a marketing import fails to
+    // resolve. The marketing module itself is exercised by the Astro build.
+    source: `import { rehearseCommand } from "../../lib/engine/rehearsal";
+             globalThis.x = rehearseCommand;`,
+  },
 ];
 
 let failed = false;

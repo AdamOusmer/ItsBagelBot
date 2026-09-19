@@ -7,6 +7,7 @@
 // and the copy buttons. Every <details> works with none of this loaded --
 // this only adds the narrowing and the URL sync on top.
 import { copyFlash } from '@bagel/ui/lib/clipboard';
+import { wireTryIt } from './evaluate';
 
 interface FilterState {
     q: string;
@@ -130,6 +131,7 @@ export function bootVariableReference(root: HTMLElement): void {
     wireCategoryLinks(root, state, refresh);
     wireSurfaceChips(root, state, refresh);
     wireCopyButtons(root, copyText.copy ?? 'Copy', copyText.copied ?? 'Copied', copyText.copyFailed ?? 'Copy failed');
+    wireTryIt(root);
 
     window.addEventListener('popstate', () => {
         const params = new URLSearchParams(location.search);

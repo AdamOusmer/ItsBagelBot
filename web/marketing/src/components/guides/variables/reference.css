@@ -214,6 +214,23 @@
 
 .vref-forms .bb-tbl { font-size: 0.82rem; }
 
+/* ── Try it ── */
+
+.vref-tryit { display: grid; gap: 8px; }
+.vref-tryit .bb-field { margin-bottom: 0; }
+
+.bb-input.vref-tryit__input {
+    width: 100%;
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    border-radius: var(--radius-sm);
+}
+
+.vref-tryit__result { color: var(--muted); font-size: 0.84rem; line-height: 1.6; font-family: var(--font-mono); }
+.vref-tryit__result span { color: var(--tan); font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase; margin-right: 8px; }
+
+.vref-tryit__unknown { color: var(--muted); }
+
 /* ── Empty state ── */
 
 .vref__empty {

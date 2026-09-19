@@ -9,6 +9,7 @@
     "./worker-configuration.d.ts"
   ],
   "exclude": [
-    "dist"
+    "dist",
+    "src/**/*.test.ts"
   ]
 }

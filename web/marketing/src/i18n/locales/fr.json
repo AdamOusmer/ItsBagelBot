@@ -401,6 +401,8 @@
   "guides.variables.copyFailed": "Copie impossible",
   "guides.variables.composeInDashboard": "Composer dans le tableau de bord",
   "guides.variables.surfaceCount": "{n} surfaces",
+  "guides.variables.tryIt": "Essayez",
+  "guides.variables.tryItHint": "Modifiez la variable et regardez le résultat.",
   "guides.variables.backToGuides": "Tous les guides",
   "guides.variables.openBuilder": "Ouvrir le constructeur",
   "guides.variables.category.basics": "Bases",
