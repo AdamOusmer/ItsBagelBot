@@ -1,6 +1,6 @@
 # ItsBagelBot
 
-Shared language for ItsBagelBot's Premium access and giveaways.
+Shared language for ItsBagelBot: Premium access, giveaways, and public channel pages.
 
 ## Language
 
@@ -49,6 +49,14 @@ _Avoid_: Premium when referring to the recurring payment agreement.
 **Renewal**:
 A scheduled recurring payment under a Tebex subscription.
 _Avoid_: Access expiry when referring to a billing event.
+
+**Commands page**:
+The public web page listing one channel's chat commands, the page `!commands` links to. Each channel has exactly one.
+_Avoid_: Command list (that is the dashboard's management view), channel page.
+
+**Public commands page** / **Hidden commands page**:
+A commands page is public (anyone with the link can open it, `!commands` shares the link) or hidden (the link answers as if the channel did not exist, `!commands` says the list is not public). Hiding the page does not disable any command.
+_Avoid_: Private, disabled, unpublished.
 
 ## Language: Local Time module
 

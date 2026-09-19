@@ -134,14 +134,20 @@ func validateUserChanged(dto data.UserChangedDTO) error {
 
 func (p *Projector) applyUserChanged(ctx context.Context, dto data.UserChangedDTO) error {
 	if err := p.store.SetUser(ctx, dto.UserID, projection.UserProjection{
-		Status:   dto.Status,
-		IsActive: dto.IsActive,
-		Banned:   dto.Banned,
-		Locale:   dto.Locale,
+		Status:             dto.Status,
+		IsActive:           dto.IsActive,
+		Banned:             dto.Banned,
+		Locale:             dto.Locale,
+		CommandsPageHidden: dto.CommandsPageHidden,
 	}); err != nil {
 		return err
 	}
 	p.broadcastInvalidate(dto.UserID)
+	// Published after the Valkey write, mirroring the commands/modules folds
+	// above: sesame's evictScope maps "status" to a User eviction, which
+	// closes the race where sesame evicts on the users-service invalidation
+	// and re-reads the hash before this fold has landed (spec §4.2).
+	p.broadcastCacheInvalidate(dto.UserID, "status")
 	return nil
 }
 

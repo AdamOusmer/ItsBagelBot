@@ -126,6 +126,20 @@ func (_c *UserCreate) SetNillableCustomCursor(v *bool) *UserCreate {
 	return _c
 }
 
+// SetCommandsPageHidden sets the "commands_page_hidden" field.
+func (_c *UserCreate) SetCommandsPageHidden(v bool) *UserCreate {
+	_c.mutation.SetCommandsPageHidden(v)
+	return _c
+}
+
+// SetNillableCommandsPageHidden sets the "commands_page_hidden" field if the given value is not nil.
+func (_c *UserCreate) SetNillableCommandsPageHidden(v *bool) *UserCreate {
+	if v != nil {
+		_c.SetCommandsPageHidden(*v)
+	}
+	return _c
+}
+
 // SetCreatorCode sets the "creator_code" field.
 func (_c *UserCreate) SetCreatorCode(v string) *UserCreate {
 	_c.mutation.SetCreatorCode(v)
@@ -389,6 +403,10 @@ func (_c *UserCreate) defaults() {
 		v := user.DefaultCustomCursor
 		_c.mutation.SetCustomCursor(v)
 	}
+	if _, ok := _c.mutation.CommandsPageHidden(); !ok {
+		v := user.DefaultCommandsPageHidden
+		_c.mutation.SetCommandsPageHidden(v)
+	}
 	if _, ok := _c.mutation.SubscriptionSource(); !ok {
 		v := user.DefaultSubscriptionSource
 		_c.mutation.SetSubscriptionSource(v)
@@ -469,6 +487,9 @@ func (_c *UserCreate) check() error {
 	}
 	if _, ok := _c.mutation.CustomCursor(); !ok {
 		return &ValidationError{Name: "custom_cursor", err: errors.New(`ent: missing required field "User.custom_cursor"`)}
+	}
+	if _, ok := _c.mutation.CommandsPageHidden(); !ok {
+		return &ValidationError{Name: "commands_page_hidden", err: errors.New(`ent: missing required field "User.commands_page_hidden"`)}
 	}
 	if v, ok := _c.mutation.CreatorCode(); ok {
 		if err := user.CreatorCodeValidator(v); err != nil {
@@ -564,6 +585,10 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.CustomCursor(); ok {
 		_spec.SetField(user.FieldCustomCursor, field.TypeBool, value)
 		_node.CustomCursor = value
+	}
+	if value, ok := _c.mutation.CommandsPageHidden(); ok {
+		_spec.SetField(user.FieldCommandsPageHidden, field.TypeBool, value)
+		_node.CommandsPageHidden = value
 	}
 	if value, ok := _c.mutation.CreatorCode(); ok {
 		_spec.SetField(user.FieldCreatorCode, field.TypeString, value)
@@ -808,6 +833,18 @@ func (u *UserUpsert) SetCustomCursor(v bool) *UserUpsert {
 // UpdateCustomCursor sets the "custom_cursor" field to the value that was provided on create.
 func (u *UserUpsert) UpdateCustomCursor() *UserUpsert {
 	u.SetExcluded(user.FieldCustomCursor)
+	return u
+}
+
+// SetCommandsPageHidden sets the "commands_page_hidden" field.
+func (u *UserUpsert) SetCommandsPageHidden(v bool) *UserUpsert {
+	u.Set(user.FieldCommandsPageHidden, v)
+	return u
+}
+
+// UpdateCommandsPageHidden sets the "commands_page_hidden" field to the value that was provided on create.
+func (u *UserUpsert) UpdateCommandsPageHidden() *UserUpsert {
+	u.SetExcluded(user.FieldCommandsPageHidden)
 	return u
 }
 
@@ -1169,6 +1206,20 @@ func (u *UserUpsertOne) SetCustomCursor(v bool) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateCustomCursor() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateCustomCursor()
+	})
+}
+
+// SetCommandsPageHidden sets the "commands_page_hidden" field.
+func (u *UserUpsertOne) SetCommandsPageHidden(v bool) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetCommandsPageHidden(v)
+	})
+}
+
+// UpdateCommandsPageHidden sets the "commands_page_hidden" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateCommandsPageHidden() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateCommandsPageHidden()
 	})
 }
 
@@ -1726,6 +1777,20 @@ func (u *UserUpsertBulk) SetCustomCursor(v bool) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdateCustomCursor() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateCustomCursor()
+	})
+}
+
+// SetCommandsPageHidden sets the "commands_page_hidden" field.
+func (u *UserUpsertBulk) SetCommandsPageHidden(v bool) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetCommandsPageHidden(v)
+	})
+}
+
+// UpdateCommandsPageHidden sets the "commands_page_hidden" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateCommandsPageHidden() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateCommandsPageHidden()
 	})
 }
 

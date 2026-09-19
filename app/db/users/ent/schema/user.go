@@ -62,6 +62,11 @@ func (User) Fields() []ent.Field {
 		// preserving the current behaviour.
 		field.Bool("custom_cursor").Default(true),
 
+		// commands_page_hidden turns the public commands page off for this channel.
+		// Stored inverted so every reader without the field (older hash, older
+		// publisher, failed read) resolves to visible, the pre-feature behaviour.
+		field.Bool("commands_page_hidden").Default(false),
+
 		field.String("creator_code").Optional().Nillable().MaxLen(64),
 
 		// Billing ownership is deliberately stored with the user tier. This lets
