@@ -28,7 +28,7 @@ export const FORTNITE_MODULE: ModuleDef =
       messageKey: 'statsMessage',
       defaultMessage:
         '{player} all time: {wins} wins in {matches} matches · {winrate}% WR · {kills} kills · {kd} K/D · solo {solowins}W / duo {duowins}W / squad {squadwins}W',
-      tokens: replyTokens(FN_STATS_TOKENS, FN_STATS_SAMPLES)
+      tokens: replyTokens(FN_STATS_TOKENS, FN_STATS_SAMPLES, 'fortnite.stats')
     },
     {
       key: 'season',
@@ -84,7 +84,7 @@ export const FORTNITE_MODULE: ModuleDef =
         date: '2026-07-09',
         count: '38',
         items: 'Peely Bundle (2800), Renegade Raider (1200), Floss (500) +35 more'
-      })
+      }, 'fortnite.store')
     }
   ],
   settings: [

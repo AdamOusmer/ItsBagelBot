@@ -3330,5 +3330,710 @@
       "hint": "seulement le nom de l’artiste, la seconde moitié de {song}",
       "desc": "Le nom de l’artiste seul, la seconde moitié de {song}. Rien en lecture ne renvoie rien. Nécessite le module Requêtes musicales."
     }
+  },
+  "replyVars": {
+    "alerts": {
+      "follow": {
+        "user": {
+          "name": "Nouveau follower",
+          "hint": "La personne qui vient de suivre la chaîne",
+          "desc": "La personne qui vient de suivre la chaîne."
+        }
+      },
+      "sub": {
+        "user": {
+          "name": "Abonné",
+          "hint": "La personne qui vient de s’abonner",
+          "desc": "La personne qui vient de s’abonner."
+        },
+        "tier": {
+          "name": "Palier",
+          "hint": "Le palier de l'abonnement",
+          "desc": "Le palier de l'abonnement."
+        }
+      },
+      "cheer": {
+        "user": {
+          "name": "Donateur",
+          "hint": "La personne qui a envoyé des bits",
+          "desc": "La personne qui a envoyé des bits."
+        },
+        "bits": {
+          "name": "Nombre de bits",
+          "hint": "Le nombre de bits envoyés",
+          "desc": "Le nombre de bits envoyés."
+        }
+      },
+      "raid": {
+        "user": {
+          "name": "Raider",
+          "hint": "Le nom d'affichage de la chaîne qui raid",
+          "desc": "Le nom d'affichage de la chaîne qui raid."
+        },
+        "viewers": {
+          "name": "Taille du raid",
+          "hint": "Le nombre de spectateurs arrivés",
+          "desc": "Le nombre de spectateurs arrivés."
+        }
+      }
+    },
+    "shoutout": {
+      "shoutout": {
+        "raider": {
+          "name": "Nom du raider",
+          "hint": "Nom d'affichage de la chaîne qui raid",
+          "desc": "Nom d'affichage de la chaîne qui raid."
+        },
+        "raider_login": {
+          "name": "Login du raider",
+          "hint": "Login compatible URL",
+          "desc": "Login compatible URL, pour les liens twitch.tv/."
+        },
+        "viewers": {
+          "name": "Taille du raid",
+          "hint": "Le nombre de spectateurs arrivés",
+          "desc": "Le nombre de spectateurs arrivés."
+        }
+      }
+    },
+    "time": {
+      "time": {
+        "time": {
+          "name": "Heure locale",
+          "hint": "L'heure",
+          "desc": "L'heure, selon votre fuseau et votre format."
+        },
+        "date": {
+          "name": "Date locale",
+          "hint": "La date du jour dans votre fuseau",
+          "desc": "La date du jour dans votre fuseau."
+        },
+        "timezone": {
+          "name": "Fuseau horaire",
+          "hint": "Le nom du fuseau configuré",
+          "desc": "Le nom du fuseau configuré."
+        },
+        "user": {
+          "name": "Demandeur",
+          "hint": "Qui a demandé l'heure",
+          "desc": "Qui a demandé l'heure."
+        }
+      }
+    },
+    "queue": {
+      "join": {
+        "user": {
+          "name": "Participant",
+          "hint": "Qui a rejoint la file",
+          "desc": "Qui a rejoint la file."
+        },
+        "pos": {
+          "name": "Position",
+          "hint": "Sa place dans la file",
+          "desc": "Sa place dans la file."
+        }
+      },
+      "next": {
+        "target": {
+          "name": "Joueur suivant",
+          "hint": "La personne dont c’est le tour",
+          "desc": "La personne dont c’est le tour."
+        },
+        "count": {
+          "name": "Encore en attente",
+          "hint": "Combien de personnes restent dans la file",
+          "desc": "Combien de personnes restent dans la file."
+        }
+      }
+    },
+    "urchin": {
+      "daily": {
+        "player": {
+          "name": "Joueur",
+          "hint": "Le joueur Minecraft résolu",
+          "desc": "Le joueur Minecraft résolu."
+        },
+        "wins": {
+          "name": "Victoires",
+          "hint": "Victoires sur la période",
+          "desc": "Victoires sur la période."
+        },
+        "losses": {
+          "name": "Défaites",
+          "hint": "Défaites sur la période",
+          "desc": "Défaites sur la période."
+        },
+        "finals": {
+          "name": "Final kills",
+          "hint": "Final kills sur la période",
+          "desc": "Final kills sur la période."
+        },
+        "finaldeaths": {
+          "name": "Morts finales",
+          "hint": "Morts finales sur la période",
+          "desc": "Morts finales sur la période."
+        },
+        "beds": {
+          "name": "Lits détruits",
+          "hint": "Lits détruits sur la période",
+          "desc": "Lits détruits sur la période."
+        },
+        "games": {
+          "name": "Parties",
+          "hint": "Parties jouées sur la période",
+          "desc": "Parties jouées sur la période."
+        },
+        "levels": {
+          "name": "Niveaux gagnés",
+          "hint": "Niveaux d’étoile gagnés",
+          "desc": "Niveaux d’étoile gagnés."
+        },
+        "fkdr": {
+          "name": "FKDR",
+          "hint": "Final kills divisés par les morts finales",
+          "desc": "Final kills divisés par les morts finales."
+        }
+      },
+      "stats": {
+        "player": {
+          "name": "Joueur",
+          "hint": "Le joueur Minecraft résolu",
+          "desc": "Le joueur Minecraft résolu."
+        },
+        "stars": {
+          "name": "Étoiles",
+          "hint": "Niveau d’étoile Bedwars",
+          "desc": "Niveau d’étoile Bedwars."
+        },
+        "wins": {
+          "name": "Victoires",
+          "hint": "Victoires à vie",
+          "desc": "Victoires à vie."
+        },
+        "losses": {
+          "name": "Défaites",
+          "hint": "Défaites à vie",
+          "desc": "Défaites à vie."
+        },
+        "finals": {
+          "name": "Final kills",
+          "hint": "Final kills à vie",
+          "desc": "Final kills à vie."
+        },
+        "finaldeaths": {
+          "name": "Morts finales",
+          "hint": "Morts finales à vie",
+          "desc": "Morts finales à vie."
+        },
+        "beds": {
+          "name": "Lits détruits",
+          "hint": "Lits détruits à vie",
+          "desc": "Lits détruits à vie."
+        },
+        "fkdr": {
+          "name": "FKDR",
+          "hint": "Ratio final K/D à vie",
+          "desc": "Ratio final K/D à vie."
+        },
+        "wlr": {
+          "name": "Ratio V/D",
+          "hint": "Ratio victoires/défaites à vie",
+          "desc": "Ratio victoires/défaites à vie."
+        }
+      },
+      "sniper": {
+        "player": {
+          "name": "Joueur",
+          "hint": "Le joueur résolu",
+          "desc": "Le joueur résolu."
+        },
+        "score": {
+          "name": "Score sniper",
+          "hint": "Le score actuel",
+          "desc": "Le score actuel."
+        },
+        "mode": {
+          "name": "Mode",
+          "hint": "Le mode d'avertissement actuel",
+          "desc": "Le mode d'avertissement actuel."
+        },
+        "tagcount": {
+          "name": "Nombre de tags",
+          "hint": "Tags de liste noire actifs",
+          "desc": "Tags de liste noire actifs."
+        }
+      },
+      "tags": {
+        "player": {
+          "name": "Joueur",
+          "hint": "Le joueur résolu",
+          "desc": "Le joueur résolu."
+        },
+        "tags": {
+          "name": "Tags",
+          "hint": "La liste des tags formatée",
+          "desc": "La liste des tags formatée."
+        },
+        "tagcount": {
+          "name": "Nombre de tags",
+          "hint": "Combien de tags sont actifs",
+          "desc": "Combien de tags sont actifs."
+        }
+      }
+    },
+    "mcsr": {
+      "elo": {
+        "player": {
+          "name": "Joueur",
+          "hint": "Le joueur résolu",
+          "desc": "Le joueur résolu."
+        },
+        "elo": {
+          "name": "Elo",
+          "hint": "Le classement actuel",
+          "desc": "Le classement actuel."
+        },
+        "rank": {
+          "name": "Rang",
+          "hint": "Rang au classement",
+          "desc": "Rang au classement."
+        },
+        "wins": {
+          "name": "Victoires",
+          "hint": "Victoires de la saison",
+          "desc": "Victoires de la saison."
+        },
+        "losses": {
+          "name": "Défaites",
+          "hint": "Défaites de la saison",
+          "desc": "Défaites de la saison."
+        },
+        "draws": {
+          "name": "Nuls",
+          "hint": "Matchs de la saison terminés sans vainqueur",
+          "desc": "Matchs de la saison terminés sans vainqueur."
+        },
+        "matches": {
+          "name": "Matchs",
+          "hint": "Matchs de la saison",
+          "desc": "Matchs de la saison."
+        },
+        "country": {
+          "name": "Pays",
+          "hint": "Code du pays",
+          "desc": "Code du pays."
+        }
+      },
+      "session": {
+        "player": {
+          "name": "Joueur",
+          "hint": "Le joueur lié",
+          "desc": "Le joueur lié."
+        },
+        "elo": {
+          "name": "Elo actuel",
+          "hint": "Le classement en ce moment",
+          "desc": "Le classement en ce moment."
+        },
+        "elochange": {
+          "name": "Variation Elo",
+          "hint": "Variation depuis le début du stream",
+          "desc": "Variation depuis le début du stream."
+        },
+        "wins": {
+          "name": "Victoires",
+          "hint": "Victoires ce stream",
+          "desc": "Victoires ce stream."
+        },
+        "losses": {
+          "name": "Défaites",
+          "hint": "Défaites ce stream",
+          "desc": "Défaites ce stream."
+        },
+        "draws": {
+          "name": "Nuls",
+          "hint": "Matchs de ce stream terminés sans vainqueur",
+          "desc": "Matchs de ce stream terminés sans vainqueur."
+        },
+        "matches": {
+          "name": "Matchs",
+          "hint": "Matchs ce stream",
+          "desc": "Matchs ce stream."
+        }
+      },
+      "pace": {
+        "player": {
+          "name": "Joueur",
+          "hint": "Le joueur lié",
+          "desc": "Le joueur lié."
+        },
+        "nethers": {
+          "name": "Nethers",
+          "hint": "Entrées au Nether pour cette session",
+          "desc": "Entrées au Nether pour cette session."
+        },
+        "nether": {
+          "name": "Moy Nether",
+          "hint": "Split moyen du Nether",
+          "desc": "Split moyen du Nether."
+        },
+        "bastion": {
+          "name": "Moy Bastion",
+          "hint": "Split moyen du Bastion",
+          "desc": "Split moyen du Bastion."
+        },
+        "fortress": {
+          "name": "Moy Forteresse",
+          "hint": "Split moyen de la Forteresse",
+          "desc": "Split moyen de la Forteresse."
+        },
+        "firststructure": {
+          "name": "Moy 1re structure",
+          "hint": "Split moyen de la structure entrée en premier",
+          "desc": "Split moyen de la structure entrée en premier."
+        },
+        "secondstructure": {
+          "name": "Moy 2e structure",
+          "hint": "Split moyen de la structure entrée en second",
+          "desc": "Split moyen de la structure entrée en second."
+        },
+        "firstportal": {
+          "name": "Moy 1er portail",
+          "hint": "Split moyen du premier portail",
+          "desc": "Split moyen du premier portail."
+        },
+        "stronghold": {
+          "name": "Moy Forteresse de fin",
+          "hint": "Split moyen de la forteresse de fin",
+          "desc": "Split moyen de la forteresse de fin."
+        },
+        "end": {
+          "name": "Moy End",
+          "hint": "Split moyen d'entrée dans l'End",
+          "desc": "Split moyen d'entrée dans l'End."
+        },
+        "finish": {
+          "name": "Moy Finish",
+          "hint": "Split moyen de fin de run",
+          "desc": "Split moyen de fin de run."
+        },
+        "nph": {
+          "name": "Nethers/heure",
+          "hint": "Rythme d'entrée au Nether",
+          "desc": "Rythme d'entrée au Nether."
+        }
+      },
+      "nethers": {
+        "player": {
+          "name": "Joueur",
+          "hint": "Le joueur lié",
+          "desc": "Le joueur lié."
+        },
+        "nethers": {
+          "name": "Nethers",
+          "hint": "Entrées au Nether pour cette session",
+          "desc": "Entrées au Nether pour cette session."
+        },
+        "nether": {
+          "name": "Moy Nether",
+          "hint": "Split moyen du Nether",
+          "desc": "Split moyen du Nether."
+        },
+        "nph": {
+          "name": "Nethers/heure",
+          "hint": "Rythme d'entrée au Nether",
+          "desc": "Rythme d'entrée au Nether."
+        }
+      },
+      "lastmatch": {
+        "player": {
+          "name": "Joueur",
+          "hint": "Le joueur résolu",
+          "desc": "Le joueur résolu."
+        },
+        "opponent": {
+          "name": "Adversaire",
+          "hint": "L'autre joueur de ce match",
+          "desc": "L'autre joueur de ce match."
+        },
+        "result": {
+          "name": "Résultat",
+          "hint": "Victoire",
+          "desc": "Victoire, défaite ou nul. Les forfaits et matchs de déclin sont aussi signalés."
+        },
+        "time": {
+          "name": "Temps",
+          "hint": "Le temps de fin du match",
+          "desc": "Le temps de fin du match, s'il y en a un."
+        },
+        "seed": {
+          "name": "Seed",
+          "hint": "Le type de seed de ce match",
+          "desc": "Le type de seed de ce match."
+        },
+        "structure": {
+          "name": "Structure",
+          "hint": "Le type de structure du bastion pour ce match",
+          "desc": "Le type de structure du bastion pour ce match."
+        },
+        "elochange": {
+          "name": "Variation Elo",
+          "hint": "Variation Elo de ce match",
+          "desc": "Variation Elo de ce match."
+        },
+        "ago": {
+          "name": "Il y a",
+          "hint": "Depuis quand ce match est terminé",
+          "desc": "Depuis quand ce match est terminé."
+        }
+      },
+      "record": {
+        "playera": {
+          "name": "Joueur A",
+          "hint": "Le premier joueur tapé (ou vous",
+          "desc": "Le premier joueur tapé (ou vous, si un seul nom est tapé)."
+        },
+        "playerb": {
+          "name": "Joueur B",
+          "hint": "Le second joueur tapé",
+          "desc": "Le second joueur tapé."
+        },
+        "winsa": {
+          "name": "Victoires A",
+          "hint": "Victoires du joueur A contre le joueur B",
+          "desc": "Victoires du joueur A contre le joueur B."
+        },
+        "winsb": {
+          "name": "Victoires B",
+          "hint": "Victoires du joueur B contre le joueur A",
+          "desc": "Victoires du joueur B contre le joueur A."
+        },
+        "played": {
+          "name": "Joués",
+          "hint": "Total des matchs entre les deux",
+          "desc": "Total des matchs entre les deux."
+        }
+      },
+      "lb": {
+        "board": {
+          "name": "Classement",
+          "hint": "Le classement qui a répondu",
+          "desc": "Le classement qui a répondu."
+        },
+        "list": {
+          "name": "Top 5",
+          "hint": "Les 5 premières lignes",
+          "desc": "Les 5 premières lignes, préformatées sur une seule ligne."
+        }
+      },
+      "race": {
+        "leader": {
+          "name": "Meneur",
+          "hint": "Le premier de cette semaine",
+          "desc": "Le premier de cette semaine."
+        },
+        "leadertime": {
+          "name": "Temps du meneur",
+          "hint": "Le temps du meneur",
+          "desc": "Le temps du meneur."
+        },
+        "player": {
+          "name": "Joueur",
+          "hint": "Le joueur résolu",
+          "desc": "Le joueur résolu."
+        },
+        "time": {
+          "name": "Temps",
+          "hint": "Le temps du joueur cette semaine",
+          "desc": "Le temps du joueur cette semaine, s'il en a un."
+        },
+        "rank": {
+          "name": "Rang",
+          "hint": "Le classement du joueur cette semaine",
+          "desc": "Le classement du joueur cette semaine."
+        }
+      },
+      "pb": {
+        "player": {
+          "name": "Joueur",
+          "hint": "Le joueur résolu",
+          "desc": "Le joueur résolu."
+        },
+        "time": {
+          "name": "Temps",
+          "hint": "Le record personnel pour la période demandée",
+          "desc": "Le record personnel pour la période demandée."
+        },
+        "window": {
+          "name": "Période",
+          "hint": "La période qui a répondu : quotidien",
+          "desc": "La période qui a répondu : quotidien, hebdomadaire, mensuel, de tous les temps ou classé."
+        }
+      }
+    },
+    "fortnite": {
+      "stats": {
+        "player": {
+          "name": "Joueur",
+          "hint": "Le compte lié",
+          "desc": "Le compte lié."
+        },
+        "window": {
+          "name": "Période",
+          "hint": "La période des stats: à vie ou saison",
+          "desc": "La période des stats: à vie ou saison."
+        },
+        "wins": {
+          "name": "Victoires",
+          "hint": "Total de victoires",
+          "desc": "Total de victoires."
+        },
+        "matches": {
+          "name": "Matchs",
+          "hint": "Matchs joués",
+          "desc": "Matchs joués."
+        },
+        "kills": {
+          "name": "Éliminations",
+          "hint": "Total d’éliminations",
+          "desc": "Total d’éliminations."
+        },
+        "kd": {
+          "name": "K/D",
+          "hint": "Ratio éliminations/morts",
+          "desc": "Ratio éliminations/morts."
+        },
+        "winrate": {
+          "name": "Taux de victoire %",
+          "hint": "Victoires par centaine de matchs",
+          "desc": "Victoires par centaine de matchs."
+        },
+        "solowins": {
+          "name": "Victoires solo",
+          "hint": "Victoires en solo",
+          "desc": "Victoires en solo."
+        },
+        "solomatches": {
+          "name": "Matchs solo",
+          "hint": "Matchs joués en solo",
+          "desc": "Matchs joués en solo."
+        },
+        "solokd": {
+          "name": "K/D solo",
+          "hint": "Ratio éliminations/morts en solo",
+          "desc": "Ratio éliminations/morts en solo."
+        },
+        "duowins": {
+          "name": "Victoires duo",
+          "hint": "Victoires en duo",
+          "desc": "Victoires en duo."
+        },
+        "duomatches": {
+          "name": "Matchs duo",
+          "hint": "Matchs joués en duo",
+          "desc": "Matchs joués en duo."
+        },
+        "duokd": {
+          "name": "K/D duo",
+          "hint": "Ratio éliminations/morts en duo",
+          "desc": "Ratio éliminations/morts en duo."
+        },
+        "squadwins": {
+          "name": "Victoires squad",
+          "hint": "Victoires en squad",
+          "desc": "Victoires en squad."
+        },
+        "squadmatches": {
+          "name": "Matchs squad",
+          "hint": "Matchs joués en squad",
+          "desc": "Matchs joués en squad."
+        },
+        "squadkd": {
+          "name": "K/D squad",
+          "hint": "Ratio éliminations/morts en squad",
+          "desc": "Ratio éliminations/morts en squad."
+        }
+      },
+      "store": {
+        "date": {
+          "name": "Date de la boutique",
+          "hint": "La date de la boutique du jour",
+          "desc": "La date de la boutique du jour."
+        },
+        "count": {
+          "name": "Nombre d'objets",
+          "hint": "Combien d'objets sont en boutique",
+          "desc": "Combien d'objets sont en boutique."
+        },
+        "items": {
+          "name": "Liste des objets",
+          "hint": "Les objets en vedette",
+          "desc": "Les objets en vedette."
+        }
+      }
+    },
+    "builtin": {
+      "clip": {
+        "clip": {
+          "name": "Lien du clip",
+          "hint": "Le lien du clip fraîchement créé",
+          "desc": "Le lien du clip fraîchement créé."
+        },
+        "user": {
+          "name": "Créateur du clip",
+          "hint": "La personne qui a utilisé !clip",
+          "desc": "La personne qui a utilisé !clip."
+        },
+        "target": {
+          "name": "Titre du clip",
+          "hint": "Le titre tapé après !clip",
+          "desc": "Le titre tapé après !clip."
+        }
+      }
+    },
+    "triggers": {
+      "user": {
+        "name": "Auteur du message",
+        "hint": "La personne dont le message correspond à la règle",
+        "desc": "La personne dont le message correspond à la règle."
+      }
+    },
+    "channelpoints": {
+      "user": {
+        "name": "Échangeur",
+        "hint": "Qui a échangé la récompense",
+        "desc": "Qui a échangé la récompense."
+      },
+      "input": {
+        "name": "Texte du spectateur",
+        "hint": "texte du spectateur",
+        "desc": "Le texte saisi avec l'échange (si la récompense en demande un)."
+      },
+      "reward": {
+        "name": "Titre de la récompense",
+        "hint": "Le nom de la récompense échangée",
+        "desc": "Le nom de la récompense échangée."
+      },
+      "cost": {
+        "name": "Coût en points",
+        "hint": "Le coût de la récompense",
+        "desc": "Le coût de la récompense."
+      },
+      "channel": {
+        "name": "Chaîne",
+        "hint": "Le nom de votre chaîne",
+        "desc": "Le nom de votre chaîne."
+      },
+      "counter": {
+        "name": "Compteur lié",
+        "hint": "La nouvelle valeur du compteur lié",
+        "desc": "La nouvelle valeur du compteur lié, si la récompense en a un. Choisissez la portée «par commande» pour un total unique partagé par tous les échanges de cette récompense."
+      },
+      "points": {
+        "name": "Points de fidélité",
+        "hint": "Les points de fidélité accordés (si positifs)",
+        "desc": "Les points de fidélité accordés (si positifs)."
+      }
+    }
   }
 }

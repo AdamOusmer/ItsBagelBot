@@ -22,6 +22,9 @@ import { SIMPLE_TOKENS as FOSSABOT_SIMPLE_TOKENS, SUBFIELD_TOKENS as FOSSABOT_SU
 import { SIMPLE_TOKENS as NIGHTBOT_SIMPLE_TOKENS } from '../importer/nightbot/variables';
 import { VARIABLES } from './variables';
 import type { VariableDef } from './types';
+import { MODULE_CATALOG } from '../catalog';
+import { BUILTIN_COMMANDS } from '../catalog/builtin-commands';
+import type { ReplyToken } from '../catalog/module-def';
 import en from '../i18n/locales/en.json';
 import fr from '../i18n/locales/fr.json';
 
@@ -87,6 +90,39 @@ const missingCopy = (locale: string, table: LocaleTable, v: VariableDef): string
 const duplicatesIn = (values: string[]): string[] =>
   values.filter((value, index) => values.indexOf(value) !== index);
 
+/** Every reply that carries a token palette, module replies and built-in
+ * commands alike, keyed the way the marketing surfaces name them. */
+interface ReplySource {
+  where: string;
+  tokens: readonly ReplyToken[];
+}
+
+const REPLY_SOURCES: ReplySource[] = [
+  ...MODULE_CATALOG.flatMap((mod) => mod.replies.map((reply) => ({ where: `${mod.id}.${reply.key}`, tokens: reply.tokens ?? [] }))),
+  ...BUILTIN_COMMANDS.map((cmd) => ({ where: `builtin.${cmd.id}`, tokens: cmd.tokens ?? [] }))
+];
+
+/** Walk a dotted key through a locale tree; undefined on any miss. */
+const leafAt = (tree: unknown, key: string): unknown =>
+  key.split('.').reduce<unknown>((node, part) => (node && typeof node === 'object' ? (node as Record<string, unknown>)[part] : undefined), tree);
+
+const hasText = (tree: unknown, key: string): boolean => {
+  const leaf = leafAt(tree, key);
+  return typeof leaf === 'string' && leaf !== '';
+};
+
+// docs/specs/variables-catalog.md phase 3, section A.3: a ReplyToken's
+// hintKey is generated (see replyTokens in catalog/module-def.ts), so a
+// typo in a hand-written replyKey namespace would otherwise only surface
+// as a silent English fallback in the marketing builder, never a build or
+// test failure.
+const unresolvedHintKeys = (locale: string, tree: unknown): string[] =>
+  REPLY_SOURCES.flatMap((source) =>
+    source.tokens
+      .filter((token) => token.hintKey && !hasText(tree, token.hintKey))
+      .map((token) => `${source.where} token "${token.name}": ${locale}.json has no ${token.hintKey}`)
+  );
+
 describe('variables parity (engine/scope/testdata/token_catalog.golden.json)', () => {
   test('A: every golden example resolves to a manifest head or alias', () => {
     const uncovered = goldenExamples.filter((example) => !isCovered(example));
@@ -125,5 +161,9 @@ describe('variables parity (engine/scope/testdata/token_catalog.golden.json)', (
   test('F: ids are unique, heads and aliases are unique', () => {
     expect(duplicatesIn(VARIABLES.map((v) => v.id)), 'duplicate ids').toEqual([]);
     expect(duplicatesIn(VARIABLES.flatMap(namesOf)), 'duplicate heads or aliases').toEqual([]);
+  });
+
+  test('G: every ReplyToken.hintKey resolves in en and fr', () => {
+    expect([...unresolvedHintKeys('en', en), ...unresolvedHintKeys('fr', fr)]).toEqual([]);
   });
 });

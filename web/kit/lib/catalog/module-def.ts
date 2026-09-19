@@ -63,8 +63,26 @@ export interface ReplyToken {
 // every token it lists (see variables/parity.test.ts's sibling check in this
 // package for the manifest's own tokens), so this only guards a future
 // catalog addition that forgets one.
-export function replyTokens(names: readonly string[], samples: Readonly<Record<string, string>>): ReplyToken[] {
-  return names.map((name) => ({ name, sample: samples[name] ?? '' }));
+//
+// hintNamespace, when given, derives every token's hintKey as
+// `replyVars.<hintNamespace>.<token>.hint` instead of hand-writing one string
+// per token (docs/specs/variables-catalog.md phase 3, section A.3). It is
+// normally "<moduleId>.<replyKey>" so two modules that happen to reuse a
+// reply key (urchin's and fortnite's both have a 'stats' reply) do not
+// collide in the locale tree. A literal '.' inside a token name (shoutout's
+// 'raider.login') would otherwise read as a nested path once the i18n
+// lookup splits on '.', so it is flattened to '_' for the key only; the
+// token's own `name` keeps the dot, unchanged, for the chat syntax.
+export function replyTokens(
+  names: readonly string[],
+  samples: Readonly<Record<string, string>>,
+  hintNamespace?: string
+): ReplyToken[] {
+  return names.map((name) => ({
+    name,
+    sample: samples[name] ?? '',
+    ...(hintNamespace ? { hintKey: `replyVars.${hintNamespace}.${name.replace(/\./g, '_')}.hint` } : {})
+  }));
 }
 
 // One chat line a module can post, rendered as a row on the module page. Clicking

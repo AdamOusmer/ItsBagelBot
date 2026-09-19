@@ -32,7 +32,7 @@ export const MCSR_MODULE: ModuleDef =
         draws: '1',
         matches: '61',
         country: 'us'
-      })
+      }, 'mcsr.elo')
     },
     {
       key: 'session',
@@ -51,7 +51,7 @@ export const MCSR_MODULE: ModuleDef =
         losses: '1',
         draws: '0',
         matches: '4'
-      })
+      }, 'mcsr.session')
     },
     {
       key: 'pace',
@@ -89,7 +89,7 @@ export const MCSR_MODULE: ModuleDef =
         end: '13:50',
         finish: '0:00',
         nph: '5.3'
-      })
+      }, 'mcsr.pace')
     },
     {
       key: 'nethers',
@@ -100,7 +100,7 @@ export const MCSR_MODULE: ModuleDef =
       enableKey: 'nethersEnabled',
       messageKey: 'nethersMessage',
       defaultMessage: '{player}: {nethers} nethers this session (avg {nether}) · {nph} nph',
-      tokens: replyTokens(['player', 'nethers', 'nether', 'nph'], { player: 'Feinberg', nethers: '3', nether: '1:42', nph: '5.3' })
+      tokens: replyTokens(['player', 'nethers', 'nether', 'nph'], { player: 'Feinberg', nethers: '3', nether: '1:42', nph: '5.3' }, 'mcsr.nethers')
     },
     {
       key: 'lastfort',
@@ -153,7 +153,7 @@ export const MCSR_MODULE: ModuleDef =
         structure: 'Treasure',
         elochange: '+21',
         ago: '2m'
-      })
+      }, 'mcsr.lastmatch')
     },
     {
       key: 'record',
@@ -165,7 +165,7 @@ export const MCSR_MODULE: ModuleDef =
       enableKey: 'recordEnabled',
       messageKey: 'recordMessage',
       defaultMessage: '{playera} {winsa} - {winsb} {playerb} · {played} played',
-      tokens: replyTokens(['playera', 'playerb', 'winsa', 'winsb', 'played'], { playera: 'Feinberg', playerb: 'lowk3y_', winsa: '20', winsb: '14', played: '34' })
+      tokens: replyTokens(['playera', 'playerb', 'winsa', 'winsb', 'played'], { playera: 'Feinberg', playerb: 'lowk3y_', winsa: '20', winsb: '14', played: '34' }, 'mcsr.record')
     },
     {
       key: 'lb',
@@ -176,7 +176,7 @@ export const MCSR_MODULE: ModuleDef =
       enableKey: 'lbEnabled',
       messageKey: 'lbMessage',
       defaultMessage: '{board}: {list}',
-      tokens: replyTokens(['board', 'list'], { board: 'Elo', list: '#1 Feinberg 2464 · #2 lowk3y_ 2436' })
+      tokens: replyTokens(['board', 'list'], { board: 'Elo', list: '#1 Feinberg 2464 · #2 lowk3y_ 2436' }, 'mcsr.lb')
     },
     {
       key: 'race',
@@ -187,7 +187,7 @@ export const MCSR_MODULE: ModuleDef =
       enableKey: 'raceEnabled',
       messageKey: 'raceMessage',
       defaultMessage: '#1 {leader} ({leadertime}) · {player}: {time} (#{rank})',
-      tokens: replyTokens(['leader', 'leadertime', 'player', 'time', 'rank'], { leader: 'gharfyy', leadertime: '2:27.374', player: 'Feinberg', time: '2:40.000', rank: '2' })
+      tokens: replyTokens(['leader', 'leadertime', 'player', 'time', 'rank'], { leader: 'gharfyy', leadertime: '2:27.374', player: 'Feinberg', time: '2:40.000', rank: '2' }, 'mcsr.race')
     },
     {
       key: 'pb',
@@ -199,7 +199,7 @@ export const MCSR_MODULE: ModuleDef =
       enableKey: 'pbEnabled',
       messageKey: 'pbMessage',
       defaultMessage: '{player}: {time} ({window} PB)',
-      tokens: replyTokens(['player', 'time', 'window'], { player: 'Feinberg', time: '6:40.123', window: 'daily' })
+      tokens: replyTokens(['player', 'time', 'window'], { player: 'Feinberg', time: '6:40.123', window: 'daily' }, 'mcsr.pb')
     }
   ],
   settings: [

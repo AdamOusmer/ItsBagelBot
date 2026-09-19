@@ -22,7 +22,7 @@ export const ALERTS_MODULE: ModuleDef =
       messageKey: 'followMessage',
       defaultMessage: 'Thank you for following the channel, {user}!',
       // Per-alert tokens/samples mirror the maps in app/twitch/sesame/modules/alerts.go.
-      tokens: replyTokens(['user'], { user: 'sesame_sam' })
+      tokens: replyTokens(['user'], { user: 'sesame_sam' }, 'alerts.follow')
     },
     {
       key: 'sub',
@@ -32,7 +32,7 @@ export const ALERTS_MODULE: ModuleDef =
       enableKey: 'subEnabled',
       messageKey: 'subMessage',
       defaultMessage: 'Welcome to the community, {user}! Thank you for subscribing!',
-      tokens: replyTokens(['user', 'tier'], { user: 'sesame_sam', tier: '1000' })
+      tokens: replyTokens(['user', 'tier'], { user: 'sesame_sam', tier: '1000' }, 'alerts.sub')
     },
     {
       key: 'gift',
@@ -52,7 +52,7 @@ export const ALERTS_MODULE: ModuleDef =
       enableKey: 'cheerEnabled',
       messageKey: 'cheerMessage',
       defaultMessage: 'Thank you for the {bits} bits, {user}!',
-      tokens: replyTokens(['user', 'bits'], { user: 'sesame_sam', bits: '500' })
+      tokens: replyTokens(['user', 'bits'], { user: 'sesame_sam', bits: '500' }, 'alerts.cheer')
     },
     {
       key: 'raid',
@@ -62,7 +62,7 @@ export const ALERTS_MODULE: ModuleDef =
       enableKey: 'raidEnabled',
       messageKey: 'raidMessage',
       defaultMessage: '{user} is raiding the channel with {viewers} viewers! Welcome everyone!',
-      tokens: replyTokens(['user', 'viewers'], { user: 'CrustyCrumbs', viewers: '42' })
+      tokens: replyTokens(['user', 'viewers'], { user: 'CrustyCrumbs', viewers: '42' }, 'alerts.raid')
     },
     {
       key: 'ads',

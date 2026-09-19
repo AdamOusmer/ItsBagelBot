@@ -26,7 +26,7 @@ export const TIME_MODULE: ModuleDef =
         date: 'Monday, July 13',
         timezone: 'America/Toronto',
         user: 'Viewer'
-      })
+      }, 'time.time')
     },
     {
       key: 'lookup',

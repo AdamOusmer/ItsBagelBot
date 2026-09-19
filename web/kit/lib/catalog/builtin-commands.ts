@@ -117,7 +117,7 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommandDef[] = [
     // read by sesame and expanded by outgress (see app/twitch/sesame/modules/clip.go).
     editable: true,
     replyKey: 'reply',
-    tokens: replyTokens(['clip', 'user', 'target'], { user: 'sesame_sam', target: 'That is amazing', clip: 'clips.twitch.tv/AbCdEf' })
+    tokens: replyTokens(['clip', 'user', 'target'], { user: 'sesame_sam', target: 'That is amazing', clip: 'clips.twitch.tv/AbCdEf' }, 'builtin.clip')
   },
   {
     id: 'title',
