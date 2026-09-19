@@ -54,14 +54,17 @@ export const SUB = {
   transactions: process.env.NATS_TRANSACTIONS_SUBJECT_PREFIX || 'bagel.rpc.transactions'
 };
 
-function userPrefixes(id: string): string[] {
-  return [`grant:${id}`, `account:${id}`, `tier:${id}`, `billing-state:${id}`, `commands:${id}`, `modules:${id}`, `delegations:${id}`, `locale:${id}`, `cursor:${id}`, `govee-devices:${id}`];
+// Exported for the invalidation-routing tests: both are pure data, and
+// asserting the map/list shape directly is cheaper than exercising the whole
+// bus round trip for a scope that is easy to typo out of one of them.
+export function userPrefixes(id: string): string[] {
+  return [`grant:${id}`, `account:${id}`, `tier:${id}`, `billing-state:${id}`, `commands:${id}`, `modules:${id}`, `delegations:${id}`, `locale:${id}`, `cursor:${id}`, `govee-devices:${id}`, `commands_page:${id}`];
 }
 
 // Scope -> cache key routing for the invalidation bus, declared as data. The
 // shared router picks the scope from the subject's last segment; unknown or
 // missing scopes fall through to '*' (coarse per-user flush, back-compat).
-const SCOPES: ScopeMap = {
+export const SCOPES: ScopeMap = {
   grant: (id) => [`grant:${id}`, `account:${id}`],
   // Billing webhooks land as status invalidations after entitlement changes.
   status: (id) => [`account:${id}`, `tier:${id}`, `ban:${id}`, `billing-state:${id}`],
@@ -71,6 +74,7 @@ const SCOPES: ScopeMap = {
   notifications: (id) => [`notifications:${id}`, 'notifications:all'],
   locale: (id) => [`locale:${id}`],
   cursor: (id) => [`cursor:${id}`],
+  commands_page: (id) => [`commands_page:${id}`],
   '*': (id) => [...userPrefixes(id), `ban:${id}`]
 };
 
@@ -526,6 +530,11 @@ export const setLocale = prefWrite<string>('locale_set', 'locale', 'locale');
 // Cursor defaults to on when the field is absent (older accounts, failed read).
 export const userCursor = prefRead('cursor', (r) => r.custom_cursor !== false);
 export const setCursor = prefWrite<boolean>('cursor_set', 'custom_cursor', 'cursor');
+
+// Page is public unless the account explicitly hid it; an absent field
+// (older users service, failed read) keeps the pre-feature behaviour.
+export const userCommandsPage = prefRead('commands_page', (r) => r.commands_page_hidden !== true);
+export const setCommandsPage = prefWrite<boolean>('commands_page_set', 'commands_page_hidden', 'commands_page');
 
 // Persist the broadcaster's Twitch OAuth grant (the per-channel bot token the
 // dashboard consent mints). Called once on login: without it the user row exists

@@ -67,6 +67,10 @@ type User struct {
 	// answer system commands in their language. Empty means the projection has
 	// no locale yet; callers treat that as the default language.
 	Locale string `json:"locale,omitempty"`
+	// CommandsPageHidden gates the public commands page and !commands' link
+	// (spec D6). Fails open: a projection miss (see User below) leaves this
+	// false, so a read failure prints the link rather than silently hiding it.
+	CommandsPageHidden bool `json:"commands_page_hidden,omitempty"`
 }
 
 // Premium reports whether the user should be served on the premium lane. It
@@ -283,10 +287,11 @@ func (c *Client) evictScope(scope string, id uint64, keys []string) {
 		}
 	case "modules":
 		c.modules.Invalidate(key("modules", id))
-	case "status", "grant", "live", "locale":
-		// Tier/ban (status/grant), the legacy live field and the UI locale all
-		// live on the projected User, so drop it. The dedicated live store keeps
-		// its own listener for the live key; this only keeps User coherent.
+	case "status", "grant", "live", "locale", "commands_page":
+		// Tier/ban (status/grant), the legacy live field, the UI locale and the
+		// commands-page flag all live on the projected User, so drop it. The
+		// dedicated live store keeps its own listener for the live key; this
+		// only keeps User coherent.
 		c.users.Invalidate(key("user", id))
 	case "delegation":
 		// Worker does not cache delegations; nothing to evict.
@@ -297,9 +302,9 @@ func (c *Client) evictScope(scope string, id uint64, keys []string) {
 
 func (c *Client) User(ctx context.Context, userID uint64) (User, error) {
 	return c.users.GetOrLoad(ctx, key("user", userID), func(ctx context.Context) (User, error) {
-		status, active, _, locale, err := c.store.GetUser(ctx, userID)
+		status, active, _, locale, commandsPageHidden, err := c.store.GetUser(ctx, userID)
 		if err == nil && status != "" {
-			return User{Status: status, IsActive: active, Locale: locale}, nil
+			return User{Status: status, IsActive: active, Locale: locale, CommandsPageHidden: commandsPageHidden}, nil
 		}
 
 		reply, err := bus.RequestJSONTimeout[User](ctx, c.nc, c.subjects.Users, projectionRequest(userID), c.rpcTimeout)

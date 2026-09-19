@@ -95,6 +95,11 @@ func CustomCursor(v bool) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldCustomCursor, v))
 }
 
+// CommandsPageHidden applies equality check predicate on the "commands_page_hidden" field. It's identical to CommandsPageHiddenEQ.
+func CommandsPageHidden(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldCommandsPageHidden, v))
+}
+
 // CreatorCode applies equality check predicate on the "creator_code" field. It's identical to CreatorCodeEQ.
 func CreatorCode(v string) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldCreatorCode, v))
@@ -513,6 +518,16 @@ func CustomCursorEQ(v bool) predicate.User {
 // CustomCursorNEQ applies the NEQ predicate on the "custom_cursor" field.
 func CustomCursorNEQ(v bool) predicate.User {
 	return predicate.User(sql.FieldNEQ(FieldCustomCursor, v))
+}
+
+// CommandsPageHiddenEQ applies the EQ predicate on the "commands_page_hidden" field.
+func CommandsPageHiddenEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldCommandsPageHidden, v))
+}
+
+// CommandsPageHiddenNEQ applies the NEQ predicate on the "commands_page_hidden" field.
+func CommandsPageHiddenNEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldCommandsPageHidden, v))
 }
 
 // CreatorCodeEQ applies the EQ predicate on the "creator_code" field.

@@ -58,17 +58,21 @@ func NewStore(client valkey.Client) *Store {
 }
 
 // UserProjection is the projected account state of one user: tier status, the
-// receive/ban flags, and the UI locale.
+// receive/ban flags, the UI locale, and the public-commands-page flag.
 type UserProjection struct {
 	Status   string
 	IsActive bool
 	Banned   bool
 	Locale   string
+	// CommandsPageHidden mirrors the inverted flag (D2): written unconditionally
+	// (unlike Locale below), so an absent hash field decodes as false, meaning
+	// visible -- the pre-feature behaviour needs no "skip when empty" rule.
+	CommandsPageHidden bool
 }
 
-// SetUser projects the tier status, active flag, ban flag and UI locale of one
-// user. An empty locale leaves the projected locale untouched (see
-// SetUserWithTTL).
+// SetUser projects the tier status, active flag, ban flag, UI locale and
+// commands-page flag of one user. An empty locale leaves the projected locale
+// untouched (see SetUserWithTTL).
 func (v *Store) SetUser(ctx context.Context, userID uint64, u UserProjection) error {
 	return v.SetUserWithTTL(ctx, userID, u, DefaultTTL)
 }
@@ -88,7 +92,8 @@ func (v *Store) SetUserWithTTL(ctx context.Context, userID uint64, u UserProject
 		FieldValue().
 		FieldValue("status", u.Status).
 		FieldValue("active", utils.BoolField(u.IsActive)).
-		FieldValue("banned", utils.BoolField(u.Banned))
+		FieldValue("banned", utils.BoolField(u.Banned)).
+		FieldValue("commands_page_hidden", utils.BoolField(u.CommandsPageHidden))
 	if u.Locale != "" {
 		fields = fields.FieldValue("locale", u.Locale)
 	}
@@ -96,28 +101,25 @@ func (v *Store) SetUserWithTTL(ctx context.Context, userID uint64, u UserProject
 	return v.pipelineWithTTL(ctx, key, ttl, fields.Build())
 }
 
-// GetUser retrieves the tier status, active flag, ban flag and UI locale of one
-// user. locale is empty when the hash predates locale projection.
-func (v *Store) GetUser(ctx context.Context, userID uint64) (string, bool, bool, string, error) {
+// GetUser retrieves the tier status, active flag, ban flag, UI locale and
+// commands-page-hidden flag of one user. locale is empty when the hash
+// predates locale projection; commandsPageHidden reads false the same way
+// when the hash predates this field (D2's absent-means-visible rule).
+func (v *Store) GetUser(ctx context.Context, userID uint64) (status string, active, banned bool, locale string, commandsPageHidden bool, err error) {
 	defer segment(ctx, "HGETALL")()
 
 	key := cache.UserKey(settingsKeyPrefix, userID)
 
-	res, err := v.client.Do(ctx, v.client.B().Hmget().Key(key).Field("status").Field("active").Field("banned").Field("locale").Build()).AsStrSlice()
+	res, err := v.client.Do(ctx, v.client.B().Hmget().Key(key).Field("status").Field("active").Field("banned").Field("locale").Field("commands_page_hidden").Build()).AsStrSlice()
 	if err != nil {
-		return "", false, false, "", err
+		return "", false, false, "", false, err
 	}
 
-	if len(res) < 4 {
-		return "", false, false, "", nil
+	if len(res) < 5 {
+		return "", false, false, "", false, nil
 	}
 
-	status := res[0]
-	active := res[1] == "1"
-	banned := res[2] == "1"
-	locale := res[3]
-
-	return status, active, banned, locale, nil
+	return res[0], res[1] == "1", res[2] == "1", res[3], res[4] == "1", nil
 }
 
 // sectionWrite is one full-section replacement: clear everything under every
