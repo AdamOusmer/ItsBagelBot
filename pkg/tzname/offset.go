@@ -48,10 +48,16 @@ func resolveOffset(normalized string) (Match, bool) {
 // furthest ahead any real zone goes); the regex only guarantees 1-2 digits.
 func parseOffsetHours(s string) (int, bool) {
 	h, err := strconv.Atoi(s)
-	if err != nil || h < 0 || h > 14 {
+	if err != nil {
 		return 0, false
 	}
-	return h, true
+	return h, withinOffsetHours(h)
+}
+
+// withinOffsetHours is the real-world bound: no zone sits further than 14
+// hours from UTC (Pacific/Kiritimati), so anything past it is a typo.
+func withinOffsetHours(h int) bool {
+	return h >= 0 && h <= 14
 }
 
 // parseOffsetMinutes treats an absent minute group as :00, and rejects
