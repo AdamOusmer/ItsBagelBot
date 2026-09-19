@@ -53,6 +53,7 @@
     "./catalog/builtin-commands": "./lib/catalog/builtin-commands.ts",
     "./validation": "./lib/validation.ts",
     "./i18n": "./lib/i18n/messages.ts",
+    "./i18n/static": "./lib/i18n/static.ts",
     "./styles/tokens.css": "./styles/tokens.css",
     "./styles/console.css": "./styles/console.css",
     "./components/*": "./components/*",

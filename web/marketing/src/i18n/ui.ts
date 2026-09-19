@@ -15,6 +15,12 @@ import en from './locales/en.json';
 // from lib/guides/slugs (which imports nothing) rather than from the registry,
 // which imports this file: the slugs module exists to break that cycle.
 import { guideLocalizedPaths } from '../lib/guides/slugs';
+// Lang and defaultLang live in lang.ts, a glob-free module, so builder.ts and
+// lib/variables/index.ts can import them under bun test without pulling in
+// this file's import.meta.glob. Re-exported here so every other importer of
+// ui.ts keeps working unchanged.
+import { defaultLang, type Lang } from './lang';
+export { defaultLang, type Lang };
 
 // Eager glob: every locale catalog, bundled at build time. Keyed by module path
 // ('./locales/fr.json' → the parsed object).
@@ -23,12 +29,8 @@ const files = import.meta.glob<Record<string, string>>('./locales/*.json', {
   import: 'default',
 });
 
-/** A locale code (e.g. 'en', 'fr'). Open set: whatever JSON files exist. */
-export type Lang = string;
 /** A translation key. English (en.json) is the canonical key set. */
 export type UIKey = keyof typeof en;
-
-export const defaultLang: Lang = 'en';
 
 // Build the locale → catalog map from the discovered files.
 const catalog: Record<string, Record<string, string>> = {};

@@ -12,10 +12,14 @@
 // expanded there, it doesn't belong here, the bot leaves unknown braces
 // as literal text.
 
-import { defaultLang, type Lang } from './ui';
+// Lang/defaultLang come from lang.ts, not ui.ts: ui.ts's module body runs
+// import.meta.glob, which only Vite/Astro implement. bun test (the golden
+// test in lib/variables/reference.golden.test.ts) evaluates this file
+// directly, so the glob-bearing module must stay off this import path.
+import { defaultLang, type Lang } from './lang';
 import { SITE } from '@bagel/kit/site-links';
 import { COMMAND_NAME_MAX, RESPONSE_MAX, RESPONSE_MAX_LINES, COOLDOWN_MAX } from '@bagel/kit/engine/commands-validate';
-import { ensureCatalog, translate, isLocale, type Locale } from '@bagel/kit/i18n';
+import { staticText } from '@bagel/kit/i18n/static';
 import { VARIABLES as KIT_VARIABLES, variableById, type VariableDef, type VariableForm } from '@bagel/kit/variables';
 import { moduleDef } from '@bagel/kit/catalog';
 import { BUILTIN_COMMANDS } from '@bagel/kit/catalog/builtin-commands';
@@ -31,18 +35,22 @@ const pick = (m: L10n, lang: Lang): string => m[lang] ?? m[defaultLang];
 // name/desc from kit's locale catalogs instead of carrying its own. Astro
 // renders this module at build time, and SURFACES below is a module-level
 // constant holding BOTH locales at once (like the old per-family arrays it
-// replaces), so the catalogs need to be loaded before that constant is
-// built, not per render. A top-level await here is safe under Astro/Vite's
-// ESM output, and it propagates: any module that imports SURFACES (directly
-// or transitively) has its own evaluation held until this resolves, so kit's
-// synchronous translate() below never race a not-yet-loaded catalog.
-await Promise.all((['en', 'fr'] satisfies Locale[]).map((locale) => ensureCatalog(locale)));
+// replaces). staticText (kit/lib/i18n/static.ts) reads its en/fr catalogs
+// via a plain static import, so it is ready the moment this module runs,
+// no top-level await or catalog-loading step needed: that used to sit here
+// waiting on @bagel/kit/i18n's ensureCatalog(), a Vite-glob-backed lazy
+// loader that also runs under bun's `astro build` fine but cannot run under
+// plain `bun test` at all (`import.meta.glob is not a function`), which is
+// what the marketing golden test (lib/variables/reference.golden.test.ts)
+// needs.
+const KIT_LOCALES = new Set(['en', 'fr']);
 
 /** Resolve a kit locale key for a marketing Lang (an open string, unlike
- * kit's own 'en' | 'fr' Locale); falls back to English for any other lang. */
+ * kit's closed 'en' | 'fr' static-catalog set); falls back to English for
+ * any other lang. */
 export function kitText(lang: Lang, key: string): string {
-  const locale: Locale = isLocale(lang) ? lang : 'en';
-  return translate(locale, key);
+  const locale = KIT_LOCALES.has(lang) ? (lang as 'en' | 'fr') : 'en';
+  return staticText(locale, key);
 }
 
 /** Both locales of one kit key, for a builder record that (like the old
