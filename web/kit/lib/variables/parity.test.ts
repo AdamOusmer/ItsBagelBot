@@ -35,6 +35,31 @@ interface GoldenFile {
 const golden: GoldenFile = JSON.parse(readFileSync(GOLDEN_PATH, 'utf8'));
 const goldenExamples = golden.families.flatMap((family) => family.examples);
 
+// The reply-token golden is the other half of the same cross-language
+// handshake, read the same way for the same reason: see
+// app/twitch/sesame/modules/reply_tokens.go and reply_tokens_golden_test.go
+// (regenerate with `go test ./app/twitch/sesame/modules/... -run
+// TestReplyTokensGolden -modules.write-golden`).
+const REPLY_TOKENS_GOLDEN_PATH = join(import.meta.dir, '../../../../app/twitch/sesame/modules/testdata/reply_tokens.golden.json');
+
+interface ReplyTokensGoldenFile {
+  note: string;
+  replies: Record<string, string[]>;
+}
+
+const replyTokensGolden: ReplyTokensGoldenFile = JSON.parse(readFileSync(REPLY_TOKENS_GOLDEN_PATH, 'utf8'));
+
+// replyNamespace derives a ReplyToken.hintKey's "<moduleId>.<replyKey>"
+// namespace: hintKey is always "replyVars.<namespace>.<flattenedName>.hint"
+// (see hintNamespace in catalog/module-def.ts's replyTokens()), and the
+// namespace itself may contain a dot (e.g. "alerts.follow"), so this reads
+// off the first and last two segments rather than splitting naively.
+function replyNamespace(hintKey: string): string | undefined {
+  const parts = hintKey.split('.');
+  if (parts.length < 4 || parts[0] !== 'replyVars' || parts[parts.length - 1] !== 'hint') return undefined;
+  return parts.slice(1, parts.length - 2).join('.');
+}
+
 const isDigits = (head: string): boolean => head !== '' && /^\d+$/.test(head);
 
 // Heads the Go resolver inventory (CommandTokenFamilies, token_catalog.go)
@@ -163,6 +188,54 @@ describe('variables parity (engine/scope/testdata/token_catalog.golden.json)', (
           expect(typeof value === 'string' && value.length > 0, `${where} token "${token.name}": ${locale}.json has no ${token.hintKey}`).toBe(true);
         }
       }
+    }
+  });
+
+  // docs/specs/variables-catalog.md phase 5: reply_tokens.golden.json is the
+  // Go side's reply-token inventory (ReplyTokenInventory, app/twitch/sesame/
+  // modules/reply_tokens.go), a broadcaster's customizable reply templates
+  // that chat itself actually fills a token in for. Not every kit reply has
+  // one yet (games, raffle, valorant and the rest of the external-stats
+  // previews are kit-only surfaces with no chat command behind them), so a
+  // reply whose tokens carry no hintKey at all is skipped rather than
+  // failed: replyTokens() only ever attaches a hintKey to every token in a
+  // reply or to none of them (one hintNamespace argument for the whole
+  // call), so a reply with some tokens hinted and some not should not be
+  // reachable; if it happens anyway, that is the failure below telling the
+  // fix is to pass the namespace to replyTokens().
+  test('H: reply-token inventory matches app/twitch/sesame/modules/reply_tokens.go (Go golden)', () => {
+    const replyTokenSources = [
+      ...MODULE_CATALOG.flatMap((mod) => mod.replies.map((reply) => ({ where: `${mod.id}.${reply.key}`, tokens: reply.tokens ?? [] }))),
+      ...BUILTIN_COMMANDS.map((cmd) => ({ where: `builtin.${cmd.id}`, tokens: cmd.tokens ?? [] }))
+    ];
+
+    const claimedNamespaces = new Set<string>();
+    for (const { where, tokens } of replyTokenSources) {
+      const hinted = tokens.filter((token) => token.hintKey);
+      if (hinted.length === 0) continue; // no Go counterpart yet; expected
+
+      const ns = replyNamespace(hinted[0].hintKey!);
+      expect(ns, `${where}: could not read a namespace off hintKey "${hinted[0].hintKey}": pass the namespace to replyTokens().`).toBeTruthy();
+      if (!ns) continue;
+      claimedNamespaces.add(ns);
+
+      const golden = replyTokensGolden.replies[ns];
+      expect(golden, `${where}: reply_tokens.golden.json has no "${ns}" namespace. Add it to app/twitch/sesame/modules/reply_tokens.go and regenerate the golden, or drop the namespace from replyTokens() if chat does not answer this reply.`).toBeDefined();
+      if (!golden) continue;
+
+      const kitNames = [...new Set(tokens.map((token) => token.name))].sort();
+      const goNames = [...golden].sort();
+      expect(
+        kitNames,
+        `${where}: kit tokens ${JSON.stringify(kitNames)} do not match Go's "${ns}" tokens ${JSON.stringify(goNames)}. Fix web/kit/lib/catalog/*.ts or app/twitch/sesame/modules/reply_tokens.go.`
+      ).toEqual(goNames);
+    }
+
+    for (const ns of Object.keys(replyTokensGolden.replies)) {
+      expect(
+        claimedNamespaces.has(ns),
+        `app/twitch/sesame/modules/reply_tokens.go declares "${ns}" but no kit replyTokens() call names it. Fix web/kit/lib/catalog/*.ts.`
+      ).toBe(true);
     }
   });
 });
