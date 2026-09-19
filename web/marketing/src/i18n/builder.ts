@@ -163,16 +163,20 @@ function dynamicFormVars(): VarDef[] {
   return [...random.forms.map((form) => kitVarDef(random, form)), ...choice.forms.map((form) => kitVarDef(choice, form))];
 }
 
-function moduleReplyTokens(moduleId: string, replyKey: string): readonly ReplyToken[] {
+/** A module reply named the way its kit hintKey namespace is: `<moduleId>.<replyKey>`. */
+type ReplyRef = `${string}.${string}`;
+
+function moduleReplyTokens(ref: ReplyRef): readonly ReplyToken[] {
+  const [moduleId, replyKey] = ref.split('.');
   const tokens = moduleDef(moduleId)?.replies.find((reply) => reply.key === replyKey)?.tokens;
-  if (!tokens) throw new Error(`builder.ts: no ${moduleId}.${replyKey} reply tokens in the kit catalog`);
+  if (!tokens) throw new Error(`builder.ts: no ${ref} reply tokens in the kit catalog`);
   return tokens;
 }
 
 /** A module reply surface's vars: the reply's own tokens plus the shared
  * dynamic trio every module reply accepts. */
-function moduleSurfaceVars(moduleId: string, replyKey: string): VarDef[] {
-  return [...moduleReplyTokens(moduleId, replyKey).map(replyTokenVarDef), ...dynamicFormVars()];
+function moduleSurfaceVars(ref: ReplyRef): VarDef[] {
+  return [...moduleReplyTokens(ref).map(replyTokenVarDef), ...dynamicFormVars()];
 }
 
 /** A built-in command's reply surface (!clip): unlike a module reply, a
@@ -190,8 +194,8 @@ function builtinSurfaceVars(id: string): VarDef[] {
  * hand-written here, but its copy still moves to kit locales under
  * replyVars.<surfaceId>.<token>.{name,desc} (section A.2's "MUST NOT carry
  * inline copy"), same as every mapped surface above. */
-function explicitVar(key: string, token: string, sample: string): VarDef {
-  return v(token, sample, l10n(`${key}.name`), l10n(`${key}.desc`));
+function explicitVars(surfaceId: string, tokens: readonly ReplyToken[]): VarDef[] {
+  return tokens.map((token) => replyTokenVarDef({ ...token, hintKey: `replyVars.${surfaceId}.${token.name}.hint` }));
 }
 
 export const SURFACES: SurfaceDef[] = [
@@ -213,7 +217,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'Chat Alerts module → follow message.', fr: 'Module Alertes de chat → message de follow.' },
     example: { en: 'Thanks for the follow, {user}!', fr: 'Merci pour le follow, {user}!' },
     prompt: { en: 'maya_live followed the channel', fr: 'maya_live suit maintenant la chaîne' },
-    vars: moduleSurfaceVars('alerts', 'follow'),
+    vars: moduleSurfaceVars('alerts.follow'),
   },
   {
     id: 'subscribe',
@@ -223,7 +227,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'Chat Alerts module → subscription message.', fr: "Module Alertes de chat → message d'abonnement." },
     example: { en: 'Welcome, {user}! Thanks for the tier {tier} sub!', fr: 'Bienvenue, {user}! Merci pour le sub palier {tier}!' },
     prompt: { en: 'maya_live subscribed', fr: "maya_live s'est abonnée" },
-    vars: moduleSurfaceVars('alerts', 'sub'),
+    vars: moduleSurfaceVars('alerts.sub'),
   },
   {
     id: 'cheer',
@@ -233,7 +237,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'Chat Alerts module → cheer message.', fr: 'Module Alertes de chat → message de cheer.' },
     example: { en: 'Thanks for the {bits} bits, {user}! 💎', fr: 'Merci pour les {bits} bits, {user}! 💎' },
     prompt: { en: 'maya_live cheered 250 bits', fr: 'maya_live a envoyé 250 bits' },
-    vars: moduleSurfaceVars('alerts', 'cheer'),
+    vars: moduleSurfaceVars('alerts.cheer'),
   },
   {
     id: 'raid',
@@ -243,7 +247,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'Chat Alerts module → raid message.', fr: 'Module Alertes de chat → message de raid.' },
     example: { en: '{user} raided with {viewers} viewers! Welcome!', fr: '{user} raid avec {viewers} spectateurs! Bienvenue!' },
     prompt: { en: 'CoolStreamer raided with 42 viewers', fr: 'CoolStreamer raid avec 42 spectateurs' },
-    vars: moduleSurfaceVars('alerts', 'raid'),
+    vars: moduleSurfaceVars('alerts.raid'),
   },
   {
     id: 'shoutout',
@@ -253,7 +257,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'Auto Shoutout module → raid shoutout message.', fr: 'Module Shoutout automatique → message de shoutout.' },
     example: { en: 'Go follow {raider} → twitch.tv/{raider.login} · {viewers} friends came over!', fr: 'Allez suivre {raider} → twitch.tv/{raider.login} · {viewers} amis sont arrivés!' },
     prompt: { en: 'CoolStreamer raided the channel', fr: 'CoolStreamer a raid la chaîne' },
-    vars: moduleSurfaceVars('shoutout', 'shoutout'),
+    vars: moduleSurfaceVars('shoutout.shoutout'),
   },
   {
     id: 'triggers',
@@ -267,7 +271,7 @@ export const SURFACES: SurfaceDef[] = [
     // broadcaster-written, docs/specs/variables-catalog.md phase 3 section
     // A.2), so {user} stays a hand-written token here; its copy still moved
     // to kit locales (replyVars.triggers.user).
-    vars: [explicitVar('replyVars.triggers.user', '{user}', 'maya_live'), ...dynamicFormVars()],
+    vars: [...explicitVars('triggers', [{ name: 'user', sample: 'maya_live' }]), ...dynamicFormVars()],
   },
   {
     id: 'clip',
@@ -287,7 +291,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'Local Time module → !time reply.', fr: 'Module Heure locale → réponse de !time.' },
     example: { en: "It's {time} where I live ({timezone}).", fr: 'Il est {time} chez moi ({timezone}).' },
     prompt: { en: '!time', fr: '!time' },
-    vars: moduleSurfaceVars('time', 'time'),
+    vars: moduleSurfaceVars('time.time'),
   },
   {
     id: 'channelpoints',
@@ -302,13 +306,15 @@ export const SURFACES: SurfaceDef[] = [
     // so this stays a hand-written token list; copy moved to kit locales
     // (replyVars.channelpoints.*).
     vars: [
-      explicitVar('replyVars.channelpoints.user', '{user}', 'maya_live'),
-      explicitVar('replyVars.channelpoints.input', '{input}', 'stay hydrated!'),
-      explicitVar('replyVars.channelpoints.reward', '{reward}', 'Hydrate!'),
-      explicitVar('replyVars.channelpoints.cost', '{cost}', '500'),
-      explicitVar('replyVars.channelpoints.channel', '{channel}', 'your_channel'),
-      explicitVar('replyVars.channelpoints.counter', '{counter}', '129'),
-      explicitVar('replyVars.channelpoints.points', '{points}', '50'),
+      ...explicitVars('channelpoints', [
+        { name: 'user', sample: 'maya_live' },
+        { name: 'input', sample: 'stay hydrated!' },
+        { name: 'reward', sample: 'Hydrate!' },
+        { name: 'cost', sample: '500' },
+        { name: 'channel', sample: 'your_channel' },
+        { name: 'counter', sample: '129' },
+        { name: 'points', sample: '50' }
+      ]),
       ...dynamicFormVars(),
     ],
   },
@@ -320,7 +326,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'Play Queue module → the !join confirmation.', fr: "Module File d'attente → la confirmation de !join." },
     example: { en: '{user} joined the queue at spot #{pos}.', fr: '{user} rejoint la file en position #{pos}.' },
     prompt: { en: '!join', fr: '!join' },
-    vars: moduleSurfaceVars('queue', 'join'),
+    vars: moduleSurfaceVars('queue.join'),
   },
   {
     id: 'queue-next',
@@ -330,7 +336,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'Play Queue module → the !queue next announcement.', fr: "Module File d'attente → l'annonce de !queue next." },
     example: { en: "You're up, {target}! {count} waiting behind you.", fr: 'À toi, {target}! {count} personnes derrière toi.' },
     prompt: { en: '!queue next', fr: '!queue next' },
-    vars: moduleSurfaceVars('queue', 'next'),
+    vars: moduleSurfaceVars('queue.next'),
   },
   {
     id: 'bw-session',
@@ -342,7 +348,7 @@ export const SURFACES: SurfaceDef[] = [
     prompt: { en: '!daily Technoblade', fr: '!daily Technoblade' },
     // Represents !daily/!weekly/!monthly, which share this exact token set
     // (BW_SESSION_TOKENS in kit's catalog/rehearsal-tokens.ts).
-    vars: moduleSurfaceVars('urchin', 'daily'),
+    vars: moduleSurfaceVars('urchin.daily'),
   },
   {
     id: 'bwstats',
@@ -352,7 +358,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'Bedwars Stats module → lifetime-stats reply.', fr: 'Module Stats Bedwars → réponse des stats à vie.' },
     example: { en: '{player}: {stars}✫ · {wins} wins · {fkdr} FKDR · {wlr} WLR', fr: '{player}: {stars}✫ · {wins} victoires · {fkdr} FKDR · {wlr} WLR' },
     prompt: { en: '!bwstats Technoblade', fr: '!bwstats Technoblade' },
-    vars: moduleSurfaceVars('urchin', 'stats'),
+    vars: moduleSurfaceVars('urchin.stats'),
   },
   {
     id: 'sniper',
@@ -362,7 +368,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'Bedwars Stats module → sniper-score reply.', fr: 'Module Stats Bedwars → réponse du score sniper.' },
     example: { en: '{player} sniper score: {score} ({mode})', fr: '{player} score sniper: {score} ({mode})' },
     prompt: { en: '!sniper Technoblade', fr: '!sniper Technoblade' },
-    vars: moduleSurfaceVars('urchin', 'sniper'),
+    vars: moduleSurfaceVars('urchin.sniper'),
   },
   {
     id: 'tags',
@@ -372,7 +378,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'Bedwars Stats module → tag-lookup replies.', fr: 'Module Stats Bedwars → réponses de recherche de tags.' },
     example: { en: '{player}: {tags}', fr: '{player}: {tags}' },
     prompt: { en: '!tag Technoblade', fr: '!tag Technoblade' },
-    vars: moduleSurfaceVars('urchin', 'tags'),
+    vars: moduleSurfaceVars('urchin.tags'),
   },
   {
     id: 'elo',
@@ -382,7 +388,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'MCSR Ranked module → current-standing reply.', fr: 'Module MCSR Ranked → réponse du classement actuel.' },
     example: { en: '{player}: {elo} elo · rank #{rank} · {wins}W {losses}L', fr: '{player}: {elo} elo · rang #{rank} · {wins}V {losses}D' },
     prompt: { en: '!elo Feinberg', fr: '!elo Feinberg' },
-    vars: moduleSurfaceVars('mcsr', 'elo'),
+    vars: moduleSurfaceVars('mcsr.elo'),
   },
   {
     id: 'mcsr-session',
@@ -392,7 +398,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'MCSR Ranked module → this-stream session reply.', fr: 'Module MCSR Ranked → réponse de la session du stream.' },
     example: { en: '{player}: {elochange} elo ({elo} now) · {wins}W {losses}L {draws}D in {matches} matches', fr: '{player}: {elochange} elo ({elo} maintenant) · {wins}V {losses}D {draws}N en {matches} matchs' },
     prompt: { en: '!session', fr: '!session' },
-    vars: moduleSurfaceVars('mcsr', 'session'),
+    vars: moduleSurfaceVars('mcsr.session'),
   },
   {
     id: 'mcsr-pace',
@@ -402,7 +408,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'MCSR Ranked module → PaceMan session-splits reply.', fr: 'Module MCSR Ranked → réponse des splits PaceMan de la session.' },
     example: { en: '{player} this session: {nethers} nethers (avg {nether}) · bastion {bastion} · fortress {fortress} · fp {firstportal} · {nph} nph', fr: '{player} cette session: {nethers} nethers (moy {nether}) · bastion {bastion} · forteresse {fortress} · pp {firstportal} · {nph} npu' },
     prompt: { en: '!pace', fr: '!pace' },
-    vars: moduleSurfaceVars('mcsr', 'pace'),
+    vars: moduleSurfaceVars('mcsr.pace'),
   },
   {
     id: 'mcsr-nethers',
@@ -412,7 +418,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'MCSR Ranked module → PaceMan nether-count reply.', fr: 'Module MCSR Ranked → réponse du nombre de Nethers PaceMan.' },
     example: { en: '{player}: {nethers} nethers this session (avg {nether}) · {nph} nph', fr: '{player}: {nethers} nethers cette session (moy {nether}) · {nph} npu' },
     prompt: { en: '!nethers', fr: '!nethers' },
-    vars: moduleSurfaceVars('mcsr', 'nethers'),
+    vars: moduleSurfaceVars('mcsr.nethers'),
   },
   {
     id: 'mcsr-lastmatch',
@@ -422,7 +428,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'MCSR Ranked module → most-recent-match reply.', fr: 'Module MCSR Ranked → réponse du dernier match.' },
     example: { en: '{player} vs {opponent}: {result} · {time} · {seed} {structure} · {elochange} elo · {ago} ago', fr: '{player} contre {opponent}: {result} · {time} · {seed} {structure} · {elochange} elo · il y a {ago}' },
     prompt: { en: '!lastmatch', fr: '!lastmatch' },
-    vars: moduleSurfaceVars('mcsr', 'lastmatch'),
+    vars: moduleSurfaceVars('mcsr.lastmatch'),
   },
   {
     id: 'mcsr-record',
@@ -432,7 +438,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'MCSR Ranked module → head-to-head record reply.', fr: 'Module MCSR Ranked → réponse du bilan face-à-face.' },
     example: { en: '{playera} {winsa} - {winsb} {playerb} · {played} played', fr: '{playera} {winsa} - {winsb} {playerb} · {played} matchs joués' },
     prompt: { en: '!record Feinberg lowk3y_', fr: '!record Feinberg lowk3y_' },
-    vars: moduleSurfaceVars('mcsr', 'record'),
+    vars: moduleSurfaceVars('mcsr.record'),
   },
   {
     id: 'mcsr-lb',
@@ -442,7 +448,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'MCSR Ranked module → leaderboard reply (elo, phase or record).', fr: 'Module MCSR Ranked → réponse de classement (elo, phase ou record).' },
     example: { en: '{board}: {list}', fr: '{board}: {list}' },
     prompt: { en: '!lb', fr: '!lb' },
-    vars: moduleSurfaceVars('mcsr', 'lb'),
+    vars: moduleSurfaceVars('mcsr.lb'),
   },
   {
     id: 'mcsr-race',
@@ -452,7 +458,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'MCSR Ranked module → weekly-race reply.', fr: 'Module MCSR Ranked → réponse de la course hebdomadaire.' },
     example: { en: '#1 {leader} ({leadertime}) · {player}: {time} (#{rank})', fr: '#1 {leader} ({leadertime}) · {player}: {time} (#{rank})' },
     prompt: { en: '!race', fr: '!race' },
-    vars: moduleSurfaceVars('mcsr', 'race'),
+    vars: moduleSurfaceVars('mcsr.race'),
   },
   {
     id: 'mcsr-pb',
@@ -462,7 +468,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'MCSR Ranked module → personal-best reply (PaceMan daily/weekly/monthly/all-time, or MCSR Ranked season best).', fr: 'Module MCSR Ranked → réponse du record personnel (PaceMan quotidien/hebdomadaire/mensuel/de tous les temps, ou le meilleur temps de la saison MCSR Ranked).' },
     example: { en: '{player}: {time} ({window} PB)', fr: '{player}: {time} ({window} PB)' },
     prompt: { en: '!pb daily', fr: '!pb daily' },
-    vars: moduleSurfaceVars('mcsr', 'pb'),
+    vars: moduleSurfaceVars('mcsr.pb'),
   },
   {
     id: 'fn-stats',
@@ -472,7 +478,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'Fortnite Stats module → lifetime & season replies.', fr: 'Module Stats Fortnite → réponses à vie et de saison.' },
     example: { en: '{player} ({window}): {wins} wins · {kd} K/D · {winrate}% winrate', fr: '{player} ({window}): {wins} victoires · {kd} K/D · {winrate}% de victoires' },
     prompt: { en: '!fn', fr: '!fn' },
-    vars: moduleSurfaceVars('fortnite', 'stats'),
+    vars: moduleSurfaceVars('fortnite.stats'),
   },
   {
     id: 'fn-store',
@@ -482,7 +488,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'Fortnite Stats module → item-shop reply.', fr: 'Module Stats Fortnite → réponse de la boutique.' },
     example: { en: 'Item shop {date} ({count} items): {items}', fr: 'Boutique du {date} ({count} objets): {items}' },
     prompt: { en: '!fn store', fr: '!fn store' },
-    vars: moduleSurfaceVars('fortnite', 'store'),
+    vars: moduleSurfaceVars('fortnite.store'),
   },
 ];
 

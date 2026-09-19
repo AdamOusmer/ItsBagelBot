@@ -184,7 +184,8 @@ function kitRecord(def: VariableDef): Draft {
  * name sets its copy; later surfaces sharing the same bare name (matching a
  * broadcaster's own read of "I've seen {player} before") just add their
  * membership, the same simplification the deleted per-surface arrays used. */
-function surfaceOnlyRecord(name: string, token: string, sample: string, varCopy: SurfaceVarDef, surfaceId: string): Draft {
+function surfaceOnlyRecord(name: string, varCopy: SurfaceVarDef, surfaceId: string): Draft {
+  const { token, sample } = varCopy;
   const syntax = `{${name}}`;
   return {
     id: name, token, syntax, example: token, output: sample,
@@ -230,7 +231,7 @@ function buildCatalog(): VariableReference[] {
       const id = owner?.id ?? parsed.name;
       let record = byId.get(id);
       if (!record) {
-        record = surfaceOnlyRecord(id, variable.token, variable.sample, variable, surface.id);
+        record = surfaceOnlyRecord(id, variable, surface.id);
         byId.set(id, record);
       }
       attachSurface(record, surface);
