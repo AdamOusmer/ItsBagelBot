@@ -25,9 +25,11 @@ const (
 	followNoIDJSON = `{"user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2"}`
 	// The same follower on a different channel.
 	followOtherChannelJSON = `{"user_id":"7","user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"9"}`
-	subscribeJSON          = `{"user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2","tier":"1000"}`
-	giftedSubJSON          = `{"user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2","tier":"1000","is_gift":true}`
-	resubJSON              = `{"user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2","tier":"1000","cumulative_months":7,"streak_months":7,"message":{"text":"7 months!"}}`
+	subscribeJSON          = `{"user_id":"7","user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2","tier":"1000"}`
+	// A subscribe payload with no user id: the dedupe has nothing to key on.
+	subscribeNoIDJSON = `{"user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2","tier":"1000"}`
+	giftedSubJSON     = `{"user_id":"7","user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2","tier":"1000","is_gift":true}`
+	resubJSON         = `{"user_id":"7","user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2","tier":"1000","cumulative_months":7,"streak_months":7,"message":{"text":"7 months!"}}`
 	giftJSON               = `{"is_anonymous":false,"user_name":"GenerousViewer","user_login":"generousviewer","broadcaster_user_id":"2","total":5,"tier":"1000"}`
 	anonGiftJSON           = `{"is_anonymous":true,"broadcaster_user_id":"2","total":3,"tier":"1000"}`
 	cheerJSON              = `{"is_anonymous":false,"user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2","bits":100}`
@@ -151,15 +153,13 @@ func TestAlertsFollowDisabledClaimsNoWindow(t *testing.T) {
 	assert.Empty(t, cd.keys)
 }
 
-// Every alert other than follow costs its sender something (or is the
+// Gift, cheer, raid and ad break each cost their sender something (or are the
 // channel's own ad break), so none of them are deduplicated.
 func TestAlertsNonFollowAlertsAreNotDeduped(t *testing.T) {
 	cd := &fakeCooldown{}
 	d := alertsDeps(cd)
 
 	for _, in := range []alertInput{
-		{event: "channel.subscribe", payload: subscribeJSON},
-		{event: "channel.subscription.message", payload: resubJSON},
 		{event: "channel.subscription.gift", payload: giftJSON},
 		{event: "channel.cheer", payload: cheerJSON},
 		{event: "channel.raid", payload: raidJSON},
@@ -168,6 +168,52 @@ func TestAlertsNonFollowAlertsAreNotDeduped(t *testing.T) {
 		h := alertsHandlerWith(t, in.event, d)
 		assert.Len(t, runAlertOn(t, h, in), 1, in.event)
 	}
+	assert.Empty(t, cd.keys)
+}
+
+// A renewal fires channel.subscribe, then the viewer's share click fires
+// channel.subscription.message seconds later; the second must stay silent.
+func TestAlertsSubDedupeSuppressesShareAfterRenewal(t *testing.T) {
+	cd := &fakeCooldown{allow: []bool{true, false}}
+	d := alertsDeps(cd)
+
+	subH := alertsHandlerWith(t, "channel.subscribe", d)
+	require.Len(t, runAlertOn(t, subH, alertInput{event: "channel.subscribe", payload: subscribeJSON}), 1)
+
+	msgH := alertsHandlerWith(t, "channel.subscription.message", d)
+	assert.Empty(t, runAlertOn(t, msgH, alertInput{event: "channel.subscription.message", payload: resubJSON}),
+		"share click inside the window must stay silent")
+
+	assert.Equal(t, []string{"alert:sub:2:7", "alert:sub:2:7"}, cd.keys)
+	assert.Equal(t, []time.Duration{subAlertWindow, subAlertWindow}, cd.ttls)
+	assert.Equal(t, 15*time.Minute, subAlertWindow, "sub dedupe window must stay short")
+}
+
+// Valkey unreachable must not swallow welcomes: the gate fails open.
+func TestAlertsSubDedupeFailsOpen(t *testing.T) {
+	cd := &fakeCooldown{err: errors.New("valkey down")}
+	h := alertsHandlerWith(t, "channel.subscribe", alertsDeps(cd))
+
+	assert.Len(t, runAlertOn(t, h, alertInput{event: "channel.subscribe", payload: subscribeJSON}), 1)
+}
+
+// No user id on the payload means nothing stable to key on, so the alert
+// fires rather than claiming a window every subscriber would share.
+func TestAlertsSubWithoutUserIDSkipsDedupe(t *testing.T) {
+	cd := &fakeCooldown{allow: []bool{false}}
+	h := alertsHandlerWith(t, "channel.subscribe", alertsDeps(cd))
+
+	assert.Len(t, runAlertOn(t, h, alertInput{event: "channel.subscribe", payload: subscribeNoIDJSON}), 1)
+	assert.Empty(t, cd.keys)
+}
+
+// A gifted recipient must not claim the sub window: it is announced through
+// the gift alert instead, and the cooldown must not even be consulted.
+func TestAlertsGiftedRecipientClaimsNoSubWindow(t *testing.T) {
+	cd := &fakeCooldown{}
+	h := alertsHandlerWith(t, "channel.subscribe", alertsDeps(cd))
+
+	assert.Empty(t, runAlertOn(t, h, alertInput{event: "channel.subscribe", payload: giftedSubJSON}))
 	assert.Empty(t, cd.keys)
 }
 

@@ -80,3 +80,19 @@ A dashboard button that inserts one token into a reply field. Presentation only.
 
 **Scope**:
 An internal resolver group in the bot engine. Never shown to broadcasters.
+
+## Language: Local Time module
+
+**Home zone**:
+The timezone a broadcaster picked for the Local Time module. One per channel, may be unset.
+_Avoid_: Default timezone, streamer zone.
+
+**Home time**:
+The answer to a bare `!time`: the current time in the home zone.
+_Avoid_: Local time when referring to the reply rather than the module.
+
+**Place**:
+What a viewer typed after `!time`: a city, a timezone name, an abbreviation or a UTC offset. A place is either recognized or unknown; an unknown place is never silently replaced by the home zone.
+
+**Place lookup**:
+The answer to `!time <place>`: the current time at a recognized place, using the channel's clock format. Works whether or not the home zone is set.

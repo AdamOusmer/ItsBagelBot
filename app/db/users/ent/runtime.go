@@ -178,36 +178,40 @@ func init() {
 	userDescCustomCursor := userFields[9].Descriptor()
 	// user.DefaultCustomCursor holds the default value on creation for the custom_cursor field.
 	user.DefaultCustomCursor = userDescCustomCursor.Default.(bool)
+	// userDescCommandsPageHidden is the schema descriptor for commands_page_hidden field.
+	userDescCommandsPageHidden := userFields[10].Descriptor()
+	// user.DefaultCommandsPageHidden holds the default value on creation for the commands_page_hidden field.
+	user.DefaultCommandsPageHidden = userDescCommandsPageHidden.Default.(bool)
 	// userDescCreatorCode is the schema descriptor for creator_code field.
-	userDescCreatorCode := userFields[10].Descriptor()
+	userDescCreatorCode := userFields[11].Descriptor()
 	// user.CreatorCodeValidator is a validator for the "creator_code" field. It is called by the builders before save.
 	user.CreatorCodeValidator = userDescCreatorCode.Validators[0].(func(string) error)
 	// userDescSubscriptionSource is the schema descriptor for subscription_source field.
-	userDescSubscriptionSource := userFields[11].Descriptor()
+	userDescSubscriptionSource := userFields[12].Descriptor()
 	// user.DefaultSubscriptionSource holds the default value on creation for the subscription_source field.
 	user.DefaultSubscriptionSource = userDescSubscriptionSource.Default.(string)
 	// userDescSubscriptionCancelPending is the schema descriptor for subscription_cancel_pending field.
-	userDescSubscriptionCancelPending := userFields[14].Descriptor()
+	userDescSubscriptionCancelPending := userFields[15].Descriptor()
 	// user.DefaultSubscriptionCancelPending holds the default value on creation for the subscription_cancel_pending field.
 	user.DefaultSubscriptionCancelPending = userDescSubscriptionCancelPending.Default.(bool)
 	// userDescGiftsSent is the schema descriptor for gifts_sent field.
-	userDescGiftsSent := userFields[17].Descriptor()
+	userDescGiftsSent := userFields[18].Descriptor()
 	// user.DefaultGiftsSent holds the default value on creation for the gifts_sent field.
 	user.DefaultGiftsSent = userDescGiftsSent.Default.(uint32)
 	// userDescOnboarded is the schema descriptor for onboarded field.
-	userDescOnboarded := userFields[18].Descriptor()
+	userDescOnboarded := userFields[19].Descriptor()
 	// user.DefaultOnboarded holds the default value on creation for the onboarded field.
 	user.DefaultOnboarded = userDescOnboarded.Default.(bool)
 	// userDescTestAccount is the schema descriptor for test_account field.
-	userDescTestAccount := userFields[19].Descriptor()
+	userDescTestAccount := userFields[20].Descriptor()
 	// user.DefaultTestAccount holds the default value on creation for the test_account field.
 	user.DefaultTestAccount = userDescTestAccount.Default.(bool)
 	// userDescCreatedAt is the schema descriptor for created_at field.
-	userDescCreatedAt := userFields[20].Descriptor()
+	userDescCreatedAt := userFields[21].Descriptor()
 	// user.DefaultCreatedAt holds the default value on creation for the created_at field.
 	user.DefaultCreatedAt = userDescCreatedAt.Default.(func() time.Time)
 	// userDescUpdatedAt is the schema descriptor for updated_at field.
-	userDescUpdatedAt := userFields[21].Descriptor()
+	userDescUpdatedAt := userFields[22].Descriptor()
 	// user.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	user.DefaultUpdatedAt = userDescUpdatedAt.Default.(func() time.Time)
 	// user.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.

@@ -33,6 +33,8 @@ const (
 	FieldLocale = "locale"
 	// FieldCustomCursor holds the string denoting the custom_cursor field in the database.
 	FieldCustomCursor = "custom_cursor"
+	// FieldCommandsPageHidden holds the string denoting the commands_page_hidden field in the database.
+	FieldCommandsPageHidden = "commands_page_hidden"
 	// FieldCreatorCode holds the string denoting the creator_code field in the database.
 	FieldCreatorCode = "creator_code"
 	// FieldSubscriptionSource holds the string denoting the subscription_source field in the database.
@@ -91,6 +93,7 @@ var Columns = []string{
 	FieldStatus,
 	FieldLocale,
 	FieldCustomCursor,
+	FieldCommandsPageHidden,
 	FieldCreatorCode,
 	FieldSubscriptionSource,
 	FieldSubscriptionExpiresAt,
@@ -134,6 +137,8 @@ var (
 	LocaleValidator func(string) error
 	// DefaultCustomCursor holds the default value on creation for the "custom_cursor" field.
 	DefaultCustomCursor bool
+	// DefaultCommandsPageHidden holds the default value on creation for the "commands_page_hidden" field.
+	DefaultCommandsPageHidden bool
 	// CreatorCodeValidator is a validator for the "creator_code" field. It is called by the builders before save.
 	CreatorCodeValidator func(string) error
 	// DefaultSubscriptionSource holds the default value on creation for the "subscription_source" field.
@@ -227,6 +232,11 @@ func ByLocale(opts ...sql.OrderTermOption) OrderOption {
 // ByCustomCursor orders the results by the custom_cursor field.
 func ByCustomCursor(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldCustomCursor, opts...).ToFunc()
+}
+
+// ByCommandsPageHidden orders the results by the commands_page_hidden field.
+func ByCommandsPageHidden(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldCommandsPageHidden, opts...).ToFunc()
 }
 
 // ByCreatorCode orders the results by the creator_code field.

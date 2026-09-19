@@ -2072,6 +2072,9 @@
         "replies": {
           "time": {
             "tagline": "Your current local time."
+          },
+          "lookup": {
+            "tagline": "Time somewhere else."
           }
         }
       },
@@ -2865,6 +2868,10 @@
     "themeToDark": "Switch to dark mode",
     "customCursor": "Custom cursor",
     "customCursorHint": "Show the animated cursor across the console. Turn it off for the normal pointer. Saved to your account.",
+    "publicPages": "Public pages",
+    "commandsPage": "Public commands page",
+    "commandsPageHint": "Viewers can open {url}. Off: that link answers 404 and !commands stops sharing it.",
+    "commandsPageDelayed": "Saved. The public link can take up to 6 minutes to catch up.",
     "cursorSaveError": "Couldn't save your cursor preference. Try again in a moment.",
     "reconnectTwitch": "Reconnect Twitch",
     "reconnectTwitchHint": "Re-run Twitch authorization to refresh the bot's access to your channel.",
