@@ -46,7 +46,7 @@ interface VariableDef {
 }
 ```
 
-Samples are one const each in `samples.ts`; `rehearsal.ts` and `forms[].output` both import them. `surfaces.ts` lists which variables each surface offers; module reply tokens come from the kit module catalog (`catalog/*.ts`).
+Samples are one const each in `preview-values.ts`; `rehearsal.ts` and `forms[].output` both import them. `surfaces.ts` lists which variables each surface offers; module reply tokens come from the kit module catalog (`catalog/*.ts`).
 
 ## 5. Phases
 

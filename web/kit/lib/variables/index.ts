@@ -8,7 +8,7 @@
 
 export * from './types';
 export * from './variables';
-export * from './samples';
+export * from './preview-values';
 export * from './surfaces';
 export * from './hint-keys';
 import { VARIABLES } from './variables';
