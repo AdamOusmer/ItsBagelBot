@@ -21,6 +21,7 @@
 
 import { lex, type VarToken } from '@bagel/kit/engine/tmpl';
 import { VARIABLES as KIT_VARIABLES, type VariableDef } from '@bagel/kit/variables';
+import { builtinDef } from '@bagel/kit/catalog/builtin-commands';
 import { moduleDef } from '@bagel/kit/catalog';
 import { SURFACES, kitText, type VarDef as SurfaceVarDef, type SurfaceDef } from '../../i18n/builder';
 import type { Lang } from '../../i18n/ui';
@@ -35,7 +36,8 @@ import type {
 } from './types';
 export type { LocaleText, VariableAvailability, VariableCategory, VariableExample, VariableLexerResult, VariableReference, LocalizedVariableReference };
 
-const CATEGORY_ORDER: readonly VariableCategory[] = [
+/** Left-rail and sort order for the guide page; also the canonical grouping order used everywhere the catalog is walked by category. */
+export const CATEGORY_ORDER: readonly VariableCategory[] = [
   'basics',
   'arguments',
   'counters',
@@ -99,12 +101,48 @@ function l10n(key: string): LocaleText {
   return { en: kitText('en', key), fr: kitText('fr', key) };
 }
 
+/** A kit key that only some variables carry (vars.<id>.payload, .behavior):
+ * kitText hands back the key itself when a locale lacks it, and a guide line
+ * reading "vars.if.behavior" is worse than no line. */
+function optionalL10n(key: string): LocaleText {
+  const text = l10n(key);
+  return text.en === key ? EMPTY_LOCALE : text;
+}
+
+/** Surface-only records have no kit hint key; the guide falls back to the description's first sentence for these. */
+const EMPTY_LOCALE: LocaleText = Object.freeze({ en: '', fr: '' });
+
+function kitRequirementIds(def: VariableDef): string[] {
+  return def.requires ? [def.requires] : [];
+}
+
+/** A requirement is a module (localized label below) or a toggleable
+ * built-in command (followage, accountage, uptime, title, game), which has
+ * no localized label anywhere: its chat trigger is the name broadcasters
+ * know it by in every language, so the chip says "!followage". */
 function kitRequirement(def: VariableDef): string[] {
   if (!def.requires) return [];
+  if (builtinDef(def.requires)) return [`!${def.requires}`];
   return [moduleDef(def.requires)?.label ?? def.requires];
 }
 
-const STATIC_BEHAVIOR = 'Unknown or disabled variables stay visible as written; an empty value can use a |fallback.';
+/**
+ * A module label in the broadcaster's own language, when the kit locales
+ * carry one for that module id (modules.catalog.<id>.label, the same string
+ * the dashboard module tile shows). `translate()` returns the key
+ * unchanged when nothing matches, which is how a miss is told apart from a
+ * real (possibly identical) translation without a second lookup.
+ *
+ * Falls back to the catalog's English label otherwise -- ModuleDef.label is
+ * a plain hardcoded string (web/kit/lib/catalog/module-def.ts), not a
+ * LocaleText, so most module ids have no French spelling to reach for yet.
+ */
+function localizedRequirementLabel(id: string, lang: Lang, fallback: string): string {
+  if (builtinDef(id)) return fallback;
+  const key = `modules.catalog.${id}.label`;
+  const text = kitText(lang, key);
+  return text === key ? fallback : text;
+}
 
 /** Mutable while surfaces are attached below; frozen by finalizeReference. */
 interface Draft extends Omit<VariableReference, 'syntaxes' | 'examples' | 'categories' | 'aliases' | 'aliasTokens' | 'surfaceIds' | 'surfaces' | 'requirements'> {
@@ -115,6 +153,7 @@ interface Draft extends Omit<VariableReference, 'syntaxes' | 'examples' | 'categ
   aliasTokens: string[];
   surfaceIds: string[];
   surfaces: VariableAvailability[];
+  requirementIds: string[];
   requirements: string[];
 }
 
@@ -128,12 +167,13 @@ function kitRecord(def: VariableDef): Draft {
   const aliases = [...(def.aliases ?? [])];
   const aliasTokens = aliases.map((alias) => `{${alias}}`);
   const requirements = kitRequirement(def);
+  const requirementIds = kitRequirementIds(def);
   return {
     id: def.id, token: canonical.example, syntax: canonical.syntax, example: canonical.example, output: canonical.output,
-    syntaxes, examples, name: l10n(`vars.${def.id}.name`), description: l10n(`vars.${def.id}.desc`),
+    syntaxes, examples, name: l10n(`vars.${def.id}.name`), hint: l10n(`vars.${def.id}.hint`), description: l10n(`vars.${def.id}.desc`),
     category: def.category, categories: [def.category], aliases, aliasTokens,
-    surfaceIds: [], surfaces: [], requirements, requirement: requirements.join(', '),
-    payload: parameterized ? canonical.syntax : '', behavior: STATIC_BEHAVIOR, legacy: def.legacy ?? false,
+    surfaceIds: [], surfaces: [], requirementIds, requirements, requirement: requirements.join(', '),
+    payload: optionalL10n(`vars.${def.id}.payload`), behavior: optionalL10n(`vars.${def.id}.behavior`), legacy: def.legacy ?? false,
     parameterized, lexer: validateVariableSyntax(canonical.syntax),
     lexerValid: validateVariableReference({ syntax: canonical.syntax, syntaxes, examples, aliasTokens }),
   };
@@ -149,9 +189,9 @@ function surfaceOnlyRecord(name: string, token: string, sample: string, varCopy:
   return {
     id: name, token, syntax, example: token, output: sample,
     syntaxes: [syntax], examples: [{ syntax: token, output: sample, surfaceId }],
-    name: varCopy.name, description: varCopy.desc, category: surfaceOnlyCategory(surfaceId), categories: [surfaceOnlyCategory(surfaceId)],
-    aliases: [], aliasTokens: [], surfaceIds: [], surfaces: [], requirements: [], requirement: '',
-    payload: '', behavior: STATIC_BEHAVIOR, legacy: false, parameterized: false,
+    name: varCopy.name, hint: EMPTY_LOCALE, description: varCopy.desc, category: surfaceOnlyCategory(surfaceId), categories: [surfaceOnlyCategory(surfaceId)],
+    aliases: [], aliasTokens: [], surfaceIds: [], surfaces: [], requirementIds: [], requirements: [], requirement: '',
+    payload: EMPTY_LOCALE, behavior: EMPTY_LOCALE, legacy: false, parameterized: false,
     lexer: validateVariableSyntax(syntax), lexerValid: validateVariableReference({ syntax, syntaxes: [syntax], examples: [], aliasTokens: [] }),
   };
 }
@@ -213,17 +253,27 @@ export const VARIABLES: readonly VariableReference[] = Object.freeze(BUILT_VARIA
 
 /** Return the complete reference with copy localized for one marketing locale. */
 export function variableReferenceData(lang: Lang): readonly LocalizedVariableReference[] {
-  return VARIABLES.map((reference) => ({
-    ...reference,
-    name: pickLocale(reference.name, lang),
-    description: pickLocale(reference.description, lang),
-    surfaces: reference.surfaces.map((surface) => ({
-      id: surface.id,
-      group: pickLocale(surface.group, lang),
-      label: pickLocale(surface.label, lang),
-      dashPath: surface.dashPath,
-    })),
-  }));
+  return VARIABLES.map((reference) => {
+    const requirements = reference.requirements.map((fallback, index) =>
+      localizedRequirementLabel(reference.requirementIds[index] ?? '', lang, fallback)
+    );
+    return {
+      ...reference,
+      name: pickLocale(reference.name, lang),
+      hint: pickLocale(reference.hint, lang),
+      description: pickLocale(reference.description, lang),
+      payload: pickLocale(reference.payload, lang),
+      behavior: pickLocale(reference.behavior, lang),
+      surfaces: reference.surfaces.map((surface) => ({
+        id: surface.id,
+        group: pickLocale(surface.group, lang),
+        label: pickLocale(surface.label, lang),
+        dashPath: surface.dashPath,
+      })),
+      requirements,
+      requirement: requirements.join(', '),
+    };
+  });
 }
 
 /** Search-friendly haystack for client-side filtering. */

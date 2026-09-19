@@ -1,0 +1,41 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Sticky left rail on desktop, a horizontal scrolling strip on phone (the
+// collapse is CSS-only, in reference.css). Category links are plain anchors
+// first -- `href="#id"` works with no JS -- and reference.ts additionally
+// wires them as a category filter. Surface chips are a real filter from the
+// start: there is no href to fall back to.
+import RailItem from '@bagel/ui/astro/RailItem.astro';
+import Chip from '@bagel/ui/astro/Chip.astro';
+
+interface Props {
+    categories: readonly { id: string; label: string; count: number }[];
+    surfaces: readonly { id: string; label: string }[];
+    activeCategory: string;
+    activeSurface: string;
+    categoryLabel: string;
+    surfacesLabel: string;
+    allSurfacesLabel: string;
+}
+
+const { categories, surfaces, activeCategory, activeSurface, categoryLabel, surfacesLabel, allSurfacesLabel } = Astro.props;
+---
+
+<nav class="vref-rail" aria-label={categoryLabel} data-vref-rail>
+    <ul class="vref-rail__categories">
+        {categories.map((category) => (
+            <li>
+                <RailItem href={`#${category.id}`} label={category.label} count={category.count} active={category.id === activeCategory} data-vref-cat={category.id} />
+            </li>
+        ))}
+    </ul>
+
+    <div class="vref-rail__surfaces" role="group" aria-label={surfacesLabel}>
+        <Chip on={!activeSurface} data-vref-surface="">{allSurfacesLabel}</Chip>
+        {surfaces.map((surface) => (
+            <Chip on={surface.id === activeSurface} data-vref-surface={surface.id}>{surface.label}</Chip>
+        ))}
+    </div>
+</nav>
