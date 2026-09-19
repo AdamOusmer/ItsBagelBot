@@ -22,12 +22,13 @@ const catalogs: Record<'en' | 'fr', MessageTree> = { en, fr };
 
 // Mirrors lookup() in messages.ts exactly: string leaves only, a list or a
 // missing branch is a miss, never a partial match.
+type Node = string | string[] | MessageTree | undefined;
+
+/** A branch is the only node kind a key can descend into. */
+const isBranch = (node: Node): node is MessageTree => node != null && typeof node !== 'string' && !Array.isArray(node);
+
 function lookup(tree: MessageTree | undefined, key: string): string | undefined {
-  let node: string | string[] | MessageTree | undefined = tree;
-  for (const part of key.split('.')) {
-    if (node == null || typeof node === 'string' || Array.isArray(node)) return undefined;
-    node = node[part];
-  }
+  const node = key.split('.').reduce<Node>((current, part) => (isBranch(current) ? current[part] : undefined), tree);
   return typeof node === 'string' ? node : undefined;
 }
 
