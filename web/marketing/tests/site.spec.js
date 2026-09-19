@@ -469,6 +469,44 @@ test.describe('guides & command builder', () => {
         await expect(page.locator('.bb-lang-switch a[hreflang="fr"]').first()).toHaveAttribute('href', '/fr/guides/');
     });
 
+    test('variables reference groups by category, expands, and deep-links', async ({ page }) => {
+        await page.goto('/guides/variables');
+
+        // One <section data-vref-group> per category that has entries, and
+        // one <details data-vref-entry> per variable family (docs/specs/
+        // variables-catalog.md D7: grouped, anchor-linkable, no-JS-first).
+        const groups = page.locator('[data-vref-group]');
+        await expect(groups).toHaveCount(13);
+        const entries = page.locator('[data-vref-entry]');
+        const totalEntries = await entries.count();
+        expect(totalEntries).toBeGreaterThan(100);
+
+        // A collapsed row expands on click, revealing the forms table.
+        const first = entries.first();
+        await first.locator('.vref-entry__row').click();
+        await expect(first).toHaveAttribute('open', '');
+        await expect(first.locator('.vref-forms')).toBeVisible();
+
+        // Search narrows the visible count below the full total.
+        await page.fill('[data-vref-search]', 'followage');
+        await expect(page.locator('[data-vref-count]')).toContainText('1 ');
+        await expect(page.locator('[data-vref-entry]:not([hidden])')).toHaveCount(1);
+    });
+
+    test('#followage deep-links to and opens that entry', async ({ page }) => {
+        await page.goto('/guides/variables#followage');
+
+        const entry = page.locator('#followage[data-vref-entry]');
+        await expect(entry).toHaveAttribute('open', '');
+        await expect(entry).toBeInViewport();
+    });
+
+    test('french variables reference localizes the catalog', async ({ page }) => {
+        await page.goto('/fr/guides/variables');
+
+        await expect(page.locator('#followage .vref-entry__name')).toHaveText('Temps de follow');
+    });
+
     test('builder composes a command end to end', async ({ page }) => {
         await page.goto('/command-builder');
         await page.waitForSelector('[data-builder][data-ready="1"]');
