@@ -95,14 +95,24 @@ describe('module catalog', () => {
       messageKey: 'profileMessage',
       defaultMessage: '{player} · level {level} · MP {rank} · {rating} rating · {country}',
       previewArgs: 'iFerg',
-      tokens: ['player', 'level', 'rank', 'rankclass', 'rating', 'country', 'shortid']
+      tokens: [
+        { name: 'player', sample: 'iFerg' },
+        { name: 'level', sample: '414' },
+        { name: 'rank', sample: 'Master I' },
+        { name: 'rankclass', sample: '21' },
+        { name: 'rating', sample: '4590' },
+        { name: 'country', sample: 'US' },
+        { name: 'shortid', sample: 'IFERG' }
+      ]
     });
     expect(def.settings![0]).toMatchObject({
       key: 'account',
       help: 'Default profile for the command. If blank, enter a CODM UID or exact nickname after !codm.'
     });
-    expect(profile.previewSamples).toMatchObject({ level: '414', rank: 'Master I', rankclass: '21', rating: '4590' });
-    expect(profile.previewSamples!.player).toBe(profile.previewArgs);
+    // The rehearsal reads {player}'s sample straight off the token the
+    // viewer typed as previewArgs, so a broadcaster sees their own input
+    // echoed back rather than a stray catalog name.
+    expect(profile.tokens?.find((tk) => tk.name === 'player')?.sample).toBe(profile.previewArgs);
     expect(def.settings!.map((field) => field.key)).toEqual(['account', 'linkedOnly']);
   });
 

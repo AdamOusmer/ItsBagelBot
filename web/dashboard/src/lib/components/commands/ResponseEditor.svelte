@@ -11,6 +11,7 @@
   // (module replies); there pasted newlines collapse to spaces.
   import { RESPONSE_MAX, getI18n, Chip, Textarea } from '@bagel/kit';
   import { pickCommonTokens } from '@bagel/kit/engine/common-tokens';
+  import { chipsFor } from '@bagel/kit/variables';
   import CounterPicker from '$lib/components/counters/CounterPicker.svelte';
   import FetchSourcePicker, { type SourceDef } from '$lib/components/commands/fetches/FetchSourcePicker.svelte';
 
@@ -20,87 +21,18 @@
   // callers (e.g. module replies) can pass their own with a plain `label` title.
   type PaletteToken = { token: string; hint?: string; label?: string };
 
-  // Mirrors the set the sesame scope chain actually expands
-  // (app/twitch/sesame/engine/scope): a token offered here must render in chat.
-  // The positional pair is offered as {1} and {2:} rather than as an abstract
-  // {n}: a chip inserts literal text, so it has to be a spelling that works
-  // the moment it lands in the field.
-  const DEFAULT_TOKENS: PaletteToken[] = [
-    { token: '{user}', hint: 'commandEditor.tokUser' },
-    { token: '{target}', hint: 'commandEditor.tokTarget' },
-    { token: '{args}', hint: 'commandEditor.tokArgs' },
-    { token: '{1}', hint: 'commandEditor.tokWord' },
-    { token: '{2:}', hint: 'commandEditor.tokWordsFrom' },
-    { token: '{channel}', hint: 'commandEditor.tokChannel' },
-    { token: '{userid}', hint: 'commandEditor.tokUserId' },
-    { token: '{user.login}', hint: 'commandEditor.tokUserLogin' },
-    { token: '{command}', hint: 'commandEditor.tokCommand' },
-    { token: '{counter:name}', hint: 'commandEditor.tokCounter' },
-    { token: '{random}', hint: 'commandEditor.tokRandom' },
-    { token: '{choice:a,b,c}', hint: 'commandEditor.tokChoice' },
-    { token: '{math:1+1}', hint: 'commandEditor.tokMath' },
-    { token: '{querystring}', hint: 'commandEditor.tokQueryString' },
-    { token: '{queryescape:text}', hint: 'commandEditor.tokQueryEscape' },
-    { token: '{pathescape:text}', hint: 'commandEditor.tokPathEscape' },
-    { token: '{repeat:3:hi}', hint: 'commandEditor.tokRepeat' },
-    { token: '{countdown:2026-12-25}', hint: 'commandEditor.tokCountdown' },
-    { token: '{countup:2026-12-25}', hint: 'commandEditor.tokCountup' },
-    // The conditional. One chip, in the two-branch form with a plain name:
-    // every other shape ({if:name=value:…:…}, the one-branch form, a cond
-    // carrying its own payload) is a small edit away from this one, and four
-    // chips of the same shape would crowd out the rest of the palette. The
-    // hint carries the rule a chip cannot show — the branches are plain text,
-    // no variable expands inside them.
-    { token: '{if:touser:hi there:hi everyone}', hint: 'commandEditor.tokIf' },
-    // The viewer lookups. Each is answered by an opt-in module, so a chip
-    // inserts a token that stays visible in chat while that module is off —
-    // the hints name the module for exactly that reason.
-    { token: '{followage}', hint: 'commandEditor.tokFollowage' },
-    { token: '{accountage}', hint: 'commandEditor.tokAccountAge' },
-    { token: '{points}', hint: 'commandEditor.tokPoints' },
-    { token: '{pointsname}', hint: 'commandEditor.tokPointsName' },
-    { token: '{watchtime}', hint: 'commandEditor.tokWatchTime' },
-    // The read-only counter sits beside the bump on purpose: seeing both chips
-    // is what tells a broadcaster that one of them adds 1 and the other does
-    // not, which no amount of hint text on a single chip can.
-    { token: '{count:deaths}', hint: 'commandEditor.tokCount' },
-    // {uses} sits beside the counters because that is where a broadcaster
-    // looks for it, and the hint has to carry the two things the chip cannot
-    // show: it is this command's own run count (nothing to name, nothing to
-    // bump) and it is approximate, because the bot batches the ticks.
-    { token: '{uses}', hint: 'commandEditor.tokUses' },
-    // The module facts. Each is answered by an opt-in module, so a chip
-    // inserts a token that stays visible in chat while that module is off —
-    // the hints name the module for exactly that reason.
-    { token: '{quote}', hint: 'commandEditor.tokQuote' },
-    { token: '{time}', hint: 'commandEditor.tokTime' },
-    { token: '{song}', hint: 'commandEditor.tokSong' },
-    // The chat room. These two are the only lookups in this list with no
-    // module behind them, so their hints name no module to switch on — what
-    // they need saying instead is that the bot counts and draws from people
-    // who have SPOKEN recently, not from everyone watching.
-    { token: '{chatters}', hint: 'commandEditor.tokChatters' },
-    { token: '{random.chatter}', hint: 'commandEditor.tokRandomChatter' },
-    // The emote catalog. Also unmoduled: the bot keeps these code lists loaded
-    // for its own spam filter, so the chips insert tokens that work on every
-    // channel. One list chip stands for all three providers — {bttvemotes} and
-    // {ffzemotes} are spelled the same way, and three chips of the same shape
-    // would crowd out the rest of the palette — and its hint carries the thing
-    // the chip cannot show: these are the GLOBAL sets, not this channel's own
-    // emotes, and a long list is cut to fit one chat line.
-    { token: '{7tvemotes}', hint: 'commandEditor.tokEmoteList' },
-    { token: '{random.emote}', hint: 'commandEditor.tokRandomEmote' },
-    // The channel itself. {uptime}, {title} and {game} are gated by the same
-    // per-command toggle as !uptime / !title / !game, so a chip can insert a
-    // token that stays visible in chat while that command is switched off on
-    // this very page; the hints name it. {channel.viewers} has no toggle
-    // because no command prints it, so its hint spends its words on the
-    // offline answer instead.
-    { token: '{uptime}', hint: 'commandEditor.tokUptime' },
-    { token: '{title}', hint: 'commandEditor.tokTitle' },
-    { token: '{game}', hint: 'commandEditor.tokGame' },
-    { token: '{channel.viewers}', hint: 'commandEditor.tokChannelViewers' }
-  ];
+  // Derived from the manifest (docs/specs/variables-catalog.md D5, D8) rather
+  // than hand-kept: chipsFor('custom') is the first form of every Variable
+  // this surface offers, in the order the guide page uses too, plus the one
+  // extra form flagged chipHint ({2:}). A chip inserts literal text, so each
+  // spelling has to work the moment it lands in the field.
+  //
+  // {counter} and {urlfetch} are filtered out below (paletteTokens): each has
+  // its own picker (CounterPicker, FetchSourcePicker) that inserts a real
+  // name instead of a literal placeholder, so a bare {counter:name} or
+  // {urlfetch:weather} chip would invite a broadcaster to ship a token that
+  // resolves to nothing.
+  const DEFAULT_TOKENS: PaletteToken[] = chipsFor('custom').map((c) => ({ token: c.token, hint: c.hintKey }));
 
   let {
     value = $bindable(''),
@@ -140,7 +72,9 @@
   // Callers passing their own tokens (module replies, rewards) keep a plain
   // palette.
   const pickerOn = $derived(tokens === DEFAULT_TOKENS);
-  const paletteTokens = $derived(pickerOn ? tokens.filter((tk) => !tk.token.startsWith('{counter')) : tokens);
+  const paletteTokens = $derived(
+    pickerOn ? tokens.filter((tk) => !tk.token.startsWith('{counter') && !tk.token.startsWith('{urlfetch')) : tokens
+  );
 
   // The command palette is FIVE chips and nothing else. The whole catalog
   // used to render at once (forty chips), then eight chips plus a ghost "More

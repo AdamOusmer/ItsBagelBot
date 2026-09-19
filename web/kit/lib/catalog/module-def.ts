@@ -44,6 +44,29 @@ export function automodToggleDefault(level: string, key: string): boolean {
   return (AUTOMOD_LEVEL_DEFAULTS[level] ?? AUTOMOD_LEVEL_DEFAULTS.moderate)[key] ?? false;
 }
 
+// One token a reply's editor palette offers (docs/specs/variables-catalog.md
+// D5): the bare name (no braces), the value the shared rehearsal substitutes
+// for it, and, once a module has its own locale hints, the key that names
+// what it means. name+sample replace the old tokens[] + name->sample record
+// pair a catalog entry used to keep as two lists a reader had to zip by eye.
+export interface ReplyToken {
+  readonly name: string;
+  readonly sample: string;
+  readonly hintKey?: string;
+}
+
+// Zips a reply's bare token names with its sample map into ReplyToken[], so a
+// catalog file keeps writing the two lists it already had (a name array next
+// to a name->sample record reads easier than one array of pairs) without
+// hand-rolling the merge in every file. A name missing from `samples` gets ''
+// rather than throwing: every current catalog entry supplies a sample for
+// every token it lists (see variables/parity.test.ts's sibling check in this
+// package for the manifest's own tokens), so this only guards a future
+// catalog addition that forgets one.
+export function replyTokens(names: readonly string[], samples: Readonly<Record<string, string>>): ReplyToken[] {
+  return names.map((name) => ({ name, sample: samples[name] ?? '' }));
+}
+
 // One chat line a module can post, rendered as a row on the module page. Clicking
 // the row opens the exact same builder as a custom command's response (the shared
 // ResponseEditor + ChatPreview, standard {user}/{target}/… tokens). messageKey/
@@ -70,18 +93,17 @@ export interface ModuleReply {
   // command is the chat trigger without '!' (e.g. 'daily'). When set, the
   // inspector rehearses the reply exactly like a custom command: the border
   // reads "Chat rehearsal", a viewer line types the trigger, and the bot
-  // answers with previewSamples substituted into the template.
+  // answers with each token's sample substituted into the template.
   command?: string;
   // previewArgs is what the sample viewer types after the trigger.
   previewArgs?: string;
-  // previewSamples maps this reply's tokens to sample values. The rehearsal
-  // (kind="reply") substitutes ONLY these plus the shared dynamic tokens:
-  // sesame expands only the module's own token map here, so the generic
-  // command samples would preview values the bot will never produce.
-  previewSamples?: Record<string, string>;
-  // tokens is the editor's insert palette (without braces), replacing the
-  // default command tokens with the ones this reply actually supports.
-  tokens?: string[];
+  // tokens is the editor's insert palette, replacing the default command
+  // tokens with the ones this reply actually supports. The rehearsal
+  // (kind="reply") substitutes ONLY these entries' samples plus the shared
+  // dynamic tokens: sesame expands only the module's own token map here, so
+  // the generic command samples would preview values the bot will never
+  // produce.
+  tokens?: readonly ReplyToken[];
 }
 
 // A chat command a module exposes, listed read-only on the module page so a

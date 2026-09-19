@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import type { ModuleDef } from './module-def';
+import { replyTokens, type ModuleDef } from './module-def';
 
 export const SHOUTOUT_MODULE: ModuleDef = 
 {
@@ -22,8 +22,7 @@ export const SHOUTOUT_MODULE: ModuleDef =
       defaultMessage:
         'Massive shoutout to {raider} for the raid with {viewers} viewers! Check them out at twitch.tv/{raider.login}',
       // Tokens the shoutout module resolves (app/twitch/sesame/modules/shoutout.go).
-      tokens: ['raider', 'raider.login', 'viewers'],
-      previewSamples: { raider: 'CrustyCrumbs', 'raider.login': 'crustycrumbs', viewers: '42' }
+      tokens: replyTokens(['raider', 'raider.login', 'viewers'], { raider: 'CrustyCrumbs', 'raider.login': 'crustycrumbs', viewers: '42' })
     }
   ],
   settings: [

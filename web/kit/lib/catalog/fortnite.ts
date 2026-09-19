@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import type { ModuleDef } from './module-def';
+import { replyTokens, type ModuleDef } from './module-def';
 import { LINKED_ONLY_FIELD } from './shared-fields';
 import { FN_SESSION_SAMPLES, FN_SESSION_TOKENS, FN_STATS_SAMPLES, FN_STATS_TOKENS } from './rehearsal-tokens';
 
@@ -28,8 +28,7 @@ export const FORTNITE_MODULE: ModuleDef =
       messageKey: 'statsMessage',
       defaultMessage:
         '{player} all time: {wins} wins in {matches} matches · {winrate}% WR · {kills} kills · {kd} K/D · solo {solowins}W / duo {duowins}W / squad {squadwins}W',
-      tokens: FN_STATS_TOKENS,
-      previewSamples: FN_STATS_SAMPLES
+      tokens: replyTokens(FN_STATS_TOKENS, FN_STATS_SAMPLES)
     },
     {
       key: 'season',
@@ -41,8 +40,7 @@ export const FORTNITE_MODULE: ModuleDef =
       messageKey: 'seasonMessage',
       defaultMessage:
         '{player} this season: {wins} wins in {matches} matches · {winrate}% WR · {kills} kills · {kd} K/D · solo {solowins}W / duo {duowins}W / squad {squadwins}W',
-      tokens: FN_STATS_TOKENS,
-      previewSamples: {
+      tokens: replyTokens(FN_STATS_TOKENS, {
         ...FN_STATS_SAMPLES,
         window: 'season',
         wins: '10',
@@ -59,7 +57,7 @@ export const FORTNITE_MODULE: ModuleDef =
         squadwins: '3',
         squadmatches: '5',
         squadkd: '21.5'
-      }
+      })
     },
     {
       key: 'session',
@@ -71,8 +69,7 @@ export const FORTNITE_MODULE: ModuleDef =
       messageKey: 'sessionMessage',
       defaultMessage:
         '{player} this stream: {wins} wins in {matches} matches · {winrate}% WR · {kills} kills · {kd} K/D',
-      tokens: FN_SESSION_TOKENS,
-      previewSamples: FN_SESSION_SAMPLES
+      tokens: replyTokens(FN_SESSION_TOKENS, FN_SESSION_SAMPLES)
     },
     {
       key: 'store',
@@ -83,12 +80,11 @@ export const FORTNITE_MODULE: ModuleDef =
       enableKey: 'storeEnabled',
       messageKey: 'storeMessage',
       defaultMessage: 'Item Shop {date}: {items}',
-      tokens: ['date', 'count', 'items'],
-      previewSamples: {
+      tokens: replyTokens(['date', 'count', 'items'], {
         date: '2026-07-09',
         count: '38',
         items: 'Peely Bundle (2800), Renegade Raider (1200), Floss (500) +35 more'
-      }
+      })
     }
   ],
   settings: [

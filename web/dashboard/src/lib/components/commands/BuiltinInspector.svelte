@@ -63,11 +63,15 @@
   // sample value the rehearsal substitutes (mirrors the module ReplyEditor).
   const palette = $derived(
     (def.tokens ?? []).map((tk) => {
-      const token = `{${tk}}`;
-      const sample = def.previewSamples?.[tk];
-      return { token, label: sample ? `${token} → ${sample}` : token };
+      const token = `{${tk.name}}`;
+      return { token, label: tk.sample ? `${token} → ${tk.sample}` : token };
     })
   );
+  // ChatPreview's samples prop is still a bare name->sample record (it feeds
+  // the shared rehearsal in engine/rehearsal.ts, which knows nothing about
+  // ReplyToken); build it once from the same tokens the palette reads so the
+  // two never disagree.
+  const rehearsalSamples = $derived(Object.fromEntries((def.tokens ?? []).map((tk) => [tk.name, tk.sample])));
   // Blank posts the default template, so preview the default instead of "nothing
   // to say yet".
   const effectiveMessage = $derived(message.trim() ? message : def.preview);
@@ -106,15 +110,15 @@
         <ResponseEditor name="reply" bind:value={message} tokens={palette} placeholder={def.preview} />
       </Field>
       <!-- kind="reply": built-in replies are expanded by a bare token replacer
-           (e.g. clipExpand), only def.previewSamples substitute, no dynamic
-           tokens. Leading slash-verbs still route (outgress sendBotLine). -->
+           (e.g. clipExpand), only this reply's own token samples substitute, no
+           dynamic tokens. Leading slash-verbs still route (outgress sendBotLine). -->
       <ChatPreview
         kind="reply"
         dynamic={false}
         name={def.id}
         args={def.previewArgs ?? ''}
         response={effectiveMessage}
-        samples={def.previewSamples}
+        samples={rehearsalSamples}
       />
       <div class="reply-actions">
         <button class="bb-btn bb-btn--primary" type="submit" disabled={busy}>
@@ -124,7 +128,7 @@
     </form>
   {:else}
     <Field label={t('builtinInspector.preview')}>
-      <ChatPreview kind="reply" dynamic={false} name={def.id} args={def.previewArgs ?? ''} response={def.preview} samples={def.previewSamples} />
+      <ChatPreview kind="reply" dynamic={false} name={def.id} args={def.previewArgs ?? ''} response={def.preview} samples={rehearsalSamples} />
     </Field>
   {/if}
 

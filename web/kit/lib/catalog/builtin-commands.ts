@@ -2,6 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { Perm } from '../types';
+import { replyTokens, type ReplyToken } from './module-def';
 
 // --- Built-in command catalog --------------------------------------------
 // Built-in commands are behaviors baked into the bot (not user text). They show
@@ -23,12 +24,11 @@ export interface BuiltinCommandDef {
   // usage lists example invocations shown in the inspector.
   usage: string[];
   // preview is the bot REPLY template, rendered through ChatPreview (as a
-  // reply rehearsal: only previewSamples substitute, built-in replies are
-  // bare token replacers with no dynamic tokens or slash-verb routing).
+  // reply rehearsal: only each token's sample substitutes, built-in replies
+  // are bare token replacers with no dynamic tokens or slash-verb routing).
   // previewArgs is what the viewer types after the trigger.
   preview: string;
   previewArgs?: string;
-  previewSamples?: Record<string, string>;
   defaultActive: boolean;
   defaultPerm: Perm;
   defaultCooldown: number; // seconds
@@ -45,8 +45,8 @@ export interface BuiltinCommandDef {
   // replyKey is the Configs key the custom reply template is stored under (only
   // meaningful when editable).
   replyKey?: string;
-  // tokens is the reply editor's insert palette (token names without braces).
-  tokens?: string[];
+  // tokens is the reply editor's insert palette.
+  tokens?: readonly ReplyToken[];
   // aliases are extra chat triggers that resolve to this built-in (e.g.
   // settitle → title). Shown on the commands page next to the primary name.
   aliases?: string[];
@@ -62,7 +62,7 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommandDef[] = [
     usage: ['!accountage', '!accountage <user>'],
     preview: "@{target}'s account is 4 years, 2 months old.",
     previewArgs: 'viewer',
-    previewSamples: { target: 'viewer' },
+    tokens: replyTokens(['target'], { target: 'viewer' }),
     defaultActive: true,
     defaultPerm: 'everyone',
     defaultCooldown: 15,
@@ -77,7 +77,7 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommandDef[] = [
     usage: ['!followage', '!followage <user>'],
     preview: '@{target} has followed for 8 months.',
     previewArgs: 'viewer',
-    previewSamples: { target: 'viewer' },
+    tokens: replyTokens(['target'], { target: 'viewer' }),
     defaultActive: true,
     defaultPerm: 'everyone',
     defaultCooldown: 15,
@@ -108,7 +108,6 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommandDef[] = [
     // = the title argument (standard command token).
     preview: '{user} clipped: {target} → {clip}',
     previewArgs: 'That is amazing',
-    previewSamples: { user: 'sesame_sam', target: 'That is amazing', clip: 'clips.twitch.tv/AbCdEf' },
     defaultActive: true,
     defaultPerm: 'everyone',
     defaultCooldown: 15,
@@ -118,7 +117,7 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommandDef[] = [
     // read by sesame and expanded by outgress (see app/twitch/sesame/modules/clip.go).
     editable: true,
     replyKey: 'reply',
-    tokens: ['clip', 'user', 'target']
+    tokens: replyTokens(['clip', 'user', 'target'], { user: 'sesame_sam', target: 'That is amazing', clip: 'clips.twitch.tv/AbCdEf' })
   },
   {
     id: 'title',
@@ -130,7 +129,7 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommandDef[] = [
     usage: ['!title', '!title <title>', '!settitle <title>'],
     preview: '@{user} updated the title to: {title}',
     previewArgs: 'Ranked grind',
-    previewSamples: { user: 'lead_mod', title: 'Ranked grind' },
+    tokens: replyTokens(['user', 'title'], { user: 'lead_mod', title: 'Ranked grind' }),
     defaultActive: true,
     defaultPerm: 'lead_mod',
     defaultCooldown: 5,
@@ -146,7 +145,7 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommandDef[] = [
     usage: ['!game', '!game <name>', '!setgame <name>'],
     preview: '@{user} updated the game to: {game}',
     previewArgs: 'Fortnite',
-    previewSamples: { user: 'lead_mod', game: 'Fortnite' },
+    tokens: replyTokens(['user', 'game'], { user: 'lead_mod', game: 'Fortnite' }),
     defaultActive: true,
     defaultPerm: 'lead_mod',
     defaultCooldown: 5,
@@ -162,7 +161,7 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommandDef[] = [
     usage: ['!tags', '!tags <tag1, tag2>', '!settags <tag1, tag2>'],
     preview: '@{user} updated tags to: {tags}',
     previewArgs: 'English, family friendly',
-    previewSamples: { user: 'lead_mod', tags: 'English, family friendly' },
+    tokens: replyTokens(['user', 'tags'], { user: 'lead_mod', tags: 'English, family friendly' }),
     defaultActive: true,
     defaultPerm: 'lead_mod',
     defaultCooldown: 5,
@@ -178,7 +177,7 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommandDef[] = [
     usage: ['!commercial', '!commercial 60', '!ad 90'],
     preview: '@{user} started a {length}s commercial.',
     previewArgs: '60',
-    previewSamples: { user: 'lead_mod', length: '60' },
+    tokens: replyTokens(['user', 'length'], { user: 'lead_mod', length: '60' }),
     defaultActive: true,
     defaultPerm: 'lead_mod',
     defaultCooldown: 30,
@@ -193,7 +192,7 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommandDef[] = [
     usage: ['!marker', '!marker <description>'],
     preview: '@{user} dropped a stream marker.',
     previewArgs: 'Boss fight',
-    previewSamples: { user: 'lead_mod' },
+    tokens: replyTokens(['user'], { user: 'lead_mod' }),
     defaultActive: true,
     defaultPerm: 'lead_mod',
     defaultCooldown: 10,

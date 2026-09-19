@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import type { ModuleDef } from './module-def';
+import { replyTokens, type ModuleDef } from './module-def';
 
 export const RAFFLE_MODULE: ModuleDef = 
 {
@@ -27,8 +27,7 @@ export const RAFFLE_MODULE: ModuleDef =
       command: 'join',
       messageKey: 'joinMessage',
       defaultMessage: "@{user} you're in! {count} entered so far. Good luck!",
-      tokens: ['user', 'count'],
-      previewSamples: { user: 'sesame_sam', count: '12' }
+      tokens: replyTokens(['user', 'count'], { user: 'sesame_sam', count: '12' })
     },
     {
       key: 'already',
@@ -38,8 +37,7 @@ export const RAFFLE_MODULE: ModuleDef =
       command: 'join',
       messageKey: 'alreadyMessage',
       defaultMessage: '@{user} you are already in this raffle ({count} entered).',
-      tokens: ['user', 'count'],
-      previewSamples: { user: 'sesame_sam', count: '13' }
+      tokens: replyTokens(['user', 'count'], { user: 'sesame_sam', count: '13' })
     },
     {
       key: 'noRaffle',
@@ -49,8 +47,7 @@ export const RAFFLE_MODULE: ModuleDef =
       command: 'join',
       messageKey: 'noRaffleMessage',
       defaultMessage: '@{user} no raffle is running right now.',
-      tokens: ['user'],
-      previewSamples: { user: 'sesame_sam' }
+      tokens: replyTokens(['user'], { user: 'sesame_sam' })
     },
     {
       key: 'opened',
@@ -60,8 +57,7 @@ export const RAFFLE_MODULE: ModuleDef =
       command: 'raffle open',
       messageKey: 'openedMessage',
       defaultMessage: 'Raffle is LIVE! Type !join to enter. Drawing in {mins} min!',
-      tokens: ['mins'],
-      previewSamples: { mins: '10' }
+      tokens: replyTokens(['mins'], { mins: '10' })
     },
     {
       key: 'won',
@@ -72,8 +68,7 @@ export const RAFFLE_MODULE: ModuleDef =
       messageKey: 'wonMessage',
       defaultMessage:
         '{targets}, congratulations! You won the raffle ({count} winner(s) from {entrants})! Type !claim within {claim} min to confirm your prize!',
-      tokens: ['targets', 'count', 'entrants', 'claim'],
-      previewSamples: { targets: '@maya_live, @crustycrumbs', count: '2', entrants: '18', claim: '15' }
+      tokens: replyTokens(['targets', 'count', 'entrants', 'claim'], { targets: '@maya_live, @crustycrumbs', count: '2', entrants: '18', claim: '15' })
     },
     {
       key: 'claimOk',
@@ -83,8 +78,7 @@ export const RAFFLE_MODULE: ModuleDef =
       command: 'claim',
       messageKey: 'claimOkMessage',
       defaultMessage: '@{user} your prize is confirmed. Enjoy!',
-      tokens: ['user'],
-      previewSamples: { user: 'maya_live' }
+      tokens: replyTokens(['user'], { user: 'maya_live' })
     }
   ],
   commands: [

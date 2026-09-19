@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import type { ModuleDef } from './module-def';
+import { replyTokens, type ModuleDef } from './module-def';
 
 export const QUEUE_MODULE: ModuleDef = 
 {
@@ -26,8 +26,7 @@ export const QUEUE_MODULE: ModuleDef =
       command: 'join',
       messageKey: 'joinMessage',
       defaultMessage: '@{user} you joined the queue at position #{pos}.',
-      tokens: ['user', 'pos'],
-      previewSamples: { user: 'sesame_sam', pos: '3' }
+      tokens: replyTokens(['user', 'pos'], { user: 'sesame_sam', pos: '3' })
     },
     {
       key: 'already',
@@ -37,8 +36,7 @@ export const QUEUE_MODULE: ModuleDef =
       command: 'join',
       messageKey: 'alreadyMessage',
       defaultMessage: '@{user} you are already in the queue at position #{pos}.',
-      tokens: ['user', 'pos'],
-      previewSamples: { user: 'sesame_sam', pos: '2' }
+      tokens: replyTokens(['user', 'pos'], { user: 'sesame_sam', pos: '2' })
     },
     {
       key: 'leave',
@@ -48,8 +46,7 @@ export const QUEUE_MODULE: ModuleDef =
       command: 'leave',
       messageKey: 'leaveMessage',
       defaultMessage: '@{user} you left the queue.',
-      tokens: ['user'],
-      previewSamples: { user: 'sesame_sam' }
+      tokens: replyTokens(['user'], { user: 'sesame_sam' })
     },
     {
       key: 'next',
@@ -59,8 +56,7 @@ export const QUEUE_MODULE: ModuleDef =
       command: 'queue next',
       messageKey: 'nextMessage',
       defaultMessage: '@{target} you are up next! ({count} still waiting)',
-      tokens: ['target', 'count'],
-      previewSamples: { target: 'ferret_king', count: '2' }
+      tokens: replyTokens(['target', 'count'], { target: 'ferret_king', count: '2' })
     },
     {
       key: 'opened',
@@ -69,8 +65,7 @@ export const QUEUE_MODULE: ModuleDef =
       event: '!queue open',
       command: 'queue open',
       messageKey: 'openedMessage',
-      defaultMessage: 'The queue is now open! Type !join to get in line.',
-      previewSamples: {}
+      defaultMessage: 'The queue is now open! Type !join to get in line.'
     },
     {
       key: 'closed',
@@ -79,8 +74,7 @@ export const QUEUE_MODULE: ModuleDef =
       event: '!queue close',
       command: 'queue close',
       messageKey: 'closedMessage',
-      defaultMessage: 'The queue is now closed to new joins.',
-      previewSamples: {}
+      defaultMessage: 'The queue is now closed to new joins.'
     }
   ],
   commands: [

@@ -116,7 +116,7 @@
   <button
     type="button"
     class="picker"
-    title={t('commandEditor.tokCounter')}
+    title={t('vars.counter.hint')}
     aria-haspopup="dialog"
     aria-expanded={open}
     onclick={toggle}

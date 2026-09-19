@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import type { ModuleDef } from './module-def';
+import { replyTokens, type ModuleDef } from './module-def';
 
 export const TIME_MODULE: ModuleDef = 
 {
@@ -21,13 +21,12 @@ export const TIME_MODULE: ModuleDef =
       command: 'time',
       messageKey: 'message',
       defaultMessage: 'It is currently {time} for the streamer.',
-      tokens: ['time', 'date', 'timezone', 'user'],
-      previewSamples: {
+      tokens: replyTokens(['time', 'date', 'timezone', 'user'], {
         time: '2:30 PM',
         date: 'Monday, July 13',
         timezone: 'America/Toronto',
         user: 'Viewer'
-      }
+      })
     },
     {
       key: 'lookup',
@@ -38,14 +37,13 @@ export const TIME_MODULE: ModuleDef =
       previewArgs: 'Tokyo',
       messageKey: 'lookupMessage',
       defaultMessage: 'It is currently {time} in {place}.',
-      tokens: ['time', 'date', 'place', 'timezone', 'user'],
-      previewSamples: {
+      tokens: replyTokens(['time', 'date', 'place', 'timezone', 'user'], {
         time: '3:30 AM',
         date: 'Tuesday, July 14',
         place: 'Tokyo',
         timezone: 'Asia/Tokyo',
         user: 'Viewer'
-      }
+      })
     }
   ],
   settings: [

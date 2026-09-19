@@ -8,7 +8,7 @@
 // duel.go, same config keys, same defaults). They nest under loyalty
 // (`parent: 'loyalty'`): no index tile, no independent master switch, no
 // second currency name. Odds and chat lines stay on /modules/[id].
-import type { ModuleDef } from './module-def';
+import { replyTokens, type ModuleDef } from './module-def';
 
 export const GAME_MODULE_DEFS: ModuleDef[] = [
   {
@@ -41,8 +41,7 @@ export const GAME_MODULE_DEFS: ModuleDef[] = [
         previewArgs: '100',
         messageKey: 'winMessage',
         defaultMessage: '@{user} rolled {roll} (needed {chance} or less) and won {amount} {points}, now at {balance}!',
-        tokens: ['user', 'roll', 'chance', 'amount', 'balance', 'points'],
-        previewSamples: { user: 'sesame_sam', roll: '23', chance: '50', amount: '100', balance: '1340', points: 'points' }
+        tokens: replyTokens(['user', 'roll', 'chance', 'amount', 'balance', 'points'], { user: 'sesame_sam', roll: '23', chance: '50', amount: '100', balance: '1340', points: 'points' })
       },
       {
         key: 'lost',
@@ -53,8 +52,7 @@ export const GAME_MODULE_DEFS: ModuleDef[] = [
         previewArgs: '100',
         messageKey: 'loseMessage',
         defaultMessage: '@{user} rolled {roll} (needed {chance} or less) and lost {amount} {points}. Now at {balance}.',
-        tokens: ['user', 'roll', 'chance', 'amount', 'balance', 'points'],
-        previewSamples: { user: 'sesame_sam', roll: '87', chance: '50', amount: '100', balance: '1140', points: 'points' }
+        tokens: replyTokens(['user', 'roll', 'chance', 'amount', 'balance', 'points'], { user: 'sesame_sam', roll: '87', chance: '50', amount: '100', balance: '1140', points: 'points' })
       }
     ],
     commands: [
@@ -87,8 +85,7 @@ export const GAME_MODULE_DEFS: ModuleDef[] = [
         previewArgs: '100',
         messageKey: 'openedMessage',
         defaultMessage: 'Pot duel is LIVE! @{user} put up {stake} {points}. Type !duel <amount> to join. Drawing in {secs}s!',
-        tokens: ['user', 'stake', 'secs', 'points'],
-        previewSamples: { user: 'sesame_sam', stake: '100', secs: '60', points: 'points' }
+        tokens: replyTokens(['user', 'stake', 'secs', 'points'], { user: 'sesame_sam', stake: '100', secs: '60', points: 'points' })
       },
       {
         key: 'joined',
@@ -99,8 +96,7 @@ export const GAME_MODULE_DEFS: ModuleDef[] = [
         previewArgs: '250',
         messageKey: 'joinMessage',
         defaultMessage: "@{user} you're in with {stake}! {count} in the duel, {pot} {points} in the pot.",
-        tokens: ['user', 'stake', 'count', 'pot', 'points'],
-        previewSamples: { user: 'sesame_sam', stake: '250', count: '4', pot: '700', points: 'points' }
+        tokens: replyTokens(['user', 'stake', 'count', 'pot', 'points'], { user: 'sesame_sam', stake: '250', count: '4', pot: '700', points: 'points' })
       },
       {
         key: 'challenge',
@@ -111,8 +107,7 @@ export const GAME_MODULE_DEFS: ModuleDef[] = [
         previewArgs: '@maya_live 500',
         messageKey: 'challengeMessage',
         defaultMessage: '@{user} challenges @{target} for {stake} {points}! @{target}, type !duel accept within {secs}s. Winner takes {pot}!',
-        tokens: ['user', 'target', 'stake', 'pot', 'secs', 'points'],
-        previewSamples: { user: 'sesame_sam', target: 'maya_live', stake: '500', pot: '1000', secs: '120', points: 'points' }
+        tokens: replyTokens(['user', 'target', 'stake', 'pot', 'secs', 'points'], { user: 'sesame_sam', target: 'maya_live', stake: '500', pot: '1000', secs: '120', points: 'points' })
       },
       {
         key: 'won',
@@ -123,8 +118,7 @@ export const GAME_MODULE_DEFS: ModuleDef[] = [
         previewArgs: 'accept',
         messageKey: 'wonMessage',
         defaultMessage: 'The blades fall: @{winner} defeats @{loser} and takes {pot} {points}!',
-        tokens: ['winner', 'loser', 'pot', 'points'],
-        previewSamples: { winner: 'maya_live', loser: 'sesame_sam', pot: '1000', points: 'points' }
+        tokens: replyTokens(['winner', 'loser', 'pot', 'points'], { winner: 'maya_live', loser: 'sesame_sam', pot: '1000', points: 'points' })
       }
     ],
     commands: [

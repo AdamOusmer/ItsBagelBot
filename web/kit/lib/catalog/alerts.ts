@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import type { ModuleDef } from './module-def';
+import { replyTokens, type ModuleDef } from './module-def';
 
 export const ALERTS_MODULE: ModuleDef = 
 {
@@ -22,8 +22,7 @@ export const ALERTS_MODULE: ModuleDef =
       messageKey: 'followMessage',
       defaultMessage: 'Thank you for following the channel, {user}!',
       // Per-alert tokens/samples mirror the maps in app/twitch/sesame/modules/alerts.go.
-      tokens: ['user'],
-      previewSamples: { user: 'sesame_sam' }
+      tokens: replyTokens(['user'], { user: 'sesame_sam' })
     },
     {
       key: 'sub',
@@ -33,8 +32,7 @@ export const ALERTS_MODULE: ModuleDef =
       enableKey: 'subEnabled',
       messageKey: 'subMessage',
       defaultMessage: 'Welcome to the community, {user}! Thank you for subscribing!',
-      tokens: ['user', 'tier'],
-      previewSamples: { user: 'sesame_sam', tier: '1000' }
+      tokens: replyTokens(['user', 'tier'], { user: 'sesame_sam', tier: '1000' })
     },
     {
       key: 'gift',
@@ -44,8 +42,7 @@ export const ALERTS_MODULE: ModuleDef =
       enableKey: 'giftEnabled',
       messageKey: 'giftMessage',
       defaultMessage: '{user} just gifted {count} subs to the community! Thank you!',
-      tokens: ['user', 'count', 'tier'],
-      previewSamples: { user: 'GenerousViewer', count: '5', tier: '1000' }
+      tokens: replyTokens(['user', 'count', 'tier'], { user: 'GenerousViewer', count: '5', tier: '1000' })
     },
     {
       key: 'cheer',
@@ -55,8 +52,7 @@ export const ALERTS_MODULE: ModuleDef =
       enableKey: 'cheerEnabled',
       messageKey: 'cheerMessage',
       defaultMessage: 'Thank you for the {bits} bits, {user}!',
-      tokens: ['user', 'bits'],
-      previewSamples: { user: 'sesame_sam', bits: '500' }
+      tokens: replyTokens(['user', 'bits'], { user: 'sesame_sam', bits: '500' })
     },
     {
       key: 'raid',
@@ -66,8 +62,7 @@ export const ALERTS_MODULE: ModuleDef =
       enableKey: 'raidEnabled',
       messageKey: 'raidMessage',
       defaultMessage: '{user} is raiding the channel with {viewers} viewers! Welcome everyone!',
-      tokens: ['user', 'viewers'],
-      previewSamples: { user: 'CrustyCrumbs', viewers: '42' }
+      tokens: replyTokens(['user', 'viewers'], { user: 'CrustyCrumbs', viewers: '42' })
     },
     {
       key: 'ads',
@@ -78,8 +73,7 @@ export const ALERTS_MODULE: ModuleDef =
       messageKey: 'adsMessage',
       defaultOff: true,
       defaultMessage: "Ads are rolling for {duration} seconds. Hang tight, we'll be right back!",
-      tokens: ['duration'],
-      previewSamples: { duration: '90' }
+      tokens: replyTokens(['duration'], { duration: '90' })
     }
   ]
 };
