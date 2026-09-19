@@ -42,6 +42,38 @@
 import { RESPONSE_MAX_LINES, responseLines } from './commands-validate';
 import { queryEscape, resolveComputedUtil, UTIL_NAMES } from './pure';
 import { condText, type Cond, lex, parseCond, resolveToken, type VarToken } from './tmpl';
+import {
+  ACCOUNTAGE_SAMPLE,
+  ARGS_SAMPLE,
+  BTTV_EMOTES_SAMPLE,
+  CHANNEL_SAMPLE,
+  CHANNEL_VIEWERS_SAMPLE,
+  CHATTERS_SAMPLE,
+  COMMAND_SAMPLE,
+  COUNTDOWN_SAMPLE,
+  COUNTER_SAMPLE,
+  FFZ_EMOTES_SAMPLE,
+  FOLLOWAGE_SAMPLE,
+  GAME_SAMPLE,
+  POINTS_NAME_SAMPLE,
+  POINTS_SAMPLE,
+  QUOTE_SAMPLE,
+  RANDOM_CHATTER_SAMPLE,
+  RANDOM_EMOTE_SAMPLE,
+  RANDOM_SAMPLE,
+  SEVENTV_EMOTES_SAMPLE,
+  SONG_ARTIST_SAMPLE,
+  SONG_TITLE_SAMPLE,
+  TIME_SAMPLE,
+  TITLE_SAMPLE,
+  TOUSER_SAMPLE,
+  UPTIME_SAMPLE,
+  USER_LOGIN_SAMPLE,
+  USER_SAMPLE,
+  USERID_SAMPLE,
+  USES_SAMPLE,
+  WATCHTIME_SAMPLE
+} from '../variables/samples';
 
 export type SegKind = 'plain' | 'sample' | 'unknown';
 
@@ -92,13 +124,13 @@ export interface SampleScope {
  * literal. {sender} and {target} are absent on purpose: they are aliases
  * (see COMMAND_ALIASES), so overriding the canonical token covers both. */
 export const COMMAND_SAMPLES: Samples = {
-  user: 'sesame_sam',
-  args: 'ferret_king good luck',
-  touser: 'ferret_king',
-  channel: 'bagel_bakery',
-  userid: '48291057',
-  'user.login': 'sesame_sam',
-  command: 'hug'
+  user: USER_SAMPLE,
+  args: ARGS_SAMPLE,
+  touser: TOUSER_SAMPLE,
+  channel: CHANNEL_SAMPLE,
+  userid: USERID_SAMPLE,
+  'user.login': USER_LOGIN_SAMPLE,
+  command: COMMAND_SAMPLE
 };
 
 /** The message scope resolves each pair to one value ({user}/{sender} are both
@@ -127,103 +159,11 @@ const MESSAGE_NAMES = new Set([
  * silently empty. */
 const MAX_POSITIONAL = 30;
 
-/** Deterministic stand-ins for values the bot rolls or reads at run time, so
- * the rehearsal shows something the bot could produce without re-rolling on
- * every keystroke. */
-const RANDOM_SAMPLE = '57';
-const COUNTER_SAMPLE = '42';
-
-/** {uses} in the preview. Deliberately not a round number and not the counter
- * sample: the two read as the same thing in a template that shows both, and a
- * broadcaster comparing "{counter:hugs} / {uses}" has to be able to see that
- * they are two different numbers. */
-const USES_SAMPLE = '317';
-
-/** {countdown}/{countup} read the wall clock, so the preview shows a fixed,
- * plausible span instead of a live one: a value that ticks while the
- * broadcaster types would redraw the rehearsal on a timer and still not be
- * the value chat sees, since chat sees it whenever the command runs. The
- * wording matches the bot's shared humanizer (the same one !uptime prints
- * through, internal/domain/i18n HumanizeDuration). */
-const COUNTDOWN_SAMPLE = '3 days, 4 hours';
-
-/** Stand-ins for the viewer lookups (scope.Viewer): a follow date, an account
- * creation date and a loyalty standing all live in services the dashboard
- * cannot reach while the broadcaster is typing, so the preview shows a
- * plausible answer rather than a live one. The two spans are worded by the
- * bot's shared humanizer, like every other span it prints. */
-const FOLLOWAGE_SAMPLE = '3 months';
-const ACCOUNTAGE_SAMPLE = '4 years, 2 months';
-const POINTS_SAMPLE = '1280';
-const POINTS_NAME_SAMPLE = 'bagels';
-const WATCHTIME_SAMPLE = '2 hours, 30 minutes';
-
-/** Stand-ins for the module facts (scope.Modules): a saved quote, the
- * broadcaster's local clock and whatever is playing. All three live in
- * services the dashboard cannot reach while a response is being typed, so the
- * preview shows a plausible answer rather than a live one.
- *
- * The quote sample keeps the shape !quote prints (number, text, save date),
- * because that is exactly what the token renders; the clock keeps the 12-hour
- * face, which is the module's default. Chat sees two DIFFERENT quotes for two
- * {quote} spans (they are independent draws) — the preview shows the same one
- * twice rather than inventing a second fake quote, because a preview that
- * showed two would suggest the bot knows which two. */
-const QUOTE_SAMPLE = 'Quote #12: bagels are just savoury donuts (2026-01-31)';
-const TIME_SAMPLE = '3:04 PM';
-const SONG_TITLE_SAMPLE = 'Everything In Its Right Place';
-const SONG_ARTIST_SAMPLE = 'Radiohead';
-
-/** Stand-ins for the chat room (scope.Chatters): how many people the bot has
- * watched speak recently, and one of their names. Neither is gated by a
- * module, but neither is knowable from a response being typed in a dashboard
- * either, so the preview shows a plausible room rather than a live one.
- *
- * Chat draws a DIFFERENT name for each {random.chatter} span (they are
- * independent draws); the preview shows the same one every time, for the
- * reason it does not re-roll {random} on every keystroke — a preview that
- * changed under the cursor would be read as the bot being indecisive, and a
- * second invented name would suggest the dashboard knows who is in the room.
- * The count is a plausible small room rather than a round number, so nobody
- * reads it as a placeholder the bot failed to fill. */
-const CHATTERS_SAMPLE = '37';
-const RANDOM_CHATTER_SAMPLE = 'maya_live';
-
-/** Stand-ins for the emote catalog (scope.Emotes): the global 7TV, BTTV and
- * FFZ code lists the bot already keeps loaded, and one code drawn from them.
- *
- * A few plausible codes rather than the real sets, which run to hundreds of
- * codes and are truncated to one chat line before they are sent: a preview
- * that filled the editor with 480 bytes of emote names would bury the
- * response being written, and the dashboard has no catalog of its own to be
- * honest with anyway. The guide is where the real length is described.
- *
- * Repeated {random.emote} spans draw independently in chat; the preview shows
- * the same code every time, for the reason it does not re-roll {random} on
- * every keystroke. */
-const SEVENTV_EMOTES_SAMPLE = 'PagMan Clap peepoHappy';
-const BTTV_EMOTES_SAMPLE = 'KEKW monkaS catJAM';
-const FFZ_EMOTES_SAMPLE = 'LUL ZULUL AYAYA';
-const RANDOM_EMOTE_SAMPLE = 'KEKW';
-
-/** Stand-ins for the channel itself (scope.Channel): the live title, the
- * category, how long the stream has been up and how many people are watching.
- * All four come from one Twitch read the dashboard cannot make while a
- * response is being typed, so the preview shows a plausible LIVE channel.
- *
- * Live is the choice worth naming: an offline channel previews as an uptime
- * of nothing and a viewer count of 0, which would show a broadcaster four
- * variables and two blanks, and blanks read as a bot that does not work. The
- * chip hints and the guide carry the offline behaviour instead.
- *
- * The uptime is worded by the bot's shared humanizer, the same one !uptime
- * prints through. A named channel ({game:pokimane}) previews with the same
- * stand-in as the bare spelling, for the reason the viewer lookups do: what
- * somebody else is playing is exactly what a preview cannot know. */
-const UPTIME_SAMPLE = '2 hours, 15 minutes';
-const TITLE_SAMPLE = 'bagel baking and chill';
-const GAME_SAMPLE = 'Just Chatting';
-const CHANNEL_VIEWERS_SAMPLE = '128';
+// The *_SAMPLE consts these scopes used to declare locally now live in
+// ../variables/samples.ts, imported above: ./variables (the guide, the
+// parity test) needs the exact same values, and a second copy is how a
+// rehearsal preview and a guide page drift (docs/specs/variables-catalog.md
+// D2, D8).
 
 /** Rehearse a custom command response: expand, split into messages, then
  * route each line's leading slash-verb (the same order as emitCommand).
