@@ -3323,5 +3323,710 @@
       "hint": "just the artist name, the second half of {song}",
       "desc": "The artist name on its own, the second half of {song}. Nothing playing comes back empty. Needs the Song requests module."
     }
+  },
+  "replyVars": {
+    "alerts": {
+      "follow": {
+        "user": {
+          "name": "New follower",
+          "hint": "The person who just followed",
+          "desc": "The person who just followed."
+        }
+      },
+      "sub": {
+        "user": {
+          "name": "Subscriber",
+          "hint": "The new subscriber",
+          "desc": "The new subscriber."
+        },
+        "tier": {
+          "name": "Sub tier",
+          "hint": "The subscription tier",
+          "desc": "The subscription tier."
+        }
+      },
+      "cheer": {
+        "user": {
+          "name": "Cheerer",
+          "hint": "The viewer who cheered",
+          "desc": "The viewer who cheered."
+        },
+        "bits": {
+          "name": "Bits amount",
+          "hint": "How many bits were cheered",
+          "desc": "How many bits were cheered."
+        }
+      },
+      "raid": {
+        "user": {
+          "name": "Raider",
+          "hint": "The raiding channel's display name",
+          "desc": "The raiding channel's display name."
+        },
+        "viewers": {
+          "name": "Raid size",
+          "hint": "How many viewers arrived",
+          "desc": "How many viewers arrived."
+        }
+      }
+    },
+    "shoutout": {
+      "shoutout": {
+        "raider": {
+          "name": "Raider name",
+          "hint": "Friendly display name of the raiding channel",
+          "desc": "Friendly display name of the raiding channel."
+        },
+        "raider_login": {
+          "name": "Raider login",
+          "hint": "URL-safe login",
+          "desc": "URL-safe login, for twitch.tv/ links."
+        },
+        "viewers": {
+          "name": "Raid size",
+          "hint": "How many viewers arrived",
+          "desc": "How many viewers arrived."
+        }
+      }
+    },
+    "time": {
+      "time": {
+        "time": {
+          "name": "Local time",
+          "hint": "The clock",
+          "desc": "The clock, in your configured timezone and format."
+        },
+        "date": {
+          "name": "Local date",
+          "hint": "Today's date in your timezone",
+          "desc": "Today's date in your timezone."
+        },
+        "timezone": {
+          "name": "Timezone",
+          "hint": "The configured timezone name",
+          "desc": "The configured timezone name."
+        },
+        "user": {
+          "name": "Asker",
+          "hint": "Who asked for the time",
+          "desc": "Who asked for the time."
+        }
+      }
+    },
+    "queue": {
+      "join": {
+        "user": {
+          "name": "Joiner",
+          "hint": "Who joined the queue",
+          "desc": "Who joined the queue."
+        },
+        "pos": {
+          "name": "Queue position",
+          "hint": "Their spot in line",
+          "desc": "Their spot in line."
+        }
+      },
+      "next": {
+        "target": {
+          "name": "Next player",
+          "hint": "Who is up next",
+          "desc": "Who is up next."
+        },
+        "count": {
+          "name": "Still waiting",
+          "hint": "How many people remain in line",
+          "desc": "How many people remain in line."
+        }
+      }
+    },
+    "urchin": {
+      "daily": {
+        "player": {
+          "name": "Player",
+          "hint": "The resolved Minecraft player",
+          "desc": "The resolved Minecraft player."
+        },
+        "wins": {
+          "name": "Wins",
+          "hint": "Wins in the period",
+          "desc": "Wins in the period."
+        },
+        "losses": {
+          "name": "Losses",
+          "hint": "Losses in the period",
+          "desc": "Losses in the period."
+        },
+        "finals": {
+          "name": "Final kills",
+          "hint": "Final kills in the period",
+          "desc": "Final kills in the period."
+        },
+        "finaldeaths": {
+          "name": "Final deaths",
+          "hint": "Final deaths in the period",
+          "desc": "Final deaths in the period."
+        },
+        "beds": {
+          "name": "Beds broken",
+          "hint": "Beds broken in the period",
+          "desc": "Beds broken in the period."
+        },
+        "games": {
+          "name": "Games",
+          "hint": "Games played in the period",
+          "desc": "Games played in the period."
+        },
+        "levels": {
+          "name": "Levels gained",
+          "hint": "Star levels gained",
+          "desc": "Star levels gained."
+        },
+        "fkdr": {
+          "name": "FKDR",
+          "hint": "Final kills divided by final deaths",
+          "desc": "Final kills divided by final deaths."
+        }
+      },
+      "stats": {
+        "player": {
+          "name": "Player",
+          "hint": "The resolved Minecraft player",
+          "desc": "The resolved Minecraft player."
+        },
+        "stars": {
+          "name": "Stars",
+          "hint": "Bedwars star level",
+          "desc": "Bedwars star level."
+        },
+        "wins": {
+          "name": "Wins",
+          "hint": "Lifetime wins",
+          "desc": "Lifetime wins."
+        },
+        "losses": {
+          "name": "Losses",
+          "hint": "Lifetime losses",
+          "desc": "Lifetime losses."
+        },
+        "finals": {
+          "name": "Final kills",
+          "hint": "Lifetime final kills",
+          "desc": "Lifetime final kills."
+        },
+        "finaldeaths": {
+          "name": "Final deaths",
+          "hint": "Lifetime final deaths",
+          "desc": "Lifetime final deaths."
+        },
+        "beds": {
+          "name": "Beds broken",
+          "hint": "Lifetime beds broken",
+          "desc": "Lifetime beds broken."
+        },
+        "fkdr": {
+          "name": "FKDR",
+          "hint": "Lifetime final K/D ratio",
+          "desc": "Lifetime final K/D ratio."
+        },
+        "wlr": {
+          "name": "Win/loss ratio",
+          "hint": "Lifetime win/loss ratio",
+          "desc": "Lifetime win/loss ratio."
+        }
+      },
+      "sniper": {
+        "player": {
+          "name": "Player",
+          "hint": "The resolved player",
+          "desc": "The resolved player."
+        },
+        "score": {
+          "name": "Sniper score",
+          "hint": "The current overlay score",
+          "desc": "The current overlay score."
+        },
+        "mode": {
+          "name": "Mode",
+          "hint": "The current warning mode",
+          "desc": "The current warning mode."
+        },
+        "tagcount": {
+          "name": "Tag count",
+          "hint": "Active blacklist tags",
+          "desc": "Active blacklist tags."
+        }
+      },
+      "tags": {
+        "player": {
+          "name": "Player",
+          "hint": "The resolved player",
+          "desc": "The resolved player."
+        },
+        "tags": {
+          "name": "Tags",
+          "hint": "The formatted tag list",
+          "desc": "The formatted tag list."
+        },
+        "tagcount": {
+          "name": "Tag count",
+          "hint": "How many tags are active",
+          "desc": "How many tags are active."
+        }
+      }
+    },
+    "mcsr": {
+      "elo": {
+        "player": {
+          "name": "Player",
+          "hint": "The resolved player",
+          "desc": "The resolved player."
+        },
+        "elo": {
+          "name": "Elo",
+          "hint": "Current rating",
+          "desc": "Current rating."
+        },
+        "rank": {
+          "name": "Rank",
+          "hint": "Leaderboard rank",
+          "desc": "Leaderboard rank."
+        },
+        "wins": {
+          "name": "Wins",
+          "hint": "Season wins",
+          "desc": "Season wins."
+        },
+        "losses": {
+          "name": "Losses",
+          "hint": "Season losses",
+          "desc": "Season losses."
+        },
+        "draws": {
+          "name": "Draws",
+          "hint": "Season matches that ended with no winner",
+          "desc": "Season matches that ended with no winner."
+        },
+        "matches": {
+          "name": "Matches",
+          "hint": "Season matches",
+          "desc": "Season matches."
+        },
+        "country": {
+          "name": "Country",
+          "hint": "Country code",
+          "desc": "Country code."
+        }
+      },
+      "session": {
+        "player": {
+          "name": "Player",
+          "hint": "The linked player",
+          "desc": "The linked player."
+        },
+        "elo": {
+          "name": "Current Elo",
+          "hint": "Rating right now",
+          "desc": "Rating right now."
+        },
+        "elochange": {
+          "name": "Elo change",
+          "hint": "Change since the stream started",
+          "desc": "Change since the stream started."
+        },
+        "wins": {
+          "name": "Wins",
+          "hint": "Wins this stream",
+          "desc": "Wins this stream."
+        },
+        "losses": {
+          "name": "Losses",
+          "hint": "Losses this stream",
+          "desc": "Losses this stream."
+        },
+        "draws": {
+          "name": "Draws",
+          "hint": "Matches this stream that ended with no winner",
+          "desc": "Matches this stream that ended with no winner."
+        },
+        "matches": {
+          "name": "Matches",
+          "hint": "Matches this stream",
+          "desc": "Matches this stream."
+        }
+      },
+      "pace": {
+        "player": {
+          "name": "Player",
+          "hint": "The linked player",
+          "desc": "The linked player."
+        },
+        "nethers": {
+          "name": "Nethers",
+          "hint": "Nether entrances this session",
+          "desc": "Nether entrances this session."
+        },
+        "nether": {
+          "name": "Nether avg",
+          "hint": "Average nether split",
+          "desc": "Average nether split."
+        },
+        "bastion": {
+          "name": "Bastion avg",
+          "hint": "Average bastion split",
+          "desc": "Average bastion split."
+        },
+        "fortress": {
+          "name": "Fortress avg",
+          "hint": "Average fortress split",
+          "desc": "Average fortress split."
+        },
+        "firststructure": {
+          "name": "First structure avg",
+          "hint": "Average split for whichever structure was entered first",
+          "desc": "Average split for whichever structure was entered first."
+        },
+        "secondstructure": {
+          "name": "Second structure avg",
+          "hint": "Average split for whichever structure was entered second",
+          "desc": "Average split for whichever structure was entered second."
+        },
+        "firstportal": {
+          "name": "First portal avg",
+          "hint": "Average first-portal split",
+          "desc": "Average first-portal split."
+        },
+        "stronghold": {
+          "name": "Stronghold avg",
+          "hint": "Average stronghold split",
+          "desc": "Average stronghold split."
+        },
+        "end": {
+          "name": "End avg",
+          "hint": "Average end-enter split",
+          "desc": "Average end-enter split."
+        },
+        "finish": {
+          "name": "Finish avg",
+          "hint": "Average finish split",
+          "desc": "Average finish split."
+        },
+        "nph": {
+          "name": "Nethers/hour",
+          "hint": "Nether-entrance pace",
+          "desc": "Nether-entrance pace."
+        }
+      },
+      "nethers": {
+        "player": {
+          "name": "Player",
+          "hint": "The linked player",
+          "desc": "The linked player."
+        },
+        "nethers": {
+          "name": "Nethers",
+          "hint": "Nether entrances this session",
+          "desc": "Nether entrances this session."
+        },
+        "nether": {
+          "name": "Nether avg",
+          "hint": "Average nether split",
+          "desc": "Average nether split."
+        },
+        "nph": {
+          "name": "Nethers/hour",
+          "hint": "Nether-entrance pace",
+          "desc": "Nether-entrance pace."
+        }
+      },
+      "lastmatch": {
+        "player": {
+          "name": "Player",
+          "hint": "The resolved player",
+          "desc": "The resolved player."
+        },
+        "opponent": {
+          "name": "Opponent",
+          "hint": "The other player in that match",
+          "desc": "The other player in that match."
+        },
+        "result": {
+          "name": "Result",
+          "hint": "Win",
+          "desc": "Win, loss or draw. Forfeits and decay matches are called out too."
+        },
+        "time": {
+          "name": "Time",
+          "hint": "The match's completion time",
+          "desc": "The match's completion time, when it reached one."
+        },
+        "seed": {
+          "name": "Seed",
+          "hint": "The seed type for that match",
+          "desc": "The seed type for that match."
+        },
+        "structure": {
+          "name": "Structure",
+          "hint": "The bastion structure type for that match",
+          "desc": "The bastion structure type for that match."
+        },
+        "elochange": {
+          "name": "Elo change",
+          "hint": "Elo change from that match",
+          "desc": "Elo change from that match."
+        },
+        "ago": {
+          "name": "Ago",
+          "hint": "How long ago that match ended",
+          "desc": "How long ago that match ended."
+        }
+      },
+      "record": {
+        "playera": {
+          "name": "Player A",
+          "hint": "The first typed player (or you",
+          "desc": "The first typed player (or you, with one name typed)."
+        },
+        "playerb": {
+          "name": "Player B",
+          "hint": "The second typed player",
+          "desc": "The second typed player."
+        },
+        "winsa": {
+          "name": "Wins A",
+          "hint": "Player A's wins over player B",
+          "desc": "Player A's wins over player B."
+        },
+        "winsb": {
+          "name": "Wins B",
+          "hint": "Player B's wins over player A",
+          "desc": "Player B's wins over player A."
+        },
+        "played": {
+          "name": "Played",
+          "hint": "Total matches between the two",
+          "desc": "Total matches between the two."
+        }
+      },
+      "lb": {
+        "board": {
+          "name": "Board",
+          "hint": "Which leaderboard answered",
+          "desc": "Which leaderboard answered."
+        },
+        "list": {
+          "name": "Top 5",
+          "hint": "The top 5 rows",
+          "desc": "The top 5 rows, pre-formatted as one line."
+        }
+      },
+      "race": {
+        "leader": {
+          "name": "Leader",
+          "hint": "This week's #1 holder",
+          "desc": "This week's #1 holder."
+        },
+        "leadertime": {
+          "name": "Leader time",
+          "hint": "The leader's time",
+          "desc": "The leader's time."
+        },
+        "player": {
+          "name": "Player",
+          "hint": "The resolved player",
+          "desc": "The resolved player."
+        },
+        "time": {
+          "name": "Time",
+          "hint": "The player's own time this week",
+          "desc": "The player's own time this week, when they have one."
+        },
+        "rank": {
+          "name": "Rank",
+          "hint": "The player's placement this week",
+          "desc": "The player's placement this week."
+        }
+      },
+      "pb": {
+        "player": {
+          "name": "Player",
+          "hint": "The resolved player",
+          "desc": "The resolved player."
+        },
+        "time": {
+          "name": "Time",
+          "hint": "The personal best for the requested window",
+          "desc": "The personal best for the requested window."
+        },
+        "window": {
+          "name": "Window",
+          "hint": "Which window answered: daily",
+          "desc": "Which window answered: daily, weekly, monthly, all-time or ranked."
+        }
+      }
+    },
+    "fortnite": {
+      "stats": {
+        "player": {
+          "name": "Player",
+          "hint": "The linked account",
+          "desc": "The linked account."
+        },
+        "window": {
+          "name": "Window",
+          "hint": "Which stats window: lifetime or season",
+          "desc": "Which stats window: lifetime or season."
+        },
+        "wins": {
+          "name": "Wins",
+          "hint": "Total wins",
+          "desc": "Total wins."
+        },
+        "matches": {
+          "name": "Matches",
+          "hint": "Matches played",
+          "desc": "Matches played."
+        },
+        "kills": {
+          "name": "Kills",
+          "hint": "Total eliminations",
+          "desc": "Total eliminations."
+        },
+        "kd": {
+          "name": "K/D",
+          "hint": "Kill/death ratio",
+          "desc": "Kill/death ratio."
+        },
+        "winrate": {
+          "name": "Win rate %",
+          "hint": "Wins per hundred matches",
+          "desc": "Wins per hundred matches."
+        },
+        "solowins": {
+          "name": "Solo wins",
+          "hint": "Wins in solos",
+          "desc": "Wins in solos."
+        },
+        "solomatches": {
+          "name": "Solo matches",
+          "hint": "Matches played in solos",
+          "desc": "Matches played in solos."
+        },
+        "solokd": {
+          "name": "Solo K/D",
+          "hint": "Kill/death ratio in solos",
+          "desc": "Kill/death ratio in solos."
+        },
+        "duowins": {
+          "name": "Duo wins",
+          "hint": "Wins in duos",
+          "desc": "Wins in duos."
+        },
+        "duomatches": {
+          "name": "Duo matches",
+          "hint": "Matches played in duos",
+          "desc": "Matches played in duos."
+        },
+        "duokd": {
+          "name": "Duo K/D",
+          "hint": "Kill/death ratio in duos",
+          "desc": "Kill/death ratio in duos."
+        },
+        "squadwins": {
+          "name": "Squad wins",
+          "hint": "Wins in squads",
+          "desc": "Wins in squads."
+        },
+        "squadmatches": {
+          "name": "Squad matches",
+          "hint": "Matches played in squads",
+          "desc": "Matches played in squads."
+        },
+        "squadkd": {
+          "name": "Squad K/D",
+          "hint": "Kill/death ratio in squads",
+          "desc": "Kill/death ratio in squads."
+        }
+      },
+      "store": {
+        "date": {
+          "name": "Shop date",
+          "hint": "Today's shop date",
+          "desc": "Today's shop date."
+        },
+        "count": {
+          "name": "Item count",
+          "hint": "How many items are in the shop",
+          "desc": "How many items are in the shop."
+        },
+        "items": {
+          "name": "Item list",
+          "hint": "The featured items",
+          "desc": "The featured items."
+        }
+      }
+    },
+    "builtin": {
+      "clip": {
+        "clip": {
+          "name": "Clip link",
+          "hint": "The freshly created clip link",
+          "desc": "The freshly created clip link."
+        },
+        "user": {
+          "name": "Clipper",
+          "hint": "The viewer who used !clip",
+          "desc": "The viewer who used !clip."
+        },
+        "target": {
+          "name": "Clip title",
+          "hint": "The title typed after !clip",
+          "desc": "The title typed after !clip."
+        }
+      }
+    },
+    "triggers": {
+      "user": {
+        "name": "Chatter",
+        "hint": "The person whose message matched the rule",
+        "desc": "The person whose message matched the rule."
+      }
+    },
+    "channelpoints": {
+      "user": {
+        "name": "Redeemer",
+        "hint": "Who redeemed the reward",
+        "desc": "Who redeemed the reward."
+      },
+      "input": {
+        "name": "Viewer input",
+        "hint": "viewer input",
+        "desc": "The text typed with the redemption (when the reward asks for one)."
+      },
+      "reward": {
+        "name": "Reward title",
+        "hint": "The name of the redeemed reward",
+        "desc": "The name of the redeemed reward."
+      },
+      "cost": {
+        "name": "Point cost",
+        "hint": "What the reward costs",
+        "desc": "What the reward costs."
+      },
+      "channel": {
+        "name": "Channel",
+        "hint": "Your channel name",
+        "desc": "Your channel name."
+      },
+      "counter": {
+        "name": "Bound counter",
+        "hint": "The bound counter's new value",
+        "desc": "The bound counter's new value, when the reward has one. Give it command scope for one pooled total shared by every redemption of this reward."
+      },
+      "points": {
+        "name": "Loyalty points",
+        "hint": "Loyalty points the reward grants (when positive)",
+        "desc": "Loyalty points the reward grants (when positive)."
+      }
+    }
   }
 }

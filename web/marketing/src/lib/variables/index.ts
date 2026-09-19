@@ -4,10 +4,14 @@
 /**
  * The exhaustive, broadcaster-facing variable reference.
  *
- * `builder.ts` remains the source for the examples used by the command
- * builder. This module flattens those surface-local examples into one small
- * reference model: a variable family appears once, while its aliases,
- * parameter shapes and available surfaces are collected beside it.
+ * Kit's manifest (`@bagel/kit/variables`) is the source of truth for the
+ * custom-command variables: one record below per kit VariableDef, its forms
+ * becoming syntaxes/examples, its aliases/requires carried straight through
+ * (docs/specs/variables-catalog.md D2/D3, phase 3 section B). A second kind
+ * of record covers surface-only tokens: module reply fields (`{tier}`,
+ * `{bits}`, `{player}`...) that are not custom-command variables, grouped by
+ * their bare token name the same way a broadcaster would recognize them
+ * reused across module replies.
  *
  * This is deliberately not a resolver. An unknown `{anything}` is still a
  * perfectly valid token to the lexer and is left literal by the bot. Runtime
@@ -16,17 +20,10 @@
  */
 
 import { lex, type VarToken } from '@bagel/kit/engine/tmpl';
-import { SURFACES } from '../../i18n/builder';
+import { VARIABLES as KIT_VARIABLES, type VariableDef } from '@bagel/kit/variables';
+import { moduleDef } from '@bagel/kit/catalog';
+import { SURFACES, kitText, type VarDef as SurfaceVarDef, type SurfaceDef } from '../../i18n/builder';
 import type { Lang } from '../../i18n/ui';
-export type {
-  LocaleText,
-  VariableAvailability,
-  VariableCategory,
-  VariableExample,
-  VariableLexerResult,
-  VariableReference,
-  LocalizedVariableReference,
-} from './types';
 import type {
   LocaleText,
   VariableAvailability,
@@ -35,8 +32,8 @@ import type {
   VariableLexerResult,
   VariableReference,
   LocalizedVariableReference,
-  MutableVariableReference,
 } from './types';
+export type { LocaleText, VariableAvailability, VariableCategory, VariableExample, VariableLexerResult, VariableReference, LocalizedVariableReference };
 
 const CATEGORY_ORDER: readonly VariableCategory[] = [
   'basics',
@@ -56,44 +53,8 @@ const CATEGORY_ORDER: readonly VariableCategory[] = [
 
 const CATEGORY_RANK = new Map(CATEGORY_ORDER.map((category, index) => [category, index]));
 
-// Some names are aliases only in the custom-command message scope. `target`
-// is also an actual field in clip/queue replies, so that context is kept as a
-// separate family below rather than accidentally merging those meanings.
-const CUSTOM_ALIASES: Readonly<Record<string, string>> = {
-  sender: 'user',
-  target: 'touser',
-};
-
-const POSITIONAL = /^\{(\d{1,2})\}$/;
-const POSITIONAL_TAIL = /^\{(\d{1,2}):\}$/;
-const ARGUMENT_FAMILY_RULES: readonly [RegExp, string][] = [
-  [POSITIONAL, 'argument-word'],
-  [POSITIONAL_TAIL, 'argument-tail'],
-];
-const PAYLOAD_FAMILY_IDS: Readonly<Record<string, readonly [string, string]>> = {
-  counter: ['bound-counter', 'counter-increment'],
-  count: ['queue-count', 'counter-read'],
-};
-const SONG_PARTS = new Set(['song.title', 'song.artist']);
-
-const CUSTOM_CATEGORY_RULES: readonly [VariableCategory, RegExp][] = [
-  ['arguments', /^\{(?:\d+|\d+:)\}$|^\{args\}$/],
-  ['counters', /^\{(?:counter|count):|^\{uses\}$/],
-  ['chat', /^\{(?:chatters|random\.chatter)/],
-  ['emotes', /^\{(?:7tv|bttv|ffz|random\.emote)/],
-  ['dynamic', /^\{(?:random|choice)/],
-  ['utilities', /^\{(?:math|query|path|repeat|countdown|countup|if)/],
-  ['viewer', /^\{(?:followage|accountage|points|pointsname|watchtime)/],
-  ['channel', /^\{(?:channel|uptime|title|game|channel\.)/],
-];
-
-const ALERT_SURFACES = new Set(['follow', 'subscribe', 'cheer', 'raid']);
-const CHAT_SURFACES = new Set(['shoutout', 'triggers', 'clip', 'time']);
-const GAME_SURFACE_PREFIXES = ['bw-', 'mcsr-', 'fn-'];
-const GAME_SURFACES = new Set(['bwstats', 'elo', 'sniper', 'tags']);
-
 function pickLocale(text: LocaleText, lang: Lang): string {
-  return text[lang as 'en' | 'fr'] ?? text.en;
+  return text[lang] ?? text.en;
 }
 
 function tokenParts(token: string): VarToken | null {
@@ -115,179 +76,128 @@ export function validateVariableReference(reference: Pick<VariableReference, 'sy
     .every((syntax) => validateVariableSyntax(syntax).valid);
 }
 
-function cleanRequirement(description: string): string[] {
-  const requirements: string[] = [];
-  // Descriptions intentionally use a stable, human-readable "Needs ..."
-  // sentence. Pull only that sentence's subject so requirements remain short
-  // chips rather than duplicating the whole explanation.
-  const needs = /\bNeeds\s+(?:the\s+)?([^.!?]+?)(?:\s+module)?\./gi;
-  for (const match of description.matchAll(needs)) {
-    const value = match[1].trim().replace(/\s+/g, ' ');
-    if (value && !requirements.includes(value)) requirements.push(value);
-  }
-  return requirements;
-}
-
-function categoryFor(surfaceId: string, token: string, hasPayload: boolean): VariableCategory {
-  if (surfaceId === 'custom') return customCategoryFor(token);
-  if (ALERT_SURFACES.has(surfaceId)) return 'alerts';
-  if (surfaceId === 'channelpoints') return 'rewards';
-  if (surfaceId.startsWith('queue-')) return 'queue';
-  if (isGameSurface(surfaceId)) return 'game-stats';
-  if (CHAT_SURFACES.has(surfaceId)) return 'chat';
-  return hasPayload ? 'dynamic' : 'basics';
-}
-
-function customCategoryFor(token: string): VariableCategory {
-  return CUSTOM_CATEGORY_RULES.find(([, rule]) => rule.test(token))?.[0] ?? 'basics';
-}
+const ALERT_SURFACES = new Set(['follow', 'subscribe', 'cheer', 'raid']);
+const GAME_SURFACE_PREFIXES = ['bw-', 'mcsr-', 'fn-'];
+const GAME_SURFACES = new Set(['bwstats', 'elo', 'sniper', 'tags']);
 
 function isGameSurface(surfaceId: string): boolean {
   return GAME_SURFACES.has(surfaceId) || GAME_SURFACE_PREFIXES.some((prefix) => surfaceId.startsWith(prefix));
 }
 
-function argumentFamilyId(token: string): string | undefined {
-  return ARGUMENT_FAMILY_RULES.find(([rule]) => rule.test(token))?.[1];
+/** Category for a token that is not one of kit's own variables (a module
+ * reply field). Kit-backed records use the manifest's own category instead
+ * (see kitRecord below); this only covers the surface-only remainder. */
+function surfaceOnlyCategory(surfaceId: string): VariableCategory {
+  if (ALERT_SURFACES.has(surfaceId)) return 'alerts';
+  if (surfaceId === 'channelpoints') return 'rewards';
+  if (surfaceId.startsWith('queue-')) return 'queue';
+  if (isGameSurface(surfaceId)) return 'game-stats';
+  return 'chat'; // shoutout, triggers, clip, time
 }
 
-function payloadFamilyId(name: string, payload: string | null): string | undefined {
-  const families = PAYLOAD_FAMILY_IDS[name];
-  if (families) return families[payload === null ? 0 : 1];
-  return name === 'random' && payload !== null ? 'random' : undefined;
+function l10n(key: string): LocaleText {
+  return { en: kitText('en', key), fr: kitText('fr', key) };
 }
 
-function familyId(surfaceId: string, token: string): string {
-  const parsed = tokenParts(token);
-  if (!parsed) return token;
-  const name = parsed.name;
-  if (surfaceId === 'custom' && name in CUSTOM_ALIASES) return CUSTOM_ALIASES[name];
-  const argumentFamily = argumentFamilyId(token);
-  if (argumentFamily) return argumentFamily;
-  const payloadFamily = payloadFamilyId(name, parsed.payload);
-  if (payloadFamily) return payloadFamily;
-  // `{song.title}` and `{song.artist}` are documented as parts of the song
-  // family even though the builder only needs the complete `{song}` chip.
-  if (SONG_PARTS.has(name)) return 'song';
-  return name;
+function kitRequirement(def: VariableDef): string[] {
+  if (!def.requires) return [];
+  return [moduleDef(def.requires)?.label ?? def.requires];
 }
 
-const FAMILY_SYNTAX = new Map<string, string>([
-  ['argument-word', '{1}'],
-  ['argument-tail', '{1:}'],
-  ['counter-increment', '{counter:name}'],
-  ['counter-read', '{count:name}'],
-  ['random', '{random:min-max}'],
-  ['choice', '{choice:one,two,three}'],
-  ['song', '{song}'],
-]);
+const STATIC_BEHAVIOR = 'Unknown or disabled variables stay visible as written; an empty value can use a |fallback.';
 
-const VIEWER_PAYLOAD_FAMILIES = new Set([
-  'followage', 'accountage', 'points', 'watchtime', 'quote', 'uptime', 'title', 'game',
-]);
-
-function familySyntax(id: string, firstToken: string): string {
-  const syntax = FAMILY_SYNTAX.get(id);
-  if (syntax) return syntax;
-  return VIEWER_PAYLOAD_FAMILIES.has(id) ? `${firstToken.slice(0, -1)}:viewer}` : firstToken;
+/** Mutable while surfaces are attached below; frozen by finalizeReference. */
+interface Draft extends Omit<VariableReference, 'syntaxes' | 'examples' | 'categories' | 'aliases' | 'aliasTokens' | 'surfaceIds' | 'surfaces' | 'requirements'> {
+  syntaxes: string[];
+  examples: VariableExample[];
+  categories: VariableCategory[];
+  aliases: string[];
+  aliasTokens: string[];
+  surfaceIds: string[];
+  surfaces: VariableAvailability[];
+  requirements: string[];
 }
 
-function familyParameterized(id: string, token: string): boolean {
-  const parsed = tokenParts(token);
-  return Boolean(parsed?.payload !== null) || id === 'argument-word' || id === 'argument-tail' || id === 'random' || id === 'choice';
-}
-
-function addUnique<T>(items: T[], value: T): void {
-  if (!items.includes(value)) items.push(value);
-}
-
-function sourceTokenForFamily(id: string, token: string): string {
-  if (id === 'argument-word') return '{1}';
-  if (id === 'argument-tail') return '{1:}';
-  if (id === 'counter-increment') return '{counter:name}';
-  if (id === 'counter-read') return '{count:name}';
-  if (id === 'random') return '{random}';
-  return token;
-}
-
-function isAliasForm(surfaceId: string, id: string, token: string): boolean {
-  const parsed = tokenParts(token);
-  if (!parsed || surfaceId !== 'custom') return false;
-  return CUSTOM_ALIASES[parsed.name] === id;
-}
-
-function createReference(surface: typeof SURFACES[number], variable: typeof SURFACES[number]['vars'][number], id: string, category: VariableCategory, token: string, syntax: string): MutableVariableReference {
-  const requirements = cleanRequirement(variable.desc.en);
-  const parameterized = familyParameterized(id, variable.token);
+/** One record per kit VariableDef: forms become syntaxes/examples, aliases
+ * become aliases/aliasTokens, requires becomes requirements. */
+function kitRecord(def: VariableDef): Draft {
+  const canonical = def.forms[0];
+  const parameterized = canonical.syntax !== canonical.example;
+  const syntaxes = def.forms.map((form) => form.syntax);
+  const examples = def.forms.map((form) => ({ syntax: form.example, output: form.output, surfaceId: 'custom' }));
+  const aliases = [...(def.aliases ?? [])];
+  const aliasTokens = aliases.map((alias) => `{${alias}}`);
+  const requirements = kitRequirement(def);
   return {
-    id, token, syntax, example: variable.token, output: variable.sample,
-    syntaxes: [syntax], examples: [{ syntax: variable.token, output: variable.sample, surfaceId: surface.id }],
-    name: variable.name, description: variable.desc, categories: [category], aliases: [], aliasTokens: [],
-    surfaceIds: [surface.id], surfaces: [{ id: surface.id, group: surface.group, label: surface.label, dashPath: surface.dashPath }],
-    requirements, requirement: requirements.join(', '), payload: parameterized ? syntax : '',
-    behavior: 'Unknown or disabled variables stay visible as written; an empty value can use a |fallback.',
-    legacy: false, parameterized,
+    id: def.id, token: canonical.example, syntax: canonical.syntax, example: canonical.example, output: canonical.output,
+    syntaxes, examples, name: l10n(`vars.${def.id}.name`), description: l10n(`vars.${def.id}.desc`),
+    category: def.category, categories: [def.category], aliases, aliasTokens,
+    surfaceIds: [], surfaces: [], requirements, requirement: requirements.join(', '),
+    payload: parameterized ? canonical.syntax : '', behavior: STATIC_BEHAVIOR, legacy: def.legacy ?? false,
+    parameterized, lexer: validateVariableSyntax(canonical.syntax),
+    lexerValid: validateVariableReference({ syntax: canonical.syntax, syntaxes, examples, aliasTokens }),
   };
 }
 
-function mergeReference(reference: MutableVariableReference, surface: typeof SURFACES[number], variable: typeof SURFACES[number]['vars'][number], syntax: string, category: VariableCategory): void {
-  addUnique(reference.syntaxes, syntax);
-  if (!reference.examples.some((example) => example.syntax === variable.token && example.surfaceId === surface.id)) {
-    reference.examples.push({ syntax: variable.token, output: variable.sample, surfaceId: surface.id });
-  }
-  addUnique(reference.categories, category);
-  addUnique(reference.surfaceIds, surface.id);
-  if (!reference.surfaces.some((item) => item.id === surface.id)) {
-    reference.surfaces.push({ id: surface.id, group: surface.group, label: surface.label, dashPath: surface.dashPath });
-  }
-  for (const requirement of cleanRequirement(variable.desc.en)) addUnique(reference.requirements, requirement);
-  reference.requirement = reference.requirements.join(', ');
-  reference.parameterized ||= familyParameterized(reference.id, variable.token);
+/** One record for a bare token name that is not any kit variable's head
+ * (a module reply field like `{tier}` or `{bits}`). First surface to use a
+ * name sets its copy; later surfaces sharing the same bare name (matching a
+ * broadcaster's own read of "I've seen {player} before") just add their
+ * membership, the same simplification the deleted per-surface arrays used. */
+function surfaceOnlyRecord(name: string, token: string, sample: string, varCopy: SurfaceVarDef, surfaceId: string): Draft {
+  const syntax = `{${name}}`;
+  return {
+    id: name, token, syntax, example: token, output: sample,
+    syntaxes: [syntax], examples: [{ syntax: token, output: sample, surfaceId }],
+    name: varCopy.name, description: varCopy.desc, category: surfaceOnlyCategory(surfaceId), categories: [surfaceOnlyCategory(surfaceId)],
+    aliases: [], aliasTokens: [], surfaceIds: [], surfaces: [], requirements: [], requirement: '',
+    payload: '', behavior: STATIC_BEHAVIOR, legacy: false, parameterized: false,
+    lexer: validateVariableSyntax(syntax), lexerValid: validateVariableReference({ syntax, syntaxes: [syntax], examples: [], aliasTokens: [] }),
+  };
 }
 
-function addSurfaceVariable(byId: Map<string, MutableVariableReference>, surface: typeof SURFACES[number], variable: typeof SURFACES[number]['vars'][number]): void {
-  const parsed = tokenParts(variable.token);
-  if (!parsed) return;
-  const id = familyId(surface.id, variable.token);
-  const category = categoryFor(surface.id, variable.token, variable.token.includes(':'));
-  const token = sourceTokenForFamily(id, variable.token);
-  const syntax = familySyntax(id, token);
-  const reference = byId.get(id);
-  if (reference) mergeReference(reference, surface, variable, syntax, category);
-  else byId.set(id, createReference(surface, variable, id, category, token, syntax));
-  if (isAliasForm(surface.id, id, variable.token)) {
-    const target = byId.get(id)!;
-    addUnique(target.aliases, parsed.name);
-    addUnique(target.aliasTokens, variable.token);
-  }
+function attachSurface(record: Draft, surface: SurfaceDef): void {
+  if (record.surfaceIds.includes(surface.id)) return;
+  record.surfaceIds.push(surface.id);
+  record.surfaces.push({ id: surface.id, group: surface.group, label: surface.label, dashPath: surface.dashPath });
 }
 
-function addSupplementalForms(byId: Map<string, MutableVariableReference>): void {
-  const song = byId.get('song');
-  if (song) for (const token of ['{song.title}', '{song.artist}']) addUnique(song.syntaxes, token);
-  for (const [id, aliases] of Object.entries({ user: ['sender'], touser: ['target'] })) {
-    const reference = byId.get(id);
-    if (reference) for (const alias of aliases) {
-      addUnique(reference.aliases, alias);
-      addUnique(reference.aliasTokens, `{${alias}}`);
-    }
-  }
+function addExample(record: Draft, token: string, sample: string, surfaceId: string): void {
+  if (record.examples.some((example) => example.syntax === token && example.surfaceId === surfaceId)) return;
+  record.examples.push({ syntax: token, output: sample, surfaceId });
 }
 
-function finalizeReference(mutable: MutableVariableReference): VariableReference {
-  const categories = [...mutable.categories].sort((a, b) => (CATEGORY_RANK.get(a) ?? 99) - (CATEGORY_RANK.get(b) ?? 99));
-  const aliases = mutable.aliases.filter((alias) => alias !== mutable.token.slice(1, -1));
-  const aliasTokens = mutable.aliasTokens.filter((alias) => alias !== mutable.token);
-  const lexerValid = validateVariableReference({ syntax: mutable.syntax, syntaxes: mutable.syntaxes, examples: mutable.examples, aliasTokens });
-  const lexer = validateVariableSyntax(mutable.syntax);
-  return { ...mutable, categories, category: categories[0], aliases, aliasTokens, lexer, lexerValid,
-    syntaxes: [...mutable.syntaxes], examples: [...mutable.examples], surfaceIds: [...mutable.surfaceIds],
-    surfaces: [...mutable.surfaces], requirements: [...mutable.requirements] };
+function finalizeReference(draft: Draft): VariableReference {
+  const categories = [...draft.categories].sort((a, b) => (CATEGORY_RANK.get(a) ?? 99) - (CATEGORY_RANK.get(b) ?? 99));
+  return { ...draft, category: categories[0], categories };
 }
 
 function buildCatalog(): VariableReference[] {
-  const byId = new Map<string, MutableVariableReference>();
-  for (const surface of SURFACES) for (const variable of surface.vars) addSurfaceVariable(byId, surface, variable);
-  addSupplementalForms(byId);
+  // Match by head only, never by alias: kit's aliases (`sender`→user,
+  // `target`→touser) describe the custom-command engine's own scope, but a
+  // module reply's `{target}` (a clip title, the next queue player) means
+  // something unrelated that happens to share the spelling. Matching by
+  // head still correctly merges the shared dynamic tokens ({random},
+  // {choice}), which really are the same variable on every surface.
+  const byHead = new Map(KIT_VARIABLES.map((def) => [def.head, def]));
+  const byId = new Map<string, Draft>(KIT_VARIABLES.map((def) => [def.id, kitRecord(def)]));
+
+  for (const surface of SURFACES) {
+    for (const variable of surface.vars) {
+      const parsed = tokenParts(variable.token);
+      if (!parsed) continue;
+      const owner = byHead.get(parsed.name);
+      const id = owner?.id ?? parsed.name;
+      let record = byId.get(id);
+      if (!record) {
+        record = surfaceOnlyRecord(id, variable.token, variable.sample, variable, surface.id);
+        byId.set(id, record);
+      }
+      attachSurface(record, surface);
+      addExample(record, variable.token, variable.sample, surface.id);
+    }
+  }
+
   return [...byId.values()].map(finalizeReference).sort((a, b) => {
     const category = (CATEGORY_RANK.get(a.category) ?? 99) - (CATEGORY_RANK.get(b.category) ?? 99);
     return category || a.id.localeCompare(b.id);
@@ -301,21 +211,12 @@ if (!validateVariableCatalog(BUILT_VARIABLES)) {
 }
 export const VARIABLES: readonly VariableReference[] = Object.freeze(BUILT_VARIABLES.map((reference) => Object.freeze(reference)));
 
-// Descriptive aliases make the contract pleasant to discover at call sites.
-export const VARIABLE_CATALOG = VARIABLES;
-export const VARIABLE_REFERENCE = VARIABLES;
-export const catalog = VARIABLES;
-
 /** Return the complete reference with copy localized for one marketing locale. */
 export function variableReferenceData(lang: Lang): readonly LocalizedVariableReference[] {
   return VARIABLES.map((reference) => ({
     ...reference,
     name: pickLocale(reference.name, lang),
     description: pickLocale(reference.description, lang),
-    // Requirement chips are derived from the same localized description that
-    // the visitor reads. The manifest keeps the stable family identifiers;
-    // this avoids showing an English module requirement on the French page.
-    requirements: cleanRequirement(pickLocale(reference.description, lang)),
     surfaces: reference.surfaces.map((surface) => ({
       id: surface.id,
       group: pickLocale(surface.group, lang),

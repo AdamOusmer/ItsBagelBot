@@ -105,27 +105,3 @@ export interface LocalizedVariableReference {
   readonly lexer: VariableLexerResult;
   readonly lexerValid: boolean;
 }
-
-/** Mutable assembly shape used while surface-local examples are merged. */
-export interface MutableVariableReference {
-  id: string;
-  token: string;
-  syntax: string;
-  example: string;
-  output: string;
-  syntaxes: string[];
-  examples: VariableExample[];
-  name: LocaleText;
-  description: LocaleText;
-  categories: VariableCategory[];
-  aliases: string[];
-  aliasTokens: string[];
-  surfaceIds: string[];
-  surfaces: VariableAvailability[];
-  requirements: string[];
-  requirement: string;
-  payload: string;
-  behavior: string;
-  legacy: boolean;
-  parameterized: boolean;
-}

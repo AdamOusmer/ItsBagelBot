@@ -9,6 +9,8 @@ import { lex, type VarToken } from '../engine/tmpl';
 import { SIMPLE_TOKENS as FOSSABOT_SIMPLE_TOKENS, SUBFIELD_TOKENS as FOSSABOT_SUBFIELD_TOKENS } from '../importer/fossabot/variables';
 import { SIMPLE_TOKENS as NIGHTBOT_SIMPLE_TOKENS } from '../importer/nightbot/variables';
 import { VARIABLES } from './variables';
+import { MODULE_CATALOG } from '../catalog';
+import { BUILTIN_COMMANDS } from '../catalog/builtin-commands';
 import en from '../i18n/locales/en.json';
 import fr from '../i18n/locales/fr.json';
 
@@ -131,6 +133,35 @@ describe('variables parity (engine/scope/testdata/token_catalog.golden.json)', (
       for (const alias of v.aliases ?? []) {
         expect(heads.has(alias), `duplicate head/alias "${alias}" (id ${v.id})`).toBe(false);
         heads.add(alias);
+      }
+    }
+  });
+
+  // docs/specs/variables-catalog.md phase 3, section A.3: a ReplyToken's
+  // hintKey is generated (see replyTokens in catalog/module-def.ts), so a
+  // typo in a hand-written replyKey namespace would otherwise only surface
+  // as a silent English fallback in the marketing builder, never a build or
+  // test failure.
+  test('G: every ReplyToken.hintKey resolves in en and fr', () => {
+    const lookup = (tree: unknown, key: string): unknown => {
+      let node: unknown = tree;
+      for (const part of key.split('.')) {
+        if (node == null || typeof node !== 'object') return undefined;
+        node = (node as Record<string, unknown>)[part];
+      }
+      return node;
+    };
+    const replyTokenSources = [
+      ...MODULE_CATALOG.flatMap((mod) => mod.replies.map((reply) => ({ where: `${mod.id}.${reply.key}`, tokens: reply.tokens ?? [] }))),
+      ...BUILTIN_COMMANDS.map((cmd) => ({ where: `builtin.${cmd.id}`, tokens: cmd.tokens ?? [] }))
+    ];
+    for (const { where, tokens } of replyTokenSources) {
+      for (const token of tokens) {
+        if (!token.hintKey) continue;
+        for (const [locale, tree] of [['en', en], ['fr', fr]] as const) {
+          const value = lookup(tree, token.hintKey);
+          expect(typeof value === 'string' && value.length > 0, `${where} token "${token.name}": ${locale}.json has no ${token.hintKey}`).toBe(true);
+        }
       }
     }
   });

@@ -15,11 +15,41 @@
 import { defaultLang, type Lang } from './ui';
 import { SITE } from '@bagel/kit/site-links';
 import { COMMAND_NAME_MAX, RESPONSE_MAX, RESPONSE_MAX_LINES, COOLDOWN_MAX } from '@bagel/kit/engine/commands-validate';
+import { ensureCatalog, translate, isLocale, type Locale } from '@bagel/kit/i18n';
+import { VARIABLES as KIT_VARIABLES, variableById, type VariableDef, type VariableForm } from '@bagel/kit/variables';
+import { moduleDef } from '@bagel/kit/catalog';
+import { BUILTIN_COMMANDS } from '@bagel/kit/catalog/builtin-commands';
+import type { ReplyToken } from '@bagel/kit/catalog/module-def';
 
 type L10n = Record<Lang, string>;
 
 /** One localized string, falling back to the default locale for a new language. */
 const pick = (m: L10n, lang: Lang): string => m[lang] ?? m[defaultLang];
+
+// Kit now owns the variable and reply-token manifest and its copy
+// (docs/specs/variables-catalog.md D2/D3): this builder derives every var's
+// name/desc from kit's locale catalogs instead of carrying its own. Astro
+// renders this module at build time, and SURFACES below is a module-level
+// constant holding BOTH locales at once (like the old per-family arrays it
+// replaces), so the catalogs need to be loaded before that constant is
+// built, not per render. A top-level await here is safe under Astro/Vite's
+// ESM output, and it propagates: any module that imports SURFACES (directly
+// or transitively) has its own evaluation held until this resolves, so kit's
+// synchronous translate() below never race a not-yet-loaded catalog.
+await Promise.all((['en', 'fr'] satisfies Locale[]).map((locale) => ensureCatalog(locale)));
+
+/** Resolve a kit locale key for a marketing Lang (an open string, unlike
+ * kit's own 'en' | 'fr' Locale); falls back to English for any other lang. */
+export function kitText(lang: Lang, key: string): string {
+  const locale: Locale = isLocale(lang) ? lang : 'en';
+  return translate(locale, key);
+}
+
+/** Both locales of one kit key, for a builder record that (like the old
+ * per-family arrays) holds every language at once. */
+function l10n(key: string): L10n {
+  return { en: kitText('en', key), fr: kitText('fr', key) };
+}
 
 /** One scope choice for a counter var's picker (see COUNTER_SCOPES below). */
 interface ScopeDef {
@@ -28,7 +58,7 @@ interface ScopeDef {
   hint: L10n;
 }
 
-interface VarDef {
+export interface VarDef {
   token: string;
   sample: string;
   name: L10n;
@@ -37,7 +67,7 @@ interface VarDef {
   scopes?: ScopeDef[];
 }
 
-interface SurfaceDef {
+export interface SurfaceDef {
   id: string;
   group: L10n;
   label: L10n;
@@ -86,123 +116,83 @@ const COUNTER_SCOPES: ScopeDef[] = [
   },
 ];
 
-// Dynamic tokens work in custom commands and in every module reply template
-// (module.ParseDynamic is each module's fallback).
-const DYNAMIC: VarDef[] = [
-  v('{random}', '42', { en: 'Random 1-100', fr: 'Aléatoire 1-100' }, { en: 'A whole number from 1 to 100, new every time.', fr: 'Un nombre entier de 1 à 100, différent à chaque fois.' }),
-  v('{random:1-6}', '4', { en: 'Random range', fr: 'Plage aléatoire' }, { en: 'Pick your own range; both ends included. Change the numbers.', fr: 'Choisissez votre plage; les deux bornes comptent. Changez les nombres.' }),
-  v('{choice:yes,no,maybe}', 'maybe', { en: 'Random choice', fr: 'Choix aléatoire' }, { en: 'Picks one of your comma-separated options. Replace the words.', fr: 'Choisit une option de votre liste séparée par des virgules. Remplacez les mots.' }),
-];
+// Every var the custom-command surface offers now comes straight from kit's
+// manifest (docs/specs/variables-catalog.md D2/D3, phase 3 section A): one
+// VarDef per kit VariableForm, copy resolved through kitText from
+// vars.<id>.{name,desc} rather than carried here. MULTI_FORM_IDS is the
+// short list of variables whose builder chip has always shown more than one
+// form (matches what the deleted per-family arrays actually rendered:
+// {random} and {random:1-6}, {1} and {2:}); every other kit variable offers
+// several forms in its guide entry but only ever showed its first, canonical
+// form as a builder chip.
+const MULTI_FORM_IDS = new Set(['positional', 'random']);
+// Counter vars are the only ones carrying a scope picker (see COUNTER_SCOPES).
+const SCOPED_IDS = new Set(['counter', 'count']);
 
-// The pure utilities (app/twitch/sesame/engine/scope/pure.go). Unlike DYNAMIC
-// these are offered on the custom-command surface ONLY: the engine mounts the
-// pure scope when it expands a command, while a module reply is expanded
-// through module.ParseDynamic, which has never carried them. Offering them on
-// an alert would promise a token that stays literal in chat.
-//
-// The samples are what the preview COMPUTES for these payloads, not
-// decoration: the shared rehearsal evaluates {math:…}, the escapes and
-// {repeat:…} for real, so a sample that disagreed with the payload beside it
-// would be visibly wrong the moment the builder rendered it.
-const UTILITIES: VarDef[] = [
-  v('{math:1+2*3}', '7', { en: 'Arithmetic', fr: 'Calcul' }, { en: 'Works out a small sum. Whole numbers, + - * / and parentheses; nothing else.', fr: 'Résout une petite opération. Nombres entiers, + - * / et parenthèses; rien d’autre.' }),
-  v('{querystring}', 'alex+good+luck', { en: 'Arguments, URL-encoded', fr: 'Arguments encodés pour une URL' }, { en: 'Everything typed after the command, encoded so it can be dropped into a data source URL.', fr: 'Tout le texte tapé après la commande, encodé pour être placé dans l’URL d’une source de données.' }),
-  v('{queryescape:hello world}', 'hello+world', { en: 'URL-encode text', fr: 'Encoder du texte pour une URL' }, { en: 'Encodes your own text for the query part of a URL. Replace the words.', fr: 'Encode votre propre texte pour la partie requête d’une URL. Remplacez les mots.' }),
-  v('{pathescape:hello world}', 'hello%20world', { en: 'URL-encode a path', fr: 'Encoder un chemin d’URL' }, { en: 'The same, for the path part of a URL, where a space is not a plus.', fr: 'La même chose, pour la partie chemin d’une URL, où un espace n’est pas un plus.' }),
-  v('{repeat:3:bagel}', 'bagel bagel bagel', { en: 'Repeat a phrase', fr: 'Répéter une phrase' }, { en: 'Repeats your phrase, space separated. Up to 20 times, and it has to fit one chat line.', fr: 'Répète votre phrase, séparée par des espaces. 20 fois au maximum, et le tout doit tenir sur une ligne de chat.' }),
-  v('{countdown:2026-12-25}', '3 days, 4 hours', { en: 'Time until a date', fr: 'Temps avant une date' }, { en: 'How long until that date. Write it as YYYY-MM-DD, or as a full timestamp. Nothing once the date has passed.', fr: 'Le temps restant avant cette date. Écrivez-la AAAA-MM-JJ, ou en horodatage complet. Plus rien une fois la date passée.' }),
-  v('{countup:2020-01-01}', '3 days, 4 hours', { en: 'Time since a date', fr: 'Temps depuis une date' }, { en: 'How long since that date, in the same wording as !uptime.', fr: 'Le temps écoulé depuis cette date, formulé comme !uptime.' }),
-  // The conditional (app/twitch/sesame/engine/scope/scope.go renderSpan). It
-  // is offered in one shape rather than four: the entry a broadcaster clicks
-  // has to be editable into whatever they meant, and the two-branch form with
-  // a plain name is the one every other shape is a small edit away from. The
-  // description spends its words on the two rules a sample cannot show — the
-  // branches are plain text, and an empty branch takes its line with it —
-  // because both are what a first {if} gets wrong.
-  v('{if:touser:hi there:hi everyone}', 'hi there', { en: 'Say one thing or another', fr: 'Dire une chose ou une autre' }, { en: 'Picks the first text when the variable you name has something in it, the second when it does not. Name it without braces, and write {if:game=Chess:…:…} to test an exact value instead. Variables do not work inside the two texts. Leave the second one out and a false test says nothing at all — if that empties the whole line, the bot skips that line rather than sending a blank message.', fr: 'Affiche le premier texte quand la variable que vous nommez contient quelque chose, le second sinon. Nommez-la sans accolades, et écrivez {if:game=Chess:…:…} pour tester une valeur exacte. Les variables ne fonctionnent pas dans les deux textes. Omettez le second et un test faux n’affiche rien du tout: si la ligne se vide, le bot passe la ligne au lieu d’envoyer un message vide.' }),
-];
+function kitVarDef(def: VariableDef, form: VariableForm): VarDef {
+  const built = v(form.example, form.output, l10n(`vars.${def.id}.name`), l10n(`vars.${def.id}.desc`));
+  return SCOPED_IDS.has(def.id) ? { ...built, scopes: COUNTER_SCOPES } : built;
+}
 
-// The viewer lookups (app/twitch/sesame/engine/scope/viewer.go). Like the
-// utilities these are custom-command only, and unlike the utilities each one
-// is answered by an opt-in module: with Followage, Account age or Loyalty
-// Points switched off the bot leaves the variable visible in chat instead of
-// answering it, which is what the descriptions say out loud.
-//
-// The samples match the shared rehearsal's stand-ins exactly (POINTS_SAMPLE
-// and friends): the preview substitutes those, so a different number here
-// would contradict the line right beside it.
-const VIEWER: VarDef[] = [
-  v('{followage}', '3 months', { en: 'Time following', fr: 'Temps de follow' }, { en: 'How long the viewer has followed you, in the same wording as !followage. {followage:alex} asks about someone else, and someone who does not follow comes back empty. Needs the Followage module.', fr: 'Depuis combien de temps le spectateur vous suit, formulé comme !followage. {followage:alex} interroge quelqu’un d’autre, et une personne qui ne suit pas ne renvoie rien. Nécessite le module Followage.' }),
-  v('{accountage}', '4 years, 2 months', { en: 'Account age', fr: 'Âge du compte' }, { en: 'How old their Twitch account is. {accountage:alex} asks about someone else. Needs the Account age module.', fr: 'L’âge de leur compte Twitch. {accountage:alex} interroge quelqu’un d’autre. Nécessite le module Âge du compte.' }),
-  v('{points}', '1280', { en: 'Points balance', fr: 'Solde de points' }, { en: 'What the viewer has earned. {points:alex} shows someone else, as long as this channel has seen them speak. Reading only: it never grants. Needs the Loyalty Points module.', fr: 'Ce que le spectateur a gagné. {points:alex} affiche le solde de quelqu’un d’autre, si la chaîne l’a vu parler. Lecture seule: rien n’est jamais accordé. Nécessite le module Points de fidélité.' }),
-  v('{pointsname}', 'bagels', { en: 'Name of your points', fr: 'Nom de vos points' }, { en: 'Whatever you called your points in the Loyalty Points module, so one reply reads right on every channel.', fr: 'Le nom que vous avez donné à vos points dans le module Points de fidélité, pour qu’une même réponse sonne juste sur chaque chaîne.' }),
-  v('{watchtime}', '2 hours, 30 minutes', { en: 'Time watched', fr: 'Temps de visionnage' }, { en: 'How long they have watched while the loyalty clock was running. {watchtime:alex} asks about someone else. Needs the Loyalty Points module.', fr: 'Le temps qu’ils ont passé à regarder pendant que l’horloge de fidélité tournait. {watchtime:alex} interroge quelqu’un d’autre. Nécessite le module Points de fidélité.' }),
-];
+function customSurfaceVars(): VarDef[] {
+  return KIT_VARIABLES.flatMap((def) => {
+    const forms = MULTI_FORM_IDS.has(def.id) ? def.forms : def.forms.slice(0, 1);
+    return forms.map((form) => kitVarDef(def, form));
+  });
+}
 
-// The module facts (app/twitch/sesame/engine/scope/modules.go). Each is
-// answered by an opt-in module, so with Quotes, Local Time or Song Requests
-// switched off the bot leaves the variable visible in chat instead of
-// answering it — which is what the descriptions say out loud.
-//
-// The samples match the shared rehearsal's stand-ins exactly (QUOTE_SAMPLE and
-// friends): the preview substitutes those, so a different value here would
-// contradict the line right beside it.
-const MODULE_FACTS: VarDef[] = [
-  v('{quote}', 'Quote #12: bagels are just savoury donuts (2026-01-31)', { en: 'A saved quote', fr: 'Une citation enregistrée' }, { en: 'A random quote from your quote book, worded exactly as !quote says it. {quote:12} picks a numbered one, and a number nobody has used comes back empty. Two {quote} in one response are two different quotes. Needs the Quotes module.', fr: 'Une citation au hasard de votre recueil, formulée exactement comme !quote la dit. {quote:12} choisit une citation numérotée, et un numéro inutilisé ne renvoie rien. Deux {quote} dans une même réponse donnent deux citations différentes. Nécessite le module Citations.' }),
-  v('{time}', '3:04 PM', { en: 'Your local time', fr: 'Votre heure locale' }, { en: 'The time where you are, on the timezone and clock face you set on the Local time module. Needs that module, with a timezone saved.', fr: 'L’heure chez vous, selon le fuseau et le format d’horloge choisis dans le module Heure locale. Nécessite ce module, avec un fuseau enregistré.' }),
-  v('{song}', 'Everything In Its Right Place by Radiohead', { en: 'Now playing', fr: 'En cours de lecture' }, { en: 'The track playing on Spotify right now. {song.title} and {song.artist} give the two halves separately. Nothing playing comes back empty. Needs the Song requests module.', fr: 'Le morceau en cours sur Spotify. {song.title} et {song.artist} donnent les deux moitiés séparément. Rien en lecture ne renvoie rien. Nécessite le module Requêtes musicales.' }),
-];
+// A module reply's token copy (name/desc) now lives in kit locales under
+// replyVars.<hintKey-without-".hint">.{name,desc}, set alongside each
+// ReplyToken's hintKey in catalog/*.ts (docs/specs/variables-catalog.md
+// phase 3 section A.3). Falling back to the bare token name/no description
+// only guards a future catalog entry that forgets to wire hintKey; every
+// token this builder reaches for today has one.
+function replyTokenVarDef(token: ReplyToken): VarDef {
+  const base = token.hintKey?.replace(/\.hint$/, '');
+  const name = base ? l10n(`${base}.name`) : { en: token.name, fr: token.name };
+  const desc = base ? l10n(`${base}.desc`) : { en: '', fr: '' };
+  return v(`{${token.name}}`, token.sample, name, desc);
+}
 
-// The chat room (app/twitch/sesame/engine/scope/chatters.go). No module gates
-// these two — the bot answers them from the chatters it has watched speak,
-// never from a Twitch lookup — so the descriptions say what that changes
-// instead: it counts and draws from people who have TALKED recently.
-//
-// The samples match the shared rehearsal's stand-ins exactly (CHATTERS_SAMPLE
-// and RANDOM_CHATTER_SAMPLE): the preview substitutes those, so a different
-// value here would contradict the line right beside it.
-const CHAT_ROOM: VarDef[] = [
-  v('{chatters}', '37', { en: 'People in chat', fr: 'Personnes dans le chat' }, { en: 'How many people have talked in chat recently. It counts chatters the bot has seen speak, not everyone with the page open, and a quiet channel comes back as 0.', fr: 'Combien de personnes ont parlé récemment dans le chat. Cela compte les personnes que le bot a vues parler, pas tous ceux qui ont la page ouverte, et une chaîne silencieuse renvoie 0.' }),
-  v('{random.chatter}', 'maya_live', { en: 'A random chatter', fr: 'Un spectateur au hasard' }, { en: 'The name of one person who has talked recently, picked at random. Never you and never the bot. Two of them in one response are two separate picks, and a silent channel comes back empty.', fr: 'Le nom d’une personne ayant parlé récemment, choisie au hasard. Jamais vous ni le bot. Deux dans une même réponse font deux tirages distincts, et une chaîne silencieuse ne renvoie rien.' }),
-];
+// {random}, {random:1-6} and {choice:…} work in custom commands and in
+// every module reply template (module.ParseDynamic is each module's
+// fallback), so every module surface below appends this same trio.
+function dynamicFormVars(): VarDef[] {
+  const random = variableById('random')!;
+  const choice = variableById('choice')!;
+  return [...random.forms.map((form) => kitVarDef(random, form)), ...choice.forms.map((form) => kitVarDef(choice, form))];
+}
 
-// The channel itself (app/twitch/sesame/engine/scope/channel.go). One Twitch
-// read answers all four, so a response naming three of them costs one round
-// trip. {uptime}, {title} and {game} are each gated by the same per-command
-// toggle as !uptime / !title / !game, which the descriptions say because a
-// broadcaster who switched one off would otherwise see the variable stay
-// visible in chat with no explanation; {channel.viewers} has no toggle
-// because no command prints it.
-//
-// The samples match the shared rehearsal's stand-ins exactly (UPTIME_SAMPLE,
-// TITLE_SAMPLE, GAME_SAMPLE and CHANNEL_VIEWERS_SAMPLE): the preview
-// substitutes those, so a different value here would contradict the line
-// right beside it.
-const CHANNEL_FACTS: VarDef[] = [
-  v('{uptime}', '2 hours, 15 minutes', { en: 'Stream uptime', fr: 'Durée du direct' }, { en: 'How long the stream has been live, worded the way !uptime words it. Offline comes back empty, so give it a default. {uptime:someone} does the same for another channel. Follows the !uptime toggle.', fr: 'Depuis combien de temps le direct dure, formulé comme !uptime. Hors ligne renvoie du vide: donnez-lui une valeur par défaut. {uptime:quelquun} fait de même pour une autre chaîne. Suit l’interrupteur !uptime.' }),
-  v('{title}', 'bagel baking and chill', { en: 'Stream title', fr: 'Titre du direct' }, { en: 'The current stream title, the same one !title shows. It works offline too. {title:someone} gives another channel’s. Follows the !title toggle.', fr: 'Le titre actuel du direct, celui qu’affiche !title. Fonctionne aussi hors ligne. {title:quelquun} donne celui d’une autre chaîne. Suit l’interrupteur !title.' }),
-  v('{game}', 'Just Chatting', { en: 'Stream category', fr: 'Catégorie du direct' }, { en: 'The category being streamed, the same one !game shows. It works offline too. {game:someone} gives another channel’s, which is what a shoutout command wants. Follows the !game toggle.', fr: 'La catégorie diffusée, celle qu’affiche !game. Fonctionne aussi hors ligne. {game:quelquun} donne celle d’une autre chaîne, ce que veut une commande de shoutout. Suit l’interrupteur !game.' }),
-  v('{channel.viewers}', '128', { en: 'Viewers watching', fr: 'Spectateurs' }, { en: 'How many people are watching right now, straight from Twitch. An offline channel comes back as 0. Bare {channel} stays your channel name.', fr: 'Combien de personnes regardent en ce moment, directement depuis Twitch. Une chaîne hors ligne renvoie 0. {channel} seul reste le nom de votre chaîne.' }),
-];
+function moduleReplyTokens(moduleId: string, replyKey: string): readonly ReplyToken[] {
+  const tokens = moduleDef(moduleId)?.replies.find((reply) => reply.key === replyKey)?.tokens;
+  if (!tokens) throw new Error(`builder.ts: no ${moduleId}.${replyKey} reply tokens in the kit catalog`);
+  return tokens;
+}
 
-// The emote catalog (app/twitch/sesame/engine/scope/emotes.go). No module
-// gates these either — the bot keeps the code lists loaded for its own spam
-// filter — so the descriptions spend their words on the two things a sample
-// cannot show: these are the GLOBAL sets every channel already has, not the
-// emotes a broadcaster added to their own channel, and a real list is cut to
-// fit one chat line.
-//
-// The samples match the shared rehearsal's stand-ins exactly
-// (SEVENTV_EMOTES_SAMPLE and friends): the preview substitutes those, so a
-// different value here would contradict the line right beside it.
-const EMOTES: VarDef[] = [
-  v('{7tvemotes}', 'PagMan Clap peepoHappy', { en: '7TV emotes', fr: 'Émotes 7TV' }, { en: 'The global 7TV emote codes, separated by spaces. These are the ones every channel has, not the emotes you added to yours, and a long list is cut to fit one chat line.', fr: 'Les codes des émotes 7TV globales, séparés par des espaces. Ce sont celles que toutes les chaînes ont, pas les émotes que vous avez ajoutées à la vôtre, et une longue liste est coupée pour tenir sur une ligne de chat.' }),
-  v('{bttvemotes}', 'KEKW monkaS catJAM', { en: 'BTTV emotes', fr: 'Émotes BTTV' }, { en: 'The global BetterTTV emote codes, the same way {7tvemotes} lists 7TV.', fr: 'Les codes des émotes BetterTTV globales, comme {7tvemotes} liste celles de 7TV.' }),
-  v('{ffzemotes}', 'LUL ZULUL AYAYA', { en: 'FFZ emotes', fr: 'Émotes FFZ' }, { en: 'The global FrankerFaceZ emote codes, the same way {7tvemotes} lists 7TV.', fr: 'Les codes des émotes FrankerFaceZ globales, comme {7tvemotes} liste celles de 7TV.' }),
-  v('{random.emote}', 'KEKW', { en: 'A random emote', fr: 'Une émote au hasard' }, { en: 'One emote code drawn at random from those lists. Two of them in one response are two separate picks. If the bot has not loaded any codes yet, it comes back empty.', fr: 'Un code d’émote tiré au hasard dans ces listes. Deux dans une même réponse font deux tirages distincts. Si le bot n’a pas encore chargé de codes, la variable revient vide.' }),
-];
+/** A module reply surface's vars: the reply's own tokens plus the shared
+ * dynamic trio every module reply accepts. */
+function moduleSurfaceVars(moduleId: string, replyKey: string): VarDef[] {
+  return [...moduleReplyTokens(moduleId, replyKey).map(replyTokenVarDef), ...dynamicFormVars()];
+}
 
-const USER_VIEWER = v('{user}', 'maya_live', { en: 'Viewer name', fr: 'Nom du spectateur' }, { en: 'Whoever used the command. {sender} works too.', fr: 'La personne qui a utilisé la commande. {sender} fonctionne aussi.' });
+/** A built-in command's reply surface (!clip): unlike a module reply, a
+ * built-in's ParseDynamic pass has never carried the dynamic trio, so this
+ * does not append dynamicFormVars() (matches the deleted 'clip' VarDef list,
+ * which never appended the shared dynamic trio either). */
+function builtinSurfaceVars(id: string): VarDef[] {
+  const tokens = BUILTIN_COMMANDS.find((cmd) => cmd.id === id)?.tokens;
+  if (!tokens) throw new Error(`builder.ts: no builtin command "${id}" tokens in the kit catalog`);
+  return tokens.map(replyTokenVarDef);
+}
+
+/** A surface with no kit reply behind it at all (Trigger Words' rule
+ * response, a Channel Points reward line): the token list stays
+ * hand-written here, but its copy still moves to kit locales under
+ * replyVars.<surfaceId>.<token>.{name,desc} (section A.2's "MUST NOT carry
+ * inline copy"), same as every mapped surface above. */
+function explicitVar(key: string, token: string, sample: string): VarDef {
+  return v(token, sample, l10n(`${key}.name`), l10n(`${key}.desc`));
+}
 
 export const SURFACES: SurfaceDef[] = [
   {
@@ -213,49 +203,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'A reply viewers trigger with !yourcommand.', fr: 'Une réponse que les spectateurs déclenchent avec !votrecommande.' },
     example: { en: 'Welcome in, {user}! Grab a seat 🥯', fr: 'Bienvenue, {user}! Installe-toi 🥯' },
     prompt: { en: '!welcome', fr: '!bienvenue' },
-    vars: [
-      USER_VIEWER,
-      v('{touser}', 'alex', { en: 'Named person', fr: 'Personne nommée' }, { en: 'The first word typed after the command ("@" removed); the viewer themself when blank. {target} works too.', fr: 'Le premier mot tapé après la commande (sans «@»); le spectateur lui-même si vide. {target} fonctionne aussi.' }),
-      v('{args}', 'alex good luck', { en: 'Everything typed after', fr: 'Tout le texte tapé après' }, { en: 'All text after the command, as one string.', fr: 'Tout le texte après la commande, en une seule chaîne.' }),
-      v('{1}', 'alex', { en: 'One word', fr: 'Un seul mot' }, { en: 'Word 1 typed after the command. {2} is the next one, and so on up to {30}. Empty when that word was not typed.', fr: 'Le mot 1 tapé après la commande. {2} est le suivant, et ainsi de suite jusqu’à {30}. Vide si ce mot n’a pas été tapé.' }),
-      v('{2:}', 'good luck', { en: 'From a word to the end', fr: 'D’un mot jusqu’à la fin' }, { en: 'Word 2 through to the end, as one string. Change the number to start elsewhere; {1:} is the whole thing.', fr: 'Du mot 2 jusqu’à la fin, en une seule chaîne. Changez le numéro pour commencer ailleurs; {1:} reprend tout.' }),
-      v('{channel}', 'your_channel', { en: 'Channel name', fr: 'Nom de la chaîne' }, { en: "Your channel's display name.", fr: 'Le nom d’affichage de votre chaîne.' }),
-      v('{userid}', '48291057', { en: 'Viewer ID', fr: 'ID du spectateur' }, { en: "The viewer's Twitch user ID. It never changes, even after a rename.", fr: 'L’ID utilisateur Twitch du spectateur. Il ne change jamais, même après un changement de nom.' }),
-      v('{user.login}', 'maya_live', { en: 'Viewer login', fr: 'Identifiant du spectateur' }, { en: 'Their lowercase login, which can differ from the display name {user} shows.', fr: 'Son identifiant en minuscules, qui peut différer du nom d’affichage montré par {user}.' }),
-      v('{command}', 'welcome', { en: 'Command name', fr: 'Nom de la commande' }, { en: 'The name of the command that ran, without the "!". Alternate names all report the main one.', fr: 'Le nom de la commande qui a répondu, sans le «!». Les autres noms rapportent tous le nom principal.' }),
-      {
-        ...v(
-          '{counter:falls}',
-          '128',
-          { en: 'Counter (+1)', fr: 'Compteur (+1)' },
-          {
-            en: 'Adds 1 to a counter and shows the new total (needs the Loyalty Points module). Pick its scope below, it\'s set once, at creation, from the dashboard or !counter create.',
-            fr: 'Ajoute 1 à un compteur et affiche le nouveau total (nécessite le module Points de fidélité). Choisissez sa portée ci-dessous: elle est fixée une fois, à la création, depuis le tableau de bord ou avec !counter create.',
-          },
-        ),
-        scopes: COUNTER_SCOPES,
-      },
-      {
-        ...v(
-          '{count:falls}',
-          '128',
-          { en: 'Counter (read only)', fr: 'Compteur (lecture seule)' },
-          {
-            en: 'Shows a counter without adding to it, so a command can report a total it does not change. Same counter, same name, same scopes as {counter:…}.',
-            fr: 'Affiche un compteur sans l’incrémenter, pour qu’une commande puisse annoncer un total sans le modifier. Même compteur, même nom et mêmes portées que {counter:…}.',
-          },
-        ),
-        scopes: COUNTER_SCOPES,
-      },
-      v('{uses}', '317', { en: 'Times used', fr: 'Nombre d’utilisations' }, { en: 'How many times this command has been used in your channel, not counting the one printing it. It counts every use, whichever name was typed, and needs no counter. The total is approximate: the bot batches its counting, so it can be up to a minute behind.', fr: 'Combien de fois cette commande a servi dans votre chaîne, sans compter celle qui l’affiche. Elle compte chaque utilisation, quel que soit le nom tapé, et ne demande aucun compteur. Le total est approximatif: le bot compte par lots et peut avoir jusqu’à une minute de retard.' }),
-      ...DYNAMIC,
-      ...UTILITIES,
-      ...CHAT_ROOM,
-      ...EMOTES,
-      ...CHANNEL_FACTS,
-      ...VIEWER,
-      ...MODULE_FACTS,
-    ],
+    vars: customSurfaceVars(),
   },
   {
     id: 'follow',
@@ -265,10 +213,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'Chat Alerts module → follow message.', fr: 'Module Alertes de chat → message de follow.' },
     example: { en: 'Thanks for the follow, {user}!', fr: 'Merci pour le follow, {user}!' },
     prompt: { en: 'maya_live followed the channel', fr: 'maya_live suit maintenant la chaîne' },
-    vars: [
-      v('{user}', 'maya_live', { en: 'New follower', fr: 'Nouveau follower' }, { en: 'The person who just followed.', fr: 'La personne qui vient de suivre la chaîne.' }),
-      ...DYNAMIC,
-    ],
+    vars: moduleSurfaceVars('alerts', 'follow'),
   },
   {
     id: 'subscribe',
@@ -278,11 +223,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'Chat Alerts module → subscription message.', fr: "Module Alertes de chat → message d'abonnement." },
     example: { en: 'Welcome, {user}! Thanks for the tier {tier} sub!', fr: 'Bienvenue, {user}! Merci pour le sub palier {tier}!' },
     prompt: { en: 'maya_live subscribed', fr: "maya_live s'est abonnée" },
-    vars: [
-      v('{user}', 'maya_live', { en: 'Subscriber', fr: 'Abonné' }, { en: 'The new subscriber.', fr: 'La personne qui vient de s’abonner.' }),
-      v('{tier}', '1', { en: 'Sub tier', fr: 'Palier' }, { en: 'The subscription tier.', fr: "Le palier de l'abonnement." }),
-      ...DYNAMIC,
-    ],
+    vars: moduleSurfaceVars('alerts', 'sub'),
   },
   {
     id: 'cheer',
@@ -292,11 +233,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'Chat Alerts module → cheer message.', fr: 'Module Alertes de chat → message de cheer.' },
     example: { en: 'Thanks for the {bits} bits, {user}! 💎', fr: 'Merci pour les {bits} bits, {user}! 💎' },
     prompt: { en: 'maya_live cheered 250 bits', fr: 'maya_live a envoyé 250 bits' },
-    vars: [
-      v('{user}', 'maya_live', { en: 'Cheerer', fr: 'Donateur' }, { en: 'The viewer who cheered.', fr: 'La personne qui a envoyé des bits.' }),
-      v('{bits}', '250', { en: 'Bits amount', fr: 'Nombre de bits' }, { en: 'How many bits were cheered.', fr: 'Le nombre de bits envoyés.' }),
-      ...DYNAMIC,
-    ],
+    vars: moduleSurfaceVars('alerts', 'cheer'),
   },
   {
     id: 'raid',
@@ -306,11 +243,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'Chat Alerts module → raid message.', fr: 'Module Alertes de chat → message de raid.' },
     example: { en: '{user} raided with {viewers} viewers! Welcome!', fr: '{user} raid avec {viewers} spectateurs! Bienvenue!' },
     prompt: { en: 'CoolStreamer raided with 42 viewers', fr: 'CoolStreamer raid avec 42 spectateurs' },
-    vars: [
-      v('{user}', 'CoolStreamer', { en: 'Raider', fr: 'Raider' }, { en: "The raiding channel's display name.", fr: "Le nom d'affichage de la chaîne qui raid." }),
-      v('{viewers}', '42', { en: 'Raid size', fr: 'Taille du raid' }, { en: 'How many viewers arrived.', fr: 'Le nombre de spectateurs arrivés.' }),
-      ...DYNAMIC,
-    ],
+    vars: moduleSurfaceVars('alerts', 'raid'),
   },
   {
     id: 'shoutout',
@@ -320,12 +253,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'Auto Shoutout module → raid shoutout message.', fr: 'Module Shoutout automatique → message de shoutout.' },
     example: { en: 'Go follow {raider} → twitch.tv/{raider.login} · {viewers} friends came over!', fr: 'Allez suivre {raider} → twitch.tv/{raider.login} · {viewers} amis sont arrivés!' },
     prompt: { en: 'CoolStreamer raided the channel', fr: 'CoolStreamer a raid la chaîne' },
-    vars: [
-      v('{raider}', 'CoolStreamer', { en: 'Raider name', fr: 'Nom du raider' }, { en: 'Friendly display name of the raiding channel.', fr: "Nom d'affichage de la chaîne qui raid." }),
-      v('{raider.login}', 'coolstreamer', { en: 'Raider login', fr: 'Login du raider' }, { en: 'URL-safe login, for twitch.tv/ links.', fr: 'Login compatible URL, pour les liens twitch.tv/.' }),
-      v('{viewers}', '42', { en: 'Raid size', fr: 'Taille du raid' }, { en: 'How many viewers arrived.', fr: 'Le nombre de spectateurs arrivés.' }),
-      ...DYNAMIC,
-    ],
+    vars: moduleSurfaceVars('shoutout', 'shoutout'),
   },
   {
     id: 'triggers',
@@ -335,10 +263,11 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'Trigger Words module → the response side of a rule.', fr: 'Module Mots déclencheurs → la partie réponse d’une règle.' },
     example: { en: 'Hey {user}! {choice:Welcome in,Good to see you}!', fr: 'Salut {user}! {choice:Bienvenue,Contente de te voir}!' },
     prompt: { en: 'hello everyone', fr: 'bonjour tout le monde' },
-    vars: [
-      v('{user}', 'maya_live', { en: 'Chatter', fr: 'Auteur du message' }, { en: 'The person whose message matched the rule.', fr: 'La personne dont le message correspond à la règle.' }),
-      ...DYNAMIC,
-    ],
+    // Trigger Words rules have no fixed kit reply (the rule text is
+    // broadcaster-written, docs/specs/variables-catalog.md phase 3 section
+    // A.2), so {user} stays a hand-written token here; its copy still moved
+    // to kit locales (replyVars.triggers.user).
+    vars: [explicitVar('replyVars.triggers.user', '{user}', 'maya_live'), ...dynamicFormVars()],
   },
   {
     id: 'clip',
@@ -348,11 +277,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'Built-in !clip command → reply template (Commands page).', fr: 'Commande intégrée !clip → modèle de réponse (page Commandes).' },
     example: { en: '{user} clipped: {target} → {clip}', fr: '{user} a créé un clip: {target} → {clip}' },
     prompt: { en: '!clip That clutch', fr: '!clip Quel finish' },
-    vars: [
-      v('{clip}', 'clips.twitch.tv/FreshBagel', { en: 'Clip link', fr: 'Lien du clip' }, { en: 'The freshly created clip link.', fr: 'Le lien du clip fraîchement créé.' }),
-      v('{user}', 'maya_live', { en: 'Clipper', fr: 'Créateur du clip' }, { en: 'The viewer who used !clip.', fr: 'La personne qui a utilisé !clip.' }),
-      v('{target}', 'That clutch', { en: 'Clip title', fr: 'Titre du clip' }, { en: 'The title typed after !clip.', fr: 'Le titre tapé après !clip.' }),
-    ],
+    vars: builtinSurfaceVars('clip'),
   },
   {
     id: 'time',
@@ -362,13 +287,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'Local Time module → !time reply.', fr: 'Module Heure locale → réponse de !time.' },
     example: { en: "It's {time} where I live ({timezone}).", fr: 'Il est {time} chez moi ({timezone}).' },
     prompt: { en: '!time', fr: '!time' },
-    vars: [
-      v('{time}', '2:30 PM', { en: 'Local time', fr: 'Heure locale' }, { en: 'The clock, in your configured timezone and format.', fr: "L'heure, selon votre fuseau et votre format." }),
-      v('{date}', 'July 16', { en: 'Local date', fr: 'Date locale' }, { en: "Today's date in your timezone.", fr: "La date du jour dans votre fuseau." }),
-      v('{timezone}', 'America/Montreal', { en: 'Timezone', fr: 'Fuseau horaire' }, { en: 'The configured timezone name.', fr: 'Le nom du fuseau configuré.' }),
-      v('{user}', 'maya_live', { en: 'Asker', fr: 'Demandeur' }, { en: 'Who asked for the time.', fr: "Qui a demandé l'heure." }),
-      ...DYNAMIC,
-    ],
+    vars: moduleSurfaceVars('time', 'time'),
   },
   {
     id: 'channelpoints',
@@ -378,15 +297,19 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'Channel Points page → the chat line a redemption posts.', fr: 'Page Points de chaîne → la ligne publiée lors d’un échange.' },
     example: { en: '{user} redeemed {reward} ({cost} pts): {input}', fr: '{user} a échangé {reward} ({cost} pts): {input}' },
     prompt: { en: 'maya_live redeemed Hydrate!', fr: 'maya_live a échangé Hydrate!' },
+    // Channel Points has no reply on the kit module catalog (rewards are
+    // broadcaster-created, RewardEditor owns their tokens on the dashboard),
+    // so this stays a hand-written token list; copy moved to kit locales
+    // (replyVars.channelpoints.*).
     vars: [
-      v('{user}', 'maya_live', { en: 'Redeemer', fr: 'Échangeur' }, { en: 'Who redeemed the reward.', fr: 'Qui a échangé la récompense.' }),
-      v('{input}', 'stay hydrated!', { en: 'Viewer input', fr: 'Texte du spectateur' }, { en: 'The text typed with the redemption (when the reward asks for one).', fr: "Le texte saisi avec l'échange (si la récompense en demande un)." }),
-      v('{reward}', 'Hydrate!', { en: 'Reward title', fr: 'Titre de la récompense' }, { en: 'The name of the redeemed reward.', fr: 'Le nom de la récompense échangée.' }),
-      v('{cost}', '500', { en: 'Point cost', fr: 'Coût en points' }, { en: 'What the reward costs.', fr: 'Le coût de la récompense.' }),
-      v('{channel}', 'your_channel', { en: 'Channel', fr: 'Chaîne' }, { en: 'Your channel name.', fr: 'Le nom de votre chaîne.' }),
-      v('{counter}', '129', { en: 'Bound counter', fr: 'Compteur lié' }, { en: "The bound counter's new value, when the reward has one. Give it command scope for one pooled total shared by every redemption of this reward.", fr: 'La nouvelle valeur du compteur lié, si la récompense en a un. Choisissez la portée «par commande» pour un total unique partagé par tous les échanges de cette récompense.' }),
-      v('{points}', '50', { en: 'Loyalty points', fr: 'Points de fidélité' }, { en: 'Loyalty points the reward grants (when positive).', fr: 'Les points de fidélité accordés (si positifs).' }),
-      ...DYNAMIC,
+      explicitVar('replyVars.channelpoints.user', '{user}', 'maya_live'),
+      explicitVar('replyVars.channelpoints.input', '{input}', 'stay hydrated!'),
+      explicitVar('replyVars.channelpoints.reward', '{reward}', 'Hydrate!'),
+      explicitVar('replyVars.channelpoints.cost', '{cost}', '500'),
+      explicitVar('replyVars.channelpoints.channel', '{channel}', 'your_channel'),
+      explicitVar('replyVars.channelpoints.counter', '{counter}', '129'),
+      explicitVar('replyVars.channelpoints.points', '{points}', '50'),
+      ...dynamicFormVars(),
     ],
   },
   {
@@ -397,11 +320,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'Play Queue module → the !join confirmation.', fr: "Module File d'attente → la confirmation de !join." },
     example: { en: '{user} joined the queue at spot #{pos}.', fr: '{user} rejoint la file en position #{pos}.' },
     prompt: { en: '!join', fr: '!join' },
-    vars: [
-      v('{user}', 'maya_live', { en: 'Joiner', fr: 'Participant' }, { en: 'Who joined the queue.', fr: 'Qui a rejoint la file.' }),
-      v('{pos}', '3', { en: 'Queue position', fr: 'Position' }, { en: 'Their spot in line.', fr: 'Sa place dans la file.' }),
-      ...DYNAMIC,
-    ],
+    vars: moduleSurfaceVars('queue', 'join'),
   },
   {
     id: 'queue-next',
@@ -411,11 +330,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'Play Queue module → the !queue next announcement.', fr: "Module File d'attente → l'annonce de !queue next." },
     example: { en: "You're up, {target}! {count} waiting behind you.", fr: 'À toi, {target}! {count} personnes derrière toi.' },
     prompt: { en: '!queue next', fr: '!queue next' },
-    vars: [
-      v('{target}', 'alex', { en: 'Next player', fr: 'Joueur suivant' }, { en: 'Who is up next.', fr: 'La personne dont c’est le tour.' }),
-      v('{count}', '2', { en: 'Still waiting', fr: 'Encore en attente' }, { en: 'How many people remain in line.', fr: 'Combien de personnes restent dans la file.' }),
-      ...DYNAMIC,
-    ],
+    vars: moduleSurfaceVars('queue', 'next'),
   },
   {
     id: 'bw-session',
@@ -425,18 +340,9 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'Bedwars Stats module → session-stats reply.', fr: 'Module Stats Bedwars → réponse des stats de période.' },
     example: { en: '{player}: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR', fr: '{player}: {wins}V {losses}D · {finals} finals · {beds} lits · {fkdr} FKDR' },
     prompt: { en: '!daily Technoblade', fr: '!daily Technoblade' },
-    vars: [
-      v('{player}', 'Technoblade', { en: 'Player', fr: 'Joueur' }, { en: 'The resolved Minecraft player.', fr: 'Le joueur Minecraft résolu.' }),
-      v('{wins}', '5', { en: 'Wins', fr: 'Victoires' }, { en: 'Wins in the period.', fr: 'Victoires sur la période.' }),
-      v('{losses}', '2', { en: 'Losses', fr: 'Défaites' }, { en: 'Losses in the period.', fr: 'Défaites sur la période.' }),
-      v('{finals}', '21', { en: 'Final kills', fr: 'Final kills' }, { en: 'Final kills in the period.', fr: 'Final kills sur la période.' }),
-      v('{finaldeaths}', '3', { en: 'Final deaths', fr: 'Morts finales' }, { en: 'Final deaths in the period.', fr: 'Morts finales sur la période.' }),
-      v('{beds}', '9', { en: 'Beds broken', fr: 'Lits détruits' }, { en: 'Beds broken in the period.', fr: 'Lits détruits sur la période.' }),
-      v('{games}', '8', { en: 'Games', fr: 'Parties' }, { en: 'Games played in the period.', fr: 'Parties jouées sur la période.' }),
-      v('{levels}', '1', { en: 'Levels gained', fr: 'Niveaux gagnés' }, { en: 'Star levels gained.', fr: 'Niveaux d’étoile gagnés.' }),
-      v('{fkdr}', '7.00', { en: 'FKDR', fr: 'FKDR' }, { en: 'Final kills divided by final deaths.', fr: 'Final kills divisés par les morts finales.' }),
-      ...DYNAMIC,
-    ],
+    // Represents !daily/!weekly/!monthly, which share this exact token set
+    // (BW_SESSION_TOKENS in kit's catalog/rehearsal-tokens.ts).
+    vars: moduleSurfaceVars('urchin', 'daily'),
   },
   {
     id: 'bwstats',
@@ -446,18 +352,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'Bedwars Stats module → lifetime-stats reply.', fr: 'Module Stats Bedwars → réponse des stats à vie.' },
     example: { en: '{player}: {stars}✫ · {wins} wins · {fkdr} FKDR · {wlr} WLR', fr: '{player}: {stars}✫ · {wins} victoires · {fkdr} FKDR · {wlr} WLR' },
     prompt: { en: '!bwstats Technoblade', fr: '!bwstats Technoblade' },
-    vars: [
-      v('{player}', 'Technoblade', { en: 'Player', fr: 'Joueur' }, { en: 'The resolved Minecraft player.', fr: 'Le joueur Minecraft résolu.' }),
-      v('{stars}', '402', { en: 'Stars', fr: 'Étoiles' }, { en: 'Bedwars star level.', fr: 'Niveau d’étoile Bedwars.' }),
-      v('{wins}', '1000', { en: 'Wins', fr: 'Victoires' }, { en: 'Lifetime wins.', fr: 'Victoires à vie.' }),
-      v('{losses}', '100', { en: 'Losses', fr: 'Défaites' }, { en: 'Lifetime losses.', fr: 'Défaites à vie.' }),
-      v('{finals}', '5000', { en: 'Final kills', fr: 'Final kills' }, { en: 'Lifetime final kills.', fr: 'Final kills à vie.' }),
-      v('{finaldeaths}', '500', { en: 'Final deaths', fr: 'Morts finales' }, { en: 'Lifetime final deaths.', fr: 'Morts finales à vie.' }),
-      v('{beds}', '2000', { en: 'Beds broken', fr: 'Lits détruits' }, { en: 'Lifetime beds broken.', fr: 'Lits détruits à vie.' }),
-      v('{fkdr}', '10.00', { en: 'FKDR', fr: 'FKDR' }, { en: 'Lifetime final K/D ratio.', fr: 'Ratio final K/D à vie.' }),
-      v('{wlr}', '10.00', { en: 'Win/loss ratio', fr: 'Ratio V/D' }, { en: 'Lifetime win/loss ratio.', fr: 'Ratio victoires/défaites à vie.' }),
-      ...DYNAMIC,
-    ],
+    vars: moduleSurfaceVars('urchin', 'stats'),
   },
   {
     id: 'sniper',
@@ -467,13 +362,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'Bedwars Stats module → sniper-score reply.', fr: 'Module Stats Bedwars → réponse du score sniper.' },
     example: { en: '{player} sniper score: {score} ({mode})', fr: '{player} score sniper: {score} ({mode})' },
     prompt: { en: '!sniper Technoblade', fr: '!sniper Technoblade' },
-    vars: [
-      v('{player}', 'Technoblade', { en: 'Player', fr: 'Joueur' }, { en: 'The resolved player.', fr: 'Le joueur résolu.' }),
-      v('{score}', '7.5', { en: 'Sniper score', fr: 'Score sniper' }, { en: 'The current overlay score.', fr: 'Le score actuel.' }),
-      v('{mode}', 'warn', { en: 'Mode', fr: 'Mode' }, { en: 'The current warning mode.', fr: "Le mode d'avertissement actuel." }),
-      v('{tagcount}', '1', { en: 'Tag count', fr: 'Nombre de tags' }, { en: 'Active blacklist tags.', fr: 'Tags de liste noire actifs.' }),
-      ...DYNAMIC,
-    ],
+    vars: moduleSurfaceVars('urchin', 'sniper'),
   },
   {
     id: 'tags',
@@ -483,12 +372,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'Bedwars Stats module → tag-lookup replies.', fr: 'Module Stats Bedwars → réponses de recherche de tags.' },
     example: { en: '{player}: {tags}', fr: '{player}: {tags}' },
     prompt: { en: '!tag Technoblade', fr: '!tag Technoblade' },
-    vars: [
-      v('{player}', 'Technoblade', { en: 'Player', fr: 'Joueur' }, { en: 'The resolved player.', fr: 'Le joueur résolu.' }),
-      v('{tags}', 'Blatant Cheater (Jul 3, 2024)', { en: 'Tags', fr: 'Tags' }, { en: 'The formatted tag list.', fr: 'La liste des tags formatée.' }),
-      v('{tagcount}', '1', { en: 'Tag count', fr: 'Nombre de tags' }, { en: 'How many tags are active.', fr: 'Combien de tags sont actifs.' }),
-      ...DYNAMIC,
-    ],
+    vars: moduleSurfaceVars('urchin', 'tags'),
   },
   {
     id: 'elo',
@@ -498,17 +382,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'MCSR Ranked module → current-standing reply.', fr: 'Module MCSR Ranked → réponse du classement actuel.' },
     example: { en: '{player}: {elo} elo · rank #{rank} · {wins}W {losses}L', fr: '{player}: {elo} elo · rang #{rank} · {wins}V {losses}D' },
     prompt: { en: '!elo Feinberg', fr: '!elo Feinberg' },
-    vars: [
-      v('{player}', 'Feinberg', { en: 'Player', fr: 'Joueur' }, { en: 'The resolved player.', fr: 'Le joueur résolu.' }),
-      v('{elo}', '1650', { en: 'Elo', fr: 'Elo' }, { en: 'Current rating.', fr: 'Le classement actuel.' }),
-      v('{rank}', '12', { en: 'Rank', fr: 'Rang' }, { en: 'Leaderboard rank.', fr: 'Rang au classement.' }),
-      v('{wins}', '40', { en: 'Wins', fr: 'Victoires' }, { en: 'Season wins.', fr: 'Victoires de la saison.' }),
-      v('{losses}', '20', { en: 'Losses', fr: 'Défaites' }, { en: 'Season losses.', fr: 'Défaites de la saison.' }),
-      v('{draws}', '1', { en: 'Draws', fr: 'Nuls' }, { en: 'Season matches that ended with no winner.', fr: 'Matchs de la saison terminés sans vainqueur.' }),
-      v('{matches}', '60', { en: 'Matches', fr: 'Matchs' }, { en: 'Season matches.', fr: 'Matchs de la saison.' }),
-      v('{country}', 'us', { en: 'Country', fr: 'Pays' }, { en: 'Country code.', fr: 'Code du pays.' }),
-      ...DYNAMIC,
-    ],
+    vars: moduleSurfaceVars('mcsr', 'elo'),
   },
   {
     id: 'mcsr-session',
@@ -518,16 +392,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'MCSR Ranked module → this-stream session reply.', fr: 'Module MCSR Ranked → réponse de la session du stream.' },
     example: { en: '{player}: {elochange} elo ({elo} now) · {wins}W {losses}L {draws}D in {matches} matches', fr: '{player}: {elochange} elo ({elo} maintenant) · {wins}V {losses}D {draws}N en {matches} matchs' },
     prompt: { en: '!session', fr: '!session' },
-    vars: [
-      v('{player}', 'Feinberg', { en: 'Player', fr: 'Joueur' }, { en: 'The linked player.', fr: 'Le joueur lié.' }),
-      v('{elo}', '1660', { en: 'Current Elo', fr: 'Elo actuel' }, { en: 'Rating right now.', fr: 'Le classement en ce moment.' }),
-      v('{elochange}', '+24', { en: 'Elo change', fr: 'Variation Elo' }, { en: 'Change since the stream started.', fr: 'Variation depuis le début du stream.' }),
-      v('{wins}', '3', { en: 'Wins', fr: 'Victoires' }, { en: 'Wins this stream.', fr: 'Victoires ce stream.' }),
-      v('{losses}', '1', { en: 'Losses', fr: 'Défaites' }, { en: 'Losses this stream.', fr: 'Défaites ce stream.' }),
-      v('{draws}', '0', { en: 'Draws', fr: 'Nuls' }, { en: 'Matches this stream that ended with no winner.', fr: 'Matchs de ce stream terminés sans vainqueur.' }),
-      v('{matches}', '4', { en: 'Matches', fr: 'Matchs' }, { en: 'Matches this stream.', fr: 'Matchs ce stream.' }),
-      ...DYNAMIC,
-    ],
+    vars: moduleSurfaceVars('mcsr', 'session'),
   },
   {
     id: 'mcsr-pace',
@@ -537,21 +402,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'MCSR Ranked module → PaceMan session-splits reply.', fr: 'Module MCSR Ranked → réponse des splits PaceMan de la session.' },
     example: { en: '{player} this session: {nethers} nethers (avg {nether}) · bastion {bastion} · fortress {fortress} · fp {firstportal} · {nph} nph', fr: '{player} cette session: {nethers} nethers (moy {nether}) · bastion {bastion} · forteresse {fortress} · pp {firstportal} · {nph} npu' },
     prompt: { en: '!pace', fr: '!pace' },
-    vars: [
-      v('{player}', 'Feinberg', { en: 'Player', fr: 'Joueur' }, { en: 'The linked player.', fr: 'Le joueur lié.' }),
-      v('{nethers}', '3', { en: 'Nethers', fr: 'Nethers' }, { en: 'Nether entrances this session.', fr: "Entrées au Nether pour cette session." }),
-      v('{nether}', '1:42', { en: 'Nether avg', fr: 'Moy Nether' }, { en: 'Average nether split.', fr: 'Split moyen du Nether.' }),
-      v('{bastion}', '3:55', { en: 'Bastion avg', fr: 'Moy Bastion' }, { en: 'Average bastion split.', fr: 'Split moyen du Bastion.' }),
-      v('{fortress}', '7:12', { en: 'Fortress avg', fr: 'Moy Forteresse' }, { en: 'Average fortress split.', fr: 'Split moyen de la Forteresse.' }),
-      v('{firststructure}', '3:55', { en: 'First structure avg', fr: 'Moy 1re structure' }, { en: 'Average split for whichever structure was entered first.', fr: 'Split moyen de la structure entrée en premier.' }),
-      v('{secondstructure}', '7:12', { en: 'Second structure avg', fr: 'Moy 2e structure' }, { en: 'Average split for whichever structure was entered second.', fr: 'Split moyen de la structure entrée en second.' }),
-      v('{firstportal}', '9:20', { en: 'First portal avg', fr: 'Moy 1er portail' }, { en: 'Average first-portal split.', fr: 'Split moyen du premier portail.' }),
-      v('{stronghold}', '12:05', { en: 'Stronghold avg', fr: 'Moy Forteresse de fin' }, { en: 'Average stronghold split.', fr: 'Split moyen de la forteresse de fin.' }),
-      v('{end}', '13:50', { en: 'End avg', fr: 'Moy End' }, { en: 'Average end-enter split.', fr: "Split moyen d'entrée dans l'End." }),
-      v('{finish}', '0:00', { en: 'Finish avg', fr: 'Moy Finish' }, { en: 'Average finish split.', fr: 'Split moyen de fin de run.' }),
-      v('{nph}', '5.3', { en: 'Nethers/hour', fr: 'Nethers/heure' }, { en: 'Nether-entrance pace.', fr: "Rythme d'entrée au Nether." }),
-      ...DYNAMIC,
-    ],
+    vars: moduleSurfaceVars('mcsr', 'pace'),
   },
   {
     id: 'mcsr-nethers',
@@ -561,13 +412,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'MCSR Ranked module → PaceMan nether-count reply.', fr: 'Module MCSR Ranked → réponse du nombre de Nethers PaceMan.' },
     example: { en: '{player}: {nethers} nethers this session (avg {nether}) · {nph} nph', fr: '{player}: {nethers} nethers cette session (moy {nether}) · {nph} npu' },
     prompt: { en: '!nethers', fr: '!nethers' },
-    vars: [
-      v('{player}', 'Feinberg', { en: 'Player', fr: 'Joueur' }, { en: 'The linked player.', fr: 'Le joueur lié.' }),
-      v('{nethers}', '3', { en: 'Nethers', fr: 'Nethers' }, { en: 'Nether entrances this session.', fr: "Entrées au Nether pour cette session." }),
-      v('{nether}', '1:42', { en: 'Nether avg', fr: 'Moy Nether' }, { en: 'Average nether split.', fr: 'Split moyen du Nether.' }),
-      v('{nph}', '5.3', { en: 'Nethers/hour', fr: 'Nethers/heure' }, { en: 'Nether-entrance pace.', fr: "Rythme d'entrée au Nether." }),
-      ...DYNAMIC,
-    ],
+    vars: moduleSurfaceVars('mcsr', 'nethers'),
   },
   {
     id: 'mcsr-lastmatch',
@@ -577,17 +422,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'MCSR Ranked module → most-recent-match reply.', fr: 'Module MCSR Ranked → réponse du dernier match.' },
     example: { en: '{player} vs {opponent}: {result} · {time} · {seed} {structure} · {elochange} elo · {ago} ago', fr: '{player} contre {opponent}: {result} · {time} · {seed} {structure} · {elochange} elo · il y a {ago}' },
     prompt: { en: '!lastmatch', fr: '!lastmatch' },
-    vars: [
-      v('{player}', 'Feinberg', { en: 'Player', fr: 'Joueur' }, { en: 'The resolved player.', fr: 'Le joueur résolu.' }),
-      v('{opponent}', 'lowk3y_', { en: 'Opponent', fr: 'Adversaire' }, { en: 'The other player in that match.', fr: "L'autre joueur de ce match." }),
-      v('{result}', 'won', { en: 'Result', fr: 'Résultat' }, { en: 'Win, loss or draw. Forfeits and decay matches are called out too.', fr: 'Victoire, défaite ou nul. Les forfaits et matchs de déclin sont aussi signalés.' }),
-      v('{time}', '11:03.135', { en: 'Time', fr: 'Temps' }, { en: "The match's completion time, when it reached one.", fr: "Le temps de fin du match, s'il y en a un." }),
-      v('{seed}', 'Desert Temple', { en: 'Seed', fr: 'Seed' }, { en: 'The seed type for that match.', fr: 'Le type de seed de ce match.' }),
-      v('{structure}', 'Treasure', { en: 'Structure', fr: 'Structure' }, { en: 'The bastion structure type for that match.', fr: 'Le type de structure du bastion pour ce match.' }),
-      v('{elochange}', '+21', { en: 'Elo change', fr: 'Variation Elo' }, { en: 'Elo change from that match.', fr: 'Variation Elo de ce match.' }),
-      v('{ago}', '2m', { en: 'Ago', fr: 'Il y a' }, { en: 'How long ago that match ended.', fr: 'Depuis quand ce match est terminé.' }),
-      ...DYNAMIC,
-    ],
+    vars: moduleSurfaceVars('mcsr', 'lastmatch'),
   },
   {
     id: 'mcsr-record',
@@ -597,14 +432,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'MCSR Ranked module → head-to-head record reply.', fr: 'Module MCSR Ranked → réponse du bilan face-à-face.' },
     example: { en: '{playera} {winsa} - {winsb} {playerb} · {played} played', fr: '{playera} {winsa} - {winsb} {playerb} · {played} matchs joués' },
     prompt: { en: '!record Feinberg lowk3y_', fr: '!record Feinberg lowk3y_' },
-    vars: [
-      v('{playera}', 'Feinberg', { en: 'Player A', fr: 'Joueur A' }, { en: 'The first typed player (or you, with one name typed).', fr: 'Le premier joueur tapé (ou vous, si un seul nom est tapé).' }),
-      v('{playerb}', 'lowk3y_', { en: 'Player B', fr: 'Joueur B' }, { en: 'The second typed player.', fr: 'Le second joueur tapé.' }),
-      v('{winsa}', '20', { en: 'Wins A', fr: 'Victoires A' }, { en: "Player A's wins over player B.", fr: 'Victoires du joueur A contre le joueur B.' }),
-      v('{winsb}', '14', { en: 'Wins B', fr: 'Victoires B' }, { en: "Player B's wins over player A.", fr: 'Victoires du joueur B contre le joueur A.' }),
-      v('{played}', '34', { en: 'Played', fr: 'Joués' }, { en: 'Total matches between the two.', fr: 'Total des matchs entre les deux.' }),
-      ...DYNAMIC,
-    ],
+    vars: moduleSurfaceVars('mcsr', 'record'),
   },
   {
     id: 'mcsr-lb',
@@ -614,11 +442,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'MCSR Ranked module → leaderboard reply (elo, phase or record).', fr: 'Module MCSR Ranked → réponse de classement (elo, phase ou record).' },
     example: { en: '{board}: {list}', fr: '{board}: {list}' },
     prompt: { en: '!lb', fr: '!lb' },
-    vars: [
-      v('{board}', 'Elo', { en: 'Board', fr: 'Classement' }, { en: 'Which leaderboard answered.', fr: 'Le classement qui a répondu.' }),
-      v('{list}', '#1 Feinberg 2464 · #2 lowk3y_ 2436', { en: 'Top 5', fr: 'Top 5' }, { en: 'The top 5 rows, pre-formatted as one line.', fr: 'Les 5 premières lignes, préformatées sur une seule ligne.' }),
-      ...DYNAMIC,
-    ],
+    vars: moduleSurfaceVars('mcsr', 'lb'),
   },
   {
     id: 'mcsr-race',
@@ -628,14 +452,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'MCSR Ranked module → weekly-race reply.', fr: 'Module MCSR Ranked → réponse de la course hebdomadaire.' },
     example: { en: '#1 {leader} ({leadertime}) · {player}: {time} (#{rank})', fr: '#1 {leader} ({leadertime}) · {player}: {time} (#{rank})' },
     prompt: { en: '!race', fr: '!race' },
-    vars: [
-      v('{leader}', 'gharfyy', { en: 'Leader', fr: 'Meneur' }, { en: "This week's #1 holder.", fr: "Le premier de cette semaine." }),
-      v('{leadertime}', '2:27.374', { en: 'Leader time', fr: 'Temps du meneur' }, { en: "The leader's time.", fr: 'Le temps du meneur.' }),
-      v('{player}', 'Feinberg', { en: 'Player', fr: 'Joueur' }, { en: 'The resolved player.', fr: 'Le joueur résolu.' }),
-      v('{time}', '2:40.000', { en: 'Time', fr: 'Temps' }, { en: "The player's own time this week, when they have one.", fr: "Le temps du joueur cette semaine, s'il en a un." }),
-      v('{rank}', '2', { en: 'Rank', fr: 'Rang' }, { en: "The player's placement this week.", fr: 'Le classement du joueur cette semaine.' }),
-      ...DYNAMIC,
-    ],
+    vars: moduleSurfaceVars('mcsr', 'race'),
   },
   {
     id: 'mcsr-pb',
@@ -645,12 +462,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'MCSR Ranked module → personal-best reply (PaceMan daily/weekly/monthly/all-time, or MCSR Ranked season best).', fr: 'Module MCSR Ranked → réponse du record personnel (PaceMan quotidien/hebdomadaire/mensuel/de tous les temps, ou le meilleur temps de la saison MCSR Ranked).' },
     example: { en: '{player}: {time} ({window} PB)', fr: '{player}: {time} ({window} PB)' },
     prompt: { en: '!pb daily', fr: '!pb daily' },
-    vars: [
-      v('{player}', 'Feinberg', { en: 'Player', fr: 'Joueur' }, { en: 'The resolved player.', fr: 'Le joueur résolu.' }),
-      v('{time}', '6:40.123', { en: 'Time', fr: 'Temps' }, { en: 'The personal best for the requested window.', fr: 'Le record personnel pour la période demandée.' }),
-      v('{window}', 'daily', { en: 'Window', fr: 'Période' }, { en: 'Which window answered: daily, weekly, monthly, all-time or ranked.', fr: 'La période qui a répondu : quotidien, hebdomadaire, mensuel, de tous les temps ou classé.' }),
-      ...DYNAMIC,
-    ],
+    vars: moduleSurfaceVars('mcsr', 'pb'),
   },
   {
     id: 'fn-stats',
@@ -660,25 +472,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'Fortnite Stats module → lifetime & season replies.', fr: 'Module Stats Fortnite → réponses à vie et de saison.' },
     example: { en: '{player} ({window}): {wins} wins · {kd} K/D · {winrate}% winrate', fr: '{player} ({window}): {wins} victoires · {kd} K/D · {winrate}% de victoires' },
     prompt: { en: '!fn', fr: '!fn' },
-    vars: [
-      v('{player}', 'Ninja', { en: 'Player', fr: 'Joueur' }, { en: 'The linked account.', fr: 'Le compte lié.' }),
-      v('{window}', 'lifetime', { en: 'Window', fr: 'Période' }, { en: 'Which stats window: lifetime or season.', fr: 'La période des stats: à vie ou saison.' }),
-      v('{wins}', '301', { en: 'Wins', fr: 'Victoires' }, { en: 'Total wins.', fr: 'Total de victoires.' }),
-      v('{matches}', '6232', { en: 'Matches', fr: 'Matchs' }, { en: 'Matches played.', fr: 'Matchs joués.' }),
-      v('{kills}', '21679', { en: 'Kills', fr: 'Éliminations' }, { en: 'Total eliminations.', fr: 'Total d’éliminations.' }),
-      v('{kd}', '3.66', { en: 'K/D', fr: 'K/D' }, { en: 'Kill/death ratio.', fr: 'Ratio éliminations/morts.' }),
-      v('{winrate}', '4.83', { en: 'Win rate %', fr: 'Taux de victoire %' }, { en: 'Wins per hundred matches.', fr: 'Victoires par centaine de matchs.' }),
-      v('{solowins}', '120', { en: 'Solo wins', fr: 'Victoires solo' }, { en: 'Wins in solos.', fr: 'Victoires en solo.' }),
-      v('{solomatches}', '2400', { en: 'Solo matches', fr: 'Matchs solo' }, { en: 'Matches played in solos.', fr: 'Matchs joués en solo.' }),
-      v('{solokd}', '3.2', { en: 'Solo K/D', fr: 'K/D solo' }, { en: 'Kill/death ratio in solos.', fr: 'Ratio éliminations/morts en solo.' }),
-      v('{duowins}', '90', { en: 'Duo wins', fr: 'Victoires duo' }, { en: 'Wins in duos.', fr: 'Victoires en duo.' }),
-      v('{duomatches}', '1900', { en: 'Duo matches', fr: 'Matchs duo' }, { en: 'Matches played in duos.', fr: 'Matchs joués en duo.' }),
-      v('{duokd}', '3.8', { en: 'Duo K/D', fr: 'K/D duo' }, { en: 'Kill/death ratio in duos.', fr: 'Ratio éliminations/morts en duo.' }),
-      v('{squadwins}', '91', { en: 'Squad wins', fr: 'Victoires squad' }, { en: 'Wins in squads.', fr: 'Victoires en squad.' }),
-      v('{squadmatches}', '1932', { en: 'Squad matches', fr: 'Matchs squad' }, { en: 'Matches played in squads.', fr: 'Matchs joués en squad.' }),
-      v('{squadkd}', '4.1', { en: 'Squad K/D', fr: 'K/D squad' }, { en: 'Kill/death ratio in squads.', fr: 'Ratio éliminations/morts en squad.' }),
-      ...DYNAMIC,
-    ],
+    vars: moduleSurfaceVars('fortnite', 'stats'),
   },
   {
     id: 'fn-store',
@@ -688,12 +482,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'Fortnite Stats module → item-shop reply.', fr: 'Module Stats Fortnite → réponse de la boutique.' },
     example: { en: 'Item shop {date} ({count} items): {items}', fr: 'Boutique du {date} ({count} objets): {items}' },
     prompt: { en: '!fn store', fr: '!fn store' },
-    vars: [
-      v('{date}', 'July 16', { en: 'Shop date', fr: 'Date de la boutique' }, { en: "Today's shop date.", fr: 'La date de la boutique du jour.' }),
-      v('{count}', '24', { en: 'Item count', fr: "Nombre d'objets" }, { en: 'How many items are in the shop.', fr: "Combien d'objets sont en boutique." }),
-      v('{items}', 'Renegade Raider, Skull Trooper, …', { en: 'Item list', fr: 'Liste des objets' }, { en: 'The featured items.', fr: 'Les objets en vedette.' }),
-      ...DYNAMIC,
-    ],
+    vars: moduleSurfaceVars('fortnite', 'store'),
   },
 ];
 

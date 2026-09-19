@@ -26,7 +26,7 @@ export const QUEUE_MODULE: ModuleDef =
       command: 'join',
       messageKey: 'joinMessage',
       defaultMessage: '@{user} you joined the queue at position #{pos}.',
-      tokens: replyTokens(['user', 'pos'], { user: 'sesame_sam', pos: '3' })
+      tokens: replyTokens(['user', 'pos'], { user: 'sesame_sam', pos: '3' }, 'queue.join')
     },
     {
       key: 'already',
@@ -56,7 +56,7 @@ export const QUEUE_MODULE: ModuleDef =
       command: 'queue next',
       messageKey: 'nextMessage',
       defaultMessage: '@{target} you are up next! ({count} still waiting)',
-      tokens: replyTokens(['target', 'count'], { target: 'ferret_king', count: '2' })
+      tokens: replyTokens(['target', 'count'], { target: 'ferret_king', count: '2' }, 'queue.next')
     },
     {
       key: 'opened',

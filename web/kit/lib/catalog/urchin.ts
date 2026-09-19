@@ -27,7 +27,10 @@ export const URCHIN_MODULE: ModuleDef =
       enableKey: 'dailyEnabled',
       messageKey: 'dailyMessage',
       defaultMessage: '{player} today: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR',
-      tokens: replyTokens(BW_SESSION_TOKENS, BW_SESSION_SAMPLES)
+      // hintKey only on 'daily': the marketing builder's bw-session surface
+      // shows one representative example for !daily/!weekly/!monthly, which
+      // share this same token set (docs/specs/variables-catalog.md phase 3).
+      tokens: replyTokens(BW_SESSION_TOKENS, BW_SESSION_SAMPLES, 'urchin.daily')
     },
     {
       key: 'weekly',
@@ -70,7 +73,7 @@ export const URCHIN_MODULE: ModuleDef =
         beds: '2000',
         fkdr: '10.00',
         wlr: '10.00'
-      })
+      }, 'urchin.stats')
     },
     {
       key: 'sniper',
@@ -81,7 +84,7 @@ export const URCHIN_MODULE: ModuleDef =
       enableKey: 'sniperEnabled',
       messageKey: 'sniperMessage',
       defaultMessage: '{player} urchin score: {score}',
-      tokens: replyTokens(['player', 'score', 'mode', 'tagcount'], { player: 'Technoblade', score: '7.5', mode: 'warn', tagcount: '1' })
+      tokens: replyTokens(['player', 'score', 'mode', 'tagcount'], { player: 'Technoblade', score: '7.5', mode: 'warn', tagcount: '1' }, 'urchin.sniper')
     },
     {
       key: 'tags',
@@ -96,7 +99,7 @@ export const URCHIN_MODULE: ModuleDef =
         player: 'Technoblade',
         tags: 'Blatant Cheater (added Jul 3, 2024)',
         tagcount: '1'
-      })
+      }, 'urchin.tags')
     },
     {
       key: 'tagdescription',

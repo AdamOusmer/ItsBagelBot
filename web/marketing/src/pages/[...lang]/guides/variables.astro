@@ -5,7 +5,7 @@
 import Layout from '../../../layouts/Layout.astro';
 import VariablesReference from '../../../components/guides/VariablesReference.astro';
 import { getLangFromUrl, langParam, locales, type Lang } from '../../../i18n/ui';
-import { variableReferenceData } from '../../../lib/variables/catalog';
+import { variableReferenceData } from '../../../lib/variables';
 
 export function getStaticPaths() {
     return locales.map((lang) => ({ params: { lang: langParam(lang) } }));
