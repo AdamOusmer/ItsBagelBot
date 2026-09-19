@@ -9,7 +9,7 @@ export const TIME_MODULE: ModuleDef =
   label: 'Local Time',
   tagline: 'Viewers ask what time it is for you with !time.',
   description:
-    'Viewers type !time and the bot answers with your current local time. Pick your timezone below. The page suggests the one your browser reports, computed on your device only (nothing is read or stored until you save it). Choose a 12- or 24-hour clock and customize the reply.',
+    'Viewers type !time and the bot answers with your current local time. They can also ask about another place: !time Tokyo, !time EST, !time UTC+2. Pick your timezone below. The page suggests the one your browser reports, computed on your device only (nothing is read or stored until you save it). Choose a 12- or 24-hour clock and customize both replies.',
   category: 'Chat',
   defaultEnabled: false,
   replies: [
@@ -27,6 +27,23 @@ export const TIME_MODULE: ModuleDef =
         timezone: 'America/Toronto',
         user: 'Viewer'
       }, 'time.time')
+    },
+    {
+      key: 'lookup',
+      label: '!time <place>',
+      tagline: 'Time somewhere else.',
+      event: '!time Tokyo',
+      command: 'time',
+      previewArgs: 'Tokyo',
+      messageKey: 'lookupMessage',
+      defaultMessage: 'It is currently {time} in {place}.',
+      tokens: replyTokens(['time', 'date', 'place', 'timezone', 'user'], {
+        time: '3:30 AM',
+        date: 'Tuesday, July 14',
+        place: 'Tokyo',
+        timezone: 'Asia/Tokyo',
+        user: 'Viewer'
+      })
     }
   ],
   settings: [

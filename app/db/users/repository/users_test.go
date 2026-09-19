@@ -18,6 +18,7 @@ import (
 	"ItsBagelBot/internal/domain/event/data"
 	billingrpc "ItsBagelBot/internal/domain/rpc/billing"
 	"ItsBagelBot/pkg/bus/bustest"
+	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/crypto"
 
 	"ItsBagelBot/internal/testdb"
@@ -168,6 +169,34 @@ func TestSetStatusRefreshesViewAndPublishes(t *testing.T) {
 	assert.Equal(t, "vip", view.Status, "status change must be visible immediately, not after TTL")
 
 	assert.Len(t, pub.On(data.SubjectUserChanged), 2, "register and status change must both announce state")
+}
+
+// TestSetCommandsPageHiddenWritesThroughAndPublishes pins D8: the flag is an
+// immediate update + publishChanged, not the queuePref batcher, so Get on the
+// same replica must see the new value with no flush-window delay, and the
+// published DTO must carry it for the projector fold (spec §4.2).
+func TestSetCommandsPageHiddenWritesThroughAndPublishes(t *testing.T) {
+	_, pub, repo := setup(t)
+	ctx := context.Background()
+
+	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@concordia.ca"))
+
+	view, err := repo.Get(ctx, 1001)
+	require.NoError(t, err)
+	assert.False(t, view.CommandsPageHidden, "default is visible (D2)")
+
+	require.NoError(t, repo.SetCommandsPageHidden(ctx, 1001, true))
+
+	view, err = repo.Get(ctx, 1001)
+	require.NoError(t, err)
+	assert.True(t, view.CommandsPageHidden, "write-through: no batcher window to wait out")
+
+	msgs := pub.On(data.SubjectUserChanged)
+	require.Len(t, msgs, 2, "register and the flag change must both announce state")
+
+	var dto data.UserChangedDTO
+	require.NoError(t, codec.Unmarshal(msgs[1].Payload, &dto))
+	assert.True(t, dto.CommandsPageHidden, "publishChanged must carry the new value")
 }
 
 func TestSetCreatorCodeStoresTrimsClearsAndPublishes(t *testing.T) {

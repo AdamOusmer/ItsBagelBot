@@ -54,6 +54,7 @@ type UserView struct {
 	Banned                    bool       `json:"banned"`
 	Locale                    string     `json:"locale"`
 	CustomCursor              bool       `json:"custom_cursor"`
+	CommandsPageHidden        bool       `json:"commands_page_hidden"`
 	CreatorCode               *string    `json:"creator_code,omitempty"`
 	SubscriptionSource        string     `json:"subscription_source"`
 	SubscriptionExpiresAt     *time.Time `json:"subscription_expires_at,omitempty"`
@@ -115,37 +116,41 @@ func NewUsers(client *ent.Client, packer domaincrypto.Packer, pub bus.Publisher,
 	return r
 }
 
-// storableDisplayName is the display name as the row can hold it. Twitch
-// display names are the login in the owner's casing, at most 25 characters,
-// but localized names can run to three bytes a character; anything past the
-// column's 64 bytes drops to "" (readers fall back to the login) rather than
-// failing the login it arrived with.
-func storableDisplayName(displayName string) string {
-	if len(displayName) > 64 {
+// displayName is Twitch's cased form of a login as it arrived on a login
+// event; empty when the event carried none.
+type displayName string
+
+// storable is the display name as the row can hold it. Twitch display names
+// are the login in the owner's casing, at most 25 characters, but localized
+// names can run to three bytes a character; anything past the column's 64
+// bytes drops to "" (readers fall back to the login) rather than failing the
+// login it arrived with.
+func (d displayName) storable() displayName {
+	if len(d) > 64 {
 		return ""
 	}
-	return displayName
+	return d
 }
 
-// namesChanged reports whether a login should rewrite the row's names. An
-// empty display name never counts: a caller that has none must not blank a
-// stored one.
-func namesChanged(existing *ent.User, username, displayName string) bool {
-	return existing.Username != username || (displayName != "" && existing.DisplayName != displayName)
+// changes reports whether a login should rewrite the row's names. An empty
+// display name never counts: a caller that has none must not blank a stored
+// one.
+func (d displayName) changes(existing *ent.User, username string) bool {
+	return existing.Username != username || (d != "" && existing.DisplayName != string(d))
 }
 
-// withDisplayName sets the display name on an update only when there is one.
-func withDisplayName(upd *ent.UserUpdateOne, displayName string) *ent.UserUpdateOne {
-	if displayName == "" {
+// apply sets the display name on an update only when there is one.
+func (d displayName) apply(upd *ent.UserUpdateOne) *ent.UserUpdateOne {
+	if d == "" {
 		return upd
 	}
-	return upd.SetDisplayName(displayName)
+	return upd.SetDisplayName(string(d))
 }
 
 // Register creates the user row on first login and refreshes the names it
 // carries on every later one. displayName is Twitch's cased form of the login
 // and may be empty.
-func (r *Users) Register(ctx context.Context, id uint64, username, displayName, email string) error {
+func (r *Users) Register(ctx context.Context, id uint64, username, rawDisplayName, email string) error {
 	if err := validate.UserID(id); err != nil {
 		return err
 	}
@@ -155,7 +160,7 @@ func (r *Users) Register(ctx context.Context, id uint64, username, displayName, 
 	if err := validate.Email(email); err != nil {
 		return err
 	}
-	displayName = storableDisplayName(displayName)
+	name := displayName(rawDisplayName).storable()
 
 	if err := db.WithExec(ctx, func(ctx context.Context) error {
 		existing, err := r.client.User.Query().
@@ -167,16 +172,16 @@ func (r *Users) Register(ctx context.Context, id uint64, username, displayName, 
 			_, err = r.client.User.Create().
 				SetID(id).
 				SetUsername(username).
-				SetDisplayName(displayName).
+				SetDisplayName(string(name)).
 				SetEmail(email).
 				Save(ctx)
 			if ent.IsConstraintError(err) {
-				_, err = withDisplayName(r.client.User.UpdateOneID(id).SetUsername(username), displayName).
+				_, err = name.apply(r.client.User.UpdateOneID(id).SetUsername(username)).
 					Save(ctx)
 			}
 
-		case err == nil && namesChanged(existing, username, displayName):
-			_, err = withDisplayName(existing.Update().SetUsername(username), displayName).
+		case err == nil && name.changes(existing, username):
+			_, err = name.apply(existing.Update().SetUsername(username)).
 				Save(ctx)
 		}
 
@@ -211,6 +216,7 @@ func (r *Users) Get(ctx context.Context, id uint64) (UserView, error) {
 				Banned:                    u.Banned,
 				Locale:                    u.Locale,
 				CustomCursor:              u.CustomCursor,
+				CommandsPageHidden:        u.CommandsPageHidden,
 				CreatorCode:               u.CreatorCode,
 				SubscriptionSource:        u.SubscriptionSource,
 				SubscriptionExpiresAt:     u.SubscriptionExpiresAt,
@@ -356,6 +362,16 @@ func (r *Users) SetBanned(ctx context.Context, id uint64, banned bool) error {
 	return r.updateAndPublish(ctx, id, func(u *ent.UserUpdateOne) { u.SetBanned(banned) })
 }
 
+// SetCommandsPageHidden turns the public commands page on or off for this
+// channel. Write-through, not the queuePref batcher (D8): Get does not overlay
+// pending preference writes, and a state_get inside the 2s flush window would
+// hand the console a stale row it then caches fresh for 120s -- a race locale
+// and cursor hide behind a cookie but a public 404 cannot. Measured against
+// SetBanned's precedent: low write volume, correctness over batching.
+func (r *Users) SetCommandsPageHidden(ctx context.Context, id uint64, hidden bool) error {
+	return r.updateAndPublish(ctx, id, func(u *ent.UserUpdateOne) { u.SetCommandsPageHidden(hidden) })
+}
+
 // SetOnboarded marks the user as having finished the onboarding flow.
 // Write-behind: the flag is re-derivable from the console session, and losing
 // the last window on a process death costs at most a repeated onboarding tour.
@@ -404,12 +420,13 @@ func (r *Users) publishChanged(ctx context.Context, id uint64) error {
 	}
 
 	return bus.PublishJSON(ctx, r.pub, data.SubjectUserChanged, data.UserChangedDTO{
-		UserID:   view.ID,
-		Username: view.Username,
-		IsActive: view.IsActive,
-		Status:   view.Status,
-		Banned:   view.Banned,
-		Locale:   view.Locale,
+		UserID:             view.ID,
+		Username:           view.Username,
+		IsActive:           view.IsActive,
+		Status:             view.Status,
+		Banned:             view.Banned,
+		Locale:             view.Locale,
+		CommandsPageHidden: view.CommandsPageHidden,
 	})
 }
 
@@ -494,7 +511,7 @@ func (r *Users) UpsertToken(ctx context.Context, userID uint64, tokenType tokens
 		}
 	}
 
-	aad := tokenAAD(userID, tokenType, platform)
+	aad := tokenOwner(userID).aad(tokenType, platform)
 
 	sealed, err := r.packer.Pack(accessToken, aad)
 	if err != nil {
@@ -614,7 +631,7 @@ func (r *Users) Token(ctx context.Context, userID uint64, tokenType tokens.Type,
 		return nil, nil, nil, err
 	}
 
-	aad := tokenAAD(userID, tokenType, platform)
+	aad := tokenOwner(userID).aad(tokenType, platform)
 
 	accessToken, err = r.packer.Unpack(domaincrypto.SecureEnvelope{Ciphertext: row.Token, AttachedData: aad})
 	if err != nil {
@@ -644,11 +661,13 @@ func applyTokenExpiry(u *ent.TokensUpdateOne, expiresAt *time.Time) *ent.TokensU
 	return u.ClearAccessTokenExpiresAt()
 }
 
-func tokenAAD(userID uint64, tokenType tokens.Type, platform tokens.Platform) []byte {
+// aad is the additional authenticated data binding a sealed token to its
+// owner, type and platform.
+func (o tokenOwner) aad(tokenType tokens.Type, platform tokens.Platform) []byte {
 
 	aad := make([]byte, 0, 20+1+len(tokenType)+1+len(platform))
 
-	aad = strconv.AppendUint(aad, userID, 10)
+	aad = strconv.AppendUint(aad, uint64(o), 10)
 	aad = append(aad, '|')
 	aad = append(aad, tokenType...)
 	aad = append(aad, '|')

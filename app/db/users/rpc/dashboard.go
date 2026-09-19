@@ -42,18 +42,19 @@ func SubscribeDashboard(w Wiring, prefix, invalidationPrefix string) error {
 	}
 
 	verbs := map[string]func(context.Context, *nats.Msg){
-		"upsert_user":   d.handleUpsertUser,
-		"grant_save":    d.handleGrantSave,
-		"grant_has":     d.handleGrantHas,
-		"active_set":    d.handleActiveSet,
-		"active_get":    d.handleActiveGet,
-		"status_get":    d.handleStatusGet,
-		"state_get":     d.handleStateGet,
-		"login_resolve": d.handleLoginResolve,
-		"onboarded_set": d.handleOnboardedSet,
-		"locale_set":    d.handleLocaleSet,
-		"cursor_set":    d.handleCursorSet,
-		"delete_self":   d.handleDeleteSelf,
+		"upsert_user":       d.handleUpsertUser,
+		"grant_save":        d.handleGrantSave,
+		"grant_has":         d.handleGrantHas,
+		"active_set":        d.handleActiveSet,
+		"active_get":        d.handleActiveGet,
+		"status_get":        d.handleStatusGet,
+		"state_get":         d.handleStateGet,
+		"login_resolve":     d.handleLoginResolve,
+		"onboarded_set":     d.handleOnboardedSet,
+		"locale_set":        d.handleLocaleSet,
+		"cursor_set":        d.handleCursorSet,
+		"commands_page_set": d.handleCommandsPageSet,
+		"delete_self":       d.handleDeleteSelf,
 	}
 	for verb, fn := range verbs {
 		subject := prefix + "." + verb
@@ -272,6 +273,7 @@ func (d *dashboardRPC) handleStateGet(ctx context.Context, msg *nats.Msg) {
 			"onboarded":                   view.Onboarded,
 			"locale":                      view.Locale,
 			"custom_cursor":               view.CustomCursor,
+			"commands_page_hidden":        view.CommandsPageHidden,
 			"creator_code":                view.CreatorCode,
 			"expires_at":                  view.SubscriptionExpiresAt,
 			"source":                      view.SubscriptionSource,
@@ -380,6 +382,18 @@ func (d *dashboardRPC) handleCursorSet(ctx context.Context, msg *nats.Msg) {
 		func(r usersrpc.CursorSetRequest) string { return r.BroadcasterUserID },
 		func(ctx context.Context, id uint64, r usersrpc.CursorSetRequest) error {
 			return d.repo.SetCustomCursor(ctx, id, r.CustomCursor)
+		})
+}
+
+// handleCommandsPageSet persists whether the broadcaster's public commands
+// page is hidden. The "commands_page" invalidation scope drops the console's
+// cached read on every replica; the repo write itself is write-through (D8),
+// so the scope broadcast below always trails the commit.
+func (d *dashboardRPC) handleCommandsPageSet(ctx context.Context, msg *nats.Msg) {
+	setBoolPref(d, ctx, msg, "commands_page", "commands_page_set",
+		func(r usersrpc.CommandsPageSetRequest) string { return r.BroadcasterUserID },
+		func(ctx context.Context, id uint64, r usersrpc.CommandsPageSetRequest) error {
+			return d.repo.SetCommandsPageHidden(ctx, id, r.Hidden)
 		})
 }
 

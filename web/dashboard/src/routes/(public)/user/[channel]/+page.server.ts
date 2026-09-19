@@ -5,7 +5,7 @@ import { error, redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { listCommands, listModules } from '$lib/server/commands-store';
 import { channelLabel, publicCommands, publicModules, type PublicCommand, type PublicModule } from '$lib/server/public-directory';
-import { accountState, resolveLogin } from '$lib/server/services';
+import { accountState, resolveLogin, userCommandsPage } from '$lib/server/services';
 import { requireHost } from '$lib/server/seo-hosts';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
@@ -94,7 +94,7 @@ async function resolveChannel(segment: Segment): Promise<Channel> {
 // commands.itsbagelbot.com is the canonical host because it is the one the bot
 // prints in chat: !cmd answers with <PublicBaseURL>/user/<login>, defaulting to
 // that origin (app/twitch/sesame/modules/cmd.go).
-export const load: PageServerLoad = async ({ params, url }) => {
+export const load: PageServerLoad = async ({ params, url, locals }) => {
   requireHost(url, 'commands');
 
   if (DEMO) {
@@ -110,6 +110,16 @@ export const load: PageServerLoad = async ({ params, url }) => {
   }
 
   const { userId, channelName } = await resolveChannel(parseSegment(params.channel));
+
+  // Hidden channels 404 with the unknown-channel message so a probe cannot
+  // tell "no such channel" from "chose not to publish" (spec D3). The locals
+  // flag lets hooks edge-cache THIS 404 (spec D7); an unknown login stays
+  // no-store so a channel that enrolls a minute later is not stuck behind a
+  // cached miss.
+  if (!(await userCommandsPage(userId).catch(() => true))) {
+    locals.edgeCache404 = true;
+    throw error(404, 'Channel not found');
+  }
 
   try {
     const [commands, modules, account] = await Promise.all([
