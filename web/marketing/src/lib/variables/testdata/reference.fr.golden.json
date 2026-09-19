@@ -1,0 +1,7344 @@
+[
+  {
+    "id": "args",
+    "token": "{args}",
+    "syntax": "{args}",
+    "example": "{args}",
+    "output": "ferret_king good luck",
+    "syntaxes": [
+      "{args}"
+    ],
+    "examples": [
+      {
+        "syntax": "{args}",
+        "output": "ferret_king good luck",
+        "surfaceId": "custom"
+      }
+    ],
+    "name": "Tout le texte tapé après",
+    "hint": "tout ce qui est tapé après la commande",
+    "description": "Tout le texte après la commande, en une seule chaîne.",
+    "category": "basics",
+    "categories": [
+      "basics"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "args",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "channel",
+    "token": "{channel}",
+    "syntax": "{channel}",
+    "example": "{channel}",
+    "output": "bagel_bakery",
+    "syntaxes": [
+      "{channel}"
+    ],
+    "examples": [
+      {
+        "syntax": "{channel}",
+        "output": "bagel_bakery",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{channel}",
+        "output": "your_channel",
+        "surfaceId": "channelpoints"
+      }
+    ],
+    "name": "Nom de la chaîne",
+    "hint": "la chaîne où la commande est lancée",
+    "description": "Le nom d’affichage de votre chaîne.",
+    "category": "basics",
+    "categories": [
+      "basics"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom",
+      "channelpoints"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      },
+      {
+        "id": "channelpoints",
+        "group": "Outils de chat",
+        "label": "Réponse de récompense (points de chaîne)",
+        "dashPath": "/channelpoints"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "channel",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "command",
+    "token": "{command}",
+    "syntax": "{command}",
+    "example": "{command}",
+    "output": "hug",
+    "syntaxes": [
+      "{command}"
+    ],
+    "examples": [
+      {
+        "syntax": "{command}",
+        "output": "hug",
+        "surfaceId": "custom"
+      }
+    ],
+    "name": "Nom de la commande",
+    "hint": "le nom de la commande elle-même, sans le «!»",
+    "description": "Le nom de la commande qui a répondu, sans le «!». Les autres noms rapportent tous le nom principal.",
+    "category": "basics",
+    "categories": [
+      "basics"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "command",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "touser",
+    "token": "{touser}",
+    "syntax": "{touser}",
+    "example": "{touser}",
+    "output": "ferret_king",
+    "syntaxes": [
+      "{touser}"
+    ],
+    "examples": [
+      {
+        "syntax": "{touser}",
+        "output": "ferret_king",
+        "surfaceId": "custom"
+      }
+    ],
+    "name": "Personne nommée",
+    "hint": "premier argument, ex. un utilisateur mentionné",
+    "description": "Le premier mot tapé après la commande (sans «@»); le spectateur lui-même si vide. {target} fonctionne aussi.",
+    "category": "basics",
+    "categories": [
+      "basics"
+    ],
+    "aliases": [
+      "target"
+    ],
+    "aliasTokens": [
+      "{target}"
+    ],
+    "surfaceIds": [
+      "custom"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "touser",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "user",
+    "token": "{user}",
+    "syntax": "{user}",
+    "example": "{user}",
+    "output": "sesame_sam",
+    "syntaxes": [
+      "{user}"
+    ],
+    "examples": [
+      {
+        "syntax": "{user}",
+        "output": "sesame_sam",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{user}",
+        "output": "sesame_sam",
+        "surfaceId": "follow"
+      },
+      {
+        "syntax": "{user}",
+        "output": "sesame_sam",
+        "surfaceId": "subscribe"
+      },
+      {
+        "syntax": "{user}",
+        "output": "sesame_sam",
+        "surfaceId": "cheer"
+      },
+      {
+        "syntax": "{user}",
+        "output": "CrustyCrumbs",
+        "surfaceId": "raid"
+      },
+      {
+        "syntax": "{user}",
+        "output": "maya_live",
+        "surfaceId": "triggers"
+      },
+      {
+        "syntax": "{user}",
+        "output": "sesame_sam",
+        "surfaceId": "clip"
+      },
+      {
+        "syntax": "{user}",
+        "output": "Viewer",
+        "surfaceId": "time"
+      },
+      {
+        "syntax": "{user}",
+        "output": "maya_live",
+        "surfaceId": "channelpoints"
+      },
+      {
+        "syntax": "{user}",
+        "output": "sesame_sam",
+        "surfaceId": "queue-join"
+      }
+    ],
+    "name": "Nom du spectateur",
+    "hint": "qui a lancé la commande",
+    "description": "La personne qui a utilisé la commande. {sender} fonctionne aussi.",
+    "category": "basics",
+    "categories": [
+      "basics"
+    ],
+    "aliases": [
+      "sender"
+    ],
+    "aliasTokens": [
+      "{sender}"
+    ],
+    "surfaceIds": [
+      "custom",
+      "follow",
+      "subscribe",
+      "cheer",
+      "raid",
+      "triggers",
+      "clip",
+      "time",
+      "channelpoints",
+      "queue-join"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      },
+      {
+        "id": "follow",
+        "group": "Alertes",
+        "label": "Alerte de follow",
+        "dashPath": "/modules/alerts"
+      },
+      {
+        "id": "subscribe",
+        "group": "Alertes",
+        "label": "Alerte d'abonnement",
+        "dashPath": "/modules/alerts"
+      },
+      {
+        "id": "cheer",
+        "group": "Alertes",
+        "label": "Alerte de cheer",
+        "dashPath": "/modules/alerts"
+      },
+      {
+        "id": "raid",
+        "group": "Alertes",
+        "label": "Alerte de raid",
+        "dashPath": "/modules/alerts"
+      },
+      {
+        "id": "triggers",
+        "group": "Outils de chat",
+        "label": "Réponse de mots déclencheurs",
+        "dashPath": "/modules/triggers"
+      },
+      {
+        "id": "clip",
+        "group": "Outils de chat",
+        "label": "Réponse de !clip",
+        "dashPath": "/commands"
+      },
+      {
+        "id": "time",
+        "group": "Outils de chat",
+        "label": "Réponse de !time",
+        "dashPath": "/modules/time"
+      },
+      {
+        "id": "channelpoints",
+        "group": "Outils de chat",
+        "label": "Réponse de récompense (points de chaîne)",
+        "dashPath": "/channelpoints"
+      },
+      {
+        "id": "queue-join",
+        "group": "File d'attente",
+        "label": "File: confirmation de !join",
+        "dashPath": "/modules/queue"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "user",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "userid",
+    "token": "{userid}",
+    "syntax": "{userid}",
+    "example": "{userid}",
+    "output": "48291057",
+    "syntaxes": [
+      "{userid}"
+    ],
+    "examples": [
+      {
+        "syntax": "{userid}",
+        "output": "48291057",
+        "surfaceId": "custom"
+      }
+    ],
+    "name": "ID du spectateur",
+    "hint": "l’ID utilisateur Twitch de qui a lancé la commande",
+    "description": "L’ID utilisateur Twitch du spectateur. Il ne change jamais, même après un changement de nom.",
+    "category": "basics",
+    "categories": [
+      "basics"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "userid",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "userLogin",
+    "token": "{user.login}",
+    "syntax": "{user.login}",
+    "example": "{user.login}",
+    "output": "sesame_sam",
+    "syntaxes": [
+      "{user.login}"
+    ],
+    "examples": [
+      {
+        "syntax": "{user.login}",
+        "output": "sesame_sam",
+        "surfaceId": "custom"
+      }
+    ],
+    "name": "Identifiant du spectateur",
+    "hint": "son identifiant en minuscules, pas son nom d’affichage",
+    "description": "Son identifiant en minuscules, qui peut différer du nom d’affichage montré par {user}.",
+    "category": "basics",
+    "categories": [
+      "basics"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "user.login",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "positional",
+    "token": "{1}",
+    "syntax": "{1}",
+    "example": "{1}",
+    "output": "ferret_king",
+    "syntaxes": [
+      "{1}",
+      "{2:}"
+    ],
+    "examples": [
+      {
+        "syntax": "{1}",
+        "output": "ferret_king",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{2:}",
+        "output": "good luck",
+        "surfaceId": "custom"
+      }
+    ],
+    "name": "Numéro de mot",
+    "hint": "le mot 1 tapé après la commande; {2} est le suivant, jusqu’à {30}",
+    "description": "Le mot 1 tapé après la commande. {2} est le suivant, et ainsi de suite jusqu’à {30}. Vide si ce mot n’a pas été tapé. {2:} reprend d’un mot jusqu’à la fin, en une seule chaîne; changez le numéro pour commencer ailleurs, {1:} reprend tout.",
+    "category": "arguments",
+    "categories": [
+      "arguments"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [],
+    "surfaces": [],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "1",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "count",
+    "token": "{count:deaths}",
+    "syntax": "{count:<name>}",
+    "example": "{count:deaths}",
+    "output": "42",
+    "syntaxes": [
+      "{count:<name>}"
+    ],
+    "examples": [
+      {
+        "syntax": "{count:deaths}",
+        "output": "42",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{count}",
+        "output": "2",
+        "surfaceId": "queue-next"
+      },
+      {
+        "syntax": "{count}",
+        "output": "38",
+        "surfaceId": "fn-store"
+      }
+    ],
+    "name": "Compteur (lecture seule)",
+    "hint": "lit un compteur sans l’incrémenter, contrairement à {counter:…} (Fidélité)",
+    "description": "Affiche un compteur sans l’incrémenter, pour qu’une commande puisse annoncer un total sans le modifier. Même compteur, même nom et mêmes portées que {counter:…}.",
+    "category": "counters",
+    "categories": [
+      "counters"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom",
+      "queue-next",
+      "fn-store"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      },
+      {
+        "id": "queue-next",
+        "group": "File d'attente",
+        "label": "File: joueur suivant",
+        "dashPath": "/modules/queue"
+      },
+      {
+        "id": "fn-store",
+        "group": "Stats de jeu",
+        "label": "Fortnite: !fn store",
+        "dashPath": "/modules/fortnite"
+      }
+    ],
+    "requirementIds": [
+      "loyalty"
+    ],
+    "requirements": [
+      "Points de fidélité"
+    ],
+    "requirement": "Points de fidélité",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": true,
+    "lexer": {
+      "valid": true,
+      "name": "count",
+      "payload": "<name>"
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "counter",
+    "token": "{counter:falls}",
+    "syntax": "{counter:<name>}",
+    "example": "{counter:falls}",
+    "output": "42",
+    "syntaxes": [
+      "{counter:<name>}"
+    ],
+    "examples": [
+      {
+        "syntax": "{counter:falls}",
+        "output": "42",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{counter}",
+        "output": "129",
+        "surfaceId": "channelpoints"
+      }
+    ],
+    "name": "Compteur (+1)",
+    "hint": "incrémente le compteur nommé et affiche sa nouvelle valeur",
+    "description": "Ajoute 1 à un compteur et affiche le nouveau total (nécessite le module Points de fidélité). Choisissez sa portée ci-dessous: elle est fixée une fois, à la création, depuis le tableau de bord ou avec !counter create.",
+    "category": "counters",
+    "categories": [
+      "counters"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom",
+      "channelpoints"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      },
+      {
+        "id": "channelpoints",
+        "group": "Outils de chat",
+        "label": "Réponse de récompense (points de chaîne)",
+        "dashPath": "/channelpoints"
+      }
+    ],
+    "requirementIds": [
+      "loyalty"
+    ],
+    "requirements": [
+      "Points de fidélité"
+    ],
+    "requirement": "Points de fidélité",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": true,
+    "lexer": {
+      "valid": true,
+      "name": "counter",
+      "payload": "<name>"
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "uses",
+    "token": "{uses}",
+    "syntax": "{uses}",
+    "example": "{uses}",
+    "output": "317",
+    "syntaxes": [
+      "{uses}"
+    ],
+    "examples": [
+      {
+        "syntax": "{uses}",
+        "output": "317",
+        "surfaceId": "custom"
+      }
+    ],
+    "name": "Nombre d’utilisations",
+    "hint": "combien de fois cette commande a servi, sans compter celle-ci (approximatif)",
+    "description": "Combien de fois cette commande a servi dans votre chaîne, sans compter celle qui l’affiche. Elle compte chaque utilisation, quel que soit le nom tapé, et ne demande aucun compteur. Le total est approximatif: le bot compte par lots et peut avoir jusqu’à une minute de retard.",
+    "category": "counters",
+    "categories": [
+      "counters"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "uses",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "choice",
+    "token": "{choice:yes,no,maybe}",
+    "syntax": "{choice:<a>,<b>,…}",
+    "example": "{choice:yes,no,maybe}",
+    "output": "yes",
+    "syntaxes": [
+      "{choice:<a>,<b>,…}"
+    ],
+    "examples": [
+      {
+        "syntax": "{choice:yes,no,maybe}",
+        "output": "yes",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{choice:yes,no,maybe}",
+        "output": "yes",
+        "surfaceId": "follow"
+      },
+      {
+        "syntax": "{choice:yes,no,maybe}",
+        "output": "yes",
+        "surfaceId": "subscribe"
+      },
+      {
+        "syntax": "{choice:yes,no,maybe}",
+        "output": "yes",
+        "surfaceId": "cheer"
+      },
+      {
+        "syntax": "{choice:yes,no,maybe}",
+        "output": "yes",
+        "surfaceId": "raid"
+      },
+      {
+        "syntax": "{choice:yes,no,maybe}",
+        "output": "yes",
+        "surfaceId": "shoutout"
+      },
+      {
+        "syntax": "{choice:yes,no,maybe}",
+        "output": "yes",
+        "surfaceId": "triggers"
+      },
+      {
+        "syntax": "{choice:yes,no,maybe}",
+        "output": "yes",
+        "surfaceId": "time"
+      },
+      {
+        "syntax": "{choice:yes,no,maybe}",
+        "output": "yes",
+        "surfaceId": "channelpoints"
+      },
+      {
+        "syntax": "{choice:yes,no,maybe}",
+        "output": "yes",
+        "surfaceId": "queue-join"
+      },
+      {
+        "syntax": "{choice:yes,no,maybe}",
+        "output": "yes",
+        "surfaceId": "queue-next"
+      },
+      {
+        "syntax": "{choice:yes,no,maybe}",
+        "output": "yes",
+        "surfaceId": "bw-session"
+      },
+      {
+        "syntax": "{choice:yes,no,maybe}",
+        "output": "yes",
+        "surfaceId": "bwstats"
+      },
+      {
+        "syntax": "{choice:yes,no,maybe}",
+        "output": "yes",
+        "surfaceId": "sniper"
+      },
+      {
+        "syntax": "{choice:yes,no,maybe}",
+        "output": "yes",
+        "surfaceId": "tags"
+      },
+      {
+        "syntax": "{choice:yes,no,maybe}",
+        "output": "yes",
+        "surfaceId": "elo"
+      },
+      {
+        "syntax": "{choice:yes,no,maybe}",
+        "output": "yes",
+        "surfaceId": "mcsr-session"
+      },
+      {
+        "syntax": "{choice:yes,no,maybe}",
+        "output": "yes",
+        "surfaceId": "mcsr-pace"
+      },
+      {
+        "syntax": "{choice:yes,no,maybe}",
+        "output": "yes",
+        "surfaceId": "mcsr-nethers"
+      },
+      {
+        "syntax": "{choice:yes,no,maybe}",
+        "output": "yes",
+        "surfaceId": "mcsr-lastmatch"
+      },
+      {
+        "syntax": "{choice:yes,no,maybe}",
+        "output": "yes",
+        "surfaceId": "mcsr-record"
+      },
+      {
+        "syntax": "{choice:yes,no,maybe}",
+        "output": "yes",
+        "surfaceId": "mcsr-lb"
+      },
+      {
+        "syntax": "{choice:yes,no,maybe}",
+        "output": "yes",
+        "surfaceId": "mcsr-race"
+      },
+      {
+        "syntax": "{choice:yes,no,maybe}",
+        "output": "yes",
+        "surfaceId": "mcsr-pb"
+      },
+      {
+        "syntax": "{choice:yes,no,maybe}",
+        "output": "yes",
+        "surfaceId": "fn-stats"
+      },
+      {
+        "syntax": "{choice:yes,no,maybe}",
+        "output": "yes",
+        "surfaceId": "fn-store"
+      }
+    ],
+    "name": "Choix aléatoire",
+    "hint": "choisit une des options séparées par des virgules au hasard",
+    "description": "Choisit une option de votre liste séparée par des virgules. Remplacez les mots.",
+    "category": "dynamic",
+    "categories": [
+      "dynamic"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom",
+      "follow",
+      "subscribe",
+      "cheer",
+      "raid",
+      "shoutout",
+      "triggers",
+      "time",
+      "channelpoints",
+      "queue-join",
+      "queue-next",
+      "bw-session",
+      "bwstats",
+      "sniper",
+      "tags",
+      "elo",
+      "mcsr-session",
+      "mcsr-pace",
+      "mcsr-nethers",
+      "mcsr-lastmatch",
+      "mcsr-record",
+      "mcsr-lb",
+      "mcsr-race",
+      "mcsr-pb",
+      "fn-stats",
+      "fn-store"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      },
+      {
+        "id": "follow",
+        "group": "Alertes",
+        "label": "Alerte de follow",
+        "dashPath": "/modules/alerts"
+      },
+      {
+        "id": "subscribe",
+        "group": "Alertes",
+        "label": "Alerte d'abonnement",
+        "dashPath": "/modules/alerts"
+      },
+      {
+        "id": "cheer",
+        "group": "Alertes",
+        "label": "Alerte de cheer",
+        "dashPath": "/modules/alerts"
+      },
+      {
+        "id": "raid",
+        "group": "Alertes",
+        "label": "Alerte de raid",
+        "dashPath": "/modules/alerts"
+      },
+      {
+        "id": "shoutout",
+        "group": "Outils de chat",
+        "label": "Shoutout automatique",
+        "dashPath": "/modules/shoutout"
+      },
+      {
+        "id": "triggers",
+        "group": "Outils de chat",
+        "label": "Réponse de mots déclencheurs",
+        "dashPath": "/modules/triggers"
+      },
+      {
+        "id": "time",
+        "group": "Outils de chat",
+        "label": "Réponse de !time",
+        "dashPath": "/modules/time"
+      },
+      {
+        "id": "channelpoints",
+        "group": "Outils de chat",
+        "label": "Réponse de récompense (points de chaîne)",
+        "dashPath": "/channelpoints"
+      },
+      {
+        "id": "queue-join",
+        "group": "File d'attente",
+        "label": "File: confirmation de !join",
+        "dashPath": "/modules/queue"
+      },
+      {
+        "id": "queue-next",
+        "group": "File d'attente",
+        "label": "File: joueur suivant",
+        "dashPath": "/modules/queue"
+      },
+      {
+        "id": "bw-session",
+        "group": "Stats de jeu",
+        "label": "Bedwars: !daily / !weekly / !monthly",
+        "dashPath": "/modules/urchin"
+      },
+      {
+        "id": "bwstats",
+        "group": "Stats de jeu",
+        "label": "Bedwars: !bwstats (à vie)",
+        "dashPath": "/modules/urchin"
+      },
+      {
+        "id": "sniper",
+        "group": "Stats de jeu",
+        "label": "Bedwars: !sniper",
+        "dashPath": "/modules/urchin"
+      },
+      {
+        "id": "tags",
+        "group": "Stats de jeu",
+        "label": "Bedwars: !tag / !tagdescription",
+        "dashPath": "/modules/urchin"
+      },
+      {
+        "id": "elo",
+        "group": "Stats de jeu",
+        "label": "MCSR: !elo",
+        "dashPath": "/modules/mcsr"
+      },
+      {
+        "id": "mcsr-session",
+        "group": "Stats de jeu",
+        "label": "MCSR: !session",
+        "dashPath": "/modules/mcsr"
+      },
+      {
+        "id": "mcsr-pace",
+        "group": "Stats de jeu",
+        "label": "MCSR: !pace",
+        "dashPath": "/modules/mcsr"
+      },
+      {
+        "id": "mcsr-nethers",
+        "group": "Stats de jeu",
+        "label": "MCSR: !nethers",
+        "dashPath": "/modules/mcsr"
+      },
+      {
+        "id": "mcsr-lastmatch",
+        "group": "Stats de jeu",
+        "label": "MCSR: !lastmatch",
+        "dashPath": "/modules/mcsr"
+      },
+      {
+        "id": "mcsr-record",
+        "group": "Stats de jeu",
+        "label": "MCSR: !record",
+        "dashPath": "/modules/mcsr"
+      },
+      {
+        "id": "mcsr-lb",
+        "group": "Stats de jeu",
+        "label": "MCSR: !lb",
+        "dashPath": "/modules/mcsr"
+      },
+      {
+        "id": "mcsr-race",
+        "group": "Stats de jeu",
+        "label": "MCSR: !race",
+        "dashPath": "/modules/mcsr"
+      },
+      {
+        "id": "mcsr-pb",
+        "group": "Stats de jeu",
+        "label": "MCSR: !pb",
+        "dashPath": "/modules/mcsr"
+      },
+      {
+        "id": "fn-stats",
+        "group": "Stats de jeu",
+        "label": "Fortnite: !fn / !fn season",
+        "dashPath": "/modules/fortnite"
+      },
+      {
+        "id": "fn-store",
+        "group": "Stats de jeu",
+        "label": "Fortnite: !fn store",
+        "dashPath": "/modules/fortnite"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": true,
+    "lexer": {
+      "valid": true,
+      "name": "choice",
+      "payload": "<a>,<b>,…"
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "random",
+    "token": "{random}",
+    "syntax": "{random}",
+    "example": "{random}",
+    "output": "57",
+    "syntaxes": [
+      "{random}",
+      "{random:<min>-<max>}"
+    ],
+    "examples": [
+      {
+        "syntax": "{random}",
+        "output": "57",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{random:1-6}",
+        "output": "3",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{random}",
+        "output": "57",
+        "surfaceId": "follow"
+      },
+      {
+        "syntax": "{random:1-6}",
+        "output": "3",
+        "surfaceId": "follow"
+      },
+      {
+        "syntax": "{random}",
+        "output": "57",
+        "surfaceId": "subscribe"
+      },
+      {
+        "syntax": "{random:1-6}",
+        "output": "3",
+        "surfaceId": "subscribe"
+      },
+      {
+        "syntax": "{random}",
+        "output": "57",
+        "surfaceId": "cheer"
+      },
+      {
+        "syntax": "{random:1-6}",
+        "output": "3",
+        "surfaceId": "cheer"
+      },
+      {
+        "syntax": "{random}",
+        "output": "57",
+        "surfaceId": "raid"
+      },
+      {
+        "syntax": "{random:1-6}",
+        "output": "3",
+        "surfaceId": "raid"
+      },
+      {
+        "syntax": "{random}",
+        "output": "57",
+        "surfaceId": "shoutout"
+      },
+      {
+        "syntax": "{random:1-6}",
+        "output": "3",
+        "surfaceId": "shoutout"
+      },
+      {
+        "syntax": "{random}",
+        "output": "57",
+        "surfaceId": "triggers"
+      },
+      {
+        "syntax": "{random:1-6}",
+        "output": "3",
+        "surfaceId": "triggers"
+      },
+      {
+        "syntax": "{random}",
+        "output": "57",
+        "surfaceId": "time"
+      },
+      {
+        "syntax": "{random:1-6}",
+        "output": "3",
+        "surfaceId": "time"
+      },
+      {
+        "syntax": "{random}",
+        "output": "57",
+        "surfaceId": "channelpoints"
+      },
+      {
+        "syntax": "{random:1-6}",
+        "output": "3",
+        "surfaceId": "channelpoints"
+      },
+      {
+        "syntax": "{random}",
+        "output": "57",
+        "surfaceId": "queue-join"
+      },
+      {
+        "syntax": "{random:1-6}",
+        "output": "3",
+        "surfaceId": "queue-join"
+      },
+      {
+        "syntax": "{random}",
+        "output": "57",
+        "surfaceId": "queue-next"
+      },
+      {
+        "syntax": "{random:1-6}",
+        "output": "3",
+        "surfaceId": "queue-next"
+      },
+      {
+        "syntax": "{random}",
+        "output": "57",
+        "surfaceId": "bw-session"
+      },
+      {
+        "syntax": "{random:1-6}",
+        "output": "3",
+        "surfaceId": "bw-session"
+      },
+      {
+        "syntax": "{random}",
+        "output": "57",
+        "surfaceId": "bwstats"
+      },
+      {
+        "syntax": "{random:1-6}",
+        "output": "3",
+        "surfaceId": "bwstats"
+      },
+      {
+        "syntax": "{random}",
+        "output": "57",
+        "surfaceId": "sniper"
+      },
+      {
+        "syntax": "{random:1-6}",
+        "output": "3",
+        "surfaceId": "sniper"
+      },
+      {
+        "syntax": "{random}",
+        "output": "57",
+        "surfaceId": "tags"
+      },
+      {
+        "syntax": "{random:1-6}",
+        "output": "3",
+        "surfaceId": "tags"
+      },
+      {
+        "syntax": "{random}",
+        "output": "57",
+        "surfaceId": "elo"
+      },
+      {
+        "syntax": "{random:1-6}",
+        "output": "3",
+        "surfaceId": "elo"
+      },
+      {
+        "syntax": "{random}",
+        "output": "57",
+        "surfaceId": "mcsr-session"
+      },
+      {
+        "syntax": "{random:1-6}",
+        "output": "3",
+        "surfaceId": "mcsr-session"
+      },
+      {
+        "syntax": "{random}",
+        "output": "57",
+        "surfaceId": "mcsr-pace"
+      },
+      {
+        "syntax": "{random:1-6}",
+        "output": "3",
+        "surfaceId": "mcsr-pace"
+      },
+      {
+        "syntax": "{random}",
+        "output": "57",
+        "surfaceId": "mcsr-nethers"
+      },
+      {
+        "syntax": "{random:1-6}",
+        "output": "3",
+        "surfaceId": "mcsr-nethers"
+      },
+      {
+        "syntax": "{random}",
+        "output": "57",
+        "surfaceId": "mcsr-lastmatch"
+      },
+      {
+        "syntax": "{random:1-6}",
+        "output": "3",
+        "surfaceId": "mcsr-lastmatch"
+      },
+      {
+        "syntax": "{random}",
+        "output": "57",
+        "surfaceId": "mcsr-record"
+      },
+      {
+        "syntax": "{random:1-6}",
+        "output": "3",
+        "surfaceId": "mcsr-record"
+      },
+      {
+        "syntax": "{random}",
+        "output": "57",
+        "surfaceId": "mcsr-lb"
+      },
+      {
+        "syntax": "{random:1-6}",
+        "output": "3",
+        "surfaceId": "mcsr-lb"
+      },
+      {
+        "syntax": "{random}",
+        "output": "57",
+        "surfaceId": "mcsr-race"
+      },
+      {
+        "syntax": "{random:1-6}",
+        "output": "3",
+        "surfaceId": "mcsr-race"
+      },
+      {
+        "syntax": "{random}",
+        "output": "57",
+        "surfaceId": "mcsr-pb"
+      },
+      {
+        "syntax": "{random:1-6}",
+        "output": "3",
+        "surfaceId": "mcsr-pb"
+      },
+      {
+        "syntax": "{random}",
+        "output": "57",
+        "surfaceId": "fn-stats"
+      },
+      {
+        "syntax": "{random:1-6}",
+        "output": "3",
+        "surfaceId": "fn-stats"
+      },
+      {
+        "syntax": "{random}",
+        "output": "57",
+        "surfaceId": "fn-store"
+      },
+      {
+        "syntax": "{random:1-6}",
+        "output": "3",
+        "surfaceId": "fn-store"
+      }
+    ],
+    "name": "Aléatoire 1-100",
+    "hint": "un nombre aléatoire de 1 à 100, ou {random:min-max}",
+    "description": "Un nombre entier de 1 à 100, différent à chaque fois. {random:1-6} choisit votre propre plage; les deux bornes comptent.",
+    "category": "dynamic",
+    "categories": [
+      "dynamic"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom",
+      "follow",
+      "subscribe",
+      "cheer",
+      "raid",
+      "shoutout",
+      "triggers",
+      "time",
+      "channelpoints",
+      "queue-join",
+      "queue-next",
+      "bw-session",
+      "bwstats",
+      "sniper",
+      "tags",
+      "elo",
+      "mcsr-session",
+      "mcsr-pace",
+      "mcsr-nethers",
+      "mcsr-lastmatch",
+      "mcsr-record",
+      "mcsr-lb",
+      "mcsr-race",
+      "mcsr-pb",
+      "fn-stats",
+      "fn-store"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      },
+      {
+        "id": "follow",
+        "group": "Alertes",
+        "label": "Alerte de follow",
+        "dashPath": "/modules/alerts"
+      },
+      {
+        "id": "subscribe",
+        "group": "Alertes",
+        "label": "Alerte d'abonnement",
+        "dashPath": "/modules/alerts"
+      },
+      {
+        "id": "cheer",
+        "group": "Alertes",
+        "label": "Alerte de cheer",
+        "dashPath": "/modules/alerts"
+      },
+      {
+        "id": "raid",
+        "group": "Alertes",
+        "label": "Alerte de raid",
+        "dashPath": "/modules/alerts"
+      },
+      {
+        "id": "shoutout",
+        "group": "Outils de chat",
+        "label": "Shoutout automatique",
+        "dashPath": "/modules/shoutout"
+      },
+      {
+        "id": "triggers",
+        "group": "Outils de chat",
+        "label": "Réponse de mots déclencheurs",
+        "dashPath": "/modules/triggers"
+      },
+      {
+        "id": "time",
+        "group": "Outils de chat",
+        "label": "Réponse de !time",
+        "dashPath": "/modules/time"
+      },
+      {
+        "id": "channelpoints",
+        "group": "Outils de chat",
+        "label": "Réponse de récompense (points de chaîne)",
+        "dashPath": "/channelpoints"
+      },
+      {
+        "id": "queue-join",
+        "group": "File d'attente",
+        "label": "File: confirmation de !join",
+        "dashPath": "/modules/queue"
+      },
+      {
+        "id": "queue-next",
+        "group": "File d'attente",
+        "label": "File: joueur suivant",
+        "dashPath": "/modules/queue"
+      },
+      {
+        "id": "bw-session",
+        "group": "Stats de jeu",
+        "label": "Bedwars: !daily / !weekly / !monthly",
+        "dashPath": "/modules/urchin"
+      },
+      {
+        "id": "bwstats",
+        "group": "Stats de jeu",
+        "label": "Bedwars: !bwstats (à vie)",
+        "dashPath": "/modules/urchin"
+      },
+      {
+        "id": "sniper",
+        "group": "Stats de jeu",
+        "label": "Bedwars: !sniper",
+        "dashPath": "/modules/urchin"
+      },
+      {
+        "id": "tags",
+        "group": "Stats de jeu",
+        "label": "Bedwars: !tag / !tagdescription",
+        "dashPath": "/modules/urchin"
+      },
+      {
+        "id": "elo",
+        "group": "Stats de jeu",
+        "label": "MCSR: !elo",
+        "dashPath": "/modules/mcsr"
+      },
+      {
+        "id": "mcsr-session",
+        "group": "Stats de jeu",
+        "label": "MCSR: !session",
+        "dashPath": "/modules/mcsr"
+      },
+      {
+        "id": "mcsr-pace",
+        "group": "Stats de jeu",
+        "label": "MCSR: !pace",
+        "dashPath": "/modules/mcsr"
+      },
+      {
+        "id": "mcsr-nethers",
+        "group": "Stats de jeu",
+        "label": "MCSR: !nethers",
+        "dashPath": "/modules/mcsr"
+      },
+      {
+        "id": "mcsr-lastmatch",
+        "group": "Stats de jeu",
+        "label": "MCSR: !lastmatch",
+        "dashPath": "/modules/mcsr"
+      },
+      {
+        "id": "mcsr-record",
+        "group": "Stats de jeu",
+        "label": "MCSR: !record",
+        "dashPath": "/modules/mcsr"
+      },
+      {
+        "id": "mcsr-lb",
+        "group": "Stats de jeu",
+        "label": "MCSR: !lb",
+        "dashPath": "/modules/mcsr"
+      },
+      {
+        "id": "mcsr-race",
+        "group": "Stats de jeu",
+        "label": "MCSR: !race",
+        "dashPath": "/modules/mcsr"
+      },
+      {
+        "id": "mcsr-pb",
+        "group": "Stats de jeu",
+        "label": "MCSR: !pb",
+        "dashPath": "/modules/mcsr"
+      },
+      {
+        "id": "fn-stats",
+        "group": "Stats de jeu",
+        "label": "Fortnite: !fn / !fn season",
+        "dashPath": "/modules/fortnite"
+      },
+      {
+        "id": "fn-store",
+        "group": "Stats de jeu",
+        "label": "Fortnite: !fn store",
+        "dashPath": "/modules/fortnite"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "random",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "countdown",
+    "token": "{countdown:2026-12-25}",
+    "syntax": "{countdown:<date>}",
+    "example": "{countdown:2026-12-25}",
+    "output": "3 days, 4 hours",
+    "syntaxes": [
+      "{countdown:<date>}"
+    ],
+    "examples": [
+      {
+        "syntax": "{countdown:2026-12-25}",
+        "output": "3 days, 4 hours",
+        "surfaceId": "custom"
+      }
+    ],
+    "name": "Temps avant une date",
+    "hint": "le temps restant jusqu’à cette date (AAAA-MM-JJ, ou un horodatage complet)",
+    "description": "Le temps restant avant cette date. Écrivez-la AAAA-MM-JJ, ou en horodatage complet. Plus rien une fois la date passée.",
+    "category": "utilities",
+    "categories": [
+      "utilities"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": true,
+    "lexer": {
+      "valid": true,
+      "name": "countdown",
+      "payload": "<date>"
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "countup",
+    "token": "{countup:2020-01-01}",
+    "syntax": "{countup:<date>}",
+    "example": "{countup:2020-01-01}",
+    "output": "3 days, 4 hours",
+    "syntaxes": [
+      "{countup:<date>}"
+    ],
+    "examples": [
+      {
+        "syntax": "{countup:2020-01-01}",
+        "output": "3 days, 4 hours",
+        "surfaceId": "custom"
+      }
+    ],
+    "name": "Temps depuis une date",
+    "hint": "le temps écoulé depuis cette date",
+    "description": "Le temps écoulé depuis cette date, formulé comme !uptime.",
+    "category": "utilities",
+    "categories": [
+      "utilities"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": true,
+    "lexer": {
+      "valid": true,
+      "name": "countup",
+      "payload": "<date>"
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "if",
+    "token": "{if:touser:hi there:hi everyone}",
+    "syntax": "{if:<name>:<then>:<else>}",
+    "example": "{if:touser:hi there:hi everyone}",
+    "output": "hi there",
+    "syntaxes": [
+      "{if:<name>:<then>:<else>}"
+    ],
+    "examples": [
+      {
+        "syntax": "{if:touser:hi there:hi everyone}",
+        "output": "hi there",
+        "surfaceId": "custom"
+      }
+    ],
+    "name": "Dire une chose ou une autre",
+    "hint": "un texte ou l’autre: {if:nom:quand la variable contient quelque chose:sinon}, ou {if:nom=valeur:…:…} pour une correspondance exacte. Les variables ne fonctionnent pas dans les deux textes",
+    "description": "Affiche le premier texte quand la variable que vous nommez contient quelque chose, le second sinon. Nommez-la sans accolades, et écrivez {if:game=Chess:…:…} pour tester une valeur exacte. Les variables ne fonctionnent pas dans les deux textes. Omettez le second et un test faux n’affiche rien du tout: si la ligne se vide, le bot passe la ligne au lieu d’envoyer un message vide.",
+    "category": "utilities",
+    "categories": [
+      "utilities"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": true,
+    "lexer": {
+      "valid": true,
+      "name": "if",
+      "payload": "<name>:<then>:<else>"
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "math",
+    "token": "{math:1+2*3}",
+    "syntax": "{math:<expr>}",
+    "example": "{math:1+2*3}",
+    "output": "7",
+    "syntaxes": [
+      "{math:<expr>}"
+    ],
+    "examples": [
+      {
+        "syntax": "{math:1+2*3}",
+        "output": "7",
+        "surfaceId": "custom"
+      }
+    ],
+    "name": "Calcul",
+    "hint": "calcule une petite opération: + - * / et parenthèses",
+    "description": "Résout une petite opération. Nombres entiers, + - * / et parenthèses; rien d’autre.",
+    "category": "utilities",
+    "categories": [
+      "utilities"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": true,
+    "lexer": {
+      "valid": true,
+      "name": "math",
+      "payload": "<expr>"
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "pathescape",
+    "token": "{pathescape:hello world}",
+    "syntax": "{pathescape:<text>}",
+    "example": "{pathescape:hello world}",
+    "output": "hello%20world",
+    "syntaxes": [
+      "{pathescape:<text>}"
+    ],
+    "examples": [
+      {
+        "syntax": "{pathescape:hello world}",
+        "output": "hello%20world",
+        "surfaceId": "custom"
+      }
+    ],
+    "name": "Encoder un chemin d’URL",
+    "hint": "encode le texte pour un chemin d’URL, pas pour une requête",
+    "description": "La même chose, pour la partie chemin d’une URL, où un espace n’est pas un plus.",
+    "category": "utilities",
+    "categories": [
+      "utilities"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": true,
+    "lexer": {
+      "valid": true,
+      "name": "pathescape",
+      "payload": "<text>"
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "queryescape",
+    "token": "{queryescape:hello world}",
+    "syntax": "{queryescape:<text>}",
+    "example": "{queryescape:hello world}",
+    "output": "hello+world",
+    "syntaxes": [
+      "{queryescape:<text>}"
+    ],
+    "examples": [
+      {
+        "syntax": "{queryescape:hello world}",
+        "output": "hello+world",
+        "surfaceId": "custom"
+      }
+    ],
+    "name": "Encoder du texte pour une URL",
+    "hint": "encode pour une URL le texte placé après les deux-points",
+    "description": "Encode votre propre texte pour la partie requête d’une URL. Remplacez les mots.",
+    "category": "utilities",
+    "categories": [
+      "utilities"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": true,
+    "lexer": {
+      "valid": true,
+      "name": "queryescape",
+      "payload": "<text>"
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "querystring",
+    "token": "{querystring}",
+    "syntax": "{querystring}",
+    "example": "{querystring}",
+    "output": "ferret_king+good+luck",
+    "syntaxes": [
+      "{querystring}"
+    ],
+    "examples": [
+      {
+        "syntax": "{querystring}",
+        "output": "ferret_king+good+luck",
+        "surfaceId": "custom"
+      }
+    ],
+    "name": "Arguments encodés pour une URL",
+    "hint": "tout le texte tapé après la commande, encodé pour une source de données",
+    "description": "Tout le texte tapé après la commande, encodé pour être placé dans l’URL d’une source de données.",
+    "category": "utilities",
+    "categories": [
+      "utilities"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "querystring",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "quote",
+    "token": "{quote}",
+    "syntax": "{quote}",
+    "example": "{quote}",
+    "output": "Quote #12: bagels are just savoury donuts (2026-01-31)",
+    "syntaxes": [
+      "{quote}",
+      "{quote:<number>}"
+    ],
+    "examples": [
+      {
+        "syntax": "{quote}",
+        "output": "Quote #12: bagels are just savoury donuts (2026-01-31)",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{quote:12}",
+        "output": "Quote #12: bagels are just savoury donuts (2026-01-31)",
+        "surfaceId": "custom"
+      }
+    ],
+    "name": "Une citation enregistrée",
+    "hint": "une citation enregistrée au hasard, ou {quote:12} pour une citation précise (module Citations)",
+    "description": "Une citation au hasard de votre recueil, formulée exactement comme !quote la dit. {quote:12} choisit une citation numérotée, et un numéro inutilisé ne renvoie rien. Deux {quote} dans une même réponse donnent deux citations différentes. Nécessite le module Citations.",
+    "category": "utilities",
+    "categories": [
+      "utilities"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      }
+    ],
+    "requirementIds": [
+      "quotes"
+    ],
+    "requirements": [
+      "Citations"
+    ],
+    "requirement": "Citations",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "quote",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "repeat",
+    "token": "{repeat:3:bagel}",
+    "syntax": "{repeat:<n>:<text>}",
+    "example": "{repeat:3:bagel}",
+    "output": "bagel bagel bagel",
+    "syntaxes": [
+      "{repeat:<n>:<text>}"
+    ],
+    "examples": [
+      {
+        "syntax": "{repeat:3:bagel}",
+        "output": "bagel bagel bagel",
+        "surfaceId": "custom"
+      }
+    ],
+    "name": "Répéter une phrase",
+    "hint": "répète une phrase n fois (20 au maximum, une ligne de chat)",
+    "description": "Répète votre phrase, séparée par des espaces. 20 fois au maximum, et le tout doit tenir sur une ligne de chat.",
+    "category": "utilities",
+    "categories": [
+      "utilities"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": true,
+    "lexer": {
+      "valid": true,
+      "name": "repeat",
+      "payload": "<n>:<text>"
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "time",
+    "token": "{time}",
+    "syntax": "{time}",
+    "example": "{time}",
+    "output": "3:04 PM",
+    "syntaxes": [
+      "{time}"
+    ],
+    "examples": [
+      {
+        "syntax": "{time}",
+        "output": "3:04 PM",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{time}",
+        "output": "2:30 PM",
+        "surfaceId": "time"
+      },
+      {
+        "syntax": "{time}",
+        "output": "11:03.135",
+        "surfaceId": "mcsr-lastmatch"
+      },
+      {
+        "syntax": "{time}",
+        "output": "2:40.000",
+        "surfaceId": "mcsr-race"
+      },
+      {
+        "syntax": "{time}",
+        "output": "6:40.123",
+        "surfaceId": "mcsr-pb"
+      }
+    ],
+    "name": "Votre heure locale",
+    "hint": "votre heure locale, sur le format d’horloge que vous avez choisi (module Heure locale)",
+    "description": "L’heure chez vous, selon le fuseau et le format d’horloge choisis dans le module Heure locale. Nécessite ce module, avec un fuseau enregistré.",
+    "category": "utilities",
+    "categories": [
+      "utilities"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom",
+      "time",
+      "mcsr-lastmatch",
+      "mcsr-race",
+      "mcsr-pb"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      },
+      {
+        "id": "time",
+        "group": "Outils de chat",
+        "label": "Réponse de !time",
+        "dashPath": "/modules/time"
+      },
+      {
+        "id": "mcsr-lastmatch",
+        "group": "Stats de jeu",
+        "label": "MCSR: !lastmatch",
+        "dashPath": "/modules/mcsr"
+      },
+      {
+        "id": "mcsr-race",
+        "group": "Stats de jeu",
+        "label": "MCSR: !race",
+        "dashPath": "/modules/mcsr"
+      },
+      {
+        "id": "mcsr-pb",
+        "group": "Stats de jeu",
+        "label": "MCSR: !pb",
+        "dashPath": "/modules/mcsr"
+      }
+    ],
+    "requirementIds": [
+      "time"
+    ],
+    "requirements": [
+      "Heure locale"
+    ],
+    "requirement": "Heure locale",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "time",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "urlfetch",
+    "token": "{urlfetch:weather}",
+    "syntax": "{urlfetch:<definition>}",
+    "example": "{urlfetch:weather}",
+    "output": "18°C, light rain",
+    "syntaxes": [
+      "{urlfetch:<definition>}"
+    ],
+    "examples": [
+      {
+        "syntax": "{urlfetch:weather}",
+        "output": "18°C, light rain",
+        "surfaceId": "custom"
+      }
+    ],
+    "name": "Valeur récupérée",
+    "hint": "Insère une valeur récupérée depuis une définition d’API enregistrée",
+    "description": "Une valeur d’une définition de source de données enregistrée (page Sources de données). Écrivez {urlfetch:nom} pour la réponse entière, ou ajoutez un chemin en pointillés pour atteindre un champ précis d’une réponse JSON, comme {urlfetch:weather.forecast.current.temp_f}.",
+    "category": "utilities",
+    "categories": [
+      "utilities"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": true,
+    "lexer": {
+      "valid": true,
+      "name": "urlfetch",
+      "payload": "<definition>"
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "accountage",
+    "token": "{accountage}",
+    "syntax": "{accountage}",
+    "example": "{accountage}",
+    "output": "4 years, 2 months",
+    "syntaxes": [
+      "{accountage}",
+      "{accountage:<login>}"
+    ],
+    "examples": [
+      {
+        "syntax": "{accountage}",
+        "output": "4 years, 2 months",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{accountage:alex}",
+        "output": "4 years, 2 months",
+        "surfaceId": "custom"
+      }
+    ],
+    "name": "Âge du compte",
+    "hint": "l’âge de leur compte Twitch (module Âge du compte)",
+    "description": "L’âge de leur compte Twitch. {accountage:alex} interroge quelqu’un d’autre. Nécessite le module Âge du compte.",
+    "category": "viewer",
+    "categories": [
+      "viewer"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      }
+    ],
+    "requirementIds": [
+      "accountage"
+    ],
+    "requirements": [
+      "!accountage"
+    ],
+    "requirement": "!accountage",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "accountage",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "followage",
+    "token": "{followage}",
+    "syntax": "{followage}",
+    "example": "{followage}",
+    "output": "3 months",
+    "syntaxes": [
+      "{followage}",
+      "{followage:<login>}"
+    ],
+    "examples": [
+      {
+        "syntax": "{followage}",
+        "output": "3 months",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{followage:alex}",
+        "output": "3 months",
+        "surfaceId": "custom"
+      }
+    ],
+    "name": "Temps de follow",
+    "hint": "depuis combien de temps la personne suit la chaîne (module Followage)",
+    "description": "Depuis combien de temps le spectateur vous suit, formulé comme !followage. {followage:alex} interroge quelqu’un d’autre, et une personne qui ne suit pas ne renvoie rien. Nécessite le module Followage.",
+    "category": "viewer",
+    "categories": [
+      "viewer"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      }
+    ],
+    "requirementIds": [
+      "followage"
+    ],
+    "requirements": [
+      "!followage"
+    ],
+    "requirement": "!followage",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "followage",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "points",
+    "token": "{points}",
+    "syntax": "{points}",
+    "example": "{points}",
+    "output": "1280",
+    "syntaxes": [
+      "{points}",
+      "{points:<login>}"
+    ],
+    "examples": [
+      {
+        "syntax": "{points}",
+        "output": "1280",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{points:alex}",
+        "output": "1280",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{points}",
+        "output": "50",
+        "surfaceId": "channelpoints"
+      }
+    ],
+    "name": "Solde de points",
+    "hint": "son solde de points, ou {points:login} pour quelqu’un d’autre (Fidélité)",
+    "description": "Ce que le spectateur a gagné. {points:alex} affiche le solde de quelqu’un d’autre, si la chaîne l’a vu parler. Lecture seule: rien n’est jamais accordé. Nécessite le module Points de fidélité.",
+    "category": "viewer",
+    "categories": [
+      "viewer"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom",
+      "channelpoints"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      },
+      {
+        "id": "channelpoints",
+        "group": "Outils de chat",
+        "label": "Réponse de récompense (points de chaîne)",
+        "dashPath": "/channelpoints"
+      }
+    ],
+    "requirementIds": [
+      "loyalty"
+    ],
+    "requirements": [
+      "Points de fidélité"
+    ],
+    "requirement": "Points de fidélité",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "points",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "pointsname",
+    "token": "{pointsname}",
+    "syntax": "{pointsname}",
+    "example": "{pointsname}",
+    "output": "bagels",
+    "syntaxes": [
+      "{pointsname}"
+    ],
+    "examples": [
+      {
+        "syntax": "{pointsname}",
+        "output": "bagels",
+        "surfaceId": "custom"
+      }
+    ],
+    "name": "Nom de vos points",
+    "hint": "le nom que votre chaîne donne à ses points (Fidélité)",
+    "description": "Le nom que vous avez donné à vos points dans le module Points de fidélité, pour qu’une même réponse sonne juste sur chaque chaîne.",
+    "category": "viewer",
+    "categories": [
+      "viewer"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      }
+    ],
+    "requirementIds": [
+      "loyalty"
+    ],
+    "requirements": [
+      "Points de fidélité"
+    ],
+    "requirement": "Points de fidélité",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "pointsname",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "watchtime",
+    "token": "{watchtime}",
+    "syntax": "{watchtime}",
+    "example": "{watchtime}",
+    "output": "2 hours, 30 minutes",
+    "syntaxes": [
+      "{watchtime}",
+      "{watchtime:<login>}"
+    ],
+    "examples": [
+      {
+        "syntax": "{watchtime}",
+        "output": "2 hours, 30 minutes",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{watchtime:alex}",
+        "output": "2 hours, 30 minutes",
+        "surfaceId": "custom"
+      }
+    ],
+    "name": "Temps de visionnage",
+    "hint": "son temps de visionnage, formulé comme !uptime (Fidélité)",
+    "description": "Le temps qu’ils ont passé à regarder pendant que l’horloge de fidélité tournait. {watchtime:alex} interroge quelqu’un d’autre. Nécessite le module Points de fidélité.",
+    "category": "viewer",
+    "categories": [
+      "viewer"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      }
+    ],
+    "requirementIds": [
+      "loyalty"
+    ],
+    "requirements": [
+      "Points de fidélité"
+    ],
+    "requirement": "Points de fidélité",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "watchtime",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "channelViewers",
+    "token": "{channel.viewers}",
+    "syntax": "{channel.viewers}",
+    "example": "{channel.viewers}",
+    "output": "128",
+    "syntaxes": [
+      "{channel.viewers}"
+    ],
+    "examples": [
+      {
+        "syntax": "{channel.viewers}",
+        "output": "128",
+        "surfaceId": "custom"
+      }
+    ],
+    "name": "Spectateurs",
+    "hint": "combien de personnes regardent en ce moment, 0 hors ligne",
+    "description": "Combien de personnes regardent en ce moment, directement depuis Twitch. Une chaîne hors ligne renvoie 0. {channel} seul reste le nom de votre chaîne.",
+    "category": "channel",
+    "categories": [
+      "channel"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "channel.viewers",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "game",
+    "token": "{game}",
+    "syntax": "{game}",
+    "example": "{game}",
+    "output": "Just Chatting",
+    "syntaxes": [
+      "{game}",
+      "{game:<channel>}"
+    ],
+    "examples": [
+      {
+        "syntax": "{game}",
+        "output": "Just Chatting",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{game:someone}",
+        "output": "Just Chatting",
+        "surfaceId": "custom"
+      }
+    ],
+    "name": "Catégorie du direct",
+    "hint": "la catégorie que vous diffusez, ou {game:quelquun} pour une autre chaîne (interrupteur !game)",
+    "description": "La catégorie diffusée, celle qu’affiche !game. Fonctionne aussi hors ligne. {game:quelquun} donne celle d’une autre chaîne, ce que veut une commande de shoutout. Suit l’interrupteur !game.",
+    "category": "channel",
+    "categories": [
+      "channel"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      }
+    ],
+    "requirementIds": [
+      "game"
+    ],
+    "requirements": [
+      "!game"
+    ],
+    "requirement": "!game",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "game",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "title",
+    "token": "{title}",
+    "syntax": "{title}",
+    "example": "{title}",
+    "output": "bagel baking and chill",
+    "syntaxes": [
+      "{title}",
+      "{title:<channel>}"
+    ],
+    "examples": [
+      {
+        "syntax": "{title}",
+        "output": "bagel baking and chill",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{title:someone}",
+        "output": "bagel baking and chill",
+        "surfaceId": "custom"
+      }
+    ],
+    "name": "Titre du direct",
+    "hint": "le titre actuel de votre stream, ou {title:quelquun} pour une autre chaîne (interrupteur !title)",
+    "description": "Le titre actuel du direct, celui qu’affiche !title. Fonctionne aussi hors ligne. {title:quelquun} donne celui d’une autre chaîne. Suit l’interrupteur !title.",
+    "category": "channel",
+    "categories": [
+      "channel"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      }
+    ],
+    "requirementIds": [
+      "title"
+    ],
+    "requirements": [
+      "!title"
+    ],
+    "requirement": "!title",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "title",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "uptime",
+    "token": "{uptime}",
+    "syntax": "{uptime}",
+    "example": "{uptime}",
+    "output": "2 hours, 15 minutes",
+    "syntaxes": [
+      "{uptime}",
+      "{uptime:<channel>}"
+    ],
+    "examples": [
+      {
+        "syntax": "{uptime}",
+        "output": "2 hours, 15 minutes",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{uptime:someone}",
+        "output": "2 hours, 15 minutes",
+        "surfaceId": "custom"
+      }
+    ],
+    "name": "Durée du direct",
+    "hint": "depuis combien de temps vous êtes en direct, vide hors ligne (interrupteur !uptime)",
+    "description": "Depuis combien de temps le direct dure, formulé comme !uptime. Hors ligne renvoie du vide: donnez-lui une valeur par défaut. {uptime:quelquun} fait de même pour une autre chaîne. Suit l’interrupteur !uptime.",
+    "category": "channel",
+    "categories": [
+      "channel"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      }
+    ],
+    "requirementIds": [
+      "uptime"
+    ],
+    "requirements": [
+      "!uptime"
+    ],
+    "requirement": "!uptime",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "uptime",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "1",
+    "token": "{1}",
+    "syntax": "{1}",
+    "example": "{1}",
+    "output": "ferret_king",
+    "syntaxes": [
+      "{1}"
+    ],
+    "examples": [
+      {
+        "syntax": "{1}",
+        "output": "ferret_king",
+        "surfaceId": "custom"
+      }
+    ],
+    "name": "Numéro de mot",
+    "hint": "",
+    "description": "Le mot 1 tapé après la commande. {2} est le suivant, et ainsi de suite jusqu’à {30}. Vide si ce mot n’a pas été tapé. {2:} reprend d’un mot jusqu’à la fin, en une seule chaîne; changez le numéro pour commencer ailleurs, {1:} reprend tout.",
+    "category": "chat",
+    "categories": [
+      "chat"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "1",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "2",
+    "token": "{2:}",
+    "syntax": "{2}",
+    "example": "{2:}",
+    "output": "good luck",
+    "syntaxes": [
+      "{2}"
+    ],
+    "examples": [
+      {
+        "syntax": "{2:}",
+        "output": "good luck",
+        "surfaceId": "custom"
+      }
+    ],
+    "name": "Numéro de mot",
+    "hint": "",
+    "description": "Le mot 1 tapé après la commande. {2} est le suivant, et ainsi de suite jusqu’à {30}. Vide si ce mot n’a pas été tapé. {2:} reprend d’un mot jusqu’à la fin, en une seule chaîne; changez le numéro pour commencer ailleurs, {1:} reprend tout.",
+    "category": "chat",
+    "categories": [
+      "chat"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "2",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "chatters",
+    "token": "{chatters}",
+    "syntax": "{chatters}",
+    "example": "{chatters}",
+    "output": "37",
+    "syntaxes": [
+      "{chatters}"
+    ],
+    "examples": [
+      {
+        "syntax": "{chatters}",
+        "output": "37",
+        "surfaceId": "custom"
+      }
+    ],
+    "name": "Personnes dans le chat",
+    "hint": "combien de personnes ont parlé récemment dans le chat",
+    "description": "Combien de personnes ont parlé récemment dans le chat. Cela compte les personnes que le bot a vues parler, pas tous ceux qui ont la page ouverte, et une chaîne silencieuse renvoie 0.",
+    "category": "chat",
+    "categories": [
+      "chat"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "chatters",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "clip",
+    "token": "{clip}",
+    "syntax": "{clip}",
+    "example": "{clip}",
+    "output": "clips.twitch.tv/AbCdEf",
+    "syntaxes": [
+      "{clip}"
+    ],
+    "examples": [
+      {
+        "syntax": "{clip}",
+        "output": "clips.twitch.tv/AbCdEf",
+        "surfaceId": "clip"
+      }
+    ],
+    "name": "Lien du clip",
+    "hint": "",
+    "description": "Le lien du clip fraîchement créé.",
+    "category": "chat",
+    "categories": [
+      "chat"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "clip"
+    ],
+    "surfaces": [
+      {
+        "id": "clip",
+        "group": "Outils de chat",
+        "label": "Réponse de !clip",
+        "dashPath": "/commands"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "clip",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "date",
+    "token": "{date}",
+    "syntax": "{date}",
+    "example": "{date}",
+    "output": "Monday, July 13",
+    "syntaxes": [
+      "{date}"
+    ],
+    "examples": [
+      {
+        "syntax": "{date}",
+        "output": "Monday, July 13",
+        "surfaceId": "time"
+      },
+      {
+        "syntax": "{date}",
+        "output": "2026-07-09",
+        "surfaceId": "fn-store"
+      }
+    ],
+    "name": "Date locale",
+    "hint": "",
+    "description": "La date du jour dans votre fuseau.",
+    "category": "chat",
+    "categories": [
+      "chat"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "time",
+      "fn-store"
+    ],
+    "surfaces": [
+      {
+        "id": "time",
+        "group": "Outils de chat",
+        "label": "Réponse de !time",
+        "dashPath": "/modules/time"
+      },
+      {
+        "id": "fn-store",
+        "group": "Stats de jeu",
+        "label": "Fortnite: !fn store",
+        "dashPath": "/modules/fortnite"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "date",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "raider",
+    "token": "{raider}",
+    "syntax": "{raider}",
+    "example": "{raider}",
+    "output": "CrustyCrumbs",
+    "syntaxes": [
+      "{raider}"
+    ],
+    "examples": [
+      {
+        "syntax": "{raider}",
+        "output": "CrustyCrumbs",
+        "surfaceId": "shoutout"
+      }
+    ],
+    "name": "Nom du raider",
+    "hint": "",
+    "description": "Nom d'affichage de la chaîne qui raid.",
+    "category": "chat",
+    "categories": [
+      "chat"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "shoutout"
+    ],
+    "surfaces": [
+      {
+        "id": "shoutout",
+        "group": "Outils de chat",
+        "label": "Shoutout automatique",
+        "dashPath": "/modules/shoutout"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "raider",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "raider.login",
+    "token": "{raider.login}",
+    "syntax": "{raider.login}",
+    "example": "{raider.login}",
+    "output": "crustycrumbs",
+    "syntaxes": [
+      "{raider.login}"
+    ],
+    "examples": [
+      {
+        "syntax": "{raider.login}",
+        "output": "crustycrumbs",
+        "surfaceId": "shoutout"
+      }
+    ],
+    "name": "Login du raider",
+    "hint": "",
+    "description": "Login compatible URL, pour les liens twitch.tv/.",
+    "category": "chat",
+    "categories": [
+      "chat"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "shoutout"
+    ],
+    "surfaces": [
+      {
+        "id": "shoutout",
+        "group": "Outils de chat",
+        "label": "Shoutout automatique",
+        "dashPath": "/modules/shoutout"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "raider.login",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "randomChatter",
+    "token": "{random.chatter}",
+    "syntax": "{random.chatter}",
+    "example": "{random.chatter}",
+    "output": "maya_live",
+    "syntaxes": [
+      "{random.chatter}"
+    ],
+    "examples": [
+      {
+        "syntax": "{random.chatter}",
+        "output": "maya_live",
+        "surfaceId": "custom"
+      }
+    ],
+    "name": "Un spectateur au hasard",
+    "hint": "l’une d’elles, choisie au hasard (jamais vous, jamais le bot)",
+    "description": "Le nom d’une personne ayant parlé récemment, choisie au hasard. Jamais vous ni le bot. Deux dans une même réponse font deux tirages distincts, et une chaîne silencieuse ne renvoie rien.",
+    "category": "chat",
+    "categories": [
+      "chat"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "random.chatter",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "target",
+    "token": "{target}",
+    "syntax": "{target}",
+    "example": "{target}",
+    "output": "That is amazing",
+    "syntaxes": [
+      "{target}"
+    ],
+    "examples": [
+      {
+        "syntax": "{target}",
+        "output": "That is amazing",
+        "surfaceId": "clip"
+      },
+      {
+        "syntax": "{target}",
+        "output": "ferret_king",
+        "surfaceId": "queue-next"
+      }
+    ],
+    "name": "Titre du clip",
+    "hint": "",
+    "description": "Le titre tapé après !clip.",
+    "category": "chat",
+    "categories": [
+      "chat"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "clip",
+      "queue-next"
+    ],
+    "surfaces": [
+      {
+        "id": "clip",
+        "group": "Outils de chat",
+        "label": "Réponse de !clip",
+        "dashPath": "/commands"
+      },
+      {
+        "id": "queue-next",
+        "group": "File d'attente",
+        "label": "File: joueur suivant",
+        "dashPath": "/modules/queue"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "target",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "timezone",
+    "token": "{timezone}",
+    "syntax": "{timezone}",
+    "example": "{timezone}",
+    "output": "America/Toronto",
+    "syntaxes": [
+      "{timezone}"
+    ],
+    "examples": [
+      {
+        "syntax": "{timezone}",
+        "output": "America/Toronto",
+        "surfaceId": "time"
+      }
+    ],
+    "name": "Fuseau horaire",
+    "hint": "",
+    "description": "Le nom du fuseau configuré.",
+    "category": "chat",
+    "categories": [
+      "chat"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "time"
+    ],
+    "surfaces": [
+      {
+        "id": "time",
+        "group": "Outils de chat",
+        "label": "Réponse de !time",
+        "dashPath": "/modules/time"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "timezone",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "emotes7tv",
+    "token": "{7tvemotes}",
+    "syntax": "{7tvemotes}",
+    "example": "{7tvemotes}",
+    "output": "PagMan Clap peepoHappy",
+    "syntaxes": [
+      "{7tvemotes}"
+    ],
+    "examples": [
+      {
+        "syntax": "{7tvemotes}",
+        "output": "PagMan Clap peepoHappy",
+        "surfaceId": "custom"
+      }
+    ],
+    "name": "Émotes 7TV",
+    "hint": "tous les codes d’émotes globales 7TV, séparés par des espaces; {bttvemotes} et {ffzemotes} aussi (coupé pour tenir sur une ligne)",
+    "description": "Les codes des émotes 7TV globales, séparés par des espaces. Ce sont celles que toutes les chaînes ont, pas les émotes que vous avez ajoutées à la vôtre, et une longue liste est coupée pour tenir sur une ligne de chat.",
+    "category": "emotes",
+    "categories": [
+      "emotes"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "7tvemotes",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "emotesBttv",
+    "token": "{bttvemotes}",
+    "syntax": "{bttvemotes}",
+    "example": "{bttvemotes}",
+    "output": "KEKW monkaS catJAM",
+    "syntaxes": [
+      "{bttvemotes}"
+    ],
+    "examples": [
+      {
+        "syntax": "{bttvemotes}",
+        "output": "KEKW monkaS catJAM",
+        "surfaceId": "custom"
+      }
+    ],
+    "name": "Émotes BTTV",
+    "hint": "les codes des émotes BetterTTV globales, séparés par des espaces",
+    "description": "Les codes des émotes BetterTTV globales, comme {7tvemotes} liste celles de 7TV.",
+    "category": "emotes",
+    "categories": [
+      "emotes"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "bttvemotes",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "emotesFfz",
+    "token": "{ffzemotes}",
+    "syntax": "{ffzemotes}",
+    "example": "{ffzemotes}",
+    "output": "LUL ZULUL AYAYA",
+    "syntaxes": [
+      "{ffzemotes}"
+    ],
+    "examples": [
+      {
+        "syntax": "{ffzemotes}",
+        "output": "LUL ZULUL AYAYA",
+        "surfaceId": "custom"
+      }
+    ],
+    "name": "Émotes FFZ",
+    "hint": "les codes des émotes FrankerFaceZ globales, séparés par des espaces",
+    "description": "Les codes des émotes FrankerFaceZ globales, comme {7tvemotes} liste celles de 7TV.",
+    "category": "emotes",
+    "categories": [
+      "emotes"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "ffzemotes",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "randomEmote",
+    "token": "{random.emote}",
+    "syntax": "{random.emote}",
+    "example": "{random.emote}",
+    "output": "KEKW",
+    "syntaxes": [
+      "{random.emote}"
+    ],
+    "examples": [
+      {
+        "syntax": "{random.emote}",
+        "output": "KEKW",
+        "surfaceId": "custom"
+      }
+    ],
+    "name": "Une émote au hasard",
+    "hint": "un code d’émote choisi au hasard parmi ces ensembles globaux",
+    "description": "Un code d’émote tiré au hasard dans ces listes. Deux dans une même réponse font deux tirages distincts. Si le bot n’a pas encore chargé de codes, la variable revient vide.",
+    "category": "emotes",
+    "categories": [
+      "emotes"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "random.emote",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "bits",
+    "token": "{bits}",
+    "syntax": "{bits}",
+    "example": "{bits}",
+    "output": "500",
+    "syntaxes": [
+      "{bits}"
+    ],
+    "examples": [
+      {
+        "syntax": "{bits}",
+        "output": "500",
+        "surfaceId": "cheer"
+      }
+    ],
+    "name": "Nombre de bits",
+    "hint": "",
+    "description": "Le nombre de bits envoyés.",
+    "category": "alerts",
+    "categories": [
+      "alerts"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "cheer"
+    ],
+    "surfaces": [
+      {
+        "id": "cheer",
+        "group": "Alertes",
+        "label": "Alerte de cheer",
+        "dashPath": "/modules/alerts"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "bits",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "tier",
+    "token": "{tier}",
+    "syntax": "{tier}",
+    "example": "{tier}",
+    "output": "1000",
+    "syntaxes": [
+      "{tier}"
+    ],
+    "examples": [
+      {
+        "syntax": "{tier}",
+        "output": "1000",
+        "surfaceId": "subscribe"
+      }
+    ],
+    "name": "Palier",
+    "hint": "",
+    "description": "Le palier de l'abonnement.",
+    "category": "alerts",
+    "categories": [
+      "alerts"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "subscribe"
+    ],
+    "surfaces": [
+      {
+        "id": "subscribe",
+        "group": "Alertes",
+        "label": "Alerte d'abonnement",
+        "dashPath": "/modules/alerts"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "tier",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "viewers",
+    "token": "{viewers}",
+    "syntax": "{viewers}",
+    "example": "{viewers}",
+    "output": "42",
+    "syntaxes": [
+      "{viewers}"
+    ],
+    "examples": [
+      {
+        "syntax": "{viewers}",
+        "output": "42",
+        "surfaceId": "raid"
+      },
+      {
+        "syntax": "{viewers}",
+        "output": "42",
+        "surfaceId": "shoutout"
+      }
+    ],
+    "name": "Taille du raid",
+    "hint": "",
+    "description": "Le nombre de spectateurs arrivés.",
+    "category": "alerts",
+    "categories": [
+      "alerts"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "raid",
+      "shoutout"
+    ],
+    "surfaces": [
+      {
+        "id": "raid",
+        "group": "Alertes",
+        "label": "Alerte de raid",
+        "dashPath": "/modules/alerts"
+      },
+      {
+        "id": "shoutout",
+        "group": "Outils de chat",
+        "label": "Shoutout automatique",
+        "dashPath": "/modules/shoutout"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "viewers",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "cost",
+    "token": "{cost}",
+    "syntax": "{cost}",
+    "example": "{cost}",
+    "output": "500",
+    "syntaxes": [
+      "{cost}"
+    ],
+    "examples": [
+      {
+        "syntax": "{cost}",
+        "output": "500",
+        "surfaceId": "channelpoints"
+      }
+    ],
+    "name": "Coût en points",
+    "hint": "",
+    "description": "Le coût de la récompense.",
+    "category": "rewards",
+    "categories": [
+      "rewards"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "channelpoints"
+    ],
+    "surfaces": [
+      {
+        "id": "channelpoints",
+        "group": "Outils de chat",
+        "label": "Réponse de récompense (points de chaîne)",
+        "dashPath": "/channelpoints"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "cost",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "input",
+    "token": "{input}",
+    "syntax": "{input}",
+    "example": "{input}",
+    "output": "stay hydrated!",
+    "syntaxes": [
+      "{input}"
+    ],
+    "examples": [
+      {
+        "syntax": "{input}",
+        "output": "stay hydrated!",
+        "surfaceId": "channelpoints"
+      }
+    ],
+    "name": "Texte du spectateur",
+    "hint": "",
+    "description": "Le texte saisi avec l'échange (si la récompense en demande un).",
+    "category": "rewards",
+    "categories": [
+      "rewards"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "channelpoints"
+    ],
+    "surfaces": [
+      {
+        "id": "channelpoints",
+        "group": "Outils de chat",
+        "label": "Réponse de récompense (points de chaîne)",
+        "dashPath": "/channelpoints"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "input",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "reward",
+    "token": "{reward}",
+    "syntax": "{reward}",
+    "example": "{reward}",
+    "output": "Hydrate!",
+    "syntaxes": [
+      "{reward}"
+    ],
+    "examples": [
+      {
+        "syntax": "{reward}",
+        "output": "Hydrate!",
+        "surfaceId": "channelpoints"
+      }
+    ],
+    "name": "Titre de la récompense",
+    "hint": "",
+    "description": "Le nom de la récompense échangée.",
+    "category": "rewards",
+    "categories": [
+      "rewards"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "channelpoints"
+    ],
+    "surfaces": [
+      {
+        "id": "channelpoints",
+        "group": "Outils de chat",
+        "label": "Réponse de récompense (points de chaîne)",
+        "dashPath": "/channelpoints"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "reward",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "pos",
+    "token": "{pos}",
+    "syntax": "{pos}",
+    "example": "{pos}",
+    "output": "3",
+    "syntaxes": [
+      "{pos}"
+    ],
+    "examples": [
+      {
+        "syntax": "{pos}",
+        "output": "3",
+        "surfaceId": "queue-join"
+      }
+    ],
+    "name": "Position",
+    "hint": "",
+    "description": "Sa place dans la file.",
+    "category": "queue",
+    "categories": [
+      "queue"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "queue-join"
+    ],
+    "surfaces": [
+      {
+        "id": "queue-join",
+        "group": "File d'attente",
+        "label": "File: confirmation de !join",
+        "dashPath": "/modules/queue"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "pos",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "song",
+    "token": "{song}",
+    "syntax": "{song}",
+    "example": "{song}",
+    "output": "Everything In Its Right Place by Radiohead",
+    "syntaxes": [
+      "{song}"
+    ],
+    "examples": [
+      {
+        "syntax": "{song}",
+        "output": "Everything In Its Right Place by Radiohead",
+        "surfaceId": "custom"
+      }
+    ],
+    "name": "En cours de lecture",
+    "hint": "le morceau en cours, ou {song.title} / {song.artist} (Requêtes musicales)",
+    "description": "Le morceau en cours sur Spotify. {song.title} et {song.artist} donnent les deux moitiés séparément. Rien en lecture ne renvoie rien. Nécessite le module Requêtes musicales.",
+    "category": "queue",
+    "categories": [
+      "queue"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      }
+    ],
+    "requirementIds": [
+      "songqueue"
+    ],
+    "requirements": [
+      "Demandes de morceaux"
+    ],
+    "requirement": "Demandes de morceaux",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "song",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "songArtist",
+    "token": "{song.artist}",
+    "syntax": "{song.artist}",
+    "example": "{song.artist}",
+    "output": "Radiohead",
+    "syntaxes": [
+      "{song.artist}"
+    ],
+    "examples": [
+      {
+        "syntax": "{song.artist}",
+        "output": "Radiohead",
+        "surfaceId": "custom"
+      }
+    ],
+    "name": "Artiste de la chanson",
+    "hint": "seulement le nom de l’artiste, la seconde moitié de {song}",
+    "description": "Le nom de l’artiste seul, la seconde moitié de {song}. Rien en lecture ne renvoie rien. Nécessite le module Requêtes musicales.",
+    "category": "queue",
+    "categories": [
+      "queue"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      }
+    ],
+    "requirementIds": [
+      "songqueue"
+    ],
+    "requirements": [
+      "Demandes de morceaux"
+    ],
+    "requirement": "Demandes de morceaux",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "song.artist",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "songTitle",
+    "token": "{song.title}",
+    "syntax": "{song.title}",
+    "example": "{song.title}",
+    "output": "Everything In Its Right Place",
+    "syntaxes": [
+      "{song.title}"
+    ],
+    "examples": [
+      {
+        "syntax": "{song.title}",
+        "output": "Everything In Its Right Place",
+        "surfaceId": "custom"
+      }
+    ],
+    "name": "Titre de la chanson",
+    "hint": "seulement le titre du morceau, la première moitié de {song}",
+    "description": "Le titre du morceau seul, la première moitié de {song}. Rien en lecture ne renvoie rien. Nécessite le module Requêtes musicales.",
+    "category": "queue",
+    "categories": [
+      "queue"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      }
+    ],
+    "requirementIds": [
+      "songqueue"
+    ],
+    "requirements": [
+      "Demandes de morceaux"
+    ],
+    "requirement": "Demandes de morceaux",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "song.title",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "ago",
+    "token": "{ago}",
+    "syntax": "{ago}",
+    "example": "{ago}",
+    "output": "2m",
+    "syntaxes": [
+      "{ago}"
+    ],
+    "examples": [
+      {
+        "syntax": "{ago}",
+        "output": "2m",
+        "surfaceId": "mcsr-lastmatch"
+      }
+    ],
+    "name": "Il y a",
+    "hint": "",
+    "description": "Depuis quand ce match est terminé.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "mcsr-lastmatch"
+    ],
+    "surfaces": [
+      {
+        "id": "mcsr-lastmatch",
+        "group": "Stats de jeu",
+        "label": "MCSR: !lastmatch",
+        "dashPath": "/modules/mcsr"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "ago",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "bastion",
+    "token": "{bastion}",
+    "syntax": "{bastion}",
+    "example": "{bastion}",
+    "output": "3:55",
+    "syntaxes": [
+      "{bastion}"
+    ],
+    "examples": [
+      {
+        "syntax": "{bastion}",
+        "output": "3:55",
+        "surfaceId": "mcsr-pace"
+      }
+    ],
+    "name": "Moy Bastion",
+    "hint": "",
+    "description": "Split moyen du Bastion.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "mcsr-pace"
+    ],
+    "surfaces": [
+      {
+        "id": "mcsr-pace",
+        "group": "Stats de jeu",
+        "label": "MCSR: !pace",
+        "dashPath": "/modules/mcsr"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "bastion",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "beds",
+    "token": "{beds}",
+    "syntax": "{beds}",
+    "example": "{beds}",
+    "output": "9",
+    "syntaxes": [
+      "{beds}"
+    ],
+    "examples": [
+      {
+        "syntax": "{beds}",
+        "output": "9",
+        "surfaceId": "bw-session"
+      },
+      {
+        "syntax": "{beds}",
+        "output": "2000",
+        "surfaceId": "bwstats"
+      }
+    ],
+    "name": "Lits détruits",
+    "hint": "",
+    "description": "Lits détruits sur la période.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "bw-session",
+      "bwstats"
+    ],
+    "surfaces": [
+      {
+        "id": "bw-session",
+        "group": "Stats de jeu",
+        "label": "Bedwars: !daily / !weekly / !monthly",
+        "dashPath": "/modules/urchin"
+      },
+      {
+        "id": "bwstats",
+        "group": "Stats de jeu",
+        "label": "Bedwars: !bwstats (à vie)",
+        "dashPath": "/modules/urchin"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "beds",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "board",
+    "token": "{board}",
+    "syntax": "{board}",
+    "example": "{board}",
+    "output": "Elo",
+    "syntaxes": [
+      "{board}"
+    ],
+    "examples": [
+      {
+        "syntax": "{board}",
+        "output": "Elo",
+        "surfaceId": "mcsr-lb"
+      }
+    ],
+    "name": "Classement",
+    "hint": "",
+    "description": "Le classement qui a répondu.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "mcsr-lb"
+    ],
+    "surfaces": [
+      {
+        "id": "mcsr-lb",
+        "group": "Stats de jeu",
+        "label": "MCSR: !lb",
+        "dashPath": "/modules/mcsr"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "board",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "country",
+    "token": "{country}",
+    "syntax": "{country}",
+    "example": "{country}",
+    "output": "us",
+    "syntaxes": [
+      "{country}"
+    ],
+    "examples": [
+      {
+        "syntax": "{country}",
+        "output": "us",
+        "surfaceId": "elo"
+      }
+    ],
+    "name": "Pays",
+    "hint": "",
+    "description": "Code du pays.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "elo"
+    ],
+    "surfaces": [
+      {
+        "id": "elo",
+        "group": "Stats de jeu",
+        "label": "MCSR: !elo",
+        "dashPath": "/modules/mcsr"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "country",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "draws",
+    "token": "{draws}",
+    "syntax": "{draws}",
+    "example": "{draws}",
+    "output": "1",
+    "syntaxes": [
+      "{draws}"
+    ],
+    "examples": [
+      {
+        "syntax": "{draws}",
+        "output": "1",
+        "surfaceId": "elo"
+      },
+      {
+        "syntax": "{draws}",
+        "output": "0",
+        "surfaceId": "mcsr-session"
+      }
+    ],
+    "name": "Nuls",
+    "hint": "",
+    "description": "Matchs de la saison terminés sans vainqueur.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "elo",
+      "mcsr-session"
+    ],
+    "surfaces": [
+      {
+        "id": "elo",
+        "group": "Stats de jeu",
+        "label": "MCSR: !elo",
+        "dashPath": "/modules/mcsr"
+      },
+      {
+        "id": "mcsr-session",
+        "group": "Stats de jeu",
+        "label": "MCSR: !session",
+        "dashPath": "/modules/mcsr"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "draws",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "duokd",
+    "token": "{duokd}",
+    "syntax": "{duokd}",
+    "example": "{duokd}",
+    "output": "3.8",
+    "syntaxes": [
+      "{duokd}"
+    ],
+    "examples": [
+      {
+        "syntax": "{duokd}",
+        "output": "3.8",
+        "surfaceId": "fn-stats"
+      }
+    ],
+    "name": "K/D duo",
+    "hint": "",
+    "description": "Ratio éliminations/morts en duo.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "fn-stats"
+    ],
+    "surfaces": [
+      {
+        "id": "fn-stats",
+        "group": "Stats de jeu",
+        "label": "Fortnite: !fn / !fn season",
+        "dashPath": "/modules/fortnite"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "duokd",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "duomatches",
+    "token": "{duomatches}",
+    "syntax": "{duomatches}",
+    "example": "{duomatches}",
+    "output": "1900",
+    "syntaxes": [
+      "{duomatches}"
+    ],
+    "examples": [
+      {
+        "syntax": "{duomatches}",
+        "output": "1900",
+        "surfaceId": "fn-stats"
+      }
+    ],
+    "name": "Matchs duo",
+    "hint": "",
+    "description": "Matchs joués en duo.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "fn-stats"
+    ],
+    "surfaces": [
+      {
+        "id": "fn-stats",
+        "group": "Stats de jeu",
+        "label": "Fortnite: !fn / !fn season",
+        "dashPath": "/modules/fortnite"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "duomatches",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "duowins",
+    "token": "{duowins}",
+    "syntax": "{duowins}",
+    "example": "{duowins}",
+    "output": "90",
+    "syntaxes": [
+      "{duowins}"
+    ],
+    "examples": [
+      {
+        "syntax": "{duowins}",
+        "output": "90",
+        "surfaceId": "fn-stats"
+      }
+    ],
+    "name": "Victoires duo",
+    "hint": "",
+    "description": "Victoires en duo.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "fn-stats"
+    ],
+    "surfaces": [
+      {
+        "id": "fn-stats",
+        "group": "Stats de jeu",
+        "label": "Fortnite: !fn / !fn season",
+        "dashPath": "/modules/fortnite"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "duowins",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "elo",
+    "token": "{elo}",
+    "syntax": "{elo}",
+    "example": "{elo}",
+    "output": "1650",
+    "syntaxes": [
+      "{elo}"
+    ],
+    "examples": [
+      {
+        "syntax": "{elo}",
+        "output": "1650",
+        "surfaceId": "elo"
+      },
+      {
+        "syntax": "{elo}",
+        "output": "1660",
+        "surfaceId": "mcsr-session"
+      }
+    ],
+    "name": "Elo",
+    "hint": "",
+    "description": "Le classement actuel.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "elo",
+      "mcsr-session"
+    ],
+    "surfaces": [
+      {
+        "id": "elo",
+        "group": "Stats de jeu",
+        "label": "MCSR: !elo",
+        "dashPath": "/modules/mcsr"
+      },
+      {
+        "id": "mcsr-session",
+        "group": "Stats de jeu",
+        "label": "MCSR: !session",
+        "dashPath": "/modules/mcsr"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "elo",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "elochange",
+    "token": "{elochange}",
+    "syntax": "{elochange}",
+    "example": "{elochange}",
+    "output": "+24",
+    "syntaxes": [
+      "{elochange}"
+    ],
+    "examples": [
+      {
+        "syntax": "{elochange}",
+        "output": "+24",
+        "surfaceId": "mcsr-session"
+      },
+      {
+        "syntax": "{elochange}",
+        "output": "+21",
+        "surfaceId": "mcsr-lastmatch"
+      }
+    ],
+    "name": "Variation Elo",
+    "hint": "",
+    "description": "Variation depuis le début du stream.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "mcsr-session",
+      "mcsr-lastmatch"
+    ],
+    "surfaces": [
+      {
+        "id": "mcsr-session",
+        "group": "Stats de jeu",
+        "label": "MCSR: !session",
+        "dashPath": "/modules/mcsr"
+      },
+      {
+        "id": "mcsr-lastmatch",
+        "group": "Stats de jeu",
+        "label": "MCSR: !lastmatch",
+        "dashPath": "/modules/mcsr"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "elochange",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "end",
+    "token": "{end}",
+    "syntax": "{end}",
+    "example": "{end}",
+    "output": "13:50",
+    "syntaxes": [
+      "{end}"
+    ],
+    "examples": [
+      {
+        "syntax": "{end}",
+        "output": "13:50",
+        "surfaceId": "mcsr-pace"
+      }
+    ],
+    "name": "Moy End",
+    "hint": "",
+    "description": "Split moyen d'entrée dans l'End.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "mcsr-pace"
+    ],
+    "surfaces": [
+      {
+        "id": "mcsr-pace",
+        "group": "Stats de jeu",
+        "label": "MCSR: !pace",
+        "dashPath": "/modules/mcsr"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "end",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "finaldeaths",
+    "token": "{finaldeaths}",
+    "syntax": "{finaldeaths}",
+    "example": "{finaldeaths}",
+    "output": "3",
+    "syntaxes": [
+      "{finaldeaths}"
+    ],
+    "examples": [
+      {
+        "syntax": "{finaldeaths}",
+        "output": "3",
+        "surfaceId": "bw-session"
+      },
+      {
+        "syntax": "{finaldeaths}",
+        "output": "500",
+        "surfaceId": "bwstats"
+      }
+    ],
+    "name": "Morts finales",
+    "hint": "",
+    "description": "Morts finales sur la période.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "bw-session",
+      "bwstats"
+    ],
+    "surfaces": [
+      {
+        "id": "bw-session",
+        "group": "Stats de jeu",
+        "label": "Bedwars: !daily / !weekly / !monthly",
+        "dashPath": "/modules/urchin"
+      },
+      {
+        "id": "bwstats",
+        "group": "Stats de jeu",
+        "label": "Bedwars: !bwstats (à vie)",
+        "dashPath": "/modules/urchin"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "finaldeaths",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "finals",
+    "token": "{finals}",
+    "syntax": "{finals}",
+    "example": "{finals}",
+    "output": "21",
+    "syntaxes": [
+      "{finals}"
+    ],
+    "examples": [
+      {
+        "syntax": "{finals}",
+        "output": "21",
+        "surfaceId": "bw-session"
+      },
+      {
+        "syntax": "{finals}",
+        "output": "5000",
+        "surfaceId": "bwstats"
+      }
+    ],
+    "name": "Final kills",
+    "hint": "",
+    "description": "Final kills sur la période.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "bw-session",
+      "bwstats"
+    ],
+    "surfaces": [
+      {
+        "id": "bw-session",
+        "group": "Stats de jeu",
+        "label": "Bedwars: !daily / !weekly / !monthly",
+        "dashPath": "/modules/urchin"
+      },
+      {
+        "id": "bwstats",
+        "group": "Stats de jeu",
+        "label": "Bedwars: !bwstats (à vie)",
+        "dashPath": "/modules/urchin"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "finals",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "finish",
+    "token": "{finish}",
+    "syntax": "{finish}",
+    "example": "{finish}",
+    "output": "0:00",
+    "syntaxes": [
+      "{finish}"
+    ],
+    "examples": [
+      {
+        "syntax": "{finish}",
+        "output": "0:00",
+        "surfaceId": "mcsr-pace"
+      }
+    ],
+    "name": "Moy Finish",
+    "hint": "",
+    "description": "Split moyen de fin de run.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "mcsr-pace"
+    ],
+    "surfaces": [
+      {
+        "id": "mcsr-pace",
+        "group": "Stats de jeu",
+        "label": "MCSR: !pace",
+        "dashPath": "/modules/mcsr"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "finish",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "firstportal",
+    "token": "{firstportal}",
+    "syntax": "{firstportal}",
+    "example": "{firstportal}",
+    "output": "9:20",
+    "syntaxes": [
+      "{firstportal}"
+    ],
+    "examples": [
+      {
+        "syntax": "{firstportal}",
+        "output": "9:20",
+        "surfaceId": "mcsr-pace"
+      }
+    ],
+    "name": "Moy 1er portail",
+    "hint": "",
+    "description": "Split moyen du premier portail.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "mcsr-pace"
+    ],
+    "surfaces": [
+      {
+        "id": "mcsr-pace",
+        "group": "Stats de jeu",
+        "label": "MCSR: !pace",
+        "dashPath": "/modules/mcsr"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "firstportal",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "firststructure",
+    "token": "{firststructure}",
+    "syntax": "{firststructure}",
+    "example": "{firststructure}",
+    "output": "3:55",
+    "syntaxes": [
+      "{firststructure}"
+    ],
+    "examples": [
+      {
+        "syntax": "{firststructure}",
+        "output": "3:55",
+        "surfaceId": "mcsr-pace"
+      }
+    ],
+    "name": "Moy 1re structure",
+    "hint": "",
+    "description": "Split moyen de la structure entrée en premier.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "mcsr-pace"
+    ],
+    "surfaces": [
+      {
+        "id": "mcsr-pace",
+        "group": "Stats de jeu",
+        "label": "MCSR: !pace",
+        "dashPath": "/modules/mcsr"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "firststructure",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "fkdr",
+    "token": "{fkdr}",
+    "syntax": "{fkdr}",
+    "example": "{fkdr}",
+    "output": "7.00",
+    "syntaxes": [
+      "{fkdr}"
+    ],
+    "examples": [
+      {
+        "syntax": "{fkdr}",
+        "output": "7.00",
+        "surfaceId": "bw-session"
+      },
+      {
+        "syntax": "{fkdr}",
+        "output": "10.00",
+        "surfaceId": "bwstats"
+      }
+    ],
+    "name": "FKDR",
+    "hint": "",
+    "description": "Final kills divisés par les morts finales.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "bw-session",
+      "bwstats"
+    ],
+    "surfaces": [
+      {
+        "id": "bw-session",
+        "group": "Stats de jeu",
+        "label": "Bedwars: !daily / !weekly / !monthly",
+        "dashPath": "/modules/urchin"
+      },
+      {
+        "id": "bwstats",
+        "group": "Stats de jeu",
+        "label": "Bedwars: !bwstats (à vie)",
+        "dashPath": "/modules/urchin"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "fkdr",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "fortress",
+    "token": "{fortress}",
+    "syntax": "{fortress}",
+    "example": "{fortress}",
+    "output": "7:12",
+    "syntaxes": [
+      "{fortress}"
+    ],
+    "examples": [
+      {
+        "syntax": "{fortress}",
+        "output": "7:12",
+        "surfaceId": "mcsr-pace"
+      }
+    ],
+    "name": "Moy Forteresse",
+    "hint": "",
+    "description": "Split moyen de la Forteresse.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "mcsr-pace"
+    ],
+    "surfaces": [
+      {
+        "id": "mcsr-pace",
+        "group": "Stats de jeu",
+        "label": "MCSR: !pace",
+        "dashPath": "/modules/mcsr"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "fortress",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "games",
+    "token": "{games}",
+    "syntax": "{games}",
+    "example": "{games}",
+    "output": "8",
+    "syntaxes": [
+      "{games}"
+    ],
+    "examples": [
+      {
+        "syntax": "{games}",
+        "output": "8",
+        "surfaceId": "bw-session"
+      }
+    ],
+    "name": "Parties",
+    "hint": "",
+    "description": "Parties jouées sur la période.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "bw-session"
+    ],
+    "surfaces": [
+      {
+        "id": "bw-session",
+        "group": "Stats de jeu",
+        "label": "Bedwars: !daily / !weekly / !monthly",
+        "dashPath": "/modules/urchin"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "games",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "items",
+    "token": "{items}",
+    "syntax": "{items}",
+    "example": "{items}",
+    "output": "Peely Bundle (2800), Renegade Raider (1200), Floss (500) +35 more",
+    "syntaxes": [
+      "{items}"
+    ],
+    "examples": [
+      {
+        "syntax": "{items}",
+        "output": "Peely Bundle (2800), Renegade Raider (1200), Floss (500) +35 more",
+        "surfaceId": "fn-store"
+      }
+    ],
+    "name": "Liste des objets",
+    "hint": "",
+    "description": "Les objets en vedette.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "fn-store"
+    ],
+    "surfaces": [
+      {
+        "id": "fn-store",
+        "group": "Stats de jeu",
+        "label": "Fortnite: !fn store",
+        "dashPath": "/modules/fortnite"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "items",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "kd",
+    "token": "{kd}",
+    "syntax": "{kd}",
+    "example": "{kd}",
+    "output": "3.66",
+    "syntaxes": [
+      "{kd}"
+    ],
+    "examples": [
+      {
+        "syntax": "{kd}",
+        "output": "3.66",
+        "surfaceId": "fn-stats"
+      }
+    ],
+    "name": "K/D",
+    "hint": "",
+    "description": "Ratio éliminations/morts.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "fn-stats"
+    ],
+    "surfaces": [
+      {
+        "id": "fn-stats",
+        "group": "Stats de jeu",
+        "label": "Fortnite: !fn / !fn season",
+        "dashPath": "/modules/fortnite"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "kd",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "kills",
+    "token": "{kills}",
+    "syntax": "{kills}",
+    "example": "{kills}",
+    "output": "21679",
+    "syntaxes": [
+      "{kills}"
+    ],
+    "examples": [
+      {
+        "syntax": "{kills}",
+        "output": "21679",
+        "surfaceId": "fn-stats"
+      }
+    ],
+    "name": "Éliminations",
+    "hint": "",
+    "description": "Total d’éliminations.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "fn-stats"
+    ],
+    "surfaces": [
+      {
+        "id": "fn-stats",
+        "group": "Stats de jeu",
+        "label": "Fortnite: !fn / !fn season",
+        "dashPath": "/modules/fortnite"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "kills",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "leader",
+    "token": "{leader}",
+    "syntax": "{leader}",
+    "example": "{leader}",
+    "output": "gharfyy",
+    "syntaxes": [
+      "{leader}"
+    ],
+    "examples": [
+      {
+        "syntax": "{leader}",
+        "output": "gharfyy",
+        "surfaceId": "mcsr-race"
+      }
+    ],
+    "name": "Meneur",
+    "hint": "",
+    "description": "Le premier de cette semaine.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "mcsr-race"
+    ],
+    "surfaces": [
+      {
+        "id": "mcsr-race",
+        "group": "Stats de jeu",
+        "label": "MCSR: !race",
+        "dashPath": "/modules/mcsr"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "leader",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "leadertime",
+    "token": "{leadertime}",
+    "syntax": "{leadertime}",
+    "example": "{leadertime}",
+    "output": "2:27.374",
+    "syntaxes": [
+      "{leadertime}"
+    ],
+    "examples": [
+      {
+        "syntax": "{leadertime}",
+        "output": "2:27.374",
+        "surfaceId": "mcsr-race"
+      }
+    ],
+    "name": "Temps du meneur",
+    "hint": "",
+    "description": "Le temps du meneur.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "mcsr-race"
+    ],
+    "surfaces": [
+      {
+        "id": "mcsr-race",
+        "group": "Stats de jeu",
+        "label": "MCSR: !race",
+        "dashPath": "/modules/mcsr"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "leadertime",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "levels",
+    "token": "{levels}",
+    "syntax": "{levels}",
+    "example": "{levels}",
+    "output": "1",
+    "syntaxes": [
+      "{levels}"
+    ],
+    "examples": [
+      {
+        "syntax": "{levels}",
+        "output": "1",
+        "surfaceId": "bw-session"
+      }
+    ],
+    "name": "Niveaux gagnés",
+    "hint": "",
+    "description": "Niveaux d’étoile gagnés.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "bw-session"
+    ],
+    "surfaces": [
+      {
+        "id": "bw-session",
+        "group": "Stats de jeu",
+        "label": "Bedwars: !daily / !weekly / !monthly",
+        "dashPath": "/modules/urchin"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "levels",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "list",
+    "token": "{list}",
+    "syntax": "{list}",
+    "example": "{list}",
+    "output": "#1 Feinberg 2464 · #2 lowk3y_ 2436",
+    "syntaxes": [
+      "{list}"
+    ],
+    "examples": [
+      {
+        "syntax": "{list}",
+        "output": "#1 Feinberg 2464 · #2 lowk3y_ 2436",
+        "surfaceId": "mcsr-lb"
+      }
+    ],
+    "name": "Top 5",
+    "hint": "",
+    "description": "Les 5 premières lignes, préformatées sur une seule ligne.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "mcsr-lb"
+    ],
+    "surfaces": [
+      {
+        "id": "mcsr-lb",
+        "group": "Stats de jeu",
+        "label": "MCSR: !lb",
+        "dashPath": "/modules/mcsr"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "list",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "losses",
+    "token": "{losses}",
+    "syntax": "{losses}",
+    "example": "{losses}",
+    "output": "2",
+    "syntaxes": [
+      "{losses}"
+    ],
+    "examples": [
+      {
+        "syntax": "{losses}",
+        "output": "2",
+        "surfaceId": "bw-session"
+      },
+      {
+        "syntax": "{losses}",
+        "output": "100",
+        "surfaceId": "bwstats"
+      },
+      {
+        "syntax": "{losses}",
+        "output": "20",
+        "surfaceId": "elo"
+      },
+      {
+        "syntax": "{losses}",
+        "output": "1",
+        "surfaceId": "mcsr-session"
+      }
+    ],
+    "name": "Défaites",
+    "hint": "",
+    "description": "Défaites sur la période.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "bw-session",
+      "bwstats",
+      "elo",
+      "mcsr-session"
+    ],
+    "surfaces": [
+      {
+        "id": "bw-session",
+        "group": "Stats de jeu",
+        "label": "Bedwars: !daily / !weekly / !monthly",
+        "dashPath": "/modules/urchin"
+      },
+      {
+        "id": "bwstats",
+        "group": "Stats de jeu",
+        "label": "Bedwars: !bwstats (à vie)",
+        "dashPath": "/modules/urchin"
+      },
+      {
+        "id": "elo",
+        "group": "Stats de jeu",
+        "label": "MCSR: !elo",
+        "dashPath": "/modules/mcsr"
+      },
+      {
+        "id": "mcsr-session",
+        "group": "Stats de jeu",
+        "label": "MCSR: !session",
+        "dashPath": "/modules/mcsr"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "losses",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "matches",
+    "token": "{matches}",
+    "syntax": "{matches}",
+    "example": "{matches}",
+    "output": "61",
+    "syntaxes": [
+      "{matches}"
+    ],
+    "examples": [
+      {
+        "syntax": "{matches}",
+        "output": "61",
+        "surfaceId": "elo"
+      },
+      {
+        "syntax": "{matches}",
+        "output": "4",
+        "surfaceId": "mcsr-session"
+      },
+      {
+        "syntax": "{matches}",
+        "output": "6232",
+        "surfaceId": "fn-stats"
+      }
+    ],
+    "name": "Matchs",
+    "hint": "",
+    "description": "Matchs de la saison.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "elo",
+      "mcsr-session",
+      "fn-stats"
+    ],
+    "surfaces": [
+      {
+        "id": "elo",
+        "group": "Stats de jeu",
+        "label": "MCSR: !elo",
+        "dashPath": "/modules/mcsr"
+      },
+      {
+        "id": "mcsr-session",
+        "group": "Stats de jeu",
+        "label": "MCSR: !session",
+        "dashPath": "/modules/mcsr"
+      },
+      {
+        "id": "fn-stats",
+        "group": "Stats de jeu",
+        "label": "Fortnite: !fn / !fn season",
+        "dashPath": "/modules/fortnite"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "matches",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "mode",
+    "token": "{mode}",
+    "syntax": "{mode}",
+    "example": "{mode}",
+    "output": "warn",
+    "syntaxes": [
+      "{mode}"
+    ],
+    "examples": [
+      {
+        "syntax": "{mode}",
+        "output": "warn",
+        "surfaceId": "sniper"
+      }
+    ],
+    "name": "Mode",
+    "hint": "",
+    "description": "Le mode d'avertissement actuel.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "sniper"
+    ],
+    "surfaces": [
+      {
+        "id": "sniper",
+        "group": "Stats de jeu",
+        "label": "Bedwars: !sniper",
+        "dashPath": "/modules/urchin"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "mode",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "nether",
+    "token": "{nether}",
+    "syntax": "{nether}",
+    "example": "{nether}",
+    "output": "1:42",
+    "syntaxes": [
+      "{nether}"
+    ],
+    "examples": [
+      {
+        "syntax": "{nether}",
+        "output": "1:42",
+        "surfaceId": "mcsr-pace"
+      },
+      {
+        "syntax": "{nether}",
+        "output": "1:42",
+        "surfaceId": "mcsr-nethers"
+      }
+    ],
+    "name": "Moy Nether",
+    "hint": "",
+    "description": "Split moyen du Nether.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "mcsr-pace",
+      "mcsr-nethers"
+    ],
+    "surfaces": [
+      {
+        "id": "mcsr-pace",
+        "group": "Stats de jeu",
+        "label": "MCSR: !pace",
+        "dashPath": "/modules/mcsr"
+      },
+      {
+        "id": "mcsr-nethers",
+        "group": "Stats de jeu",
+        "label": "MCSR: !nethers",
+        "dashPath": "/modules/mcsr"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "nether",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "nethers",
+    "token": "{nethers}",
+    "syntax": "{nethers}",
+    "example": "{nethers}",
+    "output": "3",
+    "syntaxes": [
+      "{nethers}"
+    ],
+    "examples": [
+      {
+        "syntax": "{nethers}",
+        "output": "3",
+        "surfaceId": "mcsr-pace"
+      },
+      {
+        "syntax": "{nethers}",
+        "output": "3",
+        "surfaceId": "mcsr-nethers"
+      }
+    ],
+    "name": "Nethers",
+    "hint": "",
+    "description": "Entrées au Nether pour cette session.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "mcsr-pace",
+      "mcsr-nethers"
+    ],
+    "surfaces": [
+      {
+        "id": "mcsr-pace",
+        "group": "Stats de jeu",
+        "label": "MCSR: !pace",
+        "dashPath": "/modules/mcsr"
+      },
+      {
+        "id": "mcsr-nethers",
+        "group": "Stats de jeu",
+        "label": "MCSR: !nethers",
+        "dashPath": "/modules/mcsr"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "nethers",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "nph",
+    "token": "{nph}",
+    "syntax": "{nph}",
+    "example": "{nph}",
+    "output": "5.3",
+    "syntaxes": [
+      "{nph}"
+    ],
+    "examples": [
+      {
+        "syntax": "{nph}",
+        "output": "5.3",
+        "surfaceId": "mcsr-pace"
+      },
+      {
+        "syntax": "{nph}",
+        "output": "5.3",
+        "surfaceId": "mcsr-nethers"
+      }
+    ],
+    "name": "Nethers/heure",
+    "hint": "",
+    "description": "Rythme d'entrée au Nether.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "mcsr-pace",
+      "mcsr-nethers"
+    ],
+    "surfaces": [
+      {
+        "id": "mcsr-pace",
+        "group": "Stats de jeu",
+        "label": "MCSR: !pace",
+        "dashPath": "/modules/mcsr"
+      },
+      {
+        "id": "mcsr-nethers",
+        "group": "Stats de jeu",
+        "label": "MCSR: !nethers",
+        "dashPath": "/modules/mcsr"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "nph",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "opponent",
+    "token": "{opponent}",
+    "syntax": "{opponent}",
+    "example": "{opponent}",
+    "output": "lowk3y_",
+    "syntaxes": [
+      "{opponent}"
+    ],
+    "examples": [
+      {
+        "syntax": "{opponent}",
+        "output": "lowk3y_",
+        "surfaceId": "mcsr-lastmatch"
+      }
+    ],
+    "name": "Adversaire",
+    "hint": "",
+    "description": "L'autre joueur de ce match.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "mcsr-lastmatch"
+    ],
+    "surfaces": [
+      {
+        "id": "mcsr-lastmatch",
+        "group": "Stats de jeu",
+        "label": "MCSR: !lastmatch",
+        "dashPath": "/modules/mcsr"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "opponent",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "played",
+    "token": "{played}",
+    "syntax": "{played}",
+    "example": "{played}",
+    "output": "34",
+    "syntaxes": [
+      "{played}"
+    ],
+    "examples": [
+      {
+        "syntax": "{played}",
+        "output": "34",
+        "surfaceId": "mcsr-record"
+      }
+    ],
+    "name": "Joués",
+    "hint": "",
+    "description": "Total des matchs entre les deux.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "mcsr-record"
+    ],
+    "surfaces": [
+      {
+        "id": "mcsr-record",
+        "group": "Stats de jeu",
+        "label": "MCSR: !record",
+        "dashPath": "/modules/mcsr"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "played",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "player",
+    "token": "{player}",
+    "syntax": "{player}",
+    "example": "{player}",
+    "output": "Technoblade",
+    "syntaxes": [
+      "{player}"
+    ],
+    "examples": [
+      {
+        "syntax": "{player}",
+        "output": "Technoblade",
+        "surfaceId": "bw-session"
+      },
+      {
+        "syntax": "{player}",
+        "output": "Technoblade",
+        "surfaceId": "bwstats"
+      },
+      {
+        "syntax": "{player}",
+        "output": "Technoblade",
+        "surfaceId": "sniper"
+      },
+      {
+        "syntax": "{player}",
+        "output": "Technoblade",
+        "surfaceId": "tags"
+      },
+      {
+        "syntax": "{player}",
+        "output": "Feinberg",
+        "surfaceId": "elo"
+      },
+      {
+        "syntax": "{player}",
+        "output": "Feinberg",
+        "surfaceId": "mcsr-session"
+      },
+      {
+        "syntax": "{player}",
+        "output": "Feinberg",
+        "surfaceId": "mcsr-pace"
+      },
+      {
+        "syntax": "{player}",
+        "output": "Feinberg",
+        "surfaceId": "mcsr-nethers"
+      },
+      {
+        "syntax": "{player}",
+        "output": "Feinberg",
+        "surfaceId": "mcsr-lastmatch"
+      },
+      {
+        "syntax": "{player}",
+        "output": "Feinberg",
+        "surfaceId": "mcsr-race"
+      },
+      {
+        "syntax": "{player}",
+        "output": "Feinberg",
+        "surfaceId": "mcsr-pb"
+      },
+      {
+        "syntax": "{player}",
+        "output": "Ninja",
+        "surfaceId": "fn-stats"
+      }
+    ],
+    "name": "Joueur",
+    "hint": "",
+    "description": "Le joueur Minecraft résolu.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "bw-session",
+      "bwstats",
+      "sniper",
+      "tags",
+      "elo",
+      "mcsr-session",
+      "mcsr-pace",
+      "mcsr-nethers",
+      "mcsr-lastmatch",
+      "mcsr-race",
+      "mcsr-pb",
+      "fn-stats"
+    ],
+    "surfaces": [
+      {
+        "id": "bw-session",
+        "group": "Stats de jeu",
+        "label": "Bedwars: !daily / !weekly / !monthly",
+        "dashPath": "/modules/urchin"
+      },
+      {
+        "id": "bwstats",
+        "group": "Stats de jeu",
+        "label": "Bedwars: !bwstats (à vie)",
+        "dashPath": "/modules/urchin"
+      },
+      {
+        "id": "sniper",
+        "group": "Stats de jeu",
+        "label": "Bedwars: !sniper",
+        "dashPath": "/modules/urchin"
+      },
+      {
+        "id": "tags",
+        "group": "Stats de jeu",
+        "label": "Bedwars: !tag / !tagdescription",
+        "dashPath": "/modules/urchin"
+      },
+      {
+        "id": "elo",
+        "group": "Stats de jeu",
+        "label": "MCSR: !elo",
+        "dashPath": "/modules/mcsr"
+      },
+      {
+        "id": "mcsr-session",
+        "group": "Stats de jeu",
+        "label": "MCSR: !session",
+        "dashPath": "/modules/mcsr"
+      },
+      {
+        "id": "mcsr-pace",
+        "group": "Stats de jeu",
+        "label": "MCSR: !pace",
+        "dashPath": "/modules/mcsr"
+      },
+      {
+        "id": "mcsr-nethers",
+        "group": "Stats de jeu",
+        "label": "MCSR: !nethers",
+        "dashPath": "/modules/mcsr"
+      },
+      {
+        "id": "mcsr-lastmatch",
+        "group": "Stats de jeu",
+        "label": "MCSR: !lastmatch",
+        "dashPath": "/modules/mcsr"
+      },
+      {
+        "id": "mcsr-race",
+        "group": "Stats de jeu",
+        "label": "MCSR: !race",
+        "dashPath": "/modules/mcsr"
+      },
+      {
+        "id": "mcsr-pb",
+        "group": "Stats de jeu",
+        "label": "MCSR: !pb",
+        "dashPath": "/modules/mcsr"
+      },
+      {
+        "id": "fn-stats",
+        "group": "Stats de jeu",
+        "label": "Fortnite: !fn / !fn season",
+        "dashPath": "/modules/fortnite"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "player",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "playera",
+    "token": "{playera}",
+    "syntax": "{playera}",
+    "example": "{playera}",
+    "output": "Feinberg",
+    "syntaxes": [
+      "{playera}"
+    ],
+    "examples": [
+      {
+        "syntax": "{playera}",
+        "output": "Feinberg",
+        "surfaceId": "mcsr-record"
+      }
+    ],
+    "name": "Joueur A",
+    "hint": "",
+    "description": "Le premier joueur tapé (ou vous, si un seul nom est tapé).",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "mcsr-record"
+    ],
+    "surfaces": [
+      {
+        "id": "mcsr-record",
+        "group": "Stats de jeu",
+        "label": "MCSR: !record",
+        "dashPath": "/modules/mcsr"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "playera",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "playerb",
+    "token": "{playerb}",
+    "syntax": "{playerb}",
+    "example": "{playerb}",
+    "output": "lowk3y_",
+    "syntaxes": [
+      "{playerb}"
+    ],
+    "examples": [
+      {
+        "syntax": "{playerb}",
+        "output": "lowk3y_",
+        "surfaceId": "mcsr-record"
+      }
+    ],
+    "name": "Joueur B",
+    "hint": "",
+    "description": "Le second joueur tapé.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "mcsr-record"
+    ],
+    "surfaces": [
+      {
+        "id": "mcsr-record",
+        "group": "Stats de jeu",
+        "label": "MCSR: !record",
+        "dashPath": "/modules/mcsr"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "playerb",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "rank",
+    "token": "{rank}",
+    "syntax": "{rank}",
+    "example": "{rank}",
+    "output": "12",
+    "syntaxes": [
+      "{rank}"
+    ],
+    "examples": [
+      {
+        "syntax": "{rank}",
+        "output": "12",
+        "surfaceId": "elo"
+      },
+      {
+        "syntax": "{rank}",
+        "output": "2",
+        "surfaceId": "mcsr-race"
+      }
+    ],
+    "name": "Rang",
+    "hint": "",
+    "description": "Rang au classement.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "elo",
+      "mcsr-race"
+    ],
+    "surfaces": [
+      {
+        "id": "elo",
+        "group": "Stats de jeu",
+        "label": "MCSR: !elo",
+        "dashPath": "/modules/mcsr"
+      },
+      {
+        "id": "mcsr-race",
+        "group": "Stats de jeu",
+        "label": "MCSR: !race",
+        "dashPath": "/modules/mcsr"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "rank",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "result",
+    "token": "{result}",
+    "syntax": "{result}",
+    "example": "{result}",
+    "output": "won",
+    "syntaxes": [
+      "{result}"
+    ],
+    "examples": [
+      {
+        "syntax": "{result}",
+        "output": "won",
+        "surfaceId": "mcsr-lastmatch"
+      }
+    ],
+    "name": "Résultat",
+    "hint": "",
+    "description": "Victoire, défaite ou nul. Les forfaits et matchs de déclin sont aussi signalés.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "mcsr-lastmatch"
+    ],
+    "surfaces": [
+      {
+        "id": "mcsr-lastmatch",
+        "group": "Stats de jeu",
+        "label": "MCSR: !lastmatch",
+        "dashPath": "/modules/mcsr"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "result",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "score",
+    "token": "{score}",
+    "syntax": "{score}",
+    "example": "{score}",
+    "output": "7.5",
+    "syntaxes": [
+      "{score}"
+    ],
+    "examples": [
+      {
+        "syntax": "{score}",
+        "output": "7.5",
+        "surfaceId": "sniper"
+      }
+    ],
+    "name": "Score sniper",
+    "hint": "",
+    "description": "Le score actuel.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "sniper"
+    ],
+    "surfaces": [
+      {
+        "id": "sniper",
+        "group": "Stats de jeu",
+        "label": "Bedwars: !sniper",
+        "dashPath": "/modules/urchin"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "score",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "secondstructure",
+    "token": "{secondstructure}",
+    "syntax": "{secondstructure}",
+    "example": "{secondstructure}",
+    "output": "7:12",
+    "syntaxes": [
+      "{secondstructure}"
+    ],
+    "examples": [
+      {
+        "syntax": "{secondstructure}",
+        "output": "7:12",
+        "surfaceId": "mcsr-pace"
+      }
+    ],
+    "name": "Moy 2e structure",
+    "hint": "",
+    "description": "Split moyen de la structure entrée en second.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "mcsr-pace"
+    ],
+    "surfaces": [
+      {
+        "id": "mcsr-pace",
+        "group": "Stats de jeu",
+        "label": "MCSR: !pace",
+        "dashPath": "/modules/mcsr"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "secondstructure",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "seed",
+    "token": "{seed}",
+    "syntax": "{seed}",
+    "example": "{seed}",
+    "output": "Desert Temple",
+    "syntaxes": [
+      "{seed}"
+    ],
+    "examples": [
+      {
+        "syntax": "{seed}",
+        "output": "Desert Temple",
+        "surfaceId": "mcsr-lastmatch"
+      }
+    ],
+    "name": "Seed",
+    "hint": "",
+    "description": "Le type de seed de ce match.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "mcsr-lastmatch"
+    ],
+    "surfaces": [
+      {
+        "id": "mcsr-lastmatch",
+        "group": "Stats de jeu",
+        "label": "MCSR: !lastmatch",
+        "dashPath": "/modules/mcsr"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "seed",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "solokd",
+    "token": "{solokd}",
+    "syntax": "{solokd}",
+    "example": "{solokd}",
+    "output": "3.2",
+    "syntaxes": [
+      "{solokd}"
+    ],
+    "examples": [
+      {
+        "syntax": "{solokd}",
+        "output": "3.2",
+        "surfaceId": "fn-stats"
+      }
+    ],
+    "name": "K/D solo",
+    "hint": "",
+    "description": "Ratio éliminations/morts en solo.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "fn-stats"
+    ],
+    "surfaces": [
+      {
+        "id": "fn-stats",
+        "group": "Stats de jeu",
+        "label": "Fortnite: !fn / !fn season",
+        "dashPath": "/modules/fortnite"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "solokd",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "solomatches",
+    "token": "{solomatches}",
+    "syntax": "{solomatches}",
+    "example": "{solomatches}",
+    "output": "2400",
+    "syntaxes": [
+      "{solomatches}"
+    ],
+    "examples": [
+      {
+        "syntax": "{solomatches}",
+        "output": "2400",
+        "surfaceId": "fn-stats"
+      }
+    ],
+    "name": "Matchs solo",
+    "hint": "",
+    "description": "Matchs joués en solo.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "fn-stats"
+    ],
+    "surfaces": [
+      {
+        "id": "fn-stats",
+        "group": "Stats de jeu",
+        "label": "Fortnite: !fn / !fn season",
+        "dashPath": "/modules/fortnite"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "solomatches",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "solowins",
+    "token": "{solowins}",
+    "syntax": "{solowins}",
+    "example": "{solowins}",
+    "output": "120",
+    "syntaxes": [
+      "{solowins}"
+    ],
+    "examples": [
+      {
+        "syntax": "{solowins}",
+        "output": "120",
+        "surfaceId": "fn-stats"
+      }
+    ],
+    "name": "Victoires solo",
+    "hint": "",
+    "description": "Victoires en solo.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "fn-stats"
+    ],
+    "surfaces": [
+      {
+        "id": "fn-stats",
+        "group": "Stats de jeu",
+        "label": "Fortnite: !fn / !fn season",
+        "dashPath": "/modules/fortnite"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "solowins",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "squadkd",
+    "token": "{squadkd}",
+    "syntax": "{squadkd}",
+    "example": "{squadkd}",
+    "output": "4.1",
+    "syntaxes": [
+      "{squadkd}"
+    ],
+    "examples": [
+      {
+        "syntax": "{squadkd}",
+        "output": "4.1",
+        "surfaceId": "fn-stats"
+      }
+    ],
+    "name": "K/D squad",
+    "hint": "",
+    "description": "Ratio éliminations/morts en squad.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "fn-stats"
+    ],
+    "surfaces": [
+      {
+        "id": "fn-stats",
+        "group": "Stats de jeu",
+        "label": "Fortnite: !fn / !fn season",
+        "dashPath": "/modules/fortnite"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "squadkd",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "squadmatches",
+    "token": "{squadmatches}",
+    "syntax": "{squadmatches}",
+    "example": "{squadmatches}",
+    "output": "1932",
+    "syntaxes": [
+      "{squadmatches}"
+    ],
+    "examples": [
+      {
+        "syntax": "{squadmatches}",
+        "output": "1932",
+        "surfaceId": "fn-stats"
+      }
+    ],
+    "name": "Matchs squad",
+    "hint": "",
+    "description": "Matchs joués en squad.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "fn-stats"
+    ],
+    "surfaces": [
+      {
+        "id": "fn-stats",
+        "group": "Stats de jeu",
+        "label": "Fortnite: !fn / !fn season",
+        "dashPath": "/modules/fortnite"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "squadmatches",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "squadwins",
+    "token": "{squadwins}",
+    "syntax": "{squadwins}",
+    "example": "{squadwins}",
+    "output": "91",
+    "syntaxes": [
+      "{squadwins}"
+    ],
+    "examples": [
+      {
+        "syntax": "{squadwins}",
+        "output": "91",
+        "surfaceId": "fn-stats"
+      }
+    ],
+    "name": "Victoires squad",
+    "hint": "",
+    "description": "Victoires en squad.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "fn-stats"
+    ],
+    "surfaces": [
+      {
+        "id": "fn-stats",
+        "group": "Stats de jeu",
+        "label": "Fortnite: !fn / !fn season",
+        "dashPath": "/modules/fortnite"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "squadwins",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "stars",
+    "token": "{stars}",
+    "syntax": "{stars}",
+    "example": "{stars}",
+    "output": "402",
+    "syntaxes": [
+      "{stars}"
+    ],
+    "examples": [
+      {
+        "syntax": "{stars}",
+        "output": "402",
+        "surfaceId": "bwstats"
+      }
+    ],
+    "name": "Étoiles",
+    "hint": "",
+    "description": "Niveau d’étoile Bedwars.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "bwstats"
+    ],
+    "surfaces": [
+      {
+        "id": "bwstats",
+        "group": "Stats de jeu",
+        "label": "Bedwars: !bwstats (à vie)",
+        "dashPath": "/modules/urchin"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "stars",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "stronghold",
+    "token": "{stronghold}",
+    "syntax": "{stronghold}",
+    "example": "{stronghold}",
+    "output": "12:05",
+    "syntaxes": [
+      "{stronghold}"
+    ],
+    "examples": [
+      {
+        "syntax": "{stronghold}",
+        "output": "12:05",
+        "surfaceId": "mcsr-pace"
+      }
+    ],
+    "name": "Moy Forteresse de fin",
+    "hint": "",
+    "description": "Split moyen de la forteresse de fin.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "mcsr-pace"
+    ],
+    "surfaces": [
+      {
+        "id": "mcsr-pace",
+        "group": "Stats de jeu",
+        "label": "MCSR: !pace",
+        "dashPath": "/modules/mcsr"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "stronghold",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "structure",
+    "token": "{structure}",
+    "syntax": "{structure}",
+    "example": "{structure}",
+    "output": "Treasure",
+    "syntaxes": [
+      "{structure}"
+    ],
+    "examples": [
+      {
+        "syntax": "{structure}",
+        "output": "Treasure",
+        "surfaceId": "mcsr-lastmatch"
+      }
+    ],
+    "name": "Structure",
+    "hint": "",
+    "description": "Le type de structure du bastion pour ce match.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "mcsr-lastmatch"
+    ],
+    "surfaces": [
+      {
+        "id": "mcsr-lastmatch",
+        "group": "Stats de jeu",
+        "label": "MCSR: !lastmatch",
+        "dashPath": "/modules/mcsr"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "structure",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "tagcount",
+    "token": "{tagcount}",
+    "syntax": "{tagcount}",
+    "example": "{tagcount}",
+    "output": "1",
+    "syntaxes": [
+      "{tagcount}"
+    ],
+    "examples": [
+      {
+        "syntax": "{tagcount}",
+        "output": "1",
+        "surfaceId": "sniper"
+      },
+      {
+        "syntax": "{tagcount}",
+        "output": "1",
+        "surfaceId": "tags"
+      }
+    ],
+    "name": "Nombre de tags",
+    "hint": "",
+    "description": "Tags de liste noire actifs.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "sniper",
+      "tags"
+    ],
+    "surfaces": [
+      {
+        "id": "sniper",
+        "group": "Stats de jeu",
+        "label": "Bedwars: !sniper",
+        "dashPath": "/modules/urchin"
+      },
+      {
+        "id": "tags",
+        "group": "Stats de jeu",
+        "label": "Bedwars: !tag / !tagdescription",
+        "dashPath": "/modules/urchin"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "tagcount",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "tags",
+    "token": "{tags}",
+    "syntax": "{tags}",
+    "example": "{tags}",
+    "output": "Blatant Cheater (added Jul 3, 2024)",
+    "syntaxes": [
+      "{tags}"
+    ],
+    "examples": [
+      {
+        "syntax": "{tags}",
+        "output": "Blatant Cheater (added Jul 3, 2024)",
+        "surfaceId": "tags"
+      }
+    ],
+    "name": "Tags",
+    "hint": "",
+    "description": "La liste des tags formatée.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "tags"
+    ],
+    "surfaces": [
+      {
+        "id": "tags",
+        "group": "Stats de jeu",
+        "label": "Bedwars: !tag / !tagdescription",
+        "dashPath": "/modules/urchin"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "tags",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "window",
+    "token": "{window}",
+    "syntax": "{window}",
+    "example": "{window}",
+    "output": "daily",
+    "syntaxes": [
+      "{window}"
+    ],
+    "examples": [
+      {
+        "syntax": "{window}",
+        "output": "daily",
+        "surfaceId": "mcsr-pb"
+      },
+      {
+        "syntax": "{window}",
+        "output": "lifetime",
+        "surfaceId": "fn-stats"
+      }
+    ],
+    "name": "Période",
+    "hint": "",
+    "description": "La période qui a répondu : quotidien, hebdomadaire, mensuel, de tous les temps ou classé.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "mcsr-pb",
+      "fn-stats"
+    ],
+    "surfaces": [
+      {
+        "id": "mcsr-pb",
+        "group": "Stats de jeu",
+        "label": "MCSR: !pb",
+        "dashPath": "/modules/mcsr"
+      },
+      {
+        "id": "fn-stats",
+        "group": "Stats de jeu",
+        "label": "Fortnite: !fn / !fn season",
+        "dashPath": "/modules/fortnite"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "window",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "winrate",
+    "token": "{winrate}",
+    "syntax": "{winrate}",
+    "example": "{winrate}",
+    "output": "4.83",
+    "syntaxes": [
+      "{winrate}"
+    ],
+    "examples": [
+      {
+        "syntax": "{winrate}",
+        "output": "4.83",
+        "surfaceId": "fn-stats"
+      }
+    ],
+    "name": "Taux de victoire %",
+    "hint": "",
+    "description": "Victoires par centaine de matchs.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "fn-stats"
+    ],
+    "surfaces": [
+      {
+        "id": "fn-stats",
+        "group": "Stats de jeu",
+        "label": "Fortnite: !fn / !fn season",
+        "dashPath": "/modules/fortnite"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "winrate",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "wins",
+    "token": "{wins}",
+    "syntax": "{wins}",
+    "example": "{wins}",
+    "output": "5",
+    "syntaxes": [
+      "{wins}"
+    ],
+    "examples": [
+      {
+        "syntax": "{wins}",
+        "output": "5",
+        "surfaceId": "bw-session"
+      },
+      {
+        "syntax": "{wins}",
+        "output": "1000",
+        "surfaceId": "bwstats"
+      },
+      {
+        "syntax": "{wins}",
+        "output": "40",
+        "surfaceId": "elo"
+      },
+      {
+        "syntax": "{wins}",
+        "output": "3",
+        "surfaceId": "mcsr-session"
+      },
+      {
+        "syntax": "{wins}",
+        "output": "301",
+        "surfaceId": "fn-stats"
+      }
+    ],
+    "name": "Victoires",
+    "hint": "",
+    "description": "Victoires sur la période.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "bw-session",
+      "bwstats",
+      "elo",
+      "mcsr-session",
+      "fn-stats"
+    ],
+    "surfaces": [
+      {
+        "id": "bw-session",
+        "group": "Stats de jeu",
+        "label": "Bedwars: !daily / !weekly / !monthly",
+        "dashPath": "/modules/urchin"
+      },
+      {
+        "id": "bwstats",
+        "group": "Stats de jeu",
+        "label": "Bedwars: !bwstats (à vie)",
+        "dashPath": "/modules/urchin"
+      },
+      {
+        "id": "elo",
+        "group": "Stats de jeu",
+        "label": "MCSR: !elo",
+        "dashPath": "/modules/mcsr"
+      },
+      {
+        "id": "mcsr-session",
+        "group": "Stats de jeu",
+        "label": "MCSR: !session",
+        "dashPath": "/modules/mcsr"
+      },
+      {
+        "id": "fn-stats",
+        "group": "Stats de jeu",
+        "label": "Fortnite: !fn / !fn season",
+        "dashPath": "/modules/fortnite"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "wins",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "winsa",
+    "token": "{winsa}",
+    "syntax": "{winsa}",
+    "example": "{winsa}",
+    "output": "20",
+    "syntaxes": [
+      "{winsa}"
+    ],
+    "examples": [
+      {
+        "syntax": "{winsa}",
+        "output": "20",
+        "surfaceId": "mcsr-record"
+      }
+    ],
+    "name": "Victoires A",
+    "hint": "",
+    "description": "Victoires du joueur A contre le joueur B.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "mcsr-record"
+    ],
+    "surfaces": [
+      {
+        "id": "mcsr-record",
+        "group": "Stats de jeu",
+        "label": "MCSR: !record",
+        "dashPath": "/modules/mcsr"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "winsa",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "winsb",
+    "token": "{winsb}",
+    "syntax": "{winsb}",
+    "example": "{winsb}",
+    "output": "14",
+    "syntaxes": [
+      "{winsb}"
+    ],
+    "examples": [
+      {
+        "syntax": "{winsb}",
+        "output": "14",
+        "surfaceId": "mcsr-record"
+      }
+    ],
+    "name": "Victoires B",
+    "hint": "",
+    "description": "Victoires du joueur B contre le joueur A.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "mcsr-record"
+    ],
+    "surfaces": [
+      {
+        "id": "mcsr-record",
+        "group": "Stats de jeu",
+        "label": "MCSR: !record",
+        "dashPath": "/modules/mcsr"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "winsb",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "wlr",
+    "token": "{wlr}",
+    "syntax": "{wlr}",
+    "example": "{wlr}",
+    "output": "10.00",
+    "syntaxes": [
+      "{wlr}"
+    ],
+    "examples": [
+      {
+        "syntax": "{wlr}",
+        "output": "10.00",
+        "surfaceId": "bwstats"
+      }
+    ],
+    "name": "Ratio V/D",
+    "hint": "",
+    "description": "Ratio victoires/défaites à vie.",
+    "category": "game-stats",
+    "categories": [
+      "game-stats"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "bwstats"
+    ],
+    "surfaces": [
+      {
+        "id": "bwstats",
+        "group": "Stats de jeu",
+        "label": "Bedwars: !bwstats (à vie)",
+        "dashPath": "/modules/urchin"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "wlr",
+      "payload": null
+    },
+    "lexerValid": true
+  }
+]
