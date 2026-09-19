@@ -73,7 +73,7 @@ import {
   USERID_SAMPLE,
   USES_SAMPLE,
   WATCHTIME_SAMPLE
-} from '../variables/samples';
+} from '../variables/preview-values';
 
 export type SegKind = 'plain' | 'sample' | 'unknown';
 
@@ -160,7 +160,7 @@ const MESSAGE_NAMES = new Set([
 const MAX_POSITIONAL = 30;
 
 // The *_SAMPLE consts these scopes used to declare locally now live in
-// ../variables/samples.ts, imported above: ./variables (the guide, the
+// ../variables/preview-values.ts, imported above: ./variables (the guide, the
 // parity test) needs the exact same values, and a second copy is how a
 // rehearsal preview and a guide page drift (docs/specs/variables-catalog.md
 // D2, D8).

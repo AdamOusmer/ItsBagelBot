@@ -57,7 +57,7 @@ import {
   USERID_SAMPLE,
   USES_SAMPLE,
   WATCHTIME_SAMPLE
-} from './samples';
+} from './preview-values';
 import type { VariableDef } from './types';
 
 export const VARIABLES: readonly VariableDef[] = [
