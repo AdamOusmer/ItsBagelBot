@@ -257,8 +257,21 @@
     gap: 5px;
   }
   .viewer-name { color: var(--bb-tan-light); }
-  /* Nudged down so the blob hangs from the text baseline the row aligns on. */
-  .avatar { display: inline-flex; flex: none; transform: translateY(4px); }
+  /* Sized to the 20px Bolota and clipped to a circle so the blob cannot
+     hang off the name row or shove the rehearsal's sticky box. The old
+     `translateY(4px)` was compensating for `overflow: visible` hanging
+     above the baseline; with a clipped plate the who-row's
+     `align-items: center` already sits it on the name. */
+  .avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    overflow: hidden;
+  }
   .viewer-name::after, .bot-name::after { content: ':'; color: var(--bb-muted); font-weight: 400; }
   /* /me actions carry no colon (Twitch renders them as "name action…"). */
   .line.bot.me .bot-name::after { content: none; }

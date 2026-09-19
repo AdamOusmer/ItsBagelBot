@@ -296,5 +296,14 @@
 </svg>
 
 <style>
-  .bolota { display: block; overflow: visible; }
+  /* The library draws past the 100×100 viewBox on purpose (eyes, cheeks).
+     `overflow: visible` let that paint sit outside the size box: on the
+     30px topbar plate it sat proud of the 26px brand mark, on the 20px
+     rehearsal face it sat on neighbouring lines, and the extra ink
+     inflated the document's scrollWidth so `overflow-x: hidden` on html
+     computed a vertical scrollport. Clip to the size the caller asked
+     for. `pointer-events: none` so leftover subpixels cannot steal the
+     wheel from the page under them — the parent button still receives
+     the click. */
+  .bolota { display: block; overflow: hidden; pointer-events: none; }
 </style>

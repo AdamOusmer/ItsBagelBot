@@ -712,7 +712,7 @@
           onClose={closeInspector}
         >
           {#if isTriggers}
-            <Scroller fill padding="16px" data-lenis-prevent>
+            <Scroller fill padding="16px">
               {#key expanded}
                 <TriggerRuleEditor
                   bind:phrase={draftPhrase}
@@ -727,7 +727,7 @@
               {/key}
             </Scroller>
           {:else if selectedReply}
-            <Scroller fill padding="16px" data-lenis-prevent>
+            <Scroller fill padding="16px">
               {#key selectedReply.key}
                 <ReplyEditor moduleId={def.id} reply={selectedReply} bind:message={editMessage} {busy} onCancel={closeInspector} onSave={saveReply} />
               {/key}
