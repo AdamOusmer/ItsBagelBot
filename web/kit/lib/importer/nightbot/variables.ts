@@ -133,7 +133,9 @@ interface TokenResult {
 // Membership here means "no arguments, no sub-fields": a token whose body
 // carries anything past the name is an attempt at something else and takes the
 // literal+warn path with every other unmapped variable.
-const SIMPLE_TOKENS: Record<string, string> = {
+// Exported so ../../variables/parity.test.ts can assert every emitted target
+// head is a Variable head or alias, with no change to translation behaviour.
+export const SIMPLE_TOKENS: Record<string, string> = {
   user: '{user}',
   touser: '{touser}',
   channel: '{channel}',

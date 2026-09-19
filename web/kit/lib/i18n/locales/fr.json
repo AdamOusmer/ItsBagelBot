@@ -3156,5 +3156,217 @@
       "lead_mod": "Lead modos",
       "broadcaster": "Diffuseur"
     }
+  },
+  "vars": {
+    "user": {
+      "name": "Nom du spectateur",
+      "hint": "qui a lancé la commande",
+      "desc": "La personne qui a utilisé la commande. {sender} fonctionne aussi."
+    },
+    "touser": {
+      "name": "Personne nommée",
+      "hint": "premier argument, ex. un utilisateur mentionné",
+      "desc": "Le premier mot tapé après la commande (sans «@»); le spectateur lui-même si vide. {target} fonctionne aussi."
+    },
+    "args": {
+      "name": "Tout le texte tapé après",
+      "hint": "tout ce qui est tapé après la commande",
+      "desc": "Tout le texte après la commande, en une seule chaîne."
+    },
+    "positional": {
+      "name": "Numéro de mot",
+      "hint": "le mot 1 tapé après la commande; {2} est le suivant, jusqu’à {30}",
+      "desc": "Le mot 1 tapé après la commande. {2} est le suivant, et ainsi de suite jusqu’à {30}. Vide si ce mot n’a pas été tapé. {2:} reprend d’un mot jusqu’à la fin, en une seule chaîne; changez le numéro pour commencer ailleurs, {1:} reprend tout."
+    },
+    "channel": {
+      "name": "Nom de la chaîne",
+      "hint": "la chaîne où la commande est lancée",
+      "desc": "Le nom d’affichage de votre chaîne."
+    },
+    "userid": {
+      "name": "ID du spectateur",
+      "hint": "l’ID utilisateur Twitch de qui a lancé la commande",
+      "desc": "L’ID utilisateur Twitch du spectateur. Il ne change jamais, même après un changement de nom."
+    },
+    "userLogin": {
+      "name": "Identifiant du spectateur",
+      "hint": "son identifiant en minuscules, pas son nom d’affichage",
+      "desc": "Son identifiant en minuscules, qui peut différer du nom d’affichage montré par {user}."
+    },
+    "command": {
+      "name": "Nom de la commande",
+      "hint": "le nom de la commande elle-même, sans le «!»",
+      "desc": "Le nom de la commande qui a répondu, sans le «!». Les autres noms rapportent tous le nom principal."
+    },
+    "counter": {
+      "name": "Compteur (+1)",
+      "hint": "incrémente le compteur nommé et affiche sa nouvelle valeur",
+      "desc": "Ajoute 1 à un compteur et affiche le nouveau total (nécessite le module Points de fidélité). Choisissez sa portée ci-dessous: elle est fixée une fois, à la création, depuis le tableau de bord ou avec !counter create."
+    },
+    "random": {
+      "name": "Aléatoire 1-100",
+      "hint": "un nombre aléatoire de 1 à 100, ou {random:min-max}",
+      "desc": "Un nombre entier de 1 à 100, différent à chaque fois. {random:1-6} choisit votre propre plage; les deux bornes comptent."
+    },
+    "choice": {
+      "name": "Choix aléatoire",
+      "hint": "choisit une des options séparées par des virgules au hasard",
+      "desc": "Choisit une option de votre liste séparée par des virgules. Remplacez les mots."
+    },
+    "math": {
+      "name": "Calcul",
+      "hint": "calcule une petite opération: + - * / et parenthèses",
+      "desc": "Résout une petite opération. Nombres entiers, + - * / et parenthèses; rien d’autre."
+    },
+    "querystring": {
+      "name": "Arguments encodés pour une URL",
+      "hint": "tout le texte tapé après la commande, encodé pour une source de données",
+      "desc": "Tout le texte tapé après la commande, encodé pour être placé dans l’URL d’une source de données."
+    },
+    "queryescape": {
+      "name": "Encoder du texte pour une URL",
+      "hint": "encode pour une URL le texte placé après les deux-points",
+      "desc": "Encode votre propre texte pour la partie requête d’une URL. Remplacez les mots."
+    },
+    "pathescape": {
+      "name": "Encoder un chemin d’URL",
+      "hint": "encode le texte pour un chemin d’URL, pas pour une requête",
+      "desc": "La même chose, pour la partie chemin d’une URL, où un espace n’est pas un plus."
+    },
+    "repeat": {
+      "name": "Répéter une phrase",
+      "hint": "répète une phrase n fois (20 au maximum, une ligne de chat)",
+      "desc": "Répète votre phrase, séparée par des espaces. 20 fois au maximum, et le tout doit tenir sur une ligne de chat."
+    },
+    "countdown": {
+      "name": "Temps avant une date",
+      "hint": "le temps restant jusqu’à cette date (AAAA-MM-JJ, ou un horodatage complet)",
+      "desc": "Le temps restant avant cette date. Écrivez-la AAAA-MM-JJ, ou en horodatage complet. Plus rien une fois la date passée."
+    },
+    "countup": {
+      "name": "Temps depuis une date",
+      "hint": "le temps écoulé depuis cette date",
+      "desc": "Le temps écoulé depuis cette date, formulé comme !uptime."
+    },
+    "if": {
+      "name": "Dire une chose ou une autre",
+      "hint": "un texte ou l’autre: {if:nom:quand la variable contient quelque chose:sinon}, ou {if:nom=valeur:…:…} pour une correspondance exacte. Les variables ne fonctionnent pas dans les deux textes",
+      "desc": "Affiche le premier texte quand la variable que vous nommez contient quelque chose, le second sinon. Nommez-la sans accolades, et écrivez {if:game=Chess:…:…} pour tester une valeur exacte. Les variables ne fonctionnent pas dans les deux textes. Omettez le second et un test faux n’affiche rien du tout: si la ligne se vide, le bot passe la ligne au lieu d’envoyer un message vide."
+    },
+    "followage": {
+      "name": "Temps de follow",
+      "hint": "depuis combien de temps la personne suit la chaîne (module Followage)",
+      "desc": "Depuis combien de temps le spectateur vous suit, formulé comme !followage. {followage:alex} interroge quelqu’un d’autre, et une personne qui ne suit pas ne renvoie rien. Nécessite le module Followage."
+    },
+    "accountage": {
+      "name": "Âge du compte",
+      "hint": "l’âge de leur compte Twitch (module Âge du compte)",
+      "desc": "L’âge de leur compte Twitch. {accountage:alex} interroge quelqu’un d’autre. Nécessite le module Âge du compte."
+    },
+    "points": {
+      "name": "Solde de points",
+      "hint": "son solde de points, ou {points:login} pour quelqu’un d’autre (Fidélité)",
+      "desc": "Ce que le spectateur a gagné. {points:alex} affiche le solde de quelqu’un d’autre, si la chaîne l’a vu parler. Lecture seule: rien n’est jamais accordé. Nécessite le module Points de fidélité."
+    },
+    "pointsname": {
+      "name": "Nom de vos points",
+      "hint": "le nom que votre chaîne donne à ses points (Fidélité)",
+      "desc": "Le nom que vous avez donné à vos points dans le module Points de fidélité, pour qu’une même réponse sonne juste sur chaque chaîne."
+    },
+    "watchtime": {
+      "name": "Temps de visionnage",
+      "hint": "son temps de visionnage, formulé comme !uptime (Fidélité)",
+      "desc": "Le temps qu’ils ont passé à regarder pendant que l’horloge de fidélité tournait. {watchtime:alex} interroge quelqu’un d’autre. Nécessite le module Points de fidélité."
+    },
+    "count": {
+      "name": "Compteur (lecture seule)",
+      "hint": "lit un compteur sans l’incrémenter, contrairement à {counter:…} (Fidélité)",
+      "desc": "Affiche un compteur sans l’incrémenter, pour qu’une commande puisse annoncer un total sans le modifier. Même compteur, même nom et mêmes portées que {counter:…}."
+    },
+    "uses": {
+      "name": "Nombre d’utilisations",
+      "hint": "combien de fois cette commande a servi, sans compter celle-ci (approximatif)",
+      "desc": "Combien de fois cette commande a servi dans votre chaîne, sans compter celle qui l’affiche. Elle compte chaque utilisation, quel que soit le nom tapé, et ne demande aucun compteur. Le total est approximatif: le bot compte par lots et peut avoir jusqu’à une minute de retard."
+    },
+    "quote": {
+      "name": "Une citation enregistrée",
+      "hint": "une citation enregistrée au hasard, ou {quote:12} pour une citation précise (module Citations)",
+      "desc": "Une citation au hasard de votre recueil, formulée exactement comme !quote la dit. {quote:12} choisit une citation numérotée, et un numéro inutilisé ne renvoie rien. Deux {quote} dans une même réponse donnent deux citations différentes. Nécessite le module Citations."
+    },
+    "time": {
+      "name": "Votre heure locale",
+      "hint": "votre heure locale, sur le format d’horloge que vous avez choisi (module Heure locale)",
+      "desc": "L’heure chez vous, selon le fuseau et le format d’horloge choisis dans le module Heure locale. Nécessite ce module, avec un fuseau enregistré."
+    },
+    "song": {
+      "name": "En cours de lecture",
+      "hint": "le morceau en cours, ou {song.title} / {song.artist} (Requêtes musicales)",
+      "desc": "Le morceau en cours sur Spotify. {song.title} et {song.artist} donnent les deux moitiés séparément. Rien en lecture ne renvoie rien. Nécessite le module Requêtes musicales."
+    },
+    "chatters": {
+      "name": "Personnes dans le chat",
+      "hint": "combien de personnes ont parlé récemment dans le chat",
+      "desc": "Combien de personnes ont parlé récemment dans le chat. Cela compte les personnes que le bot a vues parler, pas tous ceux qui ont la page ouverte, et une chaîne silencieuse renvoie 0."
+    },
+    "randomChatter": {
+      "name": "Un spectateur au hasard",
+      "hint": "l’une d’elles, choisie au hasard (jamais vous, jamais le bot)",
+      "desc": "Le nom d’une personne ayant parlé récemment, choisie au hasard. Jamais vous ni le bot. Deux dans une même réponse font deux tirages distincts, et une chaîne silencieuse ne renvoie rien."
+    },
+    "emotes7tv": {
+      "name": "Émotes 7TV",
+      "hint": "tous les codes d’émotes globales 7TV, séparés par des espaces; {bttvemotes} et {ffzemotes} aussi (coupé pour tenir sur une ligne)",
+      "desc": "Les codes des émotes 7TV globales, séparés par des espaces. Ce sont celles que toutes les chaînes ont, pas les émotes que vous avez ajoutées à la vôtre, et une longue liste est coupée pour tenir sur une ligne de chat."
+    },
+    "randomEmote": {
+      "name": "Une émote au hasard",
+      "hint": "un code d’émote choisi au hasard parmi ces ensembles globaux",
+      "desc": "Un code d’émote tiré au hasard dans ces listes. Deux dans une même réponse font deux tirages distincts. Si le bot n’a pas encore chargé de codes, la variable revient vide."
+    },
+    "uptime": {
+      "name": "Durée du direct",
+      "hint": "depuis combien de temps vous êtes en direct, vide hors ligne (interrupteur !uptime)",
+      "desc": "Depuis combien de temps le direct dure, formulé comme !uptime. Hors ligne renvoie du vide: donnez-lui une valeur par défaut. {uptime:quelquun} fait de même pour une autre chaîne. Suit l’interrupteur !uptime."
+    },
+    "title": {
+      "name": "Titre du direct",
+      "hint": "le titre actuel de votre stream, ou {title:quelquun} pour une autre chaîne (interrupteur !title)",
+      "desc": "Le titre actuel du direct, celui qu’affiche !title. Fonctionne aussi hors ligne. {title:quelquun} donne celui d’une autre chaîne. Suit l’interrupteur !title."
+    },
+    "game": {
+      "name": "Catégorie du direct",
+      "hint": "la catégorie que vous diffusez, ou {game:quelquun} pour une autre chaîne (interrupteur !game)",
+      "desc": "La catégorie diffusée, celle qu’affiche !game. Fonctionne aussi hors ligne. {game:quelquun} donne celle d’une autre chaîne, ce que veut une commande de shoutout. Suit l’interrupteur !game."
+    },
+    "channelViewers": {
+      "name": "Spectateurs",
+      "hint": "combien de personnes regardent en ce moment, 0 hors ligne",
+      "desc": "Combien de personnes regardent en ce moment, directement depuis Twitch. Une chaîne hors ligne renvoie 0. {channel} seul reste le nom de votre chaîne."
+    },
+    "urlfetch": {
+      "name": "Valeur récupérée",
+      "hint": "Insère une valeur récupérée depuis une définition d’API enregistrée",
+      "desc": "Une valeur d’une définition de source de données enregistrée (page Sources de données). Écrivez {urlfetch:nom} pour la réponse entière, ou ajoutez un chemin en pointillés pour atteindre un champ précis d’une réponse JSON, comme {urlfetch:weather.forecast.current.temp_f}."
+    },
+    "emotesBttv": {
+      "name": "Émotes BTTV",
+      "hint": "les codes des émotes BetterTTV globales, séparés par des espaces",
+      "desc": "Les codes des émotes BetterTTV globales, comme {7tvemotes} liste celles de 7TV."
+    },
+    "emotesFfz": {
+      "name": "Émotes FFZ",
+      "hint": "les codes des émotes FrankerFaceZ globales, séparés par des espaces",
+      "desc": "Les codes des émotes FrankerFaceZ globales, comme {7tvemotes} liste celles de 7TV."
+    },
+    "songTitle": {
+      "name": "Titre de la chanson",
+      "hint": "seulement le titre du morceau, la première moitié de {song}",
+      "desc": "Le titre du morceau seul, la première moitié de {song}. Rien en lecture ne renvoie rien. Nécessite le module Requêtes musicales."
+    },
+    "songArtist": {
+      "name": "Artiste de la chanson",
+      "hint": "seulement le nom de l’artiste, la seconde moitié de {song}",
+      "desc": "Le nom de l’artiste seul, la seconde moitié de {song}. Rien en lecture ne renvoie rien. Nécessite le module Requêtes musicales."
+    }
   }
 }

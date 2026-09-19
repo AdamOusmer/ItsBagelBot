@@ -69,6 +69,9 @@ export function tokenHead(token: string): string {
  * entries in its own catalog order, so the two never have to agree on
  * anything but membership.
  */
+// The successor inventory (every Variable, not just these five) lives in
+// ../variables (VARIABLES, variableByHead); this list keeps its narrower job,
+// picking the five a first-time surface shows.
 export const COMMON_TOKEN_HEADS: readonly string[] = ['user', 'args', 'channel', 'random', 'uptime'];
 
 /** How many chips a rehearsal surface offers. Five, and nothing else. */

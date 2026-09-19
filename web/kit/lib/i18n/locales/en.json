@@ -3156,5 +3156,217 @@
       "lead_mod": "Lead Mods",
       "broadcaster": "Broadcaster"
     }
+  },
+  "vars": {
+    "user": {
+      "name": "Viewer name",
+      "hint": "who ran the command",
+      "desc": "Whoever used the command. {sender} works too."
+    },
+    "touser": {
+      "name": "Named person",
+      "hint": "first argument, e.g. a mentioned user",
+      "desc": "The first word typed after the command (\"@\" removed); the viewer themself when blank. {target} works too."
+    },
+    "args": {
+      "name": "Everything typed after",
+      "hint": "everything typed after the command",
+      "desc": "All text after the command, as one string."
+    },
+    "positional": {
+      "name": "Word number",
+      "hint": "word 1 typed after the command; {2} is the next one, up to {30}",
+      "desc": "Word 1 typed after the command. {2} is the next one, and so on up to {30}. Empty when that word was not typed. {2:} takes a word through to the end, as one string; change the number to start elsewhere, {1:} is the whole thing."
+    },
+    "channel": {
+      "name": "Channel name",
+      "hint": "the channel the command runs in",
+      "desc": "Your channel's display name."
+    },
+    "userid": {
+      "name": "Viewer ID",
+      "hint": "the Twitch user ID of whoever ran the command",
+      "desc": "The viewer's Twitch user ID. It never changes, even after a rename."
+    },
+    "userLogin": {
+      "name": "Viewer login",
+      "hint": "their lowercase login, not their display name",
+      "desc": "Their lowercase login, which can differ from the display name {user} shows."
+    },
+    "command": {
+      "name": "Command name",
+      "hint": "the command’s own name, without the “!”",
+      "desc": "The name of the command that ran, without the \"!\". Alternate names all report the main one."
+    },
+    "counter": {
+      "name": "Counter (+1)",
+      "hint": "bumps the named counter and shows its new value",
+      "desc": "Adds 1 to a counter and shows the new total (needs the Loyalty Points module). Pick its scope below, it's set once, at creation, from the dashboard or !counter create."
+    },
+    "random": {
+      "name": "Random 1-100",
+      "hint": "a random number from 1 to 100, or {random:min-max}",
+      "desc": "A whole number from 1 to 100, new every time. {random:1-6} picks your own range; both ends included."
+    },
+    "choice": {
+      "name": "Random choice",
+      "hint": "picks one of the comma-separated options at random",
+      "desc": "Picks one of your comma-separated options. Replace the words."
+    },
+    "math": {
+      "name": "Arithmetic",
+      "hint": "evaluates a small sum: + - * / and parentheses",
+      "desc": "Works out a small sum. Whole numbers, + - * / and parentheses; nothing else."
+    },
+    "querystring": {
+      "name": "Arguments, URL-encoded",
+      "hint": "everything typed after the command, URL-encoded for a data source",
+      "desc": "Everything typed after the command, encoded so it can be dropped into a data source URL."
+    },
+    "queryescape": {
+      "name": "URL-encode text",
+      "hint": "URL-encodes the text you put after the colon",
+      "desc": "Encodes your own text for the query part of a URL. Replace the words."
+    },
+    "pathescape": {
+      "name": "URL-encode a path",
+      "hint": "URL-encodes the text for a path, not a query",
+      "desc": "The same, for the path part of a URL, where a space is not a plus."
+    },
+    "repeat": {
+      "name": "Repeat a phrase",
+      "hint": "repeats a phrase n times (up to 20, one chat line)",
+      "desc": "Repeats your phrase, space separated. Up to 20 times, and it has to fit one chat line."
+    },
+    "countdown": {
+      "name": "Time until a date",
+      "hint": "how long until that date (YYYY-MM-DD, or a full timestamp)",
+      "desc": "How long until that date. Write it as YYYY-MM-DD, or as a full timestamp. Nothing once the date has passed."
+    },
+    "countup": {
+      "name": "Time since a date",
+      "hint": "how long since that date",
+      "desc": "How long since that date, in the same wording as !uptime."
+    },
+    "if": {
+      "name": "Say one thing or another",
+      "hint": "one text or another: {if:name:when it has something:when it does not}, or {if:name=value:…:…} for an exact match. Variables do not work inside the two texts",
+      "desc": "Picks the first text when the variable you name has something in it, the second when it does not. Name it without braces, and write {if:game=Chess:…:…} to test an exact value instead. Variables do not work inside the two texts. Leave the second one out and a false test says nothing at all, if that empties the whole line, the bot skips that line rather than sending a blank message."
+    },
+    "followage": {
+      "name": "Time following",
+      "hint": "how long they have followed the channel (Followage module)",
+      "desc": "How long the viewer has followed you, in the same wording as !followage. {followage:alex} asks about someone else, and someone who does not follow comes back empty. Needs the Followage module."
+    },
+    "accountage": {
+      "name": "Account age",
+      "hint": "how old their Twitch account is (Account age module)",
+      "desc": "How old their Twitch account is. {accountage:alex} asks about someone else. Needs the Account age module."
+    },
+    "points": {
+      "name": "Points balance",
+      "hint": "their points balance, or {points:login} for someone else (Loyalty)",
+      "desc": "What the viewer has earned. {points:alex} shows someone else, as long as this channel has seen them speak. Reading only: it never grants. Needs the Loyalty Points module."
+    },
+    "pointsname": {
+      "name": "Name of your points",
+      "hint": "your channel’s name for its points (Loyalty)",
+      "desc": "Whatever you called your points in the Loyalty Points module, so one reply reads right on every channel."
+    },
+    "watchtime": {
+      "name": "Time watched",
+      "hint": "how long they have watched, in the same words as !uptime (Loyalty)",
+      "desc": "How long they have watched while the loyalty clock was running. {watchtime:alex} asks about someone else. Needs the Loyalty Points module."
+    },
+    "count": {
+      "name": "Counter (read only)",
+      "hint": "reads a counter without adding to it, unlike {counter:…} (Loyalty)",
+      "desc": "Shows a counter without adding to it, so a command can report a total it does not change. Same counter, same name, same scopes as {counter:…}."
+    },
+    "uses": {
+      "name": "Times used",
+      "hint": "how many times this command has been used, not counting this one (approximate)",
+      "desc": "How many times this command has been used in your channel, not counting the one printing it. It counts every use, whichever name was typed, and needs no counter. The total is approximate: the bot batches its counting, so it can be up to a minute behind."
+    },
+    "quote": {
+      "name": "A saved quote",
+      "hint": "a random saved quote, or {quote:12} for a numbered one (Quotes module)",
+      "desc": "A random quote from your quote book, worded exactly as !quote says it. {quote:12} picks a numbered one, and a number nobody has used comes back empty. Two {quote} in one response are two different quotes. Needs the Quotes module."
+    },
+    "time": {
+      "name": "Your local time",
+      "hint": "your local time, on the clock face you set (Local time module)",
+      "desc": "The time where you are, on the timezone and clock face you set on the Local time module. Needs that module, with a timezone saved."
+    },
+    "song": {
+      "name": "Now playing",
+      "hint": "the track playing right now, or {song.title} / {song.artist} (Song requests)",
+      "desc": "The track playing on Spotify right now. {song.title} and {song.artist} give the two halves separately. Nothing playing comes back empty. Needs the Song requests module."
+    },
+    "chatters": {
+      "name": "People in chat",
+      "hint": "how many people have talked in chat recently",
+      "desc": "How many people have talked in chat recently. It counts chatters the bot has seen speak, not everyone with the page open, and a quiet channel comes back as 0."
+    },
+    "randomChatter": {
+      "name": "A random chatter",
+      "hint": "one of them, picked at random (never you, never the bot)",
+      "desc": "The name of one person who has talked recently, picked at random. Never you and never the bot. Two of them in one response are two separate picks, and a silent channel comes back empty."
+    },
+    "emotes7tv": {
+      "name": "7TV emotes",
+      "hint": "every global 7TV emote code, space-separated; {bttvemotes} and {ffzemotes} too (cut to fit one line)",
+      "desc": "The global 7TV emote codes, separated by spaces. These are the ones every channel has, not the emotes you added to yours, and a long list is cut to fit one chat line."
+    },
+    "randomEmote": {
+      "name": "A random emote",
+      "hint": "one emote code picked at random from those global sets",
+      "desc": "One emote code drawn at random from those lists. Two of them in one response are two separate picks. If the bot has not loaded any codes yet, it comes back empty."
+    },
+    "uptime": {
+      "name": "Stream uptime",
+      "hint": "how long you have been live, empty when you are offline (!uptime toggle)",
+      "desc": "How long the stream has been live, worded the way !uptime words it. Offline comes back empty, so give it a default. {uptime:someone} does the same for another channel. Follows the !uptime toggle."
+    },
+    "title": {
+      "name": "Stream title",
+      "hint": "your current stream title, or {title:someone} for another channel (!title toggle)",
+      "desc": "The current stream title, the same one !title shows. It works offline too. {title:someone} gives another channel’s. Follows the !title toggle."
+    },
+    "game": {
+      "name": "Stream category",
+      "hint": "the category you are streaming, or {game:someone} for another channel (!game toggle)",
+      "desc": "The category being streamed, the same one !game shows. It works offline too. {game:someone} gives another channel’s, which is what a shoutout command wants. Follows the !game toggle."
+    },
+    "channelViewers": {
+      "name": "Viewers watching",
+      "hint": "how many people are watching right now, 0 when you are offline",
+      "desc": "How many people are watching right now, straight from Twitch. An offline channel comes back as 0. Bare {channel} stays your channel name."
+    },
+    "urlfetch": {
+      "name": "Fetched value",
+      "hint": "Insert a fetched value from a saved API definition",
+      "desc": "One value from a saved data source definition (Data sources page). Write {urlfetch:name} for the whole response, or add a dot path to reach one field inside a JSON response, such as {urlfetch:weather.forecast.current.temp_f}."
+    },
+    "emotesBttv": {
+      "name": "BTTV emotes",
+      "hint": "the global BetterTTV emote codes, space-separated",
+      "desc": "The global BetterTTV emote codes, the same way {7tvemotes} lists 7TV."
+    },
+    "emotesFfz": {
+      "name": "FFZ emotes",
+      "hint": "the global FrankerFaceZ emote codes, space-separated",
+      "desc": "The global FrankerFaceZ emote codes, the same way {7tvemotes} lists 7TV."
+    },
+    "songTitle": {
+      "name": "Song title",
+      "hint": "just the track title, the first half of {song}",
+      "desc": "The track title on its own, the first half of {song}. Nothing playing comes back empty. Needs the Song requests module."
+    },
+    "songArtist": {
+      "name": "Song artist",
+      "hint": "just the artist name, the second half of {song}",
+      "desc": "The artist name on its own, the second half of {song}. Nothing playing comes back empty. Needs the Song requests module."
+    }
   }
 }

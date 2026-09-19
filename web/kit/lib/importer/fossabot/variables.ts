@@ -153,7 +153,9 @@ interface TokenResult {
   warned: boolean;
 }
 
-const SIMPLE_TOKENS: Record<string, string> = {
+// Exported so ../../variables/parity.test.ts can assert every emitted target
+// head is a Variable head or alias, with no change to translation behaviour.
+export const SIMPLE_TOKENS: Record<string, string> = {
   user: '{user}',
   sender: '{user}',
   touser: '{touser}',
@@ -171,7 +173,7 @@ const SIMPLE_TOKENS: Record<string, string> = {
 // SUBFIELD_TOKENS maps a dotted Fossabot spelling, keyed by the whole body
 // ("<head><rest>"), onto its token here. It is matched before SIMPLE_TOKENS so
 // $(user.id) reads as a subfield rather than as $(user) with leftovers.
-const SUBFIELD_TOKENS: Record<string, string> = {
+export const SUBFIELD_TOKENS: Record<string, string> = {
   'user.id': '{userid}',
   'user.login': '{user.login}'
 };

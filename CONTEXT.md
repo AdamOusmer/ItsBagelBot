@@ -58,6 +58,29 @@ _Avoid_: Command list (that is the dashboard's management view), channel page.
 A commands page is public (anyone with the link can open it, `!commands` shares the link) or hidden (the link answers as if the channel did not exist, `!commands` says the list is not public). Hiding the page does not disable any command.
 _Avoid_: Private, disabled, unpublished.
 
+## Language: reply templates
+
+**Variable**:
+A named value the bot can fill into a reply, such as the viewer's follow time. One variable has one name, one guide entry and one set of copy, however many spellings it accepts.
+_Avoid_: Token, family when referring to the concept a broadcaster picks.
+
+**Token**:
+One complete spelling of a variable inside a reply, braces included, such as `{followage:alex}`. A variable accepts one or more tokens.
+_Avoid_: Variable when referring to the literal text typed into a reply.
+
+**Form**:
+One shape a variable's token can take, with the rule for what goes after the colon. `{followage}` and `{followage:<login>}` are two forms of one variable.
+_Avoid_: Syntax.
+
+**Surface**:
+A place where a broadcaster writes a reply template: a custom command, a follow alert, a reward reply. A surface offers a fixed set of variables, and the same variable name can mean something different on two surfaces.
+
+**Chip**:
+A dashboard button that inserts one token into a reply field. Presentation only.
+
+**Scope**:
+An internal resolver group in the bot engine. Never shown to broadcasters.
+
 ## Language: Local Time module
 
 **Home zone**:
