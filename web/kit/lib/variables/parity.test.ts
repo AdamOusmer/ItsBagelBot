@@ -1,39 +1,40 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { describe, expect, test } from 'bun:test';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { tokenHead } from '../engine/common-tokens';
-import { lex, type VarToken } from '../engine/tmpl';
-import { SIMPLE_TOKENS as FOSSABOT_SIMPLE_TOKENS, SUBFIELD_TOKENS as FOSSABOT_SUBFIELD_TOKENS } from '../importer/fossabot/variables';
-import { SIMPLE_TOKENS as NIGHTBOT_SIMPLE_TOKENS } from '../importer/nightbot/variables';
-import { VARIABLES } from './variables';
-import en from '../i18n/locales/en.json';
-import fr from '../i18n/locales/fr.json';
-
 // The golden fixture is Go's, read at run time rather than imported, so the
 // TypeScript build never has to reach outside app/ for a module. Regenerating
 // it is a Go-side flag (`go test ./app/twitch/sesame/engine/scope/... -run
 // TestTokenCatalogGolden -scope.write-golden`), never a side effect of
 // running this suite: see ../engine/pure.test.ts, which reads its own golden
 // the same way for the same reason.
-const GOLDEN_PATH = join(import.meta.dir, '../../../../app/twitch/sesame/engine/scope/testdata/token_catalog.golden.json');
+//
+// Every rule collects its problems into a flat list and asserts the list is
+// empty: one failure then names every offender at once instead of stopping
+// at the first, which is what a catalogue diff needs (a renamed scope drops
+// several heads in one go).
 
-interface GoldenFamily {
-  id: string;
-  examples: string[];
-}
+import { describe, expect, test } from 'bun:test';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { tokenHead } from '../engine/common-tokens';
+import { lex } from '../engine/tmpl';
+import { SIMPLE_TOKENS as FOSSABOT_SIMPLE_TOKENS, SUBFIELD_TOKENS as FOSSABOT_SUBFIELD_TOKENS } from '../importer/fossabot/variables';
+import { SIMPLE_TOKENS as NIGHTBOT_SIMPLE_TOKENS } from '../importer/nightbot/variables';
+import { VARIABLES } from './variables';
+import type { VariableDef } from './types';
+import en from '../i18n/locales/en.json';
+import fr from '../i18n/locales/fr.json';
+
+const GOLDEN_PATH = join(import.meta.dir, '../../../../app/twitch/sesame/engine/scope/testdata/token_catalog.golden.json');
 
 interface GoldenFile {
   note: string;
-  families: GoldenFamily[];
+  families: { id: string; examples: string[] }[];
 }
 
 const golden: GoldenFile = JSON.parse(readFileSync(GOLDEN_PATH, 'utf8'));
 const goldenExamples = golden.families.flatMap((family) => family.examples);
-
-const isDigits = (head: string): boolean => head !== '' && /^\d+$/.test(head);
+const goldenHeads = new Set(goldenExamples.map((example) => tokenHead(example)));
 
 // Heads the Go resolver inventory (CommandTokenFamilies, token_catalog.go)
 // has no entry for by design, so rule B does not require them in golden:
@@ -48,63 +49,67 @@ const isDigits = (head: string): boolean => head !== '' && /^\d+$/.test(head);
 //   messageFields, pureUtils and the named scope tokens below them.
 const NOT_RESOLVER_OWNED = new Set(['positional', 'if']);
 
-const headSet = new Set<string>();
-for (const v of VARIABLES) {
-  headSet.add(v.head);
-  for (const alias of v.aliases ?? []) headSet.add(alias);
-}
+const isDigits = (head: string): boolean => head !== '' && /^\d+$/.test(head);
 
-function lexesToOneVar(example: string): VarToken | null {
+/** Every name a variable answers to: its head plus its aliases. */
+const namesOf = (v: VariableDef): string[] => [v.head, ...(v.aliases ?? [])];
+
+const headSet = new Set(VARIABLES.flatMap(namesOf));
+
+const isCovered = (token: string): boolean => {
+  const head = tokenHead(token);
+  return isDigits(head) || headSet.has(head);
+};
+
+const lexesToOneVar = (example: string): boolean => {
   const tokens = lex(example);
-  return tokens.length === 1 && tokens[0].kind === 'var' ? tokens[0] : null;
-}
+  return tokens.length === 1 && tokens[0].kind === 'var';
+};
+
+type LocaleTable = Record<string, Record<string, unknown> | undefined>;
+const varsTable = (locale: typeof en): LocaleTable => ((locale as { vars?: LocaleTable }).vars ?? {});
+const LOCALES: [string, LocaleTable][] = [['en', varsTable(en)], ['fr', varsTable(fr)]];
+
+/** The copy keys one variable must carry under vars.<id>: the three every
+ * variable has, plus one per form offered as its own chip (chipHint). */
+const requiredCopyKeys = (v: VariableDef): string[] => [
+  'name',
+  'hint',
+  'desc',
+  ...v.forms.flatMap((form) => (form.chipHint ? [form.chipHint] : []))
+];
+
+const missingCopy = (locale: string, table: LocaleTable, v: VariableDef): string[] =>
+  requiredCopyKeys(v)
+    .filter((key) => !table[v.id]?.[key])
+    .map((key) => `${locale}.json vars.${v.id}.${key} is missing`);
+
+const duplicatesIn = (values: string[]): string[] =>
+  values.filter((value, index) => values.indexOf(value) !== index);
 
 describe('variables parity (engine/scope/testdata/token_catalog.golden.json)', () => {
   test('A: every golden example resolves to a manifest head or alias', () => {
-    for (const example of goldenExamples) {
-      const head = tokenHead(example);
-      const covered = isDigits(head) || headSet.has(head);
-      expect(covered, `${example} lexes to head "${head}", which is not in VARIABLES (heads or aliases). Add it to variables.ts.`).toBe(true);
-    }
+    const uncovered = goldenExamples.filter((example) => !isCovered(example));
+    expect(uncovered, 'golden examples with no head or alias in VARIABLES; add them to variables.ts').toEqual([]);
   });
 
   test('B: every manifest head and alias is answered by the Go resolver', () => {
-    const goldenHeads = new Set(goldenExamples.map((example) => tokenHead(example)));
-    for (const v of VARIABLES) {
-      if (NOT_RESOLVER_OWNED.has(v.head)) continue;
-      expect(goldenHeads.has(v.head), `variables.ts promises "${v.head}" (id ${v.id}) but no golden example resolves it.`).toBe(true);
-      for (const alias of v.aliases ?? []) {
-        expect(goldenHeads.has(alias), `variables.ts promises alias "${alias}" (id ${v.id}) but no golden example resolves it.`).toBe(true);
-      }
-    }
+    const unanswered = VARIABLES.filter((v) => !NOT_RESOLVER_OWNED.has(v.head))
+      .flatMap(namesOf)
+      .filter((name) => !goldenHeads.has(name));
+    expect(unanswered, 'variables.ts promises names no golden example resolves; check the scope files').toEqual([]);
   });
 
   test('C: every form example lexes to exactly one variable token', () => {
-    for (const v of VARIABLES) {
-      for (const form of v.forms) {
-        const token = lexesToOneVar(form.example);
-        expect(token, `${v.id}'s example "${form.example}" does not lex to exactly one {…} token.`).not.toBeNull();
-      }
-    }
+    const malformed = VARIABLES.flatMap((v) => v.forms.map((form) => ({ id: v.id, example: form.example })))
+      .filter((form) => !lexesToOneVar(form.example))
+      .map((form) => `${form.id}: ${form.example}`);
+    expect(malformed, 'form examples that do not lex to exactly one {…} token').toEqual([]);
   });
 
-  test('D: every id has name, hint and desc in both locales', () => {
-    const enVars = (en as { vars?: Record<string, unknown> }).vars ?? {};
-    const frVars = (fr as { vars?: Record<string, unknown> }).vars ?? {};
-    for (const v of VARIABLES) {
-      for (const [locale, table] of [['en', enVars], ['fr', frVars]] as const) {
-        const entry = table[v.id] as { name?: string; hint?: string; desc?: string } | undefined;
-        expect(entry, `${locale}.json has no vars.${v.id}`).toBeDefined();
-        expect(entry?.name, `${locale}.json vars.${v.id}.name is missing`).toBeTruthy();
-        expect(entry?.hint, `${locale}.json vars.${v.id}.hint is missing`).toBeTruthy();
-        expect(entry?.desc, `${locale}.json vars.${v.id}.desc is missing`).toBeTruthy();
-        for (const form of v.forms) {
-          if (!form.chipHint) continue;
-          const chip = (entry as Record<string, unknown> | undefined)?.[form.chipHint];
-          expect(chip, `${locale}.json vars.${v.id}.${form.chipHint} is missing (chipHint on ${form.syntax})`).toBeTruthy();
-        }
-      }
-    }
+  test('D: every id has name, hint, desc and chip copy in both locales', () => {
+    const missing = LOCALES.flatMap(([locale, table]) => VARIABLES.flatMap((v) => missingCopy(locale, table, v)));
+    expect(missing).toEqual([]);
   });
 
   test('E: importer targets resolve to a manifest head or alias', () => {
@@ -113,25 +118,12 @@ describe('variables parity (engine/scope/testdata/token_catalog.golden.json)', (
       ...Object.values(FOSSABOT_SIMPLE_TOKENS),
       ...Object.values(FOSSABOT_SUBFIELD_TOKENS)
     ];
-    for (const target of targets) {
-      const head = tokenHead(target);
-      const covered = isDigits(head) || headSet.has(head);
-      expect(covered, `importer target "${target}" resolves to head "${head}", which is not in VARIABLES.`).toBe(true);
-    }
+    const uncovered = targets.filter((target) => !isCovered(target));
+    expect(uncovered, 'importer targets with no head or alias in VARIABLES').toEqual([]);
   });
 
   test('F: ids are unique, heads and aliases are unique', () => {
-    const ids = new Set<string>();
-    const heads = new Set<string>();
-    for (const v of VARIABLES) {
-      expect(ids.has(v.id), `duplicate id "${v.id}"`).toBe(false);
-      ids.add(v.id);
-      expect(heads.has(v.head), `duplicate head "${v.head}" (id ${v.id})`).toBe(false);
-      heads.add(v.head);
-      for (const alias of v.aliases ?? []) {
-        expect(heads.has(alias), `duplicate head/alias "${alias}" (id ${v.id})`).toBe(false);
-        heads.add(alias);
-      }
-    }
+    expect(duplicatesIn(VARIABLES.map((v) => v.id)), 'duplicate ids').toEqual([]);
+    expect(duplicatesIn(VARIABLES.flatMap(namesOf)), 'duplicate heads or aliases').toEqual([]);
   });
 });
