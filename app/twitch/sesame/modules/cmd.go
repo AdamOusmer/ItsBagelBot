@@ -55,7 +55,7 @@ func Cmd(d engine.Deps) module.Module {
 			// Managing commands stays moderator-only; a viewer who tries gets the
 			// public link instead so the command is never a dead end for them.
 			if !c.Chatter().Allows(module.RoleModerator) {
-				cmdLink(c, d, emit)
+				cmdLink(ctx, c, d, emit)
 				return nil
 			}
 			switch strings.ToLower(sub) {
@@ -68,7 +68,7 @@ func Cmd(d engine.Deps) module.Module {
 			}
 		default:
 			// No (or unknown) subcommand: everyone gets the channel's page link.
-			cmdLink(c, d, emit)
+			cmdLink(ctx, c, d, emit)
 		}
 		return nil
 	})
@@ -167,12 +167,24 @@ func cmdRemove(ctx context.Context, c *module.Context, d engine.Deps, args strin
 // query and hand out a link that showed one channel's commands under another
 // streamer's name, so the name is no longer carried in the URL at all. The id
 // stays the fallback path for links already shared in that older form.
-func cmdLink(c *module.Context, d engine.Deps, emit module.Emit) {
+//
+// A broadcaster can turn the page off (User.CommandsPageHidden); cmdLink then
+// answers with cmdPageOff's one-liner instead of a URL that would 404.
+func cmdLink(ctx context.Context, c *module.Context, d engine.Deps, emit module.Emit) {
+	channel := c.Env.BroadcasterName()
+
+	// Fail open: a projection read error (cold cache, projector outage) prints
+	// the link rather than hiding it. A projection outage must not take down
+	// every channel's link (spec D6).
+	if u, err := d.Proj.User(ctx, c.BroadcasterID); err == nil && u.CommandsPageHidden {
+		cmdPageOff(c, emit, channel)
+		return
+	}
+
 	base := d.PublicBaseURL
 	if base == "" {
 		base = "https://commands.itsbagelbot.com"
 	}
-	channel := c.Env.BroadcasterName()
 	slug := strings.ToLower(c.Env.BroadcasterUserLogin)
 	if slug == "" {
 		slug = c.Env.BroadcasterUserID
@@ -183,6 +195,20 @@ func cmdLink(c *module.Context, d engine.Deps, emit module.Emit) {
 		"{channel}", channel,
 		"{url}", link,
 	).Replace(i18n.T(c.Locale, "cmd.link"))
+	emit(&module.Output{
+		Type:          outgress.TypeChat,
+		BroadcasterID: c.Env.BroadcasterUserID,
+		Text:          text,
+	})
+}
+
+// cmdPageOff replies with the one-liner for a hidden commands page, in place
+// of the URL that would otherwise 404.
+func cmdPageOff(c *module.Context, emit module.Emit, channel string) {
+	text := strings.NewReplacer(
+		"{user}", c.Env.ChatterName(),
+		"{channel}", channel,
+	).Replace(i18n.T(c.Locale, "cmd.page_off"))
 	emit(&module.Output{
 		Type:          outgress.TypeChat,
 		BroadcasterID: c.Env.BroadcasterUserID,

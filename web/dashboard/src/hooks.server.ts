@@ -154,11 +154,26 @@ const EDGE_CACHE: Record<string, readonly [number, number]> = {
 // inline scripts, so a cached page replays a single nonce on every hit; on
 // these public pages anyone can read the nonce by fetching the URL, so
 // sharing it costs nothing. Authenticated pages keep harden()'s no-store.
-function edgeCacheControl(event: Parameters<Handle>[0]['event'], res: Response): string | null {
+//
+// Status gate: 200, or 404 when the load set `locals.edgeCache404`. A hidden
+// channel's 404 (the commands-page toggle, spec commands-page-toggle.md §5.3)
+// is shared and cacheable the same as the 200 it replaces: the render carries
+// no per-visitor state either way. An UNKNOWN login's 404 stays no-store
+// (no flag set, so it falls through this gate): that channel could enroll a
+// minute later, and a cached miss would keep answering 404 for the TTL after
+// it does, which the toggle's 404 has no such freshness need for.
+function cacheableStatus(res: Response, event: Parameters<Handle>[0]['event']): boolean {
+  return res.status === 200 || (res.status === 404 && !!event.locals.edgeCache404);
+}
+
+// Exported for direct unit testing: exercising this through the full `handle`
+// pipeline would mean standing up the session/rate-limit/locale machinery for
+// a pure function of (event, res).
+export function edgeCacheControl(event: Parameters<Handle>[0]['event'], res: Response): string | null {
   const ttl = EDGE_CACHE[event.route.id ?? ''];
   if (!ttl) return null;
   if (event.request.method !== 'GET' && event.request.method !== 'HEAD') return null;
-  if (res.status !== 200 || !res.headers.get('content-type')?.includes('text/html')) return null;
+  if (!cacheableStatus(res, event) || !res.headers.get('content-type')?.includes('text/html')) return null;
   if (event.locals.session) return null;
   if (event.locals.locale !== 'en') return null;
   if (event.url.searchParams.has('lang')) return null;

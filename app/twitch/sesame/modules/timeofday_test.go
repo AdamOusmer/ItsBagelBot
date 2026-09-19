@@ -5,12 +5,14 @@ package modules
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/event/lane"
+	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/outgress"
 
 	"github.com/stretchr/testify/assert"
@@ -44,8 +46,13 @@ func timeContext(config string) *module.Context {
 
 func runTime(t *testing.T, config string) module.Output {
 	t.Helper()
+	return runTimeArgs(t, config, "")
+}
+
+func runTimeArgs(t *testing.T, config, args string) module.Output {
+	t.Helper()
 	var col collector
-	require.NoError(t, timeCommand(t).Run(context.Background(), timeContext(config), "", col.emit))
+	require.NoError(t, timeCommand(t).Run(context.Background(), timeContext(config), args, col.emit))
 	require.Len(t, col.out, 1)
 	assert.Equal(t, outgress.TypeChat, col.out[0].Type)
 	assert.Equal(t, "5", col.out[0].BroadcasterID)
@@ -53,11 +60,11 @@ func runTime(t *testing.T, config string) module.Output {
 }
 
 func TestTimeUnconfigured(t *testing.T) {
-	assert.Equal(t, timeUnsetReply, runTime(t, "").Text)
+	assert.Equal(t, i18n.T("en", "time.unset"), runTime(t, "").Text)
 }
 
 func TestTimeBadTimezone(t *testing.T) {
-	assert.Equal(t, "The time is unavailable right now.", runTime(t, `{"timezone":"Mars/Olympus_Mons"}`).Text)
+	assert.Equal(t, i18n.T("en", "time.unavailable"), runTime(t, `{"timezone":"Mars/Olympus_Mons"}`).Text)
 }
 
 func TestTimeDefaultTemplate(t *testing.T) {
@@ -80,7 +87,57 @@ func TestTimeReplyTokens(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.want, timeReply(zap.NewNop(), timeContext(tc.config), now))
+			assert.Equal(t, tc.want, timeReply(zap.NewNop(), timeContext(tc.config), now, ""))
 		})
 	}
+}
+
+// TestTimeBareUnchanged pins that adding the lookup path did not touch the
+// byte-for-byte home reply: same config, same instant, same output as before
+// the !time <place> feature existed.
+func TestTimeBareUnchanged(t *testing.T) {
+	now := time.Date(2026, 7, 13, 18, 30, 0, 0, time.UTC)
+	assert.Equal(t, "2:30 PM", timeReply(zap.NewNop(), timeContext(`{"timezone":"America/Toronto","message":"{time}"}`), now, ""))
+}
+
+// TestTimeLookup covers !time <place>: a city, a curated abbreviation, and a
+// raw offset, all at one pinned instant (18:30 UTC, 2026-07-13) so the
+// conversion arithmetic is checked, not just token substitution.
+func TestTimeLookup(t *testing.T) {
+	now := time.Date(2026, 7, 13, 18, 30, 0, 0, time.UTC)
+	cases := []struct{ name, config, args, want string }{
+		{"city tokyo", "", "Tokyo", "It is currently 3:30 AM in Tokyo."},
+		{"curated abbreviation", "", "est", "It is currently 2:30 PM in Eastern Time."},
+		{"raw offset", "", "UTC+2", "It is currently 8:30 PM in UTC+2."},
+		{"unset home zone does not block a lookup", `{"timezone":""}`, "Tokyo", "It is currently 3:30 AM in Tokyo."},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, timeReply(zap.NewNop(), timeContext(tc.config), now, tc.args))
+		})
+	}
+}
+
+// TestTimeLookupUnknownPlace echoes the normalized query back in time.unknown
+// when tzname can't resolve it.
+func TestTimeLookupUnknownPlace(t *testing.T) {
+	now := time.Date(2026, 7, 13, 18, 30, 0, 0, time.UTC)
+	want := strings.ReplaceAll(i18n.T("en", "time.unknown"), "{place}", "narnia")
+	assert.Equal(t, want, timeReply(zap.NewNop(), timeContext(""), now, "narnia"))
+}
+
+// TestTimeLookupCustomTemplate exercises {timezone}, {place} and {user} on a
+// broadcaster-supplied lookupMessage, and confirms the 24-hour clock choice
+// (which only the home config carries) still applies to a lookup reply.
+func TestTimeLookupCustomTemplate(t *testing.T) {
+	now := time.Date(2026, 7, 13, 18, 30, 0, 0, time.UTC)
+	cfg := `{"format":"24","lookupMessage":"@{user}: {place} ({timezone}) is at {time}"}`
+	got := timeReply(zap.NewNop(), timeContext(cfg), now, "est")
+	assert.Equal(t, "@Viewer: Eastern Time (America/New_York) is at 14:30", got)
+}
+
+// TestTimeWhitespaceArgsIsBare confirms whitespace-only args normalizes to
+// empty and falls through to the home reply rather than an unknown-place miss.
+func TestTimeWhitespaceArgsIsBare(t *testing.T) {
+	assert.Equal(t, i18n.T("en", "time.unset"), runTimeArgs(t, "", "   ").Text)
 }

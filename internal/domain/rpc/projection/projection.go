@@ -49,6 +49,10 @@ type UserReply struct {
 	IsActive bool   `json:"is_active"`
 	Banned   bool   `json:"banned"`
 	Locale   string `json:"locale,omitempty"`
+	// CommandsPageHidden mirrors internal/projection.User's field of the same
+	// name; field set and json tag match exactly so the worker's cold-key RPC
+	// reply decodes without conversion (see CommandView's comment above).
+	CommandsPageHidden bool `json:"commands_page_hidden,omitempty"`
 	rpc.Refusal
 }
 
