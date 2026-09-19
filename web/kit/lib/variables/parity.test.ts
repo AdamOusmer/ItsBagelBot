@@ -39,6 +39,20 @@ const golden: GoldenFile = JSON.parse(readFileSync(GOLDEN_PATH, 'utf8'));
 const goldenExamples = golden.families.flatMap((family) => family.examples);
 const goldenHeads = new Set(goldenExamples.map((example) => tokenHead(example)));
 
+// The reply-token golden is the other half of the same cross-language
+// handshake, read the same way for the same reason: see
+// app/twitch/sesame/modules/reply_tokens.go and reply_tokens_golden_test.go
+// (regenerate with `go test ./app/twitch/sesame/modules/... -run
+// TestReplyTokensGolden -modules.write-golden`).
+const REPLY_TOKENS_GOLDEN_PATH = join(import.meta.dir, '../../../../app/twitch/sesame/modules/testdata/reply_tokens.golden.json');
+
+interface ReplyTokensGoldenFile {
+  note: string;
+  replies: Record<string, string[]>;
+}
+
+const replyTokensGolden: ReplyTokensGoldenFile = JSON.parse(readFileSync(REPLY_TOKENS_GOLDEN_PATH, 'utf8'));
+
 // Heads the Go resolver inventory (CommandTokenFamilies, token_catalog.go)
 // has no entry for by design, so rule B does not require them in golden:
 //
@@ -116,6 +130,32 @@ const hasText = (tree: unknown, key: string): boolean => {
 // typo in a hand-written replyKey namespace would otherwise only surface
 // as a silent English fallback in the marketing builder, never a build or
 // test failure.
+// A ReplyToken.hintKey is always "replyVars.<namespace>.<flattenedName>.hint"
+// (see hintNamespace in catalog/module-def.ts's replyTokens()), and the
+// namespace itself contains a dot ("alerts.follow"), so the regex anchors on
+// the fixed head and tail and keeps whatever sits between.
+const replyNamespace = (hintKey: string): string | undefined => /^replyVars\.(.+)\.[^.]+\.hint$/.exec(hintKey)?.[1];
+
+/** The Go namespace a kit reply claims, read off its first hinted token;
+ * undefined for a reply with no Go counterpart yet (expected, skipped). */
+const claimedNamespace = (source: ReplySource): string | undefined => {
+  const hinted = source.tokens.find((token) => token.hintKey);
+  return hinted ? replyNamespace(hinted.hintKey!) : undefined;
+};
+
+const sortedNames = (names: readonly string[]): string[] => [...new Set(names)].sort();
+
+/** One reply's mismatches against the Go golden, as problem lines. */
+const replyMismatches = (source: ReplySource): string[] => {
+  const ns = claimedNamespace(source);
+  if (!ns) return [];
+  const goNames = replyTokensGolden.replies[ns];
+  if (!goNames) return [`${source.where}: reply_tokens.golden.json has no "${ns}"; add it to app/twitch/sesame/modules/reply_tokens.go and regenerate`];
+  const kitNames = sortedNames(source.tokens.map((token) => token.name));
+  const same = JSON.stringify(kitNames) === JSON.stringify(sortedNames(goNames));
+  return same ? [] : [`${source.where}: kit tokens ${JSON.stringify(kitNames)} differ from Go "${ns}" ${JSON.stringify(sortedNames(goNames))}`];
+};
+
 const unresolvedHintKeys = (locale: string, tree: unknown): string[] =>
   REPLY_SOURCES.flatMap((source) =>
     source.tokens
@@ -165,5 +205,12 @@ describe('variables parity (engine/scope/testdata/token_catalog.golden.json)', (
 
   test('G: every ReplyToken.hintKey resolves in en and fr', () => {
     expect([...unresolvedHintKeys('en', en), ...unresolvedHintKeys('fr', fr)]).toEqual([]);
+  });
+
+  test('H: reply-token inventory matches app/twitch/sesame/modules/reply_tokens.go (Go golden)', () => {
+    expect(REPLY_SOURCES.flatMap(replyMismatches)).toEqual([]);
+    const claimed = new Set(REPLY_SOURCES.map(claimedNamespace));
+    const unclaimed = Object.keys(replyTokensGolden.replies).filter((ns) => !claimed.has(ns));
+    expect(unclaimed, 'Go declares reply namespaces no kit replyTokens() call names; fix web/kit/lib/catalog/*.ts').toEqual([]);
   });
 });
