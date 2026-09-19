@@ -2053,7 +2053,7 @@
       "time": {
         "label": "Heure locale",
         "tagline": "Les viewers demandent quelle heure il est chez vous avec !time.",
-        "description": "Les viewers tapent !time et le bot répond avec votre heure locale actuelle. Choisissez votre fuseau ci-dessous. La page propose celui que votre navigateur indique, calculé uniquement sur votre appareil (rien n'est lu ni enregistré tant que vous ne sauvegardez pas). Choisissez une horloge 12 ou 24 heures et personnalisez la réponse.",
+        "description": "Les viewers tapent !time et le bot répond avec votre heure locale actuelle. Ils peuvent aussi demander l'heure ailleurs : !time Tokyo, !time EST, !time UTC+2. Choisissez votre fuseau ci-dessous. La page propose celui que votre navigateur indique, calculé uniquement sur votre appareil (rien n'est lu ni enregistré tant que vous ne sauvegardez pas). Choisissez une horloge 12 ou 24 heures et personnalisez les deux réponses.",
         "settings": {
           "timezone": {
             "label": "Fuseau horaire",
@@ -2070,6 +2070,9 @@
           }
         },
         "replies": {
+          "lookup": {
+            "tagline": "L'heure ailleurs."
+          },
           "time": {
             "tagline": "Votre heure locale actuelle."
           }

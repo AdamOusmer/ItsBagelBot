@@ -1973,6 +1973,7 @@ export type KnownMessageKey =
   | 'modules.catalog.stream.tagline'
   | 'modules.catalog.time.description'
   | 'modules.catalog.time.label'
+  | 'modules.catalog.time.replies.lookup.tagline'
   | 'modules.catalog.time.replies.time.tagline'
   | 'modules.catalog.time.settings.format.label'
   | 'modules.catalog.time.settings.format.options.12'

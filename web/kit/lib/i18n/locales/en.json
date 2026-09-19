@@ -2072,6 +2072,9 @@
         "replies": {
           "time": {
             "tagline": "Your current local time."
+          },
+          "lookup": {
+            "tagline": "Time somewhere else."
           }
         }
       },

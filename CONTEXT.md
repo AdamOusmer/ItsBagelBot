@@ -49,3 +49,19 @@ _Avoid_: Premium when referring to the recurring payment agreement.
 **Renewal**:
 A scheduled recurring payment under a Tebex subscription.
 _Avoid_: Access expiry when referring to a billing event.
+
+## Language: Local Time module
+
+**Home zone**:
+The timezone a broadcaster picked for the Local Time module. One per channel, may be unset.
+_Avoid_: Default timezone, streamer zone.
+
+**Home time**:
+The answer to a bare `!time`: the current time in the home zone.
+_Avoid_: Local time when referring to the reply rather than the module.
+
+**Place**:
+What a viewer typed after `!time`: a city, a timezone name, an abbreviation or a UTC offset. A place is either recognized or unknown; an unknown place is never silently replaced by the home zone.
+
+**Place lookup**:
+The answer to `!time <place>`: the current time at a recognized place, using the channel's clock format. Works whether or not the home zone is set.
