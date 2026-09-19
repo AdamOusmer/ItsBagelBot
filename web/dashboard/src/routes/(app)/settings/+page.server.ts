@@ -17,9 +17,14 @@ import {
   notificationMarkRead,
   notificationMarkPeeked,
   userLocale,
+  userCommandsPage,
+  setCommandsPage,
+  accountState,
   type NotificationWire
 } from '$lib/server/services';
 import { deleteFetchKey, listFetches, setFetchKey, type FetchKeyView } from '$lib/server/fetches-store';
+import { purgeEdge } from '$lib/server/edge-purge';
+import { commandsHref } from '@bagel/kit/site-links';
 import { KEY_VALUE_MAX, slugifyName } from '@bagel/kit';
 import { ACCOUNT_DELETED_COOKIE, COOKIE, SESSION_TTL_SECONDS, type Session } from '$lib/server/session';
 import { revokeAllForUser, revokeSession } from '@bagel/kit/server/session-revocation';
@@ -36,6 +41,25 @@ const DEMO = dev && env.DEMO === '1';
 
 function tokenLabel(token: string): string {
   return token.length <= 8 ? 'token=redacted' : `token=${token.slice(0, 8)}...`;
+}
+
+// ownerSession is the genuine account owner: signed in, not a delegate, not
+// an admin "view as" session (impersonator_id). Account-level preferences are
+// theirs alone; an impersonating admin is refused outright rather than logged.
+function ownerSession(s: Session | null): s is Session {
+  return !!s && !s.delegate_of && !s.impersonator_id;
+}
+
+// purgeCommandsPage drops the channel's canonical commands page from the
+// edge. Best-effort: purgeEdge never throws, so a failure surfaces as a
+// delay rather than failing a write that already landed. The login comes
+// from accountState, the same value canonicalLogin redirects to, so only the
+// one exact URL the edge could have cached is ever purged; no login (account
+// read failed) means no URL, reported as a delay.
+async function purgeCommandsPage(userId: string): Promise<boolean> {
+  const account = await accountState(userId).catch(() => null);
+  if (!account?.username) return false;
+  return purgeEdge([commandsHref(account.username.toLowerCase())]);
 }
 
 // ownerAction wraps the shared shape of the delegation actions: owner-only
@@ -90,6 +114,7 @@ export const load: PageServerLoad = async ({ locals }) => {
       grantableSections: [...GRANTABLE_SECTIONS],
       notifications: d.demoNotifications,
       savedLocale: d.demoSavedLocale,
+      commandsPage: true,
       degraded: false,
       fetchKeys: d.demoFetches().keys,
       fetchKeyRefs: { weather_api: ['weather'] }
@@ -102,41 +127,45 @@ export const load: PageServerLoad = async ({ locals }) => {
   if (!s || s.delegate_of) throw redirect(302, '/');
 
   const self = s.user_id;
-  let given: Awaited<ReturnType<typeof delegationList>> = [];
-  let received: Awaited<ReturnType<typeof delegationAccess>> = [];
-  let notifications: NotificationWire[] = [];
-  let degraded = false;
-
-  const [givenResult, receivedResult, notifResult, localeResult, fetchKeyResult] = await Promise.allSettled([
+  const [givenResult, receivedResult, notifResult, localeResult, commandsPageResult, fetchKeyResult] = await Promise.allSettled([
     delegationList(self),
     delegationAccess(self),
     notificationsForUser(self),
     userLocale(self),
+    userCommandsPage(self),
     listFetches(self)
   ]);
 
-  if (givenResult.status === 'fulfilled') given = givenResult.value;
-  else degraded = true;
-  if (receivedResult.status === 'fulfilled') received = receivedResult.value;
-  else degraded = true;
-  // Notifications are a nice-to-have section; a failed fetch just shows empty.
-  if (notifResult.status === 'fulfilled') notifications = notifResult.value.notifications;
-
-  const savedLocale = localeResult.status === 'fulfilled' && isLocale(localeResult.value)
-    ? localeResult.value
-    : DEFAULT_LOCALE;
-  if (localeResult.status === 'rejected') degraded = true;
+  // Notifications are a nice-to-have section and stay out of the degraded
+  // flag: a failed fetch just shows empty.
+  const notifications: NotificationWire[] = settledOr(notifResult, { notifications: [], unreadCount: 0 }).notifications;
 
   return {
-    given,
-    received,
+    given: settledOr(givenResult, []),
+    received: settledOr(receivedResult, []),
     grantableSections: [...GRANTABLE_SECTIONS],
     notifications,
-    savedLocale,
-    degraded,
+    savedLocale: savedLocaleOf(localeResult),
+    commandsPage: settledOr(commandsPageResult, true),
+    degraded: [givenResult, receivedResult, localeResult, commandsPageResult].some(rejected),
     ...readFetchKeys(fetchKeyResult)
   };
 };
+
+// The settled-result helpers keep load flat: each section picks its own
+// fallback and the degraded flag is one pass over the results that count.
+function settledOr<T>(r: PromiseSettledResult<T>, fallback: T): T {
+  return r.status === 'fulfilled' ? r.value : fallback;
+}
+
+function rejected(r: PromiseSettledResult<unknown>): boolean {
+  return r.status === 'rejected';
+}
+
+function savedLocaleOf(r: PromiseSettledResult<string>): string {
+  const v = settledOr(r, DEFAULT_LOCALE);
+  return isLocale(v) ? v : DEFAULT_LOCALE;
+}
 
 // One reason per line, and the caller renders whichever comes back. The UI has
 // only ever shown a single message, so a field->message map was shape the
@@ -248,6 +277,22 @@ export const actions: Actions = {
     } catch {
       return fail(502, { error: 'Could not update. Try again in a moment.' });
     }
+  },
+
+  setCommandsPage: async ({ request, locals }) => {
+    const s = locals.session;
+    if (DEMO) return { ok: true, action: 'commands_page', edgeDelayed: false };
+    if (!ownerSession(s)) return fail(403, { error: 'Not allowed.' });
+
+    const enabled = ['on', 'true'].includes(String((await request.formData()).get('enabled') ?? ''));
+
+    try {
+      await setCommandsPage(s.user_id, !enabled);
+    } catch {
+      return fail(502, { error: 'Could not update. Try again in a moment.' });
+    }
+
+    return { ok: true, action: 'commands_page', edgeDelayed: !(await purgeCommandsPage(s.user_id)) };
   },
 
   // "Mark all read" from the Settings list. markPeeked is not this: a peek only

@@ -19,6 +19,10 @@ declare global {
        * field means the read blipped and the caller may retry.
        */
       accountState?: { value: AccountState } | { ghost: true };
+      /** Set by the public commands-page load when the channel hid its page,
+       *  so hooks.server.ts can edge-cache that 404 (an unknown login stays
+       *  no-store). */
+      edgeCache404?: boolean;
     }
     interface PageData {
       role?: 'streamer' | 'mod';
