@@ -35,6 +35,8 @@ type User struct {
 	Locale string `json:"locale,omitempty"`
 	// CustomCursor holds the value of the "custom_cursor" field.
 	CustomCursor bool `json:"custom_cursor,omitempty"`
+	// CommandsPageHidden holds the value of the "commands_page_hidden" field.
+	CommandsPageHidden bool `json:"commands_page_hidden,omitempty"`
 	// CreatorCode holds the value of the "creator_code" field.
 	CreatorCode *string `json:"creator_code,omitempty"`
 	// SubscriptionSource holds the value of the "subscription_source" field.
@@ -101,7 +103,7 @@ func (*User) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case user.FieldEmailEnc:
 			values[i] = new([]byte)
-		case user.FieldIsActive, user.FieldBanned, user.FieldCustomCursor, user.FieldSubscriptionCancelPending, user.FieldOnboarded, user.FieldTestAccount:
+		case user.FieldIsActive, user.FieldBanned, user.FieldCustomCursor, user.FieldCommandsPageHidden, user.FieldSubscriptionCancelPending, user.FieldOnboarded, user.FieldTestAccount:
 			values[i] = new(sql.NullBool)
 		case user.FieldID, user.FieldGiftsSent:
 			values[i] = new(sql.NullInt64)
@@ -183,6 +185,12 @@ func (_m *User) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field custom_cursor", values[i])
 			} else if value.Valid {
 				_m.CustomCursor = value.Bool
+			}
+		case user.FieldCommandsPageHidden:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field commands_page_hidden", values[i])
+			} else if value.Valid {
+				_m.CommandsPageHidden = value.Bool
 			}
 		case user.FieldCreatorCode:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -331,6 +339,9 @@ func (_m *User) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("custom_cursor=")
 	builder.WriteString(fmt.Sprintf("%v", _m.CustomCursor))
+	builder.WriteString(", ")
+	builder.WriteString("commands_page_hidden=")
+	builder.WriteString(fmt.Sprintf("%v", _m.CommandsPageHidden))
 	builder.WriteString(", ")
 	if v := _m.CreatorCode; v != nil {
 		builder.WriteString("creator_code=")

@@ -71,7 +71,7 @@ func explicitOn(v string) bool { return v == "on" }
 //
 // The window is deliberately per (channel, follower): a genuine follower who
 // leaves and comes back later in the week is still thanked, and one channel's
-// alerts never suppress another's. See followAlertKey for the Valkey key, and
+// alerts never suppress another's. See alertClaim.key for the Valkey key, and
 // docs/src/content/docs/microservices/sesame.md ("Follow-alert dedupe") for why
 // a multi-day window is safe to hold in the keyspace.
 const followAlertWindow = 72 * time.Hour
@@ -84,30 +84,39 @@ type followEvent struct {
 	BroadcasterUserID string `json:"broadcaster_user_id"`
 }
 
-// followAlertKey is the per-channel, per-follower claim the alert takes for
-// followAlertWindow. Both ids are Twitch's numeric user ids, so a rename never
-// re-opens the window the way a login-keyed claim would.
-func followAlertKey(ev followEvent) string {
-	return "alert:follow:" + ev.BroadcasterUserID + ":" + ev.UserID
+// alertClaim is the per-channel, per-viewer dedupe window an alert takes
+// before it posts. kind names the Valkey key and the warn line. Both ids are
+// Twitch's numeric user ids, so a rename never re-opens the window the way a
+// login-keyed claim would.
+type alertClaim struct {
+	kind          string
+	broadcasterID string
+	userID        string
+	window        time.Duration
 }
 
-// firstFollowAlert claims this follower's window and reports whether the alert
-// should fire. It runs only once the alert is known to be enabled, so a channel
-// with follow alerts off never burns a window it would want later.
+func (c alertClaim) key() string {
+	return "alert:" + c.kind + ":" + c.broadcasterID + ":" + c.userID
+}
+
+// first claims the window and reports whether the alert should fire. Callers
+// run it only once the alert is known to be enabled (and, for subs, past the
+// gifted-recipient skip), so a channel with the alert off never burns a
+// window it would want later.
 //
 // It fails open: with no cooldown store wired, no user id on the payload, or
 // Valkey unreachable, the alert still posts. A missed thank-you is a worse
-// outcome than the duplicate an outage can let through, and the abuse this gate
-// exists for cannot cause the outage.
-func firstFollowAlert(ctx context.Context, cd engine.CooldownStore, log *zap.Logger, ev followEvent) bool {
-	if cd == nil || ev.UserID == "" {
+// outcome than the duplicate an outage can let through, and the abuse this
+// gate exists for cannot cause the outage.
+func (c alertClaim) first(ctx context.Context, cd engine.CooldownStore, log *zap.Logger) bool {
+	if cd == nil || c.userID == "" {
 		return true
 	}
-	ok, err := cd.Allow(ctx, followAlertKey(ev), followAlertWindow)
+	ok, err := cd.Allow(ctx, c.key(), c.window)
 	if err != nil {
-		log.Warn("alerts: follow cooldown unavailable, alerting anyway",
-			zap.String("broadcaster_id", ev.BroadcasterUserID),
-			zap.String("user_id", ev.UserID),
+		log.Warn("alerts: "+c.kind+" cooldown unavailable, alerting anyway",
+			zap.String("broadcaster_id", c.broadcasterID),
+			zap.String("user_id", c.userID),
 			zap.Error(err),
 		)
 		return true
@@ -115,11 +124,27 @@ func firstFollowAlert(ctx context.Context, cd engine.CooldownStore, log *zap.Log
 	return ok
 }
 
-// subscribeEvent is the subset of the channel.subscribe EventSub payload we
-// use. IsGift marks a gifted recipient: Twitch fires one channel.subscribe per
-// recipient of a gift, on top of the single channel.subscription.gift for the
-// gifter.
+// subAlertWindow is how long a channel remembers that it already welcomed a
+// subscriber. Twitch docs say channel.subscribe excludes resubs, but in
+// production on 2026-09-18 it fired on a 2-month renewal anyway, and the
+// viewer's share click then fired channel.subscription.message seconds later,
+// posting the same welcome line twice. 15 minutes covers renew-then-share plus
+// a JetStream redelivery, without holding the window long enough to matter.
+//
+// followAlertWindow's 72 hours was rejected here: a share days after the
+// renewal is still a legitimate second moment worth welcoming, and a real
+// resub next month must never be swallowed by a stale claim.
+//
+// The window is per (channel, subscriber), same as follow: one channel's
+// alerts never suppress another's. See alertClaim.key for the Valkey key.
+const subAlertWindow = 15 * time.Minute
+
+// subscribeEvent is the subset of the channel.subscribe and
+// channel.subscription.message EventSub payloads we use. IsGift marks a
+// gifted recipient: Twitch fires one channel.subscribe per recipient of a
+// gift, on top of the single channel.subscription.gift for the gifter.
 type subscribeEvent struct {
+	UserID            string `json:"user_id"`
 	UserName          string `json:"user_name"`
 	UserLogin         string `json:"user_login"`
 	BroadcasterUserID string `json:"broadcaster_user_id"`
@@ -215,70 +240,32 @@ func onAlert[T any](pick func(alertsConfig) (bool, string), fallback string, ren
 // alert from the Shoutout module: Shoutout points chat at the raider's channel,
 // this just announces the raid happened.
 //
-// Only the follow alert is deduplicated (followAlertWindow): it is the one
-// event a viewer can re-trigger at will. Subs, gifts, cheers and raids each
-// cost the sender something, and ad breaks are the channel's own, so those are
-// announced every time.
+// Follow and sub are deduplicated (followAlertWindow, subAlertWindow): follow
+// because a viewer can re-trigger it at will, sub because Twitch delivers one
+// renewal as channel.subscribe plus channel.subscription.message on share.
+// Gifts, cheers and raids each cost the sender something, and ad breaks are
+// the channel's own, so those are announced every time.
 func Alerts(d engine.Deps) module.Module {
 	m := module.NewModule("alerts", module.KindDefault)
 
 	m.On("channel.follow", onAlert(
 		func(cfg alertsConfig) (bool, string) { return alertOn(cfg.FollowEnabled), cfg.FollowMessage },
 		defaultFollowTemplate,
-		followLine(d.Cooldown, moduleLog(d))))
+		claimedLine[followEvent](d.Cooldown, moduleLog(d))))
 
-	// The sub alert serves both channel.subscribe (new subs) and
-	// channel.subscription.message (resubs shared in chat), so a renewing sub
-	// gets the same welcome line under the same toggle. The resub payload has
-	// no is_gift field, so the gifted-recipient skip only ever fires on
-	// channel.subscribe.
+	// Both sub events share one toggle, template and dedupe window
+	// (subAlertWindow), so a renewal followed by a share click posts one welcome line.
 	subAlert := onAlert(
 		func(cfg alertsConfig) (bool, string) { return alertOn(cfg.SubEnabled), cfg.SubMessage },
 		defaultSubTemplate,
-		func(ctx context.Context, ev subscribeEvent) (alertLine, bool) {
-			// A gifted recipient is announced through the gift alert on
-			// channel.subscription.gift (one line per gifter, not one per
-			// recipient), so a gift bomb cannot flood chat with welcome lines.
-			if ev.UserLogin == "" || ev.IsGift {
-				return alertLine{}, false
-			}
-			user := chatName(ev.UserName, ev.UserLogin)
-			activity.Emit(ctx, ev.BroadcasterUserID, activity.Row{
-				Kind: activity.KindEvent,
-				Text: user + " subscribed (" + ev.Tier + ")",
-				At:   time.Now(),
-			})
-			return alertLine{ev.BroadcasterUserID, map[string]string{
-				"user": user,
-				"tier": ev.Tier,
-			}}, true
-		})
+		claimedLine[subscribeEvent](d.Cooldown, moduleLog(d)))
 	m.On("channel.subscribe", subAlert)
 	m.On("channel.subscription.message", subAlert)
 
 	m.On("channel.subscription.gift", onAlert(
 		func(cfg alertsConfig) (bool, string) { return alertOn(cfg.GiftEnabled), cfg.GiftMessage },
 		defaultGiftTemplate,
-		func(ctx context.Context, ev giftEvent) (alertLine, bool) {
-			if ev.BroadcasterUserID == "" || ev.Total <= 0 {
-				return alertLine{}, false
-			}
-			gifter := "An anonymous gifter"
-			if !ev.IsAnonymous {
-				gifter = displayName(ev.UserName, ev.UserLogin)
-			}
-			gifter = strings.TrimPrefix(gifter, "@")
-			activity.Emit(ctx, ev.BroadcasterUserID, activity.Row{
-				Kind: activity.KindEvent,
-				Text: gifter + " gifted " + strconv.Itoa(ev.Total) + " subs",
-				At:   time.Now(),
-			})
-			return alertLine{ev.BroadcasterUserID, map[string]string{
-				"user":  gifter,
-				"count": strconv.Itoa(ev.Total),
-				"tier":  ev.Tier,
-			}}, true
-		}))
+		giftLine))
 
 	m.On("channel.cheer", onAlert(
 		func(cfg alertsConfig) (bool, string) { return alertOn(cfg.CheerEnabled), cfg.CheerMessage },
@@ -331,24 +318,82 @@ func Alerts(d engine.Deps) module.Module {
 	return m.Build()
 }
 
-// followLine renders the follow alert. It is the one render that needs runtime
-// deps: the dedupe window is claimed here, inside the render, so it is taken
-// only for a channel whose follow alert is actually enabled.
-func followLine(cd engine.CooldownStore, log *zap.Logger) func(context.Context, followEvent) (alertLine, bool) {
-	return func(ctx context.Context, ev followEvent) (alertLine, bool) {
-		if ev.UserLogin == "" || !firstFollowAlert(ctx, cd, log, ev) {
+// claimedEvent is an alert payload that takes a dedupe window (alertClaim)
+// before it posts: follow and sub today. skip reports payloads that never
+// alert (no login, or a gifted recipient announced through the gift alert
+// instead); it runs before the claim so those never burn a window.
+type claimedEvent interface {
+	skip() bool
+	claim() alertClaim
+	activityText() string
+	tokens() map[string]string
+}
+
+func (ev followEvent) skip() bool { return ev.UserLogin == "" }
+func (ev followEvent) claim() alertClaim {
+	return alertClaim{"follow", ev.BroadcasterUserID, ev.UserID, followAlertWindow}
+}
+func (ev followEvent) user() string              { return chatName(ev.UserName, ev.UserLogin) }
+func (ev followEvent) activityText() string      { return ev.user() + " followed" }
+func (ev followEvent) tokens() map[string]string { return map[string]string{"user": ev.user()} }
+
+// skip also covers a gifted recipient: channel.subscription.gift announces
+// those separately, and the resub payload has no is_gift field, so that half
+// of skip only ever fires on channel.subscribe.
+func (ev subscribeEvent) skip() bool { return ev.UserLogin == "" || ev.IsGift }
+func (ev subscribeEvent) claim() alertClaim {
+	return alertClaim{"sub", ev.BroadcasterUserID, ev.UserID, subAlertWindow}
+}
+func (ev subscribeEvent) user() string         { return chatName(ev.UserName, ev.UserLogin) }
+func (ev subscribeEvent) activityText() string { return ev.user() + " subscribed (" + ev.Tier + ")" }
+func (ev subscribeEvent) tokens() map[string]string {
+	return map[string]string{"user": ev.user(), "tier": ev.Tier}
+}
+
+// claimedLine builds the chat line for a claimedEvent: skip, claim the
+// window, record the activity row, hand back the template tokens. The claim
+// runs only once the alert is known to be enabled (onAlert checks the toggle
+// first), so a channel with the alert off never burns a window it would want
+// later.
+func claimedLine[E claimedEvent](cd engine.CooldownStore, log *zap.Logger) func(context.Context, E) (alertLine, bool) {
+	return func(ctx context.Context, ev E) (alertLine, bool) {
+		if ev.skip() {
 			return alertLine{}, false
 		}
-		user := chatName(ev.UserName, ev.UserLogin)
-		activity.Emit(ctx, ev.BroadcasterUserID, activity.Row{
+		c := ev.claim()
+		if !c.first(ctx, cd, log) {
+			return alertLine{}, false
+		}
+		activity.Emit(ctx, c.broadcasterID, activity.Row{
 			Kind: activity.KindEvent,
-			Text: user + " followed",
+			Text: ev.activityText(),
 			At:   time.Now(),
 		})
-		return alertLine{ev.BroadcasterUserID, map[string]string{
-			"user": user,
-		}}, true
+		return alertLine{c.broadcasterID, ev.tokens()}, true
 	}
+}
+
+// giftLine renders the gift alert for channel.subscription.gift: one line
+// per gifter, not one per recipient (see subscribeEvent.skip).
+func giftLine(ctx context.Context, ev giftEvent) (alertLine, bool) {
+	if ev.BroadcasterUserID == "" || ev.Total <= 0 {
+		return alertLine{}, false
+	}
+	gifter := "An anonymous gifter"
+	if !ev.IsAnonymous {
+		gifter = displayName(ev.UserName, ev.UserLogin)
+	}
+	gifter = strings.TrimPrefix(gifter, "@")
+	activity.Emit(ctx, ev.BroadcasterUserID, activity.Row{
+		Kind: activity.KindEvent,
+		Text: gifter + " gifted " + strconv.Itoa(ev.Total) + " subs",
+		At:   time.Now(),
+	})
+	return alertLine{ev.BroadcasterUserID, map[string]string{
+		"user":  gifter,
+		"count": strconv.Itoa(ev.Total),
+		"tier":  ev.Tier,
+	}}, true
 }
 
 // displayName prefers the EventSub display name, falling back to the login
