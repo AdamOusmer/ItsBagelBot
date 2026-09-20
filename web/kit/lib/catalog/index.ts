@@ -25,6 +25,7 @@ import { FORTNITE_MODULE } from './fortnite';
 import { GOVEE_MODULE } from './govee';
 import { LOYALTY_MODULE } from './loyalty';
 import { MCSR_MODULE } from './mcsr';
+import { PERSONALITY_MODULE } from './personality';
 import { QUEUE_MODULE } from './queue';
 import { QUOTES_MODULE } from './quotes';
 import { RAFFLE_MODULE } from './raffle';
@@ -46,6 +47,7 @@ export const MOD = {
   triggers: 'triggers',
   time: 'time',
   emoteplay: 'emoteplay',
+  personality: 'personality',
   automod: 'automod',
   shoutout: 'shoutout',
   alerts: 'alerts',
@@ -79,6 +81,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
   TRIGGERS_MODULE,
   TIME_MODULE,
   EMOTEPLAY_MODULE,
+  PERSONALITY_MODULE,
   AUTOMOD_MODULE,
   SHOUTOUT_MODULE,
   ALERTS_MODULE,

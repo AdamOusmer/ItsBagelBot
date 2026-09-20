@@ -76,6 +76,30 @@ describe('module catalog', () => {
     expect(def?.replies).toHaveLength(0);
   });
 
+  // Personality was always-on core before it got its own ModuleView row, so
+  // the tile must ship enabled and stay a bare switch: its lines are baked
+  // into sesame, which leaves nothing to edit or configure. The two viewer
+  // commands are listed read-only so the page is not an empty toggle.
+  test('personality is a default-on Chat toggle with nothing to configure', () => {
+    const def = moduleDef('personality');
+    expect(def).toBeDefined();
+    expect(def?.category).toBe('Chat');
+    expect(def?.defaultEnabled).toBe(true);
+    expect(def?.toggleable).not.toBe(false);
+    expect(def?.href).toBeUndefined();
+    expect(def?.hidden).toBeFalsy();
+    expect(def?.replies).toHaveLength(0);
+    expect(def?.settings).toBeUndefined();
+  });
+
+  test('personality owns !bagels and !bagelboard with their aliases', () => {
+    const commands = moduleDef('personality')?.commands;
+    expect(commands?.map((c) => c.trigger)).toEqual(['!bagels', '!bagelboard']);
+    expect(commands?.[0].aliases).toEqual(['!fed', '!bagelcount']);
+    expect(commands?.[1].aliases).toEqual(['!feedboard', '!bagellb']);
+    expect(commands?.every((c) => c.perm === undefined)).toBe(true);
+  });
+
   test('CODM is a generic Stats profile module with the shared account settings', () => {
     const def = moduleDef('codm');
     expect(def).toBeDefined();
