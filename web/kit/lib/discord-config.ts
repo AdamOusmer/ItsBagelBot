@@ -713,18 +713,46 @@ export function canManageGuild(entry: GuildPermissionEntry): boolean {
 /**
  * The two-letter tile a guild is drawn with.
  *
- * Not an <img>: the console CSP is `img-src 'self' data:`, so a tag pointed at
- * cdn.discordapp.com renders as a broken box with no fix short of proxying
- * every guild icon through the dashboard, and it would leak the visit to
- * Discord on every page view. Initials of the first two words when there are
- * two, otherwise the first two characters, so "Demo Bakery" reads DB and
- * "Bagels" reads BA.
+ * The fallback behind the guild icon (the dashboard's GuildCrest): a server
+ * with no icon set, one Discord could not describe, or a CDN file that 404s
+ * after the server changed its icon all land here. Initials of the first two
+ * words when there are two, otherwise the first two characters, so "Demo
+ * Bakery" reads DB and "Bagels" reads BA.
  */
 export function guildMonogram(name: GuildName): string {
   const words = name.trim().split(/\s+/).filter((w) => w !== '');
   if (words.length === 0) return '?';
   if (words.length === 1) return [...words[0]].slice(0, 2).join('').toUpperCase();
   return (([...words[0]][0] ?? '') + ([...words[1]][0] ?? '')).toUpperCase();
+}
+
+/** Discord's image CDN, the one host the console CSP opens for images. */
+const DISCORD_ICON_CDN = 'https://cdn.discordapp.com/icons/';
+
+/**
+ * The CDN URL of a guild icon, or '' when the guild has none.
+ *
+ * Mirrors internal/discordapi's GuildInfo.IconURL, so the picker (which holds
+ * the raw hash from /users/@me/guilds) and the server list (which gets the URL
+ * from outgress) point at the same file. The icon is queried on every read and
+ * never stored: a server that changes its icon 404s the old hash. .png for an
+ * animated `a_` hash too; a 44px tile wants the still frame Discord serves
+ * for it. The hash is checked before it goes into a path.
+ */
+export function guildIconURL(guildId: Snowflake, icon: string): string {
+  if (!isSnowflake(guildId) || !/^[a-z0-9_]+$/i.test(icon)) return '';
+  return `${DISCORD_ICON_CDN}${guildId}/${icon}.png`;
+}
+
+/**
+ * The URL to put in `src`. The CDN scales on request, and 128 is the smallest
+ * power of two that keeps a 44px tile sharp on a 2x screen; without it the
+ * browser downloads the full upload. Only the CDN takes the parameter: any
+ * other URL (the demo's local asset, '') passes through untouched.
+ */
+export function guildIconSrc(url: string, size = 128): string {
+  if (!url.startsWith(DISCORD_ICON_CDN)) return url;
+  return `${url}?size=${size}`;
 }
 
 /**
@@ -787,7 +815,14 @@ export function guildPickerBadge(guildId: Snowflake, lists: GuildPickerLists): G
 
 // ── the guild list Discord returns for a user token ───────────────────────
 
-export type DiscordUserGuild = { id: Snowflake; name: GuildName; owner: boolean; permissions: string };
+export type DiscordUserGuild = {
+  id: Snowflake;
+  name: GuildName;
+  /** The icon hash, '' when the server has none; see guildIconURL. */
+  icon: string;
+  owner: boolean;
+  permissions: string;
+};
 
 /**
  * One entry of `/users/@me/guilds`.
@@ -799,14 +834,21 @@ export type DiscordUserGuild = { id: Snowflake; name: GuildName; owner: boolean;
 export function parseUserGuild(raw: unknown): DiscordUserGuild | null {
   if (raw === null || typeof raw !== 'object') return null;
   if (Array.isArray(raw)) return null;
-  const g = raw as { id?: unknown; name?: unknown; owner?: unknown; permissions?: unknown };
+  const g = raw as { id?: unknown; name?: unknown; icon?: unknown; owner?: unknown; permissions?: unknown };
   if (typeof g.id !== 'string' || g.id === '') return null;
   return {
     id: g.id,
-    name: typeof g.name === 'string' ? g.name : '',
+    name: wireString(g.name),
+    icon: wireString(g.icon),
     owner: g.owner === true,
-    permissions: typeof g.permissions === 'string' ? g.permissions : ''
+    permissions: wireString(g.permissions)
   };
+}
+
+/** The string a wire field holds, '' for anything else: Discord sends null
+ *  for an unset icon, and a missing field is undefined. */
+function wireString(v: unknown): string {
+  return typeof v === 'string' ? v : '';
 }
 
 /**

@@ -16,11 +16,11 @@
     MasterToggle,
     StatTile,
     getI18n,
-    guildBotState,
-    guildMonogram
+    guildBotState
   } from '@bagel/kit';
   import { DISCORD_SLUG_KEYS } from '$lib/discord-messages';
   import DiscordStateTag from '$lib/components/discord/DiscordStateTag.svelte';
+  import GuildCrest from '$lib/components/discord/GuildCrest.svelte';
   import { sinceParts } from '$lib/discord/guild-view';
   import type { DiscordGuildSummary } from '$lib/server/discord-store';
 
@@ -198,10 +198,7 @@
             <li>
               <Card as="a" href="/discord/{g.guildId}" hover class="server-card">
                 <span class="head">
-                  <!-- Monogram, not the guild icon: the console CSP is
-                       img-src 'self' data:, so a CDN <img> renders as a broken
-                       box and leaks the visit to Discord besides. -->
-                  <span class="crest" aria-hidden="true">{guildMonogram(g.name || t('discord.unknownServer'))}</span>
+                  <GuildCrest name={g.name || t('discord.unknownServer')} iconUrl={g.iconUrl} />
                   <DiscordStateTag {state} />
                 </span>
                 <span class="server-name">{g.name || t('discord.unknownServer')}</span>
@@ -260,21 +257,6 @@
     box-sizing: border-box;
   }
   .head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
-  .crest {
-    flex: none;
-    width: 44px;
-    height: 44px;
-    border-radius: var(--bb-radius-sm);
-    display: grid;
-    place-items: center;
-    background: rgba(201, 168, 124, 0.12);
-    border: 1px solid var(--glass-border);
-    color: var(--bb-tan-light);
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 15px;
-    letter-spacing: 0.02em;
-  }
   .server-name {
     font-family: var(--bb-font-display);
     font-weight: 700;

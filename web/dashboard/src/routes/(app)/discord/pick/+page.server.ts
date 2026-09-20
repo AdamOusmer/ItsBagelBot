@@ -24,7 +24,7 @@ import {
   type DiscordUserGuild
 } from '$lib/server/discord-oauth';
 import { listGuilds } from '$lib/server/discord-store';
-import { canManageGuild, guildMonogram, guildPickerBadge, type GuildPickerBadge } from '@bagel/kit';
+import { canManageGuild, guildIconURL, guildPickerBadge, type GuildPickerBadge } from '@bagel/kit';
 import { gateModulePage } from '$lib/server/module-gate';
 import { dev } from '$app/environment';
 
@@ -35,7 +35,7 @@ const DEMO = dev && process.env.DEMO === '1';
 export type PickChoice = {
   guildId: string;
   name: string;
-  monogram: string;
+  iconUrl: string;
   badge: GuildPickerBadge;
   installURL: string;
   openURL: string;
@@ -81,7 +81,7 @@ function choice(
   return {
     guildId: g.id,
     name: g.name,
-    monogram: guildMonogram(g.name),
+    iconUrl: guildIconURL(g.id, g.icon),
     badge,
     // A server this broadcaster already bound sends them to its settings, and
     // one that belongs to a different channel offers nothing: walking either

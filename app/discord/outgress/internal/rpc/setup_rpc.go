@@ -569,6 +569,7 @@ func (d *discordRPC) guildEntries(ctx context.Context, guilds []setup.GuildSumma
 		out = append(out, outgressrpc.DiscordGuildEntry{
 			GuildID:       g.GuildID,
 			Name:          g.Name,
+			IconURL:       g.IconURL,
 			MemberCount:   g.MemberCount,
 			BotPresent:    g.BotPresent,
 			BoundAtUnixMs: g.BoundAtUnixMs,

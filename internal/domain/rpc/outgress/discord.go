@@ -338,9 +338,11 @@ type DiscordGuildsListReply struct {
 type DiscordGuildEntry struct {
 	GuildID string `json:"guild_id"`
 	Name    string `json:"name,omitempty"`
-	// IconURL is empty: the dashboard draws a monogram because the page's CSP
-	// forbids Discord's image CDN, so fetching the icon hash here would cost a
-	// REST field nothing renders.
+	// IconURL is the guild icon on Discord's CDN, off the same with_counts
+	// lookup that fills Name; "" when the guild has none or the lookup
+	// failed, and the dashboard then draws a monogram. It was left empty
+	// while the console CSP forbade the CDN; the CSP opens
+	// cdn.discordapp.com for images now (web/kit/svelte-config.js).
 	IconURL string `json:"icon_url,omitempty"`
 	// MemberCount is Discord's own approximation, filled from the same
 	// with_counts lookup that answers BotPresent. Zero when the bot is not in

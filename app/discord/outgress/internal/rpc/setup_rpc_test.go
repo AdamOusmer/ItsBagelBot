@@ -620,3 +620,17 @@ func TestPanelSpecKeepsBlackAndUnsetApart(t *testing.T) {
 		t.Fatal("OrDefaults must not repaint a black panel")
 	}
 }
+
+// The card's icon is the same live lookup as its name and member count: the
+// entry carries the CDN url outgress derived on this read, never a stored hash.
+func TestHandleGuildsListCarriesTheIconURL(t *testing.T) {
+	rest := &fakeSetupREST{guild: discapi.GuildInfo{ID: "g1", Name: "Bagel HQ", Icon: "abc", ApproximateMemberCount: 9}}
+	d := newDiscordRPC(t, rest, fakeBotStatus{}, true)
+
+	got := d.handleGuildsList(context.Background(), outgressrpc.DiscordGuildsListRequest{UserID: "b1"})
+	if got.Code != outgressrpc.CodeOK || len(got.Guilds) != 1 {
+		t.Fatalf("want one server, got %+v", got)
+	}
+	wantReplyField(t, "icon url", got.Guilds[0].IconURL, "https://cdn.discordapp.com/icons/g1/abc.png")
+	wantReplyField(t, "member count", got.Guilds[0].MemberCount, 9)
+}

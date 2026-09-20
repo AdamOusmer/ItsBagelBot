@@ -43,6 +43,11 @@ const MaxListedGuilds = 25
 type GuildSummary struct {
 	GuildID string
 	Name    string
+	// IconURL is the guild icon on Discord's CDN, "" when the guild has none
+	// or could not be described. Read live off the same with_counts lookup
+	// as Name and MemberCount and never stored: the hash changes whenever
+	// the server picks a new icon, and a stored one 404s from then on.
+	IconURL string
 	// BoundAtUnixMs is when this server was connected.
 	BoundAtUnixMs int64
 	// MemberCount is Discord's own approximation for the server card.
@@ -147,6 +152,7 @@ func (w *Worker) summarize(ctx context.Context, bound discordstore.Binding) Guil
 		return out
 	}
 	out.Name = got.Name
+	out.IconURL = got.IconURL()
 	out.MemberCount = got.ApproximateMemberCount
 	out.BotPresent = true
 	return out

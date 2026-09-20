@@ -3,6 +3,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { ButtonLink, Card, Chip, EmptyState, Icon, PageHead, getI18n } from '@bagel/kit';
   import { DISCORD_BADGE_KEYS } from '$lib/discord-messages';
+  import GuildCrest from '$lib/components/discord/GuildCrest.svelte';
 
   let { data } = $props();
   const { t } = getI18n();
@@ -27,10 +28,7 @@
         <ul class="servers">
           {#each choices as c (c.guildId)}
             <li class="server">
-              <!-- Monogram, not the guild icon: the console CSP is
-                   img-src 'self' data:, so a CDN <img> renders as a broken box
-                   and leaks the visit to Discord besides. -->
-              <span class="crest" aria-hidden="true">{c.monogram}</span>
+              <GuildCrest name={c.name || t('discord.unknownServer')} iconUrl={c.iconUrl} />
               <span class="server-copy">
                 <span class="server-name">{c.name || t('discord.unknownServer')}</span>
                 <span class="tr-help">{t(DISCORD_BADGE_KEYS[c.badge])}</span>
@@ -93,21 +91,6 @@
     border-top: 1px solid var(--glass-border);
   }
   .server:first-child { border-top: none; padding-top: 0; }
-  .crest {
-    flex: none;
-    width: 44px;
-    height: 44px;
-    border-radius: 8px;
-    display: grid;
-    place-items: center;
-    background: rgba(201, 168, 124, 0.12);
-    border: 1px solid var(--glass-border);
-    color: var(--bb-tan-light);
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 15px;
-    letter-spacing: 0.02em;
-  }
   .server-copy { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
   .server-name {
     font-family: var(--bb-font-display);
