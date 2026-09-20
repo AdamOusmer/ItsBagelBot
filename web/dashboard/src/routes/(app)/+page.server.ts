@@ -8,7 +8,6 @@ import {
   hasGrant,
   accountState,
   setActive,
-  setOnboarded,
   publishEventSub,
   publishEventSubReconnect,
   channelSubState,
@@ -217,18 +216,57 @@ function delegateLanding(s: App.Locals['session']): string | null {
   return first ? `/${first}` : '/delegate/exit';
 }
 
-export const load: PageServerLoad = ({ locals }) => {
+// An owner who has never finished the tour. Read off the account state the
+// request's gate already fetched (hooks.server.ts -> guardSession), so the
+// common case costs nothing; an unset field (a blipped gate read) counts as
+// onboarded, which is the safe direction. An admin viewing as the user is
+// never sent: accepting the terms is not an impersonatable act.
+function ownerNotOnboarded(locals: App.Locals): boolean {
+  const s = locals.session;
+  const gate = locals.accountState;
+  if (!s || s.impersonator_id) return false;
+  if (!gate || !('value' in gate)) return false;
+  return !gate.value.onboarded;
+}
+
+// The tour (/welcome) replaces an empty board for a genuinely new account:
+// never onboarded, and CONFIRMED empty (the commands read succeeded and found
+// zero). A failed read reports zero too, and sending an existing user through
+// the tour mid-outage is the bug the `ok` check guards against. Awaits the
+// digest only for the accounts it applies to; everyone else streams it.
+async function needsTour(locals: App.Locals, commands: Promise<CommandDigest>): Promise<boolean> {
+  if (!ownerNotOnboarded(locals)) return false;
+  const cd = await commands;
+  return cd.ok && cd.total === 0;
+}
+
+// The board's owner id: the session's, or the demo fixture's under DEMO. No
+// session and no demo build means no board to read: the layout's login
+// redirect is the only correct outcome, so never fall back to a placeholder
+// id that a real account could one day occupy.
+function boardUid(locals: App.Locals): string | null {
+  return locals.session?.user_id ?? (DEMO ? 'demo' : null);
+}
+
+// Where the tour takes over from the board, or null to render the board:
+// `?welcome=1` (the tour's old in-place address, kept working) and the
+// brand-new-account rule in needsTour.
+async function tourFor(locals: App.Locals, url: URL, commands: Promise<CommandDigest>): Promise<string | null> {
+  if (url.searchParams.get('welcome') === '1') return '/welcome';
+  return (await needsTour(locals, commands)) ? '/welcome' : null;
+}
+
+export const load: PageServerLoad = async ({ locals, url }) => {
   const landing = delegateLanding(locals.session);
   if (landing) throw redirect(302, landing);
-
-  // No session and no demo build means no board to read: the layout's login
-  // redirect is the only correct outcome, so never fall back to a placeholder
-  // id that a real account could one day occupy.
-  const uid = locals.session?.user_id ?? (DEMO ? 'demo' : null);
+  const uid = boardUid(locals);
   if (!uid) throw redirect(302, '/login');
+  const commands = demoOr((m) => m.demoCommandDigest(digest), () => commandDigest(uid));
+  const tour = await tourFor(locals, url, commands);
+  if (tour) throw redirect(302, tour);
   return {
     conn: demoOr<ConnData>((m) => m.demoConn(connectionUiState), () => connState(uid)),
-    commands: demoOr((m) => m.demoCommandDigest(digest), () => commandDigest(uid)),
+    commands,
     modules: demoOr<ModuleDigest>((m) => m.demoModuleDigest, () => moduleDigest(uid)),
     shares: demoOr<ShareDigest>((m) => m.demoShareDigest, () => shareDigest(uid)),
 
@@ -245,7 +283,7 @@ export const load: PageServerLoad = ({ locals }) => {
 // ownerAction wraps the shared shape of every home-page action: owners only (a
 // delegate browsing the owner's board cannot flip the connection), then the
 // RPC sequence, then the audit trail; any failure maps to a 502 the client
-// toasts. onboarded skips the audit (it is not an impersonatable act).
+// toasts.
 type OwnerAction = {
   /** Action name: the audit verb, the success payload, and the failure text. */
   name: string;
@@ -298,7 +336,5 @@ export const actions: Actions = {
       await publishEventSub(uid, false);
       await setActive(uid, false);
     }
-  }),
-  // Onboarded: mark the user as having completed the onboarding flow.
-  onboarded: ownerAction({ name: 'onboarded', audit: false, run: (uid) => setOnboarded(uid, true) })
+  })
 };

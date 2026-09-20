@@ -2520,14 +2520,15 @@
     "settings": "Paramètres"
   },
   "onboarding": {
-    "title": "Bienvenue à bord 🥯",
-    "intro": "Vous êtes connecté et le bot voit votre chat. Voici le chemin court vers un bot pleinement actif, une page à la fois :",
+    "title": "Bienvenue à bord",
+    "heroTitle": "Bonjour, {name}.",
+    "heroBody": "Vous êtes connecté et le bot voit votre chat. Les {n} prochaines étapes vous mènent d'ici à un bot pleinement actif.",
+    "heroCta": "Faites-moi visiter",
     "consentTitle": "Accords légaux",
     "consentBody": "Veuillez accepter les Conditions d'utilisation et la Politique de confidentialité avant de continuer.",
     "consentLabel": "J'accepte les <a href=\"https://itsbagelbot.com/terms\" target=\"_blank\">Conditions</a> et la <a href=\"https://itsbagelbot.com/privacy\" target=\"_blank\">Politique de confidentialité</a>",
     "langTitle": "Choisissez votre langue",
     "langBody": "Choisissez la langue de votre console avec le commutateur ci-dessous. Vous pouvez la changer en tout temps sur la page Paramètres.",
-    "langCta": "Ouvrir les paramètres",
     "step1Title": "Donnez le rôle de modérateur au bot",
     "step1Body": "Tapez ceci dans votre chat Twitch. Sans le statut de modérateur, Twitch réduit le bot au silence dans les chats réservés aux abonnés, aux followers et en mode lent. On croirait qu'il a cessé de fonctionner.",
     "step2Title": "Créez votre première commande",
@@ -2544,7 +2545,8 @@
     "back": "Retour",
     "skip": "Passer",
     "next": "Suivant",
-    "done": "Terminé"
+    "done": "Terminé",
+    "saveError": "Impossible d'enregistrer votre progression. Réessayez."
   },
   "overview": {
     "statusHeading": "État du bot",
