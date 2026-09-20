@@ -17,7 +17,9 @@ const BASE_DIRECTIVES = {
   'style-src': ['self'],
   'style-src-attr': ['unsafe-inline'],
   'font-src': ['self'],
-  'img-src': ['self', 'data:'],
+  // cdn.discordapp.com: the guild icons on the Discord pages (GuildCrest).
+  // Images only; nothing scripts or connects there.
+  'img-src': ['self', 'data:', 'https://cdn.discordapp.com'],
   // *.nr-data.net is the New Relic Browser beacon (RUM page views, JS
   // errors, SPA routes, web vitals).
   'connect-src': ['self', 'https://dashboard.itsbagelbot.com', 'https://*.nr-data.net'],

@@ -102,6 +102,7 @@
         guildId={data.guildId}
         guilds={data.guilds ?? []}
         name={guild.name}
+        iconUrl={guild.iconUrl}
         memberCount={guild.memberCount}
         {pillState}
         sinceMs={data.status?.sinceMs ?? 0}

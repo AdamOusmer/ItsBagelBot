@@ -21,6 +21,8 @@ import {
   encodeNameList,
   encodePinnedRoles,
   guildBotState,
+  guildIconSrc,
+  guildIconURL,
   guildMonogram,
   guildPermissionBits,
   guildPickerBadge,
@@ -394,10 +396,10 @@ describe('guild presentation', () => {
 describe('parseUserGuilds', () => {
   test('keeps the permission bitfield as the string Discord sent', () => {
     const guilds = parseUserGuilds([
-      { id: ID_A, name: 'Demo Bakery', owner: true, permissions: '1125899906842623' }
+      { id: ID_A, name: 'Demo Bakery', icon: '', owner: true, permissions: '1125899906842623' }
     ]);
     expect(guilds).toEqual([
-      { id: ID_A, name: 'Demo Bakery', owner: true, permissions: '1125899906842623' }
+      { id: ID_A, name: 'Demo Bakery', icon: '', owner: true, permissions: '1125899906842623' }
     ]);
   });
 
@@ -417,7 +419,7 @@ describe('parseUserGuilds', () => {
 
   test('junk entries are dropped, good ones survive', () => {
     const guilds = parseUserGuilds([null, 'x', {}, { id: '' }, { id: ID_B }, [ID_C]]);
-    expect(guilds).toEqual([{ id: ID_B, name: '', owner: false, permissions: '' }]);
+    expect(guilds).toEqual([{ id: ID_B, name: '', icon: '', owner: false, permissions: '' }]);
   });
 
   test('a numeric permissions field is not trusted as a string', () => {
@@ -563,5 +565,29 @@ describe('the repost panel payload', () => {
     const { config, errors } = mergeDiscordConfig(blankDiscordConfig(), { ticketPanelColor: 'rebeccapurple' });
     expect(errors).toEqual([{ field: 'ticketPanelColor', code: 'color' }]);
     expect(config.ticketPanelColor).toBe('');
+  });
+});
+
+describe('guild icons', () => {
+  test('the picker keeps the hash Discord sent and builds the CDN url from it', () => {
+    expect(parseUserGuild({ id: ID_A, name: 'x', icon: 'abc123' })?.icon).toBe('abc123');
+    expect(parseUserGuild({ id: ID_A, name: 'x', icon: null })?.icon).toBe('');
+    expect(guildIconURL(ID_A, 'abc123')).toBe(`https://cdn.discordapp.com/icons/${ID_A}/abc123.png`);
+    // An animated icon is still asked for as .png: the tile wants one frame.
+    expect(guildIconURL(ID_A, 'a_9f0')).toBe(`https://cdn.discordapp.com/icons/${ID_A}/a_9f0.png`);
+  });
+
+  test('no icon, a bad id, or a hash that is not one means no url', () => {
+    expect(guildIconURL(ID_A, '')).toBe('');
+    expect(guildIconURL('nope', 'abc')).toBe('');
+    expect(guildIconURL(ID_A, '../x')).toBe('');
+  });
+
+  test('the size parameter is only asked of the CDN', () => {
+    const url = guildIconURL(ID_A, 'abc');
+    expect(guildIconSrc(url)).toBe(`${url}?size=128`);
+    expect(guildIconSrc(url, 64)).toBe(`${url}?size=64`);
+    expect(guildIconSrc('/logo.png')).toBe('/logo.png');
+    expect(guildIconSrc('')).toBe('');
   });
 });

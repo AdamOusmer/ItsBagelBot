@@ -352,7 +352,9 @@ export function demoDiscordGuilds() {
       // save action validates that shape, so demo must exercise it too.
       guildId: '123456789012345678',
       name: 'Demo Bakery',
-      iconUrl: '',
+      // The console's own logo, served from /static: a real CDN icon needs a
+      // real server, and 'self' is what the CSP allows without one.
+      iconUrl: '/logo.png',
       memberCount: 1284,
       botPresent: true,
       needsReauth: false,
@@ -394,14 +396,14 @@ export function demoDiscordPicker() {
   return [
     // Already bound to this broadcaster: the row links straight to its
     // settings instead of walking Discord's consent screen again.
-    { id: '123456789012345678', name: 'Demo Bakery', owner: true, permissions: '8' },
-    { id: '456789012345678901', name: 'Toast Club', owner: false, permissions: '32' },
+    { id: '123456789012345678', name: 'Demo Bakery', owner: true, icon: '', permissions: '8' },
+    { id: '456789012345678901', name: 'Toast Club', owner: false, icon: '', permissions: '32' },
     // Manageable, but bound to a different Twitch channel (see
     // demoDiscordBlocked): the row is disabled rather than offering an install
     // that can only end in bound_elsewhere.
-    { id: '567890123456789012', name: 'Sourdough Guild', owner: true, permissions: '8' },
+    { id: '567890123456789012', name: 'Sourdough Guild', owner: true, icon: '', permissions: '8' },
     // SEND_MESSAGES | VIEW_CHANNEL | ADD_REACTIONS: never offered.
-    { id: '456789012345678999', name: 'Someone Else Server', owner: false, permissions: '3136' }
+    { id: '456789012345678999', name: 'Someone Else Server', owner: false, icon: '', permissions: '3136' }
   ];
 }
 
@@ -532,7 +534,9 @@ export function demoDiscordLayout() {
     guild: {
       id: '123456789012345678',
       name: 'Demo Bakery',
-      iconUrl: '',
+      // The console's own logo, served from /static: a real CDN icon needs a
+      // real server, and 'self' is what the CSP allows without one.
+      iconUrl: '/logo.png',
       memberCount: 1284
     },
     needsReauth: false,
@@ -554,7 +558,9 @@ export function demoDiscordStatus() {
     guild: {
       id: '123456789012345678',
       name: 'Demo Bakery',
-      iconUrl: '',
+      // The console's own logo, served from /static: a real CDN icon needs a
+      // real server, and 'self' is what the CSP allows without one.
+      iconUrl: '/logo.png',
       memberCount: 1284
     },
     needsReauth: false,

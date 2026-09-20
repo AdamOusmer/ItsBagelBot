@@ -242,7 +242,7 @@ async function demoPage(guildId: string, url: URL): Promise<DiscordGuildPage> {
   // The layout and status fixtures describe one server; re-stamping them with
   // the picked guild is what makes switching servers in demo show a different
   // server rather than the same card twice under two names.
-  const guild = { id: guildId, name: g.name, iconUrl: '', memberCount: g.memberCount };
+  const guild = { id: guildId, name: g.name, iconUrl: g.iconUrl, memberCount: g.memberCount };
   return {
     ...blankPage(guildId, false),
     enabled: view.enabled,

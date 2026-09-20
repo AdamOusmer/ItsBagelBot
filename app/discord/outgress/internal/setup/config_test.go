@@ -105,6 +105,10 @@ func TestListGuildsListsEveryConnectedServer(t *testing.T) {
 		if !g.BotPresent || g.Name == "" {
 			t.Fatalf("want a present, named server, got %+v", g)
 		}
+		// The icon rides the same lookup as the name: read live, never stored.
+		if want := "https://cdn.discordapp.com/icons/" + g.GuildID + "/abc.png"; g.IconURL != want {
+			t.Fatalf("icon url = %q, want %q", g.IconURL, want)
+		}
 	}
 }
 

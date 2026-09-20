@@ -13,10 +13,10 @@
     SegmentedControl,
     Select,
     getI18n,
-    guildMonogram,
     type GuildBotState
   } from '@bagel/kit';
   import DiscordStateTag from './DiscordStateTag.svelte';
+  import GuildCrest from './GuildCrest.svelte';
   import { sinceParts } from '$lib/discord/guild-view';
   import type { DiscordGuildSummary } from '$lib/server/discord-store';
 
@@ -25,12 +25,14 @@
     guilds,
     name,
     memberCount,
+    iconUrl = '',
     pillState,
     sinceMs
   }: {
     guildId: string;
     guilds: DiscordGuildSummary[];
     name: string;
+    iconUrl?: string;
     memberCount: number;
     pillState: GuildBotState;
     sinceMs: number;
@@ -39,12 +41,6 @@
   const { t } = getI18n();
 
   const guildName = $derived(name || t('discord.unknownServer'));
-  // Discord serves guild icons from its own CDN, and the console CSP is
-  // img-src 'self' data:, so an <img> pointed at cdn.discordapp.com renders as
-  // a broken box with a console error and no way to fix it short of proxying
-  // every guild icon through the dashboard. A monogram tile costs nothing,
-  // never 404s and cannot leak the visit to Discord.
-  const monogram = $derived(guildMonogram(guildName));
   const members = $derived(memberCount > 0 ? memberCount.toLocaleString() : '');
 
   // now stays 0 until the browser sets it, so the server and the first client
@@ -104,7 +100,7 @@
 </script>
 
 <div class="guild-head">
-  <span class="crest" aria-hidden="true">{monogram}</span>
+  <GuildCrest name={guildName} {iconUrl} />
 
   <div class="copy">
     <h1 class="name">{guildName}</h1>
@@ -149,21 +145,6 @@
     gap: 14px;
     flex-wrap: wrap;
     min-width: 0;
-  }
-  .crest {
-    flex: none;
-    width: 44px;
-    height: 44px;
-    border-radius: 8px;
-    display: grid;
-    place-items: center;
-    background: rgba(201, 168, 124, 0.12);
-    border: 1px solid var(--glass-border);
-    color: var(--bb-tan-light);
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 15px;
-    letter-spacing: 0.02em;
   }
   .copy {
     display: flex;
