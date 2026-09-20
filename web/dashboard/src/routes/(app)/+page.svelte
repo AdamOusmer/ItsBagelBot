@@ -3,7 +3,6 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { enhance } from '$app/forms';
   import { onMount } from 'svelte';
-  import { page } from '$app/state';
   // Direct imports, not the barrel: this is the authed landing page's boot path
   // (see routes/+layout.svelte).
   import Button from '@bagel/ui/svelte/Button.svelte';
@@ -19,7 +18,6 @@
   import { connectionUiState, type ConnSignals, type ConnUi } from '@bagel/kit/connection-state';
   import { toast } from '@bagel/ui/svelte/toast';
   import type { ActionResult } from '@sveltejs/kit';
-  import OnboardingGuide from '$lib/components/OnboardingGuide.svelte';
   import BotStatusPanel from '$lib/components/overview/BotStatusPanel.svelte';
   import NeedsAttention from '$lib/components/overview/NeedsAttention.svelte';
   import QuickActions from '$lib/components/overview/QuickActions.svelte';
@@ -55,31 +53,6 @@
   // A delegate browsing the owner's board sees the connection read-only: every
   // enable/restart/disconnect action 403s for a delegate session server-side.
   const isDelegate = $derived(!!data.delegateOf);
-
-  // First-visit onboarding: opens once for genuinely new users (nothing
-  // created yet, never dismissed) or on demand via ?welcome=1.
-  let onboardOpen = $state(false);
-  let onboardForm: HTMLFormElement;
-
-  onMount(() => {
-    if (page.url.searchParams.get('welcome') === '1') {
-      onboardOpen = true;
-      return;
-    }
-    if (data.onboarded) return;
-
-    // Open only for a CONFIRMED-empty account (read succeeded, zero commands).
-    // A failed read reports total 0 too; onboarding an existing user mid-outage
-    // is the bug this guards against.
-    data.commands.then((cd) => {
-      if (cd.ok && cd.total === 0) onboardOpen = true;
-    });
-  });
-
-  function finishOnboarding() {
-    onboardOpen = false;
-    onboardForm?.requestSubmit();
-  }
 
   // The awaited home connection: honest per-read signals + derived UI state.
   type Conn = { signals: ConnSignals; ui: ConnUi };
@@ -423,11 +396,6 @@
     {/if}
   {/await}
 </section>
-
-<!-- First-visit setup stepper -->
-<OnboardingGuide open={onboardOpen} name={data.displayName ?? data.login} onDone={finishOnboarding} />
-
-<form method="POST" action="?/onboarded" use:enhance bind:this={onboardForm} hidden></form>
 
 <!-- Confirm modal -->
 <Modal open={pending !== null} title={modalTitle} closeModal={closeModal}>

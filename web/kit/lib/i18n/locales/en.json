@@ -2520,14 +2520,15 @@
     "settings": "Settings"
   },
   "onboarding": {
-    "title": "Welcome aboard 🥯",
-    "intro": "You're connected and the bot can see your chat. Here is the short path to fully live, one page at a time:",
+    "title": "Welcome aboard",
+    "heroTitle": "Hi, {name}.",
+    "heroBody": "You're connected and the bot can see your chat. The next {n} steps take you from here to fully live.",
+    "heroCta": "Show me around",
     "consentTitle": "Legal agreements",
     "consentBody": "Please accept the Terms of Service and Privacy Policy before proceeding.",
     "consentLabel": "I agree to the <a href=\"https://itsbagelbot.com/terms\" target=\"_blank\">Terms</a> and <a href=\"https://itsbagelbot.com/privacy\" target=\"_blank\">Privacy Policy</a>",
     "langTitle": "Choose your language",
     "langBody": "Pick the language for your console with the switch below. You can change it any time on the Settings page.",
-    "langCta": "Open settings",
     "step1Title": "Mod the bot",
     "step1Body": "Type this in your Twitch chat. Without mod status, Twitch silences the bot in follower-only, sub-only, and slow-mode chats. It would look like it just stopped working.",
     "step2Title": "Create your first command",
@@ -2544,7 +2545,8 @@
     "back": "Back",
     "skip": "Skip",
     "next": "Next",
-    "done": "Done"
+    "done": "Done",
+    "saveError": "Your progress could not be saved. Try again."
   },
   "overview": {
     "statusHeading": "Bot status",
