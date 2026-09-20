@@ -38,14 +38,18 @@
    note said to replace them with `.bb-card` on the re-stack, and this is it.
    The sheet does NOT take `bb-card`, for the reason in the paragraph above.
 
-   `top: 62px` is the topbar's height and `108px` the dock's, so the docked
-   panel's sticky box is exactly the gap between the two pieces of console
-   chrome. Both are still literals. The shell contract HAS landed
-   (ui/styles/elements/shell.css) and it does not name a height token: the
-   topbar is a sticky element whose height is its content's, and the dock's is
-   its own. Minting `--bb-topbar-h` here would be this file guessing a number
-   for another element, which is worse than the literal. When shell.css
-   publishes one, these become it. */
+   `top: 62px` is the topbar's height, so the docked panel's sticky box starts
+   under the topbar and ends above the dock. The dock's share comes from the
+   shell as `--bb-dock-clearance`: 108px while the dock is the navigation, 0
+   once the rail replaces it (shell.css sets both in the block that hides the
+   dock). Subtracting a literal 108px on railed desktop left a blank band
+   under the sticky rehearsal, and because the panel is sticky the band sat
+   in the viewport, not below the fold; a second copy of the shell's
+   breakpoint here would only have moved that drift to the next change. The
+   topbar height is still a literal: the shell contract does not name one,
+   the topbar is a sticky element whose height is its content's, and minting
+   `--bb-topbar-h` here would be this file guessing a number for another
+   element. When shell.css publishes one, this becomes it. */
 
 @layer bb.elements {
   .bb-surface {
@@ -63,7 +67,11 @@
 
     position: sticky;
     top: 62px;
-    max-height: calc(100dvh - 62px - 108px);
+    max-height: calc(100dvh - 62px - var(--bb-dock-clearance, 108px));
+    /* Same reason as `.bb-shell`: an opening field inside this panel must
+       not drag the document (and the sticky rail) up to keep the click
+       anchored. */
+    overflow-anchor: none;
   }
 
   .bb-surface__head {

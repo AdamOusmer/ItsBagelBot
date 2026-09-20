@@ -394,7 +394,7 @@
       </div>
 
       {#if quoteDraft}
-        <Scroller fill padding="16px" data-lenis-prevent>
+        <Scroller fill padding="16px">
           <QuoteEditor
             bind:draft={quoteDraft}
             number={editTarget}
@@ -404,7 +404,7 @@
           />
         </Scroller>
       {:else if selectedQuote}
-        <Scroller fill padding="18px" data-lenis-prevent>
+        <Scroller fill padding="18px">
           <div class="quote-detail">
             <div class="quote-number">#{selectedQuote.number}</div>
             <blockquote>{selectedQuote.text}</blockquote>

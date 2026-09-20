@@ -887,7 +887,7 @@
         {#if editorDraft.builtin && selectedCmd}
           {@const def = builtinDef(selectedCmd.name)}
           {#if def}
-            <Scroller fill padding="16px" data-lenis-prevent>
+            <Scroller fill padding="16px">
               <BuiltinInspector
                 command={selectedCmd}
                 {def}

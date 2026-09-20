@@ -267,7 +267,7 @@
           bind:this={formEl}
         >
           <input type="hidden" name="timer" value={JSON.stringify(draft)} />
-          <Scroller fill padding="16px" data-lenis-prevent>
+          <Scroller fill padding="16px">
             <!-- Keyed on the selection so switching timers mounts a FRESH editor;
                  TimerEditor snapshots minutes from the draft at mount, and reusing
                  one instance would write the previous timer's interval into the

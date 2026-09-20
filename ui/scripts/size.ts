@@ -206,8 +206,17 @@ const ENTRIES: {
     // Initial measurement 2026-09-09 (macOS/arm64): 615 B gzip, lenis external,
     // motion-query and raf-loop bundled in (570 B of the 615). Budget 850:
     // 615 + 150 B for CI's linux/x64 gzip delta = 765, +10% -> 842, rounded.
+    //
+    // Re-measured 2026-09-20 at 965 B: the nested-scroll gate
+    // (lib/nested-scroll.ts) now rides in this entry, wrapping the caller's
+    // `prevent` and `virtualScroll` so a wheel over a pane that can move goes
+    // to the pane and one over a pane that cannot goes to the page, decided
+    // from live geometry rather than Lenis's own 2 s cache. 350 B, and it is
+    // exactly the kind of growth the paragraph above warns about, which is
+    // why it is a separate module with its own header rather than more
+    // options here. Budget 1250: 965 + 150 = 1115, +10% -> 1227, rounded.
     name: "lenis",
-    budget: 850,
+    budget: 1250,
     external: ["lenis"],
     source: `import { createSmoothScroll, getSmoothScroll } from "../../lib/lenis";
              globalThis.x = [createSmoothScroll, getSmoothScroll];`,
@@ -644,6 +653,13 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   // custom property in). 5 B; budget unchanged. Note that the composition
   // means a consumer of the docked form now also pays card.css, which is a row
   // of its own above and not a cost this row hides.
+  //
+  // Re-measured 2026-09-20 at 774 B: the docked panel opts out of
+  // scroll-anchoring so opening a field cannot yank the rail, and its
+  // max-height reads the dock's share from the shell's `--bb-dock-clearance`
+  // (0 on railed desktop) instead of subtracting a literal 108px, which is
+  // what left a blank band under the sticky rehearsal. 46 B; budget
+  // unchanged, 206 B of room left.
   { name: "elements/surface", budget: 980 },
   // The per-glyph roll, the ember rail and the glint, in three pointer
   // stories. Expensive for a text link, which is exactly why the nav and the

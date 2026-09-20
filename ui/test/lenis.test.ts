@@ -89,59 +89,77 @@ afterEach(() => {
   reduced = false;
 });
 
+type Handle = NonNullable<ReturnType<typeof createSmoothScroll>>;
+
+function start(): Handle {
+  const handle = createSmoothScroll();
+  expect(handle).not.toBeNull();
+  return handle!;
+}
+
+/** Two calls, one instance — the contract the rest of this suite is about. */
+function adopt(): { first: Handle; second: Handle } {
+  const first = start();
+  const second = start();
+  expect(second.lenis).toBe(first.lenis);
+  expect(constructed).toBe(1);
+  expect(subscriptions).toBe(1);
+  return { first, second };
+}
+
 describe("createSmoothScroll", () => {
   test("constructs one scroller and publishes it on window.__lenis", () => {
-    const handle = createSmoothScroll();
+    const handle = start();
 
-    expect(handle).not.toBeNull();
     expect(constructed).toBe(1);
     expect(subscriptions).toBe(1);
-    expect(getSmoothScroll()).toBe(handle!.lenis);
-    expect((globalThis as unknown as LenisWindow).__lenis).toBe(handle!.lenis);
+    expect(getSmoothScroll()).toBe(handle.lenis);
+    expect((globalThis as unknown as LenisWindow).__lenis).toBe(handle.lenis);
   });
 
-  test("fixes lerp, smoothWheel and syncTouch, and passes the caller's knobs through", () => {
-    const prevent = () => true;
-    createSmoothScroll({ prevent });
+  test("fixes lerp, smoothWheel and syncTouch, and wraps the caller's knobs in the nested-scroll gate", () => {
+    const prevent = (node: HTMLElement) => node.id === "docs-sidebar";
+    const virtualScroll = () => false;
+    createSmoothScroll({ prevent, virtualScroll });
 
-    expect(lastOptions).toMatchObject({
-      lerp: 0.1,
-      smoothWheel: true,
-      syncTouch: false,
-      prevent,
-    });
+    expect(lastOptions).toMatchObject({ lerp: 0.1, smoothWheel: true, syncTouch: false });
+    // Lenis's own nested-scroll option stays off: nested-scroll.ts is the gate.
+    expect(lastOptions).not.toHaveProperty("allowNestedScroll");
+
+    // The caller's prevent still wins and the caller's virtualScroll verdict
+    // still reaches Lenis; both now go through the gate rather than straight in.
+    const opts = lastOptions as {
+      prevent: (node: unknown) => boolean;
+      virtualScroll: (data: unknown) => boolean;
+    };
+    expect(opts.prevent).not.toBe(prevent);
+    expect(opts.prevent({ id: "docs-sidebar" })).toBe(true);
+    expect(opts.virtualScroll({ deltaX: 0, deltaY: 1, event: { type: "wheel" } })).toBe(false);
   });
 
   test("a second call returns the LIVE instance and constructs nothing", () => {
-    const first = createSmoothScroll();
-    const second = createSmoothScroll();
-
-    expect(constructed).toBe(1);
-    expect(subscriptions).toBe(1);
-    expect(second!.lenis).toBe(first!.lenis);
+    adopt();
   });
 
   test("the second caller's destroy is a no-op, so it cannot tear down the first", () => {
-    const first = createSmoothScroll();
-    const second = createSmoothScroll();
+    const { first, second } = adopt();
 
-    second!.destroy();
+    second.destroy();
 
     expect(destroyed).toBe(0);
     expect(subscriptions).toBe(1);
-    expect(getSmoothScroll()).toBe(first!.lenis);
+    expect(getSmoothScroll()).toBe(first.lenis);
   });
 
   test("destroy unsubscribes, drops the global and destroys the instance", () => {
-    const handle = createSmoothScroll();
-    handle!.destroy();
+    start().destroy();
 
     expect(destroyed).toBe(1);
     expect(subscriptions).toBe(0);
     expect(getSmoothScroll()).toBeUndefined();
 
     // And the surface can start over afterwards.
-    expect(createSmoothScroll()).not.toBeNull();
+    start();
     expect(constructed).toBe(2);
   });
 
@@ -157,10 +175,10 @@ describe("createSmoothScroll", () => {
   test("adopts an already-running scroller even under reduced motion", () => {
     // The setting can flip mid-session. Adopting beats returning null: the
     // instance is real and something has to be able to stop it.
-    const first = createSmoothScroll();
+    const first = start();
     reduced = true;
 
-    expect(createSmoothScroll()!.lenis).toBe(first!.lenis);
+    expect(createSmoothScroll()!.lenis).toBe(first.lenis);
     expect(constructed).toBe(1);
   });
 });

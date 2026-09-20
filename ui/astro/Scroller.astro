@@ -5,11 +5,13 @@
 // Astro twin of ../svelte/Scroller.svelte: a scroll region wearing the thin
 // tan scrollbar instead of the browser's default chrome bar.
 //
-// Extra attributes (role, aria-*, data-lenis-prevent) pass straight through to
-// the scrolling element. `data-lenis-prevent` in particular HAS to land on the
-// element that actually scrolls, or the smooth scroller eats the wheel event
-// and the panel never moves — which is why this forwards ...rest onto the
-// scrolling div rather than onto a wrapper.
+// Extra attributes (role, aria-*, data-*) pass straight through to the
+// scrolling element. Nothing is needed for the smooth scroller: its
+// nested-scroll gate (lib/nested-scroll.ts) reads this pane's overflow and
+// position on every wheel and yields while the pane can move. Do NOT add
+// `data-lenis-prevent` here; it is for overlays that must never chain the
+// wheel to the page. `...rest` lands on the scrolling div rather than a
+// wrapper so such a one-off still hits the element that actually scrolls.
 import '../styles/elements/shell.css';
 
 interface Props {

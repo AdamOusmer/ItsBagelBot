@@ -31,6 +31,10 @@
        the navigation and the dock is hidden, below it the reverse. */
     --shell-rail-breakpoint: 761px;
     --shell-canvas-max: 1160px;
+    /* How much of the viewport's bottom the dock takes, for the sticky panels
+       that must stop above it (surface.css reads it). It goes to 0 in the
+       block below that hides the dock, so the two cannot drift apart. */
+    --bb-dock-clearance: 108px;
 
     position: relative;
     /* Pages that paint a fixed full-viewport backdrop inside the shell do it
@@ -39,6 +43,12 @@
     min-height: 100vh;
     display: flex;
     flex-direction: column;
+    /* Expanding a deck row (or a rail group) grows content above the fold.
+       Default scroll-anchoring then shifts the document to keep the click
+       target in view, which on this flex shell moved the sticky rail and
+       the docked rehearsal together and left a blank band under the
+       rehearsal. The click already named what should stay put. */
+    overflow-anchor: none;
   }
 
   .bb-shell__stage {
@@ -124,6 +134,8 @@
   @media (min-width: 761px) {
     .bb-shell--railed {
       flex-direction: row;
+      /* The dock slot is hidden just below: nothing to clear. */
+      --bb-dock-clearance: 0px;
     }
 
     .bb-shell--railed .bb-shell__dock-slot {
@@ -934,7 +946,16 @@
     --bb-scrollbar-size: 6px;
 
     overflow-y: auto;
-    overscroll-behavior: contain;
+    /* Not `contain`. Measured 2026-09-20 (headless Chromium 153, real wheel
+       input): with no smooth scroller running (reduced motion) a wheel over
+       an `overflow: auto` pane that has NOTHING to scroll, with `contain`,
+       moves nothing at all, and the page freezes under the pointer. With the
+       smooth scroller running the same pane is decided by its nested-scroll
+       gate (lib/nested-scroll.ts): it yields to this pane only while the
+       pane can move in the wheel's direction, and `auto` here is what lets
+       the page take over at the pane's edges. `contain` would make the pane
+       hold at its edges instead; the overlays that need that carry
+       `data-lenis-prevent`, and lenis.css gives them `contain`. */
   }
 
   .bb-scroller--fill {

@@ -296,5 +296,13 @@
 </svg>
 
 <style>
+  /* `overflow: visible` is the library's contract, kept. A clip here was
+     tried on 2026-09-18 for the topbar creature sitting proud of its plate
+     and measured pointless on 2026-09-20: `getBBox()` of the seeded pose
+     for six names stays within 14..85 of the 100-unit box on both axes, so
+     nothing paints outside the size the caller asked for. What aligns the
+     blob is its plate, which sizes and clips its own circle (profile-menu.css,
+     the rehearsal's `.avatar`); a square clip on the svg is the wrong shape
+     for that and the one place a future engine state could get cut. */
   .bolota { display: block; overflow: visible; }
 </style>
