@@ -40,7 +40,10 @@
 //   - The enable row rides the standard modules service (listModules /
 //     upsertModule), so the tile toggle, the projection and cache invalidation
 //     all behave like every other named module.
-import { rpc } from '@bagel/kit/server/nats';
+// rpcReply where the reply's `error` is the result the caller renders: rpc
+// rejects on any such reply before that branch runs (see rpcRefusal). rpc
+// stays where a throw is the handling.
+import { rpc, rpcReply } from '@bagel/kit/server/nats';
 import type {
   SpotifySrConfig,
   SpotifyQuotas,
@@ -328,7 +331,7 @@ export function spotifyStore(userId: string): SpotifyStore {
   }
 
   async function saveApp(clientId: string, clientSecret: string): Promise<SpotifyResult> {
-    const r = await rpc<{ error?: string }>(
+    const r = await rpcReply<{ error?: string }>(
       `${SUB.spotifyKey}.app.set`,
       { user_id: userId, client_id: clientId, client_secret: clientSecret },
       5000
@@ -341,7 +344,7 @@ export function spotifyStore(userId: string): SpotifyStore {
   // nothing useful once the app that minted it is gone (see the modules-side
   // ClearApp), and leaving one behind would only fail confusingly later.
   async function clearApp(): Promise<SpotifyResult> {
-    const r = await rpc<{ error?: string }>(`${SUB.spotifyKey}.app.clear`, { user_id: userId }, 5000);
+    const r = await rpcReply<{ error?: string }>(`${SUB.spotifyKey}.app.clear`, { user_id: userId }, 5000);
     if (r.error) return { ok: false, error: r.error };
     return { ok: true };
   }
@@ -439,7 +442,7 @@ export function spotifyStore(userId: string): SpotifyStore {
   }
 
   async function disconnect(): Promise<SpotifyResult> {
-    const r = await rpc<{ error?: string }>(`${SUB.spotifyKey}.clear`, { user_id: userId }, 3000);
+    const r = await rpcReply<{ error?: string }>(`${SUB.spotifyKey}.clear`, { user_id: userId }, 3000);
     if (r.error) return { ok: false, error: r.error };
     return { ok: true };
   }

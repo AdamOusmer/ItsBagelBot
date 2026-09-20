@@ -14,6 +14,8 @@
 // Key values are write-only: fetch_set_key seals and replies {last4} once; no
 // verb in this file ever receives or returns key material.
 
+// rpc rejects on any reply carrying `error` (see rpcRefusal), so a refusal
+// reaches every caller here as a thrown RpcError; nothing below re-checks it.
 import { rpc } from '@bagel/kit/server/nats';
 import { SUB } from './services';
 
@@ -44,7 +46,6 @@ interface FetchListReply {
 
 export async function listFetches(userId: string): Promise<{ defs: FetchDefView[]; keys: FetchKeyView[] }> {
   const r = await rpc<FetchListReply>(`${SUB.commands}.fetch_list`, { user_id: userId });
-  if (r.error) throw new Error(r.error);
   return {
     defs: Array.isArray(r.defs) ? r.defs : [],
     keys: Array.isArray(r.keys) ? r.keys : []
@@ -95,12 +96,11 @@ export interface FetchKeyEntry {
 }
 
 export async function setFetchKey(key: FetchKeyEntry): Promise<string> {
-  const r = await rpc<{ last4?: string; error?: string }>(`${SUB.commands}.fetch_set_key`, {
+  const r = await rpc<{ last4?: string }>(`${SUB.commands}.fetch_set_key`, {
     user_id: key.userId,
     label: key.label,
     value: key.value
   });
-  if (r.error) throw new Error(r.error);
   return r.last4 ?? '';
 }
 
@@ -117,12 +117,11 @@ interface FetchDeleteRef {
 }
 
 async function deleteFetch(ref: FetchDeleteRef): Promise<void> {
-  const r = await rpc<{ error?: string }>(`${SUB.commands}.fetch_delete`, {
+  await rpc(`${SUB.commands}.fetch_delete`, {
     user_id: ref.userId,
     kind: ref.kind,
     name: ref.name
   });
-  if (r.error) throw new Error(r.error);
 }
 
 export function deleteFetchDef(ref: { userId: string; name: string }): Promise<void> {
