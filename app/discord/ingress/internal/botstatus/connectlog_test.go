@@ -47,6 +47,9 @@ func TestConnectLogLoadReadsTheScoresBack(t *testing.T) {
 	}
 }
 
+// respArgs is one RESP command or reply, as a list of bulk strings.
+type respArgs []string
+
 // zsetFake is the smallest RESP2 sorted set Load and Add exercise. It answers
 // ZRANGEBYSCORE the way Valkey does -- members only unless WITHSCORES was
 // asked for -- because that distinction is the one Load's parse depends on.
@@ -101,7 +104,7 @@ func (f *zsetFake) session(c net.Conn) {
 	}
 }
 
-func (f *zsetFake) exec(args []string) []byte {
+func (f *zsetFake) exec(args respArgs) []byte {
 	if len(args) == 0 {
 		return respErr("empty command")
 	}
@@ -125,7 +128,7 @@ func (f *zsetFake) exec(args []string) []byte {
 }
 
 // zadd handles the one shape ConnectLog sends: ZADD key score member.
-func (f *zsetFake) zadd(args []string) []byte {
+func (f *zsetFake) zadd(args respArgs) []byte {
 	if len(args) != 3 {
 		return respErr("zadd: want key score member")
 	}
@@ -139,27 +142,36 @@ func (f *zsetFake) zadd(args []string) []byte {
 
 // zrangebyscore handles ZRANGEBYSCORE key min max [WITHSCORES], min and max
 // as plain numbers or +inf/-inf.
-func (f *zsetFake) zrangebyscore(args []string) []byte {
+func (f *zsetFake) zrangebyscore(args respArgs) []byte {
 	if len(args) < 3 {
 		return respErr("zrangebyscore: want key min max")
 	}
-	lo, hi := parseBound(args[1]), parseBound(args[2])
-	withScores := len(args) > 3 && strings.EqualFold(args[3], "WITHSCORES")
-	members := make([]string, 0, len(f.members))
+	members := f.inRange(parseBound(args[1]), parseBound(args[2]))
+	if len(args) > 3 && strings.EqualFold(args[3], "WITHSCORES") {
+		return respArray(f.withScores(members))
+	}
+	return respArray(members)
+}
+
+// inRange lists the members scoring within [lo, hi], lowest score first.
+func (f *zsetFake) inRange(lo, hi float64) respArgs {
+	members := respArgs{}
 	for m, s := range f.members {
 		if s >= lo && s <= hi {
 			members = append(members, m)
 		}
 	}
 	sort.Slice(members, func(i, j int) bool { return f.members[members[i]] < f.members[members[j]] })
-	out := make([]string, 0, 2*len(members))
+	return members
+}
+
+// withScores interleaves each member with its score: the WITHSCORES reply.
+func (f *zsetFake) withScores(members respArgs) respArgs {
+	out := make(respArgs, 0, 2*len(members))
 	for _, m := range members {
-		out = append(out, m)
-		if withScores {
-			out = append(out, strconv.FormatFloat(f.members[m], 'f', -1, 64))
-		}
+		out = append(out, m, strconv.FormatFloat(f.members[m], 'f', -1, 64))
 	}
-	return respArray(out)
+	return out
 }
 
 func parseBound(s string) float64 {
@@ -170,7 +182,7 @@ func parseBound(s string) float64 {
 	return v
 }
 
-func readRESPArray(r *bufio.Reader) ([]string, error) {
+func readRESPArray(r *bufio.Reader) (respArgs, error) {
 	line, err := readLine(r)
 	if err != nil {
 		return nil, err
@@ -182,7 +194,7 @@ func readRESPArray(r *bufio.Reader) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	args := make([]string, 0, n)
+	args := make(respArgs, 0, n)
 	for range n {
 		arg, err := readBulk(r)
 		if err != nil {
@@ -224,7 +236,7 @@ func respErr(msg string) []byte    { return []byte("-ERR " + msg + "\r\n") }
 func respSimple(msg string) []byte { return []byte("+" + msg + "\r\n") }
 func respInt(n int64) []byte       { return []byte(":" + strconv.FormatInt(n, 10) + "\r\n") }
 
-func respArray(items []string) []byte {
+func respArray(items respArgs) []byte {
 	var b strings.Builder
 	fmt.Fprintf(&b, "*%d\r\n", len(items))
 	for _, it := range items {
