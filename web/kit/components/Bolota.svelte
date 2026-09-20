@@ -296,14 +296,13 @@
 </svg>
 
 <style>
-  /* The library draws past the 100×100 viewBox on purpose (eyes, cheeks).
-     `overflow: visible` let that paint sit outside the size box: on the
-     30px topbar plate it sat proud of the 26px brand mark, on the 20px
-     rehearsal face it sat on neighbouring lines, and the extra ink
-     inflated the document's scrollWidth so `overflow-x: hidden` on html
-     computed a vertical scrollport. Clip to the size the caller asked
-     for. `pointer-events: none` so leftover subpixels cannot steal the
-     wheel from the page under them — the parent button still receives
-     the click. */
-  .bolota { display: block; overflow: hidden; pointer-events: none; }
+  /* `overflow: visible` is the library's contract, kept. A clip here was
+     tried on 2026-09-18 for the topbar creature sitting proud of its plate
+     and measured pointless on 2026-09-20: `getBBox()` of the seeded pose
+     for six names stays within 14..85 of the 100-unit box on both axes, so
+     nothing paints outside the size the caller asked for. What aligns the
+     blob is its plate, which sizes and clips its own circle (profile-menu.css,
+     the rehearsal's `.avatar`); a square clip on the svg is the wrong shape
+     for that and the one place a future engine state could get cut. */
+  .bolota { display: block; overflow: visible; }
 </style>

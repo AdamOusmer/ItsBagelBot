@@ -29,6 +29,7 @@
 import Lenis, { type LenisOptions } from 'lenis';
 
 import { prefersReducedMotion } from './motion-query';
+import { createNestedScrollGate } from './nested-scroll';
 import { subscribe } from './raf-loop';
 
 /**
@@ -50,21 +51,21 @@ type LenisWindow = Window & { __lenis?: Lenis };
 
 /**
  * The per-surface knobs. Everything else (lerp, `smoothWheel`, `syncTouch`,
- * `allowNestedScroll`) is fixed by this module so the three sites cannot
- * drift apart again.
+ * and the nested-scroll gate) is fixed by this module so the three sites
+ * cannot drift apart again.
  *
- * `prevent` is docs': Lenis preventDefaults wheel and touch at the document
- * level, which kills native overflow scrolling inside every nested pane, so
- * Starlight's sidebars and any `<dialog>` have to be handed back to the browser.
- * `virtualScroll` is marketing's: the encryption scene damps the wheel delta
- * near a snap point.
+ * `prevent` is docs': Starlight's sidebars and any `<dialog>` are handed back
+ * to the browser by selector. `virtualScroll` is marketing's: the encryption
+ * scene damps the wheel delta near a snap point. Both are WRAPPED, not passed
+ * through: the same two Lenis options carry the gate in `./nested-scroll`,
+ * which yields the wheel to any nested pane that can move in its direction
+ * (the console's inspector, a picker list, the rail, a textarea) and takes
+ * the page again at the pane's edges or when it has nothing to scroll. A
+ * caller's `prevent` is asked first, and its `virtualScroll` verdict is
+ * returned unchanged.
  *
- * `allowNestedScroll` is on because the console's inspector is a
- * `overflow-y: auto` fill pane that often has nothing to scroll (short
- * rehearsal, empty editor). Without this, a `data-lenis-prevent` on that pane
- * makes Lenis ignore the wheel AND native overscroll-contain eats it, so the
- * page freezes under the pointer. With it, Lenis yields only while the pane
- * can actually move, and takes the page again when it cannot.
+ * Lenis's own `allowNestedScroll` is NOT the mechanism, on purpose: see the
+ * header of `./nested-scroll` for the 2 s cache that rules it out.
  */
 export type SmoothScrollOptions = Pick<LenisOptions, 'prevent' | 'virtualScroll'>;
 
@@ -98,12 +99,14 @@ export function createSmoothScroll(options: SmoothScrollOptions = {}): SmoothScr
 
     if (prefersReducedMotion()) return null;
 
+    const gate = createNestedScrollGate(options);
     const lenis = new Lenis({
         lerp: LERP,
         smoothWheel: true,
         syncTouch: false,
-        allowNestedScroll: true,
         ...options,
+        prevent: gate.prevent,
+        virtualScroll: gate.virtualScroll,
     });
 
     (window as LenisWindow).__lenis = lenis;

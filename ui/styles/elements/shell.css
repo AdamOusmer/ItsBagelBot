@@ -31,6 +31,10 @@
        the navigation and the dock is hidden, below it the reverse. */
     --shell-rail-breakpoint: 761px;
     --shell-canvas-max: 1160px;
+    /* How much of the viewport's bottom the dock takes, for the sticky panels
+       that must stop above it (surface.css reads it). It goes to 0 in the
+       block below that hides the dock, so the two cannot drift apart. */
+    --bb-dock-clearance: 108px;
 
     position: relative;
     /* Pages that paint a fixed full-viewport backdrop inside the shell do it
@@ -130,6 +134,8 @@
   @media (min-width: 761px) {
     .bb-shell--railed {
       flex-direction: row;
+      /* The dock slot is hidden just below: nothing to clear. */
+      --bb-dock-clearance: 0px;
     }
 
     .bb-shell--railed .bb-shell__dock-slot {
@@ -940,12 +946,16 @@
     --bb-scrollbar-size: 6px;
 
     overflow-y: auto;
-    /* Not `contain`. A fill scroller in a docked inspector is often shorter
-       than its box (a short rehearsal, an empty editor). `overflow: auto` +
-       `overscroll-behavior: contain` still traps the wheel in Chromium even
-       when there is nothing to scroll, so hovering the inspector froze the
-       page. Lenis `allowNestedScroll` yields to this pane only while it can
-       actually move; chaining at the edges is what lets the page take over. */
+    /* Not `contain`. Measured 2026-09-20 (headless Chromium 153, real wheel
+       input): with no smooth scroller running (reduced motion) a wheel over
+       an `overflow: auto` pane that has NOTHING to scroll, with `contain`,
+       moves nothing at all, and the page freezes under the pointer. With the
+       smooth scroller running the same pane is decided by its nested-scroll
+       gate (lib/nested-scroll.ts): it yields to this pane only while the
+       pane can move in the wheel's direction, and `auto` here is what lets
+       the page take over at the pane's edges. `contain` would make the pane
+       hold at its edges instead; the overlays that need that carry
+       `data-lenis-prevent`, and lenis.css gives them `contain`. */
   }
 
   .bb-scroller--fill {

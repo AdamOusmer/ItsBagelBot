@@ -7,11 +7,12 @@
   // menu's board list, the command inspector, a long popover.
   //
   // Extra attributes (role, aria-*, data-*) pass straight through to the
-  // scrolling element. `data-lenis-prevent` is for overlays (a `<dialog>`,
-  // a modal card) that must never chain the wheel to the page, even when
-  // they cannot scroll. Do not put it on fill inspectors: Lenis
-  // `allowNestedScroll` already yields while this pane can move, and a
-  // prevent on a short pane freezes the page under the pointer.
+  // scrolling element. Nothing is needed for the smooth scroller: its
+  // nested-scroll gate (lib/nested-scroll.ts) reads this pane's overflow and
+  // position on every wheel and yields while the pane can move. Do NOT add
+  // `data-lenis-prevent` here: it is static, so on a pane with nothing to
+  // scroll it hands the wheel to a box that cannot move. It is for overlays
+  // (a `<dialog>`, a modal card) that must never chain the wheel to the page.
   import '../styles/elements/shell.css';
   import type { Snippet } from 'svelte';
   import type { HTMLAttributes } from 'svelte/elements';

@@ -6,11 +6,12 @@
 // tan scrollbar instead of the browser's default chrome bar.
 //
 // Extra attributes (role, aria-*, data-*) pass straight through to the
-// scrolling element. `data-lenis-prevent` is for overlays that must never
-// chain the wheel to the page. Do not put it on fill inspectors: Lenis
-// `allowNestedScroll` already yields while this pane can move. `...rest`
-// lands on the scrolling div rather than a wrapper so a one-off prevent
-// still hits the element that actually scrolls.
+// scrolling element. Nothing is needed for the smooth scroller: its
+// nested-scroll gate (lib/nested-scroll.ts) reads this pane's overflow and
+// position on every wheel and yields while the pane can move. Do NOT add
+// `data-lenis-prevent` here; it is for overlays that must never chain the
+// wheel to the page. `...rest` lands on the scrolling div rather than a
+// wrapper so such a one-off still hits the element that actually scrolls.
 import '../styles/elements/shell.css';
 
 interface Props {

@@ -117,17 +117,24 @@ describe("createSmoothScroll", () => {
     expect((globalThis as unknown as LenisWindow).__lenis).toBe(handle.lenis);
   });
 
-  test("fixes lerp, smoothWheel, syncTouch and allowNestedScroll, and passes the caller's knobs through", () => {
-    const prevent = () => true;
-    createSmoothScroll({ prevent });
+  test("fixes lerp, smoothWheel and syncTouch, and wraps the caller's knobs in the nested-scroll gate", () => {
+    const prevent = (node: HTMLElement) => node.id === "docs-sidebar";
+    const virtualScroll = () => false;
+    createSmoothScroll({ prevent, virtualScroll });
 
-    expect(lastOptions).toMatchObject({
-      lerp: 0.1,
-      smoothWheel: true,
-      syncTouch: false,
-      allowNestedScroll: true,
-      prevent,
-    });
+    expect(lastOptions).toMatchObject({ lerp: 0.1, smoothWheel: true, syncTouch: false });
+    // Lenis's own nested-scroll option stays off: nested-scroll.ts is the gate.
+    expect(lastOptions).not.toHaveProperty("allowNestedScroll");
+
+    // The caller's prevent still wins and the caller's virtualScroll verdict
+    // still reaches Lenis; both now go through the gate rather than straight in.
+    const opts = lastOptions as {
+      prevent: (node: unknown) => boolean;
+      virtualScroll: (data: unknown) => boolean;
+    };
+    expect(opts.prevent).not.toBe(prevent);
+    expect(opts.prevent({ id: "docs-sidebar" })).toBe(true);
+    expect(opts.virtualScroll({ deltaX: 0, deltaY: 1, event: { type: "wheel" } })).toBe(false);
   });
 
   test("a second call returns the LIVE instance and constructs nothing", () => {
