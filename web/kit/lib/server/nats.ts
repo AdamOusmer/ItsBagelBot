@@ -5,7 +5,7 @@
 // reused across requests (connection setup is the expensive part; a warm conn
 // keeps request/reply in the low-ms range, which is what the p99 budget needs).
 import newrelic from 'newrelic';
-import { rpcCode, type RpcCode } from './rpc-code';
+import { rpcCode, type CodedReply, type RpcCode } from './rpc-code';
 import {
   connect,
   type ConnectionOptions,
@@ -326,6 +326,40 @@ export class RpcError extends Error {
  * defaults to 5s to match the Go callers.
  */
 export async function rpc<T>(subject: string, payload: unknown = {}, timeoutMs = 5000): Promise<T> {
+  const reply = await rpcReply<T>(subject, payload, timeoutMs);
+  const refusal = rpcRefusal(reply);
+  if (refusal) throw refusal;
+  return reply;
+}
+
+/**
+ * The refusal a reply carries, or null when it carries none.
+ *
+ * `code` is read through the SHARED vocabulary only. A service with a
+ * vocabulary of its own (outgress's `not_bound`, `bound_elsewhere`) lands here
+ * as code '', which says "refused, unclassified" -- the caller that needs the
+ * real code reads the reply itself through rpcReply.
+ */
+export function rpcRefusal(reply: unknown): RpcError | null {
+  if (!reply || typeof reply !== 'object') return null;
+  const r = reply as CodedReply;
+  if (!r.error) return null;
+  return new RpcError(r.error, rpcCode(r));
+}
+
+/**
+ * Request/reply that hands the reply back as the service sent it, `error` and
+ * `code` included. Transport failures (timeout, no responders) still reject.
+ *
+ * For a caller whose refusal vocabulary is its own. `rpc` throws on any reply
+ * carrying an `error`, and the RpcError it throws reads `code` through the
+ * shared vocabulary, so a code that vocabulary does not know arrives as ''.
+ * The Discord store branched on `reply.code` after `rpc` returned and never
+ * got there: outgress's `not_bound` on a first install reached the callback as
+ * an RpcError with code '' and was rendered as "Discord did not answer"
+ * (console-dashboard, 2026-09-10 and 2026-09-15, err.code "").
+ */
+export async function rpcReply<T>(subject: string, payload: unknown = {}, timeoutMs = 5000): Promise<T> {
   // Time each request/reply as its own New Relic segment so the SSR transaction
   // breakdown shows which RPC subject dominates a slow page. Safe no-op (runs the
   // handler directly) when no agent/transaction is active.
@@ -337,9 +371,7 @@ export async function rpc<T>(subject: string, payload: unknown = {}, timeoutMs =
     const msg = await requestLocalFirst(subjects, (routedSubject) =>
       nc.request(routedSubject, data, { timeout: timeoutMs })
     );
-    const reply = msg.json<T & { error?: string }>();
-    if (reply && typeof reply === 'object' && reply.error) throw new RpcError(reply.error, rpcCode(reply));
-    return reply as T;
+    return msg.json<T>();
   });
 }
 

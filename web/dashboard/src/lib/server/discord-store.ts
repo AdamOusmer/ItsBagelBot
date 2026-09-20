@@ -13,7 +13,16 @@
 // The config's shape, defaults and validation live in @bagel/kit's
 // discord-config so they can be unit-tested (the console runner only executes
 // shared/**); this file is the transport half.
-import { rpc } from '@bagel/kit/server/nats';
+//
+// Every call here goes through rpcReply, not rpc. The reply's `code` is this
+// module's own vocabulary (not_bound, bound_elsewhere, discord_unavailable...)
+// and `rpc` throws before a caller can read it, with a code read through the
+// shared vocabulary that does not know these. That is how a first install's
+// `not_bound` reached the callback as an RpcError with code '' and was
+// rendered as "Discord did not answer" (prod, 2026-09-10 and 2026-09-15). The
+// per-verb `if (r.error)` branches below are the refusal handling, and they
+// only run when the reply actually comes back.
+import { rpcReply } from '@bagel/kit/server/nats';
 import { codeReader, type CodedReply } from '@bagel/kit/server/rpc-code';
 import {
   MOD,
@@ -316,7 +325,7 @@ export type DiscordGuildList = { guilds: DiscordGuildSummary[]; truncated: boole
 // listGuilds below, so the flag cannot be dropped on the floor by accident in
 // the two places that do an ownership check with it.
 export async function listGuildsPage(user: DiscordUser): Promise<DiscordGuildList> {
-  const r = await rpc<GuildsReply>(
+  const r = await rpcReply<GuildsReply>(
     `${SUB.dingressRpc}.discord.guilds.list`,
     { user_id: user.userId },
     GUILDS_TIMEOUT_MS
@@ -349,7 +358,7 @@ export async function listGuilds(user: DiscordUser): Promise<DiscordGuildSummary
 type ConfigGetReply = CodedReply & { config?: unknown; version?: unknown; found?: boolean };
 
 export async function readGuildConfig(target: DiscordGuildTarget): Promise<DiscordGuildConfig> {
-  const r = await rpc<ConfigGetReply>(
+  const r = await rpcReply<ConfigGetReply>(
     `${SUB.dingressRpc}.discord.config.get`,
     { user_id: target.userId, guild_id: target.guildId },
     CONFIG_GET_TIMEOUT_MS
@@ -377,7 +386,7 @@ export type DiscordSaveResult = { version: number; code: DiscordCode; error: str
  * reconcile.
  */
 export async function saveGuildConfig(save: DiscordGuildSave): Promise<DiscordSaveResult> {
-  const r = await rpc<CodedReply & { version?: unknown }>(
+  const r = await rpcReply<CodedReply & { version?: unknown }>(
     `${SUB.dingressRpc}.discord.config.set`,
     {
       user_id: save.userId,
@@ -458,7 +467,7 @@ export async function setupGuild(
   target: DiscordGuildTarget,
   current: DiscordConfig
 ): Promise<DiscordSetup> {
-  const r = await rpc<SetupReply>(
+  const r = await rpcReply<SetupReply>(
     `${SUB.dingressRpc}.discord.setup`,
     {
       user_id: target.userId,
@@ -545,7 +554,7 @@ function guildInfo(g: WireGuild | undefined): DiscordGuildInfo {
 // omits categories should show an empty category picker, not silently reuse
 // whatever type-4 rows happened to be in `channels`.
 export async function guildLayout(target: DiscordGuildTarget): Promise<DiscordLayout> {
-  const r = await rpc<LayoutReply>(
+  const r = await rpcReply<LayoutReply>(
     `${SUB.dingressRpc}.discord.layout`,
     { user_id: target.userId, guild_id: target.guildId },
     LAYOUT_TIMEOUT_MS
@@ -579,7 +588,7 @@ type StatusReply = CodedReply & {
 // own status key plus a member count. It never throws — an unreachable
 // outgress is itself the answer the status card renders.
 export async function botStatus(target: DiscordGuildTarget): Promise<DiscordStatus> {
-  const r = await rpc<StatusReply>(
+  const r = await rpcReply<StatusReply>(
     `${SUB.dingressRpc}.discord.status`,
     { user_id: target.userId, guild_id: target.guildId },
     STATUS_TIMEOUT_MS
@@ -625,7 +634,7 @@ export async function repostDesk(
   // means #000000. Sending the fallback amber for an untouched panel froze
   // today's brand colour into the wire, and sending 0 for "unset" made black
   // unsavable. ticketPanelPayload owns that decision so it can be tested.
-  const r = await rpc<CodedReply & { message_id?: string }>(
+  const r = await rpcReply<CodedReply & { message_id?: string }>(
     `${SUB.dingressRpc}.discord.desk.repost`,
     {
       user_id: target.userId,
@@ -641,7 +650,7 @@ export async function repostDesk(
 // unbindGuild drops the guild→Twitch reverse index on disconnect so outgress
 // stops resolving the guild to this broadcaster.
 export async function unbindGuild(target: DiscordGuildTarget): Promise<void> {
-  const r = await rpc<CodedReply>(
+  const r = await rpcReply<CodedReply>(
     `${SUB.dingressRpc}.discord.unbind`,
     { user_id: target.userId, guild_id: target.guildId },
     UNBIND_TIMEOUT_MS

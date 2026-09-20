@@ -20,7 +20,11 @@
 // The per-broadcaster operations are bound to a broadcaster by `goveeStore(id)`,
 // which returns them as methods closing over the id, so no operation repeats it
 // as an argument. A redemption is driven by sesame; this store only sets up.
-import { rpc } from '@bagel/kit/server/nats';
+// rpcReply where the reply's `error` is the result the caller renders: rpc
+// rejects on any such reply before that branch runs (see rpcRefusal), which
+// turned a refused key into a thrown error the page could only show as a
+// generic failure. rpc stays where a throw is the handling.
+import { rpc, rpcReply } from '@bagel/kit/server/nats';
 import { POLICY } from '@bagel/kit/server/cache-keys';
 import { type GoveeOnRedeem, type GoveeDevice, type GoveeReward, type GoveeBinding, MOD } from '@bagel/kit';
 import { SUB, fabric, invalidate, publishEventSubEnsureOptional } from './services';
@@ -236,7 +240,7 @@ export function goveeStore(userId: string): GoveeStore {
   }
 
   async function setKey(key: string): Promise<GoveeResult> {
-    const r = await rpc<{ error?: string }>(`${SUB.goveeKey}.set`, { user_id: userId, key }, 3000);
+    const r = await rpcReply<{ error?: string }>(`${SUB.goveeKey}.set`, { user_id: userId, key }, 3000);
     if (r.error) return { ok: false, error: r.error };
     // A new key can front a different Govee account: drop the cached device list
     // so the next read reflects the new account immediately.
@@ -245,7 +249,7 @@ export function goveeStore(userId: string): GoveeStore {
   }
 
   async function clearKey(): Promise<GoveeResult> {
-    const r = await rpc<{ error?: string }>(`${SUB.goveeKey}.clear`, { user_id: userId }, 3000);
+    const r = await rpcReply<{ error?: string }>(`${SUB.goveeKey}.clear`, { user_id: userId }, 3000);
     if (r.error) return { ok: false, error: r.error };
     invalidate(devicesCacheKey(userId));
     return { ok: true };
@@ -258,14 +262,13 @@ export function goveeStore(userId: string): GoveeStore {
   async function listDevices(): Promise<{ devices: GoveeDevice[]; error?: string }> {
     try {
       const devices = await fabric.readKey(devicesCacheKey(userId), POLICY.govee, async () => {
-        const r = await rpc<{ devices?: GoveeDevice[]; error?: string }>(
+        const r = await rpc<{ devices?: GoveeDevice[] }>(
           `${SUB.gossip}.govee.devices`,
           { channel_id: userId },
           // Just over gossip's devices handler budget (8s) so this RPC
           // never abandons a fetch gossip is still completing.
           9000
         );
-        if (r.error) throw new Error(r.error);
         return Array.isArray(r.devices) ? r.devices : [];
       });
       return { devices };
