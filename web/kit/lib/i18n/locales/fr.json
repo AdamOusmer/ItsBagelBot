@@ -2044,6 +2044,15 @@
         "tagline": "Célébrez les pyramides et les séries d'emotes construites par le chat.",
         "description": "Regardez le chat construire des pyramides d'emotes (la même emote empilée 1, 2, 3 puis redescendue à 1) et des séries d'emotes (une suite de messages d'une seule emote), et laissez le bot applaudir quand elles aboutissent. Entièrement automatique : pas de commande, pas de réglage. Une pyramide ne compte que si elle est construite proprement, ligne par ligne, sans rien d'autre entre-temps."
       },
+      "personality": {
+        "label": "Personnalité du bot",
+        "tagline": "La voix du bot : il réagit aux compliments, aux câlins, aux insultes et aux bagels qu'on lui donne.",
+        "description": "Le bot réagit au chat de lui-même : il remercie les compliments, encaisse les insultes, apprécie les câlins, compte les bagels qu'on lui donne, joue à pile ou face, garde une humeur pour le stream et sort une anecdote sur les bagels quand quelqu'un le mentionne avec @. Les viewers consultent leur rang de nourrisseur avec !bagels et le classement avec !bagelboard. Le script est intégré, il n'y a rien à configurer. Désactivez-le pour que le bot s'en tienne strictement aux commandes.",
+        "commands": {
+          "bagels": "Affiche combien de bagels vous avez donnés au bot, et votre rang.",
+          "bagelboard": "Affiche le classement des donneurs de bagels de la chaîne."
+        }
+      },
       "automod": {
         "label": "AutoMod",
         "tagline": "Attrapez les arnaques, les voleurs d'IP et le spam de raid avant vos modos.",

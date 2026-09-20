@@ -2044,6 +2044,15 @@
         "tagline": "Celebrate chat-built emote pyramids and emote streaks.",
         "description": "Watch chat build emote pyramids (the same emote stacked 1, 2, 3 and back down to 1) and emote streaks (a run of single-emote messages), and let the bot cheer when they land. Fully automatic: no commands, no setup. A pyramid only counts when it is built cleanly, line by line, with nothing else posted in between."
       },
+      "personality": {
+        "label": "Bot Personality",
+        "tagline": "The bot's own voice: reacts to praise, pets, insults and bagel feeds.",
+        "description": "The bot reacts to chat on its own: thank praise, shrug off insults, enjoy pets, count bagel feeds, flip coins, keep a mood for the stream, and drop a bagel fun fact when someone @-mentions it. Viewers can check their feeding rank with !bagels and the leaderboard with !bagelboard. The script is built in, nothing to configure. Switch it off to keep the bot strictly to commands.",
+        "commands": {
+          "bagels": "Show how many bagels you have fed the bot, and your rank.",
+          "bagelboard": "Show the channel's bagel feeding leaderboard."
+        }
+      },
       "automod": {
         "label": "AutoMod",
         "tagline": "Catch scams, IP-grabbers and raid spam before your mods do.",

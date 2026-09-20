@@ -32,13 +32,16 @@ var (
 // Personality is the bot's built-in voice: a fixed set of phrase reactions on
 // the non-command chat path (praise, insults, pets, feeds, flips, a per-stream
 // mood) plus a rotating bagel fun fact whenever chat @-mentions the bot.
-// It is a named core module: always on, never listed on the dashboard, no
-// config, not removable. The entire script lives in personality_lines.go.
+// It is a named default-on module: it ships enabled and is listed on the
+// dashboard as a plain switch with no config, so a broadcaster who does not
+// want a chatty bot can turn it off. Off silences the chat reactions, the fun
+// fact and the !bagels/!bagelboard commands. The entire script lives in
+// personality_lines.go.
 //
 // It deliberately does not touch the special-user greeting in Core; that path
 // is personal and stays untouched.
 func Personality(d engine.Deps) module.Module {
-	m := module.NewModule("personality", module.KindCore)
+	m := module.NewModule("personality", module.KindDefault)
 	m.On("channel.chat.message", personalityOnChat(d))
 	m.Command("bagels").Everyone().Aliases("fed", "bagelcount").
 		Cooldown(feedCommandCooldown).Run(feedRankCommand(d))

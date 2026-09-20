@@ -34,7 +34,7 @@ func personalityHandler(t *testing.T, d engine.Deps) module.EventHandler {
 	t.Helper()
 	m := Personality(d)
 	assert.Equal(t, "personality", m.Name)
-	assert.Equal(t, module.KindCore, m.Kind, "personality must be a core module: always on, not removable")
+	assert.Equal(t, module.KindDefault, m.Kind, "personality ships enabled but the broadcaster can switch it off")
 	assert.Len(t, m.Commands, 2, "personality owns the two feed-leaderboard commands")
 	h := m.Events["channel.chat.message"]
 	require.NotNil(t, h, "personality must handle channel.chat.message")

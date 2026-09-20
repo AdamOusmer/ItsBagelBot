@@ -11,7 +11,10 @@ import (
 // All builds every module wired for the service, in registration order. Adding a
 // feature is writing its file and adding one line here. Core modules come first
 // so their reserved commands win the registry's first-wins de-dup over any named
-// module that might declare a clashing trigger.
+// module that might declare a clashing trigger. Personality registers with them
+// even though it is a named default-on module: it ships enabled for every
+// channel, so reserving its !bagels/!bagelboard spellings this early keeps a
+// later module from taking them.
 func All(d engine.Deps) []module.Module {
 	return []module.Module{
 		Core(d),
