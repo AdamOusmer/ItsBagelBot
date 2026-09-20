@@ -42,7 +42,14 @@ func (l *ConnectLog) Load(ctx context.Context, since time.Time) ([]time.Time, er
 	floor := strconv.FormatInt(since.UnixMilli(), 10)
 	resps := l.client.DoMulti(ctx,
 		l.client.B().Zremrangebyscore().Key(ddiscord.BotConnectsKey).Min("-inf").Max("("+floor).Build(),
-		l.client.B().Zrangebyscore().Key(ddiscord.BotConnectsKey).Min(floor).Max("+inf").Build(),
+		// WITHSCORES is not optional: AsZScores below reads member/score
+		// pairs, and without it the reply is members only, so the parse tried
+		// to read "<ms>-<pod>" as a float and every Load failed with
+		// strconv.ParseFloat "invalid syntax". The budget then fell back to
+		// counting this process only at every boot (the "not persisted"
+		// warning fired every 5 minutes on discord-ingress, 2026-09-05..20)
+		// while the key itself held every attempt.
+		l.client.B().Zrangebyscore().Key(ddiscord.BotConnectsKey).Min(floor).Max("+inf").Withscores().Build(),
 	)
 	if err := resps[0].Error(); err != nil {
 		return nil, err

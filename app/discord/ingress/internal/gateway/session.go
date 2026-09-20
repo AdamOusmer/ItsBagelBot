@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	neturl "net/url"
 	"sync/atomic"
 	"time"
 
@@ -436,9 +437,35 @@ func (s Session) gatewayURL() string {
 // not guarantee the latter works for one.
 func dialURLFor(url string, st *resumeState) string {
 	if _, resumeURL, ok := st.resumable(); ok && resumeURL != "" {
-		return resumeURL
+		return withGatewayQuery(resumeURL, url)
 	}
 	return url
+}
+
+// withGatewayQuery carries the gateway URL's query (v, encoding) onto the
+// resume URL. READY hands the resume URL back bare ("wss://gateway-us-east1-b
+// .discord.gg"), and Discord documents that a resume must reuse the query of
+// the original connection: a socket opened without v=10 speaks a different
+// gateway version, and a RESUME for a v10 session on it is answered with op 9
+// (resumable=false). That was every resume this ingress sent, 76 of 76 in the
+// 3 days to 2026-09-20, the ones after a polite op 7 included, and each
+// refusal spent a fresh IDENTIFY. A resume URL that already carries a query
+// is left alone; the path is normalised to "/" so the request line matches
+// the documented "wss://host/?v=10&encoding=json" shape.
+func withGatewayQuery(resumeURL, gatewayURL string) string {
+	base, err := neturl.Parse(gatewayURL)
+	if err != nil || base.RawQuery == "" {
+		return resumeURL
+	}
+	u, err := neturl.Parse(resumeURL)
+	if err != nil || u.RawQuery != "" {
+		return resumeURL
+	}
+	if u.Path == "" {
+		u.Path = "/"
+	}
+	u.RawQuery = base.RawQuery
+	return u.String()
 }
 
 // waitBeforeReconnect pauses for d between reconnect attempts, returning
@@ -772,9 +799,21 @@ func waitJitter(ctx context.Context, sk *socket, interval time.Duration) bool {
 // stops answering them. beats is how many have gone out, which is what
 // socket.stale compares the ACK count against.
 func (s Session) beatLoop(ctx context.Context, sk *socket, interval time.Duration, st *resumeState) {
+	// The first beat leaves the moment the jitter wait ends, not one interval
+	// later. Hello asks for the first heartbeat after heartbeat_interval *
+	// jitter; letting the ticker's first fire send it put it at jitter +
+	// interval, 41s to 82s on Discord's 41.25s interval. Discord closes a
+	// session that has not heartbeated by ~60s with a plain 1000 (122 such
+	// closes in the 7 days to 2026-09-20, uptime 58.0..60.4s, mean 60.07s):
+	// every fresh session whose jitter drew above ~19s, about half of them,
+	// and each one spent an IDENTIFY and a refused resume.
+	beats := int64(0)
+	if !s.beat(ctx, sk, st, beats) {
+		return
+	}
+	beats++
 	t := time.NewTicker(interval)
 	defer t.Stop()
-	beats := int64(0)
 	for {
 		select {
 		case <-ctx.Done():
