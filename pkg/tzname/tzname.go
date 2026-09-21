@@ -40,10 +40,12 @@ type Match struct {
 // branch-heavy dispatcher, and the order itself is the spec: a fixed offset
 // is unambiguous and checked first, then the curated table (hand-picked for
 // Twitch-chat prevalence beats the "first IANA name to alphabetically
-// match"), then any exact IANA name, then a bare city name.
+// match"), then state/province/country names, then any exact IANA name,
+// then a bare city name.
 var resolvers = []func(string) (Match, bool){
 	resolveOffset,
 	resolveCurated,
+	resolveRegion,
 	resolveFullName,
 	resolveSegment,
 }
