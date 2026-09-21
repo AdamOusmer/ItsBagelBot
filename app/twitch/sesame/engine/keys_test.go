@@ -26,7 +26,7 @@ func TestKeyLiterals(t *testing.T) {
 		"counter_viewer":  counterRef{id, "hydrate"}.viewerKey(),
 		"counter_scope":   counterRef{id, "hydrate"}.scopeKey(),
 		"balance":         balanceKey(id, 678),
-		"timer":           timerKey(id, "t1"),
+		"timer":           timerRef{id, "t1"}.scheduleKey(),
 		"campaign":        campaignKey(id, 255),
 	}
 	want := map[string]string{

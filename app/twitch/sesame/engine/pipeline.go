@@ -156,6 +156,13 @@ type Pipeline struct {
 	// (see observe.go). nil (the default) means no observer is wired and
 	// notifyObservers returns before touching the event.
 	observers []*observerLane
+
+	// chatLineCounter feeds a timer's chat-activity gate (timer-conditions.md
+	// D3). Not named chatLines: that name is already the dispatch.go method
+	// that fans one output into per-line actions, an unrelated concept. nil
+	// (no timers store wired, or a deployment that never turns the feature on)
+	// skips the call in Process.
+	chatLineCounter ChatLineCounter
 }
 
 // NewPipeline wires a Pipeline from the shared Deps, a pre-built registry, and
@@ -193,6 +200,7 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 		nuke:              d.Nuke,
 		special:           d.Special,
 		autoRefundChannel: cfg.AutoRefundChannel,
+		chatLineCounter:   d.ChatLines,
 	}
 	if d.Automod == nil && d.Log != nil {
 		// gateChat/gateCohort fail OPEN on a nil gate - every message passes
@@ -264,6 +272,8 @@ func (p *Pipeline) Process(msg *bus.Message) error {
 	}
 	traceEvent(ctx, env.Type, env.Lane, broadcasterID)
 
+	p.feedChatGate(ctx, env, broadcasterID)
+
 	p.roster.ObserveEnvelope(broadcasterID, env)
 
 	// Feed the nuke sweep memory before any stage can action the line: a
@@ -314,6 +324,19 @@ func (p *Pipeline) Process(msg *bus.Message) error {
 	// nil = ack; a publish/marshal failure on the emit path = nack.
 	tracePipelineResult(ctx, emission.err)
 	return emission.err
+}
+
+// feedChatGate feeds a timer's chat-activity gate (D3): chat only, and only
+// after Process's eligible/ok checks, so the bot's own line (eligible drops
+// it) and an envelope whose broadcaster id would not parse (ok) never reach
+// it. Pulled out of Process as its own step: the nil check and the chatType
+// check were two of the branches pushing Process's cyclomatic complexity to
+// 9 against this repo's gate of 8. chatLineCounter decides for itself whether
+// this broadcaster has anything to gate.
+func (p *Pipeline) feedChatGate(ctx context.Context, env *lane.Envelope, broadcasterID uint64) {
+	if p.chatLineCounter != nil && env.Type == chatType {
+		p.chatLineCounter.CountChatLine(ctx, broadcasterID)
+	}
 }
 
 // decodeEnvelope runs once per inbound event, the busiest decode in the fleet,

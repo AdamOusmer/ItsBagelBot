@@ -121,6 +121,7 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 		Raffle:      rt.raffle,
 		Duel:        rt.duel,
 		Timers:      rt.timers,
+		ChatLines:   rt.timers,
 
 		Loyalty:     rt.loyalty,
 		LoyaltyTick: rt.tick,
