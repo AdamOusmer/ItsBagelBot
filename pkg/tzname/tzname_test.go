@@ -62,21 +62,35 @@ func TestResolve(t *testing.T) {
 		{name: "city nyc", query: "nyc", want: wantMatch{"America/New_York", "New York"}, ok: true},
 		{name: "city kiev resolves to kyiv", query: "kiev", want: wantMatch{"Europe/Kyiv", "Kyiv"}, ok: true},
 
-		// --- Step 3: exact IANA name, any case. ---
+		// --- Step 3: regions (states, provinces, countries). ---
+		{name: "region texas", query: "texas", want: wantMatch{"America/Chicago", "Texas"}, ok: true},
+		{name: "region florida majority eastern", query: "Florida", want: wantMatch{"America/New_York", "Florida"}, ok: true},
+		{name: "region indiana", query: "indiana", want: wantMatch{"America/Indiana/Indianapolis", "Indiana"}, ok: true},
+		{name: "region washington state", query: "washington state", want: wantMatch{"America/Los_Angeles", "Washington State"}, ok: true},
+		{name: "region washington stays dc", query: "washington", want: wantMatch{"America/New_York", "Washington"}, ok: true},
+		{name: "region ontario", query: "Ontario", want: wantMatch{"America/Toronto", "Ontario"}, ok: true},
+		{name: "region bc", query: "bc", want: wantMatch{"America/Vancouver", "British Columbia"}, ok: true},
+		{name: "region england", query: "england", want: wantMatch{"Europe/London", "England"}, ok: true},
+		{name: "region japan", query: "japan", want: wantMatch{"Asia/Tokyo", "Japan"}, ok: true},
+		{name: "region no-majority country usa", query: "usa", ok: false},
+		{name: "region no-majority country canada", query: "canada", ok: false},
+		{name: "region no-majority country australia", query: "australia", ok: false},
+
+		// --- Step 4: exact IANA name, any case. ---
 		{name: "iana uppercase", query: "EUROPE/PARIS", want: wantMatch{"Europe/Paris", "Paris"}, ok: true},
 
-		// --- Step 3: link names. ---
+		// --- Step 4: link names. ---
 		{name: "link asia/calcutta", query: "asia/calcutta", want: wantMatch{"Asia/Calcutta", "Calcutta"}, ok: true},
 		{name: "link us/eastern", query: "us/eastern", want: wantMatch{"US/Eastern", "Eastern"}, ok: true},
 
-		// --- Step 4: bare segment of a canonical zone. ---
+		// --- Step 5: bare segment of a canonical zone. ---
 		{name: "segment toronto", query: "toronto", want: wantMatch{"America/Toronto", "Toronto"}, ok: true},
 		{name: "segment new york space", query: "new york", want: wantMatch{"America/New_York", "New York"}, ok: true},
 		{name: "segment new york underscore", query: "new_york", want: wantMatch{"America/New_York", "New York"}, ok: true},
 		{name: "segment buenos aires", query: "Buenos Aires", want: wantMatch{"America/Argentina/Buenos_Aires", "Buenos Aires"}, ok: true},
 		{name: "segment ho chi minh", query: "ho chi minh", want: wantMatch{"Asia/Ho_Chi_Minh", "Ho Chi Minh"}, ok: true},
 
-		// --- Accent folding (step 4, and step 2 for montreal above). ---
+		// --- Accent folding (step 5, and step 2 for montreal above). ---
 		{name: "accent sao paulo", query: "São Paulo", want: wantMatch{"America/Sao_Paulo", "Sao Paulo"}, ok: true},
 		{name: "accent montreal", query: "Montréal", want: wantMatch{"America/Toronto", "Montreal"}, ok: true},
 		{name: "accent zurich", query: "Zürich", want: wantMatch{"Europe/Zurich", "Zurich"}, ok: true},
@@ -85,7 +99,7 @@ func TestResolve(t *testing.T) {
 		{name: "trailing punctuation", query: "tokyo?", want: wantMatch{"Asia/Tokyo", "Tokyo"}, ok: true},
 		{name: "leading at", query: "@tokyo", want: wantMatch{"Asia/Tokyo", "Tokyo"}, ok: true},
 
-		// --- Etc/* excluded from steps 3 and 4 (inverted-sign trap). ---
+		// --- Etc/* excluded from steps 4 and 5 (inverted-sign trap). ---
 		{name: "etc gmt rejected", query: "Etc/GMT+3", ok: false},
 
 		// --- Unknown. ---
@@ -132,6 +146,10 @@ func TestLoad(t *testing.T) {
 // entry has to actually load, or Resolve would silently miss for viewers who
 // typed a perfectly good abbreviation or city name.
 func TestCuratedZonesLoad(t *testing.T) {
+	for query, entry := range regionZones {
+		_, err := time.LoadLocation(entry.zone)
+		assert.NoErrorf(t, err, "region entry %q -> %q does not load", query, entry.zone)
+	}
 	for query, entry := range curatedZones {
 		_, err := time.LoadLocation(entry.zone)
 		assert.NoErrorf(t, err, "curated entry %q -> %q does not load", query, entry.zone)
@@ -178,4 +196,19 @@ func TestSegmentCollisions(t *testing.T) {
 	}
 	sort.Strings(uncovered)
 	assert.Empty(t, uncovered, "last-segment collisions with no curated override (add the colliding name to curatedZones): %v", uncovered)
+}
+
+// TestRegionZonesDisjoint keeps regions.go minimal and its ordering honest:
+// a region name must not duplicate a curated entry (curated.go's collision
+// picks win by running first, so a duplicate would be dead) and must not
+// shadow a canonical zone's last segment (which already resolves at step 5,
+// so a duplicate would be redundant and a mismatch would be a silent
+// override of IANA data).
+func TestRegionZonesDisjoint(t *testing.T) {
+	for name := range regionZones {
+		_, curated := curatedZones[name]
+		assert.Falsef(t, curated, "region %q duplicates a curated entry; drop it from regions.go", name)
+		_, segment := index.bySegment[foldZoneKey(name)]
+		assert.Falsef(t, segment, "region %q is already a canonical zone segment; drop it from regions.go", name)
+	}
 }

@@ -217,7 +217,7 @@
   "time.month": "mois",
   "time.months": "mois",
   "time.unavailable": "L'heure n'est pas disponible pour le moment.",
-  "time.unknown": "Je ne connais pas « {place} ». Essaie une ville (Tokyo), un fuseau (Europe/Paris) ou un décalage (UTC+2).",
+  "time.unknown": "Je ne connais pas « {place} ». Essaie une ville (Tokyo), un état ou un pays (Texas, Japon), un fuseau (Europe/Paris) ou un décalage (UTC+2).",
   "time.unset": "Le streamer n'a pas encore choisi son fuseau horaire.",
   "time.year": "an",
   "time.years": "ans"
