@@ -1889,7 +1889,7 @@
       "timers": {
         "label": "Timers",
         "tagline": "Post repeating chat messages on a schedule while you are live.",
-        "description": "Set messages the bot repeats on a schedule while you are live: announcements, socials, reminders. Each timer keeps its own interval and only fires during the stream. Add, edit and arm them on this page."
+        "description": "Set messages the bot repeats on a schedule while you are live: announcements, socials, reminders. Each timer keeps its own interval and only fires during the stream. Add, edit and arm them on this page. A timer can also require some chat activity before it posts, or stop after a number of posts or a given date."
       },
       "loyalty": {
         "label": "Loyalty Points",
@@ -3086,6 +3086,16 @@
     "fieldInterval": "Repeat every",
     "fieldIntervalHint": "Minimum 1 minute, maximum 24 hours.",
     "unitMinutes": "minutes",
+    "fieldMinChatLines": "Only when chat is active",
+    "fieldMinChatLinesHint": "Skip a post unless at least this many chat lines arrived since the last one. 0 turns this off.",
+    "fieldMaxFires": "Stop after",
+    "fieldMaxFiresHint": "Stop posting after this many times in one stream. 0 means unlimited.",
+    "fieldEndsAt": "Until",
+    "fieldEndsAtHint": "Stop posting at this date and time. Leave empty to never stop.",
+    "pillMinLines": "≥ {n} lines",
+    "pillMaxFires": "{n} / stream",
+    "pillUntil": "until {date}",
+    "pillEnded": "Ended",
     "active": "Active",
     "create": "Create timer",
     "saveChanges": "Save changes",

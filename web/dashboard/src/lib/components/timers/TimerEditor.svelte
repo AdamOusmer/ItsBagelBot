@@ -46,6 +46,41 @@
       ? t('timers.errInterval')
       : undefined
   );
+
+  // Gate/stop fields (docs/specs/timer-conditions.md §7): the server clamp is
+  // the source of truth (D12), so these have no client-side error gate, only
+  // min/max affordances on the inputs.
+
+  // endsAt on the wire is a UTC instant; datetime-local reads and writes
+  // browser-local wall time with no offset, so it needs its own local
+  // <-> ISO conversion, first use of this input type in the repo (D7).
+  function isoToLocalInput(iso: string): string {
+    const d = new Date(iso);
+    if (!iso || Number.isNaN(d.getTime())) return '';
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+  function localInputToIso(local: string): string {
+    const d = new Date(local);
+    return local && !Number.isNaN(d.getTime()) ? d.toISOString() : '';
+  }
+
+  // Seeded once from the draft, written back only from the input handler, not
+  // an effect: the local form drops seconds, so an effect would rewrite a
+  // stored instant on open and flip the inspector's dirty flag with no edit.
+  let endsAtLocal = $state(isoToLocalInput(draft.endsAt));
+  function onEndsAtInput(e: Event) {
+    endsAtLocal = (e.currentTarget as HTMLInputElement).value;
+    draft.endsAt = localInputToIso(endsAtLocal);
+  }
+
+  // Short zone label ("EDT", "GMT+2") shown beside the picker so the
+  // broadcaster knows which zone the instant is being read in; computed once,
+  // it does not need to react to anything on this page.
+  const tzAbbr =
+    new Intl.DateTimeFormat(undefined, { timeZoneName: 'short' })
+      .formatToParts(new Date())
+      .find((p) => p.type === 'timeZoneName')?.value ?? '';
 </script>
 
 <div class="editor">
@@ -82,6 +117,24 @@
     <small id="timer-int-help" class="help">{t('timers.fieldIntervalHint')}</small>
   </Field>
 
+  <Field label={t('timers.fieldMinChatLines')}>
+    <input class="bb-input num" type="number" min="0" max="100" bind:value={draft.minChatLines} />
+    <small class="help">{t('timers.fieldMinChatLinesHint')}</small>
+  </Field>
+
+  <Field label={t('timers.fieldMaxFires')}>
+    <input class="bb-input num" type="number" min="0" max="100" bind:value={draft.maxFiresPerStream} />
+    <small class="help">{t('timers.fieldMaxFiresHint')}</small>
+  </Field>
+
+  <Field label={t('timers.fieldEndsAt')}>
+    <div class="ends-row">
+      <input class="bb-input" type="datetime-local" value={endsAtLocal} oninput={onEndsAtInput} />
+      {#if tzAbbr}<span class="tz" aria-hidden="true">{tzAbbr}</span>{/if}
+    </div>
+    <small class="help">{t('timers.fieldEndsAtHint')}</small>
+  </Field>
+
   <div class="check">
     <Checkbox bind:checked={draft.enabled}>{t('timers.active')}</Checkbox>
   </div>
@@ -107,7 +160,11 @@
   .interval-row { display: flex; align-items: center; gap: 10px; }
   /* Extra specificity so the fixed width wins over Field's `.bb-input { width: 100% }`. */
   .editor .interval-row .num { width: 100px; flex: none; }
+  .editor .num { width: 100px; flex: none; }
   .unit { font-family: var(--bb-font-body); font-size: 13px; color: var(--bb-muted); }
+
+  .ends-row { display: flex; align-items: center; gap: 10px; }
+  .tz { font-family: var(--bb-font-mono); font-size: 11.5px; color: var(--bb-muted); white-space: nowrap; }
 
   .check { margin: 4px 0 6px; --bb-check-align: center; }
 </style>

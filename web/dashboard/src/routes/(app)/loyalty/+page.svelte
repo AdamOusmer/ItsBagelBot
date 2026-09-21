@@ -60,7 +60,11 @@
 
   // Turning loyalty off also disables the children server-side. Mirror that
   // here so the nested switches do not stay lit until the next full load.
-  let prevOn = enabled;
+  // prevOn is seeded inside the effect, not at script top level: a top-level
+  // read of a $state only captures the initial value (svelte's
+  // state_referenced_locally), and undefined on the first run skips the
+  // cascade the same way the initial value did.
+  let prevOn: boolean | undefined;
   $effect(() => {
     if (prevOn && !enabled) {
       for (const g of games) g.enabled = false;

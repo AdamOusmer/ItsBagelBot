@@ -1889,7 +1889,7 @@
       "timers": {
         "label": "Minuteurs",
         "tagline": "Publiez des messages de chat répétitifs selon un horaire pendant le direct.",
-        "description": "Définissez des messages que le bot répète selon un horaire pendant le direct : annonces, réseaux, rappels. Chaque minuteur a son propre intervalle et ne s'enclenche que pendant le stream. Ajoutez, modifiez et armez-les sur cette page."
+        "description": "Définissez des messages que le bot répète selon un horaire pendant le direct : annonces, réseaux, rappels. Chaque minuteur a son propre intervalle et ne s'enclenche que pendant le stream. Ajoutez, modifiez et armez-les sur cette page. Un minuteur peut aussi exiger un minimum d'activité dans le chat avant de publier, ou s'arrêter après un nombre de publications ou à une date donnée."
       },
       "loyalty": {
         "label": "Points de fidélité",
@@ -3086,6 +3086,16 @@
     "fieldInterval": "Répéter toutes les",
     "fieldIntervalHint": "Minimum 1 minute, maximum 24 heures.",
     "unitMinutes": "minutes",
+    "fieldMinChatLines": "Seulement si le chat est actif",
+    "fieldMinChatLinesHint": "Passe un tour tant que ce nombre de lignes de chat n'est pas atteint depuis la dernière publication. 0 désactive ce réglage.",
+    "fieldMaxFires": "Arrêter après",
+    "fieldMaxFiresHint": "Arrête de publier après ce nombre de fois par live. 0 signifie illimité.",
+    "fieldEndsAt": "Jusqu'à",
+    "fieldEndsAtHint": "Arrête de publier à cette date et heure. Laissez vide pour ne jamais s'arrêter.",
+    "pillMinLines": "≥ {n} lignes",
+    "pillMaxFires": "{n} / live",
+    "pillUntil": "jusqu'au {date}",
+    "pillEnded": "Terminée",
     "active": "Active",
     "create": "Créer la minuterie",
     "saveChanges": "Enregistrer",

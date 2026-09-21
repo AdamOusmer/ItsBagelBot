@@ -13,7 +13,7 @@
   // state pill reads "Active"/"Paused" with colour only tinting it.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Icon, ManagementRow, Switch, getI18n, type TimerDef } from '@bagel/kit';
+  import { Icon, ManagementRow, Switch, getI18n, fmtDate, type TimerDef } from '@bagel/kit';
 
   const { t } = getI18n();
 
@@ -45,6 +45,19 @@
     if (s > 0 && s % 3600 === 0) return `${s / 3600} h`;
     return `${Math.max(1, Math.round(s / 60))} min`;
   });
+
+  // Status pills (docs/specs/timer-conditions.md §7): read nothing when a
+  // field is off (D11). Ended takes the until pill's place once endsAt has
+  // passed (D6): the stop and the date it will happen / has happened are the
+  // same fact, so showing both would repeat it.
+  const ended = $derived.by(() => {
+    if (!r.endsAt) return false;
+    const t = Date.parse(r.endsAt);
+    return !Number.isNaN(t) && t <= Date.now();
+  });
+  const untilLabel = $derived(
+    r.endsAt && !ended ? fmtDate(r.endsAt, { parts: { month: 'short', day: 'numeric' } }) : ''
+  );
 </script>
 
 <!-- No `disabled` prop: a paused timer is conveyed by the state pill and the
@@ -72,6 +85,17 @@
           <i class="bb-mark {r.enabled ? '' : 'bb-mark--hollow'}" aria-hidden="true"></i>
           {r.enabled ? t('timers.active') : t('timers.hiddenTag')}
         </span>
+        {#if r.minChatLines > 0}
+          <span class="m-pill bb-tag bb-tag--bare">{t('timers.pillMinLines', { n: r.minChatLines })}</span>
+        {/if}
+        {#if r.maxFiresPerStream > 0}
+          <span class="m-pill bb-tag bb-tag--bare">{t('timers.pillMaxFires', { n: r.maxFiresPerStream })}</span>
+        {/if}
+        {#if ended}
+          <span class="m-pill bb-tag bb-tag--bare">{t('timers.pillEnded')}</span>
+        {:else if untilLabel}
+          <span class="m-pill bb-tag bb-tag--bare">{t('timers.pillUntil', { date: untilLabel })}</span>
+        {/if}
       </span>
     </span>
   {/snippet}
@@ -105,8 +129,10 @@
     min-width: 0;
   }
 
-  /* Metadata block: schedule value + state pill, read as row text. */
-  .meta { display: inline-flex; align-items: center; justify-content: flex-end; gap: 12px; }
+  /* Metadata block: schedule value, state pill, gate/stop status pills, read
+     as row text. Wraps on its own (unlike .prow's grid) since the pill count
+     is per-timer and unbounded. */
+  .meta { display: inline-flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px 12px; }
   .sched-val {
     font-family: var(--bb-font-mono);
     font-size: 13.5px;
@@ -118,7 +144,7 @@
   /* Was a tinted outlined pill. Still TEXT-first with colour only tinting;
      the shape is now the global live/quiet label plus a solid/hollow mark, so
      Active vs Paused survives without colour. */
-  .m-state { flex: none; }
+  .m-state, .m-pill { flex: none; }
 
   :global(.delete-action) { width: 32px; height: 32px; min-height: 32px; }
 

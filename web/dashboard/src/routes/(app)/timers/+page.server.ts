@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { Actions, PageServerLoad } from './$types';
-import { clampInt, type TimerDef } from '@bagel/kit';
+import { type TimerDef } from '@bagel/kit';
 import {
   readTimers,
   createTimer,
@@ -11,6 +11,7 @@ import {
   setTimersEnabled,
   type TimerResult
 } from '$lib/server/timers-store';
+import { parseTimer } from '$lib/server/timers-parse';
 import { moduleLoad } from '$lib/server/module-page';
 import { moduleAction, type ModuleMutation } from '$lib/server/module-action';
 import { dev } from '$app/environment';
@@ -30,27 +31,6 @@ export const load: PageServerLoad = ({ locals }) =>
     },
     blank: () => ({ enabled: false, timers: [] as TimerDef[] })
   });
-
-// parseTimer validates and normalizes the posted timer JSON into a full
-// TimerDef. Returns null on anything malformed. The interval is clamped to
-// 60s-24h here; sesame floors it again defensively at arm time.
-function parseTimer(raw: string): TimerDef | null {
-  let obj: Partial<TimerDef>;
-  try {
-    obj = JSON.parse(raw) as Partial<TimerDef>;
-  } catch {
-    return null;
-  }
-  const message = String(obj.message ?? '').trim();
-  if (!message || message.length > 500) return null;
-
-  return {
-    id: String(obj.id ?? ''),
-    message,
-    intervalSeconds: clampInt(obj.intervalSeconds, 60, 86_400, 600),
-    enabled: obj.enabled !== false
-  };
-}
 
 // mutate binds one POST action to the module write skeleton
 // ($lib/server/module-action): delegate gate, form, demo short-circuit, error
