@@ -82,6 +82,35 @@ func (f *counterFake) session(c net.Conn) {
 	}
 }
 
+// counterFakeOK answers a handshake no-op command with a plain +OK, shared by
+// every verb this fake accepts without modeling it (AUTH, CLIENT, SELECT,
+// COMMAND, PING).
+func counterFakeOK(*counterFake, respArgs) []byte { return lockSimple("OK") }
+
+// counterFakeHello answers HELLO the way lockFake's fake does: an error that
+// matches valkey-go's noHello regex, so the client falls back to plain RESP2
+// instead of the HELLO-based protocol this fake does not speak.
+func counterFakeHello(*counterFake, respArgs) []byte { return lockErr("unknown command 'HELLO'") }
+
+// counterFakeHandlers dispatches exec's verbs. A map keyed by verb, not a
+// switch, is what keeps exec itself at one branch (the "no handler for this
+// verb" case): CodeScene flagged the previous switch's cyclomatic complexity,
+// driven by the handshake no-ops sharing one case label. Method values
+// ((*counterFake).execINCR and friends) need no wrapper closures.
+var counterFakeHandlers = map[string]func(*counterFake, respArgs) []byte{
+	"HELLO":   counterFakeHello,
+	"AUTH":    counterFakeOK,
+	"CLIENT":  counterFakeOK,
+	"SELECT":  counterFakeOK,
+	"COMMAND": counterFakeOK,
+	"PING":    counterFakeOK,
+	"INCR":    (*counterFake).execINCR,
+	"EXPIRE":  (*counterFake).execEXPIRE,
+	"GET":     (*counterFake).execGET,
+	"DEL":     (*counterFake).execDEL,
+	"TTL":     (*counterFake).execTTL,
+}
+
 func (f *counterFake) exec(args respArgs) []byte {
 	if len(args) == 0 {
 		return lockErr("empty command")
@@ -90,24 +119,11 @@ func (f *counterFake) exec(args respArgs) []byte {
 
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	switch cmd {
-	case "HELLO":
-		// Match valkey-go's noHello regex so it falls back to RESP2.
-		return lockErr("unknown command 'HELLO'")
-	case "AUTH", "CLIENT", "SELECT", "COMMAND", "PING":
-		return lockSimple("OK")
-	case "INCR":
-		return f.execINCR(rest)
-	case "EXPIRE":
-		return f.execEXPIRE(rest)
-	case "GET":
-		return f.execGET(rest)
-	case "DEL":
-		return f.execDEL(rest)
-	case "TTL":
-		return f.execTTL(rest)
+	handler, ok := counterFakeHandlers[cmd]
+	if !ok {
+		return lockErr("unknown command '" + cmd + "'")
 	}
-	return lockErr("unknown command '" + cmd + "'")
+	return handler(f, rest)
 }
 
 func (f *counterFake) execINCR(args respArgs) []byte {

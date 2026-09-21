@@ -272,14 +272,7 @@ func (p *Pipeline) Process(msg *bus.Message) error {
 	}
 	traceEvent(ctx, env.Type, env.Lane, broadcasterID)
 
-	// Feed a timer's chat-activity gate (D3): chat only, and only after
-	// eligible/ok, so the bot's own line (eligible drops it) and an envelope
-	// whose broadcaster id would not parse (ok) never reach it.
-	// chatLineCounter decides for itself whether this broadcaster has
-	// anything to gate.
-	if p.chatLineCounter != nil && env.Type == chatType {
-		p.chatLineCounter.CountChatLine(ctx, broadcasterID)
-	}
+	p.feedChatGate(ctx, env, broadcasterID)
 
 	p.roster.ObserveEnvelope(broadcasterID, env)
 
@@ -331,6 +324,19 @@ func (p *Pipeline) Process(msg *bus.Message) error {
 	// nil = ack; a publish/marshal failure on the emit path = nack.
 	tracePipelineResult(ctx, emission.err)
 	return emission.err
+}
+
+// feedChatGate feeds a timer's chat-activity gate (D3): chat only, and only
+// after Process's eligible/ok checks, so the bot's own line (eligible drops
+// it) and an envelope whose broadcaster id would not parse (ok) never reach
+// it. Pulled out of Process as its own step: the nil check and the chatType
+// check were two of the branches pushing Process's cyclomatic complexity to
+// 9 against this repo's gate of 8. chatLineCounter decides for itself whether
+// this broadcaster has anything to gate.
+func (p *Pipeline) feedChatGate(ctx context.Context, env *lane.Envelope, broadcasterID uint64) {
+	if p.chatLineCounter != nil && env.Type == chatType {
+		p.chatLineCounter.CountChatLine(ctx, broadcasterID)
+	}
 }
 
 // decodeEnvelope runs once per inbound event, the busiest decode in the fleet,

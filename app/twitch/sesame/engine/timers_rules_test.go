@@ -8,43 +8,42 @@ import (
 	"time"
 )
 
-func TestClampGateLines(t *testing.T) {
-	cases := []struct {
+// TestClampRanges covers both clamp functions in one table: they were
+// separate, identically-shaped tests (CodeScene flagged the duplication
+// between TestClampFireCap and TestClampGateLines), and the two functions
+// already share one shape by construction (clampGateLines and clampFireCap's
+// own doc comments: same 0-to-ceiling clamp, kept as two functions only so a
+// future change to one field's range cannot silently reach the other). The
+// five cases below are derived from each function's own ceiling so the same
+// table exercises both without hand-tuning per-function numbers.
+func TestClampRanges(t *testing.T) {
+	fns := []struct {
 		name string
-		in   int
-		want int
+		fn   func(int) int
+		max  int
 	}{
-		{"off", 0, 0},
-		{"in range", 5, 5},
-		{"negative floors to zero", -3, 0},
-		{"at ceiling", maxGateLines, maxGateLines},
-		{"above ceiling", maxGateLines + 50, maxGateLines},
+		{"clampGateLines", clampGateLines, maxGateLines},
+		{"clampFireCap", clampFireCap, maxFireCap},
 	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			if got := clampGateLines(c.in); got != c.want {
-				t.Fatalf("clampGateLines(%d) = %d, want %d", c.in, got, c.want)
+	for _, f := range fns {
+		t.Run(f.name, func(t *testing.T) {
+			cases := []struct {
+				name string
+				in   int
+				want int
+			}{
+				{"off", 0, 0},
+				{"in range", f.max / 2, f.max / 2},
+				{"negative floors to zero", -3, 0},
+				{"at ceiling", f.max, f.max},
+				{"above ceiling", f.max + 50, f.max},
 			}
-		})
-	}
-}
-
-func TestClampFireCap(t *testing.T) {
-	cases := []struct {
-		name string
-		in   int
-		want int
-	}{
-		{"unlimited", 0, 0},
-		{"in range", 3, 3},
-		{"negative floors to zero", -1, 0},
-		{"at ceiling", maxFireCap, maxFireCap},
-		{"above ceiling", maxFireCap + 1, maxFireCap},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			if got := clampFireCap(c.in); got != c.want {
-				t.Fatalf("clampFireCap(%d) = %d, want %d", c.in, got, c.want)
+			for _, c := range cases {
+				t.Run(c.name, func(t *testing.T) {
+					if got := f.fn(c.in); got != c.want {
+						t.Fatalf("%s(%d) = %d, want %d", f.name, c.in, got, c.want)
+					}
+				})
 			}
 		})
 	}

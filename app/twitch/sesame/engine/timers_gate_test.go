@@ -57,13 +57,26 @@ func newGateStoreFixture(t *testing.T, proj projection.Reader) gateStoreFixture 
 	t.Cleanup(func() {
 		ctx := context.Background()
 		client.Do(ctx, client.B().Del().Key(
-			timerKey(bid, "t1"), markKey(bid, "t1"), firesKey(bid, "t1"), linesKey(bid),
-			timerKey(bid, "capped"), markKey(bid, "capped"), firesKey(bid, "capped"),
-			timerKey(bid, "ended"), markKey(bid, "ended"), firesKey(bid, "ended"),
-			timerKey(bid, "plain"),
+			f.ref("t1").scheduleKey(), f.ref("t1").markKey(), f.ref("t1").firesKey(), linesKey(bid),
+			f.ref("capped").scheduleKey(), f.ref("capped").markKey(), f.ref("capped").firesKey(),
+			f.ref("ended").scheduleKey(), f.ref("ended").markKey(), f.ref("ended").firesKey(),
+			f.ref("plain").scheduleKey(),
 		).Build())
 	})
 	return f
+}
+
+// ref names one of this fixture's broadcaster's timers, the same (bid, id)
+// pair every store method below takes as a timerRef or wraps into an
+// armedTimer.
+func (f gateStoreFixture) ref(timerID string) timerRef {
+	return timerRef{broadcasterID: f.bid, id: timerID}
+}
+
+// armed pairs ref(timerID) with td, for the store methods that act on one
+// timer's full definition (tick, armOne's callees).
+func (f gateStoreFixture) armed(timerID string, td timerDef) armedTimer {
+	return armedTimer{ref: f.ref(timerID), def: td}
 }
 
 // bumpLines increments the broadcaster's chat-activity counter n times.
@@ -79,13 +92,13 @@ func (f gateStoreFixture) bumpLines(t *testing.T, n int) {
 func (f gateStoreFixture) seedMark(t *testing.T, timerID string, value int64) {
 	t.Helper()
 	err := f.store.client.Do(context.Background(), f.store.client.B().Set().
-		Key(markKey(f.bid, timerID)).Value(strconv.FormatInt(value, 10)).Nx().Ex(timerAuxTTL).Build()).Error()
+		Key(f.ref(timerID).markKey()).Value(strconv.FormatInt(value, 10)).Nx().Ex(timerAuxTTL).Build()).Error()
 	require.NoError(t, err)
 }
 
 func (f gateStoreFixture) scheduleKeyExists(t *testing.T, timerID string) bool {
 	t.Helper()
-	_, err := f.store.client.Do(context.Background(), f.store.client.B().Get().Key(timerKey(f.bid, timerID)).Build()).ToString()
+	_, err := f.store.client.Do(context.Background(), f.store.client.B().Get().Key(f.ref(timerID).scheduleKey()).Build()).ToString()
 	return err == nil
 }
 
@@ -97,10 +110,10 @@ func TestTimerTickGateSkipReArmsWithoutFiring(t *testing.T) {
 	f.seedMark(t, "t1", 0)
 	f.bumpLines(t, 2) // below the threshold of 5
 
-	f.store.tick(ctx, f.bid, td)
+	f.store.tick(ctx, f.armed("t1", td))
 
 	assert.Empty(t, f.pub.got, "a gate-skipped tick must not fire")
-	assert.EqualValues(t, 0, f.store.watermark(ctx, f.bid, "t1"), "a skip must leave the watermark untouched (D4)")
+	assert.EqualValues(t, 0, f.store.watermark(ctx, f.ref("t1")), "a skip must leave the watermark untouched (D4)")
 	assert.True(t, f.scheduleKeyExists(t, "t1"), "a skip must still re-arm at the exact interval (D8)")
 }
 
@@ -114,13 +127,13 @@ func TestTimerTickGateSkipLeavesFireCapUntouched(t *testing.T) {
 
 	f.seedMark(t, "t1", 0)
 	f.bumpLines(t, 2) // below the gate's threshold of 5
-	_, err := pkg_valkey.Incr(ctx, f.store.client, firesKey(f.bid, "t1"), timerAuxTTL)
+	_, err := pkg_valkey.Incr(ctx, f.store.client, f.ref("t1").firesKey(), timerAuxTTL)
 	require.NoError(t, err) // one prior fire this stream, well under the cap of 3
 
-	f.store.tick(ctx, f.bid, td)
+	f.store.tick(ctx, f.armed("t1", td))
 
 	assert.Empty(t, f.pub.got, "a gate-skipped tick must not fire")
-	assert.EqualValues(t, 1, f.store.fireCount(ctx, f.bid, "t1"), "a skip must not consume the fire cap")
+	assert.EqualValues(t, 1, f.store.fireCount(ctx, f.ref("t1")), "a skip must not consume the fire cap")
 	assert.True(t, f.scheduleKeyExists(t, "t1"), "a skip must still re-arm")
 }
 
@@ -132,11 +145,11 @@ func TestTimerTickGatePassFiresAndMovesWatermark(t *testing.T) {
 	f.seedMark(t, "t1", 0)
 	f.bumpLines(t, 7) // at/above the threshold of 5
 
-	f.store.tick(ctx, f.bid, td)
+	f.store.tick(ctx, f.armed("t1", td))
 
 	require.Len(t, f.pub.got, 1, "a gate-passed tick must fire")
-	assert.EqualValues(t, 7, f.store.watermark(ctx, f.bid, "t1"), "a fire must move the watermark to the current counter (D4)")
-	assert.EqualValues(t, 1, f.store.fireCount(ctx, f.bid, "t1"), "a fire must count toward the cap")
+	assert.EqualValues(t, 7, f.store.watermark(ctx, f.ref("t1")), "a fire must move the watermark to the current counter (D4)")
+	assert.EqualValues(t, 1, f.store.fireCount(ctx, f.ref("t1")), "a fire must count toward the cap")
 	assert.True(t, f.scheduleKeyExists(t, "t1"))
 }
 
@@ -145,14 +158,14 @@ func TestTimerTickCapReachedStopsWithoutFiringOrReArming(t *testing.T) {
 	ctx := context.Background()
 	td := timerDef{ID: "t1", Message: "hi", Interval: 60, Enabled: true, MaxFires: 1}
 
-	_, err := pkg_valkey.Incr(ctx, f.store.client, firesKey(f.bid, "t1"), timerAuxTTL)
+	_, err := pkg_valkey.Incr(ctx, f.store.client, f.ref("t1").firesKey(), timerAuxTTL)
 	require.NoError(t, err) // fire count already at the cap
 
-	f.store.tick(ctx, f.bid, td)
+	f.store.tick(ctx, f.armed("t1", td))
 
 	assert.Empty(t, f.pub.got, "a capped timer must not fire again")
 	assert.False(t, f.scheduleKeyExists(t, "t1"), "a stop must not re-arm (§6 step 1)")
-	assert.EqualValues(t, 1, f.store.fireCount(ctx, f.bid, "t1"), "a stop must not itself bump the fire count")
+	assert.EqualValues(t, 1, f.store.fireCount(ctx, f.ref("t1")), "a stop must not itself bump the fire count")
 }
 
 func TestArmAllSkipsCappedAndEndedTimersButArmsAPlainOne(t *testing.T) {
@@ -169,7 +182,7 @@ func TestArmAllSkipsCappedAndEndedTimersButArmsAPlainOne(t *testing.T) {
 	f := newGateStoreFixture(t, proj)
 	ctx := context.Background()
 
-	_, err = pkg_valkey.Incr(ctx, f.store.client, firesKey(f.bid, "capped"), timerAuxTTL) // cap already reached
+	_, err = pkg_valkey.Incr(ctx, f.store.client, f.ref("capped").firesKey(), timerAuxTTL) // cap already reached
 	require.NoError(t, err)
 
 	f.store.ArmAll(ctx, f.bid)
@@ -199,20 +212,20 @@ func TestArmAllRearmDoesNotResetAnAlreadyMovedWatermark(t *testing.T) {
 	// Fresh arm: armOne seeds the watermark NX at the counter's value at arm
 	// time, which is 0 (nobody has chatted yet).
 	f.store.ArmAll(ctx, f.bid)
-	require.EqualValues(t, 0, f.store.watermark(ctx, f.bid, "t1"))
+	require.EqualValues(t, 0, f.store.watermark(ctx, f.ref("t1")))
 
 	// A tick that passes the gate fires and moves the watermark to 7.
 	f.bumpLines(t, 7)
-	f.store.tick(ctx, f.bid, td)
+	f.store.tick(ctx, f.armed("t1", td))
 	require.Len(t, f.pub.got, 1)
-	require.EqualValues(t, 7, f.store.watermark(ctx, f.bid, "t1"))
+	require.EqualValues(t, 7, f.store.watermark(ctx, f.ref("t1")))
 
 	// A second ArmAll (the shape a mid-stream dashboard save or the
 	// once-a-minute reconciler sweep takes) must not roll the watermark back
 	// to a stale arm-time seed.
 	f.store.ArmAll(ctx, f.bid)
 
-	assert.EqualValues(t, 7, f.store.watermark(ctx, f.bid, "t1"),
+	assert.EqualValues(t, 7, f.store.watermark(ctx, f.ref("t1")),
 		"a rearm must not reset an already-moved watermark (D4 NX guarantee)")
 }
 
@@ -230,15 +243,15 @@ func TestDisarmAllClearsScheduleAndAuxKeys(t *testing.T) {
 
 	f.store.ArmAll(ctx, f.bid)
 	f.bumpLines(t, 3)
-	_, err = pkg_valkey.Incr(ctx, f.store.client, firesKey(f.bid, "t1"), timerAuxTTL)
+	_, err = pkg_valkey.Incr(ctx, f.store.client, f.ref("t1").firesKey(), timerAuxTTL)
 	require.NoError(t, err)
 	require.True(t, f.scheduleKeyExists(t, "t1"), "precondition: timer must be armed before disarming it")
 
 	f.store.DisarmAll(ctx, f.bid)
 
 	assert.False(t, f.scheduleKeyExists(t, "t1"), "DisarmAll must delete the schedule key")
-	assert.EqualValues(t, 0, f.store.watermark(ctx, f.bid, "t1"), "DisarmAll must delete the watermark")
-	assert.EqualValues(t, 0, f.store.fireCount(ctx, f.bid, "t1"), "DisarmAll must delete the fire count")
+	assert.EqualValues(t, 0, f.store.watermark(ctx, f.ref("t1")), "DisarmAll must delete the watermark")
+	assert.EqualValues(t, 0, f.store.fireCount(ctx, f.ref("t1")), "DisarmAll must delete the fire count")
 	assert.EqualValues(t, 0, f.store.linesCount(ctx, f.bid), "DisarmAll must delete the broadcaster's chat line counter")
 }
 
