@@ -12,7 +12,7 @@ The Local Time module (`time`) keeps answering a bare `!time` with **home time**
 | # | Decision | Rationale |
 | --- | --- | --- |
 | D1 | Vocabulary: **home zone** (the broadcaster's configured IANA zone), **home time** (the answer to a bare `!time`), **place** (whatever a viewer typed after `!time`), **place lookup** (the answer to `!time <place>`). | One name per concept keeps the code comments, the spec, and [CONTEXT.md](../../CONTEXT.md) saying the same thing. |
-| D2 | Accepted place shapes: city names (IANA zone names, plus a curated alias list of roughly 70 big cities IANA's own names miss, such as Montreal, Seattle, Beijing, Mumbai), IANA names in any case, abbreviations (EST, PT, JST, …), and UTC offsets (`UTC+2`, `+05:30`, `-7`). Not supported: country names, US states. | A multi-zone country or state (`!time USA`, `!time California`) would force the bot to guess a city; better to ask for one. |
+| D2 | Accepted place shapes: city names (IANA zone names, plus a curated alias list of roughly 70 big cities IANA's own names miss, such as Montreal, Seattle, Beijing, Mumbai), state/province/country names (US states, Canadian provinces, Australian states, UK nations, single-majority-zone countries such as Japan or Brazil), IANA names in any case, abbreviations (EST, PT, JST, …), and UTC offsets (`UTC+2`, `+05:30`, `-7`). Not supported: countries with no majority zone (`!time USA`, `!time Canada`, `!time Australia`, `!time Russia`). | Regions were added for #1003: a viewer sharing their own time should be able to stop at a state and never name a city. A multi-zone state or country resolves to the zone most of its people live in (Texas → Chicago, Florida → New York), the same one-declared-meaning rule D3 applies to abbreviations, and the pick is recorded next to the table in [pkg/tzname/regions.go](../../pkg/tzname/regions.go). USA/Canada/Australia/Russia have no majority zone, so any pick would be wrong for most viewers; those still get the "try a city" reply. |
 | D3 | Ambiguous abbreviations get one declared meaning: `CST` → Chicago, `IST` → Kolkata, `BST` → London. Recorded as a code comment next to the curated table. | A wrong pick costs the viewer one retype with a city name; a tri-state "which did you mean" round trip costs more than it's worth for a chat bot. |
 | D4 | An unrecognized place replies with a hint: `I don't know where "X" is. Try a city (Tokyo), a zone (Europe/Paris) or an offset (UTC+2).` Never falls back to home time. The command cooldown is consumed either way. | Silently answering with the streamer's own time for an unrecognized place would look like a wrong answer rather than a miss; the hint tells the viewer what shape to retry with. |
 | D5 | Lookup works even when the home zone is unset. A bare `!time` with no home zone still answers that the zone is unset. | The two replies are independent: a lookup needs only the place the viewer named, not the channel's own configuration. |
@@ -48,7 +48,8 @@ The Local Time module (`time`) keeps answering a bare `!time` with **home time**
 1. **Offset grammar** (D12): `UTC`/`GMT` prefix, sign, hours, quarter-hour minutes.
 2. **Full IANA name**, case-insensitive (`America/New_York`, `europe/paris`).
 3. **Curated alias** (city name or abbreviation not in IANA's own naming, or an abbreviation with a declared meaning per D3).
-4. **City-segment index** over canonical IANA zone names (the last path segment, e.g. `Paris` from `Europe/Paris`), built from the generated zone list (D9), collisions resolved by the curated table.
+4. **Region name** (state, province or country, majority-zone pick per D2).
+5. **City-segment index** over canonical IANA zone names (the last path segment, e.g. `Paris` from `Europe/Paris`), built from the generated zone list (D9), collisions resolved by the curated table.
 
 No match at any step is an unknown place (D4).
 
@@ -77,6 +78,7 @@ Copy: [web/kit/lib/i18n/locales/en.json](../../web/kit/lib/i18n/locales/en.json)
 | [pkg/tzname/normalize.go](../../pkg/tzname/normalize.go) | Argument normalization (D11). |
 | [pkg/tzname/offset.go](../../pkg/tzname/offset.go) | UTC offset grammar (D12). |
 | [pkg/tzname/curated.go](../../pkg/tzname/curated.go) | Curated city aliases and abbreviation table (D2, D3). |
+| [pkg/tzname/regions.go](../../pkg/tzname/regions.go) | State, province and country table with the majority-zone picks (D2). |
 | [pkg/tzname/index.go](../../pkg/tzname/index.go) | City-segment index over canonical zones (D9). |
 | [pkg/tzname/zones.go](../../pkg/tzname/zones.go) | Canonical/link zone classification. |
 | [pkg/tzname/zones_gen.go](../../pkg/tzname/zones_gen.go) | Generated IANA zone list, golden-tested. |
@@ -90,7 +92,7 @@ Copy: [web/kit/lib/i18n/locales/en.json](../../web/kit/lib/i18n/locales/en.json)
 
 ## 8. Tests
 
-- `pkg/tzname`: offset grammar (valid and rejected shapes, D12); full IANA name any case; curated aliases including the declared abbreviation meanings (D3); city-segment index; zero unresolved collisions between canonical zones (D9); `Etc/*` zones never resolve.
+- `pkg/tzname`: offset grammar (valid and rejected shapes, D12); full IANA name any case; curated aliases including the declared abbreviation meanings (D3); region names and the no-majority-zone countries that stay unknown (D2), and that the region table is disjoint from curated aliases and zone segments; city-segment index; zero unresolved collisions between canonical zones (D9); `Etc/*` zones never resolve.
 - `app/twitch/sesame/modules/timeofday_test.go`: home time unchanged; lookup by city, IANA name, abbreviation, offset; unknown place hint (D4); lookup with home zone unset (D5); cooldown consumed on both hit and miss.
 - `web/kit/lib/catalog`: `time` module def has two replies, `lookup` keyed by `lookupMessage`, tokens include `place`.
 - `web/kit/lib/i18n`: literal-keys/parity tests pick up `replies.lookup.tagline` in both locales.
