@@ -470,7 +470,12 @@ async function applyTimers(ctx: CommitContext, blob: Record<string, unknown>): P
       intervalSeconds: interval,
       // Field names mirror sesame's engine-side timer shape (the worker reads
       // this blob directly), not the dashboard's TimerDef casing choices.
-      enabled: true
+      enabled: true,
+      // No source platform has an equivalent gate/stop; imported timers land
+      // with them off, same as any hand-created timer (D11).
+      minChatLines: 0,
+      maxFiresPerStream: 0,
+      endsAt: ''
     } satisfies TimerDef);
   }
   try {

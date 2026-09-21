@@ -238,7 +238,7 @@
     }
     .cmd { grid-area: cmd; flex-wrap: wrap; }
     .aliases { flex-wrap: wrap; overflow: visible; }
-    .resp { grid-area: resp; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+    .resp { grid-area: resp; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; }
     .m-perm { grid-area: perm; }
     .m-uses { grid-area: uses; width: 130px; }
     .state { display: none; }
