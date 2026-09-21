@@ -8,6 +8,7 @@ import (
 	"math/rand/v2"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"ItsBagelBot/app/twitch/sesame/module"
@@ -76,12 +77,53 @@ const reconcileClaimKey = timerClaimPrefix + "reconcile"
 
 const reconcileClaimTTL = 30 * time.Second
 
+// timerAuxPrefix is the gate and stop counters' key prefix (spec §5):
+// timerx:lines:<bid> (chat activity), timerx:mark:<bid>:<tid> (a gated
+// timer's watermark) and timerx:fires:<bid>:<tid> (the fire cap). It is
+// deliberately NOT nested under timerKeyPrefix the way timerClaimPrefix is.
+// onExpired routes every "timer:"-prefixed expiry into the fire path by
+// design (it IS the clock), so an aux key sharing that prefix would only be
+// rejected there by a failed id parse on "lines"/"mark"/"fires", a silent
+// no-op today, but one bad refactor of parseTimerKey away from firing a
+// message off a counter's own TTL. "timerx:" fails the plain HasPrefix(key,
+// "timer:") check at the 6th byte ('x' vs ':'), so onExpired never sees these
+// keys' expiries at all.
+const timerAuxPrefix = "timerx:"
+
+// timerAuxTTL bounds every gate/stop counter (lines, watermark, fire count).
+// DisarmAll deletes all three on stream.offline (the normal path); the TTL is
+// the safety net for the stream.offline that never arrives, a dropped
+// message, a crash between the last event and the delete loop, so a stale
+// counter cannot outlive a reasonable "this stream is clearly over" window.
+// 48h is the number the spec fixes (§5): long enough that no live counter
+// during a realistically long stream is ever caught by it, short enough that
+// an orphaned counter does not linger for a week.
+const timerAuxTTL = 48 * time.Hour
+
 // timerDef is one broadcaster-authored repeating chat message.
+//
+// MinChatLines, MaxFires and EndsAt are the gate and stop fields from
+// docs/specs/timer-conditions.md (D1-D6): a chat-activity gate, a per-stream
+// fire cap, and an end date. All three are optional and additive (D11): a
+// blob saved before this change decodes with every one at its zero value,
+// which isGated/stopped/gatePasses (timers_rules.go) all read as "off," so an
+// existing timer's behaviour is unchanged bit for bit.
 type timerDef struct {
 	ID       string `json:"id"`
 	Message  string `json:"message"`
 	Interval int    `json:"intervalSeconds"`
 	Enabled  bool   `json:"enabled"`
+	// MinChatLines gates a tick on chat activity: 0 (off) to 100 lines since
+	// the timer's last fire (D2, D4).
+	MinChatLines int `json:"minChatLines"`
+	// MaxFires caps how many times this timer may fire in one stream: 0
+	// (unlimited) to 100 (D5).
+	MaxFires int `json:"maxFiresPerStream"`
+	// EndsAt is an RFC 3339 UTC instant past which the timer stops; empty
+	// means never (D6). Kept as the raw string, not a parsed time.Time: sesame
+	// never writes this field back, and parseEndsAt's ok bool is what every
+	// reader actually branches on.
+	EndsAt string `json:"endsAt"`
 }
 
 // timersConfig is the "timers" module's Configs blob.
@@ -95,11 +137,11 @@ type timersConfig struct {
 // expiry re-checks live state + config, posts the message, and re-arms.
 //
 // A missed expiry notification (the watcher's pub/sub connection drops and
-// reconnects) silently stalls that one timer until the next stream.online —
-// there is no reconciliation sweep. Given the stream-only requirement and the
-// modest stakes (a scheduled chat line, not a payment), a rare stall until the
-// next stream is an accepted trade for not running a second polling mechanism
-// alongside this one.
+// reconnects) silently stalls that one timer: its key is gone and nothing
+// re-sets it. StartReconciler is the safety net, a once-a-minute sweep that
+// re-arms every live broadcaster's timers with the same NX SET arming already
+// uses, so a stalled timer resumes within one interval instead of staying
+// down until the next stream.online.
 type ValkeyTimerStore struct {
 	client valkey.Client
 	pub    bus.Publisher
@@ -119,6 +161,35 @@ type ValkeyTimerStore struct {
 
 	keyspaceDB int
 	log        *zap.Logger
+
+	// gatedCache memoizes "does this broadcaster have at least one enabled
+	// timer with a chat activity gate," the answer CountChatLine's hot path
+	// (the chat pipeline) needs on every message (D13). It is keyed by
+	// broadcaster id the same way ValkeyLiveStore.cache is (live_valkey.go): a
+	// hit costs one theine lookup, no allocation, no Valkey round trip. The
+	// rearm watcher invalidates it in StartRearmWatcher's callback, which
+	// already subscribes to the modules cache-invalidation subject a timers
+	// save publishes to, no second NATS subscription. The TTL is a safety net
+	// for a missed invalidation, not the primary freshness mechanism.
+	gatedCache *cache.Keyed[uint64, bool]
+
+	// now is read wherever a stop check needs the current instant (the end
+	// date, D6). A field defaulting to time.Now in the constructor, rather than
+	// a bare call at the read site, is the first clock injection in this
+	// package (D16): it lets a test move "now" past an endsAt without a real
+	// sleep, the same way lockFake's injected clock does for pkg/valkey's lock
+	// tests.
+	now func() time.Time
+
+	// badEndsAtWarned dedups warnUnparsableEndsAt's log line per (broadcaster,
+	// timer): a tick runs at least once per interval floor (30s), so without
+	// this a broadcaster who saved a bad date would fill the log forever
+	// instead of once (D16 says "log once"). Zero value is a ready-to-use
+	// empty map; no constructor init needed. DisarmAll clears a timer's entry
+	// so a broadcaster who fixes the date on the next stream gets a fresh
+	// warning if they somehow break it again, not required for correctness but
+	// cheap to keep the map from outliving the timer that caused the entry.
+	badEndsAtWarned sync.Map
 }
 
 // TimersConfig wires a ValkeyTimerStore.
@@ -157,11 +228,51 @@ func NewValkeyTimerStore(client valkey.Client, pub bus.Publisher, proj projectio
 		outgressStandard: cfg.OutgressStandardSubject,
 		keyspaceDB:       cfg.KeyspaceDB,
 		log:              log,
+		gatedCache:       cache.NewKeyed[uint64, bool](gatedCacheCapacity, gatedCacheTTL, gatedCacheKeyFn),
+		now:              time.Now,
 	}
+}
+
+// gatedCacheCapacity ceilings ValkeyTimerStore.gatedCache the same way
+// liveCacheCapacity ceilings the live store's cache (live_valkey.go): one
+// entry per broadcaster this pod has seen chat from recently, so a few
+// thousand covers a pod's working set without holding cache.DefaultCapacity
+// at rest for a bool.
+const gatedCacheCapacity int64 = 4096
+
+// gatedCacheTTL is the safety net for a missed rearm-watcher invalidation
+// (D13's explicit invalidate is the primary path). Minutes, not seconds: a
+// stale "no gated timer" answer costs a broadcaster's gate a few minutes of
+// extra activity in its window on the next save, not a wrong fire, so this
+// favors fewer Valkey reads over tight freshness.
+const gatedCacheTTL = 10 * time.Minute
+
+// gatedCacheKeyFn stringifies a broadcaster id for gatedCache's singleflight
+// group. It runs only on a cache miss or an explicit Invalidate, never on a
+// hit (see cache.Keyed's doc comment).
+func gatedCacheKeyFn(broadcasterID uint64) string {
+	return strconv.FormatUint(broadcasterID, 10)
 }
 
 func timerKey(broadcasterID uint64, timerID string) string {
 	return cache.PairKey(timerKeyPrefix, broadcasterID, timerID)
+}
+
+// linesKey is the broadcaster-wide chat-activity counter a gated timer's
+// watermark measures against (D3, D4).
+func linesKey(broadcasterID uint64) string {
+	return cache.UserKey(timerAuxPrefix+"lines:", broadcasterID)
+}
+
+// markKey is one gated timer's watermark: the linesKey value as of its last
+// fire, or its arm if it has not fired yet this stream (D4).
+func markKey(broadcasterID uint64, timerID string) string {
+	return cache.PairKey(timerAuxPrefix+"mark:", broadcasterID, timerID)
+}
+
+// firesKey is one timer's per-stream fire count, the fire cap's counter (D5).
+func firesKey(broadcasterID uint64, timerID string) string {
+	return cache.PairKey(timerAuxPrefix+"fires:", broadcasterID, timerID)
 }
 
 // ArmAll SETs one Valkey key per enabled timer of an enabled "timers" module,
@@ -176,7 +287,30 @@ func (s *ValkeyTimerStore) ArmAll(ctx context.Context, broadcasterID uint64) {
 		return
 	}
 	for _, td := range cfg.Timers {
-		s.armJittered(ctx, broadcasterID, td)
+		s.armOne(ctx, broadcasterID, td)
+	}
+}
+
+// armOne is ArmAll's per-timer step: skip a timer that has already stopped
+// this stream, otherwise arm it and, for a gated timer, seed its watermark.
+// The stop re-check here (not just in onExpired) is what keeps a capped or
+// ended timer down: StartReconciler calls ArmAll every minute for every live
+// broadcaster (D5), and without this check a timer that stopped between
+// sweeps would come right back on the next one.
+func (s *ValkeyTimerStore) armOne(ctx context.Context, broadcasterID uint64, td timerDef) {
+	if !td.Enabled || td.ID == "" {
+		return
+	}
+	var fires int64
+	if clampFireCap(td.MaxFires) > 0 {
+		fires = s.fireCount(ctx, broadcasterID, td.ID)
+	}
+	if stopped(td, fires, s.now()) {
+		return
+	}
+	s.armJittered(ctx, broadcasterID, td)
+	if isGated(td) {
+		s.seedWatermark(ctx, broadcasterID, td)
 	}
 }
 
@@ -326,9 +460,27 @@ func (s *ValkeyTimerStore) DisarmAll(ctx context.Context, broadcasterID uint64) 
 		if td.ID == "" {
 			continue
 		}
-		if err := s.client.Do(ctx, s.client.B().Del().Key(timerKey(broadcasterID, td.ID)).Build()).Error(); err != nil {
-			s.log.Warn("timers: failed to disarm", module.BIDField(broadcasterID), zap.String("timer_id", td.ID), zap.Error(err))
-		}
+		s.delAuxKey(ctx, broadcasterID, td.ID, timerKey(broadcasterID, td.ID))
+		s.delAuxKey(ctx, broadcasterID, td.ID, markKey(broadcasterID, td.ID))
+		s.delAuxKey(ctx, broadcasterID, td.ID, firesKey(broadcasterID, td.ID))
+		// Forget the "already warned about a bad end date" mark too, so a
+		// broadcaster who fixes it and later breaks it again on a future
+		// stream gets a fresh warning instead of permanent silence.
+		s.badEndsAtWarned.Delete(endsAtWarnKey{broadcasterID: broadcasterID, timerID: td.ID})
+	}
+	// The chat-line counter is per broadcaster, not per timer (D3), so it is
+	// deleted once here rather than inside the loop above.
+	s.delAuxKey(ctx, broadcasterID, "", linesKey(broadcasterID))
+}
+
+// delAuxKey deletes one Valkey key belonging to broadcasterID (and, for a
+// per-timer key, timerID, empty for the broadcaster-wide chat line counter).
+// Shared by DisarmAll's four deletes so the same best-effort warn-and-continue
+// posture the schedule-key delete already had doesn't have to be retyped per
+// key.
+func (s *ValkeyTimerStore) delAuxKey(ctx context.Context, broadcasterID uint64, timerID, key string) {
+	if err := s.client.Do(ctx, s.client.B().Del().Key(key).Build()).Error(); err != nil {
+		s.log.Warn("timers: failed to disarm", module.BIDField(broadcasterID), zap.String("timer_id", timerID), zap.String("key", key), zap.Error(err))
 	}
 }
 
@@ -386,6 +538,13 @@ func (s *ValkeyTimerStore) StartRearmWatcher(ctx context.Context) {
 		if err != nil || id == 0 {
 			return
 		}
+		// Drop the memoized "has a gated timer" answer on every modules save
+		// for this broadcaster, not just a timers-scoped one: the DTO carries
+		// no module name (invalidate.DTO is broadcaster-wide), and reusing the
+		// subscription this watcher already holds (D13) means the memo can
+		// only ever be as fresh as the coarsest save it rides along with,
+		// which is what the TTL safety net (gatedCacheTTL) is for.
+		s.gatedCache.Invalidate(id)
 		go func() {
 			rctx, cancel := context.WithTimeout(context.Background(), rearmTimeout)
 			defer cancel()
@@ -434,22 +593,13 @@ func (s *ValkeyTimerStore) StartExpiryWatcher(ctx context.Context) {
 // paused, deleted, or whose stream ended between arming and this expiry is
 // dropped instead of fired.
 func (s *ValkeyTimerStore) onExpired(ctx context.Context, key string) {
-	if !strings.HasPrefix(key, timerKeyPrefix) || strings.HasPrefix(key, timerClaimPrefix) {
+	broadcasterID, timerID, ok := parseTimerKey(key)
+	if !ok {
 		return
 	}
-	rest := strings.TrimPrefix(key, timerKeyPrefix)
-	parts := strings.SplitN(rest, ":", 2)
-	if len(parts) != 2 {
-		return
-	}
-	broadcasterID, err := strconv.ParseUint(parts[0], 10, 64)
-	if err != nil || broadcasterID == 0 {
-		return
-	}
-	timerID := parts[1]
 
 	// One replica per expiry fires the timer.
-	claimKey := timerClaimPrefix + parts[0] + ":" + timerID
+	claimKey := timerClaimPrefix + strconv.FormatUint(broadcasterID, 10) + ":" + timerID
 	if won, err := pkg_valkey.ClaimOnce(ctx, s.client, claimKey, timerClaimTTL); err != nil || !won {
 		return
 	}
@@ -459,18 +609,238 @@ func (s *ValkeyTimerStore) onExpired(ctx context.Context, key string) {
 		return // stream ended: stay stopped until the next stream.online arms fresh
 	}
 
+	td, ok := s.armedTimer(ctx, broadcasterID, timerID)
+	if !ok {
+		return // disabled, deleted, or unreadable since arming: drop, don't re-arm
+	}
+	s.tick(ctx, broadcasterID, td)
+}
+
+// parseTimerKey extracts the broadcaster and timer ids from an expired Valkey
+// key, or reports ok=false for anything that is not one of this store's own
+// schedule keys: a foreign key, a claim key (timerClaimPrefix), an aux key
+// (timerAuxPrefix, see its doc comment for why those never reach here), or
+// one whose id half will not parse.
+func parseTimerKey(key string) (broadcasterID uint64, timerID string, ok bool) {
+	if !strings.HasPrefix(key, timerKeyPrefix) || strings.HasPrefix(key, timerClaimPrefix) {
+		return 0, "", false
+	}
+	rest := strings.TrimPrefix(key, timerKeyPrefix)
+	parts := strings.SplitN(rest, ":", 2)
+	if len(parts) != 2 {
+		return 0, "", false
+	}
+	id, err := strconv.ParseUint(parts[0], 10, 64)
+	if err != nil || id == 0 {
+		return 0, "", false
+	}
+	return id, parts[1], true
+}
+
+// armedTimer resolves the timer this expiry belongs to from the broadcaster's
+// CURRENT config, not whatever it was at arm time, so a timer disabled or
+// deleted since arming is dropped instead of fired on stale settings.
+func (s *ValkeyTimerStore) armedTimer(ctx context.Context, broadcasterID uint64, timerID string) (timerDef, bool) {
 	cfg, ok := s.config(ctx, broadcasterID)
 	if !ok {
-		return // module disabled or unreadable since arming: drop, don't re-arm
+		return timerDef{}, false
 	}
 	td, ok := findTimer(cfg.Timers, timerID)
 	if !ok || !td.Enabled {
-		return // this timer was disabled or deleted since arming: drop, don't re-arm
+		return timerDef{}, false
 	}
+	return td, true
+}
 
+// tick decides and acts on one expiry (spec §6): a stop wins outright (no
+// fire, no re-arm, the timer stays down until the next stream), a gate that
+// fails re-arms at the exact interval without firing (D8: a skip must not
+// drift the cadence), and anything else fires before re-arming.
+func (s *ValkeyTimerStore) tick(ctx context.Context, broadcasterID uint64, td timerDef) {
+	if s.hasStopped(ctx, broadcasterID, td) {
+		return
+	}
+	if !s.gateOpen(ctx, broadcasterID, td) {
+		s.arm(ctx, broadcasterID, td)
+		return
+	}
 	s.fire(ctx, broadcasterID, td)
+	s.recordFire(ctx, broadcasterID, td)
 	s.arm(ctx, broadcasterID, td)
 }
+
+// hasStopped resolves td's stop conditions against fresh counters. The fire
+// count is only read when a cap is actually set, a tick on an uncapped timer
+// (the common case, D11) costs no extra Valkey round trip for a comparison
+// that would always be false.
+func (s *ValkeyTimerStore) hasStopped(ctx context.Context, broadcasterID uint64, td timerDef) bool {
+	s.warnUnparsableEndsAt(broadcasterID, td)
+	var fires int64
+	if clampFireCap(td.MaxFires) > 0 {
+		fires = s.fireCount(ctx, broadcasterID, td.ID)
+	}
+	return stopped(td, fires, s.now())
+}
+
+// warnUnparsableEndsAt logs once total, not once per tick, when td carries a
+// non-empty EndsAt that does not parse (D16 keeps this logging out of the
+// pure stopped()/parseEndsAt() rules, which have no logger to write to, and
+// D16 says "log once": a tick recurs at least every minTimerInterval, so
+// without badEndsAtWarned's dedup this would fill the log for as long as the
+// bad value sits saved). A blank EndsAt is the ordinary "never ends" case
+// (D6) and never logs.
+func (s *ValkeyTimerStore) warnUnparsableEndsAt(broadcasterID uint64, td timerDef) {
+	if td.EndsAt == "" {
+		return
+	}
+	if _, ok := parseEndsAt(td.EndsAt); ok {
+		return
+	}
+	key := endsAtWarnKey{broadcasterID: broadcasterID, timerID: td.ID}
+	if _, alreadyWarned := s.badEndsAtWarned.LoadOrStore(key, struct{}{}); alreadyWarned {
+		return
+	}
+	s.log.Warn("timers: unparsable end date, treating as never-ends",
+		module.BIDField(broadcasterID), zap.String("timer_id", td.ID), zap.String("ends_at", td.EndsAt))
+}
+
+// endsAtWarnKey is badEndsAtWarned's key: a timer id alone is not unique
+// across broadcasters, so both halves are needed to dedup per timer rather
+// than per timer name.
+type endsAtWarnKey struct {
+	broadcasterID uint64
+	timerID       string
+}
+
+// gateOpen resolves td's chat-activity gate (spec §6 step 2). No gate always
+// opens, which also skips both Valkey reads below for the common case.
+func (s *ValkeyTimerStore) gateOpen(ctx context.Context, broadcasterID uint64, td timerDef) bool {
+	if !isGated(td) {
+		return true
+	}
+	lines := s.linesCount(ctx, broadcasterID)
+	mark := s.watermark(ctx, broadcasterID, td.ID)
+	return gatePasses(td, lines, mark)
+}
+
+// recordFire advances the two counters a fire moves: the fire cap (INCR) and,
+// for a gated timer, the watermark (set to the current chat line count, D4).
+// An ungated timer has no watermark to move.
+func (s *ValkeyTimerStore) recordFire(ctx context.Context, broadcasterID uint64, td timerDef) {
+	if _, err := pkg_valkey.Incr(ctx, s.client, firesKey(broadcasterID, td.ID), timerAuxTTL); err != nil {
+		s.log.Warn("timers: failed to record fire", module.BIDField(broadcasterID), zap.String("timer_id", td.ID), zap.Error(err))
+	}
+	if isGated(td) {
+		s.setWatermark(ctx, broadcasterID, td)
+	}
+}
+
+// fireCount reads a timer's per-stream fire count (D5), zero before its first
+// fire this stream.
+func (s *ValkeyTimerStore) fireCount(ctx context.Context, broadcasterID uint64, timerID string) int64 {
+	n, err := pkg_valkey.GetInt(ctx, s.client, firesKey(broadcasterID, timerID))
+	if err != nil {
+		s.log.Warn("timers: failed to read fire count", module.BIDField(broadcasterID), zap.String("timer_id", timerID), zap.Error(err))
+	}
+	return n
+}
+
+// linesCount reads the broadcaster's chat-activity counter (D3), zero if
+// nobody has chatted (or nobody counted it) since it last expired.
+func (s *ValkeyTimerStore) linesCount(ctx context.Context, broadcasterID uint64) int64 {
+	n, err := pkg_valkey.GetInt(ctx, s.client, linesKey(broadcasterID))
+	if err != nil {
+		s.log.Warn("timers: failed to read chat line count", module.BIDField(broadcasterID), zap.Error(err))
+	}
+	return n
+}
+
+// watermark reads a gated timer's line-count baseline (D4), zero if it has
+// never been seeded (armOne seeds it at arm time, so this is the unusual
+// case of a fire racing a not-yet-processed arm).
+func (s *ValkeyTimerStore) watermark(ctx context.Context, broadcasterID uint64, timerID string) int64 {
+	n, err := pkg_valkey.GetInt(ctx, s.client, markKey(broadcasterID, timerID))
+	if err != nil {
+		s.log.Warn("timers: failed to read gate watermark", module.BIDField(broadcasterID), zap.String("timer_id", timerID), zap.Error(err))
+	}
+	return n
+}
+
+// setWatermark overwrites a gated timer's watermark with the broadcaster's
+// current chat line count. Unlike seedWatermark's NX (arm time, D4), a fire
+// always overwrites: this IS the new baseline the next tick's delta measures
+// from, and it must move even if something had already set the key.
+func (s *ValkeyTimerStore) setWatermark(ctx context.Context, broadcasterID uint64, td timerDef) {
+	lines := s.linesCount(ctx, broadcasterID)
+	err := s.client.Do(ctx, s.client.B().Set().Key(markKey(broadcasterID, td.ID)).
+		Value(strconv.FormatInt(lines, 10)).Ex(timerAuxTTL).Build()).Error()
+	if err != nil {
+		s.log.Warn("timers: failed to set gate watermark", module.BIDField(broadcasterID), zap.String("timer_id", td.ID), zap.Error(err))
+	}
+}
+
+// seedWatermark sets a gated timer's watermark to the broadcaster's current
+// chat line count, but only if it has no watermark yet (NX). armOne calls
+// this on every arm, including a mid-stream rearm of a timer that has already
+// fired this stream, NX is what stops that rearm from wiping out the
+// existing watermark and handing the gate a free pass on its next tick (D4).
+func (s *ValkeyTimerStore) seedWatermark(ctx context.Context, broadcasterID uint64, td timerDef) {
+	lines := s.linesCount(ctx, broadcasterID)
+	err := s.client.Do(ctx, s.client.B().Set().Key(markKey(broadcasterID, td.ID)).
+		Value(strconv.FormatInt(lines, 10)).Nx().Ex(timerAuxTTL).Build()).Error()
+	if err != nil && !valkey.IsValkeyNil(err) {
+		s.log.Warn("timers: failed to seed gate watermark", module.BIDField(broadcasterID), zap.String("timer_id", td.ID), zap.Error(err))
+	}
+}
+
+// CountChatLine increments the broadcaster's chat-activity counter (D3), the
+// source every gated timer's watermark delta reads. It is a no-op for a
+// broadcaster with no enabled chat-activity gate: hasGatedTimer's cache makes
+// that the cheap path (one theine lookup) so a channel that never opens the
+// feature costs nothing on its hot chat path beyond that lookup.
+func (s *ValkeyTimerStore) CountChatLine(ctx context.Context, broadcasterID uint64) {
+	if broadcasterID == 0 || !s.hasGatedTimer(ctx, broadcasterID) {
+		return
+	}
+	// Off the message path: the INCR+EXPIRE round trip must not add Valkey
+	// latency to every chat line on a channel with a gated timer, the same
+	// reasoning ValkeyReputation.Bump gives for detaching its own INCR+EXPIRE
+	// pair from the automod gate it used to sit inside.
+	go func() {
+		actx, cancel := context.WithTimeout(context.Background(), countChatLineTimeout)
+		defer cancel()
+		if _, err := pkg_valkey.Incr(actx, s.client, linesKey(broadcasterID), timerAuxTTL); err != nil {
+			s.log.Debug("timers: chat line count failed", module.BIDField(broadcasterID), zap.Error(err))
+		}
+	}()
+}
+
+// hasGatedTimer answers CountChatLine's gate through gatedCache: does this
+// broadcaster have at least one enabled timer with a chat activity gate. A
+// loader error (a bad blob, an unreachable Valkey) reads as false rather than
+// propagating, the caller is a fire-and-forget chat-path hook with nothing
+// to do with an error, and the next chat line retries the same cache miss.
+func (s *ValkeyTimerStore) hasGatedTimer(ctx context.Context, broadcasterID uint64) bool {
+	gated, err := s.gatedCache.GetOrLoad(ctx, broadcasterID, func(ctx context.Context) (bool, error) {
+		cfg, ok := s.config(ctx, broadcasterID)
+		if !ok {
+			return false, nil
+		}
+		for _, td := range cfg.Timers {
+			if td.Enabled && isGated(td) {
+				return true, nil
+			}
+		}
+		return false, nil
+	})
+	return err == nil && gated
+}
+
+// countChatLineTimeout bounds CountChatLine's detached INCR, mirroring
+// rearmTimeout's role for the rearm watcher's own detached call: a stalled
+// Valkey must not leak one goroutine per chat line on a channel with a gated
+// timer.
+const countChatLineTimeout = 5 * time.Second
 
 // findTimer stays a linear scan on purpose. cfg.Timers is decoded fresh from the
 // module blob by config() on the same call that scans it, so an id-keyed map

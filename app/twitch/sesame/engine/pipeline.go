@@ -156,6 +156,13 @@ type Pipeline struct {
 	// (see observe.go). nil (the default) means no observer is wired and
 	// notifyObservers returns before touching the event.
 	observers []*observerLane
+
+	// chatLineCounter feeds a timer's chat-activity gate (timer-conditions.md
+	// D3). Not named chatLines: that name is already the dispatch.go method
+	// that fans one output into per-line actions, an unrelated concept. nil
+	// (no timers store wired, or a deployment that never turns the feature on)
+	// skips the call in Process.
+	chatLineCounter ChatLineCounter
 }
 
 // NewPipeline wires a Pipeline from the shared Deps, a pre-built registry, and
@@ -193,6 +200,7 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 		nuke:              d.Nuke,
 		special:           d.Special,
 		autoRefundChannel: cfg.AutoRefundChannel,
+		chatLineCounter:   d.ChatLines,
 	}
 	if d.Automod == nil && d.Log != nil {
 		// gateChat/gateCohort fail OPEN on a nil gate - every message passes
@@ -263,6 +271,15 @@ func (p *Pipeline) Process(msg *bus.Message) error {
 		return nil
 	}
 	traceEvent(ctx, env.Type, env.Lane, broadcasterID)
+
+	// Feed a timer's chat-activity gate (D3): chat only, and only after
+	// eligible/ok, so the bot's own line (eligible drops it) and an envelope
+	// whose broadcaster id would not parse (ok) never reach it.
+	// chatLineCounter decides for itself whether this broadcaster has
+	// anything to gate.
+	if p.chatLineCounter != nil && env.Type == chatType {
+		p.chatLineCounter.CountChatLine(ctx, broadcasterID)
+	}
 
 	p.roster.ObserveEnvelope(broadcasterID, env)
 

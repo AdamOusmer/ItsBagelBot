@@ -96,3 +96,36 @@ What a viewer typed after `!time`: a city, a timezone name, an abbreviation or a
 
 **Place lookup**:
 The answer to `!time <place>`: the current time at a recognized place, using the channel's clock format. Works whether or not the home zone is set.
+
+## Language: Timers
+
+**Timer**:
+A broadcaster-authored repeating chat message, stream-only. Keeps its message and interval; may also carry a gate and one or more stops.
+_Avoid_: Scheduled message, reminder.
+
+**Tick**:
+One check of a timer, driven by its Valkey schedule key's expiry. A tick either fires, skips, or stops the timer.
+
+**Gate**:
+A per-tick condition checked at every tick. A tick whose gate fails skips that one post and re-arms at the normal interval; the timer keeps its cadence and fires on the next tick that passes. v1 ships one gate: the chat activity gate.
+_Avoid_: Filter, condition when referring to an end condition (that is a stop).
+
+**Stop**:
+A condition that ends a timer: once reached, the timer does not post and does not re-arm until the next stream. v1 ships two stops: the fire cap and the end date.
+_Avoid_: Gate when referring to an end condition.
+
+**Chat activity gate**:
+The v1 gate: a timer fires only once at least a set number of chat lines have arrived since it last fired (or, for its first tick, since it armed). Configured per timer as a line count from 0 (off) to 100.
+_Avoid_: Activity filter.
+
+**Fire cap**:
+The v1 stop limiting how many times a timer may post in one stream: 0 (unlimited) to 100. Resets on the next stream.
+_Avoid_: Post limit, rate limit (this is a per-stream count, not a rate).
+
+**End date**:
+The v1 stop ending a timer at a fixed instant. A timer past its end date shows as Ended and stays editable; nothing about it is auto-disabled.
+_Avoid_: Expiry, deadline.
+
+**Skipped tick**:
+A tick whose gate failed: no post, cadence unchanged, no effect on any stop. A skipped tick is not a fire.
+_Avoid_: Fire, miss.

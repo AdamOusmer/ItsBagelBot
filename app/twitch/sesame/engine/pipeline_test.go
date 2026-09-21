@@ -313,3 +313,71 @@ func TestEmitLeavesMePassthrough(t *testing.T) {
 	assert.Equal(t, outgress.TypeChat, pub.got[0].msg.Type)
 	assert.Equal(t, "/me waves", chatMessageText(t, pub.got[0].msg))
 }
+
+// === ChatLineCounter wiring (timer-conditions.md D3/D13) ===
+
+// countingChatLines is a ChatLineCounter fake that records every broadcaster
+// id it was called with, so a test can assert the pipeline called it exactly
+// once, or not at all, without a real timers store or Valkey.
+type countingChatLines struct {
+	calls []uint64
+}
+
+func (c *countingChatLines) CountChatLine(_ context.Context, broadcasterID uint64) {
+	c.calls = append(c.calls, broadcasterID)
+}
+
+func TestProcessCountsChatLineForEligibleChat(t *testing.T) {
+	pub := &fakePublisher{}
+	counter := &countingChatLines{}
+	reg := NewRegistry(zap.NewNop())
+	d := Deps{Proj: fakeReader{}, Live: liveAlways{}, Cooldown: NoopCooldown{}, Pub: pub, Log: zap.NewNop(), ChatLines: counter}
+	p := NewPipeline(d, reg, Config{OutgressPremium: premiumSubj, OutgressStandard: standardSubj})
+
+	require.NoError(t, p.Process(chatMsg(t, "standard", "hi")))
+
+	require.Len(t, counter.calls, 1)
+	assert.EqualValues(t, 123, counter.calls[0])
+}
+
+// The bot's own chat line is dropped by eligible() before the chatLineCounter
+// call site is ever reached (D3: counting the bot's own posts would let a
+// timer feed its own gate).
+func TestProcessDoesNotCountBotsOwnChatLine(t *testing.T) {
+	pub := &fakePublisher{}
+	counter := &countingChatLines{}
+	reg := NewRegistry(zap.NewNop())
+	d := Deps{Proj: fakeReader{}, Live: liveAlways{}, Cooldown: NoopCooldown{}, Pub: pub, Log: zap.NewNop(), ChatLines: counter}
+	p := NewPipeline(d, reg, Config{BotID: "999", OutgressPremium: premiumSubj, OutgressStandard: standardSubj})
+
+	require.NoError(t, p.Process(chatMsg(t, "standard", "hi"))) // chatter_user_id is "999"
+
+	assert.Empty(t, counter.calls)
+}
+
+// A non-chat event (e.g. stream.online) must never reach a ChatLineCounter:
+// it counts chat lines, not events.
+func TestProcessDoesNotCountNonChatEvent(t *testing.T) {
+	pub := &fakePublisher{}
+	counter := &countingChatLines{}
+	p := newPipelineWith(pub, fakeReader{}, emitLocaleModule("stream.online"))
+	p.chatLineCounter = counter
+	body, err := codec.Marshal(map[string]any{
+		"type":                "stream.online",
+		"lane":                "standard",
+		"broadcaster_user_id": "123",
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, p.Process(bus.NewMessage("uuid-locale", body)))
+
+	assert.Empty(t, counter.calls)
+}
+
+// A nil ChatLineCounter (the default in every other test's Deps) must never be
+// dereferenced.
+func TestProcessNilChatLineCounterIsSafe(t *testing.T) {
+	pub := &fakePublisher{}
+	p := newPipelineWith(pub, fakeReader{}, emitModule("", module.KindCore, "pong"))
+	require.NoError(t, p.Process(chatMsg(t, "standard", "hi")))
+}

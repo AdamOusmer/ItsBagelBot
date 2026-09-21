@@ -81,6 +81,12 @@ type Deps struct {
 	// length of one stream; ValkeyTimerStore is the default. nil disables it (the
 	// live module's stream.online/offline hooks skip the calls).
 	Timers TimersStore
+	// ChatLines feeds a timer's chat-activity gate one count per eligible chat
+	// line; ValkeyTimerStore implements this too (the same store owns both the
+	// timer schedule and the gate counters it reads). nil disables it: the
+	// pipeline's chat path skips the call, matching every other nil-Deps-field
+	// convention here.
+	ChatLines ChatLineCounter
 	// Automod is the inline chat guard. nil disables it; when set it inspects
 	// each chat line and the engine acts on or shadow-logs the verdict.
 	Automod *automod.Gate
@@ -355,6 +361,15 @@ type LoyaltyTicker interface {
 type TimersStore interface {
 	ArmAll(ctx context.Context, broadcasterID uint64)
 	DisarmAll(ctx context.Context, broadcasterID uint64)
+}
+
+// ChatLineCounter feeds a broadcaster's chat-activity gate (timer-conditions.md
+// D3): one call per eligible chat line, fire-and-forget like TimersStore. It is
+// its own interface, narrower than TimersStore, so the pipeline's chat path
+// depends on nothing but this one method, not ArmAll/DisarmAll, which it has
+// no business calling.
+type ChatLineCounter interface {
+	CountChatLine(ctx context.Context, broadcasterID uint64)
 }
 
 // NoopCooldown never gates: every call is allowed. Used in tests and when no
