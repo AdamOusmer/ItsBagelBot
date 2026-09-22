@@ -35,6 +35,7 @@ Paths are relative to the repository root. English (`en`) is the reference langu
 | Technical documentation website | `web/docs/src/content/docs/` (Markdown/MDX; see the docs README for locale layout) |
 | Manually sent support emails | `mail/` (HTML and plain-text versions; see its README) |
 | Automated Premium, gift, and giveaway emails | `internal/domain/i18n/locales/<code>.json` (`mail.*` keys; renderers in `app/db/transactions/mail/`) |
+| Development-only checkout copy | `web/dashboard/src/routes/(app)/billing/demo-checkout/copy/<code>.json` (kept out of production bundles) |
 | Registered application languages | `internal/domain/i18n/locales.json` |
 
 The JSON catalogs have different shapes: chat and website catalogs use flat keys; the console uses nested objects and some arrays. Follow the neighboring English file. Do not edit generated `web/kit/lib/i18n/keys.d.ts` by hand.

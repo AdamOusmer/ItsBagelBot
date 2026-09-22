@@ -2,6 +2,7 @@ import { translateValidationMessage } from '../../../../kit/lib/engine/validatio
 import { translate, type Locale, type MessageKey } from '@bagel/kit';
 
 const KEYS: Record<string, MessageKey> = {
+  'This account already has Premium coverage. Subscribing again is blocked while the current prize or plan is being reconciled.': 'serverErrors.premiumAlreadyHeld',
   'Too many test runs. Each one calls the real API. Wait about 10 seconds and try again.': 'serverErrors.fetchRate',
   'Fix the highlighted fields first.': 'serverErrors.fixFields',
   'The fetch service did not answer. Try again in a moment.': 'serverErrors.fetchService',
@@ -100,9 +101,15 @@ export function actionError(locale: Locale, fallback: string): string {
 export function actionErrorBody(locale: Locale, body: Record<string, unknown>): Record<string, unknown> {
   const result = { ...body };
   if (typeof body.error === 'string') result.error = actionError(locale, body.error);
-  if (body.errors && typeof body.errors === 'object' && !Array.isArray(body.errors)) {
+  if (isFieldErrors(body.errors)) {
     result.errors = Object.fromEntries(Object.entries(body.errors).map(([field, message]) =>
       [field, typeof message === 'string' ? actionError(locale, message) : message]));
   }
   return result;
+}
+
+function isFieldErrors(value: unknown): value is Record<string, unknown> {
+  if (!value) return false;
+  if (Array.isArray(value)) return false;
+  return typeof value === 'object';
 }

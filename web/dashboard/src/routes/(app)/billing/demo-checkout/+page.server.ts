@@ -35,7 +35,11 @@ export const load: PageServerLoad = async ({ url, locals }) => {
   const kind = readKind(url.searchParams.get('kind'));
   const recipient = kind === 'gift' ? (url.searchParams.get('recipient') ?? '') : '';
 
-  return { plan, kind, recipient };
+  // The production guard erases this import along with the demo route.
+  const copies = import.meta.glob('./copy/*.json', { import: 'default' });
+  const loadCopy = copies[`./copy/${locals.locale}.json`] ?? copies['./copy/en.json'];
+  const copy = await loadCopy() as typeof import('./copy/en.json');
+  return { plan, kind, recipient, copy };
 };
 
 export const actions: Actions = {

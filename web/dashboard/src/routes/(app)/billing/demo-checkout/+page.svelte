@@ -19,27 +19,27 @@
 <div class="starfield" aria-hidden="true"><LightField warmth={0.7} /></div>
 
 <section class="screen active">
-  <PageHead eyebrow={t('billing.demoEyebrow')} description={t('billing.demoDescription')}>
-    {t('billing.demoTitle')}
+  <PageHead eyebrow={data.copy.demoEyebrow} description={data.copy.demoDescription}>
+    {data.copy.demoTitle}
   </PageHead>
 
   <div class="demo-banner" role="status">
-    <span>{t('billing.demoNotice')}</span>
+    <span>{data.copy.demoNotice}</span>
   </div>
 
   <Card class="checkout-card">
     <div class="row">
-      <span class="row-label">{t('billing.demoPlan')}</span>
+      <span class="row-label">{data.copy.demoPlan}</span>
       <span class="row-value">{planLabel}</span>
     </div>
     {#if isGift}
       <div class="row">
-        <span class="row-label">{t('billing.demoGiftTo')}</span>
+        <span class="row-label">{data.copy.demoGiftTo}</span>
         <span class="row-value">@{data.recipient}</span>
       </div>
     {/if}
     <div class="row row-total">
-      <span class="row-label">{t('billing.demoTotal')}</span>
+      <span class="row-label">{data.copy.demoTotal}</span>
       <span class="row-value">${PRICE}.00 CAD</span>
     </div>
 
@@ -47,9 +47,9 @@
       <input type="hidden" name="plan" value={data.plan} />
       <input type="hidden" name="kind" value={data.kind} />
       {#if isGift}<input type="hidden" name="recipient" value={data.recipient} />{/if}
-      <Button type="submit" variant="primary">{t('billing.demoPay', { price: PRICE })}</Button>
+      <Button type="submit" variant="primary">{data.copy.demoPay.replace('{price}', String(PRICE))}</Button>
     </form>
-    <a class="cancel-link" href="/billing">{t('billing.demoCancel')}</a>
+    <a class="cancel-link" href="/billing">{data.copy.demoCancel}</a>
   </Card>
 </section>
 

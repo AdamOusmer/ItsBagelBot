@@ -776,16 +776,7 @@
     "upgrade": "Upgrade",
     "usernamePlaceholder": "e.g. streamername",
     "vipHint": "VIP is permanent. It never expires and there is nothing to pay.",
-    "prizeUnavailable": "Prize history is temporarily unavailable. Try again shortly.",
-    "demoEyebrow": "Demo checkout",
-    "demoTitle": "Demo checkout",
-    "demoDescription": "No payment is taken here. This screen only stands in for Tebex-hosted checkout.",
-    "demoNotice": "This is a demo checkout. No card is charged, no email goes out, and nothing leaves this dev server.",
-    "demoPlan": "Plan",
-    "demoGiftTo": "Gift to",
-    "demoTotal": "Total",
-    "demoPay": "Pay ${price}.00",
-    "demoCancel": "Cancel, go back to billing"
+    "prizeUnavailable": "Prize history is temporarily unavailable. Try again shortly."
   },
   "builtinInspector": {
     "enabled": "Enabled",
@@ -1155,7 +1146,8 @@
     "failed": "failed",
     "fetchRate": "Too many test runs. Each one calls the real API. Wait about 10 seconds and try again.",
     "fixFields": "Fix the highlighted fields first.",
-    "fetchService": "The fetch service did not answer. Try again in a moment."
+    "fetchService": "The fetch service did not answer. Try again in a moment.",
+    "premiumAlreadyHeld": "This account already has Premium coverage. Subscribing again is blocked while the current prize or plan is being reconciled."
   },
   "common": {
     "loading": "Loading…",

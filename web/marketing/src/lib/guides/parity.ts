@@ -47,7 +47,7 @@ function isBlockLabel(id: string, blocks: ReadonlySet<string>): boolean {
 }
 
 function assertLocale(slug: GuideSlug, lang: Lang, copy: GuideStrings, english: GuideContent): void {
-  if (!copy || typeof copy !== 'object' || Array.isArray(copy) || Object.values(copy).some((value) => typeof value !== 'string')) {
+  if (!isStringMap(copy)) {
     fail(`${slug} ${lang}`, 'must be a JSON object of string values');
   }
   const { ids, blocks } = guideIds(english);
@@ -71,4 +71,11 @@ function assertGuide(slug: GuideSlug, source: ParitySource): void {
 export function assertGuideParity(source: ParitySource): void {
   for (const slug of guideSlugs) assertGuide(slug, source);
   if (!source.hub(defaultLang)) fail(`hub ${defaultLang}`, 'file is missing');
+}
+
+function isStringMap(value: unknown): value is GuideStrings {
+  if (!value) return false;
+  if (typeof value !== 'object') return false;
+  if (Array.isArray(value)) return false;
+  return Object.values(value).every((entry) => typeof entry === 'string');
 }

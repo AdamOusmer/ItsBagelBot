@@ -776,16 +776,7 @@
     "upgrade": "Améliorer",
     "usernamePlaceholder": "ex. nomdustreamer",
     "vipHint": "Le statut VIP est permanent. Il n'expire jamais et il n'y a rien à payer.",
-    "prizeUnavailable": "L’historique des prix est temporairement indisponible. Réessayez bientôt.",
-    "demoEyebrow": "Paiement de démonstration",
-    "demoTitle": "Paiement de démonstration",
-    "demoDescription": "Aucun paiement n’est effectué ici. Cet écran simule uniquement le paiement hébergé par Tebex.",
-    "demoNotice": "Ceci est un paiement de démonstration. Aucune carte n’est débitée, aucun e-mail n’est envoyé et rien ne quitte ce serveur de développement.",
-    "demoPlan": "Forfait",
-    "demoGiftTo": "Offert à",
-    "demoTotal": "Total",
-    "demoPay": "Payer ${price}.00",
-    "demoCancel": "Annuler et revenir à la facturation"
+    "prizeUnavailable": "L’historique des prix est temporairement indisponible. Réessayez bientôt."
   },
   "builtinInspector": {
     "enabled": "Activée",
@@ -1155,7 +1146,8 @@
     "failed": "Échec de l’opération.",
     "fetchRate": "Trop de tests. Chacun appelle la véritable API. Attendez environ 10 secondes et réessayez.",
     "fixFields": "Corrigez d’abord les champs signalés.",
-    "fetchService": "Le service de récupération n’a pas répondu. Réessayez dans un instant."
+    "fetchService": "Le service de récupération n’a pas répondu. Réessayez dans un instant.",
+    "premiumAlreadyHeld": "Ce compte bénéficie déjà de Premium. Un nouvel abonnement est bloqué pendant la vérification du prix ou du forfait en cours."
   },
   "common": {
     "loading": "Chargement…",

@@ -1,0 +1,11 @@
+{
+  "demoEyebrow": "Paiement de démonstration",
+  "demoTitle": "Paiement de démonstration",
+  "demoDescription": "Aucun paiement n’est effectué ici. Cet écran simule uniquement le paiement hébergé par Tebex.",
+  "demoNotice": "Ceci est un paiement de démonstration. Aucune carte n’est débitée, aucun e-mail n’est envoyé et rien ne quitte ce serveur de développement.",
+  "demoPlan": "Forfait",
+  "demoGiftTo": "Offert à",
+  "demoTotal": "Total",
+  "demoPay": "Payer ${price}.00",
+  "demoCancel": "Annuler et revenir à la facturation"
+}

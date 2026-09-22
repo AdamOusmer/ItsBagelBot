@@ -114,7 +114,7 @@ async function premiumAlreadyHeld(
       status: 409,
       data: {
         error:
-          'This account already has Premium coverage. Subscribing again is blocked while the current prize or plan is being reconciled.'
+          actionError(locale, 'This account already has Premium coverage. Subscribing again is blocked while the current prize or plan is being reconciled.')
       }
     };
   } catch {
@@ -204,18 +204,27 @@ async function giftCheckout(
   };
 }
 
+function settledBilling(result: { status: 'fulfilled'; value: BillingState } | { status: 'rejected' }): BillingState {
+  return result.status === 'fulfilled'
+    ? result.value
+    : ({ active: false, status: 'free', expiresAt: null, source: '', subscriptionRef: null, cancelPending: false } as BillingState);
+}
+
+function settledPrizes(result: { status: 'fulfilled'; value: PrizeAward[] } | { status: 'rejected' }): PrizeAward[] {
+  return result.status === 'fulfilled' ? result.value : [];
+}
+
 async function billingPageData(input: { uid: string }): Promise<{ account: BillingState; prizes: PrizeAward[]; degraded: boolean; prizeDegraded: boolean }> {
   const { uid } = input;
   const [accountResult, prizeResult] = await Promise.all([
     billingState(uid).then((value) => ({ status: 'fulfilled' as const, value }), () => ({ status: 'rejected' as const })),
     giveawayPrizes(uid).then((value) => ({ status: 'fulfilled' as const, value }), () => ({ status: 'rejected' as const }))
   ]);
-  const account = accountResult.status === 'fulfilled'
-    ? accountResult.value
-    : ({ active: false, status: 'free', expiresAt: null, source: '', subscriptionRef: null, cancelPending: false } as BillingState);
+  const account = settledBilling(accountResult);
+  const prizes = settledPrizes(prizeResult);
   return {
     account,
-    prizes: prizeResult.status === 'fulfilled' ? prizeResult.value : [],
+    prizes,
     degraded: accountResult.status !== 'fulfilled' || prizeResult.status !== 'fulfilled',
     prizeDegraded: prizeResult.status !== 'fulfilled'
   };
@@ -281,11 +290,11 @@ export const actions: Actions = {
     // Recurring billing only ever happens on an explicit monthly choice.
     const packageType = subscribePlan(await request.formData()) === 'monthly' ? 'subscription' : 'single';
 
-      const blocked = await premiumAlreadyHeld(actor.id, locals.locale);
+    const blocked = await premiumAlreadyHeld(actor.id, locals.locale);
     if (blocked) return fail(blocked.status, blocked.data);
 
     const url = await subscribeCheckout(actor, packageType, getClientAddress());
-      if (!url) return fail(503, { error: actionError(locals.locale, 'Subscriptions are not available right now.') });
+    if (!url) return fail(503, { error: actionError(locals.locale, 'Subscriptions are not available right now.') });
     throw redirect(303, url);
   },
 
@@ -310,7 +319,7 @@ export const actions: Actions = {
     if (!gate.ok) return fail(gate.status, { gift: true, error: gate.error });
     const s = locals.session!;
 
-      const validated = giftValidate(await request.formData(), locals.locale);
+    const validated = giftValidate(await request.formData(), locals.locale);
     if (!validated.ok) return fail(validated.status, validated.data);
 
     const checkout = await giftCheckout(s, validated.recipient, validated.message, getClientAddress(), locals.locale);
@@ -337,7 +346,7 @@ export const actions: Actions = {
     const url = links().cancelUrl;
     if (!url) return fail(503, { error: actionError(locals.locale, 'Subscription management is not available right now.') });
 
-      const blocked = await tebexSubscriptionMissing(actor.id, locals.locale);
+    const blocked = await tebexSubscriptionMissing(actor.id, locals.locale);
     if (blocked) return fail(blocked.status, blocked.data);
 
     throw redirect(303, url);

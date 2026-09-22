@@ -75,8 +75,8 @@ func TestAlertActivityTextUsesBroadcasterLocale(t *testing.T) {
 	follow := followEvent{UserName: "Gift", UserLogin: "gift", BroadcasterUserID: "2"}
 	sub := subscribeEvent{UserName: "Someone just made your day.", UserLogin: "someone", Tier: "1000"}
 
-	assert.Equal(t, "Gift a suivi la chaîne", follow.activityText("fr"))
-	assert.Equal(t, "Someone just made your day. s'est abonné·e (1000)", sub.activityText("fr"))
+	assert.Equal(t, "Gift a suivi la chaîne", follow.activityText(&module.Context{Locale: "fr"}))
+	assert.Equal(t, "Someone just made your day. s'est abonné·e (1000)", sub.activityText(&module.Context{Locale: "fr"}))
 }
 
 // alertInput is one event fired at the alerts module: the EventSub type, its

@@ -86,6 +86,15 @@ class TranslationChecks(unittest.TestCase):
             with self.assertRaises(ValueError):
                 t.scaffold(root, '../bad', 'Bad', 'es_ES')
 
+    def test_demo_checkout_catalog_preserves_keys_and_placeholders(self):
+        folder = (t.ROOT / 'web/dashboard/src/routes/(app)/billing/demo-checkout/copy')
+        english = json.loads((folder / 'en.json').read_text(encoding='utf-8'))
+        french = json.loads((folder / 'fr.json').read_text(encoding='utf-8'))
+        self.assertEqual(set(english), set(french))
+        for key, value in english.items():
+            with self.subTest(key=key):
+                self.assertEqual(t.translation_errors(value, french[key]), [])
+
 
 class StaticMailTranslations(unittest.TestCase):
     def test_french_templates_preserve_placeholders_and_layout(self):

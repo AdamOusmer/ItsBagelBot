@@ -317,7 +317,7 @@ func Alerts(d engine.Deps) module.Module {
 type claimedEvent interface {
 	skip() bool
 	claim() alertClaim
-	activityText(locale string) string
+	activityText(c *module.Context) string
 	tokens() map[string]string
 }
 
@@ -326,8 +326,8 @@ func (ev followEvent) claim() alertClaim {
 	return alertClaim{"follow", ev.BroadcasterUserID, ev.UserID, followAlertWindow}
 }
 func (ev followEvent) user() string { return chatName(ev.UserName, ev.UserLogin) }
-func (ev followEvent) activityText(locale string) string {
-	return fmt.Sprintf(i18n.T(locale, "activity.event.follow"), ev.user())
+func (ev followEvent) activityText(c *module.Context) string {
+	return fmt.Sprintf(i18n.T(c.Locale, "activity.event.follow"), ev.user())
 }
 func (ev followEvent) tokens() map[string]string { return map[string]string{"user": ev.user()} }
 
@@ -339,8 +339,8 @@ func (ev subscribeEvent) claim() alertClaim {
 	return alertClaim{"sub", ev.BroadcasterUserID, ev.UserID, subAlertWindow}
 }
 func (ev subscribeEvent) user() string { return chatName(ev.UserName, ev.UserLogin) }
-func (ev subscribeEvent) activityText(locale string) string {
-	return fmt.Sprintf(i18n.T(locale, "activity.event.subscribe"), ev.user(), ev.Tier)
+func (ev subscribeEvent) activityText(c *module.Context) string {
+	return fmt.Sprintf(i18n.T(c.Locale, "activity.event.subscribe"), ev.user(), ev.Tier)
 }
 func (ev subscribeEvent) tokens() map[string]string {
 	return map[string]string{"user": ev.user(), "tier": ev.Tier}
@@ -362,7 +362,7 @@ func claimedLine[E claimedEvent](cd engine.CooldownStore, log *zap.Logger) func(
 		}
 		activity.Emit(ctx, claim.broadcasterID, activity.Row{
 			Kind: activity.KindEvent,
-			Text: ev.activityText(mctx.Locale),
+			Text: ev.activityText(mctx),
 			At:   time.Now(),
 		})
 		return alertLine{claim.broadcasterID, ev.tokens()}, true
