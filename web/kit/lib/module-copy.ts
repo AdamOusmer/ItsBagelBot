@@ -64,6 +64,14 @@ export function tModuleReplyPart(
   return tCatalog(t, catalogKey(moduleId, 'replies', reply.key, part), reply[part]);
 }
 
+/** Resolve the empty editor's chat template in the active locale when the
+ * runtime has a catalog-backed default. Custom text remains untouched; a
+ * module without a catalog default keeps its source fallback. */
+export function tModuleReplyDefault(t: TFn, moduleId: string, reply: ModuleReply): string {
+  const key = catalogKey(moduleId, 'replies', reply.key, 'defaultMessage');
+  return tCatalog(t, key, reply.defaultMessage);
+}
+
 export function commandSummarySlug(trigger: string): string {
   return trigger
     .replace(/^!/, '')

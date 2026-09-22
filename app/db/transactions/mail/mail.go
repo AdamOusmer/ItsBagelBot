@@ -13,6 +13,7 @@ import (
 	stdmail "net/mail"
 	"strings"
 
+	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/validate"
 
 	"github.com/resend/resend-go/v4"
@@ -43,6 +44,7 @@ type GiftMessage struct {
 	GiftedByLogin   string
 	PersonalMessage string
 	IdempotencyKey  string
+	Locale          string
 }
 
 type renderedMessage struct {
@@ -62,17 +64,17 @@ func (m *Mailer) SendGift(ctx context.Context, msg GiftMessage) error {
 	if validate.ContainsLink(msg.PersonalMessage) {
 		msg.PersonalMessage = ""
 	}
-	html, err := giftHTML(msg.GiftedByLogin, msg.PersonalMessage, m.dashboardURL)
+	html, err := giftHTMLLocale(msg.GiftedByLogin, msg.PersonalMessage, m.dashboardURL, msg.Locale)
 	if err != nil {
 		return ErrInvalidMessage
 	}
-	subject := "You've been gifted a month of Premium 🥯"
+	subject := i18n.T(msg.Locale, "mail.subject.gift.generic")
 	if msg.GiftedByLogin != "" {
-		subject = fmt.Sprintf("%s gifted you a month of Premium 🥯", msg.GiftedByLogin)
+		subject = fmt.Sprintf(i18n.T(msg.Locale, "mail.subject.gift.by"), msg.GiftedByLogin)
 	}
 	_, err = m.send(ctx, renderedMessage{
 		To: msg.To, Subject: subject, HTML: html,
-		Text: giftText(msg.GiftedByLogin, msg.PersonalMessage, m.dashboardURL), IdempotencyKey: msg.IdempotencyKey,
+		Text: giftTextLocale(msg.GiftedByLogin, msg.PersonalMessage, m.dashboardURL, msg.Locale), IdempotencyKey: msg.IdempotencyKey,
 	})
 	return err
 }

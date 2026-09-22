@@ -22,6 +22,7 @@
     COOLDOWN_MAX,
     RESPONSE_MAX_LINES,
     getI18n,
+    translateValidationMessage,
     type CommandErrors
   } from '@bagel/kit';
   import { Checkbox } from '@bagel/kit';
@@ -67,12 +68,18 @@
   const busy = $derived(status === 'saving');
 
   const { t } = getI18n();
+  const validationT = (key: string, params?: Record<string, string | number>) => t(key as any, params);
 
   let aliasDraft = $state('');
   let chips = $state<ReturnType<typeof AliasChips>>();
   let clientErrors = $state<CommandErrors>({});
   let formEl = $state<HTMLFormElement | null>(null);
-  const errors = $derived<CommandErrors>({ ...(serverErrors ?? {}), ...clientErrors });
+  const errors = $derived<CommandErrors>(Object.fromEntries(
+    Object.entries({ ...(serverErrors ?? {}), ...clientErrors }).map(([field, message]) => [
+      field,
+      translateValidationMessage(message, validationT)
+    ])
+  ) as CommandErrors);
 
   // Mirror the working draft to sessionStorage (skip the initial unmodified
   // state so merely opening an editor doesn't flag the row as unsaved). Active

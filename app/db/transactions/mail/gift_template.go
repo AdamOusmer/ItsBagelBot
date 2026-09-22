@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"html/template"
 	"strings"
+
+	"ItsBagelBot/internal/domain/i18n"
 )
 
 type giftData struct {
@@ -25,60 +27,73 @@ func giftMessageHTML(msg string) template.HTML {
 }
 
 func giftHTML(giftedByLogin, personalMessage, dashboardURL string) (string, error) {
+	return giftHTMLLocale(giftedByLogin, personalMessage, dashboardURL, "")
+}
 
-	preheader := "A month of ItsBagelBot Premium just landed on your account."
+func giftHTMLLocale(giftedByLogin, personalMessage, dashboardURL, locale string) (string, error) {
+
+	preheader := fmt.Sprintf(i18n.T(locale, "mail.gift.preheader"), i18n.T(locale, "mail.month.one"))
 	if giftedByLogin != "" {
-		preheader = fmt.Sprintf("%s sent you a month of ItsBagelBot Premium. It's live now.", giftedByLogin)
+		preheader = fmt.Sprintf(i18n.T(locale, "mail.gift.preheader.by"), giftedByLogin, i18n.T(locale, "mail.month.one"))
 	}
 
 	data := giftData{Gifter: giftedByLogin}
 	if personalMessage != "" {
 		data.Message = giftMessageHTML(personalMessage)
-		data.NoteLabel = "A note for you"
+		data.NoteLabel = i18n.T(locale, "mail.note")
 		if giftedByLogin != "" {
-			data.NoteLabel = giftedByLogin + " wrote"
+			data.NoteLabel = fmt.Sprintf(i18n.T(locale, "mail.note.by"), giftedByLogin)
 		}
 	}
 
+	chrome := mailChrome(locale)
+	intro := chrome["mail.gift.intro"]
+	if giftedByLogin == "" {
+		intro = i18n.T(locale, "mail.gift.intro.anonymous")
+	}
 	return renderPremium(premiumData{
-		Title: "You've got Premium", Preheader: preheader,
-		Category: "Gift", Heading: "Someone just made your day.",
-		StatusLine: "Active on your account now", StatusColor: colorGreen,
-		StatusDetail: "Your Premium gift was activated automatically.",
-		PerkPeriod:   "Unlocked for the whole month.", ActionLabel: "See what's new",
-		Footer:       "Sent by ItsBagelBot because you received a Premium gift.",
-		DashboardURL: dashboardURL, Gift: &data,
+		Title: i18n.T(locale, "mail.gift.title"), Preheader: preheader,
+		Category: i18n.T(locale, "mail.gift.category"), Heading: i18n.T(locale, "mail.gift.heading"),
+		StatusLine: i18n.T(locale, "mail.gift.status"), StatusColor: colorGreen,
+		StatusDetail: i18n.T(locale, "mail.gift.detail"),
+		PerkPeriod:   i18n.T(locale, "mail.gift.perk"), ActionLabel: i18n.T(locale, "mail.gift.action"),
+		Footer:       i18n.T(locale, "mail.gift.footer"),
+		DashboardURL: dashboardURL, Gift: &data, Locale: locale,
+		GiftIntro: intro, GiftNoStrings: chrome["mail.gift.no_strings"],
+		PriorityLabel: chrome["mail.priority.label"], PriorityBody: chrome["mail.priority.body"],
+		PerksLabel: chrome["mail.perks.label"], BetaLabel: chrome["mail.beta.label"], BetaBody: chrome["mail.beta.body"],
+		SubscriptionLabel: chrome["mail.subscription"], SafetyLabel: chrome["mail.safety.label"], SafetyBody: chrome["mail.safety.body"],
+		Signature:     i18n.T(locale, "mail.signature"),
+		ProductPeriod: fmt.Sprintf(i18n.T(locale, "mail.product_period"), localizedPrizeMonths(locale, 1)),
 	})
 }
 
 func giftText(giftedByLogin, personalMessage, dashboardURL string) string {
+	return giftTextLocale(giftedByLogin, personalMessage, dashboardURL, "")
+}
 
-	who := "You've been gifted"
+func giftTextLocale(giftedByLogin, personalMessage, dashboardURL, locale string) string {
+	who := i18n.T(locale, "mail.gift.intro.anonymous")
 	if giftedByLogin != "" {
-		who = giftedByLogin + " gifted you"
+		who = giftedByLogin + " " + i18n.T(locale, "mail.gift.intro")
 	}
-
-	note := ""
+	lines := []string{
+		i18n.T(locale, "mail.gift.title"), "",
+		who + " " + fmt.Sprintf(i18n.T(locale, "mail.product_period"), localizedPrizeMonths(locale, 1)) + ".",
+		i18n.T(locale, "mail.gift.active_body"),
+		i18n.T(locale, "mail.beta.label") + " " + i18n.T(locale, "mail.beta.body"), "",
+	}
 	if personalMessage != "" {
-		label := "A note for you"
+		label := i18n.T(locale, "mail.note")
 		if giftedByLogin != "" {
-			label = giftedByLogin + " wrote"
+			label = fmt.Sprintf(i18n.T(locale, "mail.note.by"), giftedByLogin)
 		}
-		note = fmt.Sprintf("%s:\n%q\n\n", label, personalMessage)
+		lines = append(lines, fmt.Sprintf("%s:\n%q", label, personalMessage), "")
 	}
-
-	return fmt.Sprintf(`You've got Premium
-
-%s 1 month of ItsBagelBot Premium.
-The priority lane and every premium perk are active on your account now.
-%s
-
-%sSee what's new: %s
-
-Staying safe. %s
-Discord: %s
-
-Sent by ItsBagelBot because you received a Premium gift.
-https://itsbagelbot.com
-`, who, betaAccessText, note, dashboardURL, safetyNotice, discordURL)
+	lines = append(lines,
+		i18n.T(locale, "mail.gift.action")+": "+dashboardURL, "",
+		i18n.T(locale, "mail.safety.label")+" "+i18n.T(locale, "mail.safety.body")+" Discord.",
+		"Discord: "+discordURL, "", i18n.T(locale, "mail.gift.footer"), "https://itsbagelbot.com", "",
+	)
+	return strings.Join(lines, "\n")
 }

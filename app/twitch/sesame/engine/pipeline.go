@@ -295,6 +295,7 @@ func (p *Pipeline) Process(msg *bus.Message) error {
 	emission := emitState{
 		subject: p.laneSubject(mctx.Regress),
 		env:     env,
+		locale:  mctx.Locale,
 	}
 	emit := p.newEmit(ctx, env.BroadcasterUserID, &emission)
 	started := time.Now()
@@ -315,6 +316,7 @@ func (p *Pipeline) Process(msg *bus.Message) error {
 		BroadcasterID: broadcasterID,
 		Type:          env.Type,
 		At:            started,
+		Locale:        mctx.Locale,
 		Handled:       mctx.Command != "",
 		Command:       mctx.Command,
 		Actor:         env.ChatterUserName,
@@ -425,6 +427,7 @@ func (p *Pipeline) leaseContext(env *lane.Envelope, broadcasterID uint64) *modul
 type emitState struct {
 	subject    string
 	replayBase string
+	locale     string
 	// env and baseDone back the lazy replay base: the sha256+hex namespace is
 	// computed on the first emitted output, not eagerly per message. Only
 	// emitting messages read it, so every silent chat line — the raid-burst
@@ -479,6 +482,7 @@ func (p *Pipeline) newEmit(ctx context.Context, partition string, state *emitSta
 		// /announce with no message, a /shoutout with no target, an empty chat
 		// line) is dropped instead of sending a call Twitch would reject.
 		Translate(o)
+		applyOutputLocale(o, state.locale)
 		if isEmptyAction(o) {
 			return
 		}
@@ -495,6 +499,13 @@ func (p *Pipeline) newEmit(ctx context.Context, partition string, state *emitSta
 		if replayID == "" {
 			state.needsFlush = true
 		}
+	}
+}
+
+func applyOutputLocale(o *module.Output, locale string) {
+	o.Locale = locale
+	for i := range o.Items {
+		applyOutputLocale(&o.Items[i], locale)
 	}
 }
 

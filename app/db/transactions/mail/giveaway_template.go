@@ -6,8 +6,11 @@ package mail
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
+
+	"ItsBagelBot/internal/domain/i18n"
 )
 
 // GiveawayMessage contains only the facts approved for this delivery. Pending
@@ -22,6 +25,7 @@ type GiveawayMessage struct {
 	Confirmation   bool
 	NextPayment    *time.Time
 	IdempotencyKey string
+	Locale         string
 }
 
 type giveawayData struct {
@@ -50,12 +54,12 @@ func (msg GiveawayMessage) copy() (giveawayData, error) {
 func (msg GiveawayMessage) pendingCopy() giveawayData {
 	data := giveawayData{
 		Subscriber: msg.Subscriber,
-		MonthsText: prizeMonthsText(msg.Months),
-		PeriodText: "Your prize period is being arranged; confirmed dates will appear in your dashboard.",
-		StatusLine: "Your prize is recorded and awaiting confirmation",
+		MonthsText: localizedPrizeMonths(msg.Locale, msg.Months),
+		PeriodText: i18n.T(msg.Locale, "mail.giveaway.pending_period"),
+		StatusLine: i18n.T(msg.Locale, "mail.giveaway.pending_status"),
 	}
 	if msg.Subscriber {
-		data.Situation = "You already have a recurring subscription. Billing protection is still being checked, so your current renewal may still be charged. Your full prize remains owed."
+		data.Situation = i18n.T(msg.Locale, "mail.giveaway.pending_situation")
 	}
 	return data
 }
@@ -67,28 +71,26 @@ func (msg GiveawayMessage) confirmedCopy() (giveawayData, error) {
 	if msg.NextPayment != nil && msg.NextPayment.Before(msg.End) {
 		return giveawayData{}, errors.New("next payment precedes confirmed prize end")
 	}
-	data := giveawayData{MonthsText: prizeMonthsText(msg.Months), Subscriber: msg.Subscriber}
-	data.PeriodText = "Your prize starts " + emailDate(msg.Start) + " and ends " + emailDate(msg.End) + "."
-	data.StatusLine = "Your Premium prize period is confirmed"
-	data.StatusDetail = "Premium activates automatically when your confirmed prize period starts."
+	data := giveawayData{MonthsText: localizedPrizeMonths(msg.Locale, msg.Months), Subscriber: msg.Subscriber}
+	data.PeriodText = fmt.Sprintf(i18n.T(msg.Locale, "mail.giveaway.confirmed_period"), emailDate(msg.Locale, msg.Start), emailDate(msg.Locale, msg.End))
+	data.StatusLine = i18n.T(msg.Locale, "mail.giveaway.confirmed_status")
+	data.StatusDetail = i18n.T(msg.Locale, "mail.giveaway.confirmed_detail")
 	if msg.Subscriber {
-		data.Situation = "You already have a recurring subscription. Your existing paid access is preserved, and renewal protection is confirmed for the full prize period."
+		data.Situation = i18n.T(msg.Locale, "mail.giveaway.confirmed_situation")
 	}
 	if msg.NextPayment != nil {
-		data.Situation += " Next scheduled payment: " + emailDate(*msg.NextPayment) + "."
+		data.Situation += " " + fmt.Sprintf(i18n.T(msg.Locale, "mail.giveaway.next_payment"), emailDate(msg.Locale, *msg.NextPayment))
 	}
 	return data, nil
 }
 
-func emailDate(date time.Time) string {
-	return date.UTC().Format("January 2, 2006 at 15:04 UTC")
-}
-
-func prizeMonthsText(months int) string {
-	if months == 1 {
-		return "1 month"
-	}
-	return fmt.Sprintf("%d months", months)
+func emailDate(locale string, date time.Time) string {
+	date = date.UTC()
+	return strings.NewReplacer(
+		"{month}", i18n.T(locale, fmt.Sprintf("mail.date.month.%d", date.Month())),
+		"{day}", strconv.Itoa(date.Day()), "{year}", strconv.Itoa(date.Year()),
+		"{time}", date.Format("15:04"),
+	).Replace(i18n.T(locale, "mail.date.format"))
 }
 
 func giveawayEnvelope(msg GiveawayMessage, dashboardURL string) (premiumData, error) {
@@ -100,18 +102,33 @@ func giveawayEnvelope(msg GiveawayMessage, dashboardURL string) (premiumData, er
 	if msg.pending() {
 		color = colorTan
 	}
-	title, heading := "You won Premium", "You won Premium."
+
+	title, heading := i18n.T(msg.Locale, "mail.giveaway.title"), i18n.T(msg.Locale, "mail.giveaway.heading")
 	if msg.Confirmation {
-		title, heading = "Your Premium prize is confirmed", "Your prize is confirmed."
+		title, heading = i18n.T(msg.Locale, "mail.giveaway.confirmed_title"), i18n.T(msg.Locale, "mail.giveaway.confirmed_heading")
 	}
+	chrome := mailChrome(msg.Locale)
 	return premiumData{
-		Title: title, Preheader: "You won " + copy.MonthsText + " of ItsBagelBot Premium.",
-		Category: "Giveaway", Heading: heading,
+		Title: title, Preheader: fmt.Sprintf(i18n.T(msg.Locale, "mail.giveaway.text_intro"), copy.MonthsText),
+		Category: i18n.T(msg.Locale, "mail.giveaway.category"), Heading: heading,
 		StatusLine: copy.StatusLine, StatusDetail: copy.StatusDetail, StatusColor: color,
-		PerkPeriod: "Available throughout your confirmed prize period.", ActionLabel: "View your prize",
-		Footer:       "Sent by ItsBagelBot because you won a Premium giveaway.",
-		DashboardURL: strings.TrimRight(dashboardURL, "/") + "/billing", Giveaway: &copy,
+		PerkPeriod: i18n.T(msg.Locale, "mail.giveaway.perk"), ActionLabel: i18n.T(msg.Locale, "mail.giveaway.action"),
+		Footer:       i18n.T(msg.Locale, "mail.giveaway.footer"),
+		DashboardURL: strings.TrimRight(dashboardURL, "/") + "/billing", Giveaway: &copy, Locale: msg.Locale,
+		GiftIntro: chrome["mail.gift.intro"], GiftNoStrings: chrome["mail.gift.no_strings"],
+		PriorityLabel: chrome["mail.priority.label"], PriorityBody: chrome["mail.priority.body"],
+		PerksLabel: chrome["mail.perks.label"], BetaLabel: chrome["mail.beta.label"], BetaBody: chrome["mail.beta.body"],
+		SubscriptionLabel: chrome["mail.subscription"], SafetyLabel: chrome["mail.safety.label"], SafetyBody: chrome["mail.safety.body"],
+		GiveawayIntro: i18n.T(msg.Locale, "mail.giveaway.intro"), Signature: i18n.T(msg.Locale, "mail.signature"),
+		ProductPeriod: fmt.Sprintf(i18n.T(msg.Locale, "mail.product_period"), copy.MonthsText),
 	}, nil
+}
+
+func localizedPrizeMonths(locale string, months int) string {
+	if months == 1 {
+		return "1 " + i18n.T(locale, "mail.month.one")
+	}
+	return fmt.Sprintf(i18n.T(locale, "mail.month.many"), months)
 }
 
 func renderGiveawayHTML(msg GiveawayMessage, dashboardURL string) (string, error) {
@@ -127,7 +144,8 @@ func giveawayText(msg GiveawayMessage, dashboardURL string) string {
 	if err != nil {
 		return ""
 	}
-	return fmt.Sprintf("You won %s of ItsBagelBot Premium.\n\n%s\n%s\n\n%s\n%s\n\n%s\n\nView your prize: %s\n\nStaying safe. %s\nDiscord: %s\n\n%s\nhttps://itsbagelbot.com\n",
-		data.Giveaway.MonthsText, data.Giveaway.PeriodText, data.Giveaway.Situation,
-		data.StatusLine, data.StatusDetail, betaAccessText, data.DashboardURL, safetyNotice, discordURL, data.Footer)
+	intro := fmt.Sprintf(i18n.T(msg.Locale, "mail.giveaway.text_intro"), data.Giveaway.MonthsText)
+	return fmt.Sprintf("%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n\n%s: %s\n\n%s %s\nDiscord: %s\n\n%s\nhttps://itsbagelbot.com\n",
+		intro, data.Giveaway.PeriodText, data.Giveaway.Situation,
+		data.StatusLine, data.StatusDetail, i18n.T(msg.Locale, "mail.beta.label")+" "+i18n.T(msg.Locale, "mail.beta.body"), i18n.T(msg.Locale, "mail.giveaway.action"), data.DashboardURL, i18n.T(msg.Locale, "mail.safety.label"), i18n.T(msg.Locale, "mail.safety.body")+" Discord.", discordURL, data.Footer)
 }

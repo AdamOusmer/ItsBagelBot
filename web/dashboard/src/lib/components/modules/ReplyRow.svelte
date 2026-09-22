@@ -5,7 +5,7 @@
   // primary is a real button and the per-reply on/off switch is its sibling, not
   // nested inside it. The page passes the toggle handler so all optimistic state
   // stays in one place.
-  import { SaveStatus, ManagementRow, Switch, getI18n, tModuleReplyPart, type ModuleReply } from '@bagel/kit';
+  import { SaveStatus, ManagementRow, Switch, getI18n, tModuleReplyPart, tModuleReplyDefault, type ModuleReply } from '@bagel/kit';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
 
   const { t } = getI18n();
@@ -34,7 +34,7 @@
   } = $props();
 
   const idx = $derived(index !== undefined ? String(index).padStart(2, '0') : '');
-  const preview = $derived(message.trim() ? message : reply.defaultMessage);
+  const preview = $derived(message.trim() ? message : tModuleReplyDefault(t, moduleId, reply));
 </script>
 
 <div class="row-wrap" class:flash-save={status === 'saved'}>

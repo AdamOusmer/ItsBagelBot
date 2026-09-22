@@ -87,6 +87,32 @@ func TestGiftDeliveryRetainsExistingTemplateAndLinkDefense(t *testing.T) {
 	assert.NotContains(t, sender.request.Text, "example.net")
 }
 
+func TestFrenchGiftDeliveryUsesRecipientLocale(t *testing.T) {
+	sender := &recordingSender{reply: &resend.SendEmailResponse{Id: "gift-fr"}}
+	m := &Mailer{sender: sender, dashboardURL: "https://dashboard.example.com"}
+	err := m.SendGift(context.Background(), GiftMessage{To: "gagnant@example.com", Locale: "fr", GiftedByLogin: "Gift", PersonalMessage: "Someone just made your day.", IdempotencyKey: "gift-fr"})
+	require.NoError(t, err)
+	assert.Contains(t, sender.request.Subject, "offert")
+	assert.Contains(t, sender.request.Html, "Quelqu&#39;un vient d&#39;égayer votre journée.")
+	assert.Contains(t, sender.request.Html, "Someone just made your day.")
+	assert.Contains(t, sender.request.Html, "File prioritaire.")
+	assert.Contains(t, sender.request.Html, "Restez en sécurité.")
+	assert.Contains(t, sender.request.Text, "Vous avez Premium")
+}
+
+func TestFrenchGiveawayDeliveryUsesRecipientLocale(t *testing.T) {
+	m := &Mailer{from: "Bagel <bagel@example.com>", dashboardURL: "https://dashboard.example.com"}
+	start := time.Date(2026, 9, 15, 12, 0, 0, 0, time.UTC)
+	content, err := m.PrepareGiveaway(GiveawayMessage{Months: 2, Locale: "fr", Start: start, End: start.AddDate(0, 2, 0)})
+	require.NoError(t, err)
+	assert.Contains(t, content.Subject, "gagné")
+	assert.Contains(t, content.HTML, "Vous avez gagné Premium")
+	assert.Contains(t, content.HTML, "Votre période Premium est confirmée")
+	assert.Contains(t, content.HTML, "Tous les avantages Premium.")
+	assert.Contains(t, content.HTML, "Restez en sécurité.")
+	assert.Contains(t, content.Text, "Vous avez gagné")
+}
+
 func TestPendingGiveawayHidesUnconfirmedDates(t *testing.T) {
 	start := time.Date(2026, 9, 20, 14, 0, 0, 0, time.UTC)
 	end := start.AddDate(0, 3, 0)

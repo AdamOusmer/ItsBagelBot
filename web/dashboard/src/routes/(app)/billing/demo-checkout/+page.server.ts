@@ -5,6 +5,7 @@ import type { Actions, PageServerLoad } from './$types';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { error, redirect } from '@sveltejs/kit';
+import { actionError } from '$lib/server/action-errors';
 
 // Gated on the build-time `dev` constant first, so Rollup erases every demo
 // branch (and the dynamic demo-data import inside it) from production builds.
@@ -27,14 +28,18 @@ function readKind(value: string | null): Kind {
 // is nothing for it to stand in for, so it does not exist: both load and
 // actions 404 the moment DEMO is false, rather than quietly rendering a fake
 // payment page in production.
-export const load: PageServerLoad = async ({ url }) => {
-  if (!DEMO) throw error(404, 'Not found');
+export const load: PageServerLoad = async ({ url, locals }) => {
+  if (!DEMO) throw error(404, actionError(locals.locale, 'Not found'));
 
   const plan = readPlan(url.searchParams.get('plan'));
   const kind = readKind(url.searchParams.get('kind'));
   const recipient = kind === 'gift' ? (url.searchParams.get('recipient') ?? '') : '';
 
-  return { plan, kind, recipient };
+  // The production guard erases this import along with the demo route.
+  const copies = import.meta.glob('./copy/*.json', { import: 'default' });
+  const loadCopy = copies[`./copy/${locals.locale}.json`] ?? copies['./copy/en.json'];
+  const copy = await loadCopy() as typeof import('./copy/en.json');
+  return { plan, kind, recipient, copy };
 };
 
 export const actions: Actions = {
@@ -42,8 +47,8 @@ export const actions: Actions = {
   // `?/pay` form action replaces the whole query string on submit, so the
   // query params the load rendered from would already be gone by the time
   // this runs.
-  pay: async ({ request }) => {
-    if (!DEMO) throw error(404, 'Not found');
+  pay: async ({ request, locals }) => {
+    if (!DEMO) throw error(404, actionError(locals.locale, 'Not found'));
 
     const form = await request.formData();
     const plan = readPlan(form.get('plan') as string | null);

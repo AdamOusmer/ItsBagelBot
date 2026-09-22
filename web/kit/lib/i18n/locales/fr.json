@@ -162,7 +162,32 @@
       "actionFailed": "échec : {verb}",
       "lookupFailed": "échec de la recherche",
       "sendFailed": "échec de l'envoi",
-      "exportCsv": "Exporter en CSV"
+      "exportCsv": "Exporter en CSV",
+      "userResetDemo": "utilisateur réinitialisé (démo)",
+      "userReset": "utilisateur réinitialisé",
+      "tokenClearedDemo": "jeton supprimé (démo)",
+      "tokenCleared": "jeton supprimé",
+      "activeSetDemo": "activation modifiée (démo)",
+      "userBannedDemo": "utilisateur banni (démo)",
+      "userBanned": "utilisateur banni",
+      "userUnbannedDemo": "utilisateur débanni (démo)",
+      "userUnbanned": "utilisateur débanni",
+      "userDeletedDemo": "utilisateur supprimé (démo uniquement, aucune donnée réelle supprimée)",
+      "statusSet": "statut défini sur {status}",
+      "statusSetUntil": "statut défini sur {status}{until}",
+      "creatorCodeSet": "code créateur défini sur {code}",
+      "creatorCodeCleared": "code créateur supprimé",
+      "creatorCodeSetDemo": "code créateur défini sur {code} (démo)",
+      "creatorCodeClearedDemo": "code créateur supprimé (démo)",
+      "active": "actif={active}",
+      "testAccountDemo": "compte de test={active} (démo)",
+      "testAccount": "compte de test={active}",
+      "restartDemo": "bot redémarré (démo uniquement, aucun abonnement réel supprimé)",
+      "restartQueued": "bot redémarré (reconnexion atomique mise en file)",
+      "viewAsDemo": "lien « voir comme » créé (démo)",
+      "viewAs": "lien « voir comme » créé (valide 5 min)",
+      "userDeleted": "utilisateur supprimé",
+      "notFound": "utilisateur introuvable"
     },
     "staff": {
       "eyebrow": "Contrôle d'accès",
@@ -200,7 +225,11 @@
       "confirmDeactivateTitle": "Révoquer l'accès console",
       "confirmDeactivateBody": "@{login} ne pourra plus se connecter à cette console. Son historique est conservé.",
       "saveFailed": "échec de la modification de l'équipe",
-      "addCta": "Ajouter"
+      "addCta": "Ajouter",
+      "removedDemo": "membre du personnel retiré (démo)",
+      "removed": "membre du personnel retiré",
+      "grantedDemo": "{login} → {role} (démo)",
+      "granted": "{login} défini sur {role}"
     },
     "unsaved": "Modifications non enregistrées",
     "saving": "Enregistrement…",
@@ -280,7 +309,14 @@
       "confirmRetractBody": "Elle disparaît immédiatement du tableau de bord de chaque destinataire. C’est irréversible.",
       "pagerPrev": "Plus récentes",
       "pagerNext": "Plus anciennes",
-      "pagerLabel": "Page {page} sur {max}"
+      "pagerLabel": "Page {page} sur {max}",
+      "sentDemo": "notification envoyée à {target} (démo)",
+      "retractedDemo": "notification retirée (démo)",
+      "invalidScope": "portée invalide",
+      "targetRequired": "identifiant ou nom d'utilisateur cible requis",
+      "titleBodyRequired": "titre et corps requis",
+      "invalidLevel": "niveau invalide",
+      "sentToTarget": "notification envoyée à {target}"
     },
     "shards": {
       "eyebrow": "Ingestion Twitch",
@@ -325,7 +361,13 @@
       "stateRestarting": "redémarrage",
       "stateUnmanaged": "non géré",
       "stateMissing": "absent",
-      "stateDegraded": "dégradé"
+      "stateDegraded": "dégradé",
+      "scaleDemo": "mise à l'échelle vers {count} (démo)",
+      "autoscaleOnDemo": "autoscaling activé (démo)",
+      "autoscaleOffDemo": "autoscaling désactivé (démo)",
+      "scaled": "mise à l'échelle vers {count}",
+      "autoscaleEnabled": "autoscaling activé",
+      "autoscaleDisabled": "autoscaling désactivé"
     },
     "lanes": {
       "eyebrow": "Consommateurs JetStream",
@@ -457,7 +499,8 @@
       "deleteFailed": "Le compteur n’a pas été supprimé.",
       "dangerTitle": "Suppression",
       "confirmDeleteTitle": "Supprimer ce compteur du bot ?",
-      "confirmDeleteBody": "« {name} » et sa valeur sont retirés pour tout le bot. Les modules qui l’incrémentent le recréeront à zéro."
+      "confirmDeleteBody": "« {name} » et sa valeur sont retirés pour tout le bot. Les modules qui l’incrémentent le recréeront à zéro.",
+      "invalid": "Compteur invalide."
     },
     "giveaways": {
       "eyebrow": "Prix Premium",
@@ -578,7 +621,45 @@
       "genBase64": "base64 de 32 o",
       "genHex": "hex de 32 o",
       "genPassword": "mot de passe de 40 caractères",
-      "generate": "Générer"
+      "generate": "Générer",
+      "typeToConfirm": "saisissez « {phrase} » pour confirmer",
+      "db_credential_rotate": "identifiants de {service} renouvelés vers {dbUser}",
+      "db_credential_set": "identifiants de {service} définis pour {dbUser}",
+      "db_credential_revoke": "{dbUser} révoqué",
+      "demoNotice": "{action} terminé (démo)"
+    },
+    "action": {
+      "forbidden": "accès interdit",
+      "numericUserIdRequired": "l'identifiant utilisateur doit être numérique",
+      "loginRequired": "identifiant requis",
+      "invalidRole": "rôle invalide",
+      "cannotRemoveMember": "impossible de retirer ce membre",
+      "userIdRequired": "user_id requis",
+      "queryRequired": "requête requise",
+      "queryTooLong": "requête trop longue",
+      "idRequired": "identifiant requis",
+      "cannotGrantRole": "impossible d'accorder le rôle {role}",
+      "countPositive": "le nombre doit être un entier positif",
+      "laneDemoDisabled": "mode démo : les mutations de voie sont désactivées",
+      "laneFailed": "{verb} a échoué : {error}"
+    },
+    "giveaway": {
+      "titleRequired": "titre requis",
+      "reasonRequired": "raison interne requise",
+      "winnerCountPositive": "le nombre de gagnants doit être un entier positif",
+      "prizeMonthsRange": "la durée du prix doit être un entier de 1 à 12",
+      "idRequired": "identifiant du giveaway requis",
+      "operationRequired": "version de l'instantané et clé d'opération requises",
+      "poolDigestRequired": "empreinte du pool requise",
+      "awardIdRequired": "identifiant du prix requis",
+      "draftCreatedDemo": "Brouillon du giveaway créé (démo).",
+      "draftCreated": "Brouillon du giveaway créé.",
+      "drawCommittedDemo": "Tirage enregistré (démo).",
+      "drawCommitted": "Tirage enregistré.",
+      "snapshotFrozenDemo": "Instantané d'éligibilité figé (démo).",
+      "snapshotFrozen": "Instantané d'éligibilité figé.",
+      "retryQueuedDemo": "Nouvel essai d'attribution mis en file (démo).",
+      "retryQueued": "Nouvel essai d'attribution mis en file."
     }
   },
   "adminNav": {
@@ -707,6 +788,83 @@
     "replyMessage": "Message de réponse",
     "replyHint": "Laissez vide pour le message par défaut. {clip} = le lien du clip, {user} = le créateur, {target} = le titre.",
     "saveReply": "Enregistrer"
+  },
+  "builtinDirectory": {
+    "accountage": {
+      "label": "Âge du compte",
+      "summary": "Affiche depuis combien de temps un compte Twitch existe.",
+      "usage": [
+        "!accountage <utilisateur>",
+        "!accountage"
+      ]
+    },
+    "followage": {
+      "label": "Ancienneté du suivi",
+      "summary": "Affiche depuis combien de temps un viewer suit la chaîne.",
+      "usage": [
+        "!followage",
+        "!followage <utilisateur>"
+      ]
+    },
+    "uptime": {
+      "label": "Durée du direct",
+      "summary": "Affiche depuis combien de temps le direct est en cours.",
+      "usage": [
+        "!uptime"
+      ]
+    },
+    "clip": {
+      "label": "Clip",
+      "summary": "Crée un clip des derniers instants et publie le lien.",
+      "usage": [
+        "!clip",
+        "!clip <titre>"
+      ]
+    },
+    "title": {
+      "label": "Titre",
+      "summary": "Affiche ou modifie le titre du direct.",
+      "usage": [
+        "!title",
+        "!title <titre>",
+        "!settitle <titre>"
+      ]
+    },
+    "game": {
+      "label": "Catégorie",
+      "summary": "Affiche ou modifie la catégorie du direct.",
+      "usage": [
+        "!game",
+        "!game <nom>",
+        "!setgame <nom>"
+      ]
+    },
+    "tags": {
+      "label": "Tags",
+      "summary": "Affiche ou modifie les tags du direct.",
+      "usage": [
+        "!tags",
+        "!tags <tag1, tag2>",
+        "!settags <tag1, tag2>"
+      ]
+    },
+    "commercial": {
+      "label": "Publicité",
+      "summary": "Lance une publicité pendant le direct.",
+      "usage": [
+        "!commercial",
+        "!commercial 60",
+        "!ad 90"
+      ]
+    },
+    "marker": {
+      "label": "Marqueur",
+      "summary": "Ajoute un marqueur au direct.",
+      "usage": [
+        "!marker",
+        "!marker <description>"
+      ]
+    }
   },
   "channelpoints": {
     "stateVisible": "Visible",
@@ -905,6 +1063,92 @@
     "createHintCta": "Créer →",
     "createHintAria": "Créer la commande !{name}"
   },
+  "serverErrors": {
+    "notSignedIn": "Vous n’êtes pas connecté.",
+    "notAllowed": "Action non autorisée.",
+    "unknownModule": "Module inconnu.",
+    "premiumOnly": "Réservé aux chaînes Premium pendant la bêta.",
+    "invalidPatch": "Modification invalide.",
+    "quoteSave": "Impossible d’enregistrer la citation.",
+    "quoteUpdate": "Impossible de modifier la citation.",
+    "quoteDelete": "Impossible de supprimer la citation.",
+    "quoteNumber": "Numéro de citation invalide.",
+    "quoteDate": "Choisissez une date de citation valide.",
+    "updateRetry": "Impossible de modifier. Réessayez dans un instant.",
+    "deleteAccount": "Impossible de supprimer le compte.",
+    "ownerOnly": "Seul le propriétaire du compte peut faire cela.",
+    "pickSection": "Choisissez au moins une section.",
+    "missingGrant": "Autorisation manquante.",
+    "missingToken": "Jeton manquant.",
+    "missingDashboard": "Tableau de bord manquant.",
+    "noEditableReply": "Cette commande n’a pas de réponse modifiable.",
+    "unknownBuiltin": "Commande intégrée inconnue.",
+    "subscriptionsUnavailable": "Les abonnements sont indisponibles pour le moment.",
+    "subscriptionManagementUnavailable": "La gestion des abonnements est indisponible pour le moment.",
+    "discordPremiumOnly": "Discord est en bêta et réservé aux chaînes Premium.",
+    "billingOwnerOnly": "Vous n’avez pas accès à la gestion de la facturation.",
+    "giftUsername": "Saisissez le nom Twitch à qui offrir le cadeau.",
+    "giftUsernameShape": "Ce nom Twitch ne semble pas valide.",
+    "planVerify": "Impossible de vérifier le forfait actuel. Réessayez dans un instant.",
+    "noSubscription": "Aucun abonnement Tebex à annuler pour ce compte.",
+    "giftUnavailable": "Les cadeaux sont indisponibles pour le moment. Réessayez dans un instant.",
+    "importRate": "Trop de tentatives d’import. Attendez une minute puis réessayez.",
+    "importTooLarge": "L’import analysé est trop volumineux pour être vérifié.",
+    "importDecode": "L’import analysé n’a pas pu être décodé. Relancez l’aperçu.",
+    "fileTooLarge": "Ce fichier est trop volumineux. Les configurations exportées font normalement moins de 20 Mo.",
+    "fileRead": "Impossible de lire ce fichier.",
+    "importSource": "Choisissez une source à importer.",
+    "importService": "Le service d’import n’a pas répondu. Réessayez dans un instant.",
+    "importNothing": "Aucune sélection à importer.",
+    "importSelection": "La sélection n’a pas pu être décodée. Relancez l’aperçu.",
+    "sealKey": "Impossible de protéger la clé.",
+    "deleteKey": "Impossible de supprimer la clé.",
+    "updateFailed": "Impossible de modifier.",
+    "idRequired": "Un identifiant valide est requis.",
+    "quoteText": "Saisissez une citation à enregistrer.",
+    "giftLinks": "Les notes de cadeau ne peuvent pas contenir de liens. Supprimez-les puis réessayez.",
+    "notFound": "Introuvable.",
+    "createLink": "Impossible de créer le lien.",
+    "updateLink": "Impossible de modifier le lien.",
+    "revokeLink": "Impossible de révoquer le lien.",
+    "leaveDashboard": "Impossible de quitter le tableau de bord.",
+    "keyLabelRequired": "Le nom est obligatoire.",
+    "keyLabelLength": "Le nom doit comporter au maximum 32 caractères.",
+    "keyValueRequired": "La valeur de la clé est obligatoire.",
+    "importEmpty": "Aucun élément n’a pu être importé depuis cette source.",
+    "keyValueLength": "La valeur de la clé doit comporter au maximum {max} caractères.",
+    "importUnavailable": "L’import depuis {source} n’est pas encore disponible.",
+    "importConnectFirst": "Connectez d’abord votre compte {source}.",
+    "appDashboard": "tableau de bord",
+    "appAdmin": "administration",
+    "eyebrowCommands": "Commandes de la chaîne",
+    "responseRequired": "La réponse est obligatoire.",
+    "responseControl": "La réponse ne peut pas contenir de caractères de contrôle.",
+    "cooldownWhole": "Le délai doit être un nombre entier de secondes.",
+    "userIdNumeric": "La restriction utilisateur doit être un identifiant Twitch numérique.",
+    "replyTooLong": "La réponse est trop longue (maximum {max} caractères).",
+    "titleRequired": "Le titre est obligatoire (maximum {max} caractères).",
+    "pointCost": "Saisissez un coût valide en points.",
+    "colour": "Choisissez une couleur valide.",
+    "pickLight": "Choisissez d’abord une lumière.",
+    "invalidRequest": "Requête invalide.",
+    "invalidReward": "Récompense invalide.",
+    "appCredentials": "L’identifiant client et le secret client sont obligatoires.",
+    "goveeKey": "Saisissez votre clé API Govee.",
+    "rewardTitle": "Le titre est obligatoire (maximum 45 caractères).",
+    "invalidInput": "Saisie invalide.",
+    "invalidCounter": "Compteur invalide.",
+    "invalidTimer": "Minuteur invalide.",
+    "invalidSettings": "Réglages invalides.",
+    "discordToggle": "Impossible de modifier l’activation de Discord.",
+    "timerId": "Identifiant du minuteur manquant.",
+    "rewardId": "Identifiant de la récompense manquant.",
+    "failed": "Échec de l’opération.",
+    "fetchRate": "Trop de tests. Chacun appelle la véritable API. Attendez environ 10 secondes et réessayez.",
+    "fixFields": "Corrigez d’abord les champs signalés.",
+    "fetchService": "Le service de récupération n’a pas répondu. Réessayez dans un instant.",
+    "premiumAlreadyHeld": "Ce compte bénéficie déjà de Premium. Un nouvel abonnement est bloqué pendant la vérification du prix ou du forfait en cours."
+  },
   "common": {
     "loading": "Chargement…",
     "skipToContent": "Passer au contenu",
@@ -926,6 +1170,28 @@
     "gotIt": "Compris",
     "retry": "Réessayer",
     "optional": "(optionnel)"
+  },
+  "error": {
+    "notFoundEyebrow": "Perdu dans les miettes",
+    "notFoundTitle": "Cette page s’est égarée.",
+    "notFoundDescription": "J’ai cherché sous chaque graine de sésame, mais la page demandée est introuvable.",
+    "accessEyebrow": "Derrière le comptoir",
+    "accessTitle": "Cette page est réservée au personnel.",
+    "accessDescription": "Connectez-vous avec un compte qui a accès à {app}.",
+    "serverEyebrow": "Un peu trop cuite",
+    "serverTitle": "Quelque chose a dérapé.",
+    "serverDescription": "Une plaque a basculé en coulisses. Patientez un instant, puis réessayez.",
+    "unexpectedEyebrow": "Un détour imprévu",
+    "unexpectedTitle": "J’ai rencontré un obstacle.",
+    "unexpectedDescription": "Un problème inattendu est survenu pendant le chargement de cette page.",
+    "aside": "Le four est encore chaud. Tout le reste est exactement là où vous l’avez laissé.",
+    "backToDashboard": "Retour au tableau de bord",
+    "backToApp": "Retour à {app}",
+    "tryAgain": "Réessayer",
+    "signIn": "Se connecter",
+    "goBack": "Retour",
+    "appDashboard": "tableau de bord",
+    "appAdmin": "console d’administration"
   },
   "counters": {
     "pickerTarget": "Par utilisateur mentionné",
@@ -1532,7 +1798,12 @@
     "errGeneric": "L’import a échoué. Réessayez.",
     "errHandleMissing": "Saisissez d’abord le nom de votre chaîne.",
     "errHandleShape": "Cela ne ressemble pas à un nom de chaîne. Reprenez le nom tel qu’il apparaît dans l’adresse de votre page Fossabot, rien d’autre.",
+    "errFossabotMissing": "Saisissez d’abord le nom de votre chaîne Fossabot.",
+    "errFossabotShape": "Cela ne ressemble pas à un nom de chaîne Fossabot.",
+    "errWizebotMissing": "Saisissez d’abord le nom de votre chaîne Wizebot.",
+    "errWizebotShape": "Cela ne ressemble pas à un nom de chaîne Wizebot.",
     "errJwtMissing": "Collez d’abord votre JWT StreamElements.",
+    "errJwtShape": "Cela ne ressemble pas à un JWT StreamElements. Copiez le jeton complet : trois segments séparés par des points, sans espaces.",
     "errNbConfig": "L’import Nightbot n’est pas encore configuré sur ce serveur.",
     "errNbNotConnected": "Connectez d’abord votre compte Nightbot.",
     "errNbOauth": "Nightbot n’a pas autorisé la connexion. Réessayez de vous connecter.",
@@ -1938,12 +2209,14 @@
           "won": {
             "label": "Ligne de gain",
             "tagline": "Quand le lancer tombe dans la chance de gain.",
-            "event": "!gamble 100"
+            "event": "!gamble 100",
+            "defaultMessage": "@{user} a tiré {roll} (il fallait {chance} ou moins) et gagne {amount} {points} — il lui reste {balance} !"
           },
           "lost": {
             "label": "Ligne de perte",
             "tagline": "Quand le lancer rate la chance de gain.",
-            "event": "!gamble 100"
+            "event": "!gamble 100",
+            "defaultMessage": "@{user} a tiré {roll} (il fallait {chance} ou moins) et perd {amount} {points}. Il lui reste {balance}."
           }
         },
         "commands": {
@@ -1979,22 +2252,26 @@
           "opened": {
             "label": "Pot ouvert",
             "tagline": "Quand un pot démarre et que les mises s'ouvrent.",
-            "event": "!duel 100"
+            "event": "!duel 100",
+            "defaultMessage": "Duel à cagnotte LANCÉ ! @{user} a misé {stake} {points} — tape !duel <montant> pour rejoindre. Tirage dans {secs}s !"
           },
           "joined": {
             "label": "Confirmation d'entrée",
             "tagline": "Quand un viewer ajoute sa mise à un pot en cours.",
-            "event": "!duel 250"
+            "event": "!duel 250",
+            "defaultMessage": "@{user} c’est parti pour {stake} ! {count} dans le duel, {pot} {points} dans la cagnotte."
           },
           "challenge": {
             "label": "Défi envoyé",
             "tagline": "Quand un viewer défie un autre à mises égales.",
-            "event": "!duel @maya_live 500"
+            "event": "!duel @maya_live 500",
+            "defaultMessage": "@{user} défie @{target} pour {stake} {points} ! @{target}, tape !duel accept dans les {secs}s — le vainqueur prend {pot} !"
           },
           "won": {
             "label": "Ligne de résultat",
             "tagline": "Quand un défi est accepté et réglé.",
-            "event": "!duel accept"
+            "event": "!duel accept",
+            "defaultMessage": "Les lames retombent — @{winner} bat @{loser} et rafle {pot} {points} !"
           }
         },
         "commands": {
@@ -2032,10 +2309,12 @@
         },
         "replies": {
           "lookup": {
-            "tagline": "L'heure ailleurs."
+            "tagline": "L'heure ailleurs.",
+            "defaultMessage": "Il est actuellement {time} à {place}."
           },
           "time": {
-            "tagline": "Votre heure locale actuelle."
+            "tagline": "Votre heure locale actuelle.",
+            "defaultMessage": "Il est actuellement {time} pour le streamer."
           }
         }
       },
@@ -2118,7 +2397,8 @@
           "shoutout": {
             "label": "Shoutout de raid",
             "tagline": "Shoutout automatique dans le chat lors d'un raid",
-            "event": "au raid"
+            "event": "au raid",
+            "defaultMessage": "Un grand merci à {raider} pour le raid avec {viewers} spectateurs ! Retrouvez sa chaîne sur twitch.tv/{raider.login}"
           }
         }
       },
@@ -2130,32 +2410,38 @@
           "follow": {
             "label": "Alerte de follow",
             "tagline": "Quand quelqu'un follow votre chaîne. Une fois par viewer tous les trois jours.",
-            "event": "au follow"
+            "event": "au follow",
+            "defaultMessage": "Merci de suivre la chaîne, {user} !"
           },
           "sub": {
             "label": "Alerte d'abonnement",
             "tagline": "Quand quelqu'un s'abonne ou se réabonne.",
-            "event": "à l'abonnement"
+            "event": "à l'abonnement",
+            "defaultMessage": "Bienvenue dans la communauté, {user} ! Merci pour ton abonnement !"
           },
           "gift": {
             "label": "Alerte de sub offert",
             "tagline": "Quand quelqu'un offre des subs. Une ligne par offreur, jamais par destinataire.",
-            "event": "aux subs offerts"
+            "event": "aux subs offerts",
+            "defaultMessage": "{user} vient d’offrir {count} abonnements à la communauté ! Merci !"
           },
           "cheer": {
             "label": "Alerte de cheer",
             "tagline": "Quand quelqu'un cheer des bits.",
-            "event": "au cheer"
+            "event": "au cheer",
+            "defaultMessage": "Merci pour les {bits} bits, {user} !"
           },
           "raid": {
             "label": "Alerte de raid",
             "tagline": "Quand une autre chaîne raid.",
-            "event": "au raid"
+            "event": "au raid",
+            "defaultMessage": "{user} arrive en raid avec {viewers} spectateurs ! Bienvenue à tout le monde !"
           },
           "ads": {
             "label": "Alerte de pause pub",
             "tagline": "Quand une pause pub commence. Éteinte par défaut.",
-            "event": "à la pause pub"
+            "event": "à la pause pub",
+            "defaultMessage": "Pause publicitaire de {duration} secondes. On revient tout de suite !"
           }
         }
       },
@@ -2172,25 +2458,32 @@
         },
         "replies": {
           "daily": {
-            "tagline": "Session Bedwars depuis le reset quotidien."
+            "tagline": "Session Bedwars depuis le reset quotidien.",
+            "defaultMessage": "{player} aujourd’hui : {wins} victoires, {losses} défaites · {finals} éliminations finales · {beds} lits · {fkdr} FKDR"
           },
           "weekly": {
-            "tagline": "Session Bedwars depuis le reset hebdomadaire."
+            "tagline": "Session Bedwars depuis le reset hebdomadaire.",
+            "defaultMessage": "{player} cette semaine : {wins} victoires, {losses} défaites · {finals} éliminations finales · {beds} lits · {fkdr} FKDR"
           },
           "monthly": {
-            "tagline": "Session Bedwars depuis le reset mensuel."
+            "tagline": "Session Bedwars depuis le reset mensuel.",
+            "defaultMessage": "{player} ce mois-ci : {wins} victoires, {losses} défaites · {finals} éliminations finales · {beds} lits · {fkdr} FKDR"
           },
           "stats": {
-            "tagline": "Stats Bedwars à vie."
+            "tagline": "Stats Bedwars à vie.",
+            "defaultMessage": "{player} : {stars} étoiles · {wins} victoires · {finals} éliminations finales · {fkdr} FKDR · {beds} lits détruits"
           },
           "sniper": {
-            "tagline": "Score Urchin (overlay Cubelify)."
+            "tagline": "Score Urchin (overlay Cubelify).",
+            "defaultMessage": "Score Urchin de {player} : {score}"
           },
           "tags": {
-            "tagline": "Tags de blacklist Urchin actifs."
+            "tagline": "Tags de blacklist Urchin actifs.",
+            "defaultMessage": "{player}: {tags}"
           },
           "tagdescription": {
-            "tagline": "Tags de blacklist avec leurs raisons."
+            "tagline": "Tags de blacklist avec leurs raisons.",
+            "defaultMessage": "{player}: {tags}"
           }
         }
       },
@@ -2207,37 +2500,47 @@
         },
         "replies": {
           "elo": {
-            "tagline": "Elo actuel, rang et bilan de saison."
+            "tagline": "Elo actuel, rang et bilan de saison.",
+            "defaultMessage": "{player} : {elo} Elo · rang n°{rank} · {wins} victoires, {losses} défaites cette saison"
           },
           "session": {
-            "tagline": "Elo et bilan depuis le début du stream."
+            "tagline": "Elo et bilan depuis le début du stream.",
+            "defaultMessage": "{player} pendant ce direct : {elochange} Elo ({elo} actuellement) · {wins} victoires, {losses} défaites, {draws} égalités en {matches} matchs"
           },
           "pace": {
-            "tagline": "Moyennes de splits de la session en cours, via PaceMan.gg."
+            "tagline": "Moyennes de splits de la session en cours, via PaceMan.gg.",
+            "defaultMessage": "{player} cette session : {nethers} entrées dans le Nether (moyenne {nether}) · bastion {bastion} · forteresse {fortress} · premier portail {firstportal} · {nph} entrées/h"
           },
           "nethers": {
-            "tagline": "Nombre d'entrées Nether et pace de la session en cours."
+            "tagline": "Nombre d'entrées Nether et pace de la session en cours.",
+            "defaultMessage": "{player} : {nethers} entrées dans le Nether cette session (moyenne {nether}) · {nph} entrées/h"
           },
           "lastfort": {
-            "tagline": "Splits de la run la plus récente qui a atteint une forteresse ou un bastion."
+            "tagline": "Splits de la run la plus récente qui a atteint une forteresse ou un bastion.",
+            "defaultMessage": "Dernière forteresse de {player} : Nether {nether} · bastion {bastion} · forteresse {fortress} · premier portail {firstportal} · fort {stronghold} · il y a {ago}"
           },
           "lastmatch": {
-            "tagline": "Le match le plus récent : adversaire, résultat, seed et changement d'elo."
+            "tagline": "Le match le plus récent : adversaire, résultat, seed et changement d'elo.",
+            "defaultMessage": "{player} contre {opponent} : {result} · {time} · {seed} {structure} · {elochange} Elo · il y a {ago}"
           },
           "record": {
             "tagline": "Victoires en face-à-face entre deux joueurs.",
-            "event": "!record <joueur> [joueur2]"
+            "event": "!record <joueur> [joueur2]",
+            "defaultMessage": "{playera} {winsa} - {winsb} {playerb} · {played} matchs joués"
           },
           "lb": {
             "tagline": "Top 5 du classement elo, points de phase ou palmarès.",
-            "event": "!lb [phase [predicted]|record] [country:xx]"
+            "event": "!lb [phase [predicted]|record] [country:xx]",
+            "defaultMessage": "{board}: {list}"
           },
           "race": {
-            "tagline": "Leader de la course de la semaine et le temps du joueur."
+            "tagline": "Leader de la course de la semaine et le temps du joueur.",
+            "defaultMessage": "#1 {leader} ({leadertime}) · {player}: {time} (#{rank})"
           },
           "pb": {
             "tagline": "Meilleur temps : PaceMan quotidien/hebdomadaire/mensuel/tous temps, ou le meilleur de saison MCSR Ranked.",
-            "event": "!pb [daily|weekly|monthly|ranked] [joueur]"
+            "event": "!pb [daily|weekly|monthly|ranked] [joueur]",
+            "defaultMessage": "{player} : {time} (record personnel, {window})"
           }
         }
       },
@@ -2264,19 +2567,23 @@
         },
         "replies": {
           "stats": {
-            "tagline": "Stats Battle Royale à vie : !fn, !fn stats ou !fnstats."
+            "tagline": "Stats Battle Royale à vie : !fn, !fn stats ou !fnstats.",
+            "defaultMessage": "{player} au total : {wins} victoires en {matches} matchs · {winrate}% de victoires · {kills} éliminations · {kd} K/D · {solowins} victoires en solo / {duowins} en duo / {squadwins} en section"
           },
           "season": {
             "tagline": "Stats de la saison en cours (aussi !fnseason) ; les changements de saison sont suivis automatiquement.",
-            "event": "!fn season"
+            "event": "!fn season",
+            "defaultMessage": "{player} cette saison : {wins} victoires en {matches} matchs · {winrate}% de victoires · {kills} éliminations · {kd} K/D · {solowins} victoires en solo / {duowins} en duo / {squadwins} en section"
           },
           "session": {
             "tagline": "Victoires, kills et K/D depuis le début du stream (aussi !fnsession).",
-            "event": "!fn session"
+            "event": "!fn session",
+            "defaultMessage": "{player} pendant ce direct : {wins} victoires en {matches} matchs · {winrate}% de victoires · {kills} éliminations · {kd} K/D"
           },
           "store": {
             "tagline": "Rotation de la boutique du jour (aussi !fnstore).",
-            "event": "!fn store"
+            "event": "!fn store",
+            "defaultMessage": "Boutique {date}: {items}"
           }
         }
       },
@@ -2297,7 +2604,8 @@
         "replies": {
           "profile": {
             "tagline": "Profil CODM Global : !codm, !codmprofile ou !codmrank.",
-            "event": "!codm [UID/pseudo exact]"
+            "event": "!codm [UID/pseudo exact]",
+            "defaultMessage": "{player} · niveau {level} · multijoueur {rank} · score {rating} · {country}"
           }
         }
       },
@@ -2314,19 +2622,23 @@
         },
         "replies": {
           "stats": {
-            "tagline": "Profil à vie : !cr, !cr stats ou !crstats."
+            "tagline": "Profil à vie : !cr, !cr stats ou !crstats.",
+            "defaultMessage": "{player} · niveau {level} · {wins} victoires / {losses} défaites · {winrate}% de victoires · {crowns} victoires à trois couronnes · {clan}"
           },
           "decks": {
             "tagline": "Le deck de combat actuel avec son élixir moyen (aussi !crdecks).",
-            "event": "!cr decks"
+            "event": "!cr decks",
+            "defaultMessage": "Deck de {player} ({count}/8) : {cards} · coût moyen en élixir {elixir}"
           },
           "ranked": {
             "tagline": "Standing Chemin des Légendes (aussi !crranked) ; les saisons de ligue héritées complètent les vieux palmarès.",
-            "event": "!cr ranked"
+            "event": "!cr ranked",
+            "defaultMessage": "Voie des légendes de {player} : ligue {league} · {trophies} trophées · rang n°{rank} · record {besttrophies}"
           },
           "road": {
             "tagline": "Palmarès de la route des trophées et arène (aussi !crroad).",
-            "event": "!cr road"
+            "event": "!cr road",
+            "defaultMessage": "{player}: {trophies} trophées · meilleur {besttrophies} · {arena}"
           }
         }
       },
@@ -2357,23 +2669,28 @@
         },
         "replies": {
           "rank": {
-            "tagline": "Standing compétitif : !val, !val rank ou !valrank."
+            "tagline": "Standing compétitif : !val, !val rank ou !valrank.",
+            "defaultMessage": "{player} · {tier} · {rr} RR ({lastchange}) · meilleur rang {peaktier}"
           },
           "matches": {
             "tagline": "Parties classées récentes (aussi !valmatches).",
-            "event": "!val matches"
+            "event": "!val matches",
+            "defaultMessage": "Les {count} derniers matchs de {player} : {matches}"
           },
           "account": {
             "tagline": "À qui un ID correspond, avec le niveau de compte (aussi !valaccount).",
-            "event": "!val account"
+            "event": "!val account",
+            "defaultMessage": "{player} · compte niveau {level}"
           },
           "board": {
             "tagline": "Top 10 régional, PC ou console (aussi !vallb).",
-            "event": "!val lb"
+            "event": "!val lb",
+            "defaultMessage": "{board}: {entries}"
           },
           "shop": {
             "tagline": "Rotation mondiale de skins du jour avec compte à rebours (aussi !valshop).",
-            "event": "!val shop"
+            "event": "!val shop",
+            "defaultMessage": "Rotation quotidienne ({count}) : {items} · renouvellement dans {reset}"
           }
         }
       },
@@ -2384,30 +2701,36 @@
         "replies": {
           "join": {
             "label": "Confirmation d'entrée",
-            "tagline": "Quand un viewer rejoint la file."
+            "tagline": "Quand un viewer rejoint la file.",
+            "defaultMessage": "@{user} vous avez rejoint la file en position n°{pos}."
           },
           "already": {
             "label": "Déjà dans la file",
-            "tagline": "Quand un viewer déjà en file retape !join."
+            "tagline": "Quand un viewer déjà en file retape !join.",
+            "defaultMessage": "@{user} vous êtes déjà dans la file en position n°{pos}."
           },
           "leave": {
             "label": "Confirmation de sortie",
-            "tagline": "Quand un viewer sort de la file."
+            "tagline": "Quand un viewer sort de la file.",
+            "defaultMessage": "@{user} vous avez quitté la file."
           },
           "next": {
             "label": "Joueur suivant",
             "tagline": "Quand vous faites monter le joueur suivant.",
-            "event": "!queue next"
+            "event": "!queue next",
+            "defaultMessage": "@{target} c'est à vous ! ({count} encore en attente)"
           },
           "opened": {
             "label": "File ouverte",
             "tagline": "Annoncé quand vous ouvrez la file.",
-            "event": "!queue open"
+            "event": "!queue open",
+            "defaultMessage": "La file est maintenant ouverte ! Tapez !join pour vous inscrire."
           },
           "closed": {
             "label": "File fermée",
             "tagline": "Annoncé quand vous fermez la file.",
-            "event": "!queue close"
+            "event": "!queue close",
+            "defaultMessage": "La file est maintenant fermée aux nouvelles inscriptions."
           }
         },
         "commands": {
@@ -2429,29 +2752,35 @@
         "replies": {
           "joined": {
             "label": "Confirmation d'inscription",
-            "tagline": "Quand un viewer rejoint le tirage."
+            "tagline": "Quand un viewer rejoint le tirage.",
+            "defaultMessage": "@{user} c’est bon, tu participes ! {count} inscrits pour l’instant. Bonne chance !"
           },
           "already": {
             "label": "Déjà inscrit",
-            "tagline": "Quand un viewer déjà inscrit retape !join."
+            "tagline": "Quand un viewer déjà inscrit retape !join.",
+            "defaultMessage": "@{user} tu participes déjà à cette loterie ({count} inscrits)."
           },
           "noRaffle": {
             "label": "Aucun tirage en cours",
-            "tagline": "Quand quelqu'un rejoint alors qu'aucun tirage n'est ouvert."
+            "tagline": "Quand quelqu'un rejoint alors qu'aucun tirage n'est ouvert.",
+            "defaultMessage": "@{user} aucune loterie en cours pour le moment."
           },
           "opened": {
             "label": "Tirage ouvert",
             "tagline": "Quand un tirage démarre et que les inscriptions s'ouvrent.",
-            "event": "!raffle open"
+            "event": "!raffle open",
+            "defaultMessage": "La loterie est LANCÉE ! Tape !join pour participer — tirage dans {mins} min !"
           },
           "won": {
             "label": "Gagnants annoncés",
             "tagline": "Quand un tirage nomme ses gagnants (manuel ou chronométré).",
-            "event": "!raffle draw"
+            "event": "!raffle draw",
+            "defaultMessage": "{targets} — félicitations ! Vous avez gagné la loterie ({count} gagnant(s) parmi {entrants}) ! Tapez !claim dans les {claim} min pour confirmer votre lot !"
           },
           "claimOk": {
             "label": "Prix confirmé",
-            "tagline": "Quand un gagnant confirme avec !claim."
+            "tagline": "Quand un gagnant confirme avec !claim.",
+            "defaultMessage": "@{user} ton lot est confirmé — profite bien !"
           }
         },
         "commands": {
@@ -2731,6 +3060,44 @@
       "privacy": "Politique de confidentialité",
       "terms": "Conditions d'utilisation",
       "creatorTerms": "Codes de créateur"
+    },
+    "commands": {
+      "eyebrow": "Commandes de la chaîne",
+      "filterAll": "Tout",
+      "filterAllHeading": "Tout ce que vous pouvez saisir",
+      "filterCustom": "Personnalisées",
+      "filterCustomHeading": "Commandes personnalisées",
+      "filterModule": "Modules",
+      "filterModuleHeading": "Commandes de module",
+      "filterBuiltin": "Intégrées",
+      "filterBuiltinHeading": "Commandes intégrées",
+      "pageTitle": "Commandes de {channel} - ItsBagelBot",
+      "pageDescription": "Commandes et modules actifs du chat de {channel} sur ItsBagelBot.",
+      "summary": "{commands} commandes personnalisées · {modules} modules actifs · {total} actions saisissables",
+      "summaryOneCommand": "{count} commande personnalisée",
+      "summaryManyCommands": "{count} commandes personnalisées",
+      "summaryOneModule": "{count} module actif",
+      "summaryManyModules": "{count} modules actifs",
+      "summaryThings": "{count} actions saisissables",
+      "copyCreator": "Copier le code créateur",
+      "clickToCopy": "Cliquer pour copier",
+      "dataUnavailable": "Les données des commandes sont temporairement indisponibles.",
+      "searchPlaceholder": "Rechercher une commande ou sa fonction…",
+      "sourceLabel": "Source de la commande",
+      "commandsLabel": "Commandes",
+      "clickRow": "Cliquez sur une ligne pour copier",
+      "cooldown": "Temps de recharge",
+      "liveOnly": "En direct uniquement",
+      "uses": "{count} utilisations",
+      "noCommands": "Aucune commande active pour le moment.",
+      "noMatches": "Aucun résultat pour « {query} ». Essayez un mot plus court.",
+      "activeModules": "Modules actifs",
+      "moduleCount": "{count} cmd",
+      "moduleCountMany": "{count} cmds",
+      "moduleAuto": "auto",
+      "noModules": "Aucun module actif.",
+      "legendTitle": "Lire les étiquettes",
+      "legend": "Everyone, Subs et Mods indiquent qui peut l’utiliser. L’horloge indique le temps entre deux utilisations. Les commandes en direct uniquement répondent quand le stream est actif."
     }
   },
   "quotes": {
@@ -4056,5 +4423,39 @@
         "desc": "Les points de fidélité accordés (si positifs)."
       }
     }
+  },
+  "validation": {
+    "commandNameRequired": "Le nom de commande est obligatoire.",
+    "commandNameMax": "Le nom de commande doit compter au plus {max} caractères.",
+    "commandNameSpaces": "Le nom de commande ne peut pas contenir d'espaces.",
+    "commandNameBang": "Le nom de commande ne porte le \"!\" que dans le chat. Retirez-le ici.",
+    "alternateNameRequired": "Le nom alternatif \"{name}\" est obligatoire.",
+    "alternateNameMax": "Le nom alternatif \"{name}\" doit compter au plus {max} caractères.",
+    "alternateNameSpaces": "Le nom alternatif \"{name}\" ne peut pas contenir d'espaces.",
+    "alternateNameBang": "Le nom alternatif \"{name}\" ne porte le \"!\" que dans le chat. Retirez-le ici.",
+    "aliasOwnName": "\"{name}\" est déjà le nom de cette commande.",
+    "aliasDuplicate": "\"{name}\" est indiqué deux fois.",
+    "responseRequired": "La réponse est obligatoire.",
+    "responseLinesMax": "La réponse peut compter au plus {max} lignes. Chaque ligne est envoyée comme son propre message de chat.",
+    "responseCharsMax": "Chaque ligne doit compter au plus {max} caractères.",
+    "responseControlChars": "La réponse ne peut pas contenir de caractères de contrôle.",
+    "responseFetchMax": "Une réponse peut référencer au plus {max} valeurs récupérées distinctes ({urlfetch:…}).",
+    "cooldownRange": "Le cooldown doit être compris entre 0 et {max} secondes.",
+    "cooldownInteger": "Le cooldown doit être un nombre entier de secondes.",
+    "userIdNumeric": "La restriction utilisateur doit être un identifiant Twitch numérique.",
+    "definitionNameRequired": "Le nom de définition est obligatoire.",
+    "definitionNameMax": "Le nom de définition doit compter au plus {max} caractères.",
+    "definitionNameCharset": "Utilisez uniquement des lettres minuscules, des chiffres et des underscores.",
+    "urlRequired": "L'URL est obligatoire.",
+    "urlMax": "L'URL doit compter au plus {max} caractères.",
+    "urlHttps": "L'URL doit commencer par https://",
+    "urlPublic": "L'URL doit pointer vers un hôte https public.",
+    "fetchKind": "Choisissez plain ou json.",
+    "plainPath": "Un fetch plain lit tout le corps. Effacez le chemin ou passez à json.",
+    "pathDepth": "Le chemin peut compter au plus {max} segments.",
+    "pathSegment": "\"{segment}\" ne peut pas servir de segment de chemin : lettres, chiffres, \"-\" et \"_\" uniquement.",
+    "keyLabelMax": "Le libellé de clé doit compter au plus {max} caractères.",
+    "fetchExists": "Une source de données nommée « {name} » existe déjà.",
+    "fetchLimit": "Au maximum {max} sources de données par chaîne."
   }
 }

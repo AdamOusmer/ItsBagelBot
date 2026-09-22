@@ -58,7 +58,7 @@ async function standings(userId: string): Promise<{
 	}
 }
 
-export const load: PageServerLoad = async ({ params, url }) => {
+export const load: PageServerLoad = async ({ params, url, locals }) => {
 	requireLeaderboardHost(url);
 
 	const channel = await requireChannel(requireLogin(params.user ?? ''));
@@ -68,8 +68,8 @@ export const load: PageServerLoad = async ({ params, url }) => {
 	let modules: PublicModule[] = [];
 	try {
 		const [rows, mods] = await Promise.all([listCommands(channel.userId), listModules(channel.userId)]);
-		commands = publicCommands(rows);
-		modules = publicModules(mods);
+    commands = publicCommands(rows, locals.locale);
+    modules = publicModules(mods, locals.locale);
 	} catch {
 		/* the leaderboard itself still renders */
 	}

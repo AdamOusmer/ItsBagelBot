@@ -12,6 +12,7 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/event/lane"
+	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/internal/moderation"
 
@@ -83,8 +84,6 @@ func (n *Nuke) recordChat(broadcasterID uint64, env *lane.Envelope) {
 	n.Recent.Record(channelID(broadcasterID), env, n.now())
 }
 
-const nukeUsage = "usage: !nuke <phrase> [seconds] — sweeps the last 10m of chat for messages containing phrase"
-
 // parseNukeArgs splits "!nuke" arguments into the phrase and the timeout
 // seconds. A trailing token of bare digits (or digits+"s") is the duration;
 // anything else leaves the default. A phrase-less invocation parses but
@@ -125,7 +124,7 @@ func (n *Nuke) Execute(ctx context.Context, c *module.Context, args string, emit
 	defer PutBuf(norm)
 	runes := utf8.RuneCount(norm)
 	if runes < nukeMinPhraseRunes || runes > nukeMaxPhraseRunes {
-		emitChat(emit, c.Env.BroadcasterUserID, nukeUsage)
+		emitChat(emit, c.Env.BroadcasterUserID, i18n.T(c.Locale, "nuke.usage"))
 		return nil
 	}
 
@@ -142,7 +141,7 @@ func (n *Nuke) Execute(ctx context.Context, c *module.Context, args string, emit
 
 	emitTimeouts(matched[:res.actioned], res, emit)
 	shielded := n.escalateOnOverflow(res, emit)
-	emitChat(emit, res.broadcaster, res.summary(shielded))
+	emitChat(emit, res.broadcaster, res.summary(c.Locale, shielded))
 
 	n.log.Info("nuke executed",
 		module.BIDField(c.BroadcasterID),
@@ -250,16 +249,20 @@ type sweepResult struct {
 // summary renders the chat-facing outcome: what happened, and — when the
 // budget capped the sweep — what covered the rest. The matched phrase stays
 // out of the reply so a mod cannot make the bot echo spam back into chat.
-func (res sweepResult) summary(shielded bool) string {
+func (res sweepResult) summary(locale string, shielded bool) string {
 	if res.actioned == 0 {
-		return "no recent messages matched — nothing nuked"
+		return i18n.T(locale, "nuke.none")
 	}
-	s := "🚯 nuked " + strconv.Itoa(res.actioned) + " user(s) with " + strconv.FormatInt(res.seconds, 10) + "s timeouts"
+	s := i18n.T(locale, "nuke.actioned")
+	s = strings.ReplaceAll(s, "{count}", strconv.Itoa(res.actioned))
+	s = strings.ReplaceAll(s, "{seconds}", strconv.FormatInt(res.seconds, 10))
 	switch {
 	case shielded:
-		s += " — over budget, Shield Mode activated"
+		s += " " + i18n.T(locale, "nuke.shielded")
 	case res.overflow > 0:
-		s += " — cap reached, " + strconv.Itoa(res.overflow) + " more left for Shield Mode"
+		cap := i18n.T(locale, "nuke.capped")
+		cap = strings.ReplaceAll(cap, "{count}", strconv.Itoa(res.overflow))
+		s += " " + cap
 	}
 	return s
 }

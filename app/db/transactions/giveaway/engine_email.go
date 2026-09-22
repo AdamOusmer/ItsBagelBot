@@ -67,6 +67,7 @@ func (e *Engine) emailRecord(ctx context.Context, award *ent.GiveawayAward, kind
 		return nil, errors.New("winner subscription lookup unavailable")
 	}
 	message := awardMessage(award, recurringReference(coverage) != "")
+	message.Locale = coverage.Locale
 	message.Confirmation = kind == "confirmation"
 	if kind == "confirmation" && message.BillingPending {
 		return nil, errors.New("prize confirmation is not ready")

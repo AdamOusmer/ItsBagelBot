@@ -68,6 +68,7 @@ export { customCursor } from './cursor';
 
 // i18n: context helpers for components + the pure runtime/detection surface.
 export { setI18n, getI18n, type I18n } from './i18n/context';
+export type { MessageKey } from './i18n/keys';
 export {
   translate,
   translateList,
@@ -93,6 +94,7 @@ export * from './command-active';
 export * from './discord-config';
 export * from './discord-overview';
 export * from './engine/commands-validate';
+export * from './engine/validation-messages';
 export * from './uses';
 export * from './engine/rehearsal';
 // Only the span builder is re-exported from the lexer, not the lexer itself:

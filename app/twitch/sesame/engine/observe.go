@@ -25,6 +25,9 @@ type ObservedEvent struct {
 	BroadcasterID uint64
 	Type          string
 	At            time.Time
+	// Locale is the broadcaster's persisted UI language. Observers may use it
+	// to render first-party feed copy without altering user-authored values.
+	Locale string
 
 	// Handled is true when the line dispatched a command that ran. Command is
 	// the trigger without its slash/bang, empty when the line was not one.
@@ -92,6 +95,7 @@ func (p *Pipeline) notifyObservers(ev ObservedEvent) {
 	}
 	// Clone once, not per observer: the payload views die with this call.
 	ev.Type = strings.Clone(ev.Type)
+	ev.Locale = strings.Clone(ev.Locale)
 	ev.Command = strings.Clone(ev.Command)
 	ev.Actor = strings.Clone(ev.Actor)
 

@@ -466,7 +466,7 @@ func (r *Users) PremiumCoverage(ctx context.Context, userID uint64, now time.Tim
 }
 
 func billingCoverage(u *ent.User) usersrpc.PremiumCoverage {
-	coverage := usersrpc.PremiumCoverage{UserID: u.ID, Status: string(u.Status), IsActive: u.IsActive, Banned: u.Banned, TestAccount: u.TestAccount, PaidThrough: u.SubscriptionExpiresAt,
+	coverage := usersrpc.PremiumCoverage{UserID: u.ID, Locale: u.Locale, Status: string(u.Status), IsActive: u.IsActive, Banned: u.Banned, TestAccount: u.TestAccount, PaidThrough: u.SubscriptionExpiresAt,
 		CancelPending: u.SubscriptionCancelPending, BillingUncertain: uncertainBilling(u)}
 	if u.SubscriptionRef != nil {
 		ref := *u.SubscriptionRef

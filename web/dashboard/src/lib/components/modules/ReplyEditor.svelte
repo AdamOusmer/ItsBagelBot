@@ -17,7 +17,7 @@
   //
   // Save/Cancel are handled by the page so the whole-module config persists in
   // one place.
-  import { Field, getI18n, intactSpan, tModuleReplyPart, type ModuleReply } from '@bagel/kit';
+  import { Field, getI18n, intactSpan, tModuleReplyDefault, tModuleReplyPart, type ModuleReply } from '@bagel/kit';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
 
@@ -41,7 +41,8 @@
 
   // Blank posts the module default, so preview the default (matches the
   // placeholder) instead of an empty "nothing to say yet".
-  const effectiveMessage = $derived(message.trim() ? message : reply.defaultMessage);
+  const localizedDefault = $derived(tModuleReplyDefault(t, moduleId, reply));
+  const effectiveMessage = $derived(message.trim() ? message : localizedDefault);
 
   const isCommand = $derived(!!reply.command);
   // The reply's own insert palette; undefined keeps ResponseEditor's default
@@ -68,7 +69,7 @@
 
 <div class="editor">
   <Field label={t('modules.replyMessage', { label: tModuleReplyPart(t, moduleId, reply, 'label') })} hint={t('modules.replyBlankHint')}>
-    <ResponseEditor bind:value={message} placeholder={reply.defaultMessage} tokens={palette} />
+    <ResponseEditor bind:value={message} placeholder={localizedDefault} tokens={palette} />
   </Field>
 
   {#if isCommand}

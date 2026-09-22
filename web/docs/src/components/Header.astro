@@ -3,6 +3,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { SITE } from '@bagel/kit/site-links';
+import { docsI18n } from '../i18n/ui';
 
 /**
  * Starlight `Header` override: the docs wear the same nav bar as the rest of
@@ -23,18 +24,20 @@ import { SITE } from '@bagel/kit/site-links';
  *    well would put two hamburgers side by side opening two different
  *    navigations.
  *
- * `locales` is omitted: the docs are not translated (no `locales` in the
- * Starlight config), so there is nothing for the switch to switch between.
+ * Starlight owns the locale switch. The custom links below follow the current
+ * locale; all shared navigation copy lives in the documentation catalogs.
  */
 import Nav from '@bagel/ui/astro/Nav.astro';
 import Search from '@astrojs/starlight/components/Search.astro';
+import LanguageSelect from '@astrojs/starlight/components/LanguageSelect.astro';
 import ThemeSelect from '@astrojs/starlight/components/ThemeSelect.astro';
 
+const { t, path: localizedPath } = docsI18n(Astro.locals.starlightRoute.locale);
 const links = [
-  { href: '/guides/', label: 'Guides' },
-  { href: '/architecture/', label: 'Architecture' },
-  { href: '/microservices/', label: 'Services' },
-  { href: '/adr/', label: 'ADRs' },
+  { href: localizedPath('/guides/getting-started/'), label: t('guides') },
+  { href: localizedPath('/architecture/'), label: t('architecture') },
+  { href: localizedPath('/microservices/'), label: t('services') },
+  { href: localizedPath('/adr/'), label: t('adr') },
 ];
 
 const path = Astro.url.pathname;
@@ -44,14 +47,15 @@ const isActive = (href: string) => path === href || path.startsWith(href);
 <Nav
   variant="bar"
   menu={false}
-  brand={{ title: 'ItsBagelBot', sub: 'DOCS', href: '/' }}
+  brand={{ title: 'ItsBagelBot', sub: t('brand'), href: localizedPath('/') }}
   links={links.map((link) => ({ ...link, active: isActive(link.href) }))}
-  cta={{ href: SITE.web, label: 'Main site', external: true }}
-  ariaLabel="Documentation"
-  menuLabels={{ open: 'Open menu', close: 'Close menu', panel: 'Menu' }}
+  cta={{ href: `${SITE.web}${localizedPath('/')}`, label: t('mainSite'), external: true }}
+  ariaLabel={t('brand')}
+  menuLabels={{ open: t('menu.open'), close: t('menu.close'), panel: t('menu.panel') }}
 >
   <Fragment slot="actions">
     <Search />
+    <LanguageSelect />
     <ThemeSelect />
   </Fragment>
 </Nav>

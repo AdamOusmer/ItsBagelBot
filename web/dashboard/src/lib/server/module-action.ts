@@ -26,6 +26,7 @@ import { auditDashboardImpersonation } from './services';
 import { gateModulePage } from './module-gate';
 import { effectiveId } from './board';
 import type { Session } from './session';
+import { actionError } from './action-errors';
 
 /** The board being written, and who asked for it. */
 export type ModuleActor = { uid: string; session: Session | null };
@@ -68,8 +69,8 @@ export function moduleAction(
   run: ModuleMutation,
   opts: ModuleActionOpts
 ): (event: ActionEvent) => Promise<MutationRefusal | { ok: true }> {
-  return (event) =>
-    mutateAction<ModuleActor>(event, {
+  return async (event) => {
+    const result = await mutateAction<ModuleActor>(event, {
       gate: () => {
         // Defense in depth under the route guard, and the same gate the page's
         // load uses: a delegate without the module's section never reaches a
@@ -86,10 +87,17 @@ export function moduleAction(
       // can act on comes back through `run`'s own refusal instead.
       failed: (err) => {
         logger.error({ err }, `[${modId}] ${op} failed`);
-        return fail(400, { ok: false, error: `${op} failed` });
+        return fail(400, { ok: false, error: 'Could not update. Try again in a moment.' });
       },
       audited: (actor, detail) =>
         auditDashboardImpersonation(actor.session, `${opts.auditAs ?? modId}:${op}`, detail),
       invalid: opts.invalid ?? 'Invalid input.'
     });
+    // Localize known validation and service refusals at one boundary. Keep
+    // status codes, reconnect flags, and unrecognized upstream details intact.
+    if ('data' in result && result.data.error) {
+      return fail(result.status, { ...result.data, error: actionError(event.locals.locale, result.data.error) });
+    }
+    return result;
+  };
 }

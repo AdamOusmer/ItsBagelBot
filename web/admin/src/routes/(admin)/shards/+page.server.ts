@@ -8,6 +8,7 @@ import { shardSnapshot, shardScale, shardAutoscale } from '$lib/server/services'
 import { requireRole } from '$lib/server/access';
 import { audit } from '$lib/server/audit';
 import { emptyShardSnapshot } from '$lib/server/fallback';
+import { actionError, adminText } from '$lib/server/admin-action';
 
 import type { ShardSnapshot } from '@bagel/kit';
 
@@ -33,19 +34,19 @@ export const actions: Actions = {
     // The ingress takes any caller the broker admits, so this table is the
     // only thing standing between a moderator and the shard count.
     const admin = await requireRole({ locals }, 'shards.scale');
-    if (!admin) return fail(403, { error: 'forbidden' });
+    if (!admin) return fail(403, { error: actionError(locals.locale, 'forbidden') });
     const f = await request.formData();
     const raw = String(f.get('count') ?? '').trim();
     const count = parseInt(raw, 10);
-    if (!raw || isNaN(count) || count < 1) return fail(400, { error: 'count must be a positive integer' });
+    if (!raw || isNaN(count) || count < 1) return fail(400, { error: adminText(locals.locale, 'admin.action.countPositive') });
     if (DEMO) {
       const { sampleSnapshot } = await import('$lib/server/demo-data');
-      return { action: { ok: true, notice: `scale to ${count} (demo)`, snapshot: sampleSnapshot } };
+      return { action: { ok: true, notice: adminText(locals.locale, 'admin.shards.scaleDemo', { count }), snapshot: sampleSnapshot } };
     }
     try {
       const snapshot = await shardScale(count);
       audit(admin, { action: 'shard_scale', target: 'ingress', detail: String(count), ok: true });
-      return { action: { ok: true, notice: `scaled to ${snapshot.desired_count}` }, snapshot };
+      return { action: { ok: true, notice: adminText(locals.locale, 'admin.shards.scaled', { count: snapshot.desired_count }) }, snapshot };
     } catch (e) {
       const error = (e as Error).message;
       audit(admin, { action: 'shard_scale', target: 'ingress', detail: String(count), ok: false, error });
@@ -55,17 +56,17 @@ export const actions: Actions = {
 
   autoscale: async ({ request, locals }) => {
     const admin = await requireRole({ locals }, 'shards.scale');
-    if (!admin) return fail(403, { error: 'forbidden' });
+    if (!admin) return fail(403, { error: actionError(locals.locale, 'forbidden') });
     const f = await request.formData();
     const enabled = f.get('enabled') === 'true';
     if (DEMO) {
       const { sampleSnapshot } = await import('$lib/server/demo-data');
-      return { action: { ok: true, notice: `autoscale ${enabled ? 'on' : 'off'} (demo)`, snapshot: sampleSnapshot } };
+      return { action: { ok: true, notice: adminText(locals.locale, enabled ? 'admin.shards.autoscaleOnDemo' : 'admin.shards.autoscaleOffDemo'), snapshot: sampleSnapshot } };
     }
     try {
       const snapshot = await shardAutoscale(enabled);
       audit(admin, { action: 'shard_autoscale', target: 'ingress', detail: String(enabled), ok: true });
-      return { action: { ok: true, notice: `autoscale ${snapshot.autoscale ? 'enabled' : 'disabled'}` }, snapshot };
+      return { action: { ok: true, notice: adminText(locals.locale, snapshot.autoscale ? 'admin.shards.autoscaleEnabled' : 'admin.shards.autoscaleDisabled') }, snapshot };
     } catch (e) {
       const error = (e as Error).message;
       audit(admin, { action: 'shard_autoscale', target: 'ingress', detail: String(enabled), ok: false, error });

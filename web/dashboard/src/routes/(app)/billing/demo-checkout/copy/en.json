@@ -1,0 +1,11 @@
+{
+  "demoEyebrow": "Demo checkout",
+  "demoTitle": "Demo checkout",
+  "demoDescription": "No payment is taken here. This screen only stands in for Tebex-hosted checkout.",
+  "demoNotice": "This is a demo checkout. No card is charged, no email goes out, and nothing leaves this dev server.",
+  "demoPlan": "Plan",
+  "demoGiftTo": "Gift to",
+  "demoTotal": "Total",
+  "demoPay": "Pay ${price}.00",
+  "demoCancel": "Cancel, go back to billing"
+}

@@ -6,6 +6,8 @@ package mail
 import (
 	"html/template"
 	"strings"
+
+	"ItsBagelBot/internal/domain/i18n"
 )
 
 // Premium emails share the marketing site's design system: a flat near-black canvas, warm tan
@@ -29,17 +31,15 @@ const (
 
 	// The v1 CID remains stable for prepared envelopes. The old external URL is
 	// kept only so legacy prepared HTML can be recognized and sent unchanged.
-	legacyLogoURL  = "https://itsbagelbot.com/logo.png"
-	logoCID        = "itsbagelbot-logo-v1"
-	logoSrc        = "cid:" + logoCID
-	discordURL     = "https://discord.gg/SZ2remwSDv"
-	safetyNotice   = "ItsBagelBot will never ask for your password, payment or card details, or login and verification codes by email. We only send from @itsbagelbot.com. If a message asks for any of that, it isn't us. Ignore it and reach the real team on Discord."
-	betaAccessText = "Access to beta features. Try new features during your Premium period."
+	legacyLogoURL = "https://itsbagelbot.com/logo.png"
+	logoCID       = "itsbagelbot-logo-v1"
+	logoSrc       = "cid:" + logoCID
+	discordURL    = "https://discord.gg/SZ2remwSDv"
 )
 
 var premiumTmpl = template.Must(template.New("premium").Parse(strings.TrimSpace(`
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{.Locale}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -83,13 +83,13 @@ var premiumTmpl = template.Must(template.New("premium").Parse(strings.TrimSpace(
 
 {{if .Giveaway}}
           <div style="font-family:` + fontBody + `;font-size:15px;line-height:1.65;color:#a89f92;padding-bottom:20px;">
-            You won <strong style="color:` + colorTanLt + `;font-weight:600;">{{.Giveaway.MonthsText}} of ItsBagelBot Premium</strong>.
+            {{.GiveawayIntro}} <strong style="color:` + colorTanLt + `;font-weight:600;">{{.ProductPeriod}}</strong>.
           </div>
           <div style="font-family:` + fontBody + `;font-size:15px;line-height:1.65;color:#d8d0c4;padding-bottom:18px;">{{.Giveaway.PeriodText}}</div>
 {{if .Giveaway.Subscriber}}
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px;">
             <tr><td style="background-color:#0d0d0c;border:1px solid ` + colorBorder + `;border-radius:8px;padding:16px 18px;">
-              <div style="font-family:` + fontMono + `;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:` + colorTan + `;padding-bottom:9px;">Your subscription</div>
+              <div style="font-family:` + fontMono + `;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:` + colorTan + `;padding-bottom:9px;">{{.SubscriptionLabel}}</div>
               <div style="font-family:` + fontBody + `;font-size:14px;line-height:1.65;color:#a89f92;">{{.Giveaway.Situation}}</div>
             </td></tr>
           </table>
@@ -98,9 +98,9 @@ var premiumTmpl = template.Must(template.New("premium").Parse(strings.TrimSpace(
 {{end}}
 {{else}}
           <div style="font-family:` + fontBody + `;font-size:15px;line-height:1.65;color:#a89f92;padding-bottom:20px;">
-            {{if .Gift.Gifter}}<strong style="color:` + colorTanLt + `;font-weight:600;">{{.Gift.Gifter}}</strong> gifted you{{else}}You've been gifted{{end}}
-            <strong style="color:` + colorTanLt + `;font-weight:600;">1 month of ItsBagelBot Premium</strong>.
-            No strings, nothing to do. It's already yours.
+            {{if .Gift.Gifter}}<strong style="color:` + colorTanLt + `;font-weight:600;">{{.Gift.Gifter}}</strong> {{.GiftIntro}}{{else}}{{.GiftIntro}}{{end}}
+            <strong style="color:` + colorTanLt + `;font-weight:600;">{{.ProductPeriod}}</strong>.
+            {{.GiftNoStrings}}
           </div>
 {{if .Gift.Message}}
           <!-- personal note from the buyer -->
@@ -130,19 +130,19 @@ var premiumTmpl = template.Must(template.New("premium").Parse(strings.TrimSpace(
             <tr>
               <td width="18" valign="top" style="padding:22px 0 0;font-family:` + fontBody + `;font-size:14px;color:` + colorTan + `;">&#8226;</td>
               <td style="padding:22px 0 0;font-family:` + fontBody + `;font-size:14px;line-height:1.6;color:` + colorMuted + `;">
-                <span style="color:` + colorWhite + `;font-weight:600;">Priority lane.</span> Your channel's commands jump the queue.
+                <span style="color:` + colorWhite + `;font-weight:600;">{{.PriorityLabel}}</span> {{.PriorityBody}}
               </td>
             </tr>
             <tr>
               <td width="18" valign="top" style="padding:10px 0 0;font-family:` + fontBody + `;font-size:14px;color:` + colorTan + `;">&#8226;</td>
               <td style="padding:10px 0 0;font-family:` + fontBody + `;font-size:14px;line-height:1.6;color:` + colorMuted + `;">
-                <span style="color:` + colorWhite + `;font-weight:600;">Every premium perk.</span> {{.PerkPeriod}}
+                <span style="color:` + colorWhite + `;font-weight:600;">{{.PerksLabel}}</span> {{.PerkPeriod}}
               </td>
             </tr>
             <tr>
               <td width="18" valign="top" style="padding:10px 0 0;font-family:` + fontBody + `;font-size:14px;color:` + colorTan + `;">&#8226;</td>
               <td style="padding:10px 0 0;font-family:` + fontBody + `;font-size:14px;line-height:1.6;color:` + colorMuted + `;">
-                <span style="color:` + colorWhite + `;font-weight:600;">Access to beta features.</span> Try new features during your Premium period.
+                <span style="color:` + colorWhite + `;font-weight:600;">{{.BetaLabel}}</span> {{.BetaBody}}
               </td>
             </tr>
           </table>
@@ -161,7 +161,7 @@ var premiumTmpl = template.Must(template.New("premium").Parse(strings.TrimSpace(
             <tr>
               <td valign="middle">
                 <span style="display:inline-block;">
-                  <span style="font-family:'Caveat',cursive;font-size:26px;font-weight:600;line-height:1;color:` + colorTanLt + `;">the folks behind the bagel</span>
+                  <span style="font-family:'Caveat',cursive;font-size:26px;font-weight:600;line-height:1;color:` + colorTanLt + `;">{{.Signature}}</span>
                   <span style="display:block;height:2px;margin-top:8px;border-radius:2px;background-color:` + colorTan + `;background-image:linear-gradient(90deg,rgba(201,168,124,0.7),rgba(82,183,136,0.5));font-size:0;line-height:0;">&nbsp;</span>
                 </span>
               </td>
@@ -178,10 +178,8 @@ var premiumTmpl = template.Must(template.New("premium").Parse(strings.TrimSpace(
     <!-- footer -->
     <tr><td align="center" style="padding:26px 20px 0;font-family:` + fontBody + `;font-size:12px;line-height:1.7;color:` + colorMuted + `;">
       <div style="border-top:1px solid ` + colorBorder + `;padding-top:16px;padding-bottom:18px;">
-        <strong style="color:` + colorTan + `;">&#128274; Staying safe.</strong>
-        ItsBagelBot will never ask for your password, payment or card details, or login and verification codes by email.
-        We only send from <span style="color:` + colorWhite + `;">@itsbagelbot.com</span>.
-        If a message asks for any of that, it isn't us. Ignore it and reach the real team on
+        <strong style="color:` + colorTan + `;">&#128274; {{.SafetyLabel}}</strong>
+        {{.SafetyBody}}
         <a href="` + discordURL + `" style="color:` + colorTan + `;text-decoration:none;">Discord</a>.
       </div>
       {{.Footer}}<br>
@@ -205,9 +203,29 @@ type premiumData struct {
 	ActionLabel, Footer, DashboardURL                 string
 	Gift                                              *giftData
 	Giveaway                                          *giveawayData
+	Locale                                            string
+	GiftIntro, GiftNoStrings                          string
+	PriorityLabel, PriorityBody                       string
+	PerksLabel                                        string
+	BetaLabel, BetaBody                               string
+	SubscriptionLabel, SafetyLabel, SafetyBody        string
+	GiveawayIntro, Signature                          string
+	ProductPeriod                                     string
+}
+
+func mailChrome(locale string) map[string]string {
+	keys := []string{"mail.gift.intro", "mail.gift.no_strings", "mail.priority.label", "mail.priority.body", "mail.perks.label", "mail.beta.label", "mail.beta.body", "mail.subscription", "mail.safety.label", "mail.safety.body"}
+	out := make(map[string]string, len(keys))
+	for _, key := range keys {
+		out[key] = i18n.T(locale, key)
+	}
+	return out
 }
 
 func renderPremium(data premiumData) (string, error) {
+	if !i18n.Supported(data.Locale) {
+		data.Locale = i18n.DefaultLocale
+	}
 	var body strings.Builder
 	if err := premiumTmpl.Execute(&body, data); err != nil {
 		return "", err

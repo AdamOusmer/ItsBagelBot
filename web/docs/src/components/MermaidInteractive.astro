@@ -30,6 +30,7 @@
 ---
 
 <script>
+  import { docsI18n } from '../i18n/ui';
   import { pushOverlay, removeOverlay, isTopmost, trapFocus } from '@bagel/ui/lib/overlay-stack';
   import panzoom, { type PanZoom } from 'panzoom';
 
@@ -51,20 +52,32 @@
     root.tabIndex = -1;
     root.setAttribute('role', 'dialog');
     root.setAttribute('aria-modal', 'true');
-    root.setAttribute('aria-label', 'Diagram viewer');
+    const { t } = docsI18n(document.documentElement.lang);
+    root.setAttribute('aria-label', t('diagram.viewer'));
     root.innerHTML = `
       <div class="mermaid-modal__backdrop" data-action="close"></div>
       <div class="mermaid-modal__stage" aria-live="polite"></div>
-      <div class="mermaid-modal__toolbar" role="toolbar" aria-label="Diagram controls">
-        <button type="button" data-action="zoom-out" aria-label="Zoom out" title="Zoom out">−</button>
-        <button type="button" data-action="reset"    aria-label="Reset view" title="Reset view">⤢</button>
-        <button type="button" data-action="zoom-in"  aria-label="Zoom in" title="Zoom in">+</button>
-        <button type="button" data-action="close"    aria-label="Close (Esc)" title="Close (Esc)">✕</button>
+      <div class="mermaid-modal__toolbar" role="toolbar" aria-label="">
+        <button type="button" data-action="zoom-out" aria-label="" title="">−</button>
+        <button type="button" data-action="reset"    aria-label="" title="">⤢</button>
+        <button type="button" data-action="zoom-in"  aria-label="" title="">+</button>
+        <button type="button" data-action="close"    aria-label="" title="">✕</button>
       </div>
       <div class="mermaid-modal__hint" aria-hidden="true">
-        drag to pan · scroll to zoom · esc to close
+
       </div>
     `;
+    root.querySelector('.mermaid-modal__toolbar')?.setAttribute('aria-label', t('diagram.controls'));
+    const controls = { 'zoom-out': 'diagram.zoomOut', reset: 'diagram.reset', 'zoom-in': 'diagram.zoomIn', close: 'diagram.close' } as const;
+    for (const [action, key] of Object.entries(controls)) {
+      const button = root.querySelector<HTMLButtonElement>(`button[data-action="${action}"]`);
+      if (button) {
+        button.setAttribute('aria-label', t(key));
+        button.title = t(key);
+      }
+    }
+    const hint = root.querySelector('.mermaid-modal__hint');
+    if (hint) hint.textContent = t('diagram.hint');
     document.body.appendChild(root);
 
     stage = root.querySelector<HTMLDivElement>('.mermaid-modal__stage');
@@ -185,16 +198,18 @@
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'mermaid-fullscreen-btn';
-    btn.setAttribute('aria-label', 'Open diagram in fullscreen viewer');
-    btn.title = 'Open fullscreen';
+    const { t } = docsI18n(document.documentElement.lang);
+    btn.setAttribute('aria-label', t('diagram.open'));
+    btn.title = t('diagram.fullscreen');
     btn.innerHTML = `
       <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
         <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"
               fill="none" stroke="currentColor" stroke-width="2"
               stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
-      <span>Expand</span>
+      <span></span>
     `;
+    btn.querySelector('span')!.textContent = t('diagram.expand');
     panel.appendChild(btn);
 
     btn.addEventListener('click', (e) => {

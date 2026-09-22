@@ -7,6 +7,7 @@ This directory contains the documentation for ItsBagelBot, built with [Astro Sta
 ## 🚀 Project Structure
 
 - `src/content/docs/`: Markdown and MDX files for the documentation routes.
+  - `fr/`: French counterparts of the English documentation pages.
   - `adr/`: Architecture Decision Records.
   - `architecture/`: General architecture documentation.
   - `infrastructure/`: Infrastructure setup and deployment docs.
@@ -59,3 +60,20 @@ Use the project wrapper so the local template is picked up:
 
 - The documentation uses Starlight's standard Markdown and MDX capabilities.
 - We have integrated `astro-mermaid` for diagrams. See `astro.config.mjs` for custom theme configuration.
+
+## Localized documentation
+
+Starlight is configured with English at the root and French under `/fr/`.
+Translated pages mirror the English content path below `src/content/docs/fr/`;
+for example, `src/content/docs/guides/getting-started.md` is translated at
+`src/content/docs/fr/guides/getting-started.md`. A missing French page keeps
+the English documentation available, so contributors can translate one page at
+a time without creating broken navigation. Keep technical names, code, links,
+and diagram identifiers unchanged unless the translated page needs a localized
+explanation around them.
+
+Shared navigation, sidebar, metadata, and diagram-control labels live in
+`src/i18n/locales/<code>.json`. Locale configuration is discovered from these
+catalogs. Run `python3 scripts/translations.py check --strict fr` from the
+repository root to verify French catalog and page coverage. Read
+[the contribution guide](../../TRANSLATIONS.md) for editing steps and new languages.

@@ -1,67 +1,111 @@
 <!-- Copyright (c) 2026 Adam Ousmer. All rights reserved.
      Proprietary. No license granted. See LICENSE.md. -->
-# Translating ItsBagelBot
+# Help translate ItsBagelBot
 
-Every user-facing string lives in plain data files: JSON for interface text and chat replies, Markdown for the legal pages. Adding or improving a language never requires touching code, and nothing in a translation file is ever executed. You edit data, open a pull request, and CI rebuilds everything.
+You can contribute a spelling correction, a better sentence, or a new language. Translation-only pull requests are welcome; you do not need to arrange a code contribution first. No programming experience is needed to improve an existing JSON catalog.
 
-## Where translations live
+## Make your first correction
 
-| Surface | Files | Format |
-| --- | --- | --- |
-| Master locale list (backend validation) | `internal/domain/i18n/locales.json` | JSON array of codes, e.g. `["en", "fr"]` |
-| Chat replies + notification copy (Go services) | `internal/domain/i18n/locales/<code>.json` | Flat JSON: `"key": "template"` |
-| Dashboard + admin console | `web/kit/lib/i18n/locales/<code>.json` | Nested JSON tree, leaves are strings or arrays of strings |
-| Marketing site | `web/marketing/src/i18n/locales/<code>.json` | Flat JSON with dotted keys |
-| Legal pages (terms, privacy, creator terms) | `web/marketing/src/content/legal/<doc>/<code>/` | `meta.json` + one Markdown file per section |
-| Changelog (`/changelog`) | `web/marketing/src/content/changelog/*.json` | One JSON file per release; `title` / `description` are a string or `{ "en": "...", "<code>": "..." }` |
-| Guides (`/guides/*`) | not yet data-driven | Still duplicated `.astro` pages per locale; ask a developer |
+1. Choose the file below for the screen or message you want to improve. On GitHub, open the file and choose **Edit this file** (the pencil).
+2. Find the existing sentence. Change its value, leaving the key, quotes, commas, and placeholders intact.
+3. Choose **Propose changes** and open a pull request. Mention the language and where the message appears. A screenshot or example chat reply helps reviewers.
+4. GitHub runs the translation checks. If one fails, its output names the file and key to fix. A maintainer can help with the syntax and preview.
 
-English (`en`) is the source of truth everywhere. A key missing from your language falls back to English at runtime, so a partial translation is safe to ship: builds never fail on missing translations, only on invalid files.
+For example, translate the value on the right, not `cmd.added` or its placeholders:
 
-## Adding a language (example: Spanish, code `es`)
+```json
+"cmd.added": "@{user} la commande {command} a été ajoutée"
+```
 
-1. Add `"es"` to `internal/domain/i18n/locales.json`.
-2. Copy each `en` file to `es` and translate the values (never the keys):
-   - `internal/domain/i18n/locales/en.json` → `es.json`
-   - `web/kit/lib/i18n/locales/en.json` → `es.json`
-   - `web/marketing/src/i18n/locales/en.json` → `es.json`
-   - `web/marketing/src/content/legal/terms/en/` → `terms/es/` (same for `privacy` and `creator-terms`)
-3. Open a pull request.
+If a sentence appears on screen but you cannot find it in these files, [report a translation gap](https://github.com/AdamOusmer/ItsBagelBot/issues/new?template=translation.yml). Include the page or command and selected language. It may still be hardcoded; do not hide it by adding an unused key.
 
-That is the whole process. The dashboard language switcher, the site's `/es/` routes, hreflang tags, and backend validation all pick the new locale up automatically. You can start with just the console and site files; anything you have not translated yet shows English.
+## Find the right files
 
-Locale codes are lowercase base tags (`es`, `pt-br`), maximum 8 characters.
+Paths are relative to the repository root. English (`en`) is the reference language.
 
-## Rules for JSON files
+| What you are translating | Location |
+| --- | --- |
+| Sesame chat replies and service notifications | `internal/domain/i18n/locales/<code>.json` |
+| Dashboard, admin, public commands page, module labels, and reply-editor copy | `web/kit/lib/i18n/locales/<code>.json` |
+| Marketing website navigation and shared copy | `web/marketing/src/i18n/locales/<code>.json` |
+| Marketing guides | `web/marketing/src/content/guides/` (English guide structure plus `<slug>.<code>.json` string maps) |
+| Terms, privacy, creator terms | `web/marketing/src/content/legal/<document>/<code>/` |
+| Release notes | `web/marketing/src/content/changelog/*.json` (`title` and `description` locale maps) |
+| Documentation navigation, sidebar, and metadata | `web/docs/src/i18n/locales/<code>.json` |
+| Technical documentation website | `web/docs/src/content/docs/` (Markdown/MDX; see the docs README for locale layout) |
+| Manually sent support emails | `mail/` (HTML and plain-text versions; see its README) |
+| Automated Premium, gift, and giveaway emails | `internal/domain/i18n/locales/<code>.json` (`mail.*` keys; renderers in `app/db/transactions/mail/`) |
+| Development-only checkout copy | `web/dashboard/src/routes/(app)/billing/demo-checkout/copy/<code>.json` (kept out of production bundles) |
+| Registered application languages | `internal/domain/i18n/locales.json` |
 
-- Files are UTF-8 JSON. JSON allows no comments and requires exact syntax (a linter or editor with JSON support helps; a malformed file fails the build with the file name).
-- Never rename, add, or delete keys. Translate values only. Extra keys are reported as warnings.
-- Placeholders must survive verbatim:
-  - `{user}`, `{count}`, `{command}` style tokens are substituted at runtime. Keep them exactly as written; you may reorder them in the sentence.
-  - `%s`, `%d` in chat replies are positional (Go format verbs): their order matters, do not reorder them.
-  - `{dashboard_url}` in the Go catalog is replaced with the dashboard link at startup. Keep it.
-- Arrays are ordered lists (feature bullets, headline words): translate each entry, keep the count and order.
-- `lang.name` is the name of your language in itself ("Español", not "Spanish"). It labels the language switcher.
-- `lang.ogLocale` (site catalog) is the social-card locale code in `xx_XX` form, e.g. `es_ES`.
+The JSON catalogs have different shapes: chat and website catalogs use flat keys; the console uses nested objects and some arrays. Follow the neighboring English file. Do not edit generated `web/kit/lib/i18n/keys.d.ts` by hand.
 
-## Rules for legal Markdown
+Broadcaster-authored command replies and saved custom templates are their content. Changing the interface language must not rewrite those messages. Translate the built-in defaults and editor hints instead.
 
-- Each section file is `NN-anchor.md`. Keep the filename exactly: the number is the order and the rest is the page anchor that deep links point at.
-- Translate the frontmatter `heading` and `plain` (the plain-words summary) and the body below the `---` line.
-- Basic Markdown only: paragraphs, bold, links, lists. The few inline HTML links (like the Tebex link) can stay as they are.
-- `meta.json` holds the page title, description, and the "updated" label.
+## Check your changes locally (optional)
 
-## Rules for changelog JSON
+From the repository root, with Python 3 installed and no other dependencies:
 
-- One file per GitHub release: `web/marketing/src/content/changelog/<version>.json`. Name it after the git tag (`v0.1.0-beta.json`).
-- Required fields: `tag` (`alpha`, `beta`, `prerelease`, or `release`), `version` (the git tag shown on the page), `date` (ISO, used for sort and display), `title`, `description`, `github` (the GitHub release URL).
-- `title` and `description` are either a plain English string or a locale map with `en` required. Add your language as another key (`"fr": "..."`). Missing locales fall back to English; do not rename keys.
+```sh
+python3 scripts/translations.py check
+```
 
-## What happens when something is missing or broken
+This checks all four UI/chat catalogs for valid JSON, duplicate keys, invalid values, empty translations, unknown keys, and damaged placeholders. It also prints coverage by language and surface.
 
-- Missing key or file: English shows in its place. The build logs and service startup logs list every gap per locale (warnings, never failures).
-- Invalid JSON, a non-string value, or a missing `en` file: the build or service startup fails immediately and names the file. That protects production from a corrupt catalog, not from an incomplete translation.
+```sh
+python3 scripts/translations.py check --missing
+python3 scripts/translations.py check --strict fr
+```
 
-## Submitting
+`--missing` lists work still to translate. `--strict fr` requires full French catalog, documentation-page, and legal-file coverage, as CI does. New languages may be partial and fall back to English. These counts measure catalog entries, not linguistic quality or all website prose; file presence does not establish a faithful translation. Legal pages, guides, documentation, and static email files need their own review and preview.
 
-Open a pull request with your files. CI rebuilds the Go services, both console apps, and the site; Cloudflare Pages produces a preview of the marketing site. Nothing goes live until the PR is merged.
+Developers should also run the checks for the surface they change:
+
+```sh
+# Chat replies and notification catalogs
+ go test ./internal/domain/i18n ./app/twitch/sesame/modules ./app/twitch/sesame/engine
+# Console catalog shape and generated English key types
+ node web/kit/scripts/check-i18n.mjs
+ node web/kit/scripts/gen-i18n-keys.mjs
+# After installing the locked web dependencies
+ cd web
+ bun run check
+```
+
+Keep English and French complete when introducing new product copy. A translation-only change to French does not require regenerating the English key types. Review template formatting, links, plural forms, accessibility labels, error states, and narrow screens in the affected language.
+
+## Start another language
+
+Use a lowercase locale such as `es` or `pt-br` (maximum eight characters). The helper creates partial chat, console, website, and docs-UI catalogs and registers the locale without copying English sentences that might look like completed translations:
+
+```sh
+python3 scripts/translations.py new es --name 'Español' --og-locale es_ES
+```
+
+It refuses to overwrite an existing locale. Add translated keys from the neighboring English files to the new catalogs. Start small; absent keys use English. The helper covers the application catalogs, not the separate guide, legal, documentation, or mail content.
+
+Without Python, create the same four `<code>.json` files manually and add the code to `internal/domain/i18n/locales.json`. Include `lang.name` in the website catalog, nested `lang.name` in the console catalog, and `lang.ogLocale` in the website catalog. The docs UI catalog also needs `lang.name`. A chat catalog may begin as `{}`. Keep the files and registry together so the frontend does not offer a language the backend rejects.
+
+Ask a maintainer to review locale selection, route generation, and fallback before enabling the new language in production. Some surfaces have separate locale configuration; adding an application catalog is not a claim that every document is translated.
+
+## Preserve the parts the software reads
+
+- Translate values only. Keep keys, command names (`!raffle`, `!time`), URLs, HTML attributes, and variable syntax unchanged.
+- Keep named placeholders such as `{user}`, `{count}`, `{command}`, and `{dashboard_url}` verbatim. You can move them within a sentence.
+- Keep Go formatting placeholders such as `%s`, `%d`, and `%.1f` in the same order and with the same type. `%%` means a literal percent sign.
+- Keep template markers such as `[[ ... ]]` and `{{.Field}}` unchanged. Translate the surrounding prose in both HTML and plain-text email variants.
+- Keep arrays in the same order and with the same number of entries.
+- Preserve intentional empty values; do not replace real text with an empty translation.
+- Keep product names and security promises accurate. Do not translate sender domains or weaken anti-phishing instructions.
+
+## Guides, legal pages, and release notes
+
+Marketing guides are data-driven; they are **not** separate Astro pages per language. Translate the plain JSON `<slug>.<code>.json` files; English structure remains in `<slug>.en.ts` and does not need editing. A locale's string map overlays the English structure. Preserve string IDs, block order, anchors, and widget/sample data. Existing guide files must satisfy the guide parity check; a completely absent locale guide falls back to English. The hub has its own `hub.<code>.json` file. Ask a maintainer to generate the initial guide key map when starting a language.
+
+Legal sections are `NN-anchor.md` files. Preserve names and anchors; translate the `heading`, `plain` summary, and body. `meta.json` contains the title, description, and update label. Legal meaning needs maintainer review, not just a passing build.
+
+Release files identify a version with `tag`, `version`, `date`, and `github`; leave those unchanged. Add the locale inside the `title` and `description` maps, keeping `en`. If either field is currently a plain English string, convert it to a map with `en` plus the new locale. Missing locales fall back to English.
+
+## Review expectations
+
+A small correction is enough for a useful contribution. Describe what changed and your familiarity with the language; machine-assisted drafts should be identified so a fluent reviewer can check them. Passing checks cannot judge tone, meaning, or fluency. Maintainers review and merge changes; this guide does not ask contributors to publish or send anything to users.

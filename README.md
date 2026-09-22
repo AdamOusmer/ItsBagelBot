@@ -196,6 +196,8 @@ This project exists thanks to the people who contribute.
 If you have suggestions for how ItsBagelBot could be improved, or want to report a bug, please open an issue! I'd love
 to hear your ideas and help you fix any problems.
 
+Translation-only pull requests are welcome without prior contact. See [the translation guide](TRANSLATIONS.md) for file locations, browser-based editing, and validation.
+
 For contributing code, please contact me directly at [contact@adam-ousmer.dev](mailto:contact@adam-ousmer.dev) before making
 any changes or submitting a pull request.
 

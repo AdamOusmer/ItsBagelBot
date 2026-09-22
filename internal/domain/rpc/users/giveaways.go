@@ -38,6 +38,7 @@ type PremiumGrant struct {
 // data and lists all committed giveaway intervals for the account.
 type PremiumCoverage struct {
 	UserID             uint64         `json:"user_id"`
+	Locale             string         `json:"locale,omitempty"`
 	Status             string         `json:"status"`
 	IsActive           bool           `json:"is_active"`
 	Banned             bool           `json:"banned"`

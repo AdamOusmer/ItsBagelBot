@@ -1,0 +1,26 @@
+name: Translations
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  catalogs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Test translation tooling
+        run: python3 -m unittest discover -s scripts -p 'test_translations.py'
+      - name: Check catalog coverage and placeholders
+        run: python3 scripts/translations.py check --strict fr
+      - name: Set up Bun for guide translation checks
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.2
+      - name: Validate guide and module template translations
+        run: bun test web/marketing/src/lib/guides/translations.test.ts web/kit/lib/module-copy.test.ts web/kit/lib/engine/validation-messages.test.ts

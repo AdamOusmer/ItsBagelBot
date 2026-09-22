@@ -17,7 +17,7 @@ import {
 import { rumTransform } from '@bagel/kit/server/rum';
 import { ValkeyRateLimiter, warmRateLimiter } from '@bagel/kit/server/rate-limit';
 import { warmSessionRevocation } from '@bagel/kit/server/session-revocation';
-import { detectLocale, isLocale, LOCALE_COOKIE } from '@bagel/kit/i18n';
+import { detectLocale, isLocale, LOCALE_COOKIE, ensureCatalog } from '@bagel/kit/i18n';
 import { startInvalidationListener } from '$lib/server/services';
 import { assertConfigSane } from '$lib/server/config-sanity';
 
@@ -204,6 +204,8 @@ export const handle: Handle = async ({ event, resolve }) => {
 
   const locale = resolveLocale(event);
   event.locals.locale = locale;
+  // Actions and server loads run before the universal layout loads its catalog.
+  await ensureCatalog(event.locals.locale);
   // Custom-cursor preference: only an explicit '0' cookie turns it off, so a
   // fresh visitor (no cookie) keeps the default animated cursor.
   event.locals.cursorEnabled = event.cookies.get(CURSOR_COOKIE) !== '0';

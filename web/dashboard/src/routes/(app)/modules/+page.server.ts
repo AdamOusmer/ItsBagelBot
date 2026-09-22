@@ -15,6 +15,7 @@ import { effectiveId } from '$lib/server/board';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { fail, redirect } from '@sveltejs/kit';
+import { actionError } from '$lib/server/action-errors';
 
 // Gated on the build-time `dev` constant first, so Rollup erases every demo
 // branch (and the dynamic demo-data import inside it) from production builds.
@@ -81,9 +82,9 @@ type ToggleTarget = { denied: ReturnType<typeof fail> } | { uid: string };
 async function resolveToggle(name: string, locals: App.Locals): Promise<ToggleTarget> {
   const session = locals.session;
   const def = moduleDef(name);
-  if (!def || def.toggleable === false || def.parent) return { denied: fail(400, { ok: false, error: 'Unknown module.' }) };
-  if (!assertModuleWritable(session, def)) return { denied: fail(403, { ok: false, error: 'Not allowed.' }) };
-  if (await moduleLocked(locals, def)) return { denied: fail(403, { ok: false, error: 'Premium only while in beta.' }) };
+  if (!def || def.toggleable === false || def.parent) return { denied: fail(400, { ok: false, error: actionError(locals.locale, 'Unknown module.') }) };
+  if (!assertModuleWritable(session, def)) return { denied: fail(403, { ok: false, error: actionError(locals.locale, 'Not allowed.') }) };
+  if (await moduleLocked(locals, def)) return { denied: fail(403, { ok: false, error: actionError(locals.locale, 'Premium only while in beta.') }) };
   return { uid: effectiveId(session) };
 }
 
@@ -100,7 +101,7 @@ export const actions: Actions = {
   // Quick tile on/off: flips enabled while preserving the stored config.
   toggle: async (event) => {
     const ctx = await actionContext(event);
-    if (!ctx) return fail(401, { ok: false, error: 'Not signed in.' });
+    if (!ctx) return fail(401, { ok: false, error: actionError(event.locals.locale, 'Not signed in.') });
 
     const f = ctx.form;
     const name = String(f.get('name') ?? '');

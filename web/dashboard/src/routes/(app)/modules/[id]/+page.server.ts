@@ -15,6 +15,7 @@ import { effectiveId } from '$lib/server/board';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { error, fail, redirect } from '@sveltejs/kit';
+import { actionError } from '$lib/server/action-errors';
 
 // Gated on the build-time `dev` constant first, so Rollup erases every demo
 // branch (and the dynamic demo-data import inside it) from production builds.
@@ -47,7 +48,7 @@ function asConfig(raw: unknown): { config: Record<string, string>; revision: num
 export const load: PageServerLoad = async ({ params, locals }) => {
   gateModules(locals.session);
   const def = moduleDef(params.id);
-  if (!def || def.hidden) throw error(404, 'Unknown module');
+  if (!def || def.hidden) throw error(404, actionError(locals.locale, 'Unknown module'));
   // href modules (channel points, timers, govee) own a bespoke page; the generic
   // reply inspector cannot render them, so send any direct hit there.
   if (def.href) throw redirect(302, def.href);
@@ -128,12 +129,12 @@ async function resolveWrite(id: string, locals: App.Locals): Promise<WriteTarget
   const session = locals.session;
   gateModules(session);
   const def = moduleDef(id);
-  if (!def || def.href) return { denied: fail(404, { ok: false, error: 'Unknown module.' }) };
+  if (!def || def.href) return { denied: fail(404, { ok: false, error: actionError(locals.locale, 'Unknown module.') }) };
   // gateModules above only proves the 'modules' section; a module with its
   // own delegation grant (channel points) needs its own scope checked too.
-  if (!assertModuleWritable(session, def)) return { denied: fail(403, { ok: false, error: 'Not allowed.' }) };
-  if (await moduleLocked(locals, def)) return { denied: fail(403, { ok: false, error: 'Premium only while in beta.' }) };
-  if (!DEMO && !session) return { denied: fail(401, { ok: false, error: 'Not signed in.' }) };
+  if (!assertModuleWritable(session, def)) return { denied: fail(403, { ok: false, error: actionError(locals.locale, 'Not allowed.') }) };
+  if (await moduleLocked(locals, def)) return { denied: fail(403, { ok: false, error: actionError(locals.locale, 'Premium only while in beta.') }) };
+  if (!DEMO && !session) return { denied: fail(401, { ok: false, error: actionError(locals.locale, 'Not signed in.') }) };
   return { def, uid: effectiveId(session) };
 }
 
@@ -184,7 +185,7 @@ export const actions: Actions = {
 
     const f = await request.formData();
     const partial = parsePartial(f.get('partial'), def);
-    if (!partial) return fail(400, { ok: false, error: 'Invalid patch.' });
+    if (!partial) return fail(400, { ok: false, error: actionError(locals.locale, 'Invalid patch.') });
     const requested = f.get('is_enabled') === 'on';
     const expectedRev = Number(f.get('expected_rev') ?? '0') || 0;
 

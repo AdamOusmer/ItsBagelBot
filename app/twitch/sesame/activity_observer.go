@@ -5,10 +5,12 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/internal/activity"
+	"ItsBagelBot/internal/domain/i18n"
 )
 
 // activityObserver turns a handled command dispatch into the Overview
@@ -34,7 +36,7 @@ func (activityObserver) Observe(ev engine.ObservedEvent) {
 	}
 	row := activity.Row{
 		Kind:       activity.KindCommand,
-		Text:       "!" + ev.Command + " answered @" + ev.Actor,
+		Text:       fmt.Sprintf(i18n.T(ev.Locale, "activity.command.answered"), ev.Command, ev.Actor),
 		Meta:       strconv.Itoa(ev.DurationMS) + "ms",
 		At:         ev.At,
 		DurationMS: ev.DurationMS,

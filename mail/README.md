@@ -17,13 +17,19 @@ the mail (Resend dashboard, Gmail with an HTML-paste add-on, a help desk).
 | `support-email.html` | The template. Copy it, replace every `[[ ... ]]`, paste as the **HTML** body. |
 | `support-email.txt`  | Plain-text twin. Paste as the **plain-text** body so text-only clients get a clean version. |
 | `example-filled.html` | The template with everything filled in. Open in a browser to see the finished look. Do **not** send this one. |
+| `example-filled.fr.html` | French, fully filled demonstration of the reply template. Open in a browser to preview it. Do **not** send this one. |
 | `received.html` / `received.txt` | Ready-to-send auto-acknowledgment: confirms the message landed, states open hours (10am–5pm most active days), and links the Discord for faster replies. Fire it on receipt. Only edit the hours line if the window changes. |
+| `received.fr.html` / `received.fr.txt` | French version of the ready-to-send acknowledgment. Use the pair together. |
+| `support-email.fr.html` / `support-email.fr.txt` | French versions of the reply template. The `[[ ... ]]` markers are intentionally identical to the English pair so the same handoff checklist applies. |
 
 ## Recognising us / anti-phishing
 
 Support mail is a prime phishing target, so every template carries the same two
 fixed pieces. **Do not edit, personalise, or remove them.** Their whole value is
-that they are identical on every email, so users learn the pattern.
+that they are identical on every email in that language, so users learn the
+pattern. The English and French templates each keep their own locked wording;
+translate the meaning faithfully when adding another language, but do not vary
+the security copy between messages in that language.
 
 1. **Verified-sender strip** (header, under the wordmark): a green `✓ Official
    ItsBagelBot email · itsbagelbot.com`. This is the at-a-glance "it's really

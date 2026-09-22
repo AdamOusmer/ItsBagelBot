@@ -7,6 +7,7 @@
 // the account's canonical login. A failed purge surfaces as edgeDelayed
 // rather than failing the request the write already committed.
 import { describe, expect, mock, test } from 'bun:test';
+import { staticText } from '../../../../../kit/lib/i18n/static';
 
 let setCommandsPageCalls: [string, boolean][] = [];
 let purgeUrls: string[][] = [];
@@ -22,7 +23,8 @@ mock.module('@bagel/kit/i18n', () => ({
 mock.module('@bagel/kit', () => ({
   KEY_VALUE_MAX: 4096,
   slugifyName: (s: string) => s.toLowerCase(),
-  GRANTABLE_SECTIONS: ['commands', 'modules']
+  GRANTABLE_SECTIONS: ['commands', 'modules'],
+  translate: (locale: 'en' | 'fr', key: string) => staticText(locale ?? 'en', key)
 }));
 mock.module('$lib/server/session', () => ({
   ACCOUNT_DELETED_COOKIE: 'bb_deleted',
@@ -72,6 +74,9 @@ mock.module('$lib/server/services', () => ({
   })
 }));
 
+const actionErrors = await import('../../../lib/server/action-errors');
+mock.module('$lib/server/action-errors', () => actionErrors);
+
 const { actions } = await import('./+page.server');
 
 function formRequest(fields: Record<string, string>): Request {
@@ -85,11 +90,20 @@ function formRequest(fields: Record<string, string>): Request {
 
 type Session = { user_id: string; delegate_of?: string; impersonator_id?: string };
 
-function event(session: Session | null, fields: Record<string, string>) {
-  return { request: formRequest(fields), locals: { session } } as never;
+function event(session: Session | null, fields: Record<string, string>, locale: 'en' | 'fr' = 'en') {
+  return { request: formRequest(fields), locals: { session, locale } } as never;
 }
 
 describe('setCommandsPage action', () => {
+  test('a French refusal preserves the authorization status and localizes its message', async () => {
+    setCommandsPageCalls = [];
+    const result = await actions.setCommandsPage(event(null, {}, 'fr')) as { status: number; data: { error: string } };
+    expect(result.status).toBe(403);
+    expect(result.data.error).toBe(staticText('fr', 'serverErrors.notAllowed'));
+    expect(result.data.error).not.toBe('Not allowed.');
+    expect(setCommandsPageCalls).toEqual([]);
+  });
+
   test('a delegate session is refused', async () => {
     setCommandsPageCalls = [];
     const result = (await actions.setCommandsPage(event({ user_id: '1', delegate_of: '2' }, { enabled: 'on' }))) as {

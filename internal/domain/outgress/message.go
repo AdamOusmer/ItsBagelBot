@@ -11,12 +11,13 @@ import "ItsBagelBot/pkg/codec"
 // Message is the wire contract every producer publishes on the outgress subjects.
 // Workers decode this struct from the native bus message payload.
 type Message struct {
-	Type          string           `json:"type"`           // "chat", "api" or "eventsub"
-	BroadcasterID string           `json:"broadcaster_id"` // target channel
-	SenderID      string           `json:"sender_id"`      // the bot's user ID
-	Endpoint      string           `json:"endpoint"`       // Helix path, e.g. "/helix/chat/messages"
-	Method        string           `json:"method"`         // HTTP method
-	Payload       codec.RawMessage `json:"payload"`        // raw JSON body
+	Type          string           `json:"type"`             // "chat", "api" or "eventsub"
+	BroadcasterID string           `json:"broadcaster_id"`   // target channel
+	Locale        string           `json:"locale,omitempty"` // broadcaster UI language for feed copy
+	SenderID      string           `json:"sender_id"`        // the bot's user ID
+	Endpoint      string           `json:"endpoint"`         // Helix path, e.g. "/helix/chat/messages"
+	Method        string           `json:"method"`           // HTTP method
+	Payload       codec.RawMessage `json:"payload"`          // raw JSON body
 	// As selects whose token the call runs under: "bot", "broadcaster" (alias
 	// "user"), or "app". Empty routes by endpoint (the default). Use it to send
 	// chat as the streamer ("broadcaster") instead of the bot.

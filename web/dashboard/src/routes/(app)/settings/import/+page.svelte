@@ -48,6 +48,7 @@
     getI18n
   } from '@bagel/kit';
   import { applyImportCaps } from '@bagel/kit/importer/caps';
+  import { localizeImporterError } from '$lib/importer-errors';
   import {
     CHIP_LABEL_KEYS,
     IMPORT_STRATEGIES,
@@ -385,7 +386,7 @@
       previewResult = r.preview;
       step = 'review';
     } else {
-      previewError = r.error || t('import.errGeneric');
+      previewError = localizeImporterError(r.error, t) || t('import.errGeneric');
     }
     submitting = false;
   }
@@ -513,7 +514,7 @@
       const r = deserialize(await res.text());
       if (r.type === 'failure') {
         const d = r.data as { error?: string } | undefined;
-        commitError = d?.error || t('import.errGeneric');
+        commitError = localizeImporterError(d?.error, t) || t('import.errGeneric');
       } else if (r.type === 'success') {
         const d = r.data as { ok?: boolean; commit?: CommitResponse } | undefined;
         if (d?.ok && d.commit) {

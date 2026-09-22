@@ -21,13 +21,17 @@ func SubscribeEmail(w Wiring, subject string) error {
 	repo := w.Repo
 	return bus.ServeForUser[usersrpc.EmailGetRequest, usersrpc.EmailGetReply](w.Within(emailBudget), subject,
 		func(ctx context.Context, _ usersrpc.EmailGetRequest, id uint64) (usersrpc.EmailGetReply, error) {
+			user, userErr := repo.FindUser(ctx, id)
+			if userErr != nil {
+				return usersrpc.EmailGetReply{}, userErr
+			}
 			email, err := repo.ContactEmail(ctx, id)
 			if errors.Is(err, repository.ErrNoContactEmail) {
 				return usersrpc.EmailGetReply{}, nil
 			}
 			// A surfaced error never carries the address; it is a lookup or
 			// unseal failure and safe for the caller to see.
-			return usersrpc.EmailGetReply{Email: email}, err
+			return usersrpc.EmailGetReply{Email: email, Locale: user.Locale}, err
 		},
 	)
 }

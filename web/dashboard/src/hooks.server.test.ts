@@ -33,6 +33,7 @@ mock.module('@bagel/kit/server/rate-limit', () => ({
 mock.module('@bagel/kit/server/session-revocation', () => ({ warmSessionRevocation: () => {} }));
 mock.module('@bagel/kit/i18n', () => ({
   detectLocale: () => 'en',
+  ensureCatalog: async () => {},
   isLocale: (v: unknown) => v === 'en' || v === 'fr',
   LOCALE_COOKIE: 'bb_locale'
 }));

@@ -21,15 +21,6 @@ import (
 const (
 	timeModuleName = engine.TimeModuleName
 	timeCooldown   = 15 * time.Second
-
-	// defaultTimeTemplate is the built-in !time reply, used when the broadcaster
-	// leaves the message blank. Mirrored as the catalog defaultMessage in
-	// web/kit/lib/catalog/time.ts.
-	defaultTimeTemplate = "It is currently {time} for the streamer."
-
-	// defaultLookupTemplate is the built-in !time <place> reply, used when the
-	// broadcaster leaves LookupMessage blank.
-	defaultLookupTemplate = "It is currently {time} in {place}."
 )
 
 // timeConfig is the module's dashboard configuration. It lives in the engine
@@ -88,7 +79,7 @@ func timeHomeReply(log *zap.Logger, c *module.Context, now time.Time) string {
 	}
 	text := strings.TrimSpace(cfg.Message)
 	if text == "" {
-		text = defaultTimeTemplate
+		text = i18n.T(c.Locale, "time.default")
 	}
 	return expandTimeTemplate(text, timeRender{local: now.In(loc), format: cfg.Format, timezone: strings.TrimSpace(cfg.Timezone)}, c)
 }
@@ -105,7 +96,7 @@ func timeLookupReply(c *module.Context, now time.Time, place string) string {
 	_ = c.Decode(&cfg)
 	text := strings.TrimSpace(cfg.LookupMessage)
 	if text == "" {
-		text = defaultLookupTemplate
+		text = i18n.T(c.Locale, "time.lookup")
 	}
 	return expandTimeTemplate(text, timeRender{local: now.In(m.Loc), format: cfg.Format, timezone: m.Zone, place: m.Label}, c)
 }

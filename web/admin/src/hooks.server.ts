@@ -16,7 +16,7 @@ import {
   tagTransaction
 } from '@bagel/kit/server/hooks';
 import { rumTransform } from '@bagel/kit/server/rum';
-import { detectLocale, isLocale, LOCALE_COOKIE } from '@bagel/kit/i18n';
+import { detectLocale, isLocale, LOCALE_COOKIE, ensureCatalog } from '@bagel/kit/i18n';
 import { startInvalidationListener } from '$lib/server/services';
 import { assertConfigSane } from '$lib/server/config-sanity';
 import { ensureLaneStoreHA } from '$lib/server/lanes';
@@ -114,6 +114,8 @@ const PERMISSIONS_POLICY = 'camera=(), microphone=(), geolocation=(), payment=()
 export const handle: Handle = async ({ event, resolve }) => {
   event.locals.session = openSessionCookie(event, COOKIE, open);
   event.locals.locale = resolveLocale(event);
+  // Actions and server loads run before the universal layout loads its catalog.
+  await ensureCatalog(event.locals.locale);
 
   // Staff gate for every non-public request: form actions and +server.ts
   // endpoints included, which layout loads never cover. The per-route

@@ -8,6 +8,7 @@ import { normalizeCounterName } from '@bagel/kit/validation';
 import { dev } from '$app/environment';
 import { allows, requireRole, type AdminIdentity } from '$lib/server/access';
 import { audit } from '$lib/server/audit';
+import { actionError, adminText } from '$lib/server/admin-action';
 import {
   botCounterList,
   botCounterCreate,
@@ -55,7 +56,7 @@ function mutate(op: string, run: Mutation) {
   return (event: RequestEvent) =>
     mutateAction<AdminIdentity>(event, {
       gate: () => requireRole(event, 'counters.manage'),
-      refusal: () => fail(403, { ok: false, error: 'forbidden' }),
+      refusal: () => fail(403, { ok: false, error: actionError(event.locals.locale, 'forbidden') }),
       demo: DEMO,
       run: (_admin, f) => run(f),
       // A failed write is audited too, with the name it was attempted on: a
@@ -67,7 +68,7 @@ function mutate(op: string, run: Mutation) {
         return fail(400, { ok: false, error });
       },
       audited: (admin, detail) => audit(admin, { action, target: 'bot', detail, ok: true }),
-      invalid: 'Invalid counter.'
+      invalid: adminText(event.locals.locale, 'admin.counters.invalid')
     });
 }
 

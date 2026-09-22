@@ -16,6 +16,7 @@ import {
   tModuleFieldPart,
   tModuleLabel,
   tModuleReplyPart,
+  tModuleReplyDefault,
   tModuleTagline,
   tPerm,
   tPermBadge
@@ -107,12 +108,31 @@ describe('catalog i18n overlay', () => {
     for (const def of MODULE_CATALOG) expectModuleOverlay(def);
   });
 
+  test('every module reply has an explicit default in both locale catalogs', () => {
+    for (const def of MODULE_CATALOG) {
+      for (const reply of def.replies) {
+        const key = catalogKey(def.id, 'replies', reply.key, 'defaultMessage');
+        expect(lookup(en, key)).toBeDefined();
+        expect(lookup(fr, key)).toBeDefined();
+      }
+    }
+  });
+
   test('French overlay changes CODM copy without losing the command names', () => {
     const def = moduleDef('codm')!;
     expect(tModuleLabel(tFr, def)).toBe('Profil CODM');
     expect(tModuleTagline(tFr, def)).toContain('Call of Duty: Mobile');
     expect(tModuleFieldPart(tFr, def.id, def.settings![0], 'label')).toBe('Compte CODM lié');
     expect(tModuleReplyPart(tFr, def.id, def.replies[0], 'event')).toBe('!codm [UID/pseudo exact]');
+  });
+
+  test('French queue previews use the localized default without changing the stored override', () => {
+    const def = moduleDef('queue')!;
+    const reply = def.replies.find((r) => r.key === 'join')!;
+    expect(tModuleReplyDefault(tFr, def.id, reply)).toBe('@{user} vous avez rejoint la file en position n°{pos}.');
+    const storedOverride = '';
+    expect(storedOverride).toBe('');
+    expect(tModuleReplyDefault(tEn, def.id, reply)).toBe(reply.defaultMessage);
   });
 
   test('linkedOnly falls back to the shared overlay when a module does not override it', () => {

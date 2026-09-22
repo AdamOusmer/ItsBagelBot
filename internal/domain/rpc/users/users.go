@@ -200,7 +200,8 @@ type EmailGetRequest struct {
 // EmailGetReply carries the contact email or a terminal error. An empty Email
 // with empty Error means the user has none on record yet.
 type EmailGetReply struct {
-	Email string `json:"email,omitempty"`
+	Email  string `json:"email,omitempty"`
+	Locale string `json:"locale,omitempty"`
 	rpc.Refusal
 }
 
