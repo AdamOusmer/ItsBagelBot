@@ -119,7 +119,13 @@ export type Resolve = (token: Token) => string | null;
  * declines it, and the chain moves on; a name nobody owns stays literal,
  * which is exactly what the bot does with a token no mounted scope answers. */
 export interface SampleScope {
-  owns(name: string): boolean;
+  // payload is optional and only read by the two scopes that need it to
+  // split one name between two families (uses' bare {count} vs. the store's
+  // {count:<name>}, scope.Uses/scope.Store's Owns(v Var) mirror): every other
+  // scope's owns is a plain (name: string) => boolean and TS accepts it here
+  // unchanged, since a function with fewer parameters satisfies a type that
+  // declares more.
+  owns(name: string, payload?: string | null): boolean;
   get(token: Token): string | null;
 }
 
@@ -284,7 +290,7 @@ function condSeg(token: VarToken, cond: Cond, resolve: Resolve): Seg {
  * answers it, and a name nobody owns is left literal. */
 function chainResolver(chain: readonly SampleScope[]): Resolve {
   return (token) => {
-    const scope = chain.find((s) => s.owns(token.name));
+    const scope = chain.find((s) => s.owns(token.name, token.payload));
     return scope ? scope.get(token) : null;
   };
 }
@@ -570,8 +576,9 @@ function viewerSample(token: Token): string | null {
   return VIEWER_SAMPLES[token.name];
 }
 
-/** scope.Uses' mirror: {uses}, how many times this custom command has been
- * run in this channel.
+/** scope.Uses' mirror: {uses} and bare {count} (the canonical spelling,
+ * scope/uses.go), how many times this custom command has been run in this
+ * channel.
  *
  * The preview shows a stand-in because the real number is the command row's
  * own counter, which the surfaces that rehearse a template do not carry. Two
@@ -585,9 +592,14 @@ function viewerSample(token: Token): string | null {
  * module's own reply stays literal there — replyChain leaves it literal here
  * for the same reason, since this scope is not in that chain.
  *
- * The token takes no payload, so a span carrying one stays literal. */
+ * owns reads payload to split the name "count" from COUNTER_SCOPE, which
+ * answers {count:<name>} (a payload) rather than this bare form — the exact
+ * split scope.Uses.Owns/scope.Store.Owns make on the Go side by inspecting
+ * the whole Var. Without it, chain.find's name-only lookup would always stop
+ * at whichever of the two scopes comes first, which is what motivated
+ * SampleScope.owns taking payload at all. */
 const USES_SCOPE: SampleScope = {
-  owns: (name) => name === 'uses',
+  owns: (name, payload) => name === 'uses' || (name === 'count' && (payload ?? null) === null),
   get: (token) => (token.payload === null ? USES_SAMPLE : null)
 };
 
@@ -776,18 +788,24 @@ function timeSample(token: Token): string | null {
   return token.payload.trim() === '' ? null : TIME_PLACE_SAMPLE;
 }
 
-/** scope.Store's mirror: {counter:<name>} bumps and renders the counter, and
- * {count:<name>} reads it without bumping. Both spell a counter the same way,
- * so one parser answers both; the preview shows one number for either, since
- * a preview cannot know whether the counter is about to be bumped. The
+/** scope.Store's mirror: {counter:<name>} and {count:<name>} both READ the
+ * counter — the write moved to the command's own "bump a counter" option
+ * (see app/db/commands/ent/schema/commands.go's bump_counter field; a
+ * template no longer bumps anything). Both spell a counter the same way, so
+ * one parser answers both, and the preview shows one number for either. The
  * name normalizes like NormalizeName (trim, drop one leading '!', trim,
- * lower-case). A {counter:target:<name>} spelling keys the bump on the
- * mentioned viewer instead of the sender (issue #479); it rehearses the same
- * way once the addressing prefix comes off. Bot-scope counters (bot:…) are
- * admin-only and an empty name never resolves, so both stay literal, exactly
- * like the engine. */
+ * lower-case). A {counter:target:<name>} spelling reads the mentioned
+ * viewer's own bucket instead of the channel's (issue #479); it rehearses
+ * the same way once the addressing prefix comes off. An empty name never
+ * resolves, so it stays literal, exactly like the engine.
+ *
+ * owns claims bare "counter" unconditionally (it takes no payload-less
+ * form, so a bare {counter} simply renders literal via get below, the same
+ * outcome as not owning it at all) but "count" only WITH a payload — bare
+ * {count} belongs to USES_SCOPE. See that scope's owns for why payload
+ * matters to the split. */
 const COUNTER_SCOPE: SampleScope = {
-  owns: (name) => name === 'counter' || name === 'count',
+  owns: (name, payload) => name === 'counter' || (name === 'count' && (payload ?? null) !== null),
   get: counterSample
 };
 
@@ -798,7 +816,7 @@ function normalizeCounterName(payload: string | null): string {
 
 function counterSample(token: Token): string | null {
   const base = normalizeCounterName(token.payload);
-  if (base === '' || base.startsWith('bot:')) return null;
+  if (base === '') return null;
   return COUNTER_SAMPLE;
 }
 

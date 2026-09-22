@@ -218,7 +218,7 @@ describe('full-fixture assertions (from TestParse_FullFixture)', () => {
     });
     expect(byName.get('cookie')).toMatchObject({
       permission: 'everyone',
-      responses: ['{counter:cookie} cookies eaten! {counter:lurk} via $readapi(https://example.api)']
+      responses: ['{count} cookies eaten! {counter:lurk} via $readapi(https://example.api)']
     });
     expect(byName.get('multi')!.responses).toEqual(['line one', 'line two', 'line three']);
     expect(byName.get('slots')).toMatchObject({ permission: 'everyone', responses: ['$arg1 vs $arg2 who wins?!'] });
@@ -348,8 +348,15 @@ describe('$parameter translation (vectors from parameters_test)', () => {
       want: 'roll $randnum(abc)',
       warnSub: ['$randnum']
     },
-    { name: 'count uses cmd name', input: '$count times', cmd: 'Death', want: '{counter:death} times', noWarn: true },
-    { name: 'count strips bang', input: '!c $count', cmd: '!Cookie', want: '!c {counter:cookie}', noWarn: true },
+    // $count auto-increments per run upstream, same as {count}/{uses} here, so
+    // it maps onto that rather than a named {counter:<cmdName>} (which would
+    // silently create/bind a channel counter the broadcaster never named).
+    // {count} takes no payload, so the command name plays no part any more.
+    // Mapped, but its MEANING changed (a live running total -> this bot's own
+    // use count from zero), so it warns once even though the span itself
+    // translated cleanly — see SLCB_CODE.countRemapped.
+    { name: 'count in a command', input: '$count times', cmd: 'Death', want: '{count} times', warnSub: ['{count}'] },
+    { name: 'count ignores the command name entirely', input: '!c $count', cmd: '!Cookie', want: '!c {count}', warnSub: ['{count}'] },
     { name: 'count in timer stays', input: 'timer $count', cmd: '', want: 'timer $count', warnSub: ['$count'] },
     {
       name: 'checkcount normalizes',

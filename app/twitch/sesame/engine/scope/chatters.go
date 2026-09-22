@@ -133,8 +133,8 @@ type Chatters struct {
 }
 
 // Owns claims all three names unconditionally: see the type comment.
-func (Chatters) Owns(name string) bool {
-	return name == ChattersToken || name == RandomChatterToken || name == RandomViewerToken
+func (Chatters) Owns(v Var) bool {
+	return v.Name == ChattersToken || v.Name == RandomChatterToken || v.Name == RandomViewerToken
 }
 
 // Plan reads the roster ONCE and resolves everything from that snapshot.

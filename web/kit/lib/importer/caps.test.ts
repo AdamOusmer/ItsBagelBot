@@ -19,16 +19,16 @@ test('caps leave under-cap collections untouched', () => {
 
 test('caps truncate overflow and report one manifest-level warn each', () => {
   const commands = Array.from({ length: 2002 }, (_, i) => cmd(i));
-  const counters = Array.from({ length: 501 }, (_, i) => ({ name: `n${i}`, value: i }));
-  const { manifest, diagnostics } = applyImportCaps({ commands, counters });
+  const timers = Array.from({ length: 302 }, (_, i) => ({ message: `m${i}`, interval_seconds: 60 }));
+  const { manifest, diagnostics } = applyImportCaps({ commands, timers });
 
   expect(manifest.commands?.length).toBe(2000);
-  expect(manifest.counters?.length).toBe(500);
+  expect(manifest.timers?.length).toBe(300);
   expect(diagnostics.map((d) => [d.severity, d.item_index])).toEqual([
     ['warn', -1],
     ['warn', -1]
   ]);
-  expect(diagnostics.map((d) => d.code)).toEqual(['manifest_commands_capped', 'manifest_counters_capped']);
+  expect(diagnostics.map((d) => d.code)).toEqual(['manifest_commands_capped', 'manifest_timers_capped']);
 });
 
 test('fetch definitions ride the commands cap, not a number of their own', () => {

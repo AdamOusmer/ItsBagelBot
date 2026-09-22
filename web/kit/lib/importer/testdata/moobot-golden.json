@@ -43,7 +43,7 @@
         {
           "name": "deaths",
           "responses": [
-            "Death counter: {counter:deaths}"
+            "Death counter: {count}"
           ],
           "permission": "everyone",
           "cooldown_seconds": 15
@@ -51,14 +51,14 @@
         {
           "name": "so",
           "responses": [
-            "Go follow {target} - they were last seen playing \u003ctwitch.game\u003e!"
+            "Go follow {target} - they were last seen playing <twitch.game>!"
           ],
           "permission": "mod"
         },
         {
           "name": "multi",
           "responses": [
-            "{args} | second arg: \u003c2\u003e | set by \u003cby\u003e"
+            "{args} | second arg: <2> | set by <by>"
           ],
           "permission": "sub"
         },
@@ -102,16 +102,6 @@
           "online_only": true
         }
       ],
-      "counters": [
-        {
-          "name": "deaths",
-          "value": 87
-        },
-        {
-          "name": "rules",
-          "value": 12
-        }
-      ],
       "fetches": [
         {
           "name": "moobot_weather",
@@ -128,6 +118,11 @@
       ]
     },
     "diags": [
+      {
+        "severity": "warn",
+        "item_index": 4,
+        "code": "command_count_remapped"
+      },
       {
         "severity": "warn",
         "item_index": 5,
@@ -157,11 +152,6 @@
         "severity": "warn",
         "item_index": 8,
         "code": "command_permission_widened"
-      },
-      {
-        "severity": "warn",
-        "item_index": 8,
-        "code": "counter_value_fractional"
       },
       {
         "severity": "warn",
@@ -259,7 +249,7 @@
         {
           "name": "deaths",
           "responses": [
-            "Death counter: {counter:deaths}"
+            "Death counter: {count}"
           ],
           "permission": "everyone",
           "cooldown_seconds": 15
@@ -267,14 +257,14 @@
         {
           "name": "so",
           "responses": [
-            "Go follow {target} - they were last seen playing \u003ctwitch.game\u003e!"
+            "Go follow {target} - they were last seen playing <twitch.game>!"
           ],
           "permission": "mod"
         },
         {
           "name": "multi",
           "responses": [
-            "{args} | second arg: \u003c2\u003e | set by \u003cby\u003e"
+            "{args} | second arg: <2> | set by <by>"
           ],
           "permission": "sub"
         },
@@ -318,16 +308,6 @@
           "online_only": true
         }
       ],
-      "counters": [
-        {
-          "name": "deaths",
-          "value": 87
-        },
-        {
-          "name": "rules",
-          "value": 12
-        }
-      ],
       "fetches": [
         {
           "name": "moobot_weather",
@@ -344,6 +324,11 @@
       ]
     },
     "diags": [
+      {
+        "severity": "warn",
+        "item_index": 4,
+        "code": "command_count_remapped"
+      },
       {
         "severity": "warn",
         "item_index": 5,
@@ -373,11 +358,6 @@
         "severity": "warn",
         "item_index": 8,
         "code": "command_permission_widened"
-      },
-      {
-        "severity": "warn",
-        "item_index": 8,
-        "code": "counter_value_fractional"
       },
       {
         "severity": "warn",
@@ -492,7 +472,7 @@
         {
           "name": "deaths",
           "responses": [
-            "Death counter: {counter:deaths}"
+            "Death counter: {count}"
           ],
           "permission": "everyone",
           "cooldown_seconds": 15
@@ -500,14 +480,14 @@
         {
           "name": "so",
           "responses": [
-            "Go follow {target} - they were last seen playing \u003ctwitch.game\u003e!"
+            "Go follow {target} - they were last seen playing <twitch.game>!"
           ],
           "permission": "mod"
         },
         {
           "name": "multi",
           "responses": [
-            "{args} | second arg: \u003c2\u003e | set by \u003cby\u003e"
+            "{args} | second arg: <2> | set by <by>"
           ],
           "permission": "sub"
         },
@@ -551,16 +531,6 @@
           "online_only": true
         }
       ],
-      "counters": [
-        {
-          "name": "deaths",
-          "value": 87
-        },
-        {
-          "name": "rules",
-          "value": 12
-        }
-      ],
       "fetches": [
         {
           "name": "moobot_weather",
@@ -577,6 +547,11 @@
       ]
     },
     "diags": [
+      {
+        "severity": "warn",
+        "item_index": 4,
+        "code": "command_count_remapped"
+      },
       {
         "severity": "warn",
         "item_index": 5,
@@ -606,11 +581,6 @@
         "severity": "warn",
         "item_index": 8,
         "code": "command_permission_widened"
-      },
-      {
-        "severity": "warn",
-        "item_index": 8,
-        "code": "counter_value_fractional"
       },
       {
         "severity": "warn",
@@ -672,7 +642,7 @@
         {
           "name": "hey",
           "responses": [
-            "yo {user} {random} {counter:hey}"
+            "yo {user} {random} {count}"
           ]
         }
       ]
@@ -681,7 +651,7 @@
       {
         "severity": "warn",
         "item_index": 0,
-        "code": "counter_value_absent"
+        "code": "command_count_remapped"
       }
     ]
   },
@@ -723,7 +693,7 @@
         {
           "name": "deaths",
           "responses": [
-            "Death counter: {counter:deaths}"
+            "Death counter: {count}"
           ],
           "permission": "everyone",
           "cooldown_seconds": 15
@@ -731,14 +701,14 @@
         {
           "name": "so",
           "responses": [
-            "Go follow {target} - they were last seen playing \u003ctwitch.game\u003e!"
+            "Go follow {target} - they were last seen playing <twitch.game>!"
           ],
           "permission": "mod"
         },
         {
           "name": "multi",
           "responses": [
-            "{args} | second arg: \u003c2\u003e | set by \u003cby\u003e"
+            "{args} | second arg: <2> | set by <by>"
           ],
           "permission": "sub"
         },
@@ -782,16 +752,6 @@
           "online_only": true
         }
       ],
-      "counters": [
-        {
-          "name": "deaths",
-          "value": 87
-        },
-        {
-          "name": "rules",
-          "value": 12
-        }
-      ],
       "fetches": [
         {
           "name": "moobot_weather",
@@ -808,6 +768,11 @@
       ]
     },
     "diags": [
+      {
+        "severity": "warn",
+        "item_index": 4,
+        "code": "command_count_remapped"
+      },
       {
         "severity": "warn",
         "item_index": 5,
@@ -837,11 +802,6 @@
         "severity": "warn",
         "item_index": 8,
         "code": "command_permission_widened"
-      },
-      {
-        "severity": "warn",
-        "item_index": 8,
-        "code": "counter_value_fractional"
       },
       {
         "severity": "warn",
@@ -991,7 +951,7 @@
         {
           "name": "deaths",
           "responses": [
-            "Death counter: {counter:deaths}"
+            "Death counter: {count}"
           ],
           "permission": "everyone",
           "cooldown_seconds": 15
@@ -999,14 +959,14 @@
         {
           "name": "so",
           "responses": [
-            "Go follow {target} - they were last seen playing \u003ctwitch.game\u003e!"
+            "Go follow {target} - they were last seen playing <twitch.game>!"
           ],
           "permission": "mod"
         },
         {
           "name": "multi",
           "responses": [
-            "{args} | second arg: \u003c2\u003e | set by \u003cby\u003e"
+            "{args} | second arg: <2> | set by <by>"
           ],
           "permission": "sub"
         },
@@ -1033,16 +993,6 @@
           "cooldown_seconds": 30
         }
       ],
-      "counters": [
-        {
-          "name": "deaths",
-          "value": 87
-        },
-        {
-          "name": "rules",
-          "value": 12
-        }
-      ],
       "fetches": [
         {
           "name": "moobot_weather",
@@ -1059,6 +1009,11 @@
       ]
     },
     "diags": [
+      {
+        "severity": "warn",
+        "item_index": 4,
+        "code": "command_count_remapped"
+      },
       {
         "severity": "warn",
         "item_index": 5,
@@ -1088,11 +1043,6 @@
         "severity": "warn",
         "item_index": 8,
         "code": "command_permission_widened"
-      },
-      {
-        "severity": "warn",
-        "item_index": 8,
-        "code": "counter_value_fractional"
       },
       {
         "severity": "warn",
@@ -1134,7 +1084,7 @@
   {
     "name": "not-json",
     "detect": false,
-    "err": "importer/moobot: not a JSON export file: invalid character '\u003c' looking for beginning of value"
+    "err": "importer/moobot: not a JSON export file: invalid character '<' looking for beginning of value"
   },
   {
     "name": "only-perm-groups",

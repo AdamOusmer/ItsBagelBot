@@ -23,7 +23,7 @@ type fixed struct {
 	seen   [][]Var
 }
 
-func (f *fixed) Owns(name string) bool { return name == f.name }
+func (f *fixed) Owns(v Var) bool { return v.Name == f.name }
 
 func (f *fixed) Plan(_ context.Context, wants []Var) (Values, error) {
 	f.seen = append(f.seen, wants)
@@ -182,30 +182,32 @@ func TestMessageUserIDLegacyAlias(t *testing.T) {
 	assert.Equal(t, render(t, "{user.id}", chain, nil), render(t, "{userid}", chain, nil))
 }
 
-// countingCounters answers every bump with the name it was given, recording
-// the order and addressing so the grammar's edges are visible.
+// countingCounters answers every read with the name it was given, recording
+// the order and addressing so the grammar's edges are visible. It is a Peeks,
+// not a Counters: the store scope is read-only end to end, so there is
+// nothing left in this package that bumps.
 type countingCounters struct {
 	asked []string
 	addr  []bool
 }
 
-func (c *countingCounters) Bump(_ context.Context, name string, addressed bool) string {
+func (c *countingCounters) Peek(_ context.Context, name string, addressed bool) string {
 	c.asked = append(c.asked, name)
 	c.addr = append(c.addr, addressed)
 	return "1"
 }
 
-func TestStoreFoldsSpellingsIntoOneBump(t *testing.T) {
+func TestStoreFoldsSpellingsIntoOneRead(t *testing.T) {
 	c := &countingCounters{}
 	assert.Equal(t, "1 1 1",
-		render(t, "{counter:Deaths} {counter: deaths } {counter:!deaths}", Chain{Store{Counters: c}}, nil))
+		render(t, "{counter:Deaths} {counter: deaths } {counter:!deaths}", Chain{Store{Peeks: c}}, nil))
 	assert.Equal(t, []string{"deaths"}, c.asked, "trim, '!' strip and case fold to one counter")
 }
 
-func TestStoreSkipsReservedAndDegenerateSpellings(t *testing.T) {
+func TestStoreSkipsDegenerateSpellings(t *testing.T) {
 	c := &countingCounters{}
-	chain := Chain{Store{Counters: c}}
-	for _, in := range []string{"{counter}", "{counter:}", "{counter:target:}", "{counter:bot:feeds}", "{counter:target:bot:x}"} {
+	chain := Chain{Store{Peeks: c}}
+	for _, in := range []string{"{counter}", "{counter:}", "{counter:target:}"} {
 		assert.Equal(t, in, render(t, in, chain, nil), in)
 	}
 	assert.Empty(t, c.asked)
@@ -214,7 +216,7 @@ func TestStoreSkipsReservedAndDegenerateSpellings(t *testing.T) {
 func TestStoreStripsTheAddressingPrefixBeforeTheStore(t *testing.T) {
 	c := &countingCounters{}
 	assert.Equal(t, "1 1",
-		render(t, "{counter:hugs} {counter:target:shutups}", Chain{Store{Counters: c}}, nil))
+		render(t, "{counter:hugs} {counter:target:shutups}", Chain{Store{Peeks: c}}, nil))
 	assert.Equal(t, []string{"hugs", "shutups"}, c.asked)
 	assert.Equal(t, []bool{false, true}, c.addr)
 }

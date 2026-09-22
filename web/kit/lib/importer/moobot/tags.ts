@@ -165,12 +165,13 @@ const TAG_RENDERERS: Record<string, (ctx: TagContext) => string> = {
   // maps (decision record kept from tags.go).
   '1': () => '{target}',
   'random.number': randomNumberKey,
-  // Moobot counters are per-command; ours are named channel-scope values,
-  // keyed by the command's normalized name.
-  // A command name is printable ASCII, which includes the two bytes that end
-  // a span early, so this goes out through intactSpan too; the tag vanishes
-  // (like an unknown tag) rather than shipping an amputated {counter:…}.
-  counter: (ctx) => intactSpan('counter', ctx.name) ?? '',
+  // Moobot's <counter> is per-command and auto-increments on every run,
+  // exactly what {count} (the {uses} alias, uses.go) already is here — not a
+  // named channel counter. Mapping it onto {counter:<name>} used to invent a
+  // name from the command and silently bind the import to a channel counter
+  // the broadcaster never created; {count} needs no name and carries no
+  // payload, so the command context (ctx.name) plays no part in it any more.
+  counter: () => '{count}',
   'channel.name': () => '{channel}'
 };
 for (let i = 1; i <= 3; i++) TAG_RENDERERS[`random.text.${i}`] = (ctx) => choiceKey(ctx.randomTexts[i - 1]);
@@ -191,12 +192,18 @@ export interface FetchTagRef {
 interface TagResult {
   text: string;
   unmapped: string[];
-  counterUsed: boolean;
   fetchRefs: FetchTagRef[];
+  // countRemapped is true when the response used <counter> at least once.
+  // <counter> now maps onto {count} (a per-command use count, not a named
+  // channel counter — see the TAG_RENDERERS entry above), which is a
+  // meaning change for anyone who read the old value in chat, so
+  // parse.ts's caller uses this to warn once per command rather than
+  // silently changing what the response says.
+  countRemapped: boolean;
 }
 
 export function translateTags(text: string, ctx: TagContext): TagResult {
-  const res: TagResult = { text: '', unmapped: [], counterUsed: false, fetchRefs: [] };
+  const res: TagResult = { text: '', unmapped: [], fetchRefs: [], countRemapped: false };
   const seen = new Set<string>();
   const render: TagRender = { ctx, res, seen };
   let out = '';
@@ -233,7 +240,7 @@ function renderTag(render: TagRender, tag: string): string {
   if (slot !== undefined) return renderUrlfetchTag(render, tag, slot);
   const replacement = replaceTag(tag, render.ctx);
   if (replacement !== '') {
-    if (tag === 'counter') render.res.counterUsed = true;
+    if (tag === 'counter') render.res.countRemapped = true;
     return replacement;
   }
   noteUnmappedTag(render, tag);

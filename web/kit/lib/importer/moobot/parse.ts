@@ -32,7 +32,6 @@ import type {
   ImportDiagnostic,
   ImportManifest,
   ManifestCommand,
-  ManifestCounter,
   ManifestFetch,
   ManifestTimer
 } from '../types';
@@ -52,12 +51,11 @@ const CODE = {
   permissionCollapsed: 'command_permission_collapsed',
   variableUnmapped: 'command_variable_unmapped',
   fetchUrlAbsent: 'command_fetch_url_absent',
+  countRemapped: 'command_count_remapped',
   responseTruncated: 'command_response_truncated',
   responseLineDropped: 'command_response_line_dropped',
   intervalClamped: 'timer_interval_clamped',
   timerMessageEmpty: 'timer_message_empty',
-  counterValueAbsent: 'counter_value_absent',
-  counterValueFractional: 'counter_value_fractional',
   commandDisabled: 'command_disabled',
   permissionGroupsSkipped: 'permission_groups_skipped',
   responseOverridesSkipped: 'response_overrides_skipped',
@@ -294,6 +292,9 @@ interface RawCommand {
   enabled?: unknown;
   cooldown?: unknown;
   trigger_usergroups?: unknown;
+  // Read only for the count-remap diagnostic's "old value N" clause below;
+  // no longer imported as a counter's start value (see the decision record
+  // on parseCommandItem's <counter> handling).
   counter?: unknown;
   random_number_range_start?: unknown;
   random_number_range_end?: unknown;
@@ -390,7 +391,6 @@ function sectionDiag(secType: string, err: unknown): ImportDiagnostic {
 // after the command pass (as in moobot.go).
 interface ParseState {
   commands: ManifestCommand[];
-  counters: ManifestCounter[];
   timers: ManifestTimer[];
   diags: ImportDiagnostic[];
   // texts accumulates each translated response by normalized identifier so
@@ -465,7 +465,6 @@ export function parseMoobot(bytes: Uint8Array): {
   const sections = decodeEnvelope(bytes);
   const state: ParseState = {
     commands: [],
-    counters: [],
     timers: [],
     diags: [],
     texts: new Map(),
@@ -482,7 +481,6 @@ export function parseMoobot(bytes: Uint8Array): {
   const manifest: ImportManifest = {};
   if (state.commands.length) manifest.commands = state.commands;
   if (state.timers.length) manifest.timers = state.timers;
-  if (state.counters.length) manifest.counters = state.counters;
   if (state.fetchDefs.size > 0) manifest.fetches = [...state.fetchDefs.values()];
 
   return { manifest, diagnostics: state.diags };
@@ -493,8 +491,13 @@ function commandsSection(items: Record<string, unknown>[], _sec: RawSection, sta
 }
 
 // parseCommandItem translates one custom command. Diagnostic order below is
-// pinned by the golden fixtures: permission findings, tag warnings, response
-// canonicalization, counter notes, then the disabled marker.
+// pinned by the golden fixtures: permission findings, tag warnings (variable,
+// fetch-url, then the count remap), response canonicalization, then the
+// disabled marker. <counter> maps onto bare {count} (uses.go's alias of
+// {uses}), which carries no start value to import — the "count starts from
+// this bot's history" divergence Nightbot's $(count) mapping already
+// documents — so a remapped command earns CODE.countRemapped instead of a
+// ManifestCounter entry.
 function parseCommandItem(item: RawCommand, pos: number, state: ParseState): void {
   const name = normalizeName(asStr(item.identifier));
   if (name === '') {
@@ -525,11 +528,22 @@ function parseCommandItem(item: RawCommand, pos: number, state: ParseState): voi
     state.diags.push(warnDiag(idx, CODE.fetchUrlAbsent,
       `response uses <${ref.tag}>, imported as {urlfetch:${ref.key}}. Re-enter the URL for "${ref.key}" before it can fetch`));
   }
+  if (tr.countRemapped) {
+    // <counter> mapped fine (no literal text left over), but what it MEANS
+    // changed: Moobot's per-command counter incremented on every run from
+    // whatever value the broadcaster set it to; {count} counts this bot's
+    // own runs, starting from zero. The old value, when the export carried
+    // one, could not come along — there is no field on the imported command
+    // to hold it and nothing to add it to.
+    const old = asNum(item.counter);
+    state.diags.push(warnDiag(idx, CODE.countRemapped,
+      old === undefined
+        ? 'response uses <counter>, imported as {count}: it now counts this command’s own runs from zero, not the value it showed in Moobot'
+        : `response uses <counter>, imported as {count}: it now counts this command’s own runs from zero; the old value ${Math.trunc(old)} was not carried over`));
+  }
   const { lines, diags: respDiags } = canonicalizeResponse(tr.text, idx);
   if (lines.length) cmd.responses = lines;
   state.diags.push(...respDiags);
-
-  applyCounterValue(item, name, tr.counterUsed, state);
 
   if (item.enabled === false) {
     // Kept with an error rather than dropped: preview shows exactly
@@ -561,24 +575,6 @@ function commandTagContext(item: RawCommand, name: string, fetchDefs: Map<string
       optionsOf(item.random_text_3)
     ]
   };
-}
-
-// applyCounterValue records a command's counter start value. idx is derived
-// from the command pass: it equals the slot this command is about to take.
-function applyCounterValue(item: RawCommand, name: string, counterUsed: boolean, state: ParseState): void {
-  const idx = state.commands.length;
-  if (counterUsed && asNum(item.counter) === undefined) {
-    state.diags.push(warnDiag(idx, CODE.counterValueAbsent,
-      `<counter> imported as {counter:${name}}; it starts at 0 because the export carries no counter value`));
-  }
-  const counter = asNum(item.counter);
-  if (counter === undefined) return;
-  const value = Math.trunc(counter);
-  if (counter !== value) {
-    state.diags.push(warnDiag(idx, CODE.counterValueFractional,
-      `counter value ${counter} floored to ${value} (counters are whole numbers here)`));
-  }
-  state.counters.push({ name, value });
 }
 
 function numOfList(v: unknown): number[] {

@@ -35,8 +35,11 @@ const (
 var ErrInvalidInput = errors.New("invalid input")
 
 // ValidCounterName reports the normalized name, or an error when it is empty,
-// oversized, or contains ':' — reserved so the worker's "{counter:bot:name}"
-// token prefix can never collide with a stored counter name.
+// oversized, or contains ':' — the {counter:...}/{count:...} token's payload
+// separator (pkg/tmpl), so a name containing one could never be addressed by
+// either token: "{counter:target:deaths}" reads addressing prefix "target:"
+// plus counter name "deaths", never a counter literally named
+// "target:deaths".
 func ValidCounterName(name string) (string, error) {
 	n := normalizeName(name)
 	if n == "" || len(n) > maxCounterName {

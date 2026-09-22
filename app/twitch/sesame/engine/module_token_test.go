@@ -413,18 +413,20 @@ func TestModuleTokensReadNoModuleRowWhenUnused(t *testing.T) {
 	assert.Empty(t, gossip.calls)
 }
 
-// The pinned dedup: a template that bumps and reads one counter prints the
-// post-bump value on both spans, and pays for one round trip.
-func TestReadOnlyCounterShowsThePostBumpValue(t *testing.T) {
+// counter and count are read aliases of the same value: naming a counter
+// twice in one template, once with each spelling, costs one lookup and never
+// bumps. {counter:x} stopped writing when the write moved to the command-run
+// "bump a counter" option (ent/schema/commands.go's bump_counter field).
+func TestCounterAndCountAreReadAliasesOfOneLookup(t *testing.T) {
 	loyalty := &peekLoyalty{values: map[string]int64{"deaths": 42}}
 	p := modulePipeline(t, moduleFixture{
 		response: "{counter:deaths} deaths ({count:Deaths} recorded)",
 		loyalty:  loyalty,
 	})
 
-	assert.Equal(t, "43 deaths (43 recorded)", expandViewer(t, p, "!brag"))
-	assert.Equal(t, []string{"deaths"}, loyalty.bumps)
-	assert.Empty(t, loyalty.peeks, "the bumped value is reused rather than re-read")
+	assert.Equal(t, "42 deaths (42 recorded)", expandViewer(t, p, "!brag"))
+	assert.Equal(t, []string{"deaths"}, loyalty.peeks, "one lookup answers both spellings")
+	assert.Empty(t, loyalty.bumps, "a template read never bumps")
 }
 
 // Reading a counter writes nothing, ever.

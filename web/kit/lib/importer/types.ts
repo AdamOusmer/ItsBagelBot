@@ -38,8 +38,8 @@ export const IMPORT_SOURCES: readonly ImportSource[] = [
 
 // ImportDiagnostic is one translation/validation finding. item_index addresses
 // the manifest array the code's prefix names (command_/timer_/trigger_/
-// quote_/counter_); -1 means manifest-level. Severity 'error' marks an item
-// commit will skip, 'warn' a lossy-but-applied translation.
+// quote_); -1 means manifest-level. Severity 'error' marks an item commit
+// will skip, 'warn' a lossy-but-applied translation.
 export interface ImportDiagnostic {
   severity: 'warn' | 'error';
   item_index: number;
@@ -74,11 +74,6 @@ export interface ManifestQuote {
   text: string;
   added_by?: string;
   created_at?: string;
-}
-
-export interface ManifestCounter {
-  name: string;
-  value: number;
 }
 
 // ManifestFetch is one synthesized $(urlfetch) definition riding the manifest
@@ -120,15 +115,14 @@ export interface ImportManifest {
   timers?: ManifestTimer[];
   triggers?: ManifestTrigger[];
   quotes?: ManifestQuote[];
-  counters?: ManifestCounter[];
   fetches?: ManifestFetch[];
   automod?: AutomodTerms;
 }
 
 // CollisionRef names one existing channel item a manifest item would collide
-// with; kind is 'command' | 'timer' | 'trigger' | 'quote' | 'counter' |
-// 'fetch' ('fetch' = a synthesized urlfetch definition whose slug already
-// names an existing channel item).
+// with; kind is 'command' | 'timer' | 'trigger' | 'quote' | 'fetch' ('fetch' =
+// a synthesized urlfetch definition whose slug already names an existing
+// channel item).
 export interface CollisionRef {
   kind: string;
   name: string;
@@ -139,7 +133,6 @@ export interface ImportStats {
   timers: number;
   triggers: number;
   quotes: number;
-  counters: number;
 }
 
 // IMPORT_ITEM_CAPS bounds one import per collection. Raised only deliberately
@@ -152,8 +145,7 @@ export const IMPORT_ITEM_CAPS = {
   commands: 2000,
   timers: 300,
   triggers: 1000,
-  quotes: 5000,
-  counters: 500
+  quotes: 5000
 } as const;
 
 // PreviewResponse renders the review screen. manifest is undefined when the

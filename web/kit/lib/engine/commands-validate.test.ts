@@ -25,7 +25,8 @@ const validFields = {
   name: 'raid',
   aliases: [],
   cooldown: 0,
-  allowedUserId: ''
+  allowedUserId: '',
+  bumpCounter: ''
 };
 
 describe('command response normalization', () => {
@@ -53,6 +54,51 @@ describe('command response normalization', () => {
     const repeats = Array.from({ length: n + 3 }, () => '{urlfetch:def_0}').join(' ');
     expect(validateCommand({ ...validFields, response: repeats }).response).toBeUndefined();
     expect(validateCommand({ ...validFields, response: `{urlfetch:a} ok` }).response).toBeUndefined();
+  });
+});
+
+describe('bump_counter option validation', () => {
+  test('empty is valid: it means the command bumps nothing', () => {
+    expect(validateCommand({ ...validFields, response: 'hi' }).bump_counter).toBeUndefined();
+  });
+
+  test('an ordinary name is valid', () => {
+    expect(
+      validateCommand({ ...validFields, response: 'hi', bumpCounter: 'deaths' }).bump_counter
+    ).toBeUndefined();
+  });
+
+  test('rejects spaces', () => {
+    expect(
+      validateCommand({ ...validFields, response: 'hi', bumpCounter: 'two words' }).bump_counter
+    ).toContain('spaces');
+  });
+
+  test('rejects a name over 64 characters', () => {
+    expect(
+      validateCommand({ ...validFields, response: 'hi', bumpCounter: 'a'.repeat(65) }).bump_counter
+    ).toContain('64');
+  });
+
+  test('strips a leading "!" rather than rejecting it, matching Go normalization', () => {
+    expect(
+      validateCommand({ ...validFields, response: 'hi', bumpCounter: '!deaths' }).bump_counter
+    ).toBeUndefined();
+  });
+
+  test('an embedded "!" (not leading) is valid, matching Go', () => {
+    expect(
+      validateCommand({ ...validFields, response: 'hi', bumpCounter: 'dea!ths' }).bump_counter
+    ).toBeUndefined();
+  });
+
+  test('rejects ":" — the {counter:…}/{count:…} payload separator', () => {
+    expect(
+      validateCommand({ ...validFields, response: 'hi', bumpCounter: 'target:deaths' }).bump_counter
+    ).toContain(':');
+    expect(
+      validateCommand({ ...validFields, response: 'hi', bumpCounter: 'bot:feeds' }).bump_counter
+    ).toContain(':');
   });
 });
 

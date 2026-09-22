@@ -30,6 +30,9 @@ type CommandView struct {
 	// Uses is the lifetime execution counter, maintained by the commands
 	// service from the worker's data.commands.used events.
 	Uses uint64 `json:"uses,omitempty"`
+	// BumpCounter names the loyalty counter this command bumps by one on
+	// every successful run; "" means none.
+	BumpCounter string `json:"bump_counter,omitempty"`
 }
 
 // ModuleView is the canonical wire shape for one module row as stored in the

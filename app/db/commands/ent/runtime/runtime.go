@@ -6,6 +6,7 @@ import (
 	"ItsBagelBot/app/db/commands/ent/commands"
 	"ItsBagelBot/app/db/commands/ent/fetchdefinition"
 	"ItsBagelBot/app/db/commands/ent/fetchkey"
+	"ItsBagelBot/app/db/commands/ent/migrations"
 	"ItsBagelBot/app/db/commands/ent/schema"
 	"time"
 )
@@ -64,12 +65,18 @@ func init() {
 	commandsDescUses := commandsFields[9].Descriptor()
 	// commands.DefaultUses holds the default value on creation for the uses field.
 	commands.DefaultUses = commandsDescUses.Default.(uint64)
+	// commandsDescBumpCounter is the schema descriptor for bump_counter field.
+	commandsDescBumpCounter := commandsFields[10].Descriptor()
+	// commands.DefaultBumpCounter holds the default value on creation for the bump_counter field.
+	commands.DefaultBumpCounter = commandsDescBumpCounter.Default.(string)
+	// commands.BumpCounterValidator is a validator for the "bump_counter" field. It is called by the builders before save.
+	commands.BumpCounterValidator = commandsDescBumpCounter.Validators[0].(func(string) error)
 	// commandsDescCreatedAt is the schema descriptor for created_at field.
-	commandsDescCreatedAt := commandsFields[10].Descriptor()
+	commandsDescCreatedAt := commandsFields[11].Descriptor()
 	// commands.DefaultCreatedAt holds the default value on creation for the created_at field.
 	commands.DefaultCreatedAt = commandsDescCreatedAt.Default.(func() time.Time)
 	// commandsDescUpdatedAt is the schema descriptor for updated_at field.
-	commandsDescUpdatedAt := commandsFields[11].Descriptor()
+	commandsDescUpdatedAt := commandsFields[12].Descriptor()
 	// commands.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	commands.DefaultUpdatedAt = commandsDescUpdatedAt.Default.(func() time.Time)
 	// commands.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
@@ -152,6 +159,16 @@ func init() {
 	fetchkey.DefaultUpdatedAt = fetchkeyDescUpdatedAt.Default.(func() time.Time)
 	// fetchkey.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	fetchkey.UpdateDefaultUpdatedAt = fetchkeyDescUpdatedAt.UpdateDefault.(func() time.Time)
+	migrationsFields := schema.Migrations{}.Fields()
+	_ = migrationsFields
+	// migrationsDescName is the schema descriptor for name field.
+	migrationsDescName := migrationsFields[0].Descriptor()
+	// migrations.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	migrations.NameValidator = migrationsDescName.Validators[0].(func(string) error)
+	// migrationsDescAppliedAt is the schema descriptor for applied_at field.
+	migrationsDescAppliedAt := migrationsFields[1].Descriptor()
+	// migrations.DefaultAppliedAt holds the default value on creation for the applied_at field.
+	migrations.DefaultAppliedAt = migrationsDescAppliedAt.Default.(func() time.Time)
 }
 
 const (

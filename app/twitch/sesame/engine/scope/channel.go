@@ -158,14 +158,15 @@ type Channel struct {
 // Streams-backed tokens, that token's own module row is on for this
 // broadcaster. {followers}/{subs} answer from a separate dependency with no
 // module row of its own.
-func (c Channel) Owns(name string) bool {
+func (c Channel) Owns(v Var) bool {
+	name := v.Name
 	if name == FollowersToken || name == SubsToken {
 		return c.Counts != nil
 	}
 	if c.Streams == nil {
 		return false
 	}
-	switch name {
+	switch v.Name {
 	case UptimeToken:
 		return c.Uptime
 	case TitleToken:

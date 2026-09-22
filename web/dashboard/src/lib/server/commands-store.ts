@@ -188,6 +188,7 @@ export interface CommandInput {
   perm: Perm;
   cooldown: number;
   allowedUserId: string;
+  bumpCounter: string;
 }
 
 // originalName, when set and different from cmd.name, renames the command: the
@@ -210,6 +211,7 @@ export async function upsertCommand(
     perm: cmd.perm,
     cooldown: cmd.cooldown,
     allowed_user_id: cmd.allowedUserId,
+    bump_counter: cmd.bumpCounter,
     original_name: originalName ?? ''
   });
   try {
@@ -227,6 +229,7 @@ export async function upsertCommand(
       perm: cmd.perm,
       cooldown: cmd.cooldown,
       allowed_user_id: cmd.allowedUserId,
+      bump_counter: cmd.bumpCounter,
       // Preserve the lifetime counter through the optimistic merge: edits
       // never change it and losing it here would flash 0 in the UI.
       uses: current.find((c) => c.name === (originalName ?? cmd.name))?.uses

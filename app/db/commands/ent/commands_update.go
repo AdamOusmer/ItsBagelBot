@@ -180,6 +180,20 @@ func (_u *CommandsUpdate) AddUses(v int64) *CommandsUpdate {
 	return _u
 }
 
+// SetBumpCounter sets the "bump_counter" field.
+func (_u *CommandsUpdate) SetBumpCounter(v string) *CommandsUpdate {
+	_u.mutation.SetBumpCounter(v)
+	return _u
+}
+
+// SetNillableBumpCounter sets the "bump_counter" field if the given value is not nil.
+func (_u *CommandsUpdate) SetNillableBumpCounter(v *string) *CommandsUpdate {
+	if v != nil {
+		_u.SetBumpCounter(*v)
+	}
+	return _u
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_u *CommandsUpdate) SetCreatedAt(v time.Time) *CommandsUpdate {
 	_u.mutation.SetCreatedAt(v)
@@ -259,6 +273,11 @@ func (_u *CommandsUpdate) check() error {
 			return &ValidationError{Name: "response", err: fmt.Errorf(`ent: validator failed for field "Commands.response": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.BumpCounter(); ok {
+		if err := commands.BumpCounterValidator(v); err != nil {
+			return &ValidationError{Name: "bump_counter", err: fmt.Errorf(`ent: validator failed for field "Commands.bump_counter": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -317,6 +336,9 @@ func (_u *CommandsUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.AddedUses(); ok {
 		_spec.AddField(commands.FieldUses, field.TypeUint64, value)
+	}
+	if value, ok := _u.mutation.BumpCounter(); ok {
+		_spec.SetField(commands.FieldBumpCounter, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.CreatedAt(); ok {
 		_spec.SetField(commands.FieldCreatedAt, field.TypeTime, value)
@@ -495,6 +517,20 @@ func (_u *CommandsUpdateOne) AddUses(v int64) *CommandsUpdateOne {
 	return _u
 }
 
+// SetBumpCounter sets the "bump_counter" field.
+func (_u *CommandsUpdateOne) SetBumpCounter(v string) *CommandsUpdateOne {
+	_u.mutation.SetBumpCounter(v)
+	return _u
+}
+
+// SetNillableBumpCounter sets the "bump_counter" field if the given value is not nil.
+func (_u *CommandsUpdateOne) SetNillableBumpCounter(v *string) *CommandsUpdateOne {
+	if v != nil {
+		_u.SetBumpCounter(*v)
+	}
+	return _u
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_u *CommandsUpdateOne) SetCreatedAt(v time.Time) *CommandsUpdateOne {
 	_u.mutation.SetCreatedAt(v)
@@ -587,6 +623,11 @@ func (_u *CommandsUpdateOne) check() error {
 			return &ValidationError{Name: "response", err: fmt.Errorf(`ent: validator failed for field "Commands.response": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.BumpCounter(); ok {
+		if err := commands.BumpCounterValidator(v); err != nil {
+			return &ValidationError{Name: "bump_counter", err: fmt.Errorf(`ent: validator failed for field "Commands.bump_counter": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -662,6 +703,9 @@ func (_u *CommandsUpdateOne) sqlSave(ctx context.Context) (_node *Commands, err 
 	}
 	if value, ok := _u.mutation.AddedUses(); ok {
 		_spec.AddField(commands.FieldUses, field.TypeUint64, value)
+	}
+	if value, ok := _u.mutation.BumpCounter(); ok {
+		_spec.SetField(commands.FieldBumpCounter, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.CreatedAt(); ok {
 		_spec.SetField(commands.FieldCreatedAt, field.TypeTime, value)

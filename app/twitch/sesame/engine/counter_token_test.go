@@ -6,8 +6,10 @@ package engine
 import (
 	"context"
 	"testing"
+	"time"
 
 	"ItsBagelBot/app/twitch/sesame/engine/scope"
+	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
@@ -26,12 +28,14 @@ type captureBump struct {
 	command string
 }
 
-// captureLoyalty records CounterBump calls; every other LoyaltyStore verb is
-// unreachable from the custom-command path (only CounterBump runs there), so
-// the nil embedded interface stays nil in practice.
+// captureLoyalty records CounterBump and CounterPeek calls; every other
+// LoyaltyStore verb is unreachable from the custom-command path, so the nil
+// embedded interface stays nil in practice.
 type captureLoyalty struct {
 	LoyaltyStore
-	bumps []captureBump
+	bumps  []captureBump
+	peeks  []string
+	values map[string]int64
 }
 
 func (f *captureLoyalty) CounterBump(_ context.Context, b CounterBump) (int64, error) {
@@ -39,13 +43,26 @@ func (f *captureLoyalty) CounterBump(_ context.Context, b CounterBump) (int64, e
 	return 42, nil
 }
 
+func (f *captureLoyalty) CounterPeek(_ context.Context, target CounterTarget) (loyaltyrpc.Counter, bool, error) {
+	f.peeks = append(f.peeks, target.Name)
+	value, found := f.values[target.Name]
+	return loyaltyrpc.Counter{Name: target.Name, Value: value}, found, nil
+}
+
 // counterPipeline builds a pipeline serving one custom command whose response
 // references counters, with a capturing loyalty store wired in.
 func counterPipeline(t *testing.T, response string) (*Pipeline, *captureLoyalty) {
 	t.Helper()
+	return counterPipelineCmd(t, projection.Command{Name: "so", Response: response, IsActive: true, Perm: "everyone"})
+}
+
+// counterPipelineCmd is counterPipeline for a caller that needs to set more
+// than the response — the bump_counter option, a restrictive perm, and so on.
+func counterPipelineCmd(t *testing.T, cmd projection.Command) (*Pipeline, *captureLoyalty) {
+	t.Helper()
 	loyalty := &captureLoyalty{}
 	d := Deps{
-		Proj:     fakeReader{cmd: projection.Command{Name: "so", Response: response, IsActive: true, Perm: "everyone"}, cmdFound: true},
+		Proj:     fakeReader{cmd: cmd, cmdFound: true},
 		Live:     liveAlways{},
 		Cooldown: NoopCooldown{},
 		Pub:      &fakePublisher{},
@@ -55,34 +72,39 @@ func counterPipeline(t *testing.T, response string) (*Pipeline, *captureLoyalty)
 	return NewPipeline(d, NewRegistry(zap.NewNop()), Config{OutgressPremium: premiumSubj, OutgressStandard: standardSubj}), loyalty
 }
 
-// recordCounters is a scope.Counters that records what the store scope asked
-// for and answers every bump with the same value.
-type recordCounters struct {
+// recordPeeks is a scope.Peeks that records what the store scope asked for
+// and answers every read with the same value, so the grammar's edges
+// (folding, addressing, degenerate spellings) stay visible without a real
+// loyalty store.
+type recordPeeks struct {
 	asked []string
 	addr  []bool
 }
 
-func (r *recordCounters) Bump(_ context.Context, name string, addressed bool) string {
+func (r *recordPeeks) Peek(_ context.Context, name string, addressed bool) string {
 	r.asked = append(r.asked, name)
 	r.addr = append(r.addr, addressed)
 	return "42"
 }
 
-// planCounters plans template through a store scope and reports the bumps it
-// asked for, in order.
-func planCounters(t *testing.T, template string) *recordCounters {
+// planCounters plans a template through a store scope and reports the reads
+// it asked for, in order.
+func planCounters(t *testing.T, template string) *recordPeeks {
 	t.Helper()
-	rec := &recordCounters{}
+	rec := &recordPeeks{}
 	toks := tmpl.Lex(template)
-	chain := scope.Chain{scope.Store{Counters: rec}}
+	chain := scope.Chain{scope.Store{Peeks: rec}}
 	chain.Plan(context.Background(), toks, nil)
 	return rec
 }
 
 // TestCounterScopePlansTargetAddressing pins the parse side of the
-// {counter:target:<name>} grammar: the addressing prefix folds like any name
-// but never reaches the store, dedup is per folded spelling, and the
-// degenerate spellings ask for no bump at all.
+// {counter:target:<name>} / {count:target:<name>} grammar: the addressing
+// prefix folds like any name but never reaches the store, dedup is per
+// folded spelling, and the degenerate spellings ask for no read at all.
+// {counter:x} stopped bumping (see ent/schema/commands.go's bump_counter
+// field comment); this pins that the read grammar it left behind is
+// unchanged.
 func TestCounterScopePlansTargetAddressing(t *testing.T) {
 	rec := planCounters(t, "{counter:target:shutups}")
 	assert.Equal(t, []string{"shutups"}, rec.asked)
@@ -94,119 +116,161 @@ func TestCounterScopePlansTargetAddressing(t *testing.T) {
 
 	rec = planCounters(t, "{counter:target:a} {counter:b} {counter:target:a}")
 	assert.Equal(t, []string{"a", "b"}, rec.asked,
-		"addressed and sender-keyed spellings are distinct tokens; repeats bump once")
+		"addressed and sender-keyed spellings are distinct tokens; repeats read once")
 	assert.Equal(t, []bool{true, false}, rec.addr)
 
-	rec = planCounters(t, "{counter:Deaths} {counter:deaths}")
-	assert.Equal(t, []string{"deaths"}, rec.asked, "two spellings of one counter bump once")
+	rec = planCounters(t, "{counter:Deaths} {count:deaths}")
+	assert.Equal(t, []string{"deaths"}, rec.asked, "counter and count are aliases of one read")
 
-	for _, degenerate := range []string{"{counter:target:}", "{counter:}", "{counter}", "{counter:bot:feeds}"} {
+	for _, degenerate := range []string{"{counter:target:}", "{counter:}", "{counter}"} {
 		assert.Empty(t, planCounters(t, degenerate).asked, degenerate)
 	}
 }
 
-// TestCounterBumpKeysOnMentionedViewer proves the #479 fix end to end: a
-// {counter:target:...} token keys its bump on the mentioned viewer's identity,
-// resolved from the roster of chatters this replica has seen speak.
-func TestCounterBumpKeysOnMentionedViewer(t *testing.T) {
+// TestCounterReadKeysOnMentionedViewer proves the #479 addressing still
+// applies to the READ: a {counter:target:...} span resolves the mentioned
+// viewer from the roster of chatters this replica has seen speak, and never
+// bumps anything doing it.
+func TestCounterReadKeysOnMentionedViewer(t *testing.T) {
 	p, loyalty := counterPipeline(t, "@{target} has been told {counter:target:shutups} times")
+	loyalty.values = map[string]int64{"shutups": 42}
 	p.roster.Observe(123, chatterIdentity{login: "bob", id: "7", name: "Bob"})
 
 	got := collectDispatch(p, chatCtx("!so @bob", ""))
 	require.Len(t, got, 1)
 	assert.Equal(t, "@bob has been told 42 times", got[0].Text)
-	require.Len(t, loyalty.bumps, 1)
-	assert.Equal(t, "shutups", loyalty.bumps[0].name, "the addressing prefix never reaches the store")
-	assert.Equal(t, uint64(7), loyalty.bumps[0].viewer.ID)
-	assert.Equal(t, "bob", loyalty.bumps[0].viewer.Login)
-	assert.Equal(t, "Bob", loyalty.bumps[0].viewer.Name)
-	assert.Equal(t, "so", loyalty.bumps[0].command, "the command key passes through untouched")
+	assert.Empty(t, loyalty.bumps, "a template read never bumps")
+	require.Len(t, loyalty.peeks, 1)
+	assert.Equal(t, "shutups", loyalty.peeks[0])
 }
 
-// TestCounterBumpUnresolvedTargetFallsBackToSender proves the graceful
-// fallback: a mention nobody has spoken where this replica could see counts
+// TestCounterReadUnresolvedTargetFallsBackToSender proves the graceful
+// fallback: a mention nobody has spoken where this replica could see reads
 // against the sender instead of leaking a raw token or dropping the reply.
-func TestCounterBumpUnresolvedTargetFallsBackToSender(t *testing.T) {
+func TestCounterReadUnresolvedTargetFallsBackToSender(t *testing.T) {
 	p, loyalty := counterPipeline(t, "{target}: {counter:target:shutups}")
+	loyalty.values = map[string]int64{"shutups": 42}
 
 	got := collectDispatch(p, chatCtx("!so @stranger", ""))
 	require.Len(t, got, 1)
 	assert.Equal(t, "stranger: 42", got[0].Text)
-	require.Len(t, loyalty.bumps, 1)
-	assert.Equal(t, uint64(999), loyalty.bumps[0].viewer.ID, "sender fallback")
-
-	// No argument at all: {touser} defaults to the sender, same outcome.
-	got = collectDispatch(p, chatCtx("!so", ""))
-	require.Len(t, got, 1)
-	assert.Equal(t, "alice: 42", got[0].Text)
-	assert.Equal(t, uint64(999), loyalty.bumps[1].viewer.ID)
+	assert.Empty(t, loyalty.bumps)
 }
 
-// TestCounterBumpScopesUnchangedByAddressing proves the issue's second half:
-// plain tokens keep keying on the sender, and both spellings can coexist in
-// one response — each bump carries the right identity while the command key
-// (which drives viewer+command buckets) rides along unchanged either way.
-func TestCounterBumpScopesUnchangedByAddressing(t *testing.T) {
-	p, loyalty := counterPipeline(t, "{user} {counter:hugs} / @{target} {counter:target:shutups}")
-	p.roster.Observe(123, chatterIdentity{login: "bob", id: "7"})
-
-	got := collectDispatch(p, chatCtx("!so @bob", ""))
-	require.Len(t, got, 1)
-	assert.Equal(t, "alice 42 / @bob 42", got[0].Text)
-	require.Len(t, loyalty.bumps, 2)
-	assert.Equal(t, "hugs", loyalty.bumps[0].name)
-	assert.Equal(t, uint64(999), loyalty.bumps[0].viewer.ID, "plain token stays sender-keyed")
-	assert.Equal(t, "shutups", loyalty.bumps[1].name)
-	assert.Equal(t, uint64(7), loyalty.bumps[1].viewer.ID)
-	for _, b := range loyalty.bumps {
-		assert.Equal(t, "so", b.command)
-	}
-}
-
-// TestCounterBumpTabSeparatedMention proves the target word splits on any
-// whitespace: a tab after the mention cannot glue itself onto the login and
-// silently miss the roster.
-func TestCounterBumpTabSeparatedMention(t *testing.T) {
-	p, loyalty := counterPipeline(t, "{counter:target:shutups}")
-	p.roster.Observe(123, chatterIdentity{login: "bob", id: "7", name: "Bob"})
-
-	got := collectDispatch(p, chatCtx("!so @bob\traid incoming", ""))
-	require.Len(t, got, 1)
-	assert.Equal(t, "42", got[0].Text)
-	require.Len(t, loyalty.bumps, 1)
-	assert.Equal(t, uint64(7), loyalty.bumps[0].viewer.ID)
-}
-
-// TestCounterBumpTargetEmptyBaseStaysVisible proves the degenerate
-// {counter:target:} neither bumps nor renders a value.
-func TestCounterBumpTargetEmptyBaseStaysVisible(t *testing.T) {
+// TestCounterReadTargetEmptyBaseStaysVisible proves the degenerate
+// {counter:target:} renders no value.
+func TestCounterReadTargetEmptyBaseStaysVisible(t *testing.T) {
 	p, loyalty := counterPipeline(t, "x{counter:target:}")
 
 	got := collectDispatch(p, chatCtx("!so @bob", ""))
 	require.Len(t, got, 1)
 	assert.Equal(t, "x{counter:target:}", got[0].Text)
 	assert.Empty(t, loyalty.bumps)
+	assert.Empty(t, loyalty.peeks)
 }
 
-// TestCounterRenderUnresolvedLeavesVisible pins render parity for the
-// addressed spelling when no value was resolved: the raw token survives,
-// exactly like every other unknown token.
-func TestCounterRenderUnresolvedLeavesVisible(t *testing.T) {
-	assert.Equal(t, "{counter:target:shutups}",
-		renderScopes(nil, "{counter:target:shutups}", scope.Store{Counters: emptyCounters{}}))
+// TestCounterRenderUnresolvedRendersEmpty pins render parity for the
+// addressed spelling when no value was resolved: a counter that answered
+// "nothing" renders empty (so its fallback speaks), the same as every other
+// counter read — {counter:x} lost its bump-side "stays literal" behavior
+// along with the bump itself, since a mounted Store now always answers a
+// span it owns.
+func TestCounterRenderUnresolvedRendersEmpty(t *testing.T) {
+	assert.Equal(t, "",
+		renderScopes(nil, "{counter:target:shutups}", scope.Store{Peeks: emptyPeeks{}}))
 	assert.Equal(t, "42",
-		renderScopes(nil, "{counter:target:shutups}", scope.Store{Counters: &recordCounters{}}))
+		renderScopes(nil, "{counter:target:shutups}", scope.Store{Peeks: &recordPeeks{}}))
 
-	// With no loyalty store the scope is not mounted at all, which is the same
-	// literal outcome by a different route.
+	// With no loyalty store the scope is not mounted at all, so the span is
+	// unowned and stays literal — a different route to a different outcome.
 	assert.Equal(t, "{counter:deaths}", renderScopes(nil, "{counter:deaths}"))
 }
 
-// emptyCounters answers every bump with "no value" — a failed bump, or a
-// counter this caller may not read.
-type emptyCounters struct{}
+// emptyPeeks answers every read with "no value" — an unknown counter, or one
+// this caller may not read.
+type emptyPeeks struct{}
 
-func (emptyCounters) Bump(context.Context, string, bool) string { return "" }
+func (emptyPeeks) Peek(context.Context, string, bool) string { return "" }
+
+// TestBumpCounterOptionBumpsOnceOnASuccessfulRun proves the command-run
+// option (cc.BumpCounter) drives the bump the {counter:x} token used to: the
+// dedup-claimed loyalty path fires once per successful run, keyed on the
+// sender (the option addresses no mentioned viewer), and the response text
+// is untouched by it — it names no counter token at all.
+func TestBumpCounterOptionBumpsOnceOnASuccessfulRun(t *testing.T) {
+	p, loyalty := counterPipelineCmd(t, projection.Command{
+		Name: "so", Response: "hi", IsActive: true, Perm: "everyone", BumpCounter: "deaths",
+	})
+
+	got := collectDispatch(p, chatCtx("!so", ""))
+	require.Len(t, got, 1)
+	assert.Equal(t, "hi", got[0].Text, "the option produces no render output of its own")
+	require.Len(t, loyalty.bumps, 1)
+	assert.Equal(t, "deaths", loyalty.bumps[0].name)
+	assert.Equal(t, uint64(999), loyalty.bumps[0].viewer.ID, "the option keys on the sender")
+	assert.Equal(t, "so", loyalty.bumps[0].command)
+}
+
+// TestBumpCounterOptionSkipsWhenGated proves the bump never fires for a run
+// the gate refused: an AllowedUserID restricted to someone else denies the
+// sender before emitCommand, so the reply is never sent and the counter
+// option beside recordUse is never reached.
+func TestBumpCounterOptionSkipsWhenGated(t *testing.T) {
+	p, loyalty := counterPipelineCmd(t, projection.Command{
+		Name: "so", Response: "hi", IsActive: true, AllowedUserID: "555", BumpCounter: "deaths",
+	})
+
+	got := collectDispatch(p, chatCtx("!so", ""))
+	assert.Empty(t, got, "the gate refuses the sender")
+	assert.Empty(t, loyalty.bumps)
+}
+
+// TestBumpCounterOptionAbsentNeverBumps proves an ordinary command with no
+// bump_counter option set never touches the loyalty store.
+func TestBumpCounterOptionAbsentNeverBumps(t *testing.T) {
+	p, loyalty := counterPipeline(t, "hi")
+
+	got := collectDispatch(p, chatCtx("!so", ""))
+	require.Len(t, got, 1)
+	assert.Empty(t, loyalty.bumps)
+}
+
+// TestBumpCounterOptionRedeliveryDoesNotDoubleCount drives a command carrying
+// the bump option through the pipeline twice under the same message id — a
+// JetStream-style redelivery. claimedCounterValue's dedup claim
+// (CounterEffect(name), the same guard the old {counter:x} token used) must
+// let the bump apply once, matching the pinned rule that a replayed command
+// line never double-counts a non-idempotent effect.
+func TestBumpCounterOptionRedeliveryDoesNotDoubleCount(t *testing.T) {
+	store := newRecordingStore()
+	loyalty := &captureLoyalty{}
+	d := Deps{
+		Proj: fakeReader{
+			cmd:      projection.Command{Name: "so", Response: "hi", IsActive: true, BumpCounter: "deaths"},
+			cmdFound: true,
+		},
+		Live: liveAlways{}, Cooldown: NoopCooldown{},
+		Pub: &fakePublisher{}, Log: zap.NewNop(),
+		Loyalty: loyalty,
+		Dedup:   NewEventDedup(store, "sesame:seen:", time.Minute, zap.NewNop()),
+	}
+	p := NewPipeline(d, NewRegistry(zap.NewNop()), Config{OutgressPremium: premiumSubj, OutgressStandard: standardSubj})
+
+	msg := func() *bus.Message {
+		body, err := codec.Marshal(map[string]any{
+			"type": chatType, "lane": "standard", "msg_id": "m1",
+			"broadcaster_user_id": "123", "chatter_user_id": "999", "text": "!so",
+		})
+		require.NoError(t, err)
+		return bus.NewMessage("uuid-m1", body)
+	}
+
+	require.NoError(t, p.Process(msg()))
+	require.NoError(t, p.Process(msg())) // replay: same msg_id
+
+	require.Len(t, loyalty.bumps, 1, "a replayed command must bump once, not twice")
+	assert.Contains(t, store.keys(), "m1:"+CounterEffect("deaths"))
+}
 
 // TestProcessFeedsRosterFromChatLines proves the feed point: any eligible chat
 // line teaches the roster its speaker, which is what lets a later command

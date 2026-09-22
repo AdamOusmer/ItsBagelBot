@@ -66,10 +66,21 @@ func validateTokenExample(t *testing.T, familyID, example string, seen map[strin
 			t.Fatalf("family %q: Lex(%q) produced an empty variable name", familyID, example)
 		}
 	}
-	if previous, ok := seen[toks[0].Name]; ok && previous != familyID {
-		t.Fatalf("token %q appears in families %q and %q", toks[0].Name, previous, familyID)
+	// The dedup key is name PLUS whether the span carries a payload, not the
+	// name alone: {count} (uses, no payload) and {count:deaths} (store, a
+	// payload) are one name legitimately answered by two families, the exact
+	// split scope.Uses.Owns/scope.Store.Owns make by inspecting the whole Var
+	// rather than just its name (see scope.Scope.Owns's doc). A collision on
+	// the (name, has-payload) pair, unlike a collision on the bare name, is
+	// still a real ambiguity worth failing on.
+	key := toks[0].Name
+	if toks[0].HasPayload {
+		key += ":payload"
 	}
-	seen[toks[0].Name] = familyID
+	if previous, ok := seen[key]; ok && previous != familyID {
+		t.Fatalf("token %q appears in families %q and %q", key, previous, familyID)
+	}
+	seen[key] = familyID
 }
 
 func ExampleCommandTokenFamilies() {
@@ -85,6 +96,6 @@ func ExampleCommandTokenFamilies() {
 	// viewer: 5 examples
 	// modules: 7 examples
 	// uses: 1 examples
-	// store: 4 examples
+	// store: 2 examples
 	// external: 1 examples
 }

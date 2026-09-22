@@ -49,9 +49,18 @@ type Values interface {
 
 // Scope is one family of tokens plus the dependency that answers it.
 type Scope interface {
-	// Owns reports whether this scope answers that token name. The name is
-	// already lower-cased by the lexer.
-	Owns(name string) bool
+	// Owns reports whether this scope answers that span. The name is already
+	// lower-cased by the lexer.
+	//
+	// Owns takes the whole Var rather than just its Name because a name
+	// alone is not always enough to route a span: {count} (uses, no payload)
+	// and {count:deaths} (the counter alias, a payload) are the same name
+	// answered by two different scopes, and Chain.group/ownerOf pick the
+	// first scope in the chain whose Owns matches — a name-only Owns would
+	// let whichever scope is mounted first claim every span with that name,
+	// including payload shapes it does not actually answer. Every scope that
+	// does not need the payload to decide simply ignores it.
+	Owns(v Var) bool
 	// Plan resolves, with ctx, every var this scope owns in one template —
 	// batched on purpose: a family backed by a network call gets one fan-out
 	// per command run rather than one per span. wants carries only vars this
@@ -177,7 +186,7 @@ func (c Chain) ownerOf(tok Var) (int, bool) {
 		return 0, false
 	}
 	for i, s := range c {
-		if s.Owns(tok.Name) {
+		if s.Owns(tok) {
 			return i, true
 		}
 	}

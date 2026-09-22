@@ -550,95 +550,23 @@
     "lexerValid": true
   },
   {
-    "id": "count",
-    "token": "{count:deaths}",
-    "syntax": "{count:<name>}",
-    "example": "{count:deaths}",
-    "output": "42",
-    "syntaxes": [
-      "{count:<name>}"
-    ],
-    "examples": [
-      {
-        "syntax": "{count:deaths}",
-        "output": "42",
-        "surfaceId": "custom"
-      },
-      {
-        "syntax": "{count}",
-        "output": "2",
-        "surfaceId": "queue-next"
-      },
-      {
-        "syntax": "{count}",
-        "output": "38",
-        "surfaceId": "fn-store"
-      }
-    ],
-    "name": "Counter (read only)",
-    "hint": "reads a counter without adding to it, unlike {counter:…} (Loyalty)",
-    "description": "Shows a counter without adding to it, so a command can report a total it does not change. Same counter, same name, same scopes as {counter:…}.",
-    "category": "counters",
-    "categories": [
-      "counters"
-    ],
-    "aliases": [],
-    "aliasTokens": [],
-    "surfaceIds": [
-      "custom",
-      "queue-next",
-      "fn-store"
-    ],
-    "surfaces": [
-      {
-        "id": "custom",
-        "group": "Commands",
-        "label": "Custom command",
-        "dashPath": "/commands"
-      },
-      {
-        "id": "queue-next",
-        "group": "Play Queue",
-        "label": "Queue: next player up",
-        "dashPath": "/modules/queue"
-      },
-      {
-        "id": "fn-store",
-        "group": "Game stats",
-        "label": "Fortnite: !fn store",
-        "dashPath": "/modules/fortnite"
-      }
-    ],
-    "requirementIds": [
-      "loyalty"
-    ],
-    "requirements": [
-      "Loyalty Points"
-    ],
-    "requirement": "Loyalty Points",
-    "payload": "",
-    "behavior": "",
-    "legacy": false,
-    "parameterized": true,
-    "lexer": {
-      "valid": true,
-      "name": "count",
-      "payload": "<name>"
-    },
-    "lexerValid": true
-  },
-  {
     "id": "counter",
     "token": "{counter:falls}",
     "syntax": "{counter:<name>}",
     "example": "{counter:falls}",
     "output": "42",
     "syntaxes": [
-      "{counter:<name>}"
+      "{counter:<name>}",
+      "{counter:target:<name>}"
     ],
     "examples": [
       {
         "syntax": "{counter:falls}",
+        "output": "42",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{counter:target:falls}",
         "output": "42",
         "surfaceId": "custom"
       },
@@ -648,9 +576,9 @@
         "surfaceId": "channelpoints"
       }
     ],
-    "name": "Counter (+1)",
-    "hint": "bumps the named counter and shows its new value",
-    "description": "Adds 1 to a counter and shows the new total (needs the Loyalty Points module). Pick its scope below, it's set once, at creation, from the dashboard or !counter create.",
+    "name": "Counter",
+    "hint": "shows a counter's current value; {count:…} is the same read (Loyalty)",
+    "description": "Shows a counter's current value without changing it. To add to a counter, turn on \"Bump a counter\" on the command itself; this only reads whatever that option (or !counter) has produced. {counter:target:name} reads the mentioned viewer's own count instead of the channel's. Needs the Loyalty Points module.",
     "category": "counters",
     "categories": [
       "counters"
@@ -695,31 +623,47 @@
   },
   {
     "id": "uses",
-    "token": "{uses}",
-    "syntax": "{uses}",
-    "example": "{uses}",
+    "token": "{count}",
+    "syntax": "{count}",
+    "example": "{count}",
     "output": "317",
     "syntaxes": [
-      "{uses}"
+      "{count}"
     ],
     "examples": [
       {
-        "syntax": "{uses}",
+        "syntax": "{count}",
         "output": "317",
         "surfaceId": "custom"
+      },
+      {
+        "syntax": "{count}",
+        "output": "2",
+        "surfaceId": "queue-next"
+      },
+      {
+        "syntax": "{count}",
+        "output": "38",
+        "surfaceId": "fn-store"
       }
     ],
     "name": "Times used",
-    "hint": "how many times this command has been used, not counting this one (approximate)",
-    "description": "How many times this command has been used in your channel, not counting the one printing it. It counts every use, whichever name was typed, and needs no counter. The total is approximate: the bot batches its counting, so it can be up to a minute behind.",
+    "hint": "how many times this command has been used, not counting this one; {uses} is the same thing (approximate)",
+    "description": "How many times this command has been used in your channel, not counting the one printing it. It counts every use, whichever name was typed, and needs no counter. {uses} is the older spelling of the same value. The total is approximate: the bot batches its counting, so it can be up to a minute behind.",
     "category": "counters",
     "categories": [
       "counters"
     ],
-    "aliases": [],
-    "aliasTokens": [],
+    "aliases": [
+      "uses"
+    ],
+    "aliasTokens": [
+      "{uses}"
+    ],
     "surfaceIds": [
-      "custom"
+      "custom",
+      "queue-next",
+      "fn-store"
     ],
     "surfaces": [
       {
@@ -727,6 +671,18 @@
         "group": "Commands",
         "label": "Custom command",
         "dashPath": "/commands"
+      },
+      {
+        "id": "queue-next",
+        "group": "Play Queue",
+        "label": "Queue: next player up",
+        "dashPath": "/modules/queue"
+      },
+      {
+        "id": "fn-store",
+        "group": "Game stats",
+        "label": "Fortnite: !fn store",
+        "dashPath": "/modules/fortnite"
       }
     ],
     "requirementIds": [],
@@ -738,7 +694,7 @@
     "parameterized": false,
     "lexer": {
       "valid": true,
-      "name": "uses",
+      "name": "count",
       "payload": null
     },
     "lexerValid": true

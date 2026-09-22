@@ -21,9 +21,10 @@ const DEMO = dev && process.env.DEMO === '1';
 
 export type BotCountersBundle = { counters: BotCounter[]; degraded: boolean };
 
-// ':' is reserved (the worker's bot-token prefix), so it never enters a name;
-// the fold itself is normalizeCounterName, shared with the dashboard's counters
-// page because both write the same keyspace.
+// ':' is the {counter:...}/{count:...} token's payload separator, so a name
+// containing one could never be addressed by either token and never enters a
+// name; the fold itself is normalizeCounterName, shared with the dashboard's
+// counters page because both write the same keyspace.
 function validName(name: string): boolean {
   return name.length > 0 && !name.includes(':');
 }

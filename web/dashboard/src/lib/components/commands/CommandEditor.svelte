@@ -106,7 +106,8 @@
       aliases: draft.aliases.map(normName).filter(Boolean),
       response: draft.response,
       cooldown: Math.floor(Number(draft.cooldown) || 0),
-      allowedUserId: draft.allowed_user_id.replace(/\D/g, '')
+      allowedUserId: draft.allowed_user_id.replace(/\D/g, ''),
+      bumpCounter: normName(draft.bump_counter)
     });
     if (Object.keys(clientErrors).length) {
       input.cancel();
@@ -241,6 +242,25 @@
   <div class="check">
     <Checkbox name="stream_online_only" bind:checked={draft.stream_online_only}>{t('commandEditor.onlyWhileLive')}</Checkbox>
   </div>
+
+  <Field
+    label={t('commandEditor.bumpCounter')}
+    tag={t('common.optional')}
+    hint={t('commandEditor.bumpCounterHint')}
+    error={errors.bump_counter}
+    errorId="command-bump-counter-err"
+  >
+    <input
+      class="bb-input"
+      name="bump_counter"
+      maxlength="64"
+      placeholder={t('commandEditor.bumpCounterPlaceholder')}
+      data-invalid={errors.bump_counter ? '' : undefined}
+      aria-invalid={errors.bump_counter ? 'true' : undefined}
+      aria-describedby={errors.bump_counter ? 'command-bump-counter-err' : undefined}
+      bind:value={draft.bump_counter}
+    />
+  </Field>
    </div>
   </Scroller>
 

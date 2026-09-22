@@ -17,8 +17,7 @@
 //          drives writes through the existing stores/RPCs: commands-store
 //          upsert (chunks of 25, sequential within a chunk, checkpointing,
 //          mirroring the old service's fan-out), one merge-patch per touched
-//          module blob (timers/triggers/automod), quote.add rows, and loyalty
-//          counter create/set pairs.
+//          module blob (timers/triggers/automod), and quote.add rows.
 //
 // Identity rule (C3, carried over unchanged): user_id ALWAYS comes from the
 // authenticated Session here and never from caller-supplied data.
@@ -45,7 +44,6 @@ import type { Session } from '../session';
 import { invalidate, SUB } from '../services';
 import { listCommands, listModules, upsertCommand } from '../commands-store';
 import { addQuote } from '../quotes-store';
-import { createCounter, setCounter } from '../loyalty-store';
 import { rpc } from '@bagel/kit/server/nats';
 import { logger } from '@bagel/kit/server/logger';
 import type {
@@ -93,7 +91,7 @@ export type ImportCommitRequest = {
 };
 
 export function emptyStats(): ImportStats {
-  return { commands: 0, timers: 0, triggers: 0, quotes: 0, counters: 0 };
+  return { commands: 0, timers: 0, triggers: 0, quotes: 0 };
 }
 
 export function errorDiag(item_index: number, code: string, message: string): ImportDiagnostic {
@@ -207,19 +205,18 @@ interface CommitContext {
   overwrite: boolean;
   failed: FailedItems;
   skipCommands: Set<string>;
-  skipCounters: Set<string>;
   collisions: CommitResponse['skipped'];
   diags: ImportDiagnostic[];
   applied: ImportStats;
   // modules is null when the read failed; timers/triggers/automod then stay
-  // unimported while quotes and counters proceed.
+  // unimported while quotes proceed.
   modules: Awaited<ReturnType<typeof listModules>> | null;
 }
 
 // commitImport applies a (client-filtered) manifest through the owning
 // services' existing write paths. The legs run in a fixed order: command
-// upserts, module-blob timers/triggers, quote rows, automod terms, counter
-// create/set, mirroring the old service's fan-out sequence.
+// upserts, module-blob timers/triggers, quote rows, automod terms,
+// mirroring the old service's fan-out sequence.
 //
 // Decision record (audit trail, 2026-08-23): the standalone service wrote an
 // import_audits row and returned its id; commit now emits ONE structured pino
@@ -239,7 +236,6 @@ export async function commitImport(s: Session, req: ImportCommitRequest): Promis
     overwrite: !!req.overwrite,
     failed: new FailedItems(diags),
     skipCommands: new Set(),
-    skipCounters: new Set(),
     collisions: [],
     diags,
     applied: emptyStats(),
@@ -250,7 +246,6 @@ export async function commitImport(s: Session, req: ImportCommitRequest): Promis
   if (existingNames && !ctx.overwrite) {
     ctx.collisions = findCollisions(existingNames, ctx.manifest);
     ctx.skipCommands = collisionNames(ctx.collisions, 'command');
-    ctx.skipCounters = collisionNames(ctx.collisions, 'counter');
   }
 
   await commitCommands(ctx);
@@ -258,7 +253,6 @@ export async function commitImport(s: Session, req: ImportCommitRequest): Promis
   await commitTimersAndTriggers(ctx);
   await commitQuotes(ctx);
   await commitAutomodTerms(ctx);
-  await commitCounters(ctx);
 
   // Cache drop so the dashboard reflects the import without waiting out a TTL
   // (commands upserts and modules blob patches both project into cached lists).
@@ -280,7 +274,7 @@ async function commandNamesOrWarn(ctx: CommitContext): Promise<string[] | null> 
   }
 }
 
-type CollisionKind = 'command' | 'counter';
+type CollisionKind = 'command';
 
 function collisionNames(collisions: CommitResponse['skipped'], kind: CollisionKind): Set<string> {
   return new Set((collisions ?? []).filter((c) => c.kind === kind).map((c) => c.name));
@@ -288,7 +282,7 @@ function collisionNames(collisions: CommitResponse['skipped'], kind: CollisionKi
 
 // loadModules reads the channel's module blobs; a read failure blocks exactly
 // timers/triggers/automod: those collections still count as attempted
-// (partial/failed audit semantics) while quotes and counters stay alive.
+// (partial/failed audit semantics) while quotes stay alive.
 async function loadModules(ctx: CommitContext): Promise<Awaited<ReturnType<typeof listModules>> | null> {
   try {
     return await listModules(ctx.uid);
@@ -351,7 +345,10 @@ async function upsertOneCommand(ctx: CommitContext, target: CommandTarget): Prom
       streamOnlineOnly: !!cmd.online_only,
       perm: cmd.permission ?? 'everyone',
       cooldown: clampCooldown(cmd.cooldown_seconds ?? 0),
-      allowedUserId: ''
+      allowedUserId: '',
+      // No import source carries this as a per-command concept; imported
+      // commands never bump a counter on their own.
+      bumpCounter: ''
     });
     ctx.applied.commands++;
   } catch (err) {
@@ -392,23 +389,6 @@ async function commitAutomodTerms(ctx: CommitContext): Promise<void> {
   await applyAutomodTerms(ctx, moduleBlob(ctx, 'automod'));
 }
 
-// commitCounters creates then sets each eligible counter; colliding names are
-// skipped unless the import overwrites.
-async function commitCounters(ctx: CommitContext): Promise<void> {
-  for (const idx of eligibleIndexes(ctx, 'counters')) {
-    const c = ctx.manifest.counters![idx];
-    const name = normalizeName(c.name);
-    if (!ctx.overwrite && ctx.skipCounters.has(name)) continue;
-    try {
-      await createCounter(ctx.uid, name, 'channel');
-      await setCounter(ctx.uid, name, c.value);
-      ctx.applied.counters++;
-    } catch (err) {
-      ctx.diags.push(errorDiag(idx, CODE.writeFailed, String(err)));
-    }
-  }
-}
-
 // logCommit is the audit row's replacement: one structured line per commit.
 function logCommit(ctx: CommitContext): void {
   logger.info(
@@ -426,7 +406,7 @@ function logCommit(ctx: CommitContext): void {
 }
 
 // ManifestCollection names one manifest array the commit legs walk.
-type ManifestCollection = 'commands' | 'timers' | 'triggers' | 'quotes' | 'counters';
+type ManifestCollection = 'commands' | 'timers' | 'triggers' | 'quotes';
 
 // eligibleIndexes returns the valid indexes of one collection that carry no
 // error-severity diagnostic: the shared filter every collection's loop walks

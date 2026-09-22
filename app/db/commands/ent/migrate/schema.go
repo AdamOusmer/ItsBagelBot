@@ -21,6 +21,7 @@ var (
 		{Name: "cooldown", Type: field.TypeUint, Default: 0},
 		{Name: "allowed_user_id", Type: field.TypeUint64, Default: 0},
 		{Name: "uses", Type: field.TypeUint64, Default: 0},
+		{Name: "bump_counter", Type: field.TypeString, Size: 64, Default: ""},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
 	}
@@ -85,11 +86,24 @@ var (
 			},
 		},
 	}
+	// MigrationsColumns holds the columns for the "migrations" table.
+	MigrationsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "name", Type: field.TypeString, Unique: true},
+		{Name: "applied_at", Type: field.TypeTime},
+	}
+	// MigrationsTable holds the schema information for the "migrations" table.
+	MigrationsTable = &schema.Table{
+		Name:       "migrations",
+		Columns:    MigrationsColumns,
+		PrimaryKey: []*schema.Column{MigrationsColumns[0]},
+	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		CommandsTable,
 		FetchDefinitionsTable,
 		FetchKeysTable,
+		MigrationsTable,
 	}
 )
 

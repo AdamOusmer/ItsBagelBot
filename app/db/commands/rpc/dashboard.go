@@ -62,6 +62,7 @@ func (d *dashboardRPC) handleUpsert(ctx context.Context, req commandsrpc.Dashboa
 		Perm:             req.Perm,
 		Cooldown:         req.Cooldown,
 		AllowedUserID:    allowedUserID,
+		BumpCounter:      req.BumpCounter,
 	}
 
 	// A rename updates the existing row's name field in place; a plain edit or

@@ -28,18 +28,17 @@ func TestCounterScopePlanNames(t *testing.T) {
 	assert.Empty(t, planCounters(t, "{counter:deaths").asked)
 	// Empty name skipped.
 	assert.Empty(t, planCounters(t, "{counter:}").asked)
-	// Bot-scope counters are admin-only: broadcaster commands never bump them,
-	// so the token stays visible.
-	assert.Empty(t, planCounters(t, "{counter:Bot:Feeds}").asked)
 }
 
 func TestRenderCounterToken(t *testing.T) {
-	out := renderScopes(nil, "died {counter:deaths} times", scope.Store{Counters: &recordCounters{}})
+	out := renderScopes(nil, "died {counter:deaths} times", scope.Store{Peeks: &recordPeeks{}})
 	assert.Equal(t, "died 42 times", out)
 
-	// No resolved value: the token stays visible, matching unknown tokens.
-	out = renderScopes(nil, "died {counter:deaths} times", scope.Store{Counters: emptyCounters{}})
-	assert.Equal(t, "died {counter:deaths} times", out)
+	// No resolved value: the read answered "nothing", so the span renders
+	// empty (its fallback would speak here, matching every other counter
+	// read) rather than staying literal.
+	out = renderScopes(nil, "died {counter:deaths} times", scope.Store{Peeks: emptyPeeks{}})
+	assert.Equal(t, "died  times", out)
 }
 
 func TestLoyaltyConfigDefaults(t *testing.T) {

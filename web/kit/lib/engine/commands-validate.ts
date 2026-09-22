@@ -69,11 +69,13 @@ export interface CommandFields {
   cooldown: number;
   /** Digits-only Twitch user id, or '' for unrestricted. */
   allowedUserId: string;
+  /** Normalized counter name to bump on every successful run, or '' for none. */
+  bumpCounter: string;
 }
 
 /** field -> human message; empty object = valid. Keys match form field names. */
 export type CommandErrors = Partial<
-  Record<'name' | 'aliases' | 'response' | 'cooldown' | 'allowed_user_id', string>
+  Record<'name' | 'aliases' | 'response' | 'cooldown' | 'allowed_user_id' | 'bump_counter', string>
 >;
 
 // NameCheck is one trigger-shaped value under validation with the label its
@@ -126,6 +128,35 @@ function responseProblem(response: string): string | undefined {
   return undefined;
 }
 
+// bumpCounterProblem mirrors validate.BumpCounter (Go): '' is valid (no
+// bump), unlike a command name, which can never be empty; a NAME is held to
+// the same length/charset rule because it is likewise echoed to chat, through
+// the {counter:…}/{count:…} reads of the value this option produces.
+//
+// A leading '!' is stripped before checking anything else, matching Go's
+// own order: CommandSpec.normalize folds bump_counter through
+// tmpl.NormalizeName (trim, drop one leading '!', trim, lower-case) BEFORE
+// validate.BumpCounter ever runs, so Go never sees a leading '!' to reject
+// in the first place. This function used to reject '!' ANYWHERE, which was
+// stricter than Go two ways at once: Go allows one embedded further in the
+// name (nothing here strips or forbids that), and Go never even looks at a
+// leading one because normalization already removed it. Stripping here
+// makes this the same check regardless of whether a caller normalized
+// first (both call sites currently do; a future one might not).
+//
+// ':' is rejected for the same reason Go's validate.BumpCounter now is: it
+// is the {counter:…}/{count:…} token's payload separator (see that
+// function's comment), so a name containing one could never be addressed
+// by either token.
+function bumpCounterProblem(name: string): string | undefined {
+  const stripped = name.replace(/^!/, '');
+  if (!stripped) return undefined;
+  if (stripped.length > COMMAND_NAME_MAX) return `Counter name must be at most ${COMMAND_NAME_MAX} characters.`;
+  if (/\s/.test(stripped)) return 'Counter name cannot contain spaces.';
+  if (stripped.includes(':')) return 'Counter name cannot contain ":".';
+  return undefined;
+}
+
 function cooldownProblem(cooldown: number): string | undefined {
   // The negated range check refuses NaN and both infinities in one shape:
   // NaN fails every comparison, ±Infinity falls outside the bounds.
@@ -147,6 +178,8 @@ export function validateCommand(f: CommandFields): CommandErrors {
   if (f.allowedUserId && !/^[0-9]+$/.test(f.allowedUserId)) {
     errors.allowed_user_id = 'User restriction must be a numeric Twitch user id.';
   }
+  const bumpCounter = bumpCounterProblem(f.bumpCounter);
+  if (bumpCounter) errors.bump_counter = bumpCounter;
   return errors;
 }
 

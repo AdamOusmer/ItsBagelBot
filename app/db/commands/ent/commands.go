@@ -38,6 +38,8 @@ type Commands struct {
 	AllowedUserID uint64 `json:"allowed_user_id,omitempty"`
 	// Uses holds the value of the "uses" field.
 	Uses uint64 `json:"uses,omitempty"`
+	// BumpCounter holds the value of the "bump_counter" field.
+	BumpCounter string `json:"bump_counter,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// UpdatedAt holds the value of the "updated_at" field.
@@ -56,7 +58,7 @@ func (*Commands) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullBool)
 		case commands.FieldID, commands.FieldUserID, commands.FieldCooldown, commands.FieldAllowedUserID, commands.FieldUses:
 			values[i] = new(sql.NullInt64)
-		case commands.FieldName, commands.FieldResponse, commands.FieldPerm:
+		case commands.FieldName, commands.FieldResponse, commands.FieldPerm, commands.FieldBumpCounter:
 			values[i] = new(sql.NullString)
 		case commands.FieldCreatedAt, commands.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -143,6 +145,12 @@ func (_m *Commands) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.Uses = uint64(value.Int64)
 			}
+		case commands.FieldBumpCounter:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field bump_counter", values[i])
+			} else if value.Valid {
+				_m.BumpCounter = value.String
+			}
 		case commands.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field created_at", values[i])
@@ -220,6 +228,9 @@ func (_m *Commands) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("uses=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Uses))
+	builder.WriteString(", ")
+	builder.WriteString("bump_counter=")
+	builder.WriteString(_m.BumpCounter)
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))

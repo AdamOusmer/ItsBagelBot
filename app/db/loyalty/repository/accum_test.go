@@ -152,8 +152,9 @@ func TestValidCounterName(t *testing.T) {
 	_, err = ValidCounterName(string(long))
 	assert.ErrorIs(t, err, ErrInvalidInput)
 
-	// ':' is reserved for the worker's {counter:bot:name} token prefix.
-	_, err = ValidCounterName("bot:feeds")
+	// ':' is the {counter:...}/{count:...} token's payload separator, so a
+	// name containing one could never be addressed by either token.
+	_, err = ValidCounterName("target:deaths")
 	assert.ErrorIs(t, err, ErrInvalidInput)
 }
 

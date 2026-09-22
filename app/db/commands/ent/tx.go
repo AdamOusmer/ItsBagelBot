@@ -18,6 +18,8 @@ type Tx struct {
 	FetchDefinition *FetchDefinitionClient
 	// FetchKey is the client for interacting with the FetchKey builders.
 	FetchKey *FetchKeyClient
+	// Migrations is the client for interacting with the Migrations builders.
+	Migrations *MigrationsClient
 
 	// lazily loaded.
 	client     *Client
@@ -152,6 +154,7 @@ func (tx *Tx) init() {
 	tx.Commands = NewCommandsClient(tx.config)
 	tx.FetchDefinition = NewFetchDefinitionClient(tx.config)
 	tx.FetchKey = NewFetchKeyClient(tx.config)
+	tx.Migrations = NewMigrationsClient(tx.config)
 }
 
 // txDriver wraps the given dialect.Tx with a nop dialect.Driver implementation.

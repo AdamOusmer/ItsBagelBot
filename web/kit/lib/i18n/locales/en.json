@@ -1025,6 +1025,9 @@
     "restrictPlaceholder": "Twitch user ID. Only they can run it",
     "active": "Active",
     "onlyWhileLive": "Only while live",
+    "bumpCounter": "Bump a counter",
+    "bumpCounterHint": "Adds one to this counter every time the command runs successfully.",
+    "bumpCounterPlaceholder": "Counter name (optional)",
     "saving": "Saving…",
     "saveChanges": "Save changes",
     "create": "Create"
@@ -1826,7 +1829,7 @@
     "conflictsNote": "<b>{n} name conflict(s)</b> with commands already on this board, highlighted below. Leave the toggle off to skip them, or turn it on to replace the existing ones.",
     "continueCta": "Continue",
     "cooldownChip": "{n}s cooldown",
-    "doneLine": "Imported {c} command(s), {tm} timer(s), {tg} trigger(s), {q} quote(s) and {ct} counter(s).",
+    "doneLine": "Imported {c} command(s), {tm} timer(s), {tg} trigger(s) and {q} quote(s).",
     "doneTitle": "4 · Done",
     "dropHint": "Click to choose a file, or drop it here",
     "errFileMissing": "Choose a file to upload.",
@@ -1851,7 +1854,6 @@
     "fossabotDesc": "Type your channel name and your public Fossabot commands page is read for you. No sign-in, no token.",
     "handleFieldAria": "Channel name",
     "hCommands": "Commands",
-    "hCounters": "Counters",
     "hQuotes": "Quotes",
     "hTimers": "Timers",
     "hTriggers": "Keyword triggers",
@@ -1933,9 +1935,7 @@
     "stageReview": "Review",
     "stagesLabel": "Import progress",
     "startOver": "Start over",
-    "startsAt": "starts at {n}",
     "statCommands": "{n} command(s)",
-    "statCounters": "{n} counter(s)",
     "statQuotes": "{n} quote(s)",
     "statTimers": "{n} timer(s)",
     "statTriggers": "{n} trigger(s)",
@@ -3584,9 +3584,9 @@
       "desc": "The name of the command that ran, without the \"!\". Alternate names all report the main one."
     },
     "counter": {
-      "name": "Counter (+1)",
-      "hint": "bumps the named counter and shows its new value",
-      "desc": "Adds 1 to a counter and shows the new total (needs the Loyalty Points module). Pick its scope below, it's set once, at creation, from the dashboard or !counter create."
+      "name": "Counter",
+      "hint": "shows a counter's current value; {count:…} is the same read (Loyalty)",
+      "desc": "Shows a counter's current value without changing it. To add to a counter, turn on \"Bump a counter\" on the command itself; this only reads whatever that option (or !counter) has produced. {counter:target:name} reads the mentioned viewer's own count instead of the channel's. Needs the Loyalty Points module."
     },
     "random": {
       "name": "Random 1-100",
@@ -3663,15 +3663,10 @@
       "hint": "how long they have watched, in the same words as !uptime (Loyalty)",
       "desc": "How long they have watched while the loyalty clock was running. {watchtime:alex} asks about someone else. Needs the Loyalty Points module."
     },
-    "count": {
-      "name": "Counter (read only)",
-      "hint": "reads a counter without adding to it, unlike {counter:…} (Loyalty)",
-      "desc": "Shows a counter without adding to it, so a command can report a total it does not change. Same counter, same name, same scopes as {counter:…}."
-    },
     "uses": {
       "name": "Times used",
-      "hint": "how many times this command has been used, not counting this one (approximate)",
-      "desc": "How many times this command has been used in your channel, not counting the one printing it. It counts every use, whichever name was typed, and needs no counter. The total is approximate: the bot batches its counting, so it can be up to a minute behind."
+      "hint": "how many times this command has been used, not counting this one; {uses} is the same thing (approximate)",
+      "desc": "How many times this command has been used in your channel, not counting the one printing it. It counts every use, whichever name was typed, and needs no counter. {uses} is the older spelling of the same value. The total is approximate: the bot batches its counting, so it can be up to a minute behind."
     },
     "quote": {
       "name": "A saved quote",

@@ -140,15 +140,16 @@ describe('commands', () => {
     ]);
   });
 
-  test('$(count) translates to {uses}, the per-command run count', () => {
+  test('$(count) translates to bare {count}, the per-command run count', () => {
     // Nightbot's $(count) is the unnamed per-command counter, which is the one
-    // thing {uses} is. It maps without a warning: no name has to be invented
-    // and no increment is dropped, because the bot counts every custom
-    // command's runs whether or not the response prints the number.
+    // thing bare {count} (the {uses} alias) is. It maps without a warning: no
+    // name has to be invented and no increment is dropped, because the bot
+    // counts every custom command's runs whether or not the response prints
+    // the number.
     const { manifest, diagnostics } = parseNightbot(
       bytes({ commands: [command({ message: 'hugged $(count) times' })] })
     );
-    expect(manifest.commands?.[0].responses).toEqual(['hugged {uses} times']);
+    expect(manifest.commands?.[0].responses).toEqual(['hugged {count} times']);
     expect(codesOf(diagnostics)).toEqual([]);
   });
 

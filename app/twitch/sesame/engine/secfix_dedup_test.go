@@ -99,9 +99,14 @@ func (l *countingLoyalty) CounterPeek(context.Context, CounterTarget) (loyaltyrp
 	return loyaltyrpc.Counter{Name: "deaths", Value: l.value}, true, nil
 }
 
-// A redelivered command line must bump its {counter} token ONCE and render the
-// peeked value on the replay, while a DISTINCT event bumps again.
-func TestCounterTokenBumpReplayRendersPeekNotDoubleBump(t *testing.T) {
+// {counter:x} stopped bumping (see ent/schema/commands.go's bump_counter
+// field comment): a redelivered command line re-renders the template each
+// time, which re-peeks, but never claims the CounterEffect namespace and
+// never bumps — there is nothing left in the render path that writes. The
+// command-run bump OPTION is the one thing that still claims that namespace;
+// TestBumpCounterOptionRedeliveryDoesNotDoubleCount (counter_token_test.go)
+// covers its redelivery guard.
+func TestCounterTokenNeverBumpsOnRedelivery(t *testing.T) {
 	store := newRecordingStore()
 	pub := &rawPublisher{}
 	loyal := &countingLoyalty{}
@@ -123,9 +128,9 @@ func TestCounterTokenBumpReplayRendersPeekNotDoubleBump(t *testing.T) {
 	require.NoError(t, p.Process(commandMsg(t, "m1", "!foo"))) // replay: same msg_id
 	require.NoError(t, p.Process(commandMsg(t, "m2", "!foo"))) // distinct event
 
-	// The claim lives under the CounterEffect namespace, the exact key
-	// CounterClaim hands a folded claim+increment bump.
-	require.Contains(t, store.keys(), "m1:cbump:deaths")
-	assert.Equal(t, 2, loyal.bumps, "replay must not re-bump; distinct event must")
-	assert.Equal(t, 1, loyal.peekCalls, "exactly one replay rendered the peeked value")
+	assert.Zero(t, loyal.bumps, "a template read never bumps, replayed or not")
+	assert.Equal(t, 3, loyal.peekCalls, "every render re-peeks; a read has nothing to deduplicate")
+	for _, key := range store.keys() {
+		assert.NotContains(t, key, "cbump:deaths", "no read claims the counter-bump namespace")
+	}
 }

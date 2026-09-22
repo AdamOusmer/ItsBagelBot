@@ -550,95 +550,23 @@
     "lexerValid": true
   },
   {
-    "id": "count",
-    "token": "{count:deaths}",
-    "syntax": "{count:<name>}",
-    "example": "{count:deaths}",
-    "output": "42",
-    "syntaxes": [
-      "{count:<name>}"
-    ],
-    "examples": [
-      {
-        "syntax": "{count:deaths}",
-        "output": "42",
-        "surfaceId": "custom"
-      },
-      {
-        "syntax": "{count}",
-        "output": "2",
-        "surfaceId": "queue-next"
-      },
-      {
-        "syntax": "{count}",
-        "output": "38",
-        "surfaceId": "fn-store"
-      }
-    ],
-    "name": "Compteur (lecture seule)",
-    "hint": "lit un compteur sans l’incrémenter, contrairement à {counter:…} (Fidélité)",
-    "description": "Affiche un compteur sans l’incrémenter, pour qu’une commande puisse annoncer un total sans le modifier. Même compteur, même nom et mêmes portées que {counter:…}.",
-    "category": "counters",
-    "categories": [
-      "counters"
-    ],
-    "aliases": [],
-    "aliasTokens": [],
-    "surfaceIds": [
-      "custom",
-      "queue-next",
-      "fn-store"
-    ],
-    "surfaces": [
-      {
-        "id": "custom",
-        "group": "Commandes",
-        "label": "Commande personnalisée",
-        "dashPath": "/commands"
-      },
-      {
-        "id": "queue-next",
-        "group": "File d'attente",
-        "label": "File: joueur suivant",
-        "dashPath": "/modules/queue"
-      },
-      {
-        "id": "fn-store",
-        "group": "Stats de jeu",
-        "label": "Fortnite: !fn store",
-        "dashPath": "/modules/fortnite"
-      }
-    ],
-    "requirementIds": [
-      "loyalty"
-    ],
-    "requirements": [
-      "Points de fidélité"
-    ],
-    "requirement": "Points de fidélité",
-    "payload": "",
-    "behavior": "",
-    "legacy": false,
-    "parameterized": true,
-    "lexer": {
-      "valid": true,
-      "name": "count",
-      "payload": "<name>"
-    },
-    "lexerValid": true
-  },
-  {
     "id": "counter",
     "token": "{counter:falls}",
     "syntax": "{counter:<name>}",
     "example": "{counter:falls}",
     "output": "42",
     "syntaxes": [
-      "{counter:<name>}"
+      "{counter:<name>}",
+      "{counter:target:<name>}"
     ],
     "examples": [
       {
         "syntax": "{counter:falls}",
+        "output": "42",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{counter:target:falls}",
         "output": "42",
         "surfaceId": "custom"
       },
@@ -648,9 +576,9 @@
         "surfaceId": "channelpoints"
       }
     ],
-    "name": "Compteur (+1)",
-    "hint": "incrémente le compteur nommé et affiche sa nouvelle valeur",
-    "description": "Ajoute 1 à un compteur et affiche le nouveau total (nécessite le module Points de fidélité). Choisissez sa portée ci-dessous: elle est fixée une fois, à la création, depuis le tableau de bord ou avec !counter create.",
+    "name": "Compteur",
+    "hint": "affiche la valeur actuelle d’un compteur; {count:…} est la même lecture (Fidélité)",
+    "description": "Affiche la valeur actuelle d’un compteur sans la modifier. Pour incrémenter un compteur, activez « Incrémenter un compteur » sur la commande elle-même; ceci ne fait que lire ce que cette option (ou !counter) a produit. {counter:target:nom} lit le compteur propre au spectateur mentionné plutôt que celui de la chaîne. Nécessite le module Points de fidélité.",
     "category": "counters",
     "categories": [
       "counters"
@@ -695,31 +623,47 @@
   },
   {
     "id": "uses",
-    "token": "{uses}",
-    "syntax": "{uses}",
-    "example": "{uses}",
+    "token": "{count}",
+    "syntax": "{count}",
+    "example": "{count}",
     "output": "317",
     "syntaxes": [
-      "{uses}"
+      "{count}"
     ],
     "examples": [
       {
-        "syntax": "{uses}",
+        "syntax": "{count}",
         "output": "317",
         "surfaceId": "custom"
+      },
+      {
+        "syntax": "{count}",
+        "output": "2",
+        "surfaceId": "queue-next"
+      },
+      {
+        "syntax": "{count}",
+        "output": "38",
+        "surfaceId": "fn-store"
       }
     ],
     "name": "Nombre d’utilisations",
-    "hint": "combien de fois cette commande a servi, sans compter celle-ci (approximatif)",
-    "description": "Combien de fois cette commande a servi dans votre chaîne, sans compter celle qui l’affiche. Elle compte chaque utilisation, quel que soit le nom tapé, et ne demande aucun compteur. Le total est approximatif: le bot compte par lots et peut avoir jusqu’à une minute de retard.",
+    "hint": "combien de fois cette commande a servi, sans compter celle-ci; {uses} est la même valeur (approximatif)",
+    "description": "Combien de fois cette commande a servi dans votre chaîne, sans compter celle qui l’affiche. Elle compte chaque utilisation, quel que soit le nom tapé, et ne demande aucun compteur. {uses} est l’ancienne orthographe de la même valeur. Le total est approximatif: le bot compte par lots et peut avoir jusqu’à une minute de retard.",
     "category": "counters",
     "categories": [
       "counters"
     ],
-    "aliases": [],
-    "aliasTokens": [],
+    "aliases": [
+      "uses"
+    ],
+    "aliasTokens": [
+      "{uses}"
+    ],
     "surfaceIds": [
-      "custom"
+      "custom",
+      "queue-next",
+      "fn-store"
     ],
     "surfaces": [
       {
@@ -727,6 +671,18 @@
         "group": "Commandes",
         "label": "Commande personnalisée",
         "dashPath": "/commands"
+      },
+      {
+        "id": "queue-next",
+        "group": "File d'attente",
+        "label": "File: joueur suivant",
+        "dashPath": "/modules/queue"
+      },
+      {
+        "id": "fn-store",
+        "group": "Stats de jeu",
+        "label": "Fortnite: !fn store",
+        "dashPath": "/modules/fortnite"
       }
     ],
     "requirementIds": [],
@@ -738,7 +694,7 @@
     "parameterized": false,
     "lexer": {
       "valid": true,
-      "name": "uses",
+      "name": "count",
       "payload": null
     },
     "lexerValid": true

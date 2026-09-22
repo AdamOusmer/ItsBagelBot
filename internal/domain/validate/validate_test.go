@@ -47,6 +47,19 @@ func TestCommandName(t *testing.T) {
 	assert.Error(t, validate.CommandName(strings.Repeat("a", 65)))
 }
 
+func TestBumpCounter(t *testing.T) {
+	assert.NoError(t, validate.BumpCounter(""), "empty means no bump, unlike a command name")
+	assert.NoError(t, validate.BumpCounter("deaths"))
+
+	assert.Error(t, validate.BumpCounter("has space"))
+	assert.Error(t, validate.BumpCounter(strings.Repeat("a", 65)))
+	// ':' is the {counter:...}/{count:...} payload separator: a name
+	// carrying one could never be addressed by either token, and it is
+	// exactly what app/db/loyalty's ValidCounterName refuses too.
+	assert.Error(t, validate.BumpCounter("target:deaths"))
+	assert.Error(t, validate.BumpCounter("bot:feeds"))
+}
+
 func TestCommandResponse(t *testing.T) {
 	assert.NoError(t, validate.CommandResponse("Welcome to the stream! 🎉"))
 	assert.NoError(t, validate.CommandResponse("line one\nline two"), "newlines separate chat messages")

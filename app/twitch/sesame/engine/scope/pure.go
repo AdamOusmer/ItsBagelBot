@@ -58,7 +58,8 @@ func (p Pure) countupUtil(payload string) string   { return p.countup(payload) }
 
 // Owns claims the two generic dynamic names tmpl.Dynamic answers, plus
 // the payload utilities above.
-func (Pure) Owns(name string) bool {
+func (Pure) Owns(v Var) bool {
+	name := v.Name
 	if name == "random" || name == "choice" {
 		return true
 	}

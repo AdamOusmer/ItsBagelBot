@@ -22,7 +22,6 @@ import type {
   ImportManifest,
   ImportStats,
   ManifestCommand,
-  ManifestCounter,
   ManifestQuote,
   ManifestTimer,
   ManifestTrigger,
@@ -84,15 +83,13 @@ export const CODE = {
   triggerInvalid: 'trigger_invalid',
   quoteTextInvalid: 'quote_text_invalid',
   quoteDateInvalid: 'quote_date_invalid',
-  counterNameInvalid: 'counter_name_invalid',
   automodTermsTooMany: 'automod_terms_too_many',
   moduleReadFailed: 'module_read_failed',
   writeFailed: 'write_failed',
   commandTooMany: 'command_too_many',
   timerTooMany: 'timer_too_many',
   triggerTooMany: 'trigger_too_many',
-  quoteTooMany: 'quote_too_many',
-  counterTooMany: 'counter_too_many'
+  quoteTooMany: 'quote_too_many'
 } as const;
 
 // maxResponseLineLength mirrors Twitch's per-message limit: a longer line would
@@ -250,7 +247,7 @@ export function mapPermission(raw: string): { perm: Perm; recognized: boolean } 
 // Stats tallies one manifest by collection. It counts what the manifest holds,
 // regardless of validity: preview renders this number, commit computes its own
 // applied tally from what actually wrote.
-const STAT_KEYS: readonly (keyof ImportStats)[] = ['commands', 'timers', 'triggers', 'quotes', 'counters'];
+const STAT_KEYS: readonly (keyof ImportStats)[] = ['commands', 'timers', 'triggers', 'quotes'];
 
 export function stats(m: ImportManifest | null | undefined): ImportStats {
   const out = {} as ImportStats;
@@ -265,15 +262,13 @@ export function isEmptyStats(s: ImportStats): boolean {
 }
 
 // FindCollisions returns the manifest items whose normalized name (or alias)
-// matches an entry of existingNames. Counters use the same normalization the
-// loyalty service applies to counter keys (lower-cased, no leading "!").
+// matches an entry of existingNames.
 export function findCollisions(existingNames: string[], m: ImportManifest | null | undefined): CollisionRef[] {
   if (!m || existingNames.length === 0) return [];
   const existing = new Set(existingNames.map(normalizeName));
 
   return [
     ...(m.commands ?? []).filter((c) => commandCollides(c, existing)).map((c) => collisionRef('command', c.name)),
-    ...(m.counters ?? []).filter((c) => existing.has(normalizeName(c.name))).map((c) => collisionRef('counter', c.name)),
     // Synthesized urlfetch definitions collide like any other named item: a
     // slug (<source>-<command>) that already names something on the channel
     // would fight it at ingestion, so surface it and let the review screen skip.
@@ -288,7 +283,7 @@ function commandCollides(c: ManifestCommand, existing: Set<string>): boolean {
   return (c.aliases ?? []).some((a) => existing.has(normalizeName(a)));
 }
 
-function collisionRef(kind: 'command' | 'counter' | 'fetch', name: string): CollisionRef {
+function collisionRef(kind: 'command' | 'fetch', name: string): CollisionRef {
   return { kind, name: normalizeName(name) };
 }
 
@@ -298,7 +293,6 @@ const MAX_IMPORT_COMMANDS = IMPORT_ITEM_CAPS.commands;
 const MAX_IMPORT_TIMERS = IMPORT_ITEM_CAPS.timers;
 const MAX_IMPORT_TRIGGERS = IMPORT_ITEM_CAPS.triggers;
 const MAX_IMPORT_QUOTES = IMPORT_ITEM_CAPS.quotes;
-const MAX_IMPORT_COUNTERS = IMPORT_ITEM_CAPS.counters;
 
 // maxQuoteTextLen mirrors the quote column cap in the modules service: the
 // quote readout prepends "Quote #N: " and appends " (date)" inside one Twitch
@@ -359,9 +353,6 @@ export function isValidFetchDefName(name: string): boolean {
 }
 
 const FETCH_DEF_NAME_RE = /^[a-z0-9_]+$/;
-
-// Matches the loyalty service's counter-key treatment (bare key, lower-cased).
-const MAX_COUNTER_NAME_LEN = 64;
 
 const MAX_COMMAND_NAME_LEN = 64;
 const MAX_COMMAND_ALIASES = 25;
@@ -445,7 +436,7 @@ function hasControlChars(line: string): boolean {
 }
 
 // Validate walks a whole manifest and returns one diagnostic per problem,
-// ordered commands, timers, triggers, quotes, counters, automod. Errors mark
+// ordered commands, timers, triggers, quotes, automod. Errors mark
 // items commit must skip (the item cannot land as-is); warns mark values
 // commit will adjust. It re-checks limits even though parsers run the
 // canonicalizers themselves: callers (including the browser, on the Moobot
@@ -509,13 +500,6 @@ const KIND_WALKERS: ((m: ImportManifest) => ImportDiagnostic[])[] = [
     overflowCode: CODE.quoteTooMany,
     items: (m) => m.quotes ?? [],
     validateItem: validateQuoteItem
-  }),
-  walkKind({
-    noun: 'counters',
-    cap: MAX_IMPORT_COUNTERS,
-    overflowCode: CODE.counterTooMany,
-    items: (m) => m.counters ?? [],
-    validateItem: validateCounterItem
   })
 ];
 
@@ -619,12 +603,6 @@ function validateQuoteItem(qt: ManifestQuote, index: number): ImportDiagnostic[]
   return out;
 }
 
-function validateCounterItem(c: ManifestCounter, index: number): ImportDiagnostic[] {
-  const name = normalizeName(c.name);
-  if (name !== '' && byteLen(name) <= MAX_COUNTER_NAME_LEN) return [];
-  return [errDiag(index, CODE.counterNameInvalid, `counter name must be 1-${MAX_COUNTER_NAME_LEN} characters`)];
-}
-
 // isRFC3339 mirrors Go time.Parse(time.RFC3339, s): strict calendar shape with
 // a mandatory zone offset (Z or ±hh:mm). JS Date() accepts far too much to
 // reuse here.
@@ -674,14 +652,13 @@ function validClock(time: ClockTime): boolean {
 
 // FailedCollection names the manifest collections the commit drop filter
 // addresses: the diagnostic-code prefixes map onto exactly these.
-export type FailedCollection = 'commands' | 'timers' | 'triggers' | 'quotes' | 'counters';
+export type FailedCollection = 'commands' | 'timers' | 'triggers' | 'quotes';
 
 const FAILED_PREFIXES: readonly [prefix: string, collection: FailedCollection][] = [
   ['command', 'commands'],
   ['timer', 'timers'],
   ['trigger', 'triggers'],
-  ['quote', 'quotes'],
-  ['counter', 'counters']
+  ['quote', 'quotes']
 ];
 
 function failedCollection(code: string): FailedCollection | null {

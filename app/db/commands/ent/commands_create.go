@@ -130,6 +130,20 @@ func (_c *CommandsCreate) SetNillableUses(v *uint64) *CommandsCreate {
 	return _c
 }
 
+// SetBumpCounter sets the "bump_counter" field.
+func (_c *CommandsCreate) SetBumpCounter(v string) *CommandsCreate {
+	_c.mutation.SetBumpCounter(v)
+	return _c
+}
+
+// SetNillableBumpCounter sets the "bump_counter" field if the given value is not nil.
+func (_c *CommandsCreate) SetNillableBumpCounter(v *string) *CommandsCreate {
+	if v != nil {
+		_c.SetBumpCounter(*v)
+	}
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *CommandsCreate) SetCreatedAt(v time.Time) *CommandsCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -219,6 +233,10 @@ func (_c *CommandsCreate) defaults() error {
 		v := commands.DefaultUses
 		_c.mutation.SetUses(v)
 	}
+	if _, ok := _c.mutation.BumpCounter(); !ok {
+		v := commands.DefaultBumpCounter
+		_c.mutation.SetBumpCounter(v)
+	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		if commands.DefaultCreatedAt == nil {
 			return fmt.Errorf("ent: uninitialized commands.DefaultCreatedAt (forgotten import ent/runtime?)")
@@ -274,6 +292,14 @@ func (_c *CommandsCreate) check() error {
 	}
 	if _, ok := _c.mutation.Uses(); !ok {
 		return &ValidationError{Name: "uses", err: errors.New(`ent: missing required field "Commands.uses"`)}
+	}
+	if _, ok := _c.mutation.BumpCounter(); !ok {
+		return &ValidationError{Name: "bump_counter", err: errors.New(`ent: missing required field "Commands.bump_counter"`)}
+	}
+	if v, ok := _c.mutation.BumpCounter(); ok {
+		if err := commands.BumpCounterValidator(v); err != nil {
+			return &ValidationError{Name: "bump_counter", err: fmt.Errorf(`ent: validator failed for field "Commands.bump_counter": %w`, err)}
+		}
 	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		return &ValidationError{Name: "created_at", err: errors.New(`ent: missing required field "Commands.created_at"`)}
@@ -347,6 +373,10 @@ func (_c *CommandsCreate) createSpec() (*Commands, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Uses(); ok {
 		_spec.SetField(commands.FieldUses, field.TypeUint64, value)
 		_node.Uses = value
+	}
+	if value, ok := _c.mutation.BumpCounter(); ok {
+		_spec.SetField(commands.FieldBumpCounter, field.TypeString, value)
+		_node.BumpCounter = value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(commands.FieldCreatedAt, field.TypeTime, value)
@@ -537,6 +567,18 @@ func (u *CommandsUpsert) UpdateUses() *CommandsUpsert {
 // AddUses adds v to the "uses" field.
 func (u *CommandsUpsert) AddUses(v uint64) *CommandsUpsert {
 	u.Add(commands.FieldUses, v)
+	return u
+}
+
+// SetBumpCounter sets the "bump_counter" field.
+func (u *CommandsUpsert) SetBumpCounter(v string) *CommandsUpsert {
+	u.Set(commands.FieldBumpCounter, v)
+	return u
+}
+
+// UpdateBumpCounter sets the "bump_counter" field to the value that was provided on create.
+func (u *CommandsUpsert) UpdateBumpCounter() *CommandsUpsert {
+	u.SetExcluded(commands.FieldBumpCounter)
 	return u
 }
 
@@ -760,6 +802,20 @@ func (u *CommandsUpsertOne) AddUses(v uint64) *CommandsUpsertOne {
 func (u *CommandsUpsertOne) UpdateUses() *CommandsUpsertOne {
 	return u.Update(func(s *CommandsUpsert) {
 		s.UpdateUses()
+	})
+}
+
+// SetBumpCounter sets the "bump_counter" field.
+func (u *CommandsUpsertOne) SetBumpCounter(v string) *CommandsUpsertOne {
+	return u.Update(func(s *CommandsUpsert) {
+		s.SetBumpCounter(v)
+	})
+}
+
+// UpdateBumpCounter sets the "bump_counter" field to the value that was provided on create.
+func (u *CommandsUpsertOne) UpdateBumpCounter() *CommandsUpsertOne {
+	return u.Update(func(s *CommandsUpsert) {
+		s.UpdateBumpCounter()
 	})
 }
 
@@ -1153,6 +1209,20 @@ func (u *CommandsUpsertBulk) AddUses(v uint64) *CommandsUpsertBulk {
 func (u *CommandsUpsertBulk) UpdateUses() *CommandsUpsertBulk {
 	return u.Update(func(s *CommandsUpsert) {
 		s.UpdateUses()
+	})
+}
+
+// SetBumpCounter sets the "bump_counter" field.
+func (u *CommandsUpsertBulk) SetBumpCounter(v string) *CommandsUpsertBulk {
+	return u.Update(func(s *CommandsUpsert) {
+		s.SetBumpCounter(v)
+	})
+}
+
+// UpdateBumpCounter sets the "bump_counter" field to the value that was provided on create.
+func (u *CommandsUpsertBulk) UpdateBumpCounter() *CommandsUpsertBulk {
+	return u.Update(func(s *CommandsUpsert) {
+		s.UpdateBumpCounter()
 	})
 }
 

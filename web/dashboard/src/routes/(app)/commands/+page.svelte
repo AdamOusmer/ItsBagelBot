@@ -261,6 +261,7 @@
       perm: 'everyone',
       cooldown: 0,
       allowed_user_id: '',
+      bump_counter: '',
       stream_online_only: false,
       is_active: true
     };
@@ -276,6 +277,7 @@
       perm: (c.perm ?? 'everyone') as Perm,
       cooldown: c.cooldown ?? 0,
       allowed_user_id: c.allowed_user_id ?? '',
+      bump_counter: c.bump_counter ?? '',
       stream_online_only: c.stream_online_only === true,
       is_active: c.is_active,
       builtin: c.builtin === true
@@ -415,7 +417,8 @@
       aliases: draft.aliases,
       response: draft.response,
       cooldown: draft.cooldown,
-      allowedUserId: ''
+      allowedUserId: '',
+      bumpCounter: ''
     });
     if (BUILTIN_NAMES.has(draft.name)) {
       problems.name = t('commands.errBuiltinName');
@@ -537,6 +540,7 @@
       perm: d.perm,
       cooldown: Math.floor(Number(d.cooldown) || 0),
       allowed_user_id: d.allowed_user_id.replace(/\D/g, ''),
+      bump_counter: d.bump_counter,
       uses: live?.uses
     };
     items = [...items.filter((c) => c.name !== key && c.name !== orig), optimistic];
@@ -662,6 +666,7 @@
     body.set('perm', c.perm ?? 'everyone');
     body.set('cooldown', String(c.cooldown ?? 0));
     body.set('allowed_user_id', c.allowed_user_id ?? '');
+    body.set('bump_counter', c.bump_counter ?? '');
     body.set('stream_online_only', c.stream_online_only ? 'on' : '');
     body.set('is_active', c.is_active ? 'on' : '');
     return body;

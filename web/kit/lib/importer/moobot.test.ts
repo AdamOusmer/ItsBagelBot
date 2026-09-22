@@ -247,3 +247,49 @@ describe('urlfetch mapping', () => {
     expect(manifest.commands![2000].responses![0]).toContain('<urlfetch.plain>');
   });
 });
+
+describe('<counter> remapping onto {count}', () => {
+  function exportWithCounter(text: string, counter?: number): Uint8Array {
+    const cmd: Record<string, unknown> = { identifier: 'deaths', text };
+    if (counter !== undefined) cmd.counter = counter;
+    return new TextEncoder().encode(
+      JSON.stringify({
+        version: 1,
+        type: 'settings',
+        settings: [{ type: 'commands_custom', data: [cmd] }]
+      })
+    );
+  }
+
+  test('<counter> maps onto bare {count}', () => {
+    const { manifest } = parseMoobot(exportWithCounter('Death count: <counter>'));
+    expect(manifest.commands![0].responses![0]).toBe('Death count: {count}');
+  });
+
+  test('warns once, naming the old value, when the export carries one', () => {
+    const { diagnostics } = parseMoobot(exportWithCounter('<counter> deaths', 87));
+    const warns = diagnostics.filter((d) => d.code === 'command_count_remapped');
+    expect(warns).toHaveLength(1);
+    expect(warns[0].severity).toBe('warn');
+    expect(warns[0].item_index).toBe(0);
+    expect(warns[0].message).toContain('87');
+    expect(warns[0].message).toContain('{count}');
+  });
+
+  test('warns without an old-value clause when the export carries none', () => {
+    const { diagnostics } = parseMoobot(exportWithCounter('<counter> deaths'));
+    const warns = diagnostics.filter((d) => d.code === 'command_count_remapped');
+    expect(warns).toHaveLength(1);
+    expect(warns[0].message).not.toMatch(/\d/);
+  });
+
+  test('a response naming <counter> twice still warns once', () => {
+    const { diagnostics } = parseMoobot(exportWithCounter('<counter> then <counter> again'));
+    expect(diagnostics.filter((d) => d.code === 'command_count_remapped')).toHaveLength(1);
+  });
+
+  test('a response with no <counter> tag never warns', () => {
+    const { diagnostics } = parseMoobot(exportWithCounter('no counters here', 12));
+    expect(diagnostics.filter((d) => d.code === 'command_count_remapped')).toHaveLength(0);
+  });
+});

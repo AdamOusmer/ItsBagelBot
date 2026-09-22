@@ -39,18 +39,19 @@ const MaxResponseLineLength = 500
 const MaxResponseLines = 5
 
 var (
-	ErrUserIDZero      = errors.New("user id must not be zero")
-	ErrUsernameInvalid = errors.New("username must be 1-25 characters of [a-zA-Z0-9_]")
-	ErrEmailInvalid    = errors.New("email address is not valid")
-	ErrCommandName     = errors.New("command name must be 1-64 printable ASCII characters without spaces")
-	ErrCommandAliases  = errors.New("aliases must each be a valid command name, unique, and at most 25 in total")
-	ErrResponseInvalid = errors.New("command response must be 1-5 lines, each 1-500 characters without control characters")
-	ErrPermInvalid     = errors.New("perm must be one of everyone, sub, vip, mod, lead_mod, broadcaster")
-	ErrCooldownInvalid = errors.New("cooldown must be between 0 and 86400 seconds")
-	ErrModuleName      = errors.New("module name must be 1-64 characters of [a-z0-9_-]")
-	ErrConfigsInvalid  = errors.New("module configs must be valid JSON of at most 16KiB")
-	ErrTokenInvalid    = errors.New("token must be 1 byte to 8KiB")
-	ErrStatusInvalid   = errors.New("status must be free, paid or vip")
+	ErrUserIDZero         = errors.New("user id must not be zero")
+	ErrUsernameInvalid    = errors.New("username must be 1-25 characters of [a-zA-Z0-9_]")
+	ErrEmailInvalid       = errors.New("email address is not valid")
+	ErrCommandName        = errors.New("command name must be 1-64 printable ASCII characters without spaces")
+	ErrCommandAliases     = errors.New("aliases must each be a valid command name, unique, and at most 25 in total")
+	ErrResponseInvalid    = errors.New("command response must be 1-5 lines, each 1-500 characters without control characters")
+	ErrPermInvalid        = errors.New("perm must be one of everyone, sub, vip, mod, lead_mod, broadcaster")
+	ErrCooldownInvalid    = errors.New("cooldown must be between 0 and 86400 seconds")
+	ErrBumpCounterInvalid = errors.New("bump counter name must be at most 64 printable ASCII characters without spaces or ':'")
+	ErrModuleName         = errors.New("module name must be 1-64 characters of [a-z0-9_-]")
+	ErrConfigsInvalid     = errors.New("module configs must be valid JSON of at most 16KiB")
+	ErrTokenInvalid       = errors.New("token must be 1 byte to 8KiB")
+	ErrStatusInvalid      = errors.New("status must be free, paid or vip")
 	// ErrContentFloor rejects text carrying immovable-floor content (identity
 	// slurs, IP-grabber hosts). The bot would post this text as itself, so it is
 	// refused at save time regardless of any per-channel automod setting.
@@ -228,6 +229,39 @@ func Cooldown(seconds uint) error {
 	}
 
 	return nil
+}
+
+// BumpCounter validates the optional "also bump counter <name>" command
+// option. "" is valid (no bump), unlike CommandName's own name, which the
+// command can never be empty for; a name is held to the same length and
+// floor as a command name because it is likewise echoed back to chat, via
+// {counter:name} and {count:name} reads of the value this option produces.
+//
+// ':' is refused for the same reason app/db/loyalty's ValidCounterName
+// refuses it: it is the {counter:...}/{count:...} token's payload separator
+// (pkg/tmpl), so a stored name containing one could never be addressed by
+// either token — "{counter:target:deaths}" reads the "target:deaths" payload
+// as addressing prefix "target:" plus counter name "deaths", never a counter
+// literally named "target:deaths". Rejecting it here, at the one place a
+// broadcaster picks the name, keeps this validator and the loyalty service's
+// own agreeing on which names can exist without either having to trust the
+// other's input.
+func BumpCounter(name string) error {
+	if name == "" {
+		return nil
+	}
+
+	if len(name) > maxCommandNameLength {
+		return ErrBumpCounterInvalid
+	}
+
+	for i := 0; i < len(name); i++ {
+		if !isPrintableAsciiNoSpace(name[i]) || name[i] == ':' {
+			return ErrBumpCounterInvalid
+		}
+	}
+
+	return FloorClean(name)
 }
 
 // ModuleName is strict because the name is embedded into the Valkey hash

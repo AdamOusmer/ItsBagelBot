@@ -146,7 +146,12 @@ const COUNTER_SCOPES: ScopeDef[] = [
 // form as a builder chip.
 const MULTI_FORM_IDS = new Set(['positional', 'random']);
 // Counter vars are the only ones carrying a scope picker (see COUNTER_SCOPES).
-const SCOPED_IDS = new Set(['counter', 'count']);
+// 'count' used to be its own manifest id (the {count:<name>} read-only
+// alias); it merged away when {counter:x} itself stopped writing and picked
+// up the alias's forms, so 'counter' is the one id left to carry the picker
+// — the scope a broadcaster reads FROM, not one they write to any more (the
+// write moved to the command-run "bump a counter" option).
+const SCOPED_IDS = new Set(['counter']);
 
 function kitVarDef(def: VariableDef, form: VariableForm): VarDef {
   const built = v(form.example, form.output, l10n(`vars.${def.id}.name`), l10n(`vars.${def.id}.desc`));

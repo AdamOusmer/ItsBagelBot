@@ -34,6 +34,8 @@ const (
 	FieldAllowedUserID = "allowed_user_id"
 	// FieldUses holds the string denoting the uses field in the database.
 	FieldUses = "uses"
+	// FieldBumpCounter holds the string denoting the bump_counter field in the database.
+	FieldBumpCounter = "bump_counter"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// FieldUpdatedAt holds the string denoting the updated_at field in the database.
@@ -55,6 +57,7 @@ var Columns = []string{
 	FieldCooldown,
 	FieldAllowedUserID,
 	FieldUses,
+	FieldBumpCounter,
 	FieldCreatedAt,
 	FieldUpdatedAt,
 }
@@ -92,6 +95,10 @@ var (
 	DefaultAllowedUserID uint64
 	// DefaultUses holds the default value on creation for the "uses" field.
 	DefaultUses uint64
+	// DefaultBumpCounter holds the default value on creation for the "bump_counter" field.
+	DefaultBumpCounter string
+	// BumpCounterValidator is a validator for the "bump_counter" field. It is called by the builders before save.
+	BumpCounterValidator func(string) error
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 	// DefaultUpdatedAt holds the default value on creation for the "updated_at" field.
@@ -151,6 +158,11 @@ func ByAllowedUserID(opts ...sql.OrderTermOption) OrderOption {
 // ByUses orders the results by the uses field.
 func ByUses(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldUses, opts...).ToFunc()
+}
+
+// ByBumpCounter orders the results by the bump_counter field.
+func ByBumpCounter(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldBumpCounter, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

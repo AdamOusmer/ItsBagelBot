@@ -40,7 +40,9 @@ func TestUsesLeftLiteralWhenNotMounted(t *testing.T) {
 }
 
 func TestUsesOwnsOnlyItsOwnName(t *testing.T) {
-	assert.True(t, Uses{}.Owns("uses"))
-	assert.False(t, Uses{}.Owns("use"))
-	assert.False(t, Uses{}.Owns("count"))
+	assert.True(t, Uses{}.Owns(Var{Name: "uses"}))
+	assert.False(t, Uses{}.Owns(Var{Name: "use"}))
+	// Bare {count} is the uses alias; {count:x} is Store's counter read.
+	assert.True(t, Uses{}.Owns(Var{Name: "count"}))
+	assert.False(t, Uses{}.Owns(Var{Name: "count", HasPayload: true, Payload: "deaths"}))
 }

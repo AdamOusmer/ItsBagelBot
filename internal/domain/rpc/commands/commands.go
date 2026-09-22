@@ -19,6 +19,9 @@ type DashboardRequest struct {
 	Perm             string   `json:"perm"`
 	Cooldown         uint     `json:"cooldown"`
 	AllowedUserID    string   `json:"allowed_user_id"`
+	// BumpCounter names the loyalty counter this command bumps by one on
+	// every successful run; "" means none.
+	BumpCounter string `json:"bump_counter"`
 	// OriginalName, when set and different from Name, makes upsert a rename.
 	OriginalName string `json:"original_name"`
 }

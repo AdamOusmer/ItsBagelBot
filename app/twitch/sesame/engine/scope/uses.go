@@ -8,11 +8,17 @@ import (
 	"strconv"
 )
 
-// usesName is the one token this scope owns: {uses}, the lifetime execution
-// count of the custom command that is running.
+// usesName is the head token this scope owns: {uses}, the lifetime execution
+// count of the custom command that is running. countName (declared in
+// store.go, shared with this file since both scopes answer spans named
+// "count") is its alias — bare {count} (no payload) means the same thing. A
+// payload turns "count" into the OTHER family's word ({count:deaths} is
+// Store's read of the "deaths" counter), so Owns below only claims countName
+// when the span carries none.
 const usesName = "uses"
 
-// Uses answers {uses} from the count the command row already carries.
+// Uses answers {uses} and bare {count} from the count the command row already
+// carries.
 //
 // It is a scope of its own rather than a field on Message because the two
 // answer different questions: Message is the chat line that triggered the run,
@@ -32,8 +38,13 @@ type Uses struct {
 	Count uint64
 }
 
-// Owns claims {uses} and nothing else.
-func (Uses) Owns(name string) bool { return name == usesName }
+// Owns claims {uses} and bare {count} (no payload). Store owns {count:x}, the
+// counter-read alias — Owns takes the whole Var (not just the name) so this
+// scope can tell the two apart by payload rather than racing Store for the
+// name and hoping chain order sorts it out; see the Scope.Owns doc.
+func (Uses) Owns(v Var) bool {
+	return v.Name == usesName || (v.Name == countName && !v.HasPayload)
+}
 
 // Plan hands the struct back: the count arrived with the command row, so there
 // is nothing to look up and no ctx to spend.
@@ -46,10 +57,12 @@ func (u Uses) Plan(context.Context, []Var) (Values, error) { return u, nil }
 // "how many times", not a lookup that came back with nothing, so a fallback
 // ({uses|never}) deliberately does not fire on it.
 //
-// A payload stays literal — {uses} is the token, {uses:hug} is not one — so
-// the spelling stays free to mean "another command's count" later.
+// A payload stays literal for {uses} — {uses} is the token, {uses:hug} is
+// not one. {count:hug} is NOT literal, it is Store's counter read; this
+// scope reports ok=false for it so Store answers instead (see Owns).
 func (u Uses) Get(v Var) (string, bool) {
-	if v.Name != usesName || v.HasPayload {
+	owned := v.Name == usesName || v.Name == countName
+	if !owned || v.HasPayload {
 		return "", false
 	}
 	return strconv.FormatUint(u.Count, 10), true
