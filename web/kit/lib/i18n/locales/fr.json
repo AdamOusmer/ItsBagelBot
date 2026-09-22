@@ -3490,6 +3490,7 @@
   "timers": {
     "errMessage": "Saisissez un message pour ce minuteur.",
     "errInterval": "Saisissez un nombre entier de minutes entre 1 et 1440.",
+    "errUrlfetchCap": "Un message de minuteur peut référencer au maximum {max} valeurs récupérées différentes ({urlfetch:…}).",
     "eyebrow": "Gérer",
     "titlePre": "Minuteries de ",
     "titleEm": "chat",

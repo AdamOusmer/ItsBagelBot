@@ -343,6 +343,27 @@ export function ownedByCore(name: string): boolean {
 /** The span name ./tmpl's parseCond claims. */
 const COND_TOKEN_NAME = 'if';
 
+/** Go's timer surface (app/twitch/sesame/engine/timer_vars.go, timerChain):
+ * the scopes a timer's message can resolve, minus everything commandChain
+ * mounts from the triggering chat line (messageScope, USES_SCOPE) or from
+ * who typed it (VIEWER_SCOPE, COUNTER_SCOPE) — a tick has no chatter behind
+ * it to supply either. What is left is every scope already safe with nobody
+ * watching: the dice, the chat room, the emote catalog, the channel facts
+ * and the module facts.
+ *
+ * urlfetch (scope.External) is the one Go family with no SampleScope here —
+ * rehearsal never fetches, a preview cannot show a live network answer — so
+ * it is named directly rather than through an owns() this file has no scope
+ * for. web/kit/lib/variables/surfaces.ts's forSurface('timer') is the one
+ * caller; the golden fixture (parity.test.ts) is what keeps this list and
+ * Go's TimerFamilies() from drifting apart. */
+export function timerOwns(name: string): boolean {
+  if (name === 'urlfetch') return true;
+  return [PURE_SCOPE, UTIL_SCOPE, CHATTER_SCOPE, EMOTE_SCOPE, CHANNEL_SCOPE, MODULE_SCOPE].some((scope) =>
+    scope.owns(name)
+  );
+}
+
 /** Which chain a surface rehearses against: a custom command's full scope
  * chain, or a module reply's (the dice plus that reply's own token map). */
 export type ChainKind = 'command' | 'reply';

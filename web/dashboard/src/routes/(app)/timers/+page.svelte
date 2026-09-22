@@ -30,6 +30,7 @@
   import TimerRow from '$lib/components/timers/TimerRow.svelte';
   import TimerEditor from '$lib/components/timers/TimerEditor.svelte';
   import { focusFirstInvalid } from '@bagel/kit';
+  import { urlFetchNames, URLFETCH_TOKEN_CAP } from '@bagel/kit/engine/fetch-validate';
 
   let { data } = $props();
   const { t } = getI18n();
@@ -117,7 +118,8 @@
       !draft.message.trim() ||
       !Number.isFinite(draft.intervalSeconds) ||
       draft.intervalSeconds < 60 ||
-      draft.intervalSeconds > 86_400
+      draft.intervalSeconds > 86_400 ||
+      urlFetchNames(draft.message).length > URLFETCH_TOKEN_CAP
     ) {
       validationAttempted = true;
       input.cancel();

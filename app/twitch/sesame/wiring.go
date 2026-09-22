@@ -214,12 +214,18 @@ func newLive(w wireCtx) *engine.ValkeyLiveStore {
 // newTimers builds the Valkey-backed timer store — one schedule key per
 // enabled repeating message, armed on stream.online and fired off key expiry
 // (see live_valkey.go's key-expiry idiom, which this shares the deployment's
-// notify-keyspace-events config with) — and starts its expiry watcher plus the
-// rearm watcher that arms a live broadcaster's timers mid-stream when a
-// dashboard save changes their modules blob (so a timer added while already live
-// starts this session, not next stream).
+// notify-keyspace-events config with). It does NOT start the watchers: fire
+// reads the store's pipeline field unsynchronized (timers_valkey.go), and a
+// watcher goroutine started before main calls WirePipeline could read it
+// concurrently with that write — a real data race, not just a theoretical
+// one, since StartExpiryWatcher's first tick can land well inside the window
+// main spends building loyalty/raffle/duel/deps/registry before the pipeline
+// exists. Go's memory model only promises the watcher goroutine sees writes
+// that happened before its `go` statement ran, so the fix is ordering: main
+// calls startTimerWatchers AFTER WirePipeline, never before. See that
+// function's own comment.
 func newTimers(w wireCtx, proj *projection.Client, live *engine.ValkeyLiveStore) *engine.ValkeyTimerStore {
-	timers := engine.NewValkeyTimerStore(w.in.vc, w.in.pub, proj, live, engine.TimersConfig{
+	return engine.NewValkeyTimerStore(w.in.vc, w.in.pub, proj, live, engine.TimersConfig{
 		OutgressPremiumSubject:   w.cfg.OutgressPremiumSubject,
 		OutgressStandardSubject:  w.cfg.OutgressStandardSubject,
 		KeyspaceDB:               0,
@@ -227,10 +233,19 @@ func newTimers(w wireCtx, proj *projection.Client, live *engine.ValkeyLiveStore)
 		ModulesInvalidateSubject: w.cfg.CacheInvalidationPrefix + ".modules",
 		Log:                      w.log,
 	})
+}
+
+// startTimerWatchers launches the expiry, rearm and reconciler watchers.
+// Split out of newTimers so main can call timers.WirePipeline first: the
+// plain field write it does happens-before every read inside these
+// goroutines only if it runs before the `go` statements that start them, per
+// Go's memory model (a `go` statement happens-after everything the calling
+// goroutine did first). Starting them any earlier is the data race newTimers'
+// comment describes.
+func startTimerWatchers(w wireCtx, timers *engine.ValkeyTimerStore) {
 	go timers.StartExpiryWatcher(w.ctx)
 	go timers.StartRearmWatcher(w.ctx)
 	go timers.StartReconciler(w.ctx)
-	return timers
 }
 
 // newRaffle builds the Valkey-backed raffle store — one deadline-keyed raffle

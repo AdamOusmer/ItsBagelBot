@@ -79,3 +79,54 @@ func CommandTokenFamilies() []TokenFamily {
 		{ID: "external", Examples: []string{"{urlfetch:weather}"}},
 	}
 }
+
+// TimerFamilies names the token families a timer's message can resolve
+// (engine/timer_vars.go's timerChain), by CommandTokenFamilies' own family
+// IDs. A timer fires off a schedule key with no chatter, no command args and
+// no message line behind it, so message, viewer (the "who is asking" family)
+// and store (a counter bump needs an identity to charge it to) are left out
+// on purpose — the same three families timerChain does not mount. Everything
+// else here is channel-scoped and safe to answer with nobody watching.
+//
+// This is the Go half of the timer surface handshake with
+// web/kit/lib/variables/surfaces.ts's forSurface('timer'): both lists are
+// checked against each other by parity.test.ts through
+// testdata/token_catalog.golden.json's surfaces.timer key (regenerate with
+// -scope.write-golden), so a family added to one side without the other
+// fails there instead of drifting silently.
+//
+// Derived from CommandTokenFamilies() rather than its own hand-typed slice:
+// timerAllowedFamilies below is the only place the set of six ids is spelled
+// out, and filtering CommandTokenFamilies()'s own IDs through it (instead of
+// listing "pure", "chatters", … a second time) is what makes a renamed or
+// removed family fail LOUDLY here — a stale id in timerAllowedFamilies now
+// simply matches nothing and quietly shrinks the result, which is why
+// token_catalog_golden_test.go additionally asserts every name in
+// timerAllowedFamilies is one CommandTokenFamilies() still has, and catches
+// exactly that case.
+func TimerFamilies() []string {
+	allowed := timerAllowedFamilies()
+	out := make([]string, 0, len(allowed))
+	for _, family := range CommandTokenFamilies() {
+		if allowed[family.ID] {
+			out = append(out, family.ID)
+		}
+	}
+	return out
+}
+
+// timerAllowedFamilies is the one place the timer surface's family set is
+// spelled out: everything a tick has no chatter, no command args and no
+// message line to answer from message, viewer (the "who is asking" family)
+// and store (a counter bump needs an identity to charge it to) — is left
+// out, matching engine/timer_vars.go's timerChain exactly.
+func timerAllowedFamilies() map[string]bool {
+	return map[string]bool{
+		"pure":     true,
+		"chatters": true,
+		"emotes":   true,
+		"channel":  true,
+		"modules":  true,
+		"external": true,
+	}
+}

@@ -12,6 +12,7 @@
   // owning form performs the matching submit-time gate.
   import { getI18n, type TimerDef, Field } from '@bagel/kit';
   import { Checkbox } from '@bagel/kit';
+  import { urlFetchNames, URLFETCH_TOKEN_CAP } from '@bagel/kit/engine/fetch-validate';
 
   // Whole minutes; mirrors the server clamp (60s–24h => 1–1440 min).
   const MIN = 1;
@@ -38,8 +39,17 @@
   // Errors surface only after a field is touched or Save is attempted, so a
   // fresh "new timer" form is not pre-flagged.
   let touched = $state({ message: false, interval: false });
+  // urlfetchOverCap mirrors commands-validate.ts's responseProblem: distinct
+  // NORMALIZED {urlfetch:...} names, not occurrences, same as the save-side
+  // check (timers-parse.ts) it has to agree with — a draft that passes here
+  // must pass there too, or Save fails with no field to blame.
+  const urlfetchOverCap = $derived(urlFetchNames(draft.message).length > URLFETCH_TOKEN_CAP);
   const messageError = $derived(
-    (attempted || touched.message) && draft.message.trim().length === 0 ? t('timers.errMessage') : undefined
+    (attempted || touched.message) && draft.message.trim().length === 0
+      ? t('timers.errMessage')
+      : (attempted || touched.message) && urlfetchOverCap
+        ? t('timers.errUrlfetchCap', { max: URLFETCH_TOKEN_CAP })
+        : undefined
   );
   const intervalError = $derived(
     (attempted || touched.interval) && !(Number.isInteger(minutes) && minutes >= MIN && minutes <= MAX)

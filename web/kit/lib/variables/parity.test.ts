@@ -21,6 +21,7 @@ import { lex } from '../engine/tmpl';
 import { SIMPLE_TOKENS as FOSSABOT_SIMPLE_TOKENS, SUBFIELD_TOKENS as FOSSABOT_SUBFIELD_TOKENS } from '../importer/fossabot/variables';
 import { SIMPLE_TOKENS as NIGHTBOT_SIMPLE_TOKENS } from '../importer/nightbot/variables';
 import { VARIABLES } from './variables';
+import { forSurface } from './surfaces';
 import type { VariableDef } from './types';
 import { MODULE_CATALOG } from '../catalog';
 import { BUILTIN_COMMANDS } from '../catalog/builtin-commands';
@@ -33,6 +34,7 @@ const GOLDEN_PATH = join(import.meta.dir, '../../../../app/twitch/sesame/engine/
 interface GoldenFile {
   note: string;
   families: { id: string; examples: string[]; aliases?: string[] }[];
+  surfaces: { timer: string[] };
 }
 
 const golden: GoldenFile = JSON.parse(readFileSync(GOLDEN_PATH, 'utf8'));
@@ -230,5 +232,38 @@ describe('variables parity (engine/scope/testdata/token_catalog.golden.json)', (
     const claimed = new Set(REPLY_SOURCES.map(claimedNamespace));
     const unclaimed = Object.keys(replyTokensGolden.replies).filter((ns) => !claimed.has(ns));
     expect(unclaimed, 'Go declares reply namespaces no kit replyTokens() call names; fix web/kit/lib/catalog/*.ts').toEqual([]);
+  });
+
+  // Rule I: the timer surface handshake. golden.surfaces.timer names the
+  // family IDs (golden.families[].id) app/twitch/sesame/engine/scope's
+  // TimerFamilies() says a timer can resolve; forSurface('timer') is the kit
+  // side of the same claim (engine/rehearsal.ts's timerOwns). Every OTHER
+  // family's canonical examples (never aliases — Rule A already leaves those
+  // out of the coverage contract) turn into the heads a timer must NOT
+  // resolve, closing the loop so a family added to one side without the
+  // other fails here instead of drifting silently.
+  const timerFamilyIds = new Set(golden.surfaces.timer);
+  const timerGoldenHeads = sortedNames(
+    golden.families
+      .filter((family) => timerFamilyIds.has(family.id))
+      .flatMap((family) => family.examples)
+      .map(tokenHead)
+  );
+  const nonTimerGoldenHeads = sortedNames(
+    golden.families
+      .filter((family) => !timerFamilyIds.has(family.id))
+      .flatMap((family) => family.examples)
+      .map(tokenHead)
+  );
+
+  test('I: forSurface(\'timer\') resolves exactly the golden surfaces.timer families', () => {
+    const tsTimerHeads = sortedNames(forSurface('timer').map((v) => v.head));
+    expect(tsTimerHeads, 'forSurface(\'timer\') / timerOwns must match TimerFamilies() via the golden').toEqual(timerGoldenHeads);
+  });
+
+  test('I: forSurface(\'timer\') never resolves a non-timer family\'s head', () => {
+    const tsTimerHeadSet = new Set(forSurface('timer').map((v) => v.head));
+    const leaked = nonTimerGoldenHeads.filter((head) => tsTimerHeadSet.has(head));
+    expect(leaked, 'forSurface(\'timer\') resolves a head from a family timerChain does not mount').toEqual([]);
   });
 });
