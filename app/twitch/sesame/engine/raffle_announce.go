@@ -42,7 +42,7 @@ func (s *ValkeyRaffleStore) autoDraw(ctx context.Context, broadcasterID uint64) 
 	if len(res.Winners) == 0 {
 		text = i18n.T(locale, "raffle.auto_empty")
 	} else {
-		text = expandTokens(i18n.T(locale, "raffle.auto_closed"),
+		text = expandTokens(locale, i18n.T(locale, "raffle.auto_closed"),
 			"targets", mentionList(res.Winners),
 			"count", strconv.FormatInt(int64(len(res.Winners)), 10),
 			"entrants", strconv.FormatInt(res.Entrants, 10),
@@ -78,7 +78,7 @@ func (s *ValkeyRaffleStore) remindTick(ctx context.Context, broadcasterID uint64
 	}
 
 	locale := s.localeOf(dctx, broadcasterID)
-	s.post(dctx, broadcasterID, expandTokens(i18n.T(locale, "raffle.remind"),
+	s.post(dctx, broadcasterID, expandTokens(locale, i18n.T(locale, "raffle.remind"),
 		"mins", strconv.FormatInt((left+59)/60, 10),
 		"count", strconv.FormatInt(entrants, 10)))
 

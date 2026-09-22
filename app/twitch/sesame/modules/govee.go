@@ -14,7 +14,6 @@ import (
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
-	"ItsBagelBot/pkg/tmpl"
 
 	"go.uber.org/zap"
 )
@@ -110,7 +109,7 @@ func goveeRedemption(d engine.Deps) module.EventHandler {
 		if !ok {
 			return nil
 		}
-		r := goveeRun{d: d, emit: emit, ev: ev, cfg: cfg}
+		r := goveeRun{d: d, emit: emit, ev: ev, cfg: cfg, locale: c.Locale}
 		if !goveeLivePermits(ctx, d, cfg, c.BroadcasterID) {
 			r.refund("the lights only change while live, your points were refunded")
 			return nil
@@ -124,10 +123,11 @@ func goveeRedemption(d engine.Deps) module.EventHandler {
 // binding. The action helpers hang off it so they pass state through the
 // receiver instead of a long argument list.
 type goveeRun struct {
-	d    engine.Deps
-	emit module.Emit
-	ev   redemptionEvent
-	cfg  goveeConfig
+	d      engine.Deps
+	emit   module.Emit
+	ev     redemptionEvent
+	cfg    goveeConfig
+	locale string
 }
 
 // apply resolves the viewer's input to an off action or a colour, drives the
@@ -143,7 +143,7 @@ func (r goveeRun) apply(ctx context.Context) {
 		r.refund(goveeFailureMessage(err))
 		return
 	}
-	r.chat(renderGoveeReply(r.cfg.ReplyMessage, r.ev, label))
+	r.chat(renderGoveeReply(r.locale, r.cfg.ReplyMessage, r.ev, label))
 	emitRedemptionStatus(r.emit, r.ev, goveeSuccessStatus(r.cfg.OnRedeem))
 }
 
@@ -186,32 +186,33 @@ func isOffInput(input string) bool {
 // leaves the template blank. It addresses the redeemer and names the colour.
 const defaultGoveeReply = "@{user} set the lights to {color}!"
 
-// renderGoveeReply fills the reply template's {user} and {color} tokens for one
-// redemption, falling back to defaultGoveeReply when the template is blank.
-// Expansion goes through module.ExpandString so token names are
+// renderGoveeReply fills the reply template's {user}, {color} and {input}
+// tokens for one redemption, falling back to defaultGoveeReply when the
+// template is blank. Expansion goes through module.KV so token names are
 // case-insensitive.
 //
-// The dynamic fallthrough ({random}, {choice:a,b}) is deliberate and is a
-// behaviour CHANGE, pinned by TestGoveeReplyResolvesDynamic. This surface and
-// songqueue_redeem were the only two reward templates that ended their switch
-// in `return "", false` instead of the dynamic vars, so the same template
-// behaved differently depending on which reward it was pasted into. See the
-// longer record on renderSongqueueRedeemReply.
-func renderGoveeReply(text string, ev redemptionEvent, color string) string {
+// The pure-family fallthrough ({random}, {choice:a,b}, {math:…}, …) is
+// deliberate and is a behaviour CHANGE, pinned by
+// TestGoveeReplyResolvesDynamic. This surface and songqueue_redeem were the
+// only two reward templates that ended their switch in `return "", false`
+// instead of the dynamic vars, so the same template behaved differently
+// depending on which reward it was pasted into. See the longer record on
+// renderSongqueueRedeemReply.
+//
+// {input} (the redeemer's raw color text, sanitized through
+// sanitizeRewardInput in channelpoints.go) completes the reward trio: it is
+// the third reward surface, alongside channelpoints and songqueue_redeem,
+// that now shares the one sanitized {input} entry.
+func renderGoveeReply(locale, text string, ev redemptionEvent, color string) string {
 	if strings.TrimSpace(text) == "" {
 		text = defaultGoveeReply
 	}
 	user := strings.TrimPrefix(displayName(ev.UserName, ev.UserLogin), "@")
-	return module.ExpandString(text, func(tok tmpl.Token) (string, bool) {
-		switch tok.Key() {
-		case "user":
-			return user, true
-		case "color":
-			return color, true
-		default:
-			return tmpl.Dynamic(tok)
-		}
-	})
+	return module.KV(
+		"user", user,
+		"color", color,
+		"input", sanitizeRewardInput(ev.UserInput),
+	).WithLocale(locale).ExpandString(text)
 }
 
 // decodeGoveeRedemption decodes the module config and the redemption event, and

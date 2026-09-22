@@ -14,7 +14,6 @@ import (
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/outgress"
-	"ItsBagelBot/pkg/tmpl"
 )
 
 // personalityGoldenOdds is the 1-in-N chance that any triggered reaction is
@@ -403,13 +402,9 @@ func toastReply(_ context.Context, _ engine.Deps, _ *module.Context) string {
 // pickLine draws one line from a pack.
 func pickLine(pack []string) string { return pack[pickIndex(len(pack))] }
 
-// expandUser expands {user} to the chatter's display name; other tokens resolve
-// through the shared dynamic vars ({random}, {choice:…}).
+// expandUser expands {user} to the chatter's display name; other tokens
+// resolve through the shared pure family ({random}, {choice:…}, {math:…},
+// {countdown:…}, …).
 func expandUser(line string, c *module.Context) string {
-	return module.ExpandString(line, func(tok tmpl.Token) (string, bool) {
-		if tok.Key() == "user" {
-			return strings.TrimPrefix(c.Env.ChatterName(), "@"), true
-		}
-		return tmpl.Dynamic(tok)
-	})
+	return module.KV("user", strings.TrimPrefix(c.Env.ChatterName(), "@")).WithLocale(c.Locale).ExpandString(line)
 }

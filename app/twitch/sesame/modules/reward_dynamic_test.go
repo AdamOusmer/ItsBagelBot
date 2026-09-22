@@ -45,7 +45,7 @@ func TestSongqueueRedeemReplyResolvesDynamic(t *testing.T) {
 		{"{unknown}", "{unknown}"},
 		{"@{user} queued {track}, position #{pos}.", "@Sam queued Song, position #3."},
 	} {
-		if got := renderSongqueueRedeemReply(tc[0], ev, "Song", 3); got != tc[1] {
+		if got := renderSongqueueRedeemReply("", tc[0], ev, "Song", 3); got != tc[1] {
 			t.Errorf("renderSongqueueRedeemReply(%q) = %q, want %q", tc[0], got, tc[1])
 		}
 	}
@@ -61,7 +61,7 @@ func TestGoveeReplyResolvesDynamic(t *testing.T) {
 		{"{unknown}", "{unknown}"},
 		{"@{user} set the lights to {color}!", "@Sam set the lights to blue!"},
 	} {
-		if got := renderGoveeReply(tc[0], ev, "blue"); got != tc[1] {
+		if got := renderGoveeReply("", tc[0], ev, "blue"); got != tc[1] {
 			t.Errorf("renderGoveeReply(%q) = %q, want %q", tc[0], got, tc[1])
 		}
 	}

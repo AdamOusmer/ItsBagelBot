@@ -2177,7 +2177,15 @@
       "channelpoints": {
         "label": "Points de chaîne",
         "tagline": "Transformez les échanges de points de chaîne en actions du bot.",
-        "description": "Créez les récompenses personnalisées que les viewers échangent avec des points de chaîne (créées sous le bot sur Twitch, au style natif) et liez chacune à une action du bot, comme poster une ligne dans le chat. Choisissez si chaque échange est validé, remboursé, ou laissé à un modo. Gérez les récompenses sur cette page."
+        "description": "Créez les récompenses personnalisées que les viewers échangent avec des points de chaîne (créées sous le bot sur Twitch, au style natif) et liez chacune à une action du bot, comme poster une ligne dans le chat. Choisissez si chaque échange est validé, remboursé, ou laissé à un modo. Gérez les récompenses sur cette page.",
+        "replies": {
+          "reply": {
+            "label": "Réponse de la récompense",
+            "tagline": "Ce que le bot poste quand une récompense liée est échangée.",
+            "event": "à l'échange",
+            "defaultMessage": "{user} a échangé {reward} !"
+          }
+        }
       },
       "stream": {
         "label": "Gestion du direct",
@@ -2843,7 +2851,15 @@
       "govee": {
         "label": "Lumières Govee",
         "tagline": "Laissez les viewers recolorer vos lumières Govee avec des points de chaîne.",
-        "description": "Les viewers échangent une récompense de points de chaîne, tapent une couleur (un nom comme « blue » ou un hex comme #00ccff), et le bot allume votre lumière Govee et la règle. Direct seulement : les échanges hors stream sont remboursés automatiquement. Pour obtenir votre clé API Govee : ouvrez l'appli Govee Home, touchez Profil (en bas à droite), touchez l'engrenage des réglages (en haut à droite), touchez « Apply for API Key », remplissez le court formulaire, et Govee vous envoie une clé par e-mail en quelques minutes. Puis sur cette page : collez la clé (nous la stockons chiffrée et ne la réaffichons jamais), choisissez la lumière à contrôler, et créez la récompense."
+        "description": "Les viewers échangent une récompense de points de chaîne, tapent une couleur (un nom comme « blue » ou un hex comme #00ccff), et le bot allume votre lumière Govee et la règle. Direct seulement : les échanges hors stream sont remboursés automatiquement. Pour obtenir votre clé API Govee : ouvrez l'appli Govee Home, touchez Profil (en bas à droite), touchez l'engrenage des réglages (en haut à droite), touchez « Apply for API Key », remplissez le court formulaire, et Govee vous envoie une clé par e-mail en quelques minutes. Puis sur cette page : collez la clé (nous la stockons chiffrée et ne la réaffichons jamais), choisissez la lumière à contrôler, et créez la récompense.",
+        "replies": {
+          "reply": {
+            "label": "Réponse de succès",
+            "tagline": "Ce que le bot poste après avoir changé les lumières.",
+            "event": "à l'échange",
+            "defaultMessage": "@{user} a réglé les lumières sur {color} !"
+          }
+        }
       },
       "discord": {
         "label": "Discord",
@@ -2861,6 +2877,14 @@
           "clear": "Vider la file.",
           "srlist": "Afficher les cinq prochains morceaux de la file (aussi !songlist).",
           "current": "Dire ce que votre Spotify joue en ce moment (aussi !song, !np)."
+        },
+        "replies": {
+          "redeem": {
+            "label": "Réponse à l'échange",
+            "tagline": "Ce que le bot poste quand la récompense de file est échangée.",
+            "event": "à l'échange",
+            "defaultMessage": "@{user} a mis {track} en file, position #{pos}."
+          }
         }
       }
     },
@@ -3841,6 +3865,33 @@
           "hint": "Qui a demandé l'heure",
           "desc": "Qui a demandé l'heure."
         }
+      },
+      "lookup": {
+        "time": {
+          "name": "Heure locale",
+          "hint": "L'heure à l'endroit demandé",
+          "desc": "L'heure, à l'endroit qu'un viewer a demandé."
+        },
+        "date": {
+          "name": "Date locale",
+          "hint": "La date du jour à l'endroit demandé",
+          "desc": "La date du jour, à l'endroit qu'un viewer a demandé."
+        },
+        "place": {
+          "name": "Lieu",
+          "hint": "L'endroit qu'un viewer a demandé",
+          "desc": "Le nom du lieu normalisé résolu par la recherche."
+        },
+        "timezone": {
+          "name": "Fuseau horaire",
+          "hint": "Le fuseau horaire de l'endroit demandé",
+          "desc": "Le nom ou décalage du fuseau horaire à l'endroit demandé."
+        },
+        "user": {
+          "name": "Demandeur",
+          "hint": "Qui a demandé l'heure",
+          "desc": "Qui a demandé l'heure."
+        }
       }
     },
     "queue": {
@@ -3854,6 +3905,11 @@
           "name": "Position",
           "hint": "Sa place dans la file",
           "desc": "Sa place dans la file."
+        },
+        "channel": {
+          "name": "Chaîne",
+          "hint": "Le nom de votre chaîne",
+          "desc": "Le nom de votre chaîne."
         }
       },
       "next": {
@@ -3866,6 +3922,16 @@
           "name": "Encore en attente",
           "hint": "Combien de personnes restent dans la file",
           "desc": "Combien de personnes restent dans la file."
+        },
+        "user": {
+          "name": "Invocateur",
+          "hint": "Le modérateur qui a fait avancer la file",
+          "desc": "Le modérateur qui a exécuté !queue next."
+        },
+        "channel": {
+          "name": "Chaîne",
+          "hint": "Le nom de votre chaîne",
+          "desc": "Le nom de votre chaîne."
         }
       }
     },
@@ -4422,40 +4488,85 @@
       }
     },
     "channelpoints": {
-      "user": {
-        "name": "Échangeur",
-        "hint": "Qui a échangé la récompense",
-        "desc": "Qui a échangé la récompense."
-      },
-      "input": {
-        "name": "Texte du spectateur",
-        "hint": "texte du spectateur",
-        "desc": "Le texte saisi avec l'échange (si la récompense en demande un)."
-      },
-      "reward": {
-        "name": "Titre de la récompense",
-        "hint": "Le nom de la récompense échangée",
-        "desc": "Le nom de la récompense échangée."
-      },
-      "cost": {
-        "name": "Coût en points",
-        "hint": "Le coût de la récompense",
-        "desc": "Le coût de la récompense."
-      },
-      "channel": {
-        "name": "Chaîne",
-        "hint": "Le nom de votre chaîne",
-        "desc": "Le nom de votre chaîne."
-      },
-      "counter": {
-        "name": "Compteur lié",
-        "hint": "La nouvelle valeur du compteur lié",
-        "desc": "La nouvelle valeur du compteur lié, si la récompense en a un. Choisissez la portée «par commande» pour un total unique partagé par tous les échanges de cette récompense."
-      },
-      "points": {
-        "name": "Points de fidélité",
-        "hint": "Les points de fidélité accordés (si positifs)",
-        "desc": "Les points de fidélité accordés (si positifs)."
+      "reply": {
+        "user": {
+          "name": "Échangeur",
+          "hint": "Qui a échangé la récompense",
+          "desc": "Qui a échangé la récompense."
+        },
+        "input": {
+          "name": "Texte du spectateur",
+          "hint": "texte du spectateur",
+          "desc": "Le texte saisi avec l'échange (si la récompense en demande un)."
+        },
+        "reward": {
+          "name": "Titre de la récompense",
+          "hint": "Le nom de la récompense échangée",
+          "desc": "Le nom de la récompense échangée."
+        },
+        "cost": {
+          "name": "Coût en points",
+          "hint": "Le coût de la récompense",
+          "desc": "Le coût de la récompense."
+        },
+        "channel": {
+          "name": "Chaîne",
+          "hint": "Le nom de votre chaîne",
+          "desc": "Le nom de votre chaîne."
+        },
+        "counter": {
+          "name": "Compteur lié",
+          "hint": "La nouvelle valeur du compteur lié",
+          "desc": "La nouvelle valeur du compteur lié, si la récompense en a un. Choisissez la portée «par commande» pour un total unique partagé par tous les échanges de cette récompense."
+        },
+        "points": {
+          "name": "Points de fidélité",
+          "hint": "Les points de fidélité accordés (si positifs)",
+          "desc": "Les points de fidélité accordés (si positifs)."
+        }
+      }
+    },
+    "govee": {
+      "reply": {
+        "user": {
+          "name": "Échangeur",
+          "hint": "Qui a échangé la récompense",
+          "desc": "Qui a échangé la récompense."
+        },
+        "input": {
+          "name": "Texte du spectateur",
+          "hint": "Le texte de couleur saisi par le spectateur",
+          "desc": "Le texte de couleur saisi par le spectateur lors de l'échange."
+        },
+        "color": {
+          "name": "Couleur",
+          "hint": "Le nom de couleur résolu",
+          "desc": "Le nom de couleur que le bot a choisi et appliqué aux lumières."
+        }
+      }
+    },
+    "songqueue": {
+      "redeem": {
+        "user": {
+          "name": "Échangeur",
+          "hint": "Qui a échangé la récompense",
+          "desc": "Qui a échangé la récompense."
+        },
+        "track": {
+          "name": "Titre du morceau",
+          "hint": "Le titre du morceau mis en file",
+          "desc": "Le titre du morceau mis en file."
+        },
+        "input": {
+          "name": "Texte du spectateur",
+          "hint": "Le texte de recherche saisi par le spectateur",
+          "desc": "Le nom de chanson, «artiste - titre», ou le lien saisi par le spectateur lors de l'échange."
+        },
+        "pos": {
+          "name": "Position dans la file",
+          "hint": "La position du morceau dans la file",
+          "desc": "La position du morceau dans la file."
+        }
       }
     }
   },

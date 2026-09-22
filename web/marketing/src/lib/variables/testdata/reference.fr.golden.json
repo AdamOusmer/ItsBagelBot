@@ -68,6 +68,16 @@
         "syntax": "{channel}",
         "output": "your_channel",
         "surfaceId": "channelpoints"
+      },
+      {
+        "syntax": "{channel}",
+        "output": "streamer",
+        "surfaceId": "queue-join"
+      },
+      {
+        "syntax": "{channel}",
+        "output": "streamer",
+        "surfaceId": "queue-next"
       }
     ],
     "name": "Nom de la chaîne",
@@ -81,7 +91,9 @@
     "aliasTokens": [],
     "surfaceIds": [
       "custom",
-      "channelpoints"
+      "channelpoints",
+      "queue-join",
+      "queue-next"
     ],
     "surfaces": [
       {
@@ -95,6 +107,18 @@
         "group": "Outils de chat",
         "label": "Réponse de récompense (points de chaîne)",
         "dashPath": "/channelpoints"
+      },
+      {
+        "id": "queue-join",
+        "group": "File d'attente",
+        "label": "File: confirmation de !join",
+        "dashPath": "/modules/queue"
+      },
+      {
+        "id": "queue-next",
+        "group": "File d'attente",
+        "label": "File: joueur suivant",
+        "dashPath": "/modules/queue"
       }
     ],
     "requirementIds": [],
@@ -274,6 +298,11 @@
         "syntax": "{user}",
         "output": "sesame_sam",
         "surfaceId": "queue-join"
+      },
+      {
+        "syntax": "{user}",
+        "output": "sesame_sam",
+        "surfaceId": "queue-next"
       }
     ],
     "name": "Nom du spectateur",
@@ -299,7 +328,8 @@
       "clip",
       "time",
       "channelpoints",
-      "queue-join"
+      "queue-join",
+      "queue-next"
     ],
     "surfaces": [
       {
@@ -360,6 +390,12 @@
         "id": "queue-join",
         "group": "File d'attente",
         "label": "File: confirmation de !join",
+        "dashPath": "/modules/queue"
+      },
+      {
+        "id": "queue-next",
+        "group": "File d'attente",
+        "label": "File: joueur suivant",
         "dashPath": "/modules/queue"
       }
     ],
@@ -3552,9 +3588,9 @@
         "surfaceId": "channelpoints"
       }
     ],
-    "name": "Coût en points",
+    "name": "replyVars.channelpoints.cost.name",
     "hint": "",
-    "description": "Le coût de la récompense.",
+    "description": "replyVars.channelpoints.cost.desc",
     "category": "rewards",
     "categories": [
       "rewards"
@@ -3602,9 +3638,9 @@
         "surfaceId": "channelpoints"
       }
     ],
-    "name": "Texte du spectateur",
+    "name": "replyVars.channelpoints.input.name",
     "hint": "",
-    "description": "Le texte saisi avec l'échange (si la récompense en demande un).",
+    "description": "replyVars.channelpoints.input.desc",
     "category": "rewards",
     "categories": [
       "rewards"
@@ -3652,9 +3688,9 @@
         "surfaceId": "channelpoints"
       }
     ],
-    "name": "Titre de la récompense",
+    "name": "replyVars.channelpoints.reward.name",
     "hint": "",
-    "description": "Le nom de la récompense échangée.",
+    "description": "replyVars.channelpoints.reward.desc",
     "category": "rewards",
     "categories": [
       "rewards"

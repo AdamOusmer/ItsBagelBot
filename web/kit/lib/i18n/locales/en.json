@@ -2177,7 +2177,15 @@
       "channelpoints": {
         "label": "Channel Points",
         "tagline": "Turn channel-point redemptions into bot actions.",
-        "description": "Create the custom rewards viewers redeem with channel points (made under the bot on Twitch, styled natively) and bind each one to a bot action, like posting a chat line. Choose whether each redemption is fulfilled, refunded, or left for a mod. Manage the rewards on this page."
+        "description": "Create the custom rewards viewers redeem with channel points (made under the bot on Twitch, styled natively) and bind each one to a bot action, like posting a chat line. Choose whether each redemption is fulfilled, refunded, or left for a mod. Manage the rewards on this page.",
+        "replies": {
+          "reply": {
+            "label": "Reward chat reply",
+            "tagline": "What the bot posts when a bound reward is redeemed.",
+            "event": "on redemption",
+            "defaultMessage": "{user} redeemed {reward}!"
+          }
+        }
       },
       "stream": {
         "label": "Stream Management",
@@ -2843,7 +2851,15 @@
       "govee": {
         "label": "Govee Lights",
         "tagline": "Let viewers recolour your Govee lights with channel points.",
-        "description": "Viewers redeem a channel-points reward, type a colour (a name like \"blue\" or a hex like #00ccff), and the bot turns your Govee light on and sets it. Live only: redemptions off-stream are refunded automatically. To get your Govee API key: open the Govee Home app, tap Profile (bottom right), tap the settings gear (top right), tap \"Apply for API Key\", fill in the short form, and Govee emails you a key within a few minutes. Then on this page: paste the key (we store it encrypted and never show it back), pick the light to control, and create the reward."
+        "description": "Viewers redeem a channel-points reward, type a colour (a name like \"blue\" or a hex like #00ccff), and the bot turns your Govee light on and sets it. Live only: redemptions off-stream are refunded automatically. To get your Govee API key: open the Govee Home app, tap Profile (bottom right), tap the settings gear (top right), tap \"Apply for API Key\", fill in the short form, and Govee emails you a key within a few minutes. Then on this page: paste the key (we store it encrypted and never show it back), pick the light to control, and create the reward.",
+        "replies": {
+          "reply": {
+            "label": "Success reply",
+            "tagline": "What the bot posts after changing the lights.",
+            "event": "on redemption",
+            "defaultMessage": "@{user} set the lights to {color}!"
+          }
+        }
       },
       "discord": {
         "label": "Discord",
@@ -2861,6 +2877,14 @@
           "clear": "Empty the queue.",
           "srlist": "Show the next five songs in the queue (also !songlist).",
           "current": "Say what your Spotify is playing right now (also !song, !np)."
+        },
+        "replies": {
+          "redeem": {
+            "label": "Redeem reply",
+            "tagline": "What the bot posts when the queue reward is redeemed.",
+            "event": "on redemption",
+            "defaultMessage": "@{user} queued {track}, position #{pos}."
+          }
         }
       }
     },
@@ -3841,6 +3865,33 @@
           "hint": "Who asked for the time",
           "desc": "Who asked for the time."
         }
+      },
+      "lookup": {
+        "time": {
+          "name": "Local time",
+          "hint": "The clock at the looked-up place",
+          "desc": "The clock, at the place a viewer asked about."
+        },
+        "date": {
+          "name": "Local date",
+          "hint": "Today's date at the looked-up place",
+          "desc": "Today's date, at the place a viewer asked about."
+        },
+        "place": {
+          "name": "Place",
+          "hint": "The place a viewer asked about",
+          "desc": "The normalized place name the lookup resolved."
+        },
+        "timezone": {
+          "name": "Timezone",
+          "hint": "The looked-up place's timezone name",
+          "desc": "The timezone name or offset at the looked-up place."
+        },
+        "user": {
+          "name": "Asker",
+          "hint": "Who asked for the time",
+          "desc": "Who asked for the time."
+        }
       }
     },
     "queue": {
@@ -3854,6 +3905,11 @@
           "name": "Queue position",
           "hint": "Their spot in line",
           "desc": "Their spot in line."
+        },
+        "channel": {
+          "name": "Channel",
+          "hint": "Your channel name",
+          "desc": "Your channel name."
         }
       },
       "next": {
@@ -3866,6 +3922,16 @@
           "name": "Still waiting",
           "hint": "How many people remain in line",
           "desc": "How many people remain in line."
+        },
+        "user": {
+          "name": "Invoker",
+          "hint": "The mod who pulled up the next player",
+          "desc": "The mod who ran !queue next."
+        },
+        "channel": {
+          "name": "Channel",
+          "hint": "Your channel name",
+          "desc": "Your channel name."
         }
       }
     },
@@ -4422,40 +4488,85 @@
       }
     },
     "channelpoints": {
-      "user": {
-        "name": "Redeemer",
-        "hint": "Who redeemed the reward",
-        "desc": "Who redeemed the reward."
-      },
-      "input": {
-        "name": "Viewer input",
-        "hint": "viewer input",
-        "desc": "The text typed with the redemption (when the reward asks for one)."
-      },
-      "reward": {
-        "name": "Reward title",
-        "hint": "The name of the redeemed reward",
-        "desc": "The name of the redeemed reward."
-      },
-      "cost": {
-        "name": "Point cost",
-        "hint": "What the reward costs",
-        "desc": "What the reward costs."
-      },
-      "channel": {
-        "name": "Channel",
-        "hint": "Your channel name",
-        "desc": "Your channel name."
-      },
-      "counter": {
-        "name": "Bound counter",
-        "hint": "The bound counter's new value",
-        "desc": "The bound counter's new value, when the reward has one. Give it command scope for one pooled total shared by every redemption of this reward."
-      },
-      "points": {
-        "name": "Loyalty points",
-        "hint": "Loyalty points the reward grants (when positive)",
-        "desc": "Loyalty points the reward grants (when positive)."
+      "reply": {
+        "user": {
+          "name": "Redeemer",
+          "hint": "Who redeemed the reward",
+          "desc": "Who redeemed the reward."
+        },
+        "input": {
+          "name": "Viewer input",
+          "hint": "viewer input",
+          "desc": "The text typed with the redemption (when the reward asks for one)."
+        },
+        "reward": {
+          "name": "Reward title",
+          "hint": "The name of the redeemed reward",
+          "desc": "The name of the redeemed reward."
+        },
+        "cost": {
+          "name": "Point cost",
+          "hint": "What the reward costs",
+          "desc": "What the reward costs."
+        },
+        "channel": {
+          "name": "Channel",
+          "hint": "Your channel name",
+          "desc": "Your channel name."
+        },
+        "counter": {
+          "name": "Bound counter",
+          "hint": "The bound counter's new value",
+          "desc": "The bound counter's new value, when the reward has one. Give it command scope for one pooled total shared by every redemption of this reward."
+        },
+        "points": {
+          "name": "Loyalty points",
+          "hint": "Loyalty points the reward grants (when positive)",
+          "desc": "Loyalty points the reward grants (when positive)."
+        }
+      }
+    },
+    "govee": {
+      "reply": {
+        "user": {
+          "name": "Redeemer",
+          "hint": "Who redeemed the reward",
+          "desc": "Who redeemed the reward."
+        },
+        "input": {
+          "name": "Viewer input",
+          "hint": "The colour text the viewer typed",
+          "desc": "The colour text the viewer typed with the redemption."
+        },
+        "color": {
+          "name": "Colour",
+          "hint": "The resolved colour name",
+          "desc": "The colour name the bot matched and set the lights to."
+        }
+      }
+    },
+    "songqueue": {
+      "redeem": {
+        "user": {
+          "name": "Redeemer",
+          "hint": "Who redeemed the reward",
+          "desc": "Who redeemed the reward."
+        },
+        "track": {
+          "name": "Track title",
+          "hint": "The queued track's title",
+          "desc": "The queued track's title."
+        },
+        "input": {
+          "name": "Viewer input",
+          "hint": "The song text the viewer typed",
+          "desc": "The song name, \"artist - song\", or link the viewer typed with the redemption."
+        },
+        "pos": {
+          "name": "Queue position",
+          "hint": "The track's position in the queue",
+          "desc": "The track's position in the queue."
+        }
       }
     }
   },

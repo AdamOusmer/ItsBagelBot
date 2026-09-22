@@ -1,9 +1,9 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import type { ModuleDef } from './module-def';
+import { replyTokens, type ModuleDef } from './module-def';
 
-export const GOVEE_MODULE: ModuleDef = 
+export const GOVEE_MODULE: ModuleDef =
 {
   id: 'govee',
   label: 'Govee Lights',
@@ -13,7 +13,23 @@ export const GOVEE_MODULE: ModuleDef =
   category: 'Gear',
   defaultEnabled: false,
   // The generic reply page cannot express key custody + a device picker, so
-  // the tile opens a bespoke inspector instead.
+  // the tile opens a bespoke inspector instead; this entry exists for the
+  // reply-token parity handshake (reply_tokens.go's "govee.reply") and a
+  // future token autocomplete on that page, not for a generic row.
   href: '/govee',
-  replies: []
+  replies: [
+    {
+      key: 'reply',
+      label: 'Success reply',
+      tagline: 'What the bot posts after changing the lights.',
+      event: 'on redemption',
+      messageKey: 'replyMessage',
+      defaultMessage: '@{user} set the lights to {color}!',
+      tokens: replyTokens(
+        ['user', 'input', 'color'],
+        { user: 'sesame_sam', input: 'blue', color: 'Blue' },
+        'govee.reply'
+      )
+    }
+  ]
 };

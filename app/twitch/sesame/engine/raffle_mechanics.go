@@ -10,9 +10,9 @@ import (
 	"math/big"
 	"strings"
 
+	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/pkg/cache"
 	"ItsBagelBot/pkg/codec"
-	"ItsBagelBot/pkg/tmpl"
 )
 
 // Pure raffle mechanics: key building, open-request clamping, the random
@@ -147,13 +147,19 @@ func mentionList(winners []string) string {
 // Neither can change an existing raffle line: TestMentionListAndTokens pins
 // the pre-change outputs, including the unknown-token passthrough, and every
 // raffle string in the i18n catalog is lower-case and pipe-free.
-func expandTokens(text string, kv ...string) string {
-	values := make(map[string]string, len(kv)/2)
-	for i := 0; i+1 < len(kv); i += 2 {
-		values[kv[i]] = kv[i+1]
-	}
-	return tmpl.Expand(text, func(tok tmpl.Token) (string, bool) {
-		val, ok := values[tok.Key()]
-		return val, ok
-	})
+//
+// It used to stop there — kv or nothing, no dynamic fallthrough — the one
+// reply surface in the tree with no {random}/{choice} at all. Routing it
+// through module.KV instead of tmpl.Expand directly closes that gap: the
+// raffle gets the same pure family ({random}, {choice:…}, {math:…}, …) every
+// other reply now does, for free, because module.KV builds the general
+// Palette rather than a kv-only closure.
+//
+// locale is every caller's channel locale (duel_valkey.go and
+// raffle_announce.go already have it in scope, from the same i18n.T call
+// that picks the template text), threaded through to WithLocale so
+// {countdown}/{countup} word themselves the same way a custom command's do,
+// instead of silently falling back to English on a non-English channel.
+func expandTokens(locale, text string, kv ...string) string {
+	return module.KV(kv...).WithLocale(locale).ExpandString(text)
 }

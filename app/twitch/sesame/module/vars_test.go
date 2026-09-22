@@ -4,6 +4,7 @@
 package module
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -80,4 +81,63 @@ func TestStringPaletteMerge(t *testing.T) {
 	got := base.Merge(StringPalette{"elo": "1700"}, StringPalette{"rank": "12"})
 	assert.Equal(t, StringPalette{"player": "Feinberg", "elo": "1700", "rank": "12"}, got)
 	assert.Equal(t, StringPalette{"player": "Feinberg", "elo": "1650"}, base)
+}
+
+// TestKVOddLengthDropsDanglingName pins the pre-Palette chatReplier.reply
+// behaviour: an unpaired trailing name (a caller bug, not a template one) is
+// silently dropped rather than resolving to "" or panicking.
+func TestKVOddLengthDropsDanglingName(t *testing.T) {
+	p := KV("a", "1", "dangling")
+	assert.Equal(t, "1 {dangling}", p.ExpandString("{a} {dangling}"))
+}
+
+// TestKVDuplicateNameLastWins matches raffle_mechanics' pre-Palette
+// map[string]string (a later key overwrites an earlier one) and Merge's own
+// later-wins rule: KV must not silently prefer the first pair it saw.
+func TestKVDuplicateNameLastWins(t *testing.T) {
+	p := KV("a", "1", "a", "2")
+	assert.Equal(t, "2", p.ExpandString("{a}"))
+	assert.Equal(t, []string{"a"}, p.Names(), "a duplicate name must not appear twice in Names()")
+}
+
+// TestKVEmptyNameDropped: no lexed Token ever has an empty Name, so a pair
+// shaped that way can never resolve; KV drops it rather than carrying a dead
+// entry.
+func TestKVEmptyNameDropped(t *testing.T) {
+	p := KV("", "x", "b", "2")
+	assert.Equal(t, []string{"b"}, p.Names())
+	assert.Equal(t, "2", p.ExpandString("{b}"))
+}
+
+// TestPaletteRandomDiffersPerSpan pins Resolve's render-time evaluation of
+// the pure family (engine/scope/pure.go's pureValues.Get, reached through
+// Palette.Resolve's miss path): "{random} and {random}" must be free to
+// print two different numbers, the same guarantee a custom command's own
+// template has. A Plan-time cache (resolving once per key) would make both
+// spans print the same number, which is the one regression pure.go's own
+// decision record calls out by name.
+func TestPaletteRandomDiffersPerSpan(t *testing.T) {
+	p := KV("user", "sam")
+	seenDifferent := false
+	for i := 0; i < 50 && !seenDifferent; i++ {
+		got := p.ExpandString("{random:1-1000000} {random:1-1000000}")
+		var a, b int
+		n, err := fmt.Sscanf(got, "%d %d", &a, &b)
+		assert.NoError(t, err)
+		assert.Equal(t, 2, n)
+		if a != b {
+			seenDifferent = true
+		}
+	}
+	assert.True(t, seenDifferent, "two {random} spans in one template never differed across 50 renders")
+}
+
+// TestPaletteWithLocaleWordsCountdownInFrench pins that a palette built off
+// KV (which starts with no locale) can still opt into the channel's locale
+// for the pure family's humanizer, same as one built off Common already
+// does automatically.
+func TestPaletteWithLocaleWordsCountdownInFrench(t *testing.T) {
+	en := KV("user", "sam").ExpandString("{countdown:9999-01-01}")
+	fr := KV("user", "sam").WithLocale("fr").ExpandString("{countdown:9999-01-01}")
+	assert.NotEqual(t, en, fr, "WithLocale(\"fr\") must change how {countdown} words itself")
 }

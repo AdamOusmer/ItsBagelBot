@@ -209,17 +209,11 @@ func (q quoteReads) render(quote modulesrpc.Quote, found bool, err error) string
 // is read from the shared catalog rather than rebuilt here, so a channel that
 // reads !quote in French reads {quote} in French too.
 func quoteLine(locale string, q modulesrpc.Quote) string {
-	return module.ExpandString(i18n.T(locale, "quote.show"), func(tok tmpl.Token) (string, bool) {
-		switch tok.Key() {
-		case "num":
-			return strconv.FormatUint(q.Number, 10), true
-		case "text":
-			return q.Text, true
-		case "date":
-			return quoteDate(q.CreatedAt), true
-		}
-		return "", false
-	})
+	return module.KV(
+		"num", strconv.FormatUint(q.Number, 10),
+		"text", q.Text,
+		"date", quoteDate(q.CreatedAt),
+	).WithLocale(locale).ExpandString(i18n.T(locale, "quote.show"))
 }
 
 // quoteDate renders a quote's save date the way !quote does; an unparseable

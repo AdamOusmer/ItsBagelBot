@@ -13,7 +13,6 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/pkg/codec"
-	"ItsBagelBot/pkg/tmpl"
 
 	"go.uber.org/zap"
 )
@@ -143,7 +142,7 @@ func (r songqueueRedeemRun) apply(ctx context.Context) error {
 		r.refund(failure + ", your points were refunded")
 		return nil
 	}
-	r.chat(renderSongqueueRedeemReply(r.cfg.ReplyMessage, r.ev, track.Name, pos))
+	r.chat(renderSongqueueRedeemReply(r.qc.c.Locale, r.cfg.ReplyMessage, r.ev, track.Name, pos))
 	emitRedemptionStatus(r.emit, r.ev, goveeSuccessStatus(r.cfg.OnRedeem))
 	return nil
 }
@@ -167,8 +166,9 @@ const defaultSongqueueRedeemReply = "@{user} queued {track}, position #{pos}."
 // renderSongqueueRedeemReply fills {user}/{track}/{input}/{pos} from the
 // redemption, falling back to defaultSongqueueRedeemReply when blank.
 //
-// The dynamic fallthrough ({random}, {choice:a,b}) is deliberate and is a
-// behaviour CHANGE, pinned by TestSongqueueRedeemReplyResolvesDynamic.
+// The pure-family fallthrough ({random}, {choice:a,b}, {math:…}, …) is
+// deliberate and is a behaviour CHANGE, pinned by
+// TestSongqueueRedeemReplyResolvesDynamic.
 //
 // Every other reward-template surface (channelpoints, alerts, shoutout,
 // timeofday, emoteplay) already ended its switch in the dynamic vars; this
@@ -178,23 +178,19 @@ const defaultSongqueueRedeemReply = "@{user} queued {track}, position #{pos}."
 // drift was invisible enough that the web command builder encodes it by hand
 // as a per-surface exception. Making the two agree deletes that exception:
 // {random} and {choice:} now resolve on ALL reward surfaces.
-func renderSongqueueRedeemReply(text string, ev redemptionEvent, track string, pos int) string {
+//
+// {input} is sanitized through sanitizeRewardInput (channelpoints.go), the
+// same trim channelpoints has always applied: it used not to here, which
+// meant "{input}" was safe in one reward template and not the other.
+func renderSongqueueRedeemReply(locale, text string, ev redemptionEvent, track string, pos int) string {
 	if strings.TrimSpace(text) == "" {
 		text = defaultSongqueueRedeemReply
 	}
 	user := strings.TrimPrefix(displayName(ev.UserName, ev.UserLogin), "@")
-	return module.ExpandString(text, func(tok tmpl.Token) (string, bool) {
-		switch tok.Key() {
-		case "user":
-			return user, true
-		case "track":
-			return track, true
-		case "input":
-			return ev.UserInput, true
-		case "pos":
-			return strconv.Itoa(pos), true
-		default:
-			return tmpl.Dynamic(tok)
-		}
-	})
+	return module.KV(
+		"user", user,
+		"track", track,
+		"input", sanitizeRewardInput(ev.UserInput),
+		"pos", strconv.Itoa(pos),
+	).WithLocale(locale).ExpandString(text)
 }

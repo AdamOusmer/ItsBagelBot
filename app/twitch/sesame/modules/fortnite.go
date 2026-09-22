@@ -13,7 +13,6 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/i18n"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
-	"ItsBagelBot/pkg/tmpl"
 
 	"go.uber.org/zap"
 )
@@ -213,27 +212,18 @@ func fortniteRoute(endpoint string) engine.GossipRoute {
 // fortniteSessionText renders the !fn session chat line: the delta line when a
 // baseline exists, otherwise a "tracking just started" note. Template tokens:
 // {player} {wins} {matches} {kills} {kd} {winrate}.
-func fortniteSessionText(cfg fortniteConfig, reply *gossiprpc.FortniteSessionReply) string {
+func fortniteSessionText(locale string, cfg fortniteConfig, reply *gossiprpc.FortniteSessionReply) string {
 	if !reply.HasSnapshot {
 		return reply.Player + ": session tracking just started, come back after a few games!"
 	}
-	return module.ExpandString(orDefault(cfg.SessionMessage, defaultFortniteSessionTemplate), func(tok tmpl.Token) (string, bool) {
-		switch tok.Key() {
-		case "player":
-			return reply.Player, true
-		case "wins":
-			return i64(reply.Wins), true
-		case "matches":
-			return i64(reply.Matches), true
-		case "kills":
-			return i64(reply.Kills), true
-		case "kd":
-			return trimScore(reply.KD), true
-		case "winrate":
-			return trimScore(reply.WinRate), true
-		}
-		return tmpl.Dynamic(tok)
-	})
+	return module.KV(
+		"player", reply.Player,
+		"wins", i64(reply.Wins),
+		"matches", i64(reply.Matches),
+		"kills", i64(reply.Kills),
+		"kd", trimScore(reply.KD),
+		"winrate", trimScore(reply.WinRate),
+	).WithLocale(locale).ExpandString(orDefault(cfg.SessionMessage, defaultFortniteSessionTemplate))
 }
 
 // fortniteSessionRun answers !fn session / !fnsession with the delta since the
@@ -258,7 +248,7 @@ func fortniteSessionRun(d engine.Deps) module.RunFunc {
 			}
 		},
 		render: func(call statsCall[fortniteConfig], reply *gossiprpc.FortniteSessionReply) string {
-			return fortniteSessionText(call.Cfg, reply)
+			return fortniteSessionText(call.Ctx.Locale, call.Cfg, reply)
 		},
 	}
 	return ignoreArgs(h.run)
@@ -281,17 +271,11 @@ func fortniteStoreRun(d engine.Deps) module.RunFunc {
 			// {items} needs the channel's locale for its "+N more" tail, which
 			// a TokenExpander palette has no way to reach, so this command
 			// renders its own template rather than declaring one.
-			return module.ExpandString(orDefault(call.Cfg.StoreMessage, defaultFortniteStoreTemplate), func(tok tmpl.Token) (string, bool) {
-				switch tok.Key() {
-				case "date":
-					return r.Date, true
-				case "count":
-					return strconv.Itoa(r.Count), true
-				case "items":
-					return formatShopEntries(call.Ctx.Locale, r.Entries), true
-				}
-				return tmpl.Dynamic(tok)
-			})
+			return module.KV(
+				"date", r.Date,
+				"count", strconv.Itoa(r.Count),
+				"items", formatShopEntries(call.Ctx.Locale, r.Entries),
+			).WithLocale(call.Ctx.Locale).ExpandString(orDefault(call.Cfg.StoreMessage, defaultFortniteStoreTemplate))
 		},
 	}.run
 }

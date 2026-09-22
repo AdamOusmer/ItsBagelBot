@@ -26,7 +26,15 @@ export const QUEUE_MODULE: ModuleDef =
       command: 'join',
       messageKey: 'joinMessage',
       defaultMessage: '@{user} you joined the queue at position #{pos}.',
-      tokens: replyTokens(['user', 'pos'], { user: 'sesame_sam', pos: '3' }, 'queue.join')
+      // {channel}: every queue reply goes through chatReplier.reply
+      // (app/twitch/sesame/modules/reply.go), which composes module.Common
+      // ahead of its own kv pairs, so {channel} (the broadcaster's login)
+      // resolves here too even though this template's own kv only names pos.
+      tokens: replyTokens(
+        ['user', 'pos', 'channel'],
+        { user: 'sesame_sam', pos: '3', channel: 'streamer' },
+        'queue.join'
+      )
     },
     {
       key: 'already',
@@ -56,7 +64,13 @@ export const QUEUE_MODULE: ModuleDef =
       command: 'queue next',
       messageKey: 'nextMessage',
       defaultMessage: '@{target} you are up next! ({count} still waiting)',
-      tokens: replyTokens(['target', 'count'], { target: 'ferret_king', count: '2' }, 'queue.next')
+      // {user}/{channel}: Common's pair, resolved through chatReplier.reply
+      // the same way queue.join's {channel} is (see that entry's comment).
+      tokens: replyTokens(
+        ['target', 'count', 'user', 'channel'],
+        { target: 'ferret_king', count: '2', user: 'sesame_sam', channel: 'streamer' },
+        'queue.next'
+      )
     },
     {
       key: 'opened',
