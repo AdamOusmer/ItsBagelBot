@@ -59,6 +59,8 @@ function isGameSurface(surfaceId: string): boolean {
   return GAME_SURFACES.has(surfaceId) || GAME_SURFACE_PREFIXES.some((prefix) => surfaceId.startsWith(prefix));
 }
 
+const STREAM_SURFACES = new Set(['clip', 'time']);
+
 /** Group for a token that is not one of kit's own variables (a module reply
  * field). Kit-backed records use the manifest's own group instead (see
  * kitRecord below); this only covers the surface-only remainder, sorted into
@@ -68,15 +70,19 @@ function isGameSurface(surfaceId: string): boolean {
  * something about the stream itself, so 'stream'; a channel-points reward's
  * fields (cost, counter, points) read like the 'data' bucket's economy
  * variables; a play queue and every game-stats command are entertainment
- * content, so 'fun'; everything left (shoutout, triggers, clip, time) is
- * person-centric — who's being shouted out, who typed the trigger, who owns
- * the clip, who asked the time — so 'who'. */
+ * content, so 'fun'; clip and time are also stream facts (a clip is stream
+ * content, {time}/{time:Paris} matches kit's own 'time' Variable, which is
+ * grouped 'stream' — corrected 2026-09-22, was folded into the 'who'
+ * fallback below); everything genuinely left (shoutout, triggers) is
+ * person-centric — who's being shouted out, who typed the trigger — so
+ * 'who'. */
 function surfaceOnlyGroup(surfaceId: string): VariableGroup {
   if (ALERT_SURFACES.has(surfaceId)) return 'stream';
   if (surfaceId === 'channelpoints') return 'data';
   if (surfaceId.startsWith('queue-')) return 'fun';
   if (isGameSurface(surfaceId)) return 'fun';
-  return 'who'; // shoutout, triggers, clip, time
+  if (STREAM_SURFACES.has(surfaceId)) return 'stream';
+  return 'who'; // shoutout, triggers
 }
 
 function l10n(key: string): LocaleText {

@@ -3393,6 +3393,7 @@ export type KnownMessageKey =
   | 'timers.emptyTitle'
   | 'timers.errInterval'
   | 'timers.errMessage'
+  | 'timers.errUrlfetchCap'
   | 'timers.eyebrow'
   | 'timers.fieldEndsAt'
   | 'timers.fieldEndsAtHint'

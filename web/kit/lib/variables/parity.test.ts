@@ -202,6 +202,30 @@ describe('variables parity (engine/scope/testdata/token_catalog.golden.json)', (
     expect(malformed, 'form examples that do not lex to exactly one {…} token').toEqual([]);
   });
 
+  // C also covers syntax and aliases, not just example: the marketing guide
+  // page renders a form's placeholder syntax (VariablesReference.astro's
+  // Forms.astro) and every alias spelling as its own {…} chip, and its own
+  // validateVariableSyntax/validateVariableReference guard for that was
+  // deleted this phase (docs/specs/variables-catalog.md phase 4, index.ts
+  // shrinks to a localizer) on the assumption that kit's own rule C already
+  // covered every span the guide renders. It did not — syntax placeholders
+  // ({choice:<a>,<b>,…}) and bare aliases ({sender}) were never checked here
+  // — so these two extend rule C to close that gap rather than resurrecting
+  // the deleted marketing-side validator.
+  test('C2: every form syntax lexes to exactly one variable token', () => {
+    const malformed = VARIABLES.flatMap((v) => v.forms.map((form) => ({ id: v.id, syntax: form.syntax })))
+      .filter((form) => !lexesToOneVar(form.syntax))
+      .map((form) => `${form.id}: ${form.syntax}`);
+    expect(malformed, 'form syntax placeholders that do not lex to exactly one {…} token').toEqual([]);
+  });
+
+  test('C3: every alias, braced, lexes to exactly one variable token', () => {
+    const malformed = VARIABLES.flatMap((v) => (v.aliases ?? []).map((alias) => ({ id: v.id, span: `{${alias}}` })))
+      .filter(({ span }) => !lexesToOneVar(span))
+      .map(({ id, span }) => `${id}: ${span}`);
+    expect(malformed, 'aliases that do not lex to exactly one {…} token when braced').toEqual([]);
+  });
+
   test('D: every id has name, hint, desc and chip copy in both locales', () => {
     const missing = LOCALES.flatMap(([locale, table]) => VARIABLES.flatMap((v) => missingCopy(locale, table, v)));
     expect(missing).toEqual([]);

@@ -1,46 +1,5 @@
 [
   {
-    "id": "clip",
-    "token": "{clip}",
-    "syntax": "{clip}",
-    "example": "{clip}",
-    "output": "clips.twitch.tv/AbCdEf",
-    "syntaxes": [
-      "{clip}"
-    ],
-    "examples": [
-      {
-        "syntax": "{clip}",
-        "output": "clips.twitch.tv/AbCdEf",
-        "surfaceId": "clip"
-      }
-    ],
-    "name": "Lien du clip",
-    "hint": "",
-    "description": "Le lien du clip fraîchement créé.",
-    "group": "who",
-    "groups": [
-      "who"
-    ],
-    "aliases": [],
-    "aliasTokens": [],
-    "surfaceIds": [
-      "clip"
-    ],
-    "surfaces": [
-      {
-        "id": "clip",
-        "group": "Outils de chat",
-        "label": "Réponse de !clip",
-        "dashPath": "/commands"
-      }
-    ],
-    "requirementIds": [],
-    "requirements": [],
-    "requirement": "",
-    "legacy": false
-  },
-  {
     "id": "command",
     "token": "{command}",
     "syntax": "{command}",
@@ -74,59 +33,6 @@
         "group": "Commandes",
         "label": "Commande personnalisée",
         "dashPath": "/commands"
-      }
-    ],
-    "requirementIds": [],
-    "requirements": [],
-    "requirement": "",
-    "legacy": false
-  },
-  {
-    "id": "date",
-    "token": "{date}",
-    "syntax": "{date}",
-    "example": "{date}",
-    "output": "Monday, July 13",
-    "syntaxes": [
-      "{date}"
-    ],
-    "examples": [
-      {
-        "syntax": "{date}",
-        "output": "Monday, July 13",
-        "surfaceId": "time"
-      },
-      {
-        "syntax": "{date}",
-        "output": "2026-07-09",
-        "surfaceId": "fn-store"
-      }
-    ],
-    "name": "Date locale",
-    "hint": "",
-    "description": "La date du jour dans votre fuseau.",
-    "group": "who",
-    "groups": [
-      "who"
-    ],
-    "aliases": [],
-    "aliasTokens": [],
-    "surfaceIds": [
-      "time",
-      "fn-store"
-    ],
-    "surfaces": [
-      {
-        "id": "time",
-        "group": "Outils de chat",
-        "label": "Réponse de !time",
-        "dashPath": "/modules/time"
-      },
-      {
-        "id": "fn-store",
-        "group": "Stats de jeu",
-        "label": "Fortnite: !fn store",
-        "dashPath": "/modules/fortnite"
       }
     ],
     "requirementIds": [],
@@ -291,100 +197,6 @@
         "group": "Commandes",
         "label": "Commande personnalisée",
         "dashPath": "/commands"
-      }
-    ],
-    "requirementIds": [],
-    "requirements": [],
-    "requirement": "",
-    "legacy": false
-  },
-  {
-    "id": "target",
-    "token": "{target}",
-    "syntax": "{target}",
-    "example": "{target}",
-    "output": "That is amazing",
-    "syntaxes": [
-      "{target}"
-    ],
-    "examples": [
-      {
-        "syntax": "{target}",
-        "output": "That is amazing",
-        "surfaceId": "clip"
-      },
-      {
-        "syntax": "{target}",
-        "output": "ferret_king",
-        "surfaceId": "queue-next"
-      }
-    ],
-    "name": "Titre du clip",
-    "hint": "",
-    "description": "Le titre tapé après !clip.",
-    "group": "who",
-    "groups": [
-      "who"
-    ],
-    "aliases": [],
-    "aliasTokens": [],
-    "surfaceIds": [
-      "clip",
-      "queue-next"
-    ],
-    "surfaces": [
-      {
-        "id": "clip",
-        "group": "Outils de chat",
-        "label": "Réponse de !clip",
-        "dashPath": "/commands"
-      },
-      {
-        "id": "queue-next",
-        "group": "File d'attente",
-        "label": "File: joueur suivant",
-        "dashPath": "/modules/queue"
-      }
-    ],
-    "requirementIds": [],
-    "requirements": [],
-    "requirement": "",
-    "legacy": false
-  },
-  {
-    "id": "timezone",
-    "token": "{timezone}",
-    "syntax": "{timezone}",
-    "example": "{timezone}",
-    "output": "America/Toronto",
-    "syntaxes": [
-      "{timezone}"
-    ],
-    "examples": [
-      {
-        "syntax": "{timezone}",
-        "output": "America/Toronto",
-        "surfaceId": "time"
-      }
-    ],
-    "name": "Fuseau horaire",
-    "hint": "",
-    "description": "Le nom du fuseau configuré.",
-    "group": "who",
-    "groups": [
-      "who"
-    ],
-    "aliases": [],
-    "aliasTokens": [],
-    "surfaceIds": [
-      "time"
-    ],
-    "surfaces": [
-      {
-        "id": "time",
-        "group": "Outils de chat",
-        "label": "Réponse de !time",
-        "dashPath": "/modules/time"
       }
     ],
     "requirementIds": [],
@@ -1163,6 +975,100 @@
     "legacy": false
   },
   {
+    "id": "clip",
+    "token": "{clip}",
+    "syntax": "{clip}",
+    "example": "{clip}",
+    "output": "clips.twitch.tv/AbCdEf",
+    "syntaxes": [
+      "{clip}"
+    ],
+    "examples": [
+      {
+        "syntax": "{clip}",
+        "output": "clips.twitch.tv/AbCdEf",
+        "surfaceId": "clip"
+      }
+    ],
+    "name": "Lien du clip",
+    "hint": "",
+    "description": "Le lien du clip fraîchement créé.",
+    "group": "stream",
+    "groups": [
+      "stream"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "clip"
+    ],
+    "surfaces": [
+      {
+        "id": "clip",
+        "group": "Outils de chat",
+        "label": "Réponse de !clip",
+        "dashPath": "/commands"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "legacy": false
+  },
+  {
+    "id": "date",
+    "token": "{date}",
+    "syntax": "{date}",
+    "example": "{date}",
+    "output": "Monday, July 13",
+    "syntaxes": [
+      "{date}"
+    ],
+    "examples": [
+      {
+        "syntax": "{date}",
+        "output": "Monday, July 13",
+        "surfaceId": "time"
+      },
+      {
+        "syntax": "{date}",
+        "output": "2026-07-09",
+        "surfaceId": "fn-store"
+      }
+    ],
+    "name": "Date locale",
+    "hint": "",
+    "description": "La date du jour dans votre fuseau.",
+    "group": "stream",
+    "groups": [
+      "stream"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "time",
+      "fn-store"
+    ],
+    "surfaces": [
+      {
+        "id": "time",
+        "group": "Outils de chat",
+        "label": "Réponse de !time",
+        "dashPath": "/modules/time"
+      },
+      {
+        "id": "fn-store",
+        "group": "Stats de jeu",
+        "label": "Fortnite: !fn store",
+        "dashPath": "/modules/fortnite"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "legacy": false
+  },
+  {
     "id": "followage",
     "token": "{followage}",
     "syntax": "{followage}",
@@ -1347,6 +1253,59 @@
     "legacy": false
   },
   {
+    "id": "target",
+    "token": "{target}",
+    "syntax": "{target}",
+    "example": "{target}",
+    "output": "That is amazing",
+    "syntaxes": [
+      "{target}"
+    ],
+    "examples": [
+      {
+        "syntax": "{target}",
+        "output": "That is amazing",
+        "surfaceId": "clip"
+      },
+      {
+        "syntax": "{target}",
+        "output": "ferret_king",
+        "surfaceId": "queue-next"
+      }
+    ],
+    "name": "Titre du clip",
+    "hint": "",
+    "description": "Le titre tapé après !clip.",
+    "group": "stream",
+    "groups": [
+      "stream"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "clip",
+      "queue-next"
+    ],
+    "surfaces": [
+      {
+        "id": "clip",
+        "group": "Outils de chat",
+        "label": "Réponse de !clip",
+        "dashPath": "/commands"
+      },
+      {
+        "id": "queue-next",
+        "group": "File d'attente",
+        "label": "File: joueur suivant",
+        "dashPath": "/modules/queue"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "legacy": false
+  },
+  {
     "id": "tier",
     "token": "{tier}",
     "syntax": "{tier}",
@@ -1484,6 +1443,47 @@
       "Heure locale"
     ],
     "requirement": "Heure locale",
+    "legacy": false
+  },
+  {
+    "id": "timezone",
+    "token": "{timezone}",
+    "syntax": "{timezone}",
+    "example": "{timezone}",
+    "output": "America/Toronto",
+    "syntaxes": [
+      "{timezone}"
+    ],
+    "examples": [
+      {
+        "syntax": "{timezone}",
+        "output": "America/Toronto",
+        "surfaceId": "time"
+      }
+    ],
+    "name": "Fuseau horaire",
+    "hint": "",
+    "description": "Le nom du fuseau configuré.",
+    "group": "stream",
+    "groups": [
+      "stream"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "time"
+    ],
+    "surfaces": [
+      {
+        "id": "time",
+        "group": "Outils de chat",
+        "label": "Réponse de !time",
+        "dashPath": "/modules/time"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
     "legacy": false
   },
   {

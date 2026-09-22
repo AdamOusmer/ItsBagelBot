@@ -11,6 +11,7 @@ import Code from '@bagel/ui/astro/Code.astro';
 import TextLink from '@bagel/ui/astro/TextLink.astro';
 import Field from '@bagel/ui/astro/Field.astro';
 import Forms from './Forms.astro';
+import { variableById } from '@bagel/kit/variables';
 import type { LocalizedVariableReference } from '../../../lib/variables';
 
 interface EntryCopy {
@@ -63,7 +64,16 @@ const tryItHintId = `${entry.id}-tryit-hint`;
 // itself — does this variable's canonical syntax carry a payload placeholder
 // distinct from its worked example — is cheap enough to compute here, once
 // per entry, rather than precompute and thread through every record.
-const parameterized = entry.syntax !== entry.example;
+//
+// Gated on the record being kit-backed (variableById resolves): a
+// surface-only record's `syntax` is reconstructed by
+// lib/variables/index.ts's surfaceOnlyRecord as a bare `{name}`, which can
+// legitimately differ from its `example` (a concrete payload token like
+// `{time:Paris}`) without meaning "try a payload here" the way a kit
+// Variable's placeholder syntax does — the old hand-written per-surface
+// records this replaced never rendered the Try It box, and an ungated check
+// here would silently turn it back on for them.
+const parameterized = variableById(entry.id) !== undefined && entry.syntax !== entry.example;
 
 const searchText = [
     entry.id, entry.syntax, ...entry.syntaxes, entry.example,

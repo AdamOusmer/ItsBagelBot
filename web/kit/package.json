@@ -46,7 +46,6 @@
     "./engine/commands-validate": "./lib/engine/commands-validate.ts",
     "./engine/fetch-validate": "./lib/engine/fetch-validate.ts",
     "./engine/fetch-tokens": "./lib/engine/fetch-tokens.ts",
-    "./engine/common-tokens": "./lib/engine/common-tokens.ts",
     "./variables": "./lib/variables/index.ts",
     "./catalog": "./lib/catalog/index.ts",
     "./catalog/module-def": "./lib/catalog/module-def.ts",

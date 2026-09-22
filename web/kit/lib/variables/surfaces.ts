@@ -41,16 +41,6 @@ const TIMER_SET = new Set(TIMER_VARIABLES);
 // {choice}'s worked payload example.
 const TRIGGERS_VARIABLE_IDS = new Set(['user', 'random', 'choice']);
 
-/** The {module, reply} pair a 'reward:<x>' literal is sugar for. Spotify's
- * reward IS the songqueue module's 'redeem' reply (SpotifyRewardEditor edits
- * songqueue's replyMessage config key); there is no separate 'spotify'
- * module in the catalog. */
-const REWARD_TARGETS: Record<string, { module: string; reply: string }> = {
-  'reward:channelpoints': { module: 'channelpoints', reply: 'reply' },
-  'reward:spotify': { module: 'songqueue', reply: 'redeem' },
-  'reward:govee': { module: 'govee', reply: 'reply' }
-};
-
 /** Which Variables (or module-reply tokens) one Surface offers. Only the
  * manifest-backed surfaces ('custom', 'triggers') return VariableDefs;
  * reward and generic module/builtin surfaces are ReplyToken-shaped and are
@@ -64,6 +54,19 @@ export type VariableSurface =
   | 'reward:govee'
   | { readonly module: string; readonly reply: string }
   | { readonly builtin: string };
+
+/** The {module, reply} pair a 'reward:<x>' literal is sugar for. Spotify's
+ * reward IS the songqueue module's 'redeem' reply (SpotifyRewardEditor edits
+ * songqueue's replyMessage config key); there is no separate 'spotify'
+ * module in the catalog. Keyed by every `reward:${string}` arm of
+ * VariableSurface rather than `Record<string, …>`, so adding a new
+ * 'reward:x' literal to the union without a matching entry here is a
+ * compile error, not a chip strip that silently renders empty. */
+const REWARD_TARGETS: Record<Extract<VariableSurface, `reward:${string}`>, { module: string; reply: string }> = {
+  'reward:channelpoints': { module: 'channelpoints', reply: 'reply' },
+  'reward:spotify': { module: 'songqueue', reply: 'redeem' },
+  'reward:govee': { module: 'govee', reply: 'reply' }
+};
 
 /** The Variables one manifest-backed Surface offers, in VARIABLES order.
  * 'timer' is the subset a timer's message can resolve (see TIMER_VARIABLES). */

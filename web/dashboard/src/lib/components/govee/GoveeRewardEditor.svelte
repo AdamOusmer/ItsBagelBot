@@ -38,7 +38,10 @@
   // Read off the catalog's govee.reply ModuleReply instead of a hand-kept
   // literal list; chip tooltips come from replyVars.govee.reply.<tok>.hint.
   const REPLY_TOKENS = chipsFor('reward:govee').map((c) => ({ token: c.token, hint: c.hintKey }));
-  const replySamples: Record<string, string> = { user: 'sesame_sam', color: 'blue' };
+  // Covers every token the catalog's govee.reply offers (user, input,
+  // color), same set REPLY_TOKENS above renders as chips: a chip with no
+  // matching sample would preview as the literal, unresolved token.
+  const replySamples: Record<string, string> = { user: 'sesame_sam', input: 'blue', color: 'Blue' };
 
   // Seeded once per light (the page keys this component on the device id), so
   // capturing the initial binding is intentional.
