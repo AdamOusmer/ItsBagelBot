@@ -520,7 +520,7 @@ func TestBreakerArmsAfterFiveConsecutiveTransportFailures(t *testing.T) {
 		assert.NotEqual(t, gossiprpc.FetchOK, last.Status)
 	}
 	assert.Equal(t, gossiprpc.FetchTimeout, last.Status,
-		"transport failure without an answer maps to timeout, the infra family sesame renders as [source timed out]")
+		"transport failure without an answer maps to timeout, the infra family sesame now renders empty (letting |fallback speak) rather than as authored English")
 
 	_, armed, err := h.store.Get(context.Background(), breakerKey("blackhole.invalid"))
 	require.NoError(t, err)

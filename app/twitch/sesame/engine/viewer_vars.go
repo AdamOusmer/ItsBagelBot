@@ -73,7 +73,7 @@ func (w *viewerWants) mark(tok tmpl.Token) {
 		w.follow = true
 	case scope.AccountAgeToken:
 		w.account = true
-	case scope.PointsToken, scope.PointsNameToken, scope.WatchTimeToken:
+	case scope.PointsToken, scope.PointsNameToken, scope.PointsNameLegacyToken, scope.WatchTimeToken:
 		w.loyalty = true
 	}
 }

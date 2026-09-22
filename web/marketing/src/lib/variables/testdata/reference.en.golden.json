@@ -379,16 +379,16 @@
   },
   {
     "id": "userid",
-    "token": "{userid}",
-    "syntax": "{userid}",
-    "example": "{userid}",
+    "token": "{user.id}",
+    "syntax": "{user.id}",
+    "example": "{user.id}",
     "output": "48291057",
     "syntaxes": [
-      "{userid}"
+      "{user.id}"
     ],
     "examples": [
       {
-        "syntax": "{userid}",
+        "syntax": "{user.id}",
         "output": "48291057",
         "surfaceId": "custom"
       }
@@ -400,8 +400,12 @@
     "categories": [
       "basics"
     ],
-    "aliases": [],
-    "aliasTokens": [],
+    "aliases": [
+      "userid"
+    ],
+    "aliasTokens": [
+      "{userid}"
+    ],
     "surfaceIds": [
       "custom"
     ],
@@ -422,7 +426,7 @@
     "parameterized": false,
     "lexer": {
       "valid": true,
-      "name": "userid",
+      "name": "user.id",
       "payload": null
     },
     "lexerValid": true
@@ -485,7 +489,9 @@
     "output": "ferret_king",
     "syntaxes": [
       "{1}",
-      "{2:}"
+      "{2:}",
+      "{:2}",
+      "{2:4}"
     ],
     "examples": [
       {
@@ -497,19 +503,38 @@
         "syntax": "{2:}",
         "output": "good luck",
         "surfaceId": "custom"
+      },
+      {
+        "syntax": "{:2}",
+        "output": "ferret_king good",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{2:4}",
+        "output": "good luck",
+        "surfaceId": "custom"
       }
     ],
     "name": "Word number",
-    "hint": "word 1 typed after the command; {2} is the next one, up to {30}",
-    "description": "Word 1 typed after the command. {2} is the next one, and so on up to {30}. Empty when that word was not typed. {2:} takes a word through to the end, as one string; change the number to start elsewhere, {1:} is the whole thing.",
+    "hint": "word 1 typed after the command; {2} is the next one, up to {30}; {2:4} takes a range",
+    "description": "Word 1 typed after the command. {2} is the next one, and so on up to {30}. Empty when that word was not typed. {2:} takes a word through to the end, as one string; change the number to start elsewhere, {1:} is the whole thing. {2:4} takes words 2 through 4 the same way, and {:2} is the same range starting at word 1 (the first two words). Naming an end past the last word actually typed just stops at that last word; naming the end before the start, like {4:2}, is left exactly as written.",
     "category": "arguments",
     "categories": [
       "arguments"
     ],
     "aliases": [],
     "aliasTokens": [],
-    "surfaceIds": [],
-    "surfaces": [],
+    "surfaceIds": [
+      "custom"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commands",
+        "label": "Custom command",
+        "dashPath": "/commands"
+      }
+    ],
     "requirementIds": [],
     "requirements": [],
     "requirement": "",
@@ -2355,16 +2380,16 @@
   },
   {
     "id": "pointsname",
-    "token": "{pointsname}",
-    "syntax": "{pointsname}",
-    "example": "{pointsname}",
+    "token": "{points.name}",
+    "syntax": "{points.name}",
+    "example": "{points.name}",
     "output": "bagels",
     "syntaxes": [
-      "{pointsname}"
+      "{points.name}"
     ],
     "examples": [
       {
-        "syntax": "{pointsname}",
+        "syntax": "{points.name}",
         "output": "bagels",
         "surfaceId": "custom"
       }
@@ -2376,8 +2401,12 @@
     "categories": [
       "viewer"
     ],
-    "aliases": [],
-    "aliasTokens": [],
+    "aliases": [
+      "pointsname"
+    ],
+    "aliasTokens": [
+      "{pointsname}"
+    ],
     "surfaceIds": [
       "custom"
     ],
@@ -2402,7 +2431,7 @@
     "parameterized": false,
     "lexer": {
       "valid": true,
-      "name": "pointsname",
+      "name": "points.name",
       "payload": null
     },
     "lexerValid": true
@@ -2693,106 +2722,6 @@
     "lexer": {
       "valid": true,
       "name": "uptime",
-      "payload": null
-    },
-    "lexerValid": true
-  },
-  {
-    "id": "1",
-    "token": "{1}",
-    "syntax": "{1}",
-    "example": "{1}",
-    "output": "ferret_king",
-    "syntaxes": [
-      "{1}"
-    ],
-    "examples": [
-      {
-        "syntax": "{1}",
-        "output": "ferret_king",
-        "surfaceId": "custom"
-      }
-    ],
-    "name": "Word number",
-    "hint": "",
-    "description": "Word 1 typed after the command. {2} is the next one, and so on up to {30}. Empty when that word was not typed. {2:} takes a word through to the end, as one string; change the number to start elsewhere, {1:} is the whole thing.",
-    "category": "chat",
-    "categories": [
-      "chat"
-    ],
-    "aliases": [],
-    "aliasTokens": [],
-    "surfaceIds": [
-      "custom"
-    ],
-    "surfaces": [
-      {
-        "id": "custom",
-        "group": "Commands",
-        "label": "Custom command",
-        "dashPath": "/commands"
-      }
-    ],
-    "requirementIds": [],
-    "requirements": [],
-    "requirement": "",
-    "payload": "",
-    "behavior": "",
-    "legacy": false,
-    "parameterized": false,
-    "lexer": {
-      "valid": true,
-      "name": "1",
-      "payload": null
-    },
-    "lexerValid": true
-  },
-  {
-    "id": "2",
-    "token": "{2:}",
-    "syntax": "{2}",
-    "example": "{2:}",
-    "output": "good luck",
-    "syntaxes": [
-      "{2}"
-    ],
-    "examples": [
-      {
-        "syntax": "{2:}",
-        "output": "good luck",
-        "surfaceId": "custom"
-      }
-    ],
-    "name": "Word number",
-    "hint": "",
-    "description": "Word 1 typed after the command. {2} is the next one, and so on up to {30}. Empty when that word was not typed. {2:} takes a word through to the end, as one string; change the number to start elsewhere, {1:} is the whole thing.",
-    "category": "chat",
-    "categories": [
-      "chat"
-    ],
-    "aliases": [],
-    "aliasTokens": [],
-    "surfaceIds": [
-      "custom"
-    ],
-    "surfaces": [
-      {
-        "id": "custom",
-        "group": "Commands",
-        "label": "Custom command",
-        "dashPath": "/commands"
-      }
-    ],
-    "requirementIds": [],
-    "requirements": [],
-    "requirement": "",
-    "payload": "",
-    "behavior": "",
-    "legacy": false,
-    "parameterized": false,
-    "lexer": {
-      "valid": true,
-      "name": "2",
       "payload": null
     },
     "lexerValid": true
@@ -3222,124 +3151,36 @@
     "lexerValid": true
   },
   {
-    "id": "emotes7tv",
-    "token": "{7tvemotes}",
-    "syntax": "{7tvemotes}",
-    "example": "{7tvemotes}",
+    "id": "emotes",
+    "token": "{emotes:7tv}",
+    "syntax": "{emotes:7tv}",
+    "example": "{emotes:7tv}",
     "output": "PagMan Clap peepoHappy",
     "syntaxes": [
-      "{7tvemotes}"
+      "{emotes:7tv}",
+      "{emotes:bttv}",
+      "{emotes:ffz}"
     ],
     "examples": [
       {
-        "syntax": "{7tvemotes}",
+        "syntax": "{emotes:7tv}",
         "output": "PagMan Clap peepoHappy",
         "surfaceId": "custom"
-      }
-    ],
-    "name": "7TV emotes",
-    "hint": "every global 7TV emote code, space-separated; {bttvemotes} and {ffzemotes} too (cut to fit one line)",
-    "description": "The global 7TV emote codes, separated by spaces. These are the ones every channel has, not the emotes you added to yours, and a long list is cut to fit one chat line.",
-    "category": "emotes",
-    "categories": [
-      "emotes"
-    ],
-    "aliases": [],
-    "aliasTokens": [],
-    "surfaceIds": [
-      "custom"
-    ],
-    "surfaces": [
+      },
       {
-        "id": "custom",
-        "group": "Commands",
-        "label": "Custom command",
-        "dashPath": "/commands"
-      }
-    ],
-    "requirementIds": [],
-    "requirements": [],
-    "requirement": "",
-    "payload": "",
-    "behavior": "",
-    "legacy": false,
-    "parameterized": false,
-    "lexer": {
-      "valid": true,
-      "name": "7tvemotes",
-      "payload": null
-    },
-    "lexerValid": true
-  },
-  {
-    "id": "emotesBttv",
-    "token": "{bttvemotes}",
-    "syntax": "{bttvemotes}",
-    "example": "{bttvemotes}",
-    "output": "KEKW monkaS catJAM",
-    "syntaxes": [
-      "{bttvemotes}"
-    ],
-    "examples": [
-      {
-        "syntax": "{bttvemotes}",
+        "syntax": "{emotes:bttv}",
         "output": "KEKW monkaS catJAM",
         "surfaceId": "custom"
-      }
-    ],
-    "name": "BTTV emotes",
-    "hint": "the global BetterTTV emote codes, space-separated",
-    "description": "The global BetterTTV emote codes, the same way {7tvemotes} lists 7TV.",
-    "category": "emotes",
-    "categories": [
-      "emotes"
-    ],
-    "aliases": [],
-    "aliasTokens": [],
-    "surfaceIds": [
-      "custom"
-    ],
-    "surfaces": [
+      },
       {
-        "id": "custom",
-        "group": "Commands",
-        "label": "Custom command",
-        "dashPath": "/commands"
-      }
-    ],
-    "requirementIds": [],
-    "requirements": [],
-    "requirement": "",
-    "payload": "",
-    "behavior": "",
-    "legacy": false,
-    "parameterized": false,
-    "lexer": {
-      "valid": true,
-      "name": "bttvemotes",
-      "payload": null
-    },
-    "lexerValid": true
-  },
-  {
-    "id": "emotesFfz",
-    "token": "{ffzemotes}",
-    "syntax": "{ffzemotes}",
-    "example": "{ffzemotes}",
-    "output": "LUL ZULUL AYAYA",
-    "syntaxes": [
-      "{ffzemotes}"
-    ],
-    "examples": [
-      {
-        "syntax": "{ffzemotes}",
+        "syntax": "{emotes:ffz}",
         "output": "LUL ZULUL AYAYA",
         "surfaceId": "custom"
       }
     ],
-    "name": "FFZ emotes",
-    "hint": "the global FrankerFaceZ emote codes, space-separated",
-    "description": "The global FrankerFaceZ emote codes, the same way {7tvemotes} lists 7TV.",
+    "name": "Emote list",
+    "hint": "every global emote code from one provider — {emotes:7tv}, {emotes:bttv} or {emotes:ffz} — space-separated",
+    "description": "The global emote codes for one provider (7TV, BetterTTV or FrankerFaceZ), separated by spaces. These are the ones every channel has, not the emotes you added to yours, and a long list is cut to fit one chat line.",
     "category": "emotes",
     "categories": [
       "emotes"
@@ -3366,8 +3207,8 @@
     "parameterized": false,
     "lexer": {
       "valid": true,
-      "name": "ffzemotes",
-      "payload": null
+      "name": "emotes",
+      "payload": "7tv"
     },
     "lexerValid": true
   },

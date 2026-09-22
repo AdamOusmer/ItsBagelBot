@@ -25,8 +25,12 @@ const (
 	FollowageToken  = "followage"
 	AccountAgeToken = "accountage"
 	PointsToken     = "points"
-	PointsNameToken = "pointsname"
-	WatchTimeToken  = "watchtime"
+	// PointsNameToken is the canonical spelling; PointsNameLegacyToken
+	// ("pointsname") is the pre-simplification one, kept as a silent alias so
+	// a saved command keeps resolving — Owns, refOf and Get answer both.
+	PointsNameToken       = "points.name"
+	PointsNameLegacyToken = "pointsname"
+	WatchTimeToken        = "watchtime"
 )
 
 // Spans is one viewer-duration lookup: how long a login has followed this
@@ -95,7 +99,7 @@ func (v Viewer) Owns(name string) bool {
 		return v.Follow != nil
 	case AccountAgeToken:
 		return v.Account != nil
-	case PointsToken, WatchTimeToken, PointsNameToken:
+	case PointsToken, WatchTimeToken, PointsNameToken, PointsNameLegacyToken:
 		return v.Balances != nil
 	}
 	return false
@@ -169,11 +173,12 @@ type viewerRef struct {
 // it carries none.
 //
 // ok=false marks a span that addresses nobody and must stay literal:
-// {points:} names an empty login, and {pointsname:anything} is the channel's
-// currency name given a viewer it has no use for, which is an authoring
-// mistake worth leaving visible rather than silently ignoring.
+// {points:} names an empty login, and {points.name:anything} (or its
+// {pointsname} alias) is the channel's currency name given a viewer it has no
+// use for, which is an authoring mistake worth leaving visible rather than
+// silently ignoring.
 func refOf(tok Var, sender string) (viewerRef, bool) {
-	if tok.Name == PointsNameToken {
+	if tok.Name == PointsNameToken || tok.Name == PointsNameLegacyToken {
 		return viewerRef{family: PointsNameToken}, !tok.HasPayload
 	}
 	login := sender
@@ -245,7 +250,7 @@ func (o *viewerValues) Get(tok Var) (string, bool) {
 		return "", false
 	}
 	switch tok.Name {
-	case PointsNameToken:
+	case PointsNameToken, PointsNameLegacyToken:
 		return o.currency, true
 	case PointsToken:
 		return o.points(ref.login), true

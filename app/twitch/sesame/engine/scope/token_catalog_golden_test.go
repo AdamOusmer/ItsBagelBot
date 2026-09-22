@@ -32,6 +32,10 @@ var tokenCatalogGoldenPath = filepath.Join("testdata", "token_catalog.golden.jso
 type tokenCatalogGoldenFamily struct {
 	ID       string   `json:"id"`
 	Examples []string `json:"examples"`
+	// Aliases is omitted (not emitted as []) for a family with none, so most
+	// families' golden entries stay exactly as they were before this field
+	// existed.
+	Aliases []string `json:"aliases,omitempty"`
 }
 
 type tokenCatalogGoldenFile struct {
@@ -61,7 +65,7 @@ func tokenCatalogGoldenFamilies() []tokenCatalogGoldenFamily {
 	families := CommandTokenFamilies()
 	out := make([]tokenCatalogGoldenFamily, 0, len(families))
 	for _, family := range families {
-		out = append(out, tokenCatalogGoldenFamily{ID: family.ID, Examples: family.Examples})
+		out = append(out, tokenCatalogGoldenFamily{ID: family.ID, Examples: family.Examples, Aliases: family.Aliases})
 	}
 	return out
 }

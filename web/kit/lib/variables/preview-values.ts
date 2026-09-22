@@ -26,6 +26,13 @@ export const COMMAND_SAMPLE = 'hug';
 export const POSITIONAL_WORD_SAMPLE = 'ferret_king';
 export const POSITIONAL_REST_SAMPLE = 'good luck';
 
+/** {:2} and {2:4}: words 1..2, and words 2..4 (clamped to ARGS_SAMPLE's three
+ * words) of the same sample — the {n:m} slice grammar the simplification pass
+ * added beside {n} and {n:}. Guide-only (see VariableForm.chipHint), so these
+ * never need a chip of their own the way POSITIONAL_REST_SAMPLE does. */
+export const POSITIONAL_LEADING_SLICE_SAMPLE = 'ferret_king good';
+export const POSITIONAL_BOUNDED_SLICE_SAMPLE = 'good luck';
+
 /** {querystring}: ARGS_SAMPLE, URL-encoded the same way rehearsal.ts's
  * messageScope computes it live (queryEscape(samples.args)), so this never
  * has to be kept in sync by hand. */

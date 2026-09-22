@@ -13,12 +13,29 @@ import (
 // names are: the engine recognizes them in a lexed template before it builds
 // the chain (it has to count the {random.emote} spans), and a name re-spelled
 // on that side would be a token that silently stays literal.
+//
+// EmotesToken is the canonical family: {emotes:7tv}, {emotes:bttv},
+// {emotes:ffz} pick the provider through the payload, the way {title:...}
+// and {game:...} pick a channel. The three SevenTV/BTTV/FFZ constants below
+// are the pre-simplification bare spellings, kept as silent aliases — a
+// saved command keeps resolving — and emoteFamily is the one place that folds
+// either spelling onto the same list.
 const (
+	EmotesToken        = "emotes"
 	SevenTVEmotesToken = "7tvemotes"
 	BTTVEmotesToken    = "bttvemotes"
 	FFZEmotesToken     = "ffzemotes"
 	RandomEmoteToken   = "random.emote"
 )
+
+// emoteProviders maps a {emotes:<payload>} payload to the provider constant
+// it selects. Lower-cased before lookup so {emotes:7TV} is not a typo the way
+// an unrecognized provider name is.
+var emoteProviders = map[string]string{
+	"7tv":  SevenTVEmotesToken,
+	"bttv": BTTVEmotesToken,
+	"ffz":  FFZEmotesToken,
+}
 
 // MaxEmoteLine caps how many BYTES of joined emote codes one span may render.
 //
@@ -103,13 +120,36 @@ type Emotes struct {
 	Pick func(n int) int
 }
 
-// Owns claims the four names unconditionally: see the type comment.
+// Owns claims the five names unconditionally: see the type comment. A bare
+// {emotes} or one naming a provider this scope does not carry is still
+// OWNED here — Get is what turns an unusable payload into a literal, the
+// same split every payload-taking token in this palette uses.
 func (Emotes) Owns(name string) bool {
 	switch name {
-	case SevenTVEmotesToken, BTTVEmotesToken, FFZEmotesToken, RandomEmoteToken:
+	case EmotesToken, SevenTVEmotesToken, BTTVEmotesToken, FFZEmotesToken, RandomEmoteToken:
 		return true
 	}
 	return false
+}
+
+// emoteFamily folds a span onto the provider list it names, whichever
+// spelling it used: the canonical {emotes:<provider>} payload dispatch, or
+// one of the three legacy bare names. ok=false covers everything this family
+// does not answer and must stay literal — a bare {emotes} with no provider to
+// read, a provider payload nothing here loads, and a payload on a legacy bare
+// name (none of the four ever took one).
+func emoteFamily(tok Var) (string, bool) {
+	switch tok.Name {
+	case SevenTVEmotesToken, BTTVEmotesToken, FFZEmotesToken:
+		return tok.Name, !tok.HasPayload
+	case EmotesToken:
+		if !tok.HasPayload {
+			return "", false
+		}
+		name, ok := emoteProviders[strings.ToLower(tok.Payload)]
+		return name, ok
+	}
+	return "", false
 }
 
 // Plan reads the catalog ONCE and resolves everything from that snapshot, for
@@ -126,7 +166,9 @@ func (e Emotes) Plan(_ context.Context, wants []Var) (Values, error) {
 	sets := e.snapshot()
 	vals := &emoteValues{draws: e.drawCodes(sets)}
 	for _, want := range wants {
-		vals.fill(want.Name, sets)
+		if family, ok := emoteFamily(want); ok {
+			vals.fill(family, sets)
+		}
 	}
 	return vals, nil
 }
@@ -214,23 +256,32 @@ func (v *emoteValues) fill(name string, sets EmoteSets) {
 // being briefly empty. Empty renders the span's fallback instead, so
 // {7tvemotes|no emotes loaded} says something true either way.
 //
-// None of the four takes a payload, so a span carrying one is an authoring
-// mistake and stays literal — which shows the author their typo instead of
-// quietly ignoring what they wrote, the same rule {chatters} and {time}
-// follow.
+// None of the three legacy bare names takes a payload, and {random.emote}
+// never has, so a span carrying one where this palette does not expect it is
+// an authoring mistake and stays literal — the same rule {chatters} and
+// {time} follow. {emotes:<provider>} is the one name here where a payload is
+// the point; emoteFamily is what tells the two apart.
 func (v *emoteValues) Get(tok Var) (string, bool) {
-	if tok.HasPayload {
-		return "", false
+	if family, ok := emoteFamily(tok); ok {
+		return v.list(family), true
 	}
-	switch tok.Name {
+	if tok.Name == RandomEmoteToken && !tok.HasPayload {
+		return v.nextDraw(), true
+	}
+	return "", false
+}
+
+// list answers one resolved family's joined codes.
+func (v *emoteValues) list(family string) string {
+	switch family {
 	case SevenTVEmotesToken:
-		return v.sevenTV, true
+		return v.sevenTV
 	case BTTVEmotesToken:
-		return v.bttv, true
+		return v.bttv
 	case FFZEmotesToken:
-		return v.ffz, true
+		return v.ffz
 	}
-	return v.nextDraw(), true
+	return ""
 }
 
 // nextDraw hands out one span's code. Past the cap it repeats the last drawn

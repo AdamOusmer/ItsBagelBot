@@ -76,9 +76,14 @@ describe('rehearseCommand', () => {
   });
 
   test('a span that only looks like a word number stays literal', () => {
-    const [line] = rehearseCommand('{0} {31} {01} {+1} {1:2}');
-    expect(textOf(line.segments)).toBe('{0} {31} {01} {+1} {1:2}');
+    const [line] = rehearseCommand('{0} {31} {01} {+1} {2:1}');
+    expect(textOf(line.segments)).toBe('{0} {31} {01} {+1} {2:1}');
     expect(line.segments.every((s) => s.kind !== 'sample')).toBe(true);
+  });
+
+  test('{n:m} is a real slice; {:m} anchors it at word 1', () => {
+    const [line] = rehearseCommand('{1:2} / {:2}');
+    expect(textOf(line.segments)).toBe('ferret_king good / ferret_king good');
   });
 
   test('{sender}/{target} are aliases; an override of the canonical covers them', () => {
@@ -87,7 +92,7 @@ describe('rehearseCommand', () => {
   });
 
   test('alert-only tokens do NOT expand in a command (the bot leaves them literal)', () => {
-    const [line] = rehearseCommand('{bits} {viewers} {raider}');
+    const [line] = rehearseCommand('{bits} {tier} {raider}');
     expect(line.segments.every((s) => s.kind === 'unknown' || s.text === ' ')).toBe(true);
   });
 

@@ -105,7 +105,7 @@ func TestPureResolvesEachSpanIndependently(t *testing.T) {
 }
 
 func TestMessageRejectsPayloads(t *testing.T) {
-	chain := Chain{Message{User: "sam", Sender: "sam", Args: "", Touser: "kim", Channel: "bakery"}}
+	chain := Chain{Message{User: "sam", Sender: "sam", Touser: "kim", Channel: "bakery"}}
 	assert.Equal(t, "sam sam kim kim bakery",
 		render(t, "{user} {sender} {touser} {target} {channel}", chain, nil))
 	assert.Equal(t, "{user:sam}", render(t, "{user:sam}", chain, nil))
@@ -117,7 +117,7 @@ func TestMessageRejectsPayloads(t *testing.T) {
 func argsChain() Chain {
 	return Chain{Message{
 		User: "sam", Sender: "sam",
-		Args: "kim good luck", Words: []string{"kim", "good", "luck"},
+		Words:  []string{"kim", "good", "luck"},
 		Touser: "kim", Channel: "bakery",
 		UserID: "4242", Login: "sam_login", Command: "hug",
 	}}
@@ -141,18 +141,45 @@ func TestMessagePositionalWords(t *testing.T) {
 }
 
 // A span that only looks like a word number is left alone: the cap, a signed
-// or padded number and the {n:m} slice all stay literal so a typo (or a plain
-// number in prose) is visible rather than silently empty.
+// or padded number, and an {n:m} slice with a nonsense or backwards bound all
+// stay literal so a typo (or a plain number in prose) is visible rather than
+// silently empty.
 func TestMessageLeavesNonWordNumbersLiteral(t *testing.T) {
 	chain := argsChain()
-	for _, in := range []string{"{0}", "{31}", "{+1}", "{01}", "{1:2}", "{999}"} {
+	for _, in := range []string{"{0}", "{31}", "{+1}", "{01}", "{999}", "{2:1}", "{1:x}", "{:x}", "{:}", "{}"} {
 		assert.Equal(t, in, render(t, in, chain, nil), in)
+	}
+}
+
+// TestMessageBoundedSlice pins the {n:m} grammar #883 left absent and the
+// simplification pass added: {n:m} is words n..m inclusive, {:m} is the same
+// slice anchored at word 1, both clamp m past the end rather than erroring.
+func TestMessageBoundedSlice(t *testing.T) {
+	chain := argsChain()
+	tests := []struct{ tmpl, want string }{
+		{"{1:2}", "kim good"},
+		{"{2:3}", "good luck"},
+		{"{1:30}", "kim good luck"},
+		{"{:2}", "kim good"},
+		{"{:30}", "kim good luck"},
+		{"[{4:5}]", "[]"},
+	}
+	for _, tt := range tests {
+		assert.Equal(t, tt.want, render(t, tt.tmpl, chain, nil), tt.tmpl)
 	}
 }
 
 func TestMessageIdentityTokens(t *testing.T) {
 	assert.Equal(t, "4242 sam_login hug",
-		render(t, "{userid} {user.login} {command}", argsChain(), nil))
+		render(t, "{user.id} {user.login} {command}", argsChain(), nil))
+}
+
+// TestMessageUserIDLegacyAlias pins messageAliases: {userid} is the
+// pre-simplification spelling of {user.id} and must resolve identically, not
+// merely to the same VALUE by coincidence of the fixture.
+func TestMessageUserIDLegacyAlias(t *testing.T) {
+	chain := argsChain()
+	assert.Equal(t, render(t, "{user.id}", chain, nil), render(t, "{userid}", chain, nil))
 }
 
 // countingCounters answers every bump with the name it was given, recording

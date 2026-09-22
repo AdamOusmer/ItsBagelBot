@@ -30,16 +30,18 @@ const urlFetchTokenPrefix = "urlfetch:"
 // beyond the cap stay verbatim, exactly like an unknown token.
 const maxUrlFetchTokens = 8
 
-// The static fallback texts a failed fetch renders instead of any upstream
-// content — authored here, never echoed from a reply body. A replay of an
-// already-spent claim reuses the unavailable text: the replay guarantee is
-// that it neither re-fetches nor burns quota twice, not that it reproduces
-// the original value.
-const (
-	urlFetchUnavailableText = "[source unavailable]" // denied / limited / replay
-	urlFetchErrorText       = "[source error]"       // upstream_error, empty ok
-	urlFetchTimeoutText     = "[source timed out]"   // timeout / transport failure
-)
+// A failed fetch resolves to "" (ok=true), never authored English — never
+// echoed from a reply body either, but also never the bot's own prose. It
+// used to render "[source unavailable]" / "[source error]" / "[source timed
+// out]": the one family in the palette that spoke in the bot's voice instead
+// of the broadcaster's, because every other token in it already resolves
+// failure to empty and lets {token|fallback} say whatever the broadcaster
+// wrote. {urlfetch:x|down} now decides the prose the same way {followage|not
+// yet} does. A replay of an already-spent claim renders the same empty value:
+// the replay guarantee is that it neither re-fetches nor burns quota twice,
+// not that it reproduces the original one. Only a missing or inactive
+// definition (FetchBadDef) stays literal — that is an authoring mistake worth
+// showing, not a fetch failure worth softening.
 
 // fetchUrlValues resolves a response's {urlfetch:<name>} payloads: each
 // distinct name — already folded and capped by scope.External — fans out one
@@ -86,10 +88,10 @@ func (p *Pipeline) fetchUrlValues(ctx context.Context, c *module.Context, comman
 
 // urlTokenSink collects one fan-out's outcomes: resolved values land in the
 // results map, failures count toward the stage verdict and may release a
-// dedup claim. An empty fallback text is the leave-verbatim outcome (bad_def):
-// the name stays ABSENT from the map so expandCommand preserves the token.
-// It also owns the fan-out's WaitGroup and cancel handle, so a launch site
-// passes one collaborator instead of the same four loose values per token.
+// dedup claim. A name absent from the map is the leave-verbatim outcome
+// (bad_def): expandCommand then preserves the token. It also owns the
+// fan-out's WaitGroup and cancel handle, so a launch site passes one
+// collaborator instead of the same four loose values per token.
 type urlTokenSink struct {
 	mu       sync.Mutex
 	results  map[string]string
@@ -99,12 +101,15 @@ type urlTokenSink struct {
 	cancel context.CancelFunc
 }
 
-// tokenOutcome is one name's finished resolution: rendered text on success,
-// fallback text (possibly empty = leave-verbatim) plus an optional claim
-// release on failure.
+// tokenOutcome is one name's finished resolution: text is the rendered value
+// (successful fetch) or "" (any failure this family renders empty rather
+// than literal). visible says whether it belongs in the results map at all —
+// false is the one case (a missing/inactive definition) that must stay
+// literal instead. release is an optional claim release on failure.
 type tokenOutcome struct {
 	name    string
 	text    string
+	visible bool
 	failed  bool
 	release func()
 }
@@ -115,7 +120,7 @@ func (s *urlTokenSink) record(o tokenOutcome) {
 	if o.failed {
 		s.failures++
 	}
-	if !o.failed || o.text != "" {
+	if o.visible {
 		s.results[o.name] = o.text
 	}
 	if o.release != nil {
@@ -137,19 +142,22 @@ func (s *urlTokenSink) verdict() string {
 func (p *Pipeline) launchTokenFetch(ctx context.Context, c *module.Context, name string, sink *urlTokenSink) {
 	dup, release := p.claimedUrlValue(ctx, c, name)
 	if dup {
-		sink.record(tokenOutcome{name: name, text: urlFetchUnavailableText, failed: true}) // replay: fallback, no network
+		sink.record(tokenOutcome{name: name, visible: true, failed: true}) // replay: empty, no network
 		return
 	}
 	sink.wg.Add(1)
 	go func() {
 		defer sink.wg.Done()
-		render, resolved := p.resolveUrlToken(ctx, c, name)
-		if !resolved {
-			sink.record(tokenOutcome{name: name, text: render, failed: true, release: release})
-			sink.cancel()
-			return
+		text, visible, failed := p.resolveUrlToken(ctx, c, name)
+		out := tokenOutcome{name: name, text: text, visible: visible, failed: failed}
+		if failed {
+			// Only a failed fetch releases its claim: a successful one keeps
+			// it, so a redelivered line renders the same value again without
+			// a second round trip.
+			out.release = release
+			defer sink.cancel()
 		}
-		sink.record(tokenOutcome{name: name, text: render})
+		sink.record(out)
 	}()
 }
 
@@ -167,23 +175,27 @@ func (p *Pipeline) claimedUrlValue(ctx context.Context, c *module.Context, name 
 }
 
 // resolveUrlToken performs one custom.fetch round trip and maps the typed
-// reply onto the render text per the failure-semantics table (the same
-// mapping gossiprpc.FetchStatus documents):
+// reply onto (text, visible, failed):
 //
-//	denied | limited            -> [source unavailable]
-//	upstream_error              -> [source error]
-//	timeout | transport failure -> [source timed out]
-//	bad_def (missing/inactive)  -> token left verbatim (resolved=false),
-//	                               the unknown-token authoring signal
+//	FetchOK with an extractable value -> the value, visible, not failed
+//	FetchBadDef (missing/inactive)    -> "", NOT visible — the unknown-token
+//	                                     authoring signal, the one case this
+//	                                     family still leaves literal
+//	anything else (denied, limited,
+//	  upstream_error, timeout,
+//	  transport failure, ok-but-empty,
+//	  unknown future status)          -> "", visible, failed — renders empty
+//	                                     so {urlfetch:x|down} decides the
+//	                                     prose (see the const block above)
 //
 // Whatever body gossip DID extract always passes ExternalVar before rendering,
 // regardless of gossip's own 5x256 server-side cap — the variable-provider
 // boundary does not trust upstream capping (the sanitizeVar slash-strip also
 // stops a hostile upstream from minting a "/ban ..." line through
 // emitCommand's per-line split). An ok reply with nothing extractable counts
-// as upstream-shaped breakage, not a missing definition. Unknown future
-// statuses fail toward "unavailable". Upstream bodies are never logged.
-func (p *Pipeline) resolveUrlToken(ctx context.Context, c *module.Context, name string) (render string, resolved bool) {
+// as upstream-shaped breakage, not a missing definition. Upstream bodies are
+// never logged.
+func (p *Pipeline) resolveUrlToken(ctx context.Context, c *module.Context, name string) (text string, visible, failed bool) {
 	reply, err := p.customFetch.Fetch(ctx, gossiprpc.Request{
 		DefID:     name,
 		ChannelID: c.Env.BroadcasterUserID,
@@ -195,21 +207,13 @@ func (p *Pipeline) resolveUrlToken(ctx context.Context, c *module.Context, name 
 			zap.String("def", name),
 			zap.Error(err),
 		)
-		return urlFetchTimeoutText, false
+		return "", true, true
 	}
-	switch reply.Status {
-	case gossiprpc.FetchOK:
-		if len(reply.Values) == 0 || reply.Values[0] == "" {
-			return urlFetchErrorText, false
-		}
-		return ExternalVar(reply.Values[0]), true
-	case gossiprpc.FetchBadDef:
-		return "", false // leave the token visible, like every unknown token
-	case gossiprpc.FetchUpstreamError:
-		return urlFetchErrorText, false
-	case gossiprpc.FetchTimeout:
-		return urlFetchTimeoutText, false
-	default: // denied, limited, anything new: fail toward "unavailable"
-		return urlFetchUnavailableText, false
+	if reply.Status == gossiprpc.FetchBadDef {
+		return "", false, true // leave the token visible, like every unknown token
 	}
+	if reply.Status == gossiprpc.FetchOK && len(reply.Values) > 0 && reply.Values[0] != "" {
+		return ExternalVar(reply.Values[0]), true, false
+	}
+	return "", true, true
 }

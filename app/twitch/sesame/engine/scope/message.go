@@ -36,18 +36,17 @@ const MaxPositional = 30
 // Nothing here costs a lookup, so it is always mounted.
 //
 // The values arrive already sanitized (engine.sanitizeVar) — the viewer
-// controls Args, Words and Touser, and a leading slash run in any of them
-// would otherwise become a moderation verb once the reply is split per line.
+// controls Words and Touser, and a leading slash run in either would
+// otherwise become a moderation verb once the reply is split per line.
 type Message struct {
 	// User and Sender are the same chatter under two spellings; both are
 	// kept because commands written against either must keep working.
 	User   string
 	Sender string
-	// Args is the rest of the line after the trigger.
-	Args string
-	// Words is Args split into the words {1}..{30} and {n:} address, each
-	// sanitized on its own. It is a separate field rather than a split of
-	// Args because the sanitizing differs: see engine.sanitizeWords.
+	// Words is the argument line split into the words {1}..{30}, {n:} and
+	// {n:m} address, each sanitized on its own — see engine.sanitizeWords.
+	// {args} and {querystring} are also derived from it (m.rest(1)), so a
+	// slash-verb hiding in word 3 cannot reach either by skipping the split.
 	Words []string
 	// Touser is the mentioned viewer, defaulting to the sender. {target} is
 	// the dashboard-facing name for the same value.
@@ -64,20 +63,31 @@ type Message struct {
 	Command string
 }
 
-// messageFields maps every fixed name this scope owns to the field that
-// answers it. It is a table rather than a switch so Owns and Get cannot
+// messageFields maps every fixed CANONICAL name this scope owns to the field
+// that answers it. It is a table rather than a switch so Owns and Get cannot
 // drift: a name is in the palette exactly when it can be resolved.
 //
-// The positional names are not here — they are generated (see
-// positionalIndex) rather than enumerated.
+// The positional names and the empty name ({:N}) are not here — they are
+// generated (see positionalIndex and Get) rather than enumerated. Nor are the
+// superseded spellings in messageAliases: CommandTokenFamilies builds the
+// message family's example list straight from this map, and the whole point
+// of an alias is that it no longer needs teaching.
 var messageFields = map[string]func(Message) string{
-	"user":       func(m Message) string { return m.User },
-	"sender":     func(m Message) string { return m.Sender },
-	"args":       func(m Message) string { return m.Args },
+	"user":   func(m Message) string { return m.User },
+	"sender": func(m Message) string { return m.Sender },
+	// {args} is {1:} — the same expression, not merely the same text for
+	// ordinary input. It used to carry the raw remainder untouched (whatever
+	// whitespace the chatter typed, a mid-line '/' left alone), and {1:} the
+	// sanitized words rejoined; that was two behaviours under one spelling,
+	// which cost more authoring confusion than the raw form ever bought.
+	// Dropping it collapses runs of whitespace and defangs every word, not
+	// just the first — measured as no import target or saved command in the
+	// corpora relies on whitespace runs surviving {args}.
+	"args":       func(m Message) string { return m.rest(1) },
 	"touser":     func(m Message) string { return m.Touser },
 	"target":     func(m Message) string { return m.Touser },
 	"channel":    func(m Message) string { return m.Channel },
-	"userid":     func(m Message) string { return m.UserID },
+	"user.id":    func(m Message) string { return m.UserID },
 	"user.login": func(m Message) string { return m.Login },
 	"command":    func(m Message) string { return m.Command },
 	// {querystring} is {args}, URL-encoded. It is a thin alias of the
@@ -90,15 +100,40 @@ var messageFields = map[string]func(Message) string{
 	// and this one reads the arguments. That also makes it the token every
 	// importer wants — Nightbot's $(querystring) is exactly this — while
 	// {queryescape:…} stays the general form for literal text.
-	"querystring": func(m Message) string { return url.QueryEscape(m.Args) },
+	"querystring": func(m Message) string { return url.QueryEscape(m.rest(1)) },
 }
 
-// Owns claims the fixed identity/argument palette plus {1}..{30}.
+// messageAliases folds a superseded spelling onto the canonical name that now
+// answers it, so a command saved against the old spelling keeps resolving
+// without teaching it beside the canonical one: token_catalog.go's examples
+// (and the guide page built from them) show only messageFields' keys.
+var messageAliases = map[string]string{
+	"userid": "user.id",
+}
+
+// canonicalName folds an alias onto the name messageFields is keyed by,
+// leaving every other name — including one messageAliases has no entry for
+// — untouched.
+func canonicalName(name string) string {
+	if canon, ok := messageAliases[name]; ok {
+		return canon
+	}
+	return name
+}
+
+// Owns claims the fixed identity/argument palette, {1}..{30}, and the empty
+// name ({:N} slices to word N — see Get). A payload on the empty name that
+// is not a valid positional bound is still OWNED here rather than left to a
+// later scope (none would claim "" anyway), and Get is what turns that into
+// a literal.
 func (Message) Owns(name string) bool {
 	if _, ok := positionalIndex(name); ok {
 		return true
 	}
-	_, ok := messageFields[name]
+	if name == "" {
+		return true
+	}
+	_, ok := messageFields[canonicalName(name)]
 	return ok
 }
 
@@ -114,31 +149,41 @@ func (m Message) Plan(context.Context, []Var) (Values, error) {
 // token, {user:bob} is not one, and answering it as if the payload were
 // absent would silently invent a grammar (and break the day a real {user:...}
 // form ships). It stays literal, like every other name this palette does not
-// have. The positional names are the one place a payload means something, and
-// only the empty one does.
+// have. The positional and empty names are the one place a payload means
+// something.
 func (m Message) Get(v Var) (string, bool) {
 	if n, ok := positionalIndex(v.Name); ok {
 		return m.positional(n, v)
 	}
+	if v.Name == "" {
+		return m.leadingSlice(v)
+	}
 	if v.HasPayload {
 		return "", false
 	}
-	field, ok := messageFields[v.Name]
+	field, ok := messageFields[canonicalName(v.Name)]
 	if !ok {
 		return "", false
 	}
 	return field(m), true
 }
 
-// positional answers the two positional spellings and nothing else: {n} is
-// word n, {n:} is words n to the end. A word past the end resolves to the
-// empty string (ok=true) so the span's fallback renders — "hug {1|everyone}"
-// has to read as a sentence when nobody was named.
+// The positional grammar, all four shapes read off {n} and its payload:
 //
-// {n:m} is deliberately absent. It would be a second grammar on the same
-// name (a payload that is sometimes a bound and sometimes an end marker) for
-// a slice nothing in the imported corpora asks for, so a non-empty payload
-// stays literal and the spelling is free to mean something later.
+//	{n}    word n
+//	{n:}   words n..end
+//	{:m}   words 1..m   (m via the empty name, Get's leadingSlice)
+//	{n:m}  words n..m, inclusive
+//
+// Every bound is a positionalIndex (1..MaxPositional, no sign, no leading
+// zero). A bound past the end of Words clamps to the end; a START past the
+// end resolves to "" (ok=true) so the span's fallback renders — "hug
+// {1|everyone}" has to read as a sentence when nobody was named. m < n is an
+// author error, not a clamp: {3:1} is not "word 3 to nowhere", it is a typo
+// worth leaving visible, so it stays literal like a name this palette does
+// not have.
+
+// positional answers {n} and {n:m} (including the {n:} case, m="").
 func (m Message) positional(n int, v Var) (string, bool) {
 	switch {
 	case !v.HasPayload:
@@ -146,8 +191,33 @@ func (m Message) positional(n int, v Var) (string, bool) {
 	case v.Payload == "":
 		return m.rest(n), true
 	default:
+		return m.boundedSlice(n, v.Payload)
+	}
+}
+
+// leadingSlice answers {:m}: the empty name with a numeric payload is words
+// 1..m, same rules as {n:m}. Every other empty-name span — bare {}, {:},
+// {:x} — has no positional to generate and stays literal.
+func (m Message) leadingSlice(v Var) (string, bool) {
+	if !v.HasPayload {
 		return "", false
 	}
+	end, ok := positionalIndex(v.Payload)
+	if !ok {
+		return "", false
+	}
+	return m.slice(1, end), true
+}
+
+// boundedSlice answers the payload half of {n:m}: a non-numeric or
+// out-of-range m stays literal (nonsense, not a slice), and m < n is the
+// author-error case the type comment above explains.
+func (m Message) boundedSlice(n int, payload string) (string, bool) {
+	end, ok := positionalIndex(payload)
+	if !ok || end < n {
+		return "", false
+	}
+	return m.slice(n, end), true
 }
 
 // word is the n'th argument word, 1-based, or "" past the end.
@@ -159,18 +229,23 @@ func (m Message) word(n int) string {
 }
 
 // rest is words n to the end, space-joined, or "" past the end.
-//
-// {1:} and {args} carry the same text for ordinary arguments but are NOT the
-// same expression, and both are kept on purpose: {args} is the raw remainder
-// with its whitespace intact, {1:} is the sanitized words rejoined, so a run
-// of spaces collapses and a word that starts with '/' is defanged. That makes
-// {1:} the safe spelling to put anywhere in a line and {args} the faithful
-// one to put where the chatter's own text already begins.
 func (m Message) rest(n int) string {
+	return m.slice(n, len(m.Words))
+}
+
+// slice is words n..end inclusive, space-joined. n past the end of Words
+// renders "" (the caller's ok stays true, so a fallback fires); end past the
+// end clamps to the last word rather than erroring, since {2:30} — "word 2
+// to whatever's left" — is the common shape of an open-ended {n:}-style
+// request, not a typo the way end < n is.
+func (m Message) slice(n, end int) string {
 	if n > len(m.Words) {
 		return ""
 	}
-	return strings.Join(m.Words[n-1:], " ")
+	if end > len(m.Words) {
+		end = len(m.Words)
+	}
+	return strings.Join(m.Words[n-1:end], " ")
 }
 
 // positionalIndex reads a name as a positional word number in 1..MaxPositional.

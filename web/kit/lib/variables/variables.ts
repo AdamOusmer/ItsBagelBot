@@ -35,6 +35,8 @@ import {
   IF_SAMPLE,
   POINTS_NAME_SAMPLE,
   POINTS_SAMPLE,
+  POSITIONAL_BOUNDED_SLICE_SAMPLE,
+  POSITIONAL_LEADING_SLICE_SAMPLE,
   POSITIONAL_REST_SAMPLE,
   POSITIONAL_WORD_SAMPLE,
   QUERYSTRING_SAMPLE,
@@ -70,11 +72,15 @@ export const VARIABLES: readonly VariableDef[] = [
     category: 'arguments',
     forms: [
       { syntax: '{1}', example: '{1}', output: POSITIONAL_WORD_SAMPLE },
-      { syntax: '{2:}', example: '{2:}', output: POSITIONAL_REST_SAMPLE, chipHint: 'restHint' }
+      { syntax: '{2:}', example: '{2:}', output: POSITIONAL_REST_SAMPLE, chipHint: 'restHint' },
+      // {:m} and {n:m}: guide-only, like every form beside the first two —
+      // only {2:} gets its own chip (see VariableForm.chipHint).
+      { syntax: '{:2}', example: '{:2}', output: POSITIONAL_LEADING_SLICE_SAMPLE },
+      { syntax: '{2:4}', example: '{2:4}', output: POSITIONAL_BOUNDED_SLICE_SAMPLE }
     ]
   },
   { id: 'channel', head: 'channel', category: 'basics', forms: [{ syntax: '{channel}', example: '{channel}', output: CHANNEL_SAMPLE }] },
-  { id: 'userid', head: 'userid', category: 'basics', forms: [{ syntax: '{userid}', example: '{userid}', output: USERID_SAMPLE }] },
+  { id: 'userid', head: 'user.id', category: 'basics', aliases: ['userid'], forms: [{ syntax: '{user.id}', example: '{user.id}', output: USERID_SAMPLE }] },
   { id: 'userLogin', head: 'user.login', category: 'basics', forms: [{ syntax: '{user.login}', example: '{user.login}', output: USER_LOGIN_SAMPLE }] },
   { id: 'command', head: 'command', category: 'basics', forms: [{ syntax: '{command}', example: '{command}', output: COMMAND_SAMPLE }] },
   { id: 'counter', head: 'counter', category: 'counters', forms: [{ syntax: '{counter:<name>}', example: '{counter:falls}', output: COUNTER_SAMPLE }], requires: 'loyalty' },
@@ -133,7 +139,7 @@ export const VARIABLES: readonly VariableDef[] = [
       { syntax: '{points:<login>}', example: '{points:alex}', output: POINTS_SAMPLE }
     ]
   },
-  { id: 'pointsname', head: 'pointsname', category: 'viewer', requires: 'loyalty', forms: [{ syntax: '{pointsname}', example: '{pointsname}', output: POINTS_NAME_SAMPLE }] },
+  { id: 'pointsname', head: 'points.name', category: 'viewer', requires: 'loyalty', aliases: ['pointsname'], forms: [{ syntax: '{points.name}', example: '{points.name}', output: POINTS_NAME_SAMPLE }] },
   {
     id: 'watchtime',
     head: 'watchtime',
@@ -162,9 +168,23 @@ export const VARIABLES: readonly VariableDef[] = [
   { id: 'songArtist', head: 'song.artist', category: 'queue', requires: 'songqueue', forms: [{ syntax: '{song.artist}', example: '{song.artist}', output: SONG_ARTIST_SAMPLE }] },
   { id: 'chatters', head: 'chatters', category: 'chat', forms: [{ syntax: '{chatters}', example: '{chatters}', output: CHATTERS_SAMPLE }] },
   { id: 'randomChatter', head: 'random.chatter', category: 'chat', forms: [{ syntax: '{random.chatter}', example: '{random.chatter}', output: RANDOM_CHATTER_SAMPLE }] },
-  { id: 'emotes7tv', head: '7tvemotes', category: 'emotes', forms: [{ syntax: '{7tvemotes}', example: '{7tvemotes}', output: SEVENTV_EMOTES_SAMPLE }] },
-  { id: 'emotesBttv', head: 'bttvemotes', category: 'emotes', forms: [{ syntax: '{bttvemotes}', example: '{bttvemotes}', output: BTTV_EMOTES_SAMPLE }] },
-  { id: 'emotesFfz', head: 'ffzemotes', category: 'emotes', forms: [{ syntax: '{ffzemotes}', example: '{ffzemotes}', output: FFZ_EMOTES_SAMPLE }] },
+  {
+    id: 'emotes',
+    head: 'emotes',
+    category: 'emotes',
+    // One head, three payload forms (the provider), the way {title}/{game}
+    // take a channel: forms[0] is still what a chip inserts, the other two
+    // are guide-only. 7tvemotes/bttvemotes/ffzemotes were the pre-
+    // simplification bare spellings; scope.Emotes keeps them resolving as
+    // silent aliases, but they are not modelled here (nothing needs to claim
+    // them for parity — rule A only requires the golden's own canonical
+    // examples to be covered).
+    forms: [
+      { syntax: '{emotes:7tv}', example: '{emotes:7tv}', output: SEVENTV_EMOTES_SAMPLE },
+      { syntax: '{emotes:bttv}', example: '{emotes:bttv}', output: BTTV_EMOTES_SAMPLE },
+      { syntax: '{emotes:ffz}', example: '{emotes:ffz}', output: FFZ_EMOTES_SAMPLE }
+    ]
+  },
   { id: 'randomEmote', head: 'random.emote', category: 'emotes', forms: [{ syntax: '{random.emote}', example: '{random.emote}', output: RANDOM_EMOTE_SAMPLE }] },
   {
     id: 'uptime',

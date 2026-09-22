@@ -24,6 +24,14 @@ import (
 // {channel} is already the display name in the message scope. The lexer
 // lower-cases a whole name that carries no ':', so the dotted spelling is one
 // key, not a name plus a payload.
+//
+// It also stays dotted rather than folding to the bare {viewers} the
+// simplification pass tried: {viewers} is already spoken for, by
+// modules/reply_tokens.go's raid/shoutout reply ("alerts.raid",
+// "shoutout.shoutout") where it names the raiding party's size. One word
+// cannot mean two different numbers in the same product, so the rename was
+// reverted rather than shipped alongside a second {viewers} that answers a
+// different question depending on which reply it is in.
 const (
 	UptimeToken  = "uptime"
 	TitleToken   = "title"

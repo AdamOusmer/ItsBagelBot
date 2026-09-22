@@ -10,6 +10,15 @@ import "sort"
 // just heads: a family such as counter or urlfetch is open-ended and therefore
 // cannot be enumerated one name at a time.
 //
+// Aliases are the family's pre-simplification spellings — also complete
+// lexer spellings — kept separate from Examples rather than folded in: the
+// public catalogue (and the guide it generates) teaches the canonical
+// spelling only, but web/kit/lib/variables/parity.test.ts still needs a way
+// to know a name the manifest lists as an alias is genuinely answered by the
+// resolver, without either scraping Examples for something that looks like
+// an alias or hand-keeping a second list on the TypeScript side that this
+// package could silently drift from.
+//
 // This is intentionally a small runtime catalogue, not a resolver. The scope
 // implementations remain authoritative for behaviour and availability; this
 // type gives tooling a stable, inspectable inventory of the names and shapes
@@ -17,6 +26,7 @@ import "sort"
 type TokenFamily struct {
 	ID       string
 	Examples []string
+	Aliases  []string
 }
 
 // CommandTokenFamilies returns the complete custom-command token inventory.
@@ -28,8 +38,14 @@ func CommandTokenFamilies() []TokenFamily {
 	for name := range messageFields {
 		message = append(message, "{"+name+"}")
 	}
-	message = append(message, "{1}", "{1:}")
+	message = append(message, "{1}", "{1:}", "{:2}", "{2:4}")
 	sort.Strings(message)
+
+	messageAliasExamples := make([]string, 0, len(messageAliases))
+	for alias := range messageAliases {
+		messageAliasExamples = append(messageAliasExamples, "{"+alias+"}")
+	}
+	sort.Strings(messageAliasExamples)
 
 	pure := make([]string, 0, len(pureUtils)+2)
 	for name := range pureUtils {
@@ -39,12 +55,20 @@ func CommandTokenFamilies() []TokenFamily {
 	sort.Strings(pure)
 
 	return []TokenFamily{
-		{ID: "message", Examples: message},
+		{ID: "message", Examples: message, Aliases: messageAliasExamples},
 		{ID: "pure", Examples: pure},
 		{ID: "chatters", Examples: []string{"{" + ChattersToken + "}", "{" + RandomChatterToken + "}"}},
-		{ID: "emotes", Examples: []string{"{" + SevenTVEmotesToken + "}", "{" + BTTVEmotesToken + "}", "{" + FFZEmotesToken + "}", "{" + RandomEmoteToken + "}"}},
+		{
+			ID:       "emotes",
+			Examples: []string{"{" + EmotesToken + ":7tv}", "{" + EmotesToken + ":bttv}", "{" + EmotesToken + ":ffz}", "{" + RandomEmoteToken + "}"},
+			Aliases:  []string{"{" + SevenTVEmotesToken + "}", "{" + BTTVEmotesToken + "}", "{" + FFZEmotesToken + "}"},
+		},
 		{ID: "channel", Examples: []string{"{" + UptimeToken + "}", "{" + TitleToken + ":other_channel}", "{" + GameToken + ":other_channel}", "{" + ViewersToken + "}"}},
-		{ID: "viewer", Examples: []string{"{" + FollowageToken + "}", "{" + AccountAgeToken + ":viewer}", "{" + PointsToken + "}", "{" + PointsNameToken + "}", "{" + WatchTimeToken + "}"}},
+		{
+			ID:       "viewer",
+			Examples: []string{"{" + FollowageToken + "}", "{" + AccountAgeToken + ":viewer}", "{" + PointsToken + "}", "{" + PointsNameToken + "}", "{" + WatchTimeToken + "}"},
+			Aliases:  []string{"{" + PointsNameLegacyToken + "}"},
+		},
 		{ID: "modules", Examples: []string{"{" + QuoteToken + "}", "{" + QuoteToken + ":1}", "{" + TimeToken + "}", "{" + SongToken + "}", "{" + SongTitleToken + "}", "{" + SongArtistToken + "}"}},
 		{ID: "uses", Examples: []string{"{uses}"}},
 		{ID: "store", Examples: []string{"{counter:deaths}", "{counter:target:deaths}", "{count:deaths}", "{count:target:deaths}"}},

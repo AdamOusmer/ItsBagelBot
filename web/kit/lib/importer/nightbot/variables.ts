@@ -79,7 +79,7 @@
 // conditional that tests something else and STILL looks like it worked. A
 // warning the broadcaster reads beats a reply that quietly says the wrong
 // half. Nightbot has no non-eval conditional variable to map instead.
-// The emote catalog ({7tvemotes}, {bttvemotes}, {ffzemotes},
+// The emote catalog ({emotes:7tv}, {emotes:bttv}, {emotes:ffz},
 // {random.emote}) has none either: the table at the top of this file is the
 // record of Nightbot's variable language, and it carries no emote-list
 // variable. A response that wanted one keeps the literal+warn path that sends

@@ -120,7 +120,6 @@ func messageVars(run commandRun) scope.Message {
 	return scope.Message{
 		User:    strings.TrimPrefix(sender, "@"),
 		Sender:  strings.TrimPrefix(sender, "@"),
-		Args:    sanitizeVar(run.args),
 		Words:   sanitizeWords(run.args),
 		Touser:  strings.TrimPrefix(sanitizeVar(touser), "@"),
 		Channel: run.c.Env.BroadcasterName(),

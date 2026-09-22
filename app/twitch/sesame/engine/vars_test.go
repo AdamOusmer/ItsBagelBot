@@ -32,7 +32,6 @@ func commandScopes() []scope.Scope {
 	return []scope.Scope{scope.Pure{}, scope.Message{
 		User:    "alice",
 		Sender:  "alice",
-		Args:    "the rest here",
 		Words:   []string{"the", "rest", "here"},
 		Touser:  "bob",
 		Channel: "channel_name",
@@ -76,9 +75,14 @@ func TestRenderCommandTokens(t *testing.T) {
 		{"a signed number is not a word", "{+1}", "{+1}"},
 		{"a padded number is not a word", "{01}", "{01}"},
 		{"word zero is not a word", "{0}", "{0}"},
-		{"a bounded slice is not this grammar", "{1:2}", "{1:2}"},
+		{"a bounded slice", "{1:2}", "the rest"},
+		{"a bounded slice clamps past the end", "{2:5}", "rest here"},
+		{"a leading slice", "{:2}", "the rest"},
+		{"m before n is a typo, stays literal", "{2:1}", "{2:1}"},
+		{"a non-numeric bound is not this grammar", "{1:x}", "{1:x}"},
 		// Identity (#885).
-		{"user id", "id {userid}", "id 999"},
+		{"user id", "id {user.id}", "id 999"},
+		{"user id legacy alias", "id {userid}", "id 999"},
 		{"login is not the display name", "{user} is {user.login}", "alice is alice_login"},
 		{"canonical command name", "!{command}", "!hug"},
 		// Conditionals (#909). The cond names a token this chain owns; then
@@ -123,7 +127,7 @@ func (emptyFetcher) Fetch(_ context.Context, names []string) map[string]string {
 // rescues a name no mounted scope owns (issue #884).
 func TestRenderFallbackPipe(t *testing.T) {
 	scopes := []scope.Scope{scope.Pure{}, scope.Message{
-		User: "alice", Sender: "alice", Args: "", Touser: "", Channel: "chan",
+		User: "alice", Sender: "alice", Touser: "", Channel: "chan",
 	}, scope.External{Fetcher: emptyFetcher{}, Max: 4}}
 	tests := []struct{ name, tmpl, want string }{
 		{"empty value falls back", "shout out to {args|everyone}", "shout out to everyone"},
@@ -162,27 +166,25 @@ func TestRenderDynamicTokens(t *testing.T) {
 
 // TestMessageVarsSanitizesViewerInput pins the injection guard at the boundary
 // that mints the viewer-controlled tokens: a crafted argument cannot carry a
-// leading slash-verb (or a newline that would mint a fresh line for one) into
-// the expansion, and an over-mentioned "@@bob" still reads as "bob".
+// leading slash-verb into the expansion (through {1}, which moves a word to
+// the front of a line), and an over-mentioned "@@bob" still reads as "bob".
 func TestMessageVarsSanitizesViewerInput(t *testing.T) {
 	c := chatCtx("!so", "")
 	got := messageVars(commandRun{c: c, command: "so", args: "/ban @everyone"})
-	assert.Equal(t, "ban @everyone", got.Args)
+	assert.Equal(t, "ban", got.Words[0], "a leading slash is defanged word by word, not just at the line's own start")
 	assert.Equal(t, "ban", got.Touser)
 
 	assert.Equal(t, "bob", messageVars(commandRun{c: c, command: "so", args: "@@bob hi"}).Touser)
 	assert.Equal(t, "alice", messageVars(commandRun{c: c, command: "so"}).Touser, "no argument: the sender is the target")
-	assert.Equal(t, "hithere", messageVars(commandRun{c: c, command: "so", args: "hi\nthere"}).Args,
-		"a newline is stripped, never kept as a line break")
 }
 
-// TestMessageVarsSanitizesEveryWord pins the reason Words exists beside Args:
-// a positional token MOVES a word to the front of a line, so a slash-verb the
-// chatter typed mid-sentence has to be defanged even though sanitizeVar would
-// leave it alone inside {args}.
+// TestMessageVarsSanitizesEveryWord pins the reason Words exists: a positional
+// token (and {args}/{querystring}, both now derived from Words — see
+// scope.Message.rest) MOVES a word to the front of a line, so a slash-verb the
+// chatter typed mid-sentence has to be defanged the same way the line's own
+// first word would be.
 func TestMessageVarsSanitizesEveryWord(t *testing.T) {
 	got := messageVars(commandRun{c: chatCtx("!so", ""), command: "so", args: "hey /me is a cat"})
-	assert.Equal(t, "hey /me is a cat", got.Args, "{args} keeps the chatter's own text")
 	assert.Equal(t, []string{"hey", "me", "is", "a", "cat"}, got.Words)
 
 	assert.Nil(t, messageVars(commandRun{c: chatCtx("!so", ""), command: "so", args: "   "}).Words, "no words, no slots")

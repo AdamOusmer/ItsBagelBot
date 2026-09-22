@@ -261,16 +261,18 @@ type urlFetchCase struct {
 }
 
 // TestUrlFetchFailureTable pins the failure-semantics mapping: every non-ok
-// outcome renders static authored text (never upstream content) and still
-// returns a nil handler error, so nothing lands on the retry lane.
+// outcome except a missing/inactive definition renders empty (never upstream
+// content, never authored English — {urlfetch:x|down} decides what chat
+// sees) and still returns a nil handler error, so nothing lands on the retry
+// lane.
 func TestUrlFetchFailureTable(t *testing.T) {
 	tests := []urlFetchCase{
-		{name: "denied", reply: gossiprpc.CustomFetchReply{Status: gossiprpc.FetchDenied}, want: urlFetchUnavailableText},
-		{name: "limited", reply: gossiprpc.CustomFetchReply{Status: gossiprpc.FetchLimited}, want: urlFetchUnavailableText},
-		{name: "upstream_error", reply: gossiprpc.CustomFetchReply{Status: gossiprpc.FetchUpstreamError}, want: urlFetchErrorText},
-		{name: "timeout", reply: gossiprpc.CustomFetchReply{Status: gossiprpc.FetchTimeout}, want: urlFetchTimeoutText},
-		{name: "transport error", err: errors.New("nats: iotimeout"), want: urlFetchTimeoutText},
-		{name: "ok but nothing extracted", reply: gossiprpc.CustomFetchReply{Status: gossiprpc.FetchOK}, want: urlFetchErrorText},
+		{name: "denied", reply: gossiprpc.CustomFetchReply{Status: gossiprpc.FetchDenied}, want: ""},
+		{name: "limited", reply: gossiprpc.CustomFetchReply{Status: gossiprpc.FetchLimited}, want: ""},
+		{name: "upstream_error", reply: gossiprpc.CustomFetchReply{Status: gossiprpc.FetchUpstreamError}, want: ""},
+		{name: "timeout", reply: gossiprpc.CustomFetchReply{Status: gossiprpc.FetchTimeout}, want: ""},
+		{name: "transport error", err: errors.New("nats: iotimeout"), want: ""},
+		{name: "ok but nothing extracted", reply: gossiprpc.CustomFetchReply{Status: gossiprpc.FetchOK}, want: ""},
 		{name: "bad_def stays verbatim", reply: gossiprpc.CustomFetchReply{Status: gossiprpc.FetchBadDef}, want: "{urlfetch:w}"},
 		{
 			// Leading slash run trimmed at the variable boundary: a hostile
@@ -305,26 +307,28 @@ func TestUrlFetchFailureTable(t *testing.T) {
 
 // TestUrlFetchFirstErrorCancelsBatch proves errgroup-style cancellation: a
 // typed timeout on one token cancels the in-flight sibling mid-request, whose
-// transport failure then renders the same timeout-family text — the whole
-// fan-out finishes in well under the slow sibling's block instead of waiting
-// it out.
+// transport failure then renders empty the same way — the whole fan-out
+// finishes in well under the slow sibling's block instead of waiting it out.
 func TestUrlFetchFirstErrorCancelsBatch(t *testing.T) {
 	ff := &fakeUrlFetch{
 		replies: map[string]gossiprpc.CustomFetchReply{"fast": {Status: gossiprpc.FetchTimeout}},
 		block:   map[string]time.Duration{"slow": 5 * time.Second},
 	}
-	p := urlFetchPipeline("{urlfetch:slow} {urlfetch:fast}", ff, nil)
+	// A '-' between the two tokens keeps the line non-blank even though both
+	// render empty, so chatLines does not drop it (see blankLine) and there
+	// is still something to assert on.
+	p := urlFetchPipeline("{urlfetch:slow}-{urlfetch:fast}", ff, nil)
 
 	start := time.Now()
 	got, err := dispatch(t, p, chatCtx("!so", ""))
 	require.NoError(t, err)
 	require.Less(t, time.Since(start), 4*time.Second, "first failure must cancel the in-flight sibling")
 	require.Len(t, got, 1)
-	assert.Equal(t, "[source timed out] [source timed out]", got[0].Text)
+	assert.Equal(t, "-", got[0].Text)
 }
 
 // TestUrlFetchReplayDoesNotRefetch pins redelivery safety: the same event
-// identity claiming twice renders fallback text on the replay without a second
+// identity claiming twice renders empty on the replay without a second
 // network call, so a quorum-loss redelivery never burns fetch quota twice.
 func TestUrlFetchReplayDoesNotRefetch(t *testing.T) {
 	store := newRecordingStore()
@@ -346,7 +350,7 @@ func TestUrlFetchReplayDoesNotRefetch(t *testing.T) {
 	got, err = dispatch(t, p, c)
 	require.NoError(t, err)
 	require.Len(t, got, 1)
-	assert.Equal(t, "got "+urlFetchUnavailableText, got[0].Text, "replay renders fallback, not the value")
+	assert.Equal(t, "got ", got[0].Text, "replay renders empty, not the value")
 	assert.Equal(t, 1, ff.calls(), "replay must not re-fetch")
 }
 
@@ -366,7 +370,7 @@ func TestUrlFetchFailedFetchReleasesClaimForRedelivery(t *testing.T) {
 	got, err := dispatch(t, p, c)
 	require.NoError(t, err)
 	require.Len(t, got, 1)
-	assert.Equal(t, "got "+urlFetchTimeoutText, got[0].Text)
+	assert.Equal(t, "got ", got[0].Text)
 
 	ff.mu.Lock()
 	ff.errs = nil

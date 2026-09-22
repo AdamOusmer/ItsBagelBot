@@ -379,16 +379,16 @@
   },
   {
     "id": "userid",
-    "token": "{userid}",
-    "syntax": "{userid}",
-    "example": "{userid}",
+    "token": "{user.id}",
+    "syntax": "{user.id}",
+    "example": "{user.id}",
     "output": "48291057",
     "syntaxes": [
-      "{userid}"
+      "{user.id}"
     ],
     "examples": [
       {
-        "syntax": "{userid}",
+        "syntax": "{user.id}",
         "output": "48291057",
         "surfaceId": "custom"
       }
@@ -400,8 +400,12 @@
     "categories": [
       "basics"
     ],
-    "aliases": [],
-    "aliasTokens": [],
+    "aliases": [
+      "userid"
+    ],
+    "aliasTokens": [
+      "{userid}"
+    ],
     "surfaceIds": [
       "custom"
     ],
@@ -422,7 +426,7 @@
     "parameterized": false,
     "lexer": {
       "valid": true,
-      "name": "userid",
+      "name": "user.id",
       "payload": null
     },
     "lexerValid": true
@@ -485,7 +489,9 @@
     "output": "ferret_king",
     "syntaxes": [
       "{1}",
-      "{2:}"
+      "{2:}",
+      "{:2}",
+      "{2:4}"
     ],
     "examples": [
       {
@@ -497,19 +503,38 @@
         "syntax": "{2:}",
         "output": "good luck",
         "surfaceId": "custom"
+      },
+      {
+        "syntax": "{:2}",
+        "output": "ferret_king good",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{2:4}",
+        "output": "good luck",
+        "surfaceId": "custom"
       }
     ],
     "name": "Numéro de mot",
-    "hint": "le mot 1 tapé après la commande; {2} est le suivant, jusqu’à {30}",
-    "description": "Le mot 1 tapé après la commande. {2} est le suivant, et ainsi de suite jusqu’à {30}. Vide si ce mot n’a pas été tapé. {2:} reprend d’un mot jusqu’à la fin, en une seule chaîne; changez le numéro pour commencer ailleurs, {1:} reprend tout.",
+    "hint": "le mot 1 tapé après la commande; {2} est le suivant, jusqu’à {30}; {2:4} prend une plage",
+    "description": "Le mot 1 tapé après la commande. {2} est le suivant, et ainsi de suite jusqu’à {30}. Vide si ce mot n’a pas été tapé. {2:} reprend d’un mot jusqu’à la fin, en une seule chaîne; changez le numéro pour commencer ailleurs, {1:} reprend tout. {2:4} reprend les mots 2 à 4 de la même façon, et {:2} est la même plage à partir du mot 1 (les deux premiers mots). Demander une fin au-delà du dernier mot tapé s’arrête simplement à ce dernier mot; demander une fin avant le début, comme {4:2}, reste écrit tel quel.",
     "category": "arguments",
     "categories": [
       "arguments"
     ],
     "aliases": [],
     "aliasTokens": [],
-    "surfaceIds": [],
-    "surfaces": [],
+    "surfaceIds": [
+      "custom"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      }
+    ],
     "requirementIds": [],
     "requirements": [],
     "requirement": "",
@@ -2355,16 +2380,16 @@
   },
   {
     "id": "pointsname",
-    "token": "{pointsname}",
-    "syntax": "{pointsname}",
-    "example": "{pointsname}",
+    "token": "{points.name}",
+    "syntax": "{points.name}",
+    "example": "{points.name}",
     "output": "bagels",
     "syntaxes": [
-      "{pointsname}"
+      "{points.name}"
     ],
     "examples": [
       {
-        "syntax": "{pointsname}",
+        "syntax": "{points.name}",
         "output": "bagels",
         "surfaceId": "custom"
       }
@@ -2376,8 +2401,12 @@
     "categories": [
       "viewer"
     ],
-    "aliases": [],
-    "aliasTokens": [],
+    "aliases": [
+      "pointsname"
+    ],
+    "aliasTokens": [
+      "{pointsname}"
+    ],
     "surfaceIds": [
       "custom"
     ],
@@ -2402,7 +2431,7 @@
     "parameterized": false,
     "lexer": {
       "valid": true,
-      "name": "pointsname",
+      "name": "points.name",
       "payload": null
     },
     "lexerValid": true
@@ -2693,106 +2722,6 @@
     "lexer": {
       "valid": true,
       "name": "uptime",
-      "payload": null
-    },
-    "lexerValid": true
-  },
-  {
-    "id": "1",
-    "token": "{1}",
-    "syntax": "{1}",
-    "example": "{1}",
-    "output": "ferret_king",
-    "syntaxes": [
-      "{1}"
-    ],
-    "examples": [
-      {
-        "syntax": "{1}",
-        "output": "ferret_king",
-        "surfaceId": "custom"
-      }
-    ],
-    "name": "Numéro de mot",
-    "hint": "",
-    "description": "Le mot 1 tapé après la commande. {2} est le suivant, et ainsi de suite jusqu’à {30}. Vide si ce mot n’a pas été tapé. {2:} reprend d’un mot jusqu’à la fin, en une seule chaîne; changez le numéro pour commencer ailleurs, {1:} reprend tout.",
-    "category": "chat",
-    "categories": [
-      "chat"
-    ],
-    "aliases": [],
-    "aliasTokens": [],
-    "surfaceIds": [
-      "custom"
-    ],
-    "surfaces": [
-      {
-        "id": "custom",
-        "group": "Commandes",
-        "label": "Commande personnalisée",
-        "dashPath": "/commands"
-      }
-    ],
-    "requirementIds": [],
-    "requirements": [],
-    "requirement": "",
-    "payload": "",
-    "behavior": "",
-    "legacy": false,
-    "parameterized": false,
-    "lexer": {
-      "valid": true,
-      "name": "1",
-      "payload": null
-    },
-    "lexerValid": true
-  },
-  {
-    "id": "2",
-    "token": "{2:}",
-    "syntax": "{2}",
-    "example": "{2:}",
-    "output": "good luck",
-    "syntaxes": [
-      "{2}"
-    ],
-    "examples": [
-      {
-        "syntax": "{2:}",
-        "output": "good luck",
-        "surfaceId": "custom"
-      }
-    ],
-    "name": "Numéro de mot",
-    "hint": "",
-    "description": "Le mot 1 tapé après la commande. {2} est le suivant, et ainsi de suite jusqu’à {30}. Vide si ce mot n’a pas été tapé. {2:} reprend d’un mot jusqu’à la fin, en une seule chaîne; changez le numéro pour commencer ailleurs, {1:} reprend tout.",
-    "category": "chat",
-    "categories": [
-      "chat"
-    ],
-    "aliases": [],
-    "aliasTokens": [],
-    "surfaceIds": [
-      "custom"
-    ],
-    "surfaces": [
-      {
-        "id": "custom",
-        "group": "Commandes",
-        "label": "Commande personnalisée",
-        "dashPath": "/commands"
-      }
-    ],
-    "requirementIds": [],
-    "requirements": [],
-    "requirement": "",
-    "payload": "",
-    "behavior": "",
-    "legacy": false,
-    "parameterized": false,
-    "lexer": {
-      "valid": true,
-      "name": "2",
       "payload": null
     },
     "lexerValid": true
@@ -3222,124 +3151,36 @@
     "lexerValid": true
   },
   {
-    "id": "emotes7tv",
-    "token": "{7tvemotes}",
-    "syntax": "{7tvemotes}",
-    "example": "{7tvemotes}",
+    "id": "emotes",
+    "token": "{emotes:7tv}",
+    "syntax": "{emotes:7tv}",
+    "example": "{emotes:7tv}",
     "output": "PagMan Clap peepoHappy",
     "syntaxes": [
-      "{7tvemotes}"
+      "{emotes:7tv}",
+      "{emotes:bttv}",
+      "{emotes:ffz}"
     ],
     "examples": [
       {
-        "syntax": "{7tvemotes}",
+        "syntax": "{emotes:7tv}",
         "output": "PagMan Clap peepoHappy",
         "surfaceId": "custom"
-      }
-    ],
-    "name": "Émotes 7TV",
-    "hint": "tous les codes d’émotes globales 7TV, séparés par des espaces; {bttvemotes} et {ffzemotes} aussi (coupé pour tenir sur une ligne)",
-    "description": "Les codes des émotes 7TV globales, séparés par des espaces. Ce sont celles que toutes les chaînes ont, pas les émotes que vous avez ajoutées à la vôtre, et une longue liste est coupée pour tenir sur une ligne de chat.",
-    "category": "emotes",
-    "categories": [
-      "emotes"
-    ],
-    "aliases": [],
-    "aliasTokens": [],
-    "surfaceIds": [
-      "custom"
-    ],
-    "surfaces": [
+      },
       {
-        "id": "custom",
-        "group": "Commandes",
-        "label": "Commande personnalisée",
-        "dashPath": "/commands"
-      }
-    ],
-    "requirementIds": [],
-    "requirements": [],
-    "requirement": "",
-    "payload": "",
-    "behavior": "",
-    "legacy": false,
-    "parameterized": false,
-    "lexer": {
-      "valid": true,
-      "name": "7tvemotes",
-      "payload": null
-    },
-    "lexerValid": true
-  },
-  {
-    "id": "emotesBttv",
-    "token": "{bttvemotes}",
-    "syntax": "{bttvemotes}",
-    "example": "{bttvemotes}",
-    "output": "KEKW monkaS catJAM",
-    "syntaxes": [
-      "{bttvemotes}"
-    ],
-    "examples": [
-      {
-        "syntax": "{bttvemotes}",
+        "syntax": "{emotes:bttv}",
         "output": "KEKW monkaS catJAM",
         "surfaceId": "custom"
-      }
-    ],
-    "name": "Émotes BTTV",
-    "hint": "les codes des émotes BetterTTV globales, séparés par des espaces",
-    "description": "Les codes des émotes BetterTTV globales, comme {7tvemotes} liste celles de 7TV.",
-    "category": "emotes",
-    "categories": [
-      "emotes"
-    ],
-    "aliases": [],
-    "aliasTokens": [],
-    "surfaceIds": [
-      "custom"
-    ],
-    "surfaces": [
+      },
       {
-        "id": "custom",
-        "group": "Commandes",
-        "label": "Commande personnalisée",
-        "dashPath": "/commands"
-      }
-    ],
-    "requirementIds": [],
-    "requirements": [],
-    "requirement": "",
-    "payload": "",
-    "behavior": "",
-    "legacy": false,
-    "parameterized": false,
-    "lexer": {
-      "valid": true,
-      "name": "bttvemotes",
-      "payload": null
-    },
-    "lexerValid": true
-  },
-  {
-    "id": "emotesFfz",
-    "token": "{ffzemotes}",
-    "syntax": "{ffzemotes}",
-    "example": "{ffzemotes}",
-    "output": "LUL ZULUL AYAYA",
-    "syntaxes": [
-      "{ffzemotes}"
-    ],
-    "examples": [
-      {
-        "syntax": "{ffzemotes}",
+        "syntax": "{emotes:ffz}",
         "output": "LUL ZULUL AYAYA",
         "surfaceId": "custom"
       }
     ],
-    "name": "Émotes FFZ",
-    "hint": "les codes des émotes FrankerFaceZ globales, séparés par des espaces",
-    "description": "Les codes des émotes FrankerFaceZ globales, comme {7tvemotes} liste celles de 7TV.",
+    "name": "Liste d’émotes",
+    "hint": "tous les codes d’émotes globales d’un fournisseur — {emotes:7tv}, {emotes:bttv} ou {emotes:ffz} — séparés par des espaces",
+    "description": "Les codes des émotes globales d’un fournisseur (7TV, BetterTTV ou FrankerFaceZ), séparés par des espaces. Ce sont celles que toutes les chaînes ont, pas les émotes que vous avez ajoutées à la vôtre, et une longue liste est coupée pour tenir sur une ligne de chat.",
     "category": "emotes",
     "categories": [
       "emotes"
@@ -3366,8 +3207,8 @@
     "parameterized": false,
     "lexer": {
       "valid": true,
-      "name": "ffzemotes",
-      "payload": null
+      "name": "emotes",
+      "payload": "7tv"
     },
     "lexerValid": true
   },

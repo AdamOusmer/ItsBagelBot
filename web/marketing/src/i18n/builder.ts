@@ -73,6 +73,17 @@ export interface VarDef {
   desc: L10n;
   /** Counter vars only: the four scope choices shown in the builder's picker. */
   scopes?: ScopeDef[];
+  /** Set only for a VarDef built from a kit VariableForm (kitVarDef): the
+   * owning VariableDef's id, straight from the source, so the marketing
+   * catalog (lib/variables/index.ts buildCatalog) can fold every form of one
+   * variable onto its one record without re-deriving ownership from the
+   * form's own lexer head. That re-derivation is exactly what broke on
+   * positional's {:m} form: its head is "" (an empty name, not "positional"),
+   * so a head-keyed lookup minted it a bogus record of its own instead of
+   * folding it into {positional}'s. A hand-written module-reply VarDef (v(),
+   * no kit variable behind it) leaves this unset, and the marketing catalog
+   * falls back to head-matching for those, unchanged. */
+  kitId?: string;
 }
 
 export interface SurfaceDef {
@@ -139,7 +150,8 @@ const SCOPED_IDS = new Set(['counter', 'count']);
 
 function kitVarDef(def: VariableDef, form: VariableForm): VarDef {
   const built = v(form.example, form.output, l10n(`vars.${def.id}.name`), l10n(`vars.${def.id}.desc`));
-  return SCOPED_IDS.has(def.id) ? { ...built, scopes: COUNTER_SCOPES } : built;
+  const withId = { ...built, kitId: def.id };
+  return SCOPED_IDS.has(def.id) ? { ...withId, scopes: COUNTER_SCOPES } : withId;
 }
 
 function customSurfaceVars(): VarDef[] {
