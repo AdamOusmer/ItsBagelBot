@@ -15,6 +15,7 @@ import { moduleAction } from '$lib/server/module-action';
 import { DISCORD_DEF } from '$lib/server/discord-def';
 import { dev } from '$app/environment';
 import { fail } from '@sveltejs/kit';
+import { actionError } from '$lib/server/action-errors';
 
 // process.env, not $env/dynamic/private: this route sits behind guard.ts on
 // the boot import graph (see module-gate.ts).
@@ -91,7 +92,7 @@ export const actions: Actions = {
     'toggle',
     async (uid, f, locals) => {
       if (!(await assertModuleUnlocked(locals, DISCORD_DEF))) {
-        return fail(403, { ok: false, error: 'Discord is in beta and open to Premium channels only.' });
+        return fail(403, { ok: false, error: actionError(locals.locale, 'Discord is in beta and open to Premium channels only.') });
       }
       const enabled = f.get('is_enabled') === 'on';
       const view = await readDiscord({ userId: uid });

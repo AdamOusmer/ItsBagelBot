@@ -6,7 +6,19 @@
 // leaderboard host page) must present them identically, so the filtering and
 // labeling live here once.
 
-import { BUILTIN_COMMANDS, MODULE_CATALOG, PERM_LABELS, type CommandView, type Perm } from '@bagel/kit';
+import {
+  BUILTIN_COMMANDS,
+  MODULE_CATALOG,
+  PERM_LABELS,
+  tModuleLabel,
+  tModuleReplyPart,
+  tModuleTagline,
+  translate,
+  translateList,
+  type CommandView,
+  type Locale,
+  type Perm
+} from '@bagel/kit';
 import type { ModuleView } from '$lib/server/commands-store';
 
 export type PublicCommand = {
@@ -65,17 +77,19 @@ function activeReply(config: Record<string, string>, enableKey?: string): boolea
 }
 
 /** The channel's custom !commands as the public pages show them. */
-export function publicCommands(rows: CommandView[]): PublicCommand[] {
+export function publicCommands(rows: CommandView[], locale: Locale = 'en'): PublicCommand[] {
   const builtinNames = new Set(BUILTIN_COMMANDS.map((cmd) => cmd.id));
   return rows
     .filter((cmd) => cmd.is_active && cmd.name && !builtinNames.has(cmd.name))
     .map((cmd) => {
       const perm = (cmd.perm ?? 'everyone') as Perm;
+      const permKey = `perm.${perm}`;
+      const localizedPerm = translate(locale, permKey);
       return {
         trigger: `!${cmd.name}`,
         aliases: (cmd.aliases ?? []).filter(Boolean).map((alias) => `!${alias}`),
         response: cmd.response,
-        perm: PERM_LABELS[perm] ?? PERM_LABELS.everyone,
+        perm: localizedPerm === permKey ? (PERM_LABELS[perm] ?? PERM_LABELS.everyone) : localizedPerm,
         cooldown: Math.max(0, Number(cmd.cooldown ?? 0) || 0),
         liveOnly: cmd.stream_online_only === true,
         uses: cmd.uses == null ? '' : String(cmd.uses)
@@ -94,49 +108,64 @@ function activeModule(byName: Map<string, ModuleView>, id: string, fallback: boo
 
 // catalogEntry shapes one catalog module, splitting its replies into the
 // commands a viewer can type and the events that fire on their own.
-function catalogEntry(def: (typeof MODULE_CATALOG)[number], byName: Map<string, ModuleView>): PublicModule[] {
+function catalogEntry(def: (typeof MODULE_CATALOG)[number], byName: Map<string, ModuleView>, locale: Locale): PublicModule[] {
   if (!activeModule(byName, def.id, def.defaultEnabled)) return [];
   const config = asConfig(byName.get(def.id)?.configs);
   const live = def.replies.filter((reply) => activeReply(config, reply.enableKey));
   return [
     {
       id: def.id,
-      label: def.label,
+      label: tModuleLabel((key) => translate(locale, key), def),
       // Catalog modules share one bucket; built-ins get their own 'Built-in'
       // category below. ModuleDef itself carries no category field.
       category: 'Module',
-      tagline: def.tagline,
+      tagline: tModuleTagline((key) => translate(locale, key), def),
       commands: live
         .filter((reply) => reply.command)
-        .map((reply) => ({ label: `!${reply.command}`, meta: reply.tagline })),
+        .map((reply) => ({ label: `!${reply.command}`, meta: tModuleReplyPart((key) => translate(locale, key), def.id, reply, 'tagline') })),
       events: live
         .filter((reply) => !reply.command)
-        .map((reply) => ({ label: reply.label, meta: reply.event }))
+        .map((reply) => ({
+          label: tModuleReplyPart((key) => translate(locale, key), def.id, reply, 'label'),
+          meta: tModuleReplyPart((key) => translate(locale, key), def.id, reply, 'event')
+        }))
     }
   ];
 }
 
 // builtinEntry shapes one built-in command, which is always a single command
 // and never carries events.
-function builtinEntry(def: (typeof BUILTIN_COMMANDS)[number], byName: Map<string, ModuleView>): PublicModule[] {
+function localizedBuiltin(locale: Locale, id: string, part: 'label' | 'summary', fallback: string): string {
+  const key = `builtinDirectory.${id}.${part}`;
+  const value = translate(locale, key);
+  return value === key ? fallback : value;
+}
+
+function localizedBuiltinUsage(locale: Locale, id: string, fallback: string[]): string {
+  const key = `builtinDirectory.${id}.usage`;
+  const value = translateList(locale, key);
+  return value.length ? value.join(' / ') : fallback.join(' / ');
+}
+
+function builtinEntry(def: (typeof BUILTIN_COMMANDS)[number], byName: Map<string, ModuleView>, locale: Locale): PublicModule[] {
   if (!activeModule(byName, def.id, def.defaultActive)) return [];
   return [
     {
       id: def.id,
-      label: def.label,
+      label: localizedBuiltin(locale, def.id, 'label', def.label),
       category: 'Built-in',
-      tagline: def.summary,
-      commands: [{ label: `!${def.id}`, meta: def.usage.join(' / ') }],
+      tagline: localizedBuiltin(locale, def.id, 'summary', def.summary),
+      commands: [{ label: `!${def.id}`, meta: localizedBuiltinUsage(locale, def.id, def.usage) }],
       events: []
     }
   ];
 }
 
-export function publicModules(rows: ModuleView[]): PublicModule[] {
+export function publicModules(rows: ModuleView[], locale: Locale = 'en'): PublicModule[] {
   const byName = new Map(rows.map((row) => [row.name, row]));
   const catalog = MODULE_CATALOG.filter((def) => !def.hidden && def.toggleable !== false);
   return [
-    ...catalog.flatMap((def) => catalogEntry(def, byName)),
-    ...BUILTIN_COMMANDS.flatMap((def) => builtinEntry(def, byName))
+    ...catalog.flatMap((def) => catalogEntry(def, byName, locale)),
+    ...BUILTIN_COMMANDS.flatMap((def) => builtinEntry(def, byName, locale))
   ].sort((a, b) => a.category.localeCompare(b.category) || a.label.localeCompare(b.label));
 }

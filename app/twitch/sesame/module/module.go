@@ -77,6 +77,7 @@ func (k Kind) String() string {
 type Output struct {
 	Type          string
 	BroadcasterID string
+	Locale        string
 	Text          string
 	Color         string
 	To            string

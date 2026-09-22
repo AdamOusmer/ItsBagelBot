@@ -47,6 +47,9 @@ function isBlockLabel(id: string, blocks: ReadonlySet<string>): boolean {
 }
 
 function assertLocale(slug: GuideSlug, lang: Lang, copy: GuideStrings, english: GuideContent): void {
+  if (!copy || typeof copy !== 'object' || Array.isArray(copy) || Object.values(copy).some((value) => typeof value !== 'string')) {
+    fail(`${slug} ${lang}`, 'must be a JSON object of string values');
+  }
   const { ids, blocks } = guideIds(english);
   const named = new Set(ids);
   const blockIds = new Set(blocks);

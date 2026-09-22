@@ -55,6 +55,7 @@ func buildOutgressMessage(o *module.Output) (outgress.Message, error) {
 	if err != nil {
 		return outgress.Message{}, err
 	}
+	msg.Locale = o.Locale
 	return msg, nil
 }
 

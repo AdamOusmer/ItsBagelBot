@@ -4,29 +4,18 @@
 
 import Layout from '../../../layouts/Layout.astro';
 import VariablesReference from '../../../components/guides/variables/VariablesReference.astro';
-import { getLangFromUrl, langParam, locales, type Lang } from '../../../i18n/ui';
+import { getLangFromUrl, localeStaticPaths, useTranslations } from '../../../i18n/ui';
 import { variableReferenceData } from '../../../lib/variables';
 
-export function getStaticPaths() {
-    return locales.map((lang) => ({ params: { lang: langParam(lang) } }));
-}
+export const getStaticPaths = localeStaticPaths;
 
 const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
 // Keep the page coupled only to the manifest boundary. Localization happens in
 // the catalog so the reference never has to know how the manifest stores copy.
 const catalog = variableReferenceData(lang);
 
-const copy: Record<Lang, { title: string; description: string }> = {
-    en: {
-        title: 'Variables reference - ItsBagelBot',
-        description: 'A searchable reference for every variable available in ItsBagelBot replies.',
-    },
-    fr: {
-        title: 'Référence des variables - ItsBagelBot',
-        description: 'Une référence consultable de toutes les variables disponibles dans les réponses ItsBagelBot.',
-    },
-};
-const meta = copy[lang] ?? copy.en;
+const meta = { title: t('guides.variables.metaTitle'), description: t('guides.variables.metaDesc') };
 ---
 
 <Layout title={meta.title} description={meta.description} ogType="article">

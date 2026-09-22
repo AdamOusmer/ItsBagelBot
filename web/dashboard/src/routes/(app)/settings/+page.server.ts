@@ -25,10 +25,11 @@ import {
 import { deleteFetchKey, listFetches, setFetchKey, type FetchKeyView } from '$lib/server/fetches-store';
 import { purgeEdge } from '$lib/server/edge-purge';
 import { commandsHref } from '@bagel/kit/site-links';
-import { KEY_VALUE_MAX, slugifyName } from '@bagel/kit';
+import { KEY_VALUE_MAX, slugifyName, translate, type Locale } from '@bagel/kit';
 import { ACCOUNT_DELETED_COOKIE, COOKIE, SESSION_TTL_SECONDS, type Session } from '$lib/server/session';
 import { revokeAllForUser, revokeSession } from '@bagel/kit/server/session-revocation';
 import { isLocale, DEFAULT_LOCALE } from '@bagel/kit/i18n';
+import { actionError } from '$lib/server/action-errors';
 // The delegatable sections are the shared registry's grant set; the "what is
 // grantable and why" rationale lives on that constant in @bagel/kit/nav.
 import { GRANTABLE_SECTIONS } from '@bagel/kit';
@@ -66,17 +67,17 @@ async function purgeCommandsPage(userId: string): Promise<boolean> {
 // guard, form parse, and a 502 failure when the backing RPC is down.
 function ownerAction<R>(
   failMsg: string,
-  run: (s: Session, form: FormData) => Promise<R>
+  run: (s: Session, form: FormData, locale: Locale) => Promise<R>
 ) {
   return async ({ request, locals }: { request: Request; locals: App.Locals }) => {
     const s = locals.session;
-    if (!s || s.delegate_of) return fail(403, { error: 'Not allowed.' });
+    if (!s || s.delegate_of) return fail(403, { error: actionError(locals.locale, 'Not allowed.') });
 
     const form = await request.formData();
     try {
-      return await run(s, form);
+      return await run(s, form, locals.locale);
     } catch {
-      return fail(502, { error: failMsg });
+      return fail(502, { error: actionError(locals.locale, failMsg) });
     }
   };
 }
@@ -170,11 +171,11 @@ function savedLocaleOf(r: PromiseSettledResult<string>): string {
 // One reason per line, and the caller renders whichever comes back. The UI has
 // only ever shown a single message, so a field->message map was shape the
 // action carried without anyone reading it.
-function keyEntryError(label: string, value: string): string | null {
-  if (!label) return 'Label is required.';
-  if (label.length > 32) return 'Label must be at most 32 characters.';
-  if (!value.trim()) return 'Key value is required.';
-  if (value.length > KEY_VALUE_MAX) return `Key value must be at most ${KEY_VALUE_MAX} characters.`;
+function keyEntryError(label: string, value: string, locale: Locale): string | null {
+  if (!label) return actionError(locale, 'Label is required.');
+  if (label.length > 32) return actionError(locale, 'Label must be at most 32 characters.');
+  if (!value.trim()) return actionError(locale, 'Key value is required.');
+  if (value.length > KEY_VALUE_MAX) return translate(locale, 'serverErrors.keyValueLength', { max: KEY_VALUE_MAX });
   return null;
 }
 
@@ -182,9 +183,9 @@ function keyEntryError(label: string, value: string): string | null {
 // secrets, so a delegate may spend one through a data source but never read,
 // rotate or destroy it. Returns the session or the refusal to render, so each
 // caller spends one branch on it instead of two.
-function ownerActor(s: Session | null): { session: Session } | { status: number; error: string } {
-  if (!s) return { status: 401, error: 'Not signed in.' };
-  if (s.delegate_of) return { status: 403, error: 'Only the account owner can do that.' };
+function ownerActor(s: Session | null, locale: App.Locals['locale']): { session: Session } | { status: number; error: string } {
+  if (!s) return { status: 401, error: actionError(locale, 'Not signed in.') };
+  if (s.delegate_of) return { status: 403, error: actionError(locale, 'Only the account owner can do that.') };
   return { session: s };
 }
 
@@ -221,12 +222,12 @@ export const actions: Actions = {
     const label = slugifyName(String(form.get('label') ?? ''));
     const value = String(form.get('value') ?? '');
 
-    const invalid = keyEntryError(label, value);
+    const invalid = keyEntryError(label, value, locals.locale);
     if (invalid) return fail(400, { ok: false, error: invalid });
 
     if (DEMO) return demoKeySet(label, value);
 
-    const actor = ownerActor(locals.session);
+    const actor = ownerActor(locals.session, locals.locale);
     if (!('session' in actor)) return fail(actor.status, { ok: false, error: actor.error });
 
     try {
@@ -235,7 +236,7 @@ export const actions: Actions = {
       auditDashboardImpersonation(actor.session, 'fetchkey:set', label);
       return { ok: true, action: 'fetchkeyset', name: label, last4, fetchKeys: fresh.keys };
     } catch {
-      return fail(502, { ok: false, error: 'Could not seal the key.' });
+      return fail(502, { ok: false, error: actionError(locals.locale, 'Could not seal the key.') });
     }
   },
 
@@ -247,7 +248,7 @@ export const actions: Actions = {
 
     if (DEMO) return demoKeyDelete(label);
 
-    const actor = ownerActor(locals.session);
+    const actor = ownerActor(locals.session, locals.locale);
     if (!('session' in actor)) return fail(actor.status, { ok: false, error: actor.error });
 
     try {
@@ -256,7 +257,7 @@ export const actions: Actions = {
       auditDashboardImpersonation(actor.session, 'fetchkey:delete', label);
       return { ok: true, action: 'fetchkeydeleted', name: label, fetchKeys: fresh.keys };
     } catch {
-      return fail(502, { ok: false, error: 'Could not delete the key.' });
+      return fail(502, { ok: false, error: actionError(locals.locale, 'Could not delete the key.') });
     }
   },
 
@@ -265,31 +266,31 @@ export const actions: Actions = {
   markRead: async ({ request, locals }) => {
     const s = locals.session;
     if (DEMO) return { ok: true, action: 'read' };
-    if (!s) return fail(401, { error: 'Not signed in.' });
-    if (s.delegate_of) return fail(403, { error: 'Only the account owner can do that.' });
+    if (!s) return fail(401, { error: actionError(locals.locale, 'Not signed in.') });
+    if (s.delegate_of) return fail(403, { error: actionError(locals.locale, 'Only the account owner can do that.') });
 
     const id = Number(String((await request.formData()).get('id') ?? ''));
-    if (!Number.isFinite(id) || id <= 0) return fail(400, { error: 'id required' });
+    if (!Number.isFinite(id) || id <= 0) return fail(400, { error: actionError(locals.locale, 'id required') });
 
     try {
       await notificationMarkRead(s.user_id, id);
       return { ok: true, action: 'read' };
     } catch {
-      return fail(502, { error: 'Could not update. Try again in a moment.' });
+      return fail(502, { error: actionError(locals.locale, 'Could not update. Try again in a moment.') });
     }
   },
 
   setCommandsPage: async ({ request, locals }) => {
     const s = locals.session;
     if (DEMO) return { ok: true, action: 'commands_page', edgeDelayed: false };
-    if (!ownerSession(s)) return fail(403, { error: 'Not allowed.' });
+    if (!ownerSession(s)) return fail(403, { error: actionError(locals.locale, 'Not allowed.') });
 
     const enabled = ['on', 'true'].includes(String((await request.formData()).get('enabled') ?? ''));
 
     try {
       await setCommandsPage(s.user_id, !enabled);
     } catch {
-      return fail(502, { error: 'Could not update. Try again in a moment.' });
+      return fail(502, { error: actionError(locals.locale, 'Could not update. Try again in a moment.') });
     }
 
     return { ok: true, action: 'commands_page', edgeDelayed: !(await purgeCommandsPage(s.user_id)) };
@@ -303,7 +304,7 @@ export const actions: Actions = {
   markAllRead: async ({ request, locals }) => {
     const s = locals.session;
     if (DEMO) return { ok: true, action: 'all_read' };
-    if (!s || s.delegate_of) return fail(403, { error: 'Not allowed.' });
+    if (!s || s.delegate_of) return fail(403, { error: actionError(locals.locale, 'Not allowed.') });
 
     const ids = String((await request.formData()).get('ids') ?? '')
       .split(',')
@@ -313,7 +314,7 @@ export const actions: Actions = {
 
     const settled = await Promise.allSettled(ids.map((id) => notificationMarkRead(s.user_id, id)));
     if (settled.some((r) => r.status === 'rejected')) {
-      return fail(502, { error: 'Could not update. Try again in a moment.' });
+      return fail(502, { error: actionError(locals.locale, 'Could not update. Try again in a moment.') });
     }
     return { ok: true, action: 'all_read' };
   },
@@ -324,20 +325,20 @@ export const actions: Actions = {
   markPeeked: async ({ locals }) => {
     const s = locals.session;
     if (DEMO) return { ok: true, action: 'peeked' };
-    if (!s || s.delegate_of) return fail(403, { error: 'Not allowed.' });
+    if (!s || s.delegate_of) return fail(403, { error: actionError(locals.locale, 'Not allowed.') });
 
     try {
       await notificationMarkPeeked(s.user_id);
       return { ok: true, action: 'peeked' };
     } catch {
-      return fail(502, { error: 'Could not update.' });
+      return fail(502, { error: actionError(locals.locale, 'Could not update.') });
     }
   },
 
   delete: async ({ locals, cookies, url }) => {
     const s = locals.session;
-    if (!s) return fail(401, { error: 'Not signed in.' });
-    if (s.delegate_of) return fail(403, { error: 'Not allowed.' });
+    if (!s) return fail(401, { error: actionError(locals.locale, 'Not signed in.') });
+    if (s.delegate_of) return fail(403, { error: actionError(locals.locale, 'Not allowed.') });
 
     try {
       // Unenroll before the row goes away (same ordering as disconnect): if
@@ -347,7 +348,7 @@ export const actions: Actions = {
       await deleteSelf(s.user_id);
       auditDashboardImpersonation(s, 'account:delete');
     } catch {
-      return fail(502, { error: 'Could not delete account.' });
+      return fail(502, { error: actionError(locals.locale, 'Could not delete account.') });
     }
     cookies.delete(COOKIE, { path: '/' });
     cookies.set(ACCOUNT_DELETED_COOKIE, '1', {
@@ -360,9 +361,9 @@ export const actions: Actions = {
     throw redirect(302, '/goodbye');
   },
 
-  create: ownerAction('Could not create link.', async (s, f) => {
+  create: ownerAction('Could not create link.', async (s, f, locale) => {
     const sections = GRANTABLE_SECTIONS.filter((sec) => f.get(sec) === 'on');
-    if (sections.length === 0) return fail(400, { error: 'Pick at least one section.' });
+    if (sections.length === 0) return fail(400, { error: actionError(locale, 'Pick at least one section.') });
 
     const token = await delegationCreate(s.user_id, s.login, sections);
     auditDashboardImpersonation(s, 'delegation:create', `sections=${sections.join(',')}`);
@@ -380,29 +381,29 @@ export const actions: Actions = {
 
   // Re-scope an existing grant: add/remove sections in place (the delegate keeps
   // the same link, and a consumed grant's access follows on their next visit).
-  updateSections: ownerAction('Could not update link.', async (s, f) => {
+  updateSections: ownerAction('Could not update link.', async (s, f, locale) => {
     const token = String(f.get('token') ?? '');
-    if (!token) return fail(400, { error: 'Missing grant.' });
+    if (!token) return fail(400, { error: actionError(locale, 'Missing grant.') });
     const sections = GRANTABLE_SECTIONS.filter((sec) => f.get(sec) === 'on');
-    if (sections.length === 0) return fail(400, { error: 'Pick at least one section.' });
+    if (sections.length === 0) return fail(400, { error: actionError(locale, 'Pick at least one section.') });
 
     await delegationUpdate(s.user_id, token, sections);
     auditDashboardImpersonation(s, 'delegation:update', `${tokenLabel(token)} sections=${sections.join(',')}`);
     return { ok: true, action: 'updated', updatedToken: token, updatedSections: sections };
   }),
 
-  revoke: ownerAction('Could not revoke link.', async (s, f) => {
+  revoke: ownerAction('Could not revoke link.', async (s, f, locale) => {
     const token = String(f.get('token') ?? '');
-    if (!token) return fail(400, { error: 'Missing token.' });
+    if (!token) return fail(400, { error: actionError(locale, 'Missing token.') });
 
     await delegationRevoke(s.user_id, token);
     auditDashboardImpersonation(s, 'delegation:revoke', tokenLabel(token));
     return { ok: true, action: 'revoked' };
   }),
 
-  optOut: ownerAction('Could not leave dashboard.', async (s, f) => {
+  optOut: ownerAction('Could not leave dashboard.', async (s, f, locale) => {
     const ownerId = String(f.get('owner_user_id') ?? '');
-    if (!ownerId) return fail(400, { error: 'Missing dashboard.' });
+    if (!ownerId) return fail(400, { error: actionError(locale, 'Missing dashboard.') });
 
     await delegationOptOut(s.user_id, ownerId);
     auditDashboardImpersonation(s, 'delegation:opt_out', `owner=${ownerId}`);
@@ -417,7 +418,7 @@ export const actions: Actions = {
   // result, so it needs cookies/url that helper doesn't hand back.
   signOutEverywhere: async ({ locals, cookies, url }) => {
     const s = locals.session;
-    if (!s || s.delegate_of) return fail(403, { error: 'Not allowed.' });
+    if (!s || s.delegate_of) return fail(403, { error: actionError(locals.locale, 'Not allowed.') });
 
     const now = Math.floor(Date.now() / 1000);
     // Both calls are best-effort and never throw (fail-open, see

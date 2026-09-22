@@ -26,6 +26,7 @@ import { saveFetchDef, removeFetchDef, rehearseFetchDef } from '$lib/server/fetc
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/kit/server/logger';
 import type { Session } from '$lib/server/session';
+import { actionError, actionErrorBody } from '$lib/server/action-errors';
 import { effectiveId } from '$lib/server/board';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
@@ -175,11 +176,12 @@ async function actionContext({ request, locals }: { request: Request; locals: Ap
   return {
     uid: effectiveId(locals.session),
     session: locals.session,
+    locale: locals.locale,
     form: await request.formData()
   };
 }
 
-const notSignedIn = () => fail(401, { ok: false, error: 'Not signed in.' });
+const notSignedIn = (locale: App.Locals['locale']) => fail(401, { ok: false, error: actionError(locale, 'Not signed in.') });
 
 // tryRpc runs one store RPC, logging the real failure server-side: RpcError /
 // NATS timeout messages can carry internal service detail, so they go to the
@@ -245,28 +247,28 @@ export const actions: Actions = {
   // to be written here for SvelteKit to infer ActionData.
   savefetch: async (event) => {
     const ctx = await actionContext(event);
-    if (!ctx) return notSignedIn();
+    if (!ctx) return notSignedIn(event.locals.locale);
     const r = await saveFetchDef(ctx.uid, ctx.session, ctx.form);
-    return r.ok ? r.data : fail(r.status, r.body);
+    return r.ok ? r.data : fail(r.status, actionErrorBody(ctx.locale, r.body));
   },
 
   deletefetch: async (event) => {
     const ctx = await actionContext(event);
-    if (!ctx) return notSignedIn();
+    if (!ctx) return notSignedIn(event.locals.locale);
     const r = await removeFetchDef(ctx.uid, ctx.session, ctx.form);
-    return r.ok ? r.data : fail(r.status, r.body);
+    return r.ok ? r.data : fail(r.status, actionErrorBody(ctx.locale, r.body));
   },
 
   testfetch: async (event) => {
     const ctx = await actionContext(event);
-    if (!ctx) return notSignedIn();
+    if (!ctx) return notSignedIn(event.locals.locale);
     const r = await rehearseFetchDef(ctx.uid, ctx.form);
-    return r.ok ? r.data : fail(r.status, r.body);
+    return r.ok ? r.data : fail(r.status, actionErrorBody(ctx.locale, r.body));
   },
 
   save: async (event) => {
     const ctx = await actionContext(event);
-    if (!ctx) return notSignedIn();
+    if (!ctx) return notSignedIn(event.locals.locale);
     const s = parseSaveForm(ctx.form);
 
     // Shared validator: the client editor runs the exact same checks, so this
@@ -280,7 +282,7 @@ export const actions: Actions = {
       allowedUserId: s.cmd.allowedUserId
     });
     if (Object.keys(errors).length) {
-      return fail(400, { ok: false, errors, error: firstError(errors) });
+      return fail(400, { ok: false, errors, error: actionError(ctx.locale, firstError(errors) ?? '') });
     }
 
     // DEMO: echo the row back as a success so the demo console exercises the
@@ -301,7 +303,7 @@ export const actions: Actions = {
   // Lightweight toggle: flips is_active without going through the full editor.
   toggle: async (event) => {
     const ctx = await actionContext(event);
-    if (!ctx) return notSignedIn();
+    if (!ctx) return notSignedIn(event.locals.locale);
     const { uid, form: f } = ctx;
 
     const cmd = parseCommand(f);
@@ -321,7 +323,7 @@ export const actions: Actions = {
 
   delete: async (event) => {
     const ctx = await actionContext(event);
-    if (!ctx) return notSignedIn();
+    if (!ctx) return notSignedIn(event.locals.locale);
     const { uid, form: f } = ctx;
 
     const name = String(f.get('name') ?? '');
@@ -341,12 +343,12 @@ export const actions: Actions = {
   // separate path from the custom-command toggle.
   toggleBuiltin: async (event) => {
     const ctx = await actionContext(event);
-    if (!ctx) return notSignedIn();
+    if (!ctx) return notSignedIn(event.locals.locale);
     const { uid, form: f } = ctx;
 
     const name = normName(String(f.get('name') ?? ''));
     const def = builtinDef(name);
-    if (!def) return fail(400, { ok: false, error: 'Unknown built-in command.' });
+    if (!def) return fail(400, { ok: false, error: actionError(ctx.locale, 'Unknown built-in command.') });
     const isActive = f.get('is_active') === 'on';
     const view = builtinRow(def, def.summary, isActive);
 
@@ -369,17 +371,17 @@ export const actions: Actions = {
   // the write preserves it.
   saveBuiltinReply: async (event) => {
     const ctx = await actionContext(event);
-    if (!ctx) return notSignedIn();
+    if (!ctx) return notSignedIn(event.locals.locale);
     const { uid, form: f } = ctx;
 
     const name = normName(String(f.get('name') ?? ''));
     const def = editableBuiltin(name);
     if (!def) {
-      return fail(400, { ok: false, error: 'This command has no editable reply.' });
+      return fail(400, { ok: false, error: actionError(ctx.locale, 'This command has no editable reply.') });
     }
     const reply = String(f.get('reply') ?? '').trim();
     if (reply.length > RESPONSE_MAX) {
-      return fail(400, { ok: false, error: `Reply is too long (max ${RESPONSE_MAX}).` });
+      return fail(400, { ok: false, error: actionError(ctx.locale, `Reply is too long (max ${RESPONSE_MAX}).`) });
     }
     const isActive = f.get('is_active') === 'on';
     const view = builtinRow(def, reply || def.preview, isActive);

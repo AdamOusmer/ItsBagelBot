@@ -3,7 +3,12 @@
 
 package mail
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
+
+import "ItsBagelBot/internal/domain/i18n"
 
 const GiveawayTemplateVersion = "giveaway-v2-inline-logo"
 
@@ -30,9 +35,9 @@ func (m *Mailer) PrepareGiveaway(msg GiveawayMessage) (PreparedContent, error) {
 	if err != nil {
 		return PreparedContent{}, ErrInvalidMessage
 	}
-	subject := "You won " + prizeMonthsText(msg.Months) + " of Premium 🥯"
+	subject := fmt.Sprintf(i18n.T(msg.Locale, "mail.subject.giveaway"), localizedPrizeMonths(msg.Locale, msg.Months))
 	if msg.Confirmation {
-		subject = "Your Premium giveaway prize is confirmed 🥯"
+		subject = i18n.T(msg.Locale, "mail.subject.giveaway.confirmed")
 	}
 	return PreparedContent{
 		From: m.from, Subject: subject,

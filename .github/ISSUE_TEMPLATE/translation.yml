@@ -1,0 +1,30 @@
+name: Translation gap or correction
+description: Report untranslated text, confusing wording, or a language contribution.
+title: "Translation: "
+body:
+  - type: input
+    id: language
+    attributes:
+      label: Language
+      description: Which language was selected, or which language would you like to contribute?
+    validations:
+      required: true
+  - type: textarea
+    id: location
+    attributes:
+      label: Where does the text appear?
+      description: Include the page URL, dashboard section, chat command, or email type. Screenshots are welcome.
+    validations:
+      required: true
+  - type: textarea
+    id: text
+    attributes:
+      label: Current wording and suggested translation
+      description: Copy the current text and explain the correction. Keep variable placeholders unchanged.
+    validations:
+      required: true
+  - type: textarea
+    id: contribution
+    attributes:
+      label: Would you like to help translate?
+      description: Optional. Mention your familiarity with the language and whether the suggested text is machine-assisted.

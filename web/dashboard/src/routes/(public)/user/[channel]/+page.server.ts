@@ -132,8 +132,8 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
       userId,
       channelName: channelLabel(account, channelName),
       creatorCode: account?.creatorCode ?? null,
-      commands: publicCommands(commands),
-      modules: publicModules(modules),
+      commands: publicCommands(commands, locals.locale),
+      modules: publicModules(modules, locals.locale),
       degraded: false
     };
   } catch {

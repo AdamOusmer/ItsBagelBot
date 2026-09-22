@@ -12,37 +12,40 @@
   // it stays in kit: it reads `$app/state`, which a design library must not.
   import ErrorScene from '@bagel/ui/svelte/ErrorScene.svelte';
   import { page } from '$app/state';
+  import { getI18n } from '../lib/i18n/context';
 
   let { appName, loginHref = '/login' }: { appName: string; loginHref?: string } = $props();
+  const { t } = getI18n();
+  const localizedApp = $derived(appName === 'Dashboard' ? t('error.appDashboard') : appName === 'Admin' ? t('error.appAdmin') : appName);
 
   const view = $derived.by(() => {
     if (page.status === 404) return {
-      eyebrow: 'Lost in the crumbs',
-      title: 'This page wandered off.',
-      description: "I looked under every sesame seed, but the page you're after isn't here.",
+      eyebrow: t('error.notFoundEyebrow'),
+      title: t('error.notFoundTitle'),
+      description: t('error.notFoundDescription'),
       action: 'home' as const
     };
     if (page.status === 401 || page.status === 403) return {
-      eyebrow: 'Behind the counter',
-      title: 'This one is staff only.',
-      description: `Sign in with an account that has access to the ${appName.toLowerCase()}.`,
+      eyebrow: t('error.accessEyebrow'),
+      title: t('error.accessTitle'),
+      description: t('error.accessDescription', { app: localizedApp }),
       action: 'login' as const
     };
     if (page.status === 500 || page.status === 503) return {
-      eyebrow: 'A little overbaked',
-      title: 'Something went sideways.',
-      description: 'A tray tipped over behind the scenes. Give it a moment, then try the page again.',
+      eyebrow: t('error.serverEyebrow'),
+      title: t('error.serverTitle'),
+      description: t('error.serverDescription'),
       action: 'retry' as const
     };
     return {
-      eyebrow: 'An unexpected detour',
-      title: 'I hit a rough patch.',
-      description: page.error?.message ?? 'Something unexpected happened while loading this page.',
+      eyebrow: t('error.unexpectedEyebrow'),
+      title: t('error.unexpectedTitle'),
+      description: page.error?.message ?? t('error.unexpectedDescription'),
       action: 'retry' as const
     };
   });
 
-  const homeLabel = $derived(appName === 'Dashboard' ? 'Back to dashboard' : `Back to ${appName.toLowerCase()}`);
+  const homeLabel = $derived(appName === 'Dashboard' ? t('error.backToDashboard') : t('error.backToApp', { app: localizedApp }));
 
   function retry() {
     window.location.reload();
@@ -58,7 +61,7 @@
 </script>
 
 <svelte:head>
-  <title>{page.status}: ItsBagelBot {appName}</title>
+  <title>{page.status}: ItsBagelBot {localizedApp}</title>
 </svelte:head>
 
 <ErrorScene
@@ -66,17 +69,17 @@
   eyebrow={view.eyebrow}
   title={view.title}
   description={view.description}
-  aside="The oven is still warm. Everything else is right where you left it."
+  aside={t('error.aside')}
   labelledBy="error-title"
 >
   {#snippet actions()}
     {#if view.action === 'retry'}
-      <button class="bb-error-scene__action bb-error-scene__action--primary" type="button" onclick={retry}>Try again</button>
+      <button class="bb-error-scene__action bb-error-scene__action--primary" type="button" onclick={retry}>{t('error.tryAgain')}</button>
     {:else if view.action === 'login'}
-      <a class="bb-error-scene__action bb-error-scene__action--primary" href={loginHref}>Sign in</a>
+      <a class="bb-error-scene__action bb-error-scene__action--primary" href={loginHref}>{t('error.signIn')}</a>
     {:else}
       <a class="bb-error-scene__action bb-error-scene__action--primary" href="/">{homeLabel}</a>
     {/if}
-    <button class="bb-error-scene__action bb-error-scene__action--quiet" type="button" onclick={goBack}>Go back</button>
+    <button class="bb-error-scene__action bb-error-scene__action--quiet" type="button" onclick={goBack}>{t('error.goBack')}</button>
   {/snippet}
 </ErrorScene>

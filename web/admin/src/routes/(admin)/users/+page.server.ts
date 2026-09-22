@@ -30,6 +30,8 @@ import {
 import { requireRole, type AccessKey, type AdminIdentity } from '$lib/server/access';
 import {
   audited,
+  actionError,
+  adminText,
   badRequest,
   okReply,
   refusalReply,
@@ -167,9 +169,9 @@ function dashboardOrigin(url: URL): string {
 
 const unknownSubState: ChannelSubState = { state: 'unknown', error: '', checkedAt: null };
 
-function demoLookup(q: string, sampleUsers: AdminUserWire[]) {
+function demoLookup(q: string, sampleUsers: AdminUserWire[], locale: App.Locals['locale']) {
   const u = sampleUsers.find((s) => s.username === q || String(s.id) === q);
-  if (!u) return { lookup: { error: 'user not found', q } };
+  if (!u) return { lookup: { error: adminText(locale, 'admin.users.notFound'), q } };
   return {
     lookup: {
       user: u,
@@ -223,6 +225,7 @@ type ActionCtx<P> = {
   admin: AdminIdentity;
   ref: UserRef;
   payload: P;
+  locale: App.Locals['locale'];
 };
 
 type UserActionSpec<P> = {
@@ -230,7 +233,7 @@ type UserActionSpec<P> = {
   key: AccessKey; // least role that may run it (ROLE_FOR)
   parse: (f: FormData) => ParseResult<P>;
   demo: (ctx: ActionCtx<P>) => unknown;
-  notice: (user: AdminUserWire | null, payload: P) => string;
+  notice: (user: AdminUserWire | null, payload: P, locale: App.Locals['locale']) => string;
   detail?: (payload: P) => string;
   // Returns the refreshed user row when the service echoes one (so the
   // inspector panel updates), or null for row-less mutations.
@@ -249,7 +252,7 @@ function runUserAction<P>(ctx: ActionCtx<P>, spec: UserActionSpec<P>) {
     // A row-less mutation (clear token, delete) has nothing to refresh the
     // inspector with, so the lookup half is omitted rather than sent as null.
     (user) => {
-      const reply = okReply(spec.notice(user, ctx.payload));
+      const reply = okReply(spec.notice(user, ctx.payload, ctx.locale));
       return user ? { ...reply, lookup: { user } } : reply;
     }
   );
@@ -258,15 +261,15 @@ function runUserAction<P>(ctx: ActionCtx<P>, spec: UserActionSpec<P>) {
 function userAction<P>(spec: UserActionSpec<P>) {
   return async ({ request, locals }: { request: Request; locals: App.Locals }) => {
     const admin = await requireRole({ locals }, spec.key);
-    if (!admin) return fail(403, { error: 'forbidden' });
+    if (!admin) return fail(403, { error: actionError(locals.locale, 'forbidden') });
     const f = await request.formData();
     const userId = String(f.get('user_id') ?? '').trim();
-    if (!userId) return fail(400, { error: 'user_id required' });
+    if (!userId) return fail(400, { error: actionError(locals.locale, 'user_id required') });
 
     const parsed = spec.parse(f);
-    if ('refuse' in parsed) return refusalReply(parsed);
+    if ('refuse' in parsed) return refusalReply(parsed, locals.locale);
 
-    const ctx: ActionCtx<P> = { admin, ref: { actorId: admin.id, userId }, payload: parsed.value };
+    const ctx: ActionCtx<P> = { admin, ref: { actorId: admin.id, userId }, payload: parsed.value, locale: locals.locale };
     if (DEMO) return spec.demo(ctx);
     return runUserAction(ctx, spec);
   };
@@ -304,12 +307,12 @@ function parseStatus(f: FormData): ParseResult<StatusGrant> {
   return { value: { status, expiresAt: grant.expiresAt, detail: grant.detail } };
 }
 
-function statusNotice(user: AdminUserWire | null, grant: StatusGrant): string {
-  if (!user) return `status set to ${grant.status}`;
+function statusNotice(user: AdminUserWire | null, grant: StatusGrant, locale: App.Locals['locale']): string {
+  if (!user) return adminText(locale, 'admin.users.statusSet', { status: grant.status });
   const until = user.subscription_expires_at
     ? ` until ${user.subscription_expires_at.slice(0, 10)}`
     : '';
-  return `status set to ${user.status}${until}`;
+  return adminText(locale, 'admin.users.statusSetUntil', { status: user.status, until });
 }
 
 type CreatorCode = { code: string; detail: string };
@@ -322,13 +325,15 @@ function parseCreatorCode(f: FormData): ParseResult<CreatorCode> {
   return { value: { code, detail: code ? `creator_code=${code}` : 'creator_code=cleared' } };
 }
 
-function creatorCodeNotice(user: AdminUserWire | null): string {
-  return user?.creator_code ? `creator code set to ${user.creator_code}` : 'creator code cleared';
+function creatorCodeNotice(user: AdminUserWire | null, _payload: CreatorCode, locale: App.Locals['locale']): string {
+  return user?.creator_code
+    ? adminText(locale, 'admin.users.creatorCodeSet', { code: user.creator_code })
+    : adminText(locale, 'admin.users.creatorCodeCleared');
 }
 
 function creatorCodeDemoNotice(ctx: ActionCtx<CreatorCode>) {
   const { code } = ctx.payload;
-  return okReply(code ? `creator code set to ${code} (demo)` : 'creator code cleared (demo)');
+  return okReply(code ? adminText(ctx.locale, 'admin.users.creatorCodeSetDemo', { code }) : adminText(ctx.locale, 'admin.users.creatorCodeClearedDemo'));
 }
 
 // The demo directory is a static fixture list, so the refreshed row the
@@ -378,13 +383,13 @@ async function withEnrollmentSync<T extends AdminUserWire | null>(
 export const actions: Actions = {
   lookup: async ({ request, locals }) => {
     const admin = await requireRole({ locals }, 'users.read');
-    if (!admin) return fail(403, { error: 'forbidden' });
+    if (!admin) return fail(403, { error: actionError(locals.locale, 'forbidden') });
     const q = String((await request.formData()).get('q') ?? '').trim();
-    if (!q) return fail(400, { error: 'query required' });
-    if (q.length > 128) return fail(400, { error: 'query too long' });
+    if (!q) return fail(400, { error: actionError(locals.locale, 'query required') });
+    if (q.length > 128) return fail(400, { error: actionError(locals.locale, 'query too long') });
     if (DEMO) {
       const { sampleUsers } = await import('$lib/server/demo-data');
-      return demoLookup(q, sampleUsers);
+      return demoLookup(q, sampleUsers, locals.locale);
     }
     try {
       return { lookup: await probeUser({ actorId: admin.id, q }) };
@@ -408,8 +413,8 @@ export const actions: Actions = {
     name: 'reset',
     key: 'users.grant',
     parse: noFields,
-    demo: () => okReply('user reset (demo)'),
-    notice: () => 'user reset',
+    demo: (ctx) => okReply(adminText(ctx.locale, 'admin.users.userResetDemo')),
+    notice: (_user, _payload, locale) => adminText(locale, 'admin.users.userReset'),
     run: (ref) => userReset(ref)
   }),
 
@@ -417,8 +422,8 @@ export const actions: Actions = {
     name: 'clear_token',
     key: 'users.token',
     parse: noFields,
-    demo: () => okReply('token cleared (demo)'),
-    notice: () => 'token cleared',
+    demo: (ctx) => okReply(adminText(ctx.locale, 'admin.users.tokenClearedDemo')),
+    notice: (_user, _payload, locale) => adminText(locale, 'admin.users.tokenCleared'),
     run: async (ref) => {
       await tokenClear(ref);
       return null;
@@ -429,8 +434,8 @@ export const actions: Actions = {
     name: 'set_active',
     key: 'users.grant',
     parse: parseActive,
-    demo: () => okReply('active set (demo)'),
-    notice: (user) => `active=${user?.is_active}`,
+    demo: (ctx) => okReply(adminText(ctx.locale, 'admin.users.activeSetDemo')),
+    notice: (user, _payload, locale) => adminText(locale, 'admin.users.active', { active: user?.is_active ? 'true' : 'false' }),
     detail: (p) => String(p.active),
     run: (ref, p) =>
       withEnrollmentSync({
@@ -444,8 +449,8 @@ export const actions: Actions = {
     name: 'set_test_account',
     key: 'users.test',
     parse: parseActive,
-    demo: (ctx) => okReply(`test account=${ctx.payload.active} (demo)`),
-    notice: (user) => `test account=${user?.test_account ? 'on' : 'off'}`,
+    demo: (ctx) => okReply(adminText(ctx.locale, 'admin.users.testAccountDemo', { active: String(ctx.payload.active) })),
+    notice: (user, _payload, locale) => adminText(locale, 'admin.users.testAccount', { active: user?.test_account ? 'on' : 'off' }),
     run: (ref, p) => userSetTestAccount(ref, p.active)
   }),
 
@@ -469,8 +474,8 @@ export const actions: Actions = {
     name: 'ban',
     key: 'users.ban',
     parse: noFields,
-    demo: () => okReply('user banned (demo)'),
-    notice: () => 'user banned',
+    demo: (ctx) => okReply(adminText(ctx.locale, 'admin.users.userBannedDemo')),
+    notice: (_user, _payload, locale) => adminText(locale, 'admin.users.userBanned'),
     run: (ref) =>
       withEnrollmentSync({
         userId: ref.userId,
@@ -483,8 +488,8 @@ export const actions: Actions = {
     name: 'unban',
     key: 'users.ban',
     parse: noFields,
-    demo: () => okReply('user unbanned (demo)'),
-    notice: () => 'user unbanned',
+    demo: (ctx) => okReply(adminText(ctx.locale, 'admin.users.userUnbannedDemo')),
+    notice: (_user, _payload, locale) => adminText(locale, 'admin.users.userUnbanned'),
     run: (ref) =>
       withEnrollmentSync({
         userId: ref.userId,
@@ -495,12 +500,12 @@ export const actions: Actions = {
 
   restart: async ({ request, locals }) => {
     const admin = await requireRole({ locals }, 'users.restart');
-    if (!admin) return fail(403, { error: 'forbidden' });
+    if (!admin) return fail(403, { error: actionError(locals.locale, 'forbidden') });
     const userId = String((await request.formData()).get('user_id') ?? '').trim();
-    if (!userId) return fail(400, { error: 'user_id required' });
+    if (!userId) return fail(400, { error: actionError(locals.locale, 'user_id required') });
     if (DEMO) {
       return {
-        action: { ok: true, notice: 'bot restarted (demo only, no real subs dropped)' },
+        action: { ok: true, notice: adminText(locals.locale, 'admin.users.restartDemo') },
         subState: { state: 'ok', error: '', checkedAt: null } as ChannelSubState
       };
     }
@@ -508,7 +513,7 @@ export const actions: Actions = {
       await restartUserEventSub(userId);
       audit(admin, { action: 'restart', target: userId, ok: true });
       const subState: ChannelSubState = await channelSubState(userId).catch(() => unknownSubState);
-      return { action: { ok: true, notice: 'bot restarted (atomic reconnect queued)' }, subState };
+      return { action: { ok: true, notice: adminText(locals.locale, 'admin.users.restartQueued') }, subState };
     } catch (e) {
       audit(admin, { action: 'restart', target: userId, ok: false, error: (e as Error).message });
       return { action: { ok: false, notice: (e as Error).message } };
@@ -520,9 +525,9 @@ export const actions: Actions = {
   // during the impersonated session is attributed back to this admin.
   impersonate: async ({ request, locals, url }) => {
     const admin = await requireRole({ locals }, 'users.impersonate');
-    if (!admin) return fail(403, { error: 'forbidden' });
+    if (!admin) return fail(403, { error: actionError(locals.locale, 'forbidden') });
     const userId = String((await request.formData()).get('user_id') ?? '').trim();
-    if (!userId) return fail(400, { error: 'user_id required' });
+    if (!userId) return fail(400, { error: actionError(locals.locale, 'user_id required') });
     let origin: string;
     try {
       origin = dashboardOrigin(url);
@@ -537,7 +542,7 @@ export const actions: Actions = {
         by_id: admin.id,
         by_login: admin.login
       });
-      return { action: { ok: true, notice: 'view-as link minted (demo)' }, viewAsUrl: `${origin}/auth/impersonate?t=${token}` };
+      return { action: { ok: true, notice: adminText(locals.locale, 'admin.users.viewAsDemo') }, viewAsUrl: `${origin}/auth/impersonate?t=${token}` };
     }
     try {
       const user = await userLookup(admin.id, userId);
@@ -550,7 +555,7 @@ export const actions: Actions = {
       });
       audit(admin, { action: 'impersonate', target: userId, ok: true });
       return {
-        action: { ok: true, notice: 'view-as link minted (valid 5 min)' },
+        action: { ok: true, notice: adminText(locals.locale, 'admin.users.viewAs') },
         viewAsUrl: `${origin}/auth/impersonate?t=${token}`
       };
     } catch (e) {
@@ -564,8 +569,8 @@ export const actions: Actions = {
     name: 'delete',
     key: 'users.delete',
     parse: noFields,
-    demo: () => okReply('user deleted (demo only, no real data removed)'),
-    notice: () => 'user deleted',
+    demo: (ctx) => okReply(adminText(ctx.locale, 'admin.users.userDeletedDemo')),
+    notice: (_user, _payload, locale) => adminText(locale, 'admin.users.userDeleted'),
     run: (ref) =>
       withEnrollmentSync({
         userId: ref.userId,

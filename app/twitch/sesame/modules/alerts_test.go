@@ -30,11 +30,11 @@ const (
 	subscribeNoIDJSON = `{"user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2","tier":"1000"}`
 	giftedSubJSON     = `{"user_id":"7","user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2","tier":"1000","is_gift":true}`
 	resubJSON         = `{"user_id":"7","user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2","tier":"1000","cumulative_months":7,"streak_months":7,"message":{"text":"7 months!"}}`
-	giftJSON               = `{"is_anonymous":false,"user_name":"GenerousViewer","user_login":"generousviewer","broadcaster_user_id":"2","total":5,"tier":"1000"}`
-	anonGiftJSON           = `{"is_anonymous":true,"broadcaster_user_id":"2","total":3,"tier":"1000"}`
-	cheerJSON              = `{"is_anonymous":false,"user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2","bits":100}`
-	anonCheerJSON          = `{"is_anonymous":true,"broadcaster_user_id":"2","bits":50}`
-	adBreakJSON            = `{"broadcaster_user_id":"2","duration_seconds":90,"is_automatic":true}`
+	giftJSON          = `{"is_anonymous":false,"user_name":"GenerousViewer","user_login":"generousviewer","broadcaster_user_id":"2","total":5,"tier":"1000"}`
+	anonGiftJSON      = `{"is_anonymous":true,"broadcaster_user_id":"2","total":3,"tier":"1000"}`
+	cheerJSON         = `{"is_anonymous":false,"user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2","bits":100}`
+	anonCheerJSON     = `{"is_anonymous":true,"broadcaster_user_id":"2","bits":50}`
+	adBreakJSON       = `{"broadcaster_user_id":"2","duration_seconds":90,"is_automatic":true}`
 )
 
 func alertsCtx(eventType, payload, config string) *module.Context {
@@ -69,6 +69,14 @@ func alertsHandlerWith(t *testing.T, eventType string, d engine.Deps) module.Eve
 // alertsDeps wires a scripted cooldown into an otherwise bare Deps.
 func alertsDeps(cd engine.CooldownStore) engine.Deps {
 	return engine.Deps{Log: zap.NewNop(), Cooldown: cd}
+}
+
+func TestAlertActivityTextUsesBroadcasterLocale(t *testing.T) {
+	follow := followEvent{UserName: "Gift", UserLogin: "gift", BroadcasterUserID: "2"}
+	sub := subscribeEvent{UserName: "Someone just made your day.", UserLogin: "someone", Tier: "1000"}
+
+	assert.Equal(t, "Gift a suivi la chaîne", follow.activityText("fr"))
+	assert.Equal(t, "Someone just made your day. s'est abonné·e (1000)", sub.activityText("fr"))
 }
 
 // alertInput is one event fired at the alerts module: the EventSub type, its

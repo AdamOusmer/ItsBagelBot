@@ -21,6 +21,7 @@ import { effectiveId } from '$lib/server/board';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { fail } from '@sveltejs/kit';
+import { actionError } from '$lib/server/action-errors';
 
 // Gated on the build-time `dev` constant first, so Rollup erases every demo
 // branch (and the dynamic demo-data import inside it) from production builds.
@@ -38,11 +39,11 @@ const PERM_KINDS: Record<string, keyof QuotePerms> = { add: 'addPerm', edit: 'ed
 
 // parseQuoteText normalizes a submitted quote body (control chars collapse to
 // spaces) and reports why it is unusable; add and edit share the boundary.
-function parseQuoteText(value: FormDataEntryValue | null): { text?: string; error?: string } {
+function parseQuoteText(value: FormDataEntryValue | null, locale: App.Locals['locale']): { text?: string; error?: string } {
   const text = String(value ?? '')
     .replace(/[\u0000-\u001f]+/g, ' ')
     .trim();
-  if (!text) return { error: 'Enter a quote to save.' };
+  if (!text) return { error: actionError(locale, 'Enter a quote to save.') };
   if (text.length > QUOTE_MAX) return { error: `Quote is too long (max ${QUOTE_MAX}).` };
   return { text };
 }
@@ -85,10 +86,10 @@ export const load: PageServerLoad = ({ locals }) =>
 async function actionContext({ request, locals }: { request: Request; locals: App.Locals }) {
   gate(locals.session);
   if (!DEMO && !locals.session) return null;
-  return { uid: effectiveId(locals.session), session: locals.session, form: await request.formData() };
+  return { uid: effectiveId(locals.session), session: locals.session, locale: locals.locale, form: await request.formData() };
 }
 
-const notSignedIn = () => fail(401, { ok: false, error: 'Not signed in.' });
+const notSignedIn = (locale: App.Locals['locale']) => fail(401, { ok: false, error: actionError(locale, 'Not signed in.') });
 
 type QuoteCtx = NonNullable<Awaited<ReturnType<typeof actionContext>>>;
 
@@ -112,13 +113,13 @@ async function runQuote<T extends object>(
 export const actions: Actions = {
   add: async (event) => {
     const ctx = await actionContext(event);
-    if (!ctx) return notSignedIn();
+    if (!ctx) return notSignedIn(event.locals.locale);
 
-    const { text, error } = parseQuoteText(ctx.form.get('text'));
+    const { text, error } = parseQuoteText(ctx.form.get('text'), ctx.locale);
     if (!text) return fail(400, { ok: false, error });
 
     const createdAt = quoteDate(ctx.form.get('quote_date'));
-    if (!createdAt) return fail(400, { ok: false, error: 'Choose a valid quote date.' });
+    if (!createdAt) return fail(400, { ok: false, error: actionError(ctx.locale, 'Choose a valid quote date.') });
 
     if (DEMO) {
       return { ok: true, action: 'added', quote: { number: 0, text, created_at: createdAt.toISOString() } };
@@ -126,7 +127,7 @@ export const actions: Actions = {
 
     return runQuote(ctx, {
       verb: 'add',
-      error: 'Could not save the quote.',
+      error: actionError(ctx.locale, 'Could not save the quote.'),
       run: async () => {
         const quote = await addQuote(ctx.uid, {
           text,
@@ -141,16 +142,16 @@ export const actions: Actions = {
   // Rewrite one quote's text and day in place; the number survives.
   edit: async (event) => {
     const ctx = await actionContext(event);
-    if (!ctx) return notSignedIn();
+    if (!ctx) return notSignedIn(event.locals.locale);
 
     const num = Math.trunc(Number(ctx.form.get('number')));
-    if (!Number.isFinite(num) || num <= 0) return fail(400, { ok: false, error: 'Invalid quote number.' });
+    if (!Number.isFinite(num) || num <= 0) return fail(400, { ok: false, error: actionError(ctx.locale, 'Invalid quote number.') });
 
-    const { text, error } = parseQuoteText(ctx.form.get('text'));
+    const { text, error } = parseQuoteText(ctx.form.get('text'), ctx.locale);
     if (!text) return fail(400, { ok: false, error });
 
     const createdAt = quoteDate(ctx.form.get('quote_date'));
-    if (!createdAt) return fail(400, { ok: false, error: 'Choose a valid quote date.' });
+    if (!createdAt) return fail(400, { ok: false, error: actionError(ctx.locale, 'Choose a valid quote date.') });
 
     if (DEMO) {
       return { ok: true, action: 'edited', quote: { number: num, text, created_at: createdAt.toISOString() } };
@@ -158,7 +159,7 @@ export const actions: Actions = {
 
     return runQuote(ctx, {
       verb: 'edit',
-      error: 'Could not update the quote.',
+      error: actionError(ctx.locale, 'Could not update the quote.'),
       run: async () => {
         const quote = await editQuote(ctx.uid, num, text, createdAt.toISOString());
         return { audit: String(num), payload: { action: 'edited', quote } };
@@ -168,16 +169,16 @@ export const actions: Actions = {
 
   delete: async (event) => {
     const ctx = await actionContext(event);
-    if (!ctx) return notSignedIn();
+    if (!ctx) return notSignedIn(event.locals.locale);
 
     const num = Math.trunc(Number(ctx.form.get('number')));
-    if (!Number.isFinite(num) || num <= 0) return fail(400, { ok: false, error: 'Invalid quote number.' });
+    if (!Number.isFinite(num) || num <= 0) return fail(400, { ok: false, error: actionError(ctx.locale, 'Invalid quote number.') });
 
     if (DEMO) return { ok: true, action: 'deleted', number: num };
 
     return runQuote(ctx, {
       verb: 'delete',
-      error: 'Could not delete the quote.',
+      error: actionError(ctx.locale, 'Could not delete the quote.'),
       run: async () => {
         await removeQuote(ctx.uid, num);
         return { audit: String(num), payload: { action: 'deleted', number: num } };
@@ -188,7 +189,7 @@ export const actions: Actions = {
   // Master on/off for the whole module (whether !quote does anything in chat).
   toggle: async (event) => {
     const ctx = await actionContext(event);
-    if (!ctx) return notSignedIn();
+    if (!ctx) return notSignedIn(event.locals.locale);
 
     const enabled = ctx.form.get('is_enabled') === 'on';
     if (DEMO) return { ok: true, enabled };
@@ -206,7 +207,7 @@ export const actions: Actions = {
   // The form names which gate it writes via kind=add|edit.
   perm: async (event) => {
     const ctx = await actionContext(event);
-    if (!ctx) return notSignedIn();
+    if (!ctx) return notSignedIn(event.locals.locale);
 
     const kind = PERM_KINDS[String(ctx.form.get('kind') ?? '')];
     if (!kind) return fail(400, { ok: false });

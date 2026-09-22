@@ -1,0 +1,36 @@
+---
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+title: Documentation ItsBagelBot
+description: Le compagnon Twitch tout-en-un conçu pour votre indépendance.
+template: splash
+hero:
+  title: 'Votre stream. <span class="accent">Vos règles.</span>'
+  tagline: 'Le compagnon Twitch tout-en-un conçu pour votre indépendance : une installation, tous les outils, aucun abonnement récurrent.'
+  image:
+    file: ../../../assets/LogoBOT.png
+  actions:
+    - text: Bien démarrer
+      link: /fr/guides/getting-started/
+      icon: right-arrow
+    - text: Rejoindre le Discord
+      link: https://discord.gg/SZ2remwSDv
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## Explorer la documentation
+
+<CardGrid stagger>
+	<Card title="Démarrage rapide" icon="rocket">
+		Configurez ItsBagelBot en quelques minutes et connectez-le à votre chaîne Twitch.
+	</Card>
+	<Card title="Développement" icon="puzzle">
+		Découvrez comment le bot est construit.
+	</Card>
+	<Card title="Référence API" icon="open-book">
+		Consultez la référence pour les intégrations et personnalisations avancées.
+	</Card>
+</CardGrid>

@@ -7,6 +7,7 @@ import { dev } from '$app/environment';
 import { auditAppend } from '$lib/server/services';
 import { allows, requireRole, type AdminIdentity } from '$lib/server/access';
 import { audit } from '$lib/server/audit';
+import { actionError, adminText } from '$lib/server/admin-action';
 import {
   credentialStatuses,
   revokeCredential,
@@ -73,7 +74,7 @@ type SecretSpec = {
 function secretAction(spec: SecretSpec) {
   return async ({ request, locals }: { request: Request; locals: App.Locals }) => {
     const admin = await managerFromLocals(locals);
-    if (!admin) return fail(403, { error: 'forbidden' });
+    if (!admin) return fail(403, { error: actionError(locals.locale, 'forbidden') });
 
     const f = await request.formData();
     let service: SecretServiceId | undefined;
@@ -81,16 +82,16 @@ function secretAction(spec: SecretSpec) {
       service = serviceFromForm(f);
       const phrase = spec.confirm(service, f);
       if (String(f.get('confirm') ?? '').trim() !== phrase) {
-        return fail(400, { error: `type "${phrase}" to confirm` });
+        return fail(400, { error: adminText(locals.locale, 'admin.secrets.typeToConfirm', { phrase }) });
       }
       if (DEMO) {
         const { demoSecretNotice } = await import('$lib/server/demo-data');
-        return { action: { ok: true, notice: demoSecretNotice(spec.name) } };
+        return { action: { ok: true, notice: adminText(locals.locale, 'admin.secrets.demoNotice', { action: spec.name }) } };
       }
 
       const out = await spec.run(service, f);
       audit(admin, { action: spec.name, target: `${service}:${out.target ?? ''}`, ok: true });
-      return { action: { ok: true, notice: out.notice } };
+      return { action: { ok: true, notice: adminText(locals.locale, `admin.secrets.${spec.name}`, { service, dbUser: out.target ?? '' }) } };
     } catch (e) {
       const message = (e as Error).message;
       audit(admin, { action: spec.name, target: String(service ?? ''), ok: false, error: message });

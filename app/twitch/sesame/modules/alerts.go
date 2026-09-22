@@ -5,6 +5,7 @@ package modules
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -12,21 +13,12 @@ import (
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/activity"
+	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/tmpl"
 
 	"go.uber.org/zap"
-)
-
-// Default chat templates for each alert. Tokens are documented per handler below.
-const (
-	defaultFollowTemplate = "Thank you for following the channel, {user}!"
-	defaultSubTemplate    = "Welcome to the community, {user}! Thank you for subscribing!"
-	defaultGiftTemplate   = "{user} just gifted {count} subs to the community! Thank you!"
-	defaultCheerTemplate  = "Thank you for the {bits} bits, {user}!"
-	defaultRaidTemplate   = "{user} is raiding the channel with {viewers} viewers! Welcome everyone!"
-	defaultAdsTemplate    = "Ads are rolling for {duration} seconds. Hang tight, we'll be right back!"
 )
 
 // alertsConfig holds the broadcaster's per-alert enable flags and customized
@@ -196,7 +188,7 @@ type alertLine struct {
 // dedupe window this event lost); it receives the message context so a render
 // that has to claim shared state does so only for an alert that is enabled and
 // otherwise ready to fire.
-func onAlert[T any](pick func(alertsConfig) (bool, string), fallback string, render func(ctx context.Context, ev T) (alertLine, bool)) module.EventHandler {
+func onAlert[T any](pick func(alertsConfig) (bool, string), fallbackKey string, render func(context.Context, *module.Context, T) (alertLine, bool)) module.EventHandler {
 	return func(ctx context.Context, c *module.Context, emit module.Emit) error {
 		var cfg alertsConfig
 		_ = c.Decode(&cfg)
@@ -208,12 +200,12 @@ func onAlert[T any](pick func(alertsConfig) (bool, string), fallback string, ren
 		if err := codec.Unmarshal(c.Env.Event, &ev); err != nil {
 			return err
 		}
-		line, ok := render(ctx, ev)
+		line, ok := render(ctx, c, ev)
 		if !ok {
 			return nil
 		}
 		if text == "" {
-			text = fallback
+			text = i18n.T(c.Locale, fallbackKey)
 		}
 		msg := module.ExpandString(text, func(tok tmpl.Token) (string, bool) {
 			if v, found := line.tokens[tok.Key()]; found {
@@ -250,27 +242,27 @@ func Alerts(d engine.Deps) module.Module {
 
 	m.On("channel.follow", onAlert(
 		func(cfg alertsConfig) (bool, string) { return alertOn(cfg.FollowEnabled), cfg.FollowMessage },
-		defaultFollowTemplate,
+		"alerts.follow.default",
 		claimedLine[followEvent](d.Cooldown, moduleLog(d))))
 
 	// Both sub events share one toggle, template and dedupe window
 	// (subAlertWindow), so a renewal followed by a share click posts one welcome line.
 	subAlert := onAlert(
 		func(cfg alertsConfig) (bool, string) { return alertOn(cfg.SubEnabled), cfg.SubMessage },
-		defaultSubTemplate,
+		"alerts.sub.default",
 		claimedLine[subscribeEvent](d.Cooldown, moduleLog(d)))
 	m.On("channel.subscribe", subAlert)
 	m.On("channel.subscription.message", subAlert)
 
 	m.On("channel.subscription.gift", onAlert(
 		func(cfg alertsConfig) (bool, string) { return alertOn(cfg.GiftEnabled), cfg.GiftMessage },
-		defaultGiftTemplate,
+		"alerts.gift.default",
 		giftLine))
 
 	m.On("channel.cheer", onAlert(
 		func(cfg alertsConfig) (bool, string) { return alertOn(cfg.CheerEnabled), cfg.CheerMessage },
-		defaultCheerTemplate,
-		func(_ context.Context, ev cheerEvent) (alertLine, bool) {
+		"alerts.cheer.default",
+		func(_ context.Context, _ *module.Context, ev cheerEvent) (alertLine, bool) {
 			if ev.BroadcasterUserID == "" {
 				return alertLine{}, false
 			}
@@ -286,15 +278,15 @@ func Alerts(d engine.Deps) module.Module {
 
 	m.On("channel.raid", onAlert(
 		func(cfg alertsConfig) (bool, string) { return alertOn(cfg.RaidEnabled), cfg.RaidMessage },
-		defaultRaidTemplate,
-		func(ctx context.Context, ev raidEvent) (alertLine, bool) {
+		"alerts.raid.default",
+		func(ctx context.Context, c *module.Context, ev raidEvent) (alertLine, bool) {
 			if ev.FromBroadcasterUserLogin == "" {
 				return alertLine{}, false
 			}
 			user := chatName(ev.FromBroadcasterUserName, ev.FromBroadcasterUserLogin)
 			activity.Emit(ctx, ev.ToBroadcasterUserID, activity.Row{
 				Kind: activity.KindEvent,
-				Text: user + " raided with " + strconv.Itoa(ev.Viewers) + " viewers",
+				Text: fmt.Sprintf(i18n.T(c.Locale, "activity.event.raid"), user, ev.Viewers),
 				At:   time.Now(),
 			})
 			return alertLine{ev.ToBroadcasterUserID, map[string]string{
@@ -305,8 +297,8 @@ func Alerts(d engine.Deps) module.Module {
 
 	m.On("channel.ad_break.begin", onAlert(
 		func(cfg alertsConfig) (bool, string) { return explicitOn(cfg.AdsEnabled), cfg.AdsMessage },
-		defaultAdsTemplate,
-		func(_ context.Context, ev adBreakEvent) (alertLine, bool) {
+		"alerts.ads.default",
+		func(_ context.Context, _ *module.Context, ev adBreakEvent) (alertLine, bool) {
 			if ev.BroadcasterUserID == "" {
 				return alertLine{}, false
 			}
@@ -325,7 +317,7 @@ func Alerts(d engine.Deps) module.Module {
 type claimedEvent interface {
 	skip() bool
 	claim() alertClaim
-	activityText() string
+	activityText(locale string) string
 	tokens() map[string]string
 }
 
@@ -333,8 +325,10 @@ func (ev followEvent) skip() bool { return ev.UserLogin == "" }
 func (ev followEvent) claim() alertClaim {
 	return alertClaim{"follow", ev.BroadcasterUserID, ev.UserID, followAlertWindow}
 }
-func (ev followEvent) user() string              { return chatName(ev.UserName, ev.UserLogin) }
-func (ev followEvent) activityText() string      { return ev.user() + " followed" }
+func (ev followEvent) user() string { return chatName(ev.UserName, ev.UserLogin) }
+func (ev followEvent) activityText(locale string) string {
+	return fmt.Sprintf(i18n.T(locale, "activity.event.follow"), ev.user())
+}
 func (ev followEvent) tokens() map[string]string { return map[string]string{"user": ev.user()} }
 
 // skip also covers a gifted recipient: channel.subscription.gift announces
@@ -344,8 +338,10 @@ func (ev subscribeEvent) skip() bool { return ev.UserLogin == "" || ev.IsGift }
 func (ev subscribeEvent) claim() alertClaim {
 	return alertClaim{"sub", ev.BroadcasterUserID, ev.UserID, subAlertWindow}
 }
-func (ev subscribeEvent) user() string         { return chatName(ev.UserName, ev.UserLogin) }
-func (ev subscribeEvent) activityText() string { return ev.user() + " subscribed (" + ev.Tier + ")" }
+func (ev subscribeEvent) user() string { return chatName(ev.UserName, ev.UserLogin) }
+func (ev subscribeEvent) activityText(locale string) string {
+	return fmt.Sprintf(i18n.T(locale, "activity.event.subscribe"), ev.user(), ev.Tier)
+}
 func (ev subscribeEvent) tokens() map[string]string {
 	return map[string]string{"user": ev.user(), "tier": ev.Tier}
 }
@@ -355,27 +351,27 @@ func (ev subscribeEvent) tokens() map[string]string {
 // runs only once the alert is known to be enabled (onAlert checks the toggle
 // first), so a channel with the alert off never burns a window it would want
 // later.
-func claimedLine[E claimedEvent](cd engine.CooldownStore, log *zap.Logger) func(context.Context, E) (alertLine, bool) {
-	return func(ctx context.Context, ev E) (alertLine, bool) {
+func claimedLine[E claimedEvent](cd engine.CooldownStore, log *zap.Logger) func(context.Context, *module.Context, E) (alertLine, bool) {
+	return func(ctx context.Context, mctx *module.Context, ev E) (alertLine, bool) {
 		if ev.skip() {
 			return alertLine{}, false
 		}
-		c := ev.claim()
-		if !c.first(ctx, cd, log) {
+		claim := ev.claim()
+		if !claim.first(ctx, cd, log) {
 			return alertLine{}, false
 		}
-		activity.Emit(ctx, c.broadcasterID, activity.Row{
+		activity.Emit(ctx, claim.broadcasterID, activity.Row{
 			Kind: activity.KindEvent,
-			Text: ev.activityText(),
+			Text: ev.activityText(mctx.Locale),
 			At:   time.Now(),
 		})
-		return alertLine{c.broadcasterID, ev.tokens()}, true
+		return alertLine{claim.broadcasterID, ev.tokens()}, true
 	}
 }
 
 // giftLine renders the gift alert for channel.subscription.gift: one line
 // per gifter, not one per recipient (see subscribeEvent.skip).
-func giftLine(ctx context.Context, ev giftEvent) (alertLine, bool) {
+func giftLine(ctx context.Context, c *module.Context, ev giftEvent) (alertLine, bool) {
 	if ev.BroadcasterUserID == "" || ev.Total <= 0 {
 		return alertLine{}, false
 	}
@@ -386,7 +382,7 @@ func giftLine(ctx context.Context, ev giftEvent) (alertLine, bool) {
 	gifter = strings.TrimPrefix(gifter, "@")
 	activity.Emit(ctx, ev.BroadcasterUserID, activity.Row{
 		Kind: activity.KindEvent,
-		Text: gifter + " gifted " + strconv.Itoa(ev.Total) + " subs",
+		Text: fmt.Sprintf(i18n.T(c.Locale, "activity.event.gift"), gifter, ev.Total),
 		At:   time.Now(),
 	})
 	return alertLine{ev.BroadcasterUserID, map[string]string{

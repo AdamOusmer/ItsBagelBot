@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"ItsBagelBot/internal/activity"
+	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/outgress"
 
 	"go.uber.org/zap"
@@ -65,7 +66,7 @@ func (w *Worker) processBan(ctx context.Context, payload *outgress.Message) erro
 	if err == nil {
 		activity.Emit(ctx, payload.BroadcasterID, activity.Row{
 			Kind: activity.KindAutomod,
-			Text: "ban/timeout issued",
+			Text: i18n.T(payload.Locale, "activity.automod.ban_timeout"),
 			At:   time.Now(),
 		})
 	}
@@ -145,7 +146,7 @@ func (w *Worker) processDelete(ctx context.Context, payload *outgress.Message) e
 	if err == nil {
 		activity.Emit(ctx, payload.BroadcasterID, activity.Row{
 			Kind: activity.KindAutomod,
-			Text: "message deleted",
+			Text: i18n.T(payload.Locale, "activity.automod.deleted"),
 			At:   time.Now(),
 		})
 	}

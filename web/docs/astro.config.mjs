@@ -5,6 +5,16 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import mermaid from 'astro-mermaid';
+import { readdirSync, readFileSync } from 'node:fs';
+
+const localeFolder = new URL('./src/i18n/locales/', import.meta.url);
+const docsCatalogs = Object.fromEntries(readdirSync(localeFolder).filter((name) => name.endsWith('.json')).map((name) => [name.slice(0, -5), JSON.parse(readFileSync(new URL(name, localeFolder), 'utf8'))]));
+const docsLocales = Object.fromEntries(Object.entries(docsCatalogs).map(([code, copy]) => [code === 'en' ? 'root' : code, { label: copy['lang.name'] ?? code, lang: code }]));
+const sidebarGroup = (key, directory) => ({
+  label: docsCatalogs.en[key],
+  translations: Object.fromEntries(Object.entries(docsCatalogs).map(([code, copy]) => [code, copy[key] ?? docsCatalogs.en[key]])),
+  items: [{ autogenerate: { directory } }],
+});
 
 // Shared mermaid theme variables — ItsBagelBot brand palette.
 //
@@ -119,6 +129,8 @@ export default defineConfig({
 		starlight({
 			title: 'ItsBagelBot',
 			description: 'The all-in-one Twitch companion baked for independence.',
+			defaultLocale: 'root',
+			locales: docsLocales,
 			logo: {
 				src: './src/assets/LogoBOT.png',
 				replacesTitle: false,
@@ -148,14 +160,14 @@ export default defineConfig({
 				},
 			],
 			sidebar: [
-				{ label: 'Guides', items: [{ autogenerate: { directory: 'guides' } }] },
-				{ label: 'Architecture', items: [{ autogenerate: { directory: 'architecture' } }] },
-				{ label: 'Infrastructure', items: [{ autogenerate: { directory: 'infrastructure' } }] },
-				{ label: 'Data & State', items: [{ autogenerate: { directory: 'data-and-state' } }] },
-				{ label: 'Microservices', items: [{ autogenerate: { directory: 'microservices' } }] },
-				{ label: 'QA Reports', items: [{ autogenerate: { directory: 'qa' } }] },
-				{ label: 'ADRs', items: [{ autogenerate: { directory: 'adr' } }] },
-				{ label: 'Reference', items: [{ autogenerate: { directory: 'reference' } }] },
+				sidebarGroup('guides', 'guides'),
+				sidebarGroup('architecture', 'architecture'),
+				sidebarGroup('infrastructure', 'infrastructure'),
+				sidebarGroup('data', 'data-and-state'),
+				sidebarGroup('services', 'microservices'),
+				sidebarGroup('qa', 'qa'),
+				sidebarGroup('adr', 'adr'),
+				sidebarGroup('reference', 'reference'),
 			],
 		}),
 	],

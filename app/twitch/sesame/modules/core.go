@@ -54,12 +54,19 @@ func Core(d engine.Deps) module.Module {
 		return nil
 	})
 
-	m.Command("itsbagelbot").Everyone().Run(chatLine("ItsBagelBot 🥯 → https://itsbagelbot.com"))
-	m.Command("source").Everyone().Run(chatLine("Source → https://github.com/AdamOusmer/ItsBagelBot"))
+	m.Command("itsbagelbot").Everyone().Run(localizedChatLine("core.itsbagelbot"))
+	m.Command("source").Everyone().Run(localizedChatLine("core.source"))
 
 	m.On("channel.chat.message", bagelGreet(d))
 
 	return m.Build()
+}
+
+func localizedChatLine(key string) module.RunFunc {
+	return func(_ context.Context, c *module.Context, _ string, emit module.Emit) error {
+		emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: i18n.T(c.Locale, key)})
+		return nil
+	}
 }
 
 // chatLine builds a RunFunc that emits one fixed chat line to the broadcaster.

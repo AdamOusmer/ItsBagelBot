@@ -4,13 +4,14 @@
   // Fake Tebex-hosted checkout, DEMO=1 only. Real checkout redirects the
   // browser out to Tebex; this page is the demo's own stand-in for that trip,
   // styled to match the billing page it launches from and returns to.
-  import { AuroraBg, LightField, PageHead, Card, Button } from '@bagel/kit';
+  import { AuroraBg, LightField, PageHead, Card, Button, getI18n } from '@bagel/kit';
 
   let { data } = $props();
+  const { t } = getI18n();
 
   const PRICE = 7;
 
-  const planLabel = $derived(data.plan === 'monthly' ? 'Premium, billed monthly' : 'Premium, one month');
+  const planLabel = $derived(data.plan === 'monthly' ? t('billing.subscribeMonthly') : t('billing.buyOneMonth'));
   const isGift = $derived(data.kind === 'gift');
 </script>
 
@@ -18,27 +19,27 @@
 <div class="starfield" aria-hidden="true"><LightField warmth={0.7} /></div>
 
 <section class="screen active">
-  <PageHead eyebrow="Demo checkout" description="No payment is taken here. This screen only stands in for Tebex-hosted checkout.">
-    Demo <em>checkout</em>
+  <PageHead eyebrow={t('billing.demoEyebrow')} description={t('billing.demoDescription')}>
+    {t('billing.demoTitle')}
   </PageHead>
 
   <div class="demo-banner" role="status">
-    <span>This is a demo checkout. No card is charged, no email goes out, and nothing leaves this dev server.</span>
+    <span>{t('billing.demoNotice')}</span>
   </div>
 
   <Card class="checkout-card">
     <div class="row">
-      <span class="row-label">Plan</span>
+      <span class="row-label">{t('billing.demoPlan')}</span>
       <span class="row-value">{planLabel}</span>
     </div>
     {#if isGift}
       <div class="row">
-        <span class="row-label">Gift to</span>
+        <span class="row-label">{t('billing.demoGiftTo')}</span>
         <span class="row-value">@{data.recipient}</span>
       </div>
     {/if}
     <div class="row row-total">
-      <span class="row-label">Total</span>
+      <span class="row-label">{t('billing.demoTotal')}</span>
       <span class="row-value">${PRICE}.00 CAD</span>
     </div>
 
@@ -46,9 +47,9 @@
       <input type="hidden" name="plan" value={data.plan} />
       <input type="hidden" name="kind" value={data.kind} />
       {#if isGift}<input type="hidden" name="recipient" value={data.recipient} />{/if}
-      <Button type="submit" variant="primary">Pay ${PRICE}.00</Button>
+      <Button type="submit" variant="primary">{t('billing.demoPay', { price: PRICE })}</Button>
     </form>
-    <a class="cancel-link" href="/billing">Cancel, go back to billing</a>
+    <a class="cancel-link" href="/billing">{t('billing.demoCancel')}</a>
   </Card>
 </section>
 

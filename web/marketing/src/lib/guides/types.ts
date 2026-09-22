@@ -3,7 +3,7 @@
 
 /**
  * The guides content model. Everything a broadcaster reads lives in a content
- * file under src/content/guides/<slug>.<lang>.ts shaped by these types; the
+ * English structure under src/content/guides/<slug>.en.ts shaped by these types; the
  * components under src/components/guides render them and hold no copy of their
  * own. Type-only import of Lang so a content file never pulls the i18n runtime.
  */

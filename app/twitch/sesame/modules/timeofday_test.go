@@ -73,6 +73,14 @@ func TestTimeDefaultTemplate(t *testing.T) {
 	assert.Contains(t, text, "M for the streamer.", "12-hour clock is the default (AM/PM suffix)")
 }
 
+func TestTimeDefaultTemplatesUseBroadcasterLocale(t *testing.T) {
+	now := time.Date(2026, 7, 13, 18, 30, 0, 0, time.UTC)
+	c := timeContext(`{"timezone":"America/Toronto"}`)
+	c.Locale = "fr"
+	assert.Equal(t, "Il est actuellement 2:30 PM pour le streamer.", timeReply(zap.NewNop(), c, now, ""))
+	assert.Equal(t, "Il est actuellement 3:30 AM à Tokyo.", timeReply(zap.NewNop(), c, now, "Tokyo"))
+}
+
 // TestTimeReplyTokens pins the rendered tokens at a fixed instant: 18:30 UTC is
 // 14:30 in Toronto (EDT), on both clock faces, with {date} and {timezone}.
 func TestTimeReplyTokens(t *testing.T) {

@@ -18,18 +18,19 @@ export type { GuideSlug };
 
 /**
  * Eager glob: every content file, bundled at build time and re-keyed from its
- * module path to '<slug>.<lang>'. A guide's English file is the guide itself
+ * module path to '<slug>.<lang>'. English structures are TypeScript; translator
+ * overlays and hub content are plain JSON. A guide's English file is the guide itself
  * (a GuideContent); every other locale, and both hub files, are the other two
  * shapes this map holds, so callers below narrow it.
  */
 const files = import.meta.glob<GuideContent | GuideStrings | HubContent>(
-  '../../content/guides/*.ts',
+  ['../../content/guides/*.en.ts', '../../content/guides/*.json'],
   { eager: true, import: 'default' },
 );
 
 const content: Record<string, unknown> = {};
 for (const path in files) {
-  content[path.slice(path.lastIndexOf('/') + 1, -'.ts'.length)] = files[path];
+  content[path.slice(path.lastIndexOf('/') + 1).replace(/\.(?:ts|json)$/, '')] = files[path];
 }
 
 function lookup(slug: string, lang: Lang): unknown {

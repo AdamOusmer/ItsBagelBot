@@ -9,9 +9,12 @@ import { previewImport, commitImport, SERVER_STRATEGIES } from '$lib/server/impo
 import type { SourceInput } from '$lib/server/importer';
 import { IMPORT_STRATEGIES, isImportSource } from '@bagel/kit/importer/strategy';
 import { ValkeyRateLimiter } from '@bagel/kit/server/rate-limit';
+import { actionError } from '$lib/server/action-errors';
 import type { Session } from '$lib/server/session';
 import {
   IMPORT_SOURCES,
+  translate,
+  type Locale,
   type CommitResponse,
   type ImportManifest,
   type ImportSource,
@@ -75,9 +78,9 @@ type GateVerdict = { ok: true; session: Session } | { ok: false; status: number;
 // locals without OAuth; the demo board is an owner by construction.
 async function importGate(locals: App.Locals): Promise<GateVerdict> {
   const s = await requireOwner(locals);
-  if (!s) return { ok: false, status: 403, error: 'Not allowed.' };
+  if (!s) return { ok: false, status: 403, error: actionError(locals.locale, 'Not allowed.') };
   if (!(await importAllowed(s)))
-    return { ok: false, status: 429, error: 'Too many import attempts. Wait a minute and try again.' };
+    return { ok: false, status: 429, error: actionError(locals.locale, 'Too many import attempts. Wait a minute and try again.') };
   return { ok: true, session: s };
 }
 
@@ -192,10 +195,10 @@ async function readSourceInput(
 // into one branch at the call site. Both messages are the ones this route has
 // always given; the source's own name comes off its strategy so nothing here
 // hard-codes one.
-function usableSource(v: string): ImportSource | { error: string } {
-  if (!isImportSource(v)) return { error: 'Pick a source to import from.' };
+function usableSource(v: string, locale: Locale): ImportSource | { error: string } {
+  if (!isImportSource(v)) return { error: actionError(locale, 'Pick a source to import from.') };
   const strategy = IMPORT_STRATEGIES[v];
-  if (!strategy.available) return { error: `${strategy.label} import is not available yet.` };
+  if (!strategy.available) return { error: translate(locale, 'serverErrors.importUnavailable', { source: strategy.label }) };
   return v;
 }
 
@@ -219,11 +222,11 @@ preview: async ({ request, locals, cookies }) => {
     if (!gate.ok) return fail(gate.status, { error: gate.error, step: 'preview' });
 
     const form = await request.formData();
-    const source = usableSource(String(form.get('source') ?? ''));
+    const source = usableSource(String(form.get('source') ?? ''), locals.locale);
     if (typeof source !== 'string') return fail(400, { error: source.error, step: 'preview' });
 
     const read = await readSourceInput(form, source);
-    if (!read.ok) return fail(read.status, { error: read.error, step: 'preview' });
+    if (!read.ok) return fail(read.status, { error: actionError(locals.locale, read.error), step: 'preview' });
 
     if (DEMO) {
       const demo = await import('$lib/server/demo-import');
@@ -233,7 +236,7 @@ preview: async ({ request, locals, cookies }) => {
     const credential = resolveCredential(source, read.input, cookies);
     if (credential === null)
       return fail(400, {
-        error: `Connect your ${IMPORT_STRATEGIES[source].label} account first.`,
+        error: translate(locals.locale, 'serverErrors.importConnectFirst', { source: IMPORT_STRATEGIES[source].label }),
         step: 'preview'
       });
 
@@ -246,12 +249,12 @@ preview: async ({ request, locals, cookies }) => {
         manifest: read.input.preManifest
       });
     } catch {
-      return fail(502, { error: 'The importer service did not answer. Try again in a moment.', step: 'preview' });
+      return fail(502, { error: actionError(locals.locale, 'The importer service did not answer. Try again in a moment.'), step: 'preview' });
     }
 
     if (!preview.manifest)
       return fail(422, {
-        error: preview.error || 'Nothing could be imported from that source.',
+        error: actionError(locals.locale, preview.error || 'Nothing could be imported from that source.'),
         step: 'preview'
       });
 
@@ -273,13 +276,13 @@ preview: async ({ request, locals, cookies }) => {
     const source = String(form.get('source') ?? '');
     const overwrite = form.get('overwrite') === 'on';
     const rawManifest = String(form.get('manifest') ?? '');
-    if (!rawManifest) return fail(400, { error: 'Nothing selected to import.', step: 'commit' });
+    if (!rawManifest) return fail(400, { error: actionError(locals.locale, 'Nothing selected to import.'), step: 'commit' });
 
     let manifest: ImportManifest;
     try {
       manifest = JSON.parse(rawManifest) as ImportManifest;
     } catch {
-      return fail(400, { error: 'The selection could not be decoded. Run the preview again.', step: 'commit' });
+      return fail(400, { error: actionError(locals.locale, 'The selection could not be decoded. Run the preview again.'), step: 'commit' });
     }
 
     if (DEMO) {
@@ -295,7 +298,7 @@ preview: async ({ request, locals, cookies }) => {
         overwrite
       });
     } catch {
-      return fail(502, { error: 'The importer service did not answer. Try again in a moment.', step: 'commit' });
+      return fail(502, { error: actionError(locals.locale, 'The importer service did not answer. Try again in a moment.'), step: 'commit' });
     }
 
     if (commit.error)

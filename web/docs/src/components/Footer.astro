@@ -3,6 +3,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { SITE } from '@bagel/kit/site-links';
+import { docsI18n } from '../i18n/ui';
 
 /**
  * Starlight `Footer` override: the page's own footer, then the site's.
@@ -19,25 +20,26 @@ import { SITE } from '@bagel/kit/site-links';
 import Default from '@astrojs/starlight/components/Footer.astro';
 import Footer from '@bagel/ui/astro/Footer.astro';
 
+const { t, path } = docsI18n(Astro.locals.starlightRoute.locale);
 const columns = [
   {
-    title: 'Docs',
+    title: t('brand'),
     links: [
-      { href: '/guides/', label: 'Guides' },
-      { href: '/architecture/', label: 'Architecture' },
-      { href: '/adr/', label: 'ADRs' },
+      { href: path('/guides/getting-started/'), label: t('guides') },
+      { href: path('/architecture/'), label: t('architecture') },
+      { href: path('/adr/'), label: t('adr') },
     ],
   },
   {
-    title: 'Product',
+    title: t('product'),
     links: [
-      { href: SITE.web, label: 'Main site', external: true },
-      { href: `${SITE.web}/pricing`, label: 'Pricing', external: true },
-      { href: SITE.dashboard, label: 'Dashboard', external: true },
+      { href: `${SITE.web}${path('/')}`, label: t('mainSite'), external: true },
+      { href: `${SITE.web}${path('/pricing')}`, label: t('pricing'), external: true },
+      { href: SITE.dashboard, label: t('dashboard'), external: true },
     ],
   },
   {
-    title: 'Community',
+    title: t('community'),
     links: [
       { href: SITE.discord, label: 'Discord', external: true },
       { href: SITE.github, label: 'GitHub', external: true },
@@ -49,11 +51,11 @@ const columns = [
 <Default><slot /></Default>
 <Footer
   class="docs-footer"
-  brand={{ title: 'ItsBagelBot', sub: 'Documentation', href: SITE.web }}
+  brand={{ title: 'ItsBagelBot', sub: t('brand'), href: `${SITE.web}${path('/')}` }}
   columns={columns}
   legal={[
-    { href: `${SITE.web}/privacy`, label: 'Privacy', external: true },
-    { href: `${SITE.web}/terms`, label: 'Terms', external: true },
+    { href: `${SITE.web}${path('/privacy')}`, label: t('privacy'), external: true },
+    { href: `${SITE.web}${path('/terms')}`, label: t('terms'), external: true },
   ]}
   copyright="© 2026 ItsBagelBot"
 />

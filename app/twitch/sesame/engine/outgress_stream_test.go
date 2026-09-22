@@ -18,6 +18,7 @@ func TestChannelUpdateOutgress(t *testing.T) {
 	msg, err := buildOutgressMessage(&module.Output{
 		Type:          outgress.TypeChannelUpdate,
 		BroadcasterID: "100",
+		Locale:        "fr",
 		Reason:        "title",
 		Text:          "Ranked grind",
 		Template:      "en",
@@ -26,6 +27,7 @@ func TestChannelUpdateOutgress(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, outgress.TypeChannelUpdate, msg.Type)
 	assert.Equal(t, "100", msg.BroadcasterID)
+	assert.Equal(t, "fr", msg.Locale)
 	var inner struct {
 		Field  string `json:"field"`
 		Value  string `json:"value"`

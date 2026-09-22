@@ -13,6 +13,7 @@ import {
 } from '$lib/server/lanes';
 import { requireRole } from '$lib/server/access';
 import { audit } from '$lib/server/audit';
+import { adminText } from '$lib/server/admin-action';
 
 const DEMO = dev && process.env.DEMO === '1';
 
@@ -41,8 +42,8 @@ type LaneOp = {
 function laneAction(op: LaneOp) {
   return async ({ request, locals }: RequestEvent) => {
     const admin = await requireRole({ locals }, 'lanes.mutate');
-    if (!admin) return fail(403, { notice: 'forbidden' });
-    if (DEMO) return { ok: false, notice: 'demo mode: lane mutations are disabled' };
+    if (!admin) return fail(403, { notice: adminText(locals.locale, 'admin.action.forbidden') });
+    if (DEMO) return { ok: false, notice: adminText(locals.locale, 'admin.action.laneDemoDisabled') };
 
     const form = await request.formData();
     const stream = String(form.get('stream') ?? '');
@@ -55,7 +56,7 @@ function laneAction(op: LaneOp) {
     } catch (e) {
       const error = (e as Error).message;
       audit(admin, { action: op.action, target, ok: false, error });
-      return fail(502, { notice: `${op.verb} failed: ${error}` });
+      return fail(502, { notice: adminText(locals.locale, 'admin.action.laneFailed', { verb: op.verb, error }) });
     }
   };
 }

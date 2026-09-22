@@ -2,7 +2,7 @@ import type { Actions, PageServerLoad } from './$types';
 import { fail, redirect } from '@sveltejs/kit';
 import { dev } from '$app/environment';
 import { allows, requireRole } from '$lib/server/access';
-import { audited, okReply } from '$lib/server/admin-action';
+import { audited, okReply, actionError, adminText } from '$lib/server/admin-action';
 import { giveawayCreate, giveawayDraw, giveawayPreview, giveawaysList, type GiveawayWire } from '$lib/server/giveaways';
 import { giveawaySummary, parsePrizeMonths, parseWinnerCount } from '@bagel/kit/giveaway';
 
@@ -43,9 +43,9 @@ function fields(form: FormData): GiveawayForm | { error: string } {
 export const actions: Actions = {
   preview: async ({ request, locals }) => {
     const admin = await requireRole({ locals }, 'giveaways.manage');
-    if (!admin) return fail(403, { error: 'forbidden' });
+    if (!admin) return fail(403, { error: actionError(locals.locale, 'forbidden') });
     const parsed = fields(await request.formData());
-    if ('error' in parsed) return fail(400, parsed);
+    if ('error' in parsed) return fail(400, { error: actionError(locals.locale, parsed.error) });
     if (DEMO) {
       return {
         preview: {
@@ -66,27 +66,27 @@ export const actions: Actions = {
 
   create: async ({ request, locals }) => {
     const admin = await requireRole({ locals }, 'giveaways.manage');
-    if (!admin) return fail(403, { error: 'forbidden' });
+    if (!admin) return fail(403, { error: actionError(locals.locale, 'forbidden') });
     const parsed = fields(await request.formData());
-    if ('error' in parsed) return fail(400, parsed);
-    if (DEMO) return okReply('Giveaway draft created (demo).');
+    if ('error' in parsed) return fail(400, { error: actionError(locals.locale, parsed.error) });
+    if (DEMO) return okReply(adminText(locals.locale, 'admin.giveaway.draftCreatedDemo'));
     return audited(
       { admin, action: 'giveaway_create', target: parsed.title, detail: `${parsed.winnerCount}×${parsed.prizeMonths}` },
       () => giveawayCreate({ actorId: admin.id, ...parsed }),
-      (created) => ({ ...okReply('Giveaway draft created.'), giveaway: created })
+      (created) => ({ ...okReply(adminText(locals.locale, 'admin.giveaway.draftCreated')), giveaway: created })
     );
   },
 
   draw: async ({ request, locals }) => {
     const admin = await requireRole({ locals }, 'giveaways.manage');
-    if (!admin) return fail(403, { error: 'forbidden' });
+    if (!admin) return fail(403, { error: actionError(locals.locale, 'forbidden') });
     const id = String((await request.formData()).get('giveaway_id') ?? '').trim();
-    if (!id) return fail(400, { error: 'giveaway id required' });
-    if (DEMO) return okReply('Draw committed (demo).');
+    if (!id) return fail(400, { error: adminText(locals.locale, 'admin.giveaway.idRequired') });
+    if (DEMO) return okReply(adminText(locals.locale, 'admin.giveaway.drawCommittedDemo'));
     return audited(
       { admin, action: 'giveaway_draw', target: id },
       () => giveawayDraw({ actorId: admin.id, campaignId: id, expectedVersion: 1, idempotencyKey: `giveaway:${id}:draw` }),
-      (detail) => ({ ...okReply('Draw committed.'), detail })
+      (detail) => ({ ...okReply(adminText(locals.locale, 'admin.giveaway.drawCommitted')), detail })
     );
   }
 };

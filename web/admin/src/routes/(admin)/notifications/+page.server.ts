@@ -15,6 +15,8 @@ import {
 import { requireRole, type AdminIdentity } from '$lib/server/access';
 import {
   audited,
+  actionError,
+  adminText,
   badRequest,
   okReply,
   refusalReply,
@@ -185,25 +187,25 @@ type NotifActionSpec<P> = {
   parse: (f: FormData) => ParseResult<P>;
   target: (payload: P) => string;
   detail?: (payload: P) => string;
-  demoNotice: (payload: P) => string;
-  notice: (payload: P) => string;
+  demoNotice: (payload: P, locale: App.Locals['locale']) => string;
+  notice: (payload: P, locale: App.Locals['locale']) => string;
   run: (payload: P, admin: AdminIdentity) => Promise<unknown>;
 };
 
 function notifAction<P>(spec: NotifActionSpec<P>) {
   return async ({ request, locals }: { request: Request; locals: App.Locals }) => {
     const admin = await requireRole({ locals }, 'notifications.send');
-    if (!admin) return fail(403, { error: 'forbidden' });
+    if (!admin) return fail(403, { error: actionError(locals.locale, 'forbidden') });
 
     const parsed = spec.parse(await request.formData());
-    if ('refuse' in parsed) return refusalReply(parsed);
+    if ('refuse' in parsed) return refusalReply(parsed, locals.locale);
     const payload = parsed.value;
 
-    if (DEMO) return okReply(spec.demoNotice(payload));
+    if (DEMO) return okReply(spec.demoNotice(payload, locals.locale));
     return audited(
       { admin, action: spec.name, target: spec.target(payload), detail: spec.detail?.(payload) },
       () => spec.run(payload, admin),
-      () => okReply(spec.notice(payload))
+      () => okReply(spec.notice(payload, locals.locale))
     );
   };
 }
@@ -214,8 +216,8 @@ export const actions: Actions = {
     parse: parseSendForm,
     target: (v) => v.target,
     detail: (v) => v.title,
-    demoNotice: (v) => `notification sent to ${v.target} (demo)`,
-    notice: (v) => `notification sent to ${v.target}`,
+    demoNotice: (v, locale) => adminText(locale, 'admin.notifications.sentDemo', { target: v.target }),
+    notice: (v, locale) => adminText(locale, 'admin.notifications.sentToTarget', { target: v.target }),
     run: (v, admin) => notificationSend(sendPayload(v, admin))
   }),
 
@@ -223,8 +225,8 @@ export const actions: Actions = {
     name: 'delete_notification',
     parse: parseDeleteId,
     target: (id) => String(id),
-    demoNotice: () => 'notification retracted (demo)',
-    notice: () => 'notification retracted',
+    demoNotice: (_id, locale) => adminText(locale, 'admin.notifications.retractedDemo'),
+    notice: (_id, locale) => adminText(locale, 'admin.notifications.retracted'),
     run: (id) => notificationDelete(id)
   })
 };

@@ -3,9 +3,11 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { AlertBanner, Card, Code, LightField, SearchInput, Text } from '@bagel/kit';
+  import { getI18n } from '@bagel/kit/i18n/context';
   import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();
+  const { t } = getI18n();
 
   // Keys carry the source index because triggers are not unique across the
   // flat list: a module can publish the same label twice (aliases folded into
@@ -33,10 +35,10 @@
   };
 
   const FILTERS: Array<{ id: Filter; label: string; heading: string }> = [
-    { id: 'all', label: 'All', heading: 'Everything you can type' },
-    { id: 'custom', label: 'Custom', heading: 'Custom commands' },
-    { id: 'module', label: 'Modules', heading: 'Module commands' },
-    { id: 'builtin', label: 'Built-in', heading: 'Built-in commands' }
+    { id: 'all', label: t('public.commands.filterAll'), heading: t('public.commands.filterAllHeading') },
+    { id: 'custom', label: t('public.commands.filterCustom'), heading: t('public.commands.filterCustomHeading') },
+    { id: 'module', label: t('public.commands.filterModule'), heading: t('public.commands.filterModuleHeading') },
+    { id: 'builtin', label: t('public.commands.filterBuiltin'), heading: t('public.commands.filterBuiltinHeading') }
   ];
 
   let query = $state('');
@@ -51,7 +53,7 @@
       ...c,
       key: `custom:${i}:${c.trigger}`,
       kind: 'custom',
-      source: 'Custom',
+      source: t('public.commands.filterCustom'),
       moduleId: null
     }));
     const fromModules: Row[] = data.modules.flatMap((m) =>
@@ -65,7 +67,7 @@
         liveOnly: false,
         uses: '',
         kind: m.category === 'Built-in' ? 'builtin' : 'module',
-        source: m.label,
+        source: m.category === 'Built-in' ? t('public.commands.filterBuiltin') : m.label,
         moduleId: m.id
       }))
     );
@@ -95,10 +97,15 @@
     `${activeModule ? activeModule.label : FILTERS.find((f) => f.id === filter)?.heading} · ${rows.length}`
   );
 
-  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
-  const summary = $derived(
-    `${plural(data.commands.length, 'custom command')} · ${plural(data.modules.length, 'active module')} · ${all.length} things to type`
-  );
+  const summary = $derived(t('public.commands.summary', {
+    commands: data.commands.length === 1
+      ? t('public.commands.summaryOneCommand', { count: data.commands.length })
+      : t('public.commands.summaryManyCommands', { count: data.commands.length }),
+    modules: data.modules.length === 1
+      ? t('public.commands.summaryOneModule', { count: data.modules.length })
+      : t('public.commands.summaryManyModules', { count: data.modules.length }),
+    total: all.length
+  }));
 
   function pickFilter(id: Filter) {
     filter = id;
@@ -121,10 +128,10 @@
 </script>
 
 <svelte:head>
-  <title>{data.channelName} commands - ItsBagelBot</title>
+  <title>{t('public.commands.pageTitle', { channel: data.channelName })}</title>
   <meta
     name="description"
-    content={`Active chat commands and modules for ${data.channelName} on ItsBagelBot.`}
+    content={t('public.commands.pageDescription', { channel: data.channelName })}
   />
 </svelte:head>
 
@@ -136,16 +143,16 @@
 <main class="page">
   <header class="hero">
     <div class="hero__text">
-      <span class="eyebrow">Channel commands</span>
+      <span class="eyebrow">{t('public.commands.eyebrow')}</span>
       <h1 class="title">{data.channelName}</h1>
       <p class="summary">{summary}</p>
     </div>
     {#if creatorCode}
-      <button class="creator" type="button" title="Copy creator code" onclick={() => copy(creatorCode, 'cc')}>
-        <span class="creator__label">Creator code</span>
+      <button class="creator" type="button" title={t('public.commands.copyCreator')} onclick={() => copy(creatorCode, 'cc')}>
+        <span class="creator__label">{t('public.commands.copyCreator')}</span>
         <span class="creator__row">
           <strong>{creatorCode}</strong>
-          <span class="creator__hint bb-chip bb-chip--muted" class:is-done={copied === 'cc'}>{copied === 'cc' ? 'Copied' : 'Click to copy'}</span>
+          <span class="creator__hint bb-chip bb-chip--muted" class:is-done={copied === 'cc'}>{copied === 'cc' ? t('common.copied') : t('public.commands.clickToCopy')}</span>
         </span>
       </button>
     {/if}
@@ -153,15 +160,15 @@
 
   {#if data.degraded}
     <div class="notice">
-      <AlertBanner variant="warn">Command data is temporarily unavailable.</AlertBanner>
+      <AlertBanner variant="warn">{t('public.commands.dataUnavailable')}</AlertBanner>
     </div>
   {/if}
 
   <div class="toolbar">
     <div class="search">
-      <SearchInput bind:value={query} placeholder="Search a command or what it does…" />
+      <SearchInput bind:value={query} placeholder={t('public.commands.searchPlaceholder')} />
     </div>
-    <div class="bb-tabs bb-tabs--wrap" role="tablist" aria-label="Command source">
+    <div class="bb-tabs bb-tabs--wrap" role="tablist" aria-label={t('public.commands.sourceLabel')}>
       {#each FILTERS as f (f.id)}
         {@const on = !moduleId && filter === f.id}
         <button class="bb-tab" class:is-active={on} role="tab" type="button" aria-selected={on} onclick={() => pickFilter(f.id)}
@@ -172,11 +179,11 @@
   </div>
 
   <div class="columns">
-    <section class="list-wrap" aria-label="Commands">
+    <section class="list-wrap" aria-label={t('public.commands.commandsLabel')}>
       <Card atmo class="list">
         <div class="list__head">
           <span>{listHeading}</span>
-          <span>Click a row to copy</span>
+          <span>{t('public.commands.clickRow')}</span>
         </div>
 
         {#if rows.length}
@@ -193,14 +200,14 @@
                   <p class="row__response">{row.response}</p>
                   <span class="row__tags">
                     {#if copied === row.key}
-                      <span class="copied">Copied</span>
+                      <span class="copied">{t('common.copied')}</span>
                     {/if}
                     <span class="bb-tag bb-tag--alpha">{row.source}</span>
                     {#if row.perm}
                       <span class="bb-tag bb-tag--bare">{row.perm}</span>
                     {/if}
                     {#if row.cooldown > 0}
-                      <span class="bb-tag bb-tag--bare" title="Cooldown">
+                      <span class="bb-tag bb-tag--bare" title={t('public.commands.cooldown')}>
                         <svg aria-hidden="true" viewBox="0 0 24 24" width="11" height="11">
                           <circle cx="12" cy="12" r="9"></circle>
                           <path d="M12 7v5l3 2"></path>
@@ -209,10 +216,10 @@
                       </span>
                     {/if}
                     {#if row.liveOnly}
-                      <span class="bb-tag bb-tag--live"><i class="bb-mark" aria-hidden="true"></i>Live only<i class="bb-sweep" aria-hidden="true"></i></span>
+                      <span class="bb-tag bb-tag--live"><i class="bb-mark" aria-hidden="true"></i>{t('public.commands.liveOnly')}<i class="bb-sweep" aria-hidden="true"></i></span>
                     {/if}
                     {#if row.uses}
-                      <span class="uses">{row.uses} uses</span>
+                      <span class="uses">{t('public.commands.uses', { count: row.uses })}</span>
                     {/if}
                   </span>
                 </button>
@@ -220,9 +227,9 @@
             {/each}
           </ul>
         {:else if all.length === 0}
-          <div class="empty">No active commands yet.</div>
+          <div class="empty">{t('public.commands.noCommands')}</div>
         {:else}
-          <div class="empty">Nothing matches “{query}”. Try a shorter word.</div>
+          <div class="empty">{t('public.commands.noMatches', { query })}</div>
         {/if}
       </Card>
     </section>
@@ -230,7 +237,7 @@
     <aside class="side">
       <Card atmo class="modules">
         <div class="side__head">
-          <span>Active modules</span>
+          <span>{t('public.commands.activeModules')}</span>
           <span class="side__count">{data.modules.length}</span>
         </div>
         {#if data.modules.length}
@@ -251,21 +258,20 @@
                     <span class="mod__label">{mod.label}</span>
                     <span class="mod__tagline">{mod.tagline}</span>
                   </span>
-                  <span class="mod__meta">{n ? `${n} ${n === 1 ? 'cmd' : 'cmds'}` : 'auto'}</span>
+                  <span class="mod__meta">{n ? (n === 1 ? t('public.commands.moduleCount', { count: n }) : t('public.commands.moduleCountMany', { count: n })) : t('public.commands.moduleAuto')}</span>
                 </button>
               </li>
             {/each}
           </ul>
         {:else}
-          <p class="side__empty">No active modules.</p>
+          <p class="side__empty">{t('public.commands.noModules')}</p>
         {/if}
       </Card>
 
       <div class="legend">
-        <span class="side__head">Reading the tags</span>
+        <span class="side__head">{t('public.commands.legendTitle')}</span>
         <Text size="sm" tone="muted">
-          <em>Everyone</em>, <em>Subs</em>, <em>Mods</em> say who can run it. The clock is the cooldown
-          between uses. <em class="live">Live only</em> commands answer while the stream is up.
+          {t('public.commands.legend')}
         </Text>
       </div>
     </aside>
@@ -612,8 +618,6 @@
     gap: 10px;
   }
   .legend .side__head { margin-bottom: 0; }
-  .legend em { font-style: normal; color: var(--bb-tan-light); }
-  .legend em.live { color: var(--bb-green-glow); }
 
   @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
