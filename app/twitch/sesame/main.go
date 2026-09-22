@@ -98,7 +98,11 @@ func main() {
 
 	loyaltyReporter := engine.NewLoyaltyReporter(pub, log)
 	defer loyaltyReporter.Close() // flushes pending accruals on shutdown
-	loyalty, loyaltyTick := newLoyalty(w, proj, live, loyaltyReporter)
+	// chatters is the shared {random.viewer} snapshot store: the watch tick
+	// write-warms it below, and buildDeps wires the same instance behind
+	// ViewerRPC's cold-cache fetch.
+	chatters := engine.NewValkeyChatters(valkeyClient, log)
+	loyalty, loyaltyTick := newLoyalty(w, proj, live, loyaltyReporter, chatters)
 
 	raffle := newRaffle(w, proj)
 	duel := newDuel(w, proj, loyalty)
@@ -128,7 +132,7 @@ func main() {
 	deps := buildDeps(w, engineRuntime{
 		proj: proj, live: live, timers: timers, guard: guard, loyalty: loyalty, tick: loyaltyTick,
 		stats: loyaltyReporter, raffle: raffle, duel: duel, emotes: emotes,
-		seq: engine.NewSequencer(),
+		seq: engine.NewSequencer(), chatters: chatters,
 	})
 	registry := engine.NewRegistry(log, modules.All(deps)...)
 	startRefreshers(w, guard, emotes)

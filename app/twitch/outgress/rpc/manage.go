@@ -43,6 +43,7 @@ type Manage struct {
 //	<prefix>.system.status   {}                                -> {paused, token health}
 //	<prefix>.system.pause    {paused}                          -> {paused}
 //	<prefix>.streaminfo.get  {broadcaster_id?, target_login?}  -> {user_found, live, title, game_name, viewer_count, started_at}
+//	<prefix>.channelcounts.get {broadcaster_id}                -> {followers, followers_ok, subs, subs_ok}
 func SubscribeManage(nc *nats.Conn, registry *channels.Registry, tw *twitch.Client, prefix, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
 
 	m := &Manage{registry: registry, twitch: tw, log: log}
@@ -74,6 +75,9 @@ func SubscribeManage(nc *nats.Conn, registry *channels.Registry, tw *twitch.Clie
 		},
 		func() error {
 			return bus.QueueSubscribeJSON[outgressrpc.StreamInfoRequest, outgressrpc.StreamInfoReply](nc, prefix+".streaminfo.get", queueGroup, followageHandleTimeout, app, log, m.handleStreamInfo)
+		},
+		func() error {
+			return bus.QueueSubscribeJSON[outgressrpc.ChannelCountsRequest, outgressrpc.ChannelCountsReply](nc, prefix+".channelcounts.get", queueGroup, followageHandleTimeout, app, log, m.handleChannelCounts)
 		},
 	)
 }
@@ -198,6 +202,10 @@ func (m *Manage) handleUptime(ctx context.Context, req outgressrpc.UptimeRequest
 // when offline) lives in streaminfo.go.
 func (m *Manage) handleStreamInfo(ctx context.Context, req outgressrpc.StreamInfoRequest) outgressrpc.StreamInfoReply {
 	return readStreamInfo(ctx, m.twitch, m.log, req)
+}
+
+func (m *Manage) handleChannelCounts(ctx context.Context, req outgressrpc.ChannelCountsRequest) outgressrpc.ChannelCountsReply {
+	return readChannelCounts(ctx, m.twitch, m.log, req)
 }
 
 func (m *Manage) handleChannelGet(ctx context.Context, req manage.ChannelRequest) manage.ChannelReply {

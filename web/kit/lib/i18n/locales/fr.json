@@ -3680,8 +3680,8 @@
     },
     "time": {
       "name": "Votre heure locale",
-      "hint": "votre heure locale, sur le format d’horloge que vous avez choisi (module Heure locale)",
-      "desc": "L’heure chez vous, selon le fuseau et le format d’horloge choisis dans le module Heure locale. Nécessite ce module, avec un fuseau enregistré."
+      "hint": "votre heure locale, sur le format d’horloge que vous avez choisi (module Heure locale) ; {time:Paris} pour ailleurs, sans module",
+      "desc": "L’heure chez vous, selon le fuseau et le format d’horloge choisis dans le module Heure locale. Nécessite ce module, avec un fuseau enregistré. {time:Paris} consulte plutôt un autre lieu — une ville, un pays, une abréviation comme EST, ou un décalage UTC — et fonctionne même sans le module : il n’a besoin d’aucun fuseau propre, seulement du format d’horloge choisi si vous en avez un. Un lieu inconnu renvoie du vide."
     },
     "song": {
       "name": "En cours de lecture",
@@ -3697,6 +3697,11 @@
       "name": "Un spectateur au hasard",
       "hint": "l’une d’elles, choisie au hasard (jamais vous, jamais le bot)",
       "desc": "Le nom d’une personne ayant parlé récemment, choisie au hasard. Jamais vous ni le bot. Deux dans une même réponse font deux tirages distincts, et une chaîne silencieuse ne renvoie rien."
+    },
+    "randomViewer": {
+      "name": "Un viewer au hasard",
+      "hint": "quelqu’un dans le chat en ce moment, choisi au hasard (jamais vous, jamais le bot)",
+      "desc": "Le nom d’une personne que Twitch indique comme présente dans le chat en ce moment, choisie au hasard — pas forcément quelqu’un ayant parlé. Jamais vous ni le bot. Deux dans une même réponse font deux tirages distincts. Juste après un redémarrage du bot, avant qu’il ait chargé qui est dans le chat, elle nomme plutôt quelqu’un ayant parlé récemment."
     },
     "emotes": {
       "name": "Liste d’émotes",
@@ -3727,6 +3732,16 @@
       "name": "Spectateurs",
       "hint": "combien de personnes regardent en ce moment, 0 hors ligne",
       "desc": "Combien de personnes regardent en ce moment, directement depuis Twitch. Une chaîne hors ligne renvoie 0. {channel} seul reste le nom de votre chaîne."
+    },
+    "followers": {
+      "name": "Nombre de followers",
+      "hint": "votre nombre actuel de followers",
+      "desc": "Votre nombre actuel de followers, directement depuis Twitch. Ne prend aucun paramètre : elle compte toujours votre propre chaîne."
+    },
+    "subs": {
+      "name": "Nombre d’abonnés",
+      "hint": "votre nombre actuel d’abonnés",
+      "desc": "Votre nombre actuel d’abonnés, directement depuis Twitch. Ne prend aucun paramètre : elle compte toujours votre propre chaîne."
     },
     "urlfetch": {
       "name": "Valeur récupérée",

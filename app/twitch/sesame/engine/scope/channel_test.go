@@ -142,3 +142,51 @@ func TestChannelKeepsUnaddressableSpansLiteral(t *testing.T) {
 	assert.Equal(t, template, render(t, template, Chain{mounted(streams)}, nil))
 	assert.Empty(t, streams.asked, "an unaddressable span costs no read")
 }
+
+// fakeCounts answers a canned {followers}/{subs} read and counts calls, so
+// "one read answers both spans" is asserted rather than assumed.
+type fakeCounts struct {
+	result ChannelCountsResult
+	calls  int
+}
+
+func (f *fakeCounts) Counts(context.Context) ChannelCountsResult {
+	f.calls++
+	return f.result
+}
+
+// {followers}/{subs} need no Streams at all: they answer from a separate
+// dependency with no module row of its own.
+func TestChannelReadsFollowersAndSubsWithoutStreams(t *testing.T) {
+	counts := &fakeCounts{result: ChannelCountsResult{Followers: 100, FollowersOK: true, Subs: 7, SubsOK: true}}
+	chain := Chain{Channel{Counts: counts}}
+
+	assert.Equal(t, "100 / 7", render(t, "{followers} / {subs}", chain, nil))
+	assert.Equal(t, 1, counts.calls, "one read answers both spans")
+}
+
+// A half the read could not answer (a missing scope, surfaced as OK=false)
+// stays literal — never the pinned "0" an offline viewer count uses, because
+// "cannot say" and "genuinely zero" are different claims.
+func TestChannelLeavesANotOKCountLiteral(t *testing.T) {
+	counts := &fakeCounts{result: ChannelCountsResult{Followers: 100, FollowersOK: true, SubsOK: false}}
+	chain := Chain{Channel{Counts: counts}}
+
+	assert.Equal(t, "100 {subs}", render(t, "{followers} {subs}", chain, nil))
+	assert.Equal(t, "100 {subs|unknown}", render(t, "{followers} {subs|unknown}", chain, nil))
+}
+
+// Neither token takes a payload: a span carrying one is an authoring mistake
+// and stays literal without ever reading Counts.
+func TestChannelLeavesPayloadedCountSpansLiteral(t *testing.T) {
+	counts := &fakeCounts{result: ChannelCountsResult{Followers: 100, FollowersOK: true}}
+	chain := Chain{Channel{Counts: counts}}
+
+	assert.Equal(t, "{followers:pokimane} 100", render(t, "{followers:pokimane} {followers}", chain, nil))
+}
+
+// Without Counts wired both spans stay literal, matching every other
+// unwired-dependency token.
+func TestChannelLeavesCountsLiteralWithoutTheDependency(t *testing.T) {
+	assert.Equal(t, "{followers} {subs}", render(t, "{followers} {subs}", Chain{Channel{}}, nil))
+}

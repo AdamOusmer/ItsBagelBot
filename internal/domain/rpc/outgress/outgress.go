@@ -82,3 +82,25 @@ type StreamInfoReply struct {
 	StartedAt   time.Time `json:"started_at,omitempty"`
 	Error       string    `json:"error,omitempty"`
 }
+
+// ChannelCountsRequest addresses one channel by broadcaster id for the
+// {followers}/{subs} headline-count read.
+type ChannelCountsRequest struct {
+	BroadcasterID string `json:"broadcaster_id"`
+}
+
+// ChannelCountsReply carries both counts, each independently degradable.
+// Followers reads under the bot's moderator-scoped token; Subs reads under
+// the broadcaster's own token (channel:read:subscriptions) since Twitch
+// exposes a channel's subscriber count to nobody else. A broadcaster's grant
+// can carry one scope and not the other, so *OK is per-half: false means
+// "cannot say" (missing scope, or the broadcaster grant is dead), never a
+// real zero. Error is set only when the whole call could not be attempted
+// (a bad request), not when one half degrades.
+type ChannelCountsReply struct {
+	Followers   int    `json:"followers"`
+	FollowersOK bool   `json:"followers_ok"`
+	Subs        int    `json:"subs"`
+	SubsOK      bool   `json:"subs_ok"`
+	Error       string `json:"error,omitempty"`
+}

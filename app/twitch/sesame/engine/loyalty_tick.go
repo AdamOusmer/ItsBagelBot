@@ -117,6 +117,15 @@ type ValkeyLoyaltyClock struct {
 	keyspaceDB int
 	log        *zap.Logger
 
+	// viewers is the shared {random.viewer} snapshot store. The watch tick
+	// already lists every live channel's chatters every 5 minutes (accrue's
+	// fetchChatters); writing that same list here is what keeps a live
+	// channel's snapshot warm without a dedicated fetch of its own, so a
+	// command naming {random.viewer} on a live channel usually reads a cache
+	// hit instead of triggering ViewerRPC's own cold-cache fetch. nil (a
+	// deployment that never wired it) skips the write.
+	viewers *ValkeyChatters
+
 	// Failure streaks only steer retry delays and log levels. The live-state
 	// reconfirm schedule lives in Valkey so changing replicas cannot reset it.
 	tmu      sync.Mutex
@@ -142,7 +151,10 @@ type LoyaltyClockConfig struct {
 	// Either empty disables the re-confirm.
 	Publisher             bus.Publisher
 	OutgressSystemSubject string
-	Log                   *zap.Logger
+	// ViewerSnapshots write-warms the shared {random.viewer} cache from
+	// every tick's chatter listing. nil skips the write.
+	ViewerSnapshots *ValkeyChatters
+	Log             *zap.Logger
 }
 
 // NewValkeyLoyaltyClock builds the watch tick clock. proj resolves the
@@ -170,6 +182,7 @@ func NewValkeyLoyaltyClock(client valkey.Client, nc *nats.Conn, proj projection.
 		outgressSystemSubject: cfg.OutgressSystemSubject,
 		botID:                 cfg.BotUserID,
 		keyspaceDB:            cfg.KeyspaceDB,
+		viewers:               cfg.ViewerSnapshots,
 		log:                   log,
 		failures:              map[uint64]int{},
 	}
@@ -416,6 +429,12 @@ func (s *ValkeyLoyaltyClock) accrue(ctx context.Context, broadcasterID uint64) (
 	if err != nil {
 		return false, err
 	}
+	// Write-warm {random.viewer}'s shared cache from the listing this tick
+	// already paid for: a live channel then answers the token from cache
+	// instead of ViewerRPC's own cold-fetch path. Best-effort and off the
+	// accrual result — a snapshot write failure must not skip a tick's
+	// points.
+	s.viewers.Store(ctx, broadcasterID, viewerSnapshotEntries(chatters))
 	// A paginated fetch may take seconds. Recheck the stream and current
 	// settings before paying: offline or disable events may have arrived.
 	live, err := s.live.IsLive(ctx, broadcasterID)

@@ -4,6 +4,7 @@
 package engine
 
 import (
+	"context"
 	"strconv"
 
 	"ItsBagelBot/app/twitch/sesame/engine/scope"
@@ -29,7 +30,23 @@ func (p *Pipeline) chattersScope(c *module.Context, toks []tmpl.Token) scope.Cha
 		Roster:  rosterView{roster: p.roster, broadcasterID: c.BroadcasterID},
 		Exclude: p.undrawableChatters(c),
 		Draws:   chatterDrawsOf(toks),
+
+		Viewers:       p.chatterViewers(c),
+		ViewerExclude: p.undrawableViewers(c),
+		ViewerDraws:   viewerDrawsOf(toks),
 	}
+}
+
+// chatterViewers builds {random.viewer}'s draw source. p.viewers is nil for
+// a deployment that never wired it (Deps.Viewers); scope.Chatters mounts
+// unconditionally either way, so a nil Viewers renders the draw empty (its
+// fallback fires) rather than leaving the span literal — unlike a wired one,
+// which never renders empty at all once mounted (see viewerSource).
+func (p *Pipeline) chatterViewers(c *module.Context) scope.Viewers {
+	if p.viewers == nil {
+		return nil
+	}
+	return viewerSource{rpc: p.viewers, roster: p.roster, broadcasterID: c.BroadcasterID}
 }
 
 // undrawableChatters are the two identities {random.chatter} never names: the
@@ -50,21 +67,34 @@ func (p *Pipeline) undrawableChatters(c *module.Context) []uint64 {
 	return []uint64{botID, c.BroadcasterID}
 }
 
-// chatterDrawsOf counts the template's bare {random.chatter} spans. A span
-// carrying a payload is not one of them: it names nothing this token reads and
-// stays literal, so counting it would pay for a draw nobody renders.
-func chatterDrawsOf(toks []tmpl.Token) int {
+// undrawableViewers is undrawableChatters plus the sender: the decision
+// record for {random.viewer} is that a viewer running "!hug" must never hug
+// themselves. {random.chatter} carries no such rule (see undrawableChatters),
+// so this is {random.viewer}'s own exclusion set rather than a shared one.
+func (p *Pipeline) undrawableViewers(c *module.Context) []uint64 {
+	exclude := p.undrawableChatters(c)
+	senderID, err := strconv.ParseUint(c.Env.ChatterUserID, 10, 64)
+	if err == nil && senderID != 0 {
+		exclude = append(exclude, senderID)
+	}
+	return exclude
+}
+
+// chatterDrawsOf and viewerDrawsOf count a template's bare {random.chatter}/
+// {random.viewer} spans. A span carrying a payload is not one of them: it
+// names nothing this token reads and stays literal, so counting it would pay
+// for a draw nobody renders.
+func chatterDrawsOf(toks []tmpl.Token) int { return bareDrawsOf(toks, scope.RandomChatterToken) }
+func viewerDrawsOf(toks []tmpl.Token) int  { return bareDrawsOf(toks, scope.RandomViewerToken) }
+
+func bareDrawsOf(toks []tmpl.Token, name string) int {
 	draws := 0
 	for _, tok := range toks {
-		if isBareRandomChatter(tok) {
+		if tok.Kind == tmpl.KindVar && tok.Name == name && !tok.HasPayload {
 			draws++
 		}
 	}
 	return draws
-}
-
-func isBareRandomChatter(tok tmpl.Token) bool {
-	return tok.Kind == tmpl.KindVar && tok.Name == scope.RandomChatterToken && !tok.HasPayload
 }
 
 // rosterView is the engine half of the chatter scope: it narrows the whole
@@ -80,6 +110,45 @@ func (v rosterView) Chatters() []scope.Chatter {
 	out := make([]scope.Chatter, 0, len(seen))
 	for i := range seen {
 		out = append(out, scope.Chatter{ID: seen[i].ID, Name: chatterName(seen[i])})
+	}
+	return out
+}
+
+// viewerSource is the engine half of {random.viewer}: rpc answers "who does
+// Twitch say is in chat right now", from the shared Valkey snapshot.
+//
+// Decision record: a cold snapshot and a latched MissingScope both degrade to
+// the very roster {random.chatter} already draws from, rather than an empty
+// draw. A hole in the reply (an unresolved "{random.viewer}" or a silent
+// fallback) is worse than naming someone who spoke recently instead of
+// someone who is merely present — and the roster-backed answer is only ever
+// needed for a channel the loyalty tick has not warmed yet (not live, or
+// newly live) or one it cannot read at all; a live channel's snapshot is kept
+// warm by that same tick (see chattersSnapshotTTL), so the viewer-list
+// guarantee holds whenever it matters most.
+type viewerSource struct {
+	rpc           ViewerLookup
+	roster        *chatterRoster
+	broadcasterID uint64
+}
+
+func (v viewerSource) Viewers(ctx context.Context) ([]scope.Chatter, bool) {
+	entries, state := v.rpc.Snapshot(ctx, v.broadcasterID)
+	if state == viewerSnapshotOK {
+		return viewerChatters(entries), true
+	}
+	return rosterView{roster: v.roster, broadcasterID: v.broadcasterID}.Chatters(), true
+}
+
+// viewerChatters renders each cached entry the same way a roster draw does
+// (chatterName's Name-falling-back-to-Login shape): it arrived on the chat
+// wire (Helix relays whatever login the viewer carries), and a drawn name
+// goes straight into a broadcaster's chat line, so it is sanitized the same
+// way for the same reason.
+func viewerChatters(entries []chattersSnapshotEntry) []scope.Chatter {
+	out := make([]scope.Chatter, 0, len(entries))
+	for _, e := range entries {
+		out = append(out, scope.Chatter{ID: e.ID, Name: chatterName(Viewer{ID: e.ID, Login: e.Login, Name: e.Name})})
 	}
 	return out
 }

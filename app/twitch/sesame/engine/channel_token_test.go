@@ -30,28 +30,109 @@ func (s *stubStreamInfo) Lookup(_ context.Context, broadcasterID, login string) 
 }
 
 // channelFixture is one channel's wiring for the channel tokens: which module
-// rows are set, and what the reader answers.
+// rows are set, and what the reader answers. proj overrides the default
+// fakeReader when a test needs to observe its calls (see countingReader);
+// nil uses the plain fixture-backed one every other case wants.
 type channelFixture struct {
 	response string
 	modules  map[string]projection.ModuleView
 	stream   StreamInfoLookup
+	counts   ChannelCountsLookup
+	proj     projection.Reader
 }
 
 func channelPipeline(t *testing.T, f channelFixture) *Pipeline {
 	t.Helper()
-	d := Deps{
-		Proj: fakeReader{
+	proj := f.proj
+	if proj == nil {
+		proj = fakeReader{
 			cmd:      projection.Command{Name: "brag", Response: f.response, IsActive: true, Perm: "everyone"},
 			cmdFound: true,
 			modules:  f.modules,
-		},
-		Live:       liveAlways{},
-		Cooldown:   NoopCooldown{},
-		Pub:        &fakePublisher{},
-		StreamInfo: f.stream,
-		Log:        zap.NewNop(),
+		}
+	}
+	d := Deps{
+		Proj:          proj,
+		Live:          liveAlways{},
+		Cooldown:      NoopCooldown{},
+		Pub:           &fakePublisher{},
+		StreamInfo:    f.stream,
+		ChannelCounts: f.counts,
+		Log:           zap.NewNop(),
 	}
 	return NewPipeline(d, NewRegistry(zap.NewNop()), Config{OutgressPremium: premiumSubj, OutgressStandard: standardSubj})
+}
+
+// channelModuleReadCounter counts Module reads on top of a fakeReader, so
+// "streamInfo unwired costs no projection read" is asserted rather than
+// assumed. Its own type (not timers_valkey_test.go's countingReader, which
+// counts a different reader shape for a different scope) to keep the two
+// call-counting fixtures from drifting into one that has to serve both.
+type channelModuleReadCounter struct {
+	fakeReader
+	calls int
+}
+
+func (r *channelModuleReadCounter) Module(ctx context.Context, id uint64, name string) (projection.ModuleView, bool, error) {
+	r.calls++
+	return r.fakeReader.Module(ctx, id, name)
+}
+
+// Without StreamInfo wired, {uptime}/{title}/{game} can never resolve
+// (Owns requires Streams != nil), so gating them must not even read the
+// module rows that decide their per-token toggle — a deployment running
+// without StreamInfo would otherwise pay three reads per command for tokens
+// that stay literal regardless.
+func TestChannelTokensReadNoModuleRowWithoutStreamInfo(t *testing.T) {
+	proj := &channelModuleReadCounter{fakeReader: fakeReader{
+		cmd:      projection.Command{Name: "brag", Response: "{uptime} {title} {game}", IsActive: true, Perm: "everyone"},
+		cmdFound: true,
+		modules:  map[string]projection.ModuleView{UptimeModuleName: on(), TitleModuleName: on(), GameModuleName: on()},
+	}}
+	p := channelPipeline(t, channelFixture{response: "{uptime} {title} {game}", proj: proj})
+
+	assert.Equal(t, "{uptime} {title} {game}", expandViewer(t, p, "!brag"))
+	assert.Zero(t, proj.calls, "no StreamInfo wired means no module row is worth reading")
+}
+
+// stubChannelCounts answers the {followers}/{subs} read from a fixture and
+// counts calls, so "one read answers both spans" is asserted end to end.
+type stubChannelCounts struct {
+	result ChannelCountsResult
+	err    error
+	calls  int
+}
+
+func (s *stubChannelCounts) Lookup(context.Context, string) (ChannelCountsResult, error) {
+	s.calls++
+	return s.result, s.err
+}
+
+// {followers}/{subs} have no module row of their own: mounting follows the
+// dependency alone.
+func TestChannelCountTokensNeedNoModuleRow(t *testing.T) {
+	counts := &stubChannelCounts{result: ChannelCountsResult{Followers: 100, FollowersOK: true, Subs: 7, SubsOK: true}}
+	p := channelPipeline(t, channelFixture{response: "{followers} followers, {subs} subs", counts: counts})
+
+	assert.Equal(t, "100 followers, 7 subs", expandViewer(t, p, "!brag"))
+	assert.Equal(t, 1, counts.calls, "one read answers both spans")
+}
+
+// A half the read could not answer (missing scope) stays literal — never the
+// pinned "0" {channel.viewers} uses for an offline channel, because "cannot
+// say" and "genuinely zero" are different claims.
+func TestChannelCountTokensLeaveANotOKHalfLiteral(t *testing.T) {
+	counts := &stubChannelCounts{result: ChannelCountsResult{Followers: 100, FollowersOK: true, SubsOK: false}}
+	p := channelPipeline(t, channelFixture{response: "{followers} {subs}", counts: counts})
+
+	assert.Equal(t, "100 {subs}", expandViewer(t, p, "!brag"))
+}
+
+// Without the dependency wired both stay literal, and a template naming
+// neither never reads.
+func TestChannelCountTokensStayLiteralWithoutTheDependency(t *testing.T) {
+	p := channelPipeline(t, channelFixture{response: "{followers} {subs}"})
+	assert.Equal(t, "{followers} {subs}", expandViewer(t, p, "!brag"))
 }
 
 // liveNow is the session the fixtures report: up for two hours, with an

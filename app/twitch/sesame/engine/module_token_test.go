@@ -6,6 +6,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
@@ -313,6 +314,45 @@ func TestTimeTokenRendersTheConfiguredClockFace(t *testing.T) {
 		modules:  map[string]projection.ModuleView{TimeModuleName: timeOn("UTC", "24")},
 	})
 	assert.Regexp(t, `^it is [0-2][0-9]:[0-5][0-9] here$`, expandViewer(t, twentyFour, "!brag"))
+}
+
+// {time:<place>} needs no Local Time enrollment at all: a channel that never
+// touched the module still resolves a place, on the 12-hour default face —
+// the same answer !time <place> already gives.
+func TestTimePlaceTokenAnswersUngated(t *testing.T) {
+	p := modulePipeline(t, moduleFixture{response: "it is {time:Tokyo} in Tokyo"})
+	assert.Regexp(t, `^it is ([1-9]|1[0-2]):[0-5][0-9] (AM|PM) in Tokyo$`, expandViewer(t, p, "!brag"))
+}
+
+// The payload form renders on whichever clock face the broadcaster already
+// picked, read from the same row the bare form uses — even with the module
+// off, since the face is a plain preference, not an enrollment.
+func TestTimePlaceTokenUsesTheConfiguredClockFace(t *testing.T) {
+	p := modulePipeline(t, moduleFixture{
+		response: "it is {time:Tokyo}",
+		modules:  map[string]projection.ModuleView{TimeModuleName: timeOn("UTC", "24")},
+	})
+	assert.Regexp(t, `^it is [0-2][0-9]:[0-5][0-9]$`, expandViewer(t, p, "!brag"))
+}
+
+// A place tzname cannot resolve renders empty (its fallback speaks), never
+// the broadcaster's own home time.
+func TestTimePlaceTokenRendersAnUnknownPlaceAsEmpty(t *testing.T) {
+	p := modulePipeline(t, moduleFixture{response: "{time:nowhere|unknown place}"})
+	assert.Equal(t, "unknown place", expandViewer(t, p, "!brag"))
+}
+
+// Past MaxTimePlaces a distinct place renders empty rather than a repeat or
+// a literal span.
+func TestTimePlaceTokenCapsDistinctPlaces(t *testing.T) {
+	p := modulePipeline(t, moduleFixture{response: "{time:tokyo}|{time:paris}|{time:cairo}|{time:lima}"})
+	got := expandViewer(t, p, "!brag")
+	parts := strings.Split(got, "|")
+	require.Len(t, parts, 4)
+	for i, part := range parts[:3] {
+		assert.NotEmpty(t, part, "place %d should resolve", i)
+	}
+	assert.Empty(t, parts[3], "the fourth distinct place is past the cap")
 }
 
 // A timezone the tz database does not know reads as an unset one: the module

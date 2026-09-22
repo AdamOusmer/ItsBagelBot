@@ -2041,12 +2041,18 @@
     "example": "{time}",
     "output": "3:04 PM",
     "syntaxes": [
-      "{time}"
+      "{time}",
+      "{time:<place>}"
     ],
     "examples": [
       {
         "syntax": "{time}",
         "output": "3:04 PM",
+        "surfaceId": "custom"
+      },
+      {
+        "syntax": "{time:Paris}",
+        "output": "11:04 PM",
         "surfaceId": "custom"
       },
       {
@@ -2071,8 +2077,8 @@
       }
     ],
     "name": "Votre heure locale",
-    "hint": "votre heure locale, sur le format d’horloge que vous avez choisi (module Heure locale)",
-    "description": "L’heure chez vous, selon le fuseau et le format d’horloge choisis dans le module Heure locale. Nécessite ce module, avec un fuseau enregistré.",
+    "hint": "votre heure locale, sur le format d’horloge que vous avez choisi (module Heure locale) ; {time:Paris} pour ailleurs, sans module",
+    "description": "L’heure chez vous, selon le fuseau et le format d’horloge choisis dans le module Heure locale. Nécessite ce module, avec un fuseau enregistré. {time:Paris} consulte plutôt un autre lieu — une ville, un pays, une abréviation comme EST, ou un décalage UTC — et fonctionne même sans le module : il n’a besoin d’aucun fuseau propre, seulement du format d’horloge choisi si vous en avez un. Un lieu inconnu renvoie du vide.",
     "category": "utilities",
     "categories": [
       "utilities"
@@ -2547,6 +2553,56 @@
     "lexerValid": true
   },
   {
+    "id": "followers",
+    "token": "{followers}",
+    "syntax": "{followers}",
+    "example": "{followers}",
+    "output": "2,480",
+    "syntaxes": [
+      "{followers}"
+    ],
+    "examples": [
+      {
+        "syntax": "{followers}",
+        "output": "2,480",
+        "surfaceId": "custom"
+      }
+    ],
+    "name": "Nombre de followers",
+    "hint": "votre nombre actuel de followers",
+    "description": "Votre nombre actuel de followers, directement depuis Twitch. Ne prend aucun paramètre : elle compte toujours votre propre chaîne.",
+    "category": "channel",
+    "categories": [
+      "channel"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "followers",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
     "id": "game",
     "token": "{game}",
     "syntax": "{game}",
@@ -2602,6 +2658,56 @@
     "lexer": {
       "valid": true,
       "name": "game",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "subs",
+    "token": "{subs}",
+    "syntax": "{subs}",
+    "example": "{subs}",
+    "output": "96",
+    "syntaxes": [
+      "{subs}"
+    ],
+    "examples": [
+      {
+        "syntax": "{subs}",
+        "output": "96",
+        "surfaceId": "custom"
+      }
+    ],
+    "name": "Nombre d’abonnés",
+    "hint": "votre nombre actuel d’abonnés",
+    "description": "Votre nombre actuel d’abonnés, directement depuis Twitch. Ne prend aucun paramètre : elle compte toujours votre propre chaîne.",
+    "category": "channel",
+    "categories": [
+      "channel"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "subs",
       "payload": null
     },
     "lexerValid": true
@@ -3034,6 +3140,56 @@
     "lexer": {
       "valid": true,
       "name": "random.chatter",
+      "payload": null
+    },
+    "lexerValid": true
+  },
+  {
+    "id": "randomViewer",
+    "token": "{random.viewer}",
+    "syntax": "{random.viewer}",
+    "example": "{random.viewer}",
+    "output": "quiet_lurker",
+    "syntaxes": [
+      "{random.viewer}"
+    ],
+    "examples": [
+      {
+        "syntax": "{random.viewer}",
+        "output": "quiet_lurker",
+        "surfaceId": "custom"
+      }
+    ],
+    "name": "Un viewer au hasard",
+    "hint": "quelqu’un dans le chat en ce moment, choisi au hasard (jamais vous, jamais le bot)",
+    "description": "Le nom d’une personne que Twitch indique comme présente dans le chat en ce moment, choisie au hasard — pas forcément quelqu’un ayant parlé. Jamais vous ni le bot. Deux dans une même réponse font deux tirages distincts. Juste après un redémarrage du bot, avant qu’il ait chargé qui est dans le chat, elle nomme plutôt quelqu’un ayant parlé récemment.",
+    "category": "chat",
+    "categories": [
+      "chat"
+    ],
+    "aliases": [],
+    "aliasTokens": [],
+    "surfaceIds": [
+      "custom"
+    ],
+    "surfaces": [
+      {
+        "id": "custom",
+        "group": "Commandes",
+        "label": "Commande personnalisée",
+        "dashPath": "/commands"
+      }
+    ],
+    "requirementIds": [],
+    "requirements": [],
+    "requirement": "",
+    "payload": "",
+    "behavior": "",
+    "legacy": false,
+    "parameterized": false,
+    "lexer": {
+      "valid": true,
+      "name": "random.viewer",
       "payload": null
     },
     "lexerValid": true

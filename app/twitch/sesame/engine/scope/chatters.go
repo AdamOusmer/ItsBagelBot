@@ -16,6 +16,11 @@ import (
 const (
 	ChattersToken      = "chatters"
 	RandomChatterToken = "random.chatter"
+	// RandomViewerToken draws from who Twitch reports as IN THE CHAT LIST
+	// right now, not who has spoken (RandomChatterToken): "in chat" and
+	// "recently active" are different claims, and a lurker running a
+	// command wants the bot able to name them even though they never typed.
+	RandomViewerToken = "random.viewer"
 )
 
 // MaxChatterDraws bounds how many independent names one response may draw.
@@ -69,6 +74,21 @@ type Roster interface {
 	Chatters() []Chatter
 }
 
+// Viewers is the shared chat-list source behind {random.viewer}: who Twitch
+// currently reports as connected to the channel, refreshed on a lazy TTL'd
+// fetch rather than read from the same per-replica roster {random.chatter}
+// draws from (see Roster's decision record for why that one stays local).
+//
+// ok=false means no pool is available for THIS run — a cold cache with a
+// fetch already in flight — and the draw renders empty so its fallback
+// speaks, the same convention an empty Roster snapshot follows. It is not
+// the signal for "permanently unavailable" (a missing OAuth scope): the
+// engine's implementation degrades that case to a Roster-backed pool
+// upstream of this interface, so ok=true there with the roster's names.
+type Viewers interface {
+	Viewers(ctx context.Context) ([]Chatter, bool)
+}
+
 // Chatters answers {chatters} and {random.chatter} from that roster.
 //
 // It is mounted unconditionally — there is no opt-in module behind it, and the
@@ -97,11 +117,24 @@ type Chatters struct {
 	// Pick returns a uniform index in [0,n). nil means math/rand/v2; a test
 	// pins it so a drawn name is an assertion rather than a coin flip.
 	Pick func(n int) int
+
+	// Viewers backs {random.viewer}, mounted on this same scope rather than
+	// a second one: nothing gates it either, so it shares the "mounted
+	// unconditionally" shape with the rest of this type. nil answers every
+	// {random.viewer} span empty rather than literal — see Viewers.
+	Viewers Viewers
+	// ViewerExclude is Exclude PLUS the sender: a viewer running "!hug"
+	// must never hug themselves, which {random.chatter} has no equivalent
+	// rule for (its exclusions are bot + broadcaster only).
+	ViewerExclude []uint64
+	// ViewerDraws is how many bare {random.viewer} spans the template
+	// carries, counted the same way Draws is.
+	ViewerDraws int
 }
 
-// Owns claims both names unconditionally: see the type comment.
+// Owns claims all three names unconditionally: see the type comment.
 func (Chatters) Owns(name string) bool {
-	return name == ChattersToken || name == RandomChatterToken
+	return name == ChattersToken || name == RandomChatterToken || name == RandomViewerToken
 }
 
 // Plan reads the roster ONCE and resolves everything from that snapshot.
@@ -111,9 +144,18 @@ func (Chatters) Owns(name string) bool {
 // could disagree with the name drawn beside it in the same reply ("3 chatters,
 // say hi to sam" where sam is no longer one of the three), and two reads of a
 // map that every chat line writes is exactly how that happens.
-func (c Chatters) Plan(_ context.Context, _ []Var) (Values, error) {
+func (c Chatters) Plan(ctx context.Context, _ []Var) (Values, error) {
 	roster := c.snapshot()
-	return &chatterValues{count: len(roster), draws: c.drawNames(roster)}, nil
+	out := &chatterValues{
+		count: len(roster),
+		draws: c.drawFrom(chatterDrawPool(roster, c.Exclude), c.Draws),
+	}
+	if c.ViewerDraws > 0 && c.Viewers != nil {
+		if viewers, ok := c.Viewers.Viewers(ctx); ok {
+			out.viewerDraws = c.drawFrom(chatterDrawPool(viewers, c.ViewerExclude), c.ViewerDraws)
+		}
+	}
+	return out, nil
 }
 
 func (c Chatters) snapshot() []Chatter {
@@ -123,44 +165,20 @@ func (c Chatters) snapshot() []Chatter {
 	return c.Roster.Chatters()
 }
 
-// drawNames picks this run's names, one per bare span up to the cap. It is nil
-// when the template draws none, so a response naming only {chatters} does no
-// picking at all.
-func (c Chatters) drawNames(roster []Chatter) []string {
-	pool := c.pickable(roster)
-	if len(pool) == 0 {
+// drawFrom picks n names from names, up to the shared cap. It is nil when
+// the pool is empty, so a channel with nobody left to draw does no picking
+// at all; n is zero for a response that never names the draw span, which
+// picks nothing either.
+func (c Chatters) drawFrom(names []string, n int) []string {
+	if len(names) == 0 {
 		return nil
 	}
-	wanted := min(c.Draws, MaxChatterDraws)
+	wanted := min(n, MaxChatterDraws)
 	draws := make([]string, 0, wanted)
 	for i := 0; i < wanted; i++ {
-		draws = append(draws, pool[c.pick(len(pool))])
+		draws = append(draws, names[c.pick(len(names))])
 	}
 	return draws
-}
-
-// pickable is the roster minus the excluded ids and minus anyone the engine
-// could not name. Draws are independent, so the pool is not consumed: two
-// spans may name the same person, exactly as two {random} spans may roll the
-// same number.
-func (c Chatters) pickable(roster []Chatter) []string {
-	pool := make([]string, 0, len(roster))
-	for _, who := range roster {
-		if who.Name == "" || c.excluded(who.ID) {
-			continue
-		}
-		pool = append(pool, who.Name)
-	}
-	return pool
-}
-
-func (c Chatters) excluded(id uint64) bool {
-	for _, skip := range c.Exclude {
-		if id == skip {
-			return true
-		}
-	}
-	return false
 }
 
 func (c Chatters) pick(n int) int {
@@ -170,19 +188,50 @@ func (c Chatters) pick(n int) int {
 	return rand.IntN(n)
 }
 
-// chatterValues is one run's snapshot, resolved.
-type chatterValues struct {
-	count int
-	draws []string
-	drawn int
+// chatterDrawPool is the roster minus the excluded ids and minus anyone the
+// engine could not name. Draws are independent, so the pool is not consumed:
+// two spans may name the same person, exactly as two {random} spans may roll
+// the same number. Shared by both draw families ({random.chatter},
+// {random.viewer}): the shape is identical, only the source list and the
+// exclude set differ.
+//
+// Named distinctly from emotes.go's own drawPool (a different pool over a
+// different shape) rather than reusing that name, which was already taken.
+func chatterDrawPool(entries []Chatter, exclude []uint64) []string {
+	out := make([]string, 0, len(entries))
+	for _, who := range entries {
+		if who.Name == "" || idExcluded(exclude, who.ID) {
+			continue
+		}
+		out = append(out, who.Name)
+	}
+	return out
 }
 
-// Get answers both spans. ok is true throughout for a payload-less span: the
-// roster read ran, so an empty channel renders "0" and an empty draw renders
-// the span's fallback rather than the literal token, which would claim the bot
-// has no such variable.
+func idExcluded(list []uint64, id uint64) bool {
+	for _, skip := range list {
+		if id == skip {
+			return true
+		}
+	}
+	return false
+}
+
+// chatterValues is one run's snapshot, resolved.
+type chatterValues struct {
+	count       int
+	draws       []string
+	drawn       int
+	viewerDraws []string
+	viewerDrawn int
+}
+
+// Get answers all three spans. ok is true throughout for a payload-less
+// span: the roster read ran, so an empty channel renders "0" and an empty
+// draw renders the span's fallback rather than the literal token, which
+// would claim the bot has no such variable.
 //
-// Neither token takes a payload, so a span carrying one is an authoring
+// None of the three take a payload, so a span carrying one is an authoring
 // mistake and stays literal — which shows the author their typo instead of
 // quietly ignoring what they wrote, the same rule {time} and the {song} family
 // follow.
@@ -190,20 +239,25 @@ func (v *chatterValues) Get(tok Var) (string, bool) {
 	if tok.HasPayload {
 		return "", false
 	}
-	if tok.Name == ChattersToken {
+	switch tok.Name {
+	case ChattersToken:
 		return strconv.Itoa(v.count), true
+	case RandomViewerToken:
+		return nextDraw(v.viewerDraws, &v.viewerDrawn), true
 	}
-	return v.nextDraw(), true
+	return nextDraw(v.draws, &v.drawn), true
 }
 
 // nextDraw hands out one span's name. Past the cap it repeats the last drawn
 // name rather than going empty (see MaxChatterDraws); a channel with nobody
 // left to draw renders empty, so {random.chatter|someone} reads naturally.
-func (v *chatterValues) nextDraw() string {
-	if len(v.draws) == 0 {
+// Shared by both draw families — the mechanics (repeat past the cap, empty
+// pool renders empty) are identical, only which slice and cursor differ.
+func nextDraw(draws []string, drawn *int) string {
+	if len(draws) == 0 {
 		return ""
 	}
-	name := v.draws[min(v.drawn, len(v.draws)-1)]
-	v.drawn++
+	name := draws[min(*drawn, len(draws)-1)]
+	*drawn++
 	return name
 }

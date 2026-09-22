@@ -428,10 +428,21 @@ describe('module scope (engine/scope/modules.go mirror)', () => {
   });
 
   test('a payload the Go scope refuses stays literal', () => {
-    for (const span of ['{quote:}', '{quote:seven}', '{quote:0}', '{time:America/Toronto}', '{song:2}']) {
+    for (const span of ['{quote:}', '{quote:seven}', '{quote:0}', '{time:}', '{song:2}']) {
       const [line] = rehearseCommand(span);
       expect(line.segments).toEqual([{ text: span, kind: 'unknown' }]);
     }
+  });
+
+  // Unlike every other payload on this scope, {time:<place>} is NOT an
+  // authoring mistake: it is the ungated place-lookup form (scope.Places'
+  // decision record), so it previews a value rather than staying literal —
+  // and, unlike {quote:n}, a different stand-in from the bare form, so a
+  // template naming both reads as two different clocks.
+  test('{time:<place>} previews a value, not the literal span', () => {
+    const [line] = rehearseCommand('{time} in {touser}, {time:Paris} in Paris');
+    expect(textOf(line.segments)).toBe('3:04 PM in ferret_king, 11:04 PM in Paris');
+    expect(line.segments.every((seg) => seg.kind !== 'unknown')).toBe(true);
   });
 });
 

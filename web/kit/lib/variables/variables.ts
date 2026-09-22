@@ -30,6 +30,7 @@ import {
   COUNTER_SAMPLE,
   FFZ_EMOTES_SAMPLE,
   FOLLOWAGE_SAMPLE,
+  FOLLOWERS_SAMPLE,
   ACCOUNTAGE_SAMPLE,
   GAME_SAMPLE,
   IF_SAMPLE,
@@ -45,10 +46,13 @@ import {
   RANDOM_EMOTE_SAMPLE,
   RANDOM_RANGE_SAMPLE,
   RANDOM_SAMPLE,
+  RANDOM_VIEWER_SAMPLE,
   SEVENTV_EMOTES_SAMPLE,
   SONG_ARTIST_SAMPLE,
   SONG_SAMPLE,
   SONG_TITLE_SAMPLE,
+  SUBS_SAMPLE,
+  TIME_PLACE_SAMPLE,
   TIME_SAMPLE,
   TITLE_SAMPLE,
   TOUSER_SAMPLE,
@@ -162,12 +166,30 @@ export const VARIABLES: readonly VariableDef[] = [
       { syntax: '{quote:<number>}', example: '{quote:12}', output: QUOTE_SAMPLE }
     ]
   },
-  { id: 'time', head: 'time', category: 'utilities', requires: 'time', forms: [{ syntax: '{time}', example: '{time}', output: TIME_SAMPLE }] },
+  {
+    id: 'time',
+    head: 'time',
+    category: 'utilities',
+    requires: 'time',
+    forms: [
+      { syntax: '{time}', example: '{time}', output: TIME_SAMPLE },
+      // Unlike the bare form, a payload needs no Local Time enrollment: it
+      // answers on any channel (docs/specs decision record on {time:<place>}
+      // — see app/twitch/sesame/engine/scope/modules.go's Places), so it is
+      // not gated by `requires` the way the bare form's chip is.
+      { syntax: '{time:<place>}', example: '{time:Paris}', output: TIME_PLACE_SAMPLE }
+    ]
+  },
   { id: 'song', head: 'song', category: 'queue', requires: 'songqueue', forms: [{ syntax: '{song}', example: '{song}', output: SONG_SAMPLE }] },
   { id: 'songTitle', head: 'song.title', category: 'queue', requires: 'songqueue', forms: [{ syntax: '{song.title}', example: '{song.title}', output: SONG_TITLE_SAMPLE }] },
   { id: 'songArtist', head: 'song.artist', category: 'queue', requires: 'songqueue', forms: [{ syntax: '{song.artist}', example: '{song.artist}', output: SONG_ARTIST_SAMPLE }] },
   { id: 'chatters', head: 'chatters', category: 'chat', forms: [{ syntax: '{chatters}', example: '{chatters}', output: CHATTERS_SAMPLE }] },
   { id: 'randomChatter', head: 'random.chatter', category: 'chat', forms: [{ syntax: '{random.chatter}', example: '{random.chatter}', output: RANDOM_CHATTER_SAMPLE }] },
+  // Distinct from random.chatter beside it: who Twitch reports as connected
+  // to chat right now, not who has spoken recently. Neither is gated by a
+  // module (see app/twitch/sesame/engine/scope/chatters.go), so this stays
+  // ungated like its sibling.
+  { id: 'randomViewer', head: 'random.viewer', category: 'chat', forms: [{ syntax: '{random.viewer}', example: '{random.viewer}', output: RANDOM_VIEWER_SAMPLE }] },
   {
     id: 'emotes',
     head: 'emotes',
@@ -217,6 +239,11 @@ export const VARIABLES: readonly VariableDef[] = [
     ]
   },
   { id: 'channelViewers', head: 'channel.viewers', category: 'channel', forms: [{ syntax: '{channel.viewers}', example: '{channel.viewers}', output: CHANNEL_VIEWERS_SAMPLE }] },
+  // Neither has a module toggle of its own (Stream Management has no row for
+  // either), so — like channel.viewers above — mounting follows the
+  // dependency alone; no `requires` here.
+  { id: 'followers', head: 'followers', category: 'channel', forms: [{ syntax: '{followers}', example: '{followers}', output: FOLLOWERS_SAMPLE }] },
+  { id: 'subs', head: 'subs', category: 'channel', forms: [{ syntax: '{subs}', example: '{subs}', output: SUBS_SAMPLE }] },
   // Not on ResponseEditor's chip strip: needs a saved data source first.
   { id: 'urlfetch', head: 'urlfetch', category: 'utilities', forms: [{ syntax: '{urlfetch:<definition>}', example: '{urlfetch:weather}', output: URLFETCH_SAMPLE }] },
 ];

@@ -3680,8 +3680,8 @@
     },
     "time": {
       "name": "Your local time",
-      "hint": "your local time, on the clock face you set (Local time module)",
-      "desc": "The time where you are, on the timezone and clock face you set on the Local time module. Needs that module, with a timezone saved."
+      "hint": "your local time, on the clock face you set (Local time module); {time:Paris} for anywhere else, no module needed",
+      "desc": "The time where you are, on the timezone and clock face you set on the Local time module. Needs that module, with a timezone saved. {time:Paris} looks up a different place instead — a city, a country, an abbreviation like EST or a UTC offset — and works even without the module: it just needs no timezone of its own, only the clock face you picked if you ever set one. A place it does not recognize comes back empty."
     },
     "song": {
       "name": "Now playing",
@@ -3697,6 +3697,11 @@
       "name": "A random chatter",
       "hint": "one of them, picked at random (never you, never the bot)",
       "desc": "The name of one person who has talked recently, picked at random. Never you and never the bot. Two of them in one response are two separate picks, and a silent channel comes back empty."
+    },
+    "randomViewer": {
+      "name": "A random viewer",
+      "hint": "someone in chat right now, picked at random (never you, never the bot)",
+      "desc": "The name of one person Twitch says is in chat right now, picked at random — not someone who has necessarily said anything. Never you and never the bot. Two of them in one response are two separate picks. Right after the bot restarts, before it has loaded who is in chat, it names someone who has spoken recently instead."
     },
     "emotes": {
       "name": "Emote list",
@@ -3727,6 +3732,16 @@
       "name": "Viewers watching",
       "hint": "how many people are watching right now, 0 when you are offline",
       "desc": "How many people are watching right now, straight from Twitch. An offline channel comes back as 0. Bare {channel} stays your channel name."
+    },
+    "followers": {
+      "name": "Follower count",
+      "hint": "your current follower count",
+      "desc": "Your current follower count, straight from Twitch. Takes no payload — it always counts your own channel."
+    },
+    "subs": {
+      "name": "Subscriber count",
+      "hint": "your current subscriber count",
+      "desc": "Your current subscriber count, straight from Twitch. Takes no payload — it always counts your own channel."
     },
     "urlfetch": {
       "name": "Fetched value",

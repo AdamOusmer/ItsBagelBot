@@ -4,6 +4,7 @@
 package scope
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -156,4 +157,92 @@ func TestChatterScopeReadsNothingWhenUnused(t *testing.T) {
 	roster := room(who(1, "sam"))
 	assert.Equal(t, "plain", render(t, "plain", Chain{Chatters{Roster: roster}}, nil))
 	assert.Zero(t, roster.reads)
+}
+
+// fakeViewers answers a canned pool (or a cold miss) and counts the reads.
+type fakeViewers struct {
+	people []Chatter
+	ok     bool
+	reads  int
+}
+
+func (f *fakeViewers) Viewers(context.Context) ([]Chatter, bool) {
+	f.reads++
+	return f.people, f.ok
+}
+
+func viewerPool(people ...Chatter) *fakeViewers { return &fakeViewers{people: people, ok: true} }
+
+// {random.viewer} draws from a DIFFERENT pool than {random.chatter}: the two
+// families are independent, so naming both in one template draws from each
+// source on its own.
+func TestRandomViewerDrawsFromItsOwnPool(t *testing.T) {
+	chain := Chain{Chatters{
+		Roster:      room(who(1, "sam")),
+		Draws:       1,
+		Viewers:     viewerPool(who(2, "lurker")),
+		ViewerDraws: 1,
+		Pick:        roundRobin(),
+	}}
+	assert.Equal(t, "sam saw lurker",
+		render(t, "{random.chatter} saw {random.viewer}", chain, nil))
+}
+
+// This scope's own contract: a Viewers source that answers ok=false renders
+// empty so the fallback speaks, exactly like an empty roster — never literal,
+// and never a wait for a fetch. In production this branch is rare: the
+// engine's real Viewers (chatter_vars.go's viewerSource) degrades a cold or
+// unavailable snapshot to a Roster-backed pool instead of answering ok=false,
+// so it only ever happens through a fake like this one, or a deployment with
+// no roster either. See random_viewer_token_test.go's engine-level coverage
+// of that degrade.
+func TestRandomViewerRendersEmptyOnAColdSnapshot(t *testing.T) {
+	chain := Chain{Chatters{Viewers: &fakeViewers{ok: false}, ViewerDraws: 1}}
+	assert.Equal(t, "hi someone", render(t, "hi {random.viewer|someone}", chain, nil))
+}
+
+// ViewerExclude is {random.viewer}'s own exclusion set, independent of
+// Exclude: a sender excluded from their own draw still appears in the
+// {random.chatter} pool beside it.
+func TestRandomViewerExcludesItsOwnSet(t *testing.T) {
+	chain := Chain{Chatters{
+		Roster:        room(who(5, "sender")),
+		Draws:         1,
+		Viewers:       viewerPool(who(5, "sender"), who(6, "lurker")),
+		ViewerExclude: []uint64{5},
+		ViewerDraws:   2,
+		Pick:          roundRobin(),
+	}}
+	assert.Equal(t, "sender / lurker and lurker",
+		render(t, "{random.chatter} / {random.viewer} and {random.viewer}", chain, nil))
+}
+
+// Without Viewers wired the span renders empty (its fallback fires), the
+// same as an unnamed/empty roster does for {random.chatter} — this scope
+// mounts unconditionally, so nothing here ever stays literal for a
+// broadcaster who spelled it right.
+func TestRandomViewerRendersEmptyWithoutTheDependency(t *testing.T) {
+	chain := Chain{Chatters{Roster: room(who(1, "sam")), Draws: 1, Pick: roundRobin()}}
+	assert.Equal(t, "sam ", render(t, "{random.chatter} {random.viewer}", chain, nil))
+	assert.Equal(t, "sam someone", render(t, "{random.chatter} {random.viewer|someone}", chain, nil))
+}
+
+// A payload stays literal, the same rule the other two tokens follow.
+func TestRandomViewerWithAPayloadStaysLiteral(t *testing.T) {
+	chain := Chain{Chatters{Viewers: viewerPool(who(1, "sam")), ViewerDraws: 1}}
+	assert.Equal(t, "{random.viewer:mods}", render(t, "{random.viewer:mods}", chain, nil))
+}
+
+// The viewer pool is read at most once per run and only when a span actually
+// names it — the same batching {chatters}/{random.chatter} follow.
+func TestChatterScopeReadsViewersOnlyWhenNamed(t *testing.T) {
+	viewers := viewerPool(who(1, "sam"))
+	chain := Chain{Chatters{Viewers: viewers, ViewerDraws: 1}}
+
+	assert.Equal(t, "sam sam", render(t, "{random.viewer} {random.viewer}", chain, nil))
+	assert.Equal(t, 1, viewers.reads)
+
+	viewers2 := viewerPool(who(1, "sam"))
+	render(t, "{chatters}", Chain{Chatters{Roster: room(), Viewers: viewers2}}, nil)
+	assert.Zero(t, viewers2.reads, "ViewerDraws unset (no {random.viewer} span was counted), so the pool is never read")
 }
