@@ -20,8 +20,6 @@ interface EntryCopy {
     formOutput: string;
     available: string;
     needs: string;
-    payload: string;
-    behavior: string;
     aliases: string;
     legacy: string;
     copy: string;
@@ -35,13 +33,13 @@ interface EntryCopy {
 
 interface Props {
     entry: LocalizedVariableReference;
-    categoryLabel: string;
+    groupLabel: string;
     dashboardOrigin: string;
     builderLang: string;
     copy: EntryCopy;
 }
 
-const { entry, categoryLabel, dashboardOrigin, builderLang, copy } = Astro.props;
+const { entry, groupLabel, dashboardOrigin, builderLang, copy } = Astro.props;
 
 // The hint is the collapsed row's one-liner when the source kit variable has
 // one; otherwise the description's first sentence stands in.
@@ -60,16 +58,22 @@ const surfaceCountLabel = copy.surfaceCount.replace('{n}', String(entry.surfaces
 const needsLabel = `${copy.needs} ${entry.requirement}`;
 const composeHref = `${dashboardOrigin}/commands?compose=1&response=${encodeURIComponent(entry.example)}${builderLang ? `&lang=${builderLang}` : ''}`;
 const tryItHintId = `${entry.id}-tryit-hint`;
+// Was the manifest's own `parameterized` field (deleted: docs/specs/
+// variables-catalog.md phase 4, index.ts shrinks to a localizer); the check
+// itself — does this variable's canonical syntax carry a payload placeholder
+// distinct from its worked example — is cheap enough to compute here, once
+// per entry, rather than precompute and thread through every record.
+const parameterized = entry.syntax !== entry.example;
 
 const searchText = [
     entry.id, entry.syntax, ...entry.syntaxes, entry.example,
     ...entry.examples.flatMap((example) => [example.syntax, example.output]),
-    ...aliasSpellings, entry.name, entry.description, entry.category, categoryLabel,
-    ...entry.surfaces.map((surface) => surface.label), entry.requirement, entry.payload,
+    ...aliasSpellings, entry.name, entry.description, entry.group, groupLabel,
+    ...entry.surfaces.map((surface) => surface.label), entry.requirement,
 ].join(' ').toLocaleLowerCase();
 ---
 
-<details class="vref-entry" id={entry.id} data-vref-entry data-category={entry.category} data-surfaces={entry.surfaceIds.join('|')} data-search={searchText}>
+<details class="vref-entry" id={entry.id} data-vref-entry data-category={entry.group} data-surfaces={entry.surfaceIds.join('|')} data-search={searchText}>
     <summary class="vref-entry__row">
         <Code>{entry.syntax}</Code>
         <span class="vref-entry__name">{entry.name}</span>
@@ -85,7 +89,7 @@ const searchText = [
 
         <Forms syntaxes={entry.syntaxes} examples={entry.examples} copy={{ label: `${entry.name} - ${copy.formsLabel}`, formSyntax: copy.formSyntax, formExample: copy.formExample, formOutput: copy.formOutput }} />
 
-        {entry.parameterized && (
+        {parameterized && (
             <div class="vref-tryit">
                 <Field label={copy.tryIt} hint={copy.tryItHint} hintId={tryItHintId}>
                     <input
@@ -105,9 +109,6 @@ const searchText = [
         {aliasSpellings.length > 0 && (
             <p class="vref-entry__line"><span>{copy.aliases}</span> {aliasSpellings.map((alias) => <Code>{alias}</Code>)}{entry.legacy && <em>{copy.legacy}</em>}</p>
         )}
-        {entry.payload && <p class="vref-entry__line"><span>{copy.payload}</span> {entry.payload}</p>}
-        {entry.behavior && <p class="vref-entry__line"><span>{copy.behavior}</span> {entry.behavior}</p>}
-
         {entry.surfaces.length > 0 && (
             <p class="vref-entry__surfaces">
                 <span>{copy.available}</span>

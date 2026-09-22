@@ -59,11 +59,15 @@
     }
   });
 
-  // The insert palette: the built-in's own tokens, each chip tooltip showing the
-  // sample value the rehearsal substitutes (mirrors the module ReplyEditor).
+  // The insert palette: the built-in's own tokens. A token with a hintKey
+  // (e.g. builtin.clip's, see catalog/builtin-commands.ts) shows the
+  // catalog's own copy (replyVars.builtin.<id>.<tok>.hint); the rest fall
+  // back to "{token} → sample", same as before (mirrors the module
+  // ReplyEditor).
   const palette = $derived(
     (def.tokens ?? []).map((tk) => {
       const token = `{${tk.name}}`;
+      if (tk.hintKey) return { token, hint: tk.hintKey };
       return { token, label: tk.sample ? `${token} → ${tk.sample}` : token };
     })
   );

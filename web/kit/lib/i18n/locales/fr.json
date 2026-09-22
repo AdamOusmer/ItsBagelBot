@@ -945,12 +945,6 @@
     "requireInput": "Demander au spectateur de saisir un message avec l’échange",
     "replyToggle": "Le bot répond dans le chat",
     "fieldMessage": "Réponse du bot",
-    "tokUser": "Qui a échangé",
-    "tokInput": "Ce que le spectateur a saisi",
-    "tokReward": "Le nom de la récompense",
-    "tokCost": "Le coût en points",
-    "tokCounter": "La nouvelle valeur du compteur lié",
-    "tokPoints": "Points de fidélité attribués",
     "previewTag": "à l’échange",
     "queueTitle": "File des échanges",
     "queueFulfill": "Valider automatiquement",
@@ -1665,7 +1659,6 @@
     "authHint": "Les clés sont scellées avant stockage et ne sont plus jamais affichées. Seuls le libellé et les 4 derniers caractères restent visibles.",
     "template": "Réponse de répétition",
     "templateHint": "Essayez le jeton dans une ligne comme une réponse de commande. Le test le remplit avec des données réelles.",
-    "badToken": "Jeton malformé. Il resterait visible dans le chat exactement comme ceci :",
     "viewToggle": "Vue de l'éditeur",
     "viewBuilder": "Assistant",
     "viewSource": "Source",
@@ -1786,8 +1779,6 @@
     "costPts": "{n} pts",
     "notSetUp": "Non configurée",
     "removeAria": "Supprimer la récompense pour {name}",
-    "replyTokUser": "{user} pour le spectateur",
-    "replyTokColor": "{color} pour ce qu’il a tapé",
     "defaultTitle": "Colorer {name}",
     "theLights": "les lumières",
     "editorHintNames": "Les spectateurs tapent une couleur lors de l’échange : un nom comme",
@@ -2158,9 +2149,6 @@
     "titleEm": "chaîne",
     "titlePre": "Modules de ",
     "toggleAria": "Basculer {label}",
-    "trigTokChoice": "{choice:a,b,c} → une option au hasard",
-    "trigTokRandom": "{random} → un nombre de 1 à 100",
-    "trigTokUser": "{user} → la personne qui a écrit",
     "triggerReserved": "Cette phrase utilise une syntaxe réservée (=>, un # au début, ou un préfixe mode:). Reformulez-la.",
     "triggerRulesHint": "Répond quand un message correspond à une expression, sans \"!\". La première correspondance l’emporte.",
     "triggerRulesTitle": "Règles de déclenchement",
@@ -3429,9 +3417,6 @@
     "redirectCopy": "Copier",
     "redirectCopyFailed": "Copie impossible. Sélectionnez l'URL et copiez-la manuellement.",
     "removeAria": "Supprimer la récompense de demande de morceau",
-    "replyTokInput": "ce qu'il a tapé",
-    "replyTokTrack": "le titre résolu",
-    "replyTokUser": "le nom du demandeur",
     "rewardRowHint": "Points de chaîne",
     "rewardRowLabel": "Demande de morceau",
     "saveChanges": "Enregistrer les modifications",
@@ -3567,6 +3552,13 @@
     }
   },
   "vars": {
+    "group": {
+      "who": { "label": "Qui" },
+      "typed": { "label": "Ce qu’ils ont tapé" },
+      "stream": { "label": "Votre stream" },
+      "fun": { "label": "Amusement" },
+      "data": { "label": "Vos données" }
+    },
     "user": {
       "name": "Nom du spectateur",
       "hint": "qui a lancé la commande",
@@ -3586,7 +3578,9 @@
       "name": "Numéro de mot",
       "hint": "le mot 1 tapé après la commande; {2} est le suivant, jusqu’à {30}; {2:4} prend une plage",
       "desc": "Le mot 1 tapé après la commande. {2} est le suivant, et ainsi de suite jusqu’à {30}. Vide si ce mot n’a pas été tapé. {2:} reprend d’un mot jusqu’à la fin, en une seule chaîne; changez le numéro pour commencer ailleurs, {1:} reprend tout. {2:4} reprend les mots 2 à 4 de la même façon, et {:2} est la même plage à partir du mot 1 (les deux premiers mots). Demander une fin au-delà du dernier mot tapé s’arrête simplement à ce dernier mot; demander une fin avant le début, comme {4:2}, reste écrit tel quel.",
-      "restHint": "du mot 2 jusqu’à la fin, en une seule chaîne"
+      "restHint": "du mot 2 jusqu’à la fin, en une seule chaîne",
+      "leadingHint": "les 2 premiers mots, en une seule chaîne",
+      "boundedHint": "les mots 2 à 4, en une seule chaîne"
     },
     "channel": {
       "name": "Nom de la chaîne",
@@ -3611,12 +3605,14 @@
     "counter": {
       "name": "Compteur",
       "hint": "affiche la valeur actuelle d’un compteur; {count:…} est la même lecture (Fidélité)",
-      "desc": "Affiche la valeur actuelle d’un compteur sans la modifier. Pour incrémenter un compteur, activez « Incrémenter un compteur » sur la commande elle-même; ceci ne fait que lire ce que cette option (ou !counter) a produit. {counter:target:nom} lit le compteur propre au spectateur mentionné plutôt que celui de la chaîne. Nécessite le module Points de fidélité."
+      "desc": "Affiche la valeur actuelle d’un compteur sans la modifier. Pour incrémenter un compteur, activez « Incrémenter un compteur » sur la commande elle-même; ceci ne fait que lire ce que cette option (ou !counter) a produit. {counter:target:nom} lit le compteur propre au spectateur mentionné plutôt que celui de la chaîne. Nécessite le module Points de fidélité.",
+      "targetHint": "le compteur propre au spectateur mentionné, pas celui de la chaîne"
     },
     "random": {
       "name": "Aléatoire 1-100",
       "hint": "un nombre aléatoire de 1 à 100, ou {random:min-max}",
-      "desc": "Un nombre entier de 1 à 100, différent à chaque fois. {random:1-6} choisit votre propre plage; les deux bornes comptent."
+      "desc": "Un nombre entier de 1 à 100, différent à chaque fois. {random:1-6} choisit votre propre plage; les deux bornes comptent.",
+      "rangeHint": "un nombre aléatoire dans votre propre plage"
     },
     "choice": {
       "name": "Choix aléatoire",
@@ -3701,7 +3697,8 @@
     "time": {
       "name": "Votre heure locale",
       "hint": "votre heure locale, sur le format d’horloge que vous avez choisi (module Heure locale) ; {time:Paris} pour ailleurs, sans module",
-      "desc": "L’heure chez vous, selon le fuseau et le format d’horloge choisis dans le module Heure locale. Nécessite ce module, avec un fuseau enregistré. {time:Paris} consulte plutôt un autre lieu — une ville, un pays, une abréviation comme EST, ou un décalage UTC — et fonctionne même sans le module : il n’a besoin d’aucun fuseau propre, seulement du format d’horloge choisi si vous en avez un. Un lieu inconnu renvoie du vide."
+      "desc": "L’heure chez vous, selon le fuseau et le format d’horloge choisis dans le module Heure locale. Nécessite ce module, avec un fuseau enregistré. {time:Paris} consulte plutôt un autre lieu — une ville, un pays, une abréviation comme EST, ou un décalage UTC — et fonctionne même sans le module : il n’a besoin d’aucun fuseau propre, seulement du format d’horloge choisi si vous en avez un. Un lieu inconnu renvoie du vide.",
+      "placeHint": "l’heure à un lieu que vous nommez, sans module"
     },
     "song": {
       "name": "En cours de lecture",

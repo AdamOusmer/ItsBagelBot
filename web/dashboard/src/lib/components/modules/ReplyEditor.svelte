@@ -46,17 +46,21 @@
 
   const isCommand = $derived(!!reply.command);
   // The reply's own insert palette; undefined keeps ResponseEditor's default
-  // command tokens (event replies define no token list yet). The chip tooltip
-  // shows the sample value the preview substitutes.
+  // command tokens (event replies define no token list yet). The chip
+  // tooltip is the catalog's own copy (replyVars.<ns>.<tok>.hint) when the
+  // token carries a hintKey; otherwise (no Go reply-token namespace yet, see
+  // catalog/triggers.ts) it falls back to "{token} → sample" the way every
+  // chip here used to read.
   // The chip text is BUILT from the catalog's bare token names, so it goes
   // through intactSpan rather than string interpolation: a name carrying '}'
   // or '|' would insert a span the engine re-cuts, and the chip would look
   // right while the reply resolved to something else. A name that cannot be
   // spelled is dropped from the palette instead of being offered broken.
   const palette = $derived(
-    reply.tokens?.flatMap((tk) => {
+    reply.tokens?.flatMap((tk): { token: string; hint?: string; label?: string }[] => {
       const token = intactSpan(tk.name, null);
       if (token === null) return [];
+      if (tk.hintKey) return [{ token, hint: tk.hintKey }];
       return [{ token, label: tk.sample ? `${token} → ${tk.sample}` : token }];
     })
   );

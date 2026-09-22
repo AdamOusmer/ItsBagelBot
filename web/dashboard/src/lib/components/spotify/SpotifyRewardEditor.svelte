@@ -6,6 +6,7 @@
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { Button, Code, Field, EditorFooter, getI18n, type SpotifyRedeemConfig } from '@bagel/kit';
+  import { chipsFor } from '@bagel/kit/variables';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
   import { focusFirstInvalid } from '@bagel/kit';
@@ -27,15 +28,20 @@
   const { t } = getI18n();
 
   const DEFAULT_REPLY = '@{user} queued {track}!';
-  const REPLY_TOKENS = [
-    { token: '{user}', label: t('spotify.replyTokUser') },
-    { token: '{track}', label: t('spotify.replyTokTrack') },
-    { token: '{input}', label: t('spotify.replyTokInput') }
-  ];
+  // Spotify's reward IS the songqueue module's 'redeem' reply (this editor
+  // saves songqueue's replyMessage config key), so its palette reads off the
+  // same songqueue.redeem ModuleReply channelpoints/govee read theirs off,
+  // rather than a hand-kept literal list; chip tooltips come from
+  // replyVars.songqueue.redeem.<tok>.hint.
+  const REPLY_TOKENS = chipsFor('reward:spotify').map((c) => ({ token: c.token, hint: c.hintKey }));
   const replySamples: Record<string, string> = {
     user: t('spotify.previewUserSample'),
     track: 'Never Gonna Give You Up',
-    input: 'rick roll'
+    input: 'rick roll',
+    // Not offered by this component's own default reply, but the catalog's
+    // songqueue.redeem tokens include it (songqueue.ts's own reply uses
+    // "position #{pos}"), so the {pos} chip above needs a sample too.
+    pos: '3'
   };
 
   // Seeded once per mount (the page re-keys this component when switching

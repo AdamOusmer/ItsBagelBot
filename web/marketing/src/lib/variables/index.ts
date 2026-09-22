@@ -20,7 +20,7 @@
  */
 
 import { lex, type VarToken } from '@bagel/kit/engine/tmpl';
-import { VARIABLES as KIT_VARIABLES, type VariableDef } from '@bagel/kit/variables';
+import { VARIABLES as KIT_VARIABLES, type VariableDef, type VariableGroup } from '@bagel/kit/variables';
 import { builtinDef } from '@bagel/kit/catalog/builtin-commands';
 import { moduleDef } from '@bagel/kit/catalog';
 import { SURFACES, kitText, type VarDef as SurfaceVarDef, type SurfaceDef } from '../../i18n/builder';
@@ -30,32 +30,16 @@ import type { Lang } from '../../i18n/lang';
 import type {
   LocaleText,
   VariableAvailability,
-  VariableCategory,
   VariableExample,
-  VariableLexerResult,
   VariableReference,
   LocalizedVariableReference,
 } from './types';
-export type { LocaleText, VariableAvailability, VariableCategory, VariableExample, VariableLexerResult, VariableReference, LocalizedVariableReference };
+export type { LocaleText, VariableAvailability, VariableGroup, VariableExample, VariableReference, LocalizedVariableReference };
 
-/** Left-rail and sort order for the guide page; also the canonical grouping order used everywhere the catalog is walked by category. */
-export const CATEGORY_ORDER: readonly VariableCategory[] = [
-  'basics',
-  'arguments',
-  'counters',
-  'dynamic',
-  'utilities',
-  'viewer',
-  'channel',
-  'chat',
-  'emotes',
-  'alerts',
-  'rewards',
-  'queue',
-  'game-stats',
-];
+/** Left-rail and sort order for the guide page; also the canonical grouping order used everywhere the catalog is walked by group. Same 5 values and order as kit's VariableGroup. */
+export const GROUP_ORDER: readonly VariableGroup[] = ['who', 'typed', 'stream', 'fun', 'data'];
 
-const CATEGORY_RANK = new Map(CATEGORY_ORDER.map((category, index) => [category, index]));
+const GROUP_RANK = new Map(GROUP_ORDER.map((group, index) => [group, index]));
 
 function pickLocale(text: LocaleText, lang: Lang): string {
   return text[lang] ?? text.en;
@@ -67,19 +51,6 @@ function tokenParts(token: string): VarToken | null {
   return tokens[0];
 }
 
-/** Validate a complete concrete or placeholder syntax through the shared lexer. */
-export function validateVariableSyntax(syntax: string): VariableLexerResult {
-  const parsed = tokenParts(syntax);
-  if (parsed === null) return { valid: false, reason: 'The syntax is not exactly one lexer variable token.' };
-  return { valid: true, name: parsed.name, payload: parsed.payload };
-}
-
-/** Validate every syntax and example emitted by a reference record. */
-export function validateVariableReference(reference: Pick<VariableReference, 'syntax' | 'syntaxes' | 'examples' | 'aliasTokens'>): boolean {
-  return [reference.syntax, ...reference.syntaxes, ...reference.aliasTokens, ...reference.examples.map((example) => example.syntax)]
-    .every((syntax) => validateVariableSyntax(syntax).valid);
-}
-
 const ALERT_SURFACES = new Set(['follow', 'subscribe', 'cheer', 'raid']);
 const GAME_SURFACE_PREFIXES = ['bw-', 'mcsr-', 'fn-'];
 const GAME_SURFACES = new Set(['bwstats', 'elo', 'sniper', 'tags']);
@@ -88,27 +59,28 @@ function isGameSurface(surfaceId: string): boolean {
   return GAME_SURFACES.has(surfaceId) || GAME_SURFACE_PREFIXES.some((prefix) => surfaceId.startsWith(prefix));
 }
 
-/** Category for a token that is not one of kit's own variables (a module
- * reply field). Kit-backed records use the manifest's own category instead
- * (see kitRecord below); this only covers the surface-only remainder. */
-function surfaceOnlyCategory(surfaceId: string): VariableCategory {
-  if (ALERT_SURFACES.has(surfaceId)) return 'alerts';
-  if (surfaceId === 'channelpoints') return 'rewards';
-  if (surfaceId.startsWith('queue-')) return 'queue';
-  if (isGameSurface(surfaceId)) return 'game-stats';
-  return 'chat'; // shoutout, triggers, clip, time
+/** Group for a token that is not one of kit's own variables (a module reply
+ * field). Kit-backed records use the manifest's own group instead (see
+ * kitRecord below); this only covers the surface-only remainder, sorted into
+ * the same 5 buckets kit's ids use (docs/specs/variables-catalog.md phase 4;
+ * none of these surface ids were on the phase's explicit list, so this picks
+ * the closest fit the way an unlisted kit id would): alerts announce
+ * something about the stream itself, so 'stream'; a channel-points reward's
+ * fields (cost, counter, points) read like the 'data' bucket's economy
+ * variables; a play queue and every game-stats command are entertainment
+ * content, so 'fun'; everything left (shoutout, triggers, clip, time) is
+ * person-centric — who's being shouted out, who typed the trigger, who owns
+ * the clip, who asked the time — so 'who'. */
+function surfaceOnlyGroup(surfaceId: string): VariableGroup {
+  if (ALERT_SURFACES.has(surfaceId)) return 'stream';
+  if (surfaceId === 'channelpoints') return 'data';
+  if (surfaceId.startsWith('queue-')) return 'fun';
+  if (isGameSurface(surfaceId)) return 'fun';
+  return 'who'; // shoutout, triggers, clip, time
 }
 
 function l10n(key: string): LocaleText {
   return { en: kitText('en', key), fr: kitText('fr', key) };
-}
-
-/** A kit key that only some variables carry (vars.<id>.payload, .behavior):
- * kitText hands back the key itself when a locale lacks it, and a guide line
- * reading "vars.if.behavior" is worse than no line. */
-function optionalL10n(key: string): LocaleText {
-  const text = l10n(key);
-  return text.en === key ? EMPTY_LOCALE : text;
 }
 
 /** Surface-only records have no kit hint key; the guide falls back to the description's first sentence for these. */
@@ -147,10 +119,10 @@ function localizedRequirementLabel(id: string, lang: Lang, fallback: string): st
 }
 
 /** Mutable while surfaces are attached below; frozen by finalizeReference. */
-interface Draft extends Omit<VariableReference, 'syntaxes' | 'examples' | 'categories' | 'aliases' | 'aliasTokens' | 'surfaceIds' | 'surfaces' | 'requirements'> {
+interface Draft extends Omit<VariableReference, 'syntaxes' | 'examples' | 'groups' | 'aliases' | 'aliasTokens' | 'surfaceIds' | 'surfaces' | 'requirements'> {
   syntaxes: string[];
   examples: VariableExample[];
-  categories: VariableCategory[];
+  groups: VariableGroup[];
   aliases: string[];
   aliasTokens: string[];
   surfaceIds: string[];
@@ -163,7 +135,6 @@ interface Draft extends Omit<VariableReference, 'syntaxes' | 'examples' | 'categ
  * become aliases/aliasTokens, requires becomes requirements. */
 function kitRecord(def: VariableDef): Draft {
   const canonical = def.forms[0];
-  const parameterized = canonical.syntax !== canonical.example;
   const syntaxes = def.forms.map((form) => form.syntax);
   const examples = def.forms.map((form) => ({ syntax: form.example, output: form.output, surfaceId: 'custom' }));
   const aliases = [...(def.aliases ?? [])];
@@ -173,11 +144,9 @@ function kitRecord(def: VariableDef): Draft {
   return {
     id: def.id, token: canonical.example, syntax: canonical.syntax, example: canonical.example, output: canonical.output,
     syntaxes, examples, name: l10n(`vars.${def.id}.name`), hint: l10n(`vars.${def.id}.hint`), description: l10n(`vars.${def.id}.desc`),
-    category: def.category, categories: [def.category], aliases, aliasTokens,
+    group: def.group, groups: [def.group], aliases, aliasTokens,
     surfaceIds: [], surfaces: [], requirementIds, requirements, requirement: requirements.join(', '),
-    payload: optionalL10n(`vars.${def.id}.payload`), behavior: optionalL10n(`vars.${def.id}.behavior`), legacy: def.legacy ?? false,
-    parameterized, lexer: validateVariableSyntax(canonical.syntax),
-    lexerValid: validateVariableReference({ syntax: canonical.syntax, syntaxes, examples, aliasTokens }),
+    legacy: def.legacy ?? false,
   };
 }
 
@@ -189,13 +158,13 @@ function kitRecord(def: VariableDef): Draft {
 function surfaceOnlyRecord(name: string, varCopy: SurfaceVarDef, surfaceId: string): Draft {
   const { token, sample } = varCopy;
   const syntax = `{${name}}`;
+  const group = surfaceOnlyGroup(surfaceId);
   return {
     id: name, token, syntax, example: token, output: sample,
     syntaxes: [syntax], examples: [{ syntax: token, output: sample, surfaceId }],
-    name: varCopy.name, hint: EMPTY_LOCALE, description: varCopy.desc, category: surfaceOnlyCategory(surfaceId), categories: [surfaceOnlyCategory(surfaceId)],
+    name: varCopy.name, hint: EMPTY_LOCALE, description: varCopy.desc, group, groups: [group],
     aliases: [], aliasTokens: [], surfaceIds: [], surfaces: [], requirementIds: [], requirements: [], requirement: '',
-    payload: EMPTY_LOCALE, behavior: EMPTY_LOCALE, legacy: false, parameterized: false,
-    lexer: validateVariableSyntax(syntax), lexerValid: validateVariableReference({ syntax, syntaxes: [syntax], examples: [], aliasTokens: [] }),
+    legacy: false,
   };
 }
 
@@ -211,8 +180,8 @@ function addExample(record: Draft, token: string, sample: string, surfaceId: str
 }
 
 function finalizeReference(draft: Draft): VariableReference {
-  const categories = [...draft.categories].sort((a, b) => (CATEGORY_RANK.get(a) ?? 99) - (CATEGORY_RANK.get(b) ?? 99));
-  return { ...draft, category: categories[0], categories };
+  const groups = [...draft.groups].sort((a, b) => (GROUP_RANK.get(a) ?? 99) - (GROUP_RANK.get(b) ?? 99));
+  return { ...draft, group: groups[0], groups };
 }
 
 function buildCatalog(): VariableReference[] {
@@ -250,16 +219,22 @@ function buildCatalog(): VariableReference[] {
   }
 
   return [...byId.values()].map(finalizeReference).sort((a, b) => {
-    const category = (CATEGORY_RANK.get(a.category) ?? 99) - (CATEGORY_RANK.get(b.category) ?? 99);
-    return category || a.id.localeCompare(b.id);
+    const group = (GROUP_RANK.get(a.group) ?? 99) - (GROUP_RANK.get(b.group) ?? 99);
+    return group || a.id.localeCompare(b.id);
   });
 }
 
+// No lexer-safety throw here any more (was validateVariableCatalog):
+// buildCatalog's own tokenParts() null-check above already skips any
+// surface token that is not exactly one lexer var span before
+// surfaceOnlyRecord ever sees it, and every kitRecord's syntax/examples come
+// straight from a kit VariableDef's forms, which kit's own
+// variables/parity.test.ts rule C already asserts lex to exactly one token.
+// A second lexer pass here was checking the same guarantee twice through two
+// different implementations of the same check (docs/specs/
+// variables-catalog.md phase 4: this file shrinks to a localizer).
 /** Canonical, exhaustive family list. The array and its records are immutable. */
 const BUILT_VARIABLES = buildCatalog();
-if (!validateVariableCatalog(BUILT_VARIABLES)) {
-  throw new Error('The variable reference contains syntax that the shared lexer would parse differently.');
-}
 export const VARIABLES: readonly VariableReference[] = Object.freeze(BUILT_VARIABLES.map((reference) => Object.freeze(reference)));
 
 /** Return the complete reference with copy localized for one marketing locale. */
@@ -273,8 +248,6 @@ export function variableReferenceData(lang: Lang): readonly LocalizedVariableRef
       name: pickLocale(reference.name, lang),
       hint: pickLocale(reference.hint, lang),
       description: pickLocale(reference.description, lang),
-      payload: pickLocale(reference.payload, lang),
-      behavior: pickLocale(reference.behavior, lang),
       surfaces: reference.surfaces.map((surface) => ({
         id: surface.id,
         group: pickLocale(surface.group, lang),
@@ -300,12 +273,7 @@ export function variableSearchText(reference: VariableReference, lang: Lang = 'e
     localized.name,
     localized.description,
     ...localized.requirements,
-    ...localized.categories,
+    ...localized.groups,
     ...localized.surfaces.flatMap((surface) => [surface.id, surface.group, surface.label]),
   ].join(' ').toLocaleLowerCase();
-}
-
-/** All records currently shipped by the catalog must remain lexer-safe. */
-export function validateVariableCatalog(records: readonly VariableReference[] = VARIABLES): boolean {
-  return records.every((reference) => reference.lexerValid && validateVariableReference(reference));
 }

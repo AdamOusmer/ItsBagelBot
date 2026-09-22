@@ -945,12 +945,6 @@
     "requireInput": "Ask the viewer to type a message with the redeem",
     "replyToggle": "Bot replies in chat",
     "fieldMessage": "Chat reply",
-    "tokUser": "Who redeemed it",
-    "tokInput": "What the viewer typed",
-    "tokReward": "The reward name",
-    "tokCost": "The point cost",
-    "tokCounter": "The bound counter’s new value",
-    "tokPoints": "Loyalty points awarded",
     "previewTag": "on redeem",
     "queueTitle": "Redemption queue",
     "queueFulfill": "Complete it automatically",
@@ -1665,7 +1659,6 @@
     "authHint": "Keys are sealed before storage and never shown again. You see only the label and the last 4 characters.",
     "template": "Rehearsal response",
     "templateHint": "Try the token in a line like a command reply. Test run fills it with real data.",
-    "badToken": "Malformed token. It would stay visible in chat exactly like this:",
     "viewToggle": "Editor view",
     "viewBuilder": "Builder",
     "viewSource": "Source",
@@ -1786,8 +1779,6 @@
     "costPts": "{n} pts",
     "notSetUp": "Not set up",
     "removeAria": "Remove the reward for {name}",
-    "replyTokUser": "{user} for the viewer",
-    "replyTokColor": "{color} for what they typed",
     "defaultTitle": "Colour the {name}",
     "theLights": "lights",
     "editorHintNames": "Viewers type a colour when they redeem: a name like",
@@ -2158,9 +2149,6 @@
     "titleEm": "modules",
     "titlePre": "Channel ",
     "toggleAria": "Toggle {label}",
-    "trigTokChoice": "{choice:a,b,c} → a random option",
-    "trigTokRandom": "{random} → a number 1-100",
-    "trigTokUser": "{user} → the chatter",
     "triggerReserved": "That phrase uses reserved syntax (=>, a leading #, or a mode: prefix). Please rephrase it.",
     "triggerRulesHint": "Reply when a message matches a phrase, no \"!\" needed. First match wins.",
     "triggerRulesTitle": "Trigger rules",
@@ -3429,9 +3417,6 @@
     "redirectCopy": "Copy",
     "redirectCopyFailed": "Could not copy. Select the URL and copy it manually.",
     "removeAria": "Remove the song-request reward",
-    "replyTokInput": "what they typed",
-    "replyTokTrack": "the resolved track title",
-    "replyTokUser": "the requester's name",
     "rewardRowHint": "Channel points",
     "rewardRowLabel": "Song request",
     "saveChanges": "Save changes",
@@ -3567,6 +3552,13 @@
     }
   },
   "vars": {
+    "group": {
+      "who": { "label": "Who" },
+      "typed": { "label": "What they typed" },
+      "stream": { "label": "Your stream" },
+      "fun": { "label": "Fun" },
+      "data": { "label": "Your data" }
+    },
     "user": {
       "name": "Viewer name",
       "hint": "who ran the command",
@@ -3586,7 +3578,9 @@
       "name": "Word number",
       "hint": "word 1 typed after the command; {2} is the next one, up to {30}; {2:4} takes a range",
       "desc": "Word 1 typed after the command. {2} is the next one, and so on up to {30}. Empty when that word was not typed. {2:} takes a word through to the end, as one string; change the number to start elsewhere, {1:} is the whole thing. {2:4} takes words 2 through 4 the same way, and {:2} is the same range starting at word 1 (the first two words). Naming an end past the last word actually typed just stops at that last word; naming the end before the start, like {4:2}, is left exactly as written.",
-      "restHint": "word 2 through to the end, as one string"
+      "restHint": "word 2 through to the end, as one string",
+      "leadingHint": "the first 2 words, as one string",
+      "boundedHint": "words 2 through 4, as one string"
     },
     "channel": {
       "name": "Channel name",
@@ -3611,12 +3605,14 @@
     "counter": {
       "name": "Counter",
       "hint": "shows a counter's current value; {count:…} is the same read (Loyalty)",
-      "desc": "Shows a counter's current value without changing it. To add to a counter, turn on \"Bump a counter\" on the command itself; this only reads whatever that option (or !counter) has produced. {counter:target:name} reads the mentioned viewer's own count instead of the channel's. Needs the Loyalty Points module."
+      "desc": "Shows a counter's current value without changing it. To add to a counter, turn on \"Bump a counter\" on the command itself; this only reads whatever that option (or !counter) has produced. {counter:target:name} reads the mentioned viewer's own count instead of the channel's. Needs the Loyalty Points module.",
+      "targetHint": "the mentioned viewer's own count, not the channel's"
     },
     "random": {
       "name": "Random 1-100",
       "hint": "a random number from 1 to 100, or {random:min-max}",
-      "desc": "A whole number from 1 to 100, new every time. {random:1-6} picks your own range; both ends included."
+      "desc": "A whole number from 1 to 100, new every time. {random:1-6} picks your own range; both ends included.",
+      "rangeHint": "a random number in your own range"
     },
     "choice": {
       "name": "Random choice",
@@ -3701,7 +3697,8 @@
     "time": {
       "name": "Your local time",
       "hint": "your local time, on the clock face you set (Local time module); {time:Paris} for anywhere else, no module needed",
-      "desc": "The time where you are, on the timezone and clock face you set on the Local time module. Needs that module, with a timezone saved. {time:Paris} looks up a different place instead — a city, a country, an abbreviation like EST or a UTC offset — and works even without the module: it just needs no timezone of its own, only the clock face you picked if you ever set one. A place it does not recognize comes back empty."
+      "desc": "The time where you are, on the timezone and clock face you set on the Local time module. Needs that module, with a timezone saved. {time:Paris} looks up a different place instead — a city, a country, an abbreviation like EST or a UTC offset — and works even without the module: it just needs no timezone of its own, only the clock face you picked if you ever set one. A place it does not recognize comes back empty.",
+      "placeHint": "the time at a place you name, no module needed"
     },
     "song": {
       "name": "Now playing",
