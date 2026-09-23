@@ -59,6 +59,7 @@ const PREFIX_KIND: readonly (readonly [string, AuditKind])[] = [
   ['staff_', 'staff'],
   ['shard_', 'fleet'],
   ['lane_', 'fleet'],
+  ['deploy_', 'fleet'],
   ['db_credential_', 'config'],
   ['bot_counter_', 'config'],
   ['send_notification', 'messaging'],

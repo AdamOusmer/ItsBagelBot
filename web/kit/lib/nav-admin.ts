@@ -27,6 +27,7 @@ export type AdminSectionId =
   | 'trials'
   | 'lanes'
   | 'events'
+  | 'deploys'
   | 'users'
   | 'notifications'
   | 'giveaways'
@@ -65,6 +66,9 @@ export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
   { id: 'trials', group: 'operate', labelKey: 'adminNav.trials', icon: 'pulse', href: '/trials', match: ['/trials'], minRole: 'admin' },
   { id: 'lanes', group: 'operate', labelKey: 'adminNav.lanes', icon: 'lanes', href: '/lanes', match: ['/lanes'] },
   { id: 'events', group: 'operate', labelKey: 'adminNav.events', icon: 'pulse', href: '/events', match: ['/events'] },
+  // Operate, not Access: it runs the release train rather than granting
+  // anything. Owner-only like /secrets (ROLE_FOR['deploys.manage']).
+  { id: 'deploys', group: 'operate', labelKey: 'adminNav.deploys', icon: 'github', href: '/deploys', match: ['/deploys'], minRole: 'owner' },
   { id: 'users', group: 'accounts', labelKey: 'adminNav.users', icon: 'users', href: '/users', match: ['/users'] },
   {
     id: 'notifications',
