@@ -1,0 +1,545 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+# Console dashboard (SvelteKit SSR). Public at https://dashboard.itsbagelbot.com
+# via cloudflared -> traefik. Replaces the Go `dashboard` tier.
+#
+# HA + cross-pod sessions
+#   Sessions are stateless: an AES-256-GCM encrypted cookie (SESSION_KEY, shared
+#   to every replica via the Doppler secret) and SvelteKit's origin-checked CSRF.
+#   No per-pod state, so ANY pod can serve ANY request. That is why this deploy
+#   drops the old sticky-cookie affinity entirely -> true HA (lose a pod or a
+#   whole city, every other pod still serves the same sessions).
+#
+# Region (edge) routing across the 3 cities
+#   Nodes must be labelled per city, with zone == city so "same zone" means
+#   "same city":
+#     kubectl label node <n> topology.kubernetes.io/region=<city> \
+#                            topology.kubernetes.io/zone=<city> --overwrite
+#   Path: Cloudflare edge -> closest cloudflared connector (per-node DaemonSet)
+#   -> node-local traefik (per-node DaemonSet, Service PreferSameZone). traefik then
+#   routes to THIS Service's ClusterIP (nativeLB: true below) instead of load-
+#   balancing pod endpoints directly, so it inherits trafficDistribution:
+#   PreferSameZone and keeps the request inside the entry city, spilling to another
+#   city only when the local pods are gone.
+#
+# Secrets: uses the Doppler-synced `dashboard-env` secret (project dashboard /
+# config prd) that the old Go tier used - same TWITCH_CLIENT_ID/
+# SECRET, authenticated NATS creds (NATS_HOST/PORT/USER/PASSWORD), and the 32-byte
+# DASHBOARD_SESSION_KEY (mapped to SESSION_KEY below). OAuth callbacks that
+# must also live in that config: TWITCH_REDIRECT_URI and SPOTIFY_REDIRECT_URI
+# (https://dashboard.itsbagelbot.com/spotify/callback, fleet-wide: each
+# broadcaster pastes the same URL into their own Spotify app). The Nightbot
+# config importer needs NIGHTBOT_CLIENT_ID/NIGHTBOT_CLIENT_SECRET (app at
+# nightbot.tv/account/applications) and NIGHTBOT_REDIRECT_URI
+# (https://dashboard.itsbagelbot.com/settings/import/nightbot/callback —
+# must byte-match the registered value); absent keys degrade the wizard to a
+# readable "not configured" error, never a 500. Billing links
+# are also read from this secret when present: TEBEX_PREMIUM_CHECKOUT_URL opens the
+# hosted checkout, and TEBEX_CANCEL_URL opens Tebex subscription management.
+apiVersion: secrets.doppler.com/v1alpha1
+kind: DopplerSecret
+metadata:
+  name: dashboard-env
+  namespace: app
+spec:
+  host: https://api.doppler.com
+  tokenSecret:
+    name: dashboard-doppler-token
+  managedSecret:
+    name: dashboard-env
+    namespace: app
+    type: Opaque
+  resyncSeconds: 60
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: console-dashboard
+  namespace: app
+  annotations:
+    secrets.doppler.com/reload: "true"
+spec:
+  replicas: 3 # one per schedulable node (node2, node3, node4; no worker toleration)
+  revisionHistoryLimit: 3
+  minReadySeconds: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: console-dashboard
+  template:
+    metadata:
+      labels:
+        app: console-dashboard
+    spec:
+      # Hard guard: the dashboard must NEVER run on the worker pool. The taint
+      # already repels it (no toleration here), this required nodeAffinity makes
+      # it impossible even if a toleration is ever added by mistake.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: role
+                    operator: NotIn
+                    values: ["worker"]
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: console-dashboard
+          matchLabelKeys:
+            - pod-template-hash
+      # DaemonSet placement keeps one dashboard pod per schedulable node, so
+      # cloudflared -> traefik can prefer a local backend on every node.
+      # Resolve external hosts (Twitch OAuth login) without the cluster
+      # search-domain fan-out (ndots:1) and serialize A/AAAA to dodge the
+      # conntrack race; cap any DNS stall well under a few seconds.
+      # Resolver options, uniform across every first-party workload.
+      #
+      # ndots 1, not the kubelet default of 5: under ndots:5 any name with
+      # fewer than 5 dots is tried against all three search domains BEFORE
+      # being tried as written, so a 4-dot cluster FQDN costs 4 queries and
+      # an external name like api.twitch.tv costs 4 too -- three guaranteed
+      # NXDOMAINs, then the answer. Measured on coredns 2026-08-20: 16704
+      # denial cache hits against 10368 success hits, so 62% of everything
+      # served was the junk half of that expansion.
+      #
+      # single-request-reopen: glibc sends the A and AAAA queries in parallel
+      # from one socket; the two replies can race in conntrack and one gets
+      # dropped, which costs a full resolver timeout. Reopening the socket
+      # for the second query removes the race.
+      #
+      # timeout 1 + attempts 3, rather than the previous 2/2 and the glibc
+      # default 5/2. A dropped UDP packet costs 1s instead of 5s, and 3s
+      # worst case instead of 10s. The 1s matters specifically because Valkey
+      # Sentinel resolves hostnames inside its event loop and declares "tilt"
+      # -- refusing failover for a fixed 30s -- when that loop stalls beyond
+      # 2s. At timeout 2 a single lost packet sat exactly on that threshold.
+      # See deploy/cache/valkey.yaml for the measurement that found it.
+      dnsConfig:
+        options:
+          - {name: ndots, value: "1"}
+          - {name: single-request-reopen}
+          - {name: timeout, value: "1"}
+          - {name: attempts, value: "3"}
+      securityContext:
+        # Keep the congestion window across an idle gap. This sysctl is
+        # per-netns: the nodes run 0, but a pod netns inherits the kernel
+        # default 1 and resets cwnd to initcwnd after one idle RTO, so the
+        # first burst on a lane that has been quiet crawls back through slow
+        # start. Both ends of a connection need it. See deploy/messaging/
+        # nats.yaml for the full note and the kubelet prerequisite.
+        sysctls:
+          - name: net.ipv4.tcp_slow_start_after_idle
+            value: "0"
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      priorityClassName: bagel-edge
+      containers:
+        - name: console-dashboard
+          image: ghcr.io/adamousmer/itsbagelbot/console-dashboard:v0.2.2-beta@sha256:9de6638346662314c11d3e23377d9ae8b9b8f52c4a6cc2cab3bf9bf4d3e45434
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PORT
+              value: "3000"
+            # Serve HTTPS from serve-node.js (bun) using the cert-manager
+            # console-dashboard-tls cert, so the traefik->console hop is TLS.
+            # Traefik re-encrypts via the console-dashboard-transport
+            # ServersTransport.
+            - name: TLS_CERT_FILE
+              value: /etc/console/tls/tls.crt
+            - name: TLS_KEY_FILE
+              value: /etc/console/tls/tls.key
+            # mTLS client identity for both NATS planes (nats-client-tls,
+            # cert-manager). Presented on every dial; harmless until the
+            # listeners flip verify:true.
+            - name: NATS_CLIENT_CERT_FILE
+              value: /etc/nats-client/tls/tls.crt
+            - name: NATS_CLIENT_KEY_FILE
+              value: /etc/nats-client/tls/tls.key
+            - name: NODE_ENV
+              value: production
+            # The bun-hosted adapter-node handler sits behind cloudflared+traefik. The app answers
+            # under three public hostnames (dashboard., stats. and
+            # commands.itsbagelbot.com),
+            # so instead of pinning one ORIGIN it derives each request's origin
+            # from traefik's forwarded headers: traefik always sets both, and
+            # overwrites client-supplied values, so the origin-checked CSRF on
+            # form POSTs stays sound. The stats host reroutes '/' to the public
+            # stats page in the app (src/hooks.ts).
+            - name: PROTOCOL_HEADER
+              value: x-forwarded-proto
+            - name: HOST_HEADER
+              value: x-forwarded-host
+            # Pin the in-cluster NATS endpoint. The Doppler secret's NATS_HOST is
+            # a stale cross-namespace FQDN (nats.bagelbot...) that does not
+            # resolve here; NATS_URL overrides it. Auth (NATS_USER/PASSWORD) still
+            # comes from the secret.
+            # Split planes: the BUS / JetStream connection dials the hub directly
+            # (NATS_HUB_URL) so stream traffic never pays a leaf forwarding hop;
+            # the RPC + cache plane (NATS_RPC_URL / NATS_LEAF_URL) stays on the
+            # node-local leaf. NATS_URL is the local-dev fallback only.
+            - name: NATS_URL
+              value: tls://nats-leaf.messaging:4222
+            - name: NATS_HUB_URL
+              value: tls://nats.messaging:4222
+            # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS
+            # server's native-TLS cert; read as RootCAs by pkg/bus (Go services)
+            # and the console nats lib (TS).
+            - name: NATS_CA_PEM
+              valueFrom:
+                configMapKeyRef:
+                  name: fleet-ca
+                  key: ca.pem
+            - name: VALKEY_TLS_CA_PEM
+              valueFrom:
+                configMapKeyRef:
+                  name: fleet-ca
+                  key: ca.pem
+            - name: VALKEY_ADDR
+              # Authoritative here, not in Doppler: dashboard-env/console-admin-env
+              # still carry valkey.valkey.svc.cluster.local from before the cache
+              # moved to its own namespace, and that name is NXDOMAIN: every
+              # node-local read failed, the read breaker sat open, and the session
+              # revocation check failed open on every request. The sentinel address
+              # was already right, which is why writes landed and only reads broke.
+              # An explicit env entry wins over envFrom, so the stale copy is inert.
+              # The port is cosmetic: valkeyEndpoint rewrites it to the TLS port
+              # whenever a CA is present, which it is (VALKEY_TLS_CA_PEM below).
+              value: valkey-local.cache.svc.cluster.local:6380
+            - name: VALKEY_TLS_SERVER_NAME
+              value: valkey.cache.svc.cluster.local
+            - name: VALKEY_TLS_CLIENT_CERT_FILE
+              value: /etc/valkey/client-tls/tls.crt
+            - name: VALKEY_TLS_CLIENT_KEY_FILE
+              value: /etc/valkey/client-tls/tls.key
+            - name: NATS_RPC_URL
+              value: tls://nats-leaf.messaging:4222
+            - name: NATS_LEAF_URL
+              value: tls://nats-leaf.messaging:4222
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            # Per-process L1 cache bound. The default is also 1,000; keep it
+            # explicit here so production tuning is visible and independent of
+            # the admin console's smaller working set.
+            - name: DASHBOARD_L1_CACHE_CAPACITY
+              value: "1000"
+            - name: NATS_PROJECTOR_DASHBOARD_SUBJECT_PREFIX
+              value: bagel.rpc.projector.dashboard
+            - name: NATS_NOTIFICATIONS_SUBJECT_PREFIX
+              value: bagel.rpc.notifications
+            # Reuse the old tier's 32-byte AES key as the session key.
+            - name: SESSION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: dashboard-env
+                  key: DASHBOARD_SESSION_KEY
+            # Ed25519 PUBLIC key (base64 SPKI DER) for verifying view-as handoff
+            # tokens minted by console-admin. The dashboard never holds the
+            # private half, so a dashboard compromise cannot forge view-as links.
+            - name: IMPERSONATION_PUBLIC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: dashboard-env
+                  key: IMPERSONATION_PUBLIC_KEY
+            # New Relic APM (agent preloaded in the Containerfile). License key
+            # comes from the Doppler secret via envFrom; app name is explicit so
+            # it reports as its own entity.
+            - name: NEW_RELIC_APP_NAME
+              value: console-dashboard
+            - name: NEW_RELIC_NO_CONFIG_FILE
+              value: "true"
+            - name: NEW_RELIC_DISTRIBUTED_TRACING_ENABLED
+              value: "true"
+            - name: NEW_RELIC_LOG
+              value: stdout
+            - name: NEW_RELIC_LOG_LEVEL
+              value: info
+            # bun works with the JS agent once Node/V8 addons are absent.
+            # Console images strip @newrelic/fn-inspect (and native-metrics,
+            # pprof); bun dlopens a present .node and aborts, which is how
+            # the first v0.2.2-beta digest 502'd dashboard. CLM require() of
+            # fn-inspect now fails closed and falls back to function name.
+            - name: NEW_RELIC_SPAN_EVENTS_ENABLED
+              value: "true"
+            - name: NEW_RELIC_CODE_LEVEL_METRICS_ENABLED
+              value: "true"
+            # Logs-in-context: the cluster Fluent Bit DaemonSet already forwards
+            # stdout to New Relic, so the agent must NOT forward too (double-send).
+            # It decorates stdout with trace/entity linking metadata and emits
+            # log-level metrics, so forwarded logs correlate back to APM traces.
+            - name: NEW_RELIC_APPLICATION_LOGGING_ENABLED
+              value: "true"
+            - name: NEW_RELIC_APPLICATION_LOGGING_FORWARDING_ENABLED
+              value: "false"
+            - name: NEW_RELIC_APPLICATION_LOGGING_LOCAL_DECORATING_ENABLED
+              value: "true"
+            - name: NEW_RELIC_APPLICATION_LOGGING_METRICS_ENABLED
+              value: "true"
+            # Entity labels for filtering; pod name as the process display name.
+            - name: NEW_RELIC_LABELS
+              value: "service:console-dashboard;tier:web;component:ssr"
+            - name: NEW_RELIC_PROCESS_HOST_DISPLAY_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          # TWITCH_CLIENT_ID/SECRET/REDIRECT_URI + NATS_HOST/PORT/USER/PASSWORD
+          # from the existing Doppler-synced secret.
+          envFrom:
+            - secretRef:
+                name: dashboard-env
+          ports:
+            - containerPort: 3000
+          volumeMounts:
+            - {name: nats-client-tls, mountPath: /etc/nats-client/tls, readOnly: true}
+            - {name: tls, mountPath: /etc/console/tls, readOnly: true}
+            - {name: valkey-client-tls, mountPath: /etc/valkey/client-tls, readOnly: true}
+          resources:
+            requests:
+              cpu: 25m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          lifecycle:
+            preStop:
+              # Give kube-proxy / traefik time to drain this endpoint
+              # before SIGTERM fires. Prevents connection-refused 500s during rolls.
+              sleep:
+                seconds: 10
+          # scheme HTTPS: the server now terminates TLS on 3000 (see serve-node.js).
+          livenessProbe:
+            httpGet: {path: /healthz, port: 3000, scheme: HTTPS}
+            periodSeconds: 30
+          readinessProbe:
+            httpGet: {path: /readyz, port: 3000, scheme: HTTPS}
+            periodSeconds: 10
+      terminationGracePeriodSeconds: 45
+      tolerations:
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+      volumes:
+        - name: nats-client-tls
+          secret:
+            secretName: nats-client-tls
+        - name: tls
+          secret:
+            secretName: console-dashboard-tls
+        - name: valkey-client-tls
+          secret:
+            secretName: valkey-client-tls
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: console-dashboard
+  namespace: app
+spec:
+  # Region-aware: prefer same-city (zone==city) endpoints; spill cross-city only
+  # when no local pod is ready. traefik uses this ClusterIP via nativeLB.
+  trafficDistribution: PreferSameNode
+  selector:
+    app: console-dashboard
+  ports:
+    - name: https
+      port: 443
+      targetPort: 3000
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: console-dashboard
+  namespace: app
+spec:
+  entryPoints: [websecure]
+  routes:
+    # The app serves /status, /healthz, /readyz on any hostname, and its rate
+    # limiter exempts exactly those paths (kubelet probes). On the public app
+    # hostnames they must not answer: rewrite them to a path no route claims,
+    # so the app renders its own 404 page under a genuine 404 status, and the
+    # rewritten path falls out of the RATE_EXEMPT set, so the read-tier limiter
+    # applies again. The longer rule out-prioritizes the catch-all below
+    # (traefik auto-priority is rule length). The status page's real route,
+    # health.itsbagelbot.com/console (status-routes.yaml), matches neither.
+    - match: >-
+        (Host(`dashboard.itsbagelbot.com`) || Host(`stats.itsbagelbot.com`) ||
+         Host(`commands.itsbagelbot.com`) || Host(`leaderboard.itsbagelbot.com`)) &&
+        (Path(`/status`) || Path(`/healthz`) || Path(`/readyz`))
+      kind: Rule
+      middlewares: [{name: dashboard-ratelimit}, {name: health-mask}]
+      services:
+        - name: console-dashboard
+          port: 443
+          scheme: https
+          serversTransport: console-dashboard-transport
+          nativeLB: true
+    # Unauthenticated brute-force surface: OAuth redirects/callbacks and
+    # session escalation. Humans hit these a handful of times, so the auth
+    # tier is far tighter than the general one. Longer rule out-prioritizes
+    # the host-only catch-all below. /spotify/ is the BYO-app connect +
+    # callback (the fleet redirect URI); without it those hits would share the
+    # general rate limit with every HTML and asset request.
+    - match: >-
+        (Host(`dashboard.itsbagelbot.com`) || Host(`stats.itsbagelbot.com`) ||
+         Host(`commands.itsbagelbot.com`) || Host(`leaderboard.itsbagelbot.com`)) &&
+        (PathPrefix(`/auth/`) || PathPrefix(`/delegate/`) || PathPrefix(`/spotify/`))
+      kind: Rule
+      middlewares: [{name: dashboard-auth-ratelimit}]
+      services:
+        - name: console-dashboard
+          port: 443
+          scheme: https
+          serversTransport: console-dashboard-transport
+          nativeLB: true
+    # commands.itsbagelbot.com is the short host the bot hands out for a
+    # channel's public command page (!cmd -> <host>/user/<login>). Same app,
+    # no reroute: the path is already /user/<login> on every hostname. It has
+    # to be matched here even though the tunnel's *.itsbagelbot.com rule
+    # already delivers it -- traefik's unrouted-host fallback proxies stray
+    # hostnames to the marketing site, so an unlisted host serves the wrong
+    # page rather than 404ing visibly.
+    #
+    # leaderboard.itsbagelbot.com/<user> is the same shape one level up: a
+    # branded short host over an ordinary app route (the root-level [user]
+    # route, which host-guards itself so no other hostname serves it).
+    - match: >-
+        Host(`dashboard.itsbagelbot.com`) || Host(`stats.itsbagelbot.com`) ||
+        Host(`commands.itsbagelbot.com`) || Host(`leaderboard.itsbagelbot.com`)
+      kind: Rule
+      middlewares: [{name: dashboard-ratelimit}, {name: dashboard-compress}]
+      services:
+        - name: console-dashboard
+          port: 443
+          # HTTPS to the backend: serve-node.js now terminates TLS, so traefik
+          # re-encrypts via the ServersTransport below (rootCAs = the cert's own
+          # fleet-CA ca.crt). This makes the traefik->console hop TLS end-to-end.
+          scheme: https
+          serversTransport: console-dashboard-transport
+          # Route to the Service ClusterIP (not pod endpoints) so traefik
+          # inherits the Service's PreferSameZone region routing. No sticky cookie:
+          # sessions are stateless, so any in-region pod is interchangeable.
+          nativeLB: true
+  tls: {}
+---
+# Rewrites the masked health paths to one the SvelteKit router has no route
+# for; the app answers with its branded 404 page. The path is namespaced so a
+# future real route can never collide with it by accident.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: health-mask
+  namespace: app
+spec:
+  replacePath:
+    path: /__health-masked
+---
+# Per-IP limits for anonymous traffic on the public console hostnames. The
+# app's Valkey limiter keys on session user id only (client IPs are never
+# written to Valkey, hard policy), so unauthenticated requests are bounded
+# here instead. Keyed on CF-Connecting-IP, not the source address: all public
+# traffic arrives through cloudflared, and with no forwardedHeaders trust
+# configured traefik would otherwise see every request as the cloudflared
+# pod. In-memory per traefik instance (one per node), so the fleet-wide cap
+# is nodes x the figures below; sized generously because a first page load
+# fetches dozens of /_app assets through this same router and CGNAT can put
+# many real users behind one address.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: dashboard-ratelimit
+  namespace: app
+spec:
+  rateLimit:
+    average: 20
+    burst: 100
+    sourceCriterion:
+      requestHeaderName: CF-Connecting-IP
+---
+# Auth tier: 10 requests a minute with a burst of 10 mirrors the app's old
+# anonymous auth bucket (capacity 10, refill 10/min). Brute-force target;
+# legitimate users touch these paths a handful of times per session.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: dashboard-auth-ratelimit
+  namespace: app
+spec:
+  rateLimit:
+    average: 10
+    period: 1m
+    burst: 10
+    sourceCriterion:
+      requestHeaderName: CF-Connecting-IP
+---
+# Compresses compressible responses on the origin leg of the tunnel. Browsers
+# already receive brotli compressed at the Cloudflare edge regardless of what
+# the origin sends, but everything between CF and the pod travels uncompressed
+# today: every uncached HTML page, __data.json and JSON endpoint leaves the
+# nodes at full size. gzip here cuts that leg roughly 70%, which is the whole
+# point given the goal of reducing node outgress.
+#
+# text/event-stream MUST stay excluded: /events and /stats/stream stream
+# indefinitely, and the compression middleware buffers responses, which turns
+# both into a broken stream that never flushes. Pre-compressed formats are
+# excluded because compressing them again costs CPU for ~0% size gain.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: dashboard-compress
+  namespace: app
+spec:
+  compress:
+    excludedContentTypes:
+      - text/event-stream
+      - application/grpc
+      - font/woff2
+      - image/png
+      - image/jpeg
+      - image/webp
+      - image/avif
+      - video/mp4
+---
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: console-dashboard-transport
+  namespace: app
+spec:
+  # Verify the console pod's serve-node.js cert against the fleet CA. serverName
+  # matches the cert SAN (the Service name). rootCAsSecrets reads the CA from the
+  # cert-manager secret's ca.crt key (Traefik v3). No InsecureSkipVerify.
+  serverName: console-dashboard
+  rootCAsSecrets:
+    - console-dashboard-tls
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: console-dashboard
+  namespace: app
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: console-dashboard

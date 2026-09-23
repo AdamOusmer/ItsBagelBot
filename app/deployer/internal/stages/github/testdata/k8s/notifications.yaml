@@ -1,0 +1,312 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+apiVersion: secrets.doppler.com/v1alpha1
+kind: DopplerSecret
+metadata:
+  name: notifications-env
+  namespace: db
+spec:
+  host: https://api.doppler.com
+  tokenSecret:
+    name: notifications-doppler-token
+  managedSecret:
+    name: notifications-env
+    namespace: db
+    type: Opaque
+  resyncSeconds: 60
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notifications
+  namespace: db
+  annotations:
+    secrets.doppler.com/reload: "true"
+spec:
+  replicas: 3 # one per application node
+  revisionHistoryLimit: 3
+  minReadySeconds: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: notifications
+  template:
+    metadata:
+      labels:
+        app: notifications
+    spec:
+      tolerations:
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: role
+                    operator: NotIn
+                    values: [cp, worker]
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app: notifications
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          matchLabelKeys: [pod-template-hash]
+          labelSelector:
+            matchLabels:
+              app: notifications
+      # Three replicas and three eligible domains keep one notifications pod
+      # per hot-path node after every ReplicaSet rollout.
+      # Resolve external hosts without the cluster search-domain fan-out
+      # (ndots:1) and serialize A/AAAA to dodge the conntrack race; cap any
+      # DNS stall well under a few seconds.
+      # Resolver options, uniform across every first-party workload.
+      #
+      # ndots 1, not the kubelet default of 5: under ndots:5 any name with
+      # fewer than 5 dots is tried against all three search domains BEFORE
+      # being tried as written, so a 4-dot cluster FQDN costs 4 queries and
+      # an external name like api.twitch.tv costs 4 too -- three guaranteed
+      # NXDOMAINs, then the answer. Measured on coredns 2026-08-20: 16704
+      # denial cache hits against 10368 success hits, so 62% of everything
+      # served was the junk half of that expansion.
+      #
+      # single-request-reopen: glibc sends the A and AAAA queries in parallel
+      # from one socket; the two replies can race in conntrack and one gets
+      # dropped, which costs a full resolver timeout. Reopening the socket
+      # for the second query removes the race.
+      #
+      # timeout 1 + attempts 3, rather than the previous 2/2 and the glibc
+      # default 5/2. A dropped UDP packet costs 1s instead of 5s, and 3s
+      # worst case instead of 10s. The 1s matters specifically because Valkey
+      # Sentinel resolves hostnames inside its event loop and declares "tilt"
+      # -- refusing failover for a fixed 30s -- when that loop stalls beyond
+      # 2s. At timeout 2 a single lost packet sat exactly on that threshold.
+      # See deploy/cache/valkey.yaml for the measurement that found it.
+      dnsConfig:
+        options:
+          - {name: ndots, value: "1"}
+          - {name: single-request-reopen}
+          - {name: timeout, value: "1"}
+          - {name: attempts, value: "3"}
+      securityContext:
+        # Keep the congestion window across an idle gap. This sysctl is
+        # per-netns: the nodes run 0, but a pod netns inherits the kernel
+        # default 1 and resets cwnd to initcwnd after one idle RTO, so the
+        # first burst on a lane that has been quiet crawls back through slow
+        # start. Both ends of a connection need it. See deploy/messaging/
+        # nats.yaml for the full note and the kubelet prerequisite.
+        sysctls:
+          - name: net.ipv4.tcp_slow_start_after_idle
+            value: "0"
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      priorityClassName: bagel-service
+      containers:
+        - name: notifications
+          image: ghcr.io/adamousmer/itsbagelbot/notifications:v0.2.2-beta@sha256:7f245b5c39d25ee77b6c8d12c178d7a9005e30deaf18fc6ea32f67f557c32958
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NATS_HOST
+              value: nats
+            # notifications is RPC-only: it never touches JetStream, so it
+            # dials the leaf exclusively (no NATS_HUB_URL) and carries no BUS
+            # credential.
+            - name: NATS_URL
+              value: tls://nats-leaf.messaging:4222
+            - name: NATS_RPC_URL
+              value: tls://nats-leaf.messaging:4222
+            - name: NATS_LEAF_URL
+              value: tls://nats-leaf.messaging:4222
+            # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS
+            # server's native-TLS cert; read as RootCAs by pkg/bus (Go services)
+            # and the console nats lib (TS).
+            - name: NATS_CA_PEM
+              valueFrom:
+                configMapKeyRef:
+                  name: fleet-ca
+                  key: ca.pem
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            # Raised 4->8 2026-08-20: perf_schema showed Max_used_connections=50 of
+            # 200 over 20.6d uptime, Threads_connected steady 7-12, 0 row lock waits,
+            # dataset <2MB buffer-pool resident. DB_MAX_OPEN_CONNS (sql pool) and
+            # DB_QUERY_CONCURRENCY (pkg/db/gate.go) are independent stacked gates that
+            # were throttling an idle server. New ceiling 18 pods x 8 = 144, well under
+            # 200; pkg/db/provider.go defaultMaxConns now also 8.
+            - name: DB_MAX_OPEN_CONNS
+              value: "8"
+            - name: DB_QUERY_CONCURRENCY
+              value: "8"
+            - name: DB_AUTO_MIGRATE
+              value: "true"
+            - name: GOMEMLIMIT
+              value: 160MiB
+            # Serve HTTPS on 8080 with the cert-manager notifications-tls cert so the
+            # traefik hop to /status is TLS end-to-end (pkg/health reads the
+            # pair; both or neither, a half-set pair fails the listener).
+            - name: TLS_CERT_FILE
+              value: /etc/notifications/tls/tls.crt
+            - name: TLS_KEY_FILE
+              value: /etc/notifications/tls/tls.key
+            # mTLS client identity for both NATS planes (nats-client-tls,
+            # cert-manager). Presented on every dial; harmless until the
+            # listeners flip verify:true.
+            - name: NATS_CLIENT_CERT_FILE
+              value: /etc/nats-client/tls/tls.crt
+            - name: NATS_CLIENT_KEY_FILE
+              value: /etc/nats-client/tls/tls.key
+          envFrom:
+            - secretRef:
+                name: notifications-env
+          volumeMounts:
+            - {name: nats-client-tls, mountPath: /etc/nats-client/tls, readOnly: true}
+            - {name: health-tls, mountPath: /etc/notifications/tls, readOnly: true}
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: 15m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+          lifecycle:
+            preStop:
+              httpGet:
+                path: /drain
+                port: 8080
+                scheme: HTTPS
+          livenessProbe:
+            httpGet: {path: /healthz, port: 8080, scheme: HTTPS}
+            periodSeconds: 30
+          readinessProbe:
+            httpGet: {path: /readyz, port: 8080, scheme: HTTPS}
+            periodSeconds: 10
+          startupProbe:
+            httpGet: {path: /healthz, port: 8080, scheme: HTTPS}
+            failureThreshold: 18 # 18 × 5s = 90s max startup window
+            periodSeconds: 5
+      volumes:
+        - name: nats-client-tls
+          secret:
+            secretName: nats-client-tls
+        - name: health-tls
+          secret:
+            secretName: notifications-tls
+      terminationGracePeriodSeconds: 45
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: notifications
+  namespace: db
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: notifications
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: notifications-cleanup
+  namespace: db
+spec:
+  schedule: "17 3 * * *" # daily, off the top of the hour
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 300
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 120
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: notifications-cleanup
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            seccompProfile: {type: RuntimeDefault}
+          containers:
+            - name: cleanup
+              image: ghcr.io/adamousmer/itsbagelbot/notifications:v0.2.2-beta@sha256:7f245b5c39d25ee77b6c8d12c178d7a9005e30deaf18fc6ea32f67f557c32958
+              imagePullPolicy: IfNotPresent
+              args: ["cleanup"]
+              env:
+                - name: NODE_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: spec.nodeName
+                # RPC-only, same as the main container: leaf exclusively, no
+                # NATS_HUB_URL, no BUS credential.
+                - name: NATS_URL
+                  value: tls://nats-leaf.messaging:4222
+                - name: NATS_RPC_URL
+                  value: tls://nats-leaf.messaging:4222
+                - name: NATS_LEAF_URL
+                  value: tls://nats-leaf.messaging:4222
+                # Fleet CA to verify the NATS server TLS cert (NATS out of the mesh).
+                - name: NATS_CA_PEM
+                  valueFrom:
+                    configMapKeyRef:
+                      name: fleet-ca
+                      key: ca.pem
+                # mTLS client identity. The NATS listeners flipped to
+                # verify:true on 2026-08-18 and this pod template was missed,
+                # so every run since failed. It does NOT surface as a connect
+                # error: pkg/bus/connect.go sets nats.RetryOnFailedConnect(true),
+                # so Connect returns a handle that never finishes its handshake
+                # and the failure appears 30s later as
+                # "rpc bagel.rpc.internal.notifications.cleanup request:
+                # context deadline exceeded". Mirror of the Deployment above.
+                - name: NATS_CLIENT_CERT_FILE
+                  value: /etc/nats-client/tls/tls.crt
+                - name: NATS_CLIENT_KEY_FILE
+                  value: /etc/nats-client/tls/tls.key
+              envFrom:
+                - secretRef:
+                    name: notifications-env
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  cpu: 250m
+                  memory: 64Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities: {drop: ["ALL"]}
+              volumeMounts:
+                - {name: nats-client-tls, mountPath: /etc/nats-client/tls, readOnly: true}
+          volumes:
+            - name: nats-client-tls
+              secret:
+                secretName: nats-client-tls

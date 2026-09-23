@@ -22,6 +22,7 @@ on:
           - loyalty
           - modules
           - notifications
+          - discord-data
           - discord-ingress
           - discord-engine
           - discord-outgress
@@ -30,6 +31,8 @@ on:
           - transactions
           - users
           - sesame
+          - gossip
+          - deployer
           - warp
           - twitch-ingress
           - console-dashboard
@@ -164,6 +167,12 @@ jobs:
               "description": "ItsBagelBot external API gossip service"
             },
             {
+              "image": "deployer",
+              "context": ".",
+              "containerfile": "app/deployer/Containerfile",
+              "description": "ItsBagelBot release train for the admin console Deploys page"
+            },
+            {
               "image": "twitch-ingress",
               "context": "app/twitch/ingress",
               "containerfile": "app/twitch/ingress/Containerfile",
@@ -213,6 +222,7 @@ jobs:
             add "users"
             add "sesame"
             add "gossip"
+            add "deployer"
           }
 
           add_all_services() {
@@ -230,6 +240,7 @@ jobs:
             add "users"
             add "sesame"
             add "gossip"
+            add "deployer"
             add "warp"
             add "twitch-ingress"
             add "console-dashboard"
@@ -297,6 +308,9 @@ jobs:
                 ;;
               app/gossip/*)
                 add "gossip"
+                ;;
+              app/deployer/*)
+                add "deployer"
                 ;;
               app/warp/*)
                 add "warp"

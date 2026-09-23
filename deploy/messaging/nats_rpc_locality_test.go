@@ -9,7 +9,10 @@ import (
 	"testing"
 )
 
-var serviceSubjectPattern = regexp.MustCompile(`\{ service:.*(?:subject: )?"([^"]+)"`)
+// The subject is the quoted value after "subject:" on an import line, else the
+// first quoted value on an export line. A greedy "last quoted value" match
+// would read a private export's `accounts: ["ADMIN_RPC"]` as its subject.
+var serviceSubjectPattern = regexp.MustCompile(`\{ service:(?:.*subject:)?\s*"([^"]+)"`)
 
 func TestExactRPCGrantsIncludeNodeLocalVariant(t *testing.T) {
 	config := sourceFile{name: "nats-auth.conf"}.read(t)

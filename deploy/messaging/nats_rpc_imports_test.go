@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -50,7 +51,8 @@ import (
 
 var rpcAccountHeaderPattern = regexp.MustCompile(`(?m)^  ([A-Z_]+): \{`)
 var rpcUserPattern = regexp.MustCompile(`\{ user: "([a-z_]+_rpc)"`)
-var exportEntryPattern = regexp.MustCompile(`^\s*\{ (service|stream): "([^"]+)" \}`)
+var exportEntryPattern = regexp.MustCompile(`^\s*\{ (service|stream): "([^"]+)"(?:, accounts: \[([^\]]*)\])? \}`)
+var quotedPattern = regexp.MustCompile(`"([^"]+)"`)
 var importEntryPattern = regexp.MustCompile(`^\s*\{ (service|stream): \{ account: "([A-Z_]+)",\s*subject: "([^"]+)" \} \}`)
 
 // rpcSubjectDefaultPattern matches the env-var-with-default idiom every Go
@@ -62,6 +64,9 @@ var rpcSubjectDefaultPattern = regexp.MustCompile(`env\.Get\("[A-Z0-9_]+",\s*"(b
 type rpcGrant struct {
 	kind    string // "service" or "stream"
 	subject string
+	// accounts is a private export's importer allowlist (`accounts: [...]`);
+	// nil is a public export. Unused on imports.
+	accounts []string
 }
 
 type rpcImport struct {
@@ -235,6 +240,16 @@ var rpcRequests = map[string][]rpcRequest{
 		{"bagel.rpc.health.users", "web/admin health page"},
 		{"bagel.rpc.health.projector", "web/admin health page"},
 		{"bagel.rpc.health.sesame", "web/admin health page"},
+		{"bagel.rpc.admin.deploy.plan", "web/admin deploys page"},
+		{"bagel.rpc.admin.deploy.start", "web/admin deploys page"},
+		{"bagel.rpc.admin.deploy.get", "web/admin deploys page"},
+		{"bagel.rpc.admin.deploy.list", "web/admin deploys page"},
+		{"bagel.rpc.admin.deploy.resume", "web/admin deploys page"},
+		{"bagel.rpc.admin.deploy.cancel", "web/admin deploys page"},
+		{"bagel.rpc.admin.deploy.approve", "web/admin deploys page"},
+	},
+	"deployer_rpc": {
+		{"bagel.rpc.admin.user.auth.check", "app/deployer/internal/rpc owner check"},
 	},
 }
 
@@ -257,6 +272,7 @@ var rpcServiceUsers = map[string]string{
 	"app/discord/engine":   "discord_engine_rpc",
 	"app/discord/ingress":  "discord_ingress_rpc",
 	"app/discord/outgress": "discord_outgress_rpc",
+	"app/deployer":         "deployer_rpc",
 }
 
 // rpcServicesWithoutIdentity are main.go directories that never open an RPC
@@ -414,10 +430,21 @@ func (c rpcCatalog) crossAccountProblem(requester rpcAccount, subject string) st
 	if !ok {
 		return "import " + imp.subject + " names account " + imp.account + ", which is not in nats-auth.conf"
 	}
-	if _, ok := exporter.exportCovering(subject); !ok {
+	exp, ok := exporter.exportCovering(subject)
+	if !ok {
 		return "import " + imp.subject + " from " + imp.account + " is dead — that account exports nothing covering it"
 	}
+	if !exp.importableBy(requester.name) {
+		return "import " + imp.subject + " from " + imp.account + " is refused: that export is private to " + strings.Join(exp.accounts, ", ")
+	}
 	return ""
+}
+
+// importableBy mirrors the server's private-export rule: nats-server refuses
+// the whole config ("service import not authorized") when an account imports
+// an export whose `accounts` list does not name it.
+func (g rpcGrant) importableBy(account string) bool {
+	return g.accounts == nil || slices.Contains(g.accounts, account)
 }
 
 // assertDefaultGranted classifies one subject default. Allowlisted literals are
@@ -669,13 +696,22 @@ func (p *grantParser) consume(line string) {
 	switch p.section {
 	case "exports":
 		if m := exportEntryPattern.FindStringSubmatch(line); m != nil {
-			p.exports = append(p.exports, rpcGrant{kind: m[1], subject: m[2]})
+			p.exports = append(p.exports, rpcGrant{kind: m[1], subject: m[2], accounts: quotedValues(m[3])})
 		}
 	case "imports":
 		if m := importEntryPattern.FindStringSubmatch(line); m != nil {
 			p.imports = append(p.imports, rpcImport{rpcGrant: rpcGrant{kind: m[1], subject: m[3]}, account: m[2]})
 		}
 	}
+}
+
+// quotedValues returns the quoted strings in list, or nil when there are none.
+func quotedValues(list string) []string {
+	var values []string
+	for _, m := range quotedPattern.FindAllStringSubmatch(list, -1) {
+		values = append(values, m[1])
+	}
+	return values
 }
 
 // rpcSubjectDefaults collects every bagel.rpc.* env-var default under a

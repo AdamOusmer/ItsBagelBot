@@ -229,6 +229,12 @@ spec:
               value: bagel.rpc.admin.user.audit
             - name: NATS_ADMIN_NOTIFICATIONS_SUBJECT_PREFIX
               value: bagel.rpc.admin.notifications
+            # Deploys page (owner only): the deployer's run verbs, answered by
+            # DEPLOYER_RPC, which exports them to ADMIN_RPC alone. Run
+            # snapshots arrive on bagel.deploy.events.<runId> over the same
+            # leaf connection.
+            - name: NATS_ADMIN_DEPLOY_SUBJECT_PREFIX
+              value: bagel.rpc.admin.deploy
             # Twitch OAuth callback for operator sign-in (admin host).
             - name: TWITCH_REDIRECT_URI
               value: https://admin.tail451e6d.ts.net/auth/callback

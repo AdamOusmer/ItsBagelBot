@@ -1,0 +1,11 @@
+# The deploy/messaging generator shape: configMapGenerator output only gets a
+# namespace from the top-level transformer.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: messaging
+configMapGenerator:
+  - name: nats-config
+    files:
+      - nats.conf=nats-server.conf
+generatorOptions:
+  disableNameSuffixHash: true

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"reflect"
 	"slices"
 	"testing"
 
@@ -25,8 +26,15 @@ type envManifest struct {
 			Spec struct {
 				Containers []struct {
 					Env []struct {
-						Name string `yaml:"name"`
+						Name      string `yaml:"name"`
+						ValueFrom struct {
+							SecretKeyRef struct {
+								Name string `yaml:"name"`
+								Key  string `yaml:"key"`
+							} `yaml:"secretKeyRef"`
+						} `yaml:"valueFrom"`
 					} `yaml:"env"`
+					EnvFrom []any `yaml:"envFrom"`
 				} `yaml:"containers"`
 			} `yaml:"spec"`
 		} `yaml:"template"`
@@ -108,5 +116,49 @@ func TestDiscordDataPrefixSurvives(t *testing.T) {
 		if !slices.Contains(names, "NATS_DISCORD_DATA_RPC_PREFIX") {
 			t.Errorf("%s lost NATS_DISCORD_DATA_RPC_PREFIX", name)
 		}
+	}
+}
+
+// secretEnv maps each env var a Deployment reads from a Secret to its
+// "secret/key" source, plus how many blanket envFrom sources it mounts.
+type secretEnv struct {
+	Refs    map[string]string
+	EnvFrom int
+}
+
+func secretEnvOf(manifest envManifest) secretEnv {
+	out := secretEnv{Refs: map[string]string{}}
+	for _, c := range manifest.Spec.Template.Spec.Containers {
+		out.EnvFrom += len(c.EnvFrom)
+		for _, e := range c.Env {
+			if ref := e.ValueFrom.SecretKeyRef; ref.Key != "" {
+				out.Refs[e.Name] = ref.Name + "/" + ref.Key
+			}
+		}
+	}
+	return out
+}
+
+// TestDeployerSecretsAreWiredOneByOne: the deployer's secret holds a GitHub
+// App key that merges to main, so the manifest is the full list of what the
+// pod can read, as in discord-data.yaml. No envFrom, so a key added to the
+// Doppler project later never appears in the pod by itself, and the set is
+// exact. NEW_RELIC_LICENSE_KEY is deliberately absent: the egress policy does
+// not open the collector, and pkg/monitor stays off without the key.
+func TestDeployerSecretsAreWiredOneByOne(t *testing.T) {
+	manifest, found := findDeployment(t, deployerManifest, "deployer")
+	if !found {
+		t.Fatal("deployer Deployment is missing from deployer.yaml")
+	}
+	want := secretEnv{Refs: map[string]string{}}
+	for _, key := range []string{
+		"APP_ENV", "NATS_USER", "NATS_PASSWORD", "NATS_RPC_USER", "NATS_RPC_PASSWORD",
+		"GITHUB_APP_ID", "GITHUB_APP_INSTALLATION_ID", "GITHUB_APP_PRIVATE_KEY",
+		"GHCR_USERNAME", "GHCR_TOKEN",
+	} {
+		want.Refs[key] = "deployer-env/" + key
+	}
+	if got := secretEnvOf(manifest); !reflect.DeepEqual(got, want) {
+		t.Fatalf("deployer secret env:\n got %+v\nwant %+v", got, want)
 	}
 }

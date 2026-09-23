@@ -1,0 +1,276 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+apiVersion: secrets.doppler.com/v1alpha1
+kind: DopplerSecret
+metadata:
+  name: projector-env
+  namespace: db
+spec:
+  host: https://api.doppler.com
+  tokenSecret:
+    name: projector-doppler-token
+  managedSecret:
+    name: projector-env
+    namespace: db
+    type: Opaque
+  resyncSeconds: 60
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: projector
+  namespace: db
+  annotations:
+    secrets.doppler.com/reload: "true"
+spec:
+  replicas: 3 # one per hot-path node: node4, node5, node6
+  revisionHistoryLimit: 3
+  minReadySeconds: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: projector
+  template:
+    metadata:
+      labels:
+        app: projector
+    spec:
+      tolerations:
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: role
+                    operator: NotIn
+                    values: [cp, worker]
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app: projector
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          matchLabelKeys: [pod-template-hash]
+          labelSelector:
+            matchLabels:
+              app: projector
+      # Required pod anti-affinity prevents old and new ReplicaSets from ever
+      # stacking two projector pods on one hot-path node.
+      securityContext:
+        # Keep the congestion window across an idle gap. This sysctl is
+        # per-netns: the nodes run 0, but a pod netns inherits the kernel
+        # default 1 and resets cwnd to initcwnd after one idle RTO, so the
+        # first burst on a lane that has been quiet crawls back through slow
+        # start. Both ends of a connection need it. See deploy/messaging/
+        # nats.yaml for the full note and the kubelet prerequisite.
+        sysctls:
+          - name: net.ipv4.tcp_slow_start_after_idle
+            value: "0"
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      # Resolver options, uniform across every first-party workload.
+      #
+      # ndots 1, not the kubelet default of 5: under ndots:5 any name with
+      # fewer than 5 dots is tried against all three search domains BEFORE
+      # being tried as written, so a 4-dot cluster FQDN costs 4 queries and
+      # an external name like api.twitch.tv costs 4 too -- three guaranteed
+      # NXDOMAINs, then the answer. Measured on coredns 2026-08-20: 16704
+      # denial cache hits against 10368 success hits, so 62% of everything
+      # served was the junk half of that expansion.
+      #
+      # single-request-reopen: glibc sends the A and AAAA queries in parallel
+      # from one socket; the two replies can race in conntrack and one gets
+      # dropped, which costs a full resolver timeout. Reopening the socket
+      # for the second query removes the race.
+      #
+      # timeout 1 + attempts 3, rather than the previous 2/2 and the glibc
+      # default 5/2. A dropped UDP packet costs 1s instead of 5s, and 3s
+      # worst case instead of 10s. The 1s matters specifically because Valkey
+      # Sentinel resolves hostnames inside its event loop and declares "tilt"
+      # -- refusing failover for a fixed 30s -- when that loop stalls beyond
+      # 2s. At timeout 2 a single lost packet sat exactly on that threshold.
+      # See deploy/cache/valkey.yaml for the measurement that found it.
+      dnsConfig:
+        options:
+          - {name: ndots, value: "1"}
+          - {name: single-request-reopen}
+          - {name: timeout, value: "1"}
+          - {name: attempts, value: "3"}
+      priorityClassName: bagel-service
+      containers:
+        - name: projector
+          image: ghcr.io/adamousmer/itsbagelbot/projector:v0.2.2-beta@sha256:29c4ebe20a785b1d8e2f8f0dae99b9baa778da87558cd68029b7f2db79851b31
+          imagePullPolicy: IfNotPresent
+          env:
+            # The lane catalog is partition-gated; the projector reconciles the
+            # ingress lane pair through IngressLaneSpecs and must see the same
+            # flag sesame does, or it reconciles the legacy wide stream and the
+            # update is refused for subject overlap.
+            - name: NATS_INGRESS_PARTITION
+              value: "on"
+            - name: NATS_HOST
+              value: nats
+            # Split planes: the BUS / JetStream connection dials the hub directly
+            # (NATS_HUB_URL) so stream traffic never pays a leaf forwarding hop;
+            # the RPC + cache plane (NATS_RPC_URL / NATS_LEAF_URL) stays on the
+            # node-local leaf. NATS_URL is the local-dev fallback only.
+            # BAGEL_DATA folds remain pinned to nats-1. The independent publisher
+            # pool uses the PreferSameNode hub Service so its TLS/socket/batch
+            # work is distributed across the three brokers before NATS routes
+            # each commit to the stream leader.
+            - name: NATS_URL
+              value: tls://nats-leaf.messaging:4222
+            - name: NATS_HUB_URL
+              value: tls://nats.messaging:4222
+            - name: NATS_HUB_PUBLISH_URL
+              value: tls://nats.messaging:4222
+            - name: NATS_PUBLISH_WIRE
+              value: atomic
+            - name: NATS_ATOMIC_PUBLISH_BATCH_SIZE
+              value: "1000"
+            # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS
+            # server's native-TLS cert; read as RootCAs by pkg/bus (Go services)
+            # and the console nats lib (TS).
+            - name: NATS_CA_PEM
+              valueFrom:
+                configMapKeyRef:
+                  name: fleet-ca
+                  key: ca.pem
+            - name: VALKEY_TLS_CA_PEM
+              valueFrom:
+                configMapKeyRef:
+                  name: fleet-ca
+                  key: ca.pem
+            - name: VALKEY_TLS_SERVER_NAME
+              value: valkey.cache.svc.cluster.local
+            - name: VALKEY_ADDR
+              value: valkey.cache.svc.cluster.local:26380
+            # mTLS: pkg/valkey's clientTLSConfig() treats these two as
+            # both-or-neither. Land this (a no-op while tls-auth-clients is
+            # still "no") on every consumer BEFORE flipping the statefulset,
+            # not after.
+            - name: VALKEY_TLS_CLIENT_CERT_FILE
+              value: /etc/valkey/client-tls/tls.crt
+            - name: VALKEY_TLS_CLIENT_KEY_FILE
+              value: /etc/valkey/client-tls/tls.key
+            - name: NATS_RPC_URL
+              value: tls://nats-leaf.messaging:4222
+            - name: NATS_LEAF_URL
+              value: tls://nats-leaf.messaging:4222
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: VALKEY_LOCAL_ADDR
+              value: valkey-local.cache.svc.cluster.local:6380
+            - name: NATS_PROJECTOR_DASHBOARD_SUBJECT_PREFIX
+              value: bagel.rpc.projector.dashboard
+            - name: PROJECTOR_WRITE_CONCURRENCY
+              value: "8"
+            # Stream-online refreshes keep a full settings snapshot warm for a
+            # day. Dashboard command/module reads hydrate missing sections in
+            # the background with a shorter two-hour retention window.
+            - name: PROJECTOR_LIVE_HYDRATION_TTL
+              value: 24h
+            - name: PROJECTOR_QUERY_HYDRATION_TTL
+              value: 2h
+            - name: PROJECTOR_HYDRATION_CONCURRENCY
+              value: "8"
+            - name: GOMEMLIMIT
+              value: 256MiB
+            # Serve HTTPS on 8080 with the cert-manager projector-tls cert so the
+            # traefik hop to /status is TLS end-to-end (pkg/health reads the
+            # pair; both or neither, a half-set pair fails the listener).
+            - name: TLS_CERT_FILE
+              value: /etc/projector/tls/tls.crt
+            - name: TLS_KEY_FILE
+              value: /etc/projector/tls/tls.key
+            # mTLS client identity for both NATS planes (nats-client-tls,
+            # cert-manager). Presented on every dial; harmless until the
+            # listeners flip verify:true.
+            - name: NATS_CLIENT_CERT_FILE
+              value: /etc/nats-client/tls/tls.crt
+            - name: NATS_CLIENT_KEY_FILE
+              value: /etc/nats-client/tls/tls.key
+          envFrom:
+            - secretRef:
+                name: projector-env
+          volumeMounts:
+            - {name: nats-client-tls, mountPath: /etc/nats-client/tls, readOnly: true}
+            - {name: health-tls, mountPath: /etc/projector/tls, readOnly: true}
+            - name: valkey-client-tls
+              mountPath: /etc/valkey/client-tls
+              readOnly: true
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: 50m
+              memory: 96Mi
+            limits:
+              cpu: 750m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+          lifecycle:
+            preStop:
+              httpGet:
+                path: /drain
+                port: 8080
+                scheme: HTTPS
+          livenessProbe:
+            httpGet: {path: /healthz, port: 8080, scheme: HTTPS}
+            periodSeconds: 30
+          readinessProbe:
+            httpGet: {path: /readyz, port: 8080, scheme: HTTPS}
+            periodSeconds: 10
+          startupProbe:
+            httpGet: {path: /healthz, port: 8080, scheme: HTTPS}
+            failureThreshold: 18
+            periodSeconds: 5
+      volumes:
+        - name: nats-client-tls
+          secret:
+            secretName: nats-client-tls
+        - name: health-tls
+          secret:
+            secretName: projector-tls
+        - name: valkey-client-tls
+          secret:
+            secretName: valkey-client-tls
+      terminationGracePeriodSeconds: 45
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: projector
+  namespace: db
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: projector

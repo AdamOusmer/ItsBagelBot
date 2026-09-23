@@ -20,6 +20,10 @@ type workloadManifest struct {
 		Name string `yaml:"name"`
 	} `yaml:"metadata"`
 	Spec struct {
+		Replicas int `yaml:"replicas"`
+		Strategy struct {
+			Type string `yaml:"type"`
+		} `yaml:"strategy"`
 		Template struct {
 			Spec struct {
 				TopologySpreadConstraints []struct {
@@ -323,4 +327,21 @@ func TestConsoleAdminExplicitlyExcludesWorkerPool(t *testing.T) {
 	}
 
 	t.Fatal("console-admin must explicitly exclude the worker pool")
+}
+
+// TestDeployerRunsOneEngine: the deployer is the fleet's one deliberate
+// singleton, so it is absent from the spread list above rather than exempt
+// from it. Its run lock is keyed by run id, not by process, so a surge pod
+// would resume the same active run as its owner and two engines would merge
+// or apply at once. One replica with Recreate is what rules that out.
+func TestDeployerRunsOneEngine(t *testing.T) {
+	type rollout struct {
+		Replicas int
+		Strategy string
+	}
+	deployer := loadDeployment(t, deployerManifest, "deployer")
+	got := rollout{Replicas: deployer.Spec.Replicas, Strategy: deployer.Spec.Strategy.Type}
+	if want := (rollout{Replicas: 1, Strategy: "Recreate"}); got != want {
+		t.Fatalf("deployer rollout = %+v, want %+v: a second engine would drive the same run", got, want)
+	}
 }

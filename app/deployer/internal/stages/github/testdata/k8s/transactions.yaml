@@ -1,0 +1,302 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+apiVersion: secrets.doppler.com/v1alpha1
+kind: DopplerSecret
+metadata:
+  name: transactions-env
+  namespace: db
+spec:
+  host: https://api.doppler.com
+  tokenSecret:
+    name: transactions-doppler-token
+  managedSecret:
+    name: transactions-env
+    namespace: db
+    type: Opaque
+  resyncSeconds: 60
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: transactions
+  namespace: db
+  annotations:
+    secrets.doppler.com/reload: "true"
+spec:
+  replicas: 3 # one per hot-path node: node4, node5, node6
+  revisionHistoryLimit: 3
+  minReadySeconds: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: transactions
+  template:
+    metadata:
+      labels:
+        app: transactions
+    spec:
+      tolerations:
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: role
+                    operator: NotIn
+                    values: [cp, worker]
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app: transactions
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          matchLabelKeys: [pod-template-hash]
+          labelSelector:
+            matchLabels:
+              app: transactions
+      # Three replicas and three eligible domains keep one transactions pod
+      # per hot-path node after every ReplicaSet rollout.
+      securityContext:
+        # Keep the congestion window across an idle gap. This sysctl is
+        # per-netns: the nodes run 0, but a pod netns inherits the kernel
+        # default 1 and resets cwnd to initcwnd after one idle RTO, so the
+        # first burst on a lane that has been quiet crawls back through slow
+        # start. Both ends of a connection need it. See deploy/messaging/
+        # nats.yaml for the full note and the kubelet prerequisite.
+        sysctls:
+          - name: net.ipv4.tcp_slow_start_after_idle
+            value: "0"
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      # Resolver options, uniform across every first-party workload.
+      #
+      # ndots 1, not the kubelet default of 5: under ndots:5 any name with
+      # fewer than 5 dots is tried against all three search domains BEFORE
+      # being tried as written, so a 4-dot cluster FQDN costs 4 queries and
+      # an external name like api.twitch.tv costs 4 too -- three guaranteed
+      # NXDOMAINs, then the answer. Measured on coredns 2026-08-20: 16704
+      # denial cache hits against 10368 success hits, so 62% of everything
+      # served was the junk half of that expansion.
+      #
+      # single-request-reopen: glibc sends the A and AAAA queries in parallel
+      # from one socket; the two replies can race in conntrack and one gets
+      # dropped, which costs a full resolver timeout. Reopening the socket
+      # for the second query removes the race.
+      #
+      # timeout 1 + attempts 3, rather than the previous 2/2 and the glibc
+      # default 5/2. A dropped UDP packet costs 1s instead of 5s, and 3s
+      # worst case instead of 10s. The 1s matters specifically because Valkey
+      # Sentinel resolves hostnames inside its event loop and declares "tilt"
+      # -- refusing failover for a fixed 30s -- when that loop stalls beyond
+      # 2s. At timeout 2 a single lost packet sat exactly on that threshold.
+      # See deploy/cache/valkey.yaml for the measurement that found it.
+      dnsConfig:
+        options:
+          - {name: ndots, value: "1"}
+          - {name: single-request-reopen}
+          - {name: timeout, value: "1"}
+          - {name: attempts, value: "3"}
+      priorityClassName: bagel-service
+      containers:
+        - name: transactions
+          image: ghcr.io/adamousmer/itsbagelbot/transactions:v0.2.2-beta@sha256:fc218347ee5f6058b0b1b16705bb8a8a94dbd3a7b6ac6287ffc2033522b621b8
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NATS_HOST
+              value: nats
+            # transactions is RPC-only: the checkout/billing/gift-notify verbs
+            # all ride the TRANSACTIONS_RPC responder on the node-local leaf; it
+            # never touches JetStream, so no NATS_HUB_URL and no BUS credential.
+            # RPC creds (NATS_RPC_USER/PASSWORD) and the Tebex Headless secrets
+            # (TEBEX_WEBSTORE_TOKEN, TEBEX_PACKAGE_ID) ride in via envFrom from Doppler.
+            - name: NATS_URL
+              value: tls://nats-leaf.messaging:4222
+            # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS
+            # server's native-TLS cert; read as RootCAs by pkg/bus (Go services)
+            # and the console nats lib (TS).
+            - name: NATS_CA_PEM
+              valueFrom:
+                configMapKeyRef:
+                  name: fleet-ca
+                  key: ca.pem
+            - name: NATS_RPC_URL
+              value: tls://nats-leaf.messaging:4222
+            - name: NATS_LEAF_URL
+              value: tls://nats-leaf.messaging:4222
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            # Raised 4->8 2026-08-20: perf_schema showed Max_used_connections=50 of
+            # 200 over 20.6d uptime, Threads_connected steady 7-12, 0 row lock waits,
+            # dataset <2MB buffer-pool resident. DB_MAX_OPEN_CONNS (sql pool) and
+            # DB_QUERY_CONCURRENCY (pkg/db/gate.go) are independent stacked gates that
+            # were throttling an idle server. New ceiling 18 pods x 8 = 144, well under
+            # 200; pkg/db/provider.go defaultMaxConns now also 8.
+            - name: DB_MAX_OPEN_CONNS
+              value: "8"
+            - name: DB_QUERY_CONCURRENCY
+              value: "8"
+            - name: DB_AUTO_MIGRATE
+              value: "true"
+            # Nonrecurring awards can deliver same-date monthly grants.
+            # Provider-dependent billing protection remains separately gated.
+            - name: GIVEAWAYS_NEW_AWARDS_ENABLED
+              value: "true"
+            - name: GIVEAWAYS_PROMOTIONAL_GRANTS_ENABLED
+              value: "true"
+            - name: GIVEAWAYS_INTERVAL_RULE_VERIFIED
+              value: "false"
+            - name: TEBEX_CHECKOUT_MUTATIONS_ENABLED
+              value: "false"
+            - name: GIVEAWAYS_RECONCILE_INTERVAL
+              value: 15m
+            - name: GIVEAWAYS_BOUNDARY_RECONCILE_INTERVAL
+              value: 1m
+            # Tebex Developers > Webhooks > Endpoints secret. The Fiber webhook
+            # handler refuses requests until this is configured.
+            - name: TEBEX_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: transactions-env
+                  key: TEBEX_WEBHOOK_SECRET
+                  optional: true
+            - name: GOMEMLIMIT
+              value: 160MiB
+            # Serve HTTPS on 8080 using the cert-manager transactions-tls cert,
+            # so the traefik->transactions hop is TLS. Traefik re-encrypts via
+            # the transactions-transport ServersTransport. Both env vars are
+            # required together (main.go fails fast on a mismatched pair);
+            # unset keeps the listener plaintext.
+            - name: TLS_CERT_FILE
+              value: /etc/transactions/tls/tls.crt
+            - name: TLS_KEY_FILE
+              value: /etc/transactions/tls/tls.key
+            # mTLS client identity for both NATS planes (nats-client-tls,
+            # cert-manager). Presented on every dial; harmless until the
+            # listeners flip verify:true.
+            - name: NATS_CLIENT_CERT_FILE
+              value: /etc/nats-client/tls/tls.crt
+            - name: NATS_CLIENT_KEY_FILE
+              value: /etc/nats-client/tls/tls.key
+          envFrom:
+            - secretRef:
+                name: transactions-env
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - {name: nats-client-tls, mountPath: /etc/nats-client/tls, readOnly: true}
+            - {name: tls, mountPath: /etc/transactions/tls, readOnly: true}
+          resources:
+            requests:
+              cpu: 15m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+          lifecycle:
+            preStop:
+              httpGet:
+                path: /drain
+                port: 8080
+                scheme: HTTPS
+          livenessProbe:
+            httpGet: {path: /healthz, port: 8080, scheme: HTTPS}
+            periodSeconds: 30
+          readinessProbe:
+            httpGet: {path: /readyz, port: 8080, scheme: HTTPS}
+            periodSeconds: 10
+          startupProbe:
+            httpGet: {path: /healthz, port: 8080, scheme: HTTPS}
+            failureThreshold: 18 # 18 × 5s = 90s max startup window
+            periodSeconds: 5
+      terminationGracePeriodSeconds: 45
+      volumes:
+        - name: nats-client-tls
+          secret:
+            secretName: nats-client-tls
+        - name: tls
+          secret:
+            secretName: transactions-tls
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: transactions
+  namespace: db
+spec:
+  trafficDistribution: PreferSameNode
+  selector:
+    app: transactions
+  ports:
+    - name: https
+      port: 443
+      targetPort: 8080
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: transactions-webhooks
+  namespace: db
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: Host(`webhooks.itsbagelbot.com`) && (PathPrefix(`/tebex`) || PathPrefix(`/webhooks/tebex`))
+      kind: Rule
+      services:
+        - name: transactions
+          port: 443
+          # HTTPS to the backend: main.go now terminates TLS when
+          # TLS_CERT_FILE/TLS_KEY_FILE are set, so traefik re-encrypts via the
+          # ServersTransport below (rootCAs = the cert's own fleet-CA ca.crt).
+          # This makes the traefik->transactions hop TLS end-to-end.
+          scheme: https
+          serversTransport: transactions-transport
+          nativeLB: true
+  tls: {}
+---
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: transactions-transport
+  namespace: db
+spec:
+  # Verify the transactions pod's TLS cert against the fleet CA. serverName
+  # matches the cert SAN (the Service name). rootCAsSecrets reads the CA from
+  # the cert-manager secret's ca.crt key (Traefik v3). No InsecureSkipVerify.
+  serverName: transactions
+  rootCAsSecrets:
+    - transactions-tls
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: transactions
+  namespace: db
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: transactions
