@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"ItsBagelBot/internal/domain/rpc/deploy"
 	"ItsBagelBot/pkg/bus"
 
 	"github.com/nats-io/nats.go"
@@ -48,6 +49,14 @@ type publishProbe struct {
 	subject  string
 }
 
+// rpcRoute is one cross-account request path: requester imports subject from
+// the account responder connects under.
+type rpcRoute struct {
+	responder serviceIdentity
+	requester serviceIdentity
+	subject   string
+}
+
 type permissionProbe struct {
 	identity serviceIdentity
 	subject  string
@@ -74,6 +83,7 @@ func TestScopedBusUsersBindAllowedStreams(t *testing.T) {
 	harness.assertConsumerIsolation(t)
 	harness.assertDestructiveOperationsDenied(t)
 	harness.assertNodeLocalRPCImport(t)
+	harness.assertDeployerPlane(t, ctx)
 }
 
 func newAcceptanceHarness(t *testing.T) *acceptanceHarness {
@@ -271,20 +281,36 @@ func (h *acceptanceHarness) assertDestructiveOperationsDenied(t *testing.T) {
 		{"projector_bus"}, {"worker_bus"}, {"outgress_bus"},
 		{"twitch_ingress_bus"}, {"dashboard_bus"},
 		{"discord_ingress_bus"}, {"discord_engine_bus"}, {"discord_outgress_bus"},
+		{"deployer_bus"},
 	}
 	for _, identity := range identities {
 		h.assertDestructiveOperationsDeniedFor(t, identity)
 	}
 }
 
+// assertNodeLocalRPCImport drives one node-qualified request per route through
+// the real import/export chain: the health probe every status page folds in,
+// and both hops of a deploy verb (console to deployer, deployer's owner check
+// to users).
 func (h *acceptanceHarness) assertNodeLocalRPCImport(t *testing.T) {
 	t.Helper()
-	const subject = "bagel.rpc.health.users"
-	const localSubject = subject + ".node.node2"
+	for _, route := range []rpcRoute{
+		{responder: serviceIdentity{"users_rpc"}, requester: serviceIdentity{"admin_rpc"}, subject: "bagel.rpc.health.users"},
+		{responder: serviceIdentity{"deployer_rpc"}, requester: serviceIdentity{"admin_rpc"}, subject: deploy.Subject(deploy.VerbStart)},
+		{responder: serviceIdentity{"users_rpc"}, requester: serviceIdentity{"deployer_rpc"}, subject: "bagel.rpc.admin.user.auth.check"},
+	} {
+		h.assertNodeLocalRoute(t, route)
+	}
+}
+
+func (h *acceptanceHarness) assertNodeLocalRoute(t *testing.T, route rpcRoute) {
+	t.Helper()
+	subject := route.subject
+	localSubject := subject + ".node.node2"
 	const traceparent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
 	t.Setenv("NODE_NAME", "node2")
 
-	responder, responderErr := h.connectWithPermissionErrors(t, serviceIdentity{"users_rpc"})
+	responder, responderErr := h.connectWithPermissionErrors(t, route.responder)
 	defer responder.Close()
 	if _, err := responder.QueueSubscribe(localSubject, "authz-locality", func(msg *nats.Msg) {
 		_ = msg.Respond([]byte("node2:" + msg.Header.Get("traceparent")))
@@ -295,7 +321,7 @@ func (h *acceptanceHarness) assertNodeLocalRPCImport(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	requester, requesterErr := h.connectWithPermissionErrors(t, serviceIdentity{"admin_rpc"})
+	requester, requesterErr := h.connectWithPermissionErrors(t, route.requester)
 	defer requester.Close()
 	request := nats.NewMsg(subject)
 	request.Header.Set("traceparent", traceparent)
@@ -303,7 +329,7 @@ func (h *acceptanceHarness) assertNodeLocalRPCImport(t *testing.T) {
 	defer cancel()
 	reply, err := bus.RequestMsgWithContext(ctx, requester, request)
 	if err != nil {
-		t.Fatalf("node-qualified cross-account request failed: %v", err)
+		t.Fatalf("node-qualified cross-account request %s from %s failed: %v", subject, route.requester.user, err)
 	}
 	if want := "node2:" + traceparent; string(reply.Data) != want {
 		t.Fatalf("node-qualified cross-account reply = %q, want %q", reply.Data, want)

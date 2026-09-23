@@ -47,6 +47,7 @@ SERVICES = {
     "notifications": "notifications",
     "gossip": "gossip",
     "discord_data": "discord-data",
+    "deployer": "deployer",
 }
 # Discord is three runtimes sharing one Doppler project (discord-svc), unlike
 # every service above which owns its project. A shared project cannot hold three

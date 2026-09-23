@@ -48,6 +48,9 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 		// no consumer grants and no $JS.API grants at all, since a plain
 		// PublishMsgAsync needs neither.
 		"discord_ingress_bus": {},
+		// The deployer holds only its DEPLOY_RUNS bucket (coordinationBuckets):
+		// no event-plane stream, no consumer verbs.
+		"deployer_bus": {},
 	}
 	owners := map[string][]string{
 		"users_bus":  {"BAGEL_DATA"},
@@ -65,6 +68,7 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 		"projector_bus", "worker_bus", "outgress_bus",
 		"twitch_ingress_bus", "dashboard_bus",
 		"discord_ingress_bus", "discord_engine_bus", "discord_outgress_bus",
+		"deployer_bus",
 	}
 
 	for _, user := range serviceUsers {
@@ -80,10 +84,8 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 				flowControl:     flowControlStreams[user],
 				pullFetch:       pullFetchStreams[user],
 			})
-			if user == "outgress_bus" {
-				want = append(want, outgressCoordinationSubjects()...)
-				slices.Sort(want)
-			}
+			want = append(want, coordinationSubjects(user)...)
+			slices.Sort(want)
 			if !slices.Equal(got, want) {
 				t.Fatalf("JetStream grants differ (-want +got):\nwant %v\n got %v", want, got)
 			}

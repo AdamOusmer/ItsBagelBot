@@ -42,6 +42,11 @@ resources:
   # Edge error pages: unrouted hosts + dead-backend 5xx get web/'s coded
   # 404/500 instead of traefik's plain-text defaults.
   - web-error-pages.yaml
+  # deployer runs the release train from its own ops namespace. The train
+  # builds this directory but never applies deployer.yaml's objects (ops, RBAC
+  # and the Cilium policy are outside its allowlist), so a change to it ships
+  # with a manual apply; see the file's header.
+  - deployer.yaml
 # NATS (hub + leaf + auth + certs) moved to deploy/messaging, its own
 # kustomization with the nats-config/nats-leaf-config configMapGenerator.
 # `kubectl apply -k deploy/messaging` before this one.

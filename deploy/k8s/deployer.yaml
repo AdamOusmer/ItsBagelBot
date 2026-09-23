@@ -1,0 +1,663 @@
+# Copyright (c) 2026 Adam Ousmer. All rights reserved.
+# Proprietary. No license granted. See LICENSE.md.
+
+# deployer runs the release train the admin console's Deploys page starts
+# (app/deployer): GitHub merges, tag, release and build, digest checks, the pin
+# PR, the NATS ACL apply and the one-service-at-a-time rollout. It holds the
+# only credentials in the fleet that can both merge to main and write
+# workloads, so it gets its own namespace, its own identity and the narrowest
+# grants that still let the train finish.
+#
+# Why a separate `ops` namespace rather than `app`: every RoleBinding below is
+# the deployer's reach into app, db and messaging. Living in one of those
+# namespaces would put its token next to pods it rolls, and would let any
+# future Role granted in that namespace for some other reason reach it too.
+#
+# The deployer never applies its own objects. ops, RBAC, the ServiceAccount,
+# the Certificate, the DopplerSecret and the CiliumNetworkPolicy all sit
+# outside the applier's allowlist (app/deployer/internal/kube/apply), and the
+# rollout lists the ops Deployment as not rolled. The one object here it does
+# apply is allow-deployer, a NetworkPolicy in messaging, which rides along
+# with the other shared policies. A change to the rest ships by hand:
+#   kubectl apply -f deploy/k8s/deployer.yaml
+# The alternative, granting it write on its own namespace and on RBAC, would
+# let a compromised train widen its own permissions, which is exactly what the
+# allowlist exists to prevent.
+#
+# Bootstrap, before the first apply (none of it is in this repo):
+#   * deployer-doppler-token in ops (Doppler service token, project
+#     `deployer`, config `prd`), same shape as every <svc>-doppler-token.
+#   * the fleet-ca trust-manager Bundle must list ops in its namespaceSelector
+#     (deploy/cert-manager/trust.yaml), or NATS_CA_PEM below never resolves
+#     and the pod sits in CreateContainerConfigError.
+#   * the GitHub App installed on the repo, NOT a ruleset bypass actor: the
+#     train waits for required checks like any other author.
+#
+# Doppler keys deployer-env must carry (wired one by one below; no envFrom, so
+# the manifest is the proof of what this pod can read, as in discord-data.yaml):
+#   APP_ENV
+#   NATS_USER, NATS_PASSWORD         (deployer_bus: hub JetStream, DEPLOY_RUNS KV)
+#   NATS_RPC_USER, NATS_RPC_PASSWORD (deployer_rpc: the verbs and run events)
+#   GITHUB_APP_ID, GITHUB_APP_INSTALLATION_ID, GITHUB_APP_PRIVATE_KEY
+#   GHCR_USERNAME, GHCR_TOKEN        (the existing ghcr-pull read credential)
+# NEW_RELIC_LICENSE_KEY is deliberately absent: the egress policy below does
+# not open the New Relic collector, and pkg/monitor only starts the agent when
+# the key is set, so leaving it out keeps the agent off instead of retrying a
+# blocked endpoint. Logs still ship through Fluent Bit from stdout.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ops
+  labels:
+    # Restricted, enforced. Nothing in ops needs more than a non-root,
+    # capability-free pod, and admission is the layer that still holds if
+    # someone with pod-create in ops tries to mount the node or the
+    # ServiceAccount token of a privileged pod. It is also why the deployer
+    # pod below drops the fleet's tcp_slow_start_after_idle sysctl: that
+    # sysctl is not on the Pod Security safe list, so restricted (and
+    # baseline) reject any pod that sets it.
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: deployer
+  namespace: ops
+---
+# Workload write access, identical in app, db and messaging. The kinds match
+# the applier's allowlist one for one: RBAC is the outer bound and the
+# allowlist the inner one, and keeping the two sets equal means a refused
+# object fails on the applier's readable message rather than a 403 half way
+# through an apply, and that neither layer is dead weight.
+#
+# Never: delete (the train only ever adds or changes; removals are a human
+# decision), secrets (Doppler owns every Secret), RBAC kinds (a train that can
+# write RoleBindings can grant itself anything). deploy/k8s/deployer_rbac_test.go
+# pins all three.
+#
+# create sits beside patch because server-side apply of an object that does not
+# exist yet is authorized as a create.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: deployer
+  namespace: app
+rules:
+  - apiGroups: ["apps"]
+    resources: [deployments, daemonsets]
+    verbs: [get, list, watch, create, patch]
+  - apiGroups: ["batch"]
+    resources: [cronjobs]
+    verbs: [get, list, watch, create, patch]
+  - apiGroups: [""]
+    resources: [services, configmaps]
+    verbs: [get, list, watch, create, patch]
+  - apiGroups: ["policy"]
+    resources: [poddisruptionbudgets]
+    verbs: [get, list, watch, create, patch]
+  - apiGroups: ["networking.k8s.io"]
+    resources: [networkpolicies]
+    verbs: [get, list, watch, create, patch]
+  - apiGroups: ["traefik.io"]
+    resources: [ingressroutes, middlewares]
+    verbs: [get, list, watch, create, patch]
+  - apiGroups: ["keda.sh"]
+    resources: [scaledobjects]
+    verbs: [get, list, watch, create, patch]
+  # Rollout watch: ReplicaSets for the new revision, pods for the per-node
+  # dots and imageID verify, events and logs for the fast-fail report.
+  - apiGroups: ["apps"]
+    resources: [replicasets]
+    verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources: [pods, events]
+    verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources: [pods/log]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: deployer
+  namespace: db
+rules:
+  - apiGroups: ["apps"]
+    resources: [deployments, daemonsets]
+    verbs: [get, list, watch, create, patch]
+  - apiGroups: ["batch"]
+    resources: [cronjobs]
+    verbs: [get, list, watch, create, patch]
+  - apiGroups: [""]
+    resources: [services, configmaps]
+    verbs: [get, list, watch, create, patch]
+  - apiGroups: ["policy"]
+    resources: [poddisruptionbudgets]
+    verbs: [get, list, watch, create, patch]
+  - apiGroups: ["networking.k8s.io"]
+    resources: [networkpolicies]
+    verbs: [get, list, watch, create, patch]
+  - apiGroups: ["traefik.io"]
+    resources: [ingressroutes, middlewares]
+    verbs: [get, list, watch, create, patch]
+  - apiGroups: ["keda.sh"]
+    resources: [scaledobjects]
+    verbs: [get, list, watch, create, patch]
+  - apiGroups: ["apps"]
+    resources: [replicasets]
+    verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources: [pods, events]
+    verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources: [pods/log]
+    verbs: [get]
+---
+# messaging also carries the ACL stage: the nats-config ConfigMaps and the
+# nats-leaf DaemonSet. The hub StatefulSet is outside the allowlist on purpose
+# (its volumeClaimTemplates are immutable and a bad roll costs JetStream
+# quorum), so there is no statefulsets grant to match.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: deployer
+  namespace: messaging
+rules:
+  - apiGroups: ["apps"]
+    resources: [deployments, daemonsets]
+    verbs: [get, list, watch, create, patch]
+  - apiGroups: ["batch"]
+    resources: [cronjobs]
+    verbs: [get, list, watch, create, patch]
+  - apiGroups: [""]
+    resources: [services, configmaps]
+    verbs: [get, list, watch, create, patch]
+  - apiGroups: ["policy"]
+    resources: [poddisruptionbudgets]
+    verbs: [get, list, watch, create, patch]
+  - apiGroups: ["networking.k8s.io"]
+    resources: [networkpolicies]
+    verbs: [get, list, watch, create, patch]
+  - apiGroups: ["traefik.io"]
+    resources: [ingressroutes, middlewares]
+    verbs: [get, list, watch, create, patch]
+  - apiGroups: ["keda.sh"]
+    resources: [scaledobjects]
+    verbs: [get, list, watch, create, patch]
+  - apiGroups: ["apps"]
+    resources: [replicasets]
+    verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources: [pods, events]
+    verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources: [pods/log]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: deployer
+  namespace: app
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: deployer
+subjects:
+  - kind: ServiceAccount
+    name: deployer
+    namespace: ops
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: deployer
+  namespace: db
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: deployer
+subjects:
+  - kind: ServiceAccount
+    name: deployer
+    namespace: ops
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: deployer
+  namespace: messaging
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: deployer
+subjects:
+  - kind: ServiceAccount
+    name: deployer
+    namespace: ops
+---
+# The two cluster-scoped needs: PriorityClasses are applied first on every
+# rollout (priorityclasses.yaml), and preflight's reachability check lists
+# nodes. Named bagel-deployer because ClusterRole names share one global
+# namespace with every chart on the cluster.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: bagel-deployer
+rules:
+  - apiGroups: ["scheduling.k8s.io"]
+    resources: [priorityclasses]
+    verbs: [get, list, create, patch]
+  - apiGroups: [""]
+    resources: [nodes]
+    verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: bagel-deployer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: bagel-deployer
+subjects:
+  - kind: ServiceAccount
+    name: deployer
+    namespace: ops
+---
+# NATS client identity for ops, same issuer and shape as the app namespace's
+# nats-client-tls (deploy/app/certificates.yaml). The listeners run verify:true
+# (deploy/messaging/nats-server.conf), so a pod without it cannot connect.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: nats-client-tls
+  namespace: ops
+spec:
+  secretName: nats-client-tls
+  duration: 2160h # 90d
+  renewBefore: 360h # 15d
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: fleet-intermediate-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+  usages:
+    - digital signature
+    - key encipherment
+    - client auth
+  commonName: nats-client.ops.svc.cluster.local
+  dnsNames:
+    - nats-client.ops.svc.cluster.local
+---
+apiVersion: secrets.doppler.com/v1alpha1
+kind: DopplerSecret
+metadata:
+  name: deployer-env
+  namespace: ops
+spec:
+  host: https://api.doppler.com
+  tokenSecret:
+    name: deployer-doppler-token
+  managedSecret:
+    name: deployer-env
+    namespace: ops
+    type: Opaque
+  resyncSeconds: 60
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deployer
+  namespace: ops
+  annotations:
+    secrets.doppler.com/reload: "true"
+spec:
+  # One replica and Recreate, never a surge. The run lock in DEPLOY_RUNS is
+  # keyed by run id, not by process: a second pod resuming the same active run
+  # re-acquires the lock as its owner and both engines drive the one run, two
+  # merges or two applies at once. Recreate stops the old pod before the new
+  # one starts, so there is never a second engine to resume anything.
+  #
+  # No PodDisruptionBudget for the same single replica: minAvailable 1 would
+  # block every node drain forever, and an eviction mid-run is already safe
+  # because the next pod resumes the active run from the KV.
+  replicas: 1
+  revisionHistoryLimit: 3
+  minReadySeconds: 10
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: deployer
+  template:
+    metadata:
+      labels:
+        app: deployer
+    spec:
+      serviceAccountName: deployer
+      tolerations:
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 60
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: role
+                    operator: NotIn
+                    values: [cp, worker]
+      # Resolver options, uniform across every first-party workload. See
+      # users.yaml for the coredns measurement behind each value.
+      dnsConfig:
+        options:
+          - {name: ndots, value: "1"}
+          - {name: single-request-reopen}
+          - {name: timeout, value: "1"}
+          - {name: attempts, value: "3"}
+      # No tcp_slow_start_after_idle sysctl, unlike the rest of the fleet: ops
+      # enforces restricted Pod Security, which rejects it (see the Namespace
+      # above). Nothing is lost. The sysctl keeps cwnd across idle gaps on the
+      # event lanes; the deployer's NATS traffic is a few run snapshots a
+      # second at most, far below one initial congestion window.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      # Cluster tooling that operates first-party workloads without carrying
+      # their traffic, the class's own description. Evicted to seat a runtime
+      # service, it resumes the run on its next pod.
+      priorityClassName: bagel-operator
+      containers:
+        - name: deployer
+          # TODO(first release): no deployer image has been published yet, so
+          # this line carries the fleet's current tag without a digest. The
+          # first release that builds deployer must fill in its tag@digest
+          # (from that publish-images run) before this file is applied. Until
+          # then the pin PR stage skips the line (it rewrites only tag@digest
+          # pins) and deploy/k8s/image_pins_test.go lists deployer as awaiting
+          # its first pin; that test fails once the pin exists, so the
+          # exception cannot outlive this TODO.
+          image: ghcr.io/adamousmer/itsbagelbot/deployer:v0.2.2-beta
+          imagePullPolicy: IfNotPresent
+          env:
+            # Split planes as in users.yaml: DEPLOY_RUNS lives on the hub, so
+            # the JetStream connection dials it directly (NATS_HUB_URL); the
+            # verbs and run events stay on the node-local leaf (NATS_RPC_URL).
+            # NATS_URL is the local-dev fallback only.
+            - name: NATS_URL
+              value: tls://nats-leaf.messaging:4222
+            - name: NATS_HUB_URL
+              value: tls://nats.messaging:4222
+            - name: NATS_RPC_URL
+              value: tls://nats-leaf.messaging:4222
+            - name: NATS_LEAF_URL
+              value: tls://nats-leaf.messaging:4222
+            - name: NATS_CA_PEM
+              valueFrom:
+                configMapKeyRef:
+                  name: fleet-ca
+                  key: ca.pem
+            - name: NATS_CLIENT_CERT_FILE
+              value: /etc/nats-client/tls/tls.crt
+            - name: NATS_CLIENT_KEY_FILE
+              value: /etc/nats-client/tls/tls.key
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            # Unmeasured: no deployer has run in the cluster yet. Same envelope
+            # as the fleet's other Go RPC services (users.yaml), whose working
+            # set is larger than one kustomize build of deploy/k8s plus a
+            # 50-line log tail. Revisit from kubectl top after the first train.
+            - name: GOMEMLIMIT
+              value: 160MiB
+            - name: APP_ENV
+              valueFrom:
+                secretKeyRef: {name: deployer-env, key: APP_ENV}
+            - name: NATS_USER
+              valueFrom:
+                secretKeyRef: {name: deployer-env, key: NATS_USER}
+            - name: NATS_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: deployer-env, key: NATS_PASSWORD}
+            - name: NATS_RPC_USER
+              valueFrom:
+                secretKeyRef: {name: deployer-env, key: NATS_RPC_USER}
+            - name: NATS_RPC_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: deployer-env, key: NATS_RPC_PASSWORD}
+            # config.Load refuses to boot without these five: every stage past
+            # preflight needs them, so a missing key crash-loops the pod at
+            # rollout instead of failing the first merge of a started run.
+            - name: GITHUB_APP_ID
+              valueFrom:
+                secretKeyRef: {name: deployer-env, key: GITHUB_APP_ID}
+            - name: GITHUB_APP_INSTALLATION_ID
+              valueFrom:
+                secretKeyRef: {name: deployer-env, key: GITHUB_APP_INSTALLATION_ID}
+            - name: GITHUB_APP_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef: {name: deployer-env, key: GITHUB_APP_PRIVATE_KEY}
+            - name: GHCR_USERNAME
+              valueFrom:
+                secretKeyRef: {name: deployer-env, key: GHCR_USERNAME}
+            - name: GHCR_TOKEN
+              valueFrom:
+                secretKeyRef: {name: deployer-env, key: GHCR_TOKEN}
+          volumeMounts:
+            - {name: nats-client-tls, mountPath: /etc/nats-client/tls, readOnly: true}
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+          # Plain HTTP: no traefik /status route reaches the deployer, so
+          # there is no TLS hop to protect and no <svc>-tls cert to mount.
+          lifecycle:
+            preStop:
+              httpGet:
+                path: /drain
+                port: 8080
+          livenessProbe:
+            httpGet: {path: /healthz, port: 8080}
+            periodSeconds: 30
+          readinessProbe:
+            httpGet: {path: /readyz, port: 8080}
+            periodSeconds: 10
+          startupProbe:
+            httpGet: {path: /healthz, port: 8080}
+            failureThreshold: 18 # 18 × 5s = 90s max startup window
+            periodSeconds: 5
+      # 10s preStop hold + 15s RPC drain + 15s engine drain (app/deployer/main.go).
+      terminationGracePeriodSeconds: 45
+      volumes:
+        - name: nats-client-tls
+          secret:
+            secretName: nats-client-tls
+---
+# Default deny for the deployer, then the two allows standard NetworkPolicy
+# can express. The rest of its egress (DNS, the apiserver, GitHub) needs
+# entity and FQDN matching and lives in the CiliumNetworkPolicy below; Cilium
+# unions both.
+#
+# Ingress is the kubelet probe port only, the cilium/cilium#43012 workaround
+# network-policies.yaml documents (probes arrive as "world"). Nothing else
+# dials the deployer: the console reaches it through NATS.
+#
+# Egress into messaging is pod-scoped: the hub (client 4222, monitor 8222) and
+# the leaves (client 4223, monitor 8223, their real listeners behind the
+# nats-leaf Service's 4222). Monitor access is what the ACL stage reads
+# config_load_time from, per pod.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deployer
+  namespace: ops
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [deployer]
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - ports:
+        - port: 8080
+          protocol: TCP
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: messaging
+          podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [nats, nats-leaf]
+      ports:
+        - port: 4222
+          protocol: TCP
+        - port: 4223
+          protocol: TCP
+        - port: 8222
+          protocol: TCP
+        - port: 8223
+          protocol: TCP
+---
+# The deployer's internet egress is host-scoped, unlike the fleet's
+# port-scoped allow-public-https. It holds a key that merges to main and a
+# token that writes workloads; TCP/443 to anywhere would let one compromised
+# dependency post both to any host. The list is exact:
+#   api.github.com                      REST, App installation tokens, attestations
+#   ghcr.io                             registry API and its token endpoint
+#   pkg-containers.githubusercontent.com  ghcr's blob redirects (image config)
+#   productionresultssa0..19.blob.core.windows.net  the pre-signed 302
+#                                       target of the job logs endpoint
+#                                       (gh.JobLogTail), each name spelled out
+#   *.actions.githubusercontent.com     the same redirect for older runs
+#   *.itsbagelbot.com                   verify's probes of the IngressRoute hosts
+#
+# The results hosts are exact names on purpose. A pattern such as
+# productionresultssa*.blob.core.windows.net admits any Azure storage account
+# with that prefix, and account names are global and first come first served
+# (3 to 24 characters), so anyone could register productionresultssa9zz and
+# receive the merge key from a compromised dependency. The 0..19 range is the
+# set GitHub listed for self-hosted runner allowlists; its current docs only
+# say *.blob.core.windows.net (read 2026-09-23), which is the same hole. A log
+# served from a host outside the list fails closed: the failure's tail reads
+# "log unavailable" and the operator follows the job link. Widening it means
+# adding one exact name here and in network_policies_test.go.
+#
+# toFQDNs only learns addresses from lookups the Cilium DNS proxy sees, hence
+# the dns rule on the kube-dns hop in the same policy. The apiserver is matched
+# as the kube-apiserver entity because a standard ipBlock does not select node
+# identities on Cilium, and k3s serves it on cp1's host network (port 6443
+# after the kubernetes Service's DNAT).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: deployer-egress
+  namespace: ops
+spec:
+  endpointSelector:
+    matchLabels:
+      app: deployer
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - {port: "53", protocol: UDP}
+            - {port: "53", protocol: TCP}
+          rules:
+            dns:
+              - matchPattern: "*"
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - {port: "6443", protocol: TCP}
+    - toFQDNs:
+        - matchName: api.github.com
+        - matchName: ghcr.io
+        - matchName: pkg-containers.githubusercontent.com
+        - matchName: productionresultssa0.blob.core.windows.net
+        - matchName: productionresultssa1.blob.core.windows.net
+        - matchName: productionresultssa2.blob.core.windows.net
+        - matchName: productionresultssa3.blob.core.windows.net
+        - matchName: productionresultssa4.blob.core.windows.net
+        - matchName: productionresultssa5.blob.core.windows.net
+        - matchName: productionresultssa6.blob.core.windows.net
+        - matchName: productionresultssa7.blob.core.windows.net
+        - matchName: productionresultssa8.blob.core.windows.net
+        - matchName: productionresultssa9.blob.core.windows.net
+        - matchName: productionresultssa10.blob.core.windows.net
+        - matchName: productionresultssa11.blob.core.windows.net
+        - matchName: productionresultssa12.blob.core.windows.net
+        - matchName: productionresultssa13.blob.core.windows.net
+        - matchName: productionresultssa14.blob.core.windows.net
+        - matchName: productionresultssa15.blob.core.windows.net
+        - matchName: productionresultssa16.blob.core.windows.net
+        - matchName: productionresultssa17.blob.core.windows.net
+        - matchName: productionresultssa18.blob.core.windows.net
+        - matchName: productionresultssa19.blob.core.windows.net
+        - matchPattern: "*.actions.githubusercontent.com"
+        - matchPattern: "*.itsbagelbot.com"
+      toPorts:
+        - ports:
+            - {port: "443", protocol: TCP}
+---
+# The hub side of the deployer's NATS grant. default-deny-nats and
+# allow-nats-data-plane (deploy/messaging/network-policies.yaml) admit clients
+# from app, db and messaging only, and the monitor port from observability,
+# tailscale and KEDA, so the hub refuses ops until this allow exists. It lives
+# here rather than in deploy/messaging so deleting the deployer deletes its
+# grant with it.
+#
+# Hub pods only, never nats-leaf. No policy selects the leaves today, which
+# leaves them open; selecting them here would flip them to default deny for
+# every client in app and db.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-deployer
+  namespace: messaging
+spec:
+  podSelector:
+    matchLabels:
+      app: nats
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ops
+          podSelector:
+            matchLabels:
+              app: deployer
+      ports:
+        - port: 4222
+        - port: 8222
