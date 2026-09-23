@@ -238,7 +238,7 @@ func (s *CommandSpec) validate() error {
 	if err := validate.Cooldown(s.Cooldown); err != nil {
 		return err
 	}
-	return validate.BumpCounter(s.BumpCounter)
+	return validate.BumpCounter(validate.CounterName(s.BumpCounter))
 }
 
 // dto renders the spec as a full-state change event for userID.

@@ -231,6 +231,12 @@ func Cooldown(seconds uint) error {
 	return nil
 }
 
+// CounterName is a command's "also bump counter <name>" option value. It is
+// its own type, not a bare string, because BumpCounter's job is narrower
+// than CommandName's (see BumpCounter) and giving the value a name keeps
+// that distinction at the type level instead of just in a comment.
+type CounterName string
+
 // BumpCounter validates the optional "also bump counter <name>" command
 // option. "" is valid (no bump), unlike CommandName's own name, which the
 // command can never be empty for; a name is held to the same length and
@@ -246,7 +252,7 @@ func Cooldown(seconds uint) error {
 // broadcaster picks the name, keeps this validator and the loyalty service's
 // own agreeing on which names can exist without either having to trust the
 // other's input.
-func BumpCounter(name string) error {
+func BumpCounter(name CounterName) error {
 	if name == "" {
 		return nil
 	}
@@ -261,7 +267,7 @@ func BumpCounter(name string) error {
 		}
 	}
 
-	return FloorClean(name)
+	return FloorClean(string(name))
 }
 
 // ModuleName is strict because the name is embedded into the Valkey hash

@@ -37,7 +37,7 @@ import type {
 } from '../types';
 
 import { translateTags } from './tags';
-import type { TagContext, TextOption } from './tags';
+import type { TagContext, TagResult, TextOption } from './tags';
 
 // Codes restated from internal/domain/rpc/importer/importer.go, keep in step.
 // Every code this parser emits is a row here, so call sites never repeat raw
@@ -509,51 +509,67 @@ function parseCommandItem(item: RawCommand, pos: number, state: ParseState): voi
   const idx = state.commands.length;
   const cmd: ManifestCommand = { name };
 
-  const { perm, diags: permDiags } = resolveTriggerGroups(numOfList(item.trigger_usergroups), idx);
-  if (perm !== '') cmd.permission = perm as ManifestCommand['permission'];
-  state.diags.push(...permDiags);
-
+  applyCommandPermission(item, idx, cmd, state);
   applyCommandCooldown(item, cmd);
 
   const ctx: TagContext = commandTagContext(item, name, state.fetchDefs);
   const tr = translateTags(asStr(item.text), ctx);
+  emitTagDiagnostics(tr, idx, state);
+  emitCountRemapDiagnostic(item, tr, idx, state);
+
+  const { lines, diags: respDiags } = canonicalizeResponse(tr.text, idx);
+  if (lines.length) cmd.responses = lines;
+  state.diags.push(...respDiags);
+
+  emitDisabledDiagnostic(item, idx, state);
+
+  state.commands.push(cmd);
+  state.texts.set(name, tr.text);
+}
+
+function applyCommandPermission(item: RawCommand, idx: number, cmd: ManifestCommand, state: ParseState): void {
+  const { perm, diags: permDiags } = resolveTriggerGroups(numOfList(item.trigger_usergroups), idx);
+  if (perm !== '') cmd.permission = perm as ManifestCommand['permission'];
+  state.diags.push(...permDiags);
+}
+
+// emitTagDiagnostics reports every tag translateTags could not fully resolve:
+// one warn per unmapped tag left as literal text, and one warn per distinct
+// fetch-backed tag whose definition still needs a URL — the tag itself
+// mapped fine, but its definition is a URL-less shell until the broadcaster
+// acts.
+function emitTagDiagnostics(tr: TagResult, idx: number, state: ParseState): void {
   for (const tok of tr.unmapped) {
     state.diags.push(warnDiag(idx, CODE.variableUnmapped,
       `response uses <${tok}>, which has no equivalent; left as literal text`));
   }
   for (const ref of tr.fetchRefs) {
-    // One targeted warn per distinct tag per command, in the shape of the
-    // variableUnmapped precedent: the tag itself mapped fine, but its
-    // definition is a URL-less shell until the broadcaster acts.
     state.diags.push(warnDiag(idx, CODE.fetchUrlAbsent,
       `response uses <${ref.tag}>, imported as {urlfetch:${ref.key}}. Re-enter the URL for "${ref.key}" before it can fetch`));
   }
-  if (tr.countRemapped) {
-    // <counter> mapped fine (no literal text left over), but what it MEANS
-    // changed: Moobot's per-command counter incremented on every run from
-    // whatever value the broadcaster set it to; {count} counts this bot's
-    // own runs, starting from zero. The old value, when the export carried
-    // one, could not come along — there is no field on the imported command
-    // to hold it and nothing to add it to.
-    const old = asNum(item.counter);
-    state.diags.push(warnDiag(idx, CODE.countRemapped,
-      old === undefined
-        ? 'response uses <counter>, imported as {count}: it now counts this command’s own runs from zero, not the value it showed in Moobot'
-        : `response uses <counter>, imported as {count}: it now counts this command’s own runs from zero; the old value ${Math.trunc(old)} was not carried over`));
-  }
-  const { lines, diags: respDiags } = canonicalizeResponse(tr.text, idx);
-  if (lines.length) cmd.responses = lines;
-  state.diags.push(...respDiags);
+}
 
-  if (item.enabled === false) {
-    // Kept with an error rather than dropped: preview shows exactly
-    // why it cannot land while commit skips it.
-    state.diags.push(errDiag(idx, CODE.commandDisabled,
-      'command is disabled in Moobot; importing would enable it, so commit will skip it'));
-  }
+// emitCountRemapDiagnostic warns when <counter> mapped fine (no literal text
+// left over) but what it MEANS changed: Moobot's per-command counter
+// incremented on every run from whatever value the broadcaster set it to;
+// {count} counts this bot's own runs, starting from zero. The old value,
+// when the export carried one, could not come along — there is no field on
+// the imported command to hold it and nothing to add it to.
+function emitCountRemapDiagnostic(item: RawCommand, tr: TagResult, idx: number, state: ParseState): void {
+  if (!tr.countRemapped) return;
+  const old = asNum(item.counter);
+  state.diags.push(warnDiag(idx, CODE.countRemapped,
+    old === undefined
+      ? 'response uses <counter>, imported as {count}: it now counts this command’s own runs from zero, not the value it showed in Moobot'
+      : `response uses <counter>, imported as {count}: it now counts this command’s own runs from zero; the old value ${Math.trunc(old)} was not carried over`));
+}
 
-  state.commands.push(cmd);
-  state.texts.set(name, tr.text);
+// emitDisabledDiagnostic is kept as an error rather than a drop: preview
+// shows exactly why the command cannot land while commit skips it.
+function emitDisabledDiagnostic(item: RawCommand, idx: number, state: ParseState): void {
+  if (item.enabled !== false) return;
+  state.diags.push(errDiag(idx, CODE.commandDisabled,
+    'command is disabled in Moobot; importing would enable it, so commit will skip it'));
 }
 
 function applyCommandCooldown(item: RawCommand, cmd: ManifestCommand): void {

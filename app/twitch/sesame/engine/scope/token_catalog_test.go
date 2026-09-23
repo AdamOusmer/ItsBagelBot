@@ -52,31 +52,54 @@ func validateTokenFamily(t *testing.T, family TokenFamily, familyIDs map[string]
 func validateTokenExample(t *testing.T, familyID, example string, seen map[string]string) {
 	t.Helper()
 	toks := tmpl.Lex(example)
+	validateSingleVarSpan(t, familyID, example, toks)
+	validateNonEmptyName(t, familyID, example, toks)
+	recordTokenOwner(t, seen, dedupKey(toks[0]), familyID)
+}
+
+// validateSingleVarSpan checks that example lexes to exactly one variable
+// span carrying its original spelling.
+func validateSingleVarSpan(t *testing.T, familyID, example string, toks []tmpl.Token) {
+	t.Helper()
 	if len(toks) != 1 || toks[0].Kind != tmpl.KindVar {
 		t.Fatalf("family %q: Lex(%q) = %#v, want one variable span", familyID, example, toks)
 	}
 	if toks[0].Raw != example {
 		t.Fatalf("family %q: Lex(%q) raw = %q, want original spelling", familyID, example, toks[0].Raw)
 	}
-	// An empty name is a real span only for the positional leading slice
-	// ({:m}, message family): everywhere else it is the catalogue accidentally
-	// carrying "{}" or "{:notanumber}", which is worth failing loudly on.
-	if toks[0].Name == "" {
-		if _, ok := positionalIndex(toks[0].Payload); !ok {
-			t.Fatalf("family %q: Lex(%q) produced an empty variable name", familyID, example)
-		}
+}
+
+// validateNonEmptyName checks that an empty span name is a real span: only
+// the positional leading slice ({:m}, message family) is allowed one, since
+// everywhere else it is the catalogue accidentally carrying "{}" or
+// "{:notanumber}", which is worth failing loudly on.
+func validateNonEmptyName(t *testing.T, familyID, example string, toks []tmpl.Token) {
+	t.Helper()
+	if toks[0].Name != "" {
+		return
 	}
-	// The dedup key is name PLUS whether the span carries a payload, not the
-	// name alone: {count} (uses, no payload) and {count:deaths} (store, a
-	// payload) are one name legitimately answered by two families, the exact
-	// split scope.Uses.Owns/scope.Store.Owns make by inspecting the whole Var
-	// rather than just its name (see scope.Scope.Owns's doc). A collision on
-	// the (name, has-payload) pair, unlike a collision on the bare name, is
-	// still a real ambiguity worth failing on.
-	key := toks[0].Name
-	if toks[0].HasPayload {
-		key += ":payload"
+	if _, ok := positionalIndex(toks[0].Payload); !ok {
+		t.Fatalf("family %q: Lex(%q) produced an empty variable name", familyID, example)
 	}
+}
+
+// dedupKey is name PLUS whether the span carries a payload, not the name
+// alone: {count} (uses, no payload) and {count:deaths} (store, a payload)
+// are one name legitimately answered by two families, the exact split
+// scope.Uses.Owns/scope.Store.Owns make by inspecting the whole Var rather
+// than just its name (see scope.Scope.Owns's doc).
+func dedupKey(tok tmpl.Token) string {
+	if tok.HasPayload {
+		return tok.Name + ":payload"
+	}
+	return tok.Name
+}
+
+// recordTokenOwner fails when key was already claimed by a different
+// family — a collision on the (name, has-payload) pair, unlike a collision
+// on the bare name, is still a real ambiguity worth failing on.
+func recordTokenOwner(t *testing.T, seen map[string]string, key, familyID string) {
+	t.Helper()
 	if previous, ok := seen[key]; ok && previous != familyID {
 		t.Fatalf("token %q appears in families %q and %q", key, previous, familyID)
 	}

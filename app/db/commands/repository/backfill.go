@@ -99,7 +99,7 @@ func (r *Commands) BackfillBumpCounterFromTokens(ctx context.Context) error {
 // scan: an earlier addressed span must not hide a later bare one.
 func bumpCounterFromResponse(response, cmdName string, log *zap.Logger) (name string, ok bool) {
 	for _, tok := range tmpl.Lex(response) {
-		if tok.Kind != tmpl.KindVar || tok.Name != "counter" || !tok.HasPayload {
+		if !isBareCounterSpan(tok) {
 			continue
 		}
 		if strings.Contains(tok.Payload, ":") {
@@ -112,6 +112,14 @@ func bumpCounterFromResponse(response, cmdName string, log *zap.Logger) (name st
 		}
 	}
 	return name, ok
+}
+
+// isBareCounterSpan reports whether tok is a {counter:<payload>} span — the
+// only shape bumpCounterFromResponse considers a migration candidate (see
+// its comment for why an addressed "target:..." payload is handled
+// separately rather than excluded here).
+func isBareCounterSpan(tok tmpl.Token) bool {
+	return tok.Kind == tmpl.KindVar && tok.Name == "counter" && tok.HasPayload
 }
 
 // backfillRow lands one row's bump_counter directly (not write-behind) and

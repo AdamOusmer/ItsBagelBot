@@ -189,7 +189,7 @@ export interface FetchTagRef {
   key: string;
 }
 
-interface TagResult {
+export interface TagResult {
   text: string;
   unmapped: string[];
   fetchRefs: FetchTagRef[];

@@ -12,6 +12,7 @@
 // outgrew this file; the re-export keeps every existing import path working.
 export * from './fetch-validate';
 import { urlFetchNames, URLFETCH_TOKEN_CAP, type FetchDefErrors } from './fetch-validate';
+import { bumpCounterProblem } from './counter-validate';
 
 export const COMMAND_NAME_MAX = 64;
 /** Per line: each line is sent as its own chat message (Twitch limit). */
@@ -125,35 +126,6 @@ function responseProblem(response: string): string | undefined {
     // absorb scales with distinct defs, so that is what the cap counts.
     return `A response can reference at most ${URLFETCH_TOKEN_CAP} different fetched values ({urlfetch:…}).`;
   }
-  return undefined;
-}
-
-// bumpCounterProblem mirrors validate.BumpCounter (Go): '' is valid (no
-// bump), unlike a command name, which can never be empty; a NAME is held to
-// the same length/charset rule because it is likewise echoed to chat, through
-// the {counter:…}/{count:…} reads of the value this option produces.
-//
-// A leading '!' is stripped before checking anything else, matching Go's
-// own order: CommandSpec.normalize folds bump_counter through
-// tmpl.NormalizeName (trim, drop one leading '!', trim, lower-case) BEFORE
-// validate.BumpCounter ever runs, so Go never sees a leading '!' to reject
-// in the first place. This function used to reject '!' ANYWHERE, which was
-// stricter than Go two ways at once: Go allows one embedded further in the
-// name (nothing here strips or forbids that), and Go never even looks at a
-// leading one because normalization already removed it. Stripping here
-// makes this the same check regardless of whether a caller normalized
-// first (both call sites currently do; a future one might not).
-//
-// ':' is rejected for the same reason Go's validate.BumpCounter now is: it
-// is the {counter:…}/{count:…} token's payload separator (see that
-// function's comment), so a name containing one could never be addressed
-// by either token.
-function bumpCounterProblem(name: string): string | undefined {
-  const stripped = name.replace(/^!/, '');
-  if (!stripped) return undefined;
-  if (stripped.length > COMMAND_NAME_MAX) return `Counter name must be at most ${COMMAND_NAME_MAX} characters.`;
-  if (/\s/.test(stripped)) return 'Counter name cannot contain spaces.';
-  if (stripped.includes(':')) return 'Counter name cannot contain ":".';
   return undefined;
 }
 

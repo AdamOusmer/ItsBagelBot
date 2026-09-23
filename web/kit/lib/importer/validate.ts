@@ -363,8 +363,8 @@ function q(s: string): string {
   return JSON.stringify(s);
 }
 
-function errDiag(itemIndex: number, code: string, message: string): ImportDiagnostic {
-  return { severity: 'error', item_index: itemIndex, code, message };
+function errDiag(d: Omit<ImportDiagnostic, 'severity'>): ImportDiagnostic {
+  return { severity: 'error', ...d };
 }
 
 export function warnDiag(itemIndex: number, code: string, message: string): ImportDiagnostic {
@@ -468,7 +468,7 @@ interface CollectionKind<T> {
 function walkKind<T>(kind: CollectionKind<T>): (m: ImportManifest) => ImportDiagnostic[] {
   return (m) =>
     kind.items(m).flatMap((item, i) =>
-      i >= kind.cap ? [errDiag(i, kind.overflowCode, `only the first ${kind.cap} ${kind.noun} are imported`)] : kind.validateItem(item, i)
+      i >= kind.cap ? [errDiag({ item_index: i, code: kind.overflowCode, message: `only the first ${kind.cap} ${kind.noun} are imported` })] : kind.validateItem(item, i)
     );
 }
 
@@ -533,32 +533,32 @@ function validateCommandItem(c: ManifestCommand, index: number): ImportDiagnosti
 function commandNameDiags(item: CommandItem): ImportDiagnostic[] {
   const { command, name, index } = item;
   const problem = commandNameProblem(name);
-  return problem ? [errDiag(index, CODE.nameInvalid, `command name ${q(command.name)}: ${problem}`)] : [];
+  return problem ? [errDiag({ item_index: index, code: CODE.nameInvalid, message: `command name ${q(command.name)}: ${problem}` })] : [];
 }
 
 function commandAliasDiags(item: CommandItem): ImportDiagnostic[] {
   const { command, name, index } = item;
   if (!command.aliases?.length) return [];
   const problem = commandAliasesProblem(command.aliases.map(normalizeName));
-  return problem ? [errDiag(index, CODE.aliasInvalid, `aliases for ${q(name)}: ${problem}`)] : [];
+  return problem ? [errDiag({ item_index: index, code: CODE.aliasInvalid, message: `aliases for ${q(name)}: ${problem}` })] : [];
 }
 
 function commandResponseDiags(item: CommandItem): ImportDiagnostic[] {
   const { command, name, index } = item;
-  if (!command.responses?.length) return [errDiag(index, CODE.responseInvalid, 'command has no response')];
+  if (!command.responses?.length) return [errDiag({ item_index: index, code: CODE.responseInvalid, message: 'command has no response' })];
   const problem = commandResponseProblem(command.responses.join('\n'));
-  return problem ? [errDiag(index, CODE.responseInvalid, `response for ${q(name)}: ${problem}`)] : [];
+  return problem ? [errDiag({ item_index: index, code: CODE.responseInvalid, message: `response for ${q(name)}: ${problem}` })] : [];
 }
 
 function commandTierDiags(c: ManifestCommand, index: number): ImportDiagnostic[] {
   const out: ImportDiagnostic[] = [];
   if (c.permission && !PERM_TIERS.includes(c.permission)) {
     out.push(
-      errDiag(
-        index,
-        CODE.permissionUnmapped,
-        `permission ${q(c.permission)} is not one of everyone/sub/vip/mod/lead_mod/broadcaster`
-      )
+      errDiag({
+        item_index: index,
+        code: CODE.permissionUnmapped,
+        message: `permission ${q(c.permission)} is not one of everyone/sub/vip/mod/lead_mod/broadcaster`
+      })
     );
   }
   if ((c.cooldown_seconds ?? 0) > MAX_COOLDOWN_SECONDS) {
@@ -571,7 +571,7 @@ function commandTierDiags(c: ManifestCommand, index: number): ImportDiagnostic[]
 
 function validateTimerItem(t: ManifestTimer, index: number): ImportDiagnostic[] {
   const out: ImportDiagnostic[] = [];
-  if (t.message.trim() === '') out.push(errDiag(index, CODE.timerMessageEmpty, 'timer has no message'));
+  if (t.message.trim() === '') out.push(errDiag({ item_index: index, code: CODE.timerMessageEmpty, message: 'timer has no message' }));
   if (t.interval_seconds < MIN_TIMER_INTERVAL_SECONDS) {
     out.push(
       warnDiag(
@@ -587,7 +587,7 @@ function validateTimerItem(t: ManifestTimer, index: number): ImportDiagnostic[] 
 function validateTriggerItem(tr: ManifestTrigger, index: number): ImportDiagnostic[] {
   if (tr.phrase.trim() !== '' && tr.response.trim() !== '') return [];
   return [
-    errDiag(index, CODE.triggerInvalid, `trigger needs both a phrase and a response; got phrase=${q(tr.phrase)}`)
+    errDiag({ item_index: index, code: CODE.triggerInvalid, message: `trigger needs both a phrase and a response; got phrase=${q(tr.phrase)}` })
   ];
 }
 
@@ -595,10 +595,10 @@ function validateQuoteItem(qt: ManifestQuote, index: number): ImportDiagnostic[]
   const out: ImportDiagnostic[] = [];
   const text = qt.text.trim();
   if (text === '' || byteLen(text) > MAX_QUOTE_TEXT_LEN) {
-    out.push(errDiag(index, CODE.quoteTextInvalid, `quote text must be 1-${MAX_QUOTE_TEXT_LEN} bytes`));
+    out.push(errDiag({ item_index: index, code: CODE.quoteTextInvalid, message: `quote text must be 1-${MAX_QUOTE_TEXT_LEN} bytes` }));
   }
   if (qt.created_at && !isRFC3339(qt.created_at)) {
-    out.push(errDiag(index, CODE.quoteDateInvalid, 'created_at must be RFC 3339 (e.g. 2026-01-31T12:00:00Z)'));
+    out.push(errDiag({ item_index: index, code: CODE.quoteDateInvalid, message: 'created_at must be RFC 3339 (e.g. 2026-01-31T12:00:00Z)' }));
   }
   return out;
 }
