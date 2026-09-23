@@ -2,48 +2,55 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// One group section in the main column. `data-vref-group` is what
-// reference.ts hides when a filter leaves nothing visible inside it, and
-// `id` is what the rail's per-group links jump to.
+// One group section: a heading, one table (Variable / Means / Example /
+// Result), and an optional per-table "Also written" footnote built from
+// every alias token the group's own entries carry -- a group with none
+// renders no footnote rather than an empty line.
+import Table from '@bagel/ui/astro/Table.astro';
 import Entry from './Entry.astro';
 import type { LocalizedVariableReference } from '../../../lib/variables';
 
 interface GroupCopy {
-    formsLabel: string;
-    formSyntax: string;
-    formExample: string;
-    formOutput: string;
-    available: string;
-    needs: string;
+    colVariable: string;
+    colMeans: string;
+    colExample: string;
+    colResult: string;
     aliases: string;
-    legacy: string;
     copy: string;
-    copied: string;
-    copyFailed: string;
-    composeInDashboard: string;
-    surfaceCount: string;
-    tryIt: string;
-    tryItHint: string;
 }
 
 interface Props {
     group: string;
     label: string;
     entries: readonly LocalizedVariableReference[];
-    dashboardOrigin: string;
-    builderLang: string;
-    revealIndex: number;
     copy: GroupCopy;
+    revealIndex: number;
 }
 
-const { group, label, entries, dashboardOrigin, builderLang, revealIndex, copy } = Astro.props;
+const { group, label, entries, copy, revealIndex } = Astro.props;
+
+const aliasTokens = [...new Set(entries.flatMap((entry) => entry.aliasTokens))];
 ---
 
-<section id={group} class="vref-group" data-vref-group data-reveal style={`--reveal-i: ${revealIndex}`}>
+<section id={group} class="vref-group" data-reveal style={`--reveal-i: ${revealIndex}`}>
     <h2 class="vref-group__heading">{label}</h2>
-    <div class="vref-group__list">
-        {entries.map((entry) => (
-            <Entry entry={entry} groupLabel={label} dashboardOrigin={dashboardOrigin} builderLang={builderLang} copy={copy} />
-        ))}
-    </div>
+    <Table label={label} class="vref-table">
+        <thead>
+            <tr>
+                <th scope="col">{copy.colVariable}</th>
+                <th scope="col">{copy.colMeans}</th>
+                <th scope="col">{copy.colExample}</th>
+                <th scope="col">{copy.colResult}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {entries.map((entry) => (
+                <Entry entry={entry} copy={{ copy: copy.copy }} />
+            ))}
+        </tbody>
+    </Table>
+    {aliasTokens.length > 0 && (
+        <p class="vref-group__footnote"><span>{copy.aliases}</span> {aliasTokens.map((token) => <code>{token}</code>)}</p>
+    )}
+    <slot />
 </section>

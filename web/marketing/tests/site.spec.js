@@ -398,34 +398,31 @@ test.describe('guides & command builder', () => {
     test('guide pages render toc, visuals, and pager', async ({ page }) => {
         await page.goto('/guides/commands');
 
-        await expect(page.locator('[data-guide-link]')).toHaveCount(7);
-        await expect(page.locator('[data-guide-section]')).toHaveCount(7);
+        // anatomy, create, variables, multiline, rules, builder (phase 7
+        // folded fallbacks/dynamic/utilities/viewer/modulefacts/chatroom/
+        // emotes/stream into the standalone variables reference).
+        await expect(page.locator('[data-guide-link]')).toHaveCount(6);
+        await expect(page.locator('[data-guide-section]')).toHaveCount(6);
 
         // Visual furniture: chat mock, dashboard frame, variable table.
         await expect(page.locator('.cmock__win').first()).toBeVisible();
         await expect(page.locator('.dframe__win')).toHaveCount(1);
-        await expect(page.locator('#variables table td code').first()).toContainText('{user}');
+        // The 'variables' section is now a short pointer to the standalone
+        // reference (phase 7) rather than a hand-written table.
+        await expect(page.locator('#variables code').first()).toContainText('{user}');
+        await expect(page.locator('#variables a[href="/guides/variables"]')).toHaveCount(2);
 
         // Pager walks the handbook in both directions; data sources sits after commands.
         await expect(page.locator('.gshell__pager-card')).toHaveCount(2);
         await expect(page.locator('.gshell__pager-card--next')).toHaveAttribute('href', '/guides/data-sources/');
     });
 
-    test('the response rehearsal expands tokens as you type', async ({ page }) => {
-        await page.goto('/guides/commands');
-        const widget = page.locator('[data-rehearsal]');
-        await expect(widget).toBeVisible();
-
-        await widget.locator('[data-rh-who]').fill('maya_live');
-        await expect(widget.locator('[data-rh-output]')).toContainText('maya_live');
-
-        // The guide uses the same fallback and payload grammar as the builder.
-        await widget.locator('[data-rh-args]').fill('');
-        await widget.locator('[data-rh-response]').fill('{USER} {args|no args} {user:other}');
-        await expect(widget.locator('[data-rh-content]')).toHaveText('maya_live no args {user:other}');
-        await widget.locator('[data-rh-response]').fill('{URLFETCH:weather|waiting}');
-        await expect(widget.locator('.rh__pill')).toHaveText('fetched at send time');
-    });
+    // The [data-rehearsal] widget this test drove lived in the commands
+    // guide's 'dynamic' section, which phase 7 folded into the standalone
+    // variables reference along with fallbacks/utilities/viewer/
+    // modulefacts/chatroom/emotes/stream -- no page renders that widget any
+    // more. Live token expansion itself is still covered end to end by the
+    // command-builder tests below, through that page's own preview markup.
 
     test('data sources guide teaches the path with a live picker', async ({ page }) => {
         await page.goto('/guides/data-sources');
@@ -469,52 +466,52 @@ test.describe('guides & command builder', () => {
         await expect(page.locator('.bb-lang-switch a[hreflang="fr"]').first()).toHaveAttribute('href', '/fr/guides/');
     });
 
-    test('variables reference groups by category, expands, and deep-links', async ({ page }) => {
+    test('variables reference lists custom-command variables in one table per group', async ({ page }) => {
         await page.goto('/guides/variables');
 
-        // One <section data-vref-group> per category that has entries, and
-        // one <details data-vref-entry> per variable family (docs/specs/
-        // variables-catalog.md D7: grouped, anchor-linkable, no-JS-first).
-        const groups = page.locator('[data-vref-group]');
-        await expect(groups).toHaveCount(13);
-        const entries = page.locator('[data-vref-entry]');
-        const totalEntries = await entries.count();
-        expect(totalEntries).toBeGreaterThan(100);
+        // Five <section class="vref-group">, one per kit VariableGroup that
+        // has an entry on the custom-command surface -- module-reply-only
+        // fields (channel points, game stats...) are filtered out of this
+        // page (docs/specs/variables-catalog.md phase 7 review: they belong
+        // on the dashboard's per-module editor, not here).
+        const groups = page.locator('section.vref-group');
+        await expect(groups).toHaveCount(5);
 
-        // A collapsed row expands on click, revealing the forms table.
-        const first = entries.first();
-        await first.locator('.vref-entry__row').click();
-        await expect(first).toHaveAttribute('open', '');
-        await expect(first.locator('.vref-forms')).toBeVisible();
+        // Every variable is a plain <tr>, always in the DOM: no <details> to
+        // expand and no search box to narrow it (phase 7 replaced the
+        // filtered, collapsible layout with a flat, Ctrl-F-able page).
+        const rows = page.locator('tr[data-vref-entry]');
+        const totalRows = await rows.count();
+        expect(totalRows).toBeGreaterThan(30);
+        await expect(page.locator('details')).toHaveCount(0);
+        await expect(page.locator('[data-vref-search]')).toHaveCount(0);
 
-        // Search narrows the visible count below the full total.
-        await page.fill('[data-vref-search]', 'followage');
-        await expect(page.locator('[data-vref-count]')).toContainText('1 ');
-        await expect(page.locator('[data-vref-entry]:not([hidden])')).toHaveCount(1);
+        // A module reply's own field never leaked back onto this page.
+        await expect(page.locator('tr#reward')).toHaveCount(0);
+        await expect(page.locator('tr#input')).toHaveCount(0);
+        await expect(page.locator('tr#tier')).toHaveCount(0);
     });
 
-    test('#followage deep-links to and opens that entry', async ({ page }) => {
-        await page.goto('/guides/variables#followage');
+    test('#positional deep-links straight to that row, extra forms and all', async ({ page }) => {
+        await page.goto('/guides/variables#positional');
 
-        const entry = page.locator('#followage[data-vref-entry]');
-        await expect(entry).toHaveAttribute('open', '');
+        const entry = page.locator('tr#positional');
         await expect(entry).toBeInViewport();
+        expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+
+        // {2:}, {:2}, {2:4} are extra rows right under the canonical {1} row,
+        // each independently anchored (Entry.astro suffixes the owning id).
+        await expect(page.locator('tr#positional-2')).toHaveCount(1);
+        await expect(page.locator('tr#positional-3')).toHaveCount(1);
+        await expect(page.locator('tr#positional-4')).toHaveCount(1);
     });
 
-    test('french variables reference localizes the catalog', async ({ page }) => {
+    test('french variables reference localizes group labels, headers and copy', async ({ page }) => {
         await page.goto('/fr/guides/variables');
 
-        await expect(page.locator('#followage .vref-entry__name')).toHaveText('Temps de follow');
-    });
-
-    test('the "Try it" row re-evaluates a parameterized token live', async ({ page }) => {
-        await page.goto('/guides/variables/#math');
-
-        const entry = page.locator('#math[data-vref-entry]');
-        await expect(entry).toHaveAttribute('open', '');
-
-        await entry.locator('[data-vref-try]').fill('{math:2*21}');
-        await expect(entry.locator('[data-vref-result]')).toContainText('42');
+        await expect(page.locator('h2', { hasText: 'Qui' })).toBeVisible();
+        await expect(page.locator('th', { hasText: 'Signifie' }).first()).toBeVisible();
+        await expect(page.locator('tr#followage td').nth(1)).toContainText('Followage');
     });
 
     test('builder composes a command end to end', async ({ page }) => {

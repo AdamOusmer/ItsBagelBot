@@ -13,11 +13,48 @@ const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
 // Keep the page coupled only to the manifest boundary. Localization happens in
 // the catalog so the reference never has to know how the manifest stores copy.
-const catalog = variableReferenceData(lang);
+// Only the custom-command surface belongs on this page: a module reply's own
+// fields ({tier}, {bits}, {player}, the channelpoints/game-stat tokens...)
+// are surface-only records the catalog also carries (docs/specs/variables-
+// catalog.md phase 4's "surface-only remainder"), meant for the dashboard's
+// per-module reply editor, not the broadcaster-facing custom-command guide.
+// Filtered once here so the page body and the JSON-LD graph below can never
+// drift apart on which rows exist.
+const catalog = variableReferenceData(lang).filter((entry) => entry.surfaceIds.includes('custom'));
 
 const meta = { title: t('guides.variables.metaTitle'), description: t('guides.variables.metaDesc') };
+
+// One DefinedTerm per variable, the same way [slug].astro gives a guide its
+// own TechArticle: a #id anchor per row is a real, stable target on this
+// page (Entry.astro sets it), so each term links straight to its row rather
+// than to the page as a whole. Anchors are not routes, so they stay out of
+// the sitemap -- this is the graph, not a navigation surface.
+const pageUrl = new URL(Astro.url.pathname, Astro.site).href;
+const termSchema: Record<string, unknown>[] = [
+    {
+        '@type': 'DefinedTermSet',
+        '@id': `${pageUrl}#terms`,
+        name: meta.title,
+        description: meta.description,
+        inLanguage: lang,
+        url: pageUrl,
+        // One term per manifest entry (its canonical form), not per extra
+        // row Entry.astro adds for a second syntax ({2:}, {random:1-6}...):
+        // those are the same variable, not a second concept a search engine
+        // should index separately.
+        hasDefinedTerm: catalog.map((entry) => ({
+            '@type': 'DefinedTerm',
+            '@id': `${pageUrl}#${entry.id}`,
+            name: entry.name,
+            description: entry.description || entry.hint,
+            termCode: entry.syntax,
+            url: `${pageUrl}#${entry.id}`,
+            inDefinedTermSet: `${pageUrl}#terms`,
+        })),
+    },
+];
 ---
 
-<Layout title={meta.title} description={meta.description} ogType="article">
+<Layout title={meta.title} description={meta.description} ogType="article" extraSchema={termSchema}>
     <VariablesReference catalog={catalog} lang={lang} />
 </Layout>

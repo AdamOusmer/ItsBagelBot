@@ -2,135 +2,67 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// One <details> per variable: works with no JS (native disclosure), gets a
-// stable id so `#followage` deep-links to it, and carries every field
-// reference.ts needs to filter and search in data attributes rather than a
-// second client-side copy of the catalog.
-import Tag from '@bagel/ui/astro/Tag.astro';
+// One or more <tr> for a single manifest entry: the canonical form on the
+// row that carries the entry's own id (`#followage` deep-links here), any
+// other form the manifest lists (positional's {2:}, {:2}, {2:4}; random's
+// {random:1-6}...) as extra rows right under it, suffixed `-2`, `-3`... so
+// each stays independently linkable (docs/specs/variables-catalog.md D7,
+// phase 7: a static table row replaces the old <details> disclosure --
+// nothing on the page moves when a visitor clicks a copy button, so there is
+// no expand/collapse state left to carry).
 import Code from '@bagel/ui/astro/Code.astro';
-import TextLink from '@bagel/ui/astro/TextLink.astro';
-import Field from '@bagel/ui/astro/Field.astro';
-import Forms from './Forms.astro';
-import { variableById } from '@bagel/kit/variables';
 import type { LocalizedVariableReference } from '../../../lib/variables';
 
 interface EntryCopy {
-    formsLabel: string;
-    formSyntax: string;
-    formExample: string;
-    formOutput: string;
-    available: string;
-    needs: string;
-    aliases: string;
-    legacy: string;
     copy: string;
-    copied: string;
-    copyFailed: string;
-    composeInDashboard: string;
-    surfaceCount: string;
-    tryIt: string;
-    tryItHint: string;
 }
 
 interface Props {
     entry: LocalizedVariableReference;
-    groupLabel: string;
-    dashboardOrigin: string;
-    builderLang: string;
     copy: EntryCopy;
 }
 
-const { entry, groupLabel, dashboardOrigin, builderLang, copy } = Astro.props;
+const { entry, copy } = Astro.props;
 
-// The hint is the collapsed row's one-liner when the source kit variable has
-// one; otherwise the description's first sentence stands in.
+// The hint is the row's one-liner when the source kit variable has one;
+// otherwise the description's first sentence stands in. Not appending
+// "Requires <module>" here separately: every kit hint that has a
+// `requirement` already names it in prose ("...(Account age module)",
+// "...(Loyalty)") -- that parenthetical exists specifically so this page
+// does not have to re-derive it, and concatenating entry.requirement on top
+// read as "(Account age module) Requires !accountage." (verified against
+// every entry the golden fixture carries: none pairs a requirement with an
+// empty hint, so the fallback path below never needs it either).
 function firstSentence(text: string): string {
     const match = text.match(/^.*?[.!?](?=\s|$)/);
     return match ? match[0] : text;
 }
-const summary = entry.hint || firstSentence(entry.description);
+const means = entry.hint || firstSentence(entry.description);
 
-const aliasSpellings = [...entry.aliases, ...entry.aliasTokens];
-const surfaceCountLabel = copy.surfaceCount.replace('{n}', String(entry.surfaces.length));
-// Astro drops the whitespace-only text node between two bare `{expr} {expr}`
-// interpolations at build time, so a "needs" label built from two separate
-// expressions silently loses its space (caught by a French build check: the
-// chip read "NécessiteLoyalty Points"). One interpolated string sidesteps it.
-const needsLabel = `${copy.needs} ${entry.requirement}`;
-const composeHref = `${dashboardOrigin}/commands?compose=1&response=${encodeURIComponent(entry.example)}${builderLang ? `&lang=${builderLang}` : ''}`;
-const tryItHintId = `${entry.id}-tryit-hint`;
-// Was the manifest's own `parameterized` field (deleted: docs/specs/
-// variables-catalog.md phase 4, index.ts shrinks to a localizer); the check
-// itself — does this variable's canonical syntax carry a payload placeholder
-// distinct from its worked example — is cheap enough to compute here, once
-// per entry, rather than precompute and thread through every record.
-//
-// Gated on the record being kit-backed (variableById resolves): a
-// surface-only record's `syntax` is reconstructed by
-// lib/variables/index.ts's surfaceOnlyRecord as a bare `{name}`, which can
-// legitimately differ from its `example` (a concrete payload token like
-// `{time:Paris}`) without meaning "try a payload here" the way a kit
-// Variable's placeholder syntax does — the old hand-written per-surface
-// records this replaced never rendered the Try It box, and an ungated check
-// here would silently turn it back on for them.
-const parameterized = variableById(entry.id) !== undefined && entry.syntax !== entry.example;
-
-const searchText = [
-    entry.id, entry.syntax, ...entry.syntaxes, entry.example,
-    ...entry.examples.flatMap((example) => [example.syntax, example.output]),
-    ...aliasSpellings, entry.name, entry.description, entry.group, groupLabel,
-    ...entry.surfaces.map((surface) => surface.label), entry.requirement,
-].join(' ').toLocaleLowerCase();
+// syntaxes[0]/examples[0] is the canonical form the id anchors; every later
+// index is an extra row, paired the same way Forms.astro used to pair them.
+const extraForms = entry.syntaxes.slice(1).map((syntax, i) => ({
+    syntax,
+    output: entry.examples[i + 1]?.output ?? '',
+}));
 ---
 
-<details class="vref-entry" id={entry.id} data-vref-entry data-category={entry.group} data-surfaces={entry.surfaceIds.join('|')} data-search={searchText}>
-    <summary class="vref-entry__row">
-        <Code>{entry.syntax}</Code>
-        <span class="vref-entry__name">{entry.name}</span>
-        <span class="vref-entry__hint">{summary}</span>
-        <span class="vref-entry__chips">
-            {entry.requirement && <Tag tone="quiet">{needsLabel}</Tag>}
-            {entry.surfaces.length > 1 && <Tag tone="quiet">{surfaceCountLabel}</Tag>}
+<tr id={entry.id} data-vref-entry>
+    <td>
+        <span class="vref-td-variable">
+            <span class="vref-chip"><Code>{entry.syntax}</Code></span>
+            <button type="button" class="vref-copy" data-vref-copy={entry.example}>{copy.copy}</button>
         </span>
-    </summary>
-
-    <div class="vref-entry__body">
-        {entry.description && <p class="vref-entry__description">{entry.description}</p>}
-
-        <Forms syntaxes={entry.syntaxes} examples={entry.examples} copy={{ label: `${entry.name} - ${copy.formsLabel}`, formSyntax: copy.formSyntax, formExample: copy.formExample, formOutput: copy.formOutput }} />
-
-        {parameterized && (
-            <div class="vref-tryit">
-                <Field label={copy.tryIt} hint={copy.tryItHint} hintId={tryItHintId}>
-                    <input
-                        type="text"
-                        class="bb-input vref-tryit__input"
-                        data-vref-try
-                        value={entry.example}
-                        aria-describedby={tryItHintId}
-                        autocomplete="off"
-                        spellcheck="false"
-                    />
-                </Field>
-                <p class="vref-tryit__result"><span>{copy.formOutput}</span> <output data-vref-result>{entry.output}</output></p>
-            </div>
-        )}
-
-        {aliasSpellings.length > 0 && (
-            <p class="vref-entry__line"><span>{copy.aliases}</span> {aliasSpellings.map((alias) => <Code>{alias}</Code>)}{entry.legacy && <em>{copy.legacy}</em>}</p>
-        )}
-        {entry.surfaces.length > 0 && (
-            <p class="vref-entry__surfaces">
-                <span>{copy.available}</span>
-                {entry.surfaces.map((surface) => (
-                    <a class="vref-entry__surface" href={`${dashboardOrigin}${surface.dashPath}`} target="_blank" rel="noopener noreferrer">{surface.label}</a>
-                ))}
-            </p>
-        )}
-
-        <div class="vref-entry__actions">
-            <button type="button" class="vref-entry__copy" data-vref-copy={entry.example}>{copy.copy}</button>
-            <TextLink href={composeHref} label={copy.composeInDashboard} external />
-        </div>
-    </div>
-</details>
+    </td>
+    <td class="vref-td-means">{means}</td>
+    <td><Code>{entry.example}</Code></td>
+    <td>{entry.output}</td>
+</tr>
+{extraForms.map((form, i) => (
+    <tr id={`${entry.id}-${i + 2}`} class="vref-entry-extra">
+        <td></td>
+        <td></td>
+        <td><Code>{form.syntax}</Code></td>
+        <td>{form.output}</td>
+    </tr>
+))}

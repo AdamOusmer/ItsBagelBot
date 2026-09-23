@@ -301,7 +301,8 @@ describe('variables parity (engine/scope/testdata/token_catalog.golden.json)', (
 
   // C also covers syntax and aliases, not just example: the marketing guide
   // page renders a form's placeholder syntax (VariablesReference.astro's
-  // Forms.astro) and every alias spelling as its own {…} chip, and its own
+  // Entry.astro, one extra <tr> per form beyond the canonical one) and every
+  // alias spelling as its own {…} chip, and its own
   // validateVariableSyntax/validateVariableReference guard for that was
   // deleted this phase (docs/specs/variables-catalog.md phase 4, index.ts
   // shrinks to a localizer) on the assumption that kit's own rule C already
