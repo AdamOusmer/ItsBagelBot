@@ -4,11 +4,11 @@
 
 # @bagel/ui — block catalog
 
-Every block the library ships, by family. **84** blocks;
+Every block the library ships, by family. **87** blocks;
 **78** ship both adapters.
 
 A `*` after a prop name means it is required. `class` and `children` are
-omitted: nearly every block takes both, and listing them 84 times
+omitted: nearly every block takes both, and listing them 87 times
 would bury the props that differ. Every block also forwards unknown attributes
 to its outermost element.
 
@@ -78,10 +78,12 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **ErrorScene** | `status*`: number \| string<br>`eyebrow*`: string<br>`title*`: string<br>`description*`: string<br>`aside`: string<br>`labelledBy`: string<br>`actions`: Snippet | svelte + astro | `styles/elements/error-scene.css` |
 | **Modal** | `open*`: boolean<br>`title`: string<br>`closeModal*`: () => void<br>`busy`: boolean<br>`closeLabel`: string<br>`ariaLabel`: string | svelte + astro | `styles/elements/modal.css` |
 | **NotificationBell** | `notifications*`: BellNotification[]<br>`unreadCount`: number<br>`viewAllHref*`: string<br>`onMarkRead`: (id: number) => void<br>`onOpen`: () => void<br>`emptyLabel`: string<br>`title`: string<br>`viewAllLabel`: string<br>`readLabel`: string | svelte<br>*Svelte only: interactive notification popover with caller-owned callbacks.* | `styles/elements/notifications.css` |
+| **ProgressBar** | `value*`: number \| null<br>`tone`: 'neutral' \| 'success' \| 'warning' \| 'error'<br>`label*`: string<br>`size`: 'sm' \| 'md' | svelte<br>*Svelte only: its value arrives from a live stream (the deploy run's snapshots) and eases between them; a static page has no progress to report.* | `styles/elements/progress-bar.css` |
 | **SaveStatus** | `state`: SaveState<br>`compact`: boolean<br>`savingLabel`: string<br>`savedLabel`: string<br>`liveLabel`: string<br>`errorLabel`: string | svelte + astro | `styles/elements/save-status.css` |
 | **Skeleton** | `variant`: 'text' \| 'pill' \| 'block'<br>`width`: string<br>`height`: string<br>`lines`: number | svelte + astro | `styles/elements/skeleton.css` |
 | **SkeletonStack** | `rows*`: number<br>`height*`: string<br>`columns`: 1 \| 2 | svelte + astro | `styles/elements/skeleton.css` |
 | **StatusDot** | — | svelte + astro | `styles/elements/status-dot.css` |
+| **StepList** | `steps*`: StepItem[]<br>`detail`: Snippet<[StepItem]><br>`stateLabels`: Partial<Record<StepState, string>> | svelte<br>*Svelte only: rows change state from a live stream, and the per-row detail is a Snippet that takes the step, which an Astro slot cannot.* | `styles/elements/step-list.css, styles/tags.css` |
 | **Tag** | `tone`: 'quiet' \| 'live' \| 'alpha' \| 'pre' \| 'incoming' \| 'bare' \| 'error'<br>`mark`: 'solid' \| 'hollow' \| 'dash' \| 'up' \| 'plus'<br>`sweep`: boolean<br>`status`: boolean<br>`as`: 'span' \| 'small' \| 'div' | svelte + astro | `styles/tags.css` |
 | **ToastHost** | `dismissLabel`: string<br>`undoLabel`: string | svelte<br>*Svelte only: it subscribes to the toast store, and a host with nothing to subscribe to renders nothing.* | `styles/elements/toast.css` |
 | **Tooltip** | `text*`: string<br>`placement`: 'top' \| 'bottom'<br>`id`: string | svelte + astro | `styles/elements/tooltip.css` |
@@ -117,6 +119,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **CardHead** | — | svelte + astro | `styles/elements/card.css` |
 | **DeckList** | `as`: string | svelte + astro | `styles/elements/card.css, styles/elements/deck-list.css` |
 | **Icon** | `name*`: IconName<br>`size`: number<br>`strokeWidth`: number<br>`fill`: string | svelte + astro | `styles/elements/icon.css` |
+| **LogTail** | `lines*`: string[]<br>`label*`: string<br>`max`: number | svelte<br>*Svelte only: it pins itself to the newest line as lines arrive and lets go when the reader scrolls up, which needs a client.* | `styles/elements/log-tail.css` |
 | **ManagementRow** | `selected`: boolean<br>`expanded`: boolean<br>`controls`: string<br>`disabled`: boolean<br>`accent`: boolean<br>`onselect`: () => void<br>`primary`: Snippet<br>`actions`: Snippet | svelte + astro | `styles/elements/management-row.css` |
 | **OverviewGrid** | `main`: Snippet<br>`side`: Snippet | svelte + astro | `styles/elements/overview-grid.css` |
 | **StatTile** | `label*`: string<br>`value*`: string<br>`unit`: string<br>`delta*`: string<br>`flat`: boolean<br>`trail`: Snippet | svelte + astro | — |

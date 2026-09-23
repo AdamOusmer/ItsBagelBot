@@ -653,6 +653,19 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   // The stack, three tones, the undo control and the entrance.
   // Measured 2026-09-09: 714 B gzip. 714 + 150 = 864, +10% -> 960.
   { name: "elements/toast", budget: 960 },
+  // Track, fill, four tones, the indeterminate travel and its reduced-motion
+  // resting frame. A fifth tone should arrive as a `--progress-fill` value on
+  // the caller, not as a rule here.
+  // Measured 2026-09-23 (macOS/arm64): 434 B gzip. 434 + 150 = 584, +10% -> 650.
+  { name: "elements/progress-bar", budget: 650 },
+  // The fixed-height row grid, five state tones and the detail indent. The
+  // mark and the sweep are tags.css's and the bar is the progress-bar row's,
+  // so growth here is the row itself acquiring a shape.
+  // Measured 2026-09-23 (macOS/arm64): 619 B gzip. 619 + 150 = 769, +10% -> 850.
+  { name: "elements/step-list", budget: 850 },
+  // One rule: a capped, two-way scrolling pre.
+  // Measured 2026-09-23 (macOS/arm64): 250 B gzip. 250 + 150 = 400, +10% -> 440.
+  { name: "elements/log-tail", budget: 440 },
 ];
 
 let failed = false;

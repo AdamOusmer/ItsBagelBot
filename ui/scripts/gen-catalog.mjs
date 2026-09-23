@@ -57,7 +57,7 @@ const FAMILY = {
   Badge: 'Feedback', NotificationBell: 'Feedback', StatusDot: 'Feedback', Chip: 'Feedback', Tag: 'Feedback', ToastHost: 'Feedback',
   AlertBanner: 'Feedback', Skeleton: 'Feedback', SkeletonStack: 'Feedback',
   EmptyState: 'Feedback', Modal: 'Feedback', ConfirmDialog: 'Feedback', Tooltip: 'Feedback',
-  SaveStatus: 'Feedback', ErrorScene: 'Feedback',
+  SaveStatus: 'Feedback', ErrorScene: 'Feedback', ProgressBar: 'Feedback', StepList: 'Feedback',
   // Navigation
   Nav: 'Navigation', MobileMenu: 'Navigation', NavLink: 'Navigation', NavGroup: 'Navigation',
   Rail: 'Navigation', RailItem: 'Navigation', Topbar: 'Navigation', Dock: 'Navigation',
@@ -67,6 +67,7 @@ const FAMILY = {
   // Data
   Card: 'Data', CardHead: 'Data', DeckList: 'Data', ManagementRow: 'Data',
   OverviewGrid: 'Data', StatTile: 'Data', AreaSeries: 'Data', Table: 'Data', Icon: 'Data',
+  LogTail: 'Data',
   // Motion & background
   LightField: 'Motion', BackgroundOrbs: 'Motion', AuroraBg: 'Motion', Cursor: 'Motion',
   ReadingProgress: 'Motion', CardAtmosphere: 'Motion', Brackets: 'Motion',
@@ -85,6 +86,9 @@ const SINGLE_ADAPTER_REASON = {
   ConfirmDialog: 'Svelte only: a composition of Modal + Button with no CSS of its own, and its two callbacks are the element.',
   Toggle: 'Svelte only: bindable checkbox state; the static spelling is Switch.',
   FieldError: 'Svelte only: it renders only when a form action has returned an error, which a static page has not.',
+  ProgressBar: 'Svelte only: its value arrives from a live stream (the deploy run\'s snapshots) and eases between them; a static page has no progress to report.',
+  StepList: 'Svelte only: rows change state from a live stream, and the per-row detail is a Snippet that takes the step, which an Astro slot cannot.',
+  LogTail: 'Svelte only: it pins itself to the newest line as lines arrive and lets go when the reader scrolls up, which needs a client.',
 };
 
 // One line, one prop: `name?: type;`. The type runs to the line's final

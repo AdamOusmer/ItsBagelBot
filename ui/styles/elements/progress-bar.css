@@ -1,0 +1,96 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* Layer order first. Every adapter in ../svelte JS-imports its own element
+   CSS, so a bundler can emit this file ahead of layers.css -- and layer order
+   is fixed by the first declaration seen, which would rank bb.elements BELOW
+   bb.base and let the button reset there strip the typography off every
+   contract that renders a <button>. Restating it is idempotent; the layers
+   themselves are documented in layers.css. */
+@layer bb.tokens, bb.base, bb.elements, bb.app;
+
+/* `.bb-progress` -- a track and a fill for work with a known share done (a
+   build's completed jobs, a rollout's ready pods) or, as `--indeterminate`,
+   work that is moving with no total yet (a workflow run still queued).
+
+   The fill is `--progress` (0..1, written by the adapter) applied as scaleX
+   from the left, the same choice reading-progress.css made and for the same
+   reason: width animates layout on every update, scaleX is composited. Unlike
+   the reading bar this one DOES ease, because its value arrives in steps (one
+   snapshot per state change, seconds apart) rather than per scroll frame, and
+   an unanimated jump from 3/15 to 4/15 reads as a glitch.
+
+   The height is fixed per size and never depends on the value, so a row that
+   carries a bar does not move when the number does.
+
+   Tones are the status-tone.ts vocabulary as one `--progress-fill` property,
+   so a surface can retone a bar without a new modifier. neutral is the warm
+   off-white, not the muted grey. Grey clears the 3:1 non-text floor on this
+   track (3.78:1 over --bb-card-bg, off-white is 12.47:1), but it is the
+   colour StepList gives pending and skipped rows, and a running bar in the
+   grey of a stage that has not started reads as stalled. The error red is the #cf8a78
+   literal alert.css and tags.css already carry, as a fallback behind the
+   console's --bb-status-error, which is console-only (web/kit/styles/tokens.css).
+
+   Indeterminate is a 30% segment travelling left to right: lateral, like the
+   tag sweep, never a pulse. Under reduced motion it rests centred rather than
+   on the kill switch's last keyframe, where it would sit off the track and
+   read as an empty bar. */
+
+@layer bb.elements {
+  .bb-progress {
+    --progress-fill: var(--bb-white);
+
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 6px;
+    overflow: hidden;
+    border-radius: var(--bb-radius-pill);
+    background: var(--bb-border);
+  }
+
+  .bb-progress--sm {
+    height: 4px;
+  }
+
+  .bb-progress--success {
+    --progress-fill: var(--bb-green-glow);
+  }
+
+  .bb-progress--warning {
+    --progress-fill: var(--bb-tan);
+  }
+
+  .bb-progress--error {
+    --progress-fill: var(--bb-status-error, #cf8a78);
+  }
+
+  .bb-progress__fill {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--progress-fill);
+    transform: scaleX(var(--progress, 0));
+    transform-origin: left;
+    transition: transform var(--bb-dur-base) var(--bb-ease-out-expo);
+  }
+
+  .bb-progress--indeterminate .bb-progress__fill {
+    width: 30%;
+    animation: bb-progress-travel 1.6s var(--bb-ease-out-expo) infinite;
+  }
+
+  @keyframes bb-progress-travel {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(340%); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bb-progress--indeterminate .bb-progress__fill {
+      animation: none;
+      transform: translateX(117%);
+    }
+  }
+}
