@@ -29,8 +29,8 @@ func (w *Worker) Process(msg *bus.Message) error {
 	}
 	annotateTxn(ctx, &payload)
 	// Refuse trial output before a batch can acquire its lease.
-	if stop, err := w.rejectTrialOutput(ctx, &payload); stop {
-		return err
+	if w.rejectTrialOutput(ctx, &payload) {
+		return nil
 	}
 
 	if err := w.checkPaused(ctx); err != nil {
@@ -54,8 +54,8 @@ func (w *Worker) Process(msg *bus.Message) error {
 // each child; ordinary jobs call it once. Everything before Run is in-process,
 // so the only wait a message pays after this point is its own Twitch call.
 func (w *Worker) processPayload(ctx context.Context, payload *outgress.Message) error {
-	if stop, err := w.rejectTrialOutput(ctx, payload); stop {
-		return err
+	if w.rejectTrialOutput(ctx, payload) {
+		return nil
 	}
 	act, ok := w.actions.Lookup(payload.Type)
 	if !ok {
@@ -72,38 +72,29 @@ func (w *Worker) processPayload(ctx context.Context, payload *outgress.Message) 
 	return act.Run(ctx, payload)
 }
 
-// The durable origin still blocks output after a trial is removed. Membership
-// is a second stop switch for messages that lack provenance.
-func (w *Worker) rejectTrialOutput(ctx context.Context, payload *outgress.Message) (bool, error) {
-	if payload.Origin == "trial" {
-		w.countTrialBlocked(ctx, payload.BroadcasterID)
-		return true, nil
+// rejectTrialOutput refuses output whose triggering event came from a trial
+// channel. Provenance is the whole guard: ingress stamps origin=trial at
+// admission and it survives lanes, cohorts, retries and batch children, so the
+// stop still holds after the trial is removed. A trial-membership lookup used to
+// back this up for untagged output; it put a Valkey round trip on every send and
+// turned any Valkey error into a fleet-wide output stall, while trial channels
+// only receive chat and every chat reply leaves sesame tagged.
+func (w *Worker) rejectTrialOutput(ctx context.Context, payload *outgress.Message) bool {
+	if payload.Origin != "trial" {
+		return false
 	}
-	blocked, err := w.trialBlocked(ctx, payload.BroadcasterID)
-	if blocked {
-		w.countTrialBlocked(ctx, payload.BroadcasterID)
-	}
-	return blocked, err
+	w.countTrialBlocked(ctx, payload.BroadcasterID)
+	return true
 }
 
-// trialBlocked is the secondary stop switch. A Valkey read error refuses
-// output until the trial membership can be checked again.
-func (w *Worker) trialBlocked(ctx context.Context, id string) (bool, error) {
-	if w.trialStore == nil || id == "" {
-		return false, nil
-	}
-	result := w.trialStore.Do(ctx, w.trialStore.B().Sismember().Key("trial:desired").Member(id).Build())
-	blocked, err := result.AsBool()
-	if err != nil {
-		return true, err
-	}
-	return blocked, nil
-}
-
+// countTrialBlocked feeds the admin page's blocked-action counter. It is best
+// effort and bounded so a slow Valkey never holds a lane worker.
 func (w *Worker) countTrialBlocked(ctx context.Context, id string) {
 	if w.trialStore == nil || id == "" {
 		return
 	}
+	ctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+	defer cancel()
 	_ = w.trialStore.Do(ctx, w.trialStore.B().Hincrby().Key("trial:channel:"+id).Field("blocked").Increment(1).Build()).Error()
 }
 
