@@ -5,7 +5,6 @@ package apply
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"reflect"
 	"testing"
@@ -19,6 +18,7 @@ import (
 
 	"ItsBagelBot/app/deployer/internal/ports"
 	"ItsBagelBot/internal/domain/rpc/deploy"
+	"ItsBagelBot/pkg/codec"
 )
 
 var (
@@ -71,7 +71,7 @@ func newCluster(t *testing.T, withKEDA bool, live ...runtime.Object) (*cluster, 
 func (c *cluster) react(action k8stesting.Action) (bool, runtime.Object, error) {
 	pa := action.(k8stesting.PatchActionImpl)
 	o := &unstructured.Unstructured{}
-	if err := json.Unmarshal(pa.GetPatch(), &o.Object); err != nil {
+	if err := codec.Unmarshal(pa.GetPatch(), &o.Object); err != nil {
 		return true, nil, err
 	}
 	ref := refString(refOf(o))

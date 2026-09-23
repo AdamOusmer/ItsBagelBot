@@ -4,7 +4,6 @@
 package apply
 
 import (
-	"encoding/json"
 	"fmt"
 	"path"
 	"slices"
@@ -17,6 +16,7 @@ import (
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
 	"ItsBagelBot/app/deployer/internal/ports"
+	"ItsBagelBot/pkg/codec"
 )
 
 // build runs kustomize over spec.Files in memory, the same render as
@@ -76,7 +76,7 @@ func ensureKustomization(fsys filesys.FileSystem, files ports.Files, root string
 		return fmt.Errorf("%w: no kustomization or *.yaml under %s", ports.ErrInvalid, root)
 	}
 	// JSON is YAML, and encoding/json quotes any file name safely.
-	body, err := json.Marshal(map[string][]string{"resources": resources})
+	body, err := codec.Marshal(map[string][]string{"resources": resources})
 	if err != nil {
 		return err
 	}

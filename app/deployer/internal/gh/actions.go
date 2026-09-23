@@ -6,7 +6,6 @@ package gh
 import (
 	"bufio"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,6 +16,7 @@ import (
 
 	"ItsBagelBot/app/deployer/internal/ports"
 	"ItsBagelBot/internal/domain/rpc/deploy"
+	"ItsBagelBot/pkg/codec"
 )
 
 // activeWindow is how many of a workflow's newest runs ActiveRuns scans.
@@ -171,7 +171,7 @@ func (c *Client) AttestationExists(ctx context.Context, digest deploy.Digest) (b
 		return false, err
 	}
 	var res struct {
-		Attestations []json.RawMessage `json:"attestations"`
+		Attestations []codec.RawMessage `json:"attestations"`
 	}
 	resp, err := c.gh.Do(req, &res)
 	if ok, err := found(resp, err); !ok {

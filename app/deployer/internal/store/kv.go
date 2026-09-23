@@ -5,13 +5,13 @@ package store
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 
 	"github.com/nats-io/nats.go/jetstream"
 
 	"ItsBagelBot/app/deployer/internal/ports"
+	"ItsBagelBot/pkg/codec"
 )
 
 // kvKey is a key in the DEPLOY_RUNS bucket.
@@ -97,7 +97,7 @@ func load[T any](ctx context.Context, kv bucket, key kvKey) (T, ports.Revision, 
 	if err != nil {
 		return v, 0, false, err
 	}
-	if err := json.Unmarshal(rec.value, &v); err != nil {
+	if err := codec.Unmarshal(rec.value, &v); err != nil {
 		return v, 0, false, fmt.Errorf("decode %s: %w", key, err)
 	}
 	return v, rec.rev, true, nil
@@ -105,7 +105,7 @@ func load[T any](ctx context.Context, kv bucket, key kvKey) (T, ports.Revision, 
 
 // save writes v at rev: 0 creates, anything else is a compare-and-set.
 func (s *Store) save(ctx context.Context, key kvKey, v any, rev ports.Revision) (ports.Revision, error) {
-	b, err := json.Marshal(v)
+	b, err := codec.Marshal(v)
 	if err != nil {
 		return 0, fmt.Errorf("encode %s: %w", key, err)
 	}

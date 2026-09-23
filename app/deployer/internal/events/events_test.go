@@ -5,7 +5,6 @@ package events
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 
 	"github.com/nats-io/nats.go"
@@ -13,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"ItsBagelBot/internal/domain/rpc/deploy"
+	"ItsBagelBot/pkg/codec"
 )
 
 type recordConn struct{ msgs []*nats.Msg }
@@ -32,7 +32,7 @@ func TestPublishSendsFullSnapshotOnRunSubject(t *testing.T) {
 	require.Len(t, nc.msgs, 1)
 
 	var got deploy.Run
-	require.NoError(t, json.Unmarshal(nc.msgs[0].Data, &got))
+	require.NoError(t, codec.Unmarshal(nc.msgs[0].Data, &got))
 	assert.Equal(t,
 		[2]any{"bagel.deploy.events.r1", *run},
 		[2]any{nc.msgs[0].Subject, got})

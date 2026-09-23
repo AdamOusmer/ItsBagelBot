@@ -5,7 +5,6 @@ package watch
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -16,6 +15,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"ItsBagelBot/app/deployer/internal/ports"
+	"ItsBagelBot/pkg/codec"
 )
 
 // The NATS servers as deploy/messaging declares them: the hub StatefulSet
@@ -73,7 +73,7 @@ func (w *Watcher) configLoaded(ctx context.Context, p *corev1.Pod) (time.Time, e
 		return time.Time{}, fmt.Errorf("nats pod %s: /varz answered %d", p.Name, resp.StatusCode)
 	}
 	var v varz
-	if err := json.NewDecoder(resp.Body).Decode(&v); err != nil {
+	if err := codec.NewDecoder(resp.Body).Decode(&v); err != nil {
 		return time.Time{}, fmt.Errorf("nats pod %s: decode /varz: %w", p.Name, err)
 	}
 	return v.ConfigLoadTime, nil

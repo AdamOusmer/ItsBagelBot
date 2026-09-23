@@ -6,7 +6,6 @@ package github
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -15,6 +14,7 @@ import (
 	"ItsBagelBot/app/deployer/internal/ports"
 	"ItsBagelBot/app/deployer/internal/stage"
 	"ItsBagelBot/internal/domain/rpc/deploy"
+	"ItsBagelBot/pkg/codec"
 )
 
 // changelogFile is web/marketing/src/content/changelog/<version>.json. Field
@@ -71,11 +71,11 @@ func newChangelogFile(cfg ports.Config, v deploy.Version, e *deploy.ChangelogEnt
 }
 
 // render writes the file the way the hand-written ones are: two-space
-// indent, trailing newline, and no HTML escaping (json.Marshal would turn a
+// indent, trailing newline, and no HTML escaping (codec.Marshal would turn a
 // "<" or "&" in a highlight into < and the next hand edit would revert it).
 func (f changelogFile) render() ([]byte, error) {
 	var buf bytes.Buffer
-	enc := json.NewEncoder(&buf)
+	enc := codec.NewEncoder(&buf)
 	enc.SetEscapeHTML(false)
 	enc.SetIndent("", "  ")
 	if err := enc.Encode(f); err != nil {
@@ -153,7 +153,7 @@ func readChangelog(ctx context.Context, gh ports.GitHub, p ports.FilePath, ref p
 		return nil, err
 	}
 	var f changelogFile
-	if err := json.Unmarshal(body, &f); err != nil {
+	if err := codec.Unmarshal(body, &f); err != nil {
 		return nil, fmt.Errorf("%s at %s: %w", p, ref, err)
 	}
 	return &f, nil

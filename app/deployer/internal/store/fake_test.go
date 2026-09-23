@@ -5,10 +5,10 @@ package store
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"ItsBagelBot/app/deployer/internal/ports"
+	"ItsBagelBot/pkg/codec"
 )
 
 // fakeKV mirrors the JetStream KV rules the store relies on: one revision
@@ -59,7 +59,7 @@ func (f *fakeKV) write(key kvKey, value []byte) ports.Revision {
 // seed writes v as JSON, bypassing the store, to stage states a crashed Put
 // would leave behind.
 func (f *fakeKV) seed(key kvKey, v any) {
-	b, err := json.Marshal(v)
+	b, err := codec.Marshal(v)
 	if err != nil {
 		panic(err)
 	}

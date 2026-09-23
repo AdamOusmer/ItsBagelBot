@@ -4,7 +4,6 @@
 package gh
 
 import (
-	"encoding/json"
 	"net/http"
 	"testing"
 
@@ -13,6 +12,7 @@ import (
 
 	"ItsBagelBot/app/deployer/internal/ports"
 	"ItsBagelBot/internal/domain/rpc/deploy"
+	"ItsBagelBot/pkg/codec"
 )
 
 const (
@@ -60,8 +60,8 @@ type checksFixture struct {
 }
 
 func (f checksFixture) routes() routes {
-	runs, _ := json.Marshal(map[string]any{"total_count": len(f.Runs), "check_runs": f.Runs})
-	statuses, _ := json.Marshal(map[string]any{"statuses": f.Statuses})
+	runs, _ := codec.Marshal(map[string]any{"total_count": len(f.Runs), "check_runs": f.Runs})
+	statuses, _ := codec.Marshal(map[string]any{"statuses": f.Statuses})
 	pulls := `[{"number":3,"state":"closed","merged_at":"2026-09-20T00:00:00Z","head":{"sha":"feature"}}]`
 	if f.PRHead {
 		pulls = `[{"number":4,"state":"open","head":{"sha":"abc"}}]`

@@ -5,7 +5,6 @@ package engine
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -19,6 +18,7 @@ import (
 	"ItsBagelBot/app/deployer/internal/ports"
 	"ItsBagelBot/app/deployer/internal/stage"
 	"ItsBagelBot/internal/domain/rpc/deploy"
+	"ItsBagelBot/pkg/codec"
 )
 
 var testConfig = ports.Config{
@@ -65,7 +65,7 @@ func (s *memStore) load(id deploy.RunID) (deploy.Run, ports.Revision, error) {
 		return deploy.Run{}, 0, fmt.Errorf("%w: run %s", ports.ErrNotFound, id)
 	}
 	var run deploy.Run
-	return run, st.rev, json.Unmarshal(st.raw, &run)
+	return run, st.rev, codec.Unmarshal(st.raw, &run)
 }
 
 func (s *memStore) Put(_ context.Context, run *deploy.Run, rev ports.Revision) (ports.Revision, error) {
@@ -78,7 +78,7 @@ func (s *memStore) Put(_ context.Context, run *deploy.Run, rev ports.Revision) (
 	if s.runs[run.ID].rev != rev {
 		return 0, ports.ErrConflict
 	}
-	raw, err := json.Marshal(run)
+	raw, err := codec.Marshal(run)
 	if err != nil {
 		return 0, err
 	}

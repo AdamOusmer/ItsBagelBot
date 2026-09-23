@@ -5,7 +5,6 @@ package engine
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"maps"
 	"regexp"
@@ -17,6 +16,7 @@ import (
 	"ItsBagelBot/app/deployer/internal/ports"
 	"ItsBagelBot/app/deployer/internal/stages/github"
 	"ItsBagelBot/internal/domain/rpc/deploy"
+	"ItsBagelBot/pkg/codec"
 )
 
 var (
@@ -251,7 +251,7 @@ func stateOf(r *deploy.Run) []byte {
 		s.Progress, s.Items, s.Links = deploy.Progress{}, nil, nil
 		c.Stages[i] = s
 	}
-	b, _ := json.Marshal(&c)
+	b, _ := codec.Marshal(&c)
 	return b
 }
 

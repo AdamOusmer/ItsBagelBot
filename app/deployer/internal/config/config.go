@@ -6,6 +6,7 @@ package config
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -98,11 +99,22 @@ func loadDeploy() ports.Config {
 		RolloutTimeout:        env.GetDuration("DEPLOY_ROLLOUT_TIMEOUT", 8*time.Minute),
 		ACLTimeout:            env.GetDuration("DEPLOY_ACL_TIMEOUT", 3*time.Minute),
 		FailedSchedulingAfter: env.GetDuration("DEPLOY_FAILED_SCHEDULING_AFTER", 60*time.Second),
-		RestartLimit:          int32(env.GetInt("DEPLOY_RESTART_LIMIT", 3)),
+		RestartLimit:          int32Env("DEPLOY_RESTART_LIMIT", 3),
 		UpdateBranchLimit:     env.GetInt("DEPLOY_UPDATE_BRANCH_LIMIT", 3),
 		LogTailLines:          env.GetInt("DEPLOY_LOG_TAIL_LINES", 50),
 		PollEvery:             env.GetDuration("DEPLOY_POLL_EVERY", 5*time.Second),
 		LockTTL:               env.GetDuration("DEPLOY_LOCK_TTL", 2*time.Minute),
 		HeartbeatEvery:        env.GetDuration("DEPLOY_HEARTBEAT_EVERY", 20*time.Second),
 	}
+}
+
+// int32Env reads a count the Kubernetes API types as int32 (a container's
+// restartCount). A value outside int32 would wrap on conversion, so it falls
+// back to def instead.
+func int32Env(key string, def int32) int32 {
+	n := env.GetInt(key, int(def))
+	if n < 0 || n > math.MaxInt32 {
+		return def
+	}
+	return int32(n)
 }

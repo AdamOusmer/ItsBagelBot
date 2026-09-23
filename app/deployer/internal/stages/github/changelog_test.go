@@ -4,7 +4,6 @@
 package github
 
 import (
-	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -13,6 +12,7 @@ import (
 
 	"ItsBagelBot/app/deployer/internal/ports"
 	"ItsBagelBot/internal/domain/rpc/deploy"
+	"ItsBagelBot/pkg/codec"
 )
 
 // TestChangelogRenderMatchesHandWritten: an entry rendered by the deployer is
@@ -26,7 +26,7 @@ func TestChangelogRenderMatchesHandWritten(t *testing.T) {
 				t.Fatal(err)
 			}
 			var src changelogFile
-			if err := json.Unmarshal(want, &src); err != nil {
+			if err := codec.Unmarshal(want, &src); err != nil {
 				t.Fatal(err)
 			}
 			entry := &deploy.ChangelogEntry{Title: src.Title, Highlights: src.Highlights, Date: src.Date}
@@ -171,7 +171,7 @@ func TestChangelogStageWritesRenderedFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	var got changelogFile
-	if err := json.Unmarshal(f.gh.trees[f.gh.head()][changelogFilePath], &got); err != nil {
+	if err := codec.Unmarshal(f.gh.trees[f.gh.head()][changelogFilePath], &got); err != nil {
 		t.Fatal(err)
 	}
 	want := changelogFile{
