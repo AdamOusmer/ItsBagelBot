@@ -165,7 +165,12 @@ body {
 /* screen switching */
 .screen { display: none; animation: screen-in var(--bb-dur-slow) var(--bb-ease-out-expo); }
 .screen.active { display: block; }
-@keyframes screen-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes screen-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* Console entrances slide sideways instead of rising (bb-slide-in in
+   reveal.css says why). Same stagger, same curve. */
+.reveal,
+.bb-stat-grid .bb-stat { animation-name: bb-slide-in; }
 
 /* save confirmation: a green signal sweep across the affected ledger line */
 .flash-save { position: relative; overflow: hidden; }
@@ -188,11 +193,11 @@ body {
    re-runs when a streamed section resolves and swaps its skeleton out) */
 .node-list .node-row,
 .feed .feed-row {
-  /* bb-rise-in is @bagel/ui/styles/reveal.css's keyframe, the same one
-     .reveal plays; these rows run it faster because a section's worth of
-     them arrives at once and the 760ms cascade would still be finishing
+  /* bb-slide-in is @bagel/ui/styles/reveal.css's keyframe, the same one
+     .reveal plays here; these rows run it faster because a section's worth
+     of them arrives at once and the 760ms cascade would still be finishing
      after the eye has already reached the bottom of the list. */
-  animation: bb-rise-in 420ms var(--bb-ease-out-expo) both;
+  animation: bb-slide-in 420ms var(--bb-ease-out-expo) both;
 }
 /* The .bb-stat-grid half of this ladder is
    @bagel/ui/styles/elements/stat-tile.css. Splitting a shared nth-child

@@ -26,6 +26,7 @@
   //   trigger, so `showViewer` is forced off regardless of what a caller
   //   passes.
   import { page } from '$app/state';
+  import { translate, type Locale } from '@bagel/kit/i18n';
   import {
     Bolota,
     rehearseCommand,
@@ -38,7 +39,7 @@
     type Seg
   } from '@bagel/kit';
 
-  const { t } = getI18n();
+  const i18n = getI18n();
 
   let {
     name = '',
@@ -48,6 +49,8 @@
     showViewer = true,
     viewerText = undefined as string | undefined,
     tag = undefined as string | undefined,
+    broadcasterName = undefined as string | undefined,
+    locale = undefined as Locale | undefined,
     samples = undefined as Record<string, string> | undefined,
     dynamic = true
   }: {
@@ -62,6 +65,10 @@
     // reply. When unset the viewer types the "!command" trigger.
     viewerText?: string;
     tag?: string;
+    /** The channel owner when the rehearsal is shown outside the app layout. */
+    broadcasterName?: string;
+    /** Live language selection when shown in the onboarding journey. */
+    locale?: Locale;
     // kind="command": overrides merged over the standard command samples.
     // kind="reply": the surface's OWN token map: nothing else substitutes.
     samples?: Record<string, string>;
@@ -69,6 +76,7 @@
     // replacer with no {random}/{choice:…} fallback (govee, clip).
     dynamic?: boolean;
   } = $props();
+  const t = (key: string, params?: Record<string, string | number>) => translate(locale ?? i18n.locale, key, params);
 
   // The sample viewer typing the trigger; reply surfaces may carry no {user}.
   const viewerName = $derived(samples?.user ?? COMMAND_SAMPLES.user);
@@ -77,7 +85,7 @@
   // speaks as the channel, so the rehearsal shows the channel's creature. The
   // (app) layout always loads displayName; the fallback only covers surfaces
   // rendered outside it (none today).
-  const botSeed = $derived((page.data.displayName as string | undefined) ?? 'ItsBagelBot');
+  const botSeed = $derived(broadcasterName ?? (page.data.displayName as string | undefined) ?? 'ItsBagelBot');
 
   const trigger = $derived('!' + (normName(name) || 'command') + (args ? ' ' + args : ''));
 
@@ -303,10 +311,10 @@
   /* A plain viewer message (trigger-word rehearsal) reads like normal chat. */
   .line.viewer .msg.plain { font-family: var(--bb-font-body); color: var(--bb-white); font-size: 13px; }
 
-  .reply { animation: reply-in 240ms var(--bb-ease-out-back, ease-out) both; animation-delay: var(--reply-delay, 0ms); }
+  .reply { animation: reply-in 320ms var(--bb-ease-out-expo, ease-out) both; animation-delay: var(--reply-delay, 0ms); }
   @keyframes reply-in {
-    from { opacity: 0; transform: translateY(4px); }
-    to { opacity: 1; transform: translateY(0); }
+    from { opacity: 0; transform: translateX(-8px); }
+    to { opacity: 1; transform: none; }
   }
 
   .msg mark {
@@ -348,7 +356,7 @@
     padding: 9px 11px;
     border-radius: var(--bb-radius-md);
     background: color-mix(in srgb, var(--acc) 10%, rgba(0, 0, 0, 0.25));
-    animation: reply-in 240ms var(--bb-ease-out-back, ease-out) both;
+    animation: reply-in 320ms var(--bb-ease-out-expo, ease-out) both;
     animation-delay: var(--reply-delay, 0ms);
   }
   .announce-head {
@@ -374,7 +382,7 @@
     border-radius: var(--bb-radius-md);
     border: 1px dashed rgba(82, 183, 136, 0.4);
     background: rgba(82, 183, 136, 0.06);
-    animation: reply-in 240ms var(--bb-ease-out-back, ease-out) both;
+    animation: reply-in 320ms var(--bb-ease-out-expo, ease-out) both;
     animation-delay: var(--reply-delay, 0ms);
   }
   .shoutout .reply strong { color: var(--bb-green-glow); }
@@ -390,7 +398,7 @@
     border-radius: var(--bb-radius-sm);
     border: 1px solid rgba(199, 125, 255, 0.35);
     background: rgba(199, 125, 255, 0.07);
-    animation: reply-in 240ms var(--bb-ease-out-back, ease-out) both;
+    animation: reply-in 320ms var(--bb-ease-out-expo, ease-out) both;
     animation-delay: var(--reply-delay, 0ms);
   }
   .pin-head {

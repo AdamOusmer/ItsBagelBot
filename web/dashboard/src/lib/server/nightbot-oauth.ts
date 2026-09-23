@@ -21,10 +21,13 @@ const TOKEN_URL = 'https://api.nightbot.tv/oauth2/token';
 export const NIGHTBOT_SCOPES = 'commands timers spam_protection';
 
 // Cookie names shared by the connect/callback routes and the import actions.
-// Both are HttpOnly and path-scoped to /settings/import.
+// Both are HttpOnly. The state is scoped to the OAuth routes; the token also
+// needs to reach the onboarding import route after the callback.
 export const NB_STATE_COOKIE = 'nb_oauth_state';
 export const NB_TOKEN_COOKIE = 'nb_import_token';
-export const NB_COOKIE_PATH = '/settings/import';
+export const NB_RETURN_COOKIE = 'nb_import_return';
+export const NB_STATE_COOKIE_PATH = '/settings/import';
+export const NB_COOKIE_PATH = '/';
 
 // Token cookie lifetime: the wizard round trip is minutes, so 15 minutes
 // bounds how long a captured cookie stays useful without making a slow
@@ -67,7 +70,7 @@ export function nightbotConfigured(): boolean {
 // the board wholesale; delegates are read-mostly by design).
 export function importOwner(locals: App.Locals): boolean {
   const s = locals.session;
-  return !!s && !s.delegate_of;
+  return !!s && !s.delegate_of && !s.impersonator_id;
 }
 
 export function nightbotAuthURL(state: string): URL {

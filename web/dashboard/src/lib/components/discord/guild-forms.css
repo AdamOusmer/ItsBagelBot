@@ -178,23 +178,14 @@
   margin-top: 10px;
 }
 .dc .check {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-family: var(--bb-font-body);
+  --bb-check-align: center;
   font-size: 13px;
-  color: var(--bb-white);
   min-width: 0;
 }
-.dc .check span {
+.dc .check .bb-check__label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.dc .check input {
-  accent-color: var(--bb-tan);
-  width: 15px;
-  height: 15px;
 }
 
 .dc .colors {

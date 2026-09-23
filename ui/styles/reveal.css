@@ -66,6 +66,14 @@
         to   { opacity: 1; transform: translateY(0); }
     }
 
+    /* The console's entrance. A rise starts each element below its own box,
+       so rows at the foot of a card fade in across the card's edge and under
+       the card below it. A short sideways slide stays inside the box. */
+    @keyframes bb-slide-in {
+        from { opacity: 0; transform: translateX(calc(-1 * var(--bb-reveal-shift, 14px))); }
+        to   { opacity: 1; transform: none; }
+    }
+
     /* The scroll variant needs its own reduced-motion rule: it rests at
        opacity 0 and only a class it may never receive turns it on, so the
        global kill switch in a11y.css (which only shortens durations) would

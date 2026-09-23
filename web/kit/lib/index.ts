@@ -87,6 +87,7 @@ export * from './module-copy';
 export * from './nav';
 export * from './social';
 export * from './spotify';
+export * from './feature-presets';
 export * from './connection-state';
 export * from '@bagel/ui/lib/overlay-stack';
 export * from '@bagel/ui/lib/inspector-machine';

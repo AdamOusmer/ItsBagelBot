@@ -9,6 +9,7 @@
   import {
     AlertBanner,
     Button,
+    Checkbox,
     SegmentedControl,
     Switch,
     alertOn,
@@ -122,15 +123,11 @@
     {:else}
       <div class="checks">
         {#each roles as role (role.id)}
-          <label class="check">
-            <input
-              type="checkbox"
-              aria-describedby="dch-staff"
-              checked={staffSelected.includes(role.id)}
-              onchange={(e) => toggleStaffRole(role.id, e.currentTarget.checked)}
-            />
-            <span>@{role.name}</span>
-          </label>
+          <Checkbox
+            class="check"
+            aria-describedby="dch-staff"
+            bind:checked={() => staffSelected.includes(role.id), (on) => toggleStaffRole(role.id, on)}
+          >@{role.name}</Checkbox>
         {/each}
       </div>
     {/if}
