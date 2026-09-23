@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { describe, expect, test } from 'bun:test';
-import { expandSegments, rehearseCommand, rehearseReply, type Seg, type Token } from './rehearsal';
+import { expandSegments, rehearseCommand, rehearseReply, rehearseTimer, timerOwns, type Seg, type Token } from './rehearsal';
 
 /** The rehearsed chat text of a line: what the bot would actually send. */
 function textOf(segments: Seg[]): string {
@@ -529,5 +529,30 @@ describe('rehearseReply', () => {
   test('matches dotted token names like {raider.login}', () => {
     const [line] = rehearseReply('twitch.tv/{raider.login}', { 'raider.login': 'crustycrumbs' });
     expect(textOf(line.segments)).toBe('twitch.tv/crustycrumbs');
+  });
+});
+
+describe('rehearseTimer', () => {
+  test('{user} stays literal: a tick has no chatter behind it', () => {
+    const [line] = rehearseTimer('hi {user}!');
+    expect(textOf(line.segments)).toBe('hi {user}!');
+    expect(line.segments.find((s) => s.text === '{user}')?.kind).toBe('unknown');
+  });
+
+  test('resolves the channel-fact and dice families, like a tick actually can', () => {
+    const [line] = rehearseTimer('{uptime} / {random}');
+    expect(textOf(line.segments)).not.toContain('{uptime}');
+    expect(textOf(line.segments)).not.toContain('{random}');
+  });
+
+  test('{urlfetch:…} resolves to the shared external stand-in, not "unknown"', () => {
+    const [line] = rehearseTimer('weather: {urlfetch:weather}');
+    const seg = line.segments.find((s) => s.text !== 'weather: ');
+    expect(seg?.kind).toBe('sample');
+    expect(timerOwns('urlfetch')).toBe(true);
+  });
+
+  test('an empty message rehearses nothing', () => {
+    expect(rehearseTimer('  \n ')).toHaveLength(0);
   });
 });

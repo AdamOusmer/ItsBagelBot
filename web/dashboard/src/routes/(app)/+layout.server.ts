@@ -9,6 +9,7 @@ import { moduleSectionLinks } from '@bagel/kit/nav';
 import { bestEffort } from '@bagel/kit/server/best-effort';
 import type { Session } from '$lib/server/session';
 import { accountState, notificationsForUser, delegationAccess, type AccountState, type NotificationWire } from '$lib/server/services';
+import { DEFAULT_MODULE_FLAGS, DEMO_MODULE_FLAGS, moduleFlags } from '$lib/server/module-flags';
 
 // Gated on the build-time `dev` constant first, so Rollup erases every demo
 // branch (and the dynamic demo-data import inside it) from production builds.
@@ -68,6 +69,16 @@ async function loadAccountState(locals: App.Locals, s: Session): Promise<Account
   return 'value' in gateRead ? gateRead.value : null;
 }
 
+// loadModuleFlags resolves VariablePalette's "is this module on" read. DEMO
+// answers every gate true so the demo fixture never shows a manufactured
+// "Requires X · Off" tag; a real session's blipped read falls back to
+// DEFAULT_MODULE_FLAGS, the same state a genuinely empty module list already
+// produces (see module-flags.ts), rather than a second hand-kept default.
+async function loadModuleFlags(s: Session): Promise<Record<string, boolean>> {
+  if (DEMO) return DEMO_MODULE_FLAGS;
+  return bestEffort(moduleFlags(s.user_id), DEFAULT_MODULE_FLAGS);
+}
+
 // Account gates (ban / deleted account / delegation revoke / delegate scope)
 // run in hooks.server.ts for every request, including form actions and API
 // endpoints, which this load never covers. This load only owns the
@@ -83,7 +94,16 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
     throw redirect(302, next === '/' ? '/login' : `/login?next=${encodeURIComponent(next)}`);
   }
 
-  const acc = await loadAccountState(locals, s);
+  // Three independent reads, none gating another: awaiting them one at a
+  // time (as authorizedDashboards and moduleFlags briefly did) pays their sum
+  // in latency instead of their max. `bell` stays OUT of this group and
+  // streamed instead (see its own comment below) — it is the one unbounded
+  // read, and Promise.all would make every other field wait on it too.
+  const [acc, authorizedDashboards, flags] = await Promise.all([
+    loadAccountState(locals, s),
+    loadAuthorizedDashboards(s),
+    loadModuleFlags(s)
+  ]);
   const isPremium = acc ? acc.status === 'vip' || acc.status === 'paid' : false;
 
   return {
@@ -101,8 +121,9 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
     // stalled every authed page by up to a READ_TIMEOUT when the notifications
     // service lagged. The layout template awaits `bell` around the component.
     bell: loadBellPeek(s),
-    authorizedDashboards: await loadAuthorizedDashboards(s),
+    authorizedDashboards,
     isPremium,
-    onboarded: acc ? acc.onboarded : false
+    onboarded: acc ? acc.onboarded : false,
+    moduleFlags: flags
   };
 };

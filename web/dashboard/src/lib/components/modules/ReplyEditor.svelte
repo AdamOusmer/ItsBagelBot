@@ -17,9 +17,11 @@
   //
   // Save/Cancel are handled by the page so the whole-module config persists in
   // one place.
-  import { Field, getI18n, intactSpan, tModuleReplyDefault, tModuleReplyPart, type ModuleReply } from '@bagel/kit';
+  import { Field, getI18n, tModuleReplyDefault, tModuleReplyPart, type ModuleReply } from '@bagel/kit';
+  import { chipsFor } from '@bagel/kit/variables';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
+  import ReplyTokenList from '$lib/components/variables/ReplyTokenList.svelte';
 
   let {
     moduleId,
@@ -45,25 +47,10 @@
   const effectiveMessage = $derived(message.trim() ? message : localizedDefault);
 
   const isCommand = $derived(!!reply.command);
-  // The reply's own insert palette; undefined keeps ResponseEditor's default
-  // command tokens (event replies define no token list yet). The chip
-  // tooltip is the catalog's own copy (replyVars.<ns>.<tok>.hint) when the
-  // token carries a hintKey; otherwise (no Go reply-token namespace yet, see
-  // catalog/triggers.ts) it falls back to "{token} → sample" the way every
-  // chip here used to read.
-  // The chip text is BUILT from the catalog's bare token names, so it goes
-  // through intactSpan rather than string interpolation: a name carrying '}'
-  // or '|' would insert a span the engine re-cuts, and the chip would look
-  // right while the reply resolved to something else. A name that cannot be
-  // spelled is dropped from the palette instead of being offered broken.
-  const palette = $derived(
-    reply.tokens?.flatMap((tk): { token: string; hint?: string; label?: string }[] => {
-      const token = intactSpan(tk.name, null);
-      if (token === null) return [];
-      if (tk.hintKey) return [{ token, hint: tk.hintKey }];
-      return [{ token, label: tk.sample ? `${token} → ${tk.sample}` : token }];
-    })
-  );
+  // This reply's own token reference, read off the manifest surface (the same
+  // set surface={{module,reply}} on ResponseEditor's VariablePalette
+  // offers), for the read-only list under the rehearsal below.
+  const ownTokens = $derived(chipsFor({ module: moduleId, reply: reply.key }));
   // ChatPreview's samples prop is a bare name->sample record (it feeds the
   // shared rehearsal in engine/rehearsal.ts, which knows nothing about
   // ReplyToken); derive it from the same tokens the palette reads so the two
@@ -73,7 +60,7 @@
 
 <div class="editor">
   <Field label={t('modules.replyMessage', { label: tModuleReplyPart(t, moduleId, reply, 'label') })} hint={t('modules.replyBlankHint')}>
-    <ResponseEditor bind:value={message} placeholder={localizedDefault} tokens={palette} />
+    <ResponseEditor bind:value={message} placeholder={localizedDefault} surface={{ module: moduleId, reply: reply.key }} />
   </Field>
 
   {#if isCommand}
@@ -97,6 +84,8 @@
       response={effectiveMessage}
     />
   {/if}
+
+  <ReplyTokenList chips={ownTokens} />
 
   <div class="actions">
     <button type="button" class="bb-btn bb-btn--ghost" onclick={onCancel} disabled={busy}>{t('common.cancel')}</button>

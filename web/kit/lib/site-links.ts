@@ -191,6 +191,25 @@ export function resolveSiteColumns(
 }
 
 /**
+ * A marketing-site URL for `path`, localized for `locale` — mirrors
+ * marketing's own localizePath(). English has no path prefix; every other
+ * locale gets `/<locale>` ahead of the path.
+ *
+ * This is `SiteLinkContext.path` made callable outside a resolver context: a
+ * surface that only needs ONE off-catalog link (VariablePalette's "Full
+ * reference" deep-link into the variables guide) does not need to build a
+ * full SiteLinkContext just to call its `path()`. The console's own context
+ * ((public)/+layout.svelte's navContext/footerContext, plus that layout's
+ * own `webPath`) is built from this function too, so those never drift from
+ * it. Its brand href is not migrated onto this helper: the root path there
+ * is bare `SITE.web` for 'en' with no trailing slash, one byte different
+ * from what this function would return for `path: '/'`.
+ */
+export function webHref(locale: Locale, path: string): string {
+  return locale === 'en' ? `${SITE.web}${path}` : `${SITE.web}/${locale}${path}`;
+}
+
+/**
  * A channel's public command page, always absolute.
  *
  * The app answers /user/<login> on every hostname it serves, so a RELATIVE link

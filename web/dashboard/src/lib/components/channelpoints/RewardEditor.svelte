@@ -9,7 +9,6 @@
   import { Field, RadioGroup, getI18n, type ChannelPointReward, type CounterScope } from '@bagel/kit';
   import { Checkbox } from '@bagel/kit';
   import { focusFirstInvalid } from '@bagel/kit';
-  import { chipsFor } from '@bagel/kit/variables';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
 
@@ -43,11 +42,6 @@
 
   const DEFAULT_MESSAGE = '{user} redeemed {reward}!';
   const payload = $derived(JSON.stringify(draft));
-
-  // Reward reply token palette (replaces the command tokens), read off the
-  // catalog's channelpoints.reply ModuleReply instead of a hand-kept literal
-  // list; chip tooltips come from replyVars.channelpoints.reply.<tok>.hint.
-  const TOKENS = chipsFor('reward:channelpoints').map((c) => ({ token: c.token, hint: c.hintKey }));
 
   // Rehearsal samples: the reward tokens expandReward resolves (see
   // app/twitch/sesame/modules/channelpoints.go), with the draft's own values so the
@@ -158,7 +152,7 @@
 
   {#if replyOn}
     <Field label={t('channelpoints.fieldMessage')}>
-      <ResponseEditor bind:value={draft.message} tokens={TOKENS} placeholder={DEFAULT_MESSAGE} />
+      <ResponseEditor bind:value={draft.message} surface="reward:channelpoints" placeholder={DEFAULT_MESSAGE} />
     </Field>
     <!-- kind="reply": expandReward substitutes the reward tokens plus the
          dynamic set ({random}/{choice:…}); nothing else. -->

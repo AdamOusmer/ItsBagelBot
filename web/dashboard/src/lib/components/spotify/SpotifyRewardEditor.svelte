@@ -6,7 +6,6 @@
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { Button, Code, Field, EditorFooter, getI18n, type SpotifyRedeemConfig } from '@bagel/kit';
-  import { chipsFor } from '@bagel/kit/variables';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
   import { focusFirstInvalid } from '@bagel/kit';
@@ -28,12 +27,6 @@
   const { t } = getI18n();
 
   const DEFAULT_REPLY = '@{user} queued {track}!';
-  // Spotify's reward IS the songqueue module's 'redeem' reply (this editor
-  // saves songqueue's replyMessage config key), so its palette reads off the
-  // same songqueue.redeem ModuleReply channelpoints/govee read theirs off,
-  // rather than a hand-kept literal list; chip tooltips come from
-  // replyVars.songqueue.redeem.<tok>.hint.
-  const REPLY_TOKENS = chipsFor('reward:spotify').map((c) => ({ token: c.token, hint: c.hintKey }));
   const replySamples: Record<string, string> = {
     user: t('spotify.previewUserSample'),
     track: 'Never Gonna Give You Up',
@@ -120,7 +113,7 @@
   </Field>
 
   <Field label={t('spotify.fieldReply')} tag={t('common.optional')}>
-    <ResponseEditor bind:value={replyMessage} name="replyMessage" tokens={REPLY_TOKENS} placeholder={DEFAULT_REPLY} />
+    <ResponseEditor bind:value={replyMessage} name="replyMessage" surface="reward:spotify" placeholder={DEFAULT_REPLY} />
   </Field>
   <!-- kind="reply": the song-queue redeem substitutes {user}/{track}/{input}
        plus the dynamic set ({random}/{choice:…}), like every other reward

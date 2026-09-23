@@ -4,16 +4,19 @@
 // The custom-command Variable inventory: the union of
 // web/marketing/src/i18n/builder.ts's DYNAMIC/UTILITIES/VIEWER/MODULE_FACTS/
 // CHAT_ROOM/CHANNEL_FACTS/EMOTES arrays and its `id: 'custom'` surface vars,
-// web/dashboard/src/lib/components/commands/ResponseEditor.svelte's
-// DEFAULT_TOKENS, and the resolver inventory in
-// app/twitch/sesame/engine/scope/token_catalog.go (mirrored at
+// the chip strip web/dashboard/src/lib/components/commands/ResponseEditor.svelte
+// used to hand-keep as its own DEFAULT_TOKENS array (deleted once
+// ResponseEditor started rendering VariablePalette, which reads this file
+// through surfaces.ts's pinnedFor/sheetFor/chipsFor instead), and the resolver
+// inventory in app/twitch/sesame/engine/scope/token_catalog.go (mirrored at
 // app/twitch/sesame/engine/scope/testdata/token_catalog.golden.json, which
 // ./parity.test.ts checks this list against).
 //
-// Order: ResponseEditor's DEFAULT_TOKENS order first (today's chip order, so
-// a caller migrating off that array keeps the same first impression), then
-// the entries DEFAULT_TOKENS lacks beside their siblings (the two emote
-// providers it folds into one chip, the two song subfields) and urlfetch last.
+// Order: the old DEFAULT_TOKENS order first (that was the chip order every
+// broadcaster already knew, so the migration off it kept the same first
+// impression), then the entries it lacked beside their siblings (the two
+// emote providers it folds into one chip, the two song subfields) and
+// urlfetch last.
 //
 // Copy (name/hint/desc) is not here: it lives in the i18n locales under
 // vars.<id>, read through @bagel/kit/i18n. This file is structure only.
