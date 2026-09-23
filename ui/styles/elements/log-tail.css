@@ -1,0 +1,41 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* Layer order first. Every adapter in ../svelte JS-imports its own element
+   CSS, so a bundler can emit this file ahead of layers.css -- and layer order
+   is fixed by the first declaration seen, which would rank bb.elements BELOW
+   bb.base and let the button reset there strip the typography off every
+   contract that renders a <button>. Restating it is idempotent; the layers
+   themselves are documented in layers.css. */
+@layer bb.tokens, bb.base, bb.elements, bb.app;
+
+/* `.bb-log` -- the last lines of a job or container log, as captured: a
+   failed build job, a crash-looping pod.
+
+   `white-space: pre` and a horizontal scrollbar, NOT pre-wrap. A Go panic or
+   a kubelet event is aligned by its own indentation, and wrapping a 140-column
+   line at a phone's 340px turns a stack trace into a paragraph. The box
+   scrolls both ways inside itself; the page never scrolls sideways.
+
+   The height is capped rather than fixed: a three-line tail should not sit in
+   a box sized for fifty. 20 lines at 1.5 line-height is the cap because it is
+   what a failure needs on screen at once (the error and the frames under it)
+   while leaving the stage list above it in view on a laptop. */
+
+@layer bb.elements {
+  .bb-log {
+    max-height: calc(20 * 1.5em + 20px);
+    margin: 0;
+    padding: 10px 12px;
+    overflow: auto;
+    border: 1px solid var(--bb-border);
+    border-radius: var(--bb-radius-md);
+    background: rgba(var(--bb-black-rgb), 0.4);
+    color: var(--bb-white);
+    font-family: var(--bb-font-mono);
+    font-size: var(--bb-text-xs);
+    line-height: 1.5;
+    white-space: pre;
+    tab-size: 4;
+  }
+}

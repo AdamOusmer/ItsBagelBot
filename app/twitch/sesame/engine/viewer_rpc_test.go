@@ -119,7 +119,10 @@ func TestViewerRPCMissingScopeLatchIsClearedByAWarmSnapshot(t *testing.T) {
 	assert.Equal(t, viewerSnapshotCold, state, "the triggering call itself is still just cold")
 	waitFor(t, func() bool { return r.isMissingScope(123) })
 
-	assert.True(t, r.store.TryFetchLock(context.Background(), 123), "MissingScope must have released the fetch lock early")
+	// The fetch latches before it releases the lock, so a single probe right
+	// after the latch flips can land between the two on a slow runner. Waiting
+	// still proves an early release: the lock's TTL (10s) outlasts waitFor.
+	waitFor(t, func() bool { return r.store.TryFetchLock(context.Background(), 123) })
 	r.store.ReleaseFetchLock(context.Background(), 123) // undo the probe claim above
 
 	_, state = r.Snapshot(context.Background(), 123)
