@@ -126,7 +126,8 @@ func canonicalName(name string) string {
 // is not a valid positional bound is still OWNED here rather than left to a
 // later scope (none would claim "" anyway), and Get is what turns that into
 // a literal.
-func (Message) Owns(name string) bool {
+func (Message) Owns(v Var) bool {
+	name := v.Name
 	if _, ok := positionalIndex(name); ok {
 		return true
 	}

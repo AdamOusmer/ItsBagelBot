@@ -93,8 +93,8 @@ type Viewer struct {
 }
 
 // Owns claims a token only when the dependency that answers it is mounted.
-func (v Viewer) Owns(name string) bool {
-	switch name {
+func (v Viewer) Owns(tok Var) bool {
+	switch tok.Name {
 	case FollowageToken:
 		return v.Follow != nil
 	case AccountAgeToken:

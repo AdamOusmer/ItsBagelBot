@@ -119,6 +119,10 @@ type Command struct {
 	// after every uses flush), so the worker reads it for free on the lookup
 	// it already does — the {uses} token costs no extra call.
 	Uses uint64 `json:"uses,omitempty"`
+	// BumpCounter names the loyalty counter this command bumps by one on
+	// every successful run; "" means none (see engine/dispatch.go's
+	// runCustom/recordUse pairing for where the bump itself fires).
+	BumpCounter string `json:"bump_counter,omitempty"`
 }
 
 // Reader is the contract the pipeline depends on. Keeping it an interface lets
@@ -480,6 +484,7 @@ func commandFromView(v CommandView) Command {
 		Cooldown:         v.Cooldown,
 		AllowedUserID:    v.AllowedUserID,
 		Uses:             v.Uses,
+		BumpCounter:      v.BumpCounter,
 	}
 }
 

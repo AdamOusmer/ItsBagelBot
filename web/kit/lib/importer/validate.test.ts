@@ -104,9 +104,9 @@ test('Stats counts what the manifest holds', () => {
     quotes: [{ text: 'q1' }, { text: 'q2' }, { text: 'q3' }],
     automod: {}
   };
-  expect(stats(m)).toEqual({ commands: 2, timers: 1, triggers: 0, quotes: 3, counters: 0 });
+  expect(stats(m)).toEqual({ commands: 2, timers: 1, triggers: 0, quotes: 3 });
   expect(isEmptyStats(stats(m))).toBe(false);
-  expect(isEmptyStats({ commands: 0, timers: 0, triggers: 0, quotes: 0, counters: 0 })).toBe(true);
+  expect(isEmptyStats({ commands: 0, timers: 0, triggers: 0, quotes: 0 })).toBe(true);
 });
 
 describe('FindCollisions', () => {
@@ -116,19 +116,14 @@ describe('FindCollisions', () => {
       { name: 'fresh', aliases: ['!alt', 'second'], responses: ['x'] },
       { name: 'alias hit', aliases: ['!taken'], responses: ['x'] },
       { name: 'clean', responses: ['x'] }
-    ],
-    counters: [
-      { name: '!deaths', value: 1 },
-      { name: 'newcounter', value: 2 }
     ]
   };
 
-  test('names and aliases collide case-insensitively; counters use the same fold', () => {
+  test('names and aliases collide case-insensitively', () => {
     expect(findCollisions(['LURK', '!Second', 'taken', 'deaths'], m)).toEqual([
       { kind: 'command', name: 'lurk' },
       { kind: 'command', name: 'fresh' },
-      { kind: 'command', name: 'alias hit' },
-      { kind: 'counter', name: 'deaths' }
+      { kind: 'command', name: 'alias hit' }
     ]);
   });
 
@@ -226,20 +221,6 @@ describe('Validate', () => {
     expect(diags.map((d) => [d.code, d.item_index])).toEqual([
       ['quote_text_invalid', 0],
       ['quote_date_invalid', 1]
-    ]);
-  });
-
-  test('counter name bounds', () => {
-    const diags = validateManifest({
-      counters: [
-        { name: '!', value: 0 },
-        { name: 'x'.repeat(65), value: 0 },
-        { name: '!Deaths', value: 3 }
-      ]
-    });
-    expect(diags.map((d) => [d.code, d.item_index])).toEqual([
-      ['counter_name_invalid', 0],
-      ['counter_name_invalid', 1]
     ]);
   });
 

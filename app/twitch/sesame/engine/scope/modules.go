@@ -129,8 +129,8 @@ type Modules struct {
 // Owns claims a token only when the dependency that answers it is mounted.
 // {time} is claimed when EITHER half is mounted; Plan/Get tell bare and
 // payload spans apart and each renders literal on its own missing half.
-func (m Modules) Owns(name string) bool {
-	switch name {
+func (m Modules) Owns(v Var) bool {
+	switch v.Name {
 	case QuoteToken:
 		return m.Quotes != nil
 	case TimeToken:

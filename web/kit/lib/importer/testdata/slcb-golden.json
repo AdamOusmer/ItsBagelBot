@@ -13,7 +13,7 @@
         {
           "name": "!cookie",
           "responses": [
-            "{counter:cookie} cookies eaten! {counter:lurk} via $readapi(https://example.api)"
+            "{count} cookies eaten! {counter:lurk} via $readapi(https://example.api)"
           ],
           "permission": "everyone"
         },
@@ -94,6 +94,12 @@
       ]
     },
     "diags": [
+      {
+        "severity": "warn",
+        "item_index": 1,
+        "code": "command_count_remapped",
+        "message": "response uses \"$count\", imported as {count}: it now counts this command’s own runs from zero, not the running total it showed in SLCB"
+      },
       {
         "severity": "warn",
         "item_index": 1,

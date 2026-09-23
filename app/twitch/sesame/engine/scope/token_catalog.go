@@ -70,8 +70,12 @@ func CommandTokenFamilies() []TokenFamily {
 			Aliases:  []string{"{" + PointsNameLegacyToken + "}"},
 		},
 		{ID: "modules", Examples: []string{"{" + QuoteToken + "}", "{" + QuoteToken + ":1}", "{" + TimeToken + "}", "{" + TimeToken + ":Paris}", "{" + SongToken + "}", "{" + SongTitleToken + "}", "{" + SongArtistToken + "}"}},
-		{ID: "uses", Examples: []string{"{uses}"}},
-		{ID: "store", Examples: []string{"{counter:deaths}", "{counter:target:deaths}", "{count:deaths}", "{count:target:deaths}"}},
+		{ID: "uses", Examples: []string{"{count}"}, Aliases: []string{"{uses}"}},
+		{
+			ID:       "store",
+			Examples: []string{"{counter:deaths}", "{counter:target:deaths}"},
+			Aliases:  []string{"{count:deaths}", "{count:target:deaths}"},
+		},
 		{ID: "external", Examples: []string{"{urlfetch:weather}"}},
 	}
 }

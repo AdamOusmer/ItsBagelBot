@@ -16,6 +16,9 @@ export interface CommandDraft {
   perm: Perm;
   cooldown: number;
   allowed_user_id: string;
+  // Name of a loyalty counter this command bumps by one on every successful
+  // run; '' means it bumps nothing.
+  bump_counter: string;
   stream_online_only: boolean;
   is_active: boolean;
   // Set for a built-in command: the inspector renders a read-only preview +

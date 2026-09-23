@@ -58,6 +58,7 @@ func commandViewFromEvent(dto data.CommandChangedDTO) CommandView {
 		Cooldown:         dto.Cooldown,
 		AllowedUserID:    allowed,
 		Uses:             dto.Uses,
+		BumpCounter:      dto.BumpCounter,
 	}
 }
 

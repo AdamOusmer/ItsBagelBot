@@ -11,7 +11,7 @@ import { IMPORT_ITEM_CAPS } from './types';
 
 type CappedKind = keyof typeof IMPORT_ITEM_CAPS;
 
-const KINDS: readonly CappedKind[] = ['commands', 'timers', 'triggers', 'quotes', 'counters'];
+const KINDS: readonly CappedKind[] = ['commands', 'timers', 'triggers', 'quotes'];
 
 // applyImportCaps truncates every manifest collection to its cap in place,
 // returning the same manifest plus one manifest-level warn diagnostic per

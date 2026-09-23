@@ -97,6 +97,9 @@
     {
       "id": "uses",
       "examples": [
+        "{count}"
+      ],
+      "aliases": [
         "{uses}"
       ]
     },
@@ -104,7 +107,9 @@
       "id": "store",
       "examples": [
         "{counter:deaths}",
-        "{counter:target:deaths}",
+        "{counter:target:deaths}"
+      ],
+      "aliases": [
         "{count:deaths}",
         "{count:target:deaths}"
       ]

@@ -124,8 +124,8 @@ type Emotes struct {
 // {emotes} or one naming a provider this scope does not carry is still
 // OWNED here — Get is what turns an unusable payload into a literal, the
 // same split every payload-taking token in this palette uses.
-func (Emotes) Owns(name string) bool {
-	switch name {
+func (Emotes) Owns(v Var) bool {
+	switch v.Name {
 	case EmotesToken, SevenTVEmotesToken, BTTVEmotesToken, FFZEmotesToken, RandomEmoteToken:
 		return true
 	}

@@ -32,7 +32,7 @@ import (
 // carries the lifetime use counter the commands service maintains, so {uses}
 // is answered from the lookup runCustom has already done rather than from a
 // second store. Everything else reads cc.Name, the canonical key an alias
-// resolves to, so {command}, the counter bumps and the use counter all agree
+// resolves to, so {command}, the counter reads and the use counter all agree
 // on one name.
 //
 // toks is the lexed template, which the channel, viewer and module scopes need
@@ -66,8 +66,7 @@ func (p *Pipeline) commandChain(ctx context.Context, run commandRun, toks []tmpl
 		chain = append(chain, mods)
 	}
 	if p.loyalty != nil {
-		counters := newCounterBumps(p, run)
-		chain = append(chain, scope.Store{Counters: counters, Peeks: counters})
+		chain = append(chain, scope.Store{Peeks: newCounterPeeks(p, run)})
 	}
 	if p.customFetch != nil {
 		chain = append(chain, scope.External{
@@ -83,7 +82,7 @@ func (p *Pipeline) commandChain(ctx context.Context, run commandRun, toks []tmpl
 // string the chatter typed.
 //
 // The three travel together through every scope the chain mounts — the
-// message tokens, the counter bumps and the url fetches each need all three —
+// message tokens, the counter reads and the url fetches each need all three —
 // so they are one value rather than three parameters rethreaded at each hop,
 // which is what let a caller pass them in the wrong order.
 type commandRun struct {
@@ -165,14 +164,18 @@ func (p *Pipeline) logScopeFailure(c *module.Context) func(error) {
 	}
 }
 
-// counterBumps is the engine half of the counter scope: the grammar (which
-// spellings resolve, how a payload folds) lives in scope.Store, and everything
-// that needs the run — whose identity rides the bump, the redelivery claim,
-// the loyalty store itself — lives here.
+// counterPeeks is the engine half of the counter READ scope: the grammar
+// (which spellings resolve, how a payload folds) lives in scope.Store, and
+// everything that needs the run — whose identity a "target:" read looks up,
+// the loyalty store itself — lives here. The command-run bump option
+// (cc.BumpCounter, see dispatch.go's runCustom) is a separate write path
+// that never routes through this type: a template read and the option that
+// produces the number it reads are deliberately two different pieces of
+// code, so a read can never itself cause the write it is displaying.
 //
 // The mentioned viewer is resolved lazily and once: a response naming three
 // addressed counters looks the mention up in the roster a single time.
-type counterBumps struct {
+type counterPeeks struct {
 	p   *Pipeline
 	run commandRun
 
@@ -181,25 +184,20 @@ type counterBumps struct {
 	resolved bool
 }
 
-func newCounterBumps(p *Pipeline, run commandRun) *counterBumps {
+func newCounterPeeks(p *Pipeline, run commandRun) *counterPeeks {
 	env := run.c.Env
 	senderID, _ := strconv.ParseUint(env.ChatterUserID, 10, 64)
-	return &counterBumps{
+	return &counterPeeks{
 		p: p, run: run,
 		sender: Viewer{ID: senderID, Login: env.ChatterUserLogin, Name: env.ChatterUserName},
 	}
 }
 
-// Bump applies one counter's increment under the run's identity.
-func (b *counterBumps) Bump(ctx context.Context, name string, addressed bool) string {
-	return b.p.claimedCounterValue(ctx, b.run.c, name, b.viewerFor(addressed), b.run.command)
-}
-
-// Peek reads one counter under the same identity, and writes nothing at all:
-// no bump, and no dedup claim either, because a read has nothing to deduplicate
-// and claiming one would make a redelivered line render an unrelated counter's
-// replay value.
-func (b *counterBumps) Peek(ctx context.Context, name string, addressed bool) string {
+// Peek reads one counter under the run's identity, and writes nothing at
+// all: no bump, and no dedup claim either, because a read has nothing to
+// deduplicate and claiming one would make a redelivered line render an
+// unrelated counter's replay value.
+func (b *counterPeeks) Peek(ctx context.Context, name string, addressed bool) string {
 	return CounterPeekValue(ctx, b.p.loyalty, CounterTarget{
 		BroadcasterID: b.run.c.BroadcasterID,
 		Name:          name,
@@ -210,7 +208,7 @@ func (b *counterBumps) Peek(ctx context.Context, name string, addressed bool) st
 
 // viewerFor picks whose bucket a span addresses: the mentioned viewer for the
 // "target:" spelling, the sender otherwise.
-func (b *counterBumps) viewerFor(addressed bool) Viewer {
+func (b *counterPeeks) viewerFor(addressed bool) Viewer {
 	if addressed {
 		return b.targetViewer()
 	}
@@ -221,7 +219,7 @@ func (b *counterBumps) viewerFor(addressed bool) Viewer {
 // roster of chatters this replica has seen speak. A mention nobody has spoken
 // where this replica could see falls back to the sender, mirroring how
 // {touser} itself defaults to the sender.
-func (b *counterBumps) targetViewer() Viewer {
+func (b *counterPeeks) targetViewer() Viewer {
 	if b.resolved {
 		return b.target
 	}

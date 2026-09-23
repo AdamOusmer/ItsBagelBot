@@ -62,6 +62,18 @@ func (Commands) Fields() []ent.Field {
 		// command edits never touch it (only the counter flush writes it).
 		field.Uint64("uses").Default(0),
 
+		// Name of a loyalty counter this command bumps by one on every
+		// successful run; "" means the command bumps nothing. Normalized at
+		// write time in the repository with the same fold the store scope
+		// applies to a {counter:...} payload (tmpl.NormalizeName), so the
+		// option and the read token can never disagree about which counter a
+		// name means. This replaced {counter:x} as a template TOKEN with a
+		// side effect: it was the only piece of chat template that wrote
+		// anything, and it sat one dropped letter from {count:x}, its
+		// read-only twin. An option a broadcaster picks from a list cannot be
+		// mistyped the way a token spelling can.
+		field.String("bump_counter").Default("").MaxLen(64),
+
 		field.Time("created_at").Default(time.Now),
 
 		field.Time("updated_at").Default(time.Now).UpdateDefault(time.Now),

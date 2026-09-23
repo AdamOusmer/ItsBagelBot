@@ -36,7 +36,7 @@ type External struct {
 }
 
 // Owns claims the urlfetch token family.
-func (External) Owns(name string) bool { return name == urlFetchName }
+func (External) Owns(v Var) bool { return v.Name == urlFetchName }
 
 // Plan fans every distinct payload out once, with ctx, before any rendering
 // happens — the whole reason this package has a Plan phase. A repl callback is

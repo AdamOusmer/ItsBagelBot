@@ -37,10 +37,10 @@ func TestPureOwnsTheUtilityPalette(t *testing.T) {
 		"random", "choice", "math", "queryescape", "pathescape",
 		"repeat", "countdown", "countup",
 	} {
-		assert.True(t, Pure{}.Owns(name), "pure should own %q", name)
+		assert.True(t, Pure{}.Owns(Var{Name: name}), "pure should own %q", name)
 	}
 	for _, name := range []string{"user", "args", "counter", "querystring", "maths", ""} {
-		assert.False(t, Pure{}.Owns(name), "pure should not own %q", name)
+		assert.False(t, Pure{}.Owns(Var{Name: name}), "pure should not own %q", name)
 	}
 }
 

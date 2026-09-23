@@ -15,7 +15,8 @@ export const SLCB_CODE = {
   manifestSourceNote: 'manifest_source_note',
   permissionAdjusted: 'command_permission_adjusted',
   scriptDependent: 'command_script_dependent',
-  quoteDateUnparsed: 'quote_date_unparsed'
+  quoteDateUnparsed: 'quote_date_unparsed',
+  countRemapped: 'command_count_remapped'
 } as const;
 
 // --- $parameter translation (parameters.go) -----------------------------------
@@ -214,9 +215,15 @@ function warnOnce(s: ScanState, code: string, message: string): void {
 // a warn diagnostic naming the token: deleting a broadcaster's text silently
 // is worse than a stray brace.
 //
-// cmdName is the normalized command name for $count resolution
-// ({counter:name}); empty for timer messages, where $count has no referent and
-// stays literal.
+// cmdName gates $count resolution (bare {count}, the per-command use count —
+// see uses.go's alias of {uses}); empty for timer messages, where $count has
+// no command to count and stays literal. $count auto-increments per run
+// upstream exactly like {count}/{uses} does here, which is why it maps onto
+// that rather than a named {counter:<cmdName>}: a fresh import would
+// otherwise silently create (and bind the command to) a channel counter the
+// broadcaster never named. $checkcount(name), below, is SLCB's own
+// NAMED-counter reference and is unaffected: it already read rather than
+// wrote, so it keeps mapping onto {counter:<name>}.
 export function translateVariables(text: string, cmdName: string): TranslationResult {
   const s: ScanState = {
     text,
@@ -303,9 +310,20 @@ function counterSpan(name: string): string | null {
 
 function countParam(s: ScanState, cursor: ParamCursor): number {
   const { next } = cursor;
-  const span = counterSpan(s.cmdName);
-  if (span !== null) {
-    s.out += span;
+  if (s.cmdName !== '') {
+    s.out += '{count}';
+    // Meaning change, not just a spelling change: SLCB's $count was a live
+    // running total from whenever the command was created; {count} starts
+    // counting this bot's own runs from zero. SLCB's own export carries no
+    // running value to cite (unlike Moobot's <counter>, which at least has
+    // one to name), so this warns without an old-value clause. warnOnce
+    // dedupes by (code, message), so a response using $count more than once
+    // still warns a single time.
+    warnOnce(
+      s,
+      SLCB_CODE.countRemapped,
+      'response uses "$count", imported as {count}: it now counts this command’s own runs from zero, not the running total it showed in SLCB'
+    );
     return next;
   }
   s.out += '$count';

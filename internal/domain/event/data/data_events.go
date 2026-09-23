@@ -71,8 +71,12 @@ type CommandChangedDTO struct {
 	AllowedUserID    uint64   `json:"allowed_user_id,omitempty"`
 	// Uses is the lifetime execution counter (see SubjectCommandUsed). Carried
 	// on every change event so the projection never regresses it.
-	Uses    uint64 `json:"uses,omitempty"`
-	Deleted bool   `json:"deleted"`
+	Uses uint64 `json:"uses,omitempty"`
+	// BumpCounter names the loyalty counter this command bumps by one on every
+	// successful run; "" means none. See ent/schema/commands.go's field
+	// comment for why this replaced the {counter:x} template token.
+	BumpCounter string `json:"bump_counter,omitempty"`
+	Deleted     bool   `json:"deleted"`
 }
 
 // FetchChangedDTO is the full state of one $(urlfetch) definition after the

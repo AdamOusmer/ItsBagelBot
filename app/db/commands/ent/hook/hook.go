@@ -44,6 +44,18 @@ func (f FetchKeyFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, er
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.FetchKeyMutation", m)
 }
 
+// The MigrationsFunc type is an adapter to allow the use of ordinary
+// function as Migrations mutator.
+type MigrationsFunc func(context.Context, *ent.MigrationsMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f MigrationsFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.MigrationsMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.MigrationsMutation", m)
+}
+
 // Condition is a hook condition function.
 type Condition func(context.Context, ent.Mutation) bool
 

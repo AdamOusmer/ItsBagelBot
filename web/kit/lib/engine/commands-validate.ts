@@ -12,6 +12,7 @@
 // outgrew this file; the re-export keeps every existing import path working.
 export * from './fetch-validate';
 import { urlFetchNames, URLFETCH_TOKEN_CAP, type FetchDefErrors } from './fetch-validate';
+import { bumpCounterProblem } from './counter-validate';
 
 export const COMMAND_NAME_MAX = 64;
 /** Per line: each line is sent as its own chat message (Twitch limit). */
@@ -69,11 +70,13 @@ export interface CommandFields {
   cooldown: number;
   /** Digits-only Twitch user id, or '' for unrestricted. */
   allowedUserId: string;
+  /** Normalized counter name to bump on every successful run, or '' for none. */
+  bumpCounter: string;
 }
 
 /** field -> human message; empty object = valid. Keys match form field names. */
 export type CommandErrors = Partial<
-  Record<'name' | 'aliases' | 'response' | 'cooldown' | 'allowed_user_id', string>
+  Record<'name' | 'aliases' | 'response' | 'cooldown' | 'allowed_user_id' | 'bump_counter', string>
 >;
 
 // NameCheck is one trigger-shaped value under validation with the label its
@@ -147,6 +150,8 @@ export function validateCommand(f: CommandFields): CommandErrors {
   if (f.allowedUserId && !/^[0-9]+$/.test(f.allowedUserId)) {
     errors.allowed_user_id = 'User restriction must be a numeric Twitch user id.';
   }
+  const bumpCounter = bumpCounterProblem(f.bumpCounter);
+  if (bumpCounter) errors.bump_counter = bumpCounter;
   return errors;
 }
 

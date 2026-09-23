@@ -142,7 +142,32 @@ func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, name, args 
 	// Count the successful run. cc.Name is the canonical key (an alias lookup
 	// resolves to it), so alias invocations all count against the one command.
 	p.recordUse(ctx, c, cc.Name)
+	p.bumpCommandCounter(ctx, c, cc)
 	return nil
+}
+
+// bumpCommandCounter applies the command-run "also bump counter <name> when
+// this command runs" option (cc.BumpCounter): a chosen setting, not a
+// template span, so it produces no render output of its own — this is why it
+// runs after emitCommand has already sent cc.Response, rather than as
+// something the response could read mid-render. It replaced {counter:x} as a
+// template TOKEN with a side effect (see ent/schema/commands.go's field
+// comment), and it reuses the exact dedup-claimed path that token used to
+// drive through scope.Store: claimedCounterValue's CounterEffect(name) claim
+// is per (event identity, counter name), so a redelivered command line skips
+// the increment exactly the way the old token bump did, rather than double
+// counting.
+//
+// The bump always keys on the sender: unlike a "{counter:target:x}" template
+// read, the option names no viewer to mention, so there is no addressing to
+// resolve.
+func (p *Pipeline) bumpCommandCounter(ctx context.Context, c *module.Context, cc projection.Command) {
+	if cc.BumpCounter == "" || p.loyalty == nil {
+		return
+	}
+	senderID, _ := strconv.ParseUint(c.Env.ChatterUserID, 10, 64)
+	sender := Viewer{ID: senderID, Login: c.Env.ChatterUserLogin, Name: c.Env.ChatterUserName}
+	p.claimedCounterValue(ctx, c, cc.BumpCounter, sender, cc.Name)
 }
 
 // recordUse counts one successful command run. The reporter sums ticks locally

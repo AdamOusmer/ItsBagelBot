@@ -30,6 +30,11 @@ export interface CommandView {
   cooldown?: number;
   // Twitch id of the only user allowed to run the command; '' or undefined = unrestricted.
   allowed_user_id?: string;
+  // Name of a loyalty counter this command bumps by one on every successful
+  // run; '' or undefined means the command bumps nothing. See the
+  // {counter:…}/{count:…} token family (now read-only) for reading the value
+  // back in a response.
+  bump_counter?: string;
   // Lifetime execution counter, always a number. The demo fixtures once carried
   // human-formatted strings ('1.2k'), which forced every consumer to parse; the
   // fixtures were normalized to numbers instead (see demo-data.ts).
@@ -179,7 +184,6 @@ export type {
   ImportSource,
   ImportStats,
   ManifestCommand,
-  ManifestCounter,
   ManifestQuote,
   ManifestTimer,
   ManifestTrigger,

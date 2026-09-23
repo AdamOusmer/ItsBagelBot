@@ -99,6 +99,11 @@ func Uses(v uint64) predicate.Commands {
 	return predicate.Commands(sql.FieldEQ(FieldUses, v))
 }
 
+// BumpCounter applies equality check predicate on the "bump_counter" field. It's identical to BumpCounterEQ.
+func BumpCounter(v string) predicate.Commands {
+	return predicate.Commands(sql.FieldEQ(FieldBumpCounter, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.Commands {
 	return predicate.Commands(sql.FieldEQ(FieldCreatedAt, v))
@@ -492,6 +497,71 @@ func UsesLT(v uint64) predicate.Commands {
 // UsesLTE applies the LTE predicate on the "uses" field.
 func UsesLTE(v uint64) predicate.Commands {
 	return predicate.Commands(sql.FieldLTE(FieldUses, v))
+}
+
+// BumpCounterEQ applies the EQ predicate on the "bump_counter" field.
+func BumpCounterEQ(v string) predicate.Commands {
+	return predicate.Commands(sql.FieldEQ(FieldBumpCounter, v))
+}
+
+// BumpCounterNEQ applies the NEQ predicate on the "bump_counter" field.
+func BumpCounterNEQ(v string) predicate.Commands {
+	return predicate.Commands(sql.FieldNEQ(FieldBumpCounter, v))
+}
+
+// BumpCounterIn applies the In predicate on the "bump_counter" field.
+func BumpCounterIn(vs ...string) predicate.Commands {
+	return predicate.Commands(sql.FieldIn(FieldBumpCounter, vs...))
+}
+
+// BumpCounterNotIn applies the NotIn predicate on the "bump_counter" field.
+func BumpCounterNotIn(vs ...string) predicate.Commands {
+	return predicate.Commands(sql.FieldNotIn(FieldBumpCounter, vs...))
+}
+
+// BumpCounterGT applies the GT predicate on the "bump_counter" field.
+func BumpCounterGT(v string) predicate.Commands {
+	return predicate.Commands(sql.FieldGT(FieldBumpCounter, v))
+}
+
+// BumpCounterGTE applies the GTE predicate on the "bump_counter" field.
+func BumpCounterGTE(v string) predicate.Commands {
+	return predicate.Commands(sql.FieldGTE(FieldBumpCounter, v))
+}
+
+// BumpCounterLT applies the LT predicate on the "bump_counter" field.
+func BumpCounterLT(v string) predicate.Commands {
+	return predicate.Commands(sql.FieldLT(FieldBumpCounter, v))
+}
+
+// BumpCounterLTE applies the LTE predicate on the "bump_counter" field.
+func BumpCounterLTE(v string) predicate.Commands {
+	return predicate.Commands(sql.FieldLTE(FieldBumpCounter, v))
+}
+
+// BumpCounterContains applies the Contains predicate on the "bump_counter" field.
+func BumpCounterContains(v string) predicate.Commands {
+	return predicate.Commands(sql.FieldContains(FieldBumpCounter, v))
+}
+
+// BumpCounterHasPrefix applies the HasPrefix predicate on the "bump_counter" field.
+func BumpCounterHasPrefix(v string) predicate.Commands {
+	return predicate.Commands(sql.FieldHasPrefix(FieldBumpCounter, v))
+}
+
+// BumpCounterHasSuffix applies the HasSuffix predicate on the "bump_counter" field.
+func BumpCounterHasSuffix(v string) predicate.Commands {
+	return predicate.Commands(sql.FieldHasSuffix(FieldBumpCounter, v))
+}
+
+// BumpCounterEqualFold applies the EqualFold predicate on the "bump_counter" field.
+func BumpCounterEqualFold(v string) predicate.Commands {
+	return predicate.Commands(sql.FieldEqualFold(FieldBumpCounter, v))
+}
+
+// BumpCounterContainsFold applies the ContainsFold predicate on the "bump_counter" field.
+func BumpCounterContainsFold(v string) predicate.Commands {
+	return predicate.Commands(sql.FieldContainsFold(FieldBumpCounter, v))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.

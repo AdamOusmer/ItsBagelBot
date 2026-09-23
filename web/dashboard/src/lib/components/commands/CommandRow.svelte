@@ -109,6 +109,7 @@
         <input type="hidden" name="perm" value={c.perm ?? 'everyone'} />
         <input type="hidden" name="cooldown" value={c.cooldown ?? 0} />
         <input type="hidden" name="allowed_user_id" value={c.allowed_user_id ?? ''} />
+        <input type="hidden" name="bump_counter" value={c.bump_counter ?? ''} />
         <input type="hidden" name="stream_online_only" value={c.stream_online_only ? 'on' : ''} />
         <input type="hidden" name="is_active" value={c.is_active ? '' : 'on'} />
         <Switch type="submit" checked={c.is_active} label={t('commandRow.toggleAria', { name: c.name })} />

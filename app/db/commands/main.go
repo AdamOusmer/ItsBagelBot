@@ -114,6 +114,18 @@ func main() {
 	defer repo.Close(context.Background()) // flushes pending writes on shutdown
 	defer closeIntake()                    // stops intake before the repo flush above
 
+	// One-time backfill for the {counter:x} deprecation: bump_counter
+	// defaults to "", so a command whose response still carries the old
+	// WRITE spelling would otherwise silently stop incrementing its counter
+	// the moment this deploy lands. Gated on a migrations marker row (see
+	// BackfillBumpCounterFromTokens), so it costs one query on every boot
+	// after the first and never re-applies to a broadcaster who later
+	// clears the option by hand. Runs before the service starts accepting
+	// RPC/consumer traffic so a concurrent edit can't race it.
+	if err := repo.BackfillBumpCounterFromTokens(core.Ctx); err != nil {
+		log.Error("bump_counter backfill failed; commands keep their prior (unset) bump_counter", zap.Error(err))
+	}
+
 	// Best-effort keyset load (modules-style): an unset path or an absent
 	// optional mount warns and disables key custody — definitions keep
 	// working keyless — while a present-but-invalid keyset is fatal inside

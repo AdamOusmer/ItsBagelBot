@@ -22,6 +22,7 @@ import (
 	"ItsBagelBot/pkg/cache"
 	"ItsBagelBot/pkg/db"
 	"ItsBagelBot/pkg/monitor"
+	"ItsBagelBot/pkg/tmpl"
 
 	entsql "entgo.io/ent/dialect/sql"
 
@@ -187,6 +188,7 @@ func (r *Commands) List(ctx context.Context, userID uint64) ([]CommandView, erro
 					Cooldown:         row.Cooldown,
 					AllowedUserID:    formatAllowed(row.AllowedUserID),
 					Uses:             row.Uses,
+					BumpCounter:      row.BumpCounter,
 				}
 			}
 
@@ -207,12 +209,17 @@ type CommandSpec struct {
 	Perm             string
 	Cooldown         uint
 	AllowedUserID    uint64
+	BumpCounter      string
 }
 
 func (s *CommandSpec) normalize() {
 	s.Name = normalizeName(s.Name)
 	s.Aliases = normalizeAliases(s.Aliases)
 	s.Response = normalizeResponse(s.Response)
+	// Same fold the store scope applies to a {counter:...} payload
+	// (pkg/tmpl.NormalizeName), so the option and the read token can never
+	// disagree about which counter a name means.
+	s.BumpCounter = tmpl.NormalizeName(s.BumpCounter)
 }
 
 func (s *CommandSpec) validate() error {
@@ -228,7 +235,10 @@ func (s *CommandSpec) validate() error {
 	if err := validate.Perm(s.Perm); err != nil {
 		return err
 	}
-	return validate.Cooldown(s.Cooldown)
+	if err := validate.Cooldown(s.Cooldown); err != nil {
+		return err
+	}
+	return validate.BumpCounter(validate.CounterName(s.BumpCounter))
 }
 
 // dto renders the spec as a full-state change event for userID.
@@ -243,6 +253,7 @@ func (s *CommandSpec) dto(userID uint64) data.CommandChangedDTO {
 		Perm:             s.Perm,
 		Cooldown:         s.Cooldown,
 		AllowedUserID:    s.AllowedUserID,
+		BumpCounter:      s.BumpCounter,
 	}
 }
 
@@ -335,6 +346,7 @@ func (r *Commands) renameRow(ctx context.Context, userID uint64, oldName string,
 			SetPerm(spec.Perm).
 			SetCooldown(spec.Cooldown).
 			SetAllowedUserID(spec.AllowedUserID).
+			SetBumpCounter(spec.BumpCounter).
 			Save(ctx)
 	})
 }
@@ -563,6 +575,7 @@ func (r *Commands) rowStates(ctx context.Context, keys []commandKey) (map[comman
 			Cooldown:         row.Cooldown,
 			AllowedUserID:    row.AllowedUserID,
 			Uses:             row.Uses,
+			BumpCounter:      row.BumpCounter,
 		}
 	}
 	return out, nil
@@ -653,7 +666,8 @@ func bulkUpsertCommands(ctx context.Context, client *ent.Client, items []data.Co
 			SetStreamOnlineOnly(item.StreamOnlineOnly).
 			SetPerm(item.Perm).
 			SetCooldown(item.Cooldown).
-			SetAllowedUserID(item.AllowedUserID))
+			SetAllowedUserID(item.AllowedUserID).
+			SetBumpCounter(item.BumpCounter))
 	}
 
 	// MySQL ignores the conflict target (ON DUPLICATE KEY UPDATE is index-less);
@@ -668,6 +682,7 @@ func bulkUpsertCommands(ctx context.Context, client *ent.Client, items []data.Co
 			u.UpdatePerm()
 			u.UpdateCooldown()
 			u.UpdateAllowedUserID()
+			u.UpdateBumpCounter()
 			u.UpdateUpdatedAt()
 		}).
 		Exec(ctx)
@@ -722,6 +737,7 @@ func upsertCommand(ctx context.Context, c *ent.CommandsClient, item data.Command
 		SetPerm(item.Perm).
 		SetCooldown(item.Cooldown).
 		SetAllowedUserID(item.AllowedUserID).
+		SetBumpCounter(item.BumpCounter).
 		Save(ctx)
 	if err != nil {
 		return err
@@ -741,6 +757,7 @@ func upsertCommand(ctx context.Context, c *ent.CommandsClient, item data.Command
 		SetPerm(item.Perm).
 		SetCooldown(item.Cooldown).
 		SetAllowedUserID(item.AllowedUserID).
+		SetBumpCounter(item.BumpCounter).
 		Exec(ctx); err != nil {
 		if ent.IsConstraintError(err) {
 			_, err = c.Update().
@@ -755,6 +772,7 @@ func upsertCommand(ctx context.Context, c *ent.CommandsClient, item data.Command
 				SetPerm(item.Perm).
 				SetCooldown(item.Cooldown).
 				SetAllowedUserID(item.AllowedUserID).
+				SetBumpCounter(item.BumpCounter).
 				Save(ctx)
 		}
 		return err

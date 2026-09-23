@@ -106,16 +106,20 @@ describe('rehearseCommand', () => {
     expect(textOf(line.segments)).toBe('{random:5-1} {random:x-y}');
   });
 
-  test('counters resolve with engine normalization; bot counters stay literal', () => {
+  test('counters resolve with engine normalization; only an empty name stays literal', () => {
+    // "bot:feeds" used to be a reserved, admin-only prefix; store.go dropped
+    // that reservation along with the write (nothing routes a chat template
+    // into the bot's own counter namespace regardless of the counter's
+    // NAME), so it is now an ordinary counter name like any other.
     const [line] = rehearseCommand('{counter:Deaths} {counter:bot:feeds} {counter:}');
-    expect(line.segments.map((s) => s.kind)).toEqual(['sample', 'plain', 'unknown', 'plain', 'unknown']);
-    expect(textOf(line.segments)).toBe('42 {counter:bot:feeds} {counter:}');
+    expect(line.segments.map((s) => s.kind)).toEqual(['sample', 'plain', 'sample', 'plain', 'unknown']);
+    expect(textOf(line.segments)).toBe('42 42 {counter:}');
   });
 
   test('target-addressed counters rehearse like the engine (issue #479)', () => {
     const [line] = rehearseCommand('{counter:target:shutups} {counter:target:} {counter:target:bot:x}');
-    expect(line.segments.map((s) => s.kind)).toEqual(['sample', 'plain', 'unknown', 'plain', 'unknown']);
-    expect(textOf(line.segments)).toBe('42 {counter:target:} {counter:target:bot:x}');
+    expect(line.segments.map((s) => s.kind)).toEqual(['sample', 'plain', 'unknown', 'plain', 'sample']);
+    expect(textOf(line.segments)).toBe('42 {counter:target:} 42');
   });
 
   test('caps at 5 messages, one per line, like emitCommand', () => {
@@ -452,11 +456,18 @@ describe('read-only counters (engine/scope/store.go mirror)', () => {
     expect(textOf(line.segments)).toBe('42 deaths, 42 today');
   });
 
-  test('the read spelling refuses the same payloads the bump does', () => {
-    for (const span of ['{count}', '{count:}', '{count:target:}', '{count:bot:feeds}']) {
+  test('bare {count} is the {uses} alias, not a counter read', () => {
+    const [line] = rehearseCommand('{count}');
+    expect(textOf(line.segments)).toBe('317');
+  });
+
+  test('a degenerate counter payload stays literal; a named one (bot: included) resolves', () => {
+    for (const span of ['{count:}', '{count:target:}']) {
       const [line] = rehearseCommand(span);
       expect(line.segments).toEqual([{ text: span, kind: 'unknown' }]);
     }
+    const [line] = rehearseCommand('{count:bot:feeds}');
+    expect(textOf(line.segments)).toBe('42');
   });
 
   test('a target-addressed read previews like the bump', () => {

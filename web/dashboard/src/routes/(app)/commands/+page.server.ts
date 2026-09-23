@@ -148,7 +148,14 @@ function parseCommand(f: FormData) {
 
   const streamOnlineOnly = f.get('stream_online_only') === 'on';
 
-  return { name, aliases, response, perm, cooldown, allowedUserId, streamOnlineOnly };
+  // Same fold the store scope applies to a {counter:...} payload
+  // (normName), so the option and the read token can never disagree about
+  // which counter a name means. The repository re-applies the fold at write
+  // time regardless (it cannot trust the wire), so this is belt-and-braces
+  // for a coherent optimistic echo.
+  const bumpCounter = normName(String(f.get('bump_counter') ?? ''));
+
+  return { name, aliases, response, perm, cooldown, allowedUserId, streamOnlineOnly, bumpCounter };
 }
 
 // Build the CommandView a DEMO action echoes back (mirrors upsertCommand's
@@ -162,7 +169,8 @@ function demoView(cmd: ReturnType<typeof parseCommand>, isActive: boolean): Comm
     stream_online_only: cmd.streamOnlineOnly,
     perm: cmd.perm,
     cooldown: cmd.cooldown,
-    allowed_user_id: cmd.allowedUserId
+    allowed_user_id: cmd.allowedUserId,
+    bump_counter: cmd.bumpCounter
   };
 }
 
@@ -279,7 +287,8 @@ export const actions: Actions = {
       aliases: s.cmd.aliases,
       response: s.cmd.response,
       cooldown: s.cmd.cooldown,
-      allowedUserId: s.cmd.allowedUserId
+      allowedUserId: s.cmd.allowedUserId,
+      bumpCounter: s.cmd.bumpCounter
     });
     if (Object.keys(errors).length) {
       return fail(400, { ok: false, errors, error: actionError(ctx.locale, firstError(errors) ?? '') });

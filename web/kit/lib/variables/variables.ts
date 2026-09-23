@@ -87,7 +87,23 @@ export const VARIABLES: readonly VariableDef[] = [
   { id: 'userid', head: 'user.id', category: 'basics', aliases: ['userid'], forms: [{ syntax: '{user.id}', example: '{user.id}', output: USERID_SAMPLE }] },
   { id: 'userLogin', head: 'user.login', category: 'basics', forms: [{ syntax: '{user.login}', example: '{user.login}', output: USER_LOGIN_SAMPLE }] },
   { id: 'command', head: 'command', category: 'basics', forms: [{ syntax: '{command}', example: '{command}', output: COMMAND_SAMPLE }] },
-  { id: 'counter', head: 'counter', category: 'counters', forms: [{ syntax: '{counter:<name>}', example: '{counter:falls}', output: COUNTER_SAMPLE }], requires: 'loyalty' },
+  {
+    id: 'counter',
+    head: 'counter',
+    category: 'counters',
+    requires: 'loyalty',
+    // Read-only: {counter:x} stopped bumping when the write moved to the
+    // command's own "bump a counter" option (docs/specs decision, see
+    // app/db/commands/ent/schema/commands.go's bump_counter field). {count:…}
+    // is the same read under Go's Aliases (TokenFamily.Aliases,
+    // token_catalog.go); it is deliberately not a manifest alias here — the
+    // public catalogue teaches one canonical spelling, matching the comment
+    // on that Go field.
+    forms: [
+      { syntax: '{counter:<name>}', example: '{counter:falls}', output: COUNTER_SAMPLE },
+      { syntax: '{counter:target:<name>}', example: '{counter:target:falls}', output: COUNTER_SAMPLE }
+    ]
+  },
   {
     id: 'random',
     head: 'random',
@@ -154,8 +170,14 @@ export const VARIABLES: readonly VariableDef[] = [
       { syntax: '{watchtime:<login>}', example: '{watchtime:alex}', output: WATCHTIME_SAMPLE }
     ]
   },
-  { id: 'count', head: 'count', category: 'counters', requires: 'loyalty', forms: [{ syntax: '{count:<name>}', example: '{count:deaths}', output: COUNTER_SAMPLE }] },
-  { id: 'uses', head: 'uses', category: 'counters', forms: [{ syntax: '{uses}', example: '{uses}', output: USES_SAMPLE }] },
+  // head is 'count', not 'uses': {count} (no payload) is the canonical
+  // spelling (scope/uses.go), {uses} its alias. A bare {count} used to be
+  // unclaimed; it is now this Variable's own head, which is what let the
+  // separate 'count' id (the {count:<name>} counter-read alias) go away —
+  // that spelling still resolves (Go's TokenFamily.Aliases for the store
+  // family), it just is not taught as its own manifest entry (see 'counter'
+  // above).
+  { id: 'uses', head: 'count', category: 'counters', aliases: ['uses'], forms: [{ syntax: '{count}', example: '{count}', output: USES_SAMPLE }] },
   {
     id: 'quote',
     head: 'quote',

@@ -65,7 +65,6 @@
     type ImportDiagnostic,
     type ImportSource,
     type ManifestCommand,
-    type ManifestCounter,
     type ManifestQuote,
     type ManifestTimer,
     type ManifestTrigger,
@@ -145,7 +144,7 @@
   // Checked items land in the committed manifest; anything carrying an error
   // diagnostic cannot land at all (commit drops those server-side too), so it
   // renders pre-unchecked with the reason on its row.
-  type RowKind = 'commands' | 'timers' | 'triggers' | 'quotes' | 'counters';
+  type RowKind = 'commands' | 'timers' | 'triggers' | 'quotes';
 
   let selected = $state<Record<string, boolean>>({});
   let overwrite = $state(false);
@@ -157,8 +156,7 @@
     commands: 'command',
     timers: 'timer',
     triggers: 'trigger',
-    quotes: 'quote',
-    counters: 'counter'
+    quotes: 'quote'
   };
 
   function itemDiags(kind: RowKind, i: number): ImportDiagnostic[] {
@@ -226,7 +224,6 @@
     if (s.timers) parts.push(t('import.statTimers', { n: s.timers }));
     if (s.triggers) parts.push(t('import.statTriggers', { n: s.triggers }));
     if (s.quotes) parts.push(t('import.statQuotes', { n: s.quotes }));
-    if (s.counters) parts.push(t('import.statCounters', { n: s.counters }));
     return parts;
   });
 
@@ -302,7 +299,6 @@
     if (a.timers) out.push({ n: a.timers, label: t('import.hTimers') });
     if (a.triggers) out.push({ n: a.triggers, label: t('import.hTriggers') });
     if (a.quotes) out.push({ n: a.quotes, label: t('import.hQuotes') });
-    if (a.counters) out.push({ n: a.counters, label: t('import.hCounters') });
     return out;
   });
 
@@ -331,7 +327,6 @@
     out.timers = keep(m.timers as ManifestTimer[] | undefined, 'timers');
     out.triggers = keep(m.triggers as ManifestTrigger[] | undefined, 'triggers');
     out.quotes = keep(m.quotes as ManifestQuote[] | undefined, 'quotes');
-    out.counters = keep(m.counters as ManifestCounter[] | undefined, 'counters');
     // Automod terms have no row of their own, so they used to ride along even
     // when every row was unchecked: the commit bar could read "0 of N selected"
     // and the commit would still call commitAutomodTerms. Nothing selected now
@@ -908,41 +903,6 @@
         </Card>
       {/if}
 
-      {#if previewResult.manifest.counters?.length}
-        <Card class="group">
-          <div class="group-head">
-            <span class="group-title">{t('import.hCounters')}</span>
-            <span class="group-count">{previewResult.manifest.counters.length}</span>
-          </div>
-          <ul class="rows">
-            {#each previewResult.manifest.counters as ctr, i (ctr.name)}
-              {@const diags = itemDiags('counters', i)}
-              <li class="row-item">
-                <label class="pick">
-                  <input
-                    type="checkbox"
-                    checked={isChecked('counters', i)}
-                    onchange={(e) => toggle('counters', i, e.currentTarget.checked)}
-                  />
-                  <span class="row-name">{`{counter:` + ctr.name + `}`}</span>
-                </label>
-                <div class="row-body">
-                  <span class="row-response">{t('import.startsAt', { n: ctr.value })}</span>
-                  <span class="chips">
-                    {#each diags.filter((d) => d.severity === 'warn') as d (d.code + d.message)}
-                      <Tag tone="alpha" title={d.message}>{d.message}</Tag>
-                    {/each}
-                    {#each diags.filter((d) => d.severity === 'error') as d (d.code + d.message)}
-                      <Tag tone="error" title={d.message}>{t('import.cannotImport', { m: d.message })}</Tag>
-                    {/each}
-                  </span>
-                </div>
-              </li>
-            {/each}
-          </ul>
-        </Card>
-      {/if}
-
       {#if commitError}<AlertBanner>{commitError}</AlertBanner>{/if}
 
       <!-- Sticky commit bar: the selection count travels with the list so the
@@ -985,8 +945,7 @@
             c: commitResult.applied.commands,
             tm: commitResult.applied.timers,
             tg: commitResult.applied.triggers,
-            q: commitResult.applied.quotes,
-            ct: commitResult.applied.counters
+            q: commitResult.applied.quotes
           })}
           {#if commitResult.skipped?.length}
             {t('import.skippedLine', {
@@ -1479,8 +1438,8 @@
     flex: 1;
   }
 
-  /* Each collection is its own panel, so a long commands list cannot push the
-     counters heading out of sight of its own rows. */
+  /* Each collection is its own panel, so a long commands list cannot push a
+     later heading out of sight of its own rows. */
   :global(.group) {
     padding: 0;
     overflow: hidden;

@@ -11,7 +11,7 @@
 //	$(query)                         → {args}
 //	$(querystring)                   → {querystring}
 //	$(1) $(2) … $(30)                → {1} {2} … {30}
-//	$(count)                         → {uses}
+//	$(count)                         → {count} (bare; the {uses} alias)
 //	$(urlfetch URL) / $(customapi …) → {urlfetch:nightbot_<cmd>} + def
 //	$(eval …) $(twitch …) $(time …)  → literal + warn  (no equivalent)
 //
@@ -30,30 +30,36 @@
 // (space to '+', everything outside the unreserved set percent-encoded), so a
 // translated response builds the byte-identical request.
 //
-// $(count) maps onto {uses}, and that mapping replaced an earlier literal+warn
-// path — the record of why is worth keeping, because the objection that killed
-// the first two candidates does not apply to the third.
+// $(count) maps onto bare {count} (uses.go's canonical spelling of {uses}),
+// and that mapping replaced an earlier literal+warn path — the record of why
+// is worth keeping, because the objection that killed the first two
+// candidates does not apply to the third. Note the payload split: bare
+// {count} is this mapping's target, never {count:<name>} — that spelling is
+// scope.Store's counter READ (store.go), a completely different family that
+// happens to share a head with this one (see rehearsal.ts's SampleScope.owns
+// for how the two are told apart).
 //
 //   - {counter:<name>}: rejected. Nightbot's $(count) is per-command and
 //     UNNAMED, ours is a named channel counter, so the translation would have
 //     to invent a name and silently bind the imported command to a bucket the
 //     broadcaster never chose.
-//   - {count:<name>}: rejected for the same invented name, plus dropping the
-//     increment — a behaviour change rather than a translation.
-//   - {uses}: what both of those were reaching for. $(count) means "how many
-//     times this command has run"; {uses} means the same thing, per command,
-//     with no name to invent and no increment to drop, because this bot counts
+//   - {count:<name>}: rejected for the same invented name — it is a counter
+//     read, not a use count, whatever the command's bump_counter option (if
+//     any) happens to be named.
+//   - bare {count}: what both of those were reaching for. $(count) means "how
+//     many times this command has run"; {count} (= {uses}) means the same
+//     thing, per command, with no name to invent, because this bot counts
 //     every custom command's runs on its own whether or not the response
 //     prints the number.
 //
 // Two divergences ride along and are deliberate. The count starts from THIS
 // bot's history, so a freshly imported command prints a small number where
 // Nightbot printed a large one; there is no way to carry the old total over,
-// since the import reads a response text and not a counter value. And {uses}
+// since the import reads a response text and not a counter value. And {count}
 // excludes the run doing the printing where $(count) includes it, so the first
 // line after an import reads one lower than the same line did yesterday. Both
 // are off-by-a-number, not off-by-a-meaning, which is why this is a mapping
-// and not a warning: a broadcaster reading "hugged {uses} times" gets the
+// and not a warning: a broadcaster reading "hugged {count} times" gets the
 // sentence they wrote, and a warning here would fire on every imported counter
 // command while telling them nothing they could act on.
 //
@@ -141,7 +147,7 @@ export const SIMPLE_TOKENS: Record<string, string> = {
   channel: '{channel}',
   query: '{args}',
   querystring: '{querystring}',
-  count: '{uses}'
+  count: '{count}'
 };
 
 const FETCH_HEADS = new Set(['urlfetch', 'customapi']);

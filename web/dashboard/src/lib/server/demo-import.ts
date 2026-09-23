@@ -30,8 +30,7 @@ function demoManifest(): ImportManifest {
     commands: demoCommands(),
     timers: demoTimers(),
     triggers: demoTriggers(),
-    quotes: demoQuotes(),
-    counters: demoCounters()
+    quotes: demoQuotes()
   };
 }
 
@@ -112,17 +111,12 @@ function demoQuotes(): NonNullable<ImportManifest['quotes']> {
   ];
 }
 
-function demoCounters(): NonNullable<ImportManifest['counters']> {
-  return [{ name: 'deaths', value: 42 }];
-}
-
 function stats(m: ImportManifest) {
   return {
     commands: m.commands?.length ?? 0,
     timers: m.timers?.length ?? 0,
     triggers: m.triggers?.length ?? 0,
-    quotes: m.quotes?.length ?? 0,
-    counters: m.counters?.length ?? 0
+    quotes: m.quotes?.length ?? 0
   };
 }
 
