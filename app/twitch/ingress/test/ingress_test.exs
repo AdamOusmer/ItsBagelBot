@@ -160,15 +160,20 @@ defmodule Ingress.PipelineTest do
         "message_id" => "chat-1",
         "message" => %{"text" => "!hello"}
       }
+
       put_env(special_user_ids: @special)
 
       assert {:publish, "twitch.ingress.event.premium", ordinary} =
                Pipeline.route(notification("channel.chat.message", event), @meta)
+
       refute Map.has_key?(ordinary, :origin)
 
       assert {:publish, "twitch.ingress.event.premium", routed} =
-               Pipeline.route(notification("channel.chat.message", event),
-                 Map.merge(@meta, %{origin: :trial, trial_generation: 8}))
+               Pipeline.route(
+                 notification("channel.chat.message", event),
+                 Map.merge(@meta, %{origin: :trial, trial_generation: 8})
+               )
+
       assert routed.origin == "trial"
       assert routed.trial_generation == 8
       assert routed.chat_message_id == "chat-1"
@@ -487,9 +492,21 @@ defmodule Ingress.SquashTest do
   test "trial origin and generation each partition a squash cohort" do
     start_squash(window_ms: 10_000, sweep_ms: 10_000)
     assert Squash.observe(base("gg"), sender("1")) == :first
-    assert Squash.observe(Map.merge(base("gg"), %{origin: "trial", trial_generation: 1}), sender("2")) == :first
-    assert Squash.observe(Map.merge(base("gg"), %{origin: "trial", trial_generation: 2}), sender("3")) == :first
-    assert Squash.observe(Map.merge(base("gg"), %{origin: "trial", trial_generation: 1}), sender("4")) == :buffered
+
+    assert Squash.observe(
+             Map.merge(base("gg"), %{origin: "trial", trial_generation: 1}),
+             sender("2")
+           ) == :first
+
+    assert Squash.observe(
+             Map.merge(base("gg"), %{origin: "trial", trial_generation: 2}),
+             sender("3")
+           ) == :first
+
+    assert Squash.observe(
+             Map.merge(base("gg"), %{origin: "trial", trial_generation: 1}),
+             sender("4")
+           ) == :buffered
   end
 
   test "distinct text opens distinct windows (both :first)" do

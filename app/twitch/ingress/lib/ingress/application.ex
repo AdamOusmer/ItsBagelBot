@@ -149,15 +149,21 @@ defmodule Ingress.Application do
       rpc_consumer_child(
         :trial_list_consumer,
         Ingress.TrialListRpc,
-        "twitch.ingress.admin.trials.list", queue_group: @admin_queue),
+        "twitch.ingress.admin.trials.list",
+        queue_group: @admin_queue
+      ),
       rpc_consumer_child(
         :trial_add_consumer,
         Ingress.TrialAddRpc,
-        "twitch.ingress.admin.trials.add", queue_group: @admin_queue),
+        "twitch.ingress.admin.trials.add",
+        queue_group: @admin_queue
+      ),
       rpc_consumer_child(
         :trial_remove_consumer,
         Ingress.TrialRemoveRpc,
-        "twitch.ingress.admin.trials.remove", queue_group: @admin_queue),
+        "twitch.ingress.admin.trials.remove",
+        queue_group: @admin_queue
+      ),
       # Manual shard scaling: {"count": N}.
       rpc_consumer_child(:scale_consumer, Ingress.ScaleRpc, AdminConfig.scale_subject(),
         queue_group: @admin_queue
