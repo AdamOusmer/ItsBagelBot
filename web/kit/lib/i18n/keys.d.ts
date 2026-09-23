@@ -887,6 +887,7 @@ export type KnownMessageKey =
   | 'channelpoints.toastCreated'
   | 'channelpoints.toastDeleteFailed'
   | 'channelpoints.toastDeleted'
+  | 'channelpoints.toastDuplicateTitle'
   | 'channelpoints.toastSaveFailed'
   | 'channelpoints.toastSaved'
   | 'channelpoints.toastToggleFailed'

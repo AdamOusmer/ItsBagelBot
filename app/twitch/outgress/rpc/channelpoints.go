@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/twitch/outgress/internal/twitch"
+	domainrpc "ItsBagelBot/internal/domain/rpc"
 	"ItsBagelBot/internal/domain/rpc/manage"
 	"ItsBagelBot/pkg/bus"
 
@@ -59,7 +60,7 @@ func SubscribeChannelPoints(nc *nats.Conn, tw *twitch.Client, prefix, queueGroup
 
 func (cp *channelPoints) handleList(ctx context.Context, req manage.RewardRequest) manage.RewardReply {
 	if req.BroadcasterID == "" {
-		return manage.RewardReply{Error: "bad request"}
+		return manage.RewardReply{Refusal: domainrpc.Refused(domainrpc.CodeInvalid, "bad request")}
 	}
 	rewards, err := cp.twitch.ListCustomRewards(ctx, req.BroadcasterID)
 	if err != nil {
@@ -74,7 +75,7 @@ func (cp *channelPoints) handleList(ctx context.Context, req manage.RewardReques
 
 func (cp *channelPoints) handleCreate(ctx context.Context, req manage.RewardRequest) manage.RewardReply {
 	if req.BroadcasterID == "" || req.Reward == nil {
-		return manage.RewardReply{Error: "bad request"}
+		return manage.RewardReply{Refusal: domainrpc.Refused(domainrpc.CodeInvalid, "bad request")}
 	}
 	created, err := cp.twitch.CreateCustomReward(ctx, req.BroadcasterID, toTwitch(*req.Reward))
 	if err != nil {
@@ -86,7 +87,7 @@ func (cp *channelPoints) handleCreate(ctx context.Context, req manage.RewardRequ
 
 func (cp *channelPoints) handleUpdate(ctx context.Context, req manage.RewardRequest) manage.RewardReply {
 	if req.BroadcasterID == "" || req.RewardID == "" || req.Reward == nil {
-		return manage.RewardReply{Error: "bad request"}
+		return manage.RewardReply{Refusal: domainrpc.Refused(domainrpc.CodeInvalid, "bad request")}
 	}
 	updated, err := cp.twitch.UpdateCustomReward(ctx, req.BroadcasterID, req.RewardID, toTwitch(*req.Reward))
 	if err != nil {
@@ -98,7 +99,7 @@ func (cp *channelPoints) handleUpdate(ctx context.Context, req manage.RewardRequ
 
 func (cp *channelPoints) handleDelete(ctx context.Context, req manage.RewardRequest) manage.RewardReply {
 	if req.BroadcasterID == "" || req.RewardID == "" {
-		return manage.RewardReply{Error: "bad request"}
+		return manage.RewardReply{Refusal: domainrpc.Refused(domainrpc.CodeInvalid, "bad request")}
 	}
 	if err := cp.twitch.DeleteCustomReward(ctx, req.BroadcasterID, req.RewardID); err != nil {
 		return cp.fail("channelpoints delete", req.BroadcasterID, err)
@@ -109,12 +110,17 @@ func (cp *channelPoints) handleDelete(ctx context.Context, req manage.RewardRequ
 // fail maps a Helix error to the reply. A missing-scope rejection (the grant
 // predates channel:manage:redemptions) and a no-token case both mean the
 // broadcaster must re-consent, so both set MissingScope for the reconnect CTA.
+// A duplicate title answers CodeConflict so the dashboard can name the cause
+// instead of a generic failure the broadcaster retries unchanged.
 func (cp *channelPoints) fail(op, broadcasterID string, err error) manage.RewardReply {
 	if errors.Is(err, twitch.ErrMissingScope) || errors.Is(err, twitch.ErrNoUserToken) {
-		return manage.RewardReply{MissingScope: true, Error: "reconnect required"}
+		return manage.RewardReply{MissingScope: true, Refusal: domainrpc.Refused(domainrpc.CodeForbidden, "reconnect required")}
+	}
+	if errors.Is(err, twitch.ErrDuplicateReward) {
+		return manage.RewardReply{Refusal: domainrpc.Refused(domainrpc.CodeConflict, "duplicate reward title")}
 	}
 	cp.log.Warn(op+" failed", zap.String("broadcaster_id", broadcasterID), zap.Error(err))
-	return manage.RewardReply{Error: "twitch request failed"}
+	return manage.RewardReply{Refusal: domainrpc.Refused(domainrpc.CodeInternal, "twitch request failed")}
 }
 
 func toTwitch(r manage.Reward) twitch.CustomReward {

@@ -96,12 +96,17 @@
     discard.guard(doClose);
   }
 
-  type RewardActionOk = ActionOk & { missingScope?: boolean };
+  type RewardActionOk = ActionOk & { missingScope?: boolean; duplicateTitle?: boolean };
 
   function failed(payload: RewardActionOk | undefined, fallbackKey: string) {
     if (payload?.missingScope) {
       missingScope = true;
       doClose();
+      return;
+    }
+    // Keeps the inspector open so the broadcaster can rename and save again.
+    if (payload?.duplicateTitle) {
+      toast('err', t('channelpoints.toastDuplicateTitle'));
       return;
     }
     toast('err', payload?.error ?? t(fallbackKey));
