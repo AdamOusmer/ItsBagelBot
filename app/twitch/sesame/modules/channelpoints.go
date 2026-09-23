@@ -136,7 +136,12 @@ func ChannelPoints(d engine.Deps) module.Module {
 			awardRewardPoints(d, c, binding, ev)
 			counterValue = bumpRewardCounter(ctx, d, c, binding, ev)
 		}
-		emitRewardAction(c.Locale, binding, ev, counterValue, emit)
+		emitRewardAction(rewardChatParams{
+			locale:       c.Locale,
+			binding:      binding,
+			event:        ev,
+			counterValue: counterValue,
+		}, emit)
 		emitRedemptionResolution(binding, ev, emit)
 		return nil
 	})
@@ -220,14 +225,26 @@ func findBinding(rewards []rewardBinding, rewardID string) (rewardBinding, bool)
 	return rewardBinding{}, false
 }
 
+// rewardChatParams bundles a redemption's chat-action inputs. It exists so
+// emitRewardAction/expandReward take one param each instead of the
+// locale/binding/event/counter grab-bag they used to pass around
+// individually — the four always travel together (one redemption, one
+// binding, one resolved counter value) and never vary independently.
+type rewardChatParams struct {
+	locale       string
+	binding      rewardBinding
+	event        redemptionEvent
+	counterValue string
+}
+
 // emitRewardAction runs the binding's chat action. A "none" (or unknown) action
 // does nothing, leaving only the resolution policy to act.
-func emitRewardAction(locale string, b rewardBinding, ev redemptionEvent, counterValue string, emit module.Emit) {
-	if b.Action != rewardActionChat {
+func emitRewardAction(p rewardChatParams, emit module.Emit) {
+	if p.binding.Action != rewardActionChat {
 		return
 	}
-	if msg := expandReward(locale, orDefault(b.Message, defaultRewardChatTemplate), ev, counterValue, b.Points); msg != "" {
-		emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: ev.BroadcasterUserID, Text: msg})
+	if msg := expandReward(p); msg != "" {
+		emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: p.event.BroadcasterUserID, Text: msg})
 	}
 }
 
@@ -274,7 +291,8 @@ func sanitizeRewardInput(raw string) string {
 // {channel} the broadcaster login, {counter} the bound counter's new value
 // (when the binding has one), {points} the loyalty points the binding awards
 // (when positive), plus the pure family ({random}, {choice:…}, {math:…}, …).
-func expandReward(locale, text string, ev redemptionEvent, counterValue string, points int64) string {
+func expandReward(p rewardChatParams) string {
+	ev := p.event
 	kv := []string{
 		"user", strings.TrimPrefix(displayName(ev.UserName, ev.UserLogin), "@"),
 		"input", sanitizeRewardInput(ev.UserInput),
@@ -286,11 +304,12 @@ func expandReward(locale, text string, ev redemptionEvent, counterValue string, 
 	// binding has neither: an omitted name falls through Resolve to the pure
 	// family (literal for an unknown name), the same "not filled in" signal
 	// the old switch's ok=false gave.
-	if counterValue != "" {
-		kv = append(kv, "counter", counterValue)
+	if p.counterValue != "" {
+		kv = append(kv, "counter", p.counterValue)
 	}
-	if points > 0 {
-		kv = append(kv, "points", strconv.FormatInt(points, 10))
+	if p.binding.Points > 0 {
+		kv = append(kv, "points", strconv.FormatInt(p.binding.Points, 10))
 	}
-	return module.KV(kv...).WithLocale(locale).ExpandString(text)
+	text := orDefault(p.binding.Message, defaultRewardChatTemplate)
+	return module.KV(kv...).WithLocale(module.Locale(p.locale)).ExpandString(text)
 }

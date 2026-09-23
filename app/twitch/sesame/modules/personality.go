@@ -406,5 +406,5 @@ func pickLine(pack []string) string { return pack[pickIndex(len(pack))] }
 // resolve through the shared pure family ({random}, {choice:…}, {math:…},
 // {countdown:…}, …).
 func expandUser(line string, c *module.Context) string {
-	return module.KV("user", strings.TrimPrefix(c.Env.ChatterName(), "@")).WithLocale(c.Locale).ExpandString(line)
+	return module.KV("user", strings.TrimPrefix(c.Env.ChatterName(), "@")).WithLocale(module.Locale(c.Locale)).ExpandString(line)
 }

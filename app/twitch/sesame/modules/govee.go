@@ -212,7 +212,7 @@ func renderGoveeReply(locale, text string, ev redemptionEvent, color string) str
 		"user", user,
 		"color", color,
 		"input", sanitizeRewardInput(ev.UserInput),
-	).WithLocale(locale).ExpandString(text)
+	).WithLocale(module.Locale(locale)).ExpandString(text)
 }
 
 // decodeGoveeRedemption decodes the module config and the redemption event, and

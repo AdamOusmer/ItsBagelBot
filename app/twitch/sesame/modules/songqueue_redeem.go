@@ -142,7 +142,13 @@ func (r songqueueRedeemRun) apply(ctx context.Context) error {
 		r.refund(failure + ", your points were refunded")
 		return nil
 	}
-	r.chat(renderSongqueueRedeemReply(r.qc.c.Locale, r.cfg.ReplyMessage, r.ev, track.Name, pos))
+	r.chat(renderSongqueueRedeemReply(songqueueRedeemReplyParams{
+		locale: r.qc.c.Locale,
+		text:   r.cfg.ReplyMessage,
+		event:  r.ev,
+		track:  track.Name,
+		pos:    pos,
+	}))
 	emitRedemptionStatus(r.emit, r.ev, goveeSuccessStatus(r.cfg.OnRedeem))
 	return nil
 }
@@ -182,15 +188,29 @@ const defaultSongqueueRedeemReply = "@{user} queued {track}, position #{pos}."
 // {input} is sanitized through sanitizeRewardInput (channelpoints.go), the
 // same trim channelpoints has always applied: it used not to here, which
 // meant "{input}" was safe in one reward template and not the other.
-func renderSongqueueRedeemReply(locale, text string, ev redemptionEvent, track string, pos int) string {
+// songqueueRedeemReplyParams bundles renderSongqueueRedeemReply's inputs: the
+// broadcaster's locale/template and the one redemption (event, resolved
+// track, queue position) they render against. Same shape choice as
+// channelpoints' rewardChatParams — one param carrying values that are
+// always supplied together beats four that happen to.
+type songqueueRedeemReplyParams struct {
+	locale string
+	text   string
+	event  redemptionEvent
+	track  string
+	pos    int
+}
+
+func renderSongqueueRedeemReply(p songqueueRedeemReplyParams) string {
+	text := p.text
 	if strings.TrimSpace(text) == "" {
 		text = defaultSongqueueRedeemReply
 	}
-	user := strings.TrimPrefix(displayName(ev.UserName, ev.UserLogin), "@")
+	user := strings.TrimPrefix(displayName(p.event.UserName, p.event.UserLogin), "@")
 	return module.KV(
 		"user", user,
-		"track", track,
-		"input", sanitizeRewardInput(ev.UserInput),
-		"pos", strconv.Itoa(pos),
-	).WithLocale(locale).ExpandString(text)
+		"track", p.track,
+		"input", sanitizeRewardInput(p.event.UserInput),
+		"pos", strconv.Itoa(p.pos),
+	).WithLocale(module.Locale(p.locale)).ExpandString(text)
 }

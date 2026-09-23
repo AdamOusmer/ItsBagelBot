@@ -104,7 +104,7 @@ func timeLookupReply(c *module.Context, now time.Time, place string) string {
 // normalized query, so chat sees back what it typed even after case-folding
 // and accent-stripping.
 func unknownPlaceReply(c *module.Context, place string) string {
-	return module.KV("place", place).WithLocale(c.Locale).ExpandString(i18n.T(c.Locale, "time.unknown"))
+	return module.KV("place", place).WithLocale(module.Locale(c.Locale)).ExpandString(i18n.T(c.Locale, "time.unknown"))
 }
 
 // timeRender is one instant ready to print: the local time plus the strings
@@ -150,6 +150,6 @@ func expandTimeTemplate(text string, r timeRender, c *module.Context) string {
 		default:
 			return func() string { return "" }
 		}
-	}).WithLocale(c.Locale)
+	}).WithLocale(module.Locale(c.Locale))
 	return p.ExpandString(text)
 }

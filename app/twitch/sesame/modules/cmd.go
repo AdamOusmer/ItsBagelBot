@@ -194,7 +194,7 @@ func cmdLink(ctx context.Context, c *module.Context, d engine.Deps, emit module.
 		"user", c.Env.ChatterName(),
 		"channel", channel,
 		"url", link,
-	).WithLocale(c.Locale).ExpandString(i18n.T(c.Locale, "cmd.link"))
+	).WithLocale(module.Locale(c.Locale)).ExpandString(i18n.T(c.Locale, "cmd.link"))
 	emit(&module.Output{
 		Type:          outgress.TypeChat,
 		BroadcasterID: c.Env.BroadcasterUserID,
@@ -208,7 +208,7 @@ func cmdPageOff(c *module.Context, emit module.Emit, channel string) {
 	text := module.KV(
 		"user", c.Env.ChatterName(),
 		"channel", channel,
-	).WithLocale(c.Locale).ExpandString(i18n.T(c.Locale, "cmd.page_off"))
+	).WithLocale(module.Locale(c.Locale)).ExpandString(i18n.T(c.Locale, "cmd.page_off"))
 	emit(&module.Output{
 		Type:          outgress.TypeChat,
 		BroadcasterID: c.Env.BroadcasterUserID,
@@ -218,7 +218,7 @@ func cmdPageOff(c *module.Context, emit module.Emit, channel string) {
 
 // reply emits a chat message with {user} and {command} variable expansion.
 func reply(c *module.Context, emit module.Emit, line, user, command string) {
-	text := module.KV("user", user, "command", command).WithLocale(c.Locale).ExpandString(line)
+	text := module.KV("user", user, "command", command).WithLocale(module.Locale(c.Locale)).ExpandString(line)
 	emit(&module.Output{
 		Type:          outgress.TypeChat,
 		BroadcasterID: c.Env.BroadcasterUserID,

@@ -297,7 +297,7 @@ func (l triggerLine) firstReply(rules []triggerWord) (string, bool) {
 		if !tw.matches(text) {
 			continue
 		}
-		msg := module.KV("user", l.user).WithLocale(l.locale).ExpandString(tw.Response)
+		msg := module.KV("user", l.user).WithLocale(module.Locale(l.locale)).ExpandString(tw.Response)
 		if msg == "" {
 			return "", false
 		}

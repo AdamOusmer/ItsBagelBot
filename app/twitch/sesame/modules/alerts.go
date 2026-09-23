@@ -217,7 +217,7 @@ func onAlert[T any](pick func(alertsConfig) (bool, string), fallbackKey string, 
 		if text == "" {
 			text = i18n.T(c.Locale, fallbackKey)
 		}
-		msg := module.KV(tokenPairs(line.tokens)...).WithLocale(c.Locale).ExpandString(text)
+		msg := module.KV(tokenPairs(line.tokens)...).WithLocale(module.Locale(c.Locale)).ExpandString(text)
 		emit(&module.Output{
 			Type:          outgress.TypeChat,
 			BroadcasterID: line.broadcasterID,

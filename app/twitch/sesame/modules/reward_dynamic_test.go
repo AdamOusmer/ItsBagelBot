@@ -45,7 +45,7 @@ func TestSongqueueRedeemReplyResolvesDynamic(t *testing.T) {
 		{"{unknown}", "{unknown}"},
 		{"@{user} queued {track}, position #{pos}.", "@Sam queued Song, position #3."},
 	} {
-		if got := renderSongqueueRedeemReply("", tc[0], ev, "Song", 3); got != tc[1] {
+		if got := renderSongqueueRedeemReply(songqueueRedeemReplyParams{event: ev, text: tc[0], track: "Song", pos: 3}); got != tc[1] {
 			t.Errorf("renderSongqueueRedeemReply(%q) = %q, want %q", tc[0], got, tc[1])
 		}
 	}

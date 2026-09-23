@@ -213,7 +213,7 @@ func quoteLine(locale string, q modulesrpc.Quote) string {
 		"num", strconv.FormatUint(q.Number, 10),
 		"text", q.Text,
 		"date", quoteDate(q.CreatedAt),
-	).WithLocale(locale).ExpandString(i18n.T(locale, "quote.show"))
+	).WithLocale(module.Locale(locale)).ExpandString(i18n.T(locale, "quote.show"))
 }
 
 // quoteDate renders a quote's save date the way !quote does; an unparseable

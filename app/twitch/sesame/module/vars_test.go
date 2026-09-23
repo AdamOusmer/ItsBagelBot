@@ -12,6 +12,10 @@ import (
 	"ItsBagelBot/pkg/tmpl"
 )
 
+// TestExpandGenericRepl pins Expand and ExpandString against the same
+// repl/input/output: they are the []byte and string faces of one primitive
+// (ExpandString wraps Expand), so a pass here means both agree, not two
+// independent behaviours that happen to match today.
 func TestExpandGenericRepl(t *testing.T) {
 	repl := func(tok tmpl.Token) (string, bool) {
 		switch tok.Key() {
@@ -23,23 +27,20 @@ func TestExpandGenericRepl(t *testing.T) {
 			return "", false
 		}
 	}
-	got := Expand(nil, "{raider} raided with {viewers}! {unknown}", repl)
-	assert.Equal(t, "CoolStreamer raided with 42! {unknown}", string(got))
-}
+	const in = "{raider} raided with {viewers}! {unknown}"
+	const want = "CoolStreamer raided with 42! {unknown}"
 
-func TestExpandString(t *testing.T) {
-	repl := func(tok tmpl.Token) (string, bool) {
-		switch tok.Key() {
-		case "raider":
-			return "CoolStreamer", true
-		case "viewers":
-			return "42", true
-		default:
-			return "", false
-		}
+	for _, tc := range []struct {
+		name string
+		run  func() string
+	}{
+		{"Expand", func() string { return string(Expand(nil, in, repl)) }},
+		{"ExpandString", func() string { return ExpandString(in, repl) }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, want, tc.run())
+		})
 	}
-	got := ExpandString("{raider} raided with {viewers}! {unknown}", repl)
-	assert.Equal(t, "CoolStreamer raided with 42! {unknown}", got)
 }
 
 func TestExpandKeyCaseInsensitive(t *testing.T) {

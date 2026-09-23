@@ -69,7 +69,7 @@ func Shoutout(_ engine.Deps) module.Module {
 			"raider", strings.TrimPrefix(raider, "@"),
 			"raider.login", strings.TrimPrefix(ev.FromBroadcasterUserLogin, "@"),
 			"viewers", strconv.Itoa(ev.Viewers),
-		).WithLocale(c.Locale).ExpandString(text)
+		).WithLocale(module.Locale(c.Locale)).ExpandString(text)
 
 		// The raid event names the receiving channel as to_broadcaster_user_id.
 		emit(&module.Output{

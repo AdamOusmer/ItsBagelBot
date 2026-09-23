@@ -42,11 +42,15 @@ func (s *ValkeyRaffleStore) autoDraw(ctx context.Context, broadcasterID uint64) 
 	if len(res.Winners) == 0 {
 		text = i18n.T(locale, "raffle.auto_empty")
 	} else {
-		text = expandTokens(locale, i18n.T(locale, "raffle.auto_closed"),
-			"targets", mentionList(res.Winners),
-			"count", strconv.FormatInt(int64(len(res.Winners)), 10),
-			"entrants", strconv.FormatInt(res.Entrants, 10),
-			"claim", strconv.FormatInt(int64(raffleClaimWindow.Minutes()), 10))
+		text = expandTokens(module.Locale(locale), tokenExpansion{
+			text: i18n.T(locale, "raffle.auto_closed"),
+			kv: []string{
+				"targets", mentionList(res.Winners),
+				"count", strconv.FormatInt(int64(len(res.Winners)), 10),
+				"entrants", strconv.FormatInt(res.Entrants, 10),
+				"claim", strconv.FormatInt(int64(raffleClaimWindow.Minutes()), 10),
+			},
+		})
 	}
 	s.post(dctx, broadcasterID, text)
 }
@@ -78,9 +82,13 @@ func (s *ValkeyRaffleStore) remindTick(ctx context.Context, broadcasterID uint64
 	}
 
 	locale := s.localeOf(dctx, broadcasterID)
-	s.post(dctx, broadcasterID, expandTokens(locale, i18n.T(locale, "raffle.remind"),
-		"mins", strconv.FormatInt((left+59)/60, 10),
-		"count", strconv.FormatInt(entrants, 10)))
+	s.post(dctx, broadcasterID, expandTokens(module.Locale(locale), tokenExpansion{
+		text: i18n.T(locale, "raffle.remind"),
+		kv: []string{
+			"mins", strconv.FormatInt((left+59)/60, 10),
+			"count", strconv.FormatInt(entrants, 10),
+		},
+	}))
 
 	// Re-arm at min(interval, left): the final tick lands just before the draw.
 	next := st.RemindSeconds

@@ -116,12 +116,12 @@ func TestRewardTrioSanitizesInput(t *testing.T) {
 	const wantInput = "announce pwned"
 
 	t.Run("channelpoints", func(t *testing.T) {
-		got := expandReward("", "[{input}]", ev, "", 0)
+		got := expandReward(rewardChatParams{event: ev, binding: rewardBinding{Message: "[{input}]"}})
 		assert.Equal(t, "["+wantInput+"]", got)
 	})
 
 	t.Run("songqueue_redeem", func(t *testing.T) {
-		got := renderSongqueueRedeemReply("", "[{input}]", ev, "Track", 1)
+		got := renderSongqueueRedeemReply(songqueueRedeemReplyParams{event: ev, text: "[{input}]", track: "Track", pos: 1})
 		assert.Equal(t, "["+wantInput+"]", got)
 	})
 

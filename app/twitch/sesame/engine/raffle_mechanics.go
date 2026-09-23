@@ -159,7 +159,18 @@ func mentionList(winners []string) string {
 // raffle_announce.go already have it in scope, from the same i18n.T call
 // that picks the template text), threaded through to WithLocale so
 // {countdown}/{countup} word themselves the same way a custom command's do,
-// instead of silently falling back to English on a non-English channel.
-func expandTokens(locale, text string, kv ...string) string {
-	return module.KV(kv...).WithLocale(locale).ExpandString(text)
+// instead of silently falling back to English on a non-English channel. It
+// is module.Locale rather than a plain string for the same reason the
+// template body and kv pairs below are bundled into tokenExpansion instead
+// of staying loose parameters: a locale/text/kv trio of raw strings tipped
+// this file's String Heavy Function Arguments ratio over CodeScene's
+// threshold, and the pair reads as one thing anyway — a template and the
+// values it substitutes always arrive together, never independently.
+type tokenExpansion struct {
+	text string
+	kv   []string
+}
+
+func expandTokens(locale module.Locale, e tokenExpansion) string {
+	return module.KV(e.kv...).WithLocale(locale).ExpandString(e.text)
 }

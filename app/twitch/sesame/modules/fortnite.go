@@ -223,7 +223,7 @@ func fortniteSessionText(locale string, cfg fortniteConfig, reply *gossiprpc.For
 		"kills", i64(reply.Kills),
 		"kd", trimScore(reply.KD),
 		"winrate", trimScore(reply.WinRate),
-	).WithLocale(locale).ExpandString(orDefault(cfg.SessionMessage, defaultFortniteSessionTemplate))
+	).WithLocale(module.Locale(locale)).ExpandString(orDefault(cfg.SessionMessage, defaultFortniteSessionTemplate))
 }
 
 // fortniteSessionRun answers !fn session / !fnsession with the delta since the
@@ -275,7 +275,7 @@ func fortniteStoreRun(d engine.Deps) module.RunFunc {
 				"date", r.Date,
 				"count", strconv.Itoa(r.Count),
 				"items", formatShopEntries(call.Ctx.Locale, r.Entries),
-			).WithLocale(call.Ctx.Locale).ExpandString(orDefault(call.Cfg.StoreMessage, defaultFortniteStoreTemplate))
+			).WithLocale(module.Locale(call.Ctx.Locale)).ExpandString(orDefault(call.Cfg.StoreMessage, defaultFortniteStoreTemplate))
 		},
 	}.run
 }

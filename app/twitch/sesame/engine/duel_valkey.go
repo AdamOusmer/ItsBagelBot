@@ -1040,8 +1040,10 @@ func (s *ValkeyDuelStore) autoDraw(ctx context.Context, broadcasterID uint64, st
 			zap.String("winner", winner), zap.Int64("pot", total), zap.Error(err))
 	}
 	s.announce(ctx, broadcasterID, func(locale string) string {
-		return expandTokens(locale, i18nT(locale, "duel.auto_won"),
-			"user", winner, "amount", strconv.FormatInt(total, 10))
+		return expandTokens(module.Locale(locale), tokenExpansion{
+			text: i18nT(locale, "duel.auto_won"),
+			kv:   []string{"user", winner, "amount", strconv.FormatInt(total, 10)},
+		})
 	})
 }
 
@@ -1054,9 +1056,13 @@ func (s *ValkeyDuelStore) autoNoShow(ctx context.Context, broadcasterID uint64, 
 	s.teardown(ctx, broadcasterID, &receipt, false)
 	s.refund(ctx, broadcasterID, DuelStake{Login: st.Opener, Stake: st.OpenerStake})
 	s.announce(ctx, broadcasterID, func(locale string) string {
-		return expandTokens(locale, i18nT(locale, "duel.auto_noshow"),
-			"opener", st.Opener, "target", st.Challenged,
-			"amount", strconv.FormatInt(st.OpenerStake, 10))
+		return expandTokens(module.Locale(locale), tokenExpansion{
+			text: i18nT(locale, "duel.auto_noshow"),
+			kv: []string{
+				"opener", st.Opener, "target", st.Challenged,
+				"amount", strconv.FormatInt(st.OpenerStake, 10),
+			},
+		})
 	})
 }
 
