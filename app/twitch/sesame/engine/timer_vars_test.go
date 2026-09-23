@@ -88,20 +88,35 @@ func TestFireExpandsTimerScopedTokensAndLeavesRestLiteral(t *testing.T) {
 	assert.Regexp(t, regexp.MustCompile(`^2 hours \d+ \{user\} \{1\}$`), text)
 }
 
-// TestFireNoTokenMessagePostsByteIdentical covers the cheap path: a message
-// naming no {token} costs expandTimerText one Lex and is posted unchanged.
-func TestFireNoTokenMessagePostsByteIdentical(t *testing.T) {
-	p := timerPipeline(nil, nil)
-	store, pub := timerFireStore(p)
-	const msg = "hello chat, welcome to the stream!"
+// TestFirePostsByteIdentical covers the two paths fire posts a message
+// completely unchanged: a wired pipeline handed text with no {token} (one
+// cheap Lex, nothing to expand) and a nil pipeline (pre-WirePipeline, or a
+// unit test that builds the struct literal directly, as timers_gate_test.go's
+// fixture still does), where even TOKEN-SHAPED text never touches Lex,
+// chatLines or Translate at all — the same guarantee fire gave before this
+// PR existed.
+func TestFirePostsByteIdentical(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		pipeline      *Pipeline
+		broadcasterID uint64
+		msg           string
+	}{
+		{"NoTokenMessage", timerPipeline(nil, nil), 1, "hello chat, welcome to the stream!"},
+		{"NilPipelineRaw", nil, 3, "hello {uptime} {random} raw — no chain wired yet"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			store, pub := timerFireStore(tc.pipeline)
 
-	store.fire(context.Background(), armedTimer{
-		ref: timerRef{broadcasterID: 1, id: "t1"},
-		def: timerDef{ID: "t1", Message: msg, Interval: 60, Enabled: true},
-	})
+			store.fire(context.Background(), armedTimer{
+				ref: timerRef{broadcasterID: tc.broadcasterID, id: "t1"},
+				def: timerDef{ID: "t1", Message: tc.msg, Interval: 60, Enabled: true},
+			})
 
-	require.Len(t, pub.got, 1)
-	assert.Equal(t, msg, decodeChat(t, pub.got[0].msg))
+			require.Len(t, pub.got, 1)
+			assert.Equal(t, tc.msg, decodeChat(t, pub.got[0].msg))
+		})
+	}
 }
 
 // TestFireFailedStreamLookupLeavesUptimeEmptyStillPosts is the degrade case:
@@ -144,24 +159,6 @@ func TestFireUrlfetchResolvesThroughExternal(t *testing.T) {
 	assert.Equal(t, 1, ff.calls())
 }
 
-// TestFireNilPipelinePostsRawByteIdentical is the pre-wiring degrade: no
-// pipeline (main has not called WirePipeline yet, or a unit test that builds
-// the struct literal directly, as timers_gate_test.go's fixture still does)
-// means timerText/timerOutputs never touch Lex, chatLines or Translate —
-// even TOKEN-SHAPED text posts exactly as saved, the same guarantee fire gave
-// before this PR existed.
-func TestFireNilPipelinePostsRawByteIdentical(t *testing.T) {
-	store, pub := timerFireStore(nil)
-	const msg = "hello {uptime} {random} raw — no chain wired yet"
-
-	store.fire(context.Background(), armedTimer{
-		ref: timerRef{broadcasterID: 3, id: "t1"},
-		def: timerDef{ID: "t1", Message: msg, Interval: 60, Enabled: true},
-	})
-
-	require.Len(t, pub.got, 1)
-	assert.Equal(t, msg, decodeChat(t, pub.got[0].msg))
-}
 
 // TestFireMultiLineFansOutAndCapsAtMaxResponseLines proves timerOutputs'
 // reuse of chatLines: a blank line drops, and a message naming more than
