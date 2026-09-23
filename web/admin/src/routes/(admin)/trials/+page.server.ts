@@ -6,7 +6,7 @@ import { fail, redirect } from '@sveltejs/kit';
 import { dev } from '$app/environment';
 import { allows, requireRole } from '$lib/server/access';
 import { audit } from '$lib/server/audit';
-import { trialAdd, trialList, trialRemove, type TrialSnapshot } from '$lib/server/services';
+import { trialAdd, trialList, trialRemove, trialSetEnabled, type TrialSnapshot } from '$lib/server/services';
 
 const DEMO = dev && process.env.DEMO === '1';
 const EMPTY: TrialSnapshot = { version: 1, trials: [] };
@@ -59,6 +59,26 @@ export const actions: Actions = {
     } catch (e) {
       const message = (e as Error).message;
       audit(admin, { action: 'trial_remove', target: id, ok: false, error: message });
+      return fail(400, { error: message });
+    }
+  },
+  set_enabled: async ({ request, locals }) => {
+    const admin = await requireRole({ locals }, 'trials.manage');
+    if (!admin) return fail(403, { error: 'forbidden' });
+    const form = await request.formData();
+    const id = broadcasterId(form);
+    if (!id) return fail(400, { error: 'Invalid broadcaster ID.' });
+    const rawEnabled = form.get('enabled');
+    if (rawEnabled !== 'true' && rawEnabled !== 'false') return fail(400, { error: 'Invalid enabled value.' });
+    const enabled = rawEnabled === 'true';
+    if (DEMO) return fail(503, { error: 'Trial observation is unavailable in demo mode.' });
+    try {
+      await trialSetEnabled(id, enabled);
+      audit(admin, { action: 'trial_set_enabled', target: id, detail: String(enabled), ok: true });
+      return { ok: true, notice: `Trial ${id} turned ${enabled ? 'on' : 'off'}.` };
+    } catch (e) {
+      const message = (e as Error).message;
+      audit(admin, { action: 'trial_set_enabled', target: id, detail: String(enabled), ok: false, error: message });
       return fail(400, { error: message });
     }
   }

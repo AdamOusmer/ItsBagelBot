@@ -87,20 +87,23 @@ defmodule Ingress.TrialReceiver do
   end
 
   defp connect(%{epoch: nil} = state), do: state
-  defp connect(%{rows: rows} = state) when map_size(rows) == 0, do: state
   defp connect(%{socket: socket} = state) when not is_nil(socket), do: state
 
   defp connect(state) do
-    url = Application.fetch_env!(:ingress, :eventsub_url)
+    if Enum.any?(state.rows, fn {_id, row} -> row.enabled and row.state != "stopping" end) do
+      url = Application.fetch_env!(:ingress, :eventsub_url)
 
-    case state.ws.connect(url) do
-      {:ok, socket} ->
-        %{state | socket: socket, connected_at: now_ms(), last_frame_at: now_ms()}
+      case state.ws.connect(url) do
+        {:ok, socket} ->
+          %{state | socket: socket, connected_at: now_ms(), last_frame_at: now_ms()}
 
-      {:error, reason} ->
-        Logger.warning("trial WebSocket connect failed: #{inspect(reason)}")
-        Process.send_after(self(), :reconnect, @reconnect_ms)
-        state
+        {:error, reason} ->
+          Logger.warning("trial WebSocket connect failed: #{inspect(reason)}")
+          Process.send_after(self(), :reconnect, @reconnect_ms)
+          state
+      end
+    else
+      state
     end
   end
 
@@ -213,8 +216,7 @@ defmodule Ingress.TrialReceiver do
 
   defp handle_twitch("revocation", _meta, payload, state, _which) do
     id = get_in(payload, ["subscription", "condition", "broadcaster_user_id"])
-    if id, do: Trials.field(id, "state", "failed")
-    if id, do: Trials.field(id, "error", "subscription_revoked")
+    if row = state.rows[id], do: Trials.fail(id, row.generation, "subscription_revoked")
     state
   end
 
@@ -235,7 +237,7 @@ defmodule Ingress.TrialReceiver do
     end
   end
 
-  defp receivable_chat?(%{state: "receiving"}, payload, chat_id) do
+  defp receivable_chat?(%{state: "receiving", enabled: true}, payload, chat_id) do
     case get_in(payload, ["subscription", "type"]) do
       "channel.chat.message" -> valid_chat_id?(chat_id)
       _ -> false
@@ -269,28 +271,23 @@ defmodule Ingress.TrialReceiver do
   defp admit_chat(payload, meta, chat_id, row) do
     id = row.broadcaster_id
 
-    case Trials.dedup(id, chat_id) do
+    case Trials.admit(id, row.generation, chat_id) do
       :first -> forward_first_chat(payload, meta, id, row)
       :duplicate -> :ok
+      :inactive -> :ok
       :unavailable -> Trials.increment(id, "failed")
     end
   end
 
   defp forward_first_chat(payload, meta, id, row) do
-    case Trials.increment(id, "received") do
-      {:ok, _} ->
-        Dispatcher.dispatch(payload, %{
-          shard_id: -1,
-          msg_id: meta["message_id"],
-          ts: meta["message_timestamp"],
-          broadcaster_id: id,
-          origin: :trial,
-          trial_generation: String.to_integer(row.generation)
-        })
-
-      _ ->
-        :ok
-    end
+    Dispatcher.dispatch(payload, %{
+      shard_id: -1,
+      msg_id: meta["message_id"],
+      ts: meta["message_timestamp"],
+      broadcaster_id: id,
+      origin: :trial,
+      trial_generation: String.to_integer(row.generation)
+    })
   end
 
   defp accept_pending_welcome(state, new_id) do
@@ -333,27 +330,20 @@ defmodule Ingress.TrialReceiver do
         rows = Enum.reject(rows, &(&1.state in ["removed", "promoted"]))
         rows = maybe_promote(rows)
 
-        if state.session_id do
-          # Each external RPC is bounded at 4s; renew between rows so four
-          # slow rows cannot exceed the 60s lease while this GenServer is busy.
-          case Enum.reduce_while(rows, :owned, fn row, _ ->
-                 case Trials.renew(state.owner, state.epoch) do
-                   {:ok, 1} ->
-                     reconcile_row(row, state)
-                     {:cont, :owned}
+        # Deletions can proceed without a welcomed session. Renew between
+        # external RPCs so slow rows cannot outlast the 60s owner lease.
+        case Enum.reduce_while(rows, :owned, fn row, _ ->
+               case Trials.renew(state.owner, state.epoch) do
+                 {:ok, 1} ->
+                   reconcile_row(row, state)
+                   {:cont, :owned}
 
-                   _ ->
-                     {:halt, :lost}
-                 end
-               end) do
-            :owned -> refresh_rows(state)
-            :lost -> lose_lease(state)
-          end
-        else
-          state
-          |> Map.put(:rows, Map.new(rows, &{&1.broadcaster_id, &1}))
-          |> maybe_close_idle(rows)
-          |> connect()
+                 _ ->
+                   {:halt, :lost}
+               end
+             end) do
+          :owned -> refresh_rows(state)
+          :lost -> lose_lease(state)
         end
 
       {:error, _} ->
@@ -367,7 +357,11 @@ defmodule Ingress.TrialReceiver do
     case Trials.list() do
       {:ok, %{trials: rows}} ->
         rows = Enum.reject(rows, &(&1.state in ["removed", "promoted"]))
-        state |> Map.put(:rows, Map.new(rows, &{&1.broadcaster_id, &1})) |> maybe_close_idle(rows)
+
+        state
+        |> Map.put(:rows, Map.new(rows, &{&1.broadcaster_id, &1}))
+        |> maybe_close_idle(Enum.filter(rows, &(&1.enabled and &1.state != "stopping")))
+        |> connect()
 
       _ ->
         fresh_connect(%{state | rows: %{}})
@@ -435,6 +429,19 @@ defmodule Ingress.TrialReceiver do
     end
   end
 
+  defp reconcile_row(%{state: "disabled"} = row, state) do
+    if row.subscription_id do
+      subscription_rpc("delete", %{
+        broadcaster_id: row.broadcaster_id,
+        subscription_id: row.subscription_id,
+        owner_epoch: state.epoch,
+        trial_generation: row.generation
+      })
+    end
+  end
+
+  defp reconcile_row(_row, %{session_id: nil}), do: :ok
+
   defp reconcile_row(row, state) do
     if subscription_needed?(row, state) do
       case TrialRpc.registered?(row.broadcaster_id) do
@@ -448,8 +455,7 @@ defmodule Ingress.TrialReceiver do
             })
 
           if error = reply["error"] do
-            Trials.field(row.broadcaster_id, "state", "failed")
-            Trials.field(row.broadcaster_id, "error", error)
+            Trials.fail(row.broadcaster_id, row.generation, error)
           end
 
         {:ok, true} ->
@@ -457,14 +463,14 @@ defmodule Ingress.TrialReceiver do
           Trials.field(row.broadcaster_id, "stop_reason", "promoted")
 
         _ ->
-          Trials.field(row.broadcaster_id, "state", "failed")
-          Trials.field(row.broadcaster_id, "error", "registration_check_unavailable")
+          Trials.fail(row.broadcaster_id, row.generation, "registration_check_unavailable")
       end
     end
   end
 
   defp subscription_needed?(row, state) do
-    row.state == "failed" || !MapSet.member?(state.session_aliases, row.session_id) ||
+    row.state in ["pending", "failed"] ||
+      !MapSet.member?(state.session_aliases, row.session_id) ||
       is_nil(row.subscription_id)
   end
 

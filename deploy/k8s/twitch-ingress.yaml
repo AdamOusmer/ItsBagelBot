@@ -213,11 +213,6 @@ spec:
                 secretKeyRef:
                   name: outgress-env
                   key: VALKEY_PASSWORD
-            # Enable only after ingress, Sesame and outgress have all rolled
-            # to images that preserve and enforce trial origin. If AutoMod V2
-            # is active, its image must also enforce trial origin.
-            - name: TRIAL_ADMISSION_ENABLED
-              value: "off"
             - name: POD_IP
               valueFrom:
                 fieldRef:

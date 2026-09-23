@@ -359,13 +359,13 @@
           <ul class="bb-list" aria-label={t('admin.shards.trialConnections')}>
             {#each [...trialConnections].sort((a, b) => (a.display_name || a.broadcaster_id).localeCompare(b.display_name || b.broadcaster_id)) as trial (trial.broadcaster_id)}
               <li class="trial-row">
-                <StatusDot tone={trial.state === 'receiving' ? 'success' : 'warning'} />
+                <StatusDot tone={!trial.enabled ? 'neutral' : trial.state === 'receiving' ? 'success' : 'warning'} />
                 <span class="trial-who">
                   <strong>{trial.display_name?.trim() || trial.broadcaster_id}</strong>
                   {#if trial.display_name?.trim()}<small>{t('admin.shards.trialBroadcasterId', { id: trial.broadcaster_id })}</small>{/if}
                 </span>
                 <span class="trial-detail">
-                  {t(`admin.trials.state.${trial.state}`)} ·
+                  {trial.enabled ? t(`admin.trials.state.${trial.state}`) : t('admin.trials.off')} ·
                   {t('admin.trials.received', { count: String(trial.received ?? 0) })}
                 </span>
               </li>

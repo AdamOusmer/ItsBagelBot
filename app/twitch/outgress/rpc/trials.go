@@ -55,6 +55,7 @@ local owner = redis.call('GET', KEYS[1]) or ''
 if string.sub(owner, 1, string.len(ARGV[1]) + 1) ~= ARGV[1] .. ':' then return 0 end
 if redis.call('GET', KEYS[3]) ~= ARGV[1] .. ':' .. ARGV[4] then return 0 end
 if redis.call('HGET', KEYS[2], 'generation') ~= ARGV[2] then return 0 end
+if redis.call('HGET', KEYS[2], 'enabled') == '0' then return 0 end
 local state = redis.call('HGET', KEYS[2], 'state')
 if state ~= 'pending' and state ~= 'receiving' and state ~= 'failed' then return 0 end
 redis.call('HSET', KEYS[2], 'subscription_id', ARGV[3], 'session_id', ARGV[4], 'owner_epoch', ARGV[1], 'state', 'receiving')
@@ -65,9 +66,13 @@ const releaseTrial = `
 local owner = redis.call('GET', KEYS[1]) or ''
 if string.sub(owner, 1, string.len(ARGV[1]) + 1) ~= ARGV[1] .. ':' then return 0 end
 if redis.call('HGET', KEYS[2], 'generation') ~= ARGV[2] then return 0 end
-if redis.call('HGET', KEYS[2], 'state') ~= 'stopping' then return 0 end
+local state = redis.call('HGET', KEYS[2], 'state')
+if state ~= 'stopping' and state ~= 'disabled' then return 0 end
 if (redis.call('HGET', KEYS[2], 'subscription_id') or '') ~= ARGV[3] then return 0 end
 redis.call('HDEL', KEYS[2], 'subscription_id', 'session_id', 'owner_epoch')
+if state == 'disabled' and redis.call('HGET', KEYS[2], 'enabled') ~= '0' then
+  redis.call('HSET', KEYS[2], 'state', 'pending')
+end
 return 1`
 
 func (h *trialSubscriptions) owned(ctx context.Context, req TrialSubscriptionRequest) (map[string]string, bool) {
@@ -141,6 +146,9 @@ func (h *trialSubscriptions) mayCreate(ctx context.Context, req TrialSubscriptio
 		return false
 	}
 	if h.botID == "" {
+		return false
+	}
+	if fields["enabled"] == "0" {
 		return false
 	}
 	switch fields["state"] {
@@ -292,13 +300,7 @@ redis.call('HSET', KEYS[1], 'display_name', ARGV[2]); return 1`
 
 func (h *trialSubscriptions) delete(ctx context.Context, req TrialSubscriptionRequest) TrialSubscriptionReply {
 	fields, ok := h.owned(ctx, req)
-	if !ok {
-		return TrialSubscriptionReply{Error: "stale_or_invalid_owner"}
-	}
-	if fields["state"] != "stopping" {
-		return TrialSubscriptionReply{Error: "stale_or_invalid_owner"}
-	}
-	if req.SubscriptionID != fields["subscription_id"] {
+	if !ok || !trialDeletionMatches(fields, req.SubscriptionID) {
 		return TrialSubscriptionReply{Error: "stale_or_invalid_owner"}
 	}
 	if req.SubscriptionID != "" {
@@ -306,15 +308,21 @@ func (h *trialSubscriptions) delete(ctx context.Context, req TrialSubscriptionRe
 			return TrialSubscriptionReply{Error: "twitch_unavailable"}
 		}
 	}
-	key := "trial:channel:" + req.BroadcasterID
-	released, err := h.store.Do(ctx, h.store.B().Eval().Script(releaseTrial).Numkeys(2).Key("trial:owner").Key(key).Arg(fmt.Sprint(req.OwnerEpoch)).Arg(req.TrialGeneration).Arg(req.SubscriptionID).Build()).AsInt64()
-	if err != nil {
-		return TrialSubscriptionReply{Error: "stale_owner_or_valkey_unavailable"}
-	}
-	if released != 1 {
+	if !h.release(ctx, req) {
 		return TrialSubscriptionReply{Error: "stale_owner_or_valkey_unavailable"}
 	}
 	return TrialSubscriptionReply{Deleted: true}
+}
+
+func trialDeletionMatches(fields map[string]string, subscriptionID string) bool {
+	state := fields["state"]
+	return (state == "stopping" || state == "disabled") && subscriptionID == fields["subscription_id"]
+}
+
+func (h *trialSubscriptions) release(ctx context.Context, req TrialSubscriptionRequest) bool {
+	key := "trial:channel:" + req.BroadcasterID
+	released, err := h.store.Do(ctx, h.store.B().Eval().Script(releaseTrial).Numkeys(2).Key("trial:owner").Key(key).Arg(fmt.Sprint(req.OwnerEpoch)).Arg(req.TrialGeneration).Arg(req.SubscriptionID).Build()).AsInt64()
+	return err == nil && released == 1
 }
 
 func (h *trialSubscriptions) deleteTwitch(ctx context.Context, id string) error {
