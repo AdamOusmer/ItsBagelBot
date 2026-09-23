@@ -1,0 +1,150 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* Layer order first. Every adapter in ../svelte JS-imports its own element
+   CSS, so a bundler can emit this file ahead of layers.css -- and layer order
+   is fixed by the first declaration seen, which would rank bb.elements BELOW
+   bb.base and let the button reset there strip the typography off every
+   contract that renders a <button>. Restating it is idempotent; the layers
+   themselves are documented in layers.css. */
+@layer bb.tokens, bb.base, bb.elements, bb.app;
+
+/* `.bb-steps` -- an ordered run of stages, each a fixed-height row: mark,
+   label over meta, a bar slot, the state word. Built for the deploy train,
+   where eleven rows update several times a second from a live stream.
+
+   THE ROW HEIGHT IS FIXED AND EVERY SLOT IS ALWAYS THERE. A row gains a bar
+   when its stage starts, gains a meta line ("queued behind run 4812") when
+   the stage has something to say, and changes its state word every few
+   seconds. If any of those sized the row, the list under the cursor would
+   move each time a snapshot landed, which is exactly the vertical motion
+   this system does not allow. So the bar slot renders empty rather than not
+   at all, meta and label clip to one line each, and the state column is a
+   fixed 12ch wide so a longer word ("en attente") never drags the bar
+   sideways either.
+
+   Colour follows the state through one `--step-tone` property: the mark and
+   the state word both read it. It is decoration on the word, never the only
+   signal. The error red is the #cf8a78 literal the tag vocabulary already
+   carries, behind the console-only --bb-status-error.
+
+   The running row carries the tag vocabulary's travelling hairline
+   (.bb-sweep, tags.css) on its bottom rule: lateral motion, no pulse. The
+   row is the sweep's positioned, clipping parent.
+
+   Detail content (a failure's log tail, a service breakdown) hangs under its
+   row, indented to the label column. It is the one part of a step whose
+   height is the caller's, and it only changes when the caller's snippet
+   does. */
+
+@layer bb.elements {
+  .bb-steps {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .bb-step {
+    --step-tone: var(--bb-muted);
+  }
+
+  .bb-step--running {
+    --step-tone: var(--bb-white);
+  }
+
+  .bb-step--waiting {
+    --step-tone: var(--bb-tan);
+  }
+
+  .bb-step--succeeded {
+    --step-tone: var(--bb-green-glow);
+  }
+
+  .bb-step--failed {
+    --step-tone: var(--bb-status-error, #cf8a78);
+  }
+
+  .bb-step__row {
+    position: relative;
+    display: grid;
+    grid-template-columns: 8px minmax(0, 1fr) minmax(64px, 30%) 12ch;
+    align-items: center;
+    column-gap: 12px;
+    height: 52px;
+    overflow: hidden;
+    box-shadow: inset 0 -1px 0 var(--bb-border);
+  }
+
+  /* The rule is an inset shadow and the sweep sits at bottom 0 rather than
+     on a border at bottom -1px: overflow: hidden clips at the padding box
+     (CSS Overflow 3), and a border strip is outside it. Rule and light both
+     sit inside the padding box, the sweep painted over the rule. */
+  .bb-step__row > .bb-sweep {
+    bottom: 0;
+  }
+
+  .bb-step__row > .bb-mark {
+    justify-self: center;
+    color: var(--step-tone);
+  }
+
+  .bb-step__text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .bb-step__label,
+  .bb-step__meta {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .bb-step__label {
+    color: var(--bb-white);
+    font-size: var(--bb-text-sm);
+    text-decoration: none;
+  }
+
+  a.bb-step__label:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .bb-step__meta {
+    color: var(--bb-muted);
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
+  }
+
+  .bb-step__state {
+    overflow: hidden;
+    color: var(--step-tone);
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-align: right;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .bb-step__detail {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-inline-start: 20px;
+  }
+
+  .bb-step__detail > :first-child {
+    margin-top: 10px;
+  }
+
+  .bb-step__detail > :last-child {
+    margin-bottom: 14px;
+  }
+}

@@ -112,6 +112,18 @@
         font-family: var(--bb-font-body);
     }
 
+    /* `data-text`: the value is a word or a version, not a count. At the
+       count size "v0.2.2-beta" breaks on its hyphen into two lines and pushes
+       the delta down, so a text value stays on one line, one step smaller, and
+       truncates last. The attribute selector outranks the narrow-screen size
+       below on purpose: the count clamp there is still too big for a word. */
+    .bb-stat[data-text] .bb-stat__value {
+        font-size: clamp(22px, 1.9vw, 30px);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
     /* The strips check in one after another. bb-rise-in is reveal.css's
        keyframe, the same one .reveal plays; the strips run it faster (420ms,
        not 760ms) because a grid's worth arrives at once and the slower

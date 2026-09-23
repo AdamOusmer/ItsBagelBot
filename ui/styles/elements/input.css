@@ -169,6 +169,12 @@
         color: var(--bb-white);
     }
 
+    /* A row that ellipsizes a long label sets this to 0; the default keeps a
+       flex item's usual floor so a short label never breaks mid-word. */
+    .bb-check__label {
+        min-width: var(--bb-check-label-min-width, auto);
+    }
+
     .bb-check__input {
         position: absolute;
         width: 1px;
