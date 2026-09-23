@@ -102,7 +102,7 @@ func main() {
 	// write-warms it below, and buildDeps wires the same instance behind
 	// ViewerRPC's cold-cache fetch.
 	chatters := engine.NewValkeyChatters(valkeyClient, log)
-	loyalty, loyaltyTick := newLoyalty(w, proj, live, loyaltyReporter, chatters)
+	loyalty, loyaltyTick := newLoyalty(w, loyaltyDeps{proj: proj, live: live, reporter: loyaltyReporter, chatters: chatters})
 
 	raffle := newRaffle(w, proj)
 	duel := newDuel(w, proj, loyalty)

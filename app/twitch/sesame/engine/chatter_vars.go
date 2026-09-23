@@ -90,11 +90,17 @@ func viewerDrawsOf(toks []tmpl.Token) int  { return bareDrawsOf(toks, scope.Rand
 func bareDrawsOf(toks []tmpl.Token, name string) int {
 	draws := 0
 	for _, tok := range toks {
-		if tok.Kind == tmpl.KindVar && tok.Name == name && !tok.HasPayload {
+		if isBareVar(tok, name) {
 			draws++
 		}
 	}
 	return draws
+}
+
+// isBareVar reports whether tok is a payload-free {name} span — the only
+// shape that draws for chatterDrawsOf/viewerDrawsOf (see bareDrawsOf).
+func isBareVar(tok tmpl.Token, name string) bool {
+	return tok.Kind == tmpl.KindVar && tok.Name == name && !tok.HasPayload
 }
 
 // rosterView is the engine half of the chatter scope: it narrows the whole

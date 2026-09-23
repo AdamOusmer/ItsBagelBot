@@ -263,12 +263,22 @@ func newDuel(w wireCtx, proj *projection.Client, loyalty engine.LoyaltyStore) *e
 	return duel
 }
 
+// loyaltyDeps bundles the shared collaborators newLoyalty and newLoyaltyClock
+// wire in beyond the ambient wireCtx (keeps both constructors under the
+// function-argument-count threshold).
+type loyaltyDeps struct {
+	proj     *projection.Client
+	live     *engine.ValkeyLiveStore
+	reporter *engine.LoyaltyReporter
+	chatters *engine.ValkeyChatters
+}
+
 // newLoyalty builds the loyalty store (a Valkey live view fronting the loyalty
 // service) and its watch clock, both fed by the shared reporter that batches
 // accruals/bumps onto data.loyalty.*.
-func newLoyalty(w wireCtx, proj *projection.Client, live *engine.ValkeyLiveStore, reporter *engine.LoyaltyReporter, chatters *engine.ValkeyChatters) (engine.LoyaltyStore, *engine.ValkeyLoyaltyClock) {
-	store := engine.NewValkeyLoyaltyStore(w.in.vc, engine.NewLoyaltyRPC(w.in.nc, w.cfg.LoyaltyRPCPrefix), reporter, w.log)
-	tick := newLoyaltyClock(w, proj, live, reporter, chatters)
+func newLoyalty(w wireCtx, deps loyaltyDeps) (engine.LoyaltyStore, *engine.ValkeyLoyaltyClock) {
+	store := engine.NewValkeyLoyaltyStore(w.in.vc, engine.NewLoyaltyRPC(w.in.nc, w.cfg.LoyaltyRPCPrefix), deps.reporter, w.log)
+	tick := newLoyaltyClock(w, deps)
 	return store, tick
 }
 
@@ -277,15 +287,15 @@ func newLoyalty(w wireCtx, proj *projection.Client, live *engine.ValkeyLiveStore
 // fired off key expiry (the timers idiom) into a chatters fetch + accrual —
 // and starts its expiry, rearm and reconciler watchers. chatters write-warms
 // the shared {random.viewer} cache from every tick's chatter listing.
-func newLoyaltyClock(w wireCtx, proj *projection.Client, live *engine.ValkeyLiveStore, reporter *engine.LoyaltyReporter, chatters *engine.ValkeyChatters) *engine.ValkeyLoyaltyClock {
-	clock := engine.NewValkeyLoyaltyClock(w.in.vc, w.in.nc, proj, live, reporter, engine.LoyaltyClockConfig{
+func newLoyaltyClock(w wireCtx, deps loyaltyDeps) *engine.ValkeyLoyaltyClock {
+	clock := engine.NewValkeyLoyaltyClock(w.in.vc, w.in.nc, deps.proj, deps.live, deps.reporter, engine.LoyaltyClockConfig{
 		OutgressRPCPrefix:        w.cfg.OutgressRPCPrefix,
 		ModulesInvalidateSubject: w.cfg.CacheInvalidationPrefix + ".modules",
 		BotUserID:                w.cfg.BotUserID,
 		KeyspaceDB:               0,
 		Publisher:                w.in.pub,
 		OutgressSystemSubject:    w.cfg.OutgressSystemSubject,
-		ViewerSnapshots:          chatters,
+		ViewerSnapshots:          deps.chatters,
 		Log:                      w.log,
 	})
 	go clock.StartExpiryWatcher(w.ctx)

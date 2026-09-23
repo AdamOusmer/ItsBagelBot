@@ -160,7 +160,7 @@ func (m Modules) Plan(ctx context.Context, wants []Var) (Values, error) {
 // one exception — its payload form is a second, independently-gated read
 // (see planTime) — and {quote:n} already was.
 func (m Modules) planOne(ctx context.Context, out *moduleValues, want Var) {
-	if want.Name != QuoteToken && want.Name != TimeToken && want.HasPayload {
+	if isUnexpectedPayload(want) {
 		return
 	}
 	switch want.Name {
@@ -171,6 +171,13 @@ func (m Modules) planOne(ctx context.Context, out *moduleValues, want Var) {
 	case SongToken, SongTitleToken, SongArtistToken:
 		out.planTrack(ctx, m.Songs)
 	}
+}
+
+// isUnexpectedPayload reports whether want carries a payload on a family
+// that takes none — {song…} takes no payload, so a span carrying one is an
+// authoring mistake and is neither planned nor answered (see planOne).
+func isUnexpectedPayload(want Var) bool {
+	return want.Name != QuoteToken && want.Name != TimeToken && want.HasPayload
 }
 
 // planTime resolves one {time} span. A bare span reads the mounted home
