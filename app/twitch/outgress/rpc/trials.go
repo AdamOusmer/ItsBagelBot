@@ -300,13 +300,7 @@ redis.call('HSET', KEYS[1], 'display_name', ARGV[2]); return 1`
 
 func (h *trialSubscriptions) delete(ctx context.Context, req TrialSubscriptionRequest) TrialSubscriptionReply {
 	fields, ok := h.owned(ctx, req)
-	if !ok {
-		return TrialSubscriptionReply{Error: "stale_or_invalid_owner"}
-	}
-	if fields["state"] != "stopping" && fields["state"] != "disabled" {
-		return TrialSubscriptionReply{Error: "stale_or_invalid_owner"}
-	}
-	if req.SubscriptionID != fields["subscription_id"] {
+	if !ok || !trialDeletionMatches(fields, req.SubscriptionID) {
 		return TrialSubscriptionReply{Error: "stale_or_invalid_owner"}
 	}
 	if req.SubscriptionID != "" {
@@ -314,15 +308,21 @@ func (h *trialSubscriptions) delete(ctx context.Context, req TrialSubscriptionRe
 			return TrialSubscriptionReply{Error: "twitch_unavailable"}
 		}
 	}
-	key := "trial:channel:" + req.BroadcasterID
-	released, err := h.store.Do(ctx, h.store.B().Eval().Script(releaseTrial).Numkeys(2).Key("trial:owner").Key(key).Arg(fmt.Sprint(req.OwnerEpoch)).Arg(req.TrialGeneration).Arg(req.SubscriptionID).Build()).AsInt64()
-	if err != nil {
-		return TrialSubscriptionReply{Error: "stale_owner_or_valkey_unavailable"}
-	}
-	if released != 1 {
+	if !h.release(ctx, req) {
 		return TrialSubscriptionReply{Error: "stale_owner_or_valkey_unavailable"}
 	}
 	return TrialSubscriptionReply{Deleted: true}
+}
+
+func trialDeletionMatches(fields map[string]string, subscriptionID string) bool {
+	state := fields["state"]
+	return (state == "stopping" || state == "disabled") && subscriptionID == fields["subscription_id"]
+}
+
+func (h *trialSubscriptions) release(ctx context.Context, req TrialSubscriptionRequest) bool {
+	key := "trial:channel:" + req.BroadcasterID
+	released, err := h.store.Do(ctx, h.store.B().Eval().Script(releaseTrial).Numkeys(2).Key("trial:owner").Key(key).Arg(fmt.Sprint(req.OwnerEpoch)).Arg(req.TrialGeneration).Arg(req.SubscriptionID).Build()).AsInt64()
+	return err == nil && released == 1
 }
 
 func (h *trialSubscriptions) deleteTwitch(ctx context.Context, id string) error {
