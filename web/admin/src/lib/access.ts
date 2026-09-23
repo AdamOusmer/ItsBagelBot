@@ -55,6 +55,10 @@ export const ROLE_FOR = {
   'staff.manage': 'admin',
   'audit.read': 'admin',
   'secrets.manage': 'owner',
+  // The release train moves every image the cluster runs. Owner-only here, in
+  // the nav, and again in the deployer, which reads the caller's role from the
+  // users service rather than trusting this console.
+  'deploys.manage': 'owner',
   // The bot-account OAuth consent flow installs a live Twitch token for the
   // account the bot speaks as. Owner-only, and no lower: it is the one flow
   // that mints credentials from an unauthenticated-looking URL.

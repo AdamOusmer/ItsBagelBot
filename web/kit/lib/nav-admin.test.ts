@@ -32,6 +32,7 @@ describe('admin nav registry', () => {
   test('sub-routes resolve to their owning section', () => {
     expect(adminSectionForPath('/users/12345')).toBe('users');
     expect(adminSectionForPath('/events/stream')).toBe('events');
+    expect(adminSectionForPath('/deploys/abc123/stream')).toBe('deploys');
   });
 
   test('/analytics is gone and falls back to the overview', () => {
@@ -54,6 +55,15 @@ describe('admin nav registry', () => {
     expect(hrefs('admin')).not.toContain('/counters');
     expect(hrefs('owner')).toContain('/counters');
     expect(hrefs('owner').length).toBe(ADMIN_SECTIONS.length);
+  });
+
+  test('/deploys is offered to owners only', () => {
+    // ROLE_FOR['deploys.manage'] is owner; an admin shown the link would be
+    // bounced to '/' by the route's load.
+    const offered = ROLES.filter((role) =>
+      adminNavItems({ role, section: 'overview' }).some((item) => item.href === '/deploys')
+    );
+    expect(offered).toEqual(['owner']);
   });
 
   test('groups follow ADMIN_GROUP_ORDER and drop empty ones', () => {
