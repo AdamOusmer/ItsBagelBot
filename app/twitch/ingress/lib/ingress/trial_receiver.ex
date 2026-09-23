@@ -228,7 +228,7 @@ defmodule Ingress.TrialReceiver do
 
     if receivable_chat?(row, payload, chat_id) do
       state = update_display_name(state, id, row, event)
-      admit_chat(payload, meta, id, chat_id, row)
+      admit_chat(payload, meta, chat_id, row)
       state
     else
       state
@@ -266,7 +266,9 @@ defmodule Ingress.TrialReceiver do
     end
   end
 
-  defp admit_chat(payload, meta, id, chat_id, row) do
+  defp admit_chat(payload, meta, chat_id, row) do
+    id = row.broadcaster_id
+
     case Trials.dedup(id, chat_id) do
       :first -> forward_first_chat(payload, meta, id, row)
       :duplicate -> :ok

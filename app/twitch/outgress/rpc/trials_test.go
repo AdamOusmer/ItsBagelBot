@@ -10,12 +10,7 @@ import (
 )
 
 func TestTrialSubscriptionOwnershipScripts(t *testing.T) {
-	if _, err := exec.LookPath("valkey-server"); err != nil {
-		t.Skip("valkey-server unavailable")
-	}
-	if _, err := exec.LookPath("valkey-cli"); err != nil {
-		t.Skip("valkey-cli unavailable")
-	}
+	requireValkeyExecutables(t)
 	dir, err := os.MkdirTemp("/tmp", "trialrpc-")
 	if err != nil {
 		t.Fatal(err)
@@ -70,6 +65,15 @@ func TestTrialSubscriptionOwnershipScripts(t *testing.T) {
 	expectTrialResult(t, release("8", "3", "sub-1"), "0", "stale owner delete")
 	expectTrialResult(t, release("9", "3", "sub-1"), "1", "owned delete")
 	expectTrialResult(t, cli("HGET", "trial:channel:42", "subscription_id"), "", "cleared ID")
+}
+
+func requireValkeyExecutables(t *testing.T) {
+	t.Helper()
+	for _, name := range []string{"valkey-server", "valkey-cli"} {
+		if _, err := exec.LookPath(name); err != nil {
+			t.Skipf("%s unavailable", name)
+		}
+	}
 }
 
 func expectTrialResult(t *testing.T, got, want, label string) {
