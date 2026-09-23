@@ -212,8 +212,14 @@ func (p *Pipeline) resolveUrlToken(ctx context.Context, c *module.Context, name 
 	if reply.Status == gossiprpc.FetchBadDef {
 		return "", false, true // leave the token visible, like every unknown token
 	}
-	if reply.Status == gossiprpc.FetchOK && len(reply.Values) > 0 && reply.Values[0] != "" {
+	if fetchYieldedValue(reply) {
 		return ExternalVar(reply.Values[0]), true, false
 	}
 	return "", true, true
+}
+
+// fetchYieldedValue reports whether reply carries an extractable value from
+// a successful fetch.
+func fetchYieldedValue(reply gossiprpc.CustomFetchReply) bool {
+	return reply.Status == gossiprpc.FetchOK && len(reply.Values) > 0 && reply.Values[0] != ""
 }
