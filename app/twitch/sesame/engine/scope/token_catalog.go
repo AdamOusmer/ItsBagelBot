@@ -57,19 +57,19 @@ func CommandTokenFamilies() []TokenFamily {
 	return []TokenFamily{
 		{ID: "message", Examples: message, Aliases: messageAliasExamples},
 		{ID: "pure", Examples: pure},
-		{ID: "chatters", Examples: []string{"{" + ChattersToken + "}", "{" + RandomChatterToken + "}"}},
+		{ID: "chatters", Examples: []string{"{" + ChattersToken + "}", "{" + RandomChatterToken + "}", "{" + RandomViewerToken + "}"}},
 		{
 			ID:       "emotes",
 			Examples: []string{"{" + EmotesToken + ":7tv}", "{" + EmotesToken + ":bttv}", "{" + EmotesToken + ":ffz}", "{" + RandomEmoteToken + "}"},
 			Aliases:  []string{"{" + SevenTVEmotesToken + "}", "{" + BTTVEmotesToken + "}", "{" + FFZEmotesToken + "}"},
 		},
-		{ID: "channel", Examples: []string{"{" + UptimeToken + "}", "{" + TitleToken + ":other_channel}", "{" + GameToken + ":other_channel}", "{" + ViewersToken + "}"}},
+		{ID: "channel", Examples: []string{"{" + UptimeToken + "}", "{" + TitleToken + ":other_channel}", "{" + GameToken + ":other_channel}", "{" + ViewersToken + "}", "{" + FollowersToken + "}", "{" + SubsToken + "}"}},
 		{
 			ID:       "viewer",
 			Examples: []string{"{" + FollowageToken + "}", "{" + AccountAgeToken + ":viewer}", "{" + PointsToken + "}", "{" + PointsNameToken + "}", "{" + WatchTimeToken + "}"},
 			Aliases:  []string{"{" + PointsNameLegacyToken + "}"},
 		},
-		{ID: "modules", Examples: []string{"{" + QuoteToken + "}", "{" + QuoteToken + ":1}", "{" + TimeToken + "}", "{" + SongToken + "}", "{" + SongTitleToken + "}", "{" + SongArtistToken + "}"}},
+		{ID: "modules", Examples: []string{"{" + QuoteToken + "}", "{" + QuoteToken + ":1}", "{" + TimeToken + "}", "{" + TimeToken + ":Paris}", "{" + SongToken + "}", "{" + SongTitleToken + "}", "{" + SongArtistToken + "}"}},
 		{ID: "uses", Examples: []string{"{uses}"}},
 		{ID: "store", Examples: []string{"{counter:deaths}", "{counter:target:deaths}", "{count:deaths}", "{count:target:deaths}"}},
 		{ID: "external", Examples: []string{"{urlfetch:weather}"}},

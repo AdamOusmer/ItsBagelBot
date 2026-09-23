@@ -40,7 +40,8 @@
       "id": "chatters",
       "examples": [
         "{chatters}",
-        "{random.chatter}"
+        "{random.chatter}",
+        "{random.viewer}"
       ]
     },
     {
@@ -63,7 +64,9 @@
         "{uptime}",
         "{title:other_channel}",
         "{game:other_channel}",
-        "{channel.viewers}"
+        "{channel.viewers}",
+        "{followers}",
+        "{subs}"
       ]
     },
     {
@@ -85,6 +88,7 @@
         "{quote}",
         "{quote:1}",
         "{time}",
+        "{time:Paris}",
         "{song}",
         "{song.title}",
         "{song.artist}"

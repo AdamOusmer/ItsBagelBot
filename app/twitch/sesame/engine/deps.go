@@ -78,7 +78,21 @@ type Deps struct {
 	// !uptime has no use for, and one endpoint answering the whole token
 	// family is what keeps a response naming three of them at one round trip.
 	StreamInfo StreamInfoLookup
-	Log        *zap.Logger
+	// ChannelCounts is the cached reader behind the {followers}/{subs}
+	// response tokens. Unlike StreamInfo it backs no built-in command, so
+	// there is no toggle to share polarity with — mounting follows the
+	// dependency alone. nil leaves both tokens literal.
+	ChannelCounts ChannelCountsLookup
+	// Viewers is the shared chat-list source behind {random.viewer}: who
+	// Twitch currently reports as connected to the channel, distinct from
+	// the roster ({random.chatter}), which is who has spoken recently. nil
+	// leaves the draw empty (its fallback fires) forever, the same answer an
+	// unnamed roster gives {random.chatter} — the chatters scope mounts
+	// unconditionally, so nothing in this family ever stays literal for a
+	// broadcaster who spelled it right. A wired-but-missing-scope reply
+	// degrades to a roster draw instead (see chatter_vars.go).
+	Viewers ViewerLookup
+	Log     *zap.Logger
 	// Timers arms/disarms a broadcaster's repeating chat-message timers for the
 	// length of one stream; ValkeyTimerStore is the default. nil disables it (the
 	// live module's stream.online/offline hooks skip the calls).

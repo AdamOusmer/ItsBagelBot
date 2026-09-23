@@ -16,6 +16,7 @@ import (
 	modulesrpc "ItsBagelBot/internal/domain/rpc/modules"
 	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/tmpl"
+	"ItsBagelBot/pkg/tzname"
 
 	"go.uber.org/zap"
 )
@@ -48,23 +49,27 @@ func (p *Pipeline) moduleScope(ctx context.Context, c *module.Context, toks []tm
 	if !wants.any() {
 		return scope.Modules{}, false
 	}
+	clock, places := p.timeMount(ctx, c, wants)
 	m := scope.Modules{
 		QuoteDraws: wants.draws,
 		Quotes:     p.quoteBook(ctx, c, wants.quote),
-		Clock:      p.localClock(ctx, c, wants.clock),
+		Clock:      clock,
+		Places:     places,
 		Songs:      p.nowPlaying(ctx, c, wants.song),
 	}
-	return m, m.Quotes != nil || m.Clock != nil || m.Songs != nil
+	return m, m.Quotes != nil || m.Clock != nil || m.Places != nil || m.Songs != nil
 }
 
 // moduleWants is which module-fact families one template names, plus how many
-// bare {quote} spans it carries.
+// bare {quote} spans it carries. timeHome and timePlace split the two {time}
+// spellings because they gate independently: timeHome needs the Local Time
+// module ON, timePlace needs nothing (see scope.Places).
 type moduleWants struct {
-	quote, clock, song bool
-	draws              int
+	quote, timeHome, timePlace, song bool
+	draws                            int
 }
 
-func (w moduleWants) any() bool { return w.quote || w.clock || w.song }
+func (w moduleWants) any() bool { return w.quote || w.timeHome || w.timePlace || w.song }
 
 func moduleWantsOf(toks []tmpl.Token) moduleWants {
 	var wants moduleWants
@@ -82,10 +87,18 @@ func (w *moduleWants) mark(tok tmpl.Token) {
 	case scope.QuoteToken:
 		w.markQuote(tok)
 	case scope.TimeToken:
-		w.clock = true
+		w.markTime(tok)
 	case scope.SongToken, scope.SongTitleToken, scope.SongArtistToken:
 		w.song = true
 	}
+}
+
+func (w *moduleWants) markTime(tok tmpl.Token) {
+	if tok.HasPayload {
+		w.timePlace = true
+		return
+	}
+	w.timeHome = true
 }
 
 // markQuote counts the bare spans separately: each is an independent draw and
@@ -111,29 +124,35 @@ func (p *Pipeline) quoteBook(ctx context.Context, c *module.Context, wanted bool
 	return quoteReads{p: p, c: c}
 }
 
-// localClock mounts {time} under the Local Time module's own gate.
-//
-// The config is read ONCE, here, and the loaded zone carried on the resolver:
-// it decides both whether the family mounts and what the token renders, and
-// reading it twice would let one response print a clock from a module the rest
-// of it treated as off. A module that is ON but has no timezone set still
-// mounts, with no location: the token then renders empty (so its fallback
-// speaks) rather than staying literal, because the broadcaster DID enable the
-// module and a visible {time} would send them looking at the wrong switch.
-func (p *Pipeline) localClock(ctx context.Context, c *module.Context, wanted bool) scope.Clock {
-	if !wanted {
-		return nil
+// timeMount resolves the Local Time module's row ONCE for both {time}
+// spellings. The bare form (Clock) still needs the module ON — a module that
+// is on but has no timezone set still mounts, with no location, so the token
+// renders empty (its fallback speaks) rather than staying literal, because
+// the broadcaster DID enable the module and a visible {time} would send them
+// looking at the wrong switch. The payload form (Places) reads the row
+// regardless of on/off: {time:<place>} needs only whichever clock face the
+// broadcaster already picked (12-hour when never set), never enrollment,
+// which is the same answer !time <place> already gives a channel that never
+// touched Local Time.
+func (p *Pipeline) timeMount(ctx context.Context, c *module.Context, wants moduleWants) (scope.Clock, scope.Places) {
+	if !wants.timeHome && !wants.timePlace {
+		return nil, nil
 	}
 	view, on := p.moduleGate(c, TimeModuleName).OptInView(ctx)
-	if !on {
-		return nil
-	}
 	var cfg TimeModuleConfig
 	if len(view.Configs) > 0 {
 		_ = codec.Unmarshal(view.Configs, &cfg)
 	}
-	loc, _ := cfg.Zone()
-	return localClock{loc: loc, format: cfg.Format, now: time.Now}
+	var clock scope.Clock
+	if on && wants.timeHome {
+		loc, _ := cfg.Zone()
+		clock = localClock{loc: loc, format: cfg.Format, now: time.Now}
+	}
+	var places scope.Places
+	if wants.timePlace {
+		places = placesLookup{format: cfg.Format, now: time.Now}
+	}
+	return clock, places
 }
 
 // nowPlaying mounts the {song} family when gossip is wired and the channel's
@@ -229,6 +248,24 @@ func (c localClock) LocalTime() string {
 		return ""
 	}
 	return FormatClock(c.now().In(c.loc), c.format)
+}
+
+// placesLookup answers {time:<place>} the same way !time <place> does: the
+// same pure tzname lookup, the same FormatClock face. now is injected so a
+// test can pin the instant instead of asserting against a moving clock.
+type placesLookup struct {
+	format string
+	now    func() time.Time
+}
+
+// Resolve renders empty for a place tzname's table does not know, never the
+// broadcaster's own home time — the decision record on scope.Places.
+func (l placesLookup) Resolve(place string) string {
+	match, ok := tzname.Resolve(place)
+	if !ok {
+		return ""
+	}
+	return FormatClock(l.now().In(match.Loc), l.format)
 }
 
 // songReads answers the {song} family through the same gossip endpoint !song

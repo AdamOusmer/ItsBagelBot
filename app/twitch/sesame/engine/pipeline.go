@@ -102,7 +102,13 @@ type Pipeline struct {
 	// superset, so the tokens read it and !uptime keeps its own narrower
 	// lookup. nil leaves all four tokens literal.
 	streamInfo StreamInfoLookup
-	stats      *botStats
+	// channelCounts is the cached reader behind {followers}/{subs}. nil
+	// leaves both literal.
+	channelCounts ChannelCountsLookup
+	// viewers is the shared chat-list source behind {random.viewer}. nil
+	// leaves it literal.
+	viewers ViewerLookup
+	stats   *botStats
 	// customFetch resolves {urlfetch:...} response tokens through gossip's
 	// custom.fetch endpoint. nil leaves them visible (unknown-token convention).
 	customFetch UrlFetchCaller
@@ -184,6 +190,8 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 		followage:         d.Followage,
 		accountAge:        d.AccountAge,
 		streamInfo:        d.StreamInfo,
+		channelCounts:     d.ChannelCounts,
+		viewers:           d.Viewers,
 		customFetch:       d.CustomFetch,
 		quotes:            d.Quotes,
 		gossip:            d.Gossip,

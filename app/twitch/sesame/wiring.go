@@ -84,6 +84,9 @@ type engineRuntime struct {
 	// keeps current; the command lane reads its snapshot for the {7tvemotes}
 	// family. nil when the refresher is off.
 	emotes *automod.EmoteFetcher
+	// chatters is the shared {random.viewer} snapshot store: the loyalty
+	// tick write-warms it, and ViewerRPC reads/cold-fetches through it.
+	chatters *engine.ValkeyChatters
 }
 
 // buildDeps assembles the engine.Deps every module fn captures. modules.All turns
@@ -98,31 +101,33 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 	// endpoint (CustomFetch).
 	gossipRPC := engine.NewGossipRPC(in.nc, cfg.GossipRPCPrefix)
 	return engine.Deps{
-		TrialStore:  in.vc,
-		Proj:        rt.proj,
-		Live:        rt.live,
-		Greet:       engine.NewValkeyGreetStore(in.vc, cfg.LiveTTL, log),
-		Cooldown:    engine.NewValkeyCooldown(in.vc),
-		Special:     engine.NewSpecialSet(cfg.SpecialUserIDs),
-		Pub:         in.pub,
-		Commands:    engine.NewCommandsRPC(in.nc, cfg.CommandsDashboardPrefix),
-		Quotes:      engine.NewQuotesRPC(in.nc, cfg.ModulesRPCPrefix),
-		Gossip:      gossipRPC,
-		CustomFetch: gossipRPC,
-		Followage:   engine.NewFollowageRPC(in.nc, cfg.OutgressRPCPrefix),
-		AccountAge:  engine.NewAccountAgeRPC(in.nc, cfg.OutgressRPCPrefix),
-		Uptime:      engine.NewUptimeRPC(in.nc, cfg.OutgressRPCPrefix),
-		StreamInfo:  engine.NewStreamInfoRPC(in.nc, cfg.OutgressRPCPrefix),
-		Log:         log,
-		Automod:     rt.guard,
-		Reputation:  engine.NewValkeyReputation(in.vc, 6*time.Hour, log),
-		Campaign:    engine.NewValkeyCampaign(in.vc, log),
-		Queue:       engine.NewValkeyQueueStore(in.vc, 24*time.Hour, log),
-		SongQueue:   engine.NewValkeySongQueueStore(in.vc, 24*time.Hour, log),
-		Raffle:      rt.raffle,
-		Duel:        rt.duel,
-		Timers:      rt.timers,
-		ChatLines:   rt.timers,
+		TrialStore:    in.vc,
+		Proj:          rt.proj,
+		Live:          rt.live,
+		Greet:         engine.NewValkeyGreetStore(in.vc, cfg.LiveTTL, log),
+		Cooldown:      engine.NewValkeyCooldown(in.vc),
+		Special:       engine.NewSpecialSet(cfg.SpecialUserIDs),
+		Pub:           in.pub,
+		Commands:      engine.NewCommandsRPC(in.nc, cfg.CommandsDashboardPrefix),
+		Quotes:        engine.NewQuotesRPC(in.nc, cfg.ModulesRPCPrefix),
+		Gossip:        gossipRPC,
+		CustomFetch:   gossipRPC,
+		Followage:     engine.NewFollowageRPC(in.nc, cfg.OutgressRPCPrefix),
+		AccountAge:    engine.NewAccountAgeRPC(in.nc, cfg.OutgressRPCPrefix),
+		Uptime:        engine.NewUptimeRPC(in.nc, cfg.OutgressRPCPrefix),
+		StreamInfo:    engine.NewStreamInfoRPC(in.nc, cfg.OutgressRPCPrefix),
+		ChannelCounts: engine.NewChannelCountsRPC(in.nc, cfg.OutgressRPCPrefix),
+		Viewers:       engine.NewViewerRPC(in.nc, cfg.OutgressRPCPrefix, rt.chatters, log),
+		Log:           log,
+		Automod:       rt.guard,
+		Reputation:    engine.NewValkeyReputation(in.vc, 6*time.Hour, log),
+		Campaign:      engine.NewValkeyCampaign(in.vc, log),
+		Queue:         engine.NewValkeyQueueStore(in.vc, 24*time.Hour, log),
+		SongQueue:     engine.NewValkeySongQueueStore(in.vc, 24*time.Hour, log),
+		Raffle:        rt.raffle,
+		Duel:          rt.duel,
+		Timers:        rt.timers,
+		ChatLines:     rt.timers,
 
 		Loyalty:     rt.loyalty,
 		LoyaltyTick: rt.tick,
@@ -258,27 +263,39 @@ func newDuel(w wireCtx, proj *projection.Client, loyalty engine.LoyaltyStore) *e
 	return duel
 }
 
+// loyaltyDeps bundles the shared collaborators newLoyalty and newLoyaltyClock
+// wire in beyond the ambient wireCtx (keeps both constructors under the
+// function-argument-count threshold).
+type loyaltyDeps struct {
+	proj     *projection.Client
+	live     *engine.ValkeyLiveStore
+	reporter *engine.LoyaltyReporter
+	chatters *engine.ValkeyChatters
+}
+
 // newLoyalty builds the loyalty store (a Valkey live view fronting the loyalty
 // service) and its watch clock, both fed by the shared reporter that batches
 // accruals/bumps onto data.loyalty.*.
-func newLoyalty(w wireCtx, proj *projection.Client, live *engine.ValkeyLiveStore, reporter *engine.LoyaltyReporter) (engine.LoyaltyStore, *engine.ValkeyLoyaltyClock) {
-	store := engine.NewValkeyLoyaltyStore(w.in.vc, engine.NewLoyaltyRPC(w.in.nc, w.cfg.LoyaltyRPCPrefix), reporter, w.log)
-	tick := newLoyaltyClock(w, proj, live, reporter)
+func newLoyalty(w wireCtx, deps loyaltyDeps) (engine.LoyaltyStore, *engine.ValkeyLoyaltyClock) {
+	store := engine.NewValkeyLoyaltyStore(w.in.vc, engine.NewLoyaltyRPC(w.in.nc, w.cfg.LoyaltyRPCPrefix), deps.reporter, w.log)
+	tick := newLoyaltyClock(w, deps)
 	return store, tick
 }
 
 // newLoyaltyClock builds the Valkey-backed watch tick — one schedule key per
 // live broadcaster with an enabled loyalty module, armed on stream.online and
 // fired off key expiry (the timers idiom) into a chatters fetch + accrual —
-// and starts its expiry, rearm and reconciler watchers.
-func newLoyaltyClock(w wireCtx, proj *projection.Client, live *engine.ValkeyLiveStore, reporter *engine.LoyaltyReporter) *engine.ValkeyLoyaltyClock {
-	clock := engine.NewValkeyLoyaltyClock(w.in.vc, w.in.nc, proj, live, reporter, engine.LoyaltyClockConfig{
+// and starts its expiry, rearm and reconciler watchers. chatters write-warms
+// the shared {random.viewer} cache from every tick's chatter listing.
+func newLoyaltyClock(w wireCtx, deps loyaltyDeps) *engine.ValkeyLoyaltyClock {
+	clock := engine.NewValkeyLoyaltyClock(w.in.vc, w.in.nc, deps.proj, deps.live, deps.reporter, engine.LoyaltyClockConfig{
 		OutgressRPCPrefix:        w.cfg.OutgressRPCPrefix,
 		ModulesInvalidateSubject: w.cfg.CacheInvalidationPrefix + ".modules",
 		BotUserID:                w.cfg.BotUserID,
 		KeyspaceDB:               0,
 		Publisher:                w.in.pub,
 		OutgressSystemSubject:    w.cfg.OutgressSystemSubject,
+		ViewerSnapshots:          deps.chatters,
 		Log:                      w.log,
 	})
 	go clock.StartExpiryWatcher(w.ctx)

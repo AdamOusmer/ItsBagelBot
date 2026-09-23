@@ -7,6 +7,8 @@ import (
 	"context"
 	"strconv"
 	"strings"
+
+	"ItsBagelBot/pkg/tzname"
 )
 
 // The tokens this scope answers. They are exported for the same reason the
@@ -37,6 +39,18 @@ const (
 // as a broken bot.
 const MaxQuoteDraws = 3
 
+// MaxTimePlaces bounds how many distinct {time:<place>} lookups one response
+// may resolve.
+//
+// Decision record. The cap and the reasoning are the ones MaxChatterDraws and
+// MaxChannelLogins already carry: a Twitch line is 500 bytes, and a fourth
+// named place has no room left to say anything about it. Unlike those two,
+// past the cap a span renders "" rather than repeating or literal — the
+// template is not wrong, it is only asking for more lookups than fit in one
+// line, and an empty span's fallback says that better than a repeated place
+// would.
+const MaxTimePlaces = 3
+
 // Quotes is the channel quote book, narrowed to the two reads a token needs.
 // The engine implements it over the same RPC !quote calls, so a token and the
 // command can never disagree about what quote #12 says.
@@ -59,6 +73,16 @@ type Quotes interface {
 // module leaves the field nil and the span stays literal.
 type Clock interface {
 	LocalTime() string
+}
+
+// Places resolves one viewer-typed place to the broadcaster's clock face
+// there, exactly the way !time <place> already answers. It needs no
+// per-broadcaster enrollment — the lookup is pure once a clock face is
+// picked — so it never fails: an unresolvable place renders empty, which
+// fires the span's fallback rather than falling back to the broadcaster's
+// own home time (see planTime's decision record).
+type Places interface {
+	Resolve(place string) string
 }
 
 // Track is what the Song Requests module knows about whatever is playing right
@@ -93,16 +117,24 @@ type Modules struct {
 	QuoteDraws int
 	Quotes     Quotes
 	Clock      Clock
-	Songs      Songs
+	// Places backs the payload form, {time:<place>}. It is a second,
+	// independent mount from Clock: the bare form stays gated by the Local
+	// Time module row (Clock nil when off), while the payload form needs no
+	// enrollment at all (see Places' decision record), so a channel that
+	// never touched Local Time still answers {time:tokyo}.
+	Places Places
+	Songs  Songs
 }
 
 // Owns claims a token only when the dependency that answers it is mounted.
+// {time} is claimed when EITHER half is mounted; Plan/Get tell bare and
+// payload spans apart and each renders literal on its own missing half.
 func (m Modules) Owns(name string) bool {
 	switch name {
 	case QuoteToken:
 		return m.Quotes != nil
 	case TimeToken:
-		return m.Clock != nil
+		return m.Clock != nil || m.Places != nil
 	case SongToken, SongTitleToken, SongArtistToken:
 		return m.Songs != nil
 	}
@@ -113,7 +145,7 @@ func (m Modules) Owns(name string) bool {
 // byte is rendered. It never returns an error: a failed read is that family's
 // own empty answer, not a reason to blank the tokens beside it.
 func (m Modules) Plan(ctx context.Context, wants []Var) (Values, error) {
-	out := &moduleValues{numbered: make(map[uint64]string, len(wants))}
+	out := &moduleValues{numbered: make(map[uint64]string, len(wants)), placesOn: m.Places != nil}
 	for _, want := range wants {
 		m.planOne(ctx, out, want)
 	}
@@ -122,21 +154,43 @@ func (m Modules) Plan(ctx context.Context, wants []Var) (Values, error) {
 
 // planOne resolves one span's read unless an earlier span already did.
 //
-// {time} and the {song…} family take no payload, so a span carrying one is an
-// authoring mistake and is neither planned nor answered: it stays literal,
-// which shows the author the typo instead of quietly ignoring what they wrote.
+// {song…} takes no payload, so a span carrying one is an authoring mistake
+// and is neither planned nor answered: it stays literal, which shows the
+// author the typo instead of quietly ignoring what they wrote. {time} is the
+// one exception — its payload form is a second, independently-gated read
+// (see planTime) — and {quote:n} already was.
 func (m Modules) planOne(ctx context.Context, out *moduleValues, want Var) {
-	if want.Name != QuoteToken && want.HasPayload {
+	if isUnexpectedPayload(want) {
 		return
 	}
 	switch want.Name {
 	case QuoteToken:
 		m.planQuote(ctx, out, want)
 	case TimeToken:
-		out.planClock(m.Clock)
+		m.planTime(out, want)
 	case SongToken, SongTitleToken, SongArtistToken:
 		out.planTrack(ctx, m.Songs)
 	}
+}
+
+// isUnexpectedPayload reports whether want carries a payload on a family
+// that takes none — {song…} takes no payload, so a span carrying one is an
+// authoring mistake and is neither planned nor answered (see planOne).
+func isUnexpectedPayload(want Var) bool {
+	return want.Name != QuoteToken && want.Name != TimeToken && want.HasPayload
+}
+
+// planTime resolves one {time} span. A bare span reads the mounted home
+// clock (module-gated, Clock nil when off); a payload span resolves through
+// Places, which needs no per-broadcaster state of its own — the two forms
+// answer two different questions ("what time is it here" vs "what time is
+// it THERE") and are gated independently on purpose (see Places).
+func (m Modules) planTime(out *moduleValues, want Var) {
+	if want.HasPayload {
+		out.planPlace(m.Places, want.Payload)
+		return
+	}
+	out.planClock(m.Clock)
 }
 
 // planQuote resolves one quote span: a numbered span reads that quote once
@@ -177,8 +231,19 @@ type moduleValues struct {
 	// from "asked for, and the timezone is unset".
 	clock     string
 	clockDone bool
-	track     Track
-	trackDone bool
+	// placesOn mirrors Modules.Places != nil, captured once at Plan time
+	// so Get can tell "payload form unwired" (literal) from "wired, place
+	// unresolved or past the cap" ("", fallback fires) without holding a
+	// reference to the dependency itself.
+	placesOn bool
+	// places is the payload form's resolved reads, keyed by the normalized
+	// place so two spans naming the same place cost one lookup; a missing
+	// key past MaxTimePlaces reads as the zero value "", the same as an
+	// unresolvable place.
+	places      map[string]string
+	placesNamed int
+	track       Track
+	trackDone   bool
 }
 
 func (o *moduleValues) planDraws(ctx context.Context, quotes Quotes, want int) {
@@ -195,10 +260,35 @@ func (o *moduleValues) planNumbered(ctx context.Context, quotes Quotes, number u
 }
 
 func (o *moduleValues) planClock(clock Clock) {
-	if o.clockDone {
+	if o.clockDone || clock == nil {
 		return
 	}
 	o.clockDone, o.clock = true, clock.LocalTime()
+}
+
+// planPlace resolves one {time:<place>} span, capped at MaxTimePlaces
+// distinct places. An empty/unusable payload (Normalize fails) is not
+// planned at all, so Get sees it as never-attempted and stays literal —
+// the same shape {title:} follows for a payload that addresses nothing.
+func (o *moduleValues) planPlace(places Places, payload string) {
+	if places == nil {
+		return
+	}
+	place := tzname.Normalize(payload)
+	if place == "" {
+		return
+	}
+	if _, done := o.places[place]; done {
+		return
+	}
+	if o.placesNamed >= MaxTimePlaces {
+		return
+	}
+	o.placesNamed++
+	if o.places == nil {
+		o.places = make(map[string]string)
+	}
+	o.places[place] = places.Resolve(place)
 }
 
 func (o *moduleValues) planTrack(ctx context.Context, songs Songs) {
@@ -216,13 +306,32 @@ func (o *moduleValues) Get(tok Var) (string, bool) {
 	if tok.Name == QuoteToken {
 		return o.quote(tok)
 	}
+	if tok.Name == TimeToken {
+		return o.time(tok)
+	}
 	if tok.HasPayload {
 		return "", false // never planned; see planOne
 	}
-	if tok.Name == TimeToken {
+	return o.song(tok.Name), o.trackDone
+}
+
+// time answers both {time} spellings. A bare span reads the home clock
+// exactly as before; a payload span stays literal when Places is unwired
+// (placesOn false) or the payload does not normalize to a place, and
+// otherwise always renders — "" for an unresolvable place or one past the
+// cap, the resolved clock face otherwise. See planTime/planPlace.
+func (o *moduleValues) time(tok Var) (string, bool) {
+	if !tok.HasPayload {
 		return o.clock, o.clockDone
 	}
-	return o.song(tok.Name), o.trackDone
+	if !o.placesOn {
+		return "", false
+	}
+	place := tzname.Normalize(tok.Payload)
+	if place == "" {
+		return "", false
+	}
+	return o.places[place], true
 }
 
 // quote hands out one span's quote. A bare span takes the next independent

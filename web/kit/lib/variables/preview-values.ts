@@ -103,6 +103,12 @@ export const WATCHTIME_SAMPLE = '2 hours, 30 minutes';
  * showed two would suggest the bot knows which two. */
 export const QUOTE_SAMPLE = 'Quote #12: bagels are just savoury donuts (2026-01-31)';
 export const TIME_SAMPLE = '3:04 PM';
+
+/** {time:<place>}: the payload lookup (tzname.Resolve), which answers on any
+ * channel whether or not Local Time is configured — unlike bare {time}, so
+ * this is not simply TIME_SAMPLE again. A different clock face from the home
+ * sample keeps the two visibly distinct in a preview that shows both. */
+export const TIME_PLACE_SAMPLE = '11:04 PM';
 export const SONG_TITLE_SAMPLE = 'Everything In Its Right Place';
 export const SONG_ARTIST_SAMPLE = 'Radiohead';
 
@@ -125,6 +131,14 @@ export const SONG_SAMPLE = `${SONG_TITLE_SAMPLE} by ${SONG_ARTIST_SAMPLE}`;
  * reads it as a placeholder the bot failed to fill. */
 export const CHATTERS_SAMPLE = '37';
 export const RANDOM_CHATTER_SAMPLE = 'maya_live';
+
+/** {random.viewer}: one name from who Twitch reports as connected right now
+ * (scope.Chatters' Viewers half), not from who has spoken — a different
+ * source from RANDOM_CHATTER_SAMPLE, so a template naming both in one
+ * preview does not appear to draw the same list twice. A dashboard preview
+ * cannot read the live chat list any more than it can read the roster, so
+ * this is a plausible lurker rather than a live one. */
+export const RANDOM_VIEWER_SAMPLE = 'quiet_lurker';
 
 /** Stand-ins for the emote catalog (scope.Emotes): the global 7TV, BTTV and
  * FFZ code lists the bot already keeps loaded, and one code drawn from them.
@@ -161,3 +175,11 @@ export const UPTIME_SAMPLE = '2 hours, 15 minutes';
 export const TITLE_SAMPLE = 'bagel baking and chill';
 export const GAME_SAMPLE = 'Just Chatting';
 export const CHANNEL_VIEWERS_SAMPLE = '128';
+
+/** {followers}/{subs}: the two headline audience counts (scope.Channel's
+ * ChannelCounts half), read under two different Twitch identities so either
+ * can degrade on its own. Plausible round-ish numbers rather than the same
+ * stand-in twice, so a template that shows both reads as two different
+ * counters rather than one value pasted in two places. */
+export const FOLLOWERS_SAMPLE = '2,480';
+export const SUBS_SAMPLE = '96';

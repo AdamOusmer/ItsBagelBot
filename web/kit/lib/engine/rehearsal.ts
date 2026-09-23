@@ -54,6 +54,7 @@ import {
   COUNTER_SAMPLE,
   FFZ_EMOTES_SAMPLE,
   FOLLOWAGE_SAMPLE,
+  FOLLOWERS_SAMPLE,
   GAME_SAMPLE,
   POINTS_NAME_SAMPLE,
   POINTS_SAMPLE,
@@ -61,9 +62,12 @@ import {
   RANDOM_CHATTER_SAMPLE,
   RANDOM_EMOTE_SAMPLE,
   RANDOM_SAMPLE,
+  RANDOM_VIEWER_SAMPLE,
   SEVENTV_EMOTES_SAMPLE,
   SONG_ARTIST_SAMPLE,
   SONG_TITLE_SAMPLE,
+  SUBS_SAMPLE,
+  TIME_PLACE_SAMPLE,
   TIME_SAMPLE,
   TITLE_SAMPLE,
   TOUSER_SAMPLE,
@@ -587,23 +591,30 @@ const USES_SCOPE: SampleScope = {
   get: (token) => (token.payload === null ? USES_SAMPLE : null)
 };
 
-/** scope.Chatters' mirror: {chatters}, the size of the room, and
- * {random.chatter}, one name from it.
+/** scope.Chatters' mirror: {chatters}, the size of the room; {random.chatter},
+ * one name from who has spoken; and {random.viewer}, one name from who
+ * Twitch reports as connected right now — a different source (see
+ * RANDOM_VIEWER_SAMPLE), mounted the same unconditional way.
  *
  * This is the one scope in the chain that is mounted unconditionally in CHAT
  * as well as here: no module gates it, because the bot reads the chatters it
- * has watched speak rather than asking Twitch. So unlike the viewer lookups
- * and the module facts, a token previewed here can never be one that stays
- * literal in chat — an unknown room is the count "0" and an empty draw, both
- * real answers. What DOES differ is the wording: chat draws from recently
- * active chatters, not from everyone with the page open, which the guide says
- * and a preview cannot show.
+ * has watched speak (or, for {random.viewer}, the shared chat-list cache)
+ * rather than asking Twitch fresh. So unlike the viewer lookups and the
+ * module facts, a token previewed here can never be one that stays literal
+ * in chat — an unknown room is the count "0" and an empty draw, both real
+ * answers. What DOES differ is the wording: chat draws {random.chatter} from
+ * recently active chatters, not from everyone with the page open, which the
+ * guide says and a preview cannot show.
  *
- * Neither token takes a payload, so a span carrying one stays literal,
- * matching the Go scope. */
+ * None of the three tokens takes a payload, so a span carrying one stays
+ * literal, matching the Go scope. */
 const CHATTER_SAMPLES: Samples = {
   chatters: CHATTERS_SAMPLE,
-  'random.chatter': RANDOM_CHATTER_SAMPLE
+  'random.chatter': RANDOM_CHATTER_SAMPLE,
+  // {random.viewer}: who Twitch reports as connected right now, a different
+  // source from {random.chatter} beside it (see RANDOM_VIEWER_SAMPLE), but
+  // mounted the same way — no module gates either.
+  'random.viewer': RANDOM_VIEWER_SAMPLE
 };
 
 const CHATTER_SCOPE: SampleScope = {
@@ -656,17 +667,18 @@ function emoteSample(token: Token): string | null {
   return token.payload === null ? EMOTE_SAMPLES[token.name] : null;
 }
 
-/** scope.Channel's mirror: {uptime}, {title}, {game} and {channel.viewers},
- * the four facts about the channel rather than the person who ran the
- * command. Bare is this channel, a payload names somebody else's, and the
- * preview shows the same stand-in either way.
+/** scope.Channel's mirror: {uptime}, {title}, {game}, {channel.viewers} and
+ * {followers}/{subs}, the facts about the channel rather than the person who
+ * ran the command. Bare is this channel, a payload names somebody else's for
+ * the first three, and the preview shows the same stand-in either way.
  *
  * Mounted unconditionally here, as the viewer lookups and module facts are,
  * and with the same caveat: in chat {uptime}, {title} and {game} are each
  * gated by the same per-broadcaster toggle as the command that prints them
  * (!uptime, !title, !game), so a broadcaster who switched one off sees a
- * token here that stays literal there. The chip hints say which. Only
- * {channel.viewers} has no toggle at all, because no command prints it.
+ * token here that stays literal there. The chip hints say which.
+ * {channel.viewers} and {followers}/{subs} have no toggle at all — no
+ * command prints any of the three, so mounting follows the dependency alone.
  *
  * {channel.viewers} takes no payload — it counts this channel — so a span
  * carrying one stays literal, and so does an empty payload on the other
@@ -681,8 +693,18 @@ const CHANNEL_SAMPLES: Samples = {
   uptime: UPTIME_SAMPLE,
   title: TITLE_SAMPLE,
   game: GAME_SAMPLE,
-  'channel.viewers': CHANNEL_VIEWERS_SAMPLE
+  'channel.viewers': CHANNEL_VIEWERS_SAMPLE,
+  // {followers}/{subs}: like channel.viewers, no toggle gates either one and
+  // neither takes a payload (see NO_PAYLOAD_CHANNEL_NAMES) — they always
+  // count THIS channel, never a named one.
+  followers: FOLLOWERS_SAMPLE,
+  subs: SUBS_SAMPLE
 };
+
+/** Names on this scope that count only the calling channel and take no
+ * payload at all, the way {channel.viewers} always did — {uptime}/{title}/
+ * {game} are the three that accept one to name another channel. */
+const NO_PAYLOAD_CHANNEL_NAMES = new Set(['channel.viewers', 'followers', 'subs']);
 
 const CHANNEL_SCOPE: SampleScope = {
   owns: (name) => name in CHANNEL_SAMPLES,
@@ -691,14 +713,15 @@ const CHANNEL_SCOPE: SampleScope = {
 
 function channelSample(token: Token): string | null {
   if (token.payload === null) return CHANNEL_SAMPLES[token.name];
-  if (token.name === 'channel.viewers') return null;
+  if (NO_PAYLOAD_CHANNEL_NAMES.has(token.name)) return null;
   // A payload is the named-channel form; an empty one names nobody, exactly
   // as an empty login does in the engine.
   return token.payload.trim().replace(/^@/, '') === '' ? null : CHANNEL_SAMPLES[token.name];
 }
 
 /** scope.Modules' mirror: the tokens whose value is a single fact an opt-in
- * module already holds — {quote} / {quote:n}, {time}, and the {song} family.
+ * module already holds — {quote} / {quote:n}, {time} / {time:<place>}, and
+ * the {song} family.
  *
  * Mounted unconditionally here, as COUNTER_SCOPE and VIEWER_SCOPE already
  * are, and for the same reason: the surfaces that rehearse a template pass a
@@ -706,12 +729,17 @@ function channelSample(token: Token): string | null {
  * the engine mounts each family only while its module is on (Quotes, Local
  * Time, Song Requests), and an off module leaves its spans literal — so a
  * broadcaster with one of them off sees a token here that stays visible
- * there. The guide and the chip hints say so.
+ * there. The guide and the chip hints say so. {time:<place>} is the one
+ * exception: it answers ungated in chat too, so it previews the same
+ * regardless of the Local Time module's state.
  *
  * {quote:n} previews the same stand-in as the bare draw: the preview cannot
  * know quote #7's text, and inventing a second fake quote for it would
  * suggest it could. A payload that is not a positive number, and any payload
- * at all on {time} or a {song…} span, stays literal, matching the Go scope. */
+ * at all on a {song…} span, stays literal, matching the Go scope. {time} is
+ * the one name here where a payload means something (see timeSample): it is
+ * NOT gated by the module the way the bare form is, so it previews the same
+ * on every channel. */
 const MODULE_SAMPLES: Samples = {
   time: TIME_SAMPLE,
   song: `${SONG_TITLE_SAMPLE} by ${SONG_ARTIST_SAMPLE}`,
@@ -726,12 +754,26 @@ const MODULE_SCOPE: SampleScope = {
 
 function moduleSample(token: Token): string | null {
   if (token.name === 'quote') return quoteSample(token);
+  if (token.name === 'time') return timeSample(token);
   return token.payload === null ? MODULE_SAMPLES[token.name] : null;
 }
 
 function quoteSample(token: Token): string | null {
   if (token.payload === null) return QUOTE_SAMPLE;
   return /^\s*[1-9][0-9]*\s*$/.test(token.payload) ? QUOTE_SAMPLE : null;
+}
+
+/** {time}/{time:<place>}: unlike every other name on this scope, the payload
+ * form is NOT gated the same way the bare one is (see scope.Places' decision
+ * record) — it needs no Local Time enrollment, so it previews even where the
+ * bare form's chip hint says the module is off. An empty payload addresses
+ * nobody and stays literal, matching Normalize("") in the Go scope; the
+ * preview cannot know whether a given place resolves, so any other payload
+ * shows the same plausible stand-in, exactly as quoteSample does for a quote
+ * number. */
+function timeSample(token: Token): string | null {
+  if (token.payload === null) return MODULE_SAMPLES.time;
+  return token.payload.trim() === '' ? null : TIME_PLACE_SAMPLE;
 }
 
 /** scope.Store's mirror: {counter:<name>} bumps and renders the counter, and

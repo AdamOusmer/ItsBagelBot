@@ -79,11 +79,11 @@ func ExampleCommandTokenFamilies() {
 	// Output:
 	// message: 14 examples
 	// pure: 8 examples
-	// chatters: 2 examples
+	// chatters: 3 examples
 	// emotes: 4 examples
-	// channel: 4 examples
+	// channel: 6 examples
 	// viewer: 5 examples
-	// modules: 6 examples
+	// modules: 7 examples
 	// uses: 1 examples
 	// store: 4 examples
 	// external: 1 examples

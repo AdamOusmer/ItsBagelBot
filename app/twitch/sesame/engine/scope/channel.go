@@ -37,6 +37,13 @@ const (
 	TitleToken   = "title"
 	GameToken    = "game"
 	ViewersToken = "channel.viewers"
+	// FollowersToken and SubsToken are the two headline audience counts. They
+	// take no payload — unlike Title/Game they never address another
+	// channel, since Twitch only ever answers the calling identity's own
+	// channel for both reads — so a span carrying one is an authoring
+	// mistake and stays literal, the rule {channel.viewers} already follows.
+	FollowersToken = "followers"
+	SubsToken      = "subs"
 )
 
 // MaxChannelLogins bounds how many OTHER channels one response may look up.
@@ -88,6 +95,27 @@ type Streams interface {
 	Stream(ctx context.Context, login string) Stream
 }
 
+// ChannelCountsResult is one channel's headline audience counts, read once
+// per response and shared by both spans. The two halves are independently
+// degradable: Followers rides the bot's moderator-scoped token and Subs the
+// broadcaster's own (channel:read:subscriptions), so a grant can answer one
+// and not the other. *OK false means "cannot say" — a missing scope, never a
+// real zero — and renders the span literal, the same UserFound precedent
+// Stream follows for an unknown channel.
+type ChannelCountsResult struct {
+	Followers   int
+	FollowersOK bool
+	Subs        int
+	SubsOK      bool
+}
+
+// ChannelCounts reads {followers}/{subs}. Unlike Streams it never fails
+// outright: a read that could not be attempted at all is the zero result,
+// which renders both spans literal exactly like the dependency being nil.
+type ChannelCounts interface {
+	Counts(ctx context.Context) ChannelCountsResult
+}
+
 // Channel answers the tokens that describe a CHANNEL rather than a viewer:
 // {uptime}, {title}, {game} and {channel.viewers}.
 //
@@ -119,11 +147,21 @@ type Channel struct {
 	// Now is the clock {uptime} measures against. nil means time.Now; a test
 	// pins it so a humanized span is an assertion rather than a race.
 	Now func() time.Time
+	// Counts is the {followers}/{subs} read. nil means unwired and both
+	// stay literal; unlike Uptime/Title/Game/Viewers there is no per-token
+	// module row behind it — Stream Management has no toggle for either, so
+	// mounting follows the dependency alone, the same rule Viewers follows.
+	Counts ChannelCounts
 }
 
-// Owns claims a name only when the read is wired and that token's own module
-// row is on for this broadcaster.
+// Owns claims a name only when the read is wired and, for the four
+// Streams-backed tokens, that token's own module row is on for this
+// broadcaster. {followers}/{subs} answer from a separate dependency with no
+// module row of its own.
 func (c Channel) Owns(name string) bool {
+	if name == FollowersToken || name == SubsToken {
+		return c.Counts != nil
+	}
 	if c.Streams == nil {
 		return false
 	}
@@ -155,12 +193,21 @@ func (c Channel) Plan(ctx context.Context, wants []Var) (Values, error) {
 	for _, want := range wants {
 		c.planOne(ctx, out, want)
 	}
+	if out.wantCounts && c.Counts != nil {
+		out.counts = c.Counts.Counts(ctx)
+	}
 	return out, nil
 }
 
 // planOne reads one span's channel unless an earlier span already did, or the
-// template has spent its named-login budget.
+// template has spent its named-login budget. {followers}/{subs} take no
+// address at all: a bare span marks the read wanted (batched once in Plan,
+// after this loop), and a payloaded one is left for Get to render literal.
 func (c Channel) planOne(ctx context.Context, out *channelValues, want Var) {
+	if want.Name == FollowersToken || want.Name == SubsToken {
+		out.wantCounts = out.wantCounts || !want.HasPayload
+		return
+	}
 	login, ok := out.loginOf(want)
 	if !ok {
 		return
@@ -211,6 +258,10 @@ type channelValues struct {
 	// named counts the OTHER channels this template has already looked up, to
 	// hold it under MaxChannelLogins.
 	named int
+	// wantCounts and counts back {followers}/{subs}: one read answers both,
+	// planned once after the loop above rather than per span.
+	wantCounts bool
+	counts     ChannelCountsResult
 }
 
 // admit reports whether a not-yet-read channel may be looked up, charging it
@@ -232,11 +283,35 @@ func (v *channelValues) admit(login string) bool {
 // cap), and an empty result is a resolved-empty value that renders the span's
 // fallback — never a literal, which would claim this bot has no such token.
 func (v *channelValues) Get(tok Var) (string, bool) {
+	if tok.Name == FollowersToken || tok.Name == SubsToken {
+		return v.count(tok)
+	}
 	login, ok := v.loginOf(tok)
 	if !ok {
 		return "", false
 	}
 	return v.render(tok.Name, v.streams[login]), true
+}
+
+// count answers {followers}/{subs}. A payload stays literal (see planOne);
+// a half the read could not answer (missing scope, or the whole read never
+// ran) stays literal too — never the pinned "0" viewerCount uses for an
+// offline channel, because "cannot say" and "genuinely zero" are different
+// claims here and only one of them is true.
+func (v *channelValues) count(tok Var) (string, bool) {
+	if tok.HasPayload {
+		return "", false
+	}
+	if tok.Name == FollowersToken {
+		if !v.counts.FollowersOK {
+			return "", false
+		}
+		return strconv.Itoa(v.counts.Followers), true
+	}
+	if !v.counts.SubsOK {
+		return "", false
+	}
+	return strconv.Itoa(v.counts.Subs), true
 }
 
 // render turns one channel's session into one token's text. A channel Twitch

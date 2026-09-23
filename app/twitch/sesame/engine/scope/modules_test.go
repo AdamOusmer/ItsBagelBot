@@ -41,6 +41,21 @@ func (f *fakeClock) LocalTime() string {
 	return f.value
 }
 
+// fakePlaces answers every normalized place it is given "<place> time",
+// except "nowhere" which it cannot resolve, mirroring the real Places
+// contract (empty means unresolvable) without pulling in tzname.
+type fakePlaces struct {
+	calls []string
+}
+
+func (f *fakePlaces) Resolve(place string) string {
+	f.calls = append(f.calls, place)
+	if place == "nowhere" {
+		return ""
+	}
+	return place + " time"
+}
+
 type fakeSongs struct {
 	track Track
 	calls int
@@ -161,4 +176,49 @@ func TestModulesLeavesPayloadedClockAndSongSpansLiteral(t *testing.T) {
 
 	assert.Equal(t, "3:04 PM {time:America/Toronto} Bagel Song {song:2}",
 		render(t, "{time} {time:America/Toronto} {song} {song:2}", chain, nil))
+}
+
+// {time:<place>} answers with no Clock mounted at all: the payload form needs
+// no Local Time enrollment, unlike the bare form beside it.
+func TestModulesResolvesTimePlaceSpansWithoutAHomeClock(t *testing.T) {
+	places := &fakePlaces{}
+	chain := Chain{Modules{Places: places}}
+
+	assert.Equal(t, "it is tokyo time (tokyo time) {time}",
+		render(t, "it is {time:Tokyo} ({time:Tokyo|literal here}) {time}", chain, nil))
+	assert.Equal(t, []string{"tokyo"}, places.calls, "two spans naming one place cost one resolve")
+}
+
+// A place tzname cannot resolve renders empty so the fallback speaks, never
+// the broadcaster's own home time.
+func TestModulesRendersAnUnresolvablePlaceAsEmpty(t *testing.T) {
+	chain := Chain{Modules{Places: &fakePlaces{}}}
+	assert.Equal(t, "", render(t, "{time:nowhere}", chain, nil))
+	assert.Equal(t, "unknown", render(t, "{time:nowhere|unknown}", chain, nil))
+}
+
+// Past MaxTimePlaces a distinct place renders empty rather than literal or a
+// repeat: the template asked for more lookups than fit in one line.
+func TestModulesCapsDistinctTimePlaces(t *testing.T) {
+	places := &fakePlaces{}
+	chain := Chain{Modules{Places: places}}
+
+	got := render(t, "{time:a}|{time:b}|{time:c}|{time:d}", chain, nil)
+	assert.Equal(t, "a time|b time|c time|", got)
+	assert.Len(t, places.calls, MaxTimePlaces)
+}
+
+// An empty payload addresses nothing, so it stays literal even with Places
+// wired — the same rule {title:} follows.
+func TestModulesLeavesAnEmptyTimePlaceSpanLiteral(t *testing.T) {
+	chain := Chain{Modules{Places: &fakePlaces{}}}
+	assert.Equal(t, "{time:}", render(t, "{time:}", chain, nil))
+}
+
+// Without Places wired at all the payload form stays literal, matching every
+// other unwired-dependency token — even though the bare form beside it (via
+// Clock) is mounted and resolves.
+func TestModulesLeavesTimePlaceSpanLiteralWithoutPlaces(t *testing.T) {
+	chain := Chain{Modules{Clock: &fakeClock{value: "3:04 PM"}}}
+	assert.Equal(t, "3:04 PM {time:tokyo}", render(t, "{time} {time:tokyo}", chain, nil))
 }

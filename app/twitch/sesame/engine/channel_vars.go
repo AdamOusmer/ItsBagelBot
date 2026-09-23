@@ -42,20 +42,34 @@ const (
 // channel.
 func (p *Pipeline) channelScope(ctx context.Context, c *module.Context, toks []tmpl.Token) (scope.Channel, bool) {
 	wants := channelWantsOf(toks)
-	if !wants.any() || p.streamInfo == nil {
+	if !wants.any() {
 		return scope.Channel{}, false
 	}
-	mounts := p.gateChannelWants(ctx, c, wants)
+	// gateChannelWants reads up to three projection rows (BuiltinEnabled per
+	// token), and every one of them answers a token that can never resolve
+	// without streamInfo wired (Owns requires Streams != nil regardless of
+	// these flags) — so a deployment without it must not pay for those reads
+	// at all, not just fail to mount Streams afterward.
+	streamsWired := p.streamInfo != nil
+	var mounts channelWants
+	if streamsWired {
+		mounts = p.gateChannelWants(ctx, c, wants)
+	}
 	ch := scope.Channel{
 		Locale:   c.Locale,
-		Streams:  streamLookups{p: p, c: c},
 		OwnLogin: strings.ToLower(c.Env.BroadcasterUserLogin),
 		Uptime:   mounts.uptime,
 		Title:    mounts.title,
 		Game:     mounts.game,
 		Viewers:  mounts.viewers,
 	}
-	return ch, mounts.any()
+	if streamsWired {
+		ch.Streams = streamLookups{p: p, c: c}
+	}
+	if wants.counts && p.channelCounts != nil {
+		ch.Counts = channelCountsLookup{p: p, c: c}
+	}
+	return ch, (ch.Streams != nil && mounts.any()) || ch.Counts != nil
 }
 
 // gateChannelWants narrows what the template named down to what the channel
@@ -82,10 +96,13 @@ func (p *Pipeline) channelTokenOn(ctx context.Context, c *module.Context, name s
 	return p.moduleGate(c, name).BuiltinEnabled(ctx)
 }
 
-// channelWants is which channel tokens one template names.
-type channelWants struct{ uptime, title, game, viewers bool }
+// channelWants is which channel tokens one template names. counts is
+// {followers}/{subs} together: they share one dependency and one read, so
+// there is nothing a per-token split would buy here the way there is for
+// uptime/title/game's separate module rows.
+type channelWants struct{ uptime, title, game, viewers, counts bool }
 
-func (w channelWants) any() bool { return w.uptime || w.title || w.game || w.viewers }
+func (w channelWants) any() bool { return w.uptime || w.title || w.game || w.viewers || w.counts }
 
 func channelWantsOf(toks []tmpl.Token) channelWants {
 	var wants channelWants
@@ -108,6 +125,8 @@ func (w *channelWants) mark(tok tmpl.Token) {
 		w.game = true
 	case scope.ViewersToken:
 		w.viewers = true
+	case scope.FollowersToken, scope.SubsToken:
+		w.counts = true
 	}
 }
 
@@ -147,4 +166,27 @@ func (s streamLookups) address(login string) (broadcasterID, named string) {
 		return s.c.Env.BroadcasterUserID, ""
 	}
 	return "", login
+}
+
+// channelCountsLookup is the engine half of {followers}/{subs}: the grammar
+// (no payload, a missing half stays literal) lives in scope.Channel, the
+// cached outgress read lives here.
+type channelCountsLookup struct {
+	p *Pipeline
+	c *module.Context
+}
+
+// Counts reads both halves through the shared cache. A failed read (the RPC
+// itself, not one degraded half — see ChannelCountsRPC) collapses to the
+// zero result, which renders both spans literal rather than a bot excuse.
+func (l channelCountsLookup) Counts(ctx context.Context) scope.ChannelCountsResult {
+	res, err := l.p.channelCounts.Lookup(ctx, l.c.Env.BroadcasterUserID)
+	if err != nil {
+		l.p.log.Warn("channel token: counts lookup failed", module.BIDField(l.c.BroadcasterID), zap.Error(err))
+		return scope.ChannelCountsResult{}
+	}
+	return scope.ChannelCountsResult{
+		Followers: res.Followers, FollowersOK: res.FollowersOK,
+		Subs: res.Subs, SubsOK: res.SubsOK,
+	}
 }
