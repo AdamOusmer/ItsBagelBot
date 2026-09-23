@@ -60,6 +60,7 @@ go.work.sum
 
 # Compiled binaries (root level)
 /broadcaster-data
+/sesame
 
 # Elixir build artifacts
 _build/
