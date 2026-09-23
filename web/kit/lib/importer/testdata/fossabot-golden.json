@@ -9,6 +9,9 @@
         "permission": "mod",
         "warnings": [
           "command \"bot\" is granted to \"[Imported] Channel Editor\", \"[Imported] Channel Admin\", which have no equivalent here; imported as mod"
+        ],
+        "source_responses": [
+          "@$(user), SeemsGood"
         ]
       },
       {
@@ -23,6 +26,9 @@
         ],
         "warnings": [
           "response uses $(count.increment died 1), which has no equivalent; left as literal text"
+        ],
+        "source_responses": [
+          "another one? PepeLaugh he has now died $(count.increment died 1) times."
         ]
       },
       {
@@ -30,7 +36,10 @@
         "responses": [
           "@{user} Join Myth's Discord server! https://discord.gg/gHzjE7nNrW - Check pins if you're a sub! FeelsOkayMan"
         ],
-        "permission": "everyone"
+        "permission": "everyone",
+        "source_responses": [
+          "@$(user) Join Myth's Discord server! https://discord.gg/gHzjE7nNrW - Check pins if you're a sub! FeelsOkayMan"
+        ]
       },
       {
         "name": "english",
@@ -43,6 +52,9 @@
         ],
         "warnings": [
           "command \"english\" is granted to \"[Imported] Channel Editor\", \"[Imported] Channel Admin\", which have no equivalent here; imported as mod"
+        ],
+        "source_responses": [
+          "Please keep the chat english only! <3"
         ]
       },
       {
@@ -54,6 +66,9 @@
         "warnings": [
           "response uses $(rngphrase Heads, Tails), which has no equivalent; left as literal text",
           "command \"flip\" is granted to \"[Imported] Channel Editor\", \"[Imported] Channel Admin\", which have no equivalent here; imported as mod"
+        ],
+        "source_responses": [
+          "$(rngphrase Heads, Tails)"
         ]
       },
       {
@@ -64,6 +79,9 @@
         "permission": "everyone",
         "warnings": [
           "command \"ghostrole\" is granted to \"242999\", which has no equivalent here; imported as everyone"
+        ],
+        "source_responses": [
+          "@$(user) ask a mod"
         ]
       },
       {
@@ -71,7 +89,10 @@
         "responses": [
           "Myth's Spotify profile - https://open.spotify.com/user/tacticalmyth"
         ],
-        "permission": "everyone"
+        "permission": "everyone",
+        "source_responses": [
+          "Myth's Spotify profile - https://open.spotify.com/user/tacticalmyth"
+        ]
       },
       {
         "name": "newvid",
@@ -81,6 +102,9 @@
         "permission": "everyone",
         "warnings": [
           "response uses $(youtube IMTHETacticalMyth), which has no equivalent; left as literal text"
+        ],
+        "source_responses": [
+          "@$(sender), \tCheckout Myth's Newest YT Video! $(youtube IMTHETacticalMyth)"
         ]
       },
       {
@@ -92,6 +116,9 @@
         "warnings": [
           "response uses $(nuke), which has no equivalent; left as literal text",
           "command \"nuke\" is granted to \"[Imported] Channel Editor\", \"[Imported] Channel Admin\", which have no equivalent here; imported as mod"
+        ],
+        "source_responses": [
+          "$(nuke)"
         ]
       },
       {
@@ -99,7 +126,10 @@
         "responses": [
           "Myth's Spotify profile - https://open.spotify.com/user/tacticalmyth"
         ],
-        "permission": "everyone"
+        "permission": "everyone",
+        "source_responses": [
+          "$(references music)"
+        ]
       },
       {
         "name": "prevention",
@@ -110,6 +140,9 @@
         "online_only": true,
         "warnings": [
           "command \"prevention\" was posted as a .me chat action; the text comes over, the action styling does not"
+        ],
+        "source_responses": [
+          ".me If you or anyone you know are struggling, depressed, feel like giving up or anything else, contact suicide prevention, people are here for you, and here to help. The link to Twitch Suicide Prevention is here --> https://bit.ly/2BllxdH mythL https://prntscr.com/k9vglq"
         ]
       },
       {
@@ -117,14 +150,20 @@
         "responses": [
           "DPI : 1200 / Look sensitivity: 0.25 ADS: 0.6"
         ],
-        "permission": "everyone"
+        "permission": "everyone",
+        "source_responses": [
+          "DPI : 1200 / Look sensitivity: 0.25 ADS: 0.6"
+        ]
       },
       {
         "name": "sensitivity",
         "responses": [
           "DPI : 1200 / Look sensitivity: 0.25 ADS: 0.6"
         ],
-        "permission": "everyone"
+        "permission": "everyone",
+        "source_responses": [
+          "$(references sens)"
+        ]
       },
       {
         "name": "setgame",
@@ -135,6 +174,9 @@
         "warnings": [
           "response uses $(setgame), which has no equivalent; left as literal text",
           "command \"setgame\" is granted to \"[Imported] Channel Editor\", \"[Imported] Channel Admin\", which have no equivalent here; imported as mod"
+        ],
+        "source_responses": [
+          "@$(sender), $(setgame)"
         ]
       },
       {
@@ -145,6 +187,9 @@
         "permission": "everyone",
         "warnings": [
           "response uses $(customapi), which has no equivalent; left as literal text"
+        ],
+        "source_responses": [
+          "@$(user), Current Song: $(customapi)"
         ]
       },
       {
@@ -155,6 +200,9 @@
         "permission": "everyone",
         "warnings": [
           "response uses $(time America/Los_Angeles), which has no equivalent; left as literal text"
+        ],
+        "source_responses": [
+          "@$(sender) Myth's local time is: $(time America/Los_Angeles)"
         ]
       },
       {
@@ -162,7 +210,10 @@
         "responses": [
           "@{user}, {uptime}"
         ],
-        "permission": "everyone"
+        "permission": "everyone",
+        "source_responses": [
+          "@$(user), $(uptime)"
+        ]
       },
       {
         "name": "vintagestory",
@@ -172,6 +223,9 @@
         "permission": "everyone",
         "aliases": [
           "vs"
+        ],
+        "source_responses": [
+          "\"Vintage Story is a sandbox survival and building game inspired by other Voxel games like Minecraft and Terraria, but with a strong focus on realism, crafting depth, and a medieval aesthetic. Developed by Anego Studios, the game emphasizes survival mechanics, detailed crafting systems, and a rich, immersive world.\" https://www.vintagestory.at/"
         ]
       },
       {
@@ -185,6 +239,9 @@
         ],
         "warnings": [
           "alias \"bad alias\" of command \"weather\" cannot be a command name here; dropped"
+        ],
+        "source_responses": [
+          "@$(user), $(customapi https://example.com/weather?q=montreal)"
         ]
       }
     ],
@@ -286,6 +343,11 @@
       "severity": "warn",
       "item_index": 15,
       "code": "command_variable_unmapped"
+    },
+    {
+      "severity": "warn",
+      "item_index": -1,
+      "code": "fetch_def_created"
     },
     {
       "severity": "warn",

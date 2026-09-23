@@ -24,12 +24,34 @@ import {
   canonicalizeResponse,
   clampCooldown,
   fetchDefSlug,
-  intactSpan,
   mapPermission,
   normalizeName
 } from './validate';
+import { emit, POSITIONAL_MAX, positional, slice } from './targets';
+import { createdFetchDefMessage } from './nightbot/fetchdefs';
 import type { ImportDiagnostic, ImportManifest, ManifestCommand, ManifestFetch } from './types';
 import { IMPORT_ITEM_CAPS } from './types';
+
+// IF_TOKEN recognizes $(if …)/${if …}: SE's own two-branch conditional,
+// evaluated as a JavaScript expression over the other variables. It has no
+// mapping (see translateVariables' decision record for why re-parsing JS
+// into {if:cond:then:else} is not attempted), but unlike a token with no
+// counterpart at all, the broadcaster has a real path forward — rewriting
+// the response by hand using {if:cond:then:else} — so the warn names it
+// instead of the generic "no equivalent" phrasing every other unmapped token
+// gets.
+const IF_TOKEN = /^\$[({]if\b/i;
+
+// unmappedClause is the tail of the "response/keyword/timer message uses
+// <tok>, …" warn sentence every one of translateVariables' three callers
+// builds; a single function so the $(if …) special case cannot drift between
+// the command/trigger/timer paths.
+function unmappedClause(tok: string): string {
+  if (IF_TOKEN.test(tok)) {
+    return 'whose branch cannot be translated automatically; rewrite it using {if:cond:then:else} (see the variables guide)';
+  }
+  return 'which has no equivalent; left as literal text';
+}
 
 const warnDiag = (item_index: number, code: string, message: string): ImportDiagnostic => ({
   severity: 'warn',
@@ -687,8 +709,7 @@ function lossyNotes(c: BotCommand, name: string, online: boolean, sink: NoteSink
 
   const { text, warns } = translateVariables(c.reply, sink.fetch);
   for (const tok of warns) {
-    addNote(sink, CODE.variableUnmapped,
-      `response uses ${tok}, which has no equivalent; left as literal text`);
+    addNote(sink, CODE.variableUnmapped, `response uses ${tok}, ${unmappedClause(tok)}`);
   }
   return { text, perm };
 }
@@ -742,6 +763,11 @@ interface CommandDraft {
 function assembleCommand(draft: CommandDraft, sink: NoteSink): ManifestCommand {
   const { c, name, online, perm, lines } = draft;
   const cmd: ManifestCommand = { name, responses: lines };
+  // The untranslated reply exactly as SE has it, same split rule as
+  // responses so the two line up index for index; its own diagnostics are
+  // discarded, already reported once against the translated text.
+  const sourceLines = canonicalizeResponse(c.reply, sink.idx).lines;
+  if (sourceLines.length > 0) cmd.source_responses = sourceLines;
   const aliases = collectAliases(c, name, sink);
   if (aliases.length > 0) cmd.aliases = aliases;
   cmd.permission = perm;
@@ -812,7 +838,7 @@ function appendKeywordTrigger(kw: string, expansion: KeywordExpansion, state: Se
   const { text, warns } = translateVariables(expansion.reply);
   for (const tok of warns) {
     state.diags.push(warnDiag(idx, SE_CODE.triggerVariableUnmapped,
-      `keyword ${q(phrase)} response uses ${tok}, which has no equivalent; left as literal text`));
+      `keyword ${q(phrase)} response uses ${tok}, ${unmappedClause(tok)}`));
   }
 
   const { lines, diags: respDiags } = canonicalizeResponse(text, idx);
@@ -916,7 +942,7 @@ function appendTimer(t: BotTimer, label: string, timers: NonNullable<ImportManif
   const { text, warns } = translateVariables(t.text);
   for (const tok of warns) {
     diags.push(warnDiag(idx, SE_CODE.timerVariableUnmapped,
-      `timer message uses ${tok}, which has no equivalent; left as literal text`));
+      `timer message uses ${tok}, ${unmappedClause(tok)}`));
   }
 
   const { lines, diags: respDiags } = canonicalizeResponse(text, idx);
@@ -989,7 +1015,7 @@ const LEGACY_HEADS = new Set([
 // Decision record: StreamElements variable table:
 //
 //	$(user) / ${user} / $(user.name)   → {user}
-//	$(sender) / $(source) / .name      → {sender}
+//	$(sender) / $(source) / .name      → {user}  (phase 6 bug fix, was {sender})
 //	$(touser) / $(target|.user|.name)  → {touser}
 //	$(1:)                              → {args}      words 1..end
 //	$(N)/$(N:M)/$(:M)/fallbacks        → literal+warn
@@ -1073,6 +1099,7 @@ function isDollar(charCode: number): boolean {
 
 // opensDelimited reports whether i opens a $( or ${ token.
 function opensDelimited(s: string, i: number): boolean {
+  // brace-literal-ok: inbound scan of the SOURCE product's own $(/${/{ delimiter syntax, never a mint of ours
   return isDollar(s.charCodeAt(i)) && i + 1 < s.length && (s[i + 1] === '(' || s[i + 1] === '{');
 }
 
@@ -1093,6 +1120,7 @@ function malformedDelimited(s: string, i: number): boolean {
 // legacyBraceEnd returns the end of a bare-brace token starting at i whose
 // head names a recognized legacy family, else -1.
 function legacyBraceEnd(s: string, i: number): number {
+  // brace-literal-ok: inbound scan of the SOURCE product's own $(/${/{ delimiter syntax, never a mint of ours
   if (s[i] !== '{') return -1;
   const end = matchBrace(s, i);
   if (end !== -1 && legacyCandidate(s.slice(i + 1, end - 1))) return end;
@@ -1140,6 +1168,7 @@ function matchDelimited(s: string, start: number): number {
 function opensFamily(s: string, i: number): 'paren' | 'brace' | '' {
   if (!isDollar(s.charCodeAt(i)) || i + 1 >= s.length) return '';
   if (s[i + 1] === '(') return 'paren';
+  // brace-literal-ok: inbound scan of the SOURCE product's own $(/${/{ delimiter syntax, never a mint of ours
   if (s[i + 1] === '{') return 'brace';
   return '';
 }
@@ -1161,6 +1190,7 @@ function applyDepthStep(ch: string, depth: ScanDepth): void {
     depth.paren++;
     return;
   }
+  // brace-literal-ok: inbound scan of the SOURCE product's own $(/${/{ delimiter syntax, never a mint of ours
   if (ch === '{') {
     depth.brace++;
     return;
@@ -1191,6 +1221,7 @@ function matchBrace(s: string, start: number): number {
 }
 
 function braceStep(ch: string): number {
+  // brace-literal-ok: inbound scan of the SOURCE product's own $(/${/{ delimiter syntax, never a mint of ours
   if (ch === '{') return 1;
   return ch === '}' ? -1 : 0;
 }
@@ -1202,17 +1233,22 @@ function legacyCandidate(inner: string): boolean {
   return LEGACY_HEADS.has(head);
 }
 
+// isIdentChar is true for the [0-9A-Za-z_] alphabet a token body's leading
+// name run reads — ASCII digits and letters only, not any locale's idea of
+// "letter" the way JS's own \w would read it.
+function isIdentChar(c: string): boolean {
+  if (c >= 'A' && c <= 'Z') return true;
+  if (c >= 'a' && c <= 'z') return true;
+  if (c >= '0' && c <= '9') return true;
+  return c === '_';
+}
+
 // splitHead splits a token body into its lower-cased name run ([0-9a-z_]+)
 // and the remainder (dot-subfields, arguments, ranges, pipes).
 function splitHead(body: string): [head: string, rest: string] {
   let i = 0;
-  while (i < body.length) {
-    const c = body[i];
-    if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c === '_') {
-      i++;
-      continue;
-    }
-    break;
+  while (i < body.length && isIdentChar(body[i])) {
+    i++;
   }
   return [asciiLower(body.slice(0, i)), body.slice(i)];
 }
@@ -1340,6 +1376,11 @@ function registerFetchDef(
   }
   if (defs.size >= FETCH_DEF_CAP) return false;
   defs.set(def.name, def);
+  // createdFetchDefMessage is shared with nightbot/fetchdefs.ts (the sink
+  // every OTHER $(…)-syntax source uses) so this file's own parallel sink
+  // still warns with the exact same wording (review, phase 6: creation used
+  // to be silent everywhere).
+  diags.push(warnDiag(-1, 'fetch_def_created', createdFetchDefMessage(def)));
   return true;
 }
 
@@ -1375,7 +1416,7 @@ function urlfetchRule(v: TokenView, fetchSink?: FetchSlotSink): TokenOutcome {
   if (!args) return unmapped(v);
   const key = fetchSink.acquire(args.url, args.jsonPath);
   if (key === null) return unmapped(v);
-  const span = intactSpan('urlfetch', key);
+  const span = emit('urlfetch', key);
   return span === null ? unmapped(v) : ok(span);
 }
 
@@ -1418,9 +1459,10 @@ function isDelimitedToken(tok: string): boolean {
 // FIRST '}' and would read that as "{choose {a}" — reading inbound text with
 // the outbound grammar would silently re-cut somebody else's tokens. What our
 // lexer does own here is the OUTPUT: every span this file mints goes through
-// validate.ts's intactSpan, and the guard test replays the fixtures to prove
-// the translated text lexes back to the tokens it meant.
+// targets.ts's emit (intactSpan underneath), and the guard test replays the
+// fixtures to prove the translated text lexes back to the tokens it meant.
 function isBareBraceToken(tok: string): boolean {
+  // brace-literal-ok: inbound scan of the SOURCE product's own $(/${/{ delimiter syntax, never a mint of ours
   return tok.startsWith('{') && tok.endsWith('}') && tok.length > 2;
 }
 
@@ -1433,14 +1475,19 @@ const ok = (repl: string): TokenOutcome => ({ repl, warned: false });
 const silentLiteral = (v: TokenView): TokenOutcome => ({ repl: v.tok, warned: false });
 const flaggedLiteral = (v: TokenView): TokenOutcome => ({ repl: v.tok, warned: true });
 
-// unmapped keeps an attempted-but-unmappable variable literal. Explicit
-// $(…)/${…} attempts warn (someone clearly wrote a variable) while
-// bare-brace bodies stay silent except the counter families: bare braces are
-// ambiguous punctuation, but rewriting count/getcount would drop their
-// increment side-effect.
+// unmapped keeps an attempted-but-unmappable variable literal, and now warns
+// either way (phase 6): a bare-brace body only ever reaches this function
+// after legacyCandidate has already decided its head names one of
+// LEGACY_HEADS' recognized variable families — ordinary chat punctuation like
+// "{lol}" never becomes a token at all, so a bare brace arriving here is
+// exactly as much an attempted variable as an explicit $(…)/${…} one is, and
+// deserves the same warning. (Previously only count/getcount warned in the
+// bare-brace case; every other recognized-but-unmapped head — a target
+// suffix nothing matches, a malformed $(random…) shape spelled bare — stayed
+// silent, which is the "bare {brace} bodies" silent drop the phase 6 spec
+// named.)
 function unmapped(v: TokenView): TokenOutcome {
-  if (v.delimited) return flaggedLiteral(v);
-  return { repl: v.tok, warned: v.head === 'count' || v.head === 'getcount' };
+  return { repl: v.tok, warned: true };
 }
 
 // BakedIdentitySpec names the identity mapping one table row carries: the
@@ -1458,54 +1505,182 @@ function bakedIdentity(spec: BakedIdentitySpec): (v: TokenView) => TokenOutcome 
 
 // headless separates explicit headless tokens ($(:3)-style ranges and other
 // nameless attempts, which warn) from bare nameless braces (punctuation).
+// $(:M) (phase 6) is the leading-slice form of the positional family below —
+// words 1..M — and is the one member of that family with no head at all
+// (splitHead stops at the leading ':'), so it is handled here rather than in
+// positionalRule.
 function headless(v: TokenView): TokenOutcome {
+  const range = /^:(\d+)$/.exec(v.restRaw);
+  if (range) {
+    // SE's $(:M) counts word 0 — the TRIGGER itself (the command name) — as
+    // part of its range; this bot's {:M} starts counting at the first REAL
+    // argument, with no trigger word in the count at all. The same M
+    // upstream words therefore come out of {:(M-1)}, not {:M}: shifting by
+    // one is what makes "the leading words including the trigger" translate
+    // into "the leading words of the args" without silently including one
+    // extra word or dropping the last one. $(:1) — M=1, the trigger ALONE
+    // with zero real argument words — has nothing to shift onto: {:0} is not
+    // a legal slice (this bot has no token meaning "print nothing"), so it
+    // takes the ordinary unmapped path instead of minting one.
+    const m = Number(range[1]);
+    return m < 2 ? unmapped(v) : okOrUnmapped(slice(undefined, m - 1), v);
+  }
   return v.delimited && v.rest !== '' ? flaggedLiteral(v) : silentLiteral(v);
 }
 
 function touserParam(v: TokenView): TokenOutcome {
-  return v.restRaw === '' ? ok('{touser}') : unmapped(v);
+  return v.restRaw === '' ? ok(emit('touser')!) : unmapped(v);
 }
 
-// argsRange maps $(1:) (words 1..end) to {args}; every other numeric form
-// stays put.
-function argsRange(v: TokenView): TokenOutcome {
-  return v.delimited && v.restRaw === ':' ? ok('{args}') : unmapped(v);
+// okOrUnmapped folds a targets.ts mint (null on an out-of-range/unsafe
+// payload) back into the outcome shape every rule here returns.
+function okOrUnmapped(span: string | null, v: TokenView): TokenOutcome {
+  return span === null ? unmapped(v) : ok(span);
+}
+
+// positionalRule resolves $(N) and its family for one numeric head N
+// (registered below for every N in 1..POSITIONAL_MAX): bare {N}, {N:}
+// (word N to the end), {N:M} (a bounded slice) and {N|fallback}.
+//
+// N=1 with the bare ":" rest is the one case documented BEFORE this family
+// existed ($(1:) → {args}, see the decision record above) and it keeps that
+// exact spelling rather than switching to {1:}: the two mean the same thing
+// (both are "every word from the first one on"), so changing it would be
+// spelling churn on a pinned, unchanged behaviour with no reader-visible
+// difference. Every other N takes the new {N:} slice directly.
+function positionalRule(v: TokenView): TokenOutcome {
+  const n = Number(v.head);
+  if (v.restRaw === '') return okOrUnmapped(positional(n), v);
+  if (v.restRaw === ':') return okOrUnmapped(n === 1 ? emit('args') : slice(n), v);
+  const range = /^:(\d+)$/.exec(v.restRaw);
+  if (range) return okOrUnmapped(slice(n, Number(range[1])), v);
+  const fallback = /^\|(.+)$/.exec(v.restRaw);
+  if (fallback) return okOrUnmapped(positional(n, fallback[1]), v);
+  return unmapped(v);
 }
 
 function getCounterParam(v: TokenView): TokenOutcome {
   const name = firstWord(v.restRaw);
   if (name === '') return unmapped(v);
-  const span = intactSpan('counter', normalizeName(name));
+  const span = emit('counter', normalizeName(name));
   return span === null ? unmapped(v) : ok(span);
 }
 
 function chooseParam(v: TokenView): TokenOutcome {
   if (v.delimited) return unmapped(v);
   // The legacy bare {choose a,b,c} form warns on failure like an explicit
-  // attempt: someone clearly wrote a choice list.
+  // attempt: someone clearly wrote a choice list. The payload is round-tripped
+  // through emit() rather than concatenated: an option carrying '|' or '}'
+  // would otherwise silently become the span's fallback or close it early
+  // (see moobot/tags.ts's choiceKey, which strips those bytes instead —
+  // here the whole list is refused, matching the review's call to reject
+  // '|' in items rather than mangling one of them).
   const items = pickItems(v.restRaw);
-  return items ? ok('{choice:' + items.join(',') + '}') : flaggedLiteral(v);
+  const span = items ? emit('choice', items.join(',')) : null;
+  return span === null ? flaggedLiteral(v) : ok(span);
 }
 
 // TOKEN_RULES resolves a token body by its head name. Adding a variable later
 // is a row here, not a branch in the scanner.
+// userParam extends the old bakedIdentity(user) with .points (phase 6): a
+// per-suffix function rather than a table row, since .points answers a
+// different concept ({points}) than the bare/.name forms ({user}).
+function userParam(v: TokenView): TokenOutcome {
+  if (v.rest === '' || v.rest === '.name') return ok(emit('user')!);
+  if (v.rest === '.points') return ok(emit('points')!);
+  return unmapped(v);
+}
+
+// isChannelIdentityRest is true for every suffix that still means "the
+// channel itself" (bare, .alias, .display_name) rather than one of its
+// counted facts.
+function isChannelIdentityRest(rest: string): boolean {
+  return rest === '' || rest === '.alias' || rest === '.display_name';
+}
+
+// channelParam extends the old bakedIdentity(channel) with .followers/.subs
+// (phase 6), same reason as userParam above.
+function channelParam(v: TokenView): TokenOutcome {
+  if (isChannelIdentityRest(v.rest)) return ok(emit('channel')!);
+  if (v.rest === '.followers') return ok(emit('followers')!);
+  if (v.rest === '.subs') return ok(emit('subs')!);
+  return unmapped(v);
+}
+
+// timeParam maps $(time)/$(time <place>) onto {time}/{time:<place>}: unlike
+// Nightbot's/SLCB's $(time <tz>), which take a per-call timezone this bot's
+// {time} cannot honour (see nightbot/variables.ts's decision record), SE's
+// own table pairs the bare and payload forms the same way {time}/{time:place}
+// already does, so both sides read the same argument the same way.
+function timeParam(v: TokenView): TokenOutcome {
+  const place = v.restRaw.trim();
+  return okOrUnmapped(place === '' ? emit('time') : emit('time', place), v);
+}
+
+// mathParam maps $(math <expr>) onto {math:<expr>} verbatim: both sides
+// evaluate the same small arithmetic grammar (engine/pure.ts mirrors
+// scope.Pure's), so an expression this bot cannot evaluate resolves to ''
+// exactly as it already would upstream — no separate validation is owed here.
+function mathParam(v: TokenView): TokenOutcome {
+  const expr = v.restRaw.trim();
+  return expr === '' ? unmapped(v) : okOrUnmapped(emit('math', expr), v);
+}
+
+// REPEAT_ARGS reads $(repeat <n> <text>)'s count and phrase.
+const REPEAT_ARGS = /^\s+(\d+)\s+(.+)$/s;
+
+function repeatParam(v: TokenView): TokenOutcome {
+  const m = REPEAT_ARGS.exec(v.restRaw);
+  return m ? okOrUnmapped(emit('repeat', `${m[1]}:${m[2]}`), v) : unmapped(v);
+}
+
 const TOKEN_RULES: Record<string, (v: TokenView, fetchSink?: FetchSlotSink) => TokenOutcome> = {
   urlfetch: urlfetchRule,
   '': headless,
-  user: bakedIdentity({ repl: '{user}', suffixes: ['.name'] }),
-  sender: bakedIdentity({ repl: '{sender}', suffixes: ['.name'] }),
-  source: bakedIdentity({ repl: '{sender}', suffixes: ['.name'] }),
+  user: userParam,
+  // sender/source both name the invoking chatter — SE's own older spelling —
+  // so both are the {user} concept. Phase 6 bug fix: this table used to bake
+  // sender/source onto the literal string "{sender}", which is not one of
+  // this bot's heads and would have stayed literal in chat forever; nothing
+  // caught it because the round-trip guard checks spans that come OUT of a
+  // committed golden fixture, and this table's OWN fixtures never happened to
+  // exercise $(sender)/$(source).
+  sender: bakedIdentity({ repl: emit('user')!, suffixes: ['.name'] }),
+  source: bakedIdentity({ repl: emit('user')!, suffixes: ['.name'] }),
   touser: touserParam,
-  target: bakedIdentity({ repl: '{touser}', suffixes: ['.user', '.name'] }),
-  channel: bakedIdentity({ repl: '{channel}', suffixes: ['.alias', '.display_name'] }),
-  '1': argsRange,
+  target: bakedIdentity({ repl: emit('touser')!, suffixes: ['.user', '.name'] }),
+  channel: channelParam,
+  // LEGACY_HEADS names "args" as a recognized bare-{…} shorthand (SE's
+  // community convention, distinct from the $(1:) form the positional family
+  // below maps), but nothing here ever matched the head "args" itself: it
+  // fell through to unmapped(), and unmapped()'s warn only special-cased
+  // count/getcount, so a bare {args} silently rendered its own literal text
+  // forever — recognized by LEGACY_HEADS as a variable, translated by
+  // nothing, warned by nothing. Phase 6 bug fix: the BARE shorthand spells
+  // the same word this bot's own token does, so it maps onto {args} directly.
+  // $(args)/${args} are left alone on purpose — SE's documented table has no
+  // such call (only $(1:) means "the rest of the args"), so an explicit
+  // $()/${} spelling stays on the ordinary unmapped+warn path rather than
+  // inventing a second inbound spelling nothing upstream ever emits.
+  args: (v) => (v.delimited ? unmapped(v) : v.rest === '' ? ok(emit('args')!) : unmapped(v)),
   getcount: getCounterParam,
   // Mutating upstream (increments and returns); our {counter:*} substitution
   // only reads, so the token always stays literal with a warning.
   count: flaggedLiteral,
   random: classifyRandom,
-  choose: chooseParam
+  choose: chooseParam,
+  // pointsname/user.points (phase 6): SE's loyalty balance and currency name.
+  pointsname: (v) => (v.restRaw === '' ? ok(emit('points.name')!) : unmapped(v)),
+  time: timeParam,
+  math: mathParam,
+  repeat: repeatParam
 };
+
+// The positional family (phase 6): $(N), $(N:), $(N:M) and $(N|fallback) for
+// every N in 1..POSITIONAL_MAX. See positionalRule's own comment for what
+// each shape maps onto — one function, registered under every numeric head,
+// rather than 30 near-identical table rows.
+for (let n = 1; n <= POSITIONAL_MAX; n++) TOKEN_RULES[String(n)] = positionalRule;
 
 // Each RANDOM_ROWS entry renders one documented $(random …)/{random …}
 // spelling, or null when its arguments do not parse; classifyRandom walks the
@@ -1515,7 +1690,7 @@ const TOKEN_RULES: Record<string, (v: TokenView, fetchSink?: FetchSlotSink) => T
 type RandomRow = (v: TokenView) => string | null;
 
 const RANDOM_ROWS: RandomRow[] = [
-  (v) => (v.restRaw === '' ? '{random}' : null),
+  (v) => (v.restRaw === '' ? emit('random') : null),
   dotRandomRange,
   dotRandomNumber,
   dotRandomPick,
@@ -1565,8 +1740,11 @@ function plainRandomRange(v: TokenView): string | null {
   return r ? rangeKey(r[0], r[1]) : null;
 }
 
+// pickKey round-trips the same way chooseParam's payload does: an option
+// carrying '|' or '}' refuses the whole list rather than minting a span the
+// lexer would re-cut.
 function pickKey(items: string[] | null): string | null {
-  return items ? '{choice:' + items.join(',') + '}' : null;
+  return items ? emit('choice', items.join(',')) : null;
 }
 
 // pickItems splits a random.pick argument list honoring quotes: items may be
@@ -1657,9 +1835,12 @@ function unwrapQuotes(t: string): string {
   return quoted ? t.slice(1, -1).trim() : t;
 }
 
-// rangeKey formats a parsed random range canonically.
-function rangeKey(x: number, y: number): string {
-  return `{random:${x}-${y}}`;
+// rangeKey formats a parsed random range canonically. x/y are always
+// integers here (parseRange's own contract), which can never carry '|' or
+// '}', but it still mints through emit() rather than a template literal so
+// every span this file produces has exactly one way to come into being.
+function rangeKey(x: number, y: number): string | null {
+  return emit('random', `${x}-${y}`);
 }
 
 // parseRange reads "X-Y" (optionally spaced, signs allowed). The split dash is

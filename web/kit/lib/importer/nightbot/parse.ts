@@ -75,8 +75,8 @@ class State {
 }
 
 // Notes is one item's warning sink: every note reaches the diagnostics stream
-// AND the item's own `warnings`, which the review screen renders inline, so the
-// two can never drift apart by a forgotten push.
+// AND the item's own `warnings`, so the two can never drift apart by a
+// forgotten push.
 class Notes {
   private readonly kept: string[] = [];
 
@@ -177,6 +177,10 @@ function parseCommandRow(row: NbRow, notes: Notes): ManifestCommand | null {
     responses: commandResponses(src, notes),
     permission: commandPermission(src, notes)
   };
+  // canonicalizeResponse's own diagnostics are discarded here: they were
+  // already reported once, against the translated text above.
+  const sourceLines = canonicalizeResponse(src.message, notes.index).lines;
+  if (sourceLines.length > 0) cmd.source_responses = sourceLines;
   if (src.cooldown > 0) cmd.cooldown_seconds = src.cooldown;
   if (notes.list().length > 0) cmd.warnings = notes.list();
   return cmd;

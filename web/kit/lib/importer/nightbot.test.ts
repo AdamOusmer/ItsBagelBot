@@ -6,6 +6,8 @@
 // Nightbot parser ever existed) so these expectations ARE the contract:
 // change one only when the mapping itself is meant to change.
 
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { describe, expect, test } from 'bun:test';
 import {
   detectNightbot,
@@ -19,6 +21,7 @@ import { CODE, isValidFetchDefName, validateManifest } from './validate';
 import type { ImportDiagnostic } from './types';
 
 const bytes = (doc: unknown): Uint8Array => new TextEncoder().encode(JSON.stringify(doc));
+const TESTDATA = join(dirname(import.meta.path), 'testdata');
 
 const codesOf = (diags: ImportDiagnostic[]): string[] => diags.map((d) => d.code);
 
@@ -87,6 +90,7 @@ describe('commands', () => {
     expect(manifest.commands?.[0]).toEqual({
       name: 'hello',
       responses: ['Hi {touser}, welcome to {channel}, {args}'],
+      source_responses: ['Hi $(touser), welcome to $(channel), $(query)'],
       permission: 'everyone',
       cooldown_seconds: 45
     });
@@ -200,6 +204,133 @@ describe('commands', () => {
   });
 });
 
+describe('phase 6: time/countdown/countup/twitch', () => {
+  test('$(time tz) passes the timezone payload through', () => {
+    const { manifest, diagnostics } = parseNightbot(
+      bytes({ commands: [command({ message: 'it is $(time America/New_York) there' })] })
+    );
+    expect(manifest.commands?.[0].responses).toEqual(['it is {time:America/New_York} there']);
+    expect(diagnostics).toEqual([]);
+  });
+
+  test('$(countdown d)/$(countup d) normalize a parseable date', () => {
+    const { manifest, diagnostics } = parseNightbot(
+      bytes({
+        commands: [
+          command({
+            name: '!a',
+            message: 'left: $(countdown Dec 25 2026 12:00:00 AM EST)'
+          }),
+          command({ name: '!b', message: 'since: $(countup 2026-01-01)' })
+        ]
+      })
+    );
+    expect(manifest.commands?.map((c) => c.responses)).toEqual([
+      ['left: {countdown:2026-12-25T05:00:00.000Z}'],
+      ['since: {countup:2026-01-01}']
+    ]);
+    expect(diagnostics).toEqual([]);
+  });
+
+  test('$(countdown d) warns on an unparsable or time-only date', () => {
+    const { manifest, diagnostics } = parseNightbot(
+      bytes({
+        commands: [
+          command({ name: '!a', message: '$(countdown whenever)' }),
+          command({ name: '!b', message: '$(countdown 5:00:00 PM EST)' })
+        ]
+      })
+    );
+    expect(manifest.commands?.map((c) => c.responses)).toEqual([
+      ['$(countdown whenever)'],
+      ['$(countdown 5:00:00 PM EST)']
+    ]);
+    expect(codesOf(diagnostics)).toEqual([CODE.variableUnmapped, CODE.variableUnmapped]);
+  });
+
+  test('$(twitch $(channel) "{{title}}") maps the single field, own channel', () => {
+    const { manifest, diagnostics } = parseNightbot(
+      bytes({ commands: [command({ message: 'now: $(twitch $(channel) "{{title}}")' })] })
+    );
+    expect(manifest.commands?.[0].responses).toEqual(['now: {title}']);
+    expect(diagnostics).toEqual([]);
+  });
+
+  test('$(twitch $(channel) "{{game}}")/{{uptimeLength}}/{{viewers}}/{{followers}}/{{subscriberCount}}', () => {
+    const { manifest, diagnostics } = parseNightbot(
+      bytes({
+        commands: [
+          command({ name: '!g', message: '$(twitch $(channel) "{{game}}")' }),
+          command({ name: '!u', message: '$(twitch $(channel) "{{uptimeLength}}")' }),
+          command({ name: '!v', message: '$(twitch $(channel) "{{viewers}}")' }),
+          command({ name: '!f', message: '$(twitch $(channel) "{{followers}}")' }),
+          command({ name: '!s', message: '$(twitch $(channel) "{{subscriberCount}}")' })
+        ]
+      })
+    );
+    expect(manifest.commands?.map((c) => c.responses)).toEqual([
+      ['{game}'],
+      ['{uptime}'],
+      ['{channel.viewers}'],
+      ['{followers}'],
+      ['{subs}']
+    ]);
+    expect(diagnostics).toEqual([]);
+  });
+
+  test('$(twitch bob "{{title}}") names another channel', () => {
+    const { manifest, diagnostics } = parseNightbot(
+      bytes({
+        commands: [
+          command({ name: '!t', message: '$(twitch bob "{{title}}")' }),
+          command({ name: '!g', message: '$(twitch bob "{{game}}")' }),
+          command({ name: '!u', message: '$(twitch bob "{{uptimeLength}}")' })
+        ]
+      })
+    );
+    expect(manifest.commands?.map((c) => c.responses)).toEqual([
+      ['{title:bob}'],
+      ['{game:bob}'],
+      ['{uptime:bob}']
+    ]);
+    expect(diagnostics).toEqual([]);
+  });
+
+  test('$(twitch bob "{{viewers}}") has no other-channel form and stays unmapped', () => {
+    const { manifest, diagnostics } = parseNightbot(
+      bytes({ commands: [command({ message: '$(twitch bob "{{viewers}}")' })] })
+    );
+    expect(manifest.commands?.[0].responses).toEqual(['{{viewers}}']);
+    expect(codesOf(diagnostics)).toEqual([CODE.variableUnmapped]);
+  });
+
+  test('a mixed format string keeps its text, maps what it can, warns on the rest', () => {
+    const { manifest, diagnostics } = parseNightbot(
+      bytes({
+        commands: [
+          command({
+            message: '$(twitch $(channel) "{{displayName}} is playing {{game}}")'
+          })
+        ]
+      })
+    );
+    expect(manifest.commands?.[0].responses).toEqual(['{{displayName}} is playing {game}']);
+    expect(codesOf(diagnostics)).toEqual([CODE.variableUnmapped]);
+  });
+
+  test('stray braces around a mapped field refuse the whole call rather than mint a broken span', () => {
+    // A literal "{" right before the minted "{game}" would otherwise merge
+    // into ONE span under tmpl.ts's lexer (it closes at the FIRST "}", which
+    // is {game}'s own) — the round-trip guard must catch this even though
+    // {{game}} mapped cleanly on its own.
+    const { manifest, diagnostics } = parseNightbot(
+      bytes({ commands: [command({ message: '$(twitch $(channel) "{oops {{game}}")' })] })
+    );
+    expect(manifest.commands?.[0].responses).toEqual(['$(twitch {channel} "{oops {{game}}")']);
+    expect(codesOf(diagnostics)).toEqual([CODE.variableUnmapped]);
+  });
+});
+
 describe('urlfetch synthesis', () => {
   test('urlfetch and customapi become definitions with legal slugs', () => {
     const { manifest, diagnostics } = parseNightbot(
@@ -221,7 +352,10 @@ describe('urlfetch synthesis', () => {
     ]);
     for (const f of manifest.fetches ?? []) expect(isValidFetchDefName(f.name)).toBe(true);
     expect(validateManifest(manifest).filter((d) => d.severity === 'error')).toEqual([]);
-    expect(diagnostics).toEqual([]);
+    // phase 6: a successful synthesis now warns too, naming the slug and URL,
+    // so the broadcaster knows to review it under Commands → Fetch definitions
+    // instead of finding out only when the def turns out to have no URL.
+    expect(codesOf(diagnostics)).toEqual(['fetch_def_created', 'fetch_def_created']);
   });
 
   test('the same URL twice in one command shares its definition', () => {
@@ -245,7 +379,7 @@ describe('urlfetch synthesis', () => {
       url: 'https://a.example/j',
       source: 'nightbot'
     });
-    expect(codesOf(diagnostics)).toEqual([CODE.variableUnmapped]);
+    expect(codesOf(diagnostics)).toEqual(['fetch_def_created', CODE.variableUnmapped]);
   });
 
   test('a URL built out of another variable is never baked into a definition', () => {
@@ -451,5 +585,53 @@ describe('fetch flow', () => {
         expect(err.message).toContain('decoding response');
       }
     );
+  });
+});
+
+// --- golden ------------------------------------------------------------------
+
+// NIGHTBOT_GOLDEN_ENVELOPE is a small representative command/timer set —
+// simple tokens, positional words, $(count), $(querystring), urlfetch
+// synthesis and an unmappable variable — drawn from the cases already proven
+// above, so emitted-tokens.test.ts's corpus sweep has a Nightbot golden to
+// walk like every other source's (phase 6; no Go implementation ever existed
+// for this source, so unlike moobot/se this golden was never ported, it is
+// authored here).
+const NIGHTBOT_GOLDEN_ENVELOPE = {
+  commands: [
+    command({ name: '!hello', message: 'Hi $(touser), welcome to $(channel), $(query)', coolDown: 45 }),
+    command({ name: '!hug', message: '$(1) hugs $(2), $(30) last', userLevel: 'subscriber' }),
+    command({ name: '!count', message: 'hugged $(count) times' }),
+    command({
+      name: '!weather',
+      message: '$(urlfetch https://api.example.com/w) / $(customapi https://api.example.com/x)'
+    }),
+    command({ name: '!unmapped', message: '$(eval 1+1) $(twitch x)' })
+  ],
+  timers: [{ name: 'promo', message: 'follow $(channel)', interval: 15, lines: 0 }]
+};
+
+describe('golden', () => {
+  test('the representative envelope translates to the committed golden', () => {
+    // testdata/nightbot-golden.json pins the manifest + diagnostic sequence
+    // NIGHTBOT_GOLDEN_ENVELOPE produces. COMMITTED OUTPUT, generated once by
+    // hand and reviewed line by line; nothing in this suite rewrites it.
+    // Regenerating it is a deliberate act, run from web/ and followed by
+    // reading the diff:
+    //
+    //	bun -e 'import {parseNightbot} from "./kit/lib/importer/nightbot";
+    //	  const r=parseNightbot(new TextEncoder().encode(JSON.stringify(ENVELOPE)));
+    //	  await Bun.write("kit/lib/importer/testdata/nightbot-golden.json",
+    //	    JSON.stringify({manifest:r.manifest,diagnostics:r.diagnostics},null,2)+"\n")'
+    //
+    // (ENVELOPE = NIGHTBOT_GOLDEN_ENVELOPE, copied in verbatim — it is not its
+    // own module, matching how this suite defines every other fixture.) A
+    // golden that regenerates itself proves nothing, which is why that
+    // command lives in a comment instead of behind an env var this suite
+    // reads.
+    const { manifest, diagnostics } = parseNightbot(bytes(NIGHTBOT_GOLDEN_ENVELOPE));
+    const golden = JSON.parse(readFileSync(join(TESTDATA, 'nightbot-golden.json'), 'utf8'));
+    expect(manifest).toEqual(golden.manifest);
+    expect(diagnostics).toEqual(golden.diagnostics);
   });
 });

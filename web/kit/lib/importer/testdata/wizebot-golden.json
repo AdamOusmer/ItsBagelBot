@@ -6,7 +6,10 @@
         "responses": [
           "Fiche guide de Acheron : https://zupimages.net/viewer.php?id=24/09/hqhb.jpg"
         ],
-        "permission": "everyone"
+        "permission": "everyone",
+        "source_responses": [
+          "Fiche guide de Acheron : https://zupimages.net/viewer.php?id=24/09/hqhb.jpg"
+        ]
       },
       {
         "name": "alohomora",
@@ -16,6 +19,9 @@
         "permission": "everyone",
         "warnings": [
           "command \"!alohomora\" also played a sound on stream; only its chat text is imported"
+        ],
+        "source_responses": [
+          "serveur : Anomora"
         ]
       },
       {
@@ -26,6 +32,9 @@
         "permission": "everyone",
         "aliases": [
           "bs"
+        ],
+        "source_responses": [
+          "Annonce de prévention sur le backseat"
         ]
       },
       {
@@ -37,6 +46,9 @@
         "warnings": [
           "command \"!dj\" also played a sound on stream; only its chat text is imported",
           "command \"!dj\" was limited to \"User(s)\" upstream, which has no equivalent here; widened to everyone"
+        ],
+        "source_responses": [
+          "Dj petitsbiscuits au platine"
         ]
       },
       {
@@ -44,14 +56,20 @@
         "responses": [
           "Ce qui vient de ce passer est honteux !"
         ],
-        "permission": "vip"
+        "permission": "vip",
+        "source_responses": [
+          "Ce qui vient de ce passer est honteux !"
+        ]
       },
       {
         "name": "nospoil",
         "responses": [
           "⛔️ Merci de ne pas spoil la MSQ de Endwalker, Nawiel profite de la MSQ actuellement en off et toute personne contrevenant à cette règle sera perma-ban. Merci pour votre compréhension"
         ],
-        "permission": "everyone"
+        "permission": "everyone",
+        "source_responses": [
+          "⛔️ Merci de ne pas spoil la MSQ de Endwalker, Nawiel profite de la MSQ actuellement en off et toute personne contrevenant à cette règle sera perma-ban. Merci pour votre compréhension"
+        ]
       },
       {
         "name": "plava",
@@ -61,6 +79,9 @@
         "permission": "everyone",
         "aliases": [
           "plavastation"
+        ],
+        "source_responses": [
+          "Retrouves Plasatation le spécialiste es guide de Youtube & guest star de Square Enix sur sa chaîne Twitch: https://www.twitch.tv/plavastation mais également sur Youtube: https://www.youtube.com/c/PlavaStation"
         ]
       },
       {
@@ -68,7 +89,10 @@
         "responses": [
           "La Liveletter ou en français Lettre Live du Producteur est une émission réalisé par l'équipe qui travail sur Final Fantasy XIV. Cette émission est présenté par Yoshi-P en personne, accompagné de Foxclon et ils y abordent ensemble l'actualité du jeu et ses futurs mise à jour."
         ],
-        "permission": "everyone"
+        "permission": "everyone",
+        "source_responses": [
+          "La Liveletter ou en français Lettre Live du Producteur est une émission réalisé par l'équipe qui travail sur Final Fantasy XIV. Cette émission est présenté par Yoshi-P en personne, accompagné de Foxclon et ils y abordent ensemble l'actualité du jeu et ses futurs mise à jour."
+        ]
       },
       {
         "name": "psg",
@@ -78,6 +102,9 @@
         "permission": "sub",
         "warnings": [
           "command \"!psg\" also played a sound on stream; only its chat text is imported"
+        ],
+        "source_responses": [
+          "ICI C'EST PARIS !"
         ]
       },
       {
@@ -88,6 +115,9 @@
         "permission": "mod",
         "warnings": [
           "command \"!pub\" also played a sound on stream; only its chat text is imported"
+        ],
+        "source_responses": [
+          "La minute pub \"bruit de criquet\""
         ]
       },
       {
@@ -102,17 +132,22 @@
         "warnings": [
           "command \"!zbold\" cost 50 bits upstream; imported commands are free to run",
           "command \"!zbold\" also played a sound on stream; only its chat text is imported"
+        ],
+        "source_responses": [
+          "[b]Bold[/b] hello"
         ]
       },
       {
         "name": "zeta",
         "responses": [
-          "Hey {user}, stream up $(uptime) & counting"
+          "Hey {user}, stream up {uptime} & counting"
         ],
         "permission": "everyone",
         "warnings": [
-          "response uses $(uptime), which has no equivalent here; left as literal text",
           "command \"!zeta\" cost 100 channel currency upstream; imported commands are free to run"
+        ],
+        "source_responses": [
+          "Hey $(nick), stream up $(uptime) & counting"
         ]
       },
       {
@@ -125,6 +160,11 @@
         "permission": "sub",
         "warnings": [
           "command \"!zrandom\" picked one of its 3 lines at random upstream; all of them are posted here"
+        ],
+        "source_responses": [
+          "première ligne",
+          "deuxième ligne",
+          "troisième ligne"
         ]
       }
     ]
@@ -229,11 +269,6 @@
       "severity": "warn",
       "item_index": 10,
       "code": "command_sound_dropped"
-    },
-    {
-      "severity": "warn",
-      "item_index": 11,
-      "code": "command_variable_unmapped"
     },
     {
       "severity": "warn",

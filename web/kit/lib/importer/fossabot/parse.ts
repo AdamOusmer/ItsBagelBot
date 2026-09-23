@@ -117,8 +117,8 @@ function indexResponse(index: Map<string, string>, row: FbCommand): void {
 }
 
 // Notes is one item's warning sink: every note reaches the diagnostics stream
-// AND the item's own `warnings`, which the review screen renders inline, so the
-// two can never drift apart by a forgotten push.
+// AND the item's own `warnings`, so the two can never drift apart by a
+// forgotten push.
 class Notes {
   private readonly kept: string[] = [];
 
@@ -243,6 +243,14 @@ function decorate(cmd: ManifestCommand, row: Row, notes: Notes): ManifestCommand
   // as always-on rather than as never-on.
   if (row.src.enabledOnline && !row.src.enabledOffline) cmd.online_only = true;
   if (notes.list().length > 0) cmd.warnings = notes.list();
+  // The untranslated line exactly as this command's own response was
+  // written (pre-$(references) expansion — the review screen shows what
+  // THIS row said, not what another command's text was inlined into it),
+  // same split rule as responses so the two line up index for index.
+  // canonicalizeResponse's own diagnostics are discarded: already reported
+  // once, against the translated text.
+  const sourceLines = canonicalizeResponse(row.src.response, notes.index).lines;
+  if (sourceLines.length > 0) cmd.source_responses = sourceLines;
   return cmd;
 }
 

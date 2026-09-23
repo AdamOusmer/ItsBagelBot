@@ -100,6 +100,7 @@ describe('commands', () => {
     expect(manifest.commands?.[0]).toEqual({
       name: 'hello',
       responses: ['Hi {touser}, welcome to {channel}: {args}'],
+      source_responses: ['Hi $(touser), welcome to $(channel): $(query)'],
       permission: 'everyone',
       aliases: ['hi']
     });
@@ -141,18 +142,68 @@ describe('commands', () => {
     ]);
   });
 
-  // The two channel facts Fossabot spells as bare variables map straight
-  // across; a category or a viewer count does not, because its documented
-  // variable table has neither and inventing a spelling is how an importer
+  // The channel facts Fossabot spells as bare variables map straight across
+  // (phase 6 added $(game) alongside $(uptime)/$(title), all three documented,
+  // argument-less variables); a viewer count does not, because its documented
+  // variable table has none and inventing a spelling is how an importer
   // silently produces the wrong text.
   test('the bare channel facts map, and only those', () => {
     const { manifest, diagnostics } = parseFossabot(
       feed([command({ response: 'live $(uptime) with $(title) - $(game) $(stream.title)' })])
     );
     expect(manifest.commands?.[0].responses).toEqual([
-      'live {uptime} with {title} - $(game) $(stream.title)'
+      'live {uptime} with {title} - {game} $(stream.title)'
     ]);
-    expect(codesOf(diagnostics)).toEqual([CODE.variableUnmapped, CODE.variableUnmapped]);
+    expect(codesOf(diagnostics)).toEqual([CODE.variableUnmapped]);
+  });
+
+  test('phase 6: followage/accountage/time/user.followers/chatters map', () => {
+    const { manifest, diagnostics } = parseFossabot(
+      feed([
+        command({
+          response:
+            'here $(followage) $(accountage) $(time) $(user.followers) $(chatters.count) $(chatters.random)'
+        })
+      ])
+    );
+    expect(manifest.commands?.[0].responses).toEqual([
+      'here {followage} {accountage} {time} {followers} {chatters} {random.viewer}'
+    ]);
+    expect(diagnostics).toEqual([]);
+  });
+
+  test('phase 6: count.get, randint, math, repeat map; count.increment stays literal', () => {
+    const { manifest, diagnostics } = parseFossabot(
+      feed([
+        command({
+          response:
+            '$(count.get deaths) $(randint 1 100) $(math 2+2) $(repeat 3 go) $(count.increment deaths)'
+        })
+      ])
+    );
+    expect(manifest.commands?.[0].responses).toEqual([
+      '{counter:deaths} {random:1-100} {math:2+2} {repeat:3:go} $(count.increment deaths)'
+    ]);
+    expect(codesOf(diagnostics)).toEqual([CODE.variableUnmapped]);
+  });
+
+  test('phase 6: randint orders reversed bounds and keeps negative ones', () => {
+    const { manifest, diagnostics } = parseFossabot(
+      feed([command({ response: '$(randint 100 1) $(randint -5 -1)' })])
+    );
+    expect(manifest.commands?.[0].responses).toEqual(['{random:1-100} {random:-5--1}']);
+    expect(diagnostics).toEqual([]);
+  });
+
+  test('phase 6: countdown maps a parseable date, warns on an unparseable one', () => {
+    const { manifest, diagnostics } = parseFossabot(
+      feed([command({ response: 'left: $(countdown 2026-12-25)' }), command({ response: 'left: $(countdown whenever)' })])
+    );
+    expect(manifest.commands?.map((c) => c.responses)).toEqual([
+      ['left: {countdown:2026-12-25}'],
+      ['left: $(countdown whenever)']
+    ]);
+    expect(codesOf(diagnostics)).toEqual([CODE.variableUnmapped]);
   });
 
   test('a chat-action prefix is dropped and the text kept', () => {
@@ -323,7 +374,8 @@ describe('urlfetch synthesis', () => {
     ]);
     for (const f of manifest.fetches ?? []) expect(isValidFetchDefName(f.name)).toBe(true);
     expect(validateManifest(manifest).filter((d) => d.severity === 'error')).toEqual([]);
-    expect(diagnostics).toEqual([]);
+    // phase 6: a successful synthesis now warns, naming the slug and URL.
+    expect(codesOf(diagnostics)).toEqual(['fetch_def_created']);
   });
 
   test('two URLs in one command take slot suffixes, the same URL shares one', () => {
@@ -471,5 +523,39 @@ describe('fetch flow', () => {
         expect(err.message).toContain('body exceeds');
       }
     );
+  });
+});
+
+describe('phase 6: $(indexN)/$(fromindexN), the coordinator-verified grammar', () => {
+  test('$(index2) maps to the plain positional word', () => {
+    const { manifest, diagnostics } = parseFossabot(feed([command({ response: 'you said $(index2)' })]));
+    expect(manifest.commands?.[0].responses).toEqual(['you said {2}']);
+    expect(diagnostics).toEqual([]);
+  });
+
+  test('$(index2 everyone) carries the fallback', () => {
+    const { manifest, diagnostics } = parseFossabot(feed([command({ response: 'hi $(index2 everyone)' })]));
+    expect(manifest.commands?.[0].responses).toEqual(['hi {2|everyone}']);
+    expect(diagnostics).toEqual([]);
+  });
+
+  test('$(fromindex2) maps to the rest-from-word-2 slice', () => {
+    const { manifest, diagnostics } = parseFossabot(feed([command({ response: 'rest: $(fromindex2)' })]));
+    expect(manifest.commands?.[0].responses).toEqual(['rest: {2:}']);
+    expect(diagnostics).toEqual([]);
+  });
+
+  test('$(fromindex2 nothing) carries the fallback', () => {
+    const { manifest, diagnostics } = parseFossabot(feed([command({ response: 'rest: $(fromindex2 nothing)' })]));
+    expect(manifest.commands?.[0].responses).toEqual(['rest: {2:|nothing}']);
+    expect(diagnostics).toEqual([]);
+  });
+
+  test('index30 is in range, index31 is past the positional cap and stays literal', () => {
+    const { manifest, diagnostics } = parseFossabot(
+      feed([command({ response: '$(index30) $(index31)' })])
+    );
+    expect(manifest.commands?.[0].responses).toEqual(['{30} $(index31)']);
+    expect(codesOf(diagnostics)).toEqual([CODE.variableUnmapped]);
   });
 });

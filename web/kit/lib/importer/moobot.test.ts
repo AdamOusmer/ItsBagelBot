@@ -24,6 +24,8 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, test } from 'bun:test';
 import { detectMoobot, MoobotExportError, parseMoobot } from './moobot';
+import { translateTags } from './moobot/tags';
+import type { TagContext } from './moobot/tags';
 import type { ImportDiagnostic, ImportManifest } from './types';
 import { findCollisions, isValidFetchDefName } from './validate';
 
@@ -292,4 +294,69 @@ describe('<counter> remapping onto {count}', () => {
     const { diagnostics } = parseMoobot(exportWithCounter('no counters here', 12));
     expect(diagnostics.filter((d) => d.code === 'command_count_remapped')).toHaveLength(0);
   });
+});
+
+// --- phase 6 tag vector table -------------------------------------------------
+// One row per Moobot tag this file's TAG_RENDERERS table maps or explicitly
+// warns on, run directly through translateTags rather than a full export
+// fixture: each row pins exactly what the phase 6 spec named, independent of
+// the golden corpus's own coverage (which happens to exercise some of these,
+// but not all, and not the warn-vs-map distinction on its own).
+describe('phase 6 tag vector table', () => {
+  const ctx = (): TagContext => ({ name: 'x', randomTexts: [], fetchDefs: new Map() });
+
+  interface Case {
+    name: string;
+    input: string;
+    text: string;
+    unmapped?: string[];
+    unrecognized?: string[];
+    positionalFallbackLost?: string[];
+  }
+
+  const cases: Case[] = [
+    { name: 'uptime', input: 'live for <uptime>', text: 'live for {uptime}' },
+    { name: 'twitch.title', input: '<twitch.title>', text: '{title}' },
+    { name: 'twitch.game', input: '<twitch.game>', text: '{game}' },
+    { name: 'twitch.viewers', input: '<twitch.viewers>', text: '{channel.viewers}' },
+    { name: 'twitch.followed', input: '<twitch.followed>', text: '{followage}' },
+    { name: 'twitch.followers', input: '<twitch.followers>', text: '{followers}' },
+    { name: 'twitch.subs.count', input: '<twitch.subs.count>', text: '{subs}' },
+    { name: 'random.userlist', input: '<random.userlist> says hi', text: '{random.viewer} says hi' },
+    { name: 'time', input: 'it is <time>', text: 'it is {time}' },
+    { name: 'args.url', input: '?q=<args.url>', text: '?q={querystring}' },
+    {
+      name: '<1> maps onto {touser}, the closest fallback-carrying token',
+      input: 'hi <1>',
+      text: 'hi {touser}'
+    },
+    {
+      name: '<2>..<5> map onto plain positional words and warn about the lost username fallback',
+      input: '<2> <3> <4> <5>',
+      text: '{2} {3} {4} {5}',
+      positionalFallbackLost: ['2', '3', '4', '5']
+    },
+    {
+      name: 'a catalog tag with no mapping warns as unmapped (known)',
+      input: '<countdown>',
+      text: '<countdown>',
+      unmapped: ['countdown']
+    },
+    {
+      name: 'a non-catalog bracketed word warns as unrecognized (phase 6: used to be silent)',
+      input: 'feeling <sad> today',
+      text: 'feeling <sad> today',
+      unrecognized: ['sad']
+    }
+  ];
+
+  for (const c of cases) {
+    test(c.name, () => {
+      const res = translateTags(c.input, ctx());
+      expect(res.text).toBe(c.text);
+      expect(res.unmapped).toEqual(c.unmapped ?? []);
+      expect(res.unrecognized).toEqual(c.unrecognized ?? []);
+      expect(res.positionalFallbackLost).toEqual(c.positionalFallbackLost ?? []);
+    });
+  }
 });

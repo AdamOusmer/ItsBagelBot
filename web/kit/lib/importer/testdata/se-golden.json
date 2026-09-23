@@ -5,12 +5,15 @@
       "commands": [
         {
           "name": "socials",
+          "responses": [
+            "Follow me on Twitter and Twitch!"
+          ],
+          "source_responses": [
+            "Follow me on Twitter and Twitch!"
+          ],
           "aliases": [
             "tw",
             "twitter"
-          ],
-          "responses": [
-            "Follow me on Twitter and Twitch!"
           ],
           "permission": "everyone",
           "cooldown_seconds": 10,
@@ -21,22 +24,27 @@
         {
           "name": "hug",
           "responses": [
-            "{sender} hugs $(1|everyone) tightly!"
+            "{user} hugs {1|everyone} tightly!"
+          ],
+          "source_responses": [
+            "$(sender) hugs $(1|everyone) tightly!"
           ],
           "permission": "everyone",
           "cooldown_seconds": 5,
           "warnings": [
-            "command \"hug\" replies natively upstream; it posts as a normal chat message here",
-            "response uses $(1|everyone), which has no equivalent; left as literal text"
+            "command \"hug\" replies natively upstream; it posts as a normal chat message here"
           ]
         },
         {
           "name": "death",
-          "aliases": [
-            "rip"
-          ],
           "responses": [
             "{counter:deaths} deaths so far, blame {touser} this time"
+          ],
+          "source_responses": [
+            "$(getcount deaths) deaths so far, blame $(touser) this time"
+          ],
+          "aliases": [
+            "rip"
           ],
           "permission": "mod",
           "cooldown_seconds": 5,
@@ -49,6 +57,9 @@
           "responses": [
             "{user} triggered the hype counter: $(count hype)"
           ],
+          "source_responses": [
+            "$(user) triggered the hype counter: $(count hype)"
+          ],
           "permission": "everyone",
           "cooldown_seconds": 3,
           "warnings": [
@@ -60,6 +71,9 @@
           "responses": [
             "{user}, your secret lurk begins. See you {random} minutes later."
           ],
+          "source_responses": [
+            "$(user), your secret lurk begins. See you $(random) minutes later."
+          ],
           "permission": "vip",
           "cooldown_seconds": 20,
           "warnings": [
@@ -70,11 +84,14 @@
         },
         {
           "name": "so",
-          "aliases": [
-            "shoutout"
-          ],
           "responses": [
             "Check out {touser}, they were last seen playing $(game {touser}) over at https://twitch.tv/{channel}"
+          ],
+          "source_responses": [
+            "Check out $(touser), they were last seen playing $(game $(touser)) over at https://twitch.tv/$(channel.alias)"
+          ],
+          "aliases": [
+            "shoutout"
           ],
           "permission": "mod",
           "cooldown_seconds": 8,
@@ -87,13 +104,19 @@
           "responses": [
             "Rolling between 5 and 10... {random:5-10}! Snack is {choice:pizza,pasta,garlic bread} today."
           ],
+          "source_responses": [
+            "Rolling between 5 and 10... $(random.5-10)! Snack is $(random.pick pizza,pasta,'garlic bread') today."
+          ],
           "permission": "sub",
           "cooldown_seconds": 10
         },
         {
           "name": "gn",
           "responses": [
-            "Sleep well {sender}, the stream is offline."
+            "Sleep well {user}, the stream is offline."
+          ],
+          "source_responses": [
+            "Sleep well $(sender), the stream is offline."
           ],
           "permission": "everyone",
           "cooldown_seconds": 30,
@@ -103,11 +126,14 @@
         },
         {
           "name": "dealwithit",
-          "aliases": [
-            "purge"
-          ],
           "responses": [
             "{touser} has been dealt with by the super mods."
+          ],
+          "source_responses": [
+            "$(touser) has been dealt with by the super mods."
+          ],
+          "aliases": [
+            "purge"
           ],
           "permission": "lead_mod"
         },
@@ -116,12 +142,18 @@
           "responses": [
             "Only the broadcaster ever sees this trigger fire."
           ],
+          "source_responses": [
+            "Only the broadcaster ever sees this trigger fire."
+          ],
           "permission": "broadcaster"
         },
         {
           "name": "lounge",
           "responses": [
             "Regulars-only lounge talk from {user}."
+          ],
+          "source_responses": [
+            "Regulars-only lounge talk from $(user.name)."
           ],
           "permission": "everyone",
           "warnings": [
@@ -133,28 +165,15 @@
           "responses": [
             "The weather outside is $(weather) and uptime is $(uptime)."
           ],
+          "source_responses": [
+            "The weather outside is $(weather) and uptime is $(uptime)."
+          ],
           "permission": "everyone",
           "warnings": [
             "command \"mystatus\" requires accessLevel 777 (unknown level 777), which has no equivalent here; widened to everyone",
             "response uses $(weather), which has no equivalent; left as literal text",
             "response uses $(uptime), which has no equivalent; left as literal text"
           ]
-        }
-      ],
-      "timers": [
-        {
-          "message": "Enjoying the stream? Follow {channel} so you never miss a live!",
-          "interval_seconds": 300,
-          "online_only": true
-        },
-        {
-          "message": "The stream is offline. Sleep well, {sender}.",
-          "interval_seconds": 900
-        },
-        {
-          "message": "Line one starring {user}\nLine two with a $(random.chatter) cameo",
-          "interval_seconds": 1200,
-          "online_only": true
         }
       ],
       "triggers": [
@@ -165,6 +184,22 @@
         {
           "phrase": "poggers",
           "response": "{user} triggered the hype counter: $(count hype)"
+        }
+      ],
+      "timers": [
+        {
+          "message": "Enjoying the stream? Follow {channel} so you never miss a live!",
+          "interval_seconds": 300,
+          "online_only": true
+        },
+        {
+          "message": "The stream is offline. Sleep well, {user}.",
+          "interval_seconds": 900
+        },
+        {
+          "message": "Line one starring {user}\nLine two with a $(random.chatter) cameo",
+          "interval_seconds": 1200,
+          "online_only": true
         }
       ]
     },
@@ -180,12 +215,6 @@
         "item_index": 1,
         "code": "command_type_reply",
         "message": "command \"hug\" replies natively upstream; it posts as a normal chat message here"
-      },
-      {
-        "severity": "warn",
-        "item_index": 1,
-        "code": "command_variable_unmapped",
-        "message": "response uses $(1|everyone), which has no equivalent; left as literal text"
       },
       {
         "severity": "warn",
@@ -306,6 +335,9 @@
           "responses": [
             "{touser} is live right now! Come watch {channel}."
           ],
+          "source_responses": [
+            "{target.user} is live right now! Come watch {channel}."
+          ],
           "permission": "everyone",
           "cooldown_seconds": 5
         },
@@ -314,12 +346,18 @@
           "responses": [
             "{user} checked in. Hug count: {counter:hugs}. Tea or coffee? {choice:tea,coffee}! Random: {random:1-6}/{random}"
           ],
+          "source_responses": [
+            "{user.name} checked in. Hug count: {getcount hugs}. Tea or coffee? {choose tea,coffee}! Random: {random 1-6}/{random}"
+          ],
           "permission": "everyone"
         },
         {
           "name": "hugcounter",
           "responses": [
-            "{count hugs} hugs given so far, and {sender} started it."
+            "{count hugs} hugs given so far, and {user} started it."
+          ],
+          "source_responses": [
+            "{count hugs} hugs given so far, and {sender.name} started it."
           ],
           "permission": "everyone",
           "warnings": [
@@ -329,6 +367,9 @@
         {
           "name": "braceliteral",
           "responses": [
+            "Braces that are just braces stay: {notavariable} and {} too."
+          ],
+          "source_responses": [
             "Braces that are just braces stay: {notavariable} and {} too."
           ],
           "permission": "everyone"
@@ -351,7 +392,7 @@
       }
     ]
   },
-{
+  {
     "file": "urlfetch",
     "manifest": {
       "commands": [
@@ -359,6 +400,9 @@
           "name": "weather",
           "responses": [
             "{urlfetch:se_weather}F and {urlfetch:se_weather_2}"
+          ],
+          "source_responses": [
+            "$(urlfetch https://api.weather.example/v1 data.current.temp_f)F and $(urlfetch https://api.other.example/hum)"
           ],
           "permission": "everyone",
           "cooldown_seconds": 10
@@ -368,12 +412,18 @@
           "responses": [
             "{urlfetch:se_quote}, no wait: {urlfetch:se_quote}"
           ],
+          "source_responses": [
+            "$(urlfetch https://api.q.example/random), no wait: ${urlfetch https://api.q.example/random}"
+          ],
           "permission": "everyone"
         },
         {
           "name": "mixedbag",
           "responses": [
             "bad: $(urlfetch ftp://nope.example) worse: $(urlfetch) braced-ok: {urlfetch:se_mixedbag}"
+          ],
+          "source_responses": [
+            "bad: $(urlfetch ftp://nope.example) worse: $(urlfetch) braced-ok: ${urlfetch https://ok.example/x}"
           ],
           "permission": "everyone",
           "warnings": [
@@ -386,11 +436,17 @@
           "responses": [
             "{urlfetch:se_clash}"
           ],
+          "source_responses": [
+            "$(urlfetch https://first.example/a)"
+          ],
           "permission": "everyone"
         },
         {
           "name": "clash",
           "responses": [
+            "$(urlfetch https://second.example/b)"
+          ],
+          "source_responses": [
             "$(urlfetch https://second.example/b)"
           ],
           "permission": "everyone",
@@ -448,6 +504,18 @@
     "diags": [
       {
         "severity": "warn",
+        "item_index": -1,
+        "code": "fetch_def_created",
+        "message": "created fetch definition \"se_weather\" for https://api.weather.example/v1; review it under Commands → Fetch definitions"
+      },
+      {
+        "severity": "warn",
+        "item_index": -1,
+        "code": "fetch_def_created",
+        "message": "created fetch definition \"se_weather_2\" for https://api.other.example/hum; review it under Commands → Fetch definitions"
+      },
+      {
+        "severity": "warn",
         "item_index": 0,
         "code": "trigger_variable_unmapped",
         "message": "keyword \"wtag\" response uses $(urlfetch https://api.weather.example/v1 data.current.temp_f), which has no equivalent; left as literal text"
@@ -460,6 +528,18 @@
       },
       {
         "severity": "warn",
+        "item_index": -1,
+        "code": "fetch_def_created",
+        "message": "created fetch definition \"se_quote\" for https://api.q.example/random; review it under Commands → Fetch definitions"
+      },
+      {
+        "severity": "warn",
+        "item_index": -1,
+        "code": "fetch_def_created",
+        "message": "created fetch definition \"se_mixedbag\" for https://ok.example/x; review it under Commands → Fetch definitions"
+      },
+      {
+        "severity": "warn",
         "item_index": 2,
         "code": "command_variable_unmapped",
         "message": "response uses $(urlfetch ftp://nope.example), which has no equivalent; left as literal text"
@@ -469,6 +549,12 @@
         "item_index": 2,
         "code": "command_variable_unmapped",
         "message": "response uses $(urlfetch), which has no equivalent; left as literal text"
+      },
+      {
+        "severity": "warn",
+        "item_index": -1,
+        "code": "fetch_def_created",
+        "message": "created fetch definition \"se_clash\" for https://first.example/a; review it under Commands → Fetch definitions"
       },
       {
         "severity": "warn",

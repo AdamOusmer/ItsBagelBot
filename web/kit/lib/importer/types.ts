@@ -53,6 +53,14 @@ export interface ManifestCommand {
   name: string;
   aliases?: string[];
   responses?: string[];
+  // The untranslated response lines exactly as the source product wrote
+  // them, split the same way responses is (canonicalizeResponse's line
+  // rules) so the two arrays line up index for index. Set by every parser
+  // (phase 6) so the review screen can show a broadcaster their own words
+  // above what this bot will say instead — a translated {touser} means
+  // nothing to someone who never wrote {target}. Never sent anywhere past
+  // the review screen: commit only reads responses.
+  source_responses?: string[];
   permission?: Perm;
   cooldown_seconds?: number;
   online_only?: boolean;

@@ -321,7 +321,9 @@ const MAX_FETCH_SLUG_SUFFIX = 5;
 // carries no urlfetch-shaped tag (the streaming website shows resolved text),
 // so v1 of that source synthesizes no definitions. The prefix is claimed now
 // so the 32-byte budget above is sized for it the day one appears.
-export type FetchSlugSource = 'se' | 'moobot' | 'nightbot' | 'fossabot' | 'wizebot';
+// 'slcb' (StreamLabs Chatbot / streamlabs-desktop) is used: $readapi(URL)
+// synthesizes a definition the same way (phase 6).
+export type FetchSlugSource = 'se' | 'moobot' | 'nightbot' | 'fossabot' | 'wizebot' | 'slcb';
 
 // fetchDefSlug builds one legal definition name from a short source prefix and
 // a command name: `<source>_<slugified command>`.
@@ -615,7 +617,11 @@ export function isRFC3339(s: string): boolean {
 }
 
 // CalendarDay names the date components one RFC3339 timestamp carries.
-interface CalendarDay {
+// Exported so targets.ts's date-normalizer (countdown/countup, phase 6) can
+// validate a calendar date against the SAME rule this file uses, rather than
+// trusting whatever a source's free-form date string claims (Date.parse
+// happily accepts "Feb 30" and silently rolls it into March).
+export interface CalendarDay {
   y: number;
   mo: number;
   d: number;
@@ -623,13 +629,13 @@ interface CalendarDay {
 
 // ClockTime names the time components; s = 60 = leap second, which Go's
 // RFC3339 parse also accepts.
-interface ClockTime {
+export interface ClockTime {
   h: number;
   mi: number;
   s: number;
 }
 
-function validCalendarDay(day: CalendarDay): boolean {
+export function validCalendarDay(day: CalendarDay): boolean {
   if (day.d < 1) return false;
   const days = monthLength(day.y, day.mo);
   if (days === null) return false;
@@ -646,7 +652,7 @@ function isLeapYear(y: number): boolean {
   return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
 }
 
-function validClock(time: ClockTime): boolean {
+export function validClock(time: ClockTime): boolean {
   return time.h <= 23 && time.mi <= 59 && time.s <= 60;
 }
 
