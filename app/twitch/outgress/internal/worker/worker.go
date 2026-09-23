@@ -22,6 +22,7 @@ import (
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/cache"
 	"ItsBagelBot/pkg/ratelimit"
+	valkey "github.com/valkey-io/valkey-go"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
 
@@ -68,15 +69,16 @@ const (
 )
 
 type Worker struct {
-	log      *zap.Logger
-	limiter  ratelimit.Manager
-	registry *channels.Registry
-	twitch   *twitch.Client
-	botID    string
-	owner    string // pod identity for the enroll lock (os.Hostname)
-	conduit  *conduit.Resolver
-	lane     Lane
-	batch    BatchStore
+	trialStore valkey.Client
+	log        *zap.Logger
+	limiter    ratelimit.Manager
+	registry   *channels.Registry
+	twitch     *twitch.Client
+	botID      string
+	owner      string // pod identity for the enroll lock (os.Hostname)
+	conduit    *conduit.Resolver
+	lane       Lane
+	batch      BatchStore
 	// actions is the immutable per-type dispatch registry built once in New
 	// (see buildActions); every lane message resolves through one lock-free
 	// lookup in it.
@@ -135,15 +137,16 @@ type Worker struct {
 
 // Config wires one lane worker's collaborators.
 type Config struct {
-	Log      *zap.Logger
-	Limiter  ratelimit.Manager
-	Registry *channels.Registry
-	Twitch   *twitch.Client
-	BotID    string
-	Owner    string // pod identity for the enroll lock (os.Hostname)
-	Conduit  *conduit.Resolver
-	Lane     Lane
-	Batch    BatchStore
+	TrialStore valkey.Client
+	Log        *zap.Logger
+	Limiter    ratelimit.Manager
+	Registry   *channels.Registry
+	Twitch     *twitch.Client
+	BotID      string
+	Owner      string // pod identity for the enroll lock (os.Hostname)
+	Conduit    *conduit.Resolver
+	Lane       Lane
+	Batch      BatchStore
 	// UserIDs is the shared login->id cache. Wiring builds one via NewUserIDCache
 	// and passes it to every lane worker so they share a single resident copy. A
 	// nil value makes New fall back to a private cache, which keeps a standalone
@@ -164,6 +167,7 @@ func New(cfg Config) *Worker {
 		grants = cfg.Registry
 	}
 	w := &Worker{
+		trialStore: cfg.TrialStore,
 		grants:     grants,
 		log:        cfg.Log,
 		limiter:    cfg.Limiter,

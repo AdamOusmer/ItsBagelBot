@@ -61,6 +61,10 @@ type Envelope struct {
 	Type    string `json:"type"`
 	Lane    string `json:"lane"`
 	EventID string `json:"event_id,omitempty"`
+	// Origin and TrialGeneration are set by trusted ingress admission, never by
+	// the Twitch notification. They remain on queued work after trial removal.
+	Origin          string `json:"origin,omitempty"`
+	TrialGeneration uint64 `json:"trial_generation,omitempty"`
 
 	// Flattened chat fields (only set for channel.chat.message). Both the stable
 	// login and the mutable display name are carried: the login is the identifier
@@ -86,8 +90,9 @@ type Envelope struct {
 	// Raw EventSub event object (set for every non-chat type).
 	Event codec.RawMessage `json:"event,omitempty"`
 
-	MsgID   string `json:"msg_id,omitempty"`
-	ShardID int    `json:"shard_id,omitempty"`
+	MsgID         string `json:"msg_id,omitempty"`
+	ChatMessageID string `json:"chat_message_id,omitempty"`
+	ShardID       int    `json:"shard_id,omitempty"`
 
 	// ReceivedAt is ingress's EventSub notification receipt time (Twitch's
 	// message_timestamp, RFC 3339), published on every lane body (see

@@ -583,12 +583,43 @@ defmodule Ingress.ShardSession do
   end
 
   defp handle_twitch(_which, "notification", payload, meta, state) do
-    Ingress.Dispatcher.dispatch(payload, %{
+    admission = %{
       shard_id: state.shard_id,
       msg_id: meta["message_id"],
       ts: meta["message_timestamp"],
       broadcaster_id: Ingress.Pipeline.broadcaster_id(payload["event"] || %{})
-    })
+    }
+
+    # During registration overlap the normal Conduit transport may see the
+    # same Twitch chat as the trial socket. Shared Valkey admission makes the
+    # first copy win and preserves trial provenance on the normal transport.
+    event = payload["event"] || %{}
+    trial = Ingress.TrialMembership.lookup(admission.broadcaster_id)
+
+    if trial && get_in(payload, ["subscription", "type"]) == "channel.chat.message" do
+      case is_binary(event["message_id"]) && event["message_id"] != "" &&
+             Ingress.Trials.dedup(admission.broadcaster_id, event["message_id"]) do
+        :first ->
+          case Ingress.Trials.increment(admission.broadcaster_id, "received") do
+            {:ok, _} ->
+              Ingress.Dispatcher.dispatch(
+                payload,
+                Map.merge(
+                  admission,
+                  %{origin: :trial, trial_generation: String.to_integer(trial.generation)}
+                )
+              )
+
+            _ ->
+              :ok
+          end
+
+        _ ->
+          :ok
+      end
+    else
+      Ingress.Dispatcher.dispatch(payload, admission)
+    end
 
     {:noreply, state |> count_notification() |> pet_watchdog()}
   end

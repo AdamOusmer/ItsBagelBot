@@ -58,7 +58,7 @@ import type { EnrollmentWindow } from '$lib/enrollment-window';
       {#await data.fleet}
         <SkeletonStack rows={1} height="260px" />
       {:then p}
-        <FleetPanel snapshot={p.value} ok={p.ok} />
+        <FleetPanel snapshot={p.value} ok={p.ok} trialRead={data.trials} showTrials={data.canViewTrials} />
       {/await}
     {/snippet}
 

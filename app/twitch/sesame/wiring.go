@@ -98,6 +98,7 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 	// endpoint (CustomFetch).
 	gossipRPC := engine.NewGossipRPC(in.nc, cfg.GossipRPCPrefix)
 	return engine.Deps{
+		TrialStore:  in.vc,
 		Proj:        rt.proj,
 		Live:        rt.live,
 		Greet:       engine.NewValkeyGreetStore(in.vc, cfg.LiveTTL, log),

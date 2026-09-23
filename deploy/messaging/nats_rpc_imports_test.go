@@ -178,6 +178,9 @@ var rpcRequests = map[string][]rpcRequest{
 	},
 	"twitch_ingress_rpc": {
 		{"bagel.rpc.broadcaster.status.get", "app/twitch/ingress broadcaster status lookup"},
+		{"bagel.rpc.internal.users.get", "app/twitch/ingress/lib/ingress/trial_rpc.ex"},
+		{"bagel.rpc.outgress.trial_subscription.create", "app/twitch/ingress/lib/ingress/trial_receiver.ex"},
+		{"bagel.rpc.outgress.trial_subscription.delete", "app/twitch/ingress/lib/ingress/trial_receiver.ex"},
 	},
 	"dashboard_rpc": {
 		{"bagel.rpc.transactions.giveaways.mine", "web/dashboard/src/lib/server/giveaways.ts"},
@@ -225,6 +228,9 @@ var rpcRequests = map[string][]rpcRequest{
 		{"bagel.rpc.loyalty.counter.get", "web/admin"},
 		{"bagel.rpc.outgress.channel.get", "web/admin"},
 		{"twitch.ingress.admin.shards.get", "web/admin"},
+		{"twitch.ingress.admin.trials.list", "web/admin/src/lib/server/services.ts"},
+		{"twitch.ingress.admin.trials.add", "web/admin/src/lib/server/services.ts"},
+		{"twitch.ingress.admin.trials.remove", "web/admin/src/lib/server/services.ts"},
 		{"bagel.rpc.health.users", "web/admin health page"},
 		{"bagel.rpc.health.projector", "web/admin health page"},
 		{"bagel.rpc.health.sesame", "web/admin health page"},

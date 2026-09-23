@@ -38,6 +38,9 @@ func (p *Pipeline) dispatchCommand(ctx context.Context, c *module.Context, views
 	if !ok {
 		return nil
 	}
+	if c.Env.Origin == "trial" && !trialReadOnlyCommand(name) {
+		return nil
+	}
 	// Recorded for the post-stage observer hook (see engine/observe.go). The
 	// name is a view into the pooled payload; the hook clones before it hands
 	// the event to anything that outlives Process.
@@ -50,7 +53,24 @@ func (p *Pipeline) dispatchCommand(ctx context.Context, c *module.Context, views
 		// commands so an opt-in module's trigger (e.g. !daily) never reserves the
 		// name on channels that did not enable it.
 	}
+	if c.Env.Origin == "trial" {
+		return nil // a stale custom command can never become a trial write path
+	}
 	return p.runCustom(ctx, c, name, args, emit)
+}
+
+// Only these baked commands have read-only bodies: they compute a response or
+// an outgress intent, and none calls a channel-owned write service directly.
+// The emitted intent retains trial origin and is blocked by outgress.
+func trialReadOnlyCommand(name string) bool {
+	switch name {
+	case "ping", "source", "itsbagelbot", "clip", "followage", "accountage", "uptime",
+		"bagels", "fed", "bagelcount", "bagelboard", "feedboard", "bagellb",
+		"title", "settitle", "game", "setgame", "tags", "settags", "commercial", "ad", "marker":
+		return true
+	default:
+		return false
+	}
 }
 
 // runBaked gates and runs a command a module owns. Every output the command
@@ -352,6 +372,9 @@ func (p *Pipeline) gate(ctx context.Context, c *module.Context, r gateRule) (boo
 	}
 	if ok, err := p.liveOK(ctx, c, r.liveOnly); !ok {
 		return false, err
+	}
+	if c.Env.Origin == "trial" {
+		return true, nil // no cooldown claim or other channel-owned write
 	}
 	return p.cooldownOK(ctx, c.BroadcasterID, r.name, r.cooldown)
 }

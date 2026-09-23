@@ -126,15 +126,38 @@ defmodule Ingress.Application do
       Ingress.Squash.Pool,
       Ingress.Dispatcher.Supervisor,
       Ingress.Twitch.AppToken,
+      Ingress.TrialMembership,
+      Ingress.TrialReceiver,
       consumer_child(
         :invalidation_consumer,
         Ingress.CacheInvalidator,
         Config.invalidation_subject()
       ),
+      Supervisor.child_spec(
+        {Gnat.ConsumerSupervisor,
+         %{
+           connection_name: :gnat_bus,
+           module: Ingress.TrialUserChanged,
+           subscription_topics: [%{topic: "data.users.changed"}]
+         }},
+        id: :trial_user_changed_consumer
+      ),
       # Request-reply endpoint for the admin tool.
       rpc_consumer_child(:admin_consumer, Ingress.AdminRpc, AdminConfig.admin_subject(),
         queue_group: @admin_queue
       ),
+      rpc_consumer_child(
+        :trial_list_consumer,
+        Ingress.TrialListRpc,
+        "twitch.ingress.admin.trials.list", queue_group: @admin_queue),
+      rpc_consumer_child(
+        :trial_add_consumer,
+        Ingress.TrialAddRpc,
+        "twitch.ingress.admin.trials.add", queue_group: @admin_queue),
+      rpc_consumer_child(
+        :trial_remove_consumer,
+        Ingress.TrialRemoveRpc,
+        "twitch.ingress.admin.trials.remove", queue_group: @admin_queue),
       # Manual shard scaling: {"count": N}.
       rpc_consumer_child(:scale_consumer, Ingress.ScaleRpc, AdminConfig.scale_subject(),
         queue_group: @admin_queue

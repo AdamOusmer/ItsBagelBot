@@ -103,10 +103,18 @@ func bagelGreet(d engine.Deps) module.EventHandler {
 			return nil
 		}
 
-		first, err := d.Greet.FirstGreet(ctx, c.BroadcasterID, c.Env.ChatterUserID)
-		if err != nil {
-			log.Warn("core: greet check failed", c.BID(), zap.Error(err))
-			return nil
+		// A trial runs the same special-user/live branch but never claims a
+		// channel-owned greeting. Its emitted bagels carry trial provenance and
+		// are discarded at outgress. Repeated trial lines can therefore each
+		// propose a greeting without changing the real channel's first-greet
+		// state if the broadcaster later registers.
+		first := true
+		if c.Env.Origin != "trial" {
+			first, err = d.Greet.FirstGreet(ctx, c.BroadcasterID, c.Env.ChatterUserID)
+			if err != nil {
+				log.Warn("core: greet check failed", c.BID(), zap.Error(err))
+				return nil
+			}
 		}
 		if !first {
 			return nil

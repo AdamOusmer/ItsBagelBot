@@ -260,9 +260,23 @@ defmodule Ingress.Pipeline do
       text: text,
       badges: event["badges"],
       msg_id: meta.msg_id,
+      event_id: meta.msg_id,
+      chat_message_id: event["message_id"],
       shard_id: meta.shard_id,
-      ts: meta.ts
+      ts: meta.ts,
+      received_at: meta.ts
     }
+
+    message =
+      case Map.get(meta, :origin) do
+        :trial ->
+          message
+          |> Map.put(:origin, "trial")
+          |> Map.put(:trial_generation, Map.fetch!(meta, :trial_generation))
+
+        _ ->
+          message
+      end
 
     case emote_spans(event) do
       [] -> {:publish, subject, message}

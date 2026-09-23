@@ -48,6 +48,7 @@ export const ROLE_FOR = {
   'users.impersonate': 'admin',
   'users.restart': 'admin',
   'shards.scale': 'admin',
+  'trials.manage': 'admin',
   'lanes.mutate': 'admin',
   'notifications.send': 'admin',
   'giveaways.manage': 'admin',

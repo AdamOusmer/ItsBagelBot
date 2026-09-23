@@ -22,6 +22,7 @@ import (
 	"ItsBagelBot/pkg/codec"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
+	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
 )
 
@@ -76,10 +77,11 @@ type Config struct {
 // line that emits nothing: the envelope and the module Context are pooled, and
 // the emit sink only builds an outgress message when a handler actually emits.
 type Pipeline struct {
-	log      *zap.Logger
-	pub      bus.Publisher
-	proj     projection.Reader
-	registry *Registry
+	trialStore valkey.Client
+	log        *zap.Logger
+	pub        bus.Publisher
+	proj       projection.Reader
+	registry   *Registry
 
 	live     IsLiveChecker
 	cooldown CooldownStore
@@ -170,6 +172,7 @@ type Pipeline struct {
 // store, publisher and logger from d, so main constructs those once.
 func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 	p := &Pipeline{
+		trialStore:        d.TrialStore,
 		log:               d.Log,
 		pub:               d.Pub,
 		proj:              d.Proj,
@@ -260,7 +263,12 @@ func (p *Pipeline) Process(msg *bus.Message) error {
 	// and the same line splits them per channel for the public board. An
 	// envelope whose broadcaster id will not parse still counts fleet-wide.
 	broadcasterID, ok := env.BroadcasterID()
-	p.stats.count(broadcasterID, env.Type == chatType)
+	if env.Origin == "trial" {
+		p.stats.count(0, env.Type == chatType)
+		p.countTrial(ctx, env.BroadcasterUserID, "decoded")
+	} else {
+		p.stats.count(broadcasterID, env.Type == chatType)
+	}
 	if !p.eligible(env) {
 		traceResult(ctx, "filtered")
 		return nil
@@ -271,6 +279,9 @@ func (p *Pipeline) Process(msg *bus.Message) error {
 		return nil
 	}
 	traceEvent(ctx, env.Type, env.Lane, broadcasterID)
+	if env.Origin == "trial" {
+		return p.processTrial(ctx, env, broadcasterID)
+	}
 
 	p.feedChatGate(ctx, env, broadcasterID)
 
@@ -345,6 +356,48 @@ func (p *Pipeline) feedChatGate(ctx context.Context, env *lane.Envelope, broadca
 // so it uses the zero-copy codec: the envelope's strings stay views into the
 // lane payload rather than copies. The payload is owned for the whole
 // synchronous handler, which outlives every stage that reads the envelope.
+// processTrial evaluates eligible read-only handlers and emits durable trial
+// provenance for outgress to refuse. It never touches channel-owned gates.
+func (p *Pipeline) processTrial(ctx context.Context, env *lane.Envelope, broadcasterID uint64) error {
+	started := time.Now()
+	defer func() {
+		p.countTrial(ctx, env.BroadcasterUserID, "latency_samples")
+		p.addTrial(ctx, env.BroadcasterUserID, "latency_total_ms", time.Since(started).Milliseconds())
+	}()
+	views, err := p.tracedModuleViews(ctx, env.Type, broadcasterID)
+	if err != nil {
+		p.countTrial(ctx, env.BroadcasterUserID, "failed")
+		p.countTrial(ctx, env.BroadcasterUserID, "retried")
+		return err
+	}
+	mctx := p.leaseContext(env, broadcasterID)
+	defer PutContext(mctx)
+	emission := emitState{subject: p.laneSubject(mctx.Regress), env: env}
+	emit := p.newEmit(ctx, env.BroadcasterUserID, &emission)
+	p.runTracedStages(ctx, mctx, views, emit, &emission)
+	p.flushLegacyOutput(ctx, &emission)
+	if emission.err != nil {
+		p.countTrial(ctx, env.BroadcasterUserID, "failed")
+		p.countTrial(ctx, env.BroadcasterUserID, "retried")
+	} else {
+		p.countTrial(ctx, env.BroadcasterUserID, "processed")
+	}
+	return emission.err
+}
+
+func (p *Pipeline) countTrial(ctx context.Context, id, field string) { p.addTrial(ctx, id, field, 1) }
+
+func (p *Pipeline) addTrial(ctx context.Context, id, field string, amount int64) {
+	if p.trialStore == nil || id == "" {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+	defer cancel()
+	if err := p.trialStore.Do(ctx, p.trialStore.B().Hincrby().Key("trial:channel:"+id).Field(field).Increment(amount).Build()).Error(); err != nil {
+		p.log.Warn("trial count unavailable", zap.String("broadcaster_id", id), zap.String("field", field), zap.Error(err))
+	}
+}
+
 func decodeEnvelope(ctx context.Context, payload []byte, env *lane.Envelope) error {
 	segment := startStage(ctx, "sesame.decode")
 	err := codec.FastUnmarshal(payload, env)
@@ -492,7 +545,7 @@ func (p *Pipeline) newEmit(ctx context.Context, partition string, state *emitSta
 		}
 		state.ordinal++
 		replayID := state.replayID()
-		if err := p.publishOutput(ctx, state.subject, replayID, o); err != nil {
+		if err := p.publishOutput(ctx, state.subject, replayID, state.env, o); err != nil {
 			state.err = err
 			return
 		}
@@ -521,8 +574,11 @@ func (p *Pipeline) runStages(ctx context.Context, mctx *module.Context, views ma
 	// The two gates are event-type-disjoint (moderateChat acts on chat lines,
 	// the refund gate on redemptions), so one consumed flag covers both without
 	// changing either type's behavior.
-	consumed := p.moderateChat(ctx, mctx, views, emit)
-	consumed = p.refundSpecialRedemption(mctx, emit) || consumed
+	consumed := false
+	if env.Origin != "trial" {
+		consumed = p.moderateChat(ctx, mctx, views, emit)
+		consumed = p.refundSpecialRedemption(mctx, emit) || consumed
+	}
 	if soloChat && !consumed {
 		p.dispatch(ctx, mctx, views, emit)
 	}
@@ -569,9 +625,17 @@ func (p *Pipeline) floorSuppressed(o *module.Output) bool {
 
 // publishOutput translates one Output to the outgress wire contract and
 // publishes it on the lane subject.
-func (p *Pipeline) publishOutput(ctx context.Context, subject, replayID string, o *module.Output) error {
+func (p *Pipeline) publishOutput(ctx context.Context, subject, replayID string, env *lane.Envelope, o *module.Output) error {
 	encodeSegment := startStage(ctx, "sesame.output.encode")
-	body, err := buildOutgress(o)
+	output, err := buildOutgressMessage(o)
+	if err != nil {
+		endStage(encodeSegment, "error")
+		return err
+	}
+	if env != nil && env.Origin == "trial" {
+		markTrialOutput(&output, env.TrialGeneration)
+	}
+	body, err := codec.Marshal(&output)
 	if err != nil {
 		endStage(encodeSegment, "error")
 		return err
@@ -581,6 +645,24 @@ func (p *Pipeline) publishOutput(ctx context.Context, subject, replayID string, 
 		return bus.PublishRaw(ctx, p.pub, subject, body)
 	}
 	return bus.PublishConfirmed(ctx, p.pub, bus.Publication{Subject: subject, ID: replayID, Payload: body})
+}
+
+func markTrialOutput(output *outgress.Message, generation uint64) {
+	output.Origin = "trial"
+	output.TrialGeneration = generation
+	if output.Type != outgress.TypeBatch {
+		return
+	}
+	var batch outgress.Batch
+	if err := codec.Unmarshal(output.Payload, &batch); err != nil {
+		return
+	}
+	for i := range batch.Items {
+		markTrialOutput(&batch.Items[i], generation)
+	}
+	if body, err := codec.Marshal(&batch); err == nil {
+		output.Payload = body
+	}
 }
 
 // outputReplayBase turns the EventSub identity into a stable fleet message
@@ -819,6 +901,9 @@ func enabledByDefault(mv projection.ModuleView, ok bool, mctx *module.Context) b
 
 // enabledOptIn gates a KindOptIn module: it runs only when its row enables it.
 func enabledOptIn(mv projection.ModuleView, ok bool, mctx *module.Context) bool {
+	if mctx.Env.Origin == "trial" {
+		return false
+	}
 	if !ok || !mv.IsEnabled {
 		return false
 	}

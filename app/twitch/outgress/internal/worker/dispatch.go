@@ -28,6 +28,18 @@ func (w *Worker) Process(msg *bus.Message) error {
 		return nil
 	}
 	annotateTxn(ctx, &payload)
+	// The origin survives queueing and trial removal. Reject before a batch can
+	// acquire its lease or dispatch any child.
+	if payload.Origin == "trial" {
+		w.countTrialBlocked(ctx, payload.BroadcasterID)
+		return nil
+	}
+	if blocked, err := w.trialBlocked(ctx, payload.BroadcasterID); err != nil || blocked {
+		if blocked {
+			w.countTrialBlocked(ctx, payload.BroadcasterID)
+		}
+		return err
+	}
 
 	if err := w.checkPaused(ctx); err != nil {
 		return err
@@ -50,6 +62,16 @@ func (w *Worker) Process(msg *bus.Message) error {
 // each child; ordinary jobs call it once. Everything before Run is in-process,
 // so the only wait a message pays after this point is its own Twitch call.
 func (w *Worker) processPayload(ctx context.Context, payload *outgress.Message) error {
+	if payload.Origin == "trial" {
+		w.countTrialBlocked(ctx, payload.BroadcasterID)
+		return nil
+	}
+	if blocked, err := w.trialBlocked(ctx, payload.BroadcasterID); err != nil || blocked {
+		if blocked {
+			w.countTrialBlocked(ctx, payload.BroadcasterID)
+		}
+		return err
+	}
 	act, ok := w.actions.Lookup(payload.Type)
 	if !ok {
 		w.log.Error("dropping message with unknown type", zap.String("type", payload.Type))
@@ -63,6 +85,27 @@ func (w *Worker) processPayload(ctx context.Context, payload *outgress.Message) 
 		return nil
 	}
 	return act.Run(ctx, payload)
+}
+
+// trialBlocked is the secondary stop switch. A Valkey read error refuses
+// output until the trial membership can be checked again.
+func (w *Worker) trialBlocked(ctx context.Context, id string) (bool, error) {
+	if w.trialStore == nil || id == "" {
+		return false, nil
+	}
+	result := w.trialStore.Do(ctx, w.trialStore.B().Sismember().Key("trial:desired").Member(id).Build())
+	blocked, err := result.AsBool()
+	if err != nil {
+		return true, err
+	}
+	return blocked, nil
+}
+
+func (w *Worker) countTrialBlocked(ctx context.Context, id string) {
+	if w.trialStore == nil || id == "" {
+		return
+	}
+	_ = w.trialStore.Do(ctx, w.trialStore.B().Hincrby().Key("trial:channel:"+id).Field("blocked").Increment(1).Build()).Error()
 }
 
 // sendBotLine routes one synthetic bot line, honoring a leading slash-verb

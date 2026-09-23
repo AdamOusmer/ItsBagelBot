@@ -49,8 +49,10 @@ describe('admin nav registry', () => {
     // rail must not offer them: that mismatch is the bug this registry closes.
     expect(hrefs('moderator')).not.toContain('/staff');
     expect(hrefs('moderator')).not.toContain('/counters');
+    expect(hrefs('moderator')).not.toContain('/trials');
     // /counters demands owner (ROLE_FOR['counters.manage']), not merely admin.
     expect(hrefs('admin')).toContain('/staff');
+    expect(hrefs('admin')).toContain('/trials');
     expect(hrefs('admin')).not.toContain('/counters');
     expect(hrefs('owner')).toContain('/counters');
     expect(hrefs('owner').length).toBe(ADMIN_SECTIONS.length);

@@ -215,6 +215,8 @@ spec:
               value: "250"
             - name: NATS_ADMIN_SUBJECT
               value: twitch.ingress.admin.shards.get
+            - name: NATS_TRIAL_SUBJECT_PREFIX
+              value: twitch.ingress.admin.trials
             - name: NATS_STATUS_SUBJECT_PREFIX
               value: twitch.ingress.status
             - name: NATS_ADMIN_USER_SUBJECT_PREFIX
