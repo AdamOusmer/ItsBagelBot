@@ -4,13 +4,13 @@
 package rpc
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
 
 	"ItsBagelBot/app/twitch/outgress/internal/twitch"
 	"ItsBagelBot/internal/domain/rpc/manage"
+	"ItsBagelBot/pkg/codec"
 
 	"go.uber.org/zap"
 )
@@ -37,12 +37,12 @@ func TestChannelPointsFailWireShape(t *testing.T) {
 
 func requireWire(t *testing.T, reply manage.RewardReply, wire map[string]bool) {
 	t.Helper()
-	raw, err := json.Marshal(reply)
+	raw, err := codec.MarshalToString(reply)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for fragment, want := range wire {
-		if strings.Contains(string(raw), fragment) != want {
+		if strings.Contains(raw, fragment) != want {
 			t.Errorf("reply %s: carries %s = %v, want %v", raw, fragment, !want, want)
 		}
 	}
