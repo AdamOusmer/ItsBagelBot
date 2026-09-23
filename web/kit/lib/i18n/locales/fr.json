@@ -979,6 +979,7 @@
     "toastSaved": "Récompense « {name} » enregistrée.",
     "toastDeleted": "Récompense « {name} » supprimée.",
     "toastSaveFailed": "Impossible d’enregistrer la récompense.",
+    "toastDuplicateTitle": "Une récompense porte déjà ce titre sur votre chaîne. Choisissez-en un autre.",
     "toastDeleteFailed": "Impossible de supprimer la récompense.",
     "toastToggleFailed": "Impossible de mettre à jour la récompense."
   },

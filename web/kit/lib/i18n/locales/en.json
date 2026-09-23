@@ -979,6 +979,7 @@
     "toastSaved": "Reward “{name}” saved.",
     "toastDeleted": "Reward “{name}” deleted.",
     "toastSaveFailed": "Could not save the reward.",
+    "toastDuplicateTitle": "A reward with this title already exists on your channel. Pick another title.",
     "toastDeleteFailed": "Could not delete the reward.",
     "toastToggleFailed": "Could not update the reward."
   },

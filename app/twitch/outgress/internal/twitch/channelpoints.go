@@ -5,6 +5,7 @@ package twitch
 
 import (
 	"ItsBagelBot/pkg/codec"
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -17,6 +18,19 @@ import (
 // retryable: the broadcaster must re-consent. Callers surface it to the
 // dashboard as a reconnect prompt instead of a generic failure.
 var ErrMissingScope = errors.New("broadcaster grant missing channel:manage:redemptions scope")
+
+// ErrDuplicateReward marks a create or update Twitch refused because another
+// reward on the channel already has that title. Titles are unique across every
+// custom reward on the channel, including ones made in the Twitch dashboard or
+// by another bot, which our only_manageable_rewards list never shows. Not
+// retryable: the broadcaster must pick another title.
+var ErrDuplicateReward = errors.New("a reward with this title already exists on the channel")
+
+// duplicateRewardMarker is the tail of Helix's duplicate-title 400. Seen in
+// prod on create (2026-09-23, greenwhaleshark, six retries of the same title)
+// as the message CREATE_CUSTOM_REWARD_DUPLICATE_REWARD. Matching the suffix
+// rather than the full string also covers the update verb's variant.
+var duplicateRewardMarker = []byte("DUPLICATE_REWARD")
 
 // CustomReward is the flat, transport-agnostic view of one Twitch custom
 // channel-points reward. The Helix GET response nests the limit controls under
@@ -244,6 +258,9 @@ func rewardStatusError(res *http.Response, op string) error {
 	body, _ := io.ReadAll(io.LimitReader(res.Body, 2048))
 	if res.StatusCode == http.StatusUnauthorized && isMissingScope(body) {
 		return ErrMissingScope
+	}
+	if res.StatusCode == http.StatusBadRequest && bytes.Contains(body, duplicateRewardMarker) {
+		return ErrDuplicateReward
 	}
 	return &StatusError{Status: res.StatusCode, Op: op, Body: string(body)}
 }

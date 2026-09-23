@@ -17,7 +17,8 @@
 // succeed) and then rewrites the blob, so the two never diverge on a failed
 // call. After a create/enable we also fire an ensure-optional EventSub job so
 // the channel starts receiving redemption events.
-import { rpc } from '@bagel/kit/server/nats';
+import { rpcRefusal, rpcReply } from '@bagel/kit/server/nats';
+import { codeReader } from '@bagel/kit/server/rpc-code';
 import { logger } from '@bagel/kit/server/logger';
 import { type ChannelPointReward, MOD } from '@bagel/kit';
 import { SUB, publishEventSubEnsureOptional } from './services';
@@ -51,14 +52,21 @@ interface RewardReplyWire {
   rewards?: RewardWire[];
   missing_scope?: boolean;
   error?: string;
+  code?: string;
 }
 
-// A rewards write can fail two distinct ways the UI must tell apart: a plain
-// failure (shown as an error toast) and a missing-scope rejection (shown as a
-// reconnect CTA, because the broadcaster's grant predates the redemption scope).
+// A rewards write can fail three ways the UI must tell apart: a plain failure
+// (shown as an error toast), a missing-scope rejection (shown as a reconnect
+// CTA, because the broadcaster's grant predates the redemption scope) and a
+// duplicate title (Twitch keeps titles unique per channel, counting rewards
+// made outside the bot, so the broadcaster must rename rather than retry).
 export type RewardResult =
   | { ok: true; reward?: ChannelPointReward }
-  | { ok: false; missingScope?: boolean; error?: string };
+  | { ok: false; missingScope?: boolean; duplicateTitle?: boolean; error?: string };
+
+type RewardFailure = Extract<RewardResult, { ok: false }>;
+
+const replyCode = codeReader(['conflict'] as const);
 
 export interface RewardsView {
   enabled: boolean;
@@ -140,14 +148,31 @@ async function writeRewards(userId: string, enabled: boolean, rewards: ChannelPo
   await upsertModule(userId, CP_MODULE, enabled, rewards.length ? { rewards } : {});
 }
 
+// rpcReply, not rpc: rpc() throws on any reply carrying `error`, which made the
+// missing_scope branch below dead and turned a duplicate title into the generic
+// "Could not update" line (greenwhaleshark retried one title six times on
+// 2026-09-23 without learning why).
 async function callReward(verb: string, req: Record<string, unknown>): Promise<RewardReplyWire> {
-  return rpc<RewardReplyWire>(`${SUB.outgressRpc}.channelpoints.${verb}`, req, 8000);
+  return rpcReply<RewardReplyWire>(`${SUB.outgressRpc}.channelpoints.${verb}`, req, 8000);
+}
+
+// refusal splits a refused reply. Missing scope and a duplicate title are
+// reasons the broadcaster acts on, so they come back as results the page
+// renders; anything else throws as rpc() would, so moduleAction logs it and
+// answers its generic line.
+function refusal(reply: RewardReplyWire): RewardFailure | null {
+  if (reply.missing_scope) return { ok: false, missingScope: true };
+  if (replyCode(reply) === 'conflict') return { ok: false, duplicateTitle: true };
+  const err = rpcRefusal(reply);
+  if (err) throw err;
+  return null;
 }
 
 export async function createReward(userId: string, draft: ChannelPointReward): Promise<RewardResult> {
   const reply = await callReward('create', { broadcaster_id: userId, reward: toWire(draft) });
-  if (reply.missing_scope) return { ok: false, missingScope: true };
-  if (reply.error || !reply.reward) return { ok: false, error: reply.error ?? 'create failed' };
+  const refused = refusal(reply);
+  if (refused) return refused;
+  if (!reply.reward) return { ok: false, error: 'create failed' };
 
   const created = mergeTwitch(reply.reward, draft);
   const cur = await readRewards(userId);
@@ -163,8 +188,9 @@ export async function createReward(userId: string, draft: ChannelPointReward): P
 export async function updateReward(userId: string, draft: ChannelPointReward): Promise<RewardResult> {
   if (!draft.id) return { ok: false, error: 'missing reward id' };
   const reply = await callReward('update', { broadcaster_id: userId, reward_id: draft.id, reward: toWire(draft) });
-  if (reply.missing_scope) return { ok: false, missingScope: true };
-  if (reply.error || !reply.reward) return { ok: false, error: reply.error ?? 'update failed' };
+  const refused = refusal(reply);
+  if (refused) return refused;
+  if (!reply.reward) return { ok: false, error: 'update failed' };
 
   const updated = mergeTwitch(reply.reward, draft);
   const cur = await readRewards(userId);
@@ -175,9 +201,8 @@ export async function updateReward(userId: string, draft: ChannelPointReward): P
 }
 
 export async function deleteReward(userId: string, rewardId: string): Promise<RewardResult> {
-  const reply = await callReward('delete', { broadcaster_id: userId, reward_id: rewardId });
-  if (reply.missing_scope) return { ok: false, missingScope: true };
-  if (reply.error) return { ok: false, error: reply.error };
+  const refused = refusal(await callReward('delete', { broadcaster_id: userId, reward_id: rewardId }));
+  if (refused) return refused;
 
   const cur = await readRewards(userId);
   await writeRewards(userId, cur.enabled, cur.rewards.filter((r) => r.id !== rewardId));

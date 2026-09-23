@@ -4,7 +4,11 @@
 // Package manage holds the shared wire types for the outgress management RPC surface.
 package manage
 
-import "time"
+import (
+	"time"
+
+	"ItsBagelBot/internal/domain/rpc"
+)
 
 // GrantState is the health of a broadcaster's own stored OAuth grant, which is
 // separate from SubState. Twitch announces a revocation over EventSub, so
@@ -123,8 +127,11 @@ type RewardReply struct {
 	// the broadcaster's stored grant predates channel:manage:redemptions, so they
 	// must re-consent. The dashboard shows a reconnect CTA on this flag rather than
 	// treating it as a generic failure.
-	MissingScope bool   `json:"missing_scope,omitempty"`
-	Error        string `json:"error,omitempty"`
+	MissingScope bool `json:"missing_scope,omitempty"`
+	// A duplicate title answers CodeConflict: Twitch keeps reward titles unique
+	// per channel, counting rewards made outside the bot, so the broadcaster
+	// must pick another title rather than retry.
+	rpc.Refusal
 }
 
 // Chatter is one connected chat user, as Helix Get Chatters reports them.

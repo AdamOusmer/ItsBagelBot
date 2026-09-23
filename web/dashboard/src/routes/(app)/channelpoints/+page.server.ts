@@ -96,11 +96,13 @@ function parseRewardForm(form: FormData): ChannelPointReward | null {
 }
 
 // resultFail maps a store RewardResult failure to a SvelteKit fail(): a
-// missing-scope rejection carries a flag so the page shows the reconnect CTA.
+// missing-scope rejection carries a flag so the page shows the reconnect CTA,
+// and a duplicate title carries one so the page names the cause.
 // Returned from the verb rather than thrown: it is a reason the broadcaster
 // acts on, not a fault, so it must not become moduleAction's generic line.
 function resultFail(r: Extract<RewardResult, { ok: false }>) {
   if (r.missingScope) return fail(403, { ok: false, missingScope: true });
+  if (r.duplicateTitle) return fail(409, { ok: false, duplicateTitle: true });
   return fail(400, { ok: false, error: r.error ?? 'failed' });
 }
 
