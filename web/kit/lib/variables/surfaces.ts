@@ -76,6 +76,13 @@ const MANIFEST_SURFACE_SETS: Record<'custom' | 'timer' | 'triggers', ReadonlySet
   triggers: TRIGGERS_VARIABLE_IDS
 };
 
+/** Whether a Surface is answered from the manifest (forSurface) rather than
+ * from a module reply's own tokens. Keyed off MANIFEST_SURFACE_SETS so a
+ * new manifest-backed surface is one table row, not another `||` arm. */
+function isManifestSurface(surface: VariableSurface): surface is 'custom' | 'timer' | 'triggers' {
+  return typeof surface === 'string' && Object.hasOwn(MANIFEST_SURFACE_SETS, surface);
+}
+
 export function forSurface(surface: 'custom' | 'timer' | 'triggers'): readonly VariableDef[] {
   const set = MANIFEST_SURFACE_SETS[surface];
   return VARIABLES.filter((v) => set.has(v.id));
@@ -120,7 +127,7 @@ function replyTokensFor(target: { module: string; reply: string } | { builtin: s
  * so the test checks the strip the components render rather than a
  * re-implementation of it. */
 export function chipsFor(surface: VariableSurface): readonly VariableChip[] {
-  if (surface === 'custom' || surface === 'timer' || surface === 'triggers') return forSurface(surface).flatMap(chipsOfVariable);
+  if (isManifestSurface(surface)) return forSurface(surface).flatMap(chipsOfVariable);
   const target = typeof surface === 'string' ? REWARD_TARGETS[surface] : surface;
   return replyTokensFor(target).flatMap((tk) => {
     const chip = chipOfReplyToken(tk);
