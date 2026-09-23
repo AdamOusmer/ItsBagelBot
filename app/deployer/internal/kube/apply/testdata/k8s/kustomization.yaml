@@ -1,0 +1,12 @@
+# Copies of deploy/k8s files (2026-09-22) covering every rollout shape the
+# lint and the service grouping have to handle: PriorityClasses, the
+# console-admin surge shape, outgress anti-affinity plus ScaledObject,
+# notifications plus its CronJob, and discord.yaml's three Deployments.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - priorityclasses.yaml
+  - console-admin.yaml
+  - outgress.yaml
+  - notifications.yaml
+  - discord.yaml

@@ -1,0 +1,30 @@
+{
+  "tag": "beta",
+  "version": "v0.2.2-beta",
+  "date": "2026-09-15",
+  "title": {
+    "en": "Premium giveaways, a searchable variables reference, and grant-aware admin status",
+    "fr": "Tirages Premium, une référence des variables consultable, et un statut admin qui suit les prix"
+  },
+  "highlights": {
+    "en": [
+      "Admins can run Premium giveaways. Preview who is eligible, freeze that pool, and draw a cryptographically random set of winners from registered accounts that finished onboarding. VIP, current staff, test, inactive and banned accounts cannot enter. Winning again in a later giveaway is a separate prize.",
+      "Free winners receive their prize months automatically, with a confirmation email that embeds the logo. A winner who already pays through Tebex stays pending until billing protection is verified, so the prize never claims to have paused a charge it has not paused. The dashboard shows the actual fulfillment state.",
+      "Command template variables have a public searchable reference. Filter by family, copy a token, and keep a shareable query, in English and French, from the same catalog the command builder uses.",
+      "CODM profile lookups stay validation-only and honour the provider's rate limits and cooldown, so a lookup cannot mutate an Activision account or stampede the API.",
+      "Login, import, the dashboard and the admin console share the same tags, buttons and compact language switch. Status labels are hairline tags, so paid, free and VIP read as labels rather than pills.",
+      "A covering committed giveaway grant writes premium onto the stored user status so admin overview, listing, stats and Get agree. A free winner with an active prize reads as paid. Tebex identity is not replaced, VIP is never demoted, and already-committed winners are promoted on the next sweep.",
+      "Dashboard and admin keep New Relic APM under bun. Console images strip Node/V8 native addons that bun would otherwise load and abort on, so the JS agent stays up."
+    ],
+    "fr": [
+      "Les administrateurs peuvent lancer des tirages Premium. Prévisualisez les comptes éligibles, figez ce groupe, et tirez un ensemble de gagnants au hasard cryptographique parmi les comptes inscrits qui ont terminé l'intégration. Les comptes VIP, le personnel actuel, les comptes de test, inactifs et bannis ne peuvent pas participer. Gagner à nouveau lors d'un tirage ultérieur reste un prix distinct.",
+      "Les gagnants sans abonnement Tebex reçoivent automatiquement leurs mois de prix, avec un courriel de confirmation qui embarque le logo. Un gagnant qui paie déjà via Tebex reste en attente tant que la protection de facturation n'est pas vérifiée, pour que le prix ne prétende jamais avoir suspendu un prélèvement qu'il n'a pas suspendu. Le tableau de bord affiche l'état réel de la remise.",
+      "Les variables des gabarits de commandes ont une référence publique consultable. Filtrez par famille, copiez un jeton, et conservez une requête partageable, en anglais et en français, à partir du même catalogue que le constructeur de commandes.",
+      "Les recherches de profil CODM restent limitées à la validation et respectent les limites de débit et le temps de pause du fournisseur, pour qu'une recherche ne puisse ni modifier un compte Activision ni saturer l'API.",
+      "La connexion, l'import, le tableau de bord et la console d'administration partagent les mêmes étiquettes, boutons et sélecteur de langue compact. Les libellés d'état sont des étiquettes au trait fin, pour que payant, gratuit et VIP se lisent comme des libellés plutôt que comme des pastilles.",
+      "Une attribution de tirage confirmée qui couvre le compte écrit le premium dans le statut stocké, pour que l'aperçu admin, la liste, les statistiques et Get s'accordent. Un gagnant gratuit avec un prix actif s'affiche comme payant. L'identité Tebex n'est pas remplacée, un VIP n'est jamais rétrogradé, et les gagnants déjà confirmés sont promus au prochain balayage.",
+      "Le tableau de bord et l'admin gardent l'APM New Relic sous bun. Les images des consoles retirent les modules natifs Node/V8 que bun chargerait sinon jusqu'à l'arrêt du processus, pour que l'agent JS reste en service."
+    ]
+  },
+  "github": "https://github.com/AdamOusmer/ItsBagelBot/releases/tag/v0.2.2-beta"
+}

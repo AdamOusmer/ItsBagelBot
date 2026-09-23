@@ -1,0 +1,30 @@
+{
+  "tag": "beta",
+  "version": "v0.2.1-beta",
+  "date": "2026-09-15",
+  "title": {
+    "en": "CODM profiles, reliable loyalty awards, and a faster shared dashboard",
+    "fr": "Profils CODM, fidélité plus fiable et tableau de bord partagé plus rapide"
+  },
+  "highlights": {
+    "en": [
+      "CODM Global profiles arrive in chat with !codm, !codmprofile and !codmrank. Look up a UID or exact nickname for level, Multiplayer rank, rating, country and short ID, or link your own account in the dashboard. Replies preserve the name you supplied instead of exposing streamer-mode nicknames. Avatar, KD, match history and Battle Royale stats are not included.",
+      "Loyalty awards and watchtime are hardened against duplicate flushes, restarts and lifecycle changes. Reserved counters stay protected, and loyalty settings and commands handle account and channel state more consistently.",
+      "Outgoing chat coordination moves to durable NATS state so Valkey outages no longer lose rate leases, pause state or batch checkpoints. Unknown coordination state fails closed; other Valkey-backed features still require their store.",
+      "Message publishing preserves flush barriers and recovers safely, while stuck lane fetches surface explicit failures. The admin hub feed now uses mutual TLS.",
+      "The dashboard, admin console, docs and site share more UI primitives, status dots, notifications, pickers and browser helpers. Public navigation and typography are consistent, and reply editors, guides and the command builder use the same chat rehearsal and token examples.",
+      "Dashboard saves surface validation feedback instead of silently failing. Navigation no longer loads the whole module catalog, first render avoids blocking work, and the homepage encryption scene loads on demand.",
+      "Public command lists keep stable source-based keys, rehearsal examples use uptime without requiring a counter, and emote-pyramid validation correctly handles the game state. Deployment pins and console digests have been kept in sync throughout this release."
+    ],
+    "fr": [
+      "Les profils CODM Global arrivent dans le chat avec !codm, !codmprofile et !codmrank. Recherchez un UID ou un pseudo exact pour obtenir le niveau, le rang Multijoueur, la cote, le pays et l'identifiant court, ou liez votre compte dans le tableau de bord. Les réponses conservent le nom fourni au lieu d'afficher le pseudo du mode streamer. Avatar, ratio K/D, historique des parties et statistiques Battle Royale ne sont pas inclus.",
+      "Les récompenses de fidélité et le temps de visionnage résistent mieux aux écritures répétées, aux redémarrages et aux changements de cycle de vie. Les compteurs réservés restent protégés, et les réglages et commandes de fidélité gèrent plus uniformément l'état du compte et de la chaîne.",
+      "La coordination des messages sortants passe à un état NATS durable : les pannes Valkey ne font plus perdre les limites d'envoi, l'état de pause ou les points de reprise des lots. Un état de coordination inconnu bloque l'envoi ; les autres fonctions reposant sur Valkey en ont toujours besoin.",
+      "La publication des messages préserve les barrières de vidage et reprend de façon sûre, tandis que les lectures bloquées des files signalent des erreurs explicites. Le flux central de la console admin utilise désormais TLS mutuel.",
+      "Le tableau de bord, la console admin, la documentation et le site partagent davantage de composants UI, indicateurs d'état, notifications, sélecteurs et outils de navigateur. Navigation publique et typographie sont cohérentes, et les éditeurs de réponses, guides et constructeur de commandes utilisent la même répétition de chat et les mêmes exemples de jetons.",
+      "Les sauvegardes du tableau de bord affichent les erreurs de validation au lieu d'échouer silencieusement. La navigation ne charge plus tout le catalogue des modules, le premier affichage évite les tâches bloquantes, et la scène de chiffrement de l'accueil se charge à la demande.",
+      "Les listes publiques de commandes gardent des clés stables liées à leur source, les exemples utilisent la durée du live sans exiger de compteur, et la validation des pyramides d'emotes gère correctement l'état du jeu. Les versions de déploiement et les empreintes des consoles ont été synchronisées tout au long de cette version."
+    ]
+  },
+  "github": "https://github.com/AdamOusmer/ItsBagelBot/releases/tag/v0.2.1-beta"
+}
