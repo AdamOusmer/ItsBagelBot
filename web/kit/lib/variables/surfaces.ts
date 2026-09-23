@@ -8,6 +8,7 @@
 
 import { VARIABLES } from './variables';
 import { HINT_KEYS } from './hint-keys';
+import { timerOwns } from '../engine/rehearsal';
 import type { VariableDef, VariableForm } from './types';
 
 /** Every Variable id the custom-command surface offers, in VARIABLES order. */
@@ -15,11 +16,24 @@ export const CUSTOM_COMMAND_VARIABLES: readonly string[] = VARIABLES.map((v) => 
 
 const CUSTOM_COMMAND_SET = new Set(CUSTOM_COMMAND_VARIABLES);
 
-/** The Variables one Surface offers, in VARIABLES order. Only 'custom' exists
- * this phase; the union grows as later phases wire in module replies. */
-export function forSurface(surface: 'custom'): readonly VariableDef[] {
-  void surface;
-  return VARIABLES.filter((v) => CUSTOM_COMMAND_SET.has(v.id));
+/** Every Variable a timer's message can resolve, in VARIABLES order —
+ * whichever of a Variable's head or aliases engine/rehearsal.ts's timerOwns
+ * claims. That function is Go's timerChain mirrored on this side (see its
+ * own comment for which scopes a tick mounts and why); parity.test.ts checks
+ * the id set this produces against app/twitch/sesame/engine/scope/testdata/
+ * token_catalog.golden.json's surfaces.timer list, so the two cannot drift. */
+const TIMER_VARIABLES: readonly string[] = VARIABLES.filter(
+  (v) => timerOwns(v.head) || (v.aliases ?? []).some(timerOwns)
+).map((v) => v.id);
+
+const TIMER_SET = new Set(TIMER_VARIABLES);
+
+/** The Variables one Surface offers, in VARIABLES order. 'custom' is every
+ * Variable; 'timer' is the subset a timer's message can resolve — the union
+ * grows further as later phases wire in module replies. */
+export function forSurface(surface: 'custom' | 'timer'): readonly VariableDef[] {
+  const set = surface === 'timer' ? TIMER_SET : CUSTOM_COMMAND_SET;
+  return VARIABLES.filter((v) => set.has(v.id));
 }
 
 /** One dashboard insert chip: the literal text it inserts and the locale key

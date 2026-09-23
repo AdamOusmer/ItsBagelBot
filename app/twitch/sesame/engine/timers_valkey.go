@@ -63,6 +63,16 @@ const timerFirstFireJitter = 30 * time.Second
 // goroutine the rearm watcher spawns per message.
 const rearmTimeout = 5 * time.Second
 
+// timerFireTimeout bounds fireBounded's detached call to fire, the same
+// off-the-watcher's-own-goroutine shape rearmTimeout gives RearmIfLive above.
+// A message may name up to maxUrlFetchTokens (8) distinct {urlfetch}
+// payloads, fanned out CONCURRENTLY (fetchUrlValues) rather than serially, so
+// the wall-clock bound this needs is one customFetchRPCTimeout (gossip_rpc.go,
+// 3.5s) plus headroom for the fan-out and the publish — not 8x it. 10s leaves
+// that headroom generous while still short enough that a stuck fire cannot
+// pin a goroutine open indefinitely.
+const timerFireTimeout = 10 * time.Second
+
 // reconcileInterval is how often the reconciler re-arms live broadcasters'
 // timers, recovering any that silently stalled (a missed expiry notification).
 // A stalled timer comes back within one interval, no stream restart needed.
@@ -190,6 +200,34 @@ type ValkeyTimerStore struct {
 	// warning if they somehow break it again, not required for correctness but
 	// cheap to keep the map from outliving the timer that caused the entry.
 	badEndsAtWarned sync.Map
+
+	// blankFireWarned dedups the "expansion left nothing to post" warning the
+	// same way badEndsAtWarned dedups its own (D16: log once, not once per
+	// tick) — a broadcaster whose message is now all conditionals/tokens that
+	// happen to resolve empty would otherwise fill the log every interval.
+	// Keyed by timerRef for the same reason: a bare timer id is not unique
+	// across broadcasters.
+	blankFireWarned sync.Map
+
+	// pipeline expands a firing message's {token} spans through timerChain
+	// (engine/timer_vars.go). It is nil until WirePipeline runs: main builds
+	// this store before the pipeline it posts through even exists (the
+	// expiry/rearm/reconciler watchers this constructor starts need to be
+	// live before the consumer is), so the two are wired together once both
+	// are built. Left nil (unit tests that build the struct literal directly,
+	// or a wiring bug), fire posts the message exactly as saved, same as
+	// before a chain existed for it at all — an unmounted scope leaves its
+	// tokens literal, and a whole unwired chain is the same degrade one level
+	// up.
+	pipeline *Pipeline
+}
+
+// WirePipeline lets a timer's message expand {token} spans, the way a custom
+// command's response does, once the pipeline that owns the scope chain
+// exists. See the pipeline field's own comment for why this is a late setter
+// rather than a constructor argument.
+func (s *ValkeyTimerStore) WirePipeline(p *Pipeline) {
+	s.pipeline = p
 }
 
 // TimersConfig wires a ValkeyTimerStore.
@@ -493,10 +531,11 @@ func (s *ValkeyTimerStore) DisarmAll(ctx context.Context, broadcasterID uint64) 
 		s.delAuxKey(ctx, ref, ref.scheduleKey())
 		s.delAuxKey(ctx, ref, ref.markKey())
 		s.delAuxKey(ctx, ref, ref.firesKey())
-		// Forget the "already warned about a bad end date" mark too, so a
-		// broadcaster who fixes it and later breaks it again on a future
-		// stream gets a fresh warning instead of permanent silence.
+		// Forget the "already warned" marks too, so a broadcaster who fixes
+		// the problem and later reintroduces it on a future stream gets a
+		// fresh warning instead of permanent silence.
 		s.badEndsAtWarned.Delete(ref)
+		s.blankFireWarned.Delete(ref)
 	}
 	// The chat-line counter is per broadcaster, not per timer (D3), so it is
 	// deleted once here rather than inside the loop above. The empty id reads
@@ -688,6 +727,21 @@ func (s *ValkeyTimerStore) resolveArmed(ctx context.Context, ref timerRef) (arme
 // fire, no re-arm, the timer stays down until the next stream), a gate that
 // fails re-arms at the exact interval without firing (D8: a skip must not
 // drift the cadence), and anything else fires before re-arming.
+//
+// fire runs off tick's own goroutine (fireBounded), not inline: tick is
+// called from onExpired, which StartExpiryWatcher's Receive callback runs
+// SYNCHRONOUSLY and serially for every broadcaster's expiry on this replica.
+// Before timerChain existed, fire cost only a Valkey write and a publish —
+// fast enough that inline never showed up. It can now spend real wall time
+// expanding a message that names {urlfetch} (a gossip RPC per distinct
+// payload, up to maxUrlFetchTokens of them) or any other scoped token, and an
+// inline fire there would delay every OTHER broadcaster's expiry — and this
+// timer's own re-arm below — by however long the slowest read takes.
+// recordFire and arm stay inline: neither reads anything fire produces (a
+// fire is "counted" and re-armed the moment tick decides to fire it, not
+// after the message finishes expanding), so moving fire off this goroutine
+// changes nothing about when the fire cap, the watermark or the next
+// schedule key land.
 func (s *ValkeyTimerStore) tick(ctx context.Context, at armedTimer) {
 	if s.hasStopped(ctx, at) {
 		return
@@ -696,9 +750,24 @@ func (s *ValkeyTimerStore) tick(ctx context.Context, at armedTimer) {
 		s.arm(ctx, at)
 		return
 	}
-	s.fire(ctx, at)
+	s.fireBounded(at)
 	s.recordFire(ctx, at)
 	s.arm(ctx, at)
+}
+
+// fireBounded dispatches fire onto its own goroutine under its own bounded,
+// detached context — the shape StartRearmWatcher already gives RearmIfLive
+// (rearmTimeout), for the same reason tick's own comment gives. Detached from
+// ctx (context.Background, not the watcher's) rather than inheriting it: a
+// fire already in flight when the process starts shutting down should still
+// get its own bounded window to finish publishing rather than being cut off
+// the instant the watcher's ctx cancels.
+func (s *ValkeyTimerStore) fireBounded(at armedTimer) {
+	go func() {
+		fctx, cancel := context.WithTimeout(context.Background(), timerFireTimeout)
+		defer cancel()
+		s.fire(fctx, at)
+	}()
 }
 
 // hasStopped resolves at's stop conditions against fresh counters. The fire
@@ -886,13 +955,15 @@ func findTimer(timers []timerDef, id string) (timerDef, bool) {
 // Output: the send-time floor guard first (the config was already floor-
 // checked at save time; this only covers drift), then whichever premium/
 // standard lane the broadcaster's own tier resolves to.
+//
+// A message naming a {token} expands through timerChain first (see
+// engine/timer_vars.go for which scopes a tick mounts and why); one with none
+// costs expandTimerText one Lex and nothing else. The rendered text then
+// fans out through chatLines exactly as a command response does — multi-line,
+// blank-line-dropping, per-line floor recheck — because an expanded span
+// (urlfetch's answer, a quote) is exactly as untrusted as a command's own
+// token values are.
 func (s *ValkeyTimerStore) fire(ctx context.Context, at armedTimer) {
-	// at.def.Message is posted RAW: a timer expands no tokens. There is no
-	// chatter, no command args and no message context behind a timer tick, so
-	// the message half of the palette has nothing to resolve against, and the
-	// scope chain is built per command run rather than per tick. Anyone
-	// adding {token} chips to the timers editor has to wire a chain here
-	// first — pasting the chip list in without one would print braces in chat.
 	if term, hit := moderation.CheckFloor(at.def.Message); hit {
 		s.log.Warn("timers: suppressed message carrying floor content",
 			module.BIDField(at.ref.broadcasterID), zap.String("timer_id", at.ref.id), zap.String("term", term))
@@ -901,11 +972,83 @@ func (s *ValkeyTimerStore) fire(ctx context.Context, at armedTimer) {
 
 	idStr := strconv.FormatUint(at.ref.broadcasterID, 10)
 	subject := s.outgressStandard
-	if u, err := s.proj.User(ctx, at.ref.broadcasterID); err == nil && u.Premium() {
-		subject = s.outgressPremium
+	locale := ""
+	if u, err := s.proj.User(ctx, at.ref.broadcasterID); err == nil {
+		if u.Premium() {
+			subject = s.outgressPremium
+		}
+		locale = u.Locale
 	}
 
-	body, err := buildOutgress(&module.Output{Type: outgress.TypeChat, BroadcasterID: idStr, Text: at.def.Message})
+	text := s.timerText(ctx, at, locale)
+	outputs := s.timerOutputs(idStr, text)
+	if len(outputs) == 0 {
+		// tick's own recordFire/arm already ran (fireBounded's own comment):
+		// the fire slot is spent whether or not anything was left to post, so
+		// this is the difference between a silently quiet timer and a visibly
+		// blank one.
+		s.warnBlankFire(at)
+		return
+	}
+	for _, out := range outputs {
+		s.publishFired(ctx, at, subject, out)
+	}
+}
+
+// warnBlankFire logs once per timer (D16: log once, not once per tick — see
+// warnUnparsableEndsAt's identical shape) that an expansion left nothing to
+// post: every line blank (a template that is now all conditionals or tokens
+// resolving empty) or the floor guard catching an expanded span. DisarmAll
+// forgets the mark so a broadcaster who edits the message and later
+// reintroduces the problem sees a fresh warning instead of permanent silence.
+func (s *ValkeyTimerStore) warnBlankFire(at armedTimer) {
+	if _, already := s.blankFireWarned.LoadOrStore(at.ref, struct{}{}); already {
+		return
+	}
+	s.log.Warn("timers: expansion left nothing to post, fire slot spent",
+		module.BIDField(at.ref.broadcasterID), zap.String("timer_id", at.ref.id))
+}
+
+// timerText answers what fire posts, before line-splitting: the stored
+// message unchanged when no pipeline is wired to expand it, its expansion
+// otherwise.
+// timerText answers what fire posts, before line-splitting. The unwired
+// branch is exactly at.def.Message, untouched, because it never reaches
+// Translate (timerOutputs skips chatLines with no pipeline) and so was never
+// a moderation surface. The wired branch now IS one — timerOutputs' chatLines
+// call runs every published line through Translate, token or not — so every
+// line's own leading slash is defanged first (defangTimerSlashLines, see its
+// own comment for why that is not vars.go's sanitizeVar).
+func (s *ValkeyTimerStore) timerText(ctx context.Context, at armedTimer, locale string) string {
+	if s.pipeline == nil {
+		return at.def.Message
+	}
+	message := defangTimerSlashLines(at.def.Message)
+	run := timerRun{ref: at.ref, locale: locale, firedAt: s.now()}
+	return s.pipeline.expandTimerText(ctx, run, message)
+}
+
+// timerOutputs fans text into the chat messages fire actually publishes.
+// With no pipeline wired this is the single raw message fire has always sent
+// (no split, no slash-verb routing — the exact pre-expansion behavior, kept
+// for the unit tests that build a store literal with no pipeline). Wired, it
+// reuses chatLines — the same multi-line split, blank-line drop and per-line
+// floor recheck a command response gets — so a template typed with more than
+// one line, or an expanded span that smuggled one in, behaves identically
+// either way.
+func (s *ValkeyTimerStore) timerOutputs(idStr, text string) []module.Output {
+	out := &module.Output{Type: outgress.TypeChat, BroadcasterID: idStr, Text: text}
+	if s.pipeline == nil {
+		return []module.Output{*out}
+	}
+	return s.pipeline.chatLines(out)
+}
+
+// publishFired builds and sends one already-prepared chat output, logging and
+// skipping it on a marshal or publish failure — one bad line must not drop
+// its siblings from the same fire.
+func (s *ValkeyTimerStore) publishFired(ctx context.Context, at armedTimer, subject string, out module.Output) {
+	body, err := buildOutgress(&out)
 	if err != nil {
 		s.log.Warn("timers: failed to build outgress message", module.BIDField(at.ref.broadcasterID), zap.String("timer_id", at.ref.id), zap.Error(err))
 		return

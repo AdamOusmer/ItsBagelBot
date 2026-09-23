@@ -120,5 +120,15 @@
         "{urlfetch:weather}"
       ]
     }
-  ]
+  ],
+  "surfaces": {
+    "timer": [
+      "pure",
+      "chatters",
+      "emotes",
+      "channel",
+      "modules",
+      "external"
+    ]
+  }
 }

@@ -140,6 +140,15 @@ func main() {
 	pipe := newPipeline(deps, registry, cfg)
 	defer pipe.Close() // flushes pending use-counter ticks on shutdown
 
+	// timers is built before pipe exists (buildDeps needs the store as a
+	// value before the pipeline can be built from deps); wiring the pipeline
+	// in now is what lets a timer's message expand {token} spans through
+	// timerChain (see the pipeline field on ValkeyTimerStore). Its watchers
+	// start only AFTER this call — see newTimers' and startTimerWatchers'
+	// comments for the data race that ordering the other way around opens.
+	timers.WirePipeline(pipe)
+	startTimerWatchers(w, timers)
+
 	// Overview feed: turns handled command dispatches into activity rows and
 	// the latency median (see activity_observer.go). Each lane below owns its
 	// own Observer.

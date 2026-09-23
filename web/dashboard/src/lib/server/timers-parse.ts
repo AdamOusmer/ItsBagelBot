@@ -11,6 +11,7 @@
 // TimerDef stays a type-only import so it is erased before that barrel is
 // ever touched.
 import { clampInt } from '@bagel/kit/validation';
+import { urlFetchNames, URLFETCH_TOKEN_CAP } from '@bagel/kit/engine/fetch-validate';
 import type { TimerDef } from '@bagel/kit';
 
 // Gate and stop ranges (docs/specs/timer-conditions.md §4, D12). sesame
@@ -40,6 +41,18 @@ export function parseTimer(raw: string): TimerDef | null {
   }
   const message = String(obj.message ?? '').trim();
   if (!message || message.length > 500) return null;
+  // Same cap a command response gets (commands-validate.ts's responseProblem),
+  // enforced here too now that a timer's message can carry {urlfetch:...}:
+  // engine/timer_vars.go's External mount is willing to fan out up to
+  // maxUrlFetchTokens (8, its own backstop against a legacy/corrupt row), but
+  // gossip's custom.fetch budget is only 6/min PER CHANNEL (app/gossip/
+  // internal/providers/custom/custom.go's ChannelRateLimit) and a timer's own
+  // save-time floor is 60s between fires (intervalSeconds below) — one timer
+  // alone spending 8 distinct defs every fire would burn the whole channel
+  // budget and leave nothing for a custom command run the same minute. Three
+  // (URLFETCH_TOKEN_CAP) keeps a timer's own worst case under half that
+  // budget with the same headroom a command gets.
+  if (urlFetchNames(message).length > URLFETCH_TOKEN_CAP) return null;
 
   return {
     id: String(obj.id ?? ''),

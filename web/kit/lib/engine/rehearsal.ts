@@ -114,18 +114,26 @@ export type Token = VarToken;
 /** Resolve one token to its rehearsed value; null leaves it literal. */
 export type Resolve = (token: Token) => string | null;
 
+/** The two fields owns() ever needs to decide ownership: a token's name and
+ * (for the two scopes that split one name between two families — uses' bare
+ * {count} vs. the store's {count:<name>}, scope.Uses/scope.Store's
+ * Owns(v Var) mirror) its payload. A real VarToken satisfies this
+ * structurally, so a caller holding one passes it straight through; a caller
+ * that only has a bare name (ownedByCore, timerOwns, resolvedWithoutSample —
+ * none of which have a lexed token to hand) builds the object with payload
+ * left undefined. One object param, not two loose strings, is what keeps
+ * this file's scope helpers off CodeScene's Primitive Obsession radar. */
+export interface TokenQuery {
+  name: string;
+  payload?: string | null;
+}
+
 /** One family of tokens and the sample values that stand in for it — the
  * preview's mirror of a Go scope.Scope. A scope that does not own a name
  * declines it, and the chain moves on; a name nobody owns stays literal,
  * which is exactly what the bot does with a token no mounted scope answers. */
 export interface SampleScope {
-  // payload is optional and only read by the two scopes that need it to
-  // split one name between two families (uses' bare {count} vs. the store's
-  // {count:<name>}, scope.Uses/scope.Store's Owns(v Var) mirror): every other
-  // scope's owns is a plain (name: string) => boolean and TS accepts it here
-  // unchanged, since a function with fewer parameters satisfies a type that
-  // declares more.
-  owns(name: string, payload?: string | null): boolean;
+  owns(query: TokenQuery): boolean;
   get(token: Token): string | null;
 }
 
@@ -290,7 +298,7 @@ function condSeg(token: VarToken, cond: Cond, resolve: Resolve): Seg {
  * answers it, and a name nobody owns is left literal. */
 function chainResolver(chain: readonly SampleScope[]): Resolve {
   return (token) => {
-    const scope = chain.find((s) => s.owns(token.name, token.payload));
+    const scope = chain.find((s) => s.owns(token));
     return scope ? scope.get(token) : null;
   };
 }
@@ -337,11 +345,32 @@ function commandChain(samples: Samples): SampleScope[] {
  */
 export function ownedByCore(name: string): boolean {
   if (name === COND_TOKEN_NAME) return true;
-  return commandChain(COMMAND_SAMPLES).some((scope) => scope.owns(name));
+  return commandChain(COMMAND_SAMPLES).some((scope) => scope.owns({ name }));
 }
 
 /** The span name ./tmpl's parseCond claims. */
 const COND_TOKEN_NAME = 'if';
+
+/** Go's timer surface (app/twitch/sesame/engine/timer_vars.go, timerChain):
+ * the scopes a timer's message can resolve, minus everything commandChain
+ * mounts from the triggering chat line (messageScope, USES_SCOPE) or from
+ * who typed it (VIEWER_SCOPE, COUNTER_SCOPE) — a tick has no chatter behind
+ * it to supply either. What is left is every scope already safe with nobody
+ * watching: the dice, the chat room, the emote catalog, the channel facts
+ * and the module facts.
+ *
+ * urlfetch (scope.External) is the one Go family with no SampleScope here —
+ * rehearsal never fetches, a preview cannot show a live network answer — so
+ * it is named directly rather than through an owns() this file has no scope
+ * for. web/kit/lib/variables/surfaces.ts's forSurface('timer') is the one
+ * caller; the golden fixture (parity.test.ts) is what keeps this list and
+ * Go's TimerFamilies() from drifting apart. */
+export function timerOwns(name: string): boolean {
+  if (name === 'urlfetch') return true;
+  return [PURE_SCOPE, UTIL_SCOPE, CHATTER_SCOPE, EMOTE_SCOPE, CHANNEL_SCOPE, MODULE_SCOPE].some((scope) =>
+    scope.owns({ name })
+  );
+}
 
 /** Which chain a surface rehearses against: a custom command's full scope
  * chain, or a module reply's (the dice plus that reply's own token map). */
@@ -369,7 +398,7 @@ export type ChainKind = 'command' | 'reply';
  * other.
  */
 export function resolvedWithoutSample(name: string, kind: ChainKind): boolean {
-  if (kind === 'reply') return PURE_SCOPE.owns(name);
+  if (kind === 'reply') return PURE_SCOPE.owns({ name });
   return !messageOwns(name) && ownedByCore(name);
 }
 
@@ -391,7 +420,7 @@ function replyChain(samples: Samples, opts: ReplyOptions): SampleScope[] {
  * option. A bare {choice} names no options and stays literal, like
  * ParseDynamic returning ok=false. */
 const PURE_SCOPE: SampleScope = {
-  owns: (name) => name === 'random' || name === 'choice',
+  owns: ({ name }) => name === 'random' || name === 'choice',
   get: (token) => (token.name === 'choice' ? choiceSample(token) : randomSample(token))
 };
 
@@ -419,21 +448,21 @@ function randomSample(token: Token): string | null {
  * below are ALSO the module-reply palette (module.ParseDynamic), so PURE_SCOPE
  * has to be mountable on its own. */
 const UTIL_SCOPE: SampleScope = {
-  owns: (name) => UTIL_NAMES.has(name),
+  owns: ({ name }) => UTIL_NAMES.has(name),
   get: utilSample
 };
 
 function utilSample(token: Token): string | null {
   if (token.payload === null) return null;
-  if (token.name === 'countdown' || token.name === 'countup') return countdownSample(token.payload);
+  if (token.name === 'countdown' || token.name === 'countup') return countdownSample({ text: token.payload });
   return resolveComputedUtil(token);
 }
 
 /** A parseable date previews as a fixed span; anything else resolves to the
  * empty string (not null), so the span's fallback renders exactly as it would
  * in chat when the bot fails to read the date. */
-function countdownSample(payload: string): string {
-  return isInstant(payload) ? COUNTDOWN_SAMPLE : '';
+function countdownSample(input: { text: string }): string {
+  return isInstant(input) ? COUNTDOWN_SAMPLE : '';
 }
 
 /** The two spellings scope.parseInstant accepts: RFC3339, or a bare
@@ -443,8 +472,8 @@ function countdownSample(payload: string): string {
 const RFC3339 = /^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(\.\d+)?([Zz]|[+-]\d{2}:\d{2})$/;
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
-function isInstant(payload: string): boolean {
-  const text = payload.trim();
+function isInstant(input: { text: string }): boolean {
+  const text = input.text.trim();
   if (!RFC3339.test(text) && !DATE_ONLY.test(text)) return false;
   return !Number.isNaN(Date.parse(text));
 }
@@ -455,7 +484,7 @@ function isInstant(payload: string): boolean {
  * the empty payload is the rest-of-args form. */
 function messageScope(samples: Samples): SampleScope {
   return {
-    owns: messageOwns,
+    owns: ({ name }) => messageOwns(name),
     get: (token) => messageSample(token, samples)
   };
 }
@@ -467,12 +496,12 @@ function messageScope(samples: Samples): SampleScope {
  * {:}) is still OWNED here and messageSample is what turns it literal, the
  * same split every payload-taking token in this grammar uses. */
 function messageOwns(name: string): boolean {
-  return MESSAGE_NAMES.has(name) || positionalIndex(name) !== null || name === '';
+  return MESSAGE_NAMES.has(name) || positionalIndex({ text: name }) !== null || name === '';
 }
 
 function messageSample(token: Token, samples: Samples): string | null {
   if (token.name === '') return leadingSliceSample(token, samples);
-  if (positionalIndex(token.name) !== null) return positionalSample(token, samples);
+  if (positionalIndex({ text: token.name }) !== null) return positionalSample(token, samples);
   if (token.payload !== null) return null;
   // {querystring} is derived from the args sample rather than carried as one,
   // for the same reason the positional words are: a surface that overrides
@@ -485,10 +514,19 @@ function messageSample(token: Token, samples: Samples): string | null {
 
 /** A positional word number in 1..MAX_POSITIONAL, or null for a span that
  * only looks like one: a sign, a leading zero, {0} and anything past the cap
- * are not this token and stay literal (scope.positionalIndex). */
-function positionalIndex(name: string): number | null {
-  if (!/^[1-9][0-9]?$/.test(name)) return null;
-  const n = Number(name);
+ * are not this token and stay literal (scope.positionalIndex).
+ *
+ * Takes `{ text }` rather than a bare string: this and the other small
+ * string/number helpers below it were the file's actual Primitive Obsession
+ * weight (CodeScene scores this per FILE, so the fix that matters is
+ * cutting bare-primitive PARAMS across all of them, not just the
+ * SampleScope.owns() family the TokenQuery type above already covers). Every
+ * caller already holds either a token field or another wrapped value, so
+ * this costs a one-word object literal at each call site, not a new type a
+ * caller has to learn. */
+function positionalIndex(input: { text: string }): number | null {
+  if (!/^[1-9][0-9]?$/.test(input.text)) return null;
+  const n = Number(input.text);
   return n <= MAX_POSITIONAL ? n : null;
 }
 
@@ -506,29 +544,29 @@ function argWords(samples: Samples): string[] {
  * past the end resolves to "" (not null) so the span's fallback renders
  * exactly as it would in chat. */
 function positionalSample(token: Token, samples: Samples): string | null {
-  const n = positionalIndex(token.name);
+  const n = positionalIndex({ text: token.name });
   if (n === null) return null;
   const words = argWords(samples);
   if (token.payload === null) return n > words.length ? '' : words[n - 1];
-  if (token.payload === '') return wordSlice(words, n, words.length);
-  const m = positionalIndex(token.payload);
+  if (token.payload === '') return wordSlice(words, { n, end: words.length });
+  const m = positionalIndex({ text: token.payload });
   if (m === null || m < n) return null;
-  return wordSlice(words, n, m);
+  return wordSlice(words, { n, end: m });
 }
 
 /** {:m}: the empty name with a numeric payload is words 1..m, same rules as
  * {n:m}. Every other empty-name span ({}, {:}, {:x}) stays literal. */
 function leadingSliceSample(token: Token, samples: Samples): string | null {
   if (token.payload === null) return null;
-  const m = positionalIndex(token.payload);
+  const m = positionalIndex({ text: token.payload });
   if (m === null) return null;
-  return wordSlice(argWords(samples), 1, m);
+  return wordSlice(argWords(samples), { n: 1, end: m });
 }
 
 /** Words n..end inclusive, space-joined; end clamps to the word count, and n
  * past the word count renders "" rather than null (a resolved-empty span, so
  * its fallback fires — matching scope.Message.slice). */
-function wordSlice(words: string[], n: number, end: number): string {
+function wordSlice(words: string[], { n, end }: { n: number; end: number }): string {
   if (n > words.length) return '';
   return words.slice(n - 1, Math.min(end, words.length)).join(' ');
 }
@@ -560,7 +598,7 @@ const VIEWER_SAMPLES: Samples = {
 };
 
 const VIEWER_SCOPE: SampleScope = {
-  owns: (name) => name in VIEWER_SAMPLES || name === 'points.name' || name === 'pointsname',
+  owns: ({ name }) => name in VIEWER_SAMPLES || name === 'points.name' || name === 'pointsname',
   get: viewerSample
 };
 
@@ -599,7 +637,7 @@ function viewerSample(token: Token): string | null {
  * at whichever of the two scopes comes first, which is what motivated
  * SampleScope.owns taking payload at all. */
 const USES_SCOPE: SampleScope = {
-  owns: (name, payload) => name === 'uses' || (name === 'count' && (payload ?? null) === null),
+  owns: ({ name, payload }) => name === 'uses' || (name === 'count' && (payload ?? null) === null),
   get: (token) => (token.payload === null ? USES_SAMPLE : null)
 };
 
@@ -630,7 +668,7 @@ const CHATTER_SAMPLES: Samples = {
 };
 
 const CHATTER_SCOPE: SampleScope = {
-  owns: (name) => name in CHATTER_SAMPLES,
+  owns: ({ name }) => name in CHATTER_SAMPLES,
   get: (token) => (token.payload === null ? CHATTER_SAMPLES[token.name] : null)
 };
 
@@ -668,7 +706,7 @@ const EMOTE_PROVIDER_SAMPLES: Samples = {
 };
 
 const EMOTE_SCOPE: SampleScope = {
-  owns: (name) => name in EMOTE_SAMPLES || name === 'emotes',
+  owns: ({ name }) => name in EMOTE_SAMPLES || name === 'emotes',
   get: emoteSample
 };
 
@@ -719,7 +757,7 @@ const CHANNEL_SAMPLES: Samples = {
 const NO_PAYLOAD_CHANNEL_NAMES = new Set(['channel.viewers', 'followers', 'subs']);
 
 const CHANNEL_SCOPE: SampleScope = {
-  owns: (name) => name in CHANNEL_SAMPLES,
+  owns: ({ name }) => name in CHANNEL_SAMPLES,
   get: channelSample
 };
 
@@ -760,7 +798,7 @@ const MODULE_SAMPLES: Samples = {
 };
 
 const MODULE_SCOPE: SampleScope = {
-  owns: (name) => name === 'quote' || name in MODULE_SAMPLES,
+  owns: ({ name }) => name === 'quote' || name in MODULE_SAMPLES,
   get: moduleSample
 };
 
@@ -805,7 +843,7 @@ function timeSample(token: Token): string | null {
  * {count} belongs to USES_SCOPE. See that scope's owns for why payload
  * matters to the split. */
 const COUNTER_SCOPE: SampleScope = {
-  owns: (name, payload) => name === 'counter' || (name === 'count' && (payload ?? null) !== null),
+  owns: ({ name, payload }) => name === 'counter' || (name === 'count' && (payload ?? null) !== null),
   get: counterSample
 };
 

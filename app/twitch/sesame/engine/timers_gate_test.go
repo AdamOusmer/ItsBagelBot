@@ -147,10 +147,14 @@ func TestTimerTickGatePassFiresAndMovesWatermark(t *testing.T) {
 
 	f.store.tick(ctx, f.armed("t1", td))
 
-	require.Len(t, f.pub.got, 1, "a gate-passed tick must fire")
+	// recordFire/arm are inline (asserted immediately); fire itself now runs
+	// on its own goroutine (tick's own comment), so only the publish is
+	// awaited.
 	assert.EqualValues(t, 7, f.store.watermark(ctx, f.ref("t1")), "a fire must move the watermark to the current counter (D4)")
 	assert.EqualValues(t, 1, f.store.fireCount(ctx, f.ref("t1")), "a fire must count toward the cap")
 	assert.True(t, f.scheduleKeyExists(t, "t1"))
+	assert.Eventually(t, func() bool { return len(f.pub.snapshot()) == 1 }, time.Second, time.Millisecond,
+		"a gate-passed tick must fire")
 }
 
 func TestTimerTickCapReachedStopsWithoutFiringOrReArming(t *testing.T) {
@@ -217,8 +221,8 @@ func TestArmAllRearmDoesNotResetAnAlreadyMovedWatermark(t *testing.T) {
 	// A tick that passes the gate fires and moves the watermark to 7.
 	f.bumpLines(t, 7)
 	f.store.tick(ctx, f.armed("t1", td))
-	require.Len(t, f.pub.got, 1)
 	require.EqualValues(t, 7, f.store.watermark(ctx, f.ref("t1")))
+	require.Eventually(t, func() bool { return len(f.pub.snapshot()) == 1 }, time.Second, time.Millisecond)
 
 	// A second ArmAll (the shape a mid-stream dashboard save or the
 	// once-a-minute reconciler sweep takes) must not roll the watermark back

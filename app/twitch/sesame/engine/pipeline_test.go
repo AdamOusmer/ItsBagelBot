@@ -6,6 +6,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 
 	"ItsBagelBot/app/twitch/sesame/module"
@@ -28,7 +29,15 @@ type captured struct {
 	msg     outgress.Message
 }
 
+// mu guards got: every OTHER test in this package drives fakePublisher from
+// one goroutine (Process/dispatch/fire called synchronously, then got read
+// straight back), so the lock costs those call sites nothing observable. The
+// one exception is the timer gate tests (timers_gate_test.go), which now
+// fire off tick's own goroutine (fireBounded) — snapshot/count give them a
+// race-safe read to poll with (assert.Eventually) instead of the plain field
+// every other test still reads directly.
 type fakePublisher struct {
+	mu      sync.Mutex
 	got     []captured
 	failErr error
 }
@@ -43,8 +52,19 @@ func (p *fakePublisher) PublishOwnedWithID(_ context.Context, subject, id string
 	}
 	var om outgress.Message
 	_ = codec.Unmarshal(payload, &om)
+	p.mu.Lock()
 	p.got = append(p.got, captured{subject: subject, id: id, msg: om})
+	p.mu.Unlock()
 	return nil
+}
+
+// snapshot copies got under the lock, for a caller that reads it from a
+// different goroutine than the one that published (see the type's own
+// comment).
+func (p *fakePublisher) snapshot() []captured {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]captured(nil), p.got...)
 }
 
 func (p *fakePublisher) Flush(context.Context) error { return nil }

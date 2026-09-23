@@ -3490,6 +3490,7 @@
   "timers": {
     "errMessage": "Enter a message for this timer.",
     "errInterval": "Enter a whole number of minutes between 1 and 1440.",
+    "errUrlfetchCap": "A timer message can reference at most {max} different fetched values ({urlfetch:…}).",
     "eyebrow": "Manage",
     "titlePre": "Chat ",
     "titleEm": "timers",
