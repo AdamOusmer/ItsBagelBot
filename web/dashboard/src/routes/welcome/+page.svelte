@@ -1,12 +1,9 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  // The first-visit tour: a full screen, one step at a time, walked by the
-  // account's own bolota. Seven beats in walking order: a hello, then the
-  // same six the coach-mark version had (consent, language, mod, import,
-  // commands, modules), with the same gate. Nothing moves past the consent
-  // step, and nothing finishes, until the terms are accepted: not Next, not
-  // the index, not Escape, not a step's own link.
+  // A first-visit journey: welcome, agreement, mod guidance and a choice of
+  // starting setup. New streamers receive a longer introduction; the other
+  // paths apply their setup and continue to the dashboard or import wizard.
   //
   // The motion is one lateral primitive used everywhere, on the site's one
   // curve. The blob and the copy swap sides on every step, so a step change
@@ -23,8 +20,10 @@
   // change two words. Here the catalog swaps live and the server is told in
   // the background. The accepted consent sits in sessionStorage so a reload
   // does not ask twice within one tab.
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { fly } from 'svelte/transition';
+  import { page } from '$app/state';
+  import { goto, onNavigate, pushState, replaceState } from '$app/navigation';
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { copyText } from '@bagel/ui/lib/clipboard';
@@ -33,6 +32,7 @@
   import { decode } from '@bagel/ui/svelte/actions';
   import Brand from '@bagel/ui/svelte/Brand.svelte';
   import Icon from '@bagel/ui/svelte/Icon.svelte';
+  import type { IconName } from '@bagel/ui/lib/icons';
   import Toggle from '@bagel/ui/svelte/Toggle.svelte';
   import Bolota from '@bagel/kit/components/Bolota.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
@@ -44,6 +44,9 @@
   import CursorSwitch from '$lib/components/CursorSwitch.svelte';
   import Sky from '$lib/components/welcome/Sky.svelte';
   import StepRail from '$lib/components/welcome/StepRail.svelte';
+  import Completion from '$lib/components/welcome/Completion.svelte';
+  import ImportWizard from '$lib/components/welcome/ImportWizard.svelte';
+  import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
 
   let { data } = $props();
 
@@ -53,55 +56,98 @@
   let locale = $state<Locale>(getI18n().locale);
   const tr = (key: string, params?: Record<string, string | number>) => translate(locale, key, params);
 
-  type Kind = 'hero' | 'consent' | 'lang' | 'mod' | 'link';
+  type Kind = 'hero' | 'consent' | 'mod' | 'choice' | 'lang' | 'commands' | 'modules';
+  type Setup = 'start-new' | 'integrate' | 'quiet' | 'import';
   type Beat = {
     kind: Kind;
     /** The blob's resting face while this step is up. Positive only. */
     face: string;
     title: string;
     body: string;
-    cta?: { href: string; label: string };
   };
 
   const MOD_COMMAND = '/mod ItsBagelBot';
 
-  // The six steps of the tour proper, by message key. Translated below, in
+  // The steps of the tour proper, by message key. Translated below, in
   // whatever language the page is speaking at the time.
-  const TOUR: Beat[] = [
+  const INTRO: Beat[] = [
     { kind: 'consent', face: 'attentive', title: 'consentTitle', body: 'consentBody' },
-    { kind: 'lang', face: 'curious', title: 'langTitle', body: 'langBody' },
     { kind: 'mod', face: 'attentive', title: 'step1Title', body: 'step1Body' },
-    { kind: 'link', face: 'surprised', title: 'importTitle', body: 'importBody', cta: { href: '/settings/import', label: 'importCta' } },
-    { kind: 'link', face: 'excited', title: 'step2Title', body: 'step2Body', cta: { href: '/commands', label: 'step2Cta' } },
-    { kind: 'link', face: 'proud', title: 'step3Title', body: 'step3Body', cta: { href: '/modules', label: 'step3Cta' } }
+    { kind: 'lang', face: 'curious', title: 'langTitle', body: 'langBody' },
+    { kind: 'choice', face: 'curious', title: 'choiceTitle', body: 'choiceBody' }
   ];
-  const consentStep = 1 + TOUR.findIndex((b) => b.kind === 'consent');
+  const NEW_STREAMER: Beat[] = [
+    { kind: 'commands', face: 'excited', title: 'newCommandsTitle', body: 'newCommandsBody' },
+    { kind: 'modules', face: 'proud', title: 'newModulesTitle', body: 'newModulesBody' }
+  ];
+  const consentStep = 1;
+  const choiceStep = 1 + INTRO.findIndex((b) => b.kind === 'choice');
+  let setup = $state<Setup>(page.url.searchParams.get('import') === '1' ? 'import' : 'start-new');
+  let hoveredChoice = $state<Setup | null>(null);
+
+  // One row per starting setup: its message-key stem, its glyph, and the face
+  // Bolota pulls while the pointer weighs it, so the blob previews the mood
+  // of each path (eager to teach, plugged in alongside, winding down, ready
+  // to carry things across) before anything is picked.
+  const CHOICES = [
+    { id: 'start-new', key: 'New', icon: 'start', face: 'excited' },
+    { id: 'integrate', key: 'Integrate', icon: 'integrate', face: 'attentive' },
+    { id: 'quiet', key: 'Quiet', icon: 'quiet', face: 'sleepy' },
+    { id: 'import', key: 'Import', icon: 'importFile', face: 'curious' }
+  ] as const satisfies readonly { id: Setup; key: string; icon: IconName; face: string }[];
+  const choiceOf = (id: Setup) => CHOICES.find((c) => c.id === id) ?? CHOICES[0];
+  const choiceIndex = $derived(Math.max(0, CHOICES.findIndex((c) => c.id === (hoveredChoice ?? setup))));
+  const choicePosition = $derived(['12.5%', '37.5%', '62.5%', '87.5%'][choiceIndex]);
+  function pickSetup(id: Setup) {
+    if (setup === id) return;
+    setup = id;
+    react(choiceOf(id).face, 1400);
+  }
 
   const tour = $derived<Beat[]>(
-    TOUR.map((b) => ({
+    [...INTRO, ...(setup === 'start-new' ? NEW_STREAMER : [])].map((b) => ({
       kind: b.kind,
       face: b.face,
       title: tr(`onboarding.${b.title}`),
-      body: tr(`onboarding.${b.body}`),
-      cta: b.cta && { href: b.cta.href, label: tr(`onboarding.${b.cta.label}`) }
+      body: tr(`onboarding.${b.body}`)
     }))
   );
+  const importStageKeys = [
+    'onboardingImport.stagePick',
+    'onboardingImport.stageConnect',
+    'onboardingImport.stageCommands',
+    'onboardingImport.stageExtras',
+    'onboardingImport.stageReview',
+    'onboardingImport.stageDone'
+  ] as const;
+  const railLabels = $derived([
+    ...tour.map((s) => s.title),
+    ...(setup === 'import' ? importStageKeys.map((key) => tr(key)) : [])
+  ]);
+  const journeyTotal = $derived(railLabels.length);
   const steps = $derived<Beat[]>([
     {
       kind: 'hero',
       face: 'happy',
       title: tr('onboarding.heroTitle', { name: data.name }),
-      body: tr('onboarding.heroBody', { n: TOUR.length })
+      body: tr('onboarding.heroBody')
     },
     ...tour
   ]);
 
-  let step = $state(0);
+  const importRequested = page.url.searchParams.get('import') === '1';
+  // pushState leaves page.url on the old URL, so the wizard opened from the
+  // tour is read from page.state; the ?import=1 link covers an OAuth return.
+  let importLink = $state(importRequested);
+  const importActive = $derived(page.state.importing ?? importLink);
+  let step = $state(importRequested ? choiceStep : 0);
+  let furthest = $state(importRequested ? choiceStep : 0);
   // Direction of travel: +1 forward, -1 back. Decides which side the new copy
   // arrives from and which side the old copy leaves toward.
   let dir = $state(1);
   let consentAccepted = $state(false);
   let leaving = $state(false);
+  let showCompletion = $state(false);
   let saveError = $state(false);
   let copied = $state(false);
 
@@ -109,13 +155,17 @@
   const last = $derived(step === steps.length - 1);
   const consentBlocked = $derived(!consentAccepted);
   /** Furthest step reachable right now. */
-  const maxStep = $derived(consentBlocked ? consentStep : steps.length - 1);
+  const maxStep = $derived(consentBlocked ? consentStep : Math.min(furthest + 1, steps.length - 1));
   const nextDisabled = $derived(step + 1 > maxStep);
   /** Whether the arrow key may move forward: not gated, and not on the last step. */
   const canAdvance = $derived(!nextDisabled && !last);
   /** The blob's side of the stage; the copy takes the other one. */
   const blobRight = $derived(step % 2 === 1);
-  const progress = $derived(step / (steps.length - 1));
+  const progress = $derived(
+    setup === 'import'
+      ? Math.max(step - 1, 0) / Math.max(journeyTotal - 1, 1)
+      : step / Math.max(steps.length - 1, 1)
+  );
 
   // ── Motion ───────────────────────────────────────────────────────────
   // The site's one curve (--bb-ease-out-expo), solved in JS for the Svelte
@@ -132,9 +182,19 @@
       ? { duration: 0 }
       : fly(node, { x: dir * TRAVEL * sideOf(i), duration: 760, delay: 160 + i * 70, easing: expo, opacity: 0 });
   const depart = (node: Element, { i = 0 }: { i?: number } = {}) =>
-    prefersReducedMotion()
+    prefersReducedMotion() || departed
       ? { duration: 0 }
       : fly(node, { x: -dir * 56 * sideOf(i), duration: 380, delay: i * 35, easing: expo, opacity: 0 });
+
+  // The choice step lays the stage out differently (blob above a full-width
+  // row of cards), and a grid change cannot transition. Swapping it under a
+  // departing step snapped that step's copy into the new layout mid-exit, so
+  // it dropped and slid under the arriving cards. Moves that change layout
+  // clear the stage first, relayout while it is empty, then arrive.
+  const CLEAR_MS = 300;
+  let clearing = $state(false);
+  let departed = false;
+  const isChoice = (i: number) => steps[i]?.kind === 'choice';
 
   // The blob's one-shot for each kind of move. A bare state swap snaps; a
   // sequence carries the blob across the change. `entrance` plays once on
@@ -182,31 +242,65 @@
   }
 
   // ── Navigation ───────────────────────────────────────────────────────
-  function go(i: number, seq: Sequence) {
+  function go(i: number) {
     // Clamped rather than trusted: the controls are disabled past `maxStep`
     // and this is the second lock, so a keyboard activation or a stale render
     // cannot land on a step the gate has not opened yet.
     const target = Math.max(0, Math.min(i, maxStep));
-    if (target === step || leaving) return;
+    if (target === step || leaving || clearing) return;
     dir = target > step ? 1 : -1;
     hover = null;
-    step = target;
-    play(seq);
+    if (isChoice(target) !== isChoice(step) && !prefersReducedMotion()) {
+      clearing = true;
+      setTimeout(() => land(target), CLEAR_MS);
+      return;
+    }
+    land(target);
   }
-  const goNext = () => go(step + 1, 'comet');
-  const goBack = () => go(step - 1, 'orbit');
+  function land(target: number) {
+    departed = clearing;
+    clearing = false;
+    step = target;
+    tick().then(() => (departed = false));
+    furthest = Math.max(furthest, target);
+    // Swirl keeps Bolota's base face active, so pointer gaze remains live.
+    play('entrance');
+  }
+  const goNext = () => go(step + 1);
+  const goBack = () => go(step - 1);
   // From the index: a forward jump is the same dash as Next, a backward one
   // the same turn as Back. The rail counts the tour only, so +1 for the hello.
-  const goTo = (i: number) => go(i + 1, i + 1 > step ? 'comet' : 'orbit');
+  const goTo = (i: number) => go(i + 1);
 
   const CONSENT_KEY = 'bb-welcome-consent';
   onMount(() => {
     try {
       consentAccepted = sessionStorage.getItem(CONSENT_KEY) === '1';
+      if (importRequested && !consentAccepted) {
+        importLink = false;
+        replaceState('/welcome', {});
+        step = consentStep;
+      }
     } catch {
       /* storage blocked: the box simply starts unticked */
     }
   });
+
+  function startImport() {
+    if (leaving || !consentAccepted || step < choiceStep) return;
+    setup = 'import';
+    pushState('/welcome?import=1', { importing: true });
+  }
+
+  function returnFromImport(welcomeStep: number) {
+    importLink = false;
+    replaceState('/welcome', {});
+    setup = 'import';
+    step = Math.max(consentStep, Math.min(welcomeStep, choiceStep));
+    furthest = Math.max(furthest, step);
+    dir = -1;
+    play('entrance');
+  }
 
   // In place, no navigation (see the header comment). The account and the
   // cookie still get the choice, so every page after this one loads in the
@@ -226,13 +320,13 @@
   }
 
   function onConsent(on: boolean) {
-    if (!on) return;
-    react('excited', 1600);
     try {
-      sessionStorage.setItem(CONSENT_KEY, '1');
+      if (on) sessionStorage.setItem(CONSENT_KEY, '1');
+      else sessionStorage.removeItem(CONSENT_KEY);
     } catch {
       /* storage blocked: a reload asks again, which is the safe direction */
     }
+    if (on) react('excited', 1600);
   }
 
   async function copyMod() {
@@ -240,49 +334,68 @@
     if (!ok) return;
     copied = true;
     react('proud', 2200);
-    play('burst');
+    play('entrance');
     setTimeout(() => (copied = false), 2000);
   }
 
   // ── Exit ─────────────────────────────────────────────────────────────
-  // Every way out plays the same beat: the blob bursts, the stage slides off
-  // and the sky brightens, THEN the form posts and the action redirects.
-  // `next` is validated server-side against the pages the tour links to.
-  let form: HTMLFormElement;
-  let exitHref = $state('/');
+  // Apply the chosen setup before playing the completion beat.
+  let form = $state<HTMLFormElement | null>(null);
+  let destination = $state('/');
   const EXIT_MS = 640;
-  function finish(href = '/') {
-    if (leaving || consentBlocked) return;
-    exitHref = href;
+  function finish() {
+    if (leaving || !consentAccepted || setup === 'import' || !last || step < choiceStep) return;
     saveError = false;
     leaving = true;
+    hover = null;
+    react('proud', 4000);
     play('burst');
     setTimeout(() => form?.requestSubmit(), prefersReducedMotion() ? 0 : EXIT_MS);
   }
+  // The shell's translator is fixed at boot, so a tour that switched language
+  // must leave with a full load; the veil fades to the shell's ground first so
+  // the load lands on the colour it paints. Otherwise the router takes over and
+  // the view transition below melts the sky into the dashboard.
+  const bootLocale = getI18n().locale;
+  const VEIL_MS = 420;
+  let veiled = $state(false);
+  function exitTo(to: string) {
+    if (locale === bootLocale) {
+      goto(to);
+      return;
+    }
+    veiled = true;
+    setTimeout(() => location.assign(to), prefersReducedMotion() ? 0 : VEIL_MS);
+  }
+  onNavigate((navigation) => {
+    if (!document.startViewTransition || prefersReducedMotion()) return;
+    return new Promise((resolve) => {
+      document.startViewTransition(async () => {
+        resolve();
+        await navigation.complete;
+      });
+    });
+  });
+
   const submit: SubmitFunction = () => async ({ result }) => {
     if (result.type === 'redirect') {
-      // A full load rather than goto(): the tour may have changed the
-      // language, and the app shell reads its locale once, at boot.
-      location.assign(result.location);
+      destination = result.location;
+      showCompletion = true;
       return;
     }
     leaving = false;
     saveError = true;
+    react('attentive', 2400);
   };
 
   function onKeydown(e: KeyboardEvent) {
-    if (leaving) return;
+    if (leaving || importActive) return;
     if (e.key === 'ArrowRight' && canAdvance) {
       e.preventDefault();
       goNext();
     } else if (e.key === 'ArrowLeft' && step > 0) {
       e.preventDefault();
       goBack();
-    } else if (e.key === 'Escape' && !consentBlocked) {
-      // Escape is a dismissal, and dismissing is exactly what consent may not
-      // be dodged by. It goes live once the box is ticked.
-      e.preventDefault();
-      finish('/');
     }
   }
 
@@ -306,22 +419,25 @@
 
 <svelte:window onkeydown={onKeydown} onpointermove={onPointerMove} />
 
-<Sky shift={blobRight ? 1 : -1} turn={step * 24} {px} {py} {leaving} />
+{#if importActive}
+  <ImportWizard onback={returnFromImport} onexit={exitTo} {consentAccepted} {locale} />
+{:else}
+<Sky shift={blobRight ? 1 : -1} turn={step * 24} {px} {py} {progress} {leaving} />
 
 <div class="welcome" class:leaving data-welcome>
   <header class="top">
     <Brand title="ItsBagelBot" sub={tr('common.console')} logoSrc="/logo.png" logoAlt="" size="md" />
     <StepRail
-      labels={tour.map((s) => s.title)}
+      labels={railLabels}
       current={step - 1}
       maxStep={maxStep - 1}
-      label={tr('onboarding.stepOf', { n: Math.max(step, 1), total: tour.length })}
+      label={tr('onboarding.stepOf', { n: Math.max(step, 1), total: journeyTotal })}
       onselect={goTo}
     />
   </header>
 
   <main class="stage">
-    <div class="pair">
+    <div class="pair" class:choice-stage={current.kind === 'choice'} class:clearing style="--choice-position: {choicePosition}; --dir: {dir};">
       <div class="blob-col" class:right={blobRight} class:hero={step === 0}>
         <div class="scale">
           <div class="float">
@@ -346,7 +462,7 @@
         {#key step}
           <section class="step" aria-labelledby="wlc-title">
             <p class="kicker" in:arrive={{ i: 0 }} out:depart={{ i: 0 }}>
-              {step === 0 ? tr('onboarding.title') : tr('onboarding.stepOf', { n: step, total: tour.length })}
+              {step === 0 ? tr('onboarding.title') : tr('onboarding.stepOf', { n: step, total: journeyTotal })}
             </p>
             <h1
               id="wlc-title"
@@ -362,15 +478,45 @@
             <p class="body" in:arrive={{ i: 2 }} out:depart={{ i: 2 }}>{current.body}</p>
 
             {#if current.kind === 'consent'}
-              <div class="control consent" in:arrive={{ i: 3 }} out:depart={{ i: 3 }}>
+              <div class="control consent" in:arrive|global={{ i: 3 }} out:depart|global={{ i: 3 }}>
                 <Toggle bind:on={consentAccepted} onchange={onConsent} />
                 <!-- `.bb-prose`: a TRANSLATED string with two links inside it,
                      so this file cannot put a class on either anchor; the
                      typography contract styles them. -->
                 <span class="bb-prose">{@html tr('onboarding.consentLabel')}</span>
               </div>
+            {:else if current.kind === 'choice'}
+              <div
+                class="control role-choices"
+                role="group"
+                aria-label={tr('onboarding.choiceTitle')}
+                in:arrive|global={{ i: 3 }}
+                out:depart|global={{ i: 3 }}
+                onpointerleave={() => { hover = null; hoveredChoice = null; }}
+              >
+                {#each CHOICES as choice, ci (choice.id)}
+                  <button
+                    type="button"
+                    class="role-choice"
+                    class:selected={setup === choice.id}
+                    aria-pressed={setup === choice.id}
+                    style="--side: {ci % 2 ? 1 : -1};"
+                    onclick={() => pickSetup(choice.id)}
+                    onpointerenter={() => { hover = choice.face; hoveredChoice = choice.id; }}
+                    onfocus={() => { hover = choice.face; hoveredChoice = choice.id; }}
+                    onblur={() => { hover = null; hoveredChoice = null; }}
+                  >
+                    <span class="role-top">
+                      <span class="role-glyph" aria-hidden="true"><Icon name={choice.icon} size={15} /></span>
+                      <span class="role-title">{tr(`onboarding.choice${choice.key}Title`)}</span>
+                      <span class="role-indicator" aria-hidden="true"><Icon name="check" size={12} /></span>
+                    </span>
+                    <span class="role-detail">{tr(`onboarding.choice${choice.key}Body`)}</span>
+                  </button>
+                {/each}
+              </div>
             {:else if current.kind === 'lang'}
-              <div class="control prefs" in:arrive={{ i: 3 }} out:depart={{ i: 3 }}>
+              <div class="control prefs" in:arrive|global={{ i: 3 }} out:depart|global={{ i: 3 }}>
                 <div class="lang-row">
                   <div class="bb-lang-switch" role="group" aria-label={tr('lang.switchAria')}>
                     {#each LOCALES as l (l)}
@@ -399,11 +545,12 @@
               <button
                 type="button"
                 class="control well"
+                class:copied
                 onclick={copyMod}
                 title={tr('common.copy')}
                 use:decode
-                in:arrive={{ i: 3 }}
-                out:depart={{ i: 3 }}
+                in:arrive|global={{ i: 3 }}
+                out:depart|global={{ i: 3 }}
               >
                 <code class="cmd" data-decode={MOD_COMMAND}>{MOD_COMMAND}</code>
                 <span class="hint">
@@ -411,6 +558,16 @@
                   {copied ? tr('common.copied') : tr('common.copy')}
                 </span>
               </button>
+            {:else if current.kind === 'commands'}
+              <div class="control rehearsal-example" in:arrive|global={{ i: 3 }} out:depart|global={{ i: 3 }}>
+                <ChatPreview name="hello" response={tr('onboarding.exampleReply')} tag={tr('onboarding.exampleLabel')} broadcasterName={data.name} {locale} samples={{ user: tr('onboarding.exampleViewer') }} />
+                <p class="example-note">{tr('onboarding.newCommandsHint')}</p>
+              </div>
+            {:else if current.kind === 'modules'}
+              <div class="control rehearsal-example" in:arrive|global={{ i: 3 }} out:depart|global={{ i: 3 }}>
+                <ChatPreview kind="reply" name="welcome" viewerText={tr('onboarding.moduleExampleViewer')} response={tr('onboarding.moduleExampleReply')} tag={tr('onboarding.moduleExampleLabel')} broadcasterName={data.name} {locale} samples={{ user: tr('onboarding.exampleViewer') }} />
+                <p class="example-note">{tr('onboarding.newModulesHint')}</p>
+              </div>
             {/if}
 
             <div
@@ -426,22 +583,12 @@
                   {tr('onboarding.heroCta')}
                 </button>
               {:else}
-                {#if current.cta}
-                  <!-- The step's own action is the thing to do, so it wears
-                       the filled button and Next steps aside. -->
-                  <button
-                    type="button"
-                    class="bb-btn bb-btn--green bb-btn--solid"
-                    onclick={() => finish(current.cta?.href)}
-                    disabled={consentBlocked}
-                  >
-                    {current.cta.label}
-                  </button>
-                {/if}
                 {#if last}
-                  <button type="button" class="bb-btn bb-btn--primary" onclick={() => finish('/')} disabled={consentBlocked}>
-                    {tr('onboarding.done')}
-                  </button>
+                  {#if setup === 'import'}
+                    <button type="button" class="bb-btn bb-btn--primary" onclick={startImport}>{tr('onboarding.choiceImportCta')}</button>
+                  {:else}
+                    <button type="button" class="bb-btn bb-btn--primary" onclick={finish}>{tr('onboarding.finishCta')}</button>
+                  {/if}
                 {:else}
                   <button type="button" class="bb-btn bb-btn--primary" onclick={goNext} disabled={nextDisabled}>
                     {tr('onboarding.next')}
@@ -460,31 +607,27 @@
   </main>
 
   <footer class="foot">
-    <div class="line" aria-hidden="true"><span class="fill" style="--p: {progress};"></span></div>
+    <div class="line" aria-hidden="true" style="--p: {progress};">
+      <span class="fill"></span>
+      <span class="bead-track"><span class="bead"></span></span>
+    </div>
     <div class="meta">
-      <span class="count">{step === 0 ? '' : tr('onboarding.stepOf', { n: step, total: tour.length })}</span>
-      <!-- Always in the tree. Rendering this button only when allowed changed
-           the footer's height, which moved the whole stage up and down with
-           it; it fades instead, and the row keeps its height either way. -->
-      <button
-        type="button"
-        class="quiet skip"
-        class:off={consentBlocked || last}
-        disabled={consentBlocked || last}
-        aria-hidden={consentBlocked || last}
-        onclick={() => finish('/')}
-      >
-        {tr('onboarding.skip')}
-      </button>
+      <span class="count">{step === 0 ? '' : tr('onboarding.stepOf', { n: step, total: journeyTotal })}</span>
     </div>
   </footer>
 </div>
 
-<!-- The one way out. `next` is the page the exit lands on; the action
-     allowlists it. -->
+{#if showCompletion}
+  <Completion label={tr('onboarding.done')} oncomplete={() => exitTo(destination)} />
+{/if}
+
 <form method="POST" action="?/done" use:enhance={submit} bind:this={form} hidden>
-  <input type="hidden" name="next" value={exitHref} />
+  <input type="hidden" name="preset" value={setup} />
+  <input type="hidden" name="consent" value={consentAccepted ? 'yes' : 'no'} />
 </form>
+{/if}
+
+{#if veiled}<div class="veil" aria-hidden="true"></div>{/if}
 
 <style>
   /* The shell paints its ambient orb pair on every route (RootShell ->
@@ -514,7 +657,9 @@
     gap: 12px 24px;
     flex-wrap: wrap;
     padding: 22px var(--gutter) 0;
-    animation: settle 900ms var(--bb-ease-out-expo) both;
+    /* `backwards`, not `both`: a held final keyframe pins opacity at 1, and
+       the exit fade (.leaving .top) could never apply. */
+    animation: settle 900ms var(--bb-ease-out-expo) backwards;
   }
 
   .stage {
@@ -546,11 +691,24 @@
      transform it can be a 1s glide instead of a reflow. */
   .blob-col,
   .copy-col {
-    transition: transform 1000ms var(--bb-ease-out-expo);
+    transition:
+      transform 1000ms var(--bb-ease-out-expo),
+      opacity 480ms var(--bb-ease-out-expo);
     will-change: transform;
   }
   .blob-col.right { transform: translateX(calc(100% + var(--gap))); }
   .copy-col.left { transform: translateX(calc(-100% - var(--gap))); }
+
+  .step {
+    transition:
+      transform 300ms var(--bb-ease-out-expo),
+      opacity 240ms var(--bb-ease-out-expo);
+  }
+  .clearing .blob-col { opacity: 0; transition-duration: 1000ms, 240ms; }
+  .clearing .step {
+    opacity: 0;
+    transform: translateX(calc(var(--dir) * -56px));
+  }
 
   /* ── Blob ─────────────────────────────────────────────────────────── */
   .blob-col {
@@ -603,6 +761,39 @@
   }
   .copy-col > .step { grid-area: 1 / 1; }
 
+  /* The four setups share one line. Bolota moves above the card being
+     considered and keeps its pointer gaze while the selected face changes. */
+  .pair.choice-stage { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .choice-stage .blob-col,
+  .choice-stage .blob-col.right {
+    grid-column: 1;
+    grid-row: 1;
+    position: relative;
+    justify-self: stretch;
+    align-self: start;
+    height: 128px;
+    transform: none;
+  }
+  .choice-stage .blob-col .scale {
+    --blob-scale: .46;
+    position: absolute;
+    top: -50px;
+    left: calc(var(--choice-position) - 120px);
+    transition: left 680ms var(--bb-ease-out-expo), transform 1000ms var(--bb-ease-out-expo);
+  }
+  .choice-stage .copy-col,
+  .choice-stage .copy-col.left {
+    grid-column: 1;
+    grid-row: 2;
+    width: 100%;
+    max-width: none;
+    padding-top: 0;
+    transform: none;
+  }
+  .choice-stage .step { text-align: center; }
+  .choice-stage .body { max-width: none; margin-inline: auto; }
+  .choice-stage .actions { justify-content: center; }
+
   .kicker {
     margin: 0 0 14px;
     font-family: var(--bb-font-mono);
@@ -644,6 +835,93 @@
   }
 
   .control { margin-top: 24px; }
+
+  .role-choices { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; width: 100%; }
+  .role-choice {
+    position: relative;
+    display: grid;
+    align-content: start;
+    gap: 8px;
+    width: 100%;
+    min-height: 132px;
+    padding: 13px;
+    overflow: hidden;
+    text-align: left;
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--bb-white);
+    border: 1px solid var(--bb-border);
+    border-radius: var(--bb-radius-sm);
+    cursor: pointer;
+    transition:
+      border-color 240ms ease,
+      background 240ms ease,
+      box-shadow 420ms var(--bb-ease-out-expo);
+  }
+  /* The selection light sweeps in from the card's own side (left column
+     from the left, right column from the right), the same crossing motion
+     the stage uses. A transform on a pseudo-element, so no reflow. */
+  .role-choice::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(100deg, rgba(var(--bb-tan-rgb), 0.16), rgba(var(--bb-green-glow-rgb), 0.08));
+    transform: translateX(calc(var(--side) * 101%));
+    transition: transform 620ms var(--bb-ease-out-expo);
+  }
+  .role-choice { isolation: isolate; }
+  .role-choice.selected::before { transform: none; }
+  .role-choice:hover, .role-choice.selected { border-color: var(--bb-tan); }
+  .role-choice.selected { box-shadow: 0 0 0 1px rgba(var(--bb-tan-rgb), 0.35), 0 14px 32px rgba(0, 0, 0, 0.22); }
+  .role-choice:focus-visible { outline: 2px solid var(--bb-tan); outline-offset: 2px; }
+  .role-top { display: grid; grid-template-columns: 1fr auto; align-items: start; gap: 8px; }
+  .role-glyph {
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--bb-radius-sm);
+    border: 1px solid var(--bb-border-strong);
+    color: var(--bb-tan-pale);
+    transition:
+      transform 520ms var(--bb-ease-out-expo),
+      color 240ms ease,
+      border-color 240ms ease;
+  }
+  .role-choice:hover .role-glyph { transform: translateX(3px); }
+  .role-choice.selected .role-glyph {
+    color: var(--bb-green-glow);
+    border-color: rgba(var(--bb-green-glow-rgb), 0.5);
+  }
+  .role-title { grid-column: 1 / -1; min-width: 0; font: 700 13px/1.2 var(--bb-font-display); }
+  /* The tick is always there and only scales, so picking a card never
+     shifts its title. */
+  .role-indicator {
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 1px solid var(--bb-border-strong);
+    color: var(--bb-bg-0, #101611);
+    transition:
+      background 240ms ease,
+      border-color 240ms ease;
+  }
+  .role-indicator :global(svg) {
+    transform: scale(0);
+    transition: transform 420ms var(--bb-ease-out-expo);
+  }
+  .role-choice.selected .role-indicator {
+    background: var(--bb-green-glow);
+    border-color: var(--bb-green-glow);
+  }
+  .role-choice.selected .role-indicator :global(svg) { transform: scale(1); }
+  .role-detail { font: 11px/1.35 var(--bb-font-body); color: var(--bb-muted); }
+  .rehearsal-example { width: min(100%, 480px); text-align: left; }
+  .example-note { margin: 12px 0 0; color: var(--bb-muted); font: 12px/1.5 var(--bb-font-body); }
 
   .consent {
     display: flex;
@@ -721,6 +999,9 @@
     transition: color var(--bb-dur-base) var(--bb-ease-out-expo);
   }
   .well:hover .hint { color: var(--bb-tan-pale); }
+  .well.copied { border-color: var(--bb-green-glow); }
+  .well.copied .hint { color: var(--bb-green-glow); }
+  .well:focus-visible { outline: 2px solid var(--bb-tan); outline-offset: 2px; }
 
   .actions {
     display: flex;
@@ -759,7 +1040,7 @@
     display: grid;
     gap: 10px;
     padding: 0 var(--gutter) 18px;
-    animation: settle 900ms var(--bb-ease-out-expo) 120ms both;
+    animation: settle 900ms var(--bb-ease-out-expo) 120ms backwards;
   }
   .meta {
     display: flex;
@@ -769,21 +1050,9 @@
        the hello and the skip fades out on the last step. */
     min-height: 36px;
   }
-  .skip {
-    transition:
-      opacity var(--bb-dur-base) var(--bb-ease-out-expo),
-      color var(--bb-dur-base) var(--bb-ease-out-expo),
-      transform var(--bb-dur-base) var(--bb-ease-out-expo);
-  }
-  .skip.off {
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-  }
   .line {
     position: relative;
     height: 1px;
-    overflow: hidden;
     background: var(--bb-border);
   }
   .fill {
@@ -793,6 +1062,26 @@
     transform: scaleX(var(--p));
     background: linear-gradient(90deg, var(--bb-tan), var(--bb-green-glow));
     transition: transform 900ms var(--bb-ease-out-expo);
+  }
+  /* The head of the progress line: a lit bead riding the fill's leading
+     edge. Its track is the line's own width, so translating it by --p of
+     100% lands it exactly where scaleX(--p) ends. */
+  .bead-track {
+    position: absolute;
+    inset: 0;
+    transform: translateX(calc(var(--p) * 100%));
+    transition: transform 900ms var(--bb-ease-out-expo);
+  }
+  .bead {
+    position: absolute;
+    top: -3px;
+    left: -3.5px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--bb-green-glow);
+    box-shadow: 0 0 0 3px rgba(var(--bb-green-glow-rgb), .16), 0 0 14px rgba(var(--bb-green-glow-rgb), .7);
+    animation: breathe 3s ease-in-out infinite;
   }
   .count {
     font-family: var(--bb-font-mono);
@@ -811,6 +1100,19 @@
   .leaving .foot {
     opacity: 0;
     transition: opacity 400ms var(--bb-ease-out-expo);
+  }
+  .veil {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: var(--bb-bg-0, #101611);
+    animation: veil-in 420ms var(--bb-ease-out-expo) both;
+  }
+  @keyframes veil-in { from { opacity: 0; } }
+  :global(::view-transition-old(root)),
+  :global(::view-transition-new(root)) {
+    animation-duration: 720ms;
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   @keyframes settle {
@@ -832,7 +1134,6 @@
     from { background-position: 120% 0; }
     to { background-position: -40% 0; }
   }
-
   /* Light: heavy black elevation reads as a smudge on paper; ink alphas keep
      the lift. */
   :global(:root[data-theme="light"]) .float { filter: drop-shadow(0 14px 28px rgba(20, 17, 12, 0.16)); }
@@ -880,21 +1181,41 @@
     .pref-row { text-align: left; }
     .actions { justify-content: center; }
     .well { margin-inline: auto; }
+    .role-choices, .rehearsal-example { margin-inline: auto; }
+    .role-choices { text-align: left; }
+  }
+
+  @media (max-width: 560px) {
+    .role-choices {
+      grid-template-columns: repeat(4, minmax(150px, 1fr));
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      padding-bottom: 8px;
+    }
+    .role-choice { scroll-snap-align: start; }
   }
 
   @media (prefers-reduced-motion: reduce) {
     .pair,
     .blob-col,
     .copy-col,
+    .step,
     .scale,
     .fill,
     .well,
-    .skip,
+    .role-choice,
+    .role-choice::before,
+    .role-glyph,
+    .role-indicator :global(svg),
+    .choice-stage .blob-col .scale,
+    .bead-track,
     .quiet { transition: none; }
     .top,
     .foot,
     .float,
     .plate,
+    .bead,
+    .veil,
     .title { animation: none; }
     .title {
       background: none;

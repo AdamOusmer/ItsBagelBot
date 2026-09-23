@@ -2,10 +2,11 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
   //
-  // Config-import page: a first-class four-step flow (choose source,
-  // per-source instructions, review, done) with the whole wizard internalized
-  // in this route so nothing outside imports it. Deep-linkable via ?source=
-  // (preselects that bot's card).
+  // The onboarding branch of the configuration importer. Source selection,
+  // connection, commands, other imported items and final review are separate
+  // scenes. The underlying importer remains the settings importer: this route
+  // posts to its preview and commit actions, so the validation and writes are
+  // identical on both paths. ?source= resumes after an OAuth round trip.
   //
   // Actions are hit with fetch + devalue (`/settings/import?/…`) instead of
   // `use:enhance`: enhance funnels results into whatever `form` prop the
@@ -30,7 +31,24 @@
   // script-src), which rules out an in-browser SQLite reader; see the decision
   // record at prepareFile.
 
+  //
+  // Motion: the same lateral grammar as /welcome. Each stage is one scene in
+  // a grid cell; moving forward slides the old scene out toward the start and
+  // the new one in from the far side (reversed going back), on the site's one
+  // curve. Bolota rides above the scenes as the constant: it reacts to what
+  // is happening (a source picked, a file dropped, a preview landing) and
+  // carries the stage name, so the wizard reads as the same companion walking
+  // you through, not a form that swaps panels.
+  import { onMount } from 'svelte';
+  import { fly } from 'svelte/transition';
   import { page } from '$app/state';
+  import { translate, translateList, type Locale } from '@bagel/kit/i18n';
+  import { bezier } from '@bagel/ui/lib/tween';
+  import { hasFinePointer, prefersReducedMotion } from '@bagel/ui/lib/motion-query';
+  import Brand from '@bagel/ui/svelte/Brand.svelte';
+  import Sky from '$lib/components/welcome/Sky.svelte';
+  import StepRail from '$lib/components/welcome/StepRail.svelte';
+  import Completion from '$lib/components/welcome/Completion.svelte';
   import { deserialize } from '$app/forms';
   import {
     AlertBanner,
@@ -42,14 +60,11 @@
     Checkbox,
     Heading,
     Icon,
-    PageHead,
     Tag,
     Textarea,
-    toast,
-    getI18n
+    toast
   } from '@bagel/kit';
   import { applyImportCaps } from '@bagel/kit/importer/caps';
-  import { localizeImporterError } from '$lib/importer-errors';
   import {
     CHIP_LABEL_KEYS,
     IMPORT_STRATEGIES,
@@ -72,17 +87,27 @@
     type PreviewResponse
   } from '@bagel/kit';
 
-  const { t, tl } = getI18n();
+  let { onback, onexit, consentAccepted, locale }: { onback: (welcomeStep: number) => void; onexit: (to: string) => void; consentAccepted: boolean; locale: Locale } = $props();
+  const t = (key: string, params?: Record<string, string | number>) => translate(locale, key, params);
+  const tl = (key: string) => translateList(locale, key);
 
-  const STAGES = [
-    'import.stagePick',
-    'import.stageInstructions',
-    'import.stageReview',
-    'import.stageDone'
-  ] as const;
+  const BEFORE_IMPORT = $derived([
+    t('onboarding.consentTitle'),
+    t('onboarding.step1Title'),
+    t('onboarding.langTitle'),
+    t('onboarding.choiceTitle')
+  ]);
+  const STAGES = $derived([
+    t('onboardingImport.stagePick'),
+    t('onboardingImport.stageConnect'),
+    t('onboardingImport.stageCommands'),
+    t('onboardingImport.stageExtras'),
+    t('onboardingImport.stageReview'),
+    t('onboardingImport.stageDone')
+  ]);
 
   // --- step state ----------------------------------------------------------
-  type Step = 'pick' | 'instructions' | 'review' | 'done';
+  type Step = 'pick' | 'instructions' | 'commands' | 'extras' | 'review' | 'done';
   // svelte-ignore state_referenced_locally
   let source = $state<ImportSource | ''>(deepLinkSource());
   // A ?source= deep link lands on that source's instructions directly: this
@@ -115,22 +140,115 @@
 
   let previewResult = $state<PreviewResponse | null>(null);
   let commitResult = $state<CommitResponse | null>(null);
+  let finishError = $state('');
+  let finishing = $state(false);
 
-  const stepIndex = $derived(
-    step === 'pick' ? 0 : step === 'instructions' ? 1 : step === 'review' ? 2 : 3
-  );
+  const ORDER: Step[] = ['pick', 'instructions', 'commands', 'extras', 'review', 'done'];
+
+  // The settings importer's headings carry that page's own four-step count
+  // ("3 · Review…"). This journey has six stages and numbers them on the
+  // rail and the companion, so the borrowed prefix is dropped here rather
+  // than contradicting both.
+  const unnumbered = (s: string) => s.replace(/^\s*\d+\s*·\s*/, '');
+  const stepIndex = $derived(ORDER.indexOf(step));
+  const journeyStep = $derived(BEFORE_IMPORT.length + stepIndex);
+  const journeyLabels = $derived([...BEFORE_IMPORT, ...STAGES]);
+  // The rail only ever travels back: every stage ahead needs the one before
+  // it to have produced something (a source, a preview, a commit).
+  const maxRailStep = $derived(stepIndex);
+  function selectRail(i: number) {
+    if (i < BEFORE_IMPORT.length) {
+      onback(i + 1);
+      return;
+    }
+    const importIndex = i - BEFORE_IMPORT.length;
+    const target = ORDER[importIndex];
+    if (importIndex <= maxRailStep && (importIndex < 2 || previewResult || target === 'done' && commitResult)) goStep(target);
+  }
+
+  // ── Motion ───────────────────────────────────────────────────────────
+  // Same curve and travel as /welcome, so the two routes move as one.
+  const expo = bezier(0.16, 1, 0.3, 1);
+  const TRAVEL = 72;
+  let dir = $state(1);
+  const sceneIn = (node: Element) =>
+    prefersReducedMotion()
+      ? { duration: 0 }
+      : fly(node, { x: dir * TRAVEL, duration: 720, delay: 140, easing: expo, opacity: 0 });
+  const sceneOut = (node: Element) =>
+    prefersReducedMotion()
+      ? { duration: 0 }
+      : fly(node, { x: -dir * 56, duration: 360, easing: expo, opacity: 0 });
+
+  // Bolota's face and one-shots. A timed reaction outranks a pointer hover,
+  // which outranks the stage's resting face; same precedence as /welcome.
+  type Sequence = 'entrance' | 'burst' | 'orbit' | 'comet';
+  const STAGE_FACE: Record<Step, string> = {
+    pick: 'curious',
+    instructions: 'attentive',
+    commands: 'excited',
+    extras: 'happy',
+    review: 'attentive',
+    done: 'proud'
+  };
+  let sequence = $state<Sequence>('entrance');
+  let sequenceKey = $state(0);
+  let reaction = $state<string | null>(null);
+  let hover = $state<string | null>(null);
+  let reactionTimer: ReturnType<typeof setTimeout> | null = null;
+  const expression = $derived(reaction ?? hover ?? STAGE_FACE[step]);
+  function play(seq: Sequence) {
+    sequence = seq;
+    sequenceKey += 1;
+  }
+  function react(face: string, ms: number) {
+    reaction = face;
+    if (reactionTimer) clearTimeout(reactionTimer);
+    reactionTimer = setTimeout(() => (reaction = null), ms);
+  }
+
+  function goStep(target: Step) {
+    if (target === step) return;
+    const forward = ORDER.indexOf(target) > stepIndex;
+    dir = forward ? 1 : -1;
+    hover = null;
+    step = target;
+    // Swirl preserves the base face so Bolota can keep watching the pointer
+    // while the stage itself slides in the travel direction.
+    play('entrance');
+  }
+
+  onMount(() => {
+    return () => {
+      if (reactionTimer) clearTimeout(reactionTimer);
+    };
+  });
+
+  // Pointer parallax for the sky, coalesced to one write per frame.
+  let px = $state(0);
+  let py = $state(0);
+  let pointerFrame = 0;
+  function onPointerMove(e: PointerEvent) {
+    if (!hasFinePointer() || pointerFrame) return;
+    pointerFrame = requestAnimationFrame(() => {
+      pointerFrame = 0;
+      px = (e.clientX / window.innerWidth - 0.5) * 2;
+      py = (e.clientY / window.innerHeight - 0.5) * 2;
+    });
+  }
 
   function choose(s: ImportSource) {
     source = s;
     uploadFile = null;
     credential = '';
+    react('excited', 1400);
     // Picking a tile advances to that source's how-to-find-it instructions;
     // the credential/file input lives there now, not on the tile.
-    step = 'instructions';
+    goStep('instructions');
   }
 
   function reset() {
-    step = 'pick';
+    goStep('pick');
     source = '';
     uploadFile = null;
     credential = '';
@@ -166,65 +284,6 @@
     );
   }
 
-  // SOURCE_UNTRANSLATED_PATTERN names each source's OWN variable syntax
-  // separately (review: a single global pattern covering every source at
-  // once could flag one product's token shape while reviewing a completely
-  // different product's import — e.g. Moobot's <name> tags would never
-  // appear in an SE response, so there is no reason to scan for them there).
-  // It only decides what the review screen HIGHLIGHTS — never what a parser
-  // translates — so a false positive costs a stray chip, never a wrong
-  // import; every parser's own literal+warn path is the actual authority on
-  // what did not translate.
-  const SOURCE_UNTRANSLATED_PATTERN: Record<ImportSource, RegExp> = {
-    // $(name) / $(name arg): Nightbot and Fossabot's one delimiter.
-    nightbot: /\$\([^)]*\)/g,
-    fossabot: /\$\([^)]*\)/g,
-    // $(name) / ${name}: SE's two documented delimiters. Its OLDER bare-{…}
-    // community shorthand is deliberately not matched here: that shape is
-    // byte-identical to this bot's own {…} grammar, so a translated {user}
-    // would flag itself as "still untranslated" the moment SE was picked.
-    streamelements: /\$\([^)]*\)|\$\{[^}]*\}/g,
-    // <name>: Moobot's own bracket syntax, shared with no other source.
-    moobot: /<[a-zA-Z0-9_.-]+>/g,
-    // $(name) / $name(args): Wizebot's two spellings (see wizebot/tags.ts).
-    wizebot: /\$\([^)]*\)|\$[a-zA-Z_]+\([^)]*\)/g,
-    // $name / $name(args): SLCB's bare and called forms, no parens-only call.
-    streamlabs_desktop: /\$[a-zA-Z_][a-zA-Z0-9_]*(\([^)]*\))?/g
-  };
-
-  interface ResponseSegment {
-    text: string;
-    flagged: boolean;
-  }
-
-  // segmentResponse splits one translated response line into plain runs and
-  // runs that still match the PICKED source's own untranslated-syntax
-  // pattern, so the markup can wrap only the leftover source syntax in a Tag
-  // instead of flagging the whole line. No source picked (should not happen
-  // once a manifest exists to render) leaves everything unflagged.
-  function segmentResponse(text: string): ResponseSegment[] {
-    const pattern = source ? SOURCE_UNTRANSLATED_PATTERN[source] : null;
-    if (!pattern) return [{ text, flagged: false }];
-    const out: ResponseSegment[] = [];
-    let last = 0;
-    for (const m of text.matchAll(pattern)) {
-      const start = m.index ?? 0;
-      if (start > last) out.push({ text: text.slice(last, start), flagged: false });
-      out.push({ text: m[0], flagged: true });
-      last = start + m[0].length;
-    }
-    if (last < text.length) out.push({ text: text.slice(last), flagged: false });
-    return out;
-  }
-
-  // sourceLine joins a command's untranslated lines the same way row-response
-  // joins the translated ones, or a non-breaking space so the row's fixed
-  // two-line height never collapses when a manifest carries none (older
-  // fixtures, DEMO data) — see the .row-response--source CSS rule below.
-  function sourceLine(c: ManifestCommand): string {
-    return c.source_responses?.join(' / ') || ' ';
-  }
-
   const fatalCount = $derived.by(() => {
     const m = previewResult?.manifest;
     if (!m) return 0;
@@ -237,11 +296,10 @@
     return n;
   });
 
-  // Reset the checkbox map whenever a new preview lands: everything checked
-  // except items flagged with an error-severity diagnostic.
-  $effect(() => {
+  // Initialize once per preview. Changing stages must preserve the choices.
+  function initializeSelection() {
     const m = previewResult?.manifest;
-    if (!m || step !== 'review') return;
+    if (!m) return;
     const next: Record<string, boolean> = {};
     for (const kind of Object.keys(CODE_PREFIX) as RowKind[]) {
       const rows = (m[kind] as unknown[] | undefined) ?? [];
@@ -250,7 +308,7 @@
       }
     }
     selected = next;
-  });
+  }
 
   function isChecked(kind: RowKind, i: number): boolean {
     return selected[`${kind}:${i}`] !== false;
@@ -330,7 +388,9 @@
   const railDetail = $derived.by(() => [
     strategy ? strategy.label : t('import.railPickPending'),
     inputDetail(),
-    previewResult ? selectionLine : t('import.railReviewPending'),
+    previewResult ? t('onboardingImport.commandsCount', { n: previewResult.manifest?.commands?.length ?? 0 }) : '',
+    previewResult ? statsLine : '',
+    previewResult ? selectionLine : '',
     commitResult ? t('import.railDone') : ''
   ]);
 
@@ -429,9 +489,11 @@
     const prepared = await prepareInput(IMPORT_STRATEGIES[source].input, body);
     if ('error' in prepared) {
       previewError = prepared.error;
+      react('attentive', 2400);
       submitting = false;
       return;
     }
+    play('entrance');
 
     const r = await postPreview(body);
     if (r.ok && r.preview) {
@@ -439,9 +501,12 @@
       // those warnings are stapled in front of the server's own.
       r.preview.diagnostics = [...prepared.diags, ...(r.preview.diagnostics ?? [])];
       previewResult = r.preview;
-      step = 'review';
+      initializeSelection();
+      react('proud', 1800);
+      goStep(r.preview.manifest?.commands?.length ? 'commands' : 'extras');
     } else {
-      previewError = localizeImporterError(r.error, t) || t('import.errGeneric');
+      previewError = r.error || t('import.errGeneric');
+      react('attentive', 2400);
     }
     submitting = false;
   }
@@ -549,6 +614,53 @@
     }
   }
 
+  // Finishing is the save and the completion beat running side by side: the
+  // circle starts drawing the moment the button is pressed, and the dashboard
+  // opens once both the beat has played and the save has landed. A failed
+  // save pulls the overlay straight back so the error reads on the done
+  // scene instead of behind a closing animation.
+  let showCompletion = $state(false);
+  let finishSaved: Promise<boolean> = Promise.resolve(false);
+
+  function finishOnboarding() {
+    if (finishing) return;
+    finishing = true;
+    finishError = '';
+    react('proud', 4000);
+    play('burst');
+    finishSaved = saveFinish();
+    showCompletion = true;
+  }
+
+  async function saveFinish(): Promise<boolean> {
+    try {
+      const body = new FormData();
+      body.set('consent', consentAccepted ? 'yes' : 'no');
+      const res = await fetch('/welcome?/finishImport', { method: 'POST', body });
+      const result = deserialize(await res.text());
+      if (result.type === 'success' && (result.data as { ok?: boolean } | undefined)?.ok) return true;
+      finishFailed(
+        result.type === 'failure'
+          ? (result.data as { error?: string } | undefined)?.error || t('onboardingImport.saveFailed')
+          : t('onboardingImport.saveFailed')
+      );
+    } catch {
+      finishFailed(t('onboardingImport.saveFailed'));
+    }
+    return false;
+  }
+
+  function finishFailed(message: string) {
+    finishError = message;
+    showCompletion = false;
+    finishing = false;
+    react('attentive', 2400);
+  }
+
+  async function afterCompletion() {
+    if (await finishSaved) onexit('/');
+  }
+
   async function runCommit() {
     if (submitting) return;
     commitError = '';
@@ -569,12 +681,14 @@
       const r = deserialize(await res.text());
       if (r.type === 'failure') {
         const d = r.data as { error?: string } | undefined;
-        commitError = localizeImporterError(d?.error, t) || t('import.errGeneric');
+        commitError = d?.error || t('import.errGeneric');
       } else if (r.type === 'success') {
         const d = r.data as { ok?: boolean; commit?: CommitResponse } | undefined;
         if (d?.ok && d.commit) {
           commitResult = d.commit;
-          step = 'done';
+          react('love', 2200);
+          goStep('done');
+          play('burst');
           toast('ok', t('import.toastApplied'));
         } else {
           commitError = t('import.errGeneric');
@@ -603,9 +717,11 @@
     if (want && !f.name.toLowerCase().endsWith(want)) {
       previewError = t('import.errWrongType', { want });
       uploadFile = null;
+      react('attentive', 2400);
       return;
     }
     uploadFile = f;
+    react('happy', 1600);
   }
 
   // A file spec's accept list leads with the extension and follows with the
@@ -618,45 +734,66 @@
   }
 </script>
 
+<svelte:head><title>{t('onboardingImport.pageTitle')} · ItsBagelBot</title><meta name="robots" content="noindex, nofollow" /></svelte:head>
+<svelte:window onpointermove={onPointerMove} />
+<Sky
+  shift={stepIndex % 2 ? 1 : -1}
+  turn={stepIndex * 24}
+  {px}
+  {py}
+  progress={journeyStep / (journeyLabels.length - 1)}
+  leaving={showCompletion}
+/>
+<div class="welcome-import" class:leaving={showCompletion} data-welcome>
+  <header class="top">
+    <Brand title="ItsBagelBot" sub={t('common.console')} logoSrc="/logo.png" logoAlt="" size="md" />
+    <StepRail labels={journeyLabels} current={journeyStep} maxStep={journeyStep} label={t('onboarding.stepOf', { n: journeyStep + 1, total: journeyLabels.length })} onselect={selectRail} />
+  </header>
 <section class="screen active">
-  <PageHead eyebrow={t('settings.eyebrow')} description={t('import.pageDesc')}>
-    {t('import.pageTitlePre')}{' '}<em>{t('import.pageTitleEm')}</em>
-  </PageHead>
+  <div class="intro">
+    <!-- The companion is the thread through the wizard: the same seeded face
+         as /welcome, swinging to the side of the current stage, reacting to
+         what just happened, and holding the stage name and what has been
+         chosen for it. Decorative: the rail below says the same in text. -->
+    <div class="companion" class:flip={stepIndex % 2 === 1} aria-hidden="true">
+      <div class="companion-blob">
+        <span class="companion-plate"></span>
+        <span class="companion-scale">
+        <Bolota
+          name={page.data.name ?? 'ItsBagelBot'}
+          size={130}
+          active
+          follow
+          cycle={false}
+          {expression}
+          {sequence}
+          {sequenceKey}
+          sequenceFor={1000}
+          sequenceHold={200}
+        />
+        </span>
+      </div>
+      <div class="bubble">
+        {#key step}
+          <span class="bubble-inner" in:sceneIn out:sceneOut>
+            <span class="bubble-stage">{String(journeyStep + 1).padStart(2, '0')} · {STAGES[stepIndex]}</span>
+            {#if railDetail[stepIndex]}<span class="bubble-detail">{railDetail[stepIndex]}</span>{/if}
+          </span>
+        {/key}
+      </div>
+    </div>
+  </div>
 
   <div class="wizard">
-    <!-- Persistent progress rail: stage list plus what has actually been
-         chosen so far. Sticky, so the flow column scrolls under it. -->
-    <Card as="aside" class="rail" aria-label={t('import.stagesLabel')}>
-      <p class="rail-head">{t('import.railProgress')}</p>
-      <ol class="rail-list">
-        {#each STAGES as key, i (key)}
-          <li
-            class="rail-item"
-            class:done={i < stepIndex}
-            class:current={i === stepIndex}
-            aria-current={i === stepIndex ? 'step' : undefined}
-          >
-            <span class="rail-gutter" aria-hidden="true">
-              <span class="rail-dot">
-                {#if i < stepIndex}<Icon name="check" size={11} />{:else}{i + 1}{/if}
-              </span>
-              {#if i < STAGES.length - 1}<span class="rail-bar"></span>{/if}
-            </span>
-            <span class="rail-text">
-              <span class="rail-title">{t(key)}</span>
-              {#if railDetail[i]}<span class="rail-detail">{railDetail[i]}</span>{/if}
-            </span>
-          </li>
-        {/each}
-      </ol>
-      <p class="rail-foot">{t('import.railAudit')}</p>
-    </Card>
-
     <div class="flow">
+  <!-- One scene per stage, stacked in a single grid cell so the leaving
+       stage and the arriving one cross instead of stacking for a frame. -->
+  {#key step}
+  <div class="scene" in:sceneIn out:sceneOut>
 
   {#if step === 'pick'}
     <Card>
-      <Heading level={2} class="step-title">{t('import.stepPick')}</Heading>
+      <Heading level={2} class="step-title">{unnumbered(t('import.stepPick'))}</Heading>
       <p class="hint">{t('import.pickHint')}</p>
 
       <div class="tiles">
@@ -665,10 +802,17 @@
              instructions, where its credential/file input lives. A source whose
              input is not built yet ships visibly disabled rather than
              half-working, and cannot be picked or deep-linked into. -->
-        {#each IMPORT_SOURCES as id (id)}
+        {#each IMPORT_SOURCES as id, ti (id)}
           {@const s = IMPORT_STRATEGIES[id]}
           {#if s.available}
-            <label class="tile" class:picked={source === id} data-cursor>
+            <label
+              class="tile"
+              class:picked={source === id}
+              data-cursor
+              style="--ti: {ti};"
+              onpointerenter={() => (hover = 'excited')}
+              onpointerleave={() => (hover = null)}
+            >
               <input
                 type="radio"
                 name="source-pick"
@@ -678,23 +822,28 @@
               />
               <span class="tile-top">
                 <span class="glyph" aria-hidden="true">{s.initials}</span>
-                <span class="tile-name">{s.label}</span>
                 <Tag tone="pre">{t(CHIP_LABEL_KEYS[s.chip])}</Tag>
               </span>
+              <span class="tile-name">{s.label}</span>
               <span class="tile-desc">{t(s.i18n.desc)}</span>
-              <span class="tile-cta">{t('import.tileCta')}</span>
+              <span class="tile-foot">
+                <span class="tile-cta">{t('import.tileCta')}</span>
+              </span>
             </label>
           {:else}
-            <div class="tile disabled" aria-disabled="true">
+            <div class="tile disabled" aria-disabled="true" style="--ti: {ti};">
               <span class="tile-top">
                 <span class="glyph" aria-hidden="true">{s.initials}</span>
-                <span class="tile-name">{s.label}</span>
                 <Tag tone="quiet">{t('import.chipSoon')}</Tag>
               </span>
+              <span class="tile-name">{s.label}</span>
               <span class="tile-desc">{t(s.i18n.desc)}</span>
             </div>
           {/if}
         {/each}
+      </div>
+      <div class="actions">
+        <Button variant="ghost" type="button" onclick={() => onback(4)}>{t('onboarding.back')}</Button>
       </div>
     </Card>
   {:else if step === 'instructions' && source}
@@ -703,7 +852,7 @@
     <Card>
       <div class="instr-head">
         <span class="glyph" aria-hidden="true">{st.initials}</span>
-        <Heading level={2} class="step-title">{t('import.stepInstructions', { source: st.label })}</Heading>
+        <Heading level={2} class="step-title">{unnumbered(t('import.stepInstructions', { source: st.label }))}</Heading>
       </div>
       <p class="hint">{t('import.instrHint', { source: st.label })}</p>
 
@@ -762,7 +911,7 @@
               {t(spec.i18n.connected)}
             </p>
           {:else}
-            <ButtonLink href={spec.connectPath} variant="primary" class="cred-cta">
+            <ButtonLink href={`${spec.connectPath}?return=welcome`} variant="primary" class="cred-cta">
               {t(spec.i18n.cta)}
             </ButtonLink>
           {/if}
@@ -784,11 +933,16 @@
             ondragover={(e) => {
               e.preventDefault();
               dragKind = source;
+              hover = 'surprised';
             }}
-            ondragleave={() => (dragKind = '')}
+            ondragleave={() => {
+              dragKind = '';
+              hover = null;
+            }}
             ondrop={(e) => {
               e.preventDefault();
               dragKind = '';
+              hover = null;
               pickFile(e.dataTransfer?.files?.[0]);
             }}
           />
@@ -806,7 +960,7 @@
         }}
       >
         <div class="actions-row">
-          <Button variant="ghost" type="button" onclick={() => (step = 'pick')} disabled={submitting}
+          <Button variant="ghost" type="button" onclick={() => goStep('pick')} disabled={submitting}
             >{t('import.back')}</Button
           >
           <Button type="submit" variant="primary" loading={submitting}>
@@ -815,9 +969,10 @@
         </div>
       </form>
     </Card>
-  {:else if step === 'review' && previewResult?.manifest}
+  {:else if (step === 'commands' || step === 'extras' || step === 'review') && previewResult?.manifest}
+    {#if step === 'review'}
     <Card class="review-head">
-      <Heading level={2} class="step-title">{t('import.reviewTitle')}</Heading>
+      <Heading level={2} class="step-title">{unnumbered(t('import.reviewTitle'))}</Heading>
       <p class="hint">{reviewHint}</p>
 
       <div class="review-bar">
@@ -827,6 +982,19 @@
         <Button type="button" variant="ghost" size="sm" onclick={() => setAll(false)}>{t('import.selectNone')}</Button>
       </div>
     </Card>
+    {:else}
+      <div class="category-head">
+        <span class="eyebrow">{step === 'commands' ? t('onboardingImport.commandsEyebrow') : t('onboardingImport.extrasEyebrow')}</span>
+        <h2>{step === 'commands' ? t('onboardingImport.commandsTitle') : t('onboardingImport.extrasTitle')}</h2>
+        <p>{step === 'commands' ? t('onboardingImport.commandsBody') : t('onboardingImport.extrasBody')}</p>
+      </div>
+      {#if step === 'extras'}
+        <div class="module-note" role="note">
+          <strong>{t('onboardingImport.modulesTitle')}</strong>
+          <p>{t('onboardingImport.modulesBody')}</p>
+        </div>
+      {/if}
+    {/if}
 
       {#each manifestLevelDiags as d (d.code + d.message)}
         <p class="manifest-warn" role="status">{d.message}</p>
@@ -841,7 +1009,7 @@
         </div>
       {/if}
 
-      {#if previewResult.manifest.commands?.length}
+      {#if step === 'commands' && previewResult.manifest.commands?.length}
         <Card class="group">
           <div class="group-head">
             <span class="group-title">{t('import.hCommands')}</span>
@@ -855,20 +1023,11 @@
                   <Checkbox bind:checked={() => isChecked('commands', i), (on) => toggle('commands', i, on)}><span class="row-name">!{c.name}</span></Checkbox>
                 </span>
                 <div class="row-body">
-                  <span class="row-response row-response--source">{sourceLine(c)}</span>
-                  <span class="row-response">
-                    {#each segmentResponse(c.responses?.join(' / ') ?? '') as seg, si (si)}
-                      {#if seg.flagged}<Tag tone="alpha" class="bb-tag--literal">{seg.text}</Tag>{:else}{seg.text}{/if}
-                    {/each}
-                  </span>
+                  <span class="row-response">{c.responses?.join(' / ')}</span>
                   <span class="chips">
                     {#if c.permission && c.permission !== 'everyone'}<PermBadge perm={c.permission} />{/if}
                     {#if c.cooldown_seconds}<Tag tone="bare">{t('import.cooldownChip', { n: c.cooldown_seconds })}</Tag>{/if}
                     {#each c.aliases ?? [] as a (a)}<Tag tone="bare" class="bb-tag--literal">!{a}</Tag>{/each}
-                    <!-- c.warnings is not rendered here: every parser pushes the
-                         same message onto BOTH cmd.warnings and the diagnostics
-                         stream in one call (see e.g. streamelements.ts's addNote),
-                         so the diag chips below already show each note once. -->
                     {#each diags.filter((d) => d.severity === 'warn') as d (d.code + d.message)}
                       <Tag tone="alpha" title={d.message}>{d.message}</Tag>
                     {/each}
@@ -886,7 +1045,7 @@
         </Card>
       {/if}
 
-      {#if previewResult.manifest.timers?.length}
+      {#if step === 'extras' && previewResult.manifest.timers?.length}
         <Card class="group">
           <div class="group-head">
             <span class="group-title">{t('import.hTimers')}</span>
@@ -917,7 +1076,7 @@
         </Card>
       {/if}
 
-      {#if previewResult.manifest.triggers?.length}
+      {#if step === 'extras' && previewResult.manifest.triggers?.length}
         <Card class="group">
           <div class="group-head">
             <span class="group-title">{t('import.hTriggers')}</span>
@@ -947,7 +1106,7 @@
         </Card>
       {/if}
 
-      {#if previewResult.manifest.quotes?.length}
+      {#if step === 'extras' && previewResult.manifest.quotes?.length}
         <Card class="group">
           <div class="group-head">
             <span class="group-title">{t('import.hQuotes')}</span>
@@ -959,8 +1118,8 @@
 
       {#if commitError}<AlertBanner>{commitError}</AlertBanner>{/if}
 
-      <!-- Sticky commit bar: the selection count travels with the list so the
-           import button is never scrolled off behind a long review. -->
+      <!-- The last stage commits only after every category has been reviewed. -->
+      {#if step === 'review'}
       <form
         class="commit-bar"
         onsubmit={(e) => {
@@ -978,21 +1137,18 @@
           </Button>
         </div>
       </form>
+      {:else}
+        <div class="category-actions">
+          <Button variant="ghost" type="button" onclick={() => goStep(step === 'extras' && previewResult?.manifest?.commands?.length ? 'commands' : 'instructions')}>{t('import.back')}</Button>
+          <Button variant="primary" type="button" onclick={() => goStep(step === 'commands' ? 'extras' : 'review')}>{t('onboardingImport.continue')}</Button>
+        </div>
+      {/if}
   {:else if step === 'done'}
     <Card class="done-panel">
-      <!-- The blob is seeded off the channel name, so the face that congratulates
-           you here is the same one the topbar has been wearing all session. -->
-      <span class="done-blob">
-        <Bolota
-          name={page.data.displayName ?? page.data.login ?? 'ItsBagelBot'}
-          size={58}
-          active={true}
-          cycle={false}
-          sequence="entrance"
-          sequenceKey={commitResult?.audit_id ?? 'done'}
-        />
-      </span>
-      <Heading level={2} class="step-title">{t('import.doneTitle')}</Heading>
+      <!-- The companion above is doing the celebrating (same seeded face as
+           /welcome); this seal is the scene's own quiet confirmation. -->
+      <span class="done-seal" aria-hidden="true"><Icon name="check" size={22} /></span>
+      <Heading level={2} class="step-title">{unnumbered(t('import.doneTitle'))}</Heading>
       {#if commitResult}
         <p class="hint">
           {t('import.doneLine', {
@@ -1027,18 +1183,202 @@
         <p class="hint">{t('import.nothingApplied')}</p>
       {/if}
       <div class="actions">
-        <Button variant="primary" onclick={reset}>{t('import.backToSources')}</Button>
+        <Button variant="primary" onclick={finishOnboarding} loading={finishing}>{t('onboardingImport.dashboard')}</Button>
       </div>
+      {#if finishError}<AlertBanner>{finishError}</AlertBanner>{/if}
       {#if commitResult?.audit_id}
         <p class="audit">{t('import.auditFoot', { n: commitResult.audit_id })}</p>
       {/if}
     </Card>
   {/if}
+  </div>
+  {/key}
     </div>
   </div>
 </section>
+</div>
+{#if showCompletion}<Completion label={t('onboardingImport.stageDone')} oncomplete={afterCompletion} />{/if}
 
 <style>
+  /* Same rule as /welcome: this page paints its own sky, so the shell's
+     ambient orb pair would muddy it. Scoped to this page's presence. */
+  :global(body:has([data-welcome]) .bb-bg-orb) { display: none; }
+
+  .welcome-import {
+    position: relative;
+    z-index: 1;
+    min-height: 100vh;
+    padding: 0 clamp(18px, 5vw, 72px) 72px;
+    color: var(--bb-white);
+    overflow-x: clip;
+  }
+  /* `backwards`, not `both`: a held final keyframe would pin opacity at 1
+     and the leaving fade below could never apply. */
+  .top { animation: settle 900ms var(--bb-ease-out-expo) backwards; }
+  :global(.welcome-import .screen) { animation: arrive-far 760ms var(--bb-ease-out-expo) backwards; }
+  .leaving .top,
+  .leaving :global(.screen) {
+    opacity: 0;
+    transition: opacity 400ms var(--bb-ease-out-expo);
+  }
+  .top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    min-height: 96px;
+  }
+  :global(.welcome-import .screen) {
+    width: min(1120px, 100%);
+    margin: 24px auto 0;
+  }
+  .intro {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 32px;
+    margin-bottom: 12px;
+  }
+
+  /* Companion: blob plus a speech bubble naming the stage. The pair swaps
+     order on alternate stages (the /welcome side swap, in miniature), as a
+     transform so the row never reflows. */
+  .companion {
+    --blob: 156px;
+    --bubble: 220px;
+    flex: none;
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: calc(var(--blob) + var(--bubble) + 14px);
+  }
+  .companion-blob {
+    position: relative;
+    flex: none;
+    width: var(--blob);
+    height: var(--blob);
+    display: grid;
+    place-items: center;
+    filter: drop-shadow(0 14px 26px rgba(0, 0, 0, .38));
+    transition: transform 1000ms var(--bb-ease-out-expo);
+  }
+  /* The float loop lives one level in from the side swap: both are
+     transforms and one element cannot run a transition and a keyframe loop
+     on the same property. The phone size uses `scale`, a separate property,
+     so it composes with the loop. */
+  .companion-scale {
+    display: grid;
+    place-items: center;
+    animation: float 9s ease-in-out infinite;
+  }
+  .companion-plate {
+    position: absolute;
+    inset: -8%;
+    z-index: -1;
+    border-radius: 50%;
+    background: radial-gradient(
+      circle at 40% 35%,
+      rgba(var(--bb-green-glow-rgb), .3),
+      rgba(var(--bb-tan-rgb), .14) 46%,
+      transparent 70%
+    );
+    filter: blur(18px);
+    animation: breathe 6s ease-in-out infinite;
+  }
+  .bubble {
+    position: relative;
+    display: grid;
+    width: var(--bubble);
+    min-height: 64px;
+    padding: 12px 16px;
+    border: 1px solid var(--bb-border-strong);
+    border-radius: var(--bb-radius-md);
+    background: rgba(17, 17, 16, .7);
+    backdrop-filter: blur(14px);
+    overflow: hidden;
+    transition: transform 1000ms var(--bb-ease-out-expo);
+  }
+  .bubble-inner { grid-area: 1 / 1; display: grid; gap: 4px; align-content: center; }
+  .bubble-stage {
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--bb-tan-pale);
+  }
+  .bubble-detail {
+    font-size: 12.5px;
+    line-height: 1.4;
+    color: var(--bb-muted);
+    overflow-wrap: anywhere;
+  }
+  .companion.flip .companion-blob { transform: translateX(calc(var(--bubble) + 14px)); }
+  .companion.flip .bubble { transform: translateX(calc(-1 * (var(--blob) + 14px))); }
+  .category-head h2 {
+    margin: 0 0 12px;
+    font-family: var(--bb-font-display);
+    font-weight: 700;
+    letter-spacing: -.04em;
+    line-height: 1.08;
+  }
+  .category-head p { margin: 0; color: var(--bb-muted); line-height: 1.6; }
+  .category-head {
+    padding: 26px 30px;
+    border: 1px solid var(--bb-border-strong);
+    border-radius: var(--bb-radius-lg);
+    background: rgba(17, 17, 16, .76);
+    backdrop-filter: blur(18px);
+  }
+  .category-head h2 { font-size: clamp(25px, 3vw, 36px); }
+  .module-note {
+    padding: 18px 22px;
+    border: 1px solid rgba(201, 168, 124, .38);
+    border-radius: var(--bb-radius-md);
+    background: rgba(201, 168, 124, .07);
+  }
+  .module-note strong { color: var(--bb-tan-pale); }
+  .module-note p { margin: 6px 0 0; color: var(--bb-muted); line-height: 1.55; }
+  .category-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding-top: 8px;
+  }
+  :global(.welcome-import .scene > .bb-card) {
+    background: rgba(17, 17, 16, .76);
+    backdrop-filter: blur(18px);
+  }
+  :global(:root[data-theme="light"]) .bubble,
+  :global(:root[data-theme="light"]) .category-head,
+  :global(:root[data-theme="light"] .welcome-import .scene > .bb-card) {
+    background: rgba(255, 255, 255, .72);
+  }
+
+  @media (max-width: 760px) {
+    .top { flex-wrap: wrap; padding: 18px 0; }
+    :global(.welcome-import .screen) { margin-top: 24px; }
+  }
+  /* Tablets and phones: the companion stays (it is the thread through the
+     journey) but shrinks into a compact row above the heading, blob beside
+     its bubble, once the side-by-side row would squeeze the heading. */
+  @media (max-width: 1000px) {
+    .intro {
+      flex-direction: column-reverse;
+      align-items: stretch;
+      gap: 18px;
+      margin-bottom: 24px;
+    }
+    .companion {
+      --blob: 84px;
+      --bubble: calc(100% - 98px);
+      width: 100%;
+    }
+    .companion-scale { scale: .64; }
+    .companion.flip .companion-blob,
+    .companion.flip .bubble { transform: none; }
+  }
+
   /* The step titles are `Heading` blocks. 16px is between the l4 (20px) and
      l5 (17px) steps, and matches the settings page's own section heads: this
      page is one of its sections. */
@@ -1049,133 +1389,26 @@
     margin: 0 0 12px;
   }
 
-  /* --- wizard shell: sticky progress rail + flow column --- */
+  /* The imported stages use the same single stage width as onboarding. */
   .wizard {
     display: grid;
-    grid-template-columns: 264px minmax(0, 1fr);
-    gap: 28px;
+    grid-template-columns: minmax(0, 1fr);
     align-items: start;
   }
   .flow {
+    min-width: 0;
+    display: grid;
+  }
+  .scene {
+    grid-area: 1 / 1;
     min-width: 0;
     display: flex;
     flex-direction: column;
     gap: 20px;
   }
-  :global(.rail) {
-    position: sticky;
-    top: 32px;
-    padding: 22px 20px;
-  }
-  .rail-head {
-    margin: 0 0 18px;
-    font-family: var(--bb-font-mono);
-    font-size: 10.5px;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
-  }
-  .rail-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-  .rail-item {
-    display: flex;
-    gap: 12px;
-    align-items: flex-start;
-  }
-  .rail-gutter {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    flex: none;
-    width: 26px;
-  }
-  .rail-dot {
-    width: 26px;
-    height: 26px;
-    border-radius: 50%;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    border: 1px solid var(--glass-border);
-    background: var(--glass-fill);
-    color: var(--bb-muted);
-    transition:
-      border-color var(--bb-dur-fast, 140ms) ease,
-      color var(--bb-dur-fast, 140ms) ease;
-  }
-  .rail-bar {
-    width: 1px;
-    flex: 1;
-    min-height: 26px;
-    background: var(--bb-border);
-  }
-  .rail-text {
-    padding-bottom: 18px;
-    min-width: 0;
-  }
-  .rail-title {
-    display: block;
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
-  }
-  .rail-detail {
-    display: block;
-    margin-top: 5px;
-    font-size: 12.5px;
-    line-height: 1.45;
-    color: #5f5a53;
-    overflow-wrap: anywhere;
-  }
-  .rail-item.current .rail-title {
-    color: var(--bb-white);
-  }
-  .rail-item.current .rail-dot {
-    border-color: rgba(201, 168, 124, 0.6);
-    color: var(--bb-tan-light);
-    box-shadow: 0 0 0 3px rgba(201, 168, 124, 0.12);
-  }
-  .rail-item.done .rail-title {
-    color: var(--bb-green-glow, #52b788);
-  }
-  .rail-item.done .rail-dot {
-    border-color: rgba(82, 183, 136, 0.5);
-    color: var(--bb-green-glow, #52b788);
-  }
-  .rail-foot {
-    margin: 6px 0 0;
-    padding-top: 18px;
-    border-top: 1px solid var(--bb-border);
-    font-size: 12.5px;
-    line-height: 1.5;
-    color: var(--bb-muted);
-  }
-
-  /* Below the two-column breakpoint the rail stops being a sidebar: it goes
-     back to normal flow above the steps rather than eating a scroll-locked
-     column on a phone. */
-  @media (max-width: 900px) {
-    .wizard {
-      grid-template-columns: minmax(0, 1fr);
-    }
-    :global(.rail) {
-      position: static;
-    }
-  }
-
   /* --- step 1: source tiles --- */  .tiles {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
     gap: 12px;
     margin: 16px 0 4px;
   }
@@ -1183,21 +1416,34 @@
     position: relative;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
+    min-height: 176px;
     border: 1px solid var(--glass-border);
     border-radius: var(--bb-radius-md);
-    padding: 16px 18px;
-    background: var(--glass-fill);
+    padding: 18px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(0, 0, 0, 0.18));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
     cursor: pointer;
     transition:
       border-color 200ms ease,
       background 200ms ease,
       box-shadow 200ms ease;
+    animation: tile-in 640ms var(--bb-ease-out-expo) calc(320ms + var(--ti, 0) * 70ms) both;
   }
+  .tile:not(.disabled):hover {
+    border-color: rgba(201, 168, 124, 0.45);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.07),
+      0 14px 30px rgba(0, 0, 0, 0.28);
+  }
+  .tile:not(.disabled):hover .glyph { transform: translateX(3px); }
+  .tile-cta { transition: transform 420ms var(--bb-ease-out-expo); }
+  .tile:not(.disabled):hover .tile-cta { transform: translateX(4px); }
   .tile.picked {
     border-color: rgba(201, 168, 124, 0.65);
-    background: rgba(201, 168, 124, 0.05);
+    background: linear-gradient(180deg, rgba(201, 168, 124, 0.08), rgba(0, 0, 0, 0.18));
     box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.07),
       0 0 0 1px rgba(201, 168, 124, 0.35),
       0 10px 26px rgba(0, 0, 0, 0.22);
   }
@@ -1219,7 +1465,16 @@
   .tile-top {
     display: flex;
     align-items: center;
-    gap: 10px;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 4px;
+  }
+  .tile-foot {
+    display: flex;
+    align-items: center;
+    margin-top: auto;
+    padding-top: 12px;
+    border-top: 1px solid var(--glass-border);
   }
   .glyph {
     flex: none;
@@ -1238,7 +1493,8 @@
     color: var(--bb-tan-light);
     transition:
       border-color 200ms ease,
-      color 200ms ease;
+      color 200ms ease,
+      transform 420ms var(--bb-ease-out-expo);
   }
   .tile.picked .glyph {
     border-color: rgba(201, 168, 124, 0.55);
@@ -1247,10 +1503,10 @@
   .tile-name {
     font-family: var(--bb-font-display);
     font-weight: 700;
-    font-size: 14.5px;
+    font-size: 15px;
+    line-height: 1.25;
     color: var(--bb-white);
-    flex: 1;
-    min-width: 0;
+    overflow-wrap: break-word;
   }
   .tile-desc {
     color: var(--bb-muted);
@@ -1415,27 +1671,7 @@
     color: var(--bb-muted);
     font-size: 13px;
     line-height: 1.5;
-    /* Fixed one-line HEIGHT (not min-height, which a long unwrapped word
-       could still exceed) on both the source and translated rows, so a
-       command whose review text is long does not push every row below it —
-       the original line above and the translated line here are each capped
-       at exactly one line's worth of height regardless of content. A row
-       that overflows is clipped with an ellipsis rather than wrapped or
-       let to grow, which is what "capped at one line" actually requires:
-       overflow-wrap alone still grows the row taller for a wrapped second
-       line. Chips live in their own sibling element (.chips, below) so they
-       are never inside this box and can never wrap the row themselves. */
-    height: calc(13px * 1.5);
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-  }
-  /* The untranslated line above row-response: dimmer still, so the pair reads
-     as "what you wrote" (quieter) over "what this bot will say" (the
-     row's normal contrast), never the reverse. */
-  .row-response--source {
-    opacity: 0.6;
-    font-style: italic;
+    overflow-wrap: anywhere;
   }
   .chips {
     display: flex;
@@ -1565,17 +1801,24 @@
     color: var(--bb-muted);
   }
 
-  .done-blob {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 76px;
-    height: 76px;
-    border-radius: var(--bb-radius-lg);
-    background: rgba(82, 183, 136, 0.12);
-    border: 1px solid var(--bb-border-strong);
+  .done-seal {
+    display: inline-grid;
+    place-items: center;
+    width: 52px;
+    height: 52px;
     margin-bottom: 14px;
+    border-radius: 50%;
+    border: 1px solid rgba(var(--bb-green-glow-rgb), .5);
+    background: rgba(var(--bb-green-glow-rgb), .14);
+    color: var(--bb-green-glow);
+    box-shadow: 0 0 0 6px rgba(var(--bb-green-glow-rgb), .06);
+    animation: seal-in 700ms var(--bb-ease-out-expo) 360ms both;
   }
+  .applied-tile { animation: tile-in 640ms var(--bb-ease-out-expo) 520ms both; }
+  .applied-tile:nth-child(2) { animation-delay: 590ms; }
+  .applied-tile:nth-child(3) { animation-delay: 660ms; }
+  .applied-tile:nth-child(4) { animation-delay: 730ms; }
+  .applied-tile:nth-child(5) { animation-delay: 800ms; }
   .applied {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
@@ -1617,5 +1860,46 @@
       border-radius: var(--bb-radius-sm);
       padding: 14px 16px;
     }
+  }
+
+  @keyframes settle {
+    from { opacity: 0; transform: translateX(-16px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes arrive-far {
+    from { opacity: 0; transform: translateX(8vw); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes tile-in {
+    from { opacity: 0; transform: translateX(22px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes seal-in {
+    from { opacity: 0; transform: scale(.4); }
+    to { opacity: 1; transform: none; }
+  }
+  /* Lateral, like /welcome's: the resting blob hovers rather than bobs. */
+  @keyframes float {
+    0%, 100% { transform: translate(0, 0); }
+    32% { transform: translate(8px, -3px); }
+    64% { transform: translate(-6px, 3px); }
+  }
+  @keyframes breathe {
+    0%, 100% { opacity: .7; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.08); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .top,
+    :global(.welcome-import .screen),
+    .companion-scale,
+    .companion-plate,
+    .tile,
+    .done-seal,
+    .applied-tile { animation: none; }
+    .companion-blob,
+    .bubble,
+    .glyph,
+    .tile-cta { transition: none; }
   }
 </style>

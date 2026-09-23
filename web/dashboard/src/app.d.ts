@@ -34,6 +34,10 @@ declare global {
       // builds it from the sources that declare a connect step).
       connected?: Record<string, boolean>;
     }
+    interface PageState {
+      // /welcome: the import wizard opened from the tour (shallow route).
+      importing?: boolean;
+    }
   }
 }
 

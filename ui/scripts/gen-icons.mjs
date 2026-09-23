@@ -71,6 +71,10 @@ const ICONS = {
   power: 'lucide:power',
   check: 'lucide:check',
   link: 'lucide:link',
+  start: 'lucide:sparkles',
+  integrate: 'lucide:plug-zap',
+  quiet: 'lucide:volume-x',
+  importFile: 'lucide:file-input',
   lock: 'lucide:lock',
   chevron: 'lucide:chevron-down',
   // editorial glyphs the marketing pages draw
