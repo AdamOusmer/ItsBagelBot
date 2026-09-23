@@ -111,8 +111,22 @@ const ENTRIES: {
     // and gone stale the next time the span grammar spends a byte. 8700 covers
     // the measured figure plus the linux/x64 gzip delta (~150 B) and ~1% room
     // (8473 + 150 = 8623 -> +1%).
+    //
+    // Raised again from 8700 (2026-09-22, phase 6 importer targets): the
+    // positional/slice/fallback family ($(N)/$(N:)/$(:M)/$(N:M)/$(N|fb)),
+    // $(pointsname)/$(user.points)/$(time <place>)/$(math)/$(repeat) and the
+    // {user}/{channel} per-suffix dispatch functions that replaced
+    // bakedIdentity's single-target table rows. Measured 9080 B gzip on
+    // macOS/arm64. 9500 covers that plus the linux/x64 delta (~150 B) and
+    // ~3% room (9080 + 150 = 9230 -> +3%).
+    //
+    // Re-measured 2026-09-22 (review round, no budget change): the E-inverse
+    // round-trip fixes (rangeKey/pickKey/chooseParam/the $(:M) trigger-word
+    // shift/the $(if …) warn wording) moved this to 9287 B gzip on
+    // macOS/arm64 — still inside the 9500 budget above (213 B room), so the
+    // number is recorded here rather than raised.
     name: "streamelements parser",
-    budget: 8700,
+    budget: 9500,
     external: [],
     source: `import { parseStreamElements } from "../../lib/importer/streamelements";
              globalThis.x = parseStreamElements;`,
@@ -131,8 +145,30 @@ const ENTRIES: {
     // ~100-150 B larger than macOS/arm64 (see the size-budgets skill). 8460
     // keeps the usual ~3% of room above the linux-side estimate (8058 + 150 =
     // 8208 -> +3%).
+    //
+    // Raised again from 8460 (2026-09-22, phase 6 importer targets): the
+    // $argN/$numN/$arglN per-slot positional family (replacing the old
+    // all-or-nothing rule), $countdown/$countup date normalization
+    // (targets.ts's normalizeInstant), and $points/$currencyname/
+    // $randusername/$userid's bug fix. Measured 8819 B gzip on macOS/arm64.
+    // 9250 covers that plus the linux/x64 delta (~150 B) and ~3% room
+    // (8819 + 150 = 8969 -> +3%).
+    //
+    // Raised again from 9250 (2026-09-22, same day: the three deferred
+    // slices): $readapi(URL) now synthesizes a real {urlfetch:…} definition,
+    // which pulls nightbot/fetchdefs.ts's slot allocator (shared with every
+    // other $(…)-syntax source) into this parser for the first time. Measured
+    // 9544 B gzip on macOS/arm64. 10000 covers that plus the linux/x64 delta
+    // (~150 B) and ~3% room (9544 + 150 = 9694 -> +3%).
+    //
+    // Raised again from 10000 (2026-09-22, review round): the fetch-def-
+    // created warn (nightbot/fetchdefs.ts's createdFetchDefMessage) and the
+    // $numN numeric-check-lost warn both added diagnostics text this parser
+    // now carries. Measured 10276 B gzip on macOS/arm64. 10750 covers that
+    // plus the linux/x64 delta (~150 B) and ~3% room (10276 + 150 = 10426
+    // -> +3%).
     name: "streamlabs desktop parser",
-    budget: 8460,
+    budget: 10750,
     external: ["sql.js", "node:module"],
     source: `import { parseStreamLabsDesktop } from "../../lib/importer/streamlabs-desktop";
              globalThis.x = parseStreamLabsDesktop;`,

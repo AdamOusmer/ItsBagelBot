@@ -26,7 +26,7 @@ import {
   parseStreamLabsDesktop,
   translateVariables
 } from './streamlabs-desktop';
-import { validateManifest } from './validate';
+import { CODE, validateManifest } from './validate';
 
 const here = dirname(import.meta.path);
 const SQL = await initSqlJs();
@@ -178,6 +178,7 @@ describe('golden replay', () => {
     });
   }
 
+
   test('parse is deterministic', async () => {
     const bytes = buildFixtureDB(fullSpec);
     const a = JSON.stringify(await parseStreamLabsDesktop(bytes));
@@ -197,6 +198,47 @@ const unitSpec: Spec = {
   ]
 };
 
+describe('phase 6: $readapi urlfetch synthesis', () => {
+  test('a readapi call becomes a definition with a legal slug', async () => {
+    const { manifest, diagnostics } = await parseStreamLabsDesktop(
+      buildFixtureDB({ commands: [{ name: '!weather', response: 'now: $readapi(https://api.example.com/w)' }] })
+    );
+    expect(manifest.commands?.[0].responses).toEqual(['now: {urlfetch:slcb_weather}']);
+    expect(manifest.fetches).toEqual([
+      { name: 'slcb_weather', url: 'https://api.example.com/w', source: 'streamlabs_desktop' }
+    ]);
+    // phase 6: a successful synthesis now warns, naming the slug and URL.
+    expect(diagnostics.map((d) => d.code)).toEqual(['fetch_def_created']);
+  });
+
+  test('the same URL twice in one command shares its definition', async () => {
+    const { manifest } = await parseStreamLabsDesktop(
+      buildFixtureDB({
+        commands: [{ name: '!x', response: '$readapi(https://a.example/1) $readapi(https://a.example/1)' }]
+      })
+    );
+    expect(manifest.fetches).toHaveLength(1);
+    expect(manifest.commands?.[0].responses).toEqual(['{urlfetch:slcb_x} {urlfetch:slcb_x}']);
+  });
+
+  test('a URL built out of another $param is never baked into a definition', async () => {
+    const { manifest, diagnostics } = await parseStreamLabsDesktop(
+      buildFixtureDB({ commands: [{ name: '!q', response: '$readapi(https://a.example/?u=$username)' }] })
+    );
+    expect(manifest.fetches).toBeUndefined();
+    expect(manifest.commands?.[0].responses).toEqual(['$readapi(https://a.example/?u=$username)']);
+    expect(diagnostics.some((d) => d.code === CODE.variableUnmapped)).toBe(true);
+  });
+
+  test('a non-https URL is refused rather than synthesized dead', async () => {
+    const { manifest, diagnostics } = await parseStreamLabsDesktop(
+      buildFixtureDB({ commands: [{ name: '!f', response: '$readapi(ftp://a.example/x)' }] })
+    );
+    expect(manifest.fetches).toBeUndefined();
+    expect(diagnostics.some((d) => d.code === CODE.variableUnmapped)).toBe(true);
+  });
+});
+
 describe('full-fixture assertions (from TestParse_FullFixture)', () => {
   let parsed: Awaited<ReturnType<typeof parseStreamLabsDesktop>>;
   beforeAll(async () => {
@@ -214,14 +256,14 @@ describe('full-fixture assertions (from TestParse_FullFixture)', () => {
     });
     expect(byName.get('hug')).toMatchObject({
       permission: 'mod',
-      responses: ['/me hugs {target} {random:1-5} times!']
+      responses: ['/me hugs {touser} {random:1-5} times!']
     });
     expect(byName.get('cookie')).toMatchObject({
       permission: 'everyone',
-      responses: ['{count} cookies eaten! {counter:lurk} via $readapi(https://example.api)']
+      responses: ['{count} cookies eaten! {counter:lurk} via {urlfetch:slcb_cookie}']
     });
     expect(byName.get('multi')!.responses).toEqual(['line one', 'line two', 'line three']);
-    expect(byName.get('slots')).toMatchObject({ permission: 'everyone', responses: ['$arg1 vs $arg2 who wins?!'] });
+    expect(byName.get('slots')).toMatchObject({ permission: 'everyone', responses: ['{1} vs {2} who wins?!'] });
     expect(byName.get('viponly')).toMatchObject({ permission: 'vip', responses: ['vip greeting {args}'] });
     expect(byName.get('caster')!.permission).toBe('broadcaster');
     expect(byName.get('editor')!.permission).toBe('lead_mod');
@@ -232,8 +274,15 @@ describe('full-fixture assertions (from TestParse_FullFixture)', () => {
     const codesAt = (i: number): Set<string> =>
       new Set(parsed.diagnostics.filter((d) => d.item_index === i).map((d) => d.code));
     expect(codesAt(idxOf('cookie'))).toContain('command_permission_unmapped');
-    expect(codesAt(idxOf('cookie'))).toContain('command_script_dependent');
-    expect(codesAt(idxOf('slots'))).toContain('command_variable_unmapped');
+    // phase 6: $readapi(...) now maps onto {urlfetch:slcb_cookie} + a real
+    // definition (see the fixture's own fetches assertion below) instead of
+    // marking the whole command script-dependent.
+    expect(codesAt(idxOf('cookie'))).not.toContain('command_script_dependent');
+    // !slots ($arg1 vs $arg2) no longer trips a variable_unmapped warning
+    // (phase 6 deleted the all-or-nothing $argN rule this used to hit): both
+    // slots map onto their own positional word independently. Its perm
+    // ('Wizard') is still unrecognized, so that diagnostic remains.
+    expect(codesAt(idxOf('slots'))).toEqual(new Set(['command_permission_unmapped']));
   });
 
   test('timers: defaulted global interval + randnum/count translation', () => {
@@ -327,12 +376,12 @@ describe('$parameter translation (vectors from parameters_test)', () => {
   const cases: Case[] = [
     { name: 'plain', input: 'hello world', cmd: 'x', want: 'hello world', noWarn: true },
     { name: 'username', input: '$username hi', cmd: 'x', want: '{user} hi', noWarn: true },
-    { name: 'userid maps to user', input: 'gg $userid', cmd: 'x', want: 'gg {user}', noWarn: true },
+    { name: 'userid maps to user.id', input: 'gg $userid', cmd: 'x', want: 'gg {user.id}', noWarn: true },
     {
       name: 'target variants',
       input: '$targetname/$tousername/$touser/$target',
       cmd: 'x',
-      want: '{target}/{target}/{target}/{target}',
+      want: '{touser}/{touser}/{touser}/{touser}',
       noWarn: true
     },
     { name: 'channel', input: 'follow $mychannel', cmd: 'x', want: 'follow {channel}', noWarn: true },
@@ -366,20 +415,23 @@ describe('$parameter translation (vectors from parameters_test)', () => {
       noWarn: true
     },
     {
-      name: 'readapi literal + external',
+      // phase 6: $readapi now maps onto {urlfetch:<slug>} (see the golden
+      // replay fixture and the dedicated readapi tests below) when a sink is
+      // available; this vector table calls translateVariables directly with
+      // no sink (only extract.ts wires one, per command), so both remaining
+      // cases here exercise the no-sink degrade path instead of "external".
+      name: 'readapi with no sink stays literal and warns',
       input: 'temp: $readapi(http://x/y?a=b)',
       cmd: 'x',
       want: 'temp: $readapi(http://x/y?a=b)',
-      ext: true,
-      noWarn: true
+      warnSub: ['$readapi']
     },
     {
-      name: 'nested parens external',
+      name: 'nested parens, no sink stays literal and warns',
       input: '$readapi(https://x/a(b)) end',
       cmd: 'x',
       want: '$readapi(https://x/a(b)) end',
-      ext: true,
-      noWarn: true
+      warnSub: ['$readapi']
     },
     {
       name: 'savetofile external',
@@ -389,7 +441,37 @@ describe('$parameter translation (vectors from parameters_test)', () => {
       ext: true,
       noWarn: true
     },
-    { name: 'unknown token warned', input: '$points points!', cmd: 'x', want: '$points points!', warnSub: ['$points'] },
+    {
+      name: 'countdown date-only maps',
+      input: '$countdown(2026-12-25)',
+      cmd: 'x',
+      want: '{countdown:2026-12-25}',
+      noWarn: true
+    },
+    {
+      name: 'countup free-form date normalizes to RFC3339',
+      input: '$countup(Jan 1 2026 00:00:00 UTC)',
+      cmd: 'x',
+      want: '{countup:2026-01-01T00:00:00.000Z}',
+      noWarn: true
+    },
+    {
+      name: 'countdown unparsable date warns',
+      input: '$countdown(whenever)',
+      cmd: 'x',
+      want: '$countdown(whenever)',
+      warnSub: ['date this bot could not read']
+    },
+    { name: 'points maps', input: '$points points!', cmd: 'x', want: '{points} points!', noWarn: true },
+    { name: 'currencyname maps', input: 'earn $currencyname now', cmd: 'x', want: 'earn {points.name} now', noWarn: true },
+    { name: 'randusername maps', input: 'hi $randusername', cmd: 'x', want: 'hi {random.viewer}', noWarn: true },
+    {
+      name: 'unknown token warned',
+      input: '$givepoints points!',
+      cmd: 'x',
+      want: '$givepoints points!',
+      warnSub: ['$givepoints']
+    },
     { name: 'currency dollar untouched', input: 'costs $5 and 50$', cmd: 'x', want: 'costs $5 and 50$', noWarn: true },
     {
       name: 'desc first line stripped',
@@ -405,21 +487,50 @@ describe('$parameter translation (vectors from parameters_test)', () => {
       want: 'start $desc(x) end',
       noWarn: true
     },
-    { name: 'single arg1 becomes args', input: 'slaps $arg1', cmd: 'x', want: 'slaps {args}', noWarn: true },
-    { name: 'num1 becomes args', input: 'bet $num1', cmd: 'x', want: 'bet {args}', noWarn: true },
+    { name: 'arg1 becomes positional word 1', input: 'slaps $arg1', cmd: 'x', want: 'slaps {1}', noWarn: true },
+    // phase 6: $numN's own numeric-only check has no equivalent in this
+    // bot's plain positional word, so it warns even though it maps cleanly.
     {
-      name: 'arg10 not arg1',
-      input: '$arg10 wins',
+      name: 'num1 becomes positional word 1, warns about the lost numeric check',
+      input: 'bet $num1',
       cmd: 'x',
-      want: '$arg10 wins',
-      warnSub: ['numbered argument']
+      want: 'bet {1}',
+      warnSub: ['only filled this in when the word was a number']
     },
     {
-      name: 'two slots stay literal',
+      name: 'arg10 is positional word 10, not arg1',
+      input: '$arg10 wins',
+      cmd: 'x',
+      want: '{10} wins',
+      noWarn: true
+    },
+    {
+      name: 'two slots map independently (no more all-or-nothing)',
       input: '$arg1 vs $arg2',
       cmd: 'x',
-      want: '$arg1 vs $arg2',
-      warnSub: ['numbered argument']
+      want: '{1} vs {2}',
+      noWarn: true
+    },
+    {
+      name: 'argl bare means the whole rest, lower-cased',
+      input: 'say $argl',
+      cmd: 'x',
+      want: 'say {args}',
+      noWarn: true
+    },
+    {
+      name: 'arglN maps to the rest-from-N slice, warned for lost lower-casing',
+      input: 'say $argl2',
+      cmd: 'x',
+      want: 'say {2:}',
+      warnSub: ['lower-cased']
+    },
+    {
+      name: 'arg slot past the positional cap stays literal',
+      input: '$arg31',
+      cmd: 'x',
+      want: '$arg31',
+      warnSub: ['30-word limit']
     },
     {
       name: 'mixed known unknown',

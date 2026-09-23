@@ -14,12 +14,11 @@
 // several heads in one go).
 
 import { describe, expect, test } from 'bun:test';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join, sep } from 'node:path';
 import { tokenHead } from './head';
 import { lex } from '../engine/tmpl';
-import { SIMPLE_TOKENS as FOSSABOT_SIMPLE_TOKENS, SUBFIELD_TOKENS as FOSSABOT_SUBFIELD_TOKENS } from '../importer/fossabot/variables';
-import { SIMPLE_TOKENS as NIGHTBOT_SIMPLE_TOKENS } from '../importer/nightbot/variables';
+import { TARGETS } from '../importer/targets';
 import { VARIABLES } from './variables';
 import { forSurface } from './surfaces';
 import type { VariableDef } from './types';
@@ -182,6 +181,104 @@ const unresolvedHintKeys = (locale: string, tree: unknown): string[] =>
       .map((token) => `${source.where} token "${token.name}": ${locale}.json has no ${token.hintKey}`)
   );
 
+// importerSourceFiles walks importer/** for rule E-inverse: every .ts file
+// EXCEPT tests and committed fixtures, since those are pinned expectations
+// (a golden's OWN literal '{touser}' is the assertion, not a mint site) and
+// would otherwise double-count every span the parsers already emit.
+const IMPORTER_ROOT = join(import.meta.dir, '../importer');
+
+// isImporterSourceName is true for a file this rule should walk: real
+// TypeScript source, never a test body or a declaration file — both would
+// double-count spans that are pinned expectations rather than mint sites.
+function isImporterSourceName(name: string): boolean {
+  if (!name.endsWith('.ts')) return false;
+  return !name.endsWith('.test.ts') && !name.endsWith('.d.ts');
+}
+
+function importerSourceFiles(dir: string = IMPORTER_ROOT): string[] {
+  const out: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name === 'testdata') continue;
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      out.push(...importerSourceFiles(full));
+    } else if (isImporterSourceName(entry.name)) {
+      out.push(full);
+    }
+  }
+  return out;
+}
+
+// ScannedFile bundles one importer source file's path and contents, so the
+// offender scanners below take one object param each instead of two
+// separate strings.
+interface ScannedFile {
+  path: string;
+  text: string;
+}
+
+// bracedLiteralOffenders flags every bare '{head}' string literal in
+// file.text naming a head TARGETS does not know. Split out of the E-inverse
+// test body (alongside emitCallOffenders below) so each walk is its own
+// single-nested loop rather than two stacked inside one function.
+function bracedLiteralOffenders(file: ScannedFile, targetHeads: Set<string>): string[] {
+  const offenders: string[] = [];
+  for (const m of file.text.matchAll(/'\{([a-z][a-z.]*)\}'/g)) {
+    if (!targetHeads.has(m[1])) offenders.push(`${file.path}: literal '{${m[1]}}' not in TARGETS`);
+  }
+  return offenders;
+}
+
+// emitCallOffenders flags every emit(/emitWithFallback( call in file.text
+// naming a concept TARGETS does not know.
+function emitCallOffenders(file: ScannedFile, targetHeads: Set<string>): string[] {
+  const offenders: string[] = [];
+  for (const m of file.text.matchAll(/\bemit(?:WithFallback)?\(\s*'([a-z][a-z.]*)'/g)) {
+    if (!targetHeads.has(m[1])) offenders.push(`${file.path}: emit('${m[1]}') not in TARGETS`);
+  }
+  return offenders;
+}
+
+// STRING_OR_TEMPLATE/INTERPOLATION/ALLOWLISTED back the E-inverse-2 rule
+// below: shared module scope so isAllowlisted and bracedStringOffenders (its
+// helpers) can both reach them without threading them through every call.
+const STRING_OR_TEMPLATE = /'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`(?:[^`\\]|\\.)*`/g;
+const INTERPOLATION = /^\$\{[^{}]*\}/;
+const ALLOWLISTED = /\/\/\s*brace-literal-ok:/;
+
+// ScannedLine bundles one line's own text with the index and full line list
+// it came from, so the E-inverse-2 helpers below read one object param each
+// instead of a file/line/index/lines quartet of primitives.
+interface ScannedLine {
+  file: string;
+  line: string;
+  index: number;
+  lines: string[];
+}
+
+// isAllowlisted is true when a line carries the "// brace-literal-ok: …"
+// escape hatch itself, or sits directly below a line that does.
+function isAllowlisted(ctx: ScannedLine): boolean {
+  if (ALLOWLISTED.test(ctx.line)) return true;
+  return ctx.index > 0 && ALLOWLISTED.test(ctx.lines[ctx.index - 1]);
+}
+
+// bracedStringOffenders flags every string/template literal on one line that
+// opens with a bare '{' (once its leading `${…}` interpolation, if any, is
+// stripped) — the shape every hand-built span in this codebase actually
+// took. A full-comment line, or one allowlisted per isAllowlisted, carries
+// none.
+function bracedStringOffenders(ctx: ScannedLine): string[] {
+  if (/^\s*\/\//.test(ctx.line)) return [];
+  if (isAllowlisted(ctx)) return [];
+  const offenders: string[] = [];
+  for (const m of ctx.line.matchAll(STRING_OR_TEMPLATE)) {
+    const inner = m[0].slice(1, -1).replace(INTERPOLATION, '');
+    if (inner.startsWith('{')) offenders.push(`${ctx.file}:${ctx.index + 1}: ${m[0]}`);
+  }
+  return offenders;
+}
+
 describe('variables parity (engine/scope/testdata/token_catalog.golden.json)', () => {
   test('A: every golden example resolves to a manifest head or alias', () => {
     const uncovered = goldenExamples.filter((example) => !isCovered(example));
@@ -232,13 +329,61 @@ describe('variables parity (engine/scope/testdata/token_catalog.golden.json)', (
   });
 
   test('E: importer targets resolve to a manifest head or alias', () => {
-    const targets = [
-      ...Object.values(NIGHTBOT_SIMPLE_TOKENS),
-      ...Object.values(FOSSABOT_SIMPLE_TOKENS),
-      ...Object.values(FOSSABOT_SUBFIELD_TOKENS)
-    ];
-    const uncovered = targets.filter((target) => !isCovered(target));
+    // TARGETS (importer/targets.ts) is the ONE place every source parser
+    // mints a span from (phase 6); walking it here, instead of each source's
+    // own token table the way this rule used to, means a concept added there
+    // is checked against the Go resolver the moment it exists, before any
+    // parser rule uses it.
+    const uncovered = Object.values(TARGETS).filter((head) => !isCovered(`{${head}}`));
     expect(uncovered, 'importer targets with no head or alias in VARIABLES').toEqual([]);
+  });
+
+  test('E-inverse: every importer-side "{…}" literal resolves through TARGETS', () => {
+    // The other half of the phase 6 contract: TARGETS is not just A way to
+    // mint a span, it is the ONLY way. A bare '{head}' / '{head:payload}'
+    // string literal, or an emit(/emitWithFallback(/positional(/slice( call
+    // naming a concept, elsewhere under importer/** would let a source drift
+    // back to the hand-written literals TARGETS replaced without any test
+    // noticing — so every literal span and every emit-family call site in
+    // this tree is walked here and checked against TARGETS' own values.
+    const targetHeads = new Set(Object.values(TARGETS));
+    const offenders = importerSourceFiles().flatMap((path) => {
+      const file: ScannedFile = { path, text: readFileSync(path, 'utf8') };
+      return [...bracedLiteralOffenders(file, targetHeads), ...emitCallOffenders(file, targetHeads)];
+    });
+    expect(offenders, 'importer code minting a span outside TARGETS').toEqual([]);
+  });
+
+  test('E-inverse-2: no importer-side string/template literal carries a bare "{" outside TARGETS', () => {
+    // The check above only catches the exact '{head}' and emit('concept')
+    // SHAPES by name — it missed streamelements.ts's rangeKey/pickKey and
+    // streamlabs-desktop/parameters.ts's singleBoundRange/boundedRange, which
+    // built "{random:…}"/"{choice:…}" by string concatenation and so never
+    // even reached one of those two shapes. This walks every CODE line (full
+    // comment lines are skipped — a decision record quoting a span in prose
+    // is not a mint site) in importer/** (excluding targets.ts, the one file
+    // whose job is building these strings) for a string/template literal that
+    // STARTS with a bare '{' right after its opening quote — the shape every
+    // hand-built span in this codebase actually took (rangeKey's
+    // `{random:${x}-${y}}`, the old chooseParam's '{choice:' + …, a bare
+    // '{' fragment in a concatenation) — rather than any '{' anywhere in any
+    // string, which would also flag a diagnostic MESSAGE that merely
+    // mentions a span in prose for the broadcaster to read ("rewrite it
+    // using {if:cond:then:else}") or a source's own "{{field}}" format-string
+    // vocabulary. A genuine non-mint literal that still happens to open with
+    // '{' is allowlisted with a "// brace-literal-ok: <reason>" comment on
+    // its own line, either the same one or directly above it (a one-liner
+    // reads better with the reason above it than crammed onto the end),
+    // rather than silently exempted.
+    const files = importerSourceFiles().filter((f) => !f.endsWith(`${sep}targets.ts`));
+    const offenders = files.flatMap((file) => {
+      const lines = readFileSync(file, 'utf8').split('\n');
+      return lines.flatMap((line, index) => bracedStringOffenders({ file, line, index, lines }));
+    });
+    expect(
+      offenders,
+      'a string/template literal outside targets.ts that opens with a bare "{" — route it through emit/positional/slice, or allowlist a genuine non-mint with "// brace-literal-ok: <reason>"'
+    ).toEqual([]);
   });
 
   test('F: ids are unique, heads and aliases are unique', () => {

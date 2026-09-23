@@ -6,8 +6,9 @@
 // ./index; quote dates parse through the strict layout table below.
 
 import type { Database } from 'sql.js';
-import type { ImportDiagnostic, ImportManifest } from '../types';
+import type { ImportDiagnostic, ImportManifest, ManifestFetch } from '../types';
 import { CODE, canonicalizeResponse, clampCooldown, normalizeName } from '../validate';
+import { makeFetchSlotSink } from '../nightbot/fetchdefs';
 import { translateVariables, mapPermissionSLCB, SLCB_CODE } from './parameters';
 import { Row, selectAll, findTable, MAX_SCAN_ROWS, goAtoi, warnDiag, errDiag,
   COMMAND_TABLE_CANDIDATES, TIMER_TABLE_CANDIDATES, QUOTE_TABLE_CANDIDATES } from './dbfile';
@@ -43,6 +44,9 @@ export interface SectionContext {
   db: Database;
   tables: Map<string, string>;
   diags: ImportDiagnostic[];
+  // fetchDefs accumulates $readapi(URL) shells across every command in the
+  // export, same as every $(…)-syntax source's own fetchDefs map (phase 6).
+  fetchDefs: Map<string, ManifestFetch>;
 }
 
 // missingTableNotes degrades each absent feature table to a manifest-level
@@ -110,7 +114,7 @@ export function extractCommands(ctx: SectionContext): NonNullable<ImportManifest
       disabled++;
       continue;
     }
-    const { cmd, warns } = buildCommandRow(r);
+    const { cmd, warns } = buildCommandRow(r, ctx);
     entries.push(cmd);
     allWarns.push(warns);
   }
@@ -138,8 +142,13 @@ function isDisabledCommandRow(r: Row): boolean {
 
 // buildCommandRow translates one live command row. Canonicalization findings
 // carry index 0 here; the post-sort reindex pass rewrites them onto final
-// manifest slots.
-function buildCommandRow(r: Row): {
+// manifest slots. The fetch slot sink is keyed by the command's own
+// normalized name (fetchDefSlug('slcb', normName)), same slug rule as every
+// other $(…)-syntax source.
+function buildCommandRow(
+  r: Row,
+  ctx: SectionContext
+): {
   cmd: NonNullable<ImportManifest['commands']>[number];
   warns: ImportDiagnostic[];
 } {
@@ -147,12 +156,18 @@ function buildCommandRow(r: Row): {
   const normName = normalizeName(nameRaw);
   const response = r.first(COMMAND_RESPONSE_COLUMNS).value;
 
-  const res = translateVariables(response, normName);
+  const sink = makeFetchSlotSink('slcb', normName, ctx.fetchDefs, ctx.diags);
+  const res = translateVariables(response, normName, sink);
   const canon = canonicalizeResponse(res.text, 0);
 
+  // The untranslated line exactly as Streamlabs Chatbot published it, same
+  // split rule as responses so the two line up index for index; its own
+  // diagnostics are discarded, already reported once above via canon.diags.
+  const sourceLines = canonicalizeResponse(response, 0).lines;
   const cmd: NonNullable<ImportManifest['commands']>[number] = {
     name: nameRaw,
-    responses: canon.lines
+    responses: canon.lines,
+    ...(sourceLines.length > 0 ? { source_responses: sourceLines } : {})
   };
   const warns: ImportDiagnostic[] = [...res.diags, ...canon.diags];
 

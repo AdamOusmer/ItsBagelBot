@@ -60,7 +60,7 @@ export async function parseStreamLabsDesktop(raw: Uint8Array): Promise<ParseResu
 }
 
 function parseDatabase(db: Database): ParseResult {
-  const ctx: SectionContext = { db, tables: readSchema(db), diags: [] };
+  const ctx: SectionContext = { db, tables: readSchema(db), diags: [], fetchDefs: new Map() };
 
   const manifest: ImportManifest = {};
   const commands = extractCommands(ctx);
@@ -69,6 +69,7 @@ function parseDatabase(db: Database): ParseResult {
   if (timers.length) manifest.timers = timers;
   const quotes = extractQuotes(ctx);
   if (quotes.length) manifest.quotes = quotes;
+  if (ctx.fetchDefs.size) manifest.fetches = [...ctx.fetchDefs.values()];
 
   const diags = ctx.diags;
   diags.push(...missingTableNotes(ctx.tables));

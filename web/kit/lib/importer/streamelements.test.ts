@@ -68,14 +68,24 @@ describe('golden replay', () => {
 describe('translateVariables (vectors from variables_test)', () => {
   const cases: [string, string, string[] | null][] = [
     ['$(user)!', '{user}!', null],
-    ['${user.name} x $(sender) $(source)', '{user} x {sender} {sender}', null],
+    ['${user.name} x $(sender) $(source)', '{user} x {user} {user}', null],
     ['$(USER.NAME)', '{user}', null],
     ['$(touser) $(target.user) {target}', '{touser} {touser} {touser}', null],
+    // phase 6: the positional family. $(1:) keeps its documented {args}
+    // spelling (see positionalRule's decision record); every other N takes
+    // the new {N:}/{N:M}/{N}/{N|fallback} shapes directly.
     ['$(1:) words', '{args} words', null],
-    ['$(2:) tail', '$(2:) tail', ['$(2:)']],
-    ['$(1) solo', '$(1) solo', ['$(1)']],
-    ['$(:3)', '$(:3)', ['$(:3)']],
-    ['$(1|everyone)', '$(1|everyone)', ['$(1|everyone)']],
+    ['$(2:) tail', '{2:} tail', null],
+    ['$(1) solo', '{1} solo', null],
+    ['$(2:5) mid', '{2:5} mid', null],
+    // $(:M) counts word 0 (the trigger) in M; {:M} here does not, so the
+    // same real words come out of {:(M-1)} — $(:1) is the trigger alone, no
+    // real words at all, which has no token and warns instead.
+    ['$(:3)', '{:2}', null],
+    ['$(:2)', '{:1}', null],
+    ['$(:1)', '$(:1)', ['$(:1)']],
+    ['$(1|everyone)', '{1|everyone}', null],
+    ['$(31)', '$(31)', ['$(31)']],
     ['$(1 username)', '$(1 username)', ['$(1 username)']],
     ['$(channel)/${channel.alias}/$(channel.display_name)', '{channel}/{channel}/{channel}', null],
     ['$(channel.viewers)', '$(channel.viewers)', ['$(channel.viewers)']],
@@ -100,7 +110,18 @@ describe('translateVariables (vectors from variables_test)', () => {
     ['oops $(user', 'oops $(user', null],
     ['smile :) ($(user))', 'smile :) ({user})', null],
     ['$(uptime) $(title)', '$(uptime) $(title)', ['$(uptime)', '$(title)']],
-    ['$(args)', '$(args)', ['$(args)']]
+    // phase 6: $(args)/${args} are not a documented SE call (only $(1:)
+    // means "the rest"), so an explicit attempt still stays unmapped+warned.
+    ['$(args)', '$(args)', ['$(args)']],
+    // phase 6 bug fix: the bare-{…} community shorthand DOES spell the same
+    // word this bot's own {args} does, unlike the $()/${} form above, so it
+    // maps directly instead of silently vanishing (the LEGACY_HEADS entry
+    // for "args" had nothing consuming it before this).
+    ['use {args} here', 'use {args} here', null],
+    // phase 6: every bare-{…} LEGACY_HEADS head that fails to resolve now
+    // warns like an explicit $()/${} attempt does, not just count/getcount —
+    // {target} with an unrecognized subfield is a genuine attempted variable.
+    ['{target.nickname} shows up', '{target.nickname} shows up', ['{target.nickname}']]
   ];
   for (const [input, want, warns] of cases) {
     test(`${input}`, () => {
@@ -109,6 +130,27 @@ describe('translateVariables (vectors from variables_test)', () => {
       expect(got).toEqual(warns ?? []);
     });
   }
+});
+
+describe('$(if …) warn points at {if:cond:then:else}', () => {
+  test('the diagnostic message names the replacement, not just "no equivalent"', () => {
+    const { manifest, diagnostics } = parseStreamElements(
+      '{"commands":[{"command":"a","reply":"$(if a==b then else)","accessLevel":0}]}'
+    );
+    expect(manifest.commands?.[0].responses).toEqual(['$(if a==b then else)']);
+    const warn = diagnostics.find((d) => d.code === CODE.variableUnmapped);
+    expect(warn?.message).toBe(
+      'response uses $(if a==b then else), whose branch cannot be translated automatically; rewrite it using {if:cond:then:else} (see the variables guide)'
+    );
+  });
+
+  test('every other unmapped token keeps the generic message', () => {
+    const { diagnostics } = parseStreamElements(
+      '{"commands":[{"command":"a","reply":"$(weather)","accessLevel":0}]}'
+    );
+    const warn = diagnostics.find((d) => d.code === CODE.variableUnmapped);
+    expect(warn?.message).toBe('response uses $(weather), which has no equivalent; left as literal text');
+  });
 });
 
 describe('mapAccessLevel table', () => {
@@ -259,7 +301,8 @@ describe('full-fixture parse assertions (from parse_test.go)', () => {
       '-1|timer_disabled_skipped': 1,
       '0|command_user_cooldown_dropped': 1,
       '1|command_type_reply': 1,
-      '1|command_variable_unmapped': 1,
+      // phase 6: $(1|everyone) now maps onto {1|everyone} (the positional
+      // fallback family), so "hug" no longer trips command_variable_unmapped.
       '2|command_user_cooldown_dropped': 1,
       '3|command_variable_unmapped': 1,
       '4|command_type_whisper': 1,

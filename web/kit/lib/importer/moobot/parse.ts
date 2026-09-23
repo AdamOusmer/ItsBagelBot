@@ -52,6 +52,7 @@ const CODE = {
   variableUnmapped: 'command_variable_unmapped',
   fetchUrlAbsent: 'command_fetch_url_absent',
   countRemapped: 'command_count_remapped',
+  positionalFallbackLost: 'command_positional_fallback_lost',
   responseTruncated: 'command_response_truncated',
   responseLineDropped: 'command_response_line_dropped',
   intervalClamped: 'timer_interval_clamped',
@@ -337,16 +338,25 @@ function decodeJson(bytes: Uint8Array): unknown {
   return JSON.parse(text);
 }
 
+// isPlainObject is true for a decoded JSON value this envelope can read
+// fields off of: an object, but neither null nor an array (json.Unmarshal's
+// own "cannot unmarshal into envelope" refuses exactly these same shapes).
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  if (typeof v !== 'object' || v === null) return false;
+  return !Array.isArray(v);
+}
+
 function decodeEnvelope(bytes: Uint8Array): Record<string, unknown>[] {
-  let doc: RawDocument;
+  let decoded: unknown;
   try {
-    doc = decodeJson(bytes) as RawDocument;
+    decoded = decodeJson(bytes);
   } catch (err) {
     throw new MoobotExportError(`importer/moobot: not a JSON export file: ${(err as Error)?.message ?? String(err)}`);
   }
-  if (typeof doc !== 'object' || doc === null || Array.isArray(doc)) {
+  if (!isPlainObject(decoded)) {
     throw new MoobotExportError('importer/moobot: not a JSON export file: json: cannot unmarshal into envelope');
   }
+  const doc = decoded as RawDocument;
   if (typeof doc.version !== 'number' || doc.version !== ENVELOPE_VERSION) {
     const v = typeof doc.version === 'number' ? String(doc.version) : '<absent>';
     throw new MoobotExportError(`importer/moobot: unsupported export version ${v} (want ${ENVELOPE_VERSION})`);
@@ -498,6 +508,32 @@ function commandsSection(items: Record<string, unknown>[], _sec: RawSection, sta
 // this bot's history" divergence Nightbot's $(count) mapping already
 // documents — so a remapped command earns CODE.countRemapped instead of a
 // ManifestCounter entry.
+// pushUnrecognizedAndPositionalDiags warns on two independent tag findings:
+// a bracketed word Moobot itself would not recognize, and a <2>..<5>
+// positional tag whose Moobot-side username fallback this bot does not
+// carry over. Split out of parseCommandItem so that function's shape stays
+// one branch per diagnostic kind, not per tag instance.
+function pushUnrecognizedAndPositionalDiags(tr: TagResult, idx: number, state: ParseState): void {
+  for (const tok of tr.unrecognized) {
+    state.diags.push(warnDiag(idx, CODE.variableUnmapped,
+      `response uses <${tok}>, which is not a Moobot tag; left as literal text`));
+  }
+  for (const tag of tr.positionalFallbackLost) {
+    state.diags.push(warnDiag(idx, CODE.positionalFallbackLost,
+      `response uses <${tag}>, imported as {${tag}}: Moobot fell back to the invoker's username when that word was missing, this token falls back to nothing`));
+  }
+}
+
+// attachSourceResponses mirrors canonicalizeResponse's split rule against the
+// untranslated line, so the review screen can show a broadcaster their own
+// <tags> above what this bot will actually say. Its own diagnostics are
+// discarded: canonicalizeResponse's truncation/drop findings are already
+// reported once, against the translated text.
+function attachSourceResponses(item: RawCommand, idx: number, cmd: ManifestCommand): void {
+  const sourceLines = canonicalizeResponse(asStr(item.text), idx).lines;
+  if (sourceLines.length) cmd.source_responses = sourceLines;
+}
+
 function parseCommandItem(item: RawCommand, pos: number, state: ParseState): void {
   const name = normalizeName(asStr(item.identifier));
   if (name === '') {
@@ -520,6 +556,7 @@ function parseCommandItem(item: RawCommand, pos: number, state: ParseState): voi
   const { lines, diags: respDiags } = canonicalizeResponse(tr.text, idx);
   if (lines.length) cmd.responses = lines;
   state.diags.push(...respDiags);
+  attachSourceResponses(item, idx, cmd);
 
   emitDisabledDiagnostic(item, idx, state);
 
@@ -543,6 +580,7 @@ function emitTagDiagnostics(tr: TagResult, idx: number, state: ParseState): void
     state.diags.push(warnDiag(idx, CODE.variableUnmapped,
       `response uses <${tok}>, which has no equivalent; left as literal text`));
   }
+  pushUnrecognizedAndPositionalDiags(tr, idx, state);
   for (const ref of tr.fetchRefs) {
     state.diags.push(warnDiag(idx, CODE.fetchUrlAbsent,
       `response uses <${ref.tag}>, imported as {urlfetch:${ref.key}}. Re-enter the URL for "${ref.key}" before it can fetch`));

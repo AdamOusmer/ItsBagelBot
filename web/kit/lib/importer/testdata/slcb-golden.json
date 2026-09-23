@@ -8,12 +8,18 @@
           "responses": [
             "only streamer sees"
           ],
+          "source_responses": [
+            "only streamer sees"
+          ],
           "permission": "broadcaster"
         },
         {
           "name": "!cookie",
           "responses": [
-            "{count} cookies eaten! {counter:lurk} via $readapi(https://example.api)"
+            "{count} cookies eaten! {counter:lurk} via {urlfetch:slcb_cookie}"
+          ],
+          "source_responses": [
+            "$desc(Cookie counter) $count cookies eaten! $checkcount(!lurk) via $readapi(https://example.api)"
           ],
           "permission": "everyone"
         },
@@ -22,12 +28,18 @@
           "responses": [
             "editor tool"
           ],
+          "source_responses": [
+            "editor tool"
+          ],
           "permission": "lead_mod"
         },
         {
           "name": "!hug",
           "responses": [
-            "/me hugs {target} {random:1-5} times!"
+            "/me hugs {touser} {random:1-5} times!"
+          ],
+          "source_responses": [
+            "/me hugs $targetname $randnum(1,5) times!"
           ],
           "permission": "mod"
         },
@@ -35,6 +47,9 @@
           "name": "!Lurk",
           "responses": [
             "{user} is now lurking!"
+          ],
+          "source_responses": [
+            "$username is now lurking!"
           ],
           "permission": "everyone",
           "cooldown_seconds": 30
@@ -45,6 +60,11 @@
             "line one",
             "line two",
             "line three"
+          ],
+          "source_responses": [
+            "line one",
+            "line two",
+            "line three"
           ]
         },
         {
@@ -52,11 +72,17 @@
           "responses": [
             "$randquote"
           ],
+          "source_responses": [
+            "$randquote"
+          ],
           "permission": "sub"
         },
         {
           "name": "!slots",
           "responses": [
+            "{1} vs {2} who wins?!"
+          ],
+          "source_responses": [
             "$arg1 vs $arg2 who wins?!"
           ],
           "permission": "everyone"
@@ -65,6 +91,9 @@
           "name": "!viponly",
           "responses": [
             "vip greeting {args}"
+          ],
+          "source_responses": [
+            "vip greeting $dummyormsg"
           ],
           "permission": "vip"
         }
@@ -91,9 +120,22 @@
         {
           "text": "Unparseable date quote"
         }
+      ],
+      "fetches": [
+        {
+          "name": "slcb_cookie",
+          "url": "https://example.api",
+          "source": "streamlabs_desktop"
+        }
       ]
     },
     "diags": [
+      {
+        "severity": "warn",
+        "item_index": -1,
+        "code": "fetch_def_created",
+        "message": "created fetch definition \"slcb_cookie\" for https://example.api; review it under Commands → Fetch definitions"
+      },
       {
         "severity": "warn",
         "item_index": 1,
@@ -108,12 +150,6 @@
       },
       {
         "severity": "warn",
-        "item_index": 1,
-        "code": "command_script_dependent",
-        "message": "command \"cookie\" depends on a script or external API/file call; that part stays literal text until re-implemented here"
-      },
-      {
-        "severity": "warn",
         "item_index": 2,
         "code": "command_permission_adjusted",
         "message": "permission \"+e\" has no direct equivalent; mapped to lead_mod (both mean trusted staff above mods)"
@@ -123,12 +159,6 @@
         "item_index": 6,
         "code": "command_variable_unmapped",
         "message": "response uses $randquote, which has no equivalent here; left as literal text"
-      },
-      {
-        "severity": "warn",
-        "item_index": 7,
-        "code": "command_variable_unmapped",
-        "message": "response uses numbered argument slots up to $arg2; positional splitting has no equivalent, all slots left as literal text"
       },
       {
         "severity": "warn",
@@ -169,7 +199,10 @@
         {
           "name": "!alt",
           "responses": [
-            "hey {target}"
+            "hey {touser}"
+          ],
+          "source_responses": [
+            "hey $tousername"
           ],
           "permission": "mod"
         }
@@ -184,6 +217,9 @@
         {
           "name": "!only",
           "responses": [
+            "just me"
+          ],
+          "source_responses": [
             "just me"
           ],
           "cooldown_seconds": 86400

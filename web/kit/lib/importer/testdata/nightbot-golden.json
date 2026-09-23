@@ -1,0 +1,110 @@
+{
+  "manifest": {
+    "commands": [
+      {
+        "name": "hello",
+        "responses": [
+          "Hi {touser}, welcome to {channel}, {args}"
+        ],
+        "permission": "everyone",
+        "source_responses": [
+          "Hi $(touser), welcome to $(channel), $(query)"
+        ],
+        "cooldown_seconds": 45
+      },
+      {
+        "name": "hug",
+        "responses": [
+          "{1} hugs {2}, {30} last"
+        ],
+        "permission": "sub",
+        "source_responses": [
+          "$(1) hugs $(2), $(30) last"
+        ],
+        "cooldown_seconds": 30
+      },
+      {
+        "name": "count",
+        "responses": [
+          "hugged {count} times"
+        ],
+        "permission": "everyone",
+        "source_responses": [
+          "hugged $(count) times"
+        ],
+        "cooldown_seconds": 30
+      },
+      {
+        "name": "weather",
+        "responses": [
+          "{urlfetch:nightbot_weather} / {urlfetch:nightbot_weather_2}"
+        ],
+        "permission": "everyone",
+        "source_responses": [
+          "$(urlfetch https://api.example.com/w) / $(customapi https://api.example.com/x)"
+        ],
+        "cooldown_seconds": 30
+      },
+      {
+        "name": "unmapped",
+        "responses": [
+          "$(eval 1+1) $(twitch x)"
+        ],
+        "permission": "everyone",
+        "source_responses": [
+          "$(eval 1+1) $(twitch x)"
+        ],
+        "cooldown_seconds": 30,
+        "warnings": [
+          "response uses $(eval 1+1), which has no equivalent; left as literal text",
+          "response uses $(twitch x), which has no equivalent; left as literal text"
+        ]
+      }
+    ],
+    "fetches": [
+      {
+        "name": "nightbot_weather",
+        "url": "https://api.example.com/w",
+        "source": "nightbot"
+      },
+      {
+        "name": "nightbot_weather_2",
+        "url": "https://api.example.com/x",
+        "source": "nightbot"
+      }
+    ],
+    "timers": [
+      {
+        "message": "follow {channel}",
+        "interval_seconds": 900,
+        "online_only": true
+      }
+    ]
+  },
+  "diagnostics": [
+    {
+      "severity": "warn",
+      "item_index": -1,
+      "code": "fetch_def_created",
+      "message": "created fetch definition \"nightbot_weather\" for https://api.example.com/w; review it under Commands → Fetch definitions"
+    },
+    {
+      "severity": "warn",
+      "item_index": -1,
+      "code": "fetch_def_created",
+      "message": "created fetch definition \"nightbot_weather_2\" for https://api.example.com/x; review it under Commands → Fetch definitions"
+    },
+    {
+      "severity": "warn",
+      "item_index": 4,
+      "code": "command_variable_unmapped",
+      "message": "response uses $(eval 1+1), which has no equivalent; left as literal text"
+    },
+    {
+      "severity": "warn",
+      "item_index": 4,
+      "code": "command_variable_unmapped",
+      "message": "response uses $(twitch x), which has no equivalent; left as literal text"
+    }
+  ]
+}

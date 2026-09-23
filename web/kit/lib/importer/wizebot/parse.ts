@@ -50,7 +50,8 @@ export const WB_CODE = {
   responseEmpty: 'command_response_empty',
   costDropped: 'command_cost_dropped',
   soundDropped: 'command_sound_dropped',
-  randomFlattened: 'command_random_lines_flattened'
+  randomFlattened: 'command_random_lines_flattened',
+  countRemapped: 'command_count_remapped'
 } as const;
 
 // KEPT_TYPES are the row types that carry chat text (see the decision record).
@@ -241,6 +242,11 @@ function buildCommand(
   const aliases = aliasList(c, notes);
   if (aliases.length > 0) cmd.aliases = aliases;
   if (notes.list().length > 0) cmd.warnings = notes.list();
+  // The untranslated line exactly as Wizebot published it, same split rule
+  // as responses so the two line up index for index; canonicalizeResponse's
+  // own diagnostics are discarded here, already reported once above.
+  const sourceLines = canonicalizeResponse(decodeEntities(c.row.text), -1).lines;
+  if (sourceLines.length > 0) cmd.source_responses = sourceLines;
   return cmd;
 }
 
@@ -251,6 +257,16 @@ function responseLines(c: Candidate, notes: Notes): string[] {
     notes.add(
       CODE.variableUnmapped,
       `response uses ${tag}, which has no equivalent here; left as literal text`
+    );
+  }
+  if (translated.countRemapped) {
+    // Meaning change, not just a spelling change — see TagTranslation's own
+    // decision record in ./tags. Wizebot's export carries no running value
+    // for $(cmd_count) to cite, so this warns without an old-value clause,
+    // the same shape SLCB's $count warning takes for the same reason.
+    notes.add(
+      WB_CODE.countRemapped,
+      'response uses $(cmd_count), imported as {count}: it now counts this command’s own runs from zero, not the running total Wizebot showed'
     );
   }
 

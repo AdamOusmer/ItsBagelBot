@@ -17,6 +17,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, test } from 'bun:test';
+import { intactSpanWithFallback } from '../engine/tmpl-fallback';
 import { intactSpan, mappedSpans } from './validate';
 import { translateTags } from './moobot/tags';
 import type { TagContext } from './moobot/tags';
@@ -84,7 +85,8 @@ const GOLDENS = [
   'se-golden.json',
   'fossabot-golden.json',
   'slcb-golden.json',
-  'wizebot-golden.json'
+  'wizebot-golden.json',
+  'nightbot-golden.json'
 ];
 
 interface GoldenCase {
@@ -115,8 +117,16 @@ describe('every span in a mapped manifest round-trips through the lexer', () => 
         for (const span of mappedSpans(text)) {
           // Re-emitting the token the lexer read must reproduce the exact
           // bytes in the manifest. Anything the grammar re-cut (a swallowed
-          // fallback, an early close) fails this equality.
-          expect(intactSpan(span.name, span.payload)).toBe(span.raw);
+          // fallback, an early close) fails this equality. A span WITH a
+          // fallback (phase 6's positional-with-fallback family, {N|d}) goes
+          // through intactSpanWithFallback instead: intactSpan itself refuses
+          // a fallback by contract (see tmpl.ts), so asking it to reproduce
+          // one is not the guard this loop means to run.
+          const rebuilt =
+            span.fallback === null
+              ? intactSpan(span.name, span.payload)
+              : intactSpanWithFallback(span.name, span.payload, span.fallback);
+          expect(rebuilt).toBe(span.raw);
         }
       }
     });

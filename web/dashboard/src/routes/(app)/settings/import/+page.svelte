@@ -165,6 +165,65 @@
     );
   }
 
+  // SOURCE_UNTRANSLATED_PATTERN names each source's OWN variable syntax
+  // separately (review: a single global pattern covering every source at
+  // once could flag one product's token shape while reviewing a completely
+  // different product's import — e.g. Moobot's <name> tags would never
+  // appear in an SE response, so there is no reason to scan for them there).
+  // It only decides what the review screen HIGHLIGHTS — never what a parser
+  // translates — so a false positive costs a stray chip, never a wrong
+  // import; every parser's own literal+warn path is the actual authority on
+  // what did not translate.
+  const SOURCE_UNTRANSLATED_PATTERN: Record<ImportSource, RegExp> = {
+    // $(name) / $(name arg): Nightbot and Fossabot's one delimiter.
+    nightbot: /\$\([^)]*\)/g,
+    fossabot: /\$\([^)]*\)/g,
+    // $(name) / ${name}: SE's two documented delimiters. Its OLDER bare-{…}
+    // community shorthand is deliberately not matched here: that shape is
+    // byte-identical to this bot's own {…} grammar, so a translated {user}
+    // would flag itself as "still untranslated" the moment SE was picked.
+    streamelements: /\$\([^)]*\)|\$\{[^}]*\}/g,
+    // <name>: Moobot's own bracket syntax, shared with no other source.
+    moobot: /<[a-zA-Z0-9_.-]+>/g,
+    // $(name) / $name(args): Wizebot's two spellings (see wizebot/tags.ts).
+    wizebot: /\$\([^)]*\)|\$[a-zA-Z_]+\([^)]*\)/g,
+    // $name / $name(args): SLCB's bare and called forms, no parens-only call.
+    streamlabs_desktop: /\$[a-zA-Z_][a-zA-Z0-9_]*(\([^)]*\))?/g
+  };
+
+  interface ResponseSegment {
+    text: string;
+    flagged: boolean;
+  }
+
+  // segmentResponse splits one translated response line into plain runs and
+  // runs that still match the PICKED source's own untranslated-syntax
+  // pattern, so the markup can wrap only the leftover source syntax in a Tag
+  // instead of flagging the whole line. No source picked (should not happen
+  // once a manifest exists to render) leaves everything unflagged.
+  function segmentResponse(text: string): ResponseSegment[] {
+    const pattern = source ? SOURCE_UNTRANSLATED_PATTERN[source] : null;
+    if (!pattern) return [{ text, flagged: false }];
+    const out: ResponseSegment[] = [];
+    let last = 0;
+    for (const m of text.matchAll(pattern)) {
+      const start = m.index ?? 0;
+      if (start > last) out.push({ text: text.slice(last, start), flagged: false });
+      out.push({ text: m[0], flagged: true });
+      last = start + m[0].length;
+    }
+    if (last < text.length) out.push({ text: text.slice(last), flagged: false });
+    return out;
+  }
+
+  // sourceLine joins a command's untranslated lines the same way row-response
+  // joins the translated ones, or a non-breaking space so the row's fixed
+  // two-line height never collapses when a manifest carries none (older
+  // fixtures, DEMO data) — see the .row-response--source CSS rule below.
+  function sourceLine(c: ManifestCommand): string {
+    return c.source_responses?.join(' / ') || ' ';
+  }
+
   const fatalCount = $derived.by(() => {
     const m = previewResult?.manifest;
     if (!m) return 0;
@@ -801,11 +860,20 @@
                   <span class="row-name">!{c.name}</span>
                 </label>
                 <div class="row-body">
-                  <span class="row-response">{c.responses?.join(' / ')}</span>
+                  <span class="row-response row-response--source">{sourceLine(c)}</span>
+                  <span class="row-response">
+                    {#each segmentResponse(c.responses?.join(' / ') ?? '') as seg, si (si)}
+                      {#if seg.flagged}<Tag tone="alpha" class="bb-tag--literal">{seg.text}</Tag>{:else}{seg.text}{/if}
+                    {/each}
+                  </span>
                   <span class="chips">
                     {#if c.permission && c.permission !== 'everyone'}<PermBadge perm={c.permission} />{/if}
                     {#if c.cooldown_seconds}<Tag tone="bare">{t('import.cooldownChip', { n: c.cooldown_seconds })}</Tag>{/if}
                     {#each c.aliases ?? [] as a (a)}<Tag tone="bare" class="bb-tag--literal">!{a}</Tag>{/each}
+                    <!-- c.warnings is not rendered here: every parser pushes the
+                         same message onto BOTH cmd.warnings and the diagnostics
+                         stream in one call (see e.g. streamelements.ts's addNote),
+                         so the diag chips below already show each note once. -->
                     {#each diags.filter((d) => d.severity === 'warn') as d (d.code + d.message)}
                       <Tag tone="alpha" title={d.message}>{d.message}</Tag>
                     {/each}
@@ -1364,7 +1432,27 @@
     color: var(--bb-muted);
     font-size: 13px;
     line-height: 1.5;
-    overflow-wrap: anywhere;
+    /* Fixed one-line HEIGHT (not min-height, which a long unwrapped word
+       could still exceed) on both the source and translated rows, so a
+       command whose review text is long does not push every row below it —
+       the original line above and the translated line here are each capped
+       at exactly one line's worth of height regardless of content. A row
+       that overflows is clipped with an ellipsis rather than wrapped or
+       let to grow, which is what "capped at one line" actually requires:
+       overflow-wrap alone still grows the row taller for a wrapped second
+       line. Chips live in their own sibling element (.chips, below) so they
+       are never inside this box and can never wrap the row themselves. */
+    height: calc(13px * 1.5);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  /* The untranslated line above row-response: dimmer still, so the pair reads
+     as "what you wrote" (quieter) over "what this bot will say" (the
+     row's normal contrast), never the reverse. */
+  .row-response--source {
+    opacity: 0.6;
+    font-style: italic;
   }
   .chips {
     display: flex;

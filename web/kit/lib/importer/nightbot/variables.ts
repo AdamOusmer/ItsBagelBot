@@ -12,8 +12,16 @@
 //	$(querystring)                   → {querystring}
 //	$(1) $(2) … $(30)                → {1} {2} … {30}
 //	$(count)                         → {count} (bare; the {uses} alias)
+//	$(time <tz>)                     → {time:<tz>}  (phase 6; payload passed through unread)
+//	$(countdown <date>) / $(countup <date>) → {countdown:<date>} / {countup:<date>}  (phase 6; date normalized, see countdownToken)
+//	$(twitch <channel> "<fmt>")      → substitutes {{title}}/{{game}}/{{uptimeLength}}/
+//	                                    {{viewers}}/{{followers}}/{{subscriberCount}} inside
+//	                                    <fmt>, keeps surrounding text, warns per unmapped field
+//	                                    (phase 6; see twitchToken)
 //	$(urlfetch URL) / $(customapi …) → {urlfetch:nightbot_<cmd>} + def
-//	$(eval …) $(twitch …) $(time …)  → literal + warn  (no equivalent)
+//	$(eval …)      → literal + warn (runs JS we will never execute)
+//	$(userlevel)   → literal + warn (no role token answers "what tier is this viewer")
+//	$(weather …)   → literal + warn (needs a provider key we do not hold)
 //
 // The word-number family maps straight across: both sides mean "the n'th word
 // typed after the trigger", both are 1-based, and both leave a missing word
@@ -63,18 +71,20 @@
 // sentence they wrote, and a warning here would fire on every imported counter
 // command while telling them nothing they could act on.
 //
-// The viewer lookups ({followage}, {accountage}, {points}) and the
-// module facts ({quote}, {time}, {song}) have no counterpart to map here
-// either: Nightbot spells follow age
-// as $(twitch $(touser) "…{{followed}}…"), a format-string call whose interior
-// is a template of its own rather than a variable, and it has no points
-// variable at all (its loyalty lives outside the command language). Inventing
-// a mapping from a format string would translate a sentence into a token and
-// silently drop everything the broadcaster wrote around it.
-// $(time <timezone>) and $(twitch … "{{song}}") stay literal for the same
-// shape of reason as $(twitch …) above: both take an argument this bot's
-// {time} / {song} do not (a per-call timezone, a format string), because both
-// read the broadcaster's own module configuration instead.
+// {followage} gains a mapping (phase 6, twitchToken): $(twitch $(touser)
+// "…{{followed}}…") is the SAME format-string call {{title}}/{{game}}/etc
+// already map through above — {{followed}} could join TWITCH_FIELDS the day
+// a real followage sample is checked against it, but is not in that table yet
+// because nothing here has cross-checked its exact field name or shape
+// against a live export. {accountage} and {points} still gain none:
+// Nightbot's loyalty lives outside the command language entirely (no
+// variable names it at all), and there is no account-age field in the
+// documented {{…}} set either.
+// {song} (the now-playing module fact) gains no mapping for the same reason
+// $(twitch … "{{song}}") never joined TWITCH_FIELDS: Nightbot's song
+// variable, if it has one, has not been checked against a real export, and
+// guessing its field name is exactly the class of mistake this table exists
+// to avoid.
 // The conditional ({if:cond:then:else}) gains no mapping either, and it is
 // the most tempting one to invent: Nightbot writes a conditional as
 // $(eval …), a JavaScript expression evaluated over the other variables, and
@@ -96,27 +106,35 @@
 // random-viewer variable. Nothing was invented from a guess at what the source
 // might spell them; a mapping can be added the day one is observed and can be
 // checked against a real directory.
-// The channel facts ({uptime}, {title}, {game}, {channel.viewers}) gain no
-// mapping here, and for the reason $(twitch …) already has: Nightbot has no
-// bare $(uptime) or $(title) variable at all. It spells every one of them as
-// $(twitch $(channel) "{{uptime}}") — a format-string call whose interior is a
-// template of its own, wrapped in whatever sentence the broadcaster wrote
-// around it. Translating that into a bare token would keep the fact and throw
-// the sentence away, which is a rewrite rather than a translation, so it keeps
-// the literal+warn path that sends it to review. (The Fossabot table does map
-// its $(uptime) and $(title): those are bare, argument-less variables its own
-// documented table lists.)
-// $(countdown …) stays literal for a narrower reason: this bot
-// has a {countdown:…}, but Nightbot's takes a free-form date string
-// ("Dec 25 2026 12:00:00 PST") that {countdown:…} does not read, so the
-// translation would produce a token that renders empty in chat. A warning the
-// broadcaster sees beats a silent blank.
+// The channel facts ({uptime}, {title}, {game}, {channel.viewers},
+// {followers}, {subs}) DO gain a mapping (phase 6, twitchToken above): unlike
+// the earlier decision to leave $(twitch …) as a whole literal+warn (Nightbot
+// has no BARE $(uptime)/$(title) — every one of these is spelled inside a
+// $(twitch <channel> "{{field}}") format-string call), the format string is
+// now parsed rather than treated as an opaque template: the surrounding
+// sentence is kept exactly as written, and only the {{field}} placeholders
+// this bot recognizes are substituted — a rewrite of the fact, not of the
+// broadcaster's sentence around it. title/game/uptimeLength additionally
+// support the OTHER-channel form ($(twitch bob "{{title}}") -> {title:bob}),
+// matching the `{head:<channel>}` payload variables.ts's catalog documents
+// for exactly those three; viewers/followers/subscriberCount have no such
+// form and stay unmapped when asked of another channel.
+//
+// $(countdown …)/$(countup …) also gain a mapping (phase 6, countdownToken):
+// Nightbot's free-form date string ("Dec 25 2026 12:00:00 PST") is normalized
+// through targets.ts's normalizeInstant (the same RFC3339/date-only-or-
+// Date.parse path streamlabs-desktop/parameters.ts's $countdown(d) uses)
+// rather than assumed to read; a date it cannot normalize, or a bare
+// time-of-day with no calendar date at all (which Date.parse would silently
+// anchor to today's date on whatever machine runs it, answering a different
+// instant than Nightbot's own clock meant), stays literal and warns.
 
-import { intactSpan } from '../validate';
+import { emit, normalizeInstant, positional } from '../targets';
 import { parseFetchArgs } from './fetchdefs';
 import type { FetchSlotSink } from './fetchdefs';
 import { nextToken } from './scan';
 import type { Token } from './scan';
+import { twitchToken } from './twitch';
 
 // MAX_PASSES bounds the translation loop: pass 1 translates every leaf token,
 // pass 2 sees composites whose interior now reads as plain text, and three
@@ -129,7 +147,7 @@ export interface TranslationResult {
   jsonFetch: boolean;
 }
 
-interface TokenResult {
+export interface TokenResult {
   repl: string;
   warned: boolean;
   jsonFetch?: boolean;
@@ -142,12 +160,12 @@ interface TokenResult {
 // Exported so ../../variables/parity.test.ts can assert every emitted target
 // head is a Variable head or alias, with no change to translation behaviour.
 export const SIMPLE_TOKENS: Record<string, string> = {
-  user: '{user}',
-  touser: '{touser}',
-  channel: '{channel}',
-  query: '{args}',
-  querystring: '{querystring}',
-  count: '{count}'
+  user: emit('user')!,
+  touser: emit('touser')!,
+  channel: emit('channel')!,
+  query: emit('args')!,
+  querystring: emit('querystring')!,
+  count: emit('count')!
 };
 
 const FETCH_HEADS = new Set(['urlfetch', 'customapi']);
@@ -160,16 +178,59 @@ const POSITIONAL = /^([1-9]|[12][0-9]|30)$/;
 // positionalToken translates $(n) into "{n}", or returns null when the token
 // is not a word number this bot can spell. Shared with the Fossabot layer,
 // which writes the same family in the same syntax.
-// The head is interpolated into a span, so it goes out through intactSpan
-// like every other minted token: POSITIONAL already proves it is one or two
-// digits, and the round trip is what keeps that proof next to the emission
-// instead of two screens above it.
+// The head becomes a span through targets.ts's positional(), the same
+// round-tripped minting every other emitted token goes through: POSITIONAL
+// already proves it is one or two digits, and positional()'s own range check
+// (1..POSITIONAL_MAX) keeps that proof next to the emission instead of two
+// screens above it.
 export function positionalToken(token: Token): string | null {
   if (token.rest !== '' || !POSITIONAL.test(token.head)) return null;
-  return intactSpan(token.head, null);
+  return positional(Number(token.head));
 }
 
-const literal = (token: Token): TokenResult => ({ repl: token.raw, warned: true });
+export const literal = (token: Token): TokenResult => ({ repl: token.raw, warned: true });
+
+// timeToken maps $(time <tz>) onto {time:<tz>}, payload passed through
+// unread: our resolver accepts IANA zone names, cities and regions, and UTC
+// offsets (scope's Places table), so "America/New_York" or "Paris" both
+// answer; an abbreviation like "EST" is not specially detected or rejected
+// here — the minted {time:<tz>} token itself renders empty and falls back
+// when the resolver cannot place it, exactly like any other unresolvable
+// payload, so there is nothing this importer needs to validate ahead of time.
+function timeToken(token: Token): TokenResult | null {
+  if (token.head !== 'time' || token.rest.trim() === '') return null;
+  const span = emit('time', token.rest.trim());
+  return span === null ? literal(token) : { repl: span, warned: false };
+}
+
+// countdownToken maps $(countdown <date>)/$(countup <date>) onto
+// {countdown:<date>}/{countup:<date>}, normalizing Nightbot's own free-form
+// date spelling ("Dec 25 2015 12:00:00 AM EST") through targets.ts's
+// normalizeInstant — the SAME fixed grammar (RFC3339 / YYYY-MM-DD / a
+// month-name or MM/DD/YYYY date with a required zone), shared with
+// streamlabs-desktop/parameters.ts's $countdown(d) and fossabot/variables.ts's
+// $(countdown …), rather than three near-duplicate date readers. A time-only
+// payload with no calendar date ("5:00:00 PM EST") is refused inside
+// normalizeInstant itself (its own TIME_ONLY guard, also exported from
+// targets.ts): it would otherwise answer a DIFFERENT calendar day than
+// Nightbot's own clock read it against, and a warning the broadcaster can act
+// on beats a silently wrong date.
+// countdownSpan normalizes raw through targets.ts's shared date grammar and
+// mints the {countdown:<date>}/{countup:<date>} span, or null when either
+// step refuses it. Split out of countdownToken so that function's own shape
+// stays one branch per outcome instead of stacking both steps into one.
+function countdownSpan(head: 'countdown' | 'countup', raw: string): string | null {
+  const normalized = normalizeInstant(raw);
+  return normalized === null ? null : emit(head, normalized);
+}
+
+function countdownToken(token: Token): TokenResult | null {
+  if (token.head !== 'countdown' && token.head !== 'countup') return null;
+  const raw = token.rest.trim();
+  if (raw === '') return literal(token);
+  const span = countdownSpan(token.head as 'countdown' | 'countup', raw);
+  return span === null ? literal(token) : { repl: span, warned: false };
+}
 
 // classify resolves one scanned token to its replacement. warned=true marks an
 // attempted-but-unmappable variable; the caller reports one warn per distinct
@@ -181,8 +242,18 @@ function classify(token: Token, sink?: FetchSlotSink): TokenResult {
   const word = positionalToken(token);
   if (word) return { repl: word, warned: false };
   if (FETCH_HEADS.has(token.head)) return fetchToken(token, sink);
-  // eval, twitch, time, countdown, weather, …
+  const special = specialToken(token);
+  if (special) return special;
+  // eval, weather, userlevel, …
   return literal(token);
+}
+
+// specialToken tries every remaining source-specific rule in order: the
+// first one that recognizes the token (time, countdown/countup, twitch)
+// decides the result. Split out of classify so classify's own shape stays
+// one branch per token family instead of one per rule tried within a family.
+function specialToken(token: Token): TokenResult | null {
+  return timeToken(token) ?? countdownToken(token) ?? twitchToken(token);
 }
 
 // fetchToken extracts one urlfetch/customapi call into a synthesized
@@ -198,7 +269,7 @@ function fetchToken(token: Token, sink?: FetchSlotSink): TokenResult {
   if (!args) return literal(token);
   const key = sink.acquire(args.url);
   if (key === null) return literal(token);
-  const span = intactSpan('urlfetch', key);
+  const span = emit('urlfetch', key);
   if (span === null) return literal(token);
   return { repl: span, warned: false, jsonFetch: args.json };
 }

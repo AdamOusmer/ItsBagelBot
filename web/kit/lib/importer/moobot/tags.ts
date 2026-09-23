@@ -8,7 +8,8 @@
 
 // --- tag translation (ported from tags.go) ----------------------------------
 
-import { fetchDefSlug, intactSpan } from '../validate';
+import { fetchDefSlug } from '../validate';
+import { emit, positional } from '../targets';
 import type { ManifestFetch } from '../types';
 import { IMPORT_ITEM_CAPS } from '../types';
 
@@ -33,8 +34,14 @@ export interface TextOption {
 }
 
 // Full insertable-tag catalog of Moobot's custom-command editor (build r/453).
-// Membership decides warn-vs-silent: a catalog entry we cannot map earns a
-// warning, an unknown bracketed word does not.
+// No longer gates warn-vs-silent (phase 6): EVERY bracketed word this bot
+// cannot map now warns, catalog member or not — renderTag's unrecognized
+// case below reads a different message off it than the known-but-unmappable
+// case, so the broadcaster is told WHICH kind of miss they are looking at.
+// The old fully-silent path for a non-member read a stray "<sad>" in a
+// sentence as indistinguishable from an unmapped tag and said nothing either
+// way; a warn costs nothing for genuine prose, since review already shows
+// the untranslated text unchanged.
 const KNOWN_TAGS = new Set<string>([
   'text', 'username', 'twitch.mentioned', 'by', 'counter', 'when',
   'random.number', 'args', 'args.url', 'channel.name', 'channel.name.sc',
@@ -43,6 +50,10 @@ const KNOWN_TAGS = new Set<string>([
   'twitch.title', 'twitch.game', 'twitch.followers', 'twitch.viewers',
   'twitch.followed', 'twitch.subs.count', 'twitch.subs.score',
   'twitch.subs.latest', 'twitch.subs.latest.when',
+  // youtube.*/lol.*/tft.*/apex.* (below): third-party stats have no resolver
+  // here — this bot answers Twitch facts, not League/TFT/Apex ranks or a
+  // linked YouTube channel's numbers, so every one of these stays on the
+  // known-but-unmappable warn path with nothing to map onto, ever.
   'youtube.title', 'youtube.url', 'youtube.views', 'youtube.ago',
   'lol.league', 'lol.points',
   'tft.league', 'tft.points', 'tft.wins', 'tft.losses', 'tft.winrate',
@@ -104,8 +115,8 @@ function urlfetchRef(ctx: TagContext, slotN: number | null): string | null {
 
 function randomNumberKey(ctx: TagContext): string {
   const { randomStart: s, randomEnd: e } = ctx;
-  if (!usableRandomRange(s, e)) return '{random}';
-  return `{random:${s}-${e}}`;
+  if (!usableRandomRange(s, e)) return emit('random') ?? '';
+  return emit('random', `${s}-${e}`) ?? emit('random') ?? '';
 }
 
 // usableRandomRange demands integral, ordered bounds inside int64; anything
@@ -144,7 +155,7 @@ function choiceKey(opts: TextOption[] | undefined): string {
   for (const o of opts) {
     if (typeof o?.text === 'string' && o.text.includes(',')) return '';
   }
-  return intactSpan('choice', opts.map(optionText).join(',')) ?? '';
+  return emit('choice', opts.map(optionText).join(',')) ?? '';
 }
 
 // optionText is one option's payload text: non-string bodies read as empty,
@@ -156,14 +167,17 @@ function optionText(o: TextOption): string {
 // TAG_RENDERERS renders one insertable tag to its canonical replacement.
 // Adding a tag later is a row here, not a branch in the translator.
 const TAG_RENDERERS: Record<string, (ctx: TagContext) => string> = {
-  username: () => '{user}',
-  'twitch.mentioned': () => '{target}',
-  args: () => '{args}',
-  // Moobot's argument #1 falls back to the invoker's username when
-  // absent (exactly the duality of our {target}). Arguments #2..#5 have
-  // no clean equivalent ({args} would repeat the whole tail), so only #1
-  // maps (decision record kept from tags.go).
-  '1': () => '{target}',
+  username: () => emit('user') ?? '',
+  'twitch.mentioned': () => emit('touser') ?? '',
+  args: () => emit('args') ?? '',
+  // Moobot's argument #1 falls back to the invoker's username when absent —
+  // exactly {touser}'s own duality (sender when nobody was named). Arguments
+  // #2..#5 carry no such fallback (a missing word is just empty), so they map
+  // onto the plain positional words {2}..{5} instead and lose only the
+  // username-fallback behaviour, noted with a warn at the call site below —
+  // strictly better than the old silent-drop path, which produced no token
+  // at all for a tag broadcasters actually use.
+  '1': () => emit('touser') ?? '',
   'random.number': randomNumberKey,
   // Moobot's <counter> is per-command and auto-increments on every run,
   // exactly what {count} (the {uses} alias, uses.go) already is here — not a
@@ -171,10 +185,36 @@ const TAG_RENDERERS: Record<string, (ctx: TagContext) => string> = {
   // name from the command and silently bind the import to a channel counter
   // the broadcaster never created; {count} needs no name and carries no
   // payload, so the command context (ctx.name) plays no part in it any more.
-  counter: () => '{count}',
-  'channel.name': () => '{channel}'
+  counter: () => emit('count') ?? '',
+  'channel.name': () => emit('channel') ?? '',
+  // Bare, argument-less channel facts: Moobot's own catalog lists each as its
+  // own tag rather than a format string, so — unlike Nightbot's
+  // $(twitch … "{{…}}") — there is a real variable to map onto here.
+  uptime: () => emit('uptime') ?? '',
+  'twitch.title': () => emit('title') ?? '',
+  'twitch.game': () => emit('game') ?? '',
+  'twitch.viewers': () => emit('channel.viewers') ?? '',
+  'twitch.followed': () => emit('followage') ?? '',
+  'twitch.followers': () => emit('followers') ?? '',
+  // twitch.subs.count is the running subscriber count; .score/.latest/
+  // .latest.when have no counterpart (a leaderboard rank and a most-recent-
+  // subscriber name/time, neither of which this bot tracks) and stay on the
+  // known-but-unmapped warn path.
+  'twitch.subs.count': () => emit('subs') ?? '',
+  // <random.userlist> draws one name out of the people currently in chat —
+  // {random.viewer}'s own definition, not the same list {random.chatter}
+  // (recent talkers) draws from.
+  'random.userlist': () => emit('random.viewer') ?? '',
+  time: () => emit('time') ?? '',
+  // <args.url> is Moobot's URL-encoded argument tail: the same reason
+  // {querystring} exists apart from {args} in every other source's table
+  // (nightbot/variables.ts's decision record on $(querystring) applies here
+  // unchanged).
+  'args.url': () => emit('querystring') ?? ''
 };
 for (let i = 1; i <= 3; i++) TAG_RENDERERS[`random.text.${i}`] = (ctx) => choiceKey(ctx.randomTexts[i - 1]);
+// Arguments #2..#5: see the decision record on '1' above.
+for (let i = 2; i <= 5; i++) TAG_RENDERERS[String(i)] = () => positional(i) ?? '';
 
 function replaceTag(tag: string, ctx: TagContext): string {
   const render = TAG_RENDERERS[tag];
@@ -192,6 +232,12 @@ export interface FetchTagRef {
 export interface TagResult {
   text: string;
   unmapped: string[];
+  // unrecognized lists, first-seen order, every bracketed word this response
+  // used that is not in Moobot's own catalog at all — distinct from
+  // `unmapped` (a real catalog tag with no equivalent here) so the caller can
+  // warn with a different message: "not a Moobot tag" reads very differently
+  // from "Moobot has this, we don't".
+  unrecognized: string[];
   fetchRefs: FetchTagRef[];
   // countRemapped is true when the response used <counter> at least once.
   // <counter> now maps onto {count} (a per-command use count, not a named
@@ -200,10 +246,23 @@ export interface TagResult {
   // parse.ts's caller uses this to warn once per command rather than
   // silently changing what the response says.
   countRemapped: boolean;
+  // positionalFallbackLost lists, first-seen order, every <2>..<5> tag this
+  // response used: each mapped onto its plain positional word ({2}..{5}),
+  // but Moobot's own falls back to the invoker's username when that word is
+  // absent and this bot's positional words fall back to empty — a shift the
+  // broadcaster cannot see just by reading the translated response.
+  positionalFallbackLost: string[];
 }
 
 export function translateTags(text: string, ctx: TagContext): TagResult {
-  const res: TagResult = { text: '', unmapped: [], fetchRefs: [], countRemapped: false };
+  const res: TagResult = {
+    text: '',
+    unmapped: [],
+    unrecognized: [],
+    fetchRefs: [],
+    countRemapped: false,
+    positionalFallbackLost: []
+  };
   const seen = new Set<string>();
   const render: TagRender = { ctx, res, seen };
   let out = '';
@@ -235,12 +294,15 @@ interface TagRender {
 // The literal form is reconstructable from the name alone (TAG_PATTERN
 // captures exactly the text between one "<" and one ">") so renderers take
 // the tag and rebuild the bracketed literal on the degrade paths.
+const LOST_FALLBACK_ARGS = new Set(['2', '3', '4', '5']);
+
 function renderTag(render: TagRender, tag: string): string {
   const slot = urlfetchSlot(tag);
   if (slot !== undefined) return renderUrlfetchTag(render, tag, slot);
   const replacement = replaceTag(tag, render.ctx);
   if (replacement !== '') {
     if (tag === 'counter') render.res.countRemapped = true;
+    if (LOST_FALLBACK_ARGS.has(tag)) render.res.positionalFallbackLost.push(tag);
     return replacement;
   }
   noteUnmappedTag(render, tag);
@@ -256,7 +318,7 @@ function renderUrlfetchTag(render: TagRender, tag: string, slot: number | null):
     noteUnmappedTag(render, tag);
     return `<${tag}>`;
   }
-  const span = intactSpan('urlfetch', key);
+  const span = emit('urlfetch', key);
   if (span === null) {
     noteUnmappedTag(render, tag);
     return `<${tag}>`;
@@ -265,10 +327,12 @@ function renderUrlfetchTag(render: TagRender, tag: string, slot: number | null):
   return span;
 }
 
-// noteUnmappedTag records a first-of-kind warning for a known-but-unmappable
-// catalog tag.
+// noteUnmappedTag records a first-of-kind warning for one bracketed word this
+// response could not translate — a known catalog tag with no equivalent, or
+// (phase 6) a word that is not one of Moobot's tags at all. seen dedupes
+// across BOTH lists together, so a tag never earns two different warnings.
 function noteUnmappedTag(render: TagRender, tag: string): void {
-  if (!KNOWN_TAGS.has(tag) || render.seen.has(tag)) return;
+  if (render.seen.has(tag)) return;
   render.seen.add(tag);
-  render.res.unmapped.push(tag);
+  (KNOWN_TAGS.has(tag) ? render.res.unmapped : render.res.unrecognized).push(tag);
 }

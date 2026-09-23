@@ -71,7 +71,8 @@ const MANIFEST_SOURCE: Record<FetchSlugSource, ImportSource> = {
   moobot: 'moobot',
   nightbot: 'nightbot',
   fossabot: 'fossabot',
-  wizebot: 'wizebot'
+  wizebot: 'wizebot',
+  slcb: 'streamlabs_desktop'
 };
 
 // makeFetchSlotSink allocates definition slugs for ONE command over the
@@ -102,11 +103,27 @@ export function makeFetchSlotSink(
   };
 }
 
+// createdFetchDefMessage is the one wording every source's successful
+// urlfetch synthesis warns with (review, phase 6: creation used to be
+// completely silent here), so a broadcaster reviewing an import sees the
+// same sentence regardless of which product it came from. Exported for the
+// sources that mint a ManifestFetch through their OWN registration path
+// instead of this file's (streamelements.ts, moobot/tags.ts), so the wording
+// cannot drift between the three.
+export function createdFetchDefMessage(def: ManifestFetch): string {
+  return def.url
+    ? `created fetch definition ${JSON.stringify(def.name)} for ${def.url}; review it under Commands → Fetch definitions`
+    : `created fetch definition ${JSON.stringify(def.name)}; add its URL under Commands → Fetch definitions`;
+}
+
 // registerDef admits one definition into the import-level map: false at the
 // cap, and false with a warn when the slug is already taken: two exported
 // commands normalized onto one name, where first wins (deterministic by export
 // order) because the loser's tokens would silently re-point at another
-// command's data source.
+// command's data source. A successful admission warns too (createdFetchDefMessage)
+// rather than silently adding a definition the broadcaster never asked to
+// review — see this function's own history: it used to `defs.set` with
+// nothing pushed to diags at all.
 function registerDef(
   defs: Map<string, ManifestFetch>,
   def: ManifestFetch,
@@ -124,5 +141,6 @@ function registerDef(
   }
   if (defs.size >= FETCH_DEF_CAP) return false;
   defs.set(def.name, def);
+  diags.push(warnDiag(-1, 'fetch_def_created', createdFetchDefMessage(def)));
   return true;
 }

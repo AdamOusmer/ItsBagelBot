@@ -107,20 +107,26 @@ describe('decodeEntities', () => {
 
 describe('translateTags', () => {
   test('the mapped tags become substitution tokens', () => {
-    expect(translateTags('Hi $(nick) / $(display_name) in $(channel_name): $(message_clear)')).toEqual({
-      text: 'Hi {user} / {user} in {channel}: {args}',
-      warns: []
+    expect(
+      translateTags(
+        'Hi $(nick) / $(display_name) in $(channel_name): $(message_clear), up $(uptime) playing ' +
+          '$(current_game): $(current_status) x$(cmd_count), $arg(1) $args(2-)'
+      )
+    ).toEqual({
+      text: 'Hi {user} / {user} in {channel}: {args}, up {uptime} playing {game}: {title} x{count}, {1} {2:}',
+      warns: [],
+      countRemapped: true
     });
   });
 
   test('bold markup is unwrapped without a warning', () => {
-    expect(translateTags('[b]loud[/b] and clear')).toEqual({ text: 'loud and clear', warns: [] });
+    expect(translateTags('[b]loud[/b] and clear')).toEqual({ text: 'loud and clear', warns: [], countRemapped: false });
   });
 
   test('unmapped tags stay literal and are reported once each', () => {
-    const out = translateTags('$(uptime) playing $(current_game), $(uptime) again, $currency(1) $arg(2)');
-    expect(out.text).toBe('$(uptime) playing $(current_game), $(uptime) again, $currency(1) $arg(2)');
-    expect(out.warns).toEqual(['$(uptime)', '$(current_game)', '$currency(1)', '$arg(2)']);
+    const out = translateTags('$currency(1) $currency(1) $arg(x) $args(x-)');
+    expect(out.text).toBe('$currency(1) $currency(1) $arg(x) $args(x-)');
+    expect(out.warns).toEqual(['$currency(1)', '$arg(x)', '$args(x-)']);
   });
 });
 
@@ -171,6 +177,7 @@ describe('commands', () => {
     expect(manifest.commands?.[0]).toEqual({
       name: 'plava',
       responses: ['Guides & chaîne: ici'],
+      source_responses: ['Guides & chaîne: ici'],
       permission: 'everyone',
       aliases: ['plavastation']
     });
@@ -238,11 +245,32 @@ describe('commands', () => {
 
   test('an unmapped tag warns on the item that carries it', () => {
     const { manifest, diagnostics } = parseWizebot(
-      listBytes([{ aliases: '!a', text: 'hi' }, { aliases: '!b', text: 'up $(uptime)' }])
+      listBytes([{ aliases: '!a', text: 'hi' }, { aliases: '!b', text: 'cost $currency(gold)' }])
     );
     expect(codesOf(diagnostics)).toEqual([CODE.variableUnmapped]);
     expect(diagnostics[0].item_index).toBe(1);
     expect(manifest.commands?.[1].warnings).toHaveLength(1);
+  });
+
+  test('uptime/current_game/current_status/cmd_count map onto their tokens', () => {
+    const { manifest, diagnostics } = parseWizebot(
+      listBytes([
+        { aliases: '!live', text: 'up $(uptime) playing $(current_game): $(current_status) x$(cmd_count)' }
+      ])
+    );
+    expect(manifest.commands?.[0].responses).toEqual(['up {uptime} playing {game}: {title} x{count}']);
+    // $(cmd_count) is a meaning change (per-command run count starting from
+    // zero here, not Wizebot's own running total), so it warns even though
+    // it mapped cleanly.
+    expect(diagnostics.map((d) => d.code)).toEqual([WB_CODE.countRemapped]);
+  });
+
+  test('$arg(n) and $args(n-) map onto positional words', () => {
+    const { manifest, diagnostics } = parseWizebot(
+      listBytes([{ aliases: '!pick', text: 'you picked $arg(1), rest: $args(2-)' }])
+    );
+    expect(manifest.commands?.[0].responses).toEqual(['you picked {1}, rest: {2:}']);
+    expect(diagnostics).toEqual([]);
   });
 
   test('an alias that normalizes to nothing is dropped with a warning', () => {
