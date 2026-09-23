@@ -36,6 +36,10 @@ _Avoid_: Recently active when referring to this setting.
 **Test account**:
 An account explicitly designated for testing rather than ordinary bot use, excluded from giveaway eligibility.
 
+**Trial channel**:
+A Twitch channel an administrator observes before its broadcaster has registered with ItsBagelBot. Its chat can exercise the bot's processing path, but the bot never acts in that channel on the trial's behalf. A registered account cannot remain a trial channel.
+_Avoid_: Test account, registered channel when referring to this observation.
+
 **Current staff**:
 An account with active staff membership, excluded from giveaway eligibility.
 

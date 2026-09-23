@@ -173,6 +173,10 @@ func main() {
 
 	svcboot.FatalIf(log, rpc.SubscribeManage(nc, registry, tw, cfg.RPCPrefix, queueGroup, nrApp, log.Named("rpc")),
 		"failed to subscribe management rpc")
+	svcboot.FatalIf(log, rpc.SubscribeTrialSubscriptions(bus.RPCWiring{
+		NC: nc, App: nrApp, Queue: "outgress-trial-subscription", Log: log.Named("trial-rpc"), Timeout: 5 * time.Second,
+	}, valkeyClient, tw, cfg.TwitchBotUserID),
+		"failed to subscribe trial subscription rpc")
 
 	// Channel-points reward management (create/edit/delete custom rewards under
 	// each broadcaster's own token), driven synchronously by the dashboard tab.
@@ -358,14 +362,15 @@ func warmupTwitch(ctx context.Context, tw *twitch.Client, log *zap.Logger) {
 // the worker fleet.
 func (d *deps) newLaneWorkers(tw *twitch.Client, limiter ratelimit.Manager, registry *channels.Registry, batch worker.BatchStore) (premium, standard, system *worker.Worker, cleanup func()) {
 	base := worker.Config{
-		Limiter:  limiter,
-		Registry: registry,
-		Twitch:   tw,
-		BotID:    d.cfg.TwitchBotUserID,
-		Owner:    d.host,
-		Conduit:  conduit.New(d.nc, d.cfg.ConduitSubject, d.cfg.TwitchConduitID, 60*time.Second, d.log.Named("conduit")),
-		Batch:    batch,
-		UserIDs:  worker.NewUserIDCache(),
+		TrialStore: d.valkey,
+		Limiter:    limiter,
+		Registry:   registry,
+		Twitch:     tw,
+		BotID:      d.cfg.TwitchBotUserID,
+		Owner:      d.host,
+		Conduit:    conduit.New(d.nc, d.cfg.ConduitSubject, d.cfg.TwitchConduitID, 60*time.Second, d.log.Named("conduit")),
+		Batch:      batch,
+		UserIDs:    worker.NewUserIDCache(),
 	}
 	build := func(name string, lane worker.Lane) *worker.Worker {
 		cfg := base

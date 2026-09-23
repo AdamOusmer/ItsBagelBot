@@ -82,6 +82,13 @@ defmodule Ingress.Application do
   end
 
   defp server_children do
+    base_children() ++
+      trial_children() ++
+      control_children() ++
+      [Ingress.Bootstrapper, status_listener()]
+  end
+
+  defp base_children do
     [
       {Cluster.Supervisor, [Config.cluster_topologies(), [name: Ingress.ClusterSupervisor]]},
       {Horde.Registry, [name: Ingress.Registry, keys: :unique, members: :auto]},
@@ -125,7 +132,47 @@ defmodule Ingress.Application do
       Ingress.BroadcasterCache,
       Ingress.Squash.Pool,
       Ingress.Dispatcher.Supervisor,
-      Ingress.Twitch.AppToken,
+      Ingress.Twitch.AppToken
+    ]
+  end
+
+  defp trial_children do
+    [
+      Ingress.TrialValkey,
+      Ingress.TrialMembership,
+      Ingress.TrialReceiver,
+      Supervisor.child_spec(
+        {Gnat.ConsumerSupervisor,
+         %{
+           connection_name: :gnat_bus,
+           module: Ingress.TrialUserChanged,
+           subscription_topics: [%{topic: "data.users.changed"}]
+         }},
+        id: :trial_user_changed_consumer
+      ),
+      rpc_consumer_child(
+        :trial_list_consumer,
+        Ingress.TrialListRpc,
+        "twitch.ingress.admin.trials.list",
+        queue_group: @admin_queue
+      ),
+      rpc_consumer_child(
+        :trial_add_consumer,
+        Ingress.TrialAddRpc,
+        "twitch.ingress.admin.trials.add",
+        queue_group: @admin_queue
+      ),
+      rpc_consumer_child(
+        :trial_remove_consumer,
+        Ingress.TrialRemoveRpc,
+        "twitch.ingress.admin.trials.remove",
+        queue_group: @admin_queue
+      )
+    ]
+  end
+
+  defp control_children do
+    [
       consumer_child(
         :invalidation_consumer,
         Ingress.CacheInvalidator,
@@ -153,13 +200,7 @@ defmodule Ingress.Application do
       # Side-effect-free fleet RPC latency probe.
       rpc_consumer_child(:health_consumer, Ingress.HealthRpc, AdminConfig.rpc_health_subject(),
         queue_group: @admin_queue
-      ),
-      Ingress.Bootstrapper,
-      # HTTP health surface (/healthz, /readyz, /status) for Kubernetes probes
-      # and the Better Stack status page, TLS-terminated with the cert-manager
-      # cert when the TLS_CERT_FILE/TLS_KEY_FILE pair is set. Last on purpose:
-      # it must not answer before the planes it reports on have started.
-      status_listener()
+      )
     ]
   end
 

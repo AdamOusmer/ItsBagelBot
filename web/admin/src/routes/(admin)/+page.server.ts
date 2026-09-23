@@ -4,13 +4,15 @@
 import type { PageServerLoad } from './$types';
 import {
   shardSnapshot,
+  trialList,
   userEnrollment,
   tokenStatus,
   auditList,
   serviceHealth,
   type EnrollmentWire,
   type AuditEntry,
-  type ServiceHealth
+  type ServiceHealth,
+  type TrialSnapshot
 } from '$lib/server/services';
 import { dev } from '$app/environment';
 import { allows } from '$lib/server/access';
@@ -48,17 +50,31 @@ function panel<T>(read: Promise<T>, fallback: T): Promise<Panel<T>> {
 type OverviewReads = {
   enrollment: Promise<Panel<EnrollmentWire>>;
   fleet: Promise<Panel<ShardSnapshot>>;
+  trials: Promise<Panel<TrialSnapshot>>;
   health: Promise<Panel<ServiceHealth[]>>;
   audit: Promise<Panel<AuditEntry[]>>;
   bot: Promise<Panel<boolean>>;
   giveawayAlerts: Promise<Panel<GiveawayAlertWire[]>>;
 };
 
-function liveReads(actorId: string, days: EnrollmentWindow, withAudit: boolean, withGiveaways: boolean): OverviewReads {
+const EMPTY_TRIALS: TrialSnapshot = { version: 1, trials: [] };
+
+type OverviewPermissions = {
+  withAudit: boolean;
+  withGiveaways: boolean;
+  withTrials: boolean;
+};
+
+function liveReads(
+  actorId: string,
+  days: EnrollmentWindow,
+  { withAudit, withGiveaways, withTrials }: OverviewPermissions
+): OverviewReads {
   const botId = env.ADMIN_BOT_USER_ID ?? '';
   return {
     enrollment: panel(userEnrollment(actorId, days), emptyEnrollment()),
     fleet: panel(shardSnapshot(), emptyShardSnapshot()),
+    trials: panel(withTrials ? trialList() : Promise.resolve(EMPTY_TRIALS), EMPTY_TRIALS),
     health: panel(serviceHealth(), []),
     audit: panel(withAudit ? auditList(AUDIT_PEEK) : Promise.resolve([]), []),
     bot: panel(
@@ -76,6 +92,7 @@ function demoReads(days: EnrollmentWindow, withAudit: boolean): OverviewReads {
   return {
     enrollment: from((f) => f.demoEnrollment(days)),
     fleet: from((f) => f.sampleSnapshot),
+    trials: from(() => EMPTY_TRIALS),
     health: from((f) => f.sampleHealth),
     audit: from((f) => (withAudit ? f.sampleAudit : [])),
     bot: from(() => true),
@@ -90,16 +107,20 @@ export const load: PageServerLoad = async ({ url, parent }) => {
   const { id, role } = await parent();
   const withAudit = allows(role, 'audit.read');
   const withGiveaways = allows(role, 'giveaways.manage');
+  const withTrials = allows(role, 'trials.manage');
   const days = parseEnrollmentWindow(url.searchParams.get('days'));
 
   return {
     days,
-    ...(DEMO ? demoReads(days, withAudit) : liveReads(id, days, withAudit, withGiveaways)),
+    ...(DEMO
+      ? demoReads(days, withAudit)
+      : liveReads(id, days, { withAudit, withGiveaways, withTrials })),
     // Client-side visibility mirrors of the server ladder. The bot consent flow
     // mints a live Twitch credential, so its card is owner-only; a moderator
     // simply never sees the panel rather than being bounced by the route.
     canReadAudit: withAudit,
     canLinkBot: allows(role, 'bot.token'),
-    canNotify: allows(role, 'notifications.send')
+    canNotify: allows(role, 'notifications.send'),
+    canViewTrials: withTrials
   };
 };

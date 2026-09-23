@@ -367,7 +367,12 @@
       "autoscaleOffDemo": "autoscale off (demo)",
       "scaled": "scaled to {count}",
       "autoscaleEnabled": "autoscale enabled",
-      "autoscaleDisabled": "autoscale disabled"
+      "autoscaleDisabled": "autoscale disabled",
+      "trialConnections": "Trial connections",
+      "trialBroadcasterId": "Twitch ID {id}",
+      "trialLoading": "Loading trial connections…",
+      "trialUnavailable": "Trial connections are temporarily unavailable.",
+      "trialEmpty": "No active trial connections."
     },
     "lanes": {
       "eyebrow": "JetStream consumers",
@@ -660,6 +665,35 @@
       "snapshotFrozen": "Eligibility snapshot frozen.",
       "retryQueuedDemo": "Fulfillment retry queued (demo).",
       "retryQueued": "Fulfillment retry queued."
+    },
+    "trials": {
+      "eyebrow": "Observation",
+      "title": "Trial channels",
+      "description": "Process chat from up to four unregistered broadcasters. Twitch output stays blocked while they are in a trial.",
+      "degraded": "Trial state is unavailable. Controls may fail until ingress reconnects.",
+      "admissionDisabled": "Adding trials is paused during rollout. Existing trials can still be removed.",
+      "idLabel": "Twitch broadcaster ID",
+      "add": "Add trial",
+      "remove": "Remove",
+      "note": "Use the numeric Twitch ID. Registration automatically ends a trial; the broadcaster then follows normal onboarding.",
+      "count": "{count} / 4 trial channels",
+      "empty": "No trial channels are configured.",
+      "history": "Recent trials",
+      "received": "{count} received",
+      "decoded": "{count} decoded",
+      "processed": "{count} processed",
+      "failed": "{count} failed",
+      "retried": "{count} retried",
+      "blocked": "{count} blocked actions",
+      "latency": "{count} ms average processing",
+      "state": {
+        "pending": "Pending",
+        "receiving": "Receiving",
+        "stopping": "Stopping",
+        "promoted": "Promoted",
+        "removed": "Removed",
+        "failed": "Failed"
+      }
     }
   },
   "adminNav": {
@@ -676,7 +710,8 @@
     "staff": "Staff",
     "audit": "Audit",
     "secrets": "Secrets",
-    "counters": "Bot counters"
+    "counters": "Bot counters",
+    "trials": "Trial channels"
   },
   "banner": {
     "sharedPre": "Shared access to ",

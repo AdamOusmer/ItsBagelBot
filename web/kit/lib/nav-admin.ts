@@ -24,6 +24,7 @@ import type { MessageKey } from './i18n/keys';
 export type AdminSectionId =
   | 'overview'
   | 'shards'
+  | 'trials'
   | 'lanes'
   | 'events'
   | 'users'
@@ -61,6 +62,7 @@ export const ADMIN_GROUP_LABEL: Record<AdminGroupId, MessageKey> = {
 export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
   { id: 'overview', group: 'operate', labelKey: 'adminNav.overview', icon: 'overview', href: '/', match: ['/'] },
   { id: 'shards', group: 'operate', labelKey: 'adminNav.shards', icon: 'server', href: '/shards', match: ['/shards'] },
+  { id: 'trials', group: 'operate', labelKey: 'adminNav.trials', icon: 'pulse', href: '/trials', match: ['/trials'], minRole: 'admin' },
   { id: 'lanes', group: 'operate', labelKey: 'adminNav.lanes', icon: 'lanes', href: '/lanes', match: ['/lanes'] },
   { id: 'events', group: 'operate', labelKey: 'adminNav.events', icon: 'pulse', href: '/events', match: ['/events'] },
   { id: 'users', group: 'accounts', labelKey: 'adminNav.users', icon: 'users', href: '/users', match: ['/users'] },

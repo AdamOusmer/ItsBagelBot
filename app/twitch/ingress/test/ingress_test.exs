@@ -152,6 +152,34 @@ defmodule Ingress.PipelineTest do
                Pipeline.route(notification("channel.chat.message", event), @meta)
     end
 
+    test "trusted trial metadata survives routing while EventSub cannot forge origin" do
+      event = %{
+        "broadcaster_user_id" => "77",
+        "chatter_user_id" => "1001",
+        "origin" => "trial",
+        "message_id" => "chat-1",
+        "message" => %{"text" => "!hello"}
+      }
+
+      put_env(special_user_ids: @special)
+
+      assert {:publish, "twitch.ingress.event.premium", ordinary} =
+               Pipeline.route(notification("channel.chat.message", event), @meta)
+
+      refute Map.has_key?(ordinary, :origin)
+
+      assert {:publish, "twitch.ingress.event.premium", routed} =
+               Pipeline.route(
+                 notification("channel.chat.message", event),
+                 Map.merge(@meta, %{origin: :trial, trial_generation: 8})
+               )
+
+      assert routed.origin == "trial"
+      assert routed.trial_generation == 8
+      assert routed.chat_message_id == "chat-1"
+      assert routed.event_id == "m1"
+    end
+
     test "a non-chat event encodes the decoded event map onto the lane" do
       event = %{"broadcaster_user_id" => "77", "user_name" => "someone"}
 
@@ -461,6 +489,26 @@ defmodule Ingress.SquashTest do
     assert Squash.observe(base("gg"), sender("3")) == :buffered
   end
 
+  test "trial origin and generation each partition a squash cohort" do
+    start_squash(window_ms: 10_000, sweep_ms: 10_000)
+    assert Squash.observe(base("gg"), sender("1")) == :first
+
+    assert Squash.observe(
+             Map.merge(base("gg"), %{origin: "trial", trial_generation: 1}),
+             sender("2")
+           ) == :first
+
+    assert Squash.observe(
+             Map.merge(base("gg"), %{origin: "trial", trial_generation: 2}),
+             sender("3")
+           ) == :first
+
+    assert Squash.observe(
+             Map.merge(base("gg"), %{origin: "trial", trial_generation: 1}),
+             sender("4")
+           ) == :buffered
+  end
+
   test "distinct text opens distinct windows (both :first)" do
     start_squash(window_ms: 10_000, sweep_ms: 10_000)
     assert Squash.observe(base("aaa"), sender("1")) == :first
@@ -482,7 +530,7 @@ defmodule Ingress.SquashTest do
 
     assert Squash.observe_chat(:standard, event, "unique", meta) == :first
 
-    assert [{{"77", "unique"}, expires_at, generation}] =
+    assert [{{"77", nil, nil, "unique"}, expires_at, generation}] =
              :ets.tab2list(Ingress.Squash.Keys)
 
     assert is_integer(expires_at)

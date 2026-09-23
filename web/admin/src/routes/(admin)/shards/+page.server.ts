@@ -4,29 +4,33 @@
 import type { Actions, PageServerLoad } from './$types';
 import { fail } from '@sveltejs/kit';
 import { dev } from '$app/environment';
-import { shardSnapshot, shardScale, shardAutoscale } from '$lib/server/services';
-import { requireRole } from '$lib/server/access';
+import { shardSnapshot, shardScale, shardAutoscale, trialList, type TrialSnapshot } from '$lib/server/services';
+import { allows, requireRole } from '$lib/server/access';
 import { audit } from '$lib/server/audit';
 import { emptyShardSnapshot } from '$lib/server/fallback';
 import { actionError, adminText } from '$lib/server/admin-action';
 
 import type { ShardSnapshot } from '@bagel/kit';
 
-export type ShardsBundle = { snapshot: ShardSnapshot; degraded: boolean };
+export type ShardsBundle = { snapshot: ShardSnapshot; degraded: boolean; trials: TrialSnapshot | null };
 const DEMO = dev && process.env.DEMO === '1';
 
 // Streamed: the shell renders immediately; the snapshot hydrates when the
 // ingress RPC lands. A failure returns a neutral empty snapshot and says so.
-export const load: PageServerLoad = () => {
+export const load: PageServerLoad = async ({ parent }) => {
+  const { role } = await parent();
+  const withTrials = allows(role, 'trials.manage');
   const bundle: Promise<ShardsBundle> = DEMO
     ? import('$lib/server/demo-data').then(({ sampleSnapshot }) => ({
         snapshot: sampleSnapshot,
-        degraded: false
+        degraded: false,
+        trials: null
       }))
-    : shardSnapshot()
-        .then((snapshot) => ({ snapshot, degraded: false }))
-        .catch(() => ({ snapshot: emptyShardSnapshot(), degraded: true }));
-  return { bundle };
+    : Promise.all([
+        shardSnapshot().then((snapshot) => ({ snapshot, degraded: false })).catch(() => ({ snapshot: emptyShardSnapshot(), degraded: true })),
+        (withTrials ? trialList() : Promise.resolve(null)).catch(() => null)
+      ]).then(([shards, trials]) => ({ ...shards, trials }));
+  return { bundle, canViewTrials: withTrials };
 };
 
 export const actions: Actions = {

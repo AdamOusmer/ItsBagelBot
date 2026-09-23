@@ -367,7 +367,12 @@
       "autoscaleOffDemo": "autoscaling désactivé (démo)",
       "scaled": "mise à l'échelle vers {count}",
       "autoscaleEnabled": "autoscaling activé",
-      "autoscaleDisabled": "autoscaling désactivé"
+      "autoscaleDisabled": "autoscaling désactivé",
+      "trialConnections": "Connexions d’essai",
+      "trialBroadcasterId": "ID Twitch {id}",
+      "trialLoading": "Chargement des connexions d’essai…",
+      "trialUnavailable": "Les connexions d’essai sont temporairement indisponibles.",
+      "trialEmpty": "Aucune connexion d’essai active."
     },
     "lanes": {
       "eyebrow": "Consommateurs JetStream",
@@ -660,6 +665,35 @@
       "snapshotFrozen": "Instantané d'éligibilité figé.",
       "retryQueuedDemo": "Nouvel essai d'attribution mis en file (démo).",
       "retryQueued": "Nouvel essai d'attribution mis en file."
+    },
+    "trials": {
+      "eyebrow": "Observation",
+      "title": "Chaînes d'essai",
+      "description": "Traiter le clavardage de quatre diffuseurs non inscrits au maximum. Les actions Twitch restent bloquées pendant l'essai.",
+      "degraded": "L'état des essais est indisponible. Les commandes peuvent échouer jusqu'au rétablissement de l'entrée.",
+      "admissionDisabled": "L'ajout de chaînes à l'essai est suspendu pendant le déploiement. Les essais existants peuvent toujours être retirés.",
+      "idLabel": "Identifiant Twitch du diffuseur",
+      "add": "Ajouter un essai",
+      "remove": "Retirer",
+      "note": "Utilisez l'identifiant Twitch numérique. L'inscription met automatiquement fin à l'essai; le diffuseur suit ensuite l'accueil habituel.",
+      "count": "{count} / 4 chaînes d'essai",
+      "empty": "Aucune chaîne d'essai n'est configurée.",
+      "history": "Essais récents",
+      "received": "{count} reçus",
+      "decoded": "{count} décodés",
+      "processed": "{count} traités",
+      "failed": "{count} échecs",
+      "retried": "{count} reprises",
+      "blocked": "{count} actions bloquées",
+      "latency": "{count} ms de traitement moyen",
+      "state": {
+        "pending": "En attente",
+        "receiving": "En réception",
+        "stopping": "Arrêt en cours",
+        "promoted": "Inscrit",
+        "removed": "Retiré",
+        "failed": "Échec"
+      }
     }
   },
   "adminNav": {
@@ -676,7 +710,8 @@
     "staff": "Équipe",
     "audit": "Audit",
     "secrets": "Secrets",
-    "counters": "Compteurs du bot"
+    "counters": "Compteurs du bot",
+    "trials": "Chaînes d'essai"
   },
   "banner": {
     "sharedPre": "Accès partagé au tableau de bord de ",

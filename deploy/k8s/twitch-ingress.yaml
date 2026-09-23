@@ -195,6 +195,29 @@ spec:
                 configMapKeyRef:
                   name: fleet-ca
                   key: ca.pem
+            # Trial admission and owner fencing use the existing replicated
+            # Sentinel-backed Valkey cluster. The control store contains IDs,
+            # subscription ownership and counters, never Twitch tokens or chat.
+            - name: VALKEY_ADDR
+              value: valkey.cache.svc.cluster.local:26380
+            - name: VALKEY_TLS_SERVER_NAME
+              value: valkey.cache.svc.cluster.local
+            - name: VALKEY_TLS_CA_FILE
+              value: /etc/valkey/ca/ca.pem
+            - name: VALKEY_TLS_CLIENT_CERT_FILE
+              value: /etc/valkey/client-tls/tls.crt
+            - name: VALKEY_TLS_CLIENT_KEY_FILE
+              value: /etc/valkey/client-tls/tls.key
+            - name: VALKEY_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: outgress-env
+                  key: VALKEY_PASSWORD
+            # Enable only after ingress, Sesame and outgress have all rolled
+            # to images that preserve and enforce trial origin. If AutoMod V2
+            # is active, its image must also enforce trial origin.
+            - name: TRIAL_ADMISSION_ENABLED
+              value: "off"
             - name: POD_IP
               valueFrom:
                 fieldRef:
@@ -313,6 +336,8 @@ spec:
               memory: 1Gi
           volumeMounts:
             - {name: nats-client-tls, mountPath: /etc/nats-client/tls, readOnly: true}
+            - {name: valkey-ca, mountPath: /etc/valkey/ca, readOnly: true}
+            - {name: valkey-client-tls, mountPath: /etc/valkey/client-tls, readOnly: true}
             - {name: health-tls, mountPath: /etc/twitch-ingress/tls, readOnly: true}
           ports:
             - name: status
@@ -345,6 +370,14 @@ spec:
         - name: nats-client-tls
           secret:
             secretName: nats-client-tls
+        - name: valkey-ca
+          configMap:
+            name: fleet-ca
+            items:
+              - {key: ca.pem, path: ca.pem}
+        - name: valkey-client-tls
+          secret:
+            secretName: valkey-client-tls
         - name: health-tls
           secret:
             secretName: twitch-ingress-tls

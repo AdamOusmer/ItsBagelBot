@@ -28,6 +28,7 @@ const SUB = {
   shards: process.env.NATS_ADMIN_SUBJECT || 'twitch.ingress.admin.shards.get',
   scale: process.env.NATS_SHARD_SCALE_SUBJECT || 'twitch.ingress.admin.shards.scale',
   autoscale: process.env.NATS_SHARD_AUTOSCALE_SUBJECT || 'twitch.ingress.admin.shards.autoscale',
+  trials: process.env.NATS_TRIAL_SUBJECT_PREFIX || 'twitch.ingress.admin.trials',
   status: process.env.NATS_STATUS_SUBJECT_PREFIX || 'twitch.ingress.status',
   user: process.env.NATS_ADMIN_USER_SUBJECT_PREFIX || 'bagel.rpc.admin.user',
   auth: process.env.NATS_ADMIN_AUTH_SUBJECT_PREFIX || 'bagel.rpc.admin.user.auth',
@@ -172,6 +173,43 @@ export const shardAutoscale = defineWrite({
   timeoutMs: 5000,
   after: (snapshot) => setCached('shards:snapshot', snapshot, POLICY.live)
 });
+
+// Trial observation is controlled by ingress. Reads are intentionally uncached:
+// the page polls observed WebSocket state while a subscription is settling.
+export interface TrialChannel {
+  broadcaster_id: string;
+  display_name?: string;
+  state: 'pending' | 'receiving' | 'stopping' | 'promoted' | 'removed' | 'failed';
+  error?: string;
+  received?: number;
+  decoded?: number;
+  processed?: number;
+  failed?: number;
+  retried?: number;
+  blocked_actions?: number;
+  average_processing_latency_ms?: number;
+}
+
+export interface TrialSnapshot {
+  version: number;
+  active_count?: number;
+  admission_enabled?: boolean;
+  trials: TrialChannel[];
+}
+
+export type TrialMutationReply = Pick<TrialChannel, 'broadcaster_id' | 'state'>;
+
+export function trialList(): Promise<TrialSnapshot> {
+  return rpc<TrialSnapshot>(`${SUB.trials}.list`, {});
+}
+
+export function trialAdd(broadcasterId: string): Promise<TrialMutationReply> {
+  return rpc<TrialMutationReply>(`${SUB.trials}.add`, { broadcaster_id: broadcasterId });
+}
+
+export function trialRemove(broadcasterId: string): Promise<TrialMutationReply> {
+  return rpc<TrialMutationReply>(`${SUB.trials}.remove`, { broadcaster_id: broadcasterId });
+}
 
 // ── Refusal codes ───────────────────────────────────────────────────────────
 

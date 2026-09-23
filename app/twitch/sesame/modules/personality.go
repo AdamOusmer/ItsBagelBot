@@ -317,6 +317,11 @@ func personalityAllowed(ctx context.Context, d engine.Deps, c *module.Context, r
 	if r.oneIn > 1 && pickIndex(r.oneIn) != 0 {
 		return false
 	}
+	// Observation evaluates the same phrase and chance gates without claiming
+	// a cooldown in the real broadcaster's Valkey namespace.
+	if c.Env.Origin == "trial" {
+		return true
+	}
 	if d.Cooldown == nil {
 		return true
 	}
@@ -346,7 +351,7 @@ func packReply(pack []string) personalityReply {
 // a random fact when the store is nil or unavailable.
 func factReply(ctx context.Context, d engine.Deps, c *module.Context) string {
 	idx := pickIndex(len(personalityFacts))
-	if d.Personality != nil {
+	if d.Personality != nil && c.Env.Origin != "trial" {
 		if cur, err := d.Personality.FactCursor(ctx, c.BroadcasterID); err == nil {
 			idx = int((cur - 1) % int64(len(personalityFacts)))
 		}
@@ -361,6 +366,12 @@ func factReply(ctx context.Context, d engine.Deps, c *module.Context) string {
 // when the store is nil or erroring the reaction stays silent rather than
 // answering without its numbers.
 func feedReply(ctx context.Context, d engine.Deps, c *module.Context) string {
+	// Feed is a write to fleet and channel counters. There is no read-only
+	// equivalent of its post-increment totals, so a trial records the matched
+	// reaction without inventing a count or touching the store.
+	if c.Env.Origin == "trial" {
+		return ""
+	}
 	if d.Personality == nil {
 		return ""
 	}
@@ -375,7 +386,7 @@ func feedReply(ctx context.Context, d engine.Deps, c *module.Context) string {
 // the store accepts it first (first roll of the window wins fleet-wide).
 func moodReply(ctx context.Context, d engine.Deps, c *module.Context) string {
 	mood := pickLine(personalityMoodPack)
-	if d.Personality != nil {
+	if d.Personality != nil && c.Env.Origin != "trial" {
 		if m, err := d.Personality.Mood(ctx, c.BroadcasterID, mood); err == nil {
 			mood = m
 		}

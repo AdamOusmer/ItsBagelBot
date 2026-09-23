@@ -32,6 +32,7 @@
   import { toast } from '@bagel/ui/svelte/toast';
   import { actionPayload, adminToastFailure } from '@bagel/kit';
   import type { ShardSnapshot } from '@bagel/kit';
+  import type { TrialSnapshot } from '$lib/server/services';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { allows } from '$lib/access';
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
@@ -47,6 +48,8 @@
 
   // ── Streamed snapshot -> local state ───────────────────────────────────────
   let snap = $state<ShardSnapshot | null>(null);
+  let trialSnapshot = $state<TrialSnapshot | null>(null);
+  let trialPolled = false;
   let degraded = $state(false);
   let live = $state(false);
   $effect(() => {
@@ -55,6 +58,7 @@
       if (!alive) return;
       // The poll may already have delivered something fresher than SSR.
       if (snap === null) snap = b.snapshot;
+      if (!trialPolled) trialSnapshot = b.trials;
       degraded = b.degraded;
     });
     return () => {
@@ -80,7 +84,9 @@
     try {
       const res = await fetch('/shards/snapshot');
       if (!res.ok) return false;
-      const body = (await res.json()) as { snapshot?: ShardSnapshot };
+      const body = (await res.json()) as { snapshot?: ShardSnapshot | null; trials?: TrialSnapshot | null };
+      trialPolled = true;
+      trialSnapshot = body.trials ?? null;
       if (!body.snapshot) {
         live = false; // the endpoint answered but had no live snapshot: say so
         return false;
@@ -113,6 +119,9 @@
   // ── Derived fleet view ─────────────────────────────────────────────────────
   const capacity = $derived(snap ? resolveCapacity(snap) : null);
   const shards = $derived(snap?.shards ?? []);
+  const trialConnections = $derived(
+    trialSnapshot?.trials.filter((row) => row.state !== 'removed' && row.state !== 'promoted') ?? []
+  );
   const connected = $derived(shards.filter((s) => s.state === 'connected').length);
   const minShards = $derived(snap?.min_shards ?? 1);
   const maxShards = $derived(
@@ -337,6 +346,35 @@
         <EmptyState title={t('admin.shards.empty')} body={t('admin.shards.emptyBody')} />
       {/if}
     </DeckList>
+
+    {#if data.canViewTrials}
+    <section class="trial-connections" aria-label={t('admin.shards.trialConnections')}>
+      <h2>{t('admin.shards.trialConnections')}</h2>
+      {#if trialSnapshot === null}
+        <p class="trial-hint">{t('admin.shards.trialUnavailable')}</p>
+      {:else if trialConnections.length === 0}
+        <p class="trial-hint">{t('admin.shards.trialEmpty')}</p>
+      {:else}
+        <DeckList>
+          <ul class="bb-list" aria-label={t('admin.shards.trialConnections')}>
+            {#each [...trialConnections].sort((a, b) => (a.display_name || a.broadcaster_id).localeCompare(b.display_name || b.broadcaster_id)) as trial (trial.broadcaster_id)}
+              <li class="trial-row">
+                <StatusDot tone={trial.state === 'receiving' ? 'success' : 'warning'} />
+                <span class="trial-who">
+                  <strong>{trial.display_name?.trim() || trial.broadcaster_id}</strong>
+                  {#if trial.display_name?.trim()}<small>{t('admin.shards.trialBroadcasterId', { id: trial.broadcaster_id })}</small>{/if}
+                </span>
+                <span class="trial-detail">
+                  {t(`admin.trials.state.${trial.state}`)} ·
+                  {t('admin.trials.received', { count: String(trial.received ?? 0) })}
+                </span>
+              </li>
+            {/each}
+          </ul>
+        </DeckList>
+      {/if}
+    </section>
+    {/if}
   {/if}
 </section>
 
@@ -421,4 +459,12 @@
   .stepper.dim {
     opacity: 0.45;
   }
+  .trial-connections { margin-top: 24px; }
+  .trial-connections h2 { font-size: 16px; margin: 0 0 10px; }
+  .trial-hint { color: var(--bb-muted); font-size: 12.5px; }
+  .trial-row { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 12px 14px; border-bottom: 1px solid var(--rule, rgba(240, 236, 228, 0.08)); }
+  .trial-who { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+  .trial-who strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .trial-who small, .trial-detail { color: var(--bb-muted); font-size: 11px; }
+  .trial-detail { text-align: right; }
 </style>

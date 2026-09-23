@@ -10,9 +10,11 @@
   import { statusTone } from '@bagel/kit/status-tone';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { ShardSnapshot } from '@bagel/kit';
+  import type { TrialSnapshot } from '$lib/server/services';
+  import type { Panel } from '../../../routes/(admin)/+page.server';
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
 
-  let { snapshot, ok }: { snapshot: ShardSnapshot; ok: boolean } = $props();
+  let { snapshot, ok, trialRead, showTrials }: { snapshot: ShardSnapshot; ok: boolean; trialRead: Promise<Panel<TrialSnapshot>>; showTrials: boolean } = $props();
 
   const { t } = getI18n();
 
@@ -65,6 +67,31 @@
   {:else}
     <EmptyState title={t('admin.overview.fleetEmpty')} />
   {/if}
+
+  {#if showTrials}
+    {#await trialRead}
+      <p class="trial-hint">{t('admin.shards.trialLoading')}</p>
+    {:then result}
+      {#if !result.ok}
+        <p class="trial-hint">{t('admin.shards.trialUnavailable')}</p>
+      {:else}
+        {@const activeTrials = result.value.trials.filter((row) => row.state !== 'removed' && row.state !== 'promoted')}
+        {#if activeTrials.length}
+          <h3 class="trial-title">{t('admin.shards.trialConnections')}</h3>
+          <div class="node-list">
+            {#each [...activeTrials].sort((a, b) => (a.display_name || a.broadcaster_id).localeCompare(b.display_name || b.broadcaster_id)) as trial (trial.broadcaster_id)}
+              <div class="node-row">
+                <StatusDot tone={statusTone(trial.state === 'receiving' ? 'online' : 'degraded')} />
+                <span class="nm">{trial.display_name?.trim() || trial.broadcaster_id}</span>
+                <span class="sv">{trial.display_name?.trim() ? t('admin.shards.trialBroadcasterId', { id: trial.broadcaster_id }) : ''}</span>
+                <span class="pg">{t(`admin.trials.state.${trial.state}`)}</span>
+              </div>
+            {/each}
+          </div>
+        {/if}
+      {/if}
+    {/await}
+  {/if}
 </Card>
 
 <style>
@@ -83,4 +110,6 @@
     font-size: 11.5px;
     color: var(--bb-muted);
   }
+  .trial-title { margin: 18px 0 8px; font-size: 13px; }
+  .trial-hint { margin: 12px 0 0; color: var(--bb-muted); font-size: 12px; }
 </style>

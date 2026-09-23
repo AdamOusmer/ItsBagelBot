@@ -67,7 +67,8 @@ defmodule Ingress.Squash do
   """
   @spec observe(base(), sender(), GenServer.server()) :: :first | :buffered
   def observe(base, sender, server \\ __MODULE__) do
-    key = {base.broadcaster_user_id, String.trim(base.text)}
+    key =
+      {base.broadcaster_user_id, base[:origin], base[:trial_generation], String.trim(base.text)}
 
     with %{table: table, server: owner, window_ms: window_ms} <- context(server, key) do
       do_observe(table, owner, key, {:prepared, base, sender}, window_ms)
@@ -86,7 +87,9 @@ defmodule Ingress.Squash do
   """
   @spec observe_chat(:premium | :standard, map(), String.t(), map()) :: :first | :buffered
   def observe_chat(lane, event, text, meta) do
-    key = {event["broadcaster_user_id"], String.trim(text)}
+    key =
+      {event["broadcaster_user_id"], Map.get(meta, :origin), Map.get(meta, :trial_generation),
+       String.trim(text)}
 
     with %{table: table, server: owner, window_ms: window_ms} <- context(__MODULE__, key) do
       do_observe(table, owner, key, {:chat, lane, event, text, meta}, window_ms)
@@ -240,6 +243,8 @@ defmodule Ingress.Squash do
       lane: base.lane,
       broadcaster_user_id: base.broadcaster_user_id,
       broadcaster_user_login: base.broadcaster_user_login,
+      origin: base[:origin],
+      trial_generation: base[:trial_generation],
       text: base.text,
       msg_id: List.first(ordered).msg_id,
       senders: ordered,
@@ -327,6 +332,8 @@ defmodule Ingress.Squash do
     base = %{
       broadcaster_user_id: event["broadcaster_user_id"],
       broadcaster_user_login: event["broadcaster_user_login"],
+      origin: if(Map.get(meta, :origin) == :trial, do: "trial"),
+      trial_generation: Map.get(meta, :trial_generation),
       lane: lane,
       text: text,
       emotes: Pipeline.emote_spans(event)
