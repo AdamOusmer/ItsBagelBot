@@ -13,6 +13,8 @@
   import { getI18n, type TimerDef, Field } from '@bagel/kit';
   import { Checkbox } from '@bagel/kit';
   import { urlFetchNames, URLFETCH_TOKEN_CAP } from '@bagel/kit/engine/fetch-validate';
+  import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
+  import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
 
   // Whole minutes; mirrors the server clamp (60s–24h => 1–1440 min).
   const MIN = 1;
@@ -95,19 +97,21 @@
 
 <div class="editor">
   <Field label={t('timers.fieldMessage')} error={messageError} errorId="timer-msg-err">
-    <textarea
-      class="bb-input msg-area"
-      placeholder={t('timers.fieldMessagePh')}
-      maxlength="500"
-      rows="3"
-      required
-      data-invalid={messageError ? '' : undefined}
-      aria-invalid={messageError ? 'true' : undefined}
-      aria-describedby={messageError ? 'timer-msg-err' : undefined}
+    <ResponseEditor
+      surface="timer"
+      name="message"
+      maxlength={500}
       bind:value={draft.message}
+      invalid={!!messageError}
+      describedby={messageError ? 'timer-msg-err' : undefined}
+      required
+      placeholder={t('timers.fieldMessagePh')}
       onblur={() => (touched.message = true)}
-    ></textarea>
+    />
   </Field>
+  <!-- kind="timer": Go's timerChain mirror (rehearseTimer) — no viewer line,
+       a tick has nobody typing it. -->
+  <ChatPreview kind="timer" response={draft.message} />
 
   <Field label={t('timers.fieldInterval')} error={intervalError} errorId="timer-int-err">
     <div class="interval-row">
@@ -154,18 +158,6 @@
   .editor { padding: 4px 2px 2px; }
 
   .help { color: var(--bb-muted); opacity: 0.7; font-size: 11px; display: block; margin-top: 2px; }
-
-  .msg-area {
-    font-family: var(--bb-font-body);
-    font-size: 13.5px;
-    resize: vertical;
-    min-height: 64px;
-    padding: 9px 11px;
-    border: 1px solid var(--bb-border);
-    border-radius: var(--bb-radius-sm);
-    background: rgba(0, 0, 0, 0.35);
-    color: var(--bb-white);
-  }
 
   .interval-row { display: flex; align-items: center; gap: 10px; }
   /* Extra specificity so the fixed width wins over Field's `.bb-input { width: 100% }`. */

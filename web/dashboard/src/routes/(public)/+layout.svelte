@@ -35,6 +35,7 @@
     localeOptions,
     resolveSiteColumns,
     resolveSiteLinks,
+    webHref,
     type SiteLinkContext
   } from '@bagel/kit/site-links';
 
@@ -45,11 +46,10 @@
   /**
    * Marketing paths resolve to ABSOLUTE marketing URLs: from the console every
    * one of these links leaves the app, and the console has no /<locale> routes
-   * to hang a relative path off. Mirrors the marketing site's localizePath().
+   * to hang a relative path off. site-links.ts's webHref, bound to the
+   * visitor's locale.
    */
-  const webPath = $derived((path: string) =>
-    locale === 'en' ? `${SITE.web}${path}` : `${SITE.web}/${locale}${path}`
-  );
+  const webPath = $derived((path: string) => webHref(locale, path));
 
   const langQuery = $derived(locale === 'en' ? '' : `?lang=${locale}`);
 

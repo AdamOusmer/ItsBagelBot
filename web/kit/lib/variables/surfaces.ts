@@ -14,7 +14,7 @@ import type { ReplyToken } from '../catalog/module-def';
 import { intactSpan } from '../engine/tmpl';
 import { HINT_KEYS } from './hint-keys';
 import { timerOwns } from '../engine/rehearsal';
-import type { VariableDef, VariableForm } from './types';
+import type { VariableDef, VariableForm, VariableGroup } from './types';
 import { VARIABLES } from './variables';
 
 /** Every Variable id the custom-command surface offers, in VARIABLES order. */
@@ -90,21 +90,46 @@ export function forSurface(surface: 'custom' | 'timer' | 'triggers'): readonly V
 
 /** One dashboard insert chip: the literal text it inserts and, when one
  * exists, the locale key of its tooltip (absent chips fall back to the
- * caller's own copy, same as ResponseEditor's chipTitle already does).
- * `pinned` carries VariableDef.pinned through for the capped surfaces
- * (ResponseEditor, CommandBuilder.astro) to filter on; it is only ever true
- * on the first-form chip of a manifest Variable, never on an extra chipHint
- * form or a module-reply chip. */
+ * caller's own copy: VariablePalette's row falls back to `"{token} → sample"`
+ * built from `sample`, same as ResponseEditor's old chipTitle used to).
+ *
+ * Two shapes share this interface rather than a union, because VariablePalette
+ * walks one flat list and only needs to branch on `replyOnly`:
+ *
+ *   - a manifest-backed chip (VARIABLES, via chipsOfVariable) carries `id`,
+ *     `requires` and `group` from its VariableDef, plus `pinned` for the
+ *     capped surfaces (ResponseEditor, CommandBuilder.astro) to filter on —
+ *     only ever true on the first-form chip of a Variable, never on an extra
+ *     chipHint form. These sort into the sheet's five group sections.
+ *   - a module-reply chip (ReplyToken, via chipOfReplyToken) carries
+ *     `replyOnly: true` and no `id`/`requires`/`group` to sort by, so it
+ *     lands in the sheet's "This reply" section instead — see module-def.ts's
+ *     ReplyToken for why a reward or module reply cannot resolve an
+ *     arbitrary manifest token (its rehearsal chain mounts only PURE_SCOPE
+ *     plus its own token map). It still carries `sample` (ReplyToken.sample),
+ *     for the same title-fallback reason a manifest chip's `output` doesn't
+ *     need to: a manifest chip always has a locale hint (HINT_KEYS covers
+ *     every id), a ReplyToken does not. */
 export interface VariableChip {
   readonly token: string;
   readonly hintKey?: string;
+  readonly sample?: string;
+  readonly id?: string;
+  readonly requires?: string | null;
   readonly pinned?: boolean;
+  readonly group?: VariableGroup;
+  readonly replyOnly?: boolean;
 }
 
 function chipsOfVariable(v: VariableDef): VariableChip[] {
   const extra = (form: VariableForm): VariableChip[] =>
-    form.chipHint ? [{ token: form.example, hintKey: `vars.${v.id}.${form.chipHint}` }] : [];
-  return [{ token: v.forms[0].example, hintKey: HINT_KEYS[v.id], pinned: v.pinned }, ...v.forms.slice(1).flatMap(extra)];
+    form.chipHint
+      ? [{ token: form.example, hintKey: `vars.${v.id}.${form.chipHint}`, id: v.id, requires: v.requires, group: v.group }]
+      : [];
+  return [
+    { token: v.forms[0].example, hintKey: HINT_KEYS[v.id], pinned: v.pinned, id: v.id, requires: v.requires, group: v.group },
+    ...v.forms.slice(1).flatMap(extra)
+  ];
 }
 
 // A ReplyToken's bare name is minted into a chat span the same way
@@ -113,7 +138,7 @@ function chipsOfVariable(v: VariableDef): VariableChip[] {
 // offered as a chip that reads right and resolves to something else.
 function chipOfReplyToken(tk: ReplyToken): VariableChip | null {
   const token = intactSpan(tk.name, null);
-  return token === null ? null : { token, hintKey: tk.hintKey };
+  return token === null ? null : { token, hintKey: tk.hintKey, sample: tk.sample, replyOnly: true };
 }
 
 function replyTokensFor(target: { module: string; reply: string } | { builtin: string }): readonly ReplyToken[] {
@@ -133,4 +158,98 @@ export function chipsFor(surface: VariableSurface): readonly VariableChip[] {
     const chip = chipOfReplyToken(tk);
     return chip ? [chip] : [];
   });
+}
+
+/** Per-surface pinned-chip overrides for the one surface whose row is not
+ * simply "every VariableDef.pinned entry it offers": 'user' is pinned GLOBALLY
+ * (shared with 'custom'), so filtering triggers' three chips (user, random,
+ * choice) by that flag alone would starve its row down to the one chip that
+ * happens to carry it — dropping {random} and {choice}, which the old
+ * hand-written trigger strip always showed. This says explicitly which three
+ * (and in which order) rather than bending VariableDef.pinned to fit a second
+ * surface it was never meant to describe. */
+const PINNED_OVERRIDE: Readonly<Record<string, readonly string[]>> = {
+  triggers: ['user', 'random', 'choice']
+};
+
+/** The pinned chip row for one Surface, capped at six (VariablePalette's
+ * fixed-height strip). A surface with an explicit override (see
+ * PINNED_OVERRIDE) uses exactly that id list, in that order; everything else
+ * falls back to VariableDef.pinned, and to the surface's own source order
+ * when nothing on it is pinned at all (every reply/reward/builtin surface). */
+export function pinnedFor(surface: VariableSurface): readonly VariableChip[] {
+  const chips = chipsFor(surface);
+  const override = typeof surface === 'string' ? PINNED_OVERRIDE[surface] : undefined;
+  if (override) {
+    const byId = new Map(chips.map((c) => [c.id, c] as const));
+    return override.flatMap((id) => {
+      const chip = byId.get(id);
+      return chip ? [chip] : [];
+    });
+  }
+  const pinned = chips.filter((c) => c.pinned);
+  return (pinned.length > 0 ? pinned : chips).slice(0, 6);
+}
+
+/** Ids the two dedicated pickers (CounterPicker, FetchSourcePicker) already
+ * own on the custom-command surface: offering them again as bare literal
+ * chips in the "All variables" sheet would invite a broadcaster to ship a
+ * `{counter:name}`/`{urlfetch:name}` that resolves to nothing (ResponseEditor's
+ * old DEFAULT_TOKENS carried this same filter as `paletteTokens`). A timer has
+ * neither picker, so its sheet keeps `{urlfetch:…}` — 'timer' is handled as
+ * its own branch in sheetFor rather than through this set. */
+const PICKER_OWNED_IDS = new Set(['counter', 'urlfetch']);
+
+/** The manifest ids every reply chain resolves beyond its own token map
+ * (rehearsal.ts's replyChain: PURE_SCOPE plus the reply's own tokens, nothing
+ * else) that the sheet still offers as reference: {user} and {channel} are
+ * substituted for every reply by modules/reply.go's Common() even though
+ * neither is part of any one reply's own token list, and the rest is
+ * scope.Pure exactly — the dice, the payload utilities with a literal-text
+ * shape, and {if:…}. Grouped Who / Fun to match VariableGroup so they slot
+ * into the sheet's ordinary group sections rather than needing a section of
+ * their own. */
+const REPLY_WHO_IDS = ['user', 'channel'];
+const REPLY_FUN_IDS = ['random', 'choice', 'math', 'countdown', 'countup', 'repeat', 'if'];
+const REPLY_MANIFEST_IDS = new Set([...REPLY_WHO_IDS, ...REPLY_FUN_IDS]);
+// {channel}'s own VariableDef.group is 'stream' (the custom-command sheet
+// sorts it under "Your stream", a fact about the broadcast): here it is
+// re-grouped 'who', because on a reply surface it answers "whose chat is
+// this" rather than "what is this stream doing" — a Who question, same as
+// {user}. Every other id here already carries the group this constant wants
+// (the seven REPLY_FUN_IDS are all 'fun' in VARIABLES; {user} is already
+// 'who'), so this override is the one exception, not a pattern to extend.
+const REPLY_MANIFEST_CHIPS: readonly VariableChip[] = VARIABLES.filter((v) => REPLY_MANIFEST_IDS.has(v.id))
+  .flatMap(chipsOfVariable)
+  .map((c) => (c.id === 'channel' ? { ...c, group: 'who' as const } : c));
+
+/**
+ * The "All variables" sheet's full content for one Surface — built from
+ * chipsFor but not equal to it, for two independent reasons kept as two
+ * branches rather than one combined filter:
+ *
+ *   - 'custom' drops the two picker-owned ids (see PICKER_OWNED_IDS): the
+ *     chip ROW already has a dedicated picker for each, and a bare literal
+ *     chip beside it would suggest a second, worse way to write the same
+ *     token.
+ *   - every reply-shaped surface ('triggers', a reward, or a {module,reply}/
+ *     {builtin} pair) adds REPLY_MANIFEST_CHIPS on top of its own tokens:
+ *     the chip row and "This reply" must stay exactly what that surface's
+ *     rehearsal chain resolves, but the SHEET is reference material, and
+ *     {user}/{channel}/the dice are real there even though they are not
+ *     part of any one reply's OWN token list. Deduped by id so 'triggers'
+ *     (whose own three chips are user/random/choice, already manifest
+ *     Variables) does not show doubled rows for the ones REPLY_MANIFEST_CHIPS
+ *     would otherwise add back.
+ *
+ * 'timer' returns chipsFor('timer') unchanged: it already includes
+ * {urlfetch:…} (TIMER_SET; rehearsal.ts's EXTERNAL_SCOPE mounts it on
+ * timerChain) and has no counter or fetch picker to defer to, so nothing
+ * needs dropping or adding. */
+export function sheetFor(surface: VariableSurface): readonly VariableChip[] {
+  const own = chipsFor(surface);
+  if (surface === 'custom') return own.filter((c) => !c.id || !PICKER_OWNED_IDS.has(c.id));
+  if (surface === 'timer') return own;
+  const ownIds = new Set(own.map((c) => c.id).filter((id): id is string => !!id));
+  return [...own, ...REPLY_MANIFEST_CHIPS.filter((c) => !c.id || !ownIds.has(c.id))];
 }

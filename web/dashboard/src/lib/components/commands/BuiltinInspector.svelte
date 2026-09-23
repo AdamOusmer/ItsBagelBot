@@ -59,18 +59,6 @@
     }
   });
 
-  // The insert palette: the built-in's own tokens. A token with a hintKey
-  // (e.g. builtin.clip's, see catalog/builtin-commands.ts) shows the
-  // catalog's own copy (replyVars.builtin.<id>.<tok>.hint); the rest fall
-  // back to "{token} → sample", same as before (mirrors the module
-  // ReplyEditor).
-  const palette = $derived(
-    (def.tokens ?? []).map((tk) => {
-      const token = `{${tk.name}}`;
-      if (tk.hintKey) return { token, hint: tk.hintKey };
-      return { token, label: tk.sample ? `${token} → ${tk.sample}` : token };
-    })
-  );
   // ChatPreview's samples prop is still a bare name->sample record (it feeds
   // the shared rehearsal in engine/rehearsal.ts, which knows nothing about
   // ReplyToken); build it once from the same tokens the palette reads so the
@@ -111,7 +99,7 @@
       <input type="hidden" name="name" value={c.name} />
       <input type="hidden" name="is_active" value={c.is_active ? 'on' : ''} />
       <Field label={t('builtinInspector.replyMessage')} hint={t('builtinInspector.replyHint')}>
-        <ResponseEditor name="reply" bind:value={message} tokens={palette} placeholder={def.preview} />
+        <ResponseEditor name="reply" bind:value={message} surface={{ builtin: def.id }} placeholder={def.preview} />
       </Field>
       <!-- kind="reply": built-in replies are expanded by a bare token replacer
            (e.g. clipExpand), only this reply's own token samples substitute, no

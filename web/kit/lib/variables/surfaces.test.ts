@@ -26,12 +26,12 @@ function soleSpan(chip: string): VarToken | null {
 }
 
 describe('custom-command chip strip (chipsFor(\'custom\'))', () => {
-  // Mirrors ResponseEditor.svelte's own paletteTokens filter: {counter} and
-  // {urlfetch} chips are never inserted as literal text there (each opens its
-  // own picker instead), so {urlfetch:weather} in particular would fail
-  // "names a token the core resolves" here for a reason that has nothing to
-  // do with the chip strip being wrong (scope.External is not mounted on the
-  // rehearsal's core chain; see variables/preview-values.ts's URLFETCH_SAMPLE).
+  // Mirrors VariablePalette's sheetFor('custom') filter: {counter} and
+  // {urlfetch} chips are never inserted as literal text on the custom-command
+  // sheet (each opens its own picker instead), so they are excluded here too
+  // rather than asserted against ownedByCore — a filter unrelated to whether
+  // the core resolves them (EXTERNAL_SCOPE mounts {urlfetch:…} on
+  // commandChain now; see rehearsal.ts's own comment on it).
   const chips = chipsFor('custom')
     .map((c) => c.token)
     .filter((token) => !token.startsWith('{counter') && !token.startsWith('{urlfetch'));

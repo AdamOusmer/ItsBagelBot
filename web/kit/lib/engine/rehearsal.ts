@@ -72,6 +72,7 @@ import {
   TITLE_SAMPLE,
   TOUSER_SAMPLE,
   UPTIME_SAMPLE,
+  URLFETCH_SAMPLE,
   USER_LOGIN_SAMPLE,
   USER_SAMPLE,
   USERID_SAMPLE,
@@ -225,6 +226,16 @@ export function rehearseReply(
   return [rehearseLine(text, chainResolver(replyChain(samples, opts)))];
 }
 
+/** Rehearse a timer message: one message, Go's timerChain mirror (timerOwns's
+ * own comment says which scopes mount and why: no message, counter or viewer
+ * scope, since a tick has no chatter behind it). No sample overrides — unlike
+ * a module reply, a timer's tokens are never caller-supplied, they are
+ * exactly what the chain itself answers. */
+export function rehearseTimer(response: string): RehearsedLine[] {
+  const text = responseLines(response).join(' ');
+  return text === '' ? [] : [rehearseLine(text, chainResolver(timerChain()))];
+}
+
 /** How a module reply rehearses. `dynamic` is false for the two modules that
  * replace tokens with a bare string replacer (govee, clip) rather than going
  * through ParseDynamic, so the shared dynamic tokens must NOT be shown
@@ -318,7 +329,8 @@ function commandChain(samples: Samples): SampleScope[] {
     CHANNEL_SCOPE,
     VIEWER_SCOPE,
     MODULE_SCOPE,
-    COUNTER_SCOPE
+    COUNTER_SCOPE,
+    EXTERNAL_SCOPE
   ];
 }
 
@@ -356,20 +368,24 @@ const COND_TOKEN_NAME = 'if';
  * mounts from the triggering chat line (messageScope, USES_SCOPE) or from
  * who typed it (VIEWER_SCOPE, COUNTER_SCOPE) — a tick has no chatter behind
  * it to supply either. What is left is every scope already safe with nobody
- * watching: the dice, the chat room, the emote catalog, the channel facts
- * and the module facts.
- *
- * urlfetch (scope.External) is the one Go family with no SampleScope here —
- * rehearsal never fetches, a preview cannot show a live network answer — so
- * it is named directly rather than through an owns() this file has no scope
- * for. web/kit/lib/variables/surfaces.ts's forSurface('timer') is the one
- * caller; the golden fixture (parity.test.ts) is what keeps this list and
- * Go's TimerFamilies() from drifting apart. */
+ * watching: the dice, the chat room, the emote catalog, the channel facts,
+ * the module facts, and (like every other surface) EXTERNAL_SCOPE's fixed
+ * stand-in for {urlfetch:…}. web/kit/lib/variables/surfaces.ts's
+ * forSurface('timer') is the one caller; the golden fixture (parity.test.ts)
+ * is what keeps this list and Go's TimerFamilies() from drifting apart. */
 export function timerOwns(name: string): boolean {
-  if (name === 'urlfetch') return true;
-  return [PURE_SCOPE, UTIL_SCOPE, CHATTER_SCOPE, EMOTE_SCOPE, CHANNEL_SCOPE, MODULE_SCOPE].some((scope) =>
-    scope.owns({ name })
-  );
+  return timerChain().some((scope) => scope.owns({ name }));
+}
+
+/** The scopes a timer tick mounts (see timerOwns's own comment): a function
+ * rather than a top-level array so it can sit here, beside the ownership
+ * check it backs, while still referencing scopes declared further down this
+ * file (CHATTER_SCOPE, CHANNEL_SCOPE, MODULE_SCOPE) — a top-level const at
+ * this point would read them before their own declarations run. rehearseTimer
+ * (below) calls this too, so the preview and the ownership check can never
+ * mount a different set. */
+function timerChain(): SampleScope[] {
+  return [PURE_SCOPE, UTIL_SCOPE, CHATTER_SCOPE, EMOTE_SCOPE, CHANNEL_SCOPE, MODULE_SCOPE, EXTERNAL_SCOPE];
 }
 
 /** Which chain a surface rehearses against: a custom command's full scope
@@ -857,6 +873,20 @@ function counterSample(token: Token): string | null {
   if (base === '') return null;
   return COUNTER_SAMPLE;
 }
+
+/** scope.External's mirror: {urlfetch:<definition>}. A preview cannot make a
+ * live HTTP call, so this is a fixed plausible stand-in (URLFETCH_SAMPLE)
+ * rather than a live answer — but it is a REAL, resolvable token on both
+ * chains that mount it, and marking it "unknown" (the same red mark a typo
+ * gets) told a broadcaster their spelling was wrong when it was not. Mounted
+ * on commandChain and timerChain alike, so a custom command's and a timer's
+ * previews read the same way for the one family neither can actually fetch.
+ * An empty payload names no source and stays literal, matching the Go
+ * scope's Normalize(""). */
+const EXTERNAL_SCOPE: SampleScope = {
+  owns: ({ name }) => name === 'urlfetch',
+  get: (token) => (token.payload === null || token.payload.trim() === '' ? null : URLFETCH_SAMPLE)
+};
 
 // --- slash-verb routing (outgress/slash.go CutSlash) ----------------------
 

@@ -90,9 +90,22 @@
   // Desktop coords are a snapshot, so movement invalidates them: close rather
   // than chase, since a drifting dropdown reads as a bug. The sheet is fixed to
   // the viewport and does not care.
+  //
+  // A scroll event whose target is INSIDE panelEl is ignored rather than
+  // closing: the capture-phase listener sees every scroll in the document,
+  // including a wheel over the panel's own scrolling content (a long list —
+  // VariablePalette's "All variables" sheet is the case that surfaced this),
+  // and that scroll does not move the anchor at all. Closing on it made the
+  // panel impossible to read past its first screenful: mid-scroll, it tore
+  // itself down. A scroll of the PAGE behind the panel — the actual "the
+  // anchor moved" case this effect exists for — still closes it, since its
+  // target is never inside panelEl.
   $effect(() => {
     if (!open || isSheet) return;
-    const close = () => onClose();
+    const close = (e: Event) => {
+      if (panelEl && e.target instanceof Node && panelEl.contains(e.target)) return;
+      onClose();
+    };
     window.addEventListener('scroll', close, { capture: true, passive: true });
     window.addEventListener('resize', close, { passive: true });
     return () => {
@@ -117,10 +130,24 @@
 </script>
 
 <svelte:window
-  onkeydown={(e) => {
+  onkeydowncapture={(e) => {
     if (!open || e.key !== 'Escape') return;
     if (isSheet && !isTopmost(overlayId)) return;
     e.preventDefault();
+    // CAPTURE, not bubble, and stopped immediately: the desktop dropdown
+    // deliberately never joins the overlay stack (it is non-modal — see the
+    // effect above), so an ancestor's own Escape handler (InspectorSurface,
+    // Modal, anything using the same window-keydown pattern) sees the exact
+    // same keypress with nothing telling it "a picker just consumed this".
+    // A bubble-phase listener here raced that ancestor's OWN bubble-phase
+    // window listener on registration order alone — whichever mounted first
+    // won — and in practice the ancestor's ran first: opening a command's
+    // editor, opening this panel from inside it, and pressing Escape closed
+    // the picker AND the whole editor in one keystroke (VariablePalette's
+    // "All variables" sheet is what surfaced this). Capture always runs
+    // before any bubble-phase listener on any target, ancestor mount order
+    // or not, so stopImmediatePropagation here reliably wins.
+    e.stopImmediatePropagation();
     onClose();
   }}
 />

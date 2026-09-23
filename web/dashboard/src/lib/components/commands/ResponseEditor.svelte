@@ -9,51 +9,34 @@
   // each field is one chat message the bot will send (commands allow up to 5).
   // The default stays a single field for callers whose reply is one message
   // (module replies); there pasted newlines collapse to spaces.
-  import { RESPONSE_MAX, getI18n, Chip, Textarea } from '@bagel/kit';
-  import { chipsFor } from '@bagel/kit/variables';
-  import CounterPicker from '$lib/components/counters/CounterPicker.svelte';
-  import FetchSourcePicker, { type SourceDef } from '$lib/components/commands/fetches/FetchSourcePicker.svelte';
+  import { page } from '$app/state';
+  import { RESPONSE_MAX, getI18n, Textarea } from '@bagel/kit';
+  import type { VariableSurface } from '@bagel/kit/variables';
+  import VariablePalette from '$lib/components/variables/VariablePalette.svelte';
+  import type { SourceDef } from '$lib/components/commands/fetches/FetchSourcePicker.svelte';
 
   const i18n = getI18n();
-
-  // tokens: the insert palette. Defaults to the command tokens (hint = i18n key);
-  // callers (e.g. module replies) can pass their own with a plain `label` title.
-  type PaletteToken = { token: string; hint?: string; label?: string };
-
-  // Derived from the manifest (docs/specs/variables-catalog.md D5, D8) rather
-  // than hand-kept: chipsFor('custom') is the first form of every Variable
-  // this surface offers, in the order the guide page uses too. Filtered to
-  // `pinned` (VariableDef.pinned in @bagel/kit/variables: user, args, touser,
-  // random, uptime, if — the six chips this capped surface shows and nothing
-  // else, see surfaces.test.ts's "at most six" rule), so there is nothing
-  // left to truncate below (shownTokens).
-  //
-  // {counter} and {urlfetch} are filtered out below (paletteTokens) as a
-  // second, independent rule: each has its own picker (CounterPicker,
-  // FetchSourcePicker) that inserts a real name instead of a literal
-  // placeholder, so a bare {counter:name} or {urlfetch:weather} chip would
-  // invite a broadcaster to ship a token that resolves to nothing. Neither is
-  // pinned today, but the filter stays as the belt to pinned's suspenders.
-  const DEFAULT_TOKENS: PaletteToken[] = chipsFor('custom')
-    .filter((c) => c.pinned)
-    .map((c) => ({ token: c.token, hint: c.hintKey }));
 
   let {
     value = $bindable(''),
     name = 'response',
-    tokens = DEFAULT_TOKENS,
+    surface,
     placeholder,
     invalid = false,
     describedby,
     required = false,
     maxLines = 1,
+    maxlength,
     fetchDefs = [],
     fetchKeys = [],
-    onFetchDefsChanged
+    onFetchDefsChanged,
+    onblur
   }: {
     value: string;
     name?: string;
-    tokens?: PaletteToken[];
+    /** Which Variables (and, for a module/reward surface, which reply tokens)
+     * the palette offers — see @bagel/kit/variables' VariableSurface. */
+    surface: VariableSurface;
     placeholder?: string;
     /** Validation state supplied by the form that owns this editor. */
     invalid?: boolean;
@@ -61,41 +44,29 @@
     describedby?: string;
     required?: boolean;
     maxLines?: number;
-    // The channel's saved data sources. Supplied only on the command surface:
-    // module replies and rewards have no defs to pick, and the chip hides
-    // itself there via pickerOn rather than rendering an empty menu.
+    /** Native hard stop, forwarded to the textarea(s). Independent of
+     * RESPONSE_MAX's own counter/`.over` styling below: a caller with a
+     * shorter wire limit than a command's (TimerEditor's 500-char field,
+     * matching its own server clamp) still wants the browser to refuse the
+     * keystroke, not just paint red past it. */
+    maxlength?: number;
+    // The channel's saved data sources. Only meaningful on surface==='custom':
+    // module replies and rewards have no defs to pick, and VariablePalette
+    // hides the fetch-source chip there rather than rendering an empty menu.
     fetchDefs?: SourceDef[];
     fetchKeys?: { label: string }[];
     onFetchDefsChanged?: (defs: SourceDef[]) => void;
+    // Forwarded to the field: a caller that gates its own error copy on
+    // "touched" (TimerEditor) needs a blur signal, the same as onfocus is
+    // already forwarded for caret tracking.
+    onblur?: () => void;
   } = $props();
 
-  const chipTitle = (tk: PaletteToken) => (tk.hint ? i18n.t(tk.hint) : (tk.label ?? tk.token));
-
-  // The default (command) palette swaps the static counter chip for the
-  // picker, which inserts an existing counter or creates one in place.
-  // Callers passing their own tokens (module replies, rewards) keep a plain
-  // palette.
-  const pickerOn = $derived(tokens === DEFAULT_TOKENS);
-  const paletteTokens = $derived(
-    pickerOn ? tokens.filter((tk) => !tk.token.startsWith('{counter') && !tk.token.startsWith('{urlfetch')) : tokens
-  );
-
-  // The command palette is SIX chips and nothing else. The whole catalog used
-  // to render at once (forty chips), then eight chips plus a ghost "More
-  // variables" toggle that expanded the rest in place; both put the wall back
-  // in front of a first-time reader, the second one click in. Which six is
-  // VariableDef.pinned (@bagel/kit/variables), shared with the marketing
-  // command builder so the two rehearsal surfaces open on the same set. The
-  // rest of the catalog is real and documented and belongs on another
-  // surface; the toggle is not coming back.
-  //
-  // A caller passing its OWN tokens (module replies, rewards) is never
-  // truncated: those catalogs are already short (three to eight entries) and
-  // dropping some with nowhere to see them loses content to save nothing.
-  // DEFAULT_TOKENS is already pinned-filtered above, so there is nothing left
-  // to cap on that branch; paletteTokens (the counter/urlfetch filter) is
-  // shown as-is either way.
-  const shownTokens = $derived(paletteTokens);
+  // Live module on/off state, read off the (app) layout's load once here
+  // rather than threaded through by every one of the eight callers — the same
+  // page.data convention ChatPreview already uses for the broadcaster's
+  // display name.
+  const moduleFlags = $derived(page.data.moduleFlags as Record<string, boolean> | undefined);
 
   // One entry per message field. Seeded from the incoming value (a draft
   // restore or an edit of an existing multi-line command); from then on the
@@ -199,9 +170,11 @@
             aria-describedby={describedby}
             {required}
             bind:value={fields[i]}
+            {maxlength}
             onfocus={(e: FocusEvent) => rememberArea(e, i)}
             onkeydown={(e: KeyboardEvent) => onKeydown(e, i)}
             oninput={() => onInput(i)}
+            {onblur}
           />
           <span class="resp-count" class:over={fields[i].length > RESPONSE_MAX}>{fields[i].length}/{RESPONSE_MAX}</span>
         </div>
@@ -238,46 +211,24 @@
       aria-describedby={describedby}
       {required}
       bind:value={fields[0]}
+      {maxlength}
       onfocus={(e: FocusEvent) => rememberArea(e, 0)}
       onkeydown={(e: KeyboardEvent) => onKeydown(e, 0)}
       oninput={() => onInput(0)}
+      {onblur}
     />
     <span class="resp-count" class:over={fields[0].length > RESPONSE_MAX}>{fields[0].length}/{RESPONSE_MAX}</span>
   </div>
 {/if}
 
-<div class="palette" role="toolbar" aria-label={i18n.t('commandEditor.insertVariable')}>
-  {#each shownTokens as tk (tk.token)}
-    <Chip tone="muted" title={chipTitle(tk)} onclick={() => insert(tk.token)}>{tk.token}</Chip>
-  {/each}
-  {#if pickerOn}
-    <!-- Separated from the literals above: these two open a menu instead of
-         inserting what their label says, so they get their own group rather
-         than adding two more identical-looking pills to the same run. -->
-    <span class="palette-sep" aria-hidden="true"></span>
-    <CounterPicker onInsert={insert} />
-    <FetchSourcePicker defs={fetchDefs} keys={fetchKeys} onInsert={insert} onDefsChanged={onFetchDefsChanged} />
-  {/if}
+<div role="toolbar" aria-label={i18n.t('commandEditor.insertVariable')}>
+  <VariablePalette {surface} {moduleFlags} {insert} {fetchDefs} {fetchKeys} {onFetchDefsChanged} />
 </div>
-
-{#if pickerOn}
-  <!-- The fallback pipe has no chip of its own: it is a suffix on a variable
-       already in the field, not something to insert on its own, so it is
-       documented here instead. -->
-  <p class="palette-note">{i18n.t('commandEditor.fallbackHint')}</p>
-{/if}
 
 <!-- The rendered reply lives in ChatPreview (chat rehearsal), owned by the editor. -->
 
 <style>
   .resp-wrap { position: relative; flex: 1; min-width: 0; }
-
-  .palette-note {
-    margin: 6px 0 0;
-    font-size: 0.78rem;
-    line-height: 1.4;
-    color: var(--bb-muted);
-  }
 
   /* Textarea owns the frame, focus and invalid highlight. These two knobs only
      reserve room for the per-message counter inside that shared control. */
@@ -360,18 +311,6 @@
     font-size: 11px;
     color: var(--bb-muted);
     opacity: 0.7;
-  }
-
-  .palette { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
-  /* Hairline between "literals you insert" and "menus you open". Collapses to
-     nothing when the row wraps, so it never leaves a rule dangling on its own
-     line. */
-  .palette-sep {
-    width: 1px;
-    align-self: stretch;
-    min-height: 16px;
-    margin: 0 2px;
-    background: var(--rule, var(--bb-border));
   }
 
 </style>

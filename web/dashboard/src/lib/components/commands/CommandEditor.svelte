@@ -159,6 +159,7 @@
   <Field label={t('commandEditor.response')} error={errors.response} errorId="command-response-err">
     <ResponseEditor
       bind:value={draft.response}
+      surface="custom"
       maxLines={RESPONSE_MAX_LINES}
       required
       invalid={!!errors.response}

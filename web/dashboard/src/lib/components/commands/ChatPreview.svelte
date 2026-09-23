@@ -19,11 +19,18 @@
   //   gossip commands): ONLY the tokens in `samples` (plus the dynamic set
   //   unless dynamic={false}), one message. A leading slash-verb routes the
   //   same as a command line: the pipeline translates every emitted output.
+  //
+  //   kind="timer": a timer's message (engine/timer_vars.go timerChain):
+  //   Go's timer scope chain, mirrored by rehearsal.ts's rehearseTimer, one
+  //   message, no viewer line — a tick has no chatter behind it to type a
+  //   trigger, so `showViewer` is forced off regardless of what a caller
+  //   passes.
   import { page } from '$app/state';
   import {
     Bolota,
     rehearseCommand,
     rehearseReply,
+    rehearseTimer,
     COMMAND_SAMPLES,
     normName,
     getI18n,
@@ -48,7 +55,7 @@
     response?: string;
     args?: string;
     // Which bot expansion path this surface rehearses (see header comment).
-    kind?: 'command' | 'reply';
+    kind?: 'command' | 'reply' | 'timer';
     showViewer?: boolean;
     // viewerText renders the viewer line verbatim (a plain chat message, no "!"
     // trigger), used by trigger-word rehearsals where a normal message fires the
@@ -83,9 +90,15 @@
     purple: '#c77dff'
   };
 
-  const views = $derived.by<RehearsedLine[]>(() =>
-    kind === 'command' ? rehearseCommand(response, samples) : rehearseReply(response, samples, { dynamic })
-  );
+  const views = $derived.by<RehearsedLine[]>(() => {
+    if (kind === 'command') return rehearseCommand(response, samples);
+    if (kind === 'timer') return rehearseTimer(response);
+    return rehearseReply(response, samples, { dynamic });
+  });
+
+  // A timer fires on its own; nobody typed anything, so it never shows a
+  // viewer line regardless of what a caller passes for showViewer.
+  const effectiveShowViewer = $derived(kind === 'timer' ? false : showViewer);
 
   // Human label for the "uses Twitch command" badge.
   function verbLabelOf(v: RehearsedLine): string {
@@ -143,7 +156,7 @@
   onpointerleave={() => (hovered = false)}
 >
   <span class="bb-tag bb-tag--bare chat-tag">{tag ?? t('chatPreview.rehearsal')}</span>
-  {#if showViewer}
+  {#if effectiveShowViewer}
     <div class="line viewer">
       <span class="who viewer-name">{viewerName}</span>
       <span class="msg" class:plain={viewerText !== undefined}>{viewerText ?? trigger}</span>
