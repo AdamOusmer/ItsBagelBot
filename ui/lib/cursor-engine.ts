@@ -98,6 +98,15 @@ export type CursorOptions = {
  */
 const SELECTOR = 'a, button, .bb-input, [data-cursor]';
 const QUIET = '[data-cursor="quiet"]';
+/**
+ * Text entry: the dot turns into a caret and the ring dims so the text and a
+ * drag selection stay readable under it. A select wears `.bb-input` too but
+ * takes no caret, hence the exclusion.
+ */
+const TEXT =
+    '.bb-input:not(.bb-input--select), textarea, [contenteditable]:not([contenteditable="false"]), ' +
+    'input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], ' +
+    '[type="button"], [type="submit"], [type="reset"], [type="image"], [type="hidden"])';
 const EASE: CursorEase = { hover: 0.3, release: 0.28 };
 
 /** Idle ring: a 36px circle centred on the dot. */
@@ -165,12 +174,13 @@ function lerpBox(from: Box, to: Box, e: number): Box {
     };
 }
 
-function paintRing(ring: HTMLElement, box: Box, hovering: boolean): void {
+function paintRing(ring: HTMLElement, box: Box, hovering: boolean, text: boolean): void {
     ring.style.transform = `translate(${box.x.toFixed(1)}px, ${box.y.toFixed(1)}px)`;
     ring.style.width = `${box.w.toFixed(1)}px`;
     ring.style.height = `${box.h.toFixed(1)}px`;
     ring.style.borderRadius = `${box.r.toFixed(1)}px`;
     ring.classList.toggle('is-morphed', hovering);
+    ring.classList.toggle('is-text', text);
 }
 
 function arrived(box: Box, to: Box): boolean {
@@ -197,6 +207,7 @@ export function mountCursor(options: CursorOptions): () => void {
 
     let box = idleBox(pointerX, pointerY);
     let target: HTMLElement | null = null;
+    let overText = false;
     let lastMove = 0;
 
     /**
@@ -216,12 +227,14 @@ export function mountCursor(options: CursorOptions): () => void {
     function paint(el: HTMLElement | null): Box {
         dot.style.transform = `translate(${pointerX}px, ${pointerY}px)`;
         // The dot fades while the ring is stamped onto an element: two tan
-        // marks on one button reads as a rendering bug, not as a cursor.
-        dot.style.opacity = el ? '0' : '1';
+        // marks on one button reads as a rendering bug, not as a cursor. Over
+        // text it stays as the caret, since the native I-beam is hidden.
+        dot.style.opacity = el && !overText ? '0' : '1';
+        dot.classList.toggle('is-text', overText);
 
         const to = el ? hoverBox(el) : idleBox(pointerX, pointerY);
         box = lerpBox(box, to, el ? ease.hover : ease.release);
-        paintRing(ring, box, !!el);
+        paintRing(ring, box, !!el, overText);
         return to;
     }
 
@@ -255,6 +268,14 @@ export function mountCursor(options: CursorOptions): () => void {
     // Delegated, so elements added after mount (a modal, a swapped page) are
     // covered without rescanning anything.
     const onOver = (event: PointerEvent): void => {
+        // Nearest of either list, so a button inside a text frame (a search
+        // box's clear button) is a button, not text.
+        const hit = (event.target as Element | null)?.closest(`${selector}, ${TEXT}`);
+        const text = !!hit?.matches(TEXT);
+        if (text !== overText) {
+            overText = text;
+            wake(tick);
+        }
         const el = nearest(event);
         if (!el) return;
         target = el.matches(quietAttr) ? null : el;
