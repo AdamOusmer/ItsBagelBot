@@ -52,8 +52,19 @@
            plain tan dot disappears over --bb-tan-pale washes, and no single
            colour survives both the near-black hero and the cream panels. */
         mix-blend-mode: difference;
-        transition: opacity 200ms;
+        transition: opacity 200ms, width 150ms, height 150ms, top 150ms, left 150ms, border-radius 150ms;
         will-change: transform, opacity;
+    }
+
+    /* Over text entry the dot becomes a caret-shaped indicator: the native
+       I-beam is hidden, and without it there is no telling which character a
+       click will land on. */
+    .bb-cursor.is-text {
+        top: -9px;
+        left: -1px;
+        width: 2px;
+        height: 18px;
+        border-radius: 1px;
     }
 
     /* The ring. Every geometric property here is a starting value the engine
@@ -86,6 +97,13 @@
         background: rgba(var(--bb-tan-rgb), 0.22);
         border-color: var(--bb-tan);
         opacity: 1;
+    }
+
+    /* Over text entry the ring drops to the faintest visible outline with no
+       wash, so the text and a drag selection read through it. */
+    .bb-cursor-ring.is-text {
+        background: transparent;
+        opacity: 0.18;
     }
 
     /* Set by the engine, never by CSS alone: hiding the native pointer before
