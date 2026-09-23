@@ -3,9 +3,62 @@
 
 import { replyTokens, type ModuleDef } from './module-def';
 import { LINKED_ONLY_FIELD } from './shared-fields';
-import { FN_SESSION_SAMPLES, FN_SESSION_TOKENS, FN_STATS_SAMPLES, FN_STATS_TOKENS } from './rehearsal-tokens';
 
-export const FORTNITE_MODULE: ModuleDef = 
+// Shared token palette + preview samples for the Fortnite stats commands
+// (!fnstats / !season), same template surface, one source of truth. Was
+// catalog/rehearsal-tokens.ts; inlined here since fortnite.ts is its only
+// consumer (urchin.ts keeps its own BW_* pair above its module def).
+const FN_STATS_TOKENS = [
+  'player',
+  'window',
+  'wins',
+  'matches',
+  'kills',
+  'kd',
+  'winrate',
+  'solowins',
+  'solomatches',
+  'solokd',
+  'duowins',
+  'duomatches',
+  'duokd',
+  'squadwins',
+  'squadmatches',
+  'squadkd'
+];
+const FN_STATS_SAMPLES: Record<string, string> = {
+  player: 'Ninja',
+  window: 'lifetime',
+  wins: '301',
+  matches: '6232',
+  kills: '21679',
+  kd: '3.66',
+  winrate: '4.83',
+  solowins: '120',
+  solomatches: '2400',
+  solokd: '3.2',
+  duowins: '90',
+  duomatches: '1900',
+  duokd: '3.8',
+  squadwins: '91',
+  squadmatches: '1932',
+  squadkd: '4.1'
+};
+
+// Token palette + preview samples for !fn session: deltas since the
+// stream-start snapshot (no per-mode breakdown, no window, always this
+// stream, always the linked account).
+const FN_SESSION_TOKENS = ['player', 'wins', 'matches', 'kills', 'kd', 'winrate'];
+const FN_SESSION_SAMPLES: Record<string, string> = {
+  player: 'Ninja',
+  wins: '3',
+  matches: '12',
+  kills: '48',
+  kd: '5.33',
+  winrate: '25.0'
+};
+
+export const FORTNITE_MODULE: ModuleDef =
 {
   // !fnstats and !season share one template surface (same tokens, same
   // sample shape): FN_STATS_TOKENS/FN_STATS_SAMPLES above are the one

@@ -21,7 +21,7 @@ import Group from './Group.astro';
 import './reference.css';
 import { getLangFromUrl, useTranslations, localizePath, defaultLang, type Lang, type UIKey } from '../../../i18n/ui';
 import { DASHBOARD_ORIGIN } from '../../../i18n/builder';
-import { CATEGORY_ORDER, type LocalizedVariableReference } from '../../../lib/variables';
+import { GROUP_ORDER, type LocalizedVariableReference } from '../../../lib/variables';
 
 interface Props {
     catalog: readonly LocalizedVariableReference[];
@@ -32,11 +32,11 @@ const { catalog, lang: providedLang } = Astro.props;
 const lang = providedLang ?? getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
 
-const groups = CATEGORY_ORDER
-    .map((category) => ({
-        id: category,
-        label: t(`guides.variables.category.${category}` as UIKey),
-        entries: catalog.filter((entry) => entry.category === category),
+const groups = GROUP_ORDER
+    .map((group) => ({
+        id: group,
+        label: t(`guides.variables.group.${group}` as UIKey),
+        entries: catalog.filter((entry) => entry.group === group),
     }))
     .filter((group) => group.entries.length > 0);
 
@@ -58,8 +58,6 @@ const entryCopy = {
     formOutput: t('guides.variables.formOutput'),
     available: t('guides.variables.available'),
     needs: t('guides.variables.needs'),
-    payload: t('guides.variables.payload'),
-    behavior: t('guides.variables.behavior'),
     aliases: t('guides.variables.aliases'),
     legacy: t('guides.variables.legacy'),
     copy: t('guides.variables.copy'),
@@ -106,7 +104,7 @@ const clientCopy = {
 
             <div class="vref__main">
                 {groups.map((group, index) => (
-                    <Group category={group.id} label={group.label} entries={group.entries} dashboardOrigin={DASHBOARD_ORIGIN} builderLang={builderLang} revealIndex={Math.min(index + 1, 6)} copy={entryCopy} />
+                    <Group group={group.id} label={group.label} entries={group.entries} dashboardOrigin={DASHBOARD_ORIGIN} builderLang={builderLang} revealIndex={Math.min(index + 1, 6)} copy={entryCopy} />
                 ))}
             </div>
 

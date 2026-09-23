@@ -9,6 +9,7 @@
   import { Field, RadioGroup, getI18n, type ChannelPointReward, type CounterScope } from '@bagel/kit';
   import { Checkbox } from '@bagel/kit';
   import { focusFirstInvalid } from '@bagel/kit';
+  import { chipsFor } from '@bagel/kit/variables';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
 
@@ -43,15 +44,10 @@
   const DEFAULT_MESSAGE = '{user} redeemed {reward}!';
   const payload = $derived(JSON.stringify(draft));
 
-  // Reward reply token palette (replaces the command tokens).
-  const TOKENS = [
-    { token: '{user}', label: t('channelpoints.tokUser') },
-    { token: '{input}', label: t('channelpoints.tokInput') },
-    { token: '{reward}', label: t('channelpoints.tokReward') },
-    { token: '{cost}', label: t('channelpoints.tokCost') },
-    { token: '{counter}', label: t('channelpoints.tokCounter') },
-    { token: '{points}', label: t('channelpoints.tokPoints') }
-  ];
+  // Reward reply token palette (replaces the command tokens), read off the
+  // catalog's channelpoints.reply ModuleReply instead of a hand-kept literal
+  // list; chip tooltips come from replyVars.channelpoints.reply.<tok>.hint.
+  const TOKENS = chipsFor('reward:channelpoints').map((c) => ({ token: c.token, hint: c.hintKey }));
 
   // Rehearsal samples: the reward tokens expandReward resolves (see
   // app/twitch/sesame/modules/channelpoints.go), with the draft's own values so the

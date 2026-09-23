@@ -160,9 +160,9 @@ export interface DashboardLink {
 // govee/channelpoints/timers/loyalty for the page domain models. This file
 // remains only so existing consumers keep importing from '@bagel/kit'
 // unchanged (`export * from './types'` in index.ts); new code should import
-// from the specific modules instead. The BW/FN preview token palettes moved to
-// catalog/rehearsal-tokens.ts and are deliberately NOT re-exported here: they were
-// module-private before and stay that way.
+// from the specific modules instead. The BW/FN preview token palettes are
+// module-private consts inlined into catalog/urchin.ts and catalog/fortnite.ts
+// (each is its own sole consumer) and are deliberately NOT re-exported here.
 export * from './catalog/builtin-commands';
 export * from './catalog/module-def';
 export * from './catalog/index';

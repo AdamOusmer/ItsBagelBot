@@ -73,6 +73,12 @@ export interface VarDef {
   desc: L10n;
   /** Counter vars only: the four scope choices shown in the builder's picker. */
   scopes?: ScopeDef[];
+  /** Set from the owning kit VariableDef.pinned (kitVarDef): the custom
+   * surface's chip strip shows only the pinned six, same set and same reason
+   * as the dashboard's ResponseEditor (docs/specs/variables-catalog.md
+   * phase 4). Unset (falsy) for every hand-written module-reply VarDef,
+   * since only the custom surface is capped. */
+  pinned?: boolean;
   /** Set only for a VarDef built from a kit VariableForm (kitVarDef): the
    * owning VariableDef's id, straight from the source, so the marketing
    * catalog (lib/variables/index.ts buildCatalog) can fold every form of one
@@ -138,13 +144,14 @@ const COUNTER_SCOPES: ScopeDef[] = [
 // Every var the custom-command surface offers now comes straight from kit's
 // manifest (docs/specs/variables-catalog.md D2/D3, phase 3 section A): one
 // VarDef per kit VariableForm, copy resolved through kitText from
-// vars.<id>.{name,desc} rather than carried here. MULTI_FORM_IDS is the
-// short list of variables whose builder chip has always shown more than one
-// form (matches what the deleted per-family arrays actually rendered:
-// {random} and {random:1-6}, {1} and {2:}); every other kit variable offers
-// several forms in its guide entry but only ever showed its first, canonical
-// form as a builder chip.
-const MULTI_FORM_IDS = new Set(['positional', 'random']);
+// vars.<id>.{name,desc} rather than carried here. Which forms beyond the
+// canonical one get their own VarDef used to be a hand-kept MULTI_FORM_IDS
+// set of ids (whole-variable granularity: every form of 'positional' and
+// 'random', nothing else); it is now VariableForm.chipHint (phase 4), the
+// same per-FORM flag the dashboard's ResponseEditor chip strip reads
+// (surfaces.ts's chipsOfVariable), so the builder and the console show
+// exactly the same extra forms as chips instead of trusting two lists to
+// agree.
 // Counter vars are the only ones carrying a scope picker (see COUNTER_SCOPES).
 // 'count' used to be its own manifest id (the {count:<name>} read-only
 // alias); it merged away when {counter:x} itself stopped writing and picked
@@ -155,13 +162,17 @@ const SCOPED_IDS = new Set(['counter']);
 
 function kitVarDef(def: VariableDef, form: VariableForm): VarDef {
   const built = v(form.example, form.output, l10n(`vars.${def.id}.name`), l10n(`vars.${def.id}.desc`));
-  const withId = { ...built, kitId: def.id };
+  // pinned only ever true on the canonical form (forms[0]): the pinned six
+  // are all single-form ids today, but this stays form-scoped rather than
+  // id-scoped so a future pinned multi-form id cannot pin its extra chips by
+  // accident.
+  const withId = { ...built, kitId: def.id, pinned: def.pinned && form === def.forms[0] };
   return SCOPED_IDS.has(def.id) ? { ...withId, scopes: COUNTER_SCOPES } : withId;
 }
 
 function customSurfaceVars(): VarDef[] {
   return KIT_VARIABLES.flatMap((def) => {
-    const forms = MULTI_FORM_IDS.has(def.id) ? def.forms : def.forms.slice(0, 1);
+    const forms = def.forms.filter((form, i) => i === 0 || form.chipHint);
     return forms.map((form) => kitVarDef(def, form));
   });
 }
@@ -372,7 +383,7 @@ export const SURFACES: SurfaceDef[] = [
     example: { en: '{player}: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR', fr: '{player}: {wins}V {losses}D · {finals} finals · {beds} lits · {fkdr} FKDR' },
     prompt: { en: '!daily Technoblade', fr: '!daily Technoblade' },
     // Represents !daily/!weekly/!monthly, which share this exact token set
-    // (BW_SESSION_TOKENS in kit's catalog/rehearsal-tokens.ts).
+    // (BW_SESSION_TOKENS in kit's catalog/urchin.ts).
     vars: moduleSurfaceVars('urchin.daily'),
   },
   {
@@ -600,10 +611,10 @@ const UI = {
   sendHelp: { en: 'Review the summary that opens, press Create, done.', fr: "Relisez le récapitulatif qui s'ouvre, appuyez sur Créer, c'est fait." },
   step3Title: { en: 'Make it dynamic', fr: 'Rendez-la dynamique' },
   step3Sub: { en: 'Click a variable to insert it at your cursor. Only variables that work here are shown.', fr: 'Cliquez une variable pour l’insérer au curseur. Seules les variables qui fonctionnent ici sont montrées.' },
-  // The builder shows FIVE variables and nothing else -- no toggle, no hidden
+  // The builder shows SIX variables and nothing else -- no toggle, no hidden
   // rest-of-catalog -- so there is no "More variables" string to translate.
-  // Which five, and why the toggle is not coming back, is written out in
-  // @bagel/kit/engine/common-tokens.
+  // Which six, and why the toggle is not coming back, is written out beside
+  // VariableDef.pinned in @bagel/kit/variables/types.ts.
   counterNameAria: { en: 'Counter name', fr: 'Nom du compteur' },
   counterScopeAria: { en: 'Counter scope', fr: 'Portée du compteur' },
   bracesSummary: { en: 'What do the braces mean?', fr: 'Que signifient les accolades?' },

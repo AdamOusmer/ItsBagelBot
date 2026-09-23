@@ -10,7 +10,6 @@
   // The default stays a single field for callers whose reply is one message
   // (module replies); there pasted newlines collapse to spaces.
   import { RESPONSE_MAX, getI18n, Chip, Textarea } from '@bagel/kit';
-  import { pickCommonTokens } from '@bagel/kit/engine/common-tokens';
   import { chipsFor } from '@bagel/kit/variables';
   import CounterPicker from '$lib/components/counters/CounterPicker.svelte';
   import FetchSourcePicker, { type SourceDef } from '$lib/components/commands/fetches/FetchSourcePicker.svelte';
@@ -23,16 +22,21 @@
 
   // Derived from the manifest (docs/specs/variables-catalog.md D5, D8) rather
   // than hand-kept: chipsFor('custom') is the first form of every Variable
-  // this surface offers, in the order the guide page uses too, plus the one
-  // extra form flagged chipHint ({2:}). A chip inserts literal text, so each
-  // spelling has to work the moment it lands in the field.
+  // this surface offers, in the order the guide page uses too. Filtered to
+  // `pinned` (VariableDef.pinned in @bagel/kit/variables: user, args, touser,
+  // random, uptime, if — the six chips this capped surface shows and nothing
+  // else, see surfaces.test.ts's "at most six" rule), so there is nothing
+  // left to truncate below (shownTokens).
   //
-  // {counter} and {urlfetch} are filtered out below (paletteTokens): each has
-  // its own picker (CounterPicker, FetchSourcePicker) that inserts a real
-  // name instead of a literal placeholder, so a bare {counter:name} or
-  // {urlfetch:weather} chip would invite a broadcaster to ship a token that
-  // resolves to nothing.
-  const DEFAULT_TOKENS: PaletteToken[] = chipsFor('custom').map((c) => ({ token: c.token, hint: c.hintKey }));
+  // {counter} and {urlfetch} are filtered out below (paletteTokens) as a
+  // second, independent rule: each has its own picker (CounterPicker,
+  // FetchSourcePicker) that inserts a real name instead of a literal
+  // placeholder, so a bare {counter:name} or {urlfetch:weather} chip would
+  // invite a broadcaster to ship a token that resolves to nothing. Neither is
+  // pinned today, but the filter stays as the belt to pinned's suspenders.
+  const DEFAULT_TOKENS: PaletteToken[] = chipsFor('custom')
+    .filter((c) => c.pinned)
+    .map((c) => ({ token: c.token, hint: c.hintKey }));
 
   let {
     value = $bindable(''),
@@ -76,20 +80,22 @@
     pickerOn ? tokens.filter((tk) => !tk.token.startsWith('{counter') && !tk.token.startsWith('{urlfetch')) : tokens
   );
 
-  // The command palette is FIVE chips and nothing else. The whole catalog
-  // used to render at once (forty chips), then eight chips plus a ghost "More
+  // The command palette is SIX chips and nothing else. The whole catalog used
+  // to render at once (forty chips), then eight chips plus a ghost "More
   // variables" toggle that expanded the rest in place; both put the wall back
-  // in front of a first-time reader, the second one click in. Which five is
-  // @bagel/kit/engine/common-tokens, shared with the marketing command builder
-  // so the two rehearsal surfaces open on the same set, and the reason the
-  // toggle is not coming back is recorded there. The rest of the catalog is
-  // real and documented and belongs on another surface.
+  // in front of a first-time reader, the second one click in. Which six is
+  // VariableDef.pinned (@bagel/kit/variables), shared with the marketing
+  // command builder so the two rehearsal surfaces open on the same set. The
+  // rest of the catalog is real and documented and belongs on another
+  // surface; the toggle is not coming back.
   //
   // A caller passing its OWN tokens (module replies, rewards) is never
   // truncated: those catalogs are already short (three to eight entries) and
-  // dropping two of five with nowhere to see them loses content to save
-  // nothing.
-  const shownTokens = $derived(pickerOn ? pickCommonTokens(paletteTokens, (tk) => tk.token) : paletteTokens);
+  // dropping some with nowhere to see them loses content to save nothing.
+  // DEFAULT_TOKENS is already pinned-filtered above, so there is nothing left
+  // to cap on that branch; paletteTokens (the counter/urlfetch filter) is
+  // shown as-is either way.
+  const shownTokens = $derived(paletteTokens);
 
   // One entry per message field. Seeded from the incoming value (a draft
   // restore or an edit of an existing multi-line command); from then on the

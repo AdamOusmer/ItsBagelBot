@@ -189,7 +189,9 @@ for (const surface of data.surfaces) {
     // broadcaster-facing counter scopes (i18n/builder.ts COUNTER_SCOPES),
     // label + hint only, the token itself never encodes scope.
     type CounterScope = { id: string; label: string; hint: string };
-    type Var = { token: string; sample: string; name: string; desc: string; scopes?: CounterScope[] };
+    // pinned mirrors VarDef.pinned (i18n/builder.ts): set on the six chips
+    // the custom surface caps to (renderVars below), unset everywhere else.
+    type Var = { token: string; sample: string; name: string; desc: string; scopes?: CounterScope[]; pinned?: boolean };
     type Surface = { id: string; group: string; label: string; dashPath: string; hint: string; example: string; prompt: string; vars: Var[] };
     type Payload = {
         data: {
@@ -218,7 +220,6 @@ for (const surface of data.surfaces) {
     // instead, so the builder cannot disagree with the engine about what a
     // token IS while agreeing with it about what a token DOES.
     import { lex, type VarToken } from '@bagel/kit/engine/tmpl';
-    import { pickCommonTokens } from '@bagel/kit/engine/common-tokens';
 
     // spanOf reads one catalog entry's token as the single span it spells.
     // null means the catalog entry is not one token, which is a catalog bug
@@ -638,14 +639,15 @@ for (const surface of data.surfaces) {
             return card;
         }
 
-        // The custom-command surface is FIVE cards and nothing else: no "More
+        // The custom-command surface is SIX cards and nothing else: no "More
         // variables" button, no expand-in-place, no hidden rest-of-catalog.
         // Rendering all forty was the first shape and eight-plus-a-toggle was
         // the second; both put the wall in front of a first-time reader, the
-        // second one click in. Which five is
-        // @bagel/kit/engine/common-tokens, shared with the console's response
-        // editor, and the reason the toggle is not coming back is recorded
-        // there. The rest is real and documented and belongs elsewhere.
+        // second one click in. Which six is each VarDef's own `pinned` flag
+        // (set from the owning kit VariableDef.pinned in builder.ts's
+        // kitVarDef), shared with the console's response editor so the two
+        // rehearsal surfaces open on the same set. The rest is real and
+        // documented and belongs elsewhere; the toggle is not coming back.
         //
         // Only the custom-command catalog is capped. The module and alert
         // surfaces carry three to eight vars each, all of them specific to
@@ -654,7 +656,7 @@ for (const surface of data.surfaces) {
         function renderVars() {
             const box = $<HTMLElement>('[data-vars]');
             const all = current().vars;
-            const shown = surfaceId === 'custom' ? pickCommonTokens(all, (item) => item.token) : all;
+            const shown = surfaceId === 'custom' ? all.filter((item) => item.pinned) : all;
 
             box.replaceChildren();
             for (const item of shown) {

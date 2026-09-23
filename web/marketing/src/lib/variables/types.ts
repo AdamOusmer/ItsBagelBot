@@ -1,23 +1,15 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+// VariableCategory used to be its own 13-value union here; it is now kit's
+// VariableGroup (5 values: who/typed/stream/fun/data), re-exported so every
+// import of the old name keeps working (docs/specs/variables-catalog.md
+// phase 4).
+export type { VariableGroup } from '@bagel/kit/variables';
+import type { VariableGroup } from '@bagel/kit/variables';
+
 /** Localized copy shared by the variable manifest and its consumers. */
 export type LocaleText = Readonly<Record<string, string>>;
-
-export type VariableCategory =
-  | 'basics'
-  | 'arguments'
-  | 'counters'
-  | 'dynamic'
-  | 'utilities'
-  | 'viewer'
-  | 'channel'
-  | 'chat'
-  | 'emotes'
-  | 'alerts'
-  | 'rewards'
-  | 'queue'
-  | 'game-stats';
 
 export interface VariableAvailability {
   readonly id: string;
@@ -32,13 +24,6 @@ export interface VariableExample {
   /** The representative value shown by the builder for that token. */
   readonly output: string;
   readonly surfaceId: string;
-}
-
-export interface VariableLexerResult {
-  readonly valid: boolean;
-  readonly name?: string;
-  readonly payload?: string | null;
-  readonly reason?: string;
 }
 
 /** One canonical family in the public reference. */
@@ -60,8 +45,8 @@ export interface VariableReference {
   /** One-line summary for a collapsed guide row; empty when the source kit variable has none, which the guide falls back from to the description's first sentence. */
   readonly hint: LocaleText;
   readonly description: LocaleText;
-  readonly category: VariableCategory;
-  readonly categories: readonly VariableCategory[];
+  readonly group: VariableGroup;
+  readonly groups: readonly VariableGroup[];
   /** Bare token names, without braces, for search and display. */
   readonly aliases: readonly string[];
   /** Alias spellings including braces, convenient for a copy/search UI. */
@@ -75,13 +60,7 @@ export interface VariableReference {
   readonly requirements: readonly string[];
   /** Convenience form for a compact card; `requirements` is authoritative. */
   readonly requirement: string;
-  readonly payload: LocaleText;
-  readonly behavior: LocaleText;
   readonly legacy: boolean;
-  readonly parameterized: boolean;
-  readonly lexer: VariableLexerResult;
-  /** Kept as a direct boolean for simple consumers and tests. */
-  readonly lexerValid: boolean;
 }
 
 export interface LocalizedVariableReference {
@@ -95,8 +74,8 @@ export interface LocalizedVariableReference {
   readonly name: string;
   readonly hint: string;
   readonly description: string;
-  readonly category: VariableCategory;
-  readonly categories: readonly VariableCategory[];
+  readonly group: VariableGroup;
+  readonly groups: readonly VariableGroup[];
   readonly aliases: readonly string[];
   readonly aliasTokens: readonly string[];
   readonly surfaceIds: readonly string[];
@@ -104,10 +83,5 @@ export interface LocalizedVariableReference {
   readonly requirementIds: readonly string[];
   readonly requirements: readonly string[];
   readonly requirement: string;
-  readonly payload: string;
-  readonly behavior: string;
   readonly legacy: boolean;
-  readonly parameterized: boolean;
-  readonly lexer: VariableLexerResult;
-  readonly lexerValid: boolean;
 }

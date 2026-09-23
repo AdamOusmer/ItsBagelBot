@@ -13,6 +13,7 @@
   // one place.
   import { Button, Cluster, Field, getI18n } from '@bagel/kit';
   import { focusFirstInvalid } from '@bagel/kit';
+  import { chipsFor } from '@bagel/kit/variables';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
 
@@ -47,15 +48,12 @@
     { value: 'prefix' as Match, label: t('modules.matchPrefix'), hint: t('modules.matchHintPrefix') }
   ]);
 
-  // The response palette: the tokens sesame expands (module.ParseDynamic + {user}).
-  // Labels go through t() like every other palette on this screen; they used to
-  // be English literals, which is what made this the one reward-shaped surface
-  // that stayed English under /fr.
-  const TOKENS = $derived([
-    { token: '{user}', label: t('modules.trigTokUser') },
-    { token: '{random}', label: t('modules.trigTokRandom') },
-    { token: '{choice:a,b,c}', label: t('modules.trigTokChoice') }
-  ]);
+  // The response palette: the tokens sesame expands (module.ParseDynamic +
+  // {user}), read off the manifest's own user/random/choice Variables
+  // (surfaces.ts's forSurface('triggers')) instead of a hand-kept literal
+  // list — those three chips now carry the exact same worked examples and
+  // hint copy (vars.<id>.hint) as the custom-command palette.
+  const TOKENS = chipsFor('triggers').map((c) => ({ token: c.token, hint: c.hintKey }));
 
   const DEFAULT_RESPONSE = $derived(t('modules.triggerDefaultResponse'));
   const effectiveMessage = $derived(message.trim() ? message : DEFAULT_RESPONSE);

@@ -67,30 +67,33 @@ import {
 import type { VariableDef } from './types';
 
 export const VARIABLES: readonly VariableDef[] = [
-  { id: 'user', head: 'user', category: 'basics', aliases: ['sender'], forms: [{ syntax: '{user}', example: '{user}', output: USER_SAMPLE }] },
-  { id: 'touser', head: 'touser', category: 'basics', aliases: ['target'], forms: [{ syntax: '{touser}', example: '{touser}', output: TOUSER_SAMPLE }] },
-  { id: 'args', head: 'args', category: 'basics', forms: [{ syntax: '{args}', example: '{args}', output: ARGS_SAMPLE }] },
+  { id: 'user', head: 'user', group: 'who', requires: null, pinned: true, aliases: ['sender'], forms: [{ syntax: '{user}', example: '{user}', output: USER_SAMPLE }] },
+  { id: 'touser', head: 'touser', group: 'who', requires: null, pinned: true, aliases: ['target'], forms: [{ syntax: '{touser}', example: '{touser}', output: TOUSER_SAMPLE }] },
+  { id: 'args', head: 'args', group: 'typed', requires: null, pinned: true, forms: [{ syntax: '{args}', example: '{args}', output: ARGS_SAMPLE }] },
   {
     id: 'positional',
     head: 'positional',
-    category: 'arguments',
+    group: 'typed',
+    requires: null,
     forms: [
       { syntax: '{1}', example: '{1}', output: POSITIONAL_WORD_SAMPLE },
       { syntax: '{2:}', example: '{2:}', output: POSITIONAL_REST_SAMPLE, chipHint: 'restHint' },
-      // {:m} and {n:m}: guide-only, like every form beside the first two —
-      // only {2:} gets its own chip (see VariableForm.chipHint).
-      { syntax: '{:2}', example: '{:2}', output: POSITIONAL_LEADING_SLICE_SAMPLE },
-      { syntax: '{2:4}', example: '{2:4}', output: POSITIONAL_BOUNDED_SLICE_SAMPLE }
+      // Every form beside the canonical {1} carries chipHint (see
+      // VariableForm.chipHint): {2:}, {:2} and {2:4} are the three shapes a
+      // broadcaster reaches for often enough to want their own chip, not
+      // just a guide-page mention.
+      { syntax: '{:2}', example: '{:2}', output: POSITIONAL_LEADING_SLICE_SAMPLE, chipHint: 'leadingHint' },
+      { syntax: '{2:4}', example: '{2:4}', output: POSITIONAL_BOUNDED_SLICE_SAMPLE, chipHint: 'boundedHint' }
     ]
   },
-  { id: 'channel', head: 'channel', category: 'basics', forms: [{ syntax: '{channel}', example: '{channel}', output: CHANNEL_SAMPLE }] },
-  { id: 'userid', head: 'user.id', category: 'basics', aliases: ['userid'], forms: [{ syntax: '{user.id}', example: '{user.id}', output: USERID_SAMPLE }] },
-  { id: 'userLogin', head: 'user.login', category: 'basics', forms: [{ syntax: '{user.login}', example: '{user.login}', output: USER_LOGIN_SAMPLE }] },
-  { id: 'command', head: 'command', category: 'basics', forms: [{ syntax: '{command}', example: '{command}', output: COMMAND_SAMPLE }] },
+  { id: 'channel', head: 'channel', group: 'stream', requires: null, forms: [{ syntax: '{channel}', example: '{channel}', output: CHANNEL_SAMPLE }] },
+  { id: 'userid', head: 'user.id', group: 'who', requires: null, aliases: ['userid'], forms: [{ syntax: '{user.id}', example: '{user.id}', output: USERID_SAMPLE }] },
+  { id: 'userLogin', head: 'user.login', group: 'who', requires: null, forms: [{ syntax: '{user.login}', example: '{user.login}', output: USER_LOGIN_SAMPLE }] },
+  { id: 'command', head: 'command', group: 'who', requires: null, forms: [{ syntax: '{command}', example: '{command}', output: COMMAND_SAMPLE }] },
   {
     id: 'counter',
     head: 'counter',
-    category: 'counters',
+    group: 'data',
     requires: 'loyalty',
     // Read-only: {counter:x} stopped bumping when the write moved to the
     // command's own "bump a counter" option (docs/specs decision, see
@@ -101,26 +104,28 @@ export const VARIABLES: readonly VariableDef[] = [
     // on that Go field.
     forms: [
       { syntax: '{counter:<name>}', example: '{counter:falls}', output: COUNTER_SAMPLE },
-      { syntax: '{counter:target:<name>}', example: '{counter:target:falls}', output: COUNTER_SAMPLE }
+      { syntax: '{counter:target:<name>}', example: '{counter:target:falls}', output: COUNTER_SAMPLE, chipHint: 'targetHint' }
     ]
   },
   {
     id: 'random',
     head: 'random',
-    category: 'dynamic',
+    group: 'fun',
+    requires: null,
+    pinned: true,
     forms: [
       { syntax: '{random}', example: '{random}', output: RANDOM_SAMPLE },
-      { syntax: '{random:<min>-<max>}', example: '{random:1-6}', output: RANDOM_RANGE_SAMPLE }
+      { syntax: '{random:<min>-<max>}', example: '{random:1-6}', output: RANDOM_RANGE_SAMPLE, chipHint: 'rangeHint' }
     ]
   },
-  { id: 'choice', head: 'choice', category: 'dynamic', forms: [{ syntax: '{choice:<a>,<b>,…}', example: '{choice:yes,no,maybe}', output: CHOICE_SAMPLE }] },
-  { id: 'math', head: 'math', category: 'utilities', forms: [{ syntax: '{math:<expr>}', example: '{math:1+2*3}', output: '7' }] },
-  { id: 'querystring', head: 'querystring', category: 'utilities', forms: [{ syntax: '{querystring}', example: '{querystring}', output: QUERYSTRING_SAMPLE }] },
-  { id: 'queryescape', head: 'queryescape', category: 'utilities', forms: [{ syntax: '{queryescape:<text>}', example: '{queryescape:hello world}', output: 'hello+world' }] },
-  { id: 'pathescape', head: 'pathescape', category: 'utilities', forms: [{ syntax: '{pathescape:<text>}', example: '{pathescape:hello world}', output: 'hello%20world' }] },
-  { id: 'repeat', head: 'repeat', category: 'utilities', forms: [{ syntax: '{repeat:<n>:<text>}', example: '{repeat:3:bagel}', output: 'bagel bagel bagel' }] },
-  { id: 'countdown', head: 'countdown', category: 'utilities', forms: [{ syntax: '{countdown:<date>}', example: '{countdown:2026-12-25}', output: COUNTDOWN_SAMPLE }] },
-  { id: 'countup', head: 'countup', category: 'utilities', forms: [{ syntax: '{countup:<date>}', example: '{countup:2020-01-01}', output: COUNTDOWN_SAMPLE }] },
+  { id: 'choice', head: 'choice', group: 'fun', requires: null, forms: [{ syntax: '{choice:<a>,<b>,…}', example: '{choice:yes,no,maybe}', output: CHOICE_SAMPLE }] },
+  { id: 'math', head: 'math', group: 'fun', requires: null, forms: [{ syntax: '{math:<expr>}', example: '{math:1+2*3}', output: '7' }] },
+  { id: 'querystring', head: 'querystring', group: 'typed', requires: null, forms: [{ syntax: '{querystring}', example: '{querystring}', output: QUERYSTRING_SAMPLE }] },
+  { id: 'queryescape', head: 'queryescape', group: 'typed', requires: null, forms: [{ syntax: '{queryescape:<text>}', example: '{queryescape:hello world}', output: 'hello+world' }] },
+  { id: 'pathescape', head: 'pathescape', group: 'typed', requires: null, forms: [{ syntax: '{pathescape:<text>}', example: '{pathescape:hello world}', output: 'hello%20world' }] },
+  { id: 'repeat', head: 'repeat', group: 'fun', requires: null, forms: [{ syntax: '{repeat:<n>:<text>}', example: '{repeat:3:bagel}', output: 'bagel bagel bagel' }] },
+  { id: 'countdown', head: 'countdown', group: 'fun', requires: null, forms: [{ syntax: '{countdown:<date>}', example: '{countdown:2026-12-25}', output: COUNTDOWN_SAMPLE }] },
+  { id: 'countup', head: 'countup', group: 'fun', requires: null, forms: [{ syntax: '{countup:<date>}', example: '{countup:2020-01-01}', output: COUNTDOWN_SAMPLE }] },
   // One form, deliberately: the two-branch shape with a plain name. Every
   // other shape ({if:name=value:…:…}, a one-branch form, a cond carrying its
   // own payload) is a small edit away from this one, and a chip surface only
@@ -128,11 +133,11 @@ export const VARIABLES: readonly VariableDef[] = [
   // variables-catalog.md D5), so a second form here would just be a form
   // nothing renders. Moved from ResponseEditor.svelte's old DEFAULT_TOKENS,
   // which explained the same choice next to the hand-written chip.
-  { id: 'if', head: 'if', category: 'utilities', forms: [{ syntax: '{if:<name>:<then>:<else>}', example: '{if:touser:hi there:hi everyone}', output: IF_SAMPLE }] },
+  { id: 'if', head: 'if', group: 'fun', requires: null, pinned: true, forms: [{ syntax: '{if:<name>:<then>:<else>}', example: '{if:touser:hi there:hi everyone}', output: IF_SAMPLE }] },
   {
     id: 'followage',
     head: 'followage',
-    category: 'viewer',
+    group: 'stream',
     requires: 'followage',
     forms: [
       { syntax: '{followage}', example: '{followage}', output: FOLLOWAGE_SAMPLE },
@@ -142,7 +147,7 @@ export const VARIABLES: readonly VariableDef[] = [
   {
     id: 'accountage',
     head: 'accountage',
-    category: 'viewer',
+    group: 'stream',
     requires: 'accountage',
     forms: [
       { syntax: '{accountage}', example: '{accountage}', output: ACCOUNTAGE_SAMPLE },
@@ -152,18 +157,18 @@ export const VARIABLES: readonly VariableDef[] = [
   {
     id: 'points',
     head: 'points',
-    category: 'viewer',
+    group: 'data',
     requires: 'loyalty',
     forms: [
       { syntax: '{points}', example: '{points}', output: POINTS_SAMPLE },
       { syntax: '{points:<login>}', example: '{points:alex}', output: POINTS_SAMPLE }
     ]
   },
-  { id: 'pointsname', head: 'points.name', category: 'viewer', requires: 'loyalty', aliases: ['pointsname'], forms: [{ syntax: '{points.name}', example: '{points.name}', output: POINTS_NAME_SAMPLE }] },
+  { id: 'pointsname', head: 'points.name', group: 'data', requires: 'loyalty', aliases: ['pointsname'], forms: [{ syntax: '{points.name}', example: '{points.name}', output: POINTS_NAME_SAMPLE }] },
   {
     id: 'watchtime',
     head: 'watchtime',
-    category: 'viewer',
+    group: 'data',
     requires: 'loyalty',
     forms: [
       { syntax: '{watchtime}', example: '{watchtime}', output: WATCHTIME_SAMPLE },
@@ -177,11 +182,11 @@ export const VARIABLES: readonly VariableDef[] = [
   // that spelling still resolves (Go's TokenFamily.Aliases for the store
   // family), it just is not taught as its own manifest entry (see 'counter'
   // above).
-  { id: 'uses', head: 'count', category: 'counters', aliases: ['uses'], forms: [{ syntax: '{count}', example: '{count}', output: USES_SAMPLE }] },
+  { id: 'uses', head: 'count', group: 'data', requires: null, aliases: ['uses'], forms: [{ syntax: '{count}', example: '{count}', output: USES_SAMPLE }] },
   {
     id: 'quote',
     head: 'quote',
-    category: 'utilities',
+    group: 'data',
     requires: 'quotes',
     forms: [
       { syntax: '{quote}', example: '{quote}', output: QUOTE_SAMPLE },
@@ -191,7 +196,7 @@ export const VARIABLES: readonly VariableDef[] = [
   {
     id: 'time',
     head: 'time',
-    category: 'utilities',
+    group: 'stream',
     requires: 'time',
     forms: [
       { syntax: '{time}', example: '{time}', output: TIME_SAMPLE },
@@ -199,23 +204,24 @@ export const VARIABLES: readonly VariableDef[] = [
       // answers on any channel (docs/specs decision record on {time:<place>}
       // — see app/twitch/sesame/engine/scope/modules.go's Places), so it is
       // not gated by `requires` the way the bare form's chip is.
-      { syntax: '{time:<place>}', example: '{time:Paris}', output: TIME_PLACE_SAMPLE }
+      { syntax: '{time:<place>}', example: '{time:Paris}', output: TIME_PLACE_SAMPLE, chipHint: 'placeHint' }
     ]
   },
-  { id: 'song', head: 'song', category: 'queue', requires: 'songqueue', forms: [{ syntax: '{song}', example: '{song}', output: SONG_SAMPLE }] },
-  { id: 'songTitle', head: 'song.title', category: 'queue', requires: 'songqueue', forms: [{ syntax: '{song.title}', example: '{song.title}', output: SONG_TITLE_SAMPLE }] },
-  { id: 'songArtist', head: 'song.artist', category: 'queue', requires: 'songqueue', forms: [{ syntax: '{song.artist}', example: '{song.artist}', output: SONG_ARTIST_SAMPLE }] },
-  { id: 'chatters', head: 'chatters', category: 'chat', forms: [{ syntax: '{chatters}', example: '{chatters}', output: CHATTERS_SAMPLE }] },
-  { id: 'randomChatter', head: 'random.chatter', category: 'chat', forms: [{ syntax: '{random.chatter}', example: '{random.chatter}', output: RANDOM_CHATTER_SAMPLE }] },
+  { id: 'song', head: 'song', group: 'data', requires: 'songqueue', forms: [{ syntax: '{song}', example: '{song}', output: SONG_SAMPLE }] },
+  { id: 'songTitle', head: 'song.title', group: 'data', requires: 'songqueue', forms: [{ syntax: '{song.title}', example: '{song.title}', output: SONG_TITLE_SAMPLE }] },
+  { id: 'songArtist', head: 'song.artist', group: 'data', requires: 'songqueue', forms: [{ syntax: '{song.artist}', example: '{song.artist}', output: SONG_ARTIST_SAMPLE }] },
+  { id: 'chatters', head: 'chatters', group: 'stream', requires: null, forms: [{ syntax: '{chatters}', example: '{chatters}', output: CHATTERS_SAMPLE }] },
+  { id: 'randomChatter', head: 'random.chatter', group: 'who', requires: null, forms: [{ syntax: '{random.chatter}', example: '{random.chatter}', output: RANDOM_CHATTER_SAMPLE }] },
   // Distinct from random.chatter beside it: who Twitch reports as connected
   // to chat right now, not who has spoken recently. Neither is gated by a
   // module (see app/twitch/sesame/engine/scope/chatters.go), so this stays
   // ungated like its sibling.
-  { id: 'randomViewer', head: 'random.viewer', category: 'chat', forms: [{ syntax: '{random.viewer}', example: '{random.viewer}', output: RANDOM_VIEWER_SAMPLE }] },
+  { id: 'randomViewer', head: 'random.viewer', group: 'who', requires: null, forms: [{ syntax: '{random.viewer}', example: '{random.viewer}', output: RANDOM_VIEWER_SAMPLE }] },
   {
     id: 'emotes',
     head: 'emotes',
-    category: 'emotes',
+    group: 'fun',
+    requires: null,
     // One head, three payload forms (the provider), the way {title}/{game}
     // take a channel: forms[0] is still what a chip inserts, the other two
     // are guide-only. 7tvemotes/bttvemotes/ffzemotes were the pre-
@@ -229,12 +235,13 @@ export const VARIABLES: readonly VariableDef[] = [
       { syntax: '{emotes:ffz}', example: '{emotes:ffz}', output: FFZ_EMOTES_SAMPLE }
     ]
   },
-  { id: 'randomEmote', head: 'random.emote', category: 'emotes', forms: [{ syntax: '{random.emote}', example: '{random.emote}', output: RANDOM_EMOTE_SAMPLE }] },
+  { id: 'randomEmote', head: 'random.emote', group: 'fun', requires: null, forms: [{ syntax: '{random.emote}', example: '{random.emote}', output: RANDOM_EMOTE_SAMPLE }] },
   {
     id: 'uptime',
     head: 'uptime',
-    category: 'channel',
+    group: 'stream',
     requires: 'uptime',
+    pinned: true,
     forms: [
       { syntax: '{uptime}', example: '{uptime}', output: UPTIME_SAMPLE },
       { syntax: '{uptime:<channel>}', example: '{uptime:someone}', output: UPTIME_SAMPLE }
@@ -243,7 +250,7 @@ export const VARIABLES: readonly VariableDef[] = [
   {
     id: 'title',
     head: 'title',
-    category: 'channel',
+    group: 'stream',
     requires: 'title',
     forms: [
       { syntax: '{title}', example: '{title}', output: TITLE_SAMPLE },
@@ -253,19 +260,19 @@ export const VARIABLES: readonly VariableDef[] = [
   {
     id: 'game',
     head: 'game',
-    category: 'channel',
+    group: 'stream',
     requires: 'game',
     forms: [
       { syntax: '{game}', example: '{game}', output: GAME_SAMPLE },
       { syntax: '{game:<channel>}', example: '{game:someone}', output: GAME_SAMPLE }
     ]
   },
-  { id: 'channelViewers', head: 'channel.viewers', category: 'channel', forms: [{ syntax: '{channel.viewers}', example: '{channel.viewers}', output: CHANNEL_VIEWERS_SAMPLE }] },
+  { id: 'channelViewers', head: 'channel.viewers', group: 'stream', requires: null, forms: [{ syntax: '{channel.viewers}', example: '{channel.viewers}', output: CHANNEL_VIEWERS_SAMPLE }] },
   // Neither has a module toggle of its own (Stream Management has no row for
   // either), so — like channel.viewers above — mounting follows the
-  // dependency alone; no `requires` here.
-  { id: 'followers', head: 'followers', category: 'channel', forms: [{ syntax: '{followers}', example: '{followers}', output: FOLLOWERS_SAMPLE }] },
-  { id: 'subs', head: 'subs', category: 'channel', forms: [{ syntax: '{subs}', example: '{subs}', output: SUBS_SAMPLE }] },
+  // dependency alone; requires stays null.
+  { id: 'followers', head: 'followers', group: 'stream', requires: null, forms: [{ syntax: '{followers}', example: '{followers}', output: FOLLOWERS_SAMPLE }] },
+  { id: 'subs', head: 'subs', group: 'stream', requires: null, forms: [{ syntax: '{subs}', example: '{subs}', output: SUBS_SAMPLE }] },
   // Not on ResponseEditor's chip strip: needs a saved data source first.
-  { id: 'urlfetch', head: 'urlfetch', category: 'utilities', forms: [{ syntax: '{urlfetch:<definition>}', example: '{urlfetch:weather}', output: URLFETCH_SAMPLE }] },
+  { id: 'urlfetch', head: 'urlfetch', group: 'data', requires: null, forms: [{ syntax: '{urlfetch:<definition>}', example: '{urlfetch:weather}', output: URLFETCH_SAMPLE }] },
 ];

@@ -3,9 +3,25 @@
 
 import { replyTokens, type ModuleDef } from './module-def';
 import { LINKED_ONLY_FIELD, MINECRAFT_UUID_FIELD } from './shared-fields';
-import { BW_SESSION_SAMPLES, BW_SESSION_TOKENS } from './rehearsal-tokens';
 
-export const URCHIN_MODULE: ModuleDef = 
+// Shared token palette + preview samples for the Bedwars session commands
+// (!daily / !weekly / !monthly), same template surface, one source of truth.
+// Was catalog/rehearsal-tokens.ts; inlined here since urchin.ts is its only
+// consumer (fortnite.ts keeps its own FN_* pair below its module def).
+const BW_SESSION_TOKENS = ['player', 'wins', 'losses', 'finals', 'finaldeaths', 'beds', 'games', 'levels', 'fkdr'];
+const BW_SESSION_SAMPLES: Record<string, string> = {
+  player: 'Technoblade',
+  wins: '5',
+  losses: '2',
+  finals: '21',
+  finaldeaths: '3',
+  beds: '9',
+  games: '8',
+  levels: '1',
+  fkdr: '7.00'
+};
+
+export const URCHIN_MODULE: ModuleDef =
 // External-stats modules: chat commands answered through the gossip service
 // (external API proxy + cache). Config keys must match the sesame module
 // structs (app/twitch/sesame/modules/urchin.go, mcsr.go).

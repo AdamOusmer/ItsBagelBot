@@ -9,6 +9,7 @@
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { Button, Code, Field, EditorFooter, Switch, getI18n, type GoveeDevice, type GoveeBinding } from '@bagel/kit';
+  import { chipsFor } from '@bagel/kit/variables';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
   import { focusFirstInvalid } from '@bagel/kit';
@@ -34,11 +35,13 @@
   const { t } = getI18n();
 
   const DEFAULT_REPLY = '@{user} set the lights to {color}!';
-  const REPLY_TOKENS = [
-    { token: '{user}', label: t('govee.replyTokUser') },
-    { token: '{color}', label: t('govee.replyTokColor') }
-  ];
-  const replySamples: Record<string, string> = { user: 'sesame_sam', color: 'blue' };
+  // Read off the catalog's govee.reply ModuleReply instead of a hand-kept
+  // literal list; chip tooltips come from replyVars.govee.reply.<tok>.hint.
+  const REPLY_TOKENS = chipsFor('reward:govee').map((c) => ({ token: c.token, hint: c.hintKey }));
+  // Covers every token the catalog's govee.reply offers (user, input,
+  // color), same set REPLY_TOKENS above renders as chips: a chip with no
+  // matching sample would preview as the literal, unresolved token.
+  const replySamples: Record<string, string> = { user: 'sesame_sam', input: 'blue', color: 'Blue' };
 
   // Seeded once per light (the page keys this component on the device id), so
   // capturing the initial binding is intentional.
