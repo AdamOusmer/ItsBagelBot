@@ -125,19 +125,21 @@ defmodule Ingress.TrialReceiver do
     now = now_ms()
 
     cond do
-      state.socket && state.session_id == nil && now - state.connected_at > @welcome_ms ->
-        fresh_connect(state)
-
-      state.socket && now - state.last_frame_at > state.keepalive_ms ->
-        fresh_connect(state)
-
-      state.pending && now - state.pending_at > @handshake_ms ->
-        fresh_connect(state)
-
-      true ->
-        state
+      welcome_expired?(state, now) -> fresh_connect(state)
+      keepalive_expired?(state, now) -> fresh_connect(state)
+      handshake_expired?(state, now) -> fresh_connect(state)
+      true -> state
     end
   end
+
+  defp welcome_expired?(state, now),
+    do: state.socket && is_nil(state.session_id) && now - state.connected_at > @welcome_ms
+
+  defp keepalive_expired?(state, now),
+    do: state.socket && now - state.last_frame_at > state.keepalive_ms
+
+  defp handshake_expired?(state, now),
+    do: state.pending && now - state.pending_at > @handshake_ms
 
   defp now_ms, do: System.monotonic_time(:millisecond)
 
@@ -206,56 +208,8 @@ defmodule Ingress.TrialReceiver do
   end
 
   defp handle_twitch("notification", meta, payload, %{epoch: epoch} = state, :primary)
-       when not is_nil(epoch) do
-    event = payload["event"] || %{}
-    id = event["broadcaster_user_id"]
-    row = state.rows[id]
-    chat_id = event["message_id"]
-
-    if row && row.state == "receiving" &&
-         payload["subscription"]["type"] == "channel.chat.message" &&
-         is_binary(chat_id) && chat_id != "" do
-      state =
-        case event["broadcaster_user_name"] do
-          name when is_binary(name) and name != "" and name != row.display_name ->
-            case Trials.display_name(id, row.generation, name) do
-              {:ok, 1} -> put_in(state, [:rows, id, :display_name], name)
-              _ -> state
-            end
-
-          _ ->
-            state
-        end
-
-      case Trials.dedup(id, chat_id) do
-        :first ->
-          case Trials.increment(id, "received") do
-            {:ok, _} ->
-              Dispatcher.dispatch(payload, %{
-                shard_id: -1,
-                msg_id: meta["message_id"],
-                ts: meta["message_timestamp"],
-                broadcaster_id: id,
-                origin: :trial,
-                trial_generation: String.to_integer(row.generation)
-              })
-
-            _ ->
-              :ok
-          end
-
-        :duplicate ->
-          :ok
-
-        :unavailable ->
-          Trials.increment(id, "failed")
-      end
-
-      state
-    else
-      state
-    end
-  end
+       when not is_nil(epoch),
+       do: handle_trial_notification(meta, payload, state)
 
   defp handle_twitch("revocation", _meta, payload, state, _which) do
     id = get_in(payload, ["subscription", "condition", "broadcaster_user_id"])
@@ -265,6 +219,77 @@ defmodule Ingress.TrialReceiver do
   end
 
   defp handle_twitch(_type, _meta, _payload, state, _which), do: state
+
+  defp handle_trial_notification(meta, payload, state) do
+    event = payload["event"] || %{}
+    id = event["broadcaster_user_id"]
+    row = state.rows[id]
+    chat_id = event["message_id"]
+
+    if receivable_chat?(row, payload, chat_id) do
+      state = update_display_name(state, id, row, event)
+      admit_chat(payload, meta, id, chat_id, row)
+      state
+    else
+      state
+    end
+  end
+
+  defp receivable_chat?(%{state: "receiving"}, payload, chat_id) do
+    case get_in(payload, ["subscription", "type"]) do
+      "channel.chat.message" -> valid_chat_id?(chat_id)
+      _ -> false
+    end
+  end
+
+  defp receivable_chat?(_row, _payload, _chat_id), do: false
+  defp valid_chat_id?(chat_id) when is_binary(chat_id), do: chat_id != ""
+  defp valid_chat_id?(_chat_id), do: false
+
+  defp update_display_name(state, id, row, event) do
+    case event["broadcaster_user_name"] do
+      name when is_binary(name) -> maybe_update_display_name(state, id, row, name)
+      _ -> state
+    end
+  end
+
+  defp maybe_update_display_name(state, _id, _row, ""), do: state
+
+  defp maybe_update_display_name(state, id, row, name) do
+    if name == row.display_name do
+      state
+    else
+      case Trials.display_name(id, row.generation, name) do
+        {:ok, 1} -> put_in(state, [:rows, id, :display_name], name)
+        _ -> state
+      end
+    end
+  end
+
+  defp admit_chat(payload, meta, id, chat_id, row) do
+    case Trials.dedup(id, chat_id) do
+      :first -> forward_first_chat(payload, meta, id, row)
+      :duplicate -> :ok
+      :unavailable -> Trials.increment(id, "failed")
+    end
+  end
+
+  defp forward_first_chat(payload, meta, id, row) do
+    case Trials.increment(id, "received") do
+      {:ok, _} ->
+        Dispatcher.dispatch(payload, %{
+          shard_id: -1,
+          msg_id: meta["message_id"],
+          ts: meta["message_timestamp"],
+          broadcaster_id: id,
+          origin: :trial,
+          trial_generation: String.to_integer(row.generation)
+        })
+
+      _ ->
+        :ok
+    end
+  end
 
   defp accept_pending_welcome(state, new_id) do
     case Trials.owner_session(state.owner, state.epoch, new_id) do
@@ -409,8 +434,7 @@ defmodule Ingress.TrialReceiver do
   end
 
   defp reconcile_row(row, state) do
-    if row.state == "failed" || !MapSet.member?(state.session_aliases, row.session_id) ||
-         row.subscription_id == nil do
+    if subscription_needed?(row, state) do
       case TrialRpc.registered?(row.broadcaster_id) do
         {:ok, false} ->
           reply =
@@ -435,6 +459,11 @@ defmodule Ingress.TrialReceiver do
           Trials.field(row.broadcaster_id, "error", "registration_check_unavailable")
       end
     end
+  end
+
+  defp subscription_needed?(row, state) do
+    row.state == "failed" || !MapSet.member?(state.session_aliases, row.session_id) ||
+      is_nil(row.subscription_id)
   end
 
   defp subscription_rpc(verb, fields) do

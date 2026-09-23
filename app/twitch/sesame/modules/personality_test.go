@@ -79,13 +79,16 @@ type fakePersonality struct {
 
 	fedBy   uint64
 	fedName string
+	writes  []string
 }
 
 func (f *fakePersonality) FactCursor(context.Context, uint64) (int64, error) {
+	f.writes = append(f.writes, "cursor")
 	return f.cursor, f.err
 }
 
 func (f *fakePersonality) Feed(_ context.Context, broadcasterID uint64, name string) (engine.FeedCounts, error) {
+	f.writes = append(f.writes, "feed")
 	f.fedBy, f.fedName = broadcasterID, name
 	return f.feed, f.err
 }
@@ -95,10 +98,44 @@ func (f *fakePersonality) FeedBoard(_ context.Context, _ uint64, _ int) (engine.
 }
 
 func (f *fakePersonality) Mood(_ context.Context, _ uint64, candidate string) (string, error) {
+	f.writes = append(f.writes, "mood")
 	if f.mood == "" {
 		return candidate, f.err
 	}
 	return f.mood, f.err
+}
+
+func TestPersonalityTrialLeavesStateUntouched(t *testing.T) {
+	pinPersonalityRand(t)
+	for _, tc := range []struct {
+		name string
+		text string
+		want []string
+	}{
+		{"cooldown", "good bagel", []string{personalityGoodPack[0]}},
+		{"cursor", "@ItsBagelBot", []string{personalityFacts[0]}},
+		{"feed", "feed the bagel", nil},
+		{"mood", "bagel mood?", []string{"current mood: " + personalityMoodPack[0]}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			store := &fakePersonality{cursor: 6, mood: personalityMoodPack[2]}
+			cooldown := &fakeCooldown{allow: []bool{false}}
+			h := personalityHandler(t, engine.Deps{Personality: store, Cooldown: cooldown})
+			c := personalityCtx(tc.text)
+			c.Env.Origin = "trial"
+			var col collector
+			require.NoError(t, h(context.Background(), c, col.emit))
+
+			var replies []string
+			for _, output := range col.out {
+				replies = append(replies, output.Text)
+			}
+			assert.Equal(t, tc.want, replies, "trial evaluation uses observation replies")
+			assert.Empty(t, cooldown.keys, "trial evaluation must not claim a cooldown")
+			assert.Equal(t, []bool{false}, cooldown.allow, "the cooldown remains available to normal processing")
+			assert.Empty(t, store.writes, "trial evaluation must not call cursor, feed, or mood writes")
+		})
+	}
 }
 
 func TestPersonalitySkipsCommandsCohortsAndPlainChat(t *testing.T) {

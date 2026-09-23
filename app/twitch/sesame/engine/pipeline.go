@@ -263,12 +263,7 @@ func (p *Pipeline) Process(msg *bus.Message) error {
 	// and the same line splits them per channel for the public board. An
 	// envelope whose broadcaster id will not parse still counts fleet-wide.
 	broadcasterID, ok := env.BroadcasterID()
-	if env.Origin == "trial" {
-		p.stats.count(0, env.Type == chatType)
-		p.countTrial(ctx, env.BroadcasterUserID, "decoded")
-	} else {
-		p.stats.count(broadcasterID, env.Type == chatType)
-	}
+	p.countDecoded(ctx, env, broadcasterID)
 	if !p.eligible(env) {
 		traceResult(ctx, "filtered")
 		return nil
@@ -279,6 +274,19 @@ func (p *Pipeline) Process(msg *bus.Message) error {
 		return nil
 	}
 	traceEvent(ctx, env.Type, env.Lane, broadcasterID)
+	return p.processByOrigin(ctx, env, broadcasterID)
+}
+
+func (p *Pipeline) countDecoded(ctx context.Context, env *lane.Envelope, broadcasterID uint64) {
+	if env.Origin == "trial" {
+		p.stats.count(0, env.Type == chatType)
+		p.countTrial(ctx, env.BroadcasterUserID, "decoded")
+	} else {
+		p.stats.count(broadcasterID, env.Type == chatType)
+	}
+}
+
+func (p *Pipeline) processByOrigin(ctx context.Context, env *lane.Envelope, broadcasterID uint64) error {
 	if env.Origin == "trial" {
 		return p.processTrial(ctx, env, broadcasterID)
 	}
@@ -545,7 +553,7 @@ func (p *Pipeline) newEmit(ctx context.Context, partition string, state *emitSta
 		}
 		state.ordinal++
 		replayID := state.replayID()
-		if err := p.publishOutput(ctx, state.subject, replayID, state.env, o); err != nil {
+		if err := p.publishOutput(ctx, state, replayID, o); err != nil {
 			state.err = err
 			return
 		}
@@ -625,15 +633,15 @@ func (p *Pipeline) floorSuppressed(o *module.Output) bool {
 
 // publishOutput translates one Output to the outgress wire contract and
 // publishes it on the lane subject.
-func (p *Pipeline) publishOutput(ctx context.Context, subject, replayID string, env *lane.Envelope, o *module.Output) error {
+func (p *Pipeline) publishOutput(ctx context.Context, state *emitState, replayID string, o *module.Output) error {
 	encodeSegment := startStage(ctx, "sesame.output.encode")
 	output, err := buildOutgressMessage(o)
 	if err != nil {
 		endStage(encodeSegment, "error")
 		return err
 	}
-	if env != nil && env.Origin == "trial" {
-		markTrialOutput(&output, env.TrialGeneration)
+	if state.env != nil && state.env.Origin == "trial" {
+		markTrialOutput(&output, state.env.TrialGeneration)
 	}
 	body, err := codec.Marshal(&output)
 	if err != nil {
@@ -642,9 +650,9 @@ func (p *Pipeline) publishOutput(ctx context.Context, subject, replayID string, 
 	}
 	endStage(encodeSegment, "ok")
 	if replayID == "" {
-		return bus.PublishRaw(ctx, p.pub, subject, body)
+		return bus.PublishRaw(ctx, p.pub, state.subject, body)
 	}
-	return bus.PublishConfirmed(ctx, p.pub, bus.Publication{Subject: subject, ID: replayID, Payload: body})
+	return bus.PublishConfirmed(ctx, p.pub, bus.Publication{Subject: state.subject, ID: replayID, Payload: body})
 }
 
 func markTrialOutput(output *outgress.Message, generation uint64) {

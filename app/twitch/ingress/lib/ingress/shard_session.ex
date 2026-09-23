@@ -590,36 +590,7 @@ defmodule Ingress.ShardSession do
       broadcaster_id: Ingress.Pipeline.broadcaster_id(payload["event"] || %{})
     }
 
-    # During registration overlap the normal Conduit transport may see the
-    # same Twitch chat as the trial socket. Shared Valkey admission makes the
-    # first copy win and preserves trial provenance on the normal transport.
-    event = payload["event"] || %{}
-    trial = Ingress.TrialMembership.lookup(admission.broadcaster_id)
-
-    if trial && get_in(payload, ["subscription", "type"]) == "channel.chat.message" do
-      case is_binary(event["message_id"]) && event["message_id"] != "" &&
-             Ingress.Trials.dedup(admission.broadcaster_id, event["message_id"]) do
-        :first ->
-          case Ingress.Trials.increment(admission.broadcaster_id, "received") do
-            {:ok, _} ->
-              Ingress.Dispatcher.dispatch(
-                payload,
-                Map.merge(
-                  admission,
-                  %{origin: :trial, trial_generation: String.to_integer(trial.generation)}
-                )
-              )
-
-            _ ->
-              :ok
-          end
-
-        _ ->
-          :ok
-      end
-    else
-      Ingress.Dispatcher.dispatch(payload, admission)
-    end
+    dispatch_notification(payload, admission)
 
     {:noreply, state |> count_notification() |> pet_watchdog()}
   end
@@ -648,6 +619,38 @@ defmodule Ingress.ShardSession do
   defp handle_twitch(_which, type, _payload, _meta, state) do
     Logger.debug("unhandled eventsub message_type #{type}")
     {:noreply, pet_watchdog(state)}
+  end
+
+  # A registered Conduit shard may see a trial chat during registration overlap.
+  # Shared Valkey admission makes the first copy win on either transport.
+  defp dispatch_notification(payload, admission) do
+    case {Ingress.TrialMembership.lookup(admission.broadcaster_id),
+          get_in(payload, ["subscription", "type"])} do
+      {%{generation: generation}, "channel.chat.message"} ->
+        dispatch_trial_notification(payload, admission, generation)
+
+      _ ->
+        Ingress.Dispatcher.dispatch(payload, admission)
+    end
+  end
+
+  defp dispatch_trial_notification(payload, admission, generation) do
+    chat_id = get_in(payload, ["event", "message_id"])
+
+    with true <- is_binary(chat_id),
+         false <- chat_id == "",
+         :first <- Ingress.Trials.dedup(admission.broadcaster_id, chat_id),
+         {:ok, _} <- Ingress.Trials.increment(admission.broadcaster_id, "received") do
+      Ingress.Dispatcher.dispatch(
+        payload,
+        Map.merge(
+          admission,
+          %{origin: :trial, trial_generation: String.to_integer(generation)}
+        )
+      )
+    else
+      _ -> :ok
+    end
   end
 
   # A bind rejected with `invalid_parameter` cannot succeed by retrying: the

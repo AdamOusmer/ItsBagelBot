@@ -173,7 +173,9 @@ func main() {
 
 	svcboot.FatalIf(log, rpc.SubscribeManage(nc, registry, tw, cfg.RPCPrefix, queueGroup, nrApp, log.Named("rpc")),
 		"failed to subscribe management rpc")
-	svcboot.FatalIf(log, rpc.SubscribeTrialSubscriptions(nc, valkeyClient, tw, cfg.TwitchBotUserID, nrApp, log.Named("trial-rpc")),
+	svcboot.FatalIf(log, rpc.SubscribeTrialSubscriptions(bus.RPCWiring{
+		NC: nc, App: nrApp, Queue: "outgress-trial-subscription", Log: log.Named("trial-rpc"), Timeout: 5 * time.Second,
+	}, valkeyClient, tw, cfg.TwitchBotUserID),
 		"failed to subscribe trial subscription rpc")
 
 	// Channel-points reward management (create/edit/delete custom rewards under

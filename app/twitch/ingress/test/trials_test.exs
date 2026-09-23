@@ -1,50 +1,80 @@
+defmodule Ingress.TrialValkeyFixture do
+  alias Ingress.TrialValkey
+
+  def start do
+    dir = Path.join(System.tmp_dir!(), "bagel-trial-#{System.unique_integer([:positive])}")
+    File.mkdir_p!(dir)
+    port = free_port()
+    previous = System.get_env("VALKEY_ADDR")
+    System.put_env("VALKEY_ADDR", "127.0.0.1:#{port}")
+
+    {_output, 0} =
+      System.cmd("valkey-server", [
+        "--bind",
+        "127.0.0.1",
+        "--port",
+        Integer.to_string(port),
+        "--save",
+        "",
+        "--appendonly",
+        "no",
+        "--daemonize",
+        "yes",
+        "--pidfile",
+        Path.join(dir, "valkey.pid")
+      ])
+
+    {dir, previous}
+  end
+
+  def await_ready do
+    Enum.reduce_while(1..50, :unavailable, fn _, _ ->
+      case TrialValkey.command(["PING"]) do
+        {:ok, "PONG"} ->
+          {:halt, :ok}
+
+        _ ->
+          Process.sleep(20)
+          {:cont, :unavailable}
+      end
+    end)
+  end
+
+  def stop({dir, previous}) do
+    _ = TrialValkey.command(["SHUTDOWN", "NOSAVE"])
+
+    if previous,
+      do: System.put_env("VALKEY_ADDR", previous),
+      else: System.delete_env("VALKEY_ADDR")
+
+    File.rm_rf!(dir)
+  end
+
+  defp free_port do
+    {:ok, listener} = :gen_tcp.listen(0, [:binary, active: false, ip: {127, 0, 0, 1}])
+    {:ok, {_address, port}} = :inet.sockname(listener)
+    :gen_tcp.close(listener)
+    port
+  end
+end
+
 defmodule Ingress.TrialsTest do
   use ExUnit.Case, async: false
+
+  if is_nil(System.find_executable("valkey-server")),
+    do: @moduletag(skip: "valkey-server is not installed")
+
   alias Ingress.{TrialValkey, Trials}
 
   setup do
-    if System.find_executable("valkey-server") == nil do
-      {:skip, "valkey-server is not installed"}
-    else
-      dir = Path.join(System.tmp_dir!(), "bagel-trial-#{System.unique_integer([:positive])}")
-      File.mkdir_p!(dir)
-      socket = Path.join(dir, "valkey.sock")
-      pidfile = Path.join(dir, "valkey.pid")
-      previous = System.get_env("VALKEY_ADDR")
-      System.put_env("VALKEY_ADDR", "unix:" <> socket)
-
-      {_output, 0} =
-        System.cmd("valkey-server", [
-          "--port",
-          "0",
-          "--unixsocket",
-          socket,
-          "--save",
-          "",
-          "--appendonly",
-          "no",
-          "--daemonize",
-          "yes",
-          "--pidfile",
-          pidfile
-        ])
-
-      for _ <- 1..30 do
-        if TrialValkey.command(["PING"]) != {:ok, "PONG"}, do: Process.sleep(20)
-      end
-
-      on_exit(fn ->
-        _ = TrialValkey.command(["SHUTDOWN", "NOSAVE"])
-
-        if previous,
-          do: System.put_env("VALKEY_ADDR", previous),
-          else: System.delete_env("VALKEY_ADDR")
-
-        File.rm_rf!(dir)
-      end)
-
-      :ok
+    if System.find_executable("valkey-server") do
+      fixture = Ingress.TrialValkeyFixture.start()
+      start_supervised!({TrialValkey, []})
+      assert :ok == Ingress.TrialValkeyFixture.await_ready()
+      on_exit(fn -> Ingress.TrialValkeyFixture.stop(fixture) end)
     end
+
+    :ok
   end
 
   test "concurrent admissions reserve no more than four slots and converge on duplicates" do
@@ -58,17 +88,17 @@ defmodule Ingress.TrialsTest do
 
     assert Enum.count(outcomes, &match?({:ok, _}, &1)) == 4
     assert Enum.count(outcomes, &(&1 == {:error, "full"})) == 16
-    assert {:ok, %{active_count: 4, trials: rows}} = Trials.list()
+    {:ok, %{active_count: 4, trials: rows}} = Trials.list()
     assert length(rows) == 4
 
     id = hd(rows).broadcaster_id
-    assert {:ok, _} = Trials.field(id, "decoded", 3)
-    assert {:ok, _} = Trials.field(id, "latency_samples", 2)
-    assert {:ok, _} = Trials.field(id, "latency_total_ms", 25)
+    {:ok, _} = Trials.field(id, "decoded", 3)
+    {:ok, _} = Trials.field(id, "latency_samples", 2)
+    {:ok, _} = Trials.field(id, "latency_total_ms", 25)
     generation = hd(rows).generation
-    assert {:ok, 1} = Trials.display_name(id, generation, "Sample Streamer")
-    assert {:ok, 0} = Trials.display_name(id, "stale", "Wrong Name")
-    assert {:ok, %{trials: measured}} = Trials.list()
+    {:ok, 1} = Trials.display_name(id, generation, "Sample Streamer")
+    {:ok, 0} = Trials.display_name(id, "stale", "Wrong Name")
+    {:ok, %{trials: measured}} = Trials.list()
 
     assert Enum.any?(
              measured,
@@ -76,19 +106,19 @@ defmodule Ingress.TrialsTest do
                  &1.average_processing_latency_ms == 12 and &1.display_name == "Sample Streamer")
            )
 
-    assert {:ok, "pending"} = Trials.add(id)
-    assert {:ok, "stopping"} = Trials.stop(id)
-    assert {:ok, "stopping"} = Trials.stop(id)
-    assert {:ok, 1} = Trials.finish(id, "removed")
-    assert {:ok, %{active_count: 3, trials: history}} = Trials.list()
+    {:ok, "pending"} = Trials.add(id)
+    {:ok, "stopping"} = Trials.stop(id)
+    {:ok, "stopping"} = Trials.stop(id)
+    {:ok, 1} = Trials.finish(id, "removed")
+    {:ok, %{active_count: 3, trials: history}} = Trials.list()
     assert Enum.any?(history, &(&1.broadcaster_id == id && &1.state == "removed"))
   end
 
   test "lease epoch fences a second owner" do
-    assert {:ok, epoch} = Trials.acquire("owner-one")
+    {:ok, epoch} = Trials.acquire("owner-one")
     assert {:error, :owned} = Trials.acquire("owner-two")
-    assert {:ok, 1} = Trials.renew("owner-one", epoch)
-    assert {:ok, 0} = Trials.renew("owner-two", epoch)
+    {:ok, 1} = Trials.renew("owner-one", epoch)
+    {:ok, 0} = Trials.renew("owner-two", epoch)
   end
 end
 
@@ -113,50 +143,26 @@ end
 
 defmodule Ingress.TrialReceiverProtocolTest do
   use ExUnit.Case, async: false
+
+  if is_nil(System.find_executable("valkey-server")),
+    do: @moduletag(skip: "valkey-server is not installed")
+
   alias Ingress.{JSON, TrialReceiver, TrialValkey, Trials}
 
   setup do
-    if System.find_executable("valkey-server") == nil do
-      {:skip, "valkey-server is not installed"}
-    else
-      dir = Path.join(System.tmp_dir!(), "bagel-receiver-#{System.unique_integer([:positive])}")
-      File.mkdir_p!(dir)
-      socket = Path.join(dir, "valkey.sock")
-      previous = System.get_env("VALKEY_ADDR")
-      System.put_env("VALKEY_ADDR", "unix:" <> socket)
+    if System.find_executable("valkey-server") do
+      fixture = Ingress.TrialValkeyFixture.start()
       Application.put_env(:ingress, :trial_test_pid, self())
-
-      {_output, 0} =
-        System.cmd("valkey-server", [
-          "--port",
-          "0",
-          "--unixsocket",
-          socket,
-          "--save",
-          "",
-          "--appendonly",
-          "no",
-          "--daemonize",
-          "yes"
-        ])
-
-      for _ <- 1..30 do
-        if TrialValkey.command(["PING"]) != {:ok, "PONG"}, do: Process.sleep(20)
-      end
+      start_supervised!({TrialValkey, []})
+      assert :ok == Ingress.TrialValkeyFixture.await_ready()
 
       on_exit(fn ->
-        _ = TrialValkey.command(["SHUTDOWN", "NOSAVE"])
-
-        if previous,
-          do: System.put_env("VALKEY_ADDR", previous),
-          else: System.delete_env("VALKEY_ADDR")
-
+        Ingress.TrialValkeyFixture.stop(fixture)
         Application.delete_env(:ingress, :trial_test_pid)
-        File.rm_rf!(dir)
       end)
-
-      :ok
     end
+
+    :ok
   end
 
   defp frame(type, payload) do
@@ -167,7 +173,7 @@ defmodule Ingress.TrialReceiverProtocolTest do
   end
 
   test "welcome, directed reconnect and revocation update receiver state" do
-    assert {:ok, _} = Trials.add("4242")
+    {:ok, _} = Trials.add("4242")
     pid = start_supervised!({TrialReceiver, [ws_module: Ingress.TrialFakeWS]})
     assert_receive {:trial_connected, primary, _url}, 1_000
 
@@ -179,9 +185,9 @@ defmodule Ingress.TrialReceiverProtocolTest do
 
     assert :sys.get_state(pid).session_id == "s1"
 
-    assert {:ok, _} = Trials.field("4242", "state", "receiving")
-    assert {:ok, _} = Trials.field("4242", "session_id", "s1")
-    assert {:ok, _} = Trials.field("4242", "subscription_id", "sub-1")
+    {:ok, _} = Trials.field("4242", "state", "receiving")
+    {:ok, _} = Trials.field("4242", "session_id", "s1")
+    {:ok, _} = Trials.field("4242", "subscription_id", "sub-1")
 
     send(
       pid,
@@ -195,13 +201,13 @@ defmodule Ingress.TrialReceiverProtocolTest do
     send(pid, {:fake_ws, pending, [frame("session_welcome", %{session: %{id: "s2"}})]})
     assert :sys.get_state(pid).socket.id == pending
     assert :sys.get_state(pid).session_id == "s2"
-    assert {:ok, owner_session} = TrialValkey.command(["GET", "trial:owner_session"])
+    {:ok, owner_session} = TrialValkey.command(["GET", "trial:owner_session"])
     assert String.ends_with?(owner_session, ":s2")
     assert_receive {:trial_closed, ^primary}, 1_000
 
     send(pid, :tick)
     :sys.get_state(pid)
-    assert {:ok, %{trials: [%{state: "receiving", subscription_id: "sub-1"}]}} = Trials.list()
+    {:ok, %{trials: [%{state: "receiving", subscription_id: "sub-1"}]}} = Trials.list()
 
     send(
       pid,
@@ -210,20 +216,20 @@ defmodule Ingress.TrialReceiverProtocolTest do
     )
 
     :sys.get_state(pid)
-    assert {:ok, %{trials: [%{state: "failed", error: "subscription_revoked"}]}} = Trials.list()
+    {:ok, %{trials: [%{state: "failed", error: "subscription_revoked"}]}} = Trials.list()
   end
 
   test "socket opens with the first desired trial and closes after the last finishes" do
     pid = start_supervised!({TrialReceiver, [ws_module: Ingress.TrialFakeWS]})
     refute_receive {:trial_connected, _, _}, 100
-    assert {:ok, _} = Trials.add("4242")
+    {:ok, _} = Trials.add("4242")
     send(pid, :tick)
     assert_receive {:trial_connected, primary, _}, 1_000
-    assert {:ok, "stopping"} = Trials.stop("4242")
-    assert {:ok, 1} = Trials.finish("4242", "removed")
+    {:ok, "stopping"} = Trials.stop("4242")
+    {:ok, 1} = Trials.finish("4242", "removed")
     send(pid, :tick)
     :sys.get_state(pid)
     assert_receive {:trial_closed, ^primary}, 1_000
-    assert {:ok, nil} = TrialValkey.command(["GET", "trial:owner_session"])
+    {:ok, nil} = TrialValkey.command(["GET", "trial:owner_session"])
   end
 end

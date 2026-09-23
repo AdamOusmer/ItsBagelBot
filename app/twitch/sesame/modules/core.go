@@ -108,15 +108,7 @@ func bagelGreet(d engine.Deps) module.EventHandler {
 		// are discarded at outgress. Repeated trial lines can therefore each
 		// propose a greeting without changing the real channel's first-greet
 		// state if the broadcaster later registers.
-		first := true
-		if c.Env.Origin != "trial" {
-			first, err = d.Greet.FirstGreet(ctx, c.BroadcasterID, c.Env.ChatterUserID)
-			if err != nil {
-				log.Warn("core: greet check failed", c.BID(), zap.Error(err))
-				return nil
-			}
-		}
-		if !first {
+		if !greetAllowed(ctx, c, d, log) {
 			return nil
 		}
 
@@ -133,6 +125,18 @@ func bagelGreet(d engine.Deps) module.EventHandler {
 		}
 		return nil
 	}
+}
+
+func greetAllowed(ctx context.Context, c *module.Context, d engine.Deps, log *zap.Logger) bool {
+	if c.Env.Origin == "trial" {
+		return true
+	}
+	first, err := d.Greet.FirstGreet(ctx, c.BroadcasterID, c.Env.ChatterUserID)
+	if err != nil {
+		log.Warn("core: greet check failed", c.BID(), zap.Error(err))
+		return false
+	}
+	return first
 }
 
 func humanizeUptime(d time.Duration) string {

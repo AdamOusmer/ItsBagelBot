@@ -28,16 +28,8 @@ func (w *Worker) Process(msg *bus.Message) error {
 		return nil
 	}
 	annotateTxn(ctx, &payload)
-	// The origin survives queueing and trial removal. Reject before a batch can
-	// acquire its lease or dispatch any child.
-	if payload.Origin == "trial" {
-		w.countTrialBlocked(ctx, payload.BroadcasterID)
-		return nil
-	}
-	if blocked, err := w.trialBlocked(ctx, payload.BroadcasterID); err != nil || blocked {
-		if blocked {
-			w.countTrialBlocked(ctx, payload.BroadcasterID)
-		}
+	// Refuse trial output before a batch can acquire its lease.
+	if stop, err := w.rejectTrialOutput(ctx, &payload); stop {
 		return err
 	}
 
@@ -62,14 +54,7 @@ func (w *Worker) Process(msg *bus.Message) error {
 // each child; ordinary jobs call it once. Everything before Run is in-process,
 // so the only wait a message pays after this point is its own Twitch call.
 func (w *Worker) processPayload(ctx context.Context, payload *outgress.Message) error {
-	if payload.Origin == "trial" {
-		w.countTrialBlocked(ctx, payload.BroadcasterID)
-		return nil
-	}
-	if blocked, err := w.trialBlocked(ctx, payload.BroadcasterID); err != nil || blocked {
-		if blocked {
-			w.countTrialBlocked(ctx, payload.BroadcasterID)
-		}
+	if stop, err := w.rejectTrialOutput(ctx, payload); stop {
 		return err
 	}
 	act, ok := w.actions.Lookup(payload.Type)
@@ -85,6 +70,20 @@ func (w *Worker) processPayload(ctx context.Context, payload *outgress.Message) 
 		return nil
 	}
 	return act.Run(ctx, payload)
+}
+
+// The durable origin still blocks output after a trial is removed. Membership
+// is a second stop switch for messages that lack provenance.
+func (w *Worker) rejectTrialOutput(ctx context.Context, payload *outgress.Message) (bool, error) {
+	if payload.Origin == "trial" {
+		w.countTrialBlocked(ctx, payload.BroadcasterID)
+		return true, nil
+	}
+	blocked, err := w.trialBlocked(ctx, payload.BroadcasterID)
+	if blocked {
+		w.countTrialBlocked(ctx, payload.BroadcasterID)
+	}
+	return blocked, err
 }
 
 // trialBlocked is the secondary stop switch. A Valkey read error refuses

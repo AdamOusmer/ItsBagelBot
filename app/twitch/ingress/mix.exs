@@ -45,6 +45,8 @@ defmodule Ingress.MixProject do
       # Raw WebSocket over Mint: the process owns the socket lifecycle
       {:mint_web_socket, "~> 1.0"},
       {:castore, "~> 1.0"},
+      # Shared Sentinel-aware Valkey connection for trial admission and owner fencing
+      {:redix, "~> 1.9"},
       # Twitch Helix HTTP API
       {:req, "~> 0.7"},
       {:jason, "~> 1.4"},

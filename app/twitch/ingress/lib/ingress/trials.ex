@@ -176,8 +176,7 @@ defmodule Ingress.Trials do
     end
   end
 
-  def renew(owner, epoch) do
-    script = """
+  @renew_script """
     if redis.call('GET', KEYS[1]) ~= ARGV[1] then return 0 end
     redis.call('PEXPIRE', KEYS[1], 60000)
     local session = redis.call('GET', KEYS[2]) or ''
@@ -185,10 +184,9 @@ defmodule Ingress.Trials do
       redis.call('PEXPIRE', KEYS[2], 60000)
     end
     return 1
-    """
+  """
 
-    VK.command(["EVAL", script, 2, @lease, @owner_session, "#{epoch}:#{owner}", epoch])
-  end
+  def renew(owner, epoch), do: owner_script(@renew_script, owner, epoch)
 
   def owner_session(owner, epoch, session_id) when is_binary(session_id) do
     script = """
@@ -209,16 +207,19 @@ defmodule Ingress.Trials do
     ])
   end
 
-  def clear_owner_session(owner, epoch) do
-    script = """
+  @clear_owner_session_script """
     if redis.call('GET', KEYS[1]) ~= ARGV[1] then return 0 end
     local session = redis.call('GET', KEYS[2]) or ''
     if string.sub(session, 1, string.len(ARGV[2]) + 1) == ARGV[2] .. ':' then
       redis.call('DEL', KEYS[2])
     end
     return 1
-    """
+  """
 
+  def clear_owner_session(owner, epoch),
+    do: owner_script(@clear_owner_session_script, owner, epoch)
+
+  defp owner_script(script, owner, epoch) do
     VK.command(["EVAL", script, 2, @lease, @owner_session, "#{epoch}:#{owner}", epoch])
   end
 end

@@ -57,35 +57,24 @@ func TestTrialSubscriptionOwnershipScripts(t *testing.T) {
 	activate := func(epoch, generation, id, session string) string {
 		return cli("EVAL", activateTrial, "3", "trial:owner", "trial:channel:42", "trial:owner_session", epoch, generation, id, session)
 	}
-	if got := activate("8", "3", "sub-1", "session-1"); got != "0" {
-		t.Fatalf("stale epoch activated: %s", got)
-	}
-	if got := activate("9", "2", "sub-1", "session-1"); got != "0" {
-		t.Fatalf("stale generation activated: %s", got)
-	}
-	if got := activate("9", "3", "sub-1", "stale-session"); got != "0" {
-		t.Fatalf("stale session activated: %s", got)
-	}
-	if got := activate("9", "3", "sub-1", "session-1"); got != "1" {
-		t.Fatalf("valid activation failed: %s", got)
-	}
-	if got := cli("HGET", "trial:channel:42", "subscription_id"); got != "sub-1" {
-		t.Fatalf("owned ID: %s", got)
-	}
+	expectTrialResult(t, activate("8", "3", "sub-1", "session-1"), "0", "stale epoch")
+	expectTrialResult(t, activate("9", "2", "sub-1", "session-1"), "0", "stale generation")
+	expectTrialResult(t, activate("9", "3", "sub-1", "stale-session"), "0", "stale session")
+	expectTrialResult(t, activate("9", "3", "sub-1", "session-1"), "1", "valid activation")
+	expectTrialResult(t, cli("HGET", "trial:channel:42", "subscription_id"), "sub-1", "owned ID")
 	cli("HSET", "trial:channel:42", "state", "stopping")
 	release := func(epoch, generation, id string) string {
 		return cli("EVAL", releaseTrial, "2", "trial:owner", "trial:channel:42", epoch, generation, id)
 	}
-	if got := release("9", "3", "other-sub"); got != "0" {
-		t.Fatalf("arbitrary delete admitted: %s", got)
-	}
-	if got := release("8", "3", "sub-1"); got != "0" {
-		t.Fatalf("stale owner delete admitted: %s", got)
-	}
-	if got := release("9", "3", "sub-1"); got != "1" {
-		t.Fatalf("owned delete failed: %s", got)
-	}
-	if got := cli("HGET", "trial:channel:42", "subscription_id"); got != "" {
-		t.Fatalf("subscription not cleared: %s", got)
+	expectTrialResult(t, release("9", "3", "other-sub"), "0", "arbitrary delete")
+	expectTrialResult(t, release("8", "3", "sub-1"), "0", "stale owner delete")
+	expectTrialResult(t, release("9", "3", "sub-1"), "1", "owned delete")
+	expectTrialResult(t, cli("HGET", "trial:channel:42", "subscription_id"), "", "cleared ID")
+}
+
+func expectTrialResult(t *testing.T, got, want, label string) {
+	t.Helper()
+	if got != want {
+		t.Fatalf("%s: got %q, want %q", label, got, want)
 	}
 }

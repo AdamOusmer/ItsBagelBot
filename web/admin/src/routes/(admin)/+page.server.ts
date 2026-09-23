@@ -59,7 +59,17 @@ type OverviewReads = {
 
 const EMPTY_TRIALS: TrialSnapshot = { version: 1, trials: [] };
 
-function liveReads(actorId: string, days: EnrollmentWindow, withAudit: boolean, withGiveaways: boolean, withTrials: boolean): OverviewReads {
+type OverviewPermissions = {
+  withAudit: boolean;
+  withGiveaways: boolean;
+  withTrials: boolean;
+};
+
+function liveReads(
+  actorId: string,
+  days: EnrollmentWindow,
+  { withAudit, withGiveaways, withTrials }: OverviewPermissions
+): OverviewReads {
   const botId = env.ADMIN_BOT_USER_ID ?? '';
   return {
     enrollment: panel(userEnrollment(actorId, days), emptyEnrollment()),
@@ -102,7 +112,9 @@ export const load: PageServerLoad = async ({ url, parent }) => {
 
   return {
     days,
-    ...(DEMO ? demoReads(days, withAudit) : liveReads(id, days, withAudit, withGiveaways, withTrials)),
+    ...(DEMO
+      ? demoReads(days, withAudit)
+      : liveReads(id, days, { withAudit, withGiveaways, withTrials })),
     // Client-side visibility mirrors of the server ladder. The bot consent flow
     // mints a live Twitch credential, so its card is owner-only; a moderator
     // simply never sees the panel rather than being bounced by the route.
