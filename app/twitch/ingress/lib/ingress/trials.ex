@@ -19,7 +19,7 @@ defmodule Ingress.Trials do
   local generation = redis.call('INCR', KEYS[3])
   redis.call('SADD', KEYS[1], ARGV[1])
   redis.call('ZREM', KEYS[4], ARGV[1])
-  redis.call('HSET', 'trial:channel:' .. ARGV[1], 'generation', generation, 'state', 'pending', 'received', 0, 'decoded', 0, 'processed', 0, 'failed', 0, 'retried', 0, 'blocked', 0, 'latency_samples', 0, 'latency_total_ms', 0)
+  redis.call('HSET', 'trial:channel:' .. ARGV[1], 'generation', generation, 'state', 'pending', 'enabled', 1, 'received', 0, 'decoded', 0, 'processed', 0, 'failed', 0, 'retried', 0, 'blocked', 0, 'latency_samples', 0, 'latency_total_ms', 0)
   redis.call('HDEL', 'trial:channel:' .. ARGV[1], 'error', 'stop_reason', 'display_name')
   redis.call('INCR', KEYS[2])
   return tostring(generation)
@@ -30,6 +30,41 @@ defmodule Ingress.Trials do
   redis.call('HSET', 'trial:channel:' .. ARGV[1], 'state', 'stopping')
   redis.call('INCR', KEYS[2])
   return 'stopping'
+  """
+
+  @set_enabled_script """
+  if redis.call('SISMEMBER', KEYS[1], ARGV[1]) == 0 then return 'absent' end
+  local key = 'trial:channel:' .. ARGV[1]
+  if redis.call('HGET', key, 'state') == 'stopping' then return 'stopping' end
+  local current = redis.call('HGET', key, 'enabled') or '1'
+  if current == ARGV[2] then return redis.call('HGET', key, 'state') or 'pending' end
+  local state = 'disabled'
+  if ARGV[2] == '1' and not redis.call('HGET', key, 'subscription_id') then
+    state = 'pending'
+  end
+  redis.call('HSET', key, 'enabled', ARGV[2], 'state', state)
+  redis.call('HDEL', key, 'error')
+  redis.call('INCR', KEYS[2])
+  return state
+  """
+
+  @admit_script """
+  if redis.call('SISMEMBER', KEYS[1], ARGV[1]) == 0 then return 'inactive' end
+  if redis.call('HGET', KEYS[2], 'generation') ~= ARGV[2] then return 'inactive' end
+  if redis.call('HGET', KEYS[2], 'enabled') == '0' then return 'inactive' end
+  if redis.call('HGET', KEYS[2], 'state') ~= 'receiving' then return 'inactive' end
+  if not redis.call('SET', KEYS[3], '1', 'NX', 'EX', 120) then return 'duplicate' end
+  redis.call('HINCRBY', KEYS[2], 'received', 1)
+  return 'first'
+  """
+
+  @fail_script """
+  if redis.call('HGET', KEYS[1], 'generation') ~= ARGV[1] then return 0 end
+  if redis.call('HGET', KEYS[1], 'enabled') == '0' then return 0 end
+  local state = redis.call('HGET', KEYS[1], 'state')
+  if state == 'stopping' or state == 'disabled' then return 0 end
+  redis.call('HSET', KEYS[1], 'state', 'failed', 'error', ARGV[2])
+  return 1
   """
 
   @finish_script """
@@ -57,7 +92,7 @@ defmodule Ingress.Trials do
            VK.command(["EVAL", @add_script, 4, @members, @revision, @generation, @history, id]) do
       case value do
         "full" -> {:error, "full"}
-        "duplicate" -> {:ok, "pending"}
+        "duplicate" -> {:ok, "duplicate"}
         generation -> {:ok, generation}
       end
     else
@@ -68,6 +103,17 @@ defmodule Ingress.Trials do
 
   def stop(id) do
     case VK.command(["EVAL", @stop_script, 2, @members, @revision, id]) do
+      {:ok, state} -> {:ok, state}
+      {:error, _} -> {:error, "unavailable"}
+    end
+  end
+
+  def set_enabled(id, enabled) when is_boolean(enabled) do
+    value = if enabled, do: "1", else: "0"
+
+    case VK.command(["EVAL", @set_enabled_script, 2, @members, @revision, id, value]) do
+      {:ok, "absent"} -> {:error, "not_found"}
+      {:ok, "stopping"} -> {:error, "stopping"}
       {:ok, state} -> {:ok, state}
       {:error, _} -> {:error, "unavailable"}
     end
@@ -112,6 +158,7 @@ defmodule Ingress.Trials do
               %{
                 broadcaster_id: id,
                 state: row["state"] || "pending",
+                enabled: row["enabled"] != "0",
                 error: row["error"],
                 generation: row["generation"],
                 display_name: row["display_name"],
@@ -149,6 +196,9 @@ defmodule Ingress.Trials do
 
   def field(id, name, value), do: VK.command(["HSET", "trial:channel:" <> id, name, value])
 
+  def fail(id, generation, reason),
+    do: VK.command(["EVAL", @fail_script, 1, "trial:channel:" <> id, generation, reason])
+
   def display_name(id, generation, name) when is_binary(name) and name != "" do
     script = """
     if redis.call('HGET', KEYS[1], 'generation') ~= ARGV[1] then return 0 end
@@ -161,10 +211,20 @@ defmodule Ingress.Trials do
 
   def increment(id, name), do: VK.command(["HINCRBY", "trial:channel:" <> id, name, 1])
 
-  def dedup(id, chat_id) do
-    case VK.command(["SET", "trial:dedup:" <> id <> ":" <> chat_id, "1", "NX", "EX", 120]) do
-      {:ok, "OK"} -> :first
-      {:ok, nil} -> :duplicate
+  def admit(id, generation, chat_id) do
+    case VK.command([
+           "EVAL",
+           @admit_script,
+           3,
+           @members,
+           "trial:channel:" <> id,
+           "trial:dedup:" <> id <> ":" <> chat_id,
+           id,
+           generation
+         ]) do
+      {:ok, "first"} -> :first
+      {:ok, "duplicate"} -> :duplicate
+      {:ok, "inactive"} -> :inactive
       _ -> :unavailable
     end
   end

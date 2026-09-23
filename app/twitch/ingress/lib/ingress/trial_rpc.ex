@@ -8,52 +8,63 @@ defmodule Ingress.TrialRpc do
   def reply_list do
     case Trials.list() do
       {:ok, result} ->
-        Map.put(result, :admission_enabled, admission_enabled?())
+        result
 
       {:error, _} ->
         %{
           error: "unavailable",
           version: 0,
           active_count: 0,
-          admission_enabled: admission_enabled?(),
           trials: []
         }
     end
   end
 
   def reply_add(body) do
-    if admission_enabled?() do
-      with {:ok, %{"broadcaster_id" => id}} <- JSON.decode(body),
-           true <- Trials.valid_id?(id),
-           {:ok, false} <- registered?(id),
-           {:ok, _generation} <- Trials.add(id) do
-        case registered?(id) do
-          {:ok, false} ->
-            %{broadcaster_id: id, state: "pending"}
+    with {:ok, %{"broadcaster_id" => id}} <- JSON.decode(body),
+         true <- Trials.valid_id?(id),
+         {:ok, false} <- registered?(id),
+         {:ok, result} <- Trials.add(id) do
+      case registered?(id) do
+        {:ok, false} ->
+          if result == "duplicate",
+            do: %{broadcaster_id: id, state: "existing"},
+            else: %{broadcaster_id: id, state: "pending", enabled: true}
 
-          {:ok, true} ->
-            Trials.stop(id)
-            Trials.field(id, "stop_reason", "promoted")
-            %{error: "already_registered"}
+        {:ok, true} ->
+          Trials.stop(id)
+          Trials.field(id, "stop_reason", "promoted")
+          %{error: "already_registered"}
 
-          _ ->
-            Trials.stop(id)
-            Trials.field(id, "stop_reason", "registration_check_unavailable")
-            %{error: "unavailable"}
-        end
-      else
-        false -> %{error: "invalid_id"}
-        {:ok, true} -> %{error: "already_registered"}
-        {:error, "full"} -> %{error: "full"}
-        {:error, "invalid_id"} -> %{error: "invalid_id"}
-        _ -> %{error: "unavailable"}
+        _ ->
+          Trials.stop(id)
+          Trials.field(id, "stop_reason", "registration_check_unavailable")
+          %{error: "unavailable"}
       end
     else
-      %{error: "admission_disabled"}
+      false -> %{error: "invalid_id"}
+      {:ok, true} -> %{error: "already_registered"}
+      {:error, "full"} -> %{error: "full"}
+      {:error, "invalid_id"} -> %{error: "invalid_id"}
+      _ -> %{error: "unavailable"}
     end
   end
 
-  defp admission_enabled?, do: System.get_env("TRIAL_ADMISSION_ENABLED", "off") == "on"
+  def reply_set_enabled(body) do
+    with {:ok, %{"broadcaster_id" => id, "enabled" => enabled}} <- JSON.decode(body),
+         true <- Trials.valid_id?(id),
+         true <- is_boolean(enabled),
+         {:ok, false} <- if(enabled, do: registered?(id), else: {:ok, false}),
+         {:ok, state} <- Trials.set_enabled(id, enabled) do
+      %{broadcaster_id: id, enabled: enabled, state: state}
+    else
+      false -> %{error: "invalid_request"}
+      {:ok, true} -> %{error: "already_registered"}
+      {:error, "not_found"} -> %{error: "not_found"}
+      {:error, "stopping"} -> %{error: "stopping"}
+      _ -> %{error: "unavailable"}
+    end
+  end
 
   def reply_remove(body) do
     with {:ok, %{"broadcaster_id" => id}} <- JSON.decode(body),
@@ -103,4 +114,11 @@ defmodule Ingress.TrialRemoveRpc do
   alias Ingress.{JSON, TrialRpc}
   @impl true
   def request(%{body: body}), do: {:reply, JSON.encode(TrialRpc.reply_remove(body))}
+end
+
+defmodule Ingress.TrialSetEnabledRpc do
+  use Ingress.RpcServer, log: "trial set enabled rpc"
+  alias Ingress.{JSON, TrialRpc}
+  @impl true
+  def request(%{body: body}), do: {:reply, JSON.encode(TrialRpc.reply_set_enabled(body))}
 end
