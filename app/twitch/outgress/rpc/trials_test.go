@@ -55,6 +55,9 @@ func TestTrialSubscriptionOwnershipScripts(t *testing.T) {
 	expectTrialResult(t, activate("8", "3", "sub-1", "session-1"), "0", "stale epoch")
 	expectTrialResult(t, activate("9", "2", "sub-1", "session-1"), "0", "stale generation")
 	expectTrialResult(t, activate("9", "3", "sub-1", "stale-session"), "0", "stale session")
+	cli("HSET", "trial:channel:42", "enabled", "0")
+	expectTrialResult(t, activate("9", "3", "sub-1", "session-1"), "0", "disabled activation")
+	cli("HSET", "trial:channel:42", "enabled", "1")
 	expectTrialResult(t, activate("9", "3", "sub-1", "session-1"), "1", "valid activation")
 	expectTrialResult(t, cli("HGET", "trial:channel:42", "subscription_id"), "sub-1", "owned ID")
 	cli("HSET", "trial:channel:42", "state", "stopping")
@@ -65,6 +68,13 @@ func TestTrialSubscriptionOwnershipScripts(t *testing.T) {
 	expectTrialResult(t, release("8", "3", "sub-1"), "0", "stale owner delete")
 	expectTrialResult(t, release("9", "3", "sub-1"), "1", "owned delete")
 	expectTrialResult(t, cli("HGET", "trial:channel:42", "subscription_id"), "", "cleared ID")
+
+	cli("HSET", "trial:channel:42", "state", "disabled", "enabled", "0", "subscription_id", "sub-2")
+	expectTrialResult(t, release("9", "3", "sub-2"), "1", "disabled release")
+	expectTrialResult(t, cli("HGET", "trial:channel:42", "state"), "disabled", "stays disabled")
+	cli("HSET", "trial:channel:42", "state", "disabled", "enabled", "1", "subscription_id", "sub-3")
+	expectTrialResult(t, release("9", "3", "sub-3"), "1", "rapid re-enable release")
+	expectTrialResult(t, cli("HGET", "trial:channel:42", "state"), "pending", "ready to recreate")
 }
 
 func requireValkeyExecutables(t *testing.T) {

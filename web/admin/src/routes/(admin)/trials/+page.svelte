@@ -5,6 +5,7 @@
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
+  import Switch from '@bagel/ui/svelte/Switch.svelte';
   import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
   import type { TrialSnapshot } from '$lib/server/services';
   import { getI18n } from '@bagel/kit/i18n/context';
@@ -62,7 +63,6 @@
   />
 
   {#if degraded}<AlertBanner>{t('admin.trials.degraded')}</AlertBanner>{/if}
-  {#if snapshot && !snapshot.admission_enabled}<AlertBanner variant="warn">{t('admin.trials.admissionDisabled')}</AlertBanner>{/if}
   {#if form?.error}<AlertBanner>{form.error}</AlertBanner>{/if}
   {#if form?.notice}<AlertBanner variant="warn" role="status">{form.notice}</AlertBanner>{/if}
 
@@ -79,7 +79,7 @@
       required
       bind:value={broadcasterId}
     />
-    <Button type="submit" disabled={degraded || !snapshot?.admission_enabled || activeCount >= 4}>{t('admin.trials.add')}</Button>
+    <Button type="submit" disabled={degraded || activeCount >= 4}>{t('admin.trials.add')}</Button>
   </form>
   <p class="trial-note">{t('admin.trials.note')}</p>
 
@@ -108,12 +108,25 @@
                 {t('admin.trials.latency', { count: String(trial.average_processing_latency_ms ?? 0) })}
               </small>
             </div>
-            {#if trial.state !== 'stopping'}
-              <form method="POST" action="?/remove">
+            <div class="trial-controls">
+              <form method="POST" action="?/set_enabled" class="trial-switch">
+                <span aria-hidden="true">{trial.enabled ? t('admin.trials.on') : t('admin.trials.off')}</span>
                 <input type="hidden" name="broadcaster_id" value={trial.broadcaster_id} />
-                <Button type="submit" variant="destructive">{t('admin.trials.remove')}</Button>
+                <input type="hidden" name="enabled" value={trial.enabled ? 'false' : 'true'} />
+                <Switch
+                  type="submit"
+                  checked={trial.enabled}
+                  label={t('admin.trials.toggleLabel', { name: trial.display_name?.trim() || trial.broadcaster_id })}
+                  disabled={degraded || trial.state === 'stopping'}
+                />
               </form>
-            {/if}
+              {#if trial.state !== 'stopping'}
+                <form method="POST" action="?/remove">
+                  <input type="hidden" name="broadcaster_id" value={trial.broadcaster_id} />
+                  <Button type="submit" variant="destructive">{t('admin.trials.remove')}</Button>
+                </form>
+              {/if}
+            </div>
           </li>
         {/each}
       </ul>
@@ -148,11 +161,13 @@
   .trial-add input { min-height: 2.75rem; padding: .5rem .75rem; border: 1px solid var(--line, #777); border-radius: .4rem; background: var(--surface, transparent); color: inherit; }
   .trial-note, .trial-count { opacity: .75; }
   .trial-list { list-style: none; margin: 1.25rem 0; padding: 0; display: grid; gap: .75rem; }
-  .trial-list li { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1rem; border: 1px solid var(--line, #777); border-radius: .6rem; }
+  .trial-list li { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; padding: 1rem; border: 1px solid var(--line, #777); border-radius: .6rem; }
   .trial-main { display: grid; gap: .35rem; }
   .trial-state { text-transform: capitalize; }
   .trial-state[data-state='receiving'] { color: #43865b; }
   .trial-state[data-state='failed'], .trial-error { color: #c84949; }
   .trial-main small { opacity: .75; }
   .trial-id { opacity: .7; font-size: .75rem; }
+  .trial-controls, .trial-switch { display: flex; align-items: center; flex-wrap: wrap; gap: .75rem; }
+  .trial-switch span { font-size: .875rem; }
 </style>

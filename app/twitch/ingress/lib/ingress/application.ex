@@ -167,6 +167,12 @@ defmodule Ingress.Application do
         Ingress.TrialRemoveRpc,
         "twitch.ingress.admin.trials.remove",
         queue_group: @admin_queue
+      ),
+      rpc_consumer_child(
+        :trial_set_enabled_consumer,
+        Ingress.TrialSetEnabledRpc,
+        "twitch.ingress.admin.trials.set_enabled",
+        queue_group: @admin_queue
       )
     ]
   end

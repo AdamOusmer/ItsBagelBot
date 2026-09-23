@@ -106,7 +106,7 @@ defmodule Ingress.TrialsTest do
                  &1.average_processing_latency_ms == 12 and &1.display_name == "Sample Streamer")
            )
 
-    {:ok, "pending"} = Trials.add(id)
+    {:ok, "duplicate"} = Trials.add(id)
     {:ok, "stopping"} = Trials.stop(id)
     {:ok, "stopping"} = Trials.stop(id)
     {:ok, 1} = Trials.finish(id, "removed")
@@ -119,6 +119,43 @@ defmodule Ingress.TrialsTest do
     assert {:error, :owned} = Trials.acquire("owner-two")
     {:ok, 1} = Trials.renew("owner-one", epoch)
     {:ok, 0} = Trials.renew("owner-two", epoch)
+  end
+
+  test "disabled rows retain their slot and counters while atomic admission rejects stale frames" do
+    {:ok, generation} = Trials.add("42")
+    {:ok, _} = Trials.field("42", "state", "receiving")
+    assert :first == Trials.admit("42", generation, "message-1")
+    assert :duplicate == Trials.admit("42", generation, "message-1")
+
+    assert {:ok, "disabled"} == Trials.set_enabled("42", false)
+    assert :inactive == Trials.admit("42", generation, "message-2")
+    assert {:ok, "duplicate"} == Trials.add("42")
+    assert {:ok, %{active_count: 1, trials: [row]}} = Trials.list()
+    assert row.enabled == false
+    assert row.state == "disabled"
+    assert row.received == 1
+
+    for id <- ["43", "44", "45"], do: assert({:ok, _} = Trials.add(id))
+    assert {:error, "full"} == Trials.add("46")
+
+    assert {:ok, "pending"} == Trials.set_enabled("42", true)
+    assert :inactive == Trials.admit("42", generation, "message-3")
+    {:ok, _} = Trials.field("42", "state", "receiving")
+    assert :first == Trials.admit("42", generation, "message-3")
+    assert :inactive == Trials.admit("42", "stale-generation", "message-4")
+    assert {:error, "not_found"} == Trials.set_enabled("46", false)
+  end
+
+  test "rapid re-enable drains the old subscription before permitting a new one" do
+    {:ok, generation} = Trials.add("42")
+    {:ok, _} = Trials.field("42", "state", "receiving")
+    {:ok, _} = Trials.field("42", "subscription_id", "old-sub")
+    assert {:ok, "disabled"} == Trials.set_enabled("42", false)
+    assert {:ok, "disabled"} == Trials.set_enabled("42", true)
+    assert :inactive == Trials.admit("42", generation, "message-1")
+
+    assert {:ok, %{trials: [%{enabled: true, state: "disabled", subscription_id: "old-sub"}]}} =
+             Trials.list()
   end
 end
 
@@ -231,5 +268,25 @@ defmodule Ingress.TrialReceiverProtocolTest do
     :sys.get_state(pid)
     assert_receive {:trial_closed, ^primary}, 1_000
     {:ok, nil} = TrialValkey.command(["GET", "trial:owner_session"])
+  end
+
+  test "a disabled channel rejects a frame still present in the receiver snapshot" do
+    {:ok, _} = Trials.add("4242")
+    {:ok, _} = Trials.field("4242", "state", "receiving")
+    pid = start_supervised!({TrialReceiver, [ws_module: Ingress.TrialFakeWS]})
+    assert_receive {:trial_connected, primary, _url}, 1_000
+    assert :sys.get_state(pid).rows["4242"].state == "receiving"
+
+    {:ok, "disabled"} = Trials.set_enabled("4242", false)
+    assert :sys.get_state(pid).rows["4242"].enabled == true
+
+    payload = %{
+      subscription: %{type: "channel.chat.message"},
+      event: %{broadcaster_user_id: "4242", message_id: "after-disable"}
+    }
+
+    send(pid, {:fake_ws, primary, [frame("notification", payload)]})
+    :sys.get_state(pid)
+    assert {:ok, %{trials: [%{received: 0, enabled: false}]}} = Trials.list()
   end
 end

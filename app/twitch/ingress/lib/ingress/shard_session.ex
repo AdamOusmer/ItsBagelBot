@@ -639,8 +639,7 @@ defmodule Ingress.ShardSession do
 
     with true <- is_binary(chat_id),
          false <- chat_id == "",
-         :first <- Ingress.Trials.dedup(admission.broadcaster_id, chat_id),
-         {:ok, _} <- Ingress.Trials.increment(admission.broadcaster_id, "received") do
+         :first <- Ingress.Trials.admit(admission.broadcaster_id, generation, chat_id) do
       Ingress.Dispatcher.dispatch(
         payload,
         Map.merge(

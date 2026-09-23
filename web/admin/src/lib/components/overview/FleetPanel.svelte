@@ -81,10 +81,10 @@
           <div class="node-list">
             {#each [...activeTrials].sort((a, b) => (a.display_name || a.broadcaster_id).localeCompare(b.display_name || b.broadcaster_id)) as trial (trial.broadcaster_id)}
               <div class="node-row">
-                <StatusDot tone={statusTone(trial.state === 'receiving' ? 'online' : 'degraded')} />
+                <StatusDot tone={statusTone(!trial.enabled ? 'unavailable' : trial.state === 'receiving' ? 'online' : 'degraded')} />
                 <span class="nm">{trial.display_name?.trim() || trial.broadcaster_id}</span>
                 <span class="sv">{trial.display_name?.trim() ? t('admin.shards.trialBroadcasterId', { id: trial.broadcaster_id }) : ''}</span>
-                <span class="pg">{t(`admin.trials.state.${trial.state}`)}</span>
+                <span class="pg">{trial.enabled ? t(`admin.trials.state.${trial.state}`) : t('admin.trials.off')}</span>
               </div>
             {/each}
           </div>

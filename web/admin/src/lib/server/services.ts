@@ -179,7 +179,8 @@ export const shardAutoscale = defineWrite({
 export interface TrialChannel {
   broadcaster_id: string;
   display_name?: string;
-  state: 'pending' | 'receiving' | 'stopping' | 'promoted' | 'removed' | 'failed';
+  enabled: boolean;
+  state: 'pending' | 'receiving' | 'disabled' | 'stopping' | 'promoted' | 'removed' | 'failed';
   error?: string;
   received?: number;
   decoded?: number;
@@ -193,11 +194,10 @@ export interface TrialChannel {
 export interface TrialSnapshot {
   version: number;
   active_count?: number;
-  admission_enabled?: boolean;
   trials: TrialChannel[];
 }
 
-export type TrialMutationReply = Pick<TrialChannel, 'broadcaster_id' | 'state'>;
+export type TrialMutationReply = Pick<TrialChannel, 'broadcaster_id' | 'state'> & Partial<Pick<TrialChannel, 'enabled'>>;
 
 export function trialList(): Promise<TrialSnapshot> {
   return rpc<TrialSnapshot>(`${SUB.trials}.list`, {});
@@ -209,6 +209,10 @@ export function trialAdd(broadcasterId: string): Promise<TrialMutationReply> {
 
 export function trialRemove(broadcasterId: string): Promise<TrialMutationReply> {
   return rpc<TrialMutationReply>(`${SUB.trials}.remove`, { broadcaster_id: broadcasterId });
+}
+
+export function trialSetEnabled(broadcasterId: string, enabled: boolean): Promise<TrialMutationReply> {
+  return rpc<TrialMutationReply>(`${SUB.trials}.set_enabled`, { broadcaster_id: broadcasterId, enabled });
 }
 
 // ── Refusal codes ───────────────────────────────────────────────────────────
