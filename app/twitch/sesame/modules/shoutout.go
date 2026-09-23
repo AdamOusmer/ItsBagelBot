@@ -12,7 +12,6 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/pkg/codec"
-	"ItsBagelBot/pkg/tmpl"
 )
 
 const defaultShoutoutTemplate = "Massive shoutout to {raider} for the raid with {viewers} viewers! Check them out at twitch.tv/{raider.login}"
@@ -66,18 +65,11 @@ func Shoutout(_ engine.Deps) module.Module {
 		if raider == "" {
 			raider = ev.FromBroadcasterUserLogin
 		}
-		msg := module.ExpandString(text, func(tok tmpl.Token) (string, bool) {
-			switch tok.Key() {
-			case "raider":
-				return strings.TrimPrefix(raider, "@"), true
-			case "raider.login":
-				return strings.TrimPrefix(ev.FromBroadcasterUserLogin, "@"), true
-			case "viewers":
-				return strconv.Itoa(ev.Viewers), true
-			default:
-				return tmpl.Dynamic(tok)
-			}
-		})
+		msg := module.KV(
+			"raider", strings.TrimPrefix(raider, "@"),
+			"raider.login", strings.TrimPrefix(ev.FromBroadcasterUserLogin, "@"),
+			"viewers", strconv.Itoa(ev.Viewers),
+		).WithLocale(module.Locale(c.Locale)).ExpandString(text)
 
 		// The raid event names the receiving channel as to_broadcaster_user_id.
 		emit(&module.Output{

@@ -11,7 +11,6 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/outgress"
-	"ItsBagelBot/pkg/tmpl"
 )
 
 // replyKey names one localized line. A named type over the i18n key keeps the
@@ -52,32 +51,24 @@ func newGameReplier(c *module.Context, pointsName string) chatReplier {
 // reply emits one chat line. override is the broadcaster's customized template
 // ("" for the fixed system lines, or an uncustomized customizable one); when
 // empty the localized default for key is used. kv are {token},value pairs
-// (token names without braces); {user} (the invoking chatter) and the generic
-// dynamic vars ({random}, {choice:…}) are always available, so a customized
-// template can use them too.
+// (token names without braces); {user} (the invoking chatter) and the pure
+// family ({random}, {choice:…}, {math:…}, {countdown:…}, …) are always
+// available, so a customized template can use them too.
 func (g chatReplier) reply(emit module.Emit, override string, key replyKey, kv ...string) {
 	line := override
 	if line == "" {
 		line = i18n.T(g.c.Locale, string(key))
 	}
-	text := module.ExpandString(line, func(tok tmpl.Token) (string, bool) {
-		name := tok.Key()
-		// kv is the variadic list this one call was given (never more than a
-		// handful), so the scan is shorter than building a map would be — and
-		// the map would be rebuilt for every reply anyway.
-		for i := 0; i+1 < len(kv); i += 2 {
-			if kv[i] == name {
-				return kv[i+1], true
-			}
-		}
-		switch {
-		case name == "user":
-			return g.c.Env.ChatterUserLogin, true
-		case name == "points" && g.points != "":
-			return g.points, true
-		}
-		return tmpl.Dynamic(tok)
-	})
+	// Common gives {user}/{channel} plus the pure family fallback ({random},
+	// {choice:…}, {math:…}, {countdown:…}, …); {points} merges in ahead of
+	// kv so a caller's own "points" pair (there has never been one) would
+	// still win, matching the lookup order this switch used to run by hand.
+	p := module.Common(g.c)
+	if g.points != "" {
+		p = p.Merge(module.KV("points", g.points))
+	}
+	p = p.Merge(module.KV(kv...))
+	text := p.ExpandString(line)
 	emit(&module.Output{
 		Type:          outgress.TypeChat,
 		BroadcasterID: g.c.Env.BroadcasterUserID,

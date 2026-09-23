@@ -16,7 +16,6 @@ import (
 	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/pkg/codec"
-	"ItsBagelBot/pkg/tmpl"
 
 	"go.uber.org/zap"
 )
@@ -179,6 +178,17 @@ type alertLine struct {
 	tokens        map[string]string
 }
 
+// tokenPairs turns a token map into the (name, value, …) pairs module.KV
+// wants. Map order is irrelevant here: Palette.Resolve looks names up by
+// equality, never by position.
+func tokenPairs(m map[string]string) []string {
+	out := make([]string, 0, len(m)*2)
+	for k, v := range m {
+		out = append(out, k, v)
+	}
+	return out
+}
+
 // onAlert builds the shared handler shell every alert uses: read the toggle
 // and custom template out of the module config, decode the event subset, ask
 // render for the destination and token values, and emit the expanded line.
@@ -207,12 +217,7 @@ func onAlert[T any](pick func(alertsConfig) (bool, string), fallbackKey string, 
 		if text == "" {
 			text = i18n.T(c.Locale, fallbackKey)
 		}
-		msg := module.ExpandString(text, func(tok tmpl.Token) (string, bool) {
-			if v, found := line.tokens[tok.Key()]; found {
-				return v, true
-			}
-			return tmpl.Dynamic(tok)
-		})
+		msg := module.KV(tokenPairs(line.tokens)...).WithLocale(module.Locale(c.Locale)).ExpandString(text)
 		emit(&module.Output{
 			Type:          outgress.TypeChat,
 			BroadcasterID: line.broadcasterID,

@@ -98,10 +98,12 @@ func TestMentionListAndTokens(t *testing.T) {
 	assert.Equal(t, "@a, @b", mentionList([]string{"a", "b"}))
 	assert.Empty(t, mentionList(nil))
 
-	out := expandTokens("{targets} won {count}/{entrants}",
-		"targets", "@x", "count", "2", "entrants", "9")
+	out := expandTokens("", tokenExpansion{
+		text: "{targets} won {count}/{entrants}",
+		kv:   []string{"targets", "@x", "count", "2", "entrants", "9"},
+	})
 	assert.Equal(t, "@x won 2/9", out)
-	assert.Equal(t, "{unknown} stays", expandTokens("{unknown} stays"))
+	assert.Equal(t, "{unknown} stays", expandTokens("", tokenExpansion{text: "{unknown} stays"}))
 }
 
 // TestExpandTokensReadsTheSpanGrammar pins the two behaviours the raffle
@@ -112,11 +114,11 @@ func TestMentionListAndTokens(t *testing.T) {
 func TestExpandTokensReadsTheSpanGrammar(t *testing.T) {
 	// Token names fold. The replacer matched "{targets}" byte for byte, so a
 	// broadcaster who capitalised a token got braces printed in chat.
-	assert.Equal(t, "@x won", expandTokens("{TARGETS} won", "targets", "@x"))
-	assert.Equal(t, "@x won", expandTokens("{Targets} won", "targets", "@x"))
+	assert.Equal(t, "@x won", expandTokens("", tokenExpansion{text: "{TARGETS} won", kv: []string{"targets", "@x"}}))
+	assert.Equal(t, "@x won", expandTokens("", tokenExpansion{text: "{Targets} won", kv: []string{"targets", "@x"}}))
 	// The '|' fallback shipped with the args PR; the replacer was the last
 	// surface that did not honour it.
-	assert.Equal(t, "nobody won", expandTokens("{targets|nobody} won", "targets", ""))
+	assert.Equal(t, "nobody won", expandTokens("", tokenExpansion{text: "{targets|nobody} won", kv: []string{"targets", ""}}))
 	// A fallback still does not rescue an unknown name.
-	assert.Equal(t, "{missing|x}", expandTokens("{missing|x}"))
+	assert.Equal(t, "{missing|x}", expandTokens("", tokenExpansion{text: "{missing|x}"}))
 }

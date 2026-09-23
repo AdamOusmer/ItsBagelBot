@@ -190,11 +190,11 @@ func cmdLink(ctx context.Context, c *module.Context, d engine.Deps, emit module.
 		slug = c.Env.BroadcasterUserID
 	}
 	link := fmt.Sprintf("%s/user/%s", strings.TrimRight(base, "/"), slug)
-	text := strings.NewReplacer(
-		"{user}", c.Env.ChatterName(),
-		"{channel}", channel,
-		"{url}", link,
-	).Replace(i18n.T(c.Locale, "cmd.link"))
+	text := module.KV(
+		"user", c.Env.ChatterName(),
+		"channel", channel,
+		"url", link,
+	).WithLocale(module.Locale(c.Locale)).ExpandString(i18n.T(c.Locale, "cmd.link"))
 	emit(&module.Output{
 		Type:          outgress.TypeChat,
 		BroadcasterID: c.Env.BroadcasterUserID,
@@ -205,10 +205,10 @@ func cmdLink(ctx context.Context, c *module.Context, d engine.Deps, emit module.
 // cmdPageOff replies with the one-liner for a hidden commands page, in place
 // of the URL that would otherwise 404.
 func cmdPageOff(c *module.Context, emit module.Emit, channel string) {
-	text := strings.NewReplacer(
-		"{user}", c.Env.ChatterName(),
-		"{channel}", channel,
-	).Replace(i18n.T(c.Locale, "cmd.page_off"))
+	text := module.KV(
+		"user", c.Env.ChatterName(),
+		"channel", channel,
+	).WithLocale(module.Locale(c.Locale)).ExpandString(i18n.T(c.Locale, "cmd.page_off"))
 	emit(&module.Output{
 		Type:          outgress.TypeChat,
 		BroadcasterID: c.Env.BroadcasterUserID,
@@ -217,8 +217,8 @@ func cmdPageOff(c *module.Context, emit module.Emit, channel string) {
 }
 
 // reply emits a chat message with {user} and {command} variable expansion.
-func reply(c *module.Context, emit module.Emit, tmpl, user, command string) {
-	text := strings.NewReplacer("{user}", user, "{command}", command).Replace(tmpl)
+func reply(c *module.Context, emit module.Emit, line, user, command string) {
+	text := module.KV("user", user, "command", command).WithLocale(module.Locale(c.Locale)).ExpandString(line)
 	emit(&module.Output{
 		Type:          outgress.TypeChat,
 		BroadcasterID: c.Env.BroadcasterUserID,

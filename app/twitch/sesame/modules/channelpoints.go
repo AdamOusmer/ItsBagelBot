@@ -12,7 +12,6 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/pkg/codec"
-	"ItsBagelBot/pkg/tmpl"
 
 	"go.uber.org/zap"
 )
@@ -137,7 +136,12 @@ func ChannelPoints(d engine.Deps) module.Module {
 			awardRewardPoints(d, c, binding, ev)
 			counterValue = bumpRewardCounter(ctx, d, c, binding, ev)
 		}
-		emitRewardAction(binding, ev, counterValue, emit)
+		emitRewardAction(rewardChatParams{
+			locale:       c.Locale,
+			binding:      binding,
+			event:        ev,
+			counterValue: counterValue,
+		}, emit)
 		emitRedemptionResolution(binding, ev, emit)
 		return nil
 	})
@@ -221,14 +225,26 @@ func findBinding(rewards []rewardBinding, rewardID string) (rewardBinding, bool)
 	return rewardBinding{}, false
 }
 
+// rewardChatParams bundles a redemption's chat-action inputs. It exists so
+// emitRewardAction/expandReward take one param each instead of the
+// locale/binding/event/counter grab-bag they used to pass around
+// individually — the four always travel together (one redemption, one
+// binding, one resolved counter value) and never vary independently.
+type rewardChatParams struct {
+	locale       string
+	binding      rewardBinding
+	event        redemptionEvent
+	counterValue string
+}
+
 // emitRewardAction runs the binding's chat action. A "none" (or unknown) action
 // does nothing, leaving only the resolution policy to act.
-func emitRewardAction(b rewardBinding, ev redemptionEvent, counterValue string, emit module.Emit) {
-	if b.Action != rewardActionChat {
+func emitRewardAction(p rewardChatParams, emit module.Emit) {
+	if p.binding.Action != rewardActionChat {
 		return
 	}
-	if msg := expandReward(orDefault(b.Message, defaultRewardChatTemplate), ev, counterValue, b.Points); msg != "" {
-		emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: ev.BroadcasterUserID, Text: msg})
+	if msg := expandReward(p); msg != "" {
+		emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: p.event.BroadcasterUserID, Text: msg})
 	}
 }
 
@@ -253,35 +269,47 @@ func emitRedemptionResolution(b rewardBinding, ev redemptionEvent, emit module.E
 	})
 }
 
+// sanitizeRewardInput strips a leading slash/space run from viewer-typed
+// reward text, mirroring the engine's sanitizeVar for command {args}. With
+// slash-verbs now routed on every emit path, a template leading with
+// {input} must not let a redeemer mint /announce (or any verb) as the bot —
+// a redeemer's text can become the start of a chat line. Non-leading
+// slashes (URLs) are untouched.
+//
+// Shared by every reward surface that exposes {input} (channelpoints,
+// songqueue_redeem) so the same template behaves identically wherever a
+// broadcaster pastes it: songqueue_redeem used to skip this and channelpoints
+// did not, which meant a "{input}" template was safe on one reward and not
+// the other.
+func sanitizeRewardInput(raw string) string {
+	return strings.TrimLeft(raw, " /")
+}
+
 // expandReward substitutes the reward template tokens: {user} the redeemer's
-// display name, {input} the text they typed, {reward} the reward title, {cost}
-// the point cost, {channel} the broadcaster login, {counter} the bound
-// counter's new value (when the binding has one), {points} the loyalty points
-// the binding awards (when positive), plus the dynamic set.
-func expandReward(text string, ev redemptionEvent, counterValue string, points int64) string {
-	return module.ExpandString(text, func(tok tmpl.Token) (string, bool) {
-		switch tok.Key() {
-		case "user":
-			return strings.TrimPrefix(displayName(ev.UserName, ev.UserLogin), "@"), true
-		case "input":
-			// {input} is viewer-typed text. With slash-verbs now routed on
-			// every emit path, a template leading with {input} must not let a
-			// redeemer mint /announce (or any verb) as the bot: strip a
-			// leading slash/space run, mirroring the engine's sanitizeVar for
-			// command {args}. Non-leading slashes (URLs) are untouched.
-			return strings.TrimLeft(ev.UserInput, " /"), true
-		case "reward":
-			return ev.Reward.Title, true
-		case "cost":
-			return strconv.Itoa(ev.Reward.Cost), true
-		case "channel":
-			return ev.BroadcasterUserLogin, true
-		case "counter":
-			return counterValue, counterValue != ""
-		case "points":
-			return strconv.FormatInt(points, 10), points > 0
-		default:
-			return tmpl.Dynamic(tok)
-		}
-	})
+// display name, {input} the text they typed (sanitized, see
+// sanitizeRewardInput), {reward} the reward title, {cost} the point cost,
+// {channel} the broadcaster login, {counter} the bound counter's new value
+// (when the binding has one), {points} the loyalty points the binding awards
+// (when positive), plus the pure family ({random}, {choice:…}, {math:…}, …).
+func expandReward(p rewardChatParams) string {
+	ev := p.event
+	kv := []string{
+		"user", strings.TrimPrefix(displayName(ev.UserName, ev.UserLogin), "@"),
+		"input", sanitizeRewardInput(ev.UserInput),
+		"reward", ev.Reward.Title,
+		"cost", strconv.Itoa(ev.Reward.Cost),
+		"channel", ev.BroadcasterUserLogin,
+	}
+	// counter and points are omitted rather than bound empty when the
+	// binding has neither: an omitted name falls through Resolve to the pure
+	// family (literal for an unknown name), the same "not filled in" signal
+	// the old switch's ok=false gave.
+	if p.counterValue != "" {
+		kv = append(kv, "counter", p.counterValue)
+	}
+	if p.binding.Points > 0 {
+		kv = append(kv, "points", strconv.FormatInt(p.binding.Points, 10))
+	}
+	text := orDefault(p.binding.Message, defaultRewardChatTemplate)
+	return module.KV(kv...).WithLocale(module.Locale(p.locale)).ExpandString(text)
 }

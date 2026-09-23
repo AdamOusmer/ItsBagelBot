@@ -1,9 +1,9 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import type { ModuleDef } from './module-def';
+import { replyTokens, type ModuleDef } from './module-def';
 
-export const CHANNELPOINTS_MODULE: ModuleDef = 
+export const CHANNELPOINTS_MODULE: ModuleDef =
 {
   id: 'channelpoints',
   label: 'Channel Points',
@@ -16,5 +16,34 @@ export const CHANNELPOINTS_MODULE: ModuleDef =
   // Channel Points is its own delegation grant (see SECTIONS in the settings
   // page), not part of the blanket 'modules' one.
   delegateSections: ['channelpoints'],
-  replies: []
+  // No row renders from this: each reward binds its own chat template on the
+  // bespoke /channelpoints page (rewards is an array, not one Configs key),
+  // which is why this entry carries no command/messageKey a generic editor
+  // row would read. It exists so the token palette (replyTokens, below) has
+  // one place to live for the reply-token parity handshake
+  // (app/twitch/sesame/modules/reply_tokens.go's "channelpoints.reply") and
+  // for whoever wires the bespoke page's own token autocomplete to reuse.
+  replies: [
+    {
+      key: 'reply',
+      label: 'Reward chat reply',
+      tagline: 'What the bot posts when a bound reward is redeemed.',
+      event: 'on redemption',
+      messageKey: 'message',
+      defaultMessage: '{user} redeemed {reward}!',
+      tokens: replyTokens(
+        ['user', 'input', 'reward', 'cost', 'channel', 'counter', 'points'],
+        {
+          user: 'sesame_sam',
+          input: 'hello chat',
+          reward: 'Say Hi',
+          cost: '500',
+          channel: 'streamer',
+          counter: '12',
+          points: '50'
+        },
+        'channelpoints.reply'
+      )
+    }
+  ]
 };

@@ -12,7 +12,6 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/outgress"
-	"ItsBagelBot/pkg/tmpl"
 	"ItsBagelBot/pkg/tzname"
 
 	"go.uber.org/zap"
@@ -105,12 +104,7 @@ func timeLookupReply(c *module.Context, now time.Time, place string) string {
 // normalized query, so chat sees back what it typed even after case-folding
 // and accent-stripping.
 func unknownPlaceReply(c *module.Context, place string) string {
-	return module.ExpandString(i18n.T(c.Locale, "time.unknown"), func(tok tmpl.Token) (string, bool) {
-		if tok.Key() == "place" {
-			return place, true
-		}
-		return tmpl.Dynamic(tok)
-	})
+	return module.KV("place", place).WithLocale(module.Locale(c.Locale)).ExpandString(i18n.T(c.Locale, "time.unknown"))
 }
 
 // timeRender is one instant ready to print: the local time plus the strings
@@ -124,23 +118,38 @@ type timeRender struct {
 	place    string
 }
 
+// timeReplySpec is every token the shared expander below can fill in for
+// EITHER of its two callers: timeHomeReply's cfg.Message (documented as
+// time.time in reply_tokens.go) and timeLookupReply's cfg.LookupMessage
+// (time.lookup). One spec binds both because it is one expander — {place}
+// resolves to "" on the home path, which never carries it in practice but
+// resolves harmlessly if it did, same as before this moved onto Palette.
+var timeReplySpec = module.Spec{Entries: []module.SpecEntry{
+	{Name: "time", Doc: "the local clock time, formatted per the module's Format setting"},
+	{Name: "date", Doc: "the local date, e.g. \"Monday, January 2\""},
+	{Name: "timezone", Doc: "the resolved timezone name or offset"},
+	{Name: "place", Doc: "the looked-up place name (place lookups only)"},
+	{Name: "user", Doc: "the invoking chatter's display name"},
+}}
+
 // expandTimeTemplate fills a reply template's tokens from one timeRender.
 // Both the home reply and the place lookup share it.
 func expandTimeTemplate(text string, r timeRender, c *module.Context) string {
-	return module.ExpandString(text, func(tok tmpl.Token) (string, bool) {
-		switch tok.Key() {
+	p := timeReplySpec.Bind(func(name string) func() string {
+		switch name {
 		case "time":
-			return engine.FormatClock(r.local, r.format), true
+			return func() string { return engine.FormatClock(r.local, r.format) }
 		case "date":
-			return r.local.Format("Monday, January 2"), true
+			return func() string { return r.local.Format("Monday, January 2") }
 		case "timezone":
-			return r.timezone, true
+			return func() string { return r.timezone }
 		case "place":
-			return r.place, true
+			return func() string { return r.place }
 		case "user":
-			return strings.TrimPrefix(c.Env.ChatterName(), "@"), true
+			return func() string { return strings.TrimPrefix(c.Env.ChatterName(), "@") }
 		default:
-			return tmpl.Dynamic(tok)
+			return func() string { return "" }
 		}
-	})
+	}).WithLocale(module.Locale(c.Locale))
+	return p.ExpandString(text)
 }

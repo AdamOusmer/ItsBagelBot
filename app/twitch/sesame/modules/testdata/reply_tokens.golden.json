@@ -21,6 +21,15 @@
       "target",
       "user"
     ],
+    "channelpoints.reply": [
+      "channel",
+      "cost",
+      "counter",
+      "input",
+      "points",
+      "reward",
+      "user"
+    ],
     "fortnite.stats": [
       "duokd",
       "duomatches",
@@ -43,6 +52,11 @@
       "count",
       "date",
       "items"
+    ],
+    "govee.reply": [
+      "color",
+      "input",
+      "user"
     ],
     "mcsr.elo": [
       "country",
@@ -117,17 +131,33 @@
       "wins"
     ],
     "queue.join": [
+      "channel",
       "pos",
       "user"
     ],
     "queue.next": [
+      "channel",
       "count",
-      "target"
+      "target",
+      "user"
     ],
     "shoutout.shoutout": [
       "raider",
       "raider.login",
       "viewers"
+    ],
+    "songqueue.redeem": [
+      "input",
+      "pos",
+      "track",
+      "user"
+    ],
+    "time.lookup": [
+      "date",
+      "place",
+      "time",
+      "timezone",
+      "user"
     ],
     "time.time": [
       "date",

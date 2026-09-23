@@ -43,7 +43,7 @@ export const TIME_MODULE: ModuleDef =
         place: 'Tokyo',
         timezone: 'Asia/Tokyo',
         user: 'Viewer'
-      })
+      }, 'time.lookup')
     }
   ],
   settings: [

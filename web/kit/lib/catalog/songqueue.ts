@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import type { ModuleDef } from './module-def';
+import { replyTokens, type ModuleDef } from './module-def';
 
 export const SONGQUEUE_MODULE: ModuleDef = {
   id: 'songqueue',
@@ -12,14 +12,31 @@ export const SONGQUEUE_MODULE: ModuleDef = {
   category: 'Gear',
   defaultEnabled: false,
   // The generic reply page cannot express OAuth custody + the reward editor,
-  // so the tile opens the bespoke songqueue page instead.
+  // so the tile opens the bespoke songqueue page instead; this entry exists
+  // for the reply-token parity handshake (reply_tokens.go's
+  // "songqueue.redeem") and a future token autocomplete on that page, not
+  // for a generic row.
   href: '/songqueue',
   // A channel-points delegate opens this page too: the reward that queues a
   // song is created and edited here, not on the Channel Points tab, so
   // scoping it to 'modules' alone would lock out the person who manages the
   // rewards. (govee carries the same pair for the same reason.)
   delegateSections: ['modules', 'channelpoints'],
-  replies: [],
+  replies: [
+    {
+      key: 'redeem',
+      label: 'Redeem reply',
+      tagline: 'What the bot posts when the queue reward is redeemed.',
+      event: 'on redemption',
+      messageKey: 'replyMessage',
+      defaultMessage: '@{user} queued {track}, position #{pos}.',
+      tokens: replyTokens(
+        ['user', 'track', 'input', 'pos'],
+        { user: 'sesame_sam', track: 'Song Title', input: 'song title', pos: '3' },
+        'songqueue.redeem'
+      )
+    }
+  ],
   // The engine registers `sr` (aliases songrequest/songreq), which routes
   // leading verbs, plus the standalone `song` (aliases current/nowplaying/np),
   // `skip` (alias next), `clear` and `remove`. The standalones matter: without

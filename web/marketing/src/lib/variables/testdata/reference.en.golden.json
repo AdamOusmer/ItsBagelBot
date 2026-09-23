@@ -68,6 +68,16 @@
         "syntax": "{channel}",
         "output": "your_channel",
         "surfaceId": "channelpoints"
+      },
+      {
+        "syntax": "{channel}",
+        "output": "streamer",
+        "surfaceId": "queue-join"
+      },
+      {
+        "syntax": "{channel}",
+        "output": "streamer",
+        "surfaceId": "queue-next"
       }
     ],
     "name": "Channel name",
@@ -81,7 +91,9 @@
     "aliasTokens": [],
     "surfaceIds": [
       "custom",
-      "channelpoints"
+      "channelpoints",
+      "queue-join",
+      "queue-next"
     ],
     "surfaces": [
       {
@@ -95,6 +107,18 @@
         "group": "Chat tools",
         "label": "Channel Points reward reply",
         "dashPath": "/channelpoints"
+      },
+      {
+        "id": "queue-join",
+        "group": "Play Queue",
+        "label": "Queue: join confirmation",
+        "dashPath": "/modules/queue"
+      },
+      {
+        "id": "queue-next",
+        "group": "Play Queue",
+        "label": "Queue: next player up",
+        "dashPath": "/modules/queue"
       }
     ],
     "requirementIds": [],
@@ -274,6 +298,11 @@
         "syntax": "{user}",
         "output": "sesame_sam",
         "surfaceId": "queue-join"
+      },
+      {
+        "syntax": "{user}",
+        "output": "sesame_sam",
+        "surfaceId": "queue-next"
       }
     ],
     "name": "Viewer name",
@@ -299,7 +328,8 @@
       "clip",
       "time",
       "channelpoints",
-      "queue-join"
+      "queue-join",
+      "queue-next"
     ],
     "surfaces": [
       {
@@ -360,6 +390,12 @@
         "id": "queue-join",
         "group": "Play Queue",
         "label": "Queue: join confirmation",
+        "dashPath": "/modules/queue"
+      },
+      {
+        "id": "queue-next",
+        "group": "Play Queue",
+        "label": "Queue: next player up",
         "dashPath": "/modules/queue"
       }
     ],
@@ -3552,9 +3588,9 @@
         "surfaceId": "channelpoints"
       }
     ],
-    "name": "Point cost",
+    "name": "replyVars.channelpoints.cost.name",
     "hint": "",
-    "description": "What the reward costs.",
+    "description": "replyVars.channelpoints.cost.desc",
     "category": "rewards",
     "categories": [
       "rewards"
@@ -3602,9 +3638,9 @@
         "surfaceId": "channelpoints"
       }
     ],
-    "name": "Viewer input",
+    "name": "replyVars.channelpoints.input.name",
     "hint": "",
-    "description": "The text typed with the redemption (when the reward asks for one).",
+    "description": "replyVars.channelpoints.input.desc",
     "category": "rewards",
     "categories": [
       "rewards"
@@ -3652,9 +3688,9 @@
         "surfaceId": "channelpoints"
       }
     ],
-    "name": "Reward title",
+    "name": "replyVars.channelpoints.reward.name",
     "hint": "",
-    "description": "The name of the redeemed reward.",
+    "description": "replyVars.channelpoints.reward.desc",
     "category": "rewards",
     "categories": [
       "rewards"

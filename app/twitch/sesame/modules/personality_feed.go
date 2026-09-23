@@ -13,7 +13,6 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/outgress"
-	"ItsBagelBot/pkg/tmpl"
 
 	"go.uber.org/zap"
 )
@@ -126,20 +125,12 @@ func feedBoardName(entry engine.FeedBoardEntry) string {
 }
 
 // feedText renders one localized line. kv are {token},value pairs; {user} (the
-// invoking chatter) is always available, matching the quotes commands.
+// invoking chatter) and the pure family ({random}, {choice:…}, {math:…}, …)
+// are always available, matching the quotes commands via the same
+// Common+KV composition chatReplier.reply uses (modules/reply.go).
 func feedText(c *module.Context, key string, kv ...string) string {
-	return module.ExpandString(i18n.T(c.Locale, key), func(tok tmpl.Token) (string, bool) {
-		name := tok.Key()
-		for i := 0; i+1 < len(kv); i += 2 {
-			if kv[i] == name {
-				return kv[i+1], true
-			}
-		}
-		if name == "user" {
-			return c.Env.ChatterUserLogin, true
-		}
-		return tmpl.Dynamic(tok)
-	})
+	p := module.Common(c).Merge(module.KV(kv...))
+	return p.ExpandString(i18n.T(c.Locale, key))
 }
 
 func feedEmit(c *module.Context, emit module.Emit, text string) {

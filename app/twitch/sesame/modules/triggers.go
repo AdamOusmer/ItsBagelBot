@@ -14,7 +14,6 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/pkg/codec"
-	"ItsBagelBot/pkg/tmpl"
 )
 
 // maxTriggers caps how many trigger rules the module evaluates per message. A
@@ -60,8 +59,9 @@ func newTriggerWord(phrase, response, match string) triggerWord {
 // chatter display name that fills {user} in a response. Bundling the two keeps
 // the matchers method-shaped instead of threading raw strings everywhere.
 type triggerLine struct {
-	text string
-	user string
+	text   string
+	user   string
+	locale string
 }
 
 // Triggers is the trigger-words module: it watches ordinary chat and, when a
@@ -89,7 +89,7 @@ func triggersOnChat(_ context.Context, c *module.Context, emit module.Emit) erro
 	if parsed.err != nil {
 		return parsed.err
 	}
-	line := triggerLine{text: text, user: strings.TrimPrefix(c.Env.ChatterName(), "@")}
+	line := triggerLine{text: text, user: strings.TrimPrefix(c.Env.ChatterName(), "@"), locale: c.Locale}
 	reply, ok := line.firstReply(parsed.rules)
 	if !ok {
 		return nil
@@ -284,8 +284,9 @@ func splitMode(phrase string) (mode, rest string) {
 }
 
 // firstReply returns the expanded response of the first rule that matches the
-// line, or ok=false when none do. {user} resolves to the chatter name; {random}
-// and {choice:…} resolve through the shared dynamic vars.
+// line, or ok=false when none do. {user} resolves to the chatter name; the
+// pure family ({random}, {choice:…}, {math:…}, {countdown:…}, …) resolves
+// through the shared fallback.
 func (l triggerLine) firstReply(rules []triggerWord) (string, bool) {
 	// Lowercased once for the whole scan rather than once per rule: the loop
 	// runs up to maxTriggers (50) times per chat message and every mode wants
@@ -296,12 +297,7 @@ func (l triggerLine) firstReply(rules []triggerWord) (string, bool) {
 		if !tw.matches(text) {
 			continue
 		}
-		msg := module.ExpandString(tw.Response, func(tok tmpl.Token) (string, bool) {
-			if tok.Key() == "user" {
-				return l.user, true
-			}
-			return tmpl.Dynamic(tok)
-		})
+		msg := module.KV("user", l.user).WithLocale(module.Locale(l.locale)).ExpandString(tw.Response)
 		if msg == "" {
 			return "", false
 		}
