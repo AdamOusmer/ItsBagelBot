@@ -41,6 +41,12 @@ func validateTokenFamily(t *testing.T, family TokenFamily, familyIDs map[string]
 	for _, example := range family.Examples {
 		validateTokenExample(t, family.ID, example, seen)
 	}
+	// Aliases go through the same lexer check as Examples: a stale or
+	// malformed alias spelling is exactly as wrong as a malformed example, and
+	// parity.test.ts trusts these to be real, resolvable spans.
+	for _, alias := range family.Aliases {
+		validateTokenExample(t, family.ID, alias, seen)
+	}
 }
 
 func validateTokenExample(t *testing.T, familyID, example string, seen map[string]string) {
@@ -52,8 +58,13 @@ func validateTokenExample(t *testing.T, familyID, example string, seen map[strin
 	if toks[0].Raw != example {
 		t.Fatalf("family %q: Lex(%q) raw = %q, want original spelling", familyID, example, toks[0].Raw)
 	}
+	// An empty name is a real span only for the positional leading slice
+	// ({:m}, message family): everywhere else it is the catalogue accidentally
+	// carrying "{}" or "{:notanumber}", which is worth failing loudly on.
 	if toks[0].Name == "" {
-		t.Fatalf("family %q: Lex(%q) produced an empty variable name", familyID, example)
+		if _, ok := positionalIndex(toks[0].Payload); !ok {
+			t.Fatalf("family %q: Lex(%q) produced an empty variable name", familyID, example)
+		}
 	}
 	if previous, ok := seen[toks[0].Name]; ok && previous != familyID {
 		t.Fatalf("token %q appears in families %q and %q", toks[0].Name, previous, familyID)
@@ -66,7 +77,7 @@ func ExampleCommandTokenFamilies() {
 		fmt.Printf("%s: %d examples\n", family.ID, len(family.Examples))
 	}
 	// Output:
-	// message: 12 examples
+	// message: 14 examples
 	// pure: 8 examples
 	// chatters: 2 examples
 	// emotes: 4 examples

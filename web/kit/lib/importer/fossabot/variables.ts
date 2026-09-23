@@ -13,7 +13,7 @@
 // cross-checked against every token the live myth directory actually uses):
 //
 //	$(user) / $(sender)              → {user}     (both mean the caller)
-//	$(user.id)                       → {userid}
+//	$(user.id)                       → {user.id}
 //	$(user.login)                    → {user.login}
 //	$(touser)                        → {touser}
 //	$(channel)                       → {channel}
@@ -27,7 +27,7 @@
 //	everything else                  → literal + warn
 //
 // The two $(user.…) subfields are the only dotted spellings with a token on
-// this side, and they are NOT the same value as $(user): {userid} is the
+// this side, and they are NOT the same value as $(user): {user.id} is the
 // stable platform id and {user.login} the lower-case login, while {user} is
 // the display name, so folding either onto {user} would change what chat
 // reads. The word-number family maps straight across (same 1-based meaning,
@@ -72,7 +72,7 @@
 // spelling nobody has observed. A response that wanted one keeps the
 // literal+warn path that sends it to review.
 //
-// The emote catalog ({7tvemotes}, {bttvemotes}, {ffzemotes},
+// The emote catalog ({emotes:7tv}, {emotes:bttv}, {emotes:ffz},
 // {random.emote}) gains no mapping for the same checked reason: the table
 // above carries no emote-list variable at all. Fossabot's own emote handling
 // is a moderation setting, not something a response can print, so there is
@@ -174,7 +174,7 @@ export const SIMPLE_TOKENS: Record<string, string> = {
 // ("<head><rest>"), onto its token here. It is matched before SIMPLE_TOKENS so
 // $(user.id) reads as a subfield rather than as $(user) with leftovers.
 export const SUBFIELD_TOKENS: Record<string, string> = {
-  'user.id': '{userid}',
+  'user.id': '{user.id}',
   'user.login': '{user.login}'
 };
 

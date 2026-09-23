@@ -34,9 +34,29 @@ func TestEmoteListsRenderTheirOwnProvider(t *testing.T) {
 	cat := loaded([]string{"PagMan", "Clap"}, []string{"KEKW"}, []string{"LUL", "ZULUL"})
 	chain := emoteChain(cat, 0, nil)
 
-	assert.Equal(t, "PagMan Clap", render(t, "{7tvemotes}", chain, nil))
-	assert.Equal(t, "KEKW", render(t, "{bttvemotes}", chain, nil))
-	assert.Equal(t, "LUL ZULUL", render(t, "{ffzemotes}", chain, nil))
+	assert.Equal(t, "PagMan Clap", render(t, "{emotes:7tv}", chain, nil))
+	assert.Equal(t, "KEKW", render(t, "{emotes:bttv}", chain, nil))
+	assert.Equal(t, "LUL ZULUL", render(t, "{emotes:ffz}", chain, nil))
+}
+
+// TestEmoteListLegacyAliases pins the three pre-simplification bare spellings
+// (SevenTVEmotesToken etc.): each must resolve identically to its canonical
+// {emotes:<provider>} form, and the provider payload folds case the way a
+// broadcaster might type it ({emotes:7TV}).
+func TestEmoteListLegacyAliases(t *testing.T) {
+	cat := loaded([]string{"PagMan", "Clap"}, []string{"KEKW"}, []string{"LUL", "ZULUL"})
+	tests := []struct{ canonical, legacy string }{
+		{"{emotes:7tv}", "{7tvemotes}"},
+		{"{emotes:bttv}", "{bttvemotes}"},
+		{"{emotes:ffz}", "{ffzemotes}"},
+	}
+	for _, tt := range tests {
+		chain := emoteChain(cat, 0, nil)
+		assert.Equal(t, render(t, tt.canonical, chain, nil), render(t, tt.legacy, chain, nil), tt.legacy)
+	}
+
+	chain := emoteChain(cat, 0, nil)
+	assert.Equal(t, "PagMan Clap", render(t, "{emotes:7TV}", chain, nil), "the provider payload folds case")
 }
 
 // A set that loaded EMPTY and a catalog that has not refreshed yet answer the

@@ -222,6 +222,15 @@ function buildCatalog(): VariableReference[] {
   // something unrelated that happens to share the spelling. Matching by
   // head still correctly merges the shared dynamic tokens ({random},
   // {choice}), which really are the same variable on every surface.
+  //
+  // Head-matching is the FALLBACK, not the rule, because it breaks on a form
+  // whose own lexer head disagrees with its variable's: positional's {:m}
+  // form lexes to the empty name (not "positional"), so byHead.get('') found
+  // nothing and minted a bogus record (id "", syntax "{}"). A VarDef built
+  // from a kit VariableForm carries kitId (see builder.ts's kitVarDef) for
+  // exactly this reason — it names its own owner directly, so this loop never
+  // has to re-derive it from the form text. Only a hand-written module-reply
+  // VarDef (no kit variable behind it) falls through to byHead.
   const byHead = new Map(KIT_VARIABLES.map((def) => [def.head, def]));
   const byId = new Map<string, Draft>(KIT_VARIABLES.map((def) => [def.id, kitRecord(def)]));
 
@@ -229,8 +238,7 @@ function buildCatalog(): VariableReference[] {
     for (const variable of surface.vars) {
       const parsed = tokenParts(variable.token);
       if (!parsed) continue;
-      const owner = byHead.get(parsed.name);
-      const id = owner?.id ?? parsed.name;
+      const id = variable.kitId ?? byHead.get(parsed.name)?.id ?? parsed.name;
       let record = byId.get(id);
       if (!record) {
         record = surfaceOnlyRecord(id, variable, surface.id);

@@ -488,8 +488,10 @@ func (p *api) failureReply(err error) ([]byte, time.Duration, error) {
 		// only when the broadcaster relinks a key.
 		return marshalReply(gossiprpc.FetchBadDef, nil), negativeTTL, nil
 	case errors.Is(err, core.ErrWARPDown):
-		// The untrusted lane failed closed. "limited" tells sesame to say
-		// [source unavailable] — honest, transient, nobody's fault in chat.
+		// The untrusted lane failed closed. "limited" tells sesame to render
+		// the token empty — honest and transient, and it lets the
+		// broadcaster's own {urlfetch:x|fallback} decide what chat sees
+		// rather than the bot speaking in its own voice.
 		return marshalReply(gossiprpc.FetchLimited, nil), 0, nil
 	}
 	return nil, 0, err // timeouts and everything else: propagate uncached
@@ -512,9 +514,9 @@ func upstreamStatusReply(ue *core.UpstreamError, err error) ([]byte, time.Durati
 // classify maps a propagated infrastructure error onto a status. Everything
 // reaching here was already deemed uncachable. A transport-class failure —
 // anything where no usable response arrived (refused, DNS, TLS, deadline) —
-// lands in the timeout family, which is exactly the bucket sesame renders as
-// "[source timed out]" for infra trouble; only an ANSWERED-but-bad upstream
-// says upstream_error.
+// lands in the timeout family, which is exactly the bucket sesame renders
+// empty (letting the template's own |fallback speak) for infra trouble; only
+// an ANSWERED-but-bad upstream says upstream_error.
 func (p *api) classify(err error) gossiprpc.FetchStatus {
 	switch {
 	case timeoutClass(err):

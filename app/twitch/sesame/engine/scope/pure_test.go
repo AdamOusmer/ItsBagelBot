@@ -106,7 +106,7 @@ func TestRepeatRefusesAnOverlongLine(t *testing.T) {
 }
 
 func TestQuerystringEscapesTheWholeArgumentString(t *testing.T) {
-	msg := Message{Args: "hello world & friends"}
+	msg := Message{Words: []string{"hello", "world", "&", "friends"}}
 	chain := Chain{Pure{}, msg}
 	toks := tmpl.Lex("{querystring} {queryescape:hello world & friends}")
 	values := chain.Plan(context.Background(), toks, nil)
@@ -128,7 +128,7 @@ func TestQuerystringIsEmptyWithoutArguments(t *testing.T) {
 func TestQuerystringRejectsAPayload(t *testing.T) {
 	// {querystring:x} is not a token: it stays literal like any other name
 	// the palette does not have.
-	chain := Chain{Message{Args: "hi"}}
+	chain := Chain{Message{Words: []string{"hi"}}}
 	toks := tmpl.Lex("{querystring:x}")
 	values := chain.Plan(context.Background(), toks, nil)
 	assert.Equal(t, "{querystring:x}", string(chain.Render(nil, toks, values)))

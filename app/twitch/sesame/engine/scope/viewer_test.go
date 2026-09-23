@@ -111,10 +111,19 @@ func TestViewerReadsOneBalanceForPointsAndWatchTime(t *testing.T) {
 	chain := Chain{Viewer{Sender: "alice", Balances: balances}}
 
 	assert.Equal(t, "1280 bagels, 2 hours, 30 minutes watched; bob has 4",
-		render(t, "{points} {pointsname}, {watchtime} watched; bob has {points:bob}", chain, nil))
+		render(t, "{points} {points.name}, {watchtime} watched; bob has {points:bob}", chain, nil))
 	assert.Equal(t, []string{"alice", "bob"}, balances.asked,
 		"{points} and {watchtime} are two fields of one read")
 	assert.Equal(t, 1, balances.names)
+}
+
+// TestViewerPointsNameLegacyAlias pins PointsNameLegacyToken: {pointsname} is
+// the pre-simplification spelling of {points.name} and must resolve
+// identically, not merely to the same value by coincidence of the fixture.
+func TestViewerPointsNameLegacyAlias(t *testing.T) {
+	balances := &fakeBalances{currency: "bagels"}
+	chain := Chain{Viewer{Sender: "alice", Balances: balances}}
+	assert.Equal(t, render(t, "{points.name}", chain, nil), render(t, "{pointsname}", chain, nil))
 }
 
 // A viewer this channel could not resolve renders empty rather than "0",

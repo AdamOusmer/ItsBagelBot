@@ -128,19 +128,23 @@ export const COMMAND_SAMPLES: Samples = {
   args: ARGS_SAMPLE,
   touser: TOUSER_SAMPLE,
   channel: CHANNEL_SAMPLE,
-  userid: USERID_SAMPLE,
+  'user.id': USERID_SAMPLE,
   'user.login': USER_LOGIN_SAMPLE,
   command: COMMAND_SAMPLE
 };
 
 /** The message scope resolves each pair to one value ({user}/{sender} are both
  * the chatter, {touser}/{target} both the mentioned name), so the alias
- * canonicalizes before lookup and a single override covers its partner. */
-const COMMAND_ALIASES: Samples = { sender: 'user', target: 'touser' };
+ * canonicalizes before lookup and a single override covers its partner.
+ * {userid} is the pre-simplification spelling of {user.id} (scope.
+ * messageAliases), kept resolving the same way. */
+const COMMAND_ALIASES: Samples = { sender: 'user', target: 'touser', userid: 'user.id' };
 
 /** The fixed names the message scope owns, matching scope.Message's
- * messageFields table. The positional names ({1}…{30}) are not listed: they
- * are recognized by shape, like the Go scope's positionalIndex. */
+ * messageFields table plus its one legacy alias. The positional names
+ * ({1}…{30}) are not listed: they are recognized by shape, like the Go
+ * scope's positionalIndex — and neither is the empty name ({:m}), recognized
+ * the same way (see messageOwns). */
 const MESSAGE_NAMES = new Set([
   'user',
   'sender',
@@ -148,6 +152,7 @@ const MESSAGE_NAMES = new Set([
   'touser',
   'target',
   'channel',
+  'user.id',
   'userid',
   'user.login',
   'command',
@@ -447,12 +452,16 @@ function messageScope(samples: Samples): SampleScope {
 
 /** The message scope's ownership, as a plain predicate: it is asked outside
  * the chain too (see resolvedWithoutSample), because this is the ONE scope
- * whose values a caller supplies. */
+ * whose values a caller supplies. The empty name is the {:m} leading-slice
+ * form (scope.Message.Owns("") === true); a bad payload on it ({}, {:x},
+ * {:}) is still OWNED here and messageSample is what turns it literal, the
+ * same split every payload-taking token in this grammar uses. */
 function messageOwns(name: string): boolean {
-  return MESSAGE_NAMES.has(name) || positionalIndex(name) !== null;
+  return MESSAGE_NAMES.has(name) || positionalIndex(name) !== null || name === '';
 }
 
 function messageSample(token: Token, samples: Samples): string | null {
+  if (token.name === '') return leadingSliceSample(token, samples);
   if (positionalIndex(token.name) !== null) return positionalSample(token, samples);
   if (token.payload !== null) return null;
   // {querystring} is derived from the args sample rather than carried as one,
@@ -473,22 +482,45 @@ function positionalIndex(name: string): number | null {
   return n <= MAX_POSITIONAL ? n : null;
 }
 
-/** {n} is word n of the {args} sample, {n:} is words n to the end.
- *
- * Derived from the args sample rather than carrying samples of its own, the
- * way the engine derives them from the same argument string: a surface that
- * overrides {args} gets positional samples that agree with it, instead of a
- * preview where {1} contradicts {args}. A word past the end resolves to the
- * empty string (not null), so the span's fallback renders exactly as it would
- * in chat. Any other payload is the {n:m} slice this grammar does not have,
- * so it stays literal. */
+/** The {args} sample split into words, the way the engine splits Words from
+ * the argument line. Every positional/slice sample reads from this so a
+ * surface overriding {args} gets positional and slice samples that agree
+ * with it. */
+function argWords(samples: Samples): string[] {
+  return (samples.args ?? '').split(/\s+/).filter((word) => word !== '');
+}
+
+/** {n} is word n; {n:} is words n..end; {n:m} is words n..m inclusive — the
+ * same grammar and clamps as scope.Message.positional/slice: m past the end
+ * clamps to the end, m before n or non-numeric stays literal, and n itself
+ * past the end resolves to "" (not null) so the span's fallback renders
+ * exactly as it would in chat. */
 function positionalSample(token: Token, samples: Samples): string | null {
   const n = positionalIndex(token.name);
   if (n === null) return null;
-  if (token.payload !== null && token.payload !== '') return null;
-  const words = (samples.args ?? '').split(/\s+/).filter((word) => word !== '');
+  const words = argWords(samples);
+  if (token.payload === null) return n > words.length ? '' : words[n - 1];
+  if (token.payload === '') return wordSlice(words, n, words.length);
+  const m = positionalIndex(token.payload);
+  if (m === null || m < n) return null;
+  return wordSlice(words, n, m);
+}
+
+/** {:m}: the empty name with a numeric payload is words 1..m, same rules as
+ * {n:m}. Every other empty-name span ({}, {:}, {:x}) stays literal. */
+function leadingSliceSample(token: Token, samples: Samples): string | null {
+  if (token.payload === null) return null;
+  const m = positionalIndex(token.payload);
+  if (m === null) return null;
+  return wordSlice(argWords(samples), 1, m);
+}
+
+/** Words n..end inclusive, space-joined; end clamps to the word count, and n
+ * past the word count renders "" rather than null (a resolved-empty span, so
+ * its fallback fires — matching scope.Message.slice). */
+function wordSlice(words: string[], n: number, end: number): string {
   if (n > words.length) return '';
-  return token.payload === null ? words[n - 1] : words.slice(n - 1).join(' ');
+  return words.slice(n - 1, Math.min(end, words.length)).join(' ');
 }
 
 /** scope.Viewer's mirror: the tokens that describe ONE viewer through a
@@ -518,12 +550,16 @@ const VIEWER_SAMPLES: Samples = {
 };
 
 const VIEWER_SCOPE: SampleScope = {
-  owns: (name) => name in VIEWER_SAMPLES || name === 'pointsname',
+  owns: (name) => name in VIEWER_SAMPLES || name === 'points.name' || name === 'pointsname',
   get: viewerSample
 };
 
 function viewerSample(token: Token): string | null {
-  if (token.name === 'pointsname') return token.payload === null ? POINTS_NAME_SAMPLE : null;
+  // {points.name} is the canonical spelling; {pointsname} is the pre-
+  // simplification alias scope.PointsNameLegacyToken keeps resolving.
+  if (token.name === 'points.name' || token.name === 'pointsname') {
+    return token.payload === null ? POINTS_NAME_SAMPLE : null;
+  }
   // A payload is the named-viewer form; an empty one names nobody, exactly as
   // an empty login does in the engine.
   if (token.payload !== null && token.payload.trim().replace(/^@/, '') === '') return null;
@@ -575,7 +611,7 @@ const CHATTER_SCOPE: SampleScope = {
   get: (token) => (token.payload === null ? CHATTER_SAMPLES[token.name] : null)
 };
 
-/** scope.Emotes' mirror: the three provider lists and {random.emote}.
+/** scope.Emotes' mirror: {emotes:<provider>} and {random.emote}.
  *
  * Mounted here always, and in chat whenever the service loads the catalog at
  * all — no module gates these, because the codes are refreshed for the
@@ -589,8 +625,11 @@ const CHATTER_SCOPE: SampleScope = {
  * A catalog that has not loaded yet renders empty rather than literal, so a
  * fallback speaks.
  *
- * None of the four takes a payload, so a span carrying one stays literal,
- * matching the Go scope. */
+ * {7tvemotes}/{bttvemotes}/{ffzemotes} are the pre-simplification bare
+ * spellings (scope's SevenTVEmotesToken etc.), kept resolving the same lists.
+ * None of the four legacy names or {random.emote} takes a payload, so a span
+ * carrying one stays literal, matching the Go scope; {emotes:<provider>} is
+ * the one name here where a payload is the point. */
 const EMOTE_SAMPLES: Samples = {
   '7tvemotes': SEVENTV_EMOTES_SAMPLE,
   bttvemotes: BTTV_EMOTES_SAMPLE,
@@ -598,10 +637,24 @@ const EMOTE_SAMPLES: Samples = {
   'random.emote': RANDOM_EMOTE_SAMPLE
 };
 
-const EMOTE_SCOPE: SampleScope = {
-  owns: (name) => name in EMOTE_SAMPLES,
-  get: (token) => (token.payload === null ? EMOTE_SAMPLES[token.name] : null)
+/** {emotes:<provider>} payload dispatch, matching scope.emoteProviders. */
+const EMOTE_PROVIDER_SAMPLES: Samples = {
+  '7tv': SEVENTV_EMOTES_SAMPLE,
+  bttv: BTTV_EMOTES_SAMPLE,
+  ffz: FFZ_EMOTES_SAMPLE
 };
+
+const EMOTE_SCOPE: SampleScope = {
+  owns: (name) => name in EMOTE_SAMPLES || name === 'emotes',
+  get: emoteSample
+};
+
+function emoteSample(token: Token): string | null {
+  if (token.name === 'emotes') {
+    return token.payload === null ? null : (EMOTE_PROVIDER_SAMPLES[token.payload.toLowerCase()] ?? null);
+  }
+  return token.payload === null ? EMOTE_SAMPLES[token.name] : null;
+}
 
 /** scope.Channel's mirror: {uptime}, {title}, {game} and {channel.viewers},
  * the four facts about the channel rather than the person who ran the
@@ -618,7 +671,12 @@ const EMOTE_SCOPE: SampleScope = {
  * {channel.viewers} takes no payload — it counts this channel — so a span
  * carrying one stays literal, and so does an empty payload on the other
  * three, matching loginOf in the Go scope. Bare {channel} stays the display
- * name, and is answered by the message scope well before this one. */
+ * name, and is answered by the message scope well before this one.
+ *
+ * It stays dotted rather than the bare {viewers} a simplification pass tried:
+ * {viewers} already names the raid/shoutout reply's party size
+ * (modules/reply_tokens.go), and one word cannot mean two different numbers
+ * (see scope.ViewersToken's own comment). */
 const CHANNEL_SAMPLES: Samples = {
   uptime: UPTIME_SAMPLE,
   title: TITLE_SAMPLE,

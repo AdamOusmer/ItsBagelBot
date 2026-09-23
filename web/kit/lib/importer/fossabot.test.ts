@@ -110,7 +110,7 @@ describe('commands', () => {
     const { manifest, diagnostics } = parseFossabot(
       feed([command({ response: '$(user.id) / $(user.login) / $(user)' })])
     );
-    expect(manifest.commands?.[0].responses).toEqual(['{userid} / {user.login} / {user}']);
+    expect(manifest.commands?.[0].responses).toEqual(['{user.id} / {user.login} / {user}']);
     expect(codesOf(diagnostics)).toEqual([]);
   });
 

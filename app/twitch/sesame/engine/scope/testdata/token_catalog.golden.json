@@ -6,6 +6,8 @@
       "examples": [
         "{1:}",
         "{1}",
+        "{2:4}",
+        "{:2}",
         "{args}",
         "{channel}",
         "{command}",
@@ -13,9 +15,12 @@
         "{sender}",
         "{target}",
         "{touser}",
+        "{user.id}",
         "{user.login}",
-        "{userid}",
         "{user}"
+      ],
+      "aliases": [
+        "{userid}"
       ]
     },
     {
@@ -41,10 +46,15 @@
     {
       "id": "emotes",
       "examples": [
+        "{emotes:7tv}",
+        "{emotes:bttv}",
+        "{emotes:ffz}",
+        "{random.emote}"
+      ],
+      "aliases": [
         "{7tvemotes}",
         "{bttvemotes}",
-        "{ffzemotes}",
-        "{random.emote}"
+        "{ffzemotes}"
       ]
     },
     {
@@ -62,8 +72,11 @@
         "{followage}",
         "{accountage:viewer}",
         "{points}",
-        "{pointsname}",
+        "{points.name}",
         "{watchtime}"
+      ],
+      "aliases": [
+        "{pointsname}"
       ]
     },
     {

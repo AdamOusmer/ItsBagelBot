@@ -40,8 +40,8 @@ func (c emoteCatalog) Emotes() scope.EmoteSets {
 	return scope.EmoteSets{SevenTV: cat.SevenTV, BTTV: cat.BTTV, FFZ: cat.FFZ}
 }
 
-// emotesScope builds the {7tvemotes} / {bttvemotes} / {ffzemotes} /
-// {random.emote} scope for one command run.
+// emotesScope builds the {emotes:<provider>} / {random.emote} scope for one
+// command run.
 //
 // Mounting is gated on the SOURCE being wired and on nothing else: no opt-in
 // module sits behind these tokens. The catalog they read is refreshed for the

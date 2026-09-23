@@ -1687,13 +1687,10 @@
     "testOk": "Live data fetched.",
     "test_denied": "The API refused the request. Check the key or the URL.",
     "test_limited": "Rate limited. Wait a moment and test again.",
-    "test_upstream_error": "The API returned an error. Chat would show \"[source error]\".",
-    "test_timeout": "The API timed out. Chat would show \"[source timed out]\".",
+    "test_upstream_error": "The API returned an error. Chat sees nothing, unless the token has a |default: {urlfetch:name|default}.",
+    "test_timeout": "The API timed out. Chat sees nothing, unless the token has a |default: {urlfetch:name|default}.",
     "test_bad_def": "Definition missing or paused. Chat would show the raw token until it is active.",
     "testNoAnswer": "The fetch service did not answer. Try again in a moment.",
-    "fallbackUnavailable": "[source unavailable]",
-    "fallbackSourceError": "[source error]",
-    "fallbackTimeout": "[source timed out]",
     "keysTitle": "API keys",
     "keyNoneYet": "No keys on file yet. APIs that need one will fail closed without it.",
     "keyAdd": "Add key",
@@ -3562,8 +3559,8 @@
     },
     "positional": {
       "name": "Word number",
-      "hint": "word 1 typed after the command; {2} is the next one, up to {30}",
-      "desc": "Word 1 typed after the command. {2} is the next one, and so on up to {30}. Empty when that word was not typed. {2:} takes a word through to the end, as one string; change the number to start elsewhere, {1:} is the whole thing.",
+      "hint": "word 1 typed after the command; {2} is the next one, up to {30}; {2:4} takes a range",
+      "desc": "Word 1 typed after the command. {2} is the next one, and so on up to {30}. Empty when that word was not typed. {2:} takes a word through to the end, as one string; change the number to start elsewhere, {1:} is the whole thing. {2:4} takes words 2 through 4 the same way, and {:2} is the same range starting at word 1 (the first two words). Naming an end past the last word actually typed just stops at that last word; naming the end before the start, like {4:2}, is left exactly as written.",
       "restHint": "word 2 through to the end, as one string"
     },
     "channel": {
@@ -3701,10 +3698,10 @@
       "hint": "one of them, picked at random (never you, never the bot)",
       "desc": "The name of one person who has talked recently, picked at random. Never you and never the bot. Two of them in one response are two separate picks, and a silent channel comes back empty."
     },
-    "emotes7tv": {
-      "name": "7TV emotes",
-      "hint": "every global 7TV emote code, space-separated; {bttvemotes} and {ffzemotes} too (cut to fit one line)",
-      "desc": "The global 7TV emote codes, separated by spaces. These are the ones every channel has, not the emotes you added to yours, and a long list is cut to fit one chat line."
+    "emotes": {
+      "name": "Emote list",
+      "hint": "every global emote code from one provider — {emotes:7tv}, {emotes:bttv} or {emotes:ffz} — space-separated",
+      "desc": "The global emote codes for one provider (7TV, BetterTTV or FrankerFaceZ), separated by spaces. These are the ones every channel has, not the emotes you added to yours, and a long list is cut to fit one chat line."
     },
     "randomEmote": {
       "name": "A random emote",
@@ -3735,16 +3732,6 @@
       "name": "Fetched value",
       "hint": "Insert a fetched value from a saved API definition",
       "desc": "One value from a saved data source definition (Data sources page). Write {urlfetch:name} for the whole response, or add a dot path to reach one field inside a JSON response, such as {urlfetch:weather.forecast.current.temp_f}."
-    },
-    "emotesBttv": {
-      "name": "BTTV emotes",
-      "hint": "the global BetterTTV emote codes, space-separated",
-      "desc": "The global BetterTTV emote codes, the same way {7tvemotes} lists 7TV."
-    },
-    "emotesFfz": {
-      "name": "FFZ emotes",
-      "hint": "the global FrankerFaceZ emote codes, space-separated",
-      "desc": "The global FrankerFaceZ emote codes, the same way {7tvemotes} lists 7TV."
     },
     "songTitle": {
       "name": "Song title",

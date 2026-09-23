@@ -32,12 +32,23 @@ const GOLDEN_PATH = join(import.meta.dir, '../../../../app/twitch/sesame/engine/
 
 interface GoldenFile {
   note: string;
-  families: { id: string; examples: string[] }[];
+  families: { id: string; examples: string[]; aliases?: string[] }[];
 }
 
 const golden: GoldenFile = JSON.parse(readFileSync(GOLDEN_PATH, 'utf8'));
 const goldenExamples = golden.families.flatMap((family) => family.examples);
 const goldenHeads = new Set(goldenExamples.map((example) => tokenHead(example)));
+
+// A family's `aliases` are its pre-simplification spellings (TokenFamily.
+// Aliases, token_catalog.go): genuinely answered by the resolver, but left
+// out of `examples` on purpose, since the public catalogue teaches the
+// canonical spelling only. Rule B reads names from here as well as from
+// goldenHeads so a manifest alias does not need a golden EXAMPLE of its own
+// to be considered answered — that used to be a hand-kept TypeScript set
+// (LEGACY_ALIASES) the Go side could drift out from under silently; reading
+// it from the golden makes Go the one source for "this old spelling still
+// resolves".
+const goldenAliasHeads = new Set(golden.families.flatMap((family) => family.aliases ?? []).map(tokenHead));
 
 // The reply-token golden is the other half of the same cross-language
 // handshake, read the same way for the same reason: see
@@ -68,6 +79,13 @@ const NOT_RESOLVER_OWNED = new Set(['positional', 'if']);
 
 const isDigits = (head: string): boolean => head !== '' && /^\d+$/.test(head);
 
+// {:m} (positional's leading slice) is the one token whose HEAD is empty by
+// shape (tokenHead splits on ':', and the name before it is ""), so it needs
+// its own recognizer beside isDigits rather than folding '' into headSet,
+// which would also swallow a malformed example ("{}", "not a token") as
+// silently covered.
+const isPositionalLeadingSlice = (token: string): boolean => /^\{:\d+\}$/.test(token.trim());
+
 /** Every name a variable answers to: its head plus its aliases. */
 const namesOf = (v: VariableDef): string[] => [v.head, ...(v.aliases ?? [])];
 
@@ -75,7 +93,7 @@ const headSet = new Set(VARIABLES.flatMap(namesOf));
 
 const isCovered = (token: string): boolean => {
   const head = tokenHead(token);
-  return isDigits(head) || headSet.has(head);
+  return isDigits(head) || isPositionalLeadingSlice(token) || headSet.has(head);
 };
 
 const lexesToOneVar = (example: string): boolean => {
@@ -172,7 +190,7 @@ describe('variables parity (engine/scope/testdata/token_catalog.golden.json)', (
   test('B: every manifest head and alias is answered by the Go resolver', () => {
     const unanswered = VARIABLES.filter((v) => !NOT_RESOLVER_OWNED.has(v.head))
       .flatMap(namesOf)
-      .filter((name) => !goldenHeads.has(name));
+      .filter((name) => !goldenHeads.has(name) && !goldenAliasHeads.has(name));
     expect(unanswered, 'variables.ts promises names no golden example resolves; check the scope files').toEqual([]);
   });
 

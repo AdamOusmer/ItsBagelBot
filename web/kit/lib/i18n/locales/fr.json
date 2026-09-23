@@ -1687,13 +1687,10 @@
     "testOk": "Données en direct récupérées.",
     "test_denied": "L'API a refusé la requête. Vérifiez la clé ou l'URL.",
     "test_limited": "Limite de débit atteinte. Patientez un instant et retestez.",
-    "test_upstream_error": "L'API a renvoyé une erreur. Le chat afficherait « [source error] ».",
-    "test_timeout": "L'API a expiré. Le chat afficherait « [source timed out] ».",
+    "test_upstream_error": "L'API a renvoyé une erreur. Le chat n'affiche rien, sauf si le token a un |default : {urlfetch:nom|default}.",
+    "test_timeout": "L'API a expiré. Le chat n'affiche rien, sauf si le token a un |default : {urlfetch:nom|default}.",
     "test_bad_def": "Définition manquante ou en pause. Le chat affiche le jeton brut tant qu'elle n'est pas active.",
     "testNoAnswer": "Le service de récupération n'a pas répondu. Réessayez dans un instant.",
-    "fallbackUnavailable": "[source unavailable]",
-    "fallbackSourceError": "[source error]",
-    "fallbackTimeout": "[source timed out]",
     "keysTitle": "Clés API",
     "keyNoneYet": "Aucune clé enregistrée pour le moment. Les API qui en ont besoin échoueront par défaut sans elle.",
     "keyAdd": "Ajouter une clé",
@@ -3562,8 +3559,8 @@
     },
     "positional": {
       "name": "Numéro de mot",
-      "hint": "le mot 1 tapé après la commande; {2} est le suivant, jusqu’à {30}",
-      "desc": "Le mot 1 tapé après la commande. {2} est le suivant, et ainsi de suite jusqu’à {30}. Vide si ce mot n’a pas été tapé. {2:} reprend d’un mot jusqu’à la fin, en une seule chaîne; changez le numéro pour commencer ailleurs, {1:} reprend tout.",
+      "hint": "le mot 1 tapé après la commande; {2} est le suivant, jusqu’à {30}; {2:4} prend une plage",
+      "desc": "Le mot 1 tapé après la commande. {2} est le suivant, et ainsi de suite jusqu’à {30}. Vide si ce mot n’a pas été tapé. {2:} reprend d’un mot jusqu’à la fin, en une seule chaîne; changez le numéro pour commencer ailleurs, {1:} reprend tout. {2:4} reprend les mots 2 à 4 de la même façon, et {:2} est la même plage à partir du mot 1 (les deux premiers mots). Demander une fin au-delà du dernier mot tapé s’arrête simplement à ce dernier mot; demander une fin avant le début, comme {4:2}, reste écrit tel quel.",
       "restHint": "du mot 2 jusqu’à la fin, en une seule chaîne"
     },
     "channel": {
@@ -3701,10 +3698,10 @@
       "hint": "l’une d’elles, choisie au hasard (jamais vous, jamais le bot)",
       "desc": "Le nom d’une personne ayant parlé récemment, choisie au hasard. Jamais vous ni le bot. Deux dans une même réponse font deux tirages distincts, et une chaîne silencieuse ne renvoie rien."
     },
-    "emotes7tv": {
-      "name": "Émotes 7TV",
-      "hint": "tous les codes d’émotes globales 7TV, séparés par des espaces; {bttvemotes} et {ffzemotes} aussi (coupé pour tenir sur une ligne)",
-      "desc": "Les codes des émotes 7TV globales, séparés par des espaces. Ce sont celles que toutes les chaînes ont, pas les émotes que vous avez ajoutées à la vôtre, et une longue liste est coupée pour tenir sur une ligne de chat."
+    "emotes": {
+      "name": "Liste d’émotes",
+      "hint": "tous les codes d’émotes globales d’un fournisseur — {emotes:7tv}, {emotes:bttv} ou {emotes:ffz} — séparés par des espaces",
+      "desc": "Les codes des émotes globales d’un fournisseur (7TV, BetterTTV ou FrankerFaceZ), séparés par des espaces. Ce sont celles que toutes les chaînes ont, pas les émotes que vous avez ajoutées à la vôtre, et une longue liste est coupée pour tenir sur une ligne de chat."
     },
     "randomEmote": {
       "name": "Une émote au hasard",
@@ -3735,16 +3732,6 @@
       "name": "Valeur récupérée",
       "hint": "Insère une valeur récupérée depuis une définition d’API enregistrée",
       "desc": "Une valeur d’une définition de source de données enregistrée (page Sources de données). Écrivez {urlfetch:nom} pour la réponse entière, ou ajoutez un chemin en pointillés pour atteindre un champ précis d’une réponse JSON, comme {urlfetch:weather.forecast.current.temp_f}."
-    },
-    "emotesBttv": {
-      "name": "Émotes BTTV",
-      "hint": "les codes des émotes BetterTTV globales, séparés par des espaces",
-      "desc": "Les codes des émotes BetterTTV globales, comme {7tvemotes} liste celles de 7TV."
-    },
-    "emotesFfz": {
-      "name": "Émotes FFZ",
-      "hint": "les codes des émotes FrankerFaceZ globales, séparés par des espaces",
-      "desc": "Les codes des émotes FrankerFaceZ globales, comme {7tvemotes} liste celles de 7TV."
     },
     "songTitle": {
       "name": "Titre de la chanson",
