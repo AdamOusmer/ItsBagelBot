@@ -15,6 +15,22 @@ import type { AdminIdentity } from './access';
 import type { FeedEvent } from './feed';
 import type { LaneView } from './lanes';
 import type { DbCredentialStatus, ScopeReport, SecretServiceId } from './secrets';
+import type { DeployApi } from './deploys';
+import type { DeployListener, DeployRunId, DeployRuns } from './services';
+import { RpcError } from '@bagel/kit/server/nats';
+import {
+  STAGES_FOR,
+  TERMINAL_RUN_STATES,
+  type DeployItem,
+  type DeployPlan,
+  type DeployRun,
+  type DeployRunSummary,
+  type DeployStage,
+  type RunRequest,
+  type StageId,
+  type StageState,
+  type StartRequest
+} from '$lib/deploys/types';
 
 // This module is only dynamically imported from branches guarded directly by
 // SvelteKit's build-time `dev` constant. If a future edit makes it reachable
@@ -226,5 +242,185 @@ export function demoFeedEvent(sequence: number, statusPrefix: string): FeedEvent
     tone,
     payload: `demo event #${sequence}`,
     time: new Date().toLocaleTimeString('en-GB', { hour12: false })
+  };
+}
+
+// ── Deploys ─────────────────────────────────────────────────────────────────
+//
+// An in-memory run store with the live DeployApi's shape, so the Deploys page
+// runs end to end without NATS: start records a run, and a watched run
+// advances one step per tick, rollout one service at a time with its pods
+// turning new node by node, the way a real train moves.
+
+const DEMO_TICK_MS = 1500;
+const DEMO_NODES = ['node1', 'node2', 'node3'];
+const DEMO_SERVICES = ['users', 'gossip', 'twitch-ingress', 'console-admin'] as const;
+type DemoService = (typeof DEMO_SERVICES)[number];
+const DEMO_REPO = 'https://github.com/AdamOusmer/ItsBagelBot';
+const DEMO_SHA = '4f1c9e2ab7d05e8c3a6b91f0d2e47c5a8b3f6e19';
+const demoRuns = new Map<DeployRunId, DeployRun>();
+
+function demoStage(id: StageId): DeployStage {
+  return { id, state: 'pending', progress: { done: 0, total: id === 'rollout' ? DEMO_SERVICES.length : 1 } };
+}
+
+function demoRunFrom(req: StartRequest, id: DeployRunId): DeployRun {
+  const now = new Date().toISOString();
+  const { actor_id, ...fields } = req;
+  return {
+    ...fields,
+    id,
+    seq: 1,
+    actor: { id: actor_id, login: 'itsmavey' },
+    state: 'running',
+    stages: STAGES_FOR[req.kind].map(demoStage),
+    outputs: { messaging_changed: false },
+    created_at: now,
+    updated_at: now
+  };
+}
+
+function demoPut(run: DeployRun): DeployRun {
+  demoRuns.set(run.id, run);
+  return run;
+}
+
+function demoGet(req: RunRequest): DeployRun {
+  const run = demoRuns.get(req.run_id);
+  if (!run) throw new RpcError('run not found', 'not_found');
+  return run;
+}
+
+function demoItemState(index: number, done: number): StageState {
+  if (index < done) return 'succeeded';
+  return index === done ? 'running' : 'pending';
+}
+
+const DEMO_FRESH_PODS: Partial<Record<StageState, number>> = { succeeded: DEMO_NODES.length, running: 1 };
+
+function demoItem(service: DemoService, index: number, done: number): DeployItem {
+  const state = demoItemState(index, done);
+  const fresh = DEMO_FRESH_PODS[state] ?? 0;
+  return {
+    key: service,
+    label: service,
+    state,
+    progress: { done: fresh, total: DEMO_NODES.length },
+    nodes: DEMO_NODES.map((node, n) => ({ node, pod: `${service}-${n}`, phase: n < fresh ? 'new' : 'old' }))
+  };
+}
+
+function demoStep(stage: DeployStage): void {
+  const done = stage.progress.done + 1;
+  stage.progress = { ...stage.progress, done };
+  stage.state = done >= stage.progress.total ? 'succeeded' : 'running';
+  if (stage.id === 'rollout') stage.items = DEMO_SERVICES.map((svc, i) => demoItem(svc, i, done));
+}
+
+function demoAdvance(run: DeployRun): DeployRun {
+  if (run.state !== 'running') return run;
+  const next = structuredClone(run);
+  const stage = next.stages.find((s) => s.state !== 'succeeded');
+  if (stage) demoStep(stage);
+  else next.state = 'succeeded';
+  next.seq += 1;
+  next.updated_at = new Date().toISOString();
+  return demoPut(next);
+}
+
+function demoSummary(run: DeployRun): DeployRunSummary {
+  return {
+    id: run.id,
+    kind: run.kind,
+    version: run.version,
+    target_sha: run.target_sha,
+    state: run.state,
+    current_stage: run.stages.find((s) => s.state !== 'succeeded')?.id,
+    actor: run.actor,
+    created_at: run.created_at,
+    updated_at: run.updated_at
+  };
+}
+
+function demoList(): DeployRuns {
+  const runs = [...demoRuns.values()].reverse();
+  const active = runs.find((r) => !TERMINAL_RUN_STATES.includes(r.state));
+  return { runs: runs.map(demoSummary), activeRunId: active?.id ?? null };
+}
+
+// The live deployer refuses a second run while the cluster lock is held; the
+// fixture refuses the same way so the page's 409 path can be exercised.
+function demoStart(req: StartRequest): DeployRun {
+  if (demoList().activeRunId) throw new RpcError('a deploy is already running', 'conflict');
+  return demoPut(demoRunFrom(req, `demo-${Date.now().toString(36)}`));
+}
+
+function demoCancel(req: RunRequest): DeployRun {
+  const run = structuredClone(demoGet(req));
+  run.cancel_requested = true;
+  run.state = 'cancelled';
+  run.seq += 1;
+  return demoPut(run);
+}
+
+function demoWatch(runId: DeployRunId, listener: DeployListener): () => void {
+  const tick = setInterval(() => {
+    const run = demoRuns.get(runId);
+    if (run) listener.run(demoAdvance(run));
+  }, DEMO_TICK_MS);
+  return () => clearInterval(tick);
+}
+
+function demoDeployPlan(): DeployPlan {
+  return {
+    live_version: 'v0.2.0-beta',
+    live_sha: DEMO_SHA,
+    last_tag: 'v0.2.0-beta',
+    next_version: 'v0.3.0-beta',
+    main_sha: DEMO_SHA,
+    in_sync: true,
+    commits: [{ sha: DEMO_SHA, title: 'feat(time): answer !time <place> with a lookup (#1006)', author: 'AdamOusmer', pr: 1006 }],
+    prs: [
+      {
+        number: 1010,
+        title: 'feat(dashboard): public commands page toggle',
+        author: 'AdamOusmer',
+        url: `${DEMO_REPO}/pull/1010`,
+        head_sha: DEMO_SHA,
+        draft: false,
+        checks: 'success',
+        codescene: 'success',
+        mergeable: true,
+        behind: false
+      }
+    ],
+    releases: [
+      { version: 'v0.2.0-beta', sha: DEMO_SHA, url: `${DEMO_REPO}/releases/tag/v0.2.0-beta`, published_at: '2026-09-10T18:00:00Z' }
+    ],
+    services: [...DEMO_SERVICES]
+  };
+}
+
+// One finished release, so the history is not empty on first load.
+demoPut({
+  ...demoRunFrom({ actor_id: 'demo-admin', kind: 'release', version: 'v0.2.0-beta', target_sha: DEMO_SHA }, 'demo-v0-2-0'),
+  state: 'succeeded',
+  stages: STAGES_FOR.release.map((id) => {
+    const stage = demoStage(id);
+    return { ...stage, state: 'succeeded', progress: { ...stage.progress, done: stage.progress.total } };
+  })
+});
+
+export function demoDeployApi(): DeployApi {
+  const same = async (req: RunRequest) => demoGet(req);
+  return {
+    plan: async () => demoDeployPlan(),
+    list: async () => demoList(),
+    get: same,
+    start: async (req) => demoStart(req),
+    resume: same,
+    cancel: async (req) => demoCancel(req),
+    approve: same,
+    watch: demoWatch
   };
 }

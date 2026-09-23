@@ -4,7 +4,7 @@
 // Admin-facing RPC wrappers over the shared NATS client. Subjects come from env
 // with the same defaults as the retired Go admin tier. Page callers degrade to
 // neutral zero/empty shapes so SSR can render without inventing live state.
-import { rpc, publish, RpcError } from '@bagel/kit/server/nats';
+import { rpc, publish, subscribeDurable, RpcError } from '@bagel/kit/server/nats';
 import { codeReader } from '@bagel/kit/server/rpc-code';
 import { defineRead, defineWrite } from '@bagel/kit/server/service';
 import { createCacheFabric } from '@bagel/kit/server/cache-fabric';
@@ -13,6 +13,20 @@ import { getServerConfig } from '@bagel/kit/server/config';
 import type { ScopeMap } from '@bagel/kit/server/invalidation';
 import type { ShardSnapshot, UserStats } from '@bagel/kit';
 import { adminL1CacheCapacity } from './config-sanity';
+import {
+  DEPLOY_EVENTS_PREFIX,
+  DEPLOY_PREFIX,
+  type DeployPlan,
+  type DeployRun,
+  type DeployRunSummary,
+  type ListReply,
+  type ListRequest,
+  type PlanReply,
+  type PlanRequest,
+  type RunReply,
+  type RunRequest,
+  type StartRequest
+} from '$lib/deploys/types';
 
 // Subjects come from process.env, NOT $env/dynamic/private. This module is
 // imported at boot (hooks.server.ts -> startInvalidationListener), and reading
@@ -37,7 +51,9 @@ const SUB = {
   outgressRpc: process.env.NATS_OUTGRESS_RPC_PREFIX || 'bagel.rpc.outgress',
   notifications: process.env.NATS_ADMIN_NOTIFICATIONS_SUBJECT_PREFIX || 'bagel.rpc.admin.notifications',
   loyalty: process.env.NATS_LOYALTY_SUBJECT_PREFIX || 'bagel.rpc.loyalty',
-  health: process.env.NATS_RPC_HEALTH_PREFIX || 'bagel.rpc.health'
+  health: process.env.NATS_RPC_HEALTH_PREFIX || 'bagel.rpc.health',
+  deploy: process.env.NATS_ADMIN_DEPLOY_SUBJECT_PREFIX || DEPLOY_PREFIX,
+  deployEvents: process.env.NATS_DEPLOY_EVENTS_SUBJECT_PREFIX || DEPLOY_EVENTS_PREFIX
 };
 
 export const STATUS_PREFIX = SUB.status;
@@ -865,4 +881,123 @@ export async function botCounterSet(name: string, value: number): Promise<void> 
 export async function botCounterDelete(name: string): Promise<void> {
   const r = await loyaltyCall('delete', { name });
   if (r.error) throw new Error(r.error);
+}
+
+// ── Deploys ─────────────────────────────────────────────────────────────────
+//
+// Every bagel.rpc.admin.deploy.* call carries `actor_id`, and the deployer
+// re-reads that actor's role from the users service before doing anything
+// (app/deployer/internal/rpc). Nothing here is cached: a run's state changes
+// by the second, and a stale plan would offer PRs that already merged.
+
+// plan fans out to GitHub (open PRs, their checks, the compare against the
+// live tag, releases) and to the cluster for drift, and the deployer bounds
+// that handler at DEPLOY_RPC_TIMEOUT (20s default). The shared 2s read budget
+// would time the console out on every cold plan while the deployer was still
+// working, so this waits as long as the handler is allowed to.
+const DEPLOY_PLAN_TIMEOUT_MS = 20_000;
+
+export type DeployRunId = DeployRun['id'];
+
+export type DeployRuns = { runs: DeployRunSummary[]; activeRunId: DeployRunId | null };
+
+// The deployer answers every run verb with the run, or with a refusal that
+// rpc() has already thrown. A success without one is a broken responder, and
+// is surfaced as an error rather than as a redirect to /deploys/undefined.
+function runOf(reply: RunReply): DeployRun {
+  if (!reply.run) throw new Error('deployer replied without a run');
+  return reply.run;
+}
+
+export const deployPlan = defineRead({
+  subject: `${SUB.deploy}.plan`,
+  request: (req: PlanRequest) => req,
+  map: (reply: PlanReply): DeployPlan | null => reply.plan ?? null,
+  timeoutMs: DEPLOY_PLAN_TIMEOUT_MS
+});
+
+// runs is `[]` by contract (no omitempty on the Go side), but a nil slice
+// still marshals as null, so the fallback stays.
+export const deployList = defineRead({
+  subject: `${SUB.deploy}.list`,
+  request: (req: ListRequest) => req,
+  map: (reply: ListReply): DeployRuns => ({
+    runs: reply.runs ?? [],
+    activeRunId: reply.active_run_id || null
+  })
+});
+
+export const deployGet = defineRead({
+  subject: `${SUB.deploy}.get`,
+  request: (req: RunRequest) => req,
+  map: runOf
+});
+
+// start answers as soon as the run is recorded; the stages run in the
+// background and reach the page over bagel.deploy.events.<id>.
+export const deployStart = defineWrite({
+  subject: `${SUB.deploy}.start`,
+  request: (req: StartRequest) => req,
+  map: runOf
+});
+
+// resume, cancel and approve share one request and one reply; the verb is the
+// only difference, so they are one factory rather than three literals.
+type DeployRunVerb = 'resume' | 'cancel' | 'approve';
+
+function deployRunWrite(verb: DeployRunVerb) {
+  return defineWrite({
+    subject: `${SUB.deploy}.${verb}`,
+    request: (req: RunRequest) => req,
+    map: runOf
+  });
+}
+
+export const deployResume = deployRunWrite('resume');
+export const deployCancel = deployRunWrite('cancel');
+export const deployApprove = deployRunWrite('approve');
+
+export type DeployListener = {
+  /** One full Run snapshot, as published; ordering by seq is the caller's. */
+  run: (run: DeployRun) => void;
+  /** Frames may have been missed (reconnect, resubscribe): re-read the run. */
+  gap: () => void;
+};
+
+// One process-wide subscription to bagel.deploy.events.>, fanned out to the
+// open SSE streams by run id, rather than one NATS subscription per stream.
+// The shared client exposes no unsubscribe, and subscribeDurable rather than
+// subscribe because a deploy page stays open for the length of a rollout:
+// plain subscribe gives up for the life of the process after one dial
+// failure, and its gap signal is what lets a stream re-read a run whose
+// terminal frame it may have missed.
+const deployWatchers = new Map<DeployRunId, Set<DeployListener>>();
+let deployEventsStarted = false;
+
+function deployEvent(subject: string, data: Uint8Array): void {
+  const set = deployWatchers.get(subject.slice(SUB.deployEvents.length + 1));
+  if (!set) return;
+  const run = JSON.parse(new TextDecoder().decode(data)) as DeployRun;
+  for (const listener of set) listener.run(run);
+}
+
+function deployEventsGap(): void {
+  for (const set of deployWatchers.values()) set.forEach((listener) => listener.gap());
+}
+
+/** Watch one run's snapshots. Returns the unwatch function. */
+export function watchDeployRun(runId: DeployRunId, listener: DeployListener): () => void {
+  if (!deployEventsStarted) {
+    deployEventsStarted = true;
+    subscribeDurable(`${SUB.deployEvents}.>`, deployEvent, deployEventsGap);
+  }
+  const set = deployWatchers.get(runId) ?? new Set<DeployListener>();
+  set.add(listener);
+  deployWatchers.set(runId, set);
+  return () => {
+    set.delete(listener);
+    // Identity check: a second call must not drop a newer set that a later
+    // watcher of the same run created after this one emptied.
+    if (set.size === 0 && deployWatchers.get(runId) === set) deployWatchers.delete(runId);
+  };
 }
