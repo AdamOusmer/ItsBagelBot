@@ -8,7 +8,7 @@
     padding-bottom: calc(104px + env(safe-area-inset-bottom, 0px));
 }
 
-.vref__head { max-width: 720px; margin-bottom: 40px; }
+.vref__head { max-width: 720px; margin-bottom: 44px; }
 
 .vref__head h1 {
     margin: 10px 0 14px;
@@ -23,93 +23,17 @@
 
 .vref__note { margin-top: 12px; max-width: 58ch; color: var(--muted); font-size: 0.9rem; line-height: 1.6; }
 
-.vref__search { margin-top: 26px; max-width: 480px; }
+/* ── Groups ── */
 
-/* ── Two-column layout ── */
-
-.vref__grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 28px;
-    align-items: start;
-}
-
-@media (min-width: 960px) {
-    .vref__grid { grid-template-columns: 220px minmax(0, 1fr); gap: 48px; }
-}
-
-/* ── Rail ── */
-
-/* Grid items default to min-width: auto, so any child with an unbreakable
-   line (the phone-width category row, a nowrap hint in a summary) would widen
-   its track to full content and push the page past the viewport. Zero on
-   every grid item in this tree lets rows scroll and hints ellipsise instead. */
-.vref__grid > *,
-.vref-rail > *,
-.vref__main > *,
-.vref-group__list > * { min-width: 0; }
-
-.vref-rail {
-    display: grid;
-    gap: 20px;
-}
-
-.vref-rail__categories {
-    display: grid;
-    gap: 2px;
-    list-style: none;
-}
-
-.vref-rail__surfaces {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-}
-
-@media (min-width: 960px) {
-    .vref-rail {
-        position: sticky;
-        top: calc(var(--nav-offset) + 24px);
-        max-height: calc(100vh - var(--nav-offset) - 48px);
-        overflow-y: auto;
-    }
-}
-
-@media (max-width: 959px) {
-    .vref-rail__categories {
-        grid-auto-flow: column;
-        grid-auto-columns: max-content;
-        overflow-x: auto;
-        padding-bottom: 4px;
-        scrollbar-width: none;
-    }
-    /* 28 surface chips wrapped would push the first entry a full screen
-       down on a phone; one scrolling row keeps the filter reachable
-       without owning the viewport. */
-    .vref-rail__surfaces {
-        flex-wrap: nowrap;
-        overflow-x: auto;
-        padding-bottom: 4px;
-        scrollbar-width: none;
-    }
-    .vref-rail__surfaces > * { flex: 0 0 auto; }
-    .vref-rail__categories::-webkit-scrollbar,
-    .vref-rail__surfaces::-webkit-scrollbar { display: none; }
-}
-
-/* ── Main column ── */
-
-.vref__count { margin: 0 0 18px; color: var(--muted); font-family: var(--font-mono); font-size: 0.72rem; }
-
-.vref__main { display: grid; gap: 44px; }
+.vref__main { display: grid; gap: 48px; }
 
 /* style.css gives every <section> the page frame (max-width 1200px, auto
    margins, 100px 48px padding). A group is a section for the outline and the
    #category anchor, not a page band, so the frame is reset here. */
-.vref-group { max-width: none; margin: 0; padding: 0; }
+.vref-group { max-width: none; margin: 0; padding: 0; min-width: 0; }
 
 .vref-group__heading {
-    margin-bottom: 16px;
+    margin-bottom: 14px;
     font-family: var(--font-display);
     font-size: 1.5rem;
     letter-spacing: -0.02em;
@@ -117,130 +41,79 @@
     scroll-margin-top: calc(var(--nav-offset) + 16px);
 }
 
-.vref-group__list { display: grid; gap: 10px; }
+/* bb-tbl-wrap already scrolls a wide table sideways instead of pushing the
+   page (ui/astro/Table.astro), which is what keeps a phone at 375px from
+   gaining horizontal scroll on the page itself. This file is a plain
+   imported stylesheet, not an Astro scoped <style> block, so a selector
+   reaching into a child component's markup needs no `:global()` -- that
+   directive only means something inside <style>, and written here it is
+   simply invalid CSS that every rule using it silently drops. */
+.vref-group .bb-tbl-wrap { border-radius: var(--radius-md); }
+.vref-table td,
+.vref-table th { vertical-align: top; }
+.vref-table tr[id] { scroll-margin-top: calc(var(--nav-offset) + 16px); }
 
-/* ── Entry ── */
-
-.vref-entry {
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    background: var(--card-bg);
-    scroll-margin-top: calc(var(--nav-offset) + 16px);
-}
-
-.vref-entry__row {
+/* A <span> inside the <td>, not the cell itself: a table cell is not a
+   valid flex container in every layout engine table cells participate in
+   (and mixing `flex-wrap: wrap` with `white-space: nowrap` here fought
+   itself -- wrap allowed the chip and Copy button to drop to a second
+   line while nowrap then refused the text inside them room to do it). One
+   line, no wrap: both children are short. */
+.vref-td-variable {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
-    gap: 12px;
-    padding: 16px 18px;
-    cursor: pointer;
-    list-style: none;
+    gap: 8px;
 }
 
-.vref-entry__row::-webkit-details-marker { display: none; }
+.vref-td-means { color: var(--tan-light); min-width: 22ch; }
 
-.vref-entry__row:focus-visible {
-    outline: 2px solid var(--green-glow);
-    outline-offset: 2px;
-    border-radius: var(--radius-sm);
-}
+.vref-chip .bb-code { white-space: nowrap; }
 
-.vref-entry__name {
-    font-family: var(--font-display);
-    font-size: 0.98rem;
-    color: var(--white);
-}
-
-.vref-entry__hint {
-    flex: 1 1 240px;
-    min-width: 0;
-    color: var(--muted);
-    font-size: 0.86rem;
-    line-height: 1.5;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.vref-entry__chips { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
-
-.vref-entry__body {
-    padding: 0 18px 20px;
-    display: grid;
-    gap: 16px;
-    transform: translateX(4px);
-    animation: vref-expand 160ms ease-out forwards;
-}
-
-@keyframes vref-expand {
-    to { transform: translateX(0); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .vref-entry__body { animation: none; transform: none; }
-}
-
-.vref-entry__description { color: var(--tan-light); line-height: 1.6; font-size: 0.92rem; }
-
-.vref-entry__line { color: var(--muted); font-size: 0.84rem; line-height: 1.6; }
-.vref-entry__line span { color: var(--tan); font-family: var(--font-mono); font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase; margin-right: 8px; }
-.vref-entry__line em { margin-left: 8px; font-style: normal; color: var(--muted); }
-
-.vref-entry__surfaces { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 0.82rem; }
-.vref-entry__surfaces span { color: var(--tan); font-family: var(--font-mono); font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase; }
-.vref-entry__surface {
-    padding: 4px 9px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-pill);
-    color: var(--tan-light);
-    font-size: 0.76rem;
-}
-.vref-entry__surface:hover, .vref-entry__surface:focus-visible { border-color: var(--green-glow); color: var(--green-glow); }
-
-.vref-entry__actions { display: flex; align-items: center; gap: 18px; }
-
-.vref-entry__copy {
-    padding: 7px 12px;
+.vref-copy {
+    padding: 3px 8px;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     background: transparent;
     color: var(--tan-light);
     font-family: var(--font-mono);
-    font-size: 0.68rem;
+    font-size: 0.64rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
     cursor: pointer;
 }
-.vref-entry__copy:hover, .vref-entry__copy:focus-visible { border-color: var(--green-glow); color: var(--green-glow); }
+.vref-copy:hover, .vref-copy:focus-visible { border-color: var(--green-glow); color: var(--green-glow); }
 
-.vref-forms .bb-tbl { font-size: 0.82rem; }
+/* A row an extra form (positional's {2:}, random's {random:1-6}...) adds
+   under its owning entry's id: same table, quieter, no repeated chip. */
+.vref-entry-extra td:first-child,
+.vref-entry-extra td:nth-child(2) { border-bottom: none; }
+.vref-entry-extra td { color: var(--muted); }
 
-/* ── Try it ── */
-
-.vref-tryit { display: grid; gap: 8px; }
-.vref-tryit .bb-field { margin-bottom: 0; }
-
-.bb-input.vref-tryit__input {
-    width: 100%;
-    font-family: var(--font-mono);
+.vref-group__footnote {
+    margin-top: 10px;
+    color: var(--muted);
     font-size: 0.82rem;
-    border-radius: var(--radius-sm);
+    line-height: 1.7;
+}
+.vref-group__footnote span { color: var(--tan); font-family: var(--font-mono); font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase; margin-right: 8px; }
+.vref-group__footnote code {
+    font-family: var(--font-mono);
+    font-size: 0.8em;
+    color: var(--tan-light);
+    background: rgba(201, 168, 124, 0.08);
+    border: 1px solid rgba(201, 168, 124, 0.14);
+    border-radius: var(--radius-xs);
+    padding: 1px 5px;
+    margin-right: 4px;
+    white-space: nowrap;
 }
 
-.vref-tryit__result { color: var(--muted); font-size: 0.84rem; line-height: 1.6; font-family: var(--font-mono); }
-.vref-tryit__result span { color: var(--tan); font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase; margin-right: 8px; }
-
-.vref-tryit__unknown { color: var(--muted); }
-
-/* ── Empty state ── */
-
-.vref__empty {
-    padding: 48px 20px;
-    border: 1px dashed var(--border);
-    border-radius: var(--radius-md);
-    text-align: center;
+.vref__timer-note {
+    margin-top: 10px;
+    color: var(--muted);
+    font-size: 0.82rem;
+    line-height: 1.7;
 }
-.vref__empty p { color: var(--white); margin-bottom: 8px; }
-.vref__empty small { color: var(--muted); }
 
 /* ── Footer links ── */
 
@@ -248,7 +121,7 @@
     display: flex;
     flex-wrap: wrap;
     gap: 12px;
-    margin-top: 40px;
+    margin-top: 48px;
     color: var(--muted);
     font-family: var(--font-mono);
     font-size: 0.72rem;
@@ -259,6 +132,4 @@
        this header, so the eyebrow needs the nav offset itself or it sits
        under the pill. */
     .vref { padding-top: calc(var(--nav-offset, 76px) + 24px); }
-    .vref-entry__row { padding: 14px; }
-    .vref-entry__body { padding: 0 14px 16px; }
 }

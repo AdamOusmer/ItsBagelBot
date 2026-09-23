@@ -3,25 +3,23 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 /**
- * Shell for the variables guide (docs/specs/variables-catalog.md D7):
- * header + search span the top, a sticky category/surface rail sits left of
- * a main column grouped by category. Replaces the flat single-list design
- * (deleted VariablesReference.astro at ../VariablesReference.astro) with the
- * grouped, anchor-linkable one the spec calls for, split into Rail/Group/
- * Entry/Forms so each piece stays under the CodeScene complexity gate.
+ * The variables guide: a header, then one table per group, in manifest
+ * group order (docs/specs/variables-catalog.md phase 7). Replaces the
+ * search-and-filter, rail-and-<details> layout (docs/specs/variables-
+ * catalog.md D7, phase 3-6) with a flat page a browser's own Ctrl-F already
+ * searches: every row is always in the DOM, so there is nothing to filter
+ * and nothing that moves when a visitor clicks a copy button.
  *
  * Still takes the manifest as data (`catalog: variableReferenceData(lang)`)
  * rather than importing it itself -- the page owns the localization call,
  * this component only presents the result.
  */
-import SearchInput from '@bagel/ui/astro/SearchInput.astro';
 import Eyebrow from '@bagel/ui/astro/Eyebrow.astro';
-import Rail from './Rail.astro';
 import Group from './Group.astro';
 import './reference.css';
-import { getLangFromUrl, useTranslations, localizePath, defaultLang, type Lang, type UIKey } from '../../../i18n/ui';
-import { DASHBOARD_ORIGIN } from '../../../i18n/builder';
+import { getLangFromUrl, useTranslations, localizePath, type Lang, type UIKey } from '../../../i18n/ui';
 import { GROUP_ORDER, type LocalizedVariableReference } from '../../../lib/variables';
+import { forSurface } from '@bagel/kit/variables';
 
 interface Props {
     catalog: readonly LocalizedVariableReference[];
@@ -40,79 +38,46 @@ const groups = GROUP_ORDER
     }))
     .filter((group) => group.entries.length > 0);
 
-const surfaceMap = new Map<string, string>();
-for (const entry of catalog) {
-    for (const surface of entry.surfaces) surfaceMap.set(surface.id, surface.label);
-}
-const surfaces = [...surfaceMap.entries()].map(([id, label]) => ({ id, label }));
-
-const searchState = Astro.url.searchParams.get('q') ?? '';
-const categoryState = Astro.url.searchParams.get('category') ?? '';
-const surfaceState = Astro.url.searchParams.get('surface') ?? '';
-const builderLang = lang === defaultLang ? '' : lang;
-
-const entryCopy = {
-    formsLabel: t('guides.variables.formSyntax'),
-    formSyntax: t('guides.variables.formSyntax'),
-    formExample: t('guides.variables.formExample'),
-    formOutput: t('guides.variables.formOutput'),
-    available: t('guides.variables.available'),
-    needs: t('guides.variables.needs'),
+const groupCopy = {
+    colVariable: t('guides.variables.colVariable'),
+    colMeans: t('guides.variables.colMeans'),
+    colExample: t('guides.variables.colExample'),
+    colResult: t('guides.variables.colResult'),
     aliases: t('guides.variables.aliases'),
-    legacy: t('guides.variables.legacy'),
     copy: t('guides.variables.copy'),
-    copied: t('guides.variables.copied'),
-    copyFailed: t('guides.variables.copyFailed'),
-    composeInDashboard: t('guides.variables.composeInDashboard'),
-    surfaceCount: t('guides.variables.surfaceCount'),
-    tryIt: t('guides.variables.tryIt'),
-    tryItHint: t('guides.variables.tryItHint'),
 };
 
 const clientCopy = {
-    showing: t('guides.variables.showing'),
-    copy: entryCopy.copy,
-    copied: entryCopy.copied,
-    copyFailed: entryCopy.copyFailed,
+    copy: groupCopy.copy,
+    copied: t('guides.variables.copied'),
+    copyFailed: t('guides.variables.copyFailed'),
 };
+
+// The one-line note under "Your stream": which groups a timer's message can
+// draw variables from, derived straight from the surface kit itself owns
+// rather than a second hand-kept list (a timer has no invoking viewer, so
+// this is not simply "every group").
+const timerGroupIds = new Set(forSurface('timer').map((def) => def.group));
+const timerGroupLabels = GROUP_ORDER
+    .filter((group) => timerGroupIds.has(group))
+    .map((group) => t(`guides.variables.group.${group}` as UIKey));
+const timerNote = t('guides.variables.timerNote').replace('{groups}', timerGroupLabels.join(', '));
 ---
 
-<section class="vref" data-vref-root data-initial-query={searchState} data-initial-category={categoryState} data-initial-surface={surfaceState}>
+<section class="vref" data-vref-root>
     <div class="vref__head" data-reveal style="--reveal-i: 0">
         <Eyebrow>{t('guides.variables.eyebrow')}</Eyebrow>
         <h1>{t('guides.variables.title')}</h1>
         <p class="vref__lead">{t('guides.variables.lead')}</p>
         <p class="vref__note">{t('guides.variables.note')}</p>
-        <div class="vref__search">
-            <SearchInput data-vref-search placeholder={t('guides.variables.searchPlaceholder')} value={searchState} aria-label={t('guides.variables.searchLabel')} fill />
-        </div>
     </div>
 
-    <div class="vref__grid">
-        <Rail
-            categories={groups.map((group) => ({ id: group.id, label: group.label, count: group.entries.length }))}
-            surfaces={surfaces}
-            activeCategory={categoryState}
-            activeSurface={surfaceState}
-            categoryLabel={t('guides.variables.categoryLabel')}
-            surfacesLabel={t('guides.variables.surfacesLabel')}
-            allSurfacesLabel={t('guides.variables.allSurfaces')}
-        />
-
-        <div>
-            <p class="vref__count" data-vref-count aria-live="polite">{`${catalog.length} ${t('guides.variables.showing')}`}</p>
-
-            <div class="vref__main">
-                {groups.map((group, index) => (
-                    <Group group={group.id} label={group.label} entries={group.entries} dashboardOrigin={DASHBOARD_ORIGIN} builderLang={builderLang} revealIndex={Math.min(index + 1, 6)} copy={entryCopy} />
-                ))}
-            </div>
-
-            <div class="vref__empty" data-vref-empty hidden>
-                <p>{t('guides.variables.empty')}</p>
-                <small>{t('guides.variables.emptyHint')}</small>
-            </div>
-        </div>
+    <div class="vref__main">
+        {groups.map((group, index) => (
+            <Group group={group.id} label={group.label} entries={group.entries} copy={groupCopy} revealIndex={Math.min(index + 1, 6)}>
+                {group.id === 'stream' && <p class="vref__timer-note">{timerNote}</p>}
+            </Group>
+        ))}
     </div>
 
     <p class="vref__back">

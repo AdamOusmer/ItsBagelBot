@@ -301,7 +301,7 @@
       },
       {
         "syntax": "{user}",
-        "output": "maya_live",
+        "output": "sesame_sam",
         "surfaceId": "channelpoints"
       },
       {
@@ -832,7 +832,7 @@
       },
       {
         "syntax": "{channel}",
-        "output": "your_channel",
+        "output": "streamer",
         "surfaceId": "channelpoints"
       },
       {
@@ -5666,9 +5666,9 @@
         "surfaceId": "channelpoints"
       }
     ],
-    "name": "replyVars.channelpoints.cost.name",
+    "name": "Point cost",
     "hint": "",
-    "description": "replyVars.channelpoints.cost.desc",
+    "description": "What the reward costs.",
     "group": "data",
     "groups": [
       "data"
@@ -5714,7 +5714,7 @@
       },
       {
         "syntax": "{counter}",
-        "output": "129",
+        "output": "12",
         "surfaceId": "channelpoints"
       }
     ],
@@ -5759,20 +5759,20 @@
     "token": "{input}",
     "syntax": "{input}",
     "example": "{input}",
-    "output": "stay hydrated!",
+    "output": "hello chat",
     "syntaxes": [
       "{input}"
     ],
     "examples": [
       {
         "syntax": "{input}",
-        "output": "stay hydrated!",
+        "output": "hello chat",
         "surfaceId": "channelpoints"
       }
     ],
-    "name": "replyVars.channelpoints.input.name",
+    "name": "Viewer input",
     "hint": "",
-    "description": "replyVars.channelpoints.input.desc",
+    "description": "The text typed with the redemption (when the reward asks for one).",
     "group": "data",
     "groups": [
       "data"
@@ -5963,20 +5963,20 @@
     "token": "{reward}",
     "syntax": "{reward}",
     "example": "{reward}",
-    "output": "Hydrate!",
+    "output": "Say Hi",
     "syntaxes": [
       "{reward}"
     ],
     "examples": [
       {
         "syntax": "{reward}",
-        "output": "Hydrate!",
+        "output": "Say Hi",
         "surfaceId": "channelpoints"
       }
     ],
-    "name": "replyVars.channelpoints.reward.name",
+    "name": "Reward title",
     "hint": "",
-    "description": "replyVars.channelpoints.reward.desc",
+    "description": "The name of the redeemed reward.",
     "group": "data",
     "groups": [
       "data"

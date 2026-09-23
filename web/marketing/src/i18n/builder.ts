@@ -337,22 +337,17 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'Channel Points page → the chat line a redemption posts.', fr: 'Page Points de chaîne → la ligne publiée lors d’un échange.' },
     example: { en: '{user} redeemed {reward} ({cost} pts): {input}', fr: '{user} a échangé {reward} ({cost} pts): {input}' },
     prompt: { en: 'maya_live redeemed Hydrate!', fr: 'maya_live a échangé Hydrate!' },
-    // Channel Points has no reply on the kit module catalog (rewards are
-    // broadcaster-created, RewardEditor owns their tokens on the dashboard),
-    // so this stays a hand-written token list; copy moved to kit locales
-    // (replyVars.channelpoints.*).
-    vars: [
-      ...explicitVars('channelpoints', [
-        { name: 'user', sample: 'maya_live' },
-        { name: 'input', sample: 'stay hydrated!' },
-        { name: 'reward', sample: 'Hydrate!' },
-        { name: 'cost', sample: '500' },
-        { name: 'channel', sample: 'your_channel' },
-        { name: 'counter', sample: '129' },
-        { name: 'points', sample: '50' }
-      ]),
-      ...dynamicFormVars(),
-    ],
+    // Channel Points DOES have a reply on the kit module catalog now
+    // (CHANNELPOINTS_MODULE.replies[0], key 'reply' -- added for the
+    // reply-token parity handshake with app/twitch/sesame/modules/
+    // reply_tokens.go's "channelpoints.reply"), so this reads its tokens the
+    // same way every other module surface below does instead of keeping a
+    // second, hand-typed copy that can drift from it. The hand-written list
+    // this replaced composed `replyVars.channelpoints.<token>.hint`, one
+    // path segment short of where replyTokens() actually wrote the kit
+    // locale strings (`replyVars.channelpoints.reply.<token>.hint`), which
+    // is why {input}/{cost}/{reward} showed the raw key instead of copy.
+    vars: moduleSurfaceVars('channelpoints.reply'),
   },
   {
     id: 'queue-join',
@@ -690,6 +685,7 @@ export function builderData(lang: Lang) {
         name: pick(x.name, lang),
         desc: pick(x.desc, lang),
         scopes: x.scopes?.map((sc) => ({ id: sc.id, label: pick(sc.label, lang), hint: pick(sc.hint, lang) })),
+        pinned: x.pinned,
       })),
     })),
   };
