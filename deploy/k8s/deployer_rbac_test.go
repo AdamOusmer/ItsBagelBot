@@ -96,7 +96,7 @@ func TestDeployerRolesMirrorTheApplierAllowlist(t *testing.T) {
 	for _, role := range rbacKinds(t)["Role"] {
 		byNamespace[role.Metadata.Namespace] = role.Rules
 	}
-	want := map[string][]string{"app": allowlist, "db": allowlist, "messaging": allowlist}
+	want := map[string][]string{"app": allowlist, "db": allowlist, "messaging": allowlist, "ops": nil}
 	got := map[string][]string{}
 	for namespace, rules := range byNamespace {
 		got[namespace] = writableResources(rules)
@@ -163,6 +163,7 @@ func TestDeployerBindingsNameOnlyItsServiceAccount(t *testing.T) {
 		"RoleBinding app/deployer":           role,
 		"RoleBinding db/deployer":            role,
 		"RoleBinding messaging/deployer":     role,
+		"RoleBinding ops/deployer":           role,
 		"ClusterRoleBinding /bagel-deployer": {RoleRef: rbacRoleRef{Kind: "ClusterRole", Name: "bagel-deployer"}, Subjects: deployer},
 	}
 	if !reflect.DeepEqual(got, want) {
