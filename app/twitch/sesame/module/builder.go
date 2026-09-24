@@ -79,13 +79,26 @@ func (b *Builder) Validate() error {
 	if err := b.validateKindName(); err != nil {
 		return err
 	}
+	if err := b.validateTrial(); err != nil {
+		return err
+	}
 	return b.validateCommands()
 }
 
-func (b *Builder) validateKindName() error {
-	if b.trial && (b.kind != KindCore || b.beta) {
-		return fmt.Errorf("trial module %q must be core and not beta: nothing but the trial origin gates it", b.name)
+func (b *Builder) validateTrial() error {
+	if !b.trial {
+		return nil
 	}
+	if b.kind != KindCore {
+		return fmt.Errorf("trial module %q must be core: nothing but the trial origin gates it", b.name)
+	}
+	if b.beta {
+		return fmt.Errorf("trial module %q cannot be beta", b.name)
+	}
+	return nil
+}
+
+func (b *Builder) validateKindName() error {
 	switch b.kind {
 	case KindCore:
 		if b.beta {

@@ -43,22 +43,27 @@ func localValkey(t *testing.T) valkey.Client {
 	return client
 }
 
-func seedTrial(t *testing.T, vc valkey.Client, id, state string, fields ...string) {
+type seededTrial struct {
+	id     string
+	state  string
+	fields map[string]string
+}
+
+func seedTrial(t *testing.T, vc valkey.Client, row seededTrial) {
 	t.Helper()
 	ctx := context.Background()
-	args := append([]string{"state", state, "generation", "5"}, fields...)
-	cmd := vc.B().Hset().Key("trial:channel:" + id).FieldValue()
-	for i := 0; i < len(args); i += 2 {
-		cmd = cmd.FieldValue(args[i], args[i+1])
+	cmd := vc.B().Hset().Key("trial:channel:"+row.id).FieldValue().FieldValue("state", row.state).FieldValue("generation", "5")
+	for field, value := range row.fields {
+		cmd = cmd.FieldValue(field, value)
 	}
 	require.NoError(t, vc.Do(ctx, cmd.Build()).Error())
-	require.NoError(t, vc.Do(ctx, vc.B().Zadd().Key("trial:history").ScoreMember().ScoreMember(1, id).Build()).Error())
+	require.NoError(t, vc.Do(ctx, vc.B().Zadd().Key("trial:history").ScoreMember().ScoreMember(1, row.id).Build()).Error())
 }
 
 func TestTrialPromotionCarriesCountersOnceIntoTheChannel(t *testing.T) {
 	vc := localValkey(t)
-	seedTrial(t, vc, "4242", "promoted", "decoded", "120", "answered", "7")
-	seedTrial(t, vc, "5353", "removed", "decoded", "80")
+	seedTrial(t, vc, seededTrial{id: "4242", state: "promoted", fields: map[string]string{"decoded": "120", "answered": "7"}})
+	seedTrial(t, vc, seededTrial{id: "5353", state: "removed", fields: map[string]string{"decoded": "80"}})
 	pub := &rawCapture{}
 	promo := NewTrialPromotion(vc, pub, zap.NewNop())
 
@@ -83,7 +88,7 @@ func TestTrialPromotionCarriesCountersOnceIntoTheChannel(t *testing.T) {
 
 func TestTrialPromotionRetriesAStaleClaimAfterAFailedPublish(t *testing.T) {
 	vc := localValkey(t)
-	seedTrial(t, vc, "4242", "promoted", "decoded", "3")
+	seedTrial(t, vc, seededTrial{id: "4242", state: "promoted", fields: map[string]string{"decoded": "3"}})
 	failing := &rawCapture{fail: true}
 	NewTrialPromotion(vc, failing, zap.NewNop()).Sweep(context.Background())
 	require.Empty(t, failing.got)
