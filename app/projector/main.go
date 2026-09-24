@@ -98,10 +98,12 @@ func main() {
 		CacheInvalidatePrefix: topics.cacheInvalidate,
 		Hydrator:              hydrator,
 		Loyalty:               newLoyaltyCounters(nc, topics.loyalty),
+		Live:                  valkeyStore,
 		Log:                   log,
 	})
 
 	registerConsumers(ctx, consumerRuntime{nrApp: nrApp, sub: sub, log: log}, projector, topics.stream)
+	go projector.SeedBoards(ctx)
 	subscribeRPCs(rpcRuntime{
 		nc: nc, store: valkeyStore, pub: pub, hydrator: hydrator, nrApp: nrApp, log: log,
 	}, topics)
@@ -158,6 +160,7 @@ func registerConsumers(ctx context.Context, rt consumerRuntime, projector *Proje
 		{data.SubjectUserDeleted, projector.HandleUserDeleted},
 		{data.SubjectModuleChanged, projector.HandleModuleChanged},
 		{data.SubjectCommandChanged, projector.HandleCommandChanged},
+		{data.SubjectLoyaltyCounters, projector.HandleCounterBumps},
 		{streamTopic, projector.HandleStreamEvent},
 	}
 	for _, b := range bindings {
