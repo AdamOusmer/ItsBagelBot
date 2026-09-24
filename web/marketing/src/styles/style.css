@@ -26,6 +26,7 @@
 @import '@bagel/ui/styles/elements/button.css';
 @import '@bagel/ui/styles/elements/card.css';
 @import '@bagel/ui/styles/tags.css';
+@import '@bagel/ui/styles/motion.css';
 @import '@bagel/ui/styles/reveal.css';
 @import '@bagel/ui/styles/orbs.css';
 @import '@bagel/ui/styles/a11y.css';
@@ -338,11 +339,4 @@ section {
         --card-pad: 24px;
         --card-body-pad: 20px;
     }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    /* Park the sweep mid-rail rather than hiding it: the hairline still
-       reads as "lit", it just stops travelling. */
-    .bb-sweep { animation: none; left: 35%; opacity: 1; }
-    .bb-drawline::after { animation: none; width: 100%; }
 }
