@@ -31,7 +31,7 @@ const FAMILY = {
   OverviewGrid: 'Data', StatTile: 'Data', AreaSeries: 'Data', Table: 'Data', Icon: 'Data',
   LogTail: 'Data',
   LightField: 'Motion', BackgroundOrbs: 'Motion', AuroraBg: 'Motion', Cursor: 'Motion',
-  ReadingProgress: 'Motion', CardAtmosphere: 'Motion', Brackets: 'Motion',
+  ReadingProgress: 'Motion', CardAtmosphere: 'Motion', Brackets: 'Motion', Sky: 'Motion',
 };
 
 const SINGLE_ADAPTER_REASON = {
@@ -43,6 +43,7 @@ const SINGLE_ADAPTER_REASON = {
   FieldError: 'Svelte only: it renders only when a form action has returned an error, which a static page has not.',
   ProgressBar: 'Svelte only: its value arrives from a live stream (the deploy run\'s snapshots) and eases between them; a static page has no progress to report.',
   StepList: 'Svelte only: rows change state from a live stream, and the per-row detail is a Snippet that takes the step, which an Astro slot cannot.',
+  Sky: 'Svelte only: it follows the pointer and a flow\'s progress from client state; a static page has neither.',
   LogTail: 'Svelte only: it pins itself to the newest line as lines arrive and lets go when the reader scrolls up, which needs a client.',
 };
 

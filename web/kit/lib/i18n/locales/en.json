@@ -796,7 +796,7 @@
       "confirmStart": "Start",
       "confirmCancel": "Back",
       "startFailed": "The run did not start.",
-      "planFailed": "The plan did not refresh, so what this run rolls is unknown. Switch kind to retry.",
+      "planFailed": "The plan did not refresh, so what this run rolls is unknown. Pick the kind again to retry.",
       "planWait": "Waiting for the plan.",
       "history": "History",
       "historyEmpty": "No runs yet",
@@ -870,6 +870,87 @@
         "new": "new",
         "pending": "pending",
         "failing": "failing"
+      },
+      "flow": {
+        "label": "Ship steps",
+        "stepOf": "Step {n} of {total}",
+        "next": "Next",
+        "back": "Back",
+        "rail": {
+          "kind": "Kind",
+          "build": "Build",
+          "rollback": "Release",
+          "prs": "Pull requests",
+          "changelog": "Changelog",
+          "review": "Review"
+        },
+        "title": {
+          "kind": "What are we shipping?",
+          "build": "Version and commit",
+          "rollback": "Pick the release",
+          "prs": "Merge pull requests first",
+          "changelog": "Write the changelog",
+          "review": "Review and ship"
+        },
+        "body": {
+          "kind": "Each kind runs a fixed set of stages in order and stops at the first failure.",
+          "build": "The commit on main this run builds from. Releases and hotfixes also write the version tag.",
+          "rollback": "The cluster pins that release’s images and rolls every service whose pin changes. No build.",
+          "prs": "Ticked pull requests merge before anything builds. Only PRs with passing or running checks can be ticked.",
+          "changelog": "Goes out with the release notes. English is required. French falls back to English when left empty.",
+          "review": "Check what this run does, then start it. Nothing rolls back on its own."
+        },
+        "stagesCount": "{n} stages",
+        "picked": "{n} PRs picked",
+        "pickedOne": "1 PR picked",
+        "pickedNone": "No PR picked. Nothing merges.",
+        "releasesEmpty": "No earlier release to roll back to.",
+        "reviewKind": "Kind",
+        "reviewPrs": "Merges first",
+        "reviewPrsNone": "Nothing",
+        "reviewChangelog": "Changelog title",
+        "eyebrow": "New deploy",
+        "close": "Cancel",
+        "pending": "Not reached yet"
+      },
+      "run": {
+        "stageOf": "Stage {n} of {total}",
+        "follow": "Follow live",
+        "about": {
+          "preflight": "Checks the cluster is reachable, the manifests lint clean, required checks pass on the target and every workload is settled.",
+          "merge_prs": "Merges each picked pull request once its checks pass, updating stale branches first.",
+          "changelog": "Opens and merges a pull request that adds this version’s changelog file to main.",
+          "tag": "Creates the version tag on the changelog commit. Anything not on main is refused.",
+          "release": "Publishes the GitHub release for the tag, with the changelog highlights as notes.",
+          "build": "Waits for the image workflow on GitHub to finish and follows each image’s build jobs.",
+          "digests": "Looks up every built image and checks it has both architectures, the right commit and provenance.",
+          "pin_pr": "Opens and merges a pull request that pins main’s manifests to the new image digests.",
+          "acl": "Applies the NATS config and waits until every NATS server has reloaded it and gone quiet.",
+          "rollout": "Applies shared config, then rolls one service at a time and waits for its pods before the next.",
+          "verify": "Checks every pod runs its pinned image and the status pages answer. A miss offers a rollback."
+        },
+        "state": {
+          "pending": "Starts once the stages before it finish.",
+          "running": "Running now.",
+          "waiting": "Paused until something outside the run is ready.",
+          "succeeded": "Done.",
+          "failed": "Stopped here. Nothing after it ran.",
+          "skipped": "Not needed for this run.",
+          "cancelled": "Cancelled before it finished."
+        },
+        "nowBuilding": "Building",
+        "nowRolling": "Rolling out",
+        "nowOf": "{n} of {total}",
+        "nowAllBuilt": "All {total} images built",
+        "nowAllRolled": "All {total} services rolled out",
+        "pods": "{done} of {total} pods ready",
+        "jobs": "{done} of {total} jobs done",
+        "openJob": "Open job"
+      },
+      "start": {
+        "title": "Start a deploy",
+        "body": "Pick a kind, check what ships, then watch every stage roll out.",
+        "cta": "New deploy"
       }
     }
   },

@@ -4,11 +4,11 @@
 
 # @bagel/ui — block catalog
 
-Every block the library ships, by family. **87** blocks;
+Every block the library ships, by family. **88** blocks;
 **78** ship both adapters.
 
 A `*` after a prop name means it is required. `class` and `children` are
-omitted: nearly every block takes both, and listing them 87 times
+omitted: nearly every block takes both, and listing them 88 times
 would bury the props that differ. Every block also forwards unknown attributes
 to its outermost element.
 
@@ -136,3 +136,4 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **Cursor** | — | svelte + astro | `styles/elements/cursor.css` |
 | **LightField** | — | svelte + astro | `styles/elements/light-field.css` |
 | **ReadingProgress** | — | svelte + astro | `styles/elements/reading-progress.css` |
+| **Sky** | `shift`: number<br>`turn`: number<br>`px`: number<br>`py`: number<br>`progress`: number<br>`leaving`: boolean | svelte<br>*Svelte only: it follows the pointer and a flow's progress from client state; a static page has neither.* | `styles/orbs.css` |
