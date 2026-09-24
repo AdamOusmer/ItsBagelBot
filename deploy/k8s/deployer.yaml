@@ -15,6 +15,35 @@ kind: ServiceAccount
 metadata:
   name: deployer
   namespace: ops
+imagePullSecrets:
+  - name: ghcr-pull
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: deployer
+  namespace: ops
+rules:
+  - apiGroups: ["apps"]
+    resources: [deployments, replicasets]
+    verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: deployer
+  namespace: ops
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: deployer
+subjects:
+  - kind: ServiceAccount
+    name: deployer
+    namespace: ops
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -286,7 +315,7 @@ spec:
       priorityClassName: bagel-operator
       containers:
         - name: deployer
-          image: ghcr.io/adamousmer/itsbagelbot/deployer:v0.2.2-beta
+          image: ghcr.io/adamousmer/itsbagelbot/deployer:main-1790199295-f6baffbc2e4d@sha256:760957cd180ac34a761e426c990a9cd9c90cb783a14d369e1d96137018b1b43c
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_URL
@@ -415,6 +444,7 @@ spec:
         - port: 8223
           protocol: TCP
 ---
+# No toFQDNs or dns rules: Cilium's DNS proxy never answers on these nodes, so the pod would resolve nothing.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -433,40 +463,13 @@ spec:
         - ports:
             - {port: "53", protocol: UDP}
             - {port: "53", protocol: TCP}
-          rules:
-            dns:
-              - matchPattern: "*"
     - toEntities:
         - kube-apiserver
       toPorts:
         - ports:
             - {port: "6443", protocol: TCP}
-    - toFQDNs:
-        - matchName: api.github.com
-        - matchName: ghcr.io
-        - matchName: pkg-containers.githubusercontent.com
-        - matchName: productionresultssa0.blob.core.windows.net
-        - matchName: productionresultssa1.blob.core.windows.net
-        - matchName: productionresultssa2.blob.core.windows.net
-        - matchName: productionresultssa3.blob.core.windows.net
-        - matchName: productionresultssa4.blob.core.windows.net
-        - matchName: productionresultssa5.blob.core.windows.net
-        - matchName: productionresultssa6.blob.core.windows.net
-        - matchName: productionresultssa7.blob.core.windows.net
-        - matchName: productionresultssa8.blob.core.windows.net
-        - matchName: productionresultssa9.blob.core.windows.net
-        - matchName: productionresultssa10.blob.core.windows.net
-        - matchName: productionresultssa11.blob.core.windows.net
-        - matchName: productionresultssa12.blob.core.windows.net
-        - matchName: productionresultssa13.blob.core.windows.net
-        - matchName: productionresultssa14.blob.core.windows.net
-        - matchName: productionresultssa15.blob.core.windows.net
-        - matchName: productionresultssa16.blob.core.windows.net
-        - matchName: productionresultssa17.blob.core.windows.net
-        - matchName: productionresultssa18.blob.core.windows.net
-        - matchName: productionresultssa19.blob.core.windows.net
-        - matchPattern: "*.actions.githubusercontent.com"
-        - matchPattern: "*.itsbagelbot.com"
+    - toEntities:
+        - world
       toPorts:
         - ports:
             - {port: "443", protocol: TCP}

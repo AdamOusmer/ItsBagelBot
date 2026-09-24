@@ -18,7 +18,7 @@ spec:
       matchExpressions:
         - key: kubernetes.io/metadata.name
           operator: In
-          values: [app, cache, db, messaging, networking, observability, operators]
+          values: [app, cache, db, messaging, networking, observability, operators, ops]
 ---
 # Intermediate only: adding the root would let any leaf the root issued pass mTLS verify.
 apiVersion: trust.cert-manager.io/v1alpha1

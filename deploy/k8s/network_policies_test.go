@@ -311,6 +311,7 @@ type ciliumEgressRule struct {
 			Port     string `yaml:"port"`
 			Protocol string `yaml:"protocol"`
 		} `yaml:"ports"`
+		Rules map[string]any `yaml:"rules"`
 	} `yaml:"toPorts"`
 }
 
@@ -343,6 +344,9 @@ func (r ciliumEgressRule) ports() string {
 		for _, port := range toPorts.Ports {
 			out = append(out, port.Port+"/"+port.Protocol)
 		}
+		if len(toPorts.Rules) > 0 {
+			out = append(out, "l7")
+		}
 	}
 	return strings.Join(out, ",")
 }
@@ -358,7 +362,9 @@ func deployerCiliumPolicy(t *testing.T) ciliumNetworkPolicy {
 	return ciliumNetworkPolicy{}
 }
 
-func TestDeployerInternetEgressIsHostScoped(t *testing.T) {
+// Any toFQDNs peer or L7 rule routes lookups through Cilium's DNS proxy, which
+// never answers on these nodes: the deployer then resolves nothing.
+func TestDeployerCiliumEgressAvoidsTheDNSProxy(t *testing.T) {
 	policy := deployerCiliumPolicy(t)
 	var got []string
 	for _, rule := range policy.Spec.Egress {
@@ -368,19 +374,11 @@ func TestDeployerInternetEgressIsHostScoped(t *testing.T) {
 		}
 	}
 	slices.Sort(got)
-	hosts := []string{
+	want := sorted(
 		"endpoints k8s:io.kubernetes.pod.namespace=kube-system;k8s:k8s-app=kube-dns | 53/UDP,53/TCP",
 		"entity kube-apiserver | 6443/TCP",
-		"fqdn *.actions.githubusercontent.com | 443/TCP",
-		"fqdn *.itsbagelbot.com | 443/TCP",
-		"fqdn api.github.com | 443/TCP",
-		"fqdn ghcr.io | 443/TCP",
-		"fqdn pkg-containers.githubusercontent.com | 443/TCP",
-	}
-	for i := range 20 {
-		hosts = append(hosts, fmt.Sprintf("fqdn productionresultssa%d.blob.core.windows.net | 443/TCP", i))
-	}
-	want := sorted(hosts...)
+		"entity world | 443/TCP",
+	)
 	scope := policy.Metadata.Namespace + " " + policy.Spec.EndpointSelector.render()
 	if !slices.Equal(got, want) || scope != "ops app=deployer" {
 		t.Fatalf("deployer Cilium egress (%s):\n got %v\nwant %v", scope, got, want)
