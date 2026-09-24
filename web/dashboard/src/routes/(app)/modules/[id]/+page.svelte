@@ -10,6 +10,7 @@
   import ReplyEditor from '$lib/components/modules/ReplyEditor.svelte';
   import ModuleCommandList from '$lib/components/modules/ModuleCommandList.svelte';
   import TriggerRuleEditor from '$lib/components/modules/TriggerRuleEditor.svelte';
+  import TimezonePicker from '$lib/components/modules/TimezonePicker.svelte';
 
   let { data } = $props();
 
@@ -370,10 +371,6 @@
       tzZones = browserZone ? [browserZone] : [];
     }
   });
-  function tzOptions(current: string): string[] {
-    if (tzZones.length) return tzZones;
-    return current ? [current] : [];
-  }
 
   const inspectorDirty = $derived.by(() => {
     if (!expanded) return false;
@@ -507,22 +504,12 @@
               {#if fieldCopy(field, 'help')}<span class="tr-help">{fieldCopy(field, 'help')}</span>{/if}
             </label>
             <SaveStatus state={modStatus[`setting:${field.key}`] ?? 'idle'} />
-            <select
-              id="mod-setting-{field.key}"
-              class="setting-input"
-              value={config[field.key] ?? ''}
-              onchange={(e) => saveSetting(field, e.currentTarget.value)}
-            >
-              <option value="">{t('modules.tzUnset')}</option>
-              {#each tzOptions(config[field.key] ?? '') as tz (tz)}
-                <option value={tz}>{tz}</option>
-              {/each}
-            </select>
+            <TimezonePicker id="mod-setting-{field.key}" value={config[field.key] ?? ''} zones={tzZones} onPick={(tz) => saveSetting(field, tz)} />
           </div>
           {#if browserZone && (config[field.key] ?? '') !== browserZone}
-            <div class="setting-row tz-suggest">
-              <span class="tr-help">{t('modules.tzSuggested', { tz: browserZone })}</span>
-              <Button variant="ghost" onclick={() => saveSetting(field, browserZone)}>{t('modules.tzApply')}</Button>
+            <div class="tz-suggest">
+              <span class="tz-suggest-text">{t('modules.tzSuggested', { tz: browserZone })}</span>
+              <Button variant="green" size="sm" onclick={() => saveSetting(field, browserZone)}>{t('modules.tzApply', { tz: browserZone })}</Button>
             </div>
           {/if}
         {:else}
@@ -773,8 +760,26 @@
     .setting-input { width: 100%; }
   }
 
-  .tz-suggest { border-top: none; padding-top: 0; }
-  .tz-suggest .tr-help { margin-right: auto; }
+  .tz-suggest {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 0 18px 14px;
+    padding: 10px 12px 10px 14px;
+    border: 1px solid rgba(82, 183, 136, 0.35);
+    border-radius: var(--bb-radius-md);
+    background: rgba(82, 183, 136, 0.07);
+  }
+  .tz-suggest-text {
+    margin-right: auto;
+    font-family: var(--bb-font-body);
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--bb-white);
+  }
+  @media (max-width: 560px) {
+    .tz-suggest { flex-wrap: wrap; }
+  }
 
   .deck {
     display: grid;
