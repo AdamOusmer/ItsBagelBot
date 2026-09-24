@@ -10,6 +10,7 @@
   import type { TrialSnapshot } from '$lib/server/services';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { TrialsBundle } from './+page.server';
+  import { durationLabel } from '$lib/duration';
 
   let { data, form } = $props();
   const { t } = getI18n();
@@ -108,7 +109,7 @@
                 {t('admin.trials.failed', { count: String(trial.failed ?? 0) })} ·
                 {t('admin.trials.retried', { count: String(trial.retried ?? 0) })} ·
                 {t('admin.trials.blocked', { count: String(trial.blocked_actions ?? 0) })} ·
-                {t('admin.trials.latency', { count: String(trial.average_processing_latency_ms ?? 0) })}
+                {t('admin.trials.latency', { duration: durationLabel(trial.average_processing_latency_ns ?? 0) })}
               </small>
             </div>
             <div class="trial-controls">
@@ -148,7 +149,7 @@
                 {t('admin.trials.decoded', { count: String(trial.decoded ?? 0) })} ·
                 {t('admin.trials.processed', { count: String(trial.processed ?? 0) })} ·
                 {t('admin.trials.blocked', { count: String(trial.blocked_actions ?? 0) })} ·
-                {t('admin.trials.latency', { count: String(trial.average_processing_latency_ms ?? 0) })}
+                {t('admin.trials.latency', { duration: durationLabel(trial.average_processing_latency_ns ?? 0) })}
               </small>
             </div>
           </li>

@@ -697,7 +697,7 @@
       "failed": "{count} failed",
       "retried": "{count} retried",
       "blocked": "{count} blocked actions",
-      "latency": "{count} ms average processing",
+      "latency": "{duration} average processing",
       "state": {
         "pending": "Pending",
         "receiving": "Receiving",

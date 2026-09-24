@@ -697,7 +697,7 @@
       "failed": "{count} échecs",
       "retried": "{count} reprises",
       "blocked": "{count} actions bloquées",
-      "latency": "{count} ms de traitement moyen",
+      "latency": "{duration} de traitement moyen",
       "state": {
         "pending": "En attente",
         "receiving": "En réception",
