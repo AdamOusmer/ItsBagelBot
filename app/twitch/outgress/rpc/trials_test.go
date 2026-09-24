@@ -80,13 +80,18 @@ func TestTrialSubscriptionOwnershipScripts(t *testing.T) {
 	expectTrialResult(t, cli("HGET", "trial:channel:42", "state"), "pending", "ready to recreate")
 }
 
-func TestTrialSocketSlots(t *testing.T) {
-	if trialOwnerKey(0) != "trial:owner" || trialSessionKey(0) != "trial:owner_session" {
-		t.Fatal("slot 0 must keep the single-socket keys")
+func TestTrialSocketKeys(t *testing.T) {
+	for _, tc := range []struct{ got, want string }{
+		{trialOwnerKey(0), "trial:owner"},
+		{trialSessionKey(0), "trial:owner_session"},
+		{trialOwnerKey(2), "trial:owner:2"},
+		{trialSessionKey(2), "trial:owner_session:2"},
+	} {
+		expectTrialResult(t, tc.got, tc.want, "socket key")
 	}
-	if trialOwnerKey(2) != "trial:owner:2" || trialSessionKey(2) != "trial:owner_session:2" {
-		t.Fatal("unexpected slot 2 keys")
-	}
+}
+
+func TestTrialSlotMatches(t *testing.T) {
 	for _, tc := range []struct {
 		assigned string
 		slot     int
@@ -96,10 +101,11 @@ func TestTrialSocketSlots(t *testing.T) {
 			t.Fatalf("slot %q vs %d: got %v", tc.assigned, tc.slot, got)
 		}
 	}
-	base := TrialSubscriptionRequest{Version: 1, BroadcasterID: "42", OwnerEpoch: 1, TrialGeneration: "1"}
+}
+
+func TestTrialRequestSlotBounds(t *testing.T) {
 	for slot, want := range map[int]bool{-1: false, 0: true, 2: true, 3: false} {
-		req := base
-		req.Slot = slot
+		req := TrialSubscriptionRequest{Version: 1, BroadcasterID: "42", OwnerEpoch: 1, TrialGeneration: "1", Slot: slot}
 		if req.valid() != want {
 			t.Fatalf("slot %d valid: want %v", slot, want)
 		}
