@@ -14,3 +14,19 @@ pmtuDiscovery:
 routingMode: native
 
 autoDirectNodeRoutes: true
+
+ipv4NativeRoutingCIDR: 10.42.0.0/16
+
+ipam:
+  operator:
+    clusterPoolIPv4PodCIDRList:
+      - 10.42.0.0/16
+
+k8sServiceHost: 100.98.67.104
+k8sServicePort: 6443
+
+kubeProxyReplacement: true
+
+# Without this, Cilium ignores kube-dns trafficDistribution: PreferSameNode.
+loadBalancer:
+  serviceTopology: true
