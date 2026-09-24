@@ -308,51 +308,58 @@ function demoGet(req: RunRequest): DeployRun {
   return run;
 }
 
-function demoUnitsDone(index: number, per: number, done: number): number {
-  return Math.min(Math.max(done - index * per, 0), per);
+type DemoSlot = { service: DemoService; index: number; per: number; done: number };
+
+function slotFresh(s: DemoSlot): number {
+  return Math.min(Math.max(s.done - s.index * s.per, 0), s.per);
 }
 
-function demoItemState(fresh: number, per: number, started: boolean): StageState {
-  if (fresh >= per) return 'succeeded';
-  return started ? 'running' : 'pending';
+function slotStarted(s: DemoSlot): boolean {
+  return s.done >= s.index * s.per;
 }
 
-function demoBuildItem(service: DemoService, index: number, done: number): DeployItem {
-  const fresh = demoUnitsDone(index, DEMO_JOBS, done);
+function slotState(s: DemoSlot): StageState {
+  if (slotFresh(s) >= s.per) return 'succeeded';
+  return slotStarted(s) ? 'running' : 'pending';
+}
+
+function slotPodPhase(s: DemoSlot, pod: number): PodPhase {
+  const fresh = slotFresh(s);
+  if (pod < fresh) return 'new';
+  return slotStarted(s) && pod === fresh ? 'pending' : 'old';
+}
+
+function demoBuildItem(s: DemoSlot): DeployItem {
   return {
-    key: service,
-    label: service,
-    state: demoItemState(fresh, DEMO_JOBS, done >= index * DEMO_JOBS),
+    key: s.service,
+    label: s.service,
+    state: slotState(s),
     url: `${DEMO_REPO}/actions`,
-    progress: { done: fresh, total: DEMO_JOBS }
+    progress: { done: slotFresh(s), total: s.per }
   };
 }
 
-function demoRolloutItem(service: DemoService, index: number, done: number): DeployItem {
-  const per = DEMO_NODES.length;
-  const fresh = demoUnitsDone(index, per, done);
-  const started = done >= index * per;
-  const phase = (n: number): PodPhase => (n < fresh ? 'new' : started && n === fresh ? 'pending' : 'old');
+function demoRolloutItem(s: DemoSlot): DeployItem {
   return {
-    key: service,
-    label: service,
-    state: demoItemState(fresh, per, started),
-    progress: { done: fresh, total: per },
-    nodes: DEMO_NODES.map((node, n) => ({ node, pod: `${service}-${n}`, phase: phase(n) }))
+    key: s.service,
+    label: s.service,
+    state: slotState(s),
+    progress: { done: slotFresh(s), total: s.per },
+    nodes: DEMO_NODES.map((node, pod) => ({ node, pod: `${s.service}-${pod}`, phase: slotPodPhase(s, pod) }))
   };
 }
 
-const DEMO_ITEMS: Partial<Record<StageId, (svc: DemoService, index: number, done: number) => DeployItem>> = {
-  build: demoBuildItem,
-  rollout: demoRolloutItem
+const DEMO_ITEMS: Partial<Record<StageId, { per: number; item: (s: DemoSlot) => DeployItem }>> = {
+  build: { per: DEMO_JOBS, item: demoBuildItem },
+  rollout: { per: DEMO_NODES.length, item: demoRolloutItem }
 };
 
 function demoStep(stage: DeployStage): void {
   const done = stage.progress.done + 1;
   stage.progress = { ...stage.progress, done };
   stage.state = done >= stage.progress.total ? 'succeeded' : 'running';
-  const item = DEMO_ITEMS[stage.id];
-  if (item) stage.items = DEMO_SERVICES.map((svc, i) => item(svc, i, done));
+  const spec = DEMO_ITEMS[stage.id];
+  if (spec) stage.items = DEMO_SERVICES.map((service, index) => spec.item({ service, index, per: spec.per, done }));
 }
 
 function demoAdvance(run: DeployRun): DeployRun {
