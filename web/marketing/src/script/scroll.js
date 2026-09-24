@@ -111,6 +111,7 @@ function updateHeroProgress() {
         root.style.setProperty('--hero-animation-state', heroComplete ? 'paused' : 'running');
         root.style.setProperty('--hero-content-will-change', heroComplete ? 'auto' : 'opacity, transform, filter');
         root.style.setProperty('--hero-orb-will-change', heroComplete ? 'auto' : 'opacity, transform');
+        root.style.setProperty('--hero-decor-display', heroComplete ? 'none' : 'block');
         lastHeroComplete = heroComplete;
     }
 }
