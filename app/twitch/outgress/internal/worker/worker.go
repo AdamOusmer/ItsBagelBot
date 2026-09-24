@@ -54,6 +54,7 @@ const (
 
 type Worker struct {
 	log      *zap.Logger
+	blocked  *BlockedLog
 	limiter  ratelimit.Manager
 	registry *channels.Registry
 	twitch   *twitch.Client
@@ -80,6 +81,7 @@ type Worker struct {
 
 type Config struct {
 	Log      *zap.Logger
+	Blocked  *BlockedLog
 	Limiter  ratelimit.Manager
 	Registry *channels.Registry
 	Twitch   *twitch.Client
@@ -104,6 +106,7 @@ func New(cfg Config) *Worker {
 	w := &Worker{
 		grants:     grants,
 		log:        cfg.Log,
+		blocked:    cfg.Blocked,
 		limiter:    cfg.Limiter,
 		registry:   cfg.Registry,
 		twitch:     cfg.Twitch,
