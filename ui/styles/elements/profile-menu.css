@@ -6,6 +6,18 @@
 @layer bb.elements {
 
   .bb-profile-rail__side-foot { position: relative; border-top: 1px solid var(--profile-border, rgba(240, 236, 228, 0.11)); padding-top: 14px; margin-top: 10px; }
+  .bb-profile-rail__help { display: flex; gap: 2px; margin: -6px 0 6px; }
+  .bb-profile-rail__help-btn {
+    flex: 1; display: flex; align-items: center; justify-content: center; min-width: 0; min-height: 26px;
+    padding: 4px 6px; border: none; border-radius: var(--bb-radius-sm);
+    background: none; cursor: pointer; text-decoration: none;
+    font-family: var(--bb-font-body); font-weight: 500; font-size: 12px; color: var(--bb-muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    transition: color var(--bb-dur-fast, 180ms) ease, background var(--bb-dur-fast, 180ms) ease;
+  }
+  .bb-profile-rail__help-btn:hover, .bb-profile-rail__help-btn.bb-profile-rail__open {
+    color: var(--bb-white); background: rgba(201, 168, 124, 0.1);
+  }
   .bb-profile-rail__account { display: flex; align-items: center; gap: 10px; padding: 6px 8px; }
   .bb-profile-rail__account--btn {
     width: 100%; text-align: left;
@@ -84,6 +96,13 @@
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
   }
   .bb-profile__link:hover .bb-profile__name { color: var(--bb-white); }
+  .bb-profile__glyph { flex: none; display: flex; color: var(--bb-tan); }
+  .bb-profile__line { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .bb-profile__line .bb-profile__name { color: var(--bb-white); }
+  .bb-profile__hint {
+    font-family: var(--bb-font-body); font-size: 11px; color: rgba(240, 236, 228, 0.6);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
 
   @media (prefers-reduced-motion: reduce) {
     .bb-profile-rail__foot-menu { animation: none; }
