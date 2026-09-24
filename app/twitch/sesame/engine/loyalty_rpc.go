@@ -152,6 +152,11 @@ func (l *LoyaltyRPC) CounterSet(ctx context.Context, broadcasterID uint64, name 
 	return reply.Found, nil
 }
 
+func (l *LoyaltyRPC) PromoteTrial(ctx context.Context, broadcasterID uint64) error {
+	_, err := l.call(ctx, "counter.promote_trial", loyaltyrpc.Request{UserID: fmtID(broadcasterID)})
+	return err
+}
+
 func (l *LoyaltyRPC) CounterDelete(ctx context.Context, broadcasterID uint64, name string) error {
 	_, err := l.call(ctx, "counter.delete", loyaltyrpc.Request{UserID: fmtID(broadcasterID), Name: name})
 	return err

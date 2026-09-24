@@ -102,7 +102,7 @@ func main() {
 
 	pipe.RegisterObserver(chatVolumeObserver{store: chatvolume.New(valkeyClient, log)})
 
-	go engine.NewTrialPromotion(valkeyClient, pub, log.Named("trial-promotion")).Run(ctx)
+	go engine.NewTrialPromotion(valkeyClient, engine.NewLoyaltyRPC(nc, cfg.LoyaltyRPCPrefix), log.Named("trial-promotion")).Run(ctx)
 
 	weighted, err := newConsumer(sub, nrApp, cfg, log).Start(ctx, pipe.Process)
 	svcboot.FatalIf(log, err, "failed to start consumer")

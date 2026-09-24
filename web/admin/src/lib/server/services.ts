@@ -179,8 +179,31 @@ export interface TrialSnapshot {
 
 export type TrialMutationReply = Pick<TrialChannel, 'broadcaster_id' | 'state'> & Partial<Pick<TrialChannel, 'enabled'>>;
 
-export function trialList(): Promise<TrialSnapshot> {
-  return rpc<TrialSnapshot>(`${SUB.trials}.list`, {});
+export async function trialList(): Promise<TrialSnapshot> {
+  const snapshot = await rpc<TrialSnapshot>(`${SUB.trials}.list`, {});
+  const counts = await Promise.all(snapshot.trials.map((row) => trialCounters(row.broadcaster_id)));
+  return { ...snapshot, trials: snapshot.trials.map((row, i) => withTrialCounters(row, counts[i])) };
+}
+
+function trialCounters(broadcasterId: string): Promise<Map<string, number> | null> {
+  return rpc<{ counters?: { name: string; value: number }[] }>(`${SUB.loyalty}.counter.trial`, { user_id: broadcasterId })
+    .then((reply) => new Map((reply.counters ?? []).map((c) => [c.name, c.value])))
+    .catch(() => null);
+}
+
+function withTrialCounters(row: TrialChannel, counts: Map<string, number> | null): TrialChannel {
+  if (!counts) return row;
+  const count = (name: string) => counts.get(`trial_${name}`) ?? 0;
+  const samples = count('latency_samples');
+  return {
+    ...row,
+    decoded: count('decoded'),
+    processed: count('processed'),
+    failed: count('failed') + (row.failed ?? 0),
+    retried: count('retried'),
+    blocked_actions: count('blocked'),
+    average_processing_latency_ms: samples ? Math.round(count('latency_total_ms') / samples) : 0
+  };
 }
 
 export function trialAdd(broadcasterId: string): Promise<TrialMutationReply> {

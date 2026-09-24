@@ -17,7 +17,6 @@ import (
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/cache"
 	"ItsBagelBot/pkg/ratelimit"
-	valkey "github.com/valkey-io/valkey-go"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
 
@@ -54,18 +53,17 @@ const (
 )
 
 type Worker struct {
-	trialStore valkey.Client
-	log        *zap.Logger
-	limiter    ratelimit.Manager
-	registry   *channels.Registry
-	twitch     *twitch.Client
-	botID      string
-	owner      string
-	conduit    *conduit.Resolver
-	lane       Lane
-	batch      BatchStore
-	actions    action.Registry
-	userIDs    *cache.Cache[string]
+	log      *zap.Logger
+	limiter  ratelimit.Manager
+	registry *channels.Registry
+	twitch   *twitch.Client
+	botID    string
+	owner    string
+	conduit  *conduit.Resolver
+	lane     Lane
+	batch    BatchStore
+	actions  action.Registry
+	userIDs  *cache.Cache[string]
 
 	modVerifier *ModVerifier
 	reauth      *ReauthNotifier
@@ -81,17 +79,16 @@ type Worker struct {
 }
 
 type Config struct {
-	TrialStore valkey.Client
-	Log        *zap.Logger
-	Limiter    ratelimit.Manager
-	Registry   *channels.Registry
-	Twitch     *twitch.Client
-	BotID      string
-	Owner      string
-	Conduit    *conduit.Resolver
-	Lane       Lane
-	Batch      BatchStore
-	UserIDs    *cache.Cache[string]
+	Log      *zap.Logger
+	Limiter  ratelimit.Manager
+	Registry *channels.Registry
+	Twitch   *twitch.Client
+	BotID    string
+	Owner    string
+	Conduit  *conduit.Resolver
+	Lane     Lane
+	Batch    BatchStore
+	UserIDs  *cache.Cache[string]
 }
 
 func New(cfg Config) *Worker {
@@ -105,7 +102,6 @@ func New(cfg Config) *Worker {
 		grants = cfg.Registry
 	}
 	w := &Worker{
-		trialStore: cfg.TrialStore,
 		grants:     grants,
 		log:        cfg.Log,
 		limiter:    cfg.Limiter,

@@ -41,6 +41,8 @@ func Subscribe(w Wiring, prefix string) error {
 		bus.At("counter.list", l.handleCounterList),
 		bus.At("counter.board", l.handleCounterBoard),
 		bus.At("counter.entries", l.handleCounterEntries),
+		bus.At("counter.trial", l.handleCounterTrial),
+		bus.At("counter.promote_trial", l.handlePromoteTrial),
 	)
 }
 
@@ -227,6 +229,34 @@ func (l *loyaltyRPC) handleCounterGet(ctx context.Context, req loyaltyrpc.Reques
 		Counter: &loyaltyrpc.Counter{Name: row.Name, Scope: row.Scope, Value: value},
 		Found:   true,
 	}
+}
+
+func (l *loyaltyRPC) handleCounterTrial(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
+	userID, _, ok, reply := parseIDs(req, false)
+	if !ok {
+		return reply
+	}
+	rows, err := l.repo.TrialCounters(ctx, userID)
+	if err != nil {
+		return l.fail("loyalty counter.trial", err)
+	}
+	counters := make([]loyaltyrpc.Counter, 0, len(rows))
+	for _, row := range rows {
+		counters = append(counters, loyaltyrpc.Counter{Name: row.Name, Scope: row.Scope, Value: row.Value})
+	}
+	return loyaltyrpc.Reply{Counters: counters}
+}
+
+func (l *loyaltyRPC) handlePromoteTrial(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
+	userID, _, ok, reply := parseIDs(req, false)
+	if !ok {
+		return reply
+	}
+	promoted, err := l.repo.PromoteTrial(ctx, userID)
+	if err != nil {
+		return l.fail("loyalty counter.promote_trial", err)
+	}
+	return loyaltyrpc.Reply{Found: promoted}
 }
 
 func (l *loyaltyRPC) handleCounterCreate(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {

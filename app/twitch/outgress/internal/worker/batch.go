@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"ItsBagelBot/internal/domain/outgress"
+
 	"github.com/google/uuid"
 
 	"go.uber.org/zap"
@@ -83,7 +84,6 @@ func (w *Worker) resumeBatch(ctx context.Context, batch *outgress.Batch, broadca
 func (w *Worker) processBatchItem(ctx context.Context, item outgress.Message, broadcasterID string) error {
 	if item.Origin == "trial" {
 		w.logTrialBlocked(&item)
-		w.countTrialBlocked(ctx, item.BroadcasterID)
 		return nil
 	}
 	if item.Type == outgress.TypeBatch {

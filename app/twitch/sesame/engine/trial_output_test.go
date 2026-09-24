@@ -9,7 +9,9 @@ import (
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
+
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func TestMarkTrialOutputMarksBatchChildren(t *testing.T) {
@@ -109,4 +111,26 @@ func TestTrialModuleNeverRunsForARealChannel(t *testing.T) {
 	require.Zero(t, called)
 	require.Len(t, pub.got, 1)
 	require.Empty(t, pub.got[0].msg.Origin)
+}
+
+type recordingBumper struct{ got map[string]int64 }
+
+func (b *recordingBumper) BumpBot(string, int64) {}
+func (b *recordingBumper) BumpChannel(id uint64, name string, delta int64) {
+	if id == 123 {
+		b.got[name] += delta
+	}
+}
+
+func TestTrialCountersGoToTheLoyaltyReporterUnderTrialNames(t *testing.T) {
+	called := 0
+	bumps := &recordingBumper{got: map[string]int64{}}
+	reg := NewRegistry(zap.NewNop(), trialCommandModule(&called))
+	d := Deps{Proj: fakeReader{}, Live: liveAlways{}, Cooldown: NoopCooldown{}, Pub: &fakePublisher{}, Log: zap.NewNop(), Stats: bumps}
+	p := NewPipeline(d, reg, Config{OutgressPremium: premiumSubj, OutgressStandard: standardSubj})
+	require.NoError(t, p.Process(chatEnvelope(t, "!discord", true)))
+	for _, name := range []string{"trial_decoded", "trial_processed", "trial_answered", "trial_blocked", "trial_latency_samples"} {
+		require.Equal(t, int64(1), bumps.got[name], name)
+	}
+	require.Zero(t, bumps.got["messages_processed"], "trial traffic must not count as the channel's own")
 }

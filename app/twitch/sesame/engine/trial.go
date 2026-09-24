@@ -5,13 +5,13 @@ package engine
 
 import (
 	"context"
+	"strconv"
 	"time"
 
+	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/event/lane"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/pkg/codec"
-
-	"go.uber.org/zap"
 )
 
 func (p *Pipeline) processTrial(ctx context.Context, env *lane.Envelope, broadcasterID uint64) error {
@@ -46,31 +46,33 @@ func (p *Pipeline) processTrial(ctx context.Context, env *lane.Envelope, broadca
 
 func (p *Pipeline) countTrial(ctx context.Context, id, field string) { p.addTrial(ctx, id, field, 1) }
 
-func (p *Pipeline) addTrial(ctx context.Context, id, field string, amount int64) {
-	if p.trialStore == nil || id == "" {
+func (p *Pipeline) addTrial(_ context.Context, id, field string, amount int64) {
+	if p.trialCounts == nil || amount == 0 {
 		return
 	}
-	ctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
-	defer cancel()
-	if err := p.trialStore.Do(ctx, p.trialStore.B().Hincrby().Key("trial:channel:"+id).Field(field).Increment(amount).Build()).Error(); err != nil {
-		p.log.Warn("trial count unavailable", zap.String("broadcaster_id", id), zap.String("field", field), zap.Error(err))
+	broadcasterID, err := strconv.ParseUint(id, 10, 64)
+	if err != nil || broadcasterID == 0 {
+		return
 	}
+	p.trialCounts.BumpChannel(broadcasterID, data.TrialCounterPrefix+field, amount)
 }
 
-func markTrialOutput(output *outgress.Message, generation uint64) {
+func markTrialOutput(output *outgress.Message, generation uint64) int {
 	output.Origin = "trial"
 	output.TrialGeneration = generation
 	if output.Type != outgress.TypeBatch {
-		return
+		return 1
 	}
 	var batch outgress.Batch
 	if err := codec.Unmarshal(output.Payload, &batch); err != nil {
-		return
+		return 1
 	}
+	marked := 0
 	for i := range batch.Items {
-		markTrialOutput(&batch.Items[i], generation)
+		marked += markTrialOutput(&batch.Items[i], generation)
 	}
 	if body, err := codec.Marshal(&batch); err == nil {
 		output.Payload = body
 	}
+	return marked
 }

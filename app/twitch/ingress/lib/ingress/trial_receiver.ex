@@ -7,10 +7,10 @@ defmodule Ingress.TrialReceiver do
 
   alias Ingress.{
     Capacity,
-    Dispatcher,
     JSON,
     LoadCounter,
     Rpc,
+    TrialAdmission,
     TrialConduit,
     TrialRpc,
     Trials,
@@ -431,24 +431,11 @@ defmodule Ingress.TrialReceiver do
   end
 
   defp admit_chat(payload, meta, chat_id, row) do
-    id = row.broadcaster_id
-
-    case Trials.admit(id, row.generation, chat_id) do
-      :first -> forward_first_chat(payload, meta, id, row)
-      :duplicate -> :ok
-      :inactive -> :ok
-      :unavailable -> Trials.increment(id, "failed")
-    end
-  end
-
-  defp forward_first_chat(payload, meta, id, row) do
-    Dispatcher.dispatch(payload, %{
+    TrialAdmission.submit(row.broadcaster_id, row.generation, chat_id, payload, %{
       shard_id: -1,
       msg_id: meta["message_id"],
       ts: meta["message_timestamp"],
-      broadcaster_id: id,
-      origin: :trial,
-      trial_generation: String.to_integer(row.generation)
+      broadcaster_id: row.broadcaster_id
     })
   end
 

@@ -494,19 +494,17 @@ defmodule Ingress.ShardSession do
   defp dispatch_trial_notification(payload, admission, generation) do
     chat_id = get_in(payload, ["event", "message_id"])
 
-    with true <- is_binary(chat_id),
-         false <- chat_id == "",
-         :first <- Ingress.Trials.admit(admission.broadcaster_id, generation, chat_id) do
-      Ingress.Dispatcher.dispatch(
+    if is_binary(chat_id) and chat_id != "" do
+      Ingress.TrialAdmission.submit(
+        admission.broadcaster_id,
+        generation,
+        chat_id,
         payload,
-        Map.merge(
-          admission,
-          %{origin: :trial, trial_generation: String.to_integer(generation)}
-        )
+        admission
       )
-    else
-      _ -> :ok
     end
+
+    :ok
   end
 
   @doc false

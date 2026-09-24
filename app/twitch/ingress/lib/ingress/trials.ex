@@ -279,22 +279,29 @@ defmodule Ingress.Trials do
   def increment(id, name), do: VK.command(["HINCRBY", "trial:channel:" <> id, name, 1])
 
   def admit(id, generation, chat_id) do
-    case VK.command([
-           "EVAL",
-           @admit_script,
-           3,
-           @members,
-           "trial:channel:" <> id,
-           "trial:dedup:" <> id <> ":" <> chat_id,
-           id,
-           generation
-         ]) do
-      {:ok, "first"} -> :first
-      {:ok, "duplicate"} -> :duplicate
-      {:ok, "inactive"} -> :inactive
+    case VK.command(admit_command(id, generation, chat_id)) do
+      {:ok, value} -> admit_result(value)
       _ -> :unavailable
     end
   end
+
+  def admit_command(id, generation, chat_id) do
+    [
+      "EVAL",
+      @admit_script,
+      3,
+      @members,
+      "trial:channel:" <> id,
+      "trial:dedup:" <> id <> ":" <> chat_id,
+      id,
+      generation
+    ]
+  end
+
+  def admit_result("first"), do: :first
+  def admit_result("duplicate"), do: :duplicate
+  def admit_result("inactive"), do: :inactive
+  def admit_result(_error), do: :unavailable
 
   def owners do
     VK.command(["MGET" | Enum.map(TrialConduit.slots(), &lease_key/1)])
