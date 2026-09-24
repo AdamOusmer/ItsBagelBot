@@ -125,7 +125,7 @@ func (e *Engine) taggedImages(ctx context.Context, s snapshot, match func(deploy
 	g.SetLimit(concurrentTagLookupLimit)
 	for _, img := range s.images(e.repo()) {
 		g.Go(func() error {
-			tags, err := e.d.Stage.Registry.Tags(gctx, img)
+			tags, err := e.imageTags(gctx, img)
 			mu.Lock()
 			built[img] = slices.ContainsFunc(tags, match)
 			mu.Unlock()
@@ -173,11 +173,7 @@ func (e *Engine) snapshot(ctx context.Context) (snapshot, error) {
 	if err != nil {
 		return snapshot{}, err
 	}
-	files, err := d.GitHub.Tree(ctx, d.Config.ManifestDir, ports.Ref(main))
-	if err != nil {
-		return snapshot{}, err
-	}
-	objs, err := d.Applier.Build(ctx, ports.BuildSpec{Files: files, Root: d.Config.ManifestDir})
+	objs, err := e.mainObjects(ctx, main)
 	if err != nil {
 		return snapshot{}, err
 	}

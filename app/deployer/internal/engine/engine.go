@@ -45,6 +45,9 @@ type Engine struct {
 	// No execution starts once draining is set, so wg never grows under Run's Wait.
 	draining bool
 	wg       sync.WaitGroup
+
+	manifests manifestCache
+	tags      tagCache
 }
 
 func New(d Deps) *Engine {
