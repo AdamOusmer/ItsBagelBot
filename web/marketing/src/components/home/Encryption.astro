@@ -1084,6 +1084,11 @@ const t = useTranslations(lang);
         const obs = new IntersectionObserver(
             (entries) => {
                 isVisible = entries[0].isIntersecting;
+                // Not drawing is not enough: the drawing buffer and the bloom
+                // chain stay allocated, ~250 MB at 2560x1440@2 anywhere else on
+                // the page. Shrink them while away and restore on return.
+                if (isVisible) resize();
+                else renderer.setSize(1, 1, false);
             },
             {rootMargin: '120px'},
         );
