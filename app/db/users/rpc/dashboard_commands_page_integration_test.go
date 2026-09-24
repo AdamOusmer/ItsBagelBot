@@ -43,9 +43,9 @@ func TestCommandsPageSetRoundTripIntegration(t *testing.T) {
 	}, prefix, invalidationPrefix))
 	require.NoError(t, nc.Flush())
 
-	reply, err := bus.RequestJSON[map[string]any](ctx, nc, prefix+".commands_page_set", usersrpc.CommandsPageSetRequest{
-		BroadcasterUserID: "1001",
-		Hidden:            true,
+	reply, err := bus.RequestJSON[map[string]any](ctx, nc, prefix+".commands_page_set", map[string]any{
+		"broadcaster_user_id":  "1001",
+		"commands_page_hidden": true,
 	})
 	require.NoError(t, err)
 	require.Equal(t, true, reply["ok"])
