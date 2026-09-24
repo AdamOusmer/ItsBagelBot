@@ -351,6 +351,18 @@ defmodule Ingress.Trials do
   def clear_owner_session(owner, epoch, slot \\ 0),
     do: owner_script(@clear_owner_session_script, owner, epoch, slot)
 
+  @release_script """
+    if redis.call('GET', KEYS[1]) ~= ARGV[1] then return 0 end
+    redis.call('DEL', KEYS[1])
+    local session = redis.call('GET', KEYS[2]) or ''
+    if string.sub(session, 1, string.len(ARGV[2]) + 1) == ARGV[2] .. ':' then
+      redis.call('DEL', KEYS[2])
+    end
+    return 1
+  """
+
+  def release(owner, epoch, slot), do: owner_script(@release_script, owner, epoch, slot)
+
   defp owner_script(script, owner, epoch, slot) do
     VK.command([
       "EVAL",

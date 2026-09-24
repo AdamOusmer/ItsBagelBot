@@ -20,30 +20,72 @@ defmodule Ingress.TrialConduit do
 
   def clamp(target), do: target |> max(@min_sockets) |> min(@max_sockets)
 
-  def slot_for_new(rows, target), do: coolest(placed(rows), target)
+  def socket_floor(rows), do: rows |> placed() |> length() |> clamp()
+
+  def effective_target(rows, target), do: clamp(max(target, socket_floor(rows)))
+
+  def slot_for_new(rows, target) do
+    placed = placed(rows)
+    sockets = clamp(max(target, length(placed) + 1))
+
+    placed
+    |> stats(sockets)
+    |> Enum.min_by(fn {slot, s} -> {s.count, s.load, slot} end)
+    |> elem(0)
+  end
+
+  def yield_slot?(owners, slot, node, cluster) do
+    mine = held_slots(owners, node)
+
+    length(mine) > 1 and slot == Enum.max(mine) and
+      Enum.any?(cluster, &(held_slots(owners, &1) == []))
+  end
+
+  defp held_slots(owners, member) do
+    for {owner, slot} <- Enum.with_index(owners), held_by?(owner, member), do: slot
+  end
+
+  defp held_by?(owner, member), do: is_binary(owner) and String.contains?(owner, inspect(member))
 
   def settling?(rows, now_seconds),
     do: Enum.any?(placed(rows), &(&1.moved_at > now_seconds - @settle_seconds))
 
   def scale(rows, target, ticks, budget \\ budget()) do
+    target = effective_target(rows, target)
+
     per_socket =
       Enum.map(stats(placed(rows), target), fn {slot, s} ->
         {slot, {:ok, div(s.load * Policy.budget_per_window(), budget)}}
       end)
 
     sample = Policy.summarize_sample(target, per_socket)
-    {target, ticks, _action} = Policy.evaluate(sample, target, ticks, @min_sockets, @max_sockets)
+
+    {target, ticks, _action} =
+      Policy.evaluate(sample, target, ticks, socket_floor(rows), @max_sockets)
+
     {target, ticks}
   end
 
   def next_move(rows, target, now_seconds, budget \\ budget()) do
     placed = placed(rows)
+    target = effective_target(placed, target)
     {inside, outside} = Enum.split_with(placed, &(&1.slot < target))
 
     cond do
       outside != [] -> {quietest(outside), coolest(inside, target)}
       settling?(placed, now_seconds) -> nil
-      true -> relieve(inside, target, budget)
+      true -> relieve(inside, target, budget) || balance(inside, target, budget)
+    end
+  end
+
+  defp balance(rows, target, budget) do
+    stats = stats(rows, target)
+    {full, from} = Enum.max_by(stats, fn {slot, s} -> {s.count, -slot} end)
+    {empty, to} = Enum.min_by(stats, fn {slot, s} -> {s.count, slot} end)
+
+    if from.count - to.count > 1 do
+      row = quietest(Enum.filter(rows, &(&1.slot == full)))
+      if to.load + row.load <= budget, do: {row, empty}
     end
   end
 
