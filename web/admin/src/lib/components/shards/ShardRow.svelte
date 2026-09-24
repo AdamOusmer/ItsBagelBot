@@ -11,12 +11,14 @@
     shard,
     nodes,
     eps,
+    burstEps,
     utilization,
     targetUtilization
   }: {
     shard: Shard;
     nodes: readonly string[];
     eps: number;
+    burstEps?: number;
     utilization: number;
     targetUtilization: number;
   } = $props();
@@ -42,6 +44,7 @@
     attempts: String(shard.attempts ?? 0)
   })}
   {eps}
+  {burstEps}
   {utilization}
   {targetUtilization}
   marks={shard.handshake_in_flight ? handshake : undefined}

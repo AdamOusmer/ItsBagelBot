@@ -335,8 +335,15 @@ defmodule Ingress.TrialReceiverProtocolTest do
 
     send(pid, {:fake_ws, primary, [chat.("4242", "a"), chat.("4242", "a"), chat.("9999", "b")]})
 
-    assert %{slot: 0, owned: true, channels: 1, load: 2, loads: %{"4242" => 2}} =
-             TrialReceiver.status(pid)
+    assert %{
+             slot: 0,
+             owned: true,
+             channels: 1,
+             load: 2,
+             loads: %{"4242" => 2},
+             burst: 2,
+             bursts: %{"4242" => 2}
+           } = TrialReceiver.status(pid)
   end
 
   test "each socket slot subscribes only the channels assigned to it" do

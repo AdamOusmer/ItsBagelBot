@@ -56,6 +56,7 @@ export interface Shard {
   keepalive_ms?: number;
   attempts?: number;
   load?: number;
+  burst_load?: number;
   managed?: boolean;
 }
 
@@ -75,6 +76,7 @@ export interface ShardSnapshot {
   max_load_shard_id?: number | null;
   capacity?: IngressCapacity;
   trial_loads?: Record<string, number>;
+  trial_burst_loads?: Record<string, number>;
   trial_sockets?: TrialSocket[];
 }
 
@@ -84,12 +86,14 @@ export interface TrialSocket {
   state: 'connected' | 'connecting' | 'idle';
   channels: number;
   load: number;
+  burst?: number;
 }
 
 export interface IngressCapacity {
   benchmark: string;
   nats_benchmark: string;
   load_window_seconds: number;
+  burst_window_seconds?: number;
   target_utilization_pct: number;
   pod_rated_eps: number;
   pod_target_eps: number;

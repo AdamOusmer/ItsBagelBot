@@ -582,6 +582,8 @@ export function demoStats(now: number): PublicStats {
     events_total: Math.floor(2_430_000_000 + secs * 137),
     msg_rate: msgRate,
     event_rate: eventRate,
+    msg_rate_now: msgRate,
+    event_rate_now: eventRate,
     degraded: false
   };
 }

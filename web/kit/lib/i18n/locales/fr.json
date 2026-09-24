@@ -335,6 +335,7 @@
       "tileShardsDelta": "sur {nodes} nœuds",
       "tileThroughput": "Débit",
       "tileThroughputDelta": "{pct} % de la capacité de la flotte",
+      "tileThroughputDeltaBurst": "{now} év/s maintenant · {pct} % de la capacité de la flotte",
       "tileAutoscale": "Mise à l’échelle auto",
       "tileAutoscaleDelta": "entre {min} et {max} shards",
       "conduit": "Conduit {state} sur le nœud {node}",
@@ -354,6 +355,7 @@
       "rowId": "shard {id}",
       "rowMeta": "{host} ({pod}) · {bound} · {attempts} tentatives",
       "rowLoad": "{eps} év/s · {pct} % du socket",
+      "rowLoadBurst": "{now} év/s maintenant · {eps} moy. · {pct} % du socket",
       "bound": "lié",
       "unbound": "non lié",
       "handshaking": "poignée de main",
@@ -3777,6 +3779,7 @@
     "unknownChannel": "Chaîne sans nom",
     "boardEmpty": "Pas encore de classement : le tableau se remplit à mesure que les chaînes accumulent du trafic.",
     "feedBoardEmpty": "Personne n'a encore nourri le bagel.",
+    "minuteAverage": "{rate}/s en moyenne sur la dernière minute",
     "rightNow": "en ce moment",
     "trafficBoardCh": "trafic",
     "feedBoardCh": "flux"

@@ -59,18 +59,20 @@ defmodule Ingress.TrialReceiver do
       end)
       |> Enum.filter(& &1.owned)
 
-    loads =
-      Enum.reduce(sockets, %{}, fn socket, acc ->
-        Map.merge(acc, socket.loads, fn _id, a, b -> a + b end)
-      end)
-
     %{
-      loads: loads,
+      loads: merge_counts(sockets, :loads),
+      bursts: merge_counts(sockets, :bursts),
       sockets:
         sockets
-        |> Enum.map(&Map.drop(&1, [:owned, :loads]))
+        |> Enum.map(&Map.drop(&1, [:owned, :loads, :bursts]))
         |> Enum.sort_by(& &1.slot)
     }
+  end
+
+  defp merge_counts(sockets, key) do
+    Enum.reduce(sockets, %{}, fn socket, acc ->
+      Map.merge(acc, Map.get(socket, key, %{}), fn _id, a, b -> a + b end)
+    end)
   end
 
   @impl true
@@ -92,6 +94,7 @@ defmodule Ingress.TrialReceiver do
        session_aliases: MapSet.new(),
        rows: %{},
        loads: %{},
+       bursts: %{},
        connected_at: nil,
        pending_at: nil,
        last_frame_at: nil,
@@ -103,6 +106,7 @@ defmodule Ingress.TrialReceiver do
   @impl true
   def handle_call(:status, _from, state) do
     {values, state} = current_loads(state)
+    {bursts, state} = window_values(state, :bursts)
 
     status = %{
       slot: state.slot,
@@ -111,22 +115,26 @@ defmodule Ingress.TrialReceiver do
       state: socket_state(state),
       channels: length(active_own_rows(state)),
       load: values |> Map.values() |> Enum.sum(),
-      loads: values
+      burst: bursts |> Map.values() |> Enum.sum(),
+      loads: values,
+      bursts: bursts
     }
 
     {:reply, status, state}
   end
 
-  defp current_loads(state) do
+  defp current_loads(state), do: window_values(state, :loads)
+
+  defp window_values(state, key) do
     now = now_ms()
 
     {values, counters} =
-      Enum.reduce(state.loads, {%{}, %{}}, fn {id, counter}, {values, counters} ->
+      Enum.reduce(Map.fetch!(state, key), {%{}, %{}}, fn {id, counter}, {values, counters} ->
         {load, counter} = LoadCounter.value(counter, now)
         {Map.put(values, id, load), Map.put(counters, id, counter)}
       end)
 
-    {values, %{state | loads: counters}}
+    {values, Map.put(state, key, counters)}
   end
 
   defp record_loads(%{epoch: nil} = state), do: state
@@ -374,14 +382,24 @@ defmodule Ingress.TrialReceiver do
   defp count_load(state, payload) do
     case get_in(payload, ["event", "broadcaster_user_id"]) do
       id when is_binary(id) and is_map_key(state.rows, id) ->
-        counter =
-          Map.get_lazy(state.loads, id, fn -> LoadCounter.new(Capacity.load_window_seconds()) end)
+        now = now_ms()
 
-        put_in(state, [:loads, id], LoadCounter.increment(counter, now_ms()))
+        bump_windows(state, id, now)
 
       _ ->
         state
     end
+  end
+
+  defp bump_windows(state, id, now) do
+    Enum.reduce(
+      [loads: Capacity.load_window_seconds(), bursts: Capacity.burst_window_seconds()],
+      state,
+      fn {key, seconds}, acc ->
+        counter = Map.get_lazy(Map.fetch!(acc, key), id, fn -> LoadCounter.new(seconds) end)
+        put_in(acc, [key, id], LoadCounter.increment(counter, now))
+      end
+    )
   end
 
   defp handle_trial_notification(meta, payload, state) do
@@ -513,6 +531,7 @@ defmodule Ingress.TrialReceiver do
         state
         |> Map.put(:rows, by_id)
         |> Map.update!(:loads, &Map.take(&1, Map.keys(by_id)))
+        |> Map.update!(:bursts, &Map.take(&1, Map.keys(by_id)))
         |> then(&maybe_close_idle(&1, active_own_rows(&1)))
         |> connect()
 
@@ -583,7 +602,8 @@ defmodule Ingress.TrialReceiver do
         session_id: nil,
         session_aliases: MapSet.new(),
         rows: %{},
-        loads: %{}
+        loads: %{},
+        bursts: %{}
     }
   end
 

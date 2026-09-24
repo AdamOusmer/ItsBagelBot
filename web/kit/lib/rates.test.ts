@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { describe, expect, test } from 'bun:test';
-import { rateWindow, type Sample } from './rate-window';
+import { RATE_AVG_SECONDS, RATE_NOW_SECONDS, perSecond, rateWindow, rateWindows, type RateSample as Sample } from './rates';
 
 const TICK_MS = 2000;
 
@@ -15,7 +15,7 @@ function stepped(stepEveryMs: number, perStep: number, untilMs: number, startAt 
   return samples;
 }
 
-function feed(samples: Sample[], windowMs?: number) {
+function feed(samples: Sample[], windowMs = 30_000) {
   const next = rateWindow(windowMs);
   return samples.map(next);
 }
@@ -61,5 +61,29 @@ describe('rateWindow', () => {
     next({ messages: 1000, events: 1000, at: 1000 });
     const r = next({ messages: 1100, events: 1100, at: 12_000 });
     expect(r.msg).toBeCloseTo(100 / 11, 5);
+  });
+});
+
+describe('shared rate windows', () => {
+  test('now and avg use the windows ingress uses', () => {
+    expect(RATE_NOW_SECONDS).toBe(10);
+    expect(RATE_AVG_SECONDS).toBe(60);
+  });
+
+  test('a burst shows in the now window while the minute average stays low', () => {
+    const next = rateWindows();
+    let last = next({ messages: 0, events: 0, at: 0 });
+    for (let at = 2000; at <= 60_000; at += 2000) {
+      const messages = at <= 50_000 ? at / 1000 : 50 + (at - 50_000) / 1000 * 10;
+      last = next({ messages, events: messages, at });
+    }
+    expect(last.now.msg!).toBeGreaterThan(8);
+    expect(last.avg.msg!).toBeLessThan(3);
+  });
+
+  test('perSecond divides a window count by the window length', () => {
+    expect(perSecond(300, 60)).toBe(5);
+    expect(perSecond(undefined, 60)).toBe(0);
+    expect(perSecond(10, 0)).toBe(0);
   });
 });

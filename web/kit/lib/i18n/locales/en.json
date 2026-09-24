@@ -335,6 +335,7 @@
       "tileShardsDelta": "across {nodes} nodes",
       "tileThroughput": "Throughput",
       "tileThroughputDelta": "{pct}% of fleet capacity",
+      "tileThroughputDeltaBurst": "{now} ev/s now · {pct}% of fleet capacity",
       "tileAutoscale": "Autoscale",
       "tileAutoscaleDelta": "between {min} and {max} shards",
       "conduit": "Conduit {state} on node {node}",
@@ -354,6 +355,7 @@
       "rowId": "shard {id}",
       "rowMeta": "{host} ({pod}) · {bound} · {attempts} attempts",
       "rowLoad": "{eps} ev/s · {pct}% of socket",
+      "rowLoadBurst": "{now} ev/s now · {eps} avg · {pct}% of socket",
       "bound": "bound",
       "unbound": "unbound",
       "handshaking": "handshaking",
@@ -3778,6 +3780,7 @@
     "boardEmpty": "No ranking yet. The board fills as channels rack up traffic.",
     "feedBoardEmpty": "Nobody has fed the bagel yet.",
     "rightNow": "right now",
+    "minuteAverage": "{rate}/s average over the last minute",
     "trafficBoardCh": "traffic",
     "feedBoardCh": "feed"
   },
