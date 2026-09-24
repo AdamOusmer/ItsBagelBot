@@ -128,6 +128,7 @@ func TestDeployerSecretsAreWiredOneByOne(t *testing.T) {
 		"APP_ENV", "NATS_USER", "NATS_PASSWORD", "NATS_RPC_USER", "NATS_RPC_PASSWORD",
 		"GITHUB_APP_ID", "GITHUB_APP_INSTALLATION_ID", "GITHUB_APP_PRIVATE_KEY",
 		"GHCR_USERNAME", "GHCR_TOKEN",
+		"DEPLOY_NATS_SIGNING_SEED", "DEPLOY_NATS_SYS_JWT", "DEPLOY_NATS_SYS_NKEY_SEED",
 	} {
 		want.Refs[key] = "deployer-env/" + key
 	}

@@ -336,6 +336,10 @@ spec:
               value: tls://nats-leaf.messaging:4222
             - name: NATS_LEAF_URL
               value: tls://nats-leaf.messaging:4222
+            - name: DEPLOY_NATS_HUB_URL
+              value: tls://nats.messaging:4222
+            - name: DEPLOY_NATS_LEAF_URL
+              value: tls://nats-leaf.messaging:4222
             - name: NATS_CA_PEM
               valueFrom:
                 configMapKeyRef:
@@ -381,6 +385,15 @@ spec:
             - name: GHCR_TOKEN
               valueFrom:
                 secretKeyRef: {name: deployer-env, key: GHCR_TOKEN}
+            - name: DEPLOY_NATS_SIGNING_SEED
+              valueFrom:
+                secretKeyRef: {name: deployer-env, key: DEPLOY_NATS_SIGNING_SEED, optional: true}
+            - name: DEPLOY_NATS_SYS_JWT
+              valueFrom:
+                secretKeyRef: {name: deployer-env, key: DEPLOY_NATS_SYS_JWT, optional: true}
+            - name: DEPLOY_NATS_SYS_NKEY_SEED
+              valueFrom:
+                secretKeyRef: {name: deployer-env, key: DEPLOY_NATS_SYS_NKEY_SEED, optional: true}
           volumeMounts:
             - {name: nats-client-tls, mountPath: /etc/nats-client/tls, readOnly: true}
           ports:

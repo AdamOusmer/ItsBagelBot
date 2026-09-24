@@ -14,8 +14,15 @@ import (
 	"ItsBagelBot/internal/domain/rpc/deploy"
 )
 
-func All() []stage.Stage {
-	return []stage.Stage{preflight{}, acl{}, rollout{}, verify{}}
+func All(mode ports.NATSAuthMode) []stage.Stage {
+	return []stage.Stage{preflight{}, aclStage(mode), rollout{}, verify{}}
+}
+
+func aclStage(mode ports.NATSAuthMode) stage.Stage {
+	if mode == ports.NATSAuthJWT {
+		return aclJWT{}
+	}
+	return acl{}
 }
 
 func pinRef(run deploy.Run) ports.Ref {
