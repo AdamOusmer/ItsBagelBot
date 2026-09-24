@@ -74,6 +74,16 @@ export interface ShardSnapshot {
   max_load?: number;
   max_load_shard_id?: number | null;
   capacity?: IngressCapacity;
+  trial_loads?: Record<string, number>;
+  trial_sockets?: TrialSocket[];
+}
+
+export interface TrialSocket {
+  slot: number;
+  node: string;
+  state: 'connected' | 'connecting' | 'idle';
+  channels: number;
+  load: number;
 }
 
 export interface IngressCapacity {

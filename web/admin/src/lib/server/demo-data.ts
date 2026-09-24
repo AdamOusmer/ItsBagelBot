@@ -4,6 +4,7 @@
 import { dev } from '$app/environment';
 import type { ShardSnapshot, UserStats } from '@bagel/kit';
 import type {
+  TrialSnapshot,
   AdminAcct,
   AdminUserWire,
   AuditEntry,
@@ -87,7 +88,26 @@ export const sampleSnapshot: ShardSnapshot = {
     websocket_rated_eps: 16_000,
     websocket_target_eps: 12_000,
     websocket_autoscale_max_shards: 11
-  }
+  },
+  trial_loads: { '38871579': 3, '522478761': 190, '128002336': 410, '40934651': 0 },
+  trial_sockets: [
+    { slot: 0, node: 'ingress@10.42.0.11', state: 'connected', channels: 2, load: 413 },
+    { slot: 1, node: 'ingress@10.42.0.12', state: 'connected', channels: 1, load: 190 },
+    { slot: 2, node: 'ingress@10.42.0.12', state: 'connecting', channels: 1, load: 0 }
+  ]
+};
+
+export const sampleTrials: TrialSnapshot = {
+  version: 1,
+  active_count: 4,
+  max_channels: 30,
+  socket_target: 3,
+  trials: [
+    { broadcaster_id: '38871579', display_name: 'Feinberg', state: 'receiving', enabled: true, slot: 0, received: 2 },
+    { broadcaster_id: '128002336', display_name: 's0mcs', state: 'receiving', enabled: true, slot: 0, received: 911 },
+    { broadcaster_id: '522478761', display_name: 'hackingnoisess', state: 'receiving', enabled: true, slot: 1, received: 617 },
+    { broadcaster_id: '40934651', display_name: 'Ludwig', state: 'pending', enabled: true, slot: 2, received: 0 }
+  ]
 };
 
 export function demoEnrollment(days = 30): EnrollmentWire {

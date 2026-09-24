@@ -372,7 +372,15 @@
       "trialBroadcasterId": "ID Twitch {id}",
       "trialLoading": "Chargement des connexions d’essai…",
       "trialUnavailable": "Les connexions d’essai sont temporairement indisponibles.",
-      "trialEmpty": "Aucune connexion d’essai active."
+      "trialEmpty": "Aucune connexion d’essai active.",
+      "trialConduit": "Conduit d’essai : {target} socket(s) sur {max}. Un socket chargé cède d’abord des chaînes au socket le moins chargé ; un socket n’est ajouté que si aucun n’a de place.",
+      "trialSocket": "socket d’essai {id}",
+      "trialSocketMeta": "{pod} · {count} chaînes",
+      "trialSocketMetaOne": "{pod} · 1 chaîne",
+      "trialSocketConnected": "connecté",
+      "trialSocketConnecting": "connexion",
+      "trialSocketIdle": "inactif",
+      "trialSocketUnowned": "en attente d’un pod"
     },
     "lanes": {
       "eyebrow": "Consommateurs JetStream",
@@ -669,7 +677,7 @@
     "trials": {
       "eyebrow": "Observation",
       "title": "Chaînes d'essai",
-      "description": "Traiter le clavardage de quatre diffuseurs non inscrits au maximum. Les actions Twitch restent bloquées pendant l'essai.",
+      "description": "Traiter le clavardage de {max} diffuseurs non inscrits au maximum, répartis sur trois sockets d'essai au plus. Les actions Twitch restent bloquées pendant l'essai.",
       "degraded": "L'état des essais est indisponible. Les commandes peuvent échouer jusqu'au rétablissement de l'entrée.",
       "idLabel": "Identifiant Twitch du diffuseur",
       "add": "Ajouter un essai",
@@ -677,8 +685,8 @@
       "on": "Activé",
       "off": "Désactivé",
       "toggleLabel": "Collecte du clavardage d'essai pour {name}",
-      "note": "Utilisez l'identifiant Twitch numérique. Désactiver un essai suspend sa collecte, mais il occupe toujours l'un des quatre emplacements. L'inscription met automatiquement fin à l'essai.",
-      "count": "{count} / 4 chaînes d'essai",
+      "note": "Utilisez l'identifiant Twitch numérique. Désactiver un essai suspend sa collecte, mais il occupe toujours l'un des {max} emplacements. L'inscription met automatiquement fin à l'essai.",
+      "count": "{count} / {max} chaînes d'essai",
       "empty": "Aucune chaîne d'essai n'est configurée.",
       "history": "Essais récents",
       "received": "{count} reçus",

@@ -17,6 +17,7 @@
   const active = $derived(snapshot?.trials.filter((row) => row.state !== 'removed' && row.state !== 'promoted') ?? []);
   const history = $derived(snapshot?.trials.filter((row) => row.state === 'removed' || row.state === 'promoted') ?? []);
   const activeCount = $derived(snapshot?.active_count ?? active.length);
+  const maxChannels = $derived(snapshot?.max_channels ?? 30);
   let degraded = $state(false);
   let broadcasterId = $state('');
   $effect(() => {
@@ -59,7 +60,7 @@
   <PageHead
     eyebrow={t('admin.trials.eyebrow')}
     title={t('admin.trials.title')}
-    description={t('admin.trials.description')}
+    description={t('admin.trials.description', { max: String(maxChannels) })}
   />
 
   {#if degraded}<AlertBanner>{t('admin.trials.degraded')}</AlertBanner>{/if}
@@ -79,14 +80,14 @@
       required
       bind:value={broadcasterId}
     />
-    <Button type="submit" disabled={degraded || activeCount >= 4}>{t('admin.trials.add')}</Button>
+    <Button type="submit" disabled={degraded || activeCount >= maxChannels}>{t('admin.trials.add')}</Button>
   </form>
-  <p class="trial-note">{t('admin.trials.note')}</p>
+  <p class="trial-note">{t('admin.trials.note', { max: String(maxChannels) })}</p>
 
   {#if snapshot === null}
     <SkeletonStack rows={2} height="96px" />
   {:else}
-    <p class="trial-count">{t('admin.trials.count', { count: String(activeCount) })}</p>
+    <p class="trial-count">{t('admin.trials.count', { count: String(activeCount), max: String(maxChannels) })}</p>
     {#if active.length === 0}
       <p>{t('admin.trials.empty')}</p>
     {:else}

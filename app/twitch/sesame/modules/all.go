@@ -39,5 +39,6 @@ func All(d engine.Deps) []module.Module {
 		Triggers(d),
 		EmotePlay(d),
 		SongQueue(d),
+		TrialTemplate(),
 	}
 }

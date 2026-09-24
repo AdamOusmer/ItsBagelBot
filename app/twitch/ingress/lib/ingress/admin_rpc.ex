@@ -4,7 +4,7 @@
 defmodule Ingress.AdminRpc do
   use Ingress.RpcServer, log: "admin rpc"
 
-  alias Ingress.{Capacity, JSON, ShardInventory, ShardScaler, Singleton}
+  alias Ingress.{Capacity, JSON, ShardInventory, ShardScaler, Singleton, TrialReceiver}
 
   @call_timeout_ms 2_000
 
@@ -17,6 +17,7 @@ defmodule Ingress.AdminRpc do
     scaler = ShardScaler.status()
     desired = scaler.desired
     nodes = [node() | Node.list()] |> Enum.uniq()
+    trials = TrialReceiver.cluster_status(nodes)
 
     inventory = ShardInventory.by_shard()
     registered_ids = registered_shard_ids()
@@ -43,7 +44,9 @@ defmodule Ingress.AdminRpc do
       max_load: scaler.max_load,
       max_load_shard_id: scaler.max_load_shard_id,
       conduit_manager: manager_status(),
-      shards: shards
+      shards: shards,
+      trial_loads: trials.loads,
+      trial_sockets: trials.sockets
     }
   end
 

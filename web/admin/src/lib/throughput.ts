@@ -54,6 +54,13 @@ export function utilizationPct(rate: number, ratedEps: number): number {
   return (rate / ratedEps) * 100;
 }
 
+export function pctLabel(pct: number): string {
+  if (pct <= 0) return '0';
+  if (pct < 0.01) return '<0.01';
+  if (pct < 1) return pct.toFixed(2);
+  return pct.toFixed(1);
+}
+
 export function barWidth(utilization: number): number {
   return Math.min(100, Math.max(0, Math.round(utilization)));
 }
