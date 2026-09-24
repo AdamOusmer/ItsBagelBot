@@ -16,14 +16,14 @@ import (
 
 func (p *Pipeline) processTrial(ctx context.Context, env *lane.Envelope, broadcasterID uint64) error {
 	started := time.Now()
+	id, messages := env.BroadcasterUserID, env.MessageCount()
 	defer func() {
-		p.countTrial(ctx, env.BroadcasterUserID, "latency_samples")
-		p.addTrial(ctx, env.BroadcasterUserID, "latency_total_ms", time.Since(started).Milliseconds())
+		p.countTrial(ctx, id, "latency_ns_samples")
+		p.addTrial(ctx, id, "latency_ns_total", time.Since(started).Nanoseconds())
 	}()
 	views, err := p.tracedModuleViews(ctx, env.Type, broadcasterID)
 	if err != nil {
-		p.countTrial(ctx, env.BroadcasterUserID, "failed")
-		p.countTrial(ctx, env.BroadcasterUserID, "retried")
+		p.countTrialFailure(ctx, id, messages)
 		return err
 	}
 	mctx := p.leaseContext(env, broadcasterID)
@@ -33,15 +33,19 @@ func (p *Pipeline) processTrial(ctx context.Context, env *lane.Envelope, broadca
 	p.runTracedStages(ctx, mctx, views, emit, &emission)
 	p.flushLegacyOutput(ctx, &emission)
 	if emission.err != nil {
-		p.countTrial(ctx, env.BroadcasterUserID, "failed")
-		p.countTrial(ctx, env.BroadcasterUserID, "retried")
+		p.countTrialFailure(ctx, id, messages)
 	} else {
-		p.countTrial(ctx, env.BroadcasterUserID, "processed")
+		p.addTrial(ctx, id, "processed", messages)
 	}
 	if mctx.Command != "" {
-		p.countTrial(ctx, env.BroadcasterUserID, "answered")
+		p.countTrial(ctx, id, "answered")
 	}
 	return emission.err
+}
+
+func (p *Pipeline) countTrialFailure(ctx context.Context, id string, messages int64) {
+	p.addTrial(ctx, id, "failed", messages)
+	p.addTrial(ctx, id, "retried", messages)
 }
 
 func (p *Pipeline) countTrial(ctx context.Context, id, field string) { p.addTrial(ctx, id, field, 1) }

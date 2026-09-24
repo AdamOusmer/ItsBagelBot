@@ -129,8 +129,25 @@ func TestTrialCountersGoToTheLoyaltyReporterUnderTrialNames(t *testing.T) {
 	d := Deps{Proj: fakeReader{}, Live: liveAlways{}, Cooldown: NoopCooldown{}, Pub: &fakePublisher{}, Log: zap.NewNop(), Stats: bumps}
 	p := NewPipeline(d, reg, Config{OutgressPremium: premiumSubj, OutgressStandard: standardSubj})
 	require.NoError(t, p.Process(chatEnvelope(t, "!discord", true)))
-	for _, name := range []string{"trial_decoded", "trial_processed", "trial_answered", "trial_blocked", "trial_latency_samples"} {
+	for _, name := range []string{"trial_decoded", "trial_processed", "trial_answered", "trial_blocked", "trial_latency_ns_samples"} {
 		require.Equal(t, int64(1), bumps.got[name], name)
 	}
 	require.Zero(t, bumps.got["messages_processed"], "trial traffic must not count as the channel's own")
+	require.Positive(t, bumps.got["trial_latency_ns_total"], "latency is recorded in nanoseconds, never rounded to zero")
+}
+
+func TestTrialProcessedCountsEveryMessageInASquashedCohort(t *testing.T) {
+	bumps := &recordingBumper{got: map[string]int64{}}
+	d := Deps{Proj: fakeReader{}, Live: liveAlways{}, Cooldown: NoopCooldown{}, Pub: &fakePublisher{}, Log: zap.NewNop(), Stats: bumps}
+	p := NewPipeline(d, NewRegistry(zap.NewNop()), Config{OutgressPremium: premiumSubj, OutgressStandard: standardSubj})
+	body, err := codec.Marshal(map[string]any{
+		"type": chatType, "lane": "standard", "broadcaster_user_id": "123", "text": "KEKW",
+		"origin": "trial", "trial_generation": 4,
+		"senders": []map[string]any{{"chatter_user_id": "1"}, {"chatter_user_id": "2"}, {"chatter_user_id": "3"}},
+	})
+	require.NoError(t, err)
+	require.NoError(t, p.Process(bus.NewMessage("cohort", body)))
+	require.Equal(t, int64(3), bumps.got["trial_decoded"])
+	require.Equal(t, int64(3), bumps.got["trial_processed"])
+	require.Equal(t, int64(1), bumps.got["trial_latency_ns_samples"])
 }

@@ -166,7 +166,7 @@ export interface TrialChannel {
   failed?: number;
   retried?: number;
   blocked_actions?: number;
-  average_processing_latency_ms?: number;
+  average_processing_latency_ns?: number;
 }
 
 export interface TrialSnapshot {
@@ -194,7 +194,7 @@ function trialCounters(broadcasterId: string): Promise<Map<string, number> | nul
 function withTrialCounters(row: TrialChannel, counts: Map<string, number> | null): TrialChannel {
   if (!counts) return row;
   const count = (name: string) => counts.get(`trial_${name}`) ?? 0;
-  const samples = count('latency_samples');
+  const samples = count('latency_ns_samples');
   return {
     ...row,
     decoded: count('decoded'),
@@ -202,7 +202,7 @@ function withTrialCounters(row: TrialChannel, counts: Map<string, number> | null
     failed: count('failed') + (row.failed ?? 0),
     retried: count('retried'),
     blocked_actions: count('blocked'),
-    average_processing_latency_ms: samples ? Math.round(count('latency_total_ms') / samples) : 0
+    average_processing_latency_ns: samples ? count('latency_ns_total') / samples : 0
   };
 }
 
