@@ -50,7 +50,7 @@ func TestTrialSubscriptionOwnershipScripts(t *testing.T) {
 	cli("SET", "trial:owner_session", "9:session-1")
 	cli("HSET", "trial:channel:42", "generation", "3", "state", "pending")
 	activate := func(epoch, generation, id, session string) string {
-		return cli("EVAL", activateTrial, "3", "trial:owner", "trial:channel:42", "trial:owner_session", epoch, generation, id, session)
+		return cli("EVAL", activateTrial, "3", "trial:owner", "trial:channel:42", "trial:owner_session", epoch, generation, id, session, "0")
 	}
 	expectTrialResult(t, activate("8", "3", "sub-1", "session-1"), "0", "stale epoch")
 	expectTrialResult(t, activate("9", "2", "sub-1", "session-1"), "0", "stale generation")
@@ -58,6 +58,9 @@ func TestTrialSubscriptionOwnershipScripts(t *testing.T) {
 	cli("HSET", "trial:channel:42", "enabled", "0")
 	expectTrialResult(t, activate("9", "3", "sub-1", "session-1"), "0", "disabled activation")
 	cli("HSET", "trial:channel:42", "enabled", "1")
+	cli("HSET", "trial:channel:42", "slot", "1")
+	expectTrialResult(t, activate("9", "3", "sub-1", "session-1"), "0", "channel assigned to another socket")
+	cli("HDEL", "trial:channel:42", "slot")
 	expectTrialResult(t, activate("9", "3", "sub-1", "session-1"), "1", "valid activation")
 	expectTrialResult(t, cli("HGET", "trial:channel:42", "subscription_id"), "sub-1", "owned ID")
 	cli("HSET", "trial:channel:42", "state", "stopping")
@@ -75,6 +78,32 @@ func TestTrialSubscriptionOwnershipScripts(t *testing.T) {
 	cli("HSET", "trial:channel:42", "state", "disabled", "enabled", "1", "subscription_id", "sub-3")
 	expectTrialResult(t, release("9", "3", "sub-3"), "1", "rapid re-enable release")
 	expectTrialResult(t, cli("HGET", "trial:channel:42", "state"), "pending", "ready to recreate")
+}
+
+func TestTrialSocketSlots(t *testing.T) {
+	if trialOwnerKey(0) != "trial:owner" || trialSessionKey(0) != "trial:owner_session" {
+		t.Fatal("slot 0 must keep the single-socket keys")
+	}
+	if trialOwnerKey(2) != "trial:owner:2" || trialSessionKey(2) != "trial:owner_session:2" {
+		t.Fatal("unexpected slot 2 keys")
+	}
+	for _, tc := range []struct {
+		assigned string
+		slot     int
+		want     bool
+	}{{"", 0, true}, {"0", 0, true}, {"", 1, false}, {"2", 2, true}, {"1", 2, false}} {
+		if got := trialSlotMatches(map[string]string{"slot": tc.assigned}, tc.slot); got != tc.want {
+			t.Fatalf("slot %q vs %d: got %v", tc.assigned, tc.slot, got)
+		}
+	}
+	base := TrialSubscriptionRequest{Version: 1, BroadcasterID: "42", OwnerEpoch: 1, TrialGeneration: "1"}
+	for slot, want := range map[int]bool{-1: false, 0: true, 2: true, 3: false} {
+		req := base
+		req.Slot = slot
+		if req.valid() != want {
+			t.Fatalf("slot %d valid: want %v", slot, want)
+		}
+	}
 }
 
 func requireValkeyExecutables(t *testing.T) {

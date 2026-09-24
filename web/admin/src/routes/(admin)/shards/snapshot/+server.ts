@@ -13,8 +13,8 @@ export const GET: RequestHandler = async ({ locals }) => {
   const admin = await requireAdmin(locals.session);
   if (!admin) throw error(403, 'forbidden');
   if (DEMO) {
-    const { sampleSnapshot } = await import('$lib/server/demo-data');
-    return json({ snapshot: sampleSnapshot, trials: null });
+    const { sampleSnapshot, sampleTrials } = await import('$lib/server/demo-data');
+    return json({ snapshot: sampleSnapshot, trials: allows(admin.role, 'trials.manage') ? sampleTrials : null });
   }
   const [snapshot, trials] = await Promise.all([
     shardSnapshot().catch(() => null),

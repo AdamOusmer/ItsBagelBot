@@ -158,6 +158,7 @@ export interface TrialChannel {
   display_name?: string;
   enabled: boolean;
   state: 'pending' | 'receiving' | 'disabled' | 'stopping' | 'promoted' | 'removed' | 'failed';
+  slot?: number;
   error?: string;
   received?: number;
   decoded?: number;
@@ -171,6 +172,8 @@ export interface TrialChannel {
 export interface TrialSnapshot {
   version: number;
   active_count?: number;
+  max_channels?: number;
+  socket_target?: number;
   trials: TrialChannel[];
 }
 

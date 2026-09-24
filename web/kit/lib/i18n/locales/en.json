@@ -372,7 +372,15 @@
       "trialBroadcasterId": "Twitch ID {id}",
       "trialLoading": "Loading trial connections…",
       "trialUnavailable": "Trial connections are temporarily unavailable.",
-      "trialEmpty": "No active trial connections."
+      "trialEmpty": "No active trial connections.",
+      "trialConduit": "Trial conduit: {target} of {max} sockets. A hot socket hands channels to the coolest socket first; a socket is added only when none has room.",
+      "trialSocket": "trial socket {id}",
+      "trialSocketMeta": "{pod} · {count} channels",
+      "trialSocketMetaOne": "{pod} · 1 channel",
+      "trialSocketConnected": "connected",
+      "trialSocketConnecting": "connecting",
+      "trialSocketIdle": "idle",
+      "trialSocketUnowned": "waiting for a pod"
     },
     "lanes": {
       "eyebrow": "JetStream consumers",
@@ -669,7 +677,7 @@
     "trials": {
       "eyebrow": "Observation",
       "title": "Trial channels",
-      "description": "Process chat from up to four unregistered broadcasters. Twitch output stays blocked while they are in a trial.",
+      "description": "Process chat from up to {max} unregistered broadcasters, spread across up to three trial sockets. Twitch output stays blocked while they are in a trial.",
       "degraded": "Trial state is unavailable. Controls may fail until ingress reconnects.",
       "idLabel": "Twitch broadcaster ID",
       "add": "Add trial",
@@ -677,8 +685,8 @@
       "on": "On",
       "off": "Off",
       "toggleLabel": "Trial chat ingestion for {name}",
-      "note": "Use the numeric Twitch ID. Turn an individual trial off to pause its chat ingestion; it still counts toward the four slots. Registration automatically ends a trial.",
-      "count": "{count} / 4 trial channels",
+      "note": "Use the numeric Twitch ID. Turn an individual trial off to pause its chat ingestion; it still counts toward the {max} slots. Registration automatically ends a trial.",
+      "count": "{count} / {max} trial channels",
       "empty": "No trial channels are configured.",
       "history": "Recent trials",
       "received": "{count} received",

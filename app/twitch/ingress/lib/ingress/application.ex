@@ -72,7 +72,9 @@ defmodule Ingress.Application do
     [
       Ingress.TrialValkey,
       Ingress.TrialMembership,
-      Ingress.TrialReceiver,
+      {Ingress.TrialReceiver, slot: 0},
+      {Ingress.TrialReceiver, slot: 1},
+      {Ingress.TrialReceiver, slot: 2},
       Supervisor.child_spec(
         {Gnat.ConsumerSupervisor,
          %{

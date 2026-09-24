@@ -19,14 +19,17 @@
   import { livePoll } from '@bagel/kit/live-poll';
   import { toast } from '@bagel/ui/svelte/toast';
   import { actionPayload, adminToastFailure } from '@bagel/kit';
-  import type { ShardSnapshot } from '@bagel/kit';
-  import type { TrialSnapshot } from '$lib/server/services';
+  import type { ShardSnapshot, TrialSocket } from '@bagel/kit';
+  import type { StatusTone } from '@bagel/kit/status-tone';
+  import type { TrialChannel, TrialSnapshot } from '$lib/server/services';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { allows } from '$lib/access';
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
   import ShardRow from '$lib/components/shards/ShardRow.svelte';
-  import { rateLabel } from '$lib/components/shards/shard-state';
-  import { eventsPerSecond, resolveCapacity, utilizationPct } from '$lib/throughput';
+  import LoadMeter from '$lib/components/shards/LoadMeter.svelte';
+  import FleetRow from '$lib/components/shards/FleetRow.svelte';
+  import { podIndex, rateLabel } from '$lib/components/shards/shard-state';
+  import { eventsPerSecond, pctLabel, resolveCapacity, utilizationPct } from '$lib/throughput';
 
   let { data } = $props();
 
@@ -110,7 +113,40 @@
     return capacity ? eventsPerSecond(load, capacity.load_window_seconds) : 0;
   }
 
-  const aggregateEps = $derived(shards.reduce((sum, s) => sum + evRate(s.load), 0));
+  const trialLoads = $derived(snap?.trial_loads ?? {});
+  const trialSockets = $derived(snap?.trial_sockets ?? []);
+
+  type TrialGroup = { slot: number; socket?: TrialSocket; channels: TrialChannel[] };
+  const trialGroups = $derived.by((): TrialGroup[] => {
+    const slots = new Set([
+      ...trialSockets.filter((socket) => socket.channels > 0).map((socket) => socket.slot),
+      ...trialConnections.map((trial) => trial.slot ?? 0)
+    ]);
+    return [...slots]
+      .sort((a, b) => a - b)
+      .map((slot) => ({
+        slot,
+        socket: trialSockets.find((socket) => socket.slot === slot),
+        channels: trialConnections
+          .filter((trial) => (trial.slot ?? 0) === slot)
+          .sort((a, b) => (a.display_name || a.broadcaster_id).localeCompare(b.display_name || b.broadcaster_id))
+      }));
+  });
+
+  const SOCKET_TONE: Record<TrialSocket['state'], StatusTone> = {
+    connected: 'success',
+    connecting: 'warning',
+    idle: 'neutral'
+  };
+  const SOCKET_LABEL: Record<TrialSocket['state'], string> = {
+    connected: 'admin.shards.trialSocketConnected',
+    connecting: 'admin.shards.trialSocketConnecting',
+    idle: 'admin.shards.trialSocketIdle'
+  };
+  const aggregateEps = $derived(
+    shards.reduce((sum, s) => sum + evRate(s.load), 0) +
+      Object.values(trialLoads).reduce((sum, load) => sum + evRate(load), 0)
+  );
   const aggregateUtilization = $derived(
     capacity ? utilizationPct(aggregateEps, capacity.effective_rated_eps) : 0
   );
@@ -215,7 +251,7 @@
         value={rateLabel(aggregateEps)}
         unit={t('admin.shards.eps')}
         delta={t('admin.shards.tileThroughputDelta', {
-          pct: aggregateUtilization.toFixed(1)
+          pct: pctLabel(aggregateUtilization)
         })}
       />
       <StatTile
@@ -312,25 +348,51 @@
     {#if data.canViewTrials}
     <section class="trial-connections" aria-label={t('admin.shards.trialConnections')}>
       <h2>{t('admin.shards.trialConnections')}</h2>
+      {#if trialSnapshot?.socket_target}
+        <p class="trial-hint">{t('admin.shards.trialConduit', { target: String(trialSnapshot.socket_target), max: '3' })}</p>
+      {/if}
       {#if trialSnapshot === null}
         <p class="trial-hint">{t('admin.shards.trialUnavailable')}</p>
-      {:else if trialConnections.length === 0}
+      {:else if trialGroups.length === 0}
         <p class="trial-hint">{t('admin.shards.trialEmpty')}</p>
       {:else}
         <DeckList>
           <ul class="bb-list" aria-label={t('admin.shards.trialConnections')}>
-            {#each [...trialConnections].sort((a, b) => (a.display_name || a.broadcaster_id).localeCompare(b.display_name || b.broadcaster_id)) as trial (trial.broadcaster_id)}
-              <li class="trial-row">
-                <StatusDot tone={!trial.enabled ? 'neutral' : trial.state === 'receiving' ? 'success' : 'warning'} />
-                <span class="trial-who">
-                  <strong>{trial.display_name?.trim() || trial.broadcaster_id}</strong>
-                  {#if trial.display_name?.trim()}<small>{t('admin.shards.trialBroadcasterId', { id: trial.broadcaster_id })}</small>{/if}
-                </span>
-                <span class="trial-detail">
-                  {trial.enabled ? t(`admin.trials.state.${trial.state}`) : t('admin.trials.off')} ·
-                  {t('admin.trials.received', { count: String(trial.received ?? 0) })}
-                </span>
+            {#each trialGroups as group (group.slot)}
+              <li>
+                <FleetRow
+                  tone={group.socket ? SOCKET_TONE[group.socket.state] : 'warning'}
+                  name={t('admin.shards.trialSocket', { id: String(group.slot) })}
+                  state={t(group.socket ? SOCKET_LABEL[group.socket.state] : 'admin.shards.trialSocketUnowned')}
+                  meta={t(group.channels.length === 1 ? 'admin.shards.trialSocketMetaOne' : 'admin.shards.trialSocketMeta', {
+                    pod: (group.socket && podIndex(snap.nodes, group.socket.node)) || '-',
+                    count: String(group.channels.length)
+                  })}
+                  eps={evRate(group.socket?.load)}
+                  utilization={capacity ? utilizationPct(evRate(group.socket?.load), capacity.websocket_rated_eps) : 0}
+                  targetUtilization={capacity?.target_utilization_pct ?? 75}
+                />
               </li>
+              {#each group.channels as trial (trial.broadcaster_id)}
+                <li class="trial-row">
+                  <StatusDot tone={!trial.enabled ? 'neutral' : trial.state === 'receiving' ? 'success' : 'warning'} />
+                  <span class="trial-who">
+                    <strong>{trial.display_name?.trim() || trial.broadcaster_id}</strong>
+                    {#if trial.display_name?.trim()}<small>{t('admin.shards.trialBroadcasterId', { id: trial.broadcaster_id })}</small>{/if}
+                  </span>
+                  <span class="trial-detail">
+                    {trial.enabled ? t(`admin.trials.state.${trial.state}`) : t('admin.trials.off')} ·
+                    {t('admin.trials.received', { count: String(trial.received ?? 0) })}
+                  </span>
+                  {#if capacity}
+                    <LoadMeter
+                      eps={evRate(trialLoads[trial.broadcaster_id])}
+                      utilization={utilizationPct(evRate(trialLoads[trial.broadcaster_id]), capacity.websocket_rated_eps)}
+                      targetUtilization={capacity.target_utilization_pct}
+                    />
+                  {/if}
+                </li>
+              {/each}
             {/each}
           </ul>
         </DeckList>
@@ -424,7 +486,7 @@
   .trial-connections { margin-top: 24px; }
   .trial-connections h2 { font-size: 16px; margin: 0 0 10px; }
   .trial-hint { color: var(--bb-muted); font-size: 12.5px; }
-  .trial-row { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 12px 14px; border-bottom: 1px solid var(--rule, rgba(240, 236, 228, 0.08)); }
+  .trial-row { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 12px 14px 12px 34px; border-bottom: 1px solid var(--rule, rgba(240, 236, 228, 0.08)); }
   .trial-who { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
   .trial-who strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .trial-who small, .trial-detail { color: var(--bb-muted); font-size: 11px; }

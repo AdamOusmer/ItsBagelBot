@@ -19,10 +19,10 @@ export const load: PageServerLoad = async ({ parent }) => {
   const { role } = await parent();
   const withTrials = allows(role, 'trials.manage');
   const bundle: Promise<ShardsBundle> = DEMO
-    ? import('$lib/server/demo-data').then(({ sampleSnapshot }) => ({
+    ? import('$lib/server/demo-data').then(({ sampleSnapshot, sampleTrials }) => ({
         snapshot: sampleSnapshot,
         degraded: false,
-        trials: null
+        trials: withTrials ? sampleTrials : null
       }))
     : Promise.all([
         shardSnapshot().then((snapshot) => ({ snapshot, degraded: false })).catch(() => ({ snapshot: emptyShardSnapshot(), degraded: true })),
