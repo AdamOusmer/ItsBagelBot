@@ -43,6 +43,8 @@ defmodule Ingress.Application do
 
   defp base_children do
     [
+      # Before Horde: a singleton placed here calls Twitch through it.
+      Ingress.Twitch.AppToken,
       {Cluster.Supervisor, [Config.cluster_topologies(), [name: Ingress.ClusterSupervisor]]},
       {Horde.Registry, [name: Ingress.Registry, keys: :unique, members: :auto]},
       {Horde.DynamicSupervisor,
@@ -63,8 +65,7 @@ defmodule Ingress.Application do
       {Task.Supervisor, name: Ingress.BroadcasterCache.TaskSupervisor},
       Ingress.BroadcasterCache,
       Ingress.Squash.Pool,
-      Ingress.Dispatcher.Supervisor,
-      Ingress.Twitch.AppToken
+      Ingress.Dispatcher.Supervisor
     ]
   end
 

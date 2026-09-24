@@ -11,7 +11,11 @@ defmodule Ingress.Twitch.AppToken do
   def start_link(opts), do: GenServer.start_link(__MODULE__, opts, name: __MODULE__)
 
   @spec get() :: {:ok, String.t()} | {:error, term()}
-  def get, do: GenServer.call(__MODULE__, :get, 15_000)
+  def get do
+    GenServer.call(__MODULE__, :get, 15_000)
+  catch
+    :exit, reason -> {:error, {:app_token_unavailable, reason}}
+  end
 
   def invalidate, do: GenServer.cast(__MODULE__, :invalidate)
 

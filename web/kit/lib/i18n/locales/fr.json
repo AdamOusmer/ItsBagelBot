@@ -2415,7 +2415,11 @@
     "triggerReserved": "Cette phrase utilise une syntaxe réservée (=>, un # au début, ou un préfixe mode:). Reformulez-la.",
     "triggerRulesHint": "Répond quand un message correspond à une expression, sans \"!\". La première correspondance l’emporte.",
     "triggerRulesTitle": "Règles de déclenchement",
-    "tzApply": "Utiliser la suggestion",
+    "tzApply": "Utiliser {tz}",
+    "tzNoMatch": "Aucun fuseau horaire trouvé. Essayez une ville, comme Toronto ou Paris.",
+    "tzPickerTitle": "Choisir un fuseau horaire",
+    "tzSearchClear": "Effacer la recherche",
+    "tzSearchPh": "Rechercher une ville ou un fuseau",
     "tzSuggested": "Votre navigateur indique {tz}. Détecté uniquement sur votre appareil : rien n'est enregistré tant que vous ne l'appliquez pas.",
     "tzUnset": "Non défini",
     "catalog": {
