@@ -39,10 +39,15 @@ func loadCA() (*x509.CertPool, error) {
 }
 
 func baseConnectOptions() []nats.Option {
-	return []nats.Option{
+	opts := []nats.Option{
 		nats.UserInfo(os.Getenv("NATS_USER"), os.Getenv("NATS_PASSWORD")),
 		nats.Timeout(15 * time.Second),
 	}
+	jwt, seed := os.Getenv("NATS_JWT"), os.Getenv("NATS_NKEY_SEED")
+	if jwt != "" && seed != "" {
+		opts = append(opts, nats.UserJWTAndSeed(jwt, seed))
+	}
+	return opts
 }
 
 func clientTLSConfig(pool *x509.CertPool) (*tls.Config, error) {

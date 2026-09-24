@@ -31,6 +31,12 @@ func (acl) Done(ctx context.Context, rc *stage.RunCtx) (bool, error) {
 }
 
 func (acl) Run(ctx context.Context, rc *stage.RunCtx) error {
+	return applyMessaging(ctx, rc)
+}
+
+// applyMessaging applies deploy/messaging and confirms every NATS server
+// reloaded and stayed quiet; both ACL modes share it.
+func applyMessaging(ctx context.Context, rc *stage.RunCtx) error {
 	a := aclRun{rc: rc}
 	at, err := a.appliedAt(ctx)
 	if err != nil {

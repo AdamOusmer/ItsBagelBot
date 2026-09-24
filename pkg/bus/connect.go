@@ -33,9 +33,11 @@ func serverList(override endpoint) string {
 }
 
 type connectionIdentity struct {
-	name string
-	user string
-	pass string
+	name     string
+	user     string
+	pass     string
+	jwt      string
+	nkeySeed string
 }
 
 func baseOptions(identity connectionIdentity) []nats.Option {
@@ -64,6 +66,11 @@ func baseOptions(identity connectionIdentity) []nats.Option {
 
 	if identity.user != "" {
 		opts = append(opts, nats.UserInfo(identity.user, identity.pass))
+	}
+
+	// A password-mode server uses UserInfo and ignores this; an operator-mode server uses this instead.
+	if identity.jwt != "" && identity.nkeySeed != "" {
+		opts = append(opts, nats.UserJWTAndSeed(identity.jwt, identity.nkeySeed))
 	}
 
 	return opts
@@ -113,9 +120,11 @@ func tlsSecureOption() nats.Option {
 
 func rpcOptions(name clientName) []nats.Option {
 	opts := baseOptions(connectionIdentity{
-		name: string(name),
-		user: env.Get("NATS_RPC_USER", env.Get("NATS_USER", "")),
-		pass: env.Get("NATS_RPC_PASSWORD", env.Get("NATS_PASSWORD", "")),
+		name:     string(name),
+		user:     env.Get("NATS_RPC_USER", env.Get("NATS_USER", "")),
+		pass:     env.Get("NATS_RPC_PASSWORD", env.Get("NATS_PASSWORD", "")),
+		jwt:      env.Get("NATS_RPC_JWT", env.Get("NATS_JWT", "")),
+		nkeySeed: env.Get("NATS_RPC_NKEY_SEED", env.Get("NATS_NKEY_SEED", "")),
 	})
 	// Failback only on the leaf RPC plane: on the BUS plane it would force a reconnect every interval.
 	if option := leafFailbackOption(); option != nil {
@@ -126,9 +135,11 @@ func rpcOptions(name clientName) []nats.Option {
 
 func busOptions(name clientName) []nats.Option {
 	return baseOptions(connectionIdentity{
-		name: string(name),
-		user: env.Get("NATS_USER", ""),
-		pass: env.Get("NATS_PASSWORD", ""),
+		name:     string(name),
+		user:     env.Get("NATS_USER", ""),
+		pass:     env.Get("NATS_PASSWORD", ""),
+		jwt:      env.Get("NATS_JWT", ""),
+		nkeySeed: env.Get("NATS_NKEY_SEED", ""),
 	})
 }
 

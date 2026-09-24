@@ -7,7 +7,7 @@ import {
   type NatsConnection,
   type Subscription
 } from '@nats-io/transport-node';
-import { tlsOptions } from '@bagel/kit/server/nats';
+import { credentialAuth, tlsOptions } from '@bagel/kit/server/nats';
 
 let conn: NatsConnection | null = null;
 let dialing: Promise<NatsConnection> | null = null;
@@ -17,9 +17,7 @@ function url(): string {
   return process.env.NATS_HUB_URL || process.env.NATS_URL || 'nats://127.0.0.1:4222';
 }
 
-async function get(): Promise<NatsConnection> {
-  if (conn && !conn.isClosed()) return conn;
-  if (dialing) return dialing;
+export function feedOptions(): ConnectionOptions {
   const opts: ConnectionOptions = {
     servers: url(),
     name: (process.env.NATS_CLIENT_NAME || 'console') + '-feed',
@@ -29,14 +27,27 @@ async function get(): Promise<NatsConnection> {
     ignoreAuthErrorAbort: true,
     timeout: 3_000
   };
-  if (process.env.NATS_USER) opts.user = process.env.NATS_USER;
-  if (process.env.NATS_PASSWORD) opts.pass = process.env.NATS_PASSWORD;
+  Object.assign(
+    opts,
+    credentialAuth(
+      process.env.NATS_USER,
+      process.env.NATS_PASSWORD,
+      process.env.NATS_JWT,
+      process.env.NATS_NKEY_SEED
+    )
+  );
   if (process.env.NATS_TOKEN) opts.token = process.env.NATS_TOKEN;
   // The hub runs mTLS: a CA-only config never connects and silently reconnect-loops.
   const tls = tlsOptions();
   if (tls) opts.tls = tls;
+  return opts;
+}
 
-  dialing = connect(opts)
+async function get(): Promise<NatsConnection> {
+  if (conn && !conn.isClosed()) return conn;
+  if (dialing) return dialing;
+
+  dialing = connect(feedOptions())
     .then((c) => {
       conn = c;
       return c;

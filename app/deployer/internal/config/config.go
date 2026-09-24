@@ -84,6 +84,8 @@ func loadDeploy() ports.Config {
 		PriorityClasses:       "deploy/k8s/priorityclasses.yaml",
 		StatusRoutes:          "deploy/db/status-routes.yaml",
 		ChangelogDir:          "web/marketing/src/content/changelog",
+		AccountsFile:          "deploy/messaging/accounts.yaml",
+		AccountsKeysFile:      "deploy/messaging/accounts.keys.yaml",
 		RolloutTimeout:        env.GetDuration("DEPLOY_ROLLOUT_TIMEOUT", 8*time.Minute),
 		ACLTimeout:            env.GetDuration("DEPLOY_ACL_TIMEOUT", 5*time.Minute),
 		ACLSettle:             env.GetDuration("DEPLOY_ACL_SETTLE", 45*time.Second),
@@ -94,6 +96,14 @@ func loadDeploy() ports.Config {
 		PollEvery:             env.GetDuration("DEPLOY_POLL_EVERY", 5*time.Second),
 		LockTTL:               env.GetDuration("DEPLOY_LOCK_TTL", 2*time.Minute),
 		HeartbeatEvery:        env.GetDuration("DEPLOY_HEARTBEAT_EVERY", 20*time.Second),
+
+		NATSAuthMode:      ports.NATSAuthMode(env.Get("DEPLOY_NATS_AUTH", string(ports.NATSAuthConfig))),
+		NATSSigningSeed:   env.Get("DEPLOY_NATS_SIGNING_SEED", ""),
+		NATSSysJWT:        env.Get("DEPLOY_NATS_SYS_JWT", ""),
+		NATSSysNKeySeed:   env.Get("DEPLOY_NATS_SYS_NKEY_SEED", ""),
+		NATSHubURL:        env.Get("DEPLOY_NATS_HUB_URL", ""),
+		NATSLeafURL:       env.Get("DEPLOY_NATS_LEAF_URL", ""),
+		ACLReconcileEvery: env.GetDuration("DEPLOY_ACL_RECONCILE_EVERY", 5*time.Minute),
 	}
 }
 

@@ -17,7 +17,9 @@ import (
 	"ItsBagelBot/app/deployer/internal/gh"
 	"ItsBagelBot/app/deployer/internal/kube/apply"
 	"ItsBagelBot/app/deployer/internal/kube/watch"
+	"ItsBagelBot/app/deployer/internal/natsclaims"
 	"ItsBagelBot/app/deployer/internal/ports"
+	"ItsBagelBot/app/deployer/internal/reconcile"
 	"ItsBagelBot/app/deployer/internal/registry"
 	"ItsBagelBot/app/deployer/internal/rpc"
 	"ItsBagelBot/app/deployer/internal/stage"
@@ -56,15 +58,22 @@ func main() {
 	kube, err := rest.InClusterConfig()
 	svcboot.FatalIf(log, err, "failed to load in-cluster kube config")
 
+	claims, closeClaims := openClaims(cfg, log)
+	defer closeClaims()
+
+	deps := stageDeps(cfg, kube, log, claims)
 	eng := engine.New(engine.Deps{
 		Store:    runs,
 		Events:   events.New(nc),
-		Stages:   append(cluster.All(), github.All()...),
-		Stage:    stageDeps(cfg, kube, log),
+		Stages:   append(cluster.All(cfg.Deploy.NATSAuthMode), github.All()...),
+		Stage:    deps,
 		Services: cluster.Order(),
 		Log:      log,
 	})
 	stopped := runEngine(ctx, eng, log)
+	startReconcile(ctx, cfg.Deploy.NATSAuthMode, reconcile.Deps{
+		Store: runs, GitHub: deps.GitHub, Claims: deps.Claims, Config: cfg.Deploy, Log: log,
+	})
 
 	wiring := bus.RPCWiring{NC: nc, App: core.NR, Queue: queueGroup, Log: log, Timeout: cfg.RPCTimeout}
 	svcboot.FatalIf(log, rpc.Serve(wiring, cfg.RPCPrefix, eng, rpc.NewAuthorizer(nc, rpc.AuthSubject(cfg.UsersAuthSubject))),
@@ -108,7 +117,7 @@ func awaitEngine(stopped <-chan struct{}, log *zap.Logger) {
 	}
 }
 
-func stageDeps(cfg *config.Config, kube *rest.Config, log *zap.Logger) stage.Deps {
+func stageDeps(cfg *config.Config, kube *rest.Config, log *zap.Logger, claims ports.ClaimsPusher) stage.Deps {
 	hub, err := gh.New(gh.Config{
 		AppID: cfg.GitHubAppID, InstallationID: cfg.GitHubInstallationID,
 		PrivateKey: cfg.GitHubPrivateKey, Deploy: cfg.Deploy,
@@ -124,8 +133,28 @@ func stageDeps(cfg *config.Config, kube *rest.Config, log *zap.Logger) stage.Dep
 		Registry: registry.New(registry.Config{Repo: cfg.Deploy.ImageRepo, Username: cfg.GHCRUsername, Password: cfg.GHCRToken}),
 		Applier:  applier,
 		Watcher:  watcher,
+		Claims:   claims,
 		Clock:    ports.SystemClock{},
 		Config:   cfg.Deploy,
 		Log:      log,
 	}
+}
+
+func openClaims(cfg *config.Config, log *zap.Logger) (ports.ClaimsPusher, func()) {
+	if cfg.Deploy.NATSAuthMode != ports.NATSAuthJWT {
+		return nil, func() {}
+	}
+	adapter, err := natsclaims.New(natsclaims.Config{
+		HubURL: cfg.Deploy.NATSHubURL, LeafURL: cfg.Deploy.NATSLeafURL,
+		SysJWT: cfg.Deploy.NATSSysJWT, SysSeed: cfg.Deploy.NATSSysNKeySeed,
+	})
+	svcboot.FatalIf(log, err, "failed to connect nats claims adapter")
+	return adapter, adapter.Close
+}
+
+func startReconcile(ctx context.Context, mode ports.NATSAuthMode, deps reconcile.Deps) {
+	if mode != ports.NATSAuthJWT {
+		return
+	}
+	go reconcile.Run(ctx, deps)
 }

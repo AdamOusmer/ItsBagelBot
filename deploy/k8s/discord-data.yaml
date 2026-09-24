@@ -137,6 +137,12 @@ spec:
             - name: NATS_RPC_PASSWORD
               valueFrom:
                 secretKeyRef: {name: discord-data-env, key: NATS_RPC_PASSWORD}
+            - name: NATS_RPC_JWT
+              valueFrom:
+                secretKeyRef: {name: discord-data-env, key: NATS_RPC_JWT, optional: true}
+            - name: NATS_RPC_NKEY_SEED
+              valueFrom:
+                secretKeyRef: {name: discord-data-env, key: NATS_RPC_NKEY_SEED, optional: true}
             - name: DB_ADDR
               valueFrom:
                 secretKeyRef: {name: discord-data-env, key: DB_ADDR}

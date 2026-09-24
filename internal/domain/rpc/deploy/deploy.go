@@ -167,6 +167,7 @@ const (
 	FailGitHub             FailureCode = "github"
 	FailKube               FailureCode = "kube"
 	FailInternal           FailureCode = "internal"
+	FailClaimsPush         FailureCode = "claims_push_failed"
 )
 
 type Action string
@@ -225,6 +226,7 @@ type Outputs struct {
 
 	MessagingChanged bool       `json:"messaging_changed"`
 	ACLAppliedAt     *time.Time `json:"acl_applied_at,omitempty"`
+	ACLPushed        bool       `json:"acl_pushed,omitempty"`
 }
 
 type Actor struct {
