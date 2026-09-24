@@ -37,6 +37,7 @@ type Deps struct {
 	Registry ports.Registry
 	Applier  ports.Applier
 	Watcher  ports.Watcher
+	Claims   ports.ClaimsPusher
 	Clock    ports.Clock
 	Config   ports.Config
 	Log      *zap.Logger

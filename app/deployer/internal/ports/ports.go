@@ -54,6 +54,13 @@ type (
 
 type Files map[FilePath][]byte
 
+type NATSAuthMode string
+
+const (
+	NATSAuthConfig NATSAuthMode = "config"
+	NATSAuthJWT    NATSAuthMode = "jwt"
+)
+
 type Config struct {
 	Owner          string
 	Repo           string
@@ -62,11 +69,13 @@ type Config struct {
 	Workflow       Workflow
 	CodeSceneCheck string
 
-	ManifestDir     FilePath
-	MessagingDir    FilePath
-	PriorityClasses FilePath
-	StatusRoutes    FilePath
-	ChangelogDir    FilePath
+	ManifestDir      FilePath
+	MessagingDir     FilePath
+	PriorityClasses  FilePath
+	StatusRoutes     FilePath
+	ChangelogDir     FilePath
+	AccountsFile     FilePath
+	AccountsKeysFile FilePath
 
 	RolloutTimeout        time.Duration
 	ACLTimeout            time.Duration
@@ -78,6 +87,14 @@ type Config struct {
 	PollEvery             time.Duration
 	LockTTL               time.Duration
 	HeartbeatEvery        time.Duration
+
+	NATSAuthMode      NATSAuthMode
+	NATSSigningSeed   string
+	NATSSysJWT        string
+	NATSSysNKeySeed   string
+	NATSHubURL        string
+	NATSLeafURL       string
+	ACLReconcileEvery time.Duration
 }
 
 type Clock interface {

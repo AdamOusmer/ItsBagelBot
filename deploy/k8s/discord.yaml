@@ -144,6 +144,18 @@ spec:
             - name: NATS_RPC_PASSWORD
               valueFrom:
                 secretKeyRef: {name: discord-env, key: DISCORD_INGRESS_RPC_PASSWORD}
+            - name: NATS_JWT
+              valueFrom:
+                secretKeyRef: {name: discord-env, key: DISCORD_INGRESS_BUS_JWT, optional: true}
+            - name: NATS_NKEY_SEED
+              valueFrom:
+                secretKeyRef: {name: discord-env, key: DISCORD_INGRESS_BUS_NKEY_SEED, optional: true}
+            - name: NATS_RPC_JWT
+              valueFrom:
+                secretKeyRef: {name: discord-env, key: DISCORD_INGRESS_RPC_JWT, optional: true}
+            - name: NATS_RPC_NKEY_SEED
+              valueFrom:
+                secretKeyRef: {name: discord-env, key: DISCORD_INGRESS_RPC_NKEY_SEED, optional: true}
           volumeMounts:
             - {name: health-tls, mountPath: /etc/discord-ingress/tls, readOnly: true}
             - name: nats-client-tls
@@ -342,6 +354,18 @@ spec:
             - name: NATS_RPC_PASSWORD
               valueFrom:
                 secretKeyRef: {name: discord-env, key: DISCORD_ENGINE_RPC_PASSWORD}
+            - name: NATS_JWT
+              valueFrom:
+                secretKeyRef: {name: discord-env, key: DISCORD_ENGINE_BUS_JWT, optional: true}
+            - name: NATS_NKEY_SEED
+              valueFrom:
+                secretKeyRef: {name: discord-env, key: DISCORD_ENGINE_BUS_NKEY_SEED, optional: true}
+            - name: NATS_RPC_JWT
+              valueFrom:
+                secretKeyRef: {name: discord-env, key: DISCORD_ENGINE_RPC_JWT, optional: true}
+            - name: NATS_RPC_NKEY_SEED
+              valueFrom:
+                secretKeyRef: {name: discord-env, key: DISCORD_ENGINE_RPC_NKEY_SEED, optional: true}
           volumeMounts:
             - {name: nats-client-tls, mountPath: /etc/nats-client/tls, readOnly: true}
             - {name: health-tls, mountPath: /etc/discord-engine/tls, readOnly: true}
@@ -541,6 +565,18 @@ spec:
             - name: NATS_RPC_PASSWORD
               valueFrom:
                 secretKeyRef: {name: discord-env, key: DISCORD_OUTGRESS_RPC_PASSWORD}
+            - name: NATS_JWT
+              valueFrom:
+                secretKeyRef: {name: discord-env, key: DISCORD_OUTGRESS_BUS_JWT, optional: true}
+            - name: NATS_NKEY_SEED
+              valueFrom:
+                secretKeyRef: {name: discord-env, key: DISCORD_OUTGRESS_BUS_NKEY_SEED, optional: true}
+            - name: NATS_RPC_JWT
+              valueFrom:
+                secretKeyRef: {name: discord-env, key: DISCORD_OUTGRESS_RPC_JWT, optional: true}
+            - name: NATS_RPC_NKEY_SEED
+              valueFrom:
+                secretKeyRef: {name: discord-env, key: DISCORD_OUTGRESS_RPC_NKEY_SEED, optional: true}
           volumeMounts:
             - {name: nats-client-tls, mountPath: /etc/nats-client/tls, readOnly: true}
             - {name: health-tls, mountPath: /etc/discord-outgress/tls, readOnly: true}
