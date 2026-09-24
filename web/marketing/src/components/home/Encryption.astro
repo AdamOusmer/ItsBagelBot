@@ -1126,11 +1126,15 @@ const t = useTranslations(lang);
         }
         document.addEventListener('visibilitychange', onVisibilityChange);
 
-        function update(p: number, t: number) {
+        /** Per-frame easing factor `k`, tuned at 60 Hz, applied over `steps` 60 Hz frames. */
+        const easeOver = (k: number, steps: number) => 1 - Math.pow(1 - k, steps);
+
+        function update(p: number, t: number, steps: number) {
             const {fov} = camTarget(p);
-            camPos.lerp(_tgtPos, 0.06);
-            camLook.lerp(_tgtLook, 0.06);
-            camFov = lerp(camFov, fov, 0.06);
+            const camEase = easeOver(0.06, steps);
+            camPos.lerp(_tgtPos, camEase);
+            camLook.lerp(_tgtLook, camEase);
+            camFov = lerp(camFov, fov, camEase);
             camera.position.copy(camPos);
             camera.position.x += Math.sin(t * 0.27) * 0.18;
             camera.position.y += Math.cos(t * 0.31) * 0.13;
@@ -1165,7 +1169,7 @@ const t = useTranslations(lang);
 
             let pi = 0;
             for (let i = 0; i < partCount; i++) {
-                let u = partT[i] + partSpeed[i] * 0.016;
+                let u = partT[i] + partSpeed[i] * 0.016 * steps;
                 if (u >= 1) u -= 1;
                 partT[i] = u;
                 const samples = partSamples[i];
@@ -1180,21 +1184,20 @@ const t = useTranslations(lang);
             }
             partPositionAttr.needsUpdate = true;
 
-            bgFrame ^= 1;
-            if (bgFrame === 0) {
-                for (let i3 = 0; i3 < bgPos.length; i3 += 3) {
-                    const x = bgPos[i3] + bgVel[i3];
-                    const y = bgPos[i3 + 1] + bgVel[i3 + 1];
-                    const z = bgPos[i3 + 2] + bgVel[i3 + 2];
-                    bgPos[i3] = x;
-                    bgPos[i3 + 1] = y;
-                    bgPos[i3 + 2] = z;
-                    if (x > 14 || x < -14) bgVel[i3] *= -1;
-                    if (y > 14 || y < -14) bgVel[i3 + 1] *= -1;
-                    if (z > 14 || z < -14) bgVel[i3 + 2] *= -1;
-                }
-                bgPositionAttr.needsUpdate = true;
+            // bgVel was tuned as one step per two 60 Hz frames.
+            const drift = steps / 2;
+            for (let i3 = 0; i3 < bgPos.length; i3 += 3) {
+                const x = bgPos[i3] + bgVel[i3] * drift;
+                const y = bgPos[i3 + 1] + bgVel[i3 + 1] * drift;
+                const z = bgPos[i3 + 2] + bgVel[i3 + 2] * drift;
+                bgPos[i3] = x;
+                bgPos[i3 + 1] = y;
+                bgPos[i3 + 2] = z;
+                if (x > 14 || x < -14) bgVel[i3] *= -1;
+                if (y > 14 || y < -14) bgVel[i3 + 1] *= -1;
+                if (z > 14 || z < -14) bgVel[i3 + 2] *= -1;
             }
+            bgPositionAttr.needsUpdate = true;
 
             for (let i = 0; i < overlays.length; i++) {
                 const el = overlays[i];
@@ -1258,7 +1261,6 @@ const t = useTranslations(lang);
         let gpuDisposed = false;
         let disposeFallbackTimer = 0;
         let removeAfterSwapDispose: (() => void) | null = null;
-        let bgFrame = 0;
 
         window.addEventListener('resize', resize);
         mediaQuery.addEventListener('change', resize);
@@ -1349,12 +1351,26 @@ const t = useTranslations(lang);
             else disposeGpu();
         };
 
+        // Capped at 48 fps. The motion constants were tuned per 60 Hz frame,
+        // so each rendered frame advances them by the real time it covers
+        // (clamped, so resuming after a park does not jump); the scene moves at
+        // the same speed at the cap and on 120 Hz screens.
+        const FRAME_MS = 1000 / 48;
+        const TUNED_FRAME_MS = 1000 / 60;
+        let frameClock = 0;
+        let lastRender = 0;
+
         renderer.setAnimationLoop((time) => {
             if (disposed) return;
             timer.update(time);
             if (!drawing || !pageVisible) return;
-            curP += (rawP - curP) * 0.06;
-            update(curP, timer.getElapsed());
+            const sinceTick = time - frameClock;
+            if (sinceTick < FRAME_MS) return;
+            frameClock = time - (sinceTick % FRAME_MS);
+            const steps = Math.min(time - lastRender, 100) / TUNED_FRAME_MS;
+            lastRender = time;
+            curP += (rawP - curP) * easeOver(0.06, steps);
+            update(curP, timer.getElapsed(), steps);
             renderer.render(scene, camera);
         });
     }
