@@ -11,6 +11,9 @@ export const SITE = {
   stats: 'https://stats.itsbagelbot.com',
   status: 'https://status.itsbagelbot.com',
   github: 'https://github.com/AdamOusmer/ItsBagelBot',
+  newIssue: 'https://github.com/AdamOusmer/ItsBagelBot/issues/new',
+  supportEmail: 'support@itsbagelbot.com',
+  enterpriseEmail: 'enterprise@itsbagelbot.com',
   discord: 'https://discord.gg/SZ2remwSDv',
   twitch: 'https://twitch.tv/itsbagelbot',
 } as const;
