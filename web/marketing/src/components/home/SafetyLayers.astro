@@ -10,9 +10,21 @@ import { getLangFromUrl, useTranslations } from '../../i18n/ui';
 
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
+
+const NETWORK_HUB = { x: 180, y: 56 };
+const NETWORK_NODES = [
+    { x: 118, y: 14, wave: 0 },
+    { x: 242, y: 14, wave: 0 },
+    { x: 54, y: 20, wave: 1 },
+    { x: 55, y: 92, wave: 1 },
+    { x: 305, y: 92, wave: 1 },
+    { x: 306, y: 20, wave: 1 },
+];
+const NETWORK_WAVES = [0, 1];
+const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === wave);
 ---
 
-<section class="safe" id="safety-layers">
+<section class="safe" id="safety-layers" data-motion>
     <LightField class="bb-light-field--bleed" />
     <SectionHeading eyebrow={t('safe.eyebrow')} title={t('safe.title')}>
         <Badge slot="badge" tone="incoming" mark="plus">{t('badge.beta')}</Badge>
@@ -43,8 +55,8 @@ const t = useTranslations(lang);
 
         <Card atmo hover class="safe__card" data-reveal style="--reveal-i: 1">
             <div class="safe__demo safe__demo--gates" slot="band" aria-hidden="true">
-                <div class="gates__lane">
-                    <span class="gates__packet">MSG</span>
+                <div class="gates__lane bb-track">
+                    <span class="gates__packet bb-stack"><span>MSG</span><span class="gates__packet-ok">MSG</span></span>
                     <span class="gates__gate" style="--gate-i: 0"><i></i><b>{t('safe.gateRate')}</b></span>
                     <span class="gates__gate" style="--gate-i: 1"><i></i><b>{t('safe.gateShape')}</b></span>
                     <span class="gates__gate" style="--gate-i: 2"><i></i><b>{t('safe.gateLink')}</b></span>
@@ -63,29 +75,36 @@ const t = useTranslations(lang);
 
         <Card atmo hover class="safe__card safe__card--network" data-reveal style="--reveal-i: 2">
             <div class="safe__demo safe__demo--network" slot="band" aria-hidden="true">
-                <svg class="network__map" viewBox="0 0 360 112" role="presentation">
-                    <g class="network__links">
-                        <path d="M180 56 L118 14" pathLength="1" style="--wave-i: 0" />
-                        <path d="M180 56 L242 14" pathLength="1" style="--wave-i: 0" />
-                        <path d="M180 56 L54 20" pathLength="1" style="--wave-i: 1" />
-                        <path d="M180 56 L55 92" pathLength="1" style="--wave-i: 1" />
-                        <path d="M180 56 L305 92" pathLength="1" style="--wave-i: 1" />
-                        <path d="M180 56 L306 20" pathLength="1" style="--wave-i: 1" />
-                    </g>
-                    <g class="network__nodes">
-                        <circle cx="118" cy="14" r="5" style="--wave-i: 0" />
-                        <circle cx="242" cy="14" r="5" style="--wave-i: 0" />
-                        <circle cx="54" cy="20" r="5" style="--wave-i: 1" />
-                        <circle cx="55" cy="92" r="5" style="--wave-i: 1" />
-                        <circle cx="305" cy="92" r="5" style="--wave-i: 1" />
-                        <circle cx="306" cy="20" r="5" style="--wave-i: 1" />
-                    </g>
-                    <g class="network__core">
-                        <circle class="network__ping" cx="180" cy="56" r="20" />
-                        <circle class="network__ring" cx="180" cy="56" r="20" />
-                        <circle class="network__dot" cx="180" cy="56" r="8" />
-                    </g>
-                </svg>
+                <div class="network__map bb-stack">
+                    {NETWORK_WAVES.map((wave) => (
+                        <svg class="network__layer network__links" viewBox="0 0 360 112" style={`--wave-i: ${wave}`}>
+                            {nodesIn(wave).map((node) => <path d={`M${NETWORK_HUB.x} ${NETWORK_HUB.y} L${node.x} ${node.y}`} />)}
+                        </svg>
+                    ))}
+                    <svg class="network__layer network__base" viewBox="0 0 360 112">
+                        {NETWORK_NODES.map((node) => <circle class="network__node" cx={node.x} cy={node.y} r="5" />)}
+                        <circle class="network__ring" cx={NETWORK_HUB.x} cy={NETWORK_HUB.y} r="20" />
+                        <circle class="network__dot" cx={NETWORK_HUB.x} cy={NETWORK_HUB.y} r="8" />
+                    </svg>
+                    {NETWORK_WAVES.map((wave) => (
+                        <svg class="network__layer network__lit" viewBox="0 0 360 112" style={`--wave-i: ${wave}`}>
+                            {nodesIn(wave).map((node) => <circle cx={node.x} cy={node.y} r="5" />)}
+                        </svg>
+                    ))}
+                    <svg class="network__layer network__ping" viewBox="0 0 360 112">
+                        <circle cx={NETWORK_HUB.x} cy={NETWORK_HUB.y} r="58" />
+                    </svg>
+                    <svg class="network__layer network__ring-alert" viewBox="0 0 360 112">
+                        <circle cx={NETWORK_HUB.x} cy={NETWORK_HUB.y} r="20" />
+                    </svg>
+                    <svg class="network__layer network__dot-alert" viewBox="0 0 360 112">
+                        <circle cx={NETWORK_HUB.x} cy={NETWORK_HUB.y} r="8" />
+                    </svg>
+                    <svg class="network__layer network__core-safe" viewBox="0 0 360 112">
+                        <circle class="network__ring" cx={NETWORK_HUB.x} cy={NETWORK_HUB.y} r="20" />
+                        <circle class="network__dot" cx={NETWORK_HUB.x} cy={NETWORK_HUB.y} r="8" />
+                    </svg>
+                </div>
                 <span class="network__alert">{t('safe.networkAlert')}</span>
                 <span class="network__status">{t('safe.networkStatus')}</span>
             </div>
@@ -197,6 +216,20 @@ const t = useTranslations(lang);
         border: 1px solid rgba(240, 236, 228, 0.58);
         border-radius: 50%;
         background: #0b0b0a;
+    }
+
+    .jury__seat::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 8px;
+        width: 8px;
+        height: 8px;
+        border: 1px solid rgba(224, 196, 154, 0.9);
+        border-radius: 50%;
+        background: #0b0b0a;
+        box-shadow: 0 0 7px rgba(201, 168, 124, 0.5);
+        opacity: 0;
         animation: jurySeatThink 7.2s ease-in-out infinite;
         animation-delay: calc(var(--jury-i) * 70ms);
     }
@@ -274,6 +307,7 @@ const t = useTranslations(lang);
         justify-content: center;
         gap: 2px;
         text-align: center;
+        text-shadow: 0 0 12px rgba(217, 138, 138, 0.3);
         opacity: 0;
         animation: juryTally 7.2s ease-in-out infinite;
     }
@@ -307,8 +341,8 @@ const t = useTranslations(lang);
     }
 
     @keyframes jurySeatThink {
-        0%, 8%, 24%, 100% { border-color: rgba(240, 236, 228, 0.58); box-shadow: none; }
-        12%, 20% { border-color: rgba(224, 196, 154, 0.9); box-shadow: 0 0 7px rgba(201, 168, 124, 0.5); }
+        0%, 8%, 24%, 100% { opacity: 0; }
+        12%, 20% { opacity: 1; }
     }
 
     @keyframes juryBallot {
@@ -320,8 +354,8 @@ const t = useTranslations(lang);
 
     @keyframes juryTally {
         0%, 38% { opacity: 0; transform: scale(1.18); }
-        44% { opacity: 1; transform: scale(1); text-shadow: 0 0 12px rgba(217, 138, 138, 0.3); }
-        88% { opacity: 1; transform: scale(1); text-shadow: 0 0 12px rgba(217, 138, 138, 0.3); }
+        44% { opacity: 1; transform: scale(1); }
+        88% { opacity: 1; transform: scale(1); }
         95%, 100% { opacity: 0; transform: scale(0.96); }
     }
 
@@ -364,6 +398,31 @@ const t = useTranslations(lang);
         animation: gatePacket 7.2s ease infinite;
     }
 
+    .gates__packet > * {
+        align-self: center;
+        justify-self: center;
+    }
+
+    .gates__packet::after {
+        content: "";
+        grid-area: 1 / 1;
+        align-self: stretch;
+        justify-self: stretch;
+        margin: -1px;
+        border: 1px solid rgba(82, 183, 136, 0.64);
+        border-radius: inherit;
+    }
+
+    .gates__packet-ok {
+        color: var(--green-glow, #52b788);
+    }
+
+    .gates__packet::after,
+    .gates__packet-ok {
+        opacity: 0;
+        animation: gatePacketOk 7.2s ease infinite;
+    }
+
     .gates__gate {
         position: absolute;
         top: 2px;
@@ -376,19 +435,45 @@ const t = useTranslations(lang);
     }
 
     .gates__gate i {
+        position: relative;
         width: 2px;
         height: 48px;
         background: rgba(136, 128, 119, 0.56);
         box-shadow: 0 0 0 4px #0b0b0a;
         transform-origin: top;
+    }
+
+    .gates__gate i::before,
+    .gates__gate i::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+    }
+
+    .gates__gate i::before {
+        background: rgba(224, 196, 154, 0.95);
+        box-shadow: 0 0 9px rgba(201, 168, 124, 0.55);
+    }
+
+    .gates__gate i::after {
+        background: var(--green-glow, #52b788);
+    }
+
+    .gates__gate i,
+    .gates__gate i::before,
+    .gates__gate i::after {
         animation-duration: 7.2s;
         animation-timing-function: ease-in-out;
         animation-iteration-count: infinite;
+        animation-delay: var(--gate-delay, 0s);
     }
 
-    .gates__gate:nth-child(2) i { animation-name: gateOne; }
-    .gates__gate:nth-child(3) i { animation-name: gateTwo; }
-    .gates__gate:nth-child(4) i { animation-name: gateThree; }
+    .gates__gate i { animation-name: gateOpen; }
+    .gates__gate i::before { animation-name: gateScan; }
+    .gates__gate i::after { animation-name: gateGreen; }
+    .gates__gate:nth-child(3) { --gate-delay: 1.584s; }
+    .gates__gate:nth-child(4) { --gate-delay: 3.024s; }
 
     .gates__gate b { font-size: 0.52rem; font-weight: 500; text-transform: uppercase; }
 
@@ -436,38 +521,40 @@ const t = useTranslations(lang);
     }
 
     @keyframes gatePacket {
-        0% { left: 4px; opacity: 0; }
+        0% { transform: none; opacity: 0; }
         2% { opacity: 1; animation-timing-function: var(--ease-out-expo); }
-        15% { left: calc(29% - 46px); }
-        26% { left: calc(29% - 46px); animation-timing-function: var(--ease-out-expo); }
-        36% { left: calc(50% - 46px); }
-        48% { left: calc(50% - 46px); animation-timing-function: var(--ease-out-expo); }
-        58% { left: calc(71% - 46px); }
-        68% { left: calc(71% - 46px); animation-timing-function: var(--ease-out-expo); }
-        78% { left: calc(100% - 74px); border-color: rgba(82, 183, 136, 0.64); color: var(--green-glow, #52b788); }
-        90% { left: calc(100% - 74px); border-color: rgba(82, 183, 136, 0.64); color: var(--green-glow, #52b788); opacity: 1; }
-        95%, 100% { left: calc(100% - 74px); border-color: rgba(82, 183, 136, 0.64); color: var(--green-glow, #52b788); opacity: 0; }
+        15% { transform: translateX(calc(29cqi - 50px)); }
+        26% { transform: translateX(calc(29cqi - 50px)); animation-timing-function: var(--ease-out-expo); }
+        36% { transform: translateX(calc(50cqi - 50px)); }
+        48% { transform: translateX(calc(50cqi - 50px)); animation-timing-function: var(--ease-out-expo); }
+        58% { transform: translateX(calc(71cqi - 50px)); }
+        68% { transform: translateX(calc(71cqi - 50px)); animation-timing-function: var(--ease-out-expo); }
+        78% { transform: translateX(calc(100cqi - 78px)); }
+        90% { transform: translateX(calc(100cqi - 78px)); opacity: 1; }
+        95%, 100% { transform: translateX(calc(100cqi - 78px)); opacity: 0; }
     }
 
-    @keyframes gateOne {
-        0%, 16%, 21% { transform: scaleY(1); background: rgba(136, 128, 119, 0.56); box-shadow: 0 0 0 4px #0b0b0a; }
-        17.5%, 20% { transform: scaleY(1); background: rgba(224, 196, 154, 0.95); box-shadow: 0 0 0 4px #0b0b0a, 0 0 9px rgba(201, 168, 124, 0.55); }
-        23%, 34% { transform: scaleY(0.18); background: var(--green-glow, #52b788); box-shadow: 0 0 0 4px #0b0b0a; }
-        39%, 100% { transform: scaleY(1); background: rgba(136, 128, 119, 0.56); box-shadow: 0 0 0 4px #0b0b0a; }
+    @keyframes gatePacketOk {
+        0% { opacity: 0; }
+        78%, 100% { opacity: 1; }
     }
 
-    @keyframes gateTwo {
-        0%, 38%, 43% { transform: scaleY(1); background: rgba(136, 128, 119, 0.56); box-shadow: 0 0 0 4px #0b0b0a; }
-        39.5%, 42% { transform: scaleY(1); background: rgba(224, 196, 154, 0.95); box-shadow: 0 0 0 4px #0b0b0a, 0 0 9px rgba(201, 168, 124, 0.55); }
-        45%, 56% { transform: scaleY(0.18); background: var(--green-glow, #52b788); box-shadow: 0 0 0 4px #0b0b0a; }
-        61%, 100% { transform: scaleY(1); background: rgba(136, 128, 119, 0.56); box-shadow: 0 0 0 4px #0b0b0a; }
+    @keyframes gateOpen {
+        0%, 21% { transform: scaleY(1); }
+        23%, 34% { transform: scaleY(0.18); }
+        39%, 100% { transform: scaleY(1); }
     }
 
-    @keyframes gateThree {
-        0%, 58%, 63% { transform: scaleY(1); background: rgba(136, 128, 119, 0.56); box-shadow: 0 0 0 4px #0b0b0a; }
-        59.5%, 62% { transform: scaleY(1); background: rgba(224, 196, 154, 0.95); box-shadow: 0 0 0 4px #0b0b0a, 0 0 9px rgba(201, 168, 124, 0.55); }
-        65%, 76% { transform: scaleY(0.18); background: var(--green-glow, #52b788); box-shadow: 0 0 0 4px #0b0b0a; }
-        81%, 100% { transform: scaleY(1); background: rgba(136, 128, 119, 0.56); box-shadow: 0 0 0 4px #0b0b0a; }
+    @keyframes gateScan {
+        0%, 16% { opacity: 0; }
+        17.5%, 20% { opacity: 1; }
+        21%, 100% { opacity: 0; }
+    }
+
+    @keyframes gateGreen {
+        0%, 21% { opacity: 0; }
+        23%, 34% { opacity: 1; }
+        39%, 100% { opacity: 0; }
     }
 
     @keyframes gateExit {
@@ -501,24 +588,46 @@ const t = useTranslations(lang);
     .network__map {
         width: 100%;
         height: 100%;
+    }
+
+    .network__layer {
+        display: block;
+        width: 100%;
+        height: 100%;
         overflow: visible;
     }
 
-    .network__links path {
+    .network__links {
         fill: none;
         stroke: rgba(82, 183, 136, 0.48);
         stroke-width: 1;
-        stroke-dasharray: 1;
-        stroke-dashoffset: 1;
         opacity: 0;
+        transform: scale(0);
         animation: networkLine 7.2s var(--ease-out-expo) infinite;
         animation-delay: calc(var(--wave-i) * 200ms);
     }
 
-    .network__nodes circle {
+    .network__node {
         fill: #0b0b0a;
         stroke: rgba(136, 128, 119, 0.52);
         stroke-width: 1;
+    }
+
+    .network__ring {
+        fill: rgba(217, 138, 138, 0.04);
+        stroke: rgba(136, 128, 119, 0.35);
+    }
+
+    .network__dot {
+        fill: rgba(136, 128, 119, 0.6);
+    }
+
+    .network__lit {
+        fill: var(--green-glow, #52b788);
+        stroke: rgba(167, 243, 208, 0.86);
+        stroke-width: 1;
+        filter: drop-shadow(0 0 6px rgba(82, 183, 136, 0.62));
+        opacity: 0;
         animation: networkNode 7.2s ease-in-out infinite;
         animation-delay: calc(var(--wave-i) * 200ms);
     }
@@ -526,23 +635,34 @@ const t = useTranslations(lang);
     .network__ping {
         fill: none;
         stroke: rgba(82, 183, 136, 0.55);
-        stroke-width: 1;
+        stroke-width: 2.9;
         opacity: 0;
-        transform-box: fill-box;
-        transform-origin: center;
+        transform: scale(0.1724);
         animation: networkPing 7.2s ease-out infinite;
     }
 
-    .network__ring {
-        fill: rgba(217, 138, 138, 0.04);
-        stroke: rgba(136, 128, 119, 0.35);
-        animation: networkRing 7.2s ease-in-out infinite;
+    .network__ring-alert {
+        fill: none;
+        stroke: rgba(217, 138, 138, 0.55);
+        opacity: 0;
+        animation: networkRingAlert 7.2s ease-in-out infinite;
     }
 
-    .network__dot {
-        fill: rgba(136, 128, 119, 0.6);
-        animation: networkDot 7.2s ease-in-out infinite;
+    .network__dot-alert {
+        fill: rgba(217, 138, 138, 0.9);
+        filter: drop-shadow(0 0 8px rgba(217, 138, 138, 0.65));
+        opacity: 0;
+        animation: networkDotAlert 7.2s ease-in-out infinite;
     }
+
+    .network__core-safe {
+        filter: drop-shadow(0 0 7px rgba(82, 183, 136, 0.55));
+        opacity: 0;
+        animation: networkCoreSafe 7.2s ease-in-out infinite;
+    }
+
+    .network__core-safe .network__ring { stroke: rgba(82, 183, 136, 0.5); }
+    .network__core-safe .network__dot { fill: rgba(82, 183, 136, 0.85); }
 
     .network__alert,
     .network__status {
@@ -574,41 +694,45 @@ const t = useTranslations(lang);
         animation: networkStatus 7.2s ease infinite;
     }
 
-    @keyframes networkDot {
-        0%, 2% { fill: rgba(136, 128, 119, 0.6); filter: none; }
-        5%, 9%, 13% { fill: rgba(217, 138, 138, 0.9); filter: drop-shadow(0 0 8px rgba(217, 138, 138, 0.65)); }
-        7%, 11% { fill: rgba(217, 138, 138, 0.35); filter: drop-shadow(0 0 3px rgba(217, 138, 138, 0.3)); }
-        30% { fill: rgba(217, 138, 138, 0.9); filter: drop-shadow(0 0 8px rgba(217, 138, 138, 0.65)); }
-        40%, 86% { fill: rgba(82, 183, 136, 0.85); filter: drop-shadow(0 0 7px rgba(82, 183, 136, 0.55)); }
-        96%, 100% { fill: rgba(136, 128, 119, 0.6); filter: none; }
+    @keyframes networkDotAlert {
+        0%, 2% { opacity: 0; }
+        5%, 9%, 13% { opacity: 1; }
+        7%, 11% { opacity: 0.4; }
+        30% { opacity: 1; }
+        40%, 100% { opacity: 0; }
     }
 
-    @keyframes networkRing {
-        0%, 2% { stroke: rgba(136, 128, 119, 0.35); }
-        6%, 30% { stroke: rgba(217, 138, 138, 0.55); }
-        40%, 86% { stroke: rgba(82, 183, 136, 0.5); }
-        96%, 100% { stroke: rgba(136, 128, 119, 0.35); }
+    @keyframes networkRingAlert {
+        0%, 2% { opacity: 0; }
+        6%, 30% { opacity: 1; }
+        40%, 100% { opacity: 0; }
+    }
+
+    @keyframes networkCoreSafe {
+        0%, 30% { opacity: 0; }
+        40%, 86% { opacity: 1; }
+        96%, 100% { opacity: 0; }
     }
 
     @keyframes networkPing {
-        0%, 13% { opacity: 0; transform: scale(0.5); }
+        0%, 13% { opacity: 0; transform: scale(0.1724); }
         16% { opacity: 0.7; }
-        34% { opacity: 0; transform: scale(2.9); }
-        35%, 100% { opacity: 0; transform: scale(0.5); }
+        34% { opacity: 0; transform: scale(1); }
+        35%, 100% { opacity: 0; transform: scale(0.1724); }
     }
 
     @keyframes networkLine {
-        0%, 15% { stroke-dashoffset: 1; opacity: 0; }
+        0%, 15% { transform: scale(0); opacity: 0; }
         17% { opacity: 1; }
-        30% { stroke-dashoffset: 0; opacity: 1; }
-        88% { stroke-dashoffset: 0; opacity: 1; }
-        94%, 100% { stroke-dashoffset: 0; opacity: 0; }
+        30% { transform: scale(1); opacity: 1; }
+        88% { transform: scale(1); opacity: 1; }
+        94%, 100% { transform: scale(1); opacity: 0; }
     }
 
     @keyframes networkNode {
-        0%, 24% { fill: #0b0b0a; stroke: rgba(136, 128, 119, 0.52); filter: none; }
-        30%, 88% { fill: var(--green-glow, #52b788); stroke: rgba(167, 243, 208, 0.86); filter: drop-shadow(0 0 6px rgba(82, 183, 136, 0.62)); }
-        95%, 100% { fill: #0b0b0a; stroke: rgba(136, 128, 119, 0.52); filter: none; }
+        0%, 24% { opacity: 0; }
+        30%, 88% { opacity: 1; }
+        95%, 100% { opacity: 0; }
     }
 
     @keyframes networkAlert {
@@ -634,19 +758,19 @@ const t = useTranslations(lang);
 
     @media (prefers-reduced-motion: reduce) {
         .jury__evidence,
-        .jury__seat i::before,
+        .jury__seat::after,
         .jury__seat em,
         .jury__tally,
         .gates__packet,
+        .gates__packet::after,
+        .gates__packet-ok,
         .gates__gate i,
+        .gates__gate i::before,
+        .gates__gate i::after,
         .gates__exit,
         .gates__receipt em,
         .gates__receipt span,
-        .network__links path,
-        .network__nodes circle,
-        .network__ping,
-        .network__ring,
-        .network__dot,
+        .network__layer,
         .network__alert,
         .network__status {
             animation: none;
@@ -660,11 +784,12 @@ const t = useTranslations(lang);
         .gates__receipt span,
         .network__alert,
         .network__status { opacity: 1; transform: none; }
-        .gates__packet { left: calc(100% - 74px); opacity: 1; color: var(--green-glow, #52b788); border-color: rgba(82, 183, 136, 0.64); }
-        .network__links path { stroke-dashoffset: 0; opacity: 1; }
-        .network__nodes circle { fill: var(--green-glow, #52b788); stroke: rgba(167, 243, 208, 0.86); }
-        .network__dot { fill: rgba(82, 183, 136, 0.85); filter: drop-shadow(0 0 7px rgba(82, 183, 136, 0.55)); }
-        .network__ring { stroke: rgba(82, 183, 136, 0.5); }
+        .gates__packet { transform: translateX(calc(100cqi - 78px)); opacity: 1; }
+        .gates__packet::after,
+        .gates__packet-ok { opacity: 1; }
+        .network__links,
+        .network__lit,
+        .network__core-safe { opacity: 1; transform: none; }
     }
 
     @media (max-width: 640px) {

@@ -117,10 +117,19 @@
     letter-spacing: -0.08em;
     -webkit-text-stroke: 1px rgba(201, 168, 124, 0.28);
     text-shadow: 0 0 60px rgba(201, 168, 124, 0.08);
+    position: relative;
     opacity: 0;
-    animation:
-      bb-code-in 1s 20ms var(--bb-ease-out-expo) forwards,
-      bb-code-breathe 6s 1.1s ease-in-out infinite;
+    animation: bb-code-in 1s 20ms var(--bb-ease-out-expo) forwards;
+  }
+
+  .bb-error-scene__code::after {
+    content: "";
+    position: absolute;
+    inset: -12% -8%;
+    background: radial-gradient(closest-side, rgba(201, 168, 124, 0.12), transparent);
+    opacity: 0;
+    pointer-events: none;
+    animation: bb-code-breathe 6s 1.1s ease-in-out infinite;
   }
 
   .bb-error-scene__title {
@@ -223,7 +232,7 @@
     to { opacity: 1; transform: scale(1); filter: blur(0); }
   }
   @keyframes bb-code-breathe {
-    50% { text-shadow: 0 0 80px rgba(201, 168, 124, 0.16); }
+    50% { opacity: 1; }
   }
   @keyframes bb-error-glow {
     50% { opacity: 0.72; transform: scale(1.06); }
@@ -252,6 +261,7 @@
     .bb-error-scene__orbit,
     .bb-error-scene__eyebrow,
     .bb-error-scene__code,
+    .bb-error-scene__code::after,
     .bb-error-scene__title,
     .bb-error-scene__desc,
     .bb-error-scene__actions,

@@ -58,6 +58,19 @@ function updateViewportHeight() {
     viewportHeight = Math.max(1, window.innerHeight);
 }
 
+const HERO_COMPLETE_HINTS = [
+    ['--hero-animation-state', 'paused', 'running'],
+    ['--hero-content-will-change', 'auto', 'opacity, transform, filter'],
+    ['--hero-orb-will-change', 'auto', 'opacity, transform'],
+    ['--hero-decor-display', 'none', 'block'],
+];
+
+function applyHeroComplete(complete) {
+    for (const [name, done, live] of HERO_COMPLETE_HINTS) {
+        root.style.setProperty(name, complete ? done : live);
+    }
+}
+
 function updateHeroProgress() {
     const heroProgress = Math.min(1, Math.max(0, window.scrollY / viewportHeight));
     const heroUiHidden = heroProgress >= 2 / 3;
@@ -74,9 +87,7 @@ function updateHeroProgress() {
     }
 
     if (heroComplete !== lastHeroComplete) {
-        root.style.setProperty('--hero-animation-state', heroComplete ? 'paused' : 'running');
-        root.style.setProperty('--hero-content-will-change', heroComplete ? 'auto' : 'opacity, transform, filter');
-        root.style.setProperty('--hero-orb-will-change', heroComplete ? 'auto' : 'opacity, transform');
+        applyHeroComplete(heroComplete);
         lastHeroComplete = heroComplete;
     }
 }

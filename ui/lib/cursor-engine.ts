@@ -19,17 +19,19 @@ export type CursorOptions = {
 
 const SELECTOR = 'a, button, .bb-input, [data-cursor]';
 const QUIET = '[data-cursor="quiet"]';
-const TEXT_ENTRY =
+const TEXT =
     '.bb-input:not(.bb-input--select), textarea, [contenteditable]:not([contenteditable="false"]), ' +
     'input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], ' +
     '[type="button"], [type="submit"], [type="reset"], [type="image"], [type="hidden"])';
 const EASE: CursorEase = { hover: 0.3, release: 0.28 };
 
-const IDLE_RING_PX = 36;
-const HOVER_PAD_PX = 6;
-const FALLBACK_RADIUS_PX = 8;
+const LIGHT_LUMA = 0.5;
+
+const IDLE_SIZE = 36;
+const HOVER_PAD = 6;
+const FALLBACK_RADIUS = 8;
 const SETTLE_PX = 0.3;
-const LOOP_IDLE_MS = 500;
+const IDLE_MS = 500;
 
 let pointerX = -1;
 let pointerY = -1;
@@ -39,20 +41,20 @@ type Box = { x: number; y: number; w: number; h: number; r: number };
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 
 function idleBox(x: number, y: number): Box {
-    const half = IDLE_RING_PX / 2;
-    return { x: x - half, y: y - half, w: IDLE_RING_PX, h: IDLE_RING_PX, r: half };
+    const half = IDLE_SIZE / 2;
+    return { x: x - half, y: y - half, w: IDLE_SIZE, h: IDLE_SIZE, r: half };
 }
 
 function hoverBox(el: HTMLElement): Box {
     const bounds = el.getBoundingClientRect();
-    const h = bounds.height + HOVER_PAD_PX * 2;
-    const radius = parseFloat(getComputedStyle(el).borderRadius) || FALLBACK_RADIUS_PX;
+    const h = bounds.height + HOVER_PAD * 2;
+    const radius = parseFloat(getComputedStyle(el).borderRadius) || FALLBACK_RADIUS;
     return {
-        x: bounds.left - HOVER_PAD_PX,
-        y: bounds.top - HOVER_PAD_PX,
-        w: bounds.width + HOVER_PAD_PX * 2,
+        x: bounds.left - HOVER_PAD,
+        y: bounds.top - HOVER_PAD,
+        w: bounds.width + HOVER_PAD * 2,
         h,
-        r: Math.min(radius + HOVER_PAD_PX, h / 2),
+        r: Math.min(radius + HOVER_PAD, h / 2),
     };
 }
 
@@ -77,6 +79,32 @@ function paintRing(ring: HTMLElement, box: Box, hovering: boolean, text: boolean
 
 function arrived(box: Box, to: Box): boolean {
     return Math.abs(box.x - to.x) < SETTLE_PX && Math.abs(box.y - to.y) < SETTLE_PX;
+}
+
+type Surface = { backgroundColor: string; backgroundImage: string };
+
+function colors(value: string): number[][] {
+    return [...value.matchAll(/rgba?\(([^)]+)\)/g)].map((match) => {
+        const [r, g, b, a = 1] = match[1].split(/[\s,/]+/).filter(Boolean).map(Number);
+        return [r, g, b, a];
+    });
+}
+
+const opaque = (color: number[]): boolean => color[3] >= 0.5;
+const light = ([r, g, b]: number[]): boolean => (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 > LIGHT_LUMA;
+
+export function isLightSurface(chain: Iterable<Surface>): boolean {
+    for (const style of chain) {
+        const stops = colors(style.backgroundImage).filter(opaque);
+        if (stops.length) return stops.some(light);
+        const fill = colors(style.backgroundColor).find(opaque);
+        if (fill) return light(fill);
+    }
+    return false;
+}
+
+function* surfaces(start: Element | null): Generator<Surface> {
+    for (let el = start; el; el = el.parentElement) yield getComputedStyle(el);
 }
 
 export function mountCursor(options: CursorOptions): () => void {
@@ -113,7 +141,7 @@ export function mountCursor(options: CursorOptions): () => void {
         const to = paint(el);
         if (reduceMotion.matches) return false;
         if (el) return;
-        if (arrived(box, to) && now - lastMove > LOOP_IDLE_MS) return false;
+        if (arrived(box, to) && now - lastMove > IDLE_MS) return false;
     }
 
     const nearest = (event: PointerEvent): HTMLElement | null =>
@@ -128,8 +156,9 @@ export function mountCursor(options: CursorOptions): () => void {
     };
 
     const onOver = (event: PointerEvent): void => {
-        const hit = (event.target as Element | null)?.closest(`${selector}, ${TEXT_ENTRY}`);
-        const text = !!hit?.matches(TEXT_ENTRY);
+        dot.classList.toggle('is-inverted', isLightSurface(surfaces(event.target as Element | null)));
+        const hit = (event.target as Element | null)?.closest(`${selector}, ${TEXT}`);
+        const text = !!hit?.matches(TEXT);
         if (text !== overText) {
             overText = text;
             wake(tick);

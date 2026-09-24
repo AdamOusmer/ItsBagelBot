@@ -104,7 +104,7 @@ const t = useTranslations(lang);
 
     @keyframes cueFall {
         0% {
-            top: 0;
+            transform: none;
             opacity: 0;
         }
         15% {
@@ -114,7 +114,7 @@ const t = useTranslations(lang);
             opacity: 1;
         }
         70%, 100% {
-            top: 100%;
+            transform: translateY(var(--cue-rail, 24px));
             opacity: 0;
         }
     }
@@ -145,7 +145,7 @@ const t = useTranslations(lang);
 
         .cue__dot {
             animation: none;
-            top: 100%;
+            transform: translateY(var(--cue-rail, 24px));
             opacity: 1;
         }
     }

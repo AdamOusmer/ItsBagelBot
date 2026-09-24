@@ -1,0 +1,84 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+/* Layer order first. Every adapter in ../svelte JS-imports its own element
+   CSS, so a bundler can emit this file ahead of layers.css -- and layer order
+   is fixed by the first declaration seen, which would rank bb.elements BELOW
+   bb.base and let the button reset there strip the typography off every
+   contract that renders a <button>. Restating it is idempotent; the layers
+   themselves are documented in layers.css. */
+@layer bb.tokens, bb.base, bb.elements, bb.app;
+
+/* A loop animates transform and opacity, never a paint property.
+ *
+ * WebKit cycles a pool of fresh backing surfaces for anything repainted every
+ * frame. Measured 2026-09-23 in a WKWebView at 390x844, device scale 3: one
+ * looping colour, box-shadow, `left` or stroke-dashoffset animation near the
+ * viewport held +40-250 MB, and the marketing home page's demo cards took a
+ * section from ~285 MB to ~415 MB. Giving the animated element its own layer
+ * (will-change) did not help; only moving the animation onto transform and
+ * opacity did. scripts/assert-compositor-motion.mjs enforces it.
+ *
+ * SVG children are never composited in WebKit, so even their transform and
+ * opacity repaint the whole <svg>. Animate a whole <svg> element instead.
+ *
+ * The three shapes a paint animation was standing in for: */
+
+@layer bb.elements {
+    /* State stack. A colour or glow that changes over time becomes static
+       copies in one grid cell, each copy fading in with opacity. */
+    .bb-stack {
+        display: grid;
+    }
+
+    .bb-stack > * {
+        grid-area: 1 / 1;
+    }
+
+    /* Track. Children travel with transform in container units (cqi), which
+       reach the same container-relative stops `left: 29%` did. */
+    .bb-track {
+        container-type: inline-size;
+    }
+
+    /* Wipe. A draw-in from the left edge: the window slides right while its
+       content slides back left by the same amount, so the content stands still
+       and only the visible edge moves. Hold and fade come from the host's
+       timing function (linear() with a plateau) and an opacity keyframe on the
+       host, both the caller's. */
+    .bb-wipe {
+        overflow: hidden;
+        animation-name: bb-wipe-window;
+    }
+
+    .bb-wipe > * {
+        animation: inherit;
+        animation-name: bb-wipe-content;
+    }
+
+    @keyframes bb-wipe-window {
+        from { transform: translateX(-100%); }
+        to { transform: none; }
+    }
+
+    @keyframes bb-wipe-content {
+        from { transform: translateX(100%); }
+        to { transform: none; }
+    }
+
+    /* Off-screen gate: lib/motion-gate.ts flips a region to `off` once it
+       leaves the viewport. */
+    [data-motion="off"],
+    [data-motion="off"] *,
+    [data-motion="off"] *::before,
+    [data-motion="off"] *::after {
+        animation-name: none !important;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .bb-wipe,
+        .bb-wipe > * {
+            animation: none;
+        }
+    }
+}

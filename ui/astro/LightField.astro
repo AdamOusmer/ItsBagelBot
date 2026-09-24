@@ -13,32 +13,30 @@ const { class: className = '', warmth = 0.7 } = Astro.props;
 const classes = ['bb-light-field', className].filter(Boolean).join(' ');
 ---
 
-<canvas class={classes} data-field data-warmth={warmth} aria-hidden="true"></canvas>
+<div class={classes} data-field data-warmth={warmth} aria-hidden="true"></div>
 
 <script>
     import { field } from '../lib/light-field';
 
     const running = new Set<() => void>();
 
-    function setupField(canvas: HTMLCanvasElement): void {
-        if (canvas.dataset.fieldReady === 'true') return;
+    function setupField(host: HTMLElement): void {
+        if (host.dataset.fieldReady === 'true') return;
 
-        const stop = field(canvas, { warmth: parseFloat(canvas.dataset.warmth ?? '') || 0.7 });
+        const stop = field(host, { warmth: parseFloat(host.dataset.warmth ?? '') || 0.7 });
         if (!stop) return;
-        canvas.dataset.fieldReady = 'true';
+        host.dataset.fieldReady = 'true';
 
         const cleanup = () => {
             stop();
-            canvas.removeAttribute('data-field-ready');
-            canvas.width = 0;
-            canvas.height = 0;
+            host.removeAttribute('data-field-ready');
             running.delete(cleanup);
         };
         running.add(cleanup);
     }
 
     function setup(): void {
-        document.querySelectorAll<HTMLCanvasElement>('canvas[data-field]').forEach(setupField);
+        document.querySelectorAll<HTMLElement>('[data-field]').forEach(setupField);
     }
 
     function teardown(): void {

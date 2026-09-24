@@ -10,7 +10,7 @@ const t = useTranslations(lang);
 const titleWords = t('finale.title').split(' ');
 ---
 
-<section class="finale">
+<section class="finale" data-motion>
     <div class="finale__glow" aria-hidden="true"></div>
     <div class="finale__inner">
         <span class="finale__eyebrow" data-reveal>{t('finale.eyebrow')}</span>
@@ -58,7 +58,6 @@ const titleWords = t('finale.title').split(' ');
             rgba(82, 183, 136, 0.06) 38%,
             transparent 70%
         );
-        filter: blur(12px);
         animation: finaleBreath 7s ease-in-out infinite;
     }
 

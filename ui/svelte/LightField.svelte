@@ -8,15 +8,15 @@
 
     let { class: className = '', warmth = 0.7 }: { class?: string; warmth?: number } = $props();
 
-    let canvas: HTMLCanvasElement;
+    let host: HTMLDivElement;
 
-    onMount(() => field(canvas, { warmth }) ?? undefined);
+    onMount(() => field(host, { warmth }) ?? undefined);
 </script>
 
-<canvas
+<div
     class={['bb-light-field', className].filter(Boolean).join(' ')}
     data-field
     data-warmth={warmth}
     aria-hidden="true"
-    bind:this={canvas}
-></canvas>
+    bind:this={host}
+></div>

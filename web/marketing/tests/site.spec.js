@@ -27,6 +27,32 @@ function releasesNewestFirst() {
         });
 }
 
+function encryptionTookCanvas(previousId) {
+    const canvas = document.querySelector('#enc-canvas');
+    const active = window.__itsbagelbotPreload?.activeEncryption;
+    return active?.id > previousId
+        && active.section === document.querySelector('#enc-section')
+        && canvas?.width !== 300;
+}
+
+function encryptionSized(previousId) {
+    const canvas = document.querySelector('#enc-canvas');
+    const active = window.__itsbagelbotPreload?.activeEncryption;
+    if (!canvas) return false;
+    if (!(active?.id > previousId)) return false;
+    const section = document.querySelector('#enc-section');
+    const hasDisplaySize = () => canvas.clientWidth > 0 && canvas.clientHeight > 0;
+    const backingCoversDisplay = () =>
+        canvas.width >= canvas.clientWidth && canvas.height >= canvas.clientHeight;
+    const isPlaceholder = () => canvas.width === 300 && canvas.height === 150;
+    return [
+        active.section === section,
+        hasDisplaySize(),
+        backingCoversDisplay(),
+        !isPlaceholder(),
+    ].every(Boolean);
+}
+
 test.describe('ItsBagelBot site', () => {
     async function jumpDown(page) {
         await page.evaluate(() => {
@@ -48,23 +74,9 @@ test.describe('ItsBagelBot site', () => {
     }
 
     async function expectEncryptionInitialized(page, previousId = 0) {
-        await page.waitForFunction((previousId) => {
-            const canvas = document.querySelector('#enc-canvas');
-            const active = window.__itsbagelbotPreload?.activeEncryption;
-            if (!canvas) return false;
-            if (!(active?.id > previousId)) return false;
-            const section = document.querySelector('#enc-section');
-            const hasDisplaySize = () => canvas.clientWidth > 0 && canvas.clientHeight > 0;
-            const backingCoversDisplay = () =>
-                canvas.width >= canvas.clientWidth && canvas.height >= canvas.clientHeight;
-            const isPlaceholder = () => canvas.width === 300 && canvas.height === 150;
-            return [
-                active.section === section,
-                hasDisplaySize(),
-                backingCoversDisplay(),
-                !isPlaceholder(),
-            ].every(Boolean);
-        }, previousId);
+        await page.waitForFunction(encryptionTookCanvas, previousId);
+        await jumpDown(page);
+        await page.waitForFunction(encryptionSized, previousId);
     }
 
     test('home renders hero + Act II sections', async ({ page }) => {
@@ -156,6 +168,8 @@ test.describe('ItsBagelBot site', () => {
 
     test('static gates open in sync with the message', async ({ page }) => {
         await page.goto('/');
+        await page.locator('.gates__lane').scrollIntoViewIfNeeded();
+        await expect(page.locator('#safety-layers')).toHaveAttribute('data-motion', 'on');
 
         const samples = await page.evaluate(() => {
             const lane = document.querySelector('.gates__lane');

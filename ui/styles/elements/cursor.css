@@ -14,9 +14,12 @@
         background: var(--bb-tan);
         pointer-events: none;
         z-index: 9999;
-        mix-blend-mode: difference;
         transition: opacity 200ms, width 150ms, height 150ms, top 150ms, left 150ms, border-radius 150ms;
         will-change: transform, opacity;
+    }
+
+    .bb-cursor.is-inverted {
+        mix-blend-mode: difference;
     }
 
     .bb-cursor.is-text {

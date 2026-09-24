@@ -27,7 +27,8 @@ const enterpriseFeatures = [
 ---
 
 <section class="tiers">
-    <Card atmo hover class="tier tier--free" data-reveal>
+    <div class="tier-glow" data-reveal>
+    <Card atmo hover class="tier tier--free">
         <div class="tier-free__layout">
             <div class="tier-free__head">
                 <span class="tier__name">{t('tier.free')}</span>
@@ -55,11 +56,15 @@ const enterpriseFeatures = [
             </ul>
         </div>
     </Card>
+    </div>
 
     <div class="tiers__pair">
         <Card atmo hover class="tier tier--premium" data-reveal style="--reveal-i: 1">
             <div class="tier__demo" slot="band" aria-hidden="true">
-                <Image src={premiumLogo} alt="Premium" class="tier__premium-logo" width={160} height={160} loading="lazy" />
+                <span class="tier__premium-float bb-stack">
+                    <Image src={premiumLogo} alt="Premium" class="tier__premium-logo" width={160} height={160} loading="lazy" />
+                    <Image src={premiumLogo} alt="" class="tier__premium-logo tier__premium-logo--lit" width={160} height={160} loading="lazy" />
+                </span>
             </div>
             <span class="tier__badge">{t('tier.premiumBadge')}</span>
             <span class="tier__name">{t('tier.premium')}</span>
@@ -156,16 +161,33 @@ const enterpriseFeatures = [
         display: flex;
         flex-direction: column;
         border-color: rgba(201, 168, 124, 0.35) !important;
+        box-shadow: 0 0 32px rgba(201, 168, 124, 0.08);
+    }
+
+    .tier-glow {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .tier-glow::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: var(--radius-md);
+        box-shadow: 0 0 56px rgba(201, 168, 124, 0.22), 0 0 100px rgba(201, 168, 124, 0.07);
+        opacity: 0;
+        pointer-events: none;
         animation: freeGlow 5s ease-in-out infinite;
     }
 
     @keyframes freeGlow {
-        0%, 100% { box-shadow: 0 0 32px rgba(201, 168, 124, 0.08); }
-        50% { box-shadow: 0 0 56px rgba(201, 168, 124, 0.22), 0 0 100px rgba(201, 168, 124, 0.07); }
+        0%, 100% { opacity: 0; }
+        50% { opacity: 1; }
     }
 
     @media (prefers-reduced-motion: reduce) {
-        .tier--free { animation-play-state: paused; }
+        .tier-glow::before { animation: none; }
     }
 
     .tier-free__layout {
@@ -220,16 +242,33 @@ const enterpriseFeatures = [
         overflow: hidden;
     }
 
-    .tier__premium-logo {
+    .tier__premium-float {
         max-width: 90%;
-        max-height: 80px;
-        object-fit: contain;
+        place-items: center;
         animation: premiumFloat 5s ease-in-out infinite;
     }
 
+    .tier__premium-logo {
+        max-width: 100%;
+        max-height: 80px;
+        object-fit: contain;
+        filter: drop-shadow(0 4px 12px rgba(201, 168, 124, 0.15));
+    }
+
+    .tier__premium-logo--lit {
+        filter: drop-shadow(0 8px 20px rgba(201, 168, 124, 0.35));
+        opacity: 0;
+        animation: premiumGlow 5s ease-in-out infinite;
+    }
+
     @keyframes premiumFloat {
-        0%, 100% { transform: translateY(0) scale(1); filter: drop-shadow(0 4px 12px rgba(201, 168, 124, 0.15)); }
-        50% { transform: translateY(-3px) scale(1.02); filter: drop-shadow(0 8px 20px rgba(201, 168, 124, 0.35)); }
+        0%, 100% { transform: none; }
+        50% { transform: translateY(-3px) scale(1.02); }
+    }
+
+    @keyframes premiumGlow {
+        0%, 100% { opacity: 0; }
+        50% { opacity: 1; }
     }
 
     .tier__demo-ent {
@@ -263,7 +302,8 @@ const enterpriseFeatures = [
     }
 
     @media (prefers-reduced-motion: reduce) {
-        .tier__premium-logo { animation: none; }
+        .tier__premium-float,
+        .tier__premium-logo--lit { animation: none; }
     }
 
     .tier__name {

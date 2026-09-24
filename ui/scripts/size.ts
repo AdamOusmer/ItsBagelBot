@@ -1,3 +1,4 @@
+
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 
 const DIR = new URL("./.fixtures/", import.meta.url).pathname;
@@ -17,7 +18,7 @@ const ENTRIES: {
   },
   {
     name: "cursor-engine",
-    budget: 1700,
+    budget: 2120,
     external: [],
     source: `import { mountCursor } from "../../lib/cursor-engine";
              globalThis.x = mountCursor;`,

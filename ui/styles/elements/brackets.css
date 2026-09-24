@@ -12,7 +12,8 @@
     --ornament-z: 50;
 
     position: fixed;
-    inset: 0;
+    inset: auto 0 0;
+    height: calc(max(var(--ornament-bottom), var(--ornament-label-bottom)) + var(--ornament-size));
     z-index: var(--ornament-z);
     pointer-events: none;
   }

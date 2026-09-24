@@ -233,7 +233,6 @@
     isolation: isolate;
     overflow: hidden;
     transform: translateY(-100%);
-    clip-path: var(--menu-clip, url(#bb-mobile-menu-clip));
     will-change: transform;
     visibility: hidden;
     pointer-events: none;
@@ -245,6 +244,7 @@
 
   .bb-mobile-menu.is-visible {
     visibility: visible;
+    clip-path: var(--menu-clip, url(#bb-mobile-menu-clip));
   }
 
   .bb-mobile-menu.is-open {
