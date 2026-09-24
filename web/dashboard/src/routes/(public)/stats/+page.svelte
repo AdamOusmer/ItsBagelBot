@@ -6,6 +6,7 @@
   import { AuroraBg, Heading, LightField, AlertBanner, Card, Stack, Text, getI18n } from '@bagel/kit';
   import type { PageData } from './$types';
   import { commandsHref } from '@bagel/kit/site-links';
+  import { visibleEventSource } from '$lib/visible-stream';
 
   let { data }: { data: PageData } = $props();
 
@@ -124,15 +125,19 @@
     }
   }
 
-  function openStream(): EventSource {
-    const es = new EventSource('/stats/stream');
+  function attachStream(es: EventSource, reopened: boolean): void {
+    let resync = reopened;
     es.onopen = () => (streamDown = false);
     es.onerror = () => (streamDown = true);
     es.onmessage = (ev) => {
       try {
         applySnapshot(JSON.parse(ev.data) as Snapshot);
       } catch {
+        return;
       }
+      if (!resync) return;
+      resync = false;
+      snap(performance.now());
     };
     es.addEventListener('boards', (ev) => {
       try {
@@ -140,7 +145,6 @@
       } catch {
       }
     });
-    return es;
   }
 
   onMount(() => {
@@ -156,7 +160,7 @@
       raf = requestAnimationFrame(tick);
     }
 
-    const es = openStream();
+    const stop = visibleEventSource('/stats/stream', attachStream);
     const timer = setInterval(() => {
       if (!streamDown) return;
       void refresh();
@@ -177,7 +181,7 @@
     document.addEventListener('visibilitychange', onVisible);
 
     return () => {
-      es.close();
+      stop();
       clearInterval(timer);
       document.removeEventListener('visibilitychange', onVisible);
       cancelAnimationFrame(raf);

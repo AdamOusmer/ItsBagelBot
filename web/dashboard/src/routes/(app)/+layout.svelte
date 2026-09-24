@@ -5,6 +5,7 @@
   import { enhance } from '$app/forms';
   import { onMount } from 'svelte';
   import { invalidateAll, afterNavigate } from '$app/navigation';
+  import { visibleEventSource } from '$lib/visible-stream';
   import AppShell from '@bagel/kit/components/AppShell.svelte';
   import ImpersonationBanner from '@bagel/kit/components/ImpersonationBanner.svelte';
   import NotificationBell from '@bagel/ui/svelte/NotificationBell.svelte';
@@ -24,15 +25,16 @@
       clearTimeout(debounce);
       debounce = setTimeout(() => void invalidateAll(), 250);
     };
-    const es = new EventSource('/events');
-    es.addEventListener('invalidate', refresh);
-    es.addEventListener('ready', () => {
-      if (seenReady) refresh();
-      else seenReady = true;
+    const stop = visibleEventSource('/events', (es) => {
+      es.addEventListener('invalidate', refresh);
+      es.addEventListener('ready', () => {
+        if (seenReady) refresh();
+        else seenReady = true;
+      });
     });
     return () => {
       clearTimeout(debounce);
-      es.close();
+      stop();
     };
   });
 
