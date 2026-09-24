@@ -35,7 +35,16 @@
     left: -10%;
     width: min(900px, 90vw);
     aspect-ratio: 1.6;
-    --bb-orb-blur: 110px;
+  }
+
+  /* No blur and no will-change: the wash gradients already fade to
+     transparent, so the 110px blur changed no pixel by more than 1/255, and
+     the filtered fixed layer under the content cost the shell 35 MB in a
+     WKWebView at 390x844, device scale 3 (96 -> 61 MB). Two classes so it
+     wins over .bb-orb whichever stylesheet a bundler emits first. */
+  .bb-orb.bb-bg-orb {
+    filter: none;
+    will-change: auto;
   }
 
   .bb-bg-orb--two {
