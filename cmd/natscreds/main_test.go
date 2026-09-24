@@ -31,6 +31,7 @@ func testConfig(t *testing.T) Config {
 		AccountsPath:    realAccountsYAML,
 		KeysPath:        filepath.Join(dir, "accounts.keys.yaml"),
 		OperatorJWTPath: filepath.Join(dir, "operator.jwt"),
+		PreloadPath:     filepath.Join(dir, "nats-accounts.conf"),
 	}
 }
 
@@ -96,8 +97,8 @@ func TestRotateLeavesPublicFilesByteIdentical(t *testing.T) {
 }
 
 // assertPublicFilesUnchangedAcross runs once, applies mutate to the config,
-// runs again, and asserts operator.jwt and accounts.keys.yaml came out
-// byte-identical: the second run must not have reissued anything public.
+// runs again, and asserts every public file came out byte-identical: the
+// second run must not have reissued anything public.
 func assertPublicFilesUnchangedAcross(t *testing.T, mutate func(cfg *Config)) {
 	t.Helper()
 	cfg := testConfig(t)
@@ -106,18 +107,19 @@ func assertPublicFilesUnchangedAcross(t *testing.T, mutate func(cfg *Config)) {
 	if err := execute(cfg, store, &out); err != nil {
 		t.Fatal(err)
 	}
-	keysBefore := mustReadFile(t, cfg.KeysPath)
-	jwtBefore := mustReadFile(t, cfg.OperatorJWTPath)
+	before := map[string]string{}
+	for _, path := range []string{cfg.KeysPath, cfg.OperatorJWTPath, cfg.PreloadPath} {
+		before[path] = mustReadFile(t, path)
+	}
 
 	mutate(&cfg)
 	if err := execute(cfg, store, &out); err != nil {
 		t.Fatal(err)
 	}
-	if got := mustReadFile(t, cfg.KeysPath); got != keysBefore {
-		t.Fatal("accounts.keys.yaml changed when nothing public should have")
-	}
-	if got := mustReadFile(t, cfg.OperatorJWTPath); got != jwtBefore {
-		t.Fatal("operator.jwt changed when nothing public should have")
+	for path, want := range before {
+		if mustReadFile(t, path) != want {
+			t.Fatalf("%s changed when nothing public should have", filepath.Base(path))
+		}
 	}
 }
 

@@ -16,6 +16,7 @@ type Config struct {
 	AccountsPath    string
 	KeysPath        string
 	OperatorJWTPath string
+	PreloadPath     string
 	DryRun          bool
 	Rotate          string
 }
@@ -32,6 +33,7 @@ func parseFlags() Config {
 	accounts := flag.String("accounts", "deploy/messaging/accounts.yaml", "path to accounts.yaml")
 	keys := flag.String("keys", "deploy/messaging/accounts.keys.yaml", "path to write public key material")
 	operatorJWT := flag.String("operator-jwt", "deploy/messaging/operator.jwt", "path to write the operator jwt")
+	preload := flag.String("preload", "deploy/messaging/nats-accounts.conf", "path to write signed account jwts as resolver_preload")
 	dryRun := flag.Bool("dry-run", false, "print planned doppler writes (names and actions only); changes nothing")
 	rotate := flag.String("rotate", "", `re-mint one role's user credentials by name, or "all" for every role; never rotates keys`)
 	flag.Parse()
@@ -39,6 +41,7 @@ func parseFlags() Config {
 		AccountsPath:    *accounts,
 		KeysPath:        *keys,
 		OperatorJWTPath: *operatorJWT,
+		PreloadPath:     *preload,
 		DryRun:          *dryRun,
 		Rotate:          *rotate,
 	}
@@ -98,7 +101,10 @@ func writeOperatorArtifacts(cfg Config, acl *natsacl.ACL, mat *material) error {
 	if err != nil {
 		return err
 	}
-	return writeKeysYAML(cfg.KeysPath, keys)
+	if err := writeKeysYAML(cfg.KeysPath, keys); err != nil {
+		return err
+	}
+	return writePreload(cfg.PreloadPath, acl, keys, mat.operatorSigning)
 }
 
 // loadExistingKeys returns nil, not an error, when there is nothing to
@@ -155,7 +161,7 @@ func runDryRun(cfg Config, acl *natsacl.ACL, store Doppler, stdout io.Writer) er
 	if err != nil {
 		return err
 	}
-	lines = append(lines, "write "+cfg.KeysPath, "write "+cfg.OperatorJWTPath)
+	lines = append(lines, "write "+cfg.KeysPath, "write "+cfg.OperatorJWTPath, "write "+cfg.PreloadPath)
 	for _, line := range lines {
 		fmt.Fprintln(stdout, line)
 	}
