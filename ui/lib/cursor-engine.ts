@@ -25,8 +25,6 @@ const TEXT =
     '[type="button"], [type="submit"], [type="reset"], [type="image"], [type="hidden"])';
 const EASE: CursorEase = { hover: 0.3, release: 0.28 };
 
-const LIGHT_LUMA = 0.5;
-
 const IDLE_SIZE = 36;
 const HOVER_PAD = 6;
 const FALLBACK_RADIUS = 8;
@@ -81,32 +79,6 @@ function arrived(box: Box, to: Box): boolean {
     return Math.abs(box.x - to.x) < SETTLE_PX && Math.abs(box.y - to.y) < SETTLE_PX;
 }
 
-type Surface = { backgroundColor: string; backgroundImage: string };
-
-function colors(value: string): number[][] {
-    return [...value.matchAll(/rgba?\(([^)]+)\)/g)].map((match) => {
-        const [r, g, b, a = 1] = match[1].split(/[\s,/]+/).filter(Boolean).map(Number);
-        return [r, g, b, a];
-    });
-}
-
-const opaque = (color: number[]): boolean => color[3] >= 0.5;
-const light = ([r, g, b]: number[]): boolean => (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 > LIGHT_LUMA;
-
-export function isLightSurface(chain: Iterable<Surface>): boolean {
-    for (const style of chain) {
-        const stops = colors(style.backgroundImage).filter(opaque);
-        if (stops.length) return stops.some(light);
-        const fill = colors(style.backgroundColor).find(opaque);
-        if (fill) return light(fill);
-    }
-    return false;
-}
-
-function* surfaces(start: Element | null): Generator<Surface> {
-    for (let el = start; el; el = el.parentElement) yield getComputedStyle(el);
-}
-
 export function mountCursor(options: CursorOptions): () => void {
     const { dot, ring, selector = SELECTOR, quietAttr = QUIET, ease = EASE } = options;
     if (!finePointer.matches) return () => {};
@@ -156,7 +128,6 @@ export function mountCursor(options: CursorOptions): () => void {
     };
 
     const onOver = (event: PointerEvent): void => {
-        dot.classList.toggle('is-inverted', isLightSurface(surfaces(event.target as Element | null)));
         const hit = (event.target as Element | null)?.closest(`${selector}, ${TEXT}`);
         const text = !!hit?.matches(TEXT);
         if (text !== overText) {

@@ -18,7 +18,7 @@ const ENTRIES: {
   },
   {
     name: "cursor-engine",
-    budget: 2120,
+    budget: 1700,
     external: [],
     source: `import { mountCursor } from "../../lib/cursor-engine";
              globalThis.x = mountCursor;`,
