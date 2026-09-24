@@ -45,9 +45,17 @@ type PermissionSpec struct {
 }
 
 type Keys struct {
-	Operator string                       `yaml:"operator"`
-	Accounts map[string]string            `yaml:"accounts"`
-	Roles    map[string]map[string]string `yaml:"roles"`
+	Operator    string                       `yaml:"operator"`
+	Accounts    map[string]string            `yaml:"accounts"`
+	Roles       map[string]map[string]string `yaml:"roles"`
+	Activations map[string][]Activation      `yaml:"activations,omitempty"`
+}
+
+// Activation is a token an importer holds for one token-required export.
+type Activation struct {
+	From    string `yaml:"from"`
+	Subject string `yaml:"subject"`
+	Token   string `yaml:"token"`
 }
 
 type grantKind int

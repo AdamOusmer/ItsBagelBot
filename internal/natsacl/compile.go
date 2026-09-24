@@ -48,7 +48,7 @@ func compileAccount(name string, acl *ACL, keys *Keys) (*jwt.AccountClaims, erro
 	}
 	claims.Exports = exports
 
-	imports, err := buildImports(spec.Imports, keys)
+	imports, err := buildImports(name, spec.Imports, acl, keys)
 	if err != nil {
 		return nil, fmt.Errorf("natsacl: account %q: %w", name, err)
 	}
@@ -97,7 +97,7 @@ func newExport(subject string, kind grantKind, spec ExportSpec) *jwt.Export {
 	}
 }
 
-func buildImports(specs []ImportSpec, keys *Keys) (jwt.Imports, error) {
+func buildImports(name string, specs []ImportSpec, acl *ACL, keys *Keys) (jwt.Imports, error) {
 	imports, err := collectGrants(specs, ImportSpec.grant, func(subject string, kind grantKind, spec ImportSpec) *jwt.Import {
 		return &jwt.Import{
 			Subject: jwt.Subject(subject),
@@ -108,7 +108,53 @@ func buildImports(specs []ImportSpec, keys *Keys) (jwt.Imports, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := attachActivations(name, specs, imports, acl, keys); err != nil {
+		return nil, err
+	}
 	return jwt.Imports(imports), nil
+}
+
+// attachActivations fills in the token for each import of a token-required
+// export; specs and imports are 1:1 by construction in buildImports.
+func attachActivations(name string, specs []ImportSpec, imports []*jwt.Import, acl *ACL, keys *Keys) error {
+	for i, spec := range specs {
+		subject, kind, _ := spec.grant()
+		if !exportRequiresToken(acl, spec.From, subject, kind) {
+			continue
+		}
+		token, ok := findActivation(keys, name, spec.From, subject)
+		if !ok {
+			return fmt.Errorf("%w: account %q import %q from %q", ErrMissingActivation, name, subject, spec.From)
+		}
+		imports[i].Token = token
+	}
+	return nil
+}
+
+func exportRequiresToken(acl *ACL, account, subject string, kind grantKind) bool {
+	for _, e := range acl.Accounts[account].Exports {
+		if len(e.Accounts) > 0 && e.matchesGrant(subject, kind) {
+			return true
+		}
+	}
+	return false
+}
+
+func (e ExportSpec) matchesGrant(subject string, kind grantKind) bool {
+	s, k, err := e.grant()
+	if err != nil {
+		return false
+	}
+	return s == subject && k == kind
+}
+
+func findActivation(keys *Keys, importer, from, subject string) (string, bool) {
+	for _, a := range keys.Activations[importer] {
+		if a.From == from && a.Subject == subject {
+			return a.Token, true
+		}
+	}
+	return "", false
 }
 
 func exportType(kind grantKind) jwt.ExportType {

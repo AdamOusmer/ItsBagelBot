@@ -209,9 +209,10 @@ func setDifference(from, without []string) []string {
 func testKeysFor(t *testing.T, acls ...*natsacl.ACL) *natsacl.Keys {
 	t.Helper()
 	keys := &natsacl.Keys{
-		Operator: newTestAccountKey(t),
-		Accounts: make(map[string]string),
-		Roles:    make(map[string]map[string]string),
+		Operator:    newTestAccountKey(t),
+		Accounts:    make(map[string]string),
+		Roles:       make(map[string]map[string]string),
+		Activations: make(map[string][]natsacl.Activation),
 	}
 	for _, acl := range acls {
 		for name, spec := range acl.Accounts {
@@ -219,7 +220,45 @@ func testKeysFor(t *testing.T, acls ...*natsacl.ACL) *natsacl.Keys {
 			ensureRoleKeys(t, keys, name, spec.Roles)
 		}
 	}
+	for _, acl := range acls {
+		addActivations(keys, acl)
+	}
 	return keys
+}
+
+// addActivations mints a dummy activation for every token-required export's
+// importer; confACL and fileACL describe the same grants, so the same
+// (importer, exporter, subject) triple is deduplicated and gets one token,
+// which both compiles then see identically.
+func addActivations(keys *natsacl.Keys, acl *natsacl.ACL) {
+	for exporter, spec := range acl.Accounts {
+		for _, exp := range spec.Exports {
+			if len(exp.Accounts) == 0 {
+				continue
+			}
+			subject := exportSubject(exp)
+			for _, importer := range exp.Accounts {
+				addActivation(keys, importer, exporter, subject)
+			}
+		}
+	}
+}
+
+func exportSubject(exp natsacl.ExportSpec) string {
+	if exp.Service != "" {
+		return exp.Service
+	}
+	return exp.Stream
+}
+
+func addActivation(keys *natsacl.Keys, importer, exporter, subject string) {
+	for _, a := range keys.Activations[importer] {
+		if a.From == exporter && a.Subject == subject {
+			return
+		}
+	}
+	token := "test-activation:" + exporter + ":" + subject
+	keys.Activations[importer] = append(keys.Activations[importer], natsacl.Activation{From: exporter, Subject: subject, Token: token})
 }
 
 func ensureAccountKey(t *testing.T, keys *natsacl.Keys, name string) {

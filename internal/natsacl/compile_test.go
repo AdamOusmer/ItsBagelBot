@@ -157,6 +157,40 @@ func TestCompileOrdersCycleDeterministically(t *testing.T) {
 	}
 }
 
+func gatedACL() *ACL {
+	return &ACL{Accounts: map[string]AccountSpec{
+		"EXPORTER": {Exports: []ExportSpec{{Service: "svc.gated.>", Accounts: []string{"IMPORTER"}}}},
+		"IMPORTER": {Imports: []ImportSpec{{Service: "svc.gated.>", From: "EXPORTER"}}},
+	}}
+}
+
+func TestCompileAttachesActivationToken(t *testing.T) {
+	acl := gatedACL()
+	keys := fixtureKeys(t, acl)
+	keys.Activations = map[string][]Activation{
+		"IMPORTER": {{From: "EXPORTER", Subject: "svc.gated.>", Token: "test-token"}},
+	}
+
+	claims, err := Compile(acl, keys)
+	if err != nil {
+		t.Fatal(err)
+	}
+	importer := byName(claims, "IMPORTER")
+	if len(importer.Imports) != 1 || importer.Imports[0].Token != "test-token" {
+		t.Fatalf("Imports = %+v, want a single import carrying the activation token", importer.Imports)
+	}
+}
+
+func TestCompileMissingActivationFails(t *testing.T) {
+	acl := gatedACL()
+	keys := fixtureKeys(t, acl)
+
+	_, err := Compile(acl, keys)
+	if !errors.Is(err, ErrMissingActivation) {
+		t.Fatalf("err = %v, want %v", err, ErrMissingActivation)
+	}
+}
+
 func TestCompileValidationErrors(t *testing.T) {
 	tests := []struct {
 		name    string
