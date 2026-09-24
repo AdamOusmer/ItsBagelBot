@@ -6,6 +6,8 @@ package apply
 import (
 	"context"
 	"fmt"
+	"maps"
+	"reflect"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -77,7 +79,7 @@ func (a *Applier) applyOne(ctx context.Context, o *unstructured.Unstructured) (b
 	if err != nil {
 		return false, err
 	}
-	before, err := resourceVersion(ctx, ri, o)
+	before, err := current(ctx, ri, o)
 	if err != nil {
 		return false, err
 	}
@@ -85,7 +87,7 @@ func (a *Applier) applyOne(ctx context.Context, o *unstructured.Unstructured) (b
 	if err != nil {
 		return false, err
 	}
-	return after.GetResourceVersion() != before, nil
+	return before == nil || !reflect.DeepEqual(content(before), content(after)), nil
 }
 
 func (a *Applier) resource(o *unstructured.Unstructured) (dynamic.ResourceInterface, error) {
@@ -100,15 +102,21 @@ func (a *Applier) resource(o *unstructured.Unstructured) (dynamic.ResourceInterf
 	return a.dyn.Resource(m.Resource).Namespace(o.GetNamespace()), nil
 }
 
-func resourceVersion(ctx context.Context, ri dynamic.ResourceInterface, o *unstructured.Unstructured) (string, error) {
+func current(ctx context.Context, ri dynamic.ResourceInterface, o *unstructured.Unstructured) (*unstructured.Unstructured, error) {
 	live, err := ri.Get(ctx, o.GetName(), metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		return "", nil
+		return nil, nil
 	}
-	if err != nil {
-		return "", err
-	}
-	return live.GetResourceVersion(), nil
+	return live, err
+}
+
+// A forced apply that only takes field ownership moves resourceVersion and managedFields; that is not a change.
+func content(o *unstructured.Unstructured) map[string]any {
+	c := maps.Clone(o.Object)
+	delete(c, "metadata")
+	delete(c, "status")
+	c["labels"], c["annotations"] = o.GetLabels(), o.GetAnnotations()
+	return c
 }
 
 func record(res ports.ApplyResult, ref ports.ObjectRef, changed bool) ports.ApplyResult {

@@ -81,12 +81,16 @@ type manifest struct {
 	ns         ports.Namespace
 	name       string
 	spec       map[string]any
+	data       map[string]any
 }
 
 func (m manifest) obj() *unstructured.Unstructured {
-	o := &unstructured.Unstructured{Object: map[string]any{"spec": m.spec}}
-	if m.spec == nil {
-		o.Object = map[string]any{}
+	o := &unstructured.Unstructured{Object: map[string]any{}}
+	if m.spec != nil {
+		o.Object["spec"] = m.spec
+	}
+	if m.data != nil {
+		o.Object["data"] = m.data
 	}
 	o.SetAPIVersion(m.apiVersion)
 	o.SetKind(m.kind)

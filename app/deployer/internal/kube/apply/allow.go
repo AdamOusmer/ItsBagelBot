@@ -39,6 +39,9 @@ var allowed = map[schema.GroupKind]scope{
 
 var namespaces = map[ports.Namespace]bool{"app": true, "db": true, "messaging": true}
 
+// Its ops Role grants patch on this one Deployment and nothing else there.
+var self = ports.ObjectRef{Kind: "Deployment", Namespace: "ops", Name: "deployer"}
+
 func Split(objs ports.Objects) (ports.Objects, []ports.ObjectRef) {
 	var ok ports.Objects
 	var out []ports.ObjectRef
@@ -73,14 +76,15 @@ func refusal(o *unstructured.Unstructured) string {
 	case scopeRefused:
 		return fmt.Sprintf("kind %s is not on the allowlist", gk)
 	case scopeNamespaced:
-		return namespaceRefusal(ports.Namespace(o.GetNamespace()))
+		return namespaceRefusal(o)
 	default:
 		return ""
 	}
 }
 
-func namespaceRefusal(ns ports.Namespace) string {
-	if namespaces[ns] {
+func namespaceRefusal(o *unstructured.Unstructured) string {
+	ns := ports.Namespace(o.GetNamespace())
+	if namespaces[ns] || refOf(o) == self {
 		return ""
 	}
 	return fmt.Sprintf("namespace %q is outside app, db, messaging", ns)
