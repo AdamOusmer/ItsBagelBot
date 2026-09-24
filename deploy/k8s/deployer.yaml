@@ -370,6 +370,18 @@ spec:
             - name: NATS_RPC_PASSWORD
               valueFrom:
                 secretKeyRef: {name: deployer-env, key: NATS_RPC_PASSWORD}
+            - name: NATS_JWT
+              valueFrom:
+                secretKeyRef: {name: deployer-env, key: NATS_JWT, optional: true}
+            - name: NATS_NKEY_SEED
+              valueFrom:
+                secretKeyRef: {name: deployer-env, key: NATS_NKEY_SEED, optional: true}
+            - name: NATS_RPC_JWT
+              valueFrom:
+                secretKeyRef: {name: deployer-env, key: NATS_RPC_JWT, optional: true}
+            - name: NATS_RPC_NKEY_SEED
+              valueFrom:
+                secretKeyRef: {name: deployer-env, key: NATS_RPC_NKEY_SEED, optional: true}
             - name: GITHUB_APP_ID
               valueFrom:
                 secretKeyRef: {name: deployer-env, key: GITHUB_APP_ID}

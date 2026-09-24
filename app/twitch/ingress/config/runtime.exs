@@ -149,7 +149,21 @@ nats_cacerts =
       nil
   end
 
-nats_server = fn host, user, pass ->
+# Gnat picks one auth method per CONNECT (first matching clause in negotiate_auth/4 wins
+# even when the settings map carries both key sets), so dual credentials need a switch here
+# instead of sending both like the Go and TypeScript clients do.
+nats_auth_mode = System.get_env("NATS_AUTH_MODE", "password")
+nats_pair? = fn a, b -> is_binary(a) and is_binary(b) end
+
+nats_auth = fn user, pass, jwt, seed ->
+  cond do
+    nats_auth_mode == "jwt" and nats_pair?.(jwt, seed) -> %{nkey_seed: seed, jwt: jwt}
+    nats_pair?.(user, pass) -> %{username: user, password: pass}
+    true -> %{}
+  end
+end
+
+nats_server = fn host, auth ->
   base = %{host: host, port: nats_port, no_responders: true}
 
   base =
@@ -180,26 +194,30 @@ nats_server = fn host, user, pass ->
       base
     end
 
-  if is_binary(user) and is_binary(pass) do
-    Map.merge(base, %{username: user, password: pass})
-  else
-    base
-  end
+  Map.merge(base, auth)
 end
 
 config :ingress,
   nats: [
     nats_server.(
       nats_leaf_host,
-      System.get_env("NATS_RPC_USER") || System.get_env("NATS_USER"),
-      System.get_env("NATS_RPC_PASSWORD") || System.get_env("NATS_PASSWORD")
+      nats_auth.(
+        System.get_env("NATS_RPC_USER") || System.get_env("NATS_USER"),
+        System.get_env("NATS_RPC_PASSWORD") || System.get_env("NATS_PASSWORD"),
+        System.get_env("NATS_RPC_JWT") || System.get_env("NATS_JWT"),
+        System.get_env("NATS_RPC_NKEY_SEED") || System.get_env("NATS_NKEY_SEED")
+      )
     )
   ],
   nats_bus: [
     nats_server.(
       nats_hub_host,
-      System.get_env("NATS_USER"),
-      System.get_env("NATS_PASSWORD")
+      nats_auth.(
+        System.get_env("NATS_USER"),
+        System.get_env("NATS_PASSWORD"),
+        System.get_env("NATS_JWT"),
+        System.get_env("NATS_NKEY_SEED")
+      )
     )
   ]
 

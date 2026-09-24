@@ -5,6 +5,9 @@ import newrelic from 'newrelic';
 import { rpcCode, type CodedReply, type RpcCode } from './rpc-code';
 import {
   connect,
+  jwtAuthenticator,
+  usernamePasswordAuthenticator,
+  type Authenticator,
   type ConnectionOptions,
   type NatsConnection
 } from '@nats-io/transport-node';
@@ -143,7 +146,32 @@ function roleEnv(
   return isRpc ? rpcVar || sharedVar : sharedVar;
 }
 
-function options(role: Role): ConnectionOptions {
+interface CredentialAuth {
+  user?: string;
+  pass?: string;
+  authenticator?: Authenticator[];
+}
+
+// A password-mode server uses user/pass and ignores the authenticator; an operator-mode
+// server uses the authenticator instead. Both ride the same CONNECT when both are set.
+export function credentialAuth(
+  user: string | undefined,
+  pass: string | undefined,
+  jwt: string | undefined,
+  nkeySeed: string | undefined
+): CredentialAuth {
+  if (!jwt || !nkeySeed) {
+    const opts: CredentialAuth = {};
+    if (user) opts.user = user;
+    if (pass) opts.pass = pass;
+    return opts;
+  }
+  const authenticator: Authenticator[] = [jwtAuthenticator(jwt, new TextEncoder().encode(nkeySeed))];
+  if (user) authenticator.unshift(usernamePasswordAuthenticator(user, pass ?? ''));
+  return { authenticator };
+}
+
+export function options(role: Role): ConnectionOptions {
   const isRpc = role === 'rpc';
   const opts: ConnectionOptions = {
     servers: isRpc
@@ -159,8 +187,9 @@ function options(role: Role): ConnectionOptions {
   };
   const user = roleEnv(isRpc, process.env.NATS_RPC_USER, process.env.NATS_USER);
   const pass = roleEnv(isRpc, process.env.NATS_RPC_PASSWORD, process.env.NATS_PASSWORD);
-  if (user) opts.user = user;
-  if (pass) opts.pass = pass;
+  const jwt = roleEnv(isRpc, process.env.NATS_RPC_JWT, process.env.NATS_JWT);
+  const nkeySeed = roleEnv(isRpc, process.env.NATS_RPC_NKEY_SEED, process.env.NATS_NKEY_SEED);
+  Object.assign(opts, credentialAuth(user, pass, jwt, nkeySeed));
   if (process.env.NATS_TOKEN) opts.token = process.env.NATS_TOKEN;
   const tls = tlsOptions();
   if (tls) opts.tls = tls;
