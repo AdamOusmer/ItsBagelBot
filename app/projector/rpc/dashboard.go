@@ -36,6 +36,8 @@ type Dashboard struct {
 	mu                    sync.Mutex
 	commandMisses         map[uint64]*commandInFlight
 	moduleMisses          map[uint64]*moduleInFlight
+	commandsRead          sectionRead[[]projection.CommandView]
+	modulesRead           sectionRead[[]projection.ModuleView]
 }
 
 type commandFill struct {
@@ -87,6 +89,24 @@ func SubscribeDashboard(
 		commandMisses:         map[uint64]*commandInFlight{},
 		moduleMisses:          map[uint64]*moduleInFlight{},
 	}
+	d.commandsRead = sectionRead[[]projection.CommandView]{
+		readFailure: "projector command valkey read failed",
+		cached:      store.GetCommands,
+		fill: func(ctx context.Context, userID uint64, req projectorrpc.DashboardRequest) ([]projection.CommandView, string) {
+			fill := d.loadCommands(ctx, userID, req)
+			return fill.commands, fill.err
+		},
+		seed: hydration.CommandsSeed,
+	}
+	d.modulesRead = sectionRead[[]projection.ModuleView]{
+		readFailure: "projector module valkey read failed",
+		cached:      d.cachedModuleList,
+		fill: func(ctx context.Context, userID uint64, req projectorrpc.DashboardRequest) ([]projection.ModuleView, string) {
+			fill := d.loadModules(ctx, userID, req)
+			return fill.modules, fill.err
+		},
+		seed: hydration.ModulesSeed,
+	}
 
 	if err := bus.QueueSubscribeJSON[projectorrpc.DashboardRequest, rpcprojection.CommandsReply](nc, prefix+".commands.get", queueGroup, 2*time.Second, app, log, d.handleCommandsGet); err != nil {
 		return err
@@ -104,29 +124,47 @@ func unreachable(message string) domainrpc.Refusal {
 	return domainrpc.Refused(domainrpc.CodeUnavailable, message)
 }
 
-func (d *Dashboard) handleCommandsGet(ctx context.Context, req projectorrpc.DashboardRequest) rpcprojection.CommandsReply {
+type sectionRead[T any] struct {
+	readFailure string
+	cached      func(ctx context.Context, userID uint64) (T, bool, error)
+	fill        func(ctx context.Context, userID uint64, req projectorrpc.DashboardRequest) (T, string)
+	seed        func(T) hydration.Seed
+}
+
+type sectionResult[T any] struct {
+	userID  string
+	items   T
+	refusal domainrpc.Refusal
+}
+
+func readSection[T any](ctx context.Context, d *Dashboard, req projectorrpc.DashboardRequest, s sectionRead[T]) sectionResult[T] {
 	log := monitor.TxnLogger(ctx, d.log)
 	userID, err := parseUserID(req.UserID)
 	if err != nil {
-		return rpcprojection.CommandsReply{Refusal: bus.Classify(err)}
+		return sectionResult[T]{refusal: bus.Classify(err)}
 	}
 
-	commands, projected, err := d.store.GetCommands(ctx, userID)
+	items, projected, err := s.cached(ctx, userID)
 	if err == nil && projected {
 		d.hydrator.EnsureAsync(userID, hydration.Seed{})
-		return rpcprojection.CommandsReply{UserID: req.UserID, Commands: commands}
+		return sectionResult[T]{userID: req.UserID, items: items}
 	}
 	if err != nil && log != nil {
-		log.Warn("projector command valkey read failed", zap.String("user_id", req.UserID), zap.Error(err))
+		log.Warn(s.readFailure, zap.String("user_id", req.UserID), zap.Error(err))
 	}
 
-	fill := d.loadCommands(ctx, userID, req)
-	if fill.err != "" {
+	filled, fillErr := s.fill(ctx, userID, req)
+	if fillErr != "" {
 		d.hydrator.EnsureAsync(userID, hydration.Seed{})
-		return rpcprojection.CommandsReply{UserID: req.UserID, Refusal: unreachable(fill.err)}
+		return sectionResult[T]{userID: req.UserID, refusal: unreachable(fillErr)}
 	}
-	d.hydrator.EnsureAsync(userID, hydration.CommandsSeed(fill.commands))
-	return rpcprojection.CommandsReply{UserID: req.UserID, Commands: fill.commands}
+	d.hydrator.EnsureAsync(userID, s.seed(filled))
+	return sectionResult[T]{userID: req.UserID, items: filled}
+}
+
+func (d *Dashboard) handleCommandsGet(ctx context.Context, req projectorrpc.DashboardRequest) rpcprojection.CommandsReply {
+	r := readSection(ctx, d, req, d.commandsRead)
+	return rpcprojection.CommandsReply{UserID: r.userID, Commands: r.items, Refusal: r.refusal}
 }
 
 func (d *Dashboard) handleCommandsReplace(ctx context.Context, req projectorrpc.DashboardRequest) rpcprojection.CommandsReply {
@@ -139,28 +177,16 @@ func (d *Dashboard) handleCommandsReplace(ctx context.Context, req projectorrpc.
 }
 
 func (d *Dashboard) handleModulesGet(ctx context.Context, req projectorrpc.DashboardRequest) rpcprojection.ModulesReply {
-	log := monitor.TxnLogger(ctx, d.log)
-	userID, err := parseUserID(req.UserID)
-	if err != nil {
-		return rpcprojection.ModulesReply{Refusal: bus.Classify(err)}
-	}
+	r := readSection(ctx, d, req, d.modulesRead)
+	return rpcprojection.ModulesReply{UserID: r.userID, Modules: r.items, Refusal: r.refusal}
+}
 
+func (d *Dashboard) cachedModuleList(ctx context.Context, userID uint64) ([]projection.ModuleView, bool, error) {
 	byName, projected, err := d.store.GetModules(ctx, userID)
-	if err == nil && projected {
-		d.hydrator.EnsureAsync(userID, hydration.Seed{})
-		return rpcprojection.ModulesReply{UserID: req.UserID, Modules: projection.ModuleList(byName)}
+	if err != nil || !projected {
+		return nil, projected, err
 	}
-	if err != nil && log != nil {
-		log.Warn("projector module valkey read failed", zap.String("user_id", req.UserID), zap.Error(err))
-	}
-
-	fill := d.loadModules(ctx, userID, req)
-	if fill.err != "" {
-		d.hydrator.EnsureAsync(userID, hydration.Seed{})
-		return rpcprojection.ModulesReply{UserID: req.UserID, Refusal: unreachable(fill.err)}
-	}
-	d.hydrator.EnsureAsync(userID, hydration.ModulesSeed(fill.modules))
-	return rpcprojection.ModulesReply{UserID: req.UserID, Modules: fill.modules}
+	return projection.ModuleList(byName), true, nil
 }
 
 func (d *Dashboard) handleModulesReplace(ctx context.Context, req projectorrpc.DashboardRequest) rpcprojection.ModulesReply {
@@ -174,20 +200,12 @@ func (d *Dashboard) handleModulesReplace(ctx context.Context, req projectorrpc.D
 
 func (d *Dashboard) writeCommandsAsync(userID uint64, commands []projection.CommandView) {
 	commands = append([]projection.CommandView(nil), commands...)
-	go func() {
-		d.writeGate <- struct{}{}
-		defer func() { <-d.writeGate }()
-
-		ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
-		defer cancel()
-
-		if err := d.store.SetCommands(ctx, userID, commands); err != nil && d.log != nil {
-			d.log.Warn("projector command valkey write failed", zap.Uint64("user_id", userID), zap.Error(err))
-		}
-		if d.cacheInvalidatePrefix != "" {
-			_ = invalidate.PublishKeys(d.nc, d.cacheInvalidatePrefix, "commands", strconv.FormatUint(userID, 10), commandKeys(commands)...)
-		}
-	}()
+	d.writeAsync(userID, projectionWrite{
+		section: "commands",
+		failure: "projector command valkey write failed",
+		keys:    commandKeys(commands),
+		set:     func(ctx context.Context) error { return d.store.SetCommands(ctx, userID, commands) },
+	})
 }
 
 func commandKeys(commands []projection.CommandView) []string {
@@ -201,6 +219,21 @@ func commandKeys(commands []projection.CommandView) []string {
 
 func (d *Dashboard) writeModulesAsync(userID uint64, modules []projection.ModuleView) {
 	modules = append([]projection.ModuleView(nil), modules...)
+	d.writeAsync(userID, projectionWrite{
+		section: "modules",
+		failure: "projector module valkey write failed",
+		set:     func(ctx context.Context) error { return d.store.SetModules(ctx, userID, modules) },
+	})
+}
+
+type projectionWrite struct {
+	section string
+	failure string
+	keys    []string
+	set     func(ctx context.Context) error
+}
+
+func (d *Dashboard) writeAsync(userID uint64, w projectionWrite) {
 	go func() {
 		d.writeGate <- struct{}{}
 		defer func() { <-d.writeGate }()
@@ -208,11 +241,11 @@ func (d *Dashboard) writeModulesAsync(userID uint64, modules []projection.Module
 		ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
 		defer cancel()
 
-		if err := d.store.SetModules(ctx, userID, modules); err != nil && d.log != nil {
-			d.log.Warn("projector module valkey write failed", zap.Uint64("user_id", userID), zap.Error(err))
+		if err := w.set(ctx); err != nil && d.log != nil {
+			d.log.Warn(w.failure, zap.Uint64("user_id", userID), zap.Error(err))
 		}
 		if d.cacheInvalidatePrefix != "" {
-			_ = invalidate.PublishKeys(d.nc, d.cacheInvalidatePrefix, "modules", strconv.FormatUint(userID, 10))
+			_ = invalidate.PublishKeys(d.nc, d.cacheInvalidatePrefix, w.section, strconv.FormatUint(userID, 10), w.keys...)
 		}
 	}()
 }

@@ -30,26 +30,28 @@ defmodule Ingress.Squash do
 
   @spec observe(base(), sender(), GenServer.server()) :: :first | :buffered
   def observe(base, sender, server \\ __MODULE__) do
-    key =
-      {base.broadcaster_user_id, base[:origin], base[:trial_generation], String.trim(base.text)}
-
-    with %{table: table, server: owner, window_ms: window_ms} <- context(server, key) do
-      do_observe(table, owner, key, {:prepared, base, sender}, window_ms)
-    else
-      nil -> :first
-    end
-  rescue
-    ArgumentError -> :first
+    observe_keyed(server, &prepared_key/1, base, {:prepared, base, sender})
   end
 
   @spec observe_chat(:premium | :standard, map(), String.t(), map()) :: :first | :buffered
   def observe_chat(lane, event, text, meta) do
-    key =
-      {event["broadcaster_user_id"], Map.get(meta, :origin), Map.get(meta, :trial_generation),
-       String.trim(text)}
+    observe_keyed(__MODULE__, &chat_key/1, {event, text, meta}, {:chat, lane, event, text, meta})
+  end
 
-    with %{table: table, server: owner, window_ms: window_ms} <- context(__MODULE__, key) do
-      do_observe(table, owner, key, {:chat, lane, event, text, meta}, window_ms)
+  defp prepared_key(base) do
+    {base.broadcaster_user_id, base[:origin], base[:trial_generation], String.trim(base.text)}
+  end
+
+  defp chat_key({event, text, meta}) do
+    {event["broadcaster_user_id"], Map.get(meta, :origin), Map.get(meta, :trial_generation),
+     String.trim(text)}
+  end
+
+  defp observe_keyed(server, key_of, source, entry) do
+    key = key_of.(source)
+
+    with %{table: table, server: owner, window_ms: window_ms} <- context(server, key) do
+      do_observe(table, owner, key, entry, window_ms)
     else
       nil -> :first
     end

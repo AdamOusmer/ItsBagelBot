@@ -223,35 +223,37 @@ func (l SongQueueLimits) queueFull(up []SongEntry) bool {
 }
 
 func (s *ValkeySongQueueStore) RetractOwn(ctx context.Context, broadcasterID uint64, requesterID string) (SongEntry, bool, error) {
-	var (
-		out SongEntry
-		ok  bool
-	)
-	err := s.mutate(ctx, broadcasterID, func(d *songQueueDoc) error {
-		for i := len(d.Up) - 1; i >= 0; i-- {
-			if d.Up[i].RequesterID == requesterID {
-				out = d.Up[i]
-				out.Position = i + 1
-				d.Up = append(d.Up[:i], d.Up[i+1:]...)
-				ok = true
-				return nil
+	return s.removeWhere(ctx, broadcasterID, func(up []SongEntry) int {
+		for i := len(up) - 1; i >= 0; i-- {
+			if up[i].RequesterID == requesterID {
+				return i
 			}
 		}
-		return nil
+		return noSongIndex
 	})
-	return out, ok, err
 }
 
 func (s *ValkeySongQueueStore) RemoveAt(ctx context.Context, broadcasterID uint64, position int) (SongEntry, bool, error) {
+	return s.removeWhere(ctx, broadcasterID, func(up []SongEntry) int {
+		if position < 1 || position > len(up) {
+			return noSongIndex
+		}
+		return position - 1
+	})
+}
+
+const noSongIndex = -1
+
+func (s *ValkeySongQueueStore) removeWhere(ctx context.Context, broadcasterID uint64, pick func(up []SongEntry) int) (SongEntry, bool, error) {
 	var (
 		out SongEntry
 		ok  bool
 	)
 	err := s.mutate(ctx, broadcasterID, func(d *songQueueDoc) error {
-		if position < 1 || position > len(d.Up) {
+		i := pick(d.Up)
+		if i == noSongIndex {
 			return nil
 		}
-		i := position - 1
 		out = d.Up[i]
 		out.Position = i + 1
 		d.Up = append(d.Up[:i], d.Up[i+1:]...)

@@ -67,34 +67,31 @@ func TestCoalescesSameKey(t *testing.T) {
 	require.Equal(t, []int{3}, rec.all(), "only the last write per key may survive the window")
 }
 
-func TestFlushesWhenFull(t *testing.T) {
-	rec := &recorder{}
+func TestFlushTriggers(t *testing.T) {
+	cases := []struct {
+		name     string
+		interval time.Duration
+		maxSize  int
+		keys     []int
+	}{
+		{name: "when full", interval: time.Hour, maxSize: 3, keys: []int{1, 2, 3}},
+		{name: "on interval", interval: 20 * time.Millisecond, maxSize: 100, keys: []int{7}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := &recorder{}
+			b := New[int, int](tc.interval, tc.maxSize, rec.flush, zap.NewNop())
+			for _, key := range tc.keys {
+				b.Add(key, key)
+			}
 
-	b := New[int, int](time.Hour, 3, rec.flush, zap.NewNop())
+			assert.Eventually(t, func() bool {
+				return len(rec.all()) == len(tc.keys)
+			}, time.Second, 5*time.Millisecond)
 
-	b.Add(1, 1)
-	b.Add(2, 2)
-	b.Add(3, 3)
-
-	assert.Eventually(t, func() bool {
-		return len(rec.all()) == 3
-	}, time.Second, 5*time.Millisecond)
-
-	b.Close(context.Background())
-}
-
-func TestFlushesOnInterval(t *testing.T) {
-	rec := &recorder{}
-
-	b := New[string, int](20*time.Millisecond, 100, rec.flush, zap.NewNop())
-
-	b.Add("key", 7)
-
-	assert.Eventually(t, func() bool {
-		return len(rec.all()) == 1
-	}, time.Second, 5*time.Millisecond)
-
-	b.Close(context.Background())
+			b.Close(context.Background())
+		})
+	}
 }
 
 func TestCloseFlushesPending(t *testing.T) {

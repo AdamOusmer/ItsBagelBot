@@ -25,29 +25,31 @@ func TestBuildChatVolumeEmptyRingIsAllZero(t *testing.T) {
 	require.Equal(t, 0, cv.Peak)
 }
 
-func TestBuildChatVolumeReadsCurrentLapOnly(t *testing.T) {
-	now := int64(1_000_100)
-	slot := slotName(now)
-	fields := map[string]string{
-		"a":  "1000000",
-		slot: "100:7:1",
+func TestBuildChatVolumeLaps(t *testing.T) {
+	cases := []struct {
+		name      string
+		now       int64
+		anchor    string
+		slotValue string
+		wantNow   int
+		wantTick  bool
+	}{
+		{name: "current lap", now: 1_000_100, anchor: "1000000", slotValue: "100:7:1", wantNow: 7, wantTick: true},
+		{name: "stale lap reads as zero", now: 2_000_200, anchor: "2000000", slotValue: "999:42:1"},
 	}
-	cv := buildChatVolume(fields, now)
-	require.Equal(t, 7, cv.Now)
-	require.Contains(t, cv.CommandTicks, ringWidth-1)
-	require.Equal(t, 7, cv.Peak)
-}
-
-func TestBuildChatVolumeStaleLapReadsAsZero(t *testing.T) {
-	now := int64(2_000_200)
-	slot := slotName(now)
-	fields := map[string]string{
-		"a":  "2000000",
-		slot: "999:42:1",
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fields := map[string]string{"a": tc.anchor, slotName(tc.now): tc.slotValue}
+			cv := buildChatVolume(fields, tc.now)
+			require.Equal(t, tc.wantNow, cv.Now)
+			require.Equal(t, tc.wantNow, cv.Peak)
+			if tc.wantTick {
+				require.Contains(t, cv.CommandTicks, ringWidth-1)
+			} else {
+				require.Empty(t, cv.CommandTicks)
+			}
+		})
 	}
-	cv := buildChatVolume(fields, now)
-	require.Equal(t, 0, cv.Now)
-	require.Empty(t, cv.CommandTicks)
 }
 
 func TestBuildChatVolumeMissingAnchorIsAllZero(t *testing.T) {

@@ -181,31 +181,41 @@ func replacePullConsumer(
 
 func pullConsumerInfo(ctx context.Context, js pullConsumerProvisioner, stream, name string) (*jsapi.ConsumerInfo, error) {
 	consumer, err := js.Consumer(ctx, stream, name)
-	if errors.Is(err, jsapi.ErrConsumerNotFound) {
-		return nil, nil
-	}
 	if errors.Is(err, jsapi.ErrNotPullConsumer) {
 		return pushOccupantInfo(ctx, js, stream, name)
 	}
-	if err != nil {
-		return nil, err
-	}
-	info, err := consumer.Info(ctx)
-	if errors.Is(err, jsapi.ErrConsumerNotFound) {
-		return nil, nil
-	}
-	return info, err
+	return lookedUpInfo(ctx, consumer, err, isMissingConsumer)
 }
 
 func pushOccupantInfo(ctx context.Context, js pullConsumerProvisioner, stream, name string) (*jsapi.ConsumerInfo, error) {
 	occupant, err := js.PushConsumer(ctx, stream, name)
-	if errors.Is(err, jsapi.ErrConsumerNotFound) || errors.Is(err, jsapi.ErrNotPushConsumer) {
+	return lookedUpInfo(ctx, occupant, err, isMissingPushConsumer)
+}
+
+func isMissingConsumer(err error) bool {
+	return errors.Is(err, jsapi.ErrConsumerNotFound)
+}
+
+func isMissingPushConsumer(err error) bool {
+	return errors.Is(err, jsapi.ErrConsumerNotFound) || errors.Is(err, jsapi.ErrNotPushConsumer)
+}
+
+func lookedUpInfo[C consumerInfoSource](ctx context.Context, consumer C, lookupErr error, missing func(error) bool) (*jsapi.ConsumerInfo, error) {
+	if missing(lookupErr) {
 		return nil, nil
 	}
-	if err != nil {
-		return nil, err
+	if lookupErr != nil {
+		return nil, lookupErr
 	}
-	info, err := occupant.Info(ctx)
+	return infoUnlessDeleted(ctx, consumer)
+}
+
+type consumerInfoSource interface {
+	Info(ctx context.Context) (*jsapi.ConsumerInfo, error)
+}
+
+func infoUnlessDeleted(ctx context.Context, consumer consumerInfoSource) (*jsapi.ConsumerInfo, error) {
+	info, err := consumer.Info(ctx)
 	if errors.Is(err, jsapi.ErrConsumerNotFound) {
 		return nil, nil
 	}

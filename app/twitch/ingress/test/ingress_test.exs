@@ -164,16 +164,12 @@ defmodule Ingress.PipelineTest do
 
       refute Map.has_key?(ordinary, :origin)
 
-      assert {:publish, "twitch.ingress.event.premium", routed} =
+      assert {:publish, "twitch.ingress.event.premium",
+              %{origin: "trial", trial_generation: 8, chat_message_id: "chat-1", event_id: "m1"}} =
                Pipeline.route(
                  notification("channel.chat.message", event),
                  Map.merge(@meta, %{origin: :trial, trial_generation: 8})
                )
-
-      assert routed.origin == "trial"
-      assert routed.trial_generation == 8
-      assert routed.chat_message_id == "chat-1"
-      assert routed.event_id == "m1"
     end
 
     test "a non-chat event encodes the decoded event map onto the lane" do

@@ -158,34 +158,31 @@ func TestEnabledCoreModuleAlwaysRuns(t *testing.T) {
 	assert.Nil(t, mctx.Config)
 }
 
-func TestEnabledDefaultModule(t *testing.T) {
-	p := &Pipeline{}
-	m := bareModule("feature", module.KindDefault)
-
-	views := map[string]projection.ModuleView{"feature": {Name: "feature", IsEnabled: true, Configs: []byte(`{"x":1}`)}}
-	mctx := &module.Context{}
-	assert.True(t, p.enabled(m, views, mctx))
-	assert.Equal(t, []byte(`{"x":1}`), []byte(mctx.Config))
-
-	off := map[string]projection.ModuleView{"feature": {Name: "feature", IsEnabled: false}}
-	assert.False(t, p.enabled(m, off, &module.Context{}))
-
-	assert.True(t, p.enabled(m, nil, &module.Context{}))
-}
-
-func TestEnabledOptInModule(t *testing.T) {
-	p := &Pipeline{}
-	m := bareModule("shoutout", module.KindOptIn)
-
-	assert.False(t, p.enabled(m, nil, &module.Context{}))
-
-	on := map[string]projection.ModuleView{"shoutout": {Name: "shoutout", IsEnabled: true, Configs: []byte(`{"m":"hi"}`)}}
-	mctx := &module.Context{}
-	assert.True(t, p.enabled(m, on, mctx))
-	assert.Equal(t, []byte(`{"m":"hi"}`), []byte(mctx.Config))
-
-	off := map[string]projection.ModuleView{"shoutout": {Name: "shoutout", IsEnabled: false}}
-	assert.False(t, p.enabled(m, off, &module.Context{}))
+func TestEnabledByKindAndProjection(t *testing.T) {
+	type views = map[string]projection.ModuleView
+	cases := []struct {
+		name       string
+		kind       module.Kind
+		views      views
+		want       bool
+		wantConfig []byte
+	}{
+		{name: "default enabled", kind: module.KindDefault, views: views{"m": {Name: "m", IsEnabled: true, Configs: []byte(`{"x":1}`)}}, want: true, wantConfig: []byte(`{"x":1}`)},
+		{name: "default disabled", kind: module.KindDefault, views: views{"m": {Name: "m", IsEnabled: false}}},
+		{name: "default without projection", kind: module.KindDefault, want: true},
+		{name: "opt-in without projection", kind: module.KindOptIn},
+		{name: "opt-in enabled", kind: module.KindOptIn, views: views{"m": {Name: "m", IsEnabled: true, Configs: []byte(`{"m":"hi"}`)}}, want: true, wantConfig: []byte(`{"m":"hi"}`)},
+		{name: "opt-in disabled", kind: module.KindOptIn, views: views{"m": {Name: "m", IsEnabled: false}}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			mctx := &module.Context{}
+			assert.Equal(t, tc.want, (&Pipeline{}).enabled(bareModule("m", tc.kind), tc.views, mctx))
+			if tc.wantConfig != nil {
+				assert.Equal(t, tc.wantConfig, []byte(mctx.Config))
+			}
+		})
+	}
 }
 
 func TestProcessMalformedEnvelopeDropped(t *testing.T) {
@@ -302,29 +299,26 @@ func (c *countingChatLines) CountChatLine(_ context.Context, broadcasterID uint6
 	c.calls = append(c.calls, broadcasterID)
 }
 
-func TestProcessCountsChatLineForEligibleChat(t *testing.T) {
-	pub := &fakePublisher{}
-	counter := &countingChatLines{}
-	reg := NewRegistry(zap.NewNop())
-	d := Deps{Proj: fakeReader{}, Live: liveAlways{}, Cooldown: NoopCooldown{}, Pub: pub, Log: zap.NewNop(), ChatLines: counter}
-	p := NewPipeline(d, reg, Config{OutgressPremium: premiumSubj, OutgressStandard: standardSubj})
+func TestProcessCountsViewerChatLinesOnly(t *testing.T) {
+	cases := []struct {
+		name      string
+		botID     string
+		wantCalls []uint64
+	}{
+		{name: "viewer line", wantCalls: []uint64{123}},
+		{name: "bot's own line", botID: "999"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			counter := &countingChatLines{}
+			d := Deps{Proj: fakeReader{}, Live: liveAlways{}, Cooldown: NoopCooldown{}, Pub: &fakePublisher{}, Log: zap.NewNop(), ChatLines: counter}
+			p := NewPipeline(d, NewRegistry(zap.NewNop()), Config{BotID: tc.botID, OutgressPremium: premiumSubj, OutgressStandard: standardSubj})
 
-	require.NoError(t, p.Process(chatMsg(t, "standard", "hi")))
+			require.NoError(t, p.Process(chatMsg(t, "standard", "hi")))
 
-	require.Len(t, counter.calls, 1)
-	assert.EqualValues(t, 123, counter.calls[0])
-}
-
-func TestProcessDoesNotCountBotsOwnChatLine(t *testing.T) {
-	pub := &fakePublisher{}
-	counter := &countingChatLines{}
-	reg := NewRegistry(zap.NewNop())
-	d := Deps{Proj: fakeReader{}, Live: liveAlways{}, Cooldown: NoopCooldown{}, Pub: pub, Log: zap.NewNop(), ChatLines: counter}
-	p := NewPipeline(d, reg, Config{BotID: "999", OutgressPremium: premiumSubj, OutgressStandard: standardSubj})
-
-	require.NoError(t, p.Process(chatMsg(t, "standard", "hi")))
-
-	assert.Empty(t, counter.calls)
+			assert.Equal(t, tc.wantCalls, counter.calls)
+		})
+	}
 }
 
 func TestProcessDoesNotCountNonChatEvent(t *testing.T) {

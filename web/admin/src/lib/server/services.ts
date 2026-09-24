@@ -275,11 +275,13 @@ interface PageMeta {
   has_more: boolean;
 }
 
-function pageMetaOf(reply: PageMetaWire, page: number, pageSize: number, maxPages: number): PageMeta {
+type PageWindow = { page: number; pageSize: number; maxPages: number };
+
+function pageMetaOf(reply: PageMetaWire, fallback: PageWindow): PageMeta {
   return {
-    page: reply.page ?? page,
-    page_size: reply.page_size ?? pageSize,
-    max_pages: reply.max_pages ?? maxPages,
+    page: reply.page ?? fallback.page,
+    page_size: reply.page_size ?? fallback.pageSize,
+    max_pages: reply.max_pages ?? fallback.maxPages,
     has_more: Boolean(reply.has_more)
   };
 }
@@ -298,7 +300,7 @@ export async function userOverview(
     return {
       users: r.users ?? [],
       stats: r.stats,
-      ...pageMetaOf(r, page, USER_PAGE_SIZE, USER_MAX_PAGES)
+      ...pageMetaOf(r, { page, pageSize: USER_PAGE_SIZE, maxPages: USER_MAX_PAGES })
     };
   });
 }
@@ -512,7 +514,7 @@ export const notificationsList = defineRead({
   request: (page = 1) => ({ page, limit: NOTIFICATIONS_PAGE_SIZE }),
   map: (reply: PageMetaWire & { notifications?: NotificationWire[] }): NotificationPage => ({
     notifications: reply.notifications ?? [],
-    ...pageMetaOf(reply, 1, NOTIFICATIONS_PAGE_SIZE, NOTIFICATIONS_MAX_PAGES)
+    ...pageMetaOf(reply, { page: 1, pageSize: NOTIFICATIONS_PAGE_SIZE, maxPages: NOTIFICATIONS_MAX_PAGES })
   }),
   cache: {
     fabric,
@@ -704,7 +706,7 @@ export async function auditPage(page = 1, search = '', actorFilter = ''): Promis
     });
     return {
       entries: r.entries ?? [],
-      ...pageMetaOf(r, page, AUDIT_PAGE_SIZE, AUDIT_MAX_PAGES)
+      ...pageMetaOf(r, { page, pageSize: AUDIT_PAGE_SIZE, maxPages: AUDIT_MAX_PAGES })
     };
   });
 }

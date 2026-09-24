@@ -107,13 +107,7 @@ func ExtractEach(data []byte, fn func(key, value []byte, kind Kind) error, path 
 	err := jsonparser.ObjectEach(data, func(key, value []byte, valueType jsonparser.ValueType, _ int) error {
 		return fn(key, value, kindOf(valueType))
 	}, path...)
-	if err == nil {
-		return nil
-	}
-	if callbackErr := callerError(err); callbackErr != nil {
-		return callbackErr
-	}
-	return extractErr(err, path)
+	return iterationErr(err, path)
 }
 
 func ExtractArray(data []byte, fn func(value []byte, kind Kind) error, path Path) error {
@@ -123,6 +117,10 @@ func ExtractArray(data []byte, fn func(value []byte, kind Kind) error, path Path
 		}
 		return fn(value, kindOf(valueType))
 	}, path...)
+	return iterationErr(err, path)
+}
+
+func iterationErr(err error, path Path) error {
 	if err == nil {
 		return nil
 	}
