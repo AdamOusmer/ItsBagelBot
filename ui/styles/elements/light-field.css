@@ -9,10 +9,10 @@
    themselves are documented in layers.css. */
 @layer bb.tokens, bb.base, bb.elements, bb.app;
 
-/* The mote field contract: one canvas the engine (@bagel/ui/lib/light-field)
-   paints into. Both adapters emit
+/* The mote field contract: one host the engine (@bagel/ui/lib/light-field)
+   fills with animated motes. Both adapters emit
 
-     <canvas class="bb-light-field" data-warmth="0.7" aria-hidden="true">
+     <div class="bb-light-field" data-field data-warmth="0.7" aria-hidden="true">
 
    These rules were the identical scoped <style> block in three places —
    web/kit/components/LightField.svelte, marketing's HomeLightField.astro and
@@ -32,7 +32,30 @@
         display: block;
         width: 100%;
         height: 100%;
+        overflow: hidden;
+        contain: strict;
         pointer-events: none;
+    }
+
+    /* The host's parent must be a stacking context. Otherwise the composited
+       motes at z-index -1 land in the root's negative z-list and WebKit splits
+       a second full-document foreground layer out of the page to paint over
+       them: +75 MB at 390x844@3 on a PageHero page. */
+    :where(:has(> .bb-light-field)) {
+        isolation: isolate;
+    }
+
+    /* `plus-lighter` keeps the additive pile-up the canvas got from
+       globalCompositeOperation 'lighter': overlapping motes brighten into a
+       glow instead of the top one winning. The host's z-index makes it a
+       stacking context, so the blend stays among the motes and never reaches
+       the page behind. */
+    .bb-light-field > span {
+        position: absolute;
+        top: 0;
+        left: 0;
+        border-radius: 50%;
+        mix-blend-mode: plus-lighter;
     }
 
     /* Full-bleed variant: the field escapes a max-width container and spans the
@@ -50,9 +73,9 @@
     }
 
     /* The engine already declines to start under reduced motion (field()
-       returns null), which leaves a blank canvas occupying layout. Hiding it
-       is not redundant: a 100vw canvas that paints nothing still costs a
-       compositing layer on every scroll. */
+       returns null), which leaves an empty host occupying layout. Hiding it
+       keeps the full-bleed transform from costing a compositing layer that
+       paints nothing. */
     @media (prefers-reduced-motion: reduce) {
         .bb-light-field {
             display: none;

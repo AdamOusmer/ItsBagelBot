@@ -100,37 +100,41 @@ const t = useTranslations(lang);
         --node-y: 0px;
         --elbow-x: 0px;
         --elbow-y: 0px;
-        --diag-len: 0px;
+        --diag-len: 0;
         --diag-angle: 0rad;
         --diag-progress: 0;
-        --flat-len: 0px;
+        --flat-len: 0;
         --flat-angle: 0rad;
         --flat-progress: 0;
         --node-scale: 0;
     }
 
+    /* Length rides on scaleX over a fixed 100px box, never on `width`. A
+       per-frame width change repaints the glow shadow every frame, and WebKit
+       cycles a pool of fresh backing surfaces for a layer repainted that often:
+       measured 2026-09-23 in a WKWebView at 390x844, device scale 3, the pinned
+       act sat at ~535 MB with width-driven segments and ~350 MB with scaleX. */
     .enc-node-line__segment {
         position: absolute;
         left: 0;
         top: 0;
+        width: 100px;
         height: 1px;
         transform-origin: left center;
         background: linear-gradient(90deg, rgba(167, 243, 208, 0), rgba(240, 236, 228, 0.92));
         box-shadow:
             0 0 8px rgba(167, 243, 208, 0.42),
             0 0 18px rgba(0, 0, 0, 0.65);
-        will-change: transform, width;
+        will-change: transform;
     }
 
     .enc-node-line__segment--diag {
-        width: var(--diag-len);
-        transform: translate3d(var(--node-x), var(--node-y), 0) rotate(var(--diag-angle)) scaleX(var(--diag-progress));
+        transform: translate3d(var(--node-x), var(--node-y), 0) rotate(var(--diag-angle)) scaleX(calc(var(--diag-len) / 100 * var(--diag-progress)));
     }
 
     .enc-node-line__segment--flat {
-        width: var(--flat-len);
         background: linear-gradient(90deg, rgba(240, 236, 228, 0.92), rgba(240, 236, 228, 0.68));
-        transform: translate3d(var(--elbow-x), var(--elbow-y), 0) rotate(var(--flat-angle)) scaleX(var(--flat-progress));
+        transform: translate3d(var(--elbow-x), var(--elbow-y), 0) rotate(var(--flat-angle)) scaleX(calc(var(--flat-len) / 100 * var(--flat-progress)));
     }
 
     .enc-node-line__node {
@@ -548,6 +552,16 @@ const t = useTranslations(lang);
         const mediaQuery = window.matchMedia('(max-width: 900px)');
         const isCompact = mediaQuery.matches;
         const maxPixelRatio = isCompact ? 1.25 : 1.5;
+        // Drawing buffer capped near 3 MP: at 2560x1440@2 the 1.5x
+        // supersample held ~175 MB of WebGL buffers in a WKWebView. Chosen
+        // over full resolution knowing the wireframe lines stair-step slightly
+        // on 5K; the 0.75 floor keeps a 4K@1 screen from going softer than that.
+        const MAX_DRAW_PIXELS = 3e6;
+        const pixelRatioFor = (width: number, height: number) => Math.min(
+            devicePixelRatio,
+            maxPixelRatio,
+            Math.max(0.75, Math.sqrt(MAX_DRAW_PIXELS / Math.max(1, width * height))),
+        );
         const ringSegments = 72;
 
         let geometryData = preloadRegistry.encryptionData;
@@ -565,7 +579,7 @@ const t = useTranslations(lang);
             outputBufferType: HalfFloatType,
         });
         renderer.setClearColor(0x000000, 0);
-        renderer.setPixelRatio(Math.min(devicePixelRatio, maxPixelRatio));
+        renderer.setPixelRatio(pixelRatioFor(canvas.clientWidth, canvas.clientHeight));
         renderer.toneMapping = ACESFilmicToneMapping;
         renderer.toneMappingExposure = 1.0;
         renderer.outputColorSpace = SRGBColorSpace;
@@ -923,10 +937,10 @@ const t = useTranslations(lang);
             setConnectorVar(i, '--node-y', `${node.y}px`);
             setConnectorVar(i, '--elbow-x', `${elbowX}px`);
             setConnectorVar(i, '--elbow-y', `${lineY}px`);
-            setConnectorVar(i, '--diag-len', `${diagLen}px`);
+            setConnectorVar(i, '--diag-len', String(diagLen));
             setConnectorVar(i, '--diag-angle', `${Math.atan2(dyLine, dx)}rad`);
             setConnectorVar(i, '--diag-progress', String(diagProgress));
-            setConnectorVar(i, '--flat-len', `${layout.flatLen}px`);
+            setConnectorVar(i, '--flat-len', String(layout.flatLen));
             setConnectorVar(i, '--flat-angle', `${flatAngle}rad`);
             setConnectorVar(i, '--flat-progress', String(flatProgress));
             setConnectorVar(i, '--node-scale', String(Math.min(1, progress * 2)));
@@ -1066,8 +1080,29 @@ const t = useTranslations(lang);
             queueSnap(SNAP_DEBOUNCE_MS + 90);
         }
 
+        // The scene draws only while its section is near the viewport AND the
+        // page has scrolled at all. The -100vh overlap puts the pinned canvas
+        // under the hero, where --hero-p holds its opacity at 0, so without the
+        // scroll check it rendered invisible frames on the first screen every
+        // visitor lands on. Not drawing is not enough either: the drawing
+        // buffer and the bloom chain stay allocated (~250 MB at 2560x1440@2),
+        // so a parked scene shrinks them to 1x1 until it is needed again.
+        let inView = true;
+        let revealed = window.scrollY > 0;
+        let drawing = true;
+
+        function syncDrawing() {
+            const next = inView && revealed;
+            if (next === drawing) return;
+            drawing = next;
+            if (drawing) resize();
+            else renderer.setSize(1, 1, false);
+        }
+
         function onScroll() {
             rawP = progressFromScroll(window.scrollY);
+            revealed = window.scrollY > 0;
+            syncDrawing();
         }
 
         scrollController.on?.('virtual-scroll', onVirtualScroll);
@@ -1076,10 +1111,10 @@ const t = useTranslations(lang);
         window.addEventListener('scroll', onScroll, {passive: true});
         onScroll();
 
-        let isVisible = true;
         const obs = new IntersectionObserver(
             (entries) => {
-                isVisible = entries[0].isIntersecting;
+                inView = entries[0].isIntersecting;
+                syncDrawing();
             },
             {rootMargin: '120px'},
         );
@@ -1091,11 +1126,15 @@ const t = useTranslations(lang);
         }
         document.addEventListener('visibilitychange', onVisibilityChange);
 
-        function update(p: number, t: number) {
+        /** Per-frame easing factor `k`, tuned at 60 Hz, applied over `steps` 60 Hz frames. */
+        const easeOver = (k: number, steps: number) => 1 - Math.pow(1 - k, steps);
+
+        function update(p: number, t: number, steps: number) {
             const {fov} = camTarget(p);
-            camPos.lerp(_tgtPos, 0.06);
-            camLook.lerp(_tgtLook, 0.06);
-            camFov = lerp(camFov, fov, 0.06);
+            const camEase = easeOver(0.06, steps);
+            camPos.lerp(_tgtPos, camEase);
+            camLook.lerp(_tgtLook, camEase);
+            camFov = lerp(camFov, fov, camEase);
             camera.position.copy(camPos);
             camera.position.x += Math.sin(t * 0.27) * 0.18;
             camera.position.y += Math.cos(t * 0.31) * 0.13;
@@ -1130,7 +1169,7 @@ const t = useTranslations(lang);
 
             let pi = 0;
             for (let i = 0; i < partCount; i++) {
-                let u = partT[i] + partSpeed[i] * 0.016;
+                let u = partT[i] + partSpeed[i] * 0.016 * steps;
                 if (u >= 1) u -= 1;
                 partT[i] = u;
                 const samples = partSamples[i];
@@ -1145,21 +1184,20 @@ const t = useTranslations(lang);
             }
             partPositionAttr.needsUpdate = true;
 
-            bgFrame ^= 1;
-            if (bgFrame === 0) {
-                for (let i3 = 0; i3 < bgPos.length; i3 += 3) {
-                    const x = bgPos[i3] + bgVel[i3];
-                    const y = bgPos[i3 + 1] + bgVel[i3 + 1];
-                    const z = bgPos[i3 + 2] + bgVel[i3 + 2];
-                    bgPos[i3] = x;
-                    bgPos[i3 + 1] = y;
-                    bgPos[i3 + 2] = z;
-                    if (x > 14 || x < -14) bgVel[i3] *= -1;
-                    if (y > 14 || y < -14) bgVel[i3 + 1] *= -1;
-                    if (z > 14 || z < -14) bgVel[i3 + 2] *= -1;
-                }
-                bgPositionAttr.needsUpdate = true;
+            // bgVel was tuned as one step per two 60 Hz frames.
+            const drift = steps / 2;
+            for (let i3 = 0; i3 < bgPos.length; i3 += 3) {
+                const x = bgPos[i3] + bgVel[i3] * drift;
+                const y = bgPos[i3 + 1] + bgVel[i3 + 1] * drift;
+                const z = bgPos[i3 + 2] + bgVel[i3 + 2] * drift;
+                bgPos[i3] = x;
+                bgPos[i3 + 1] = y;
+                bgPos[i3 + 2] = z;
+                if (x > 14 || x < -14) bgVel[i3] *= -1;
+                if (y > 14 || y < -14) bgVel[i3 + 1] *= -1;
+                if (z > 14 || z < -14) bgVel[i3 + 2] *= -1;
             }
+            bgPositionAttr.needsUpdate = true;
 
             for (let i = 0; i < overlays.length; i++) {
                 const el = overlays[i];
@@ -1213,16 +1251,16 @@ const t = useTranslations(lang);
             canvasHeight = h;
             camera.aspect = w / h;
             camera.updateProjectionMatrix();
-            renderer.setPixelRatio(Math.min(devicePixelRatio, maxPixelRatio));
-            renderer.setSize(w, h, false);
             refreshConnectorLayout();
+            if (!drawing) return;
+            renderer.setPixelRatio(pixelRatioFor(w, h));
+            renderer.setSize(w, h, false);
         }
 
         let disposed = false;
         let gpuDisposed = false;
         let disposeFallbackTimer = 0;
         let removeAfterSwapDispose: (() => void) | null = null;
-        let bgFrame = 0;
 
         window.addEventListener('resize', resize);
         mediaQuery.addEventListener('change', resize);
@@ -1313,12 +1351,26 @@ const t = useTranslations(lang);
             else disposeGpu();
         };
 
+        // Capped at 48 fps. The motion constants were tuned per 60 Hz frame,
+        // so each rendered frame advances them by the real time it covers
+        // (clamped, so resuming after a park does not jump); the scene moves at
+        // the same speed at the cap and on 120 Hz screens.
+        const FRAME_MS = 1000 / 48;
+        const TUNED_FRAME_MS = 1000 / 60;
+        let frameClock = 0;
+        let lastRender = 0;
+
         renderer.setAnimationLoop((time) => {
             if (disposed) return;
             timer.update(time);
-            if (!isVisible || !pageVisible) return;
-            curP += (rawP - curP) * 0.06;
-            update(curP, timer.getElapsed());
+            if (!drawing || !pageVisible) return;
+            const sinceTick = time - frameClock;
+            if (sinceTick < FRAME_MS) return;
+            frameClock = time - (sinceTick % FRAME_MS);
+            const steps = Math.min(time - lastRender, 100) / TUNED_FRAME_MS;
+            lastRender = time;
+            curP += (rawP - curP) * easeOver(0.06, steps);
+            update(curP, timer.getElapsed(), steps);
             renderer.render(scene, camera);
         });
     }

@@ -11,25 +11,25 @@
 
     let { class: className = '', warmth = 0.7 }: { class?: string; warmth?: number } = $props();
 
-    let canvas: HTMLCanvasElement;
+    let host: HTMLDivElement;
 
-    // field() returns null under reduced motion and when there is no 2D
-    // context; onMount is happy with an undefined teardown, and the contract
-    // CSS hides the canvas in the reduced-motion case anyway.
-    onMount(() => field(canvas, { warmth }) ?? undefined);
+    // field() returns null under reduced motion and without Web Animations;
+    // onMount is happy with an undefined teardown, and the contract CSS hides
+    // the host in the reduced-motion case anyway.
+    onMount(() => field(host, { warmth }) ?? undefined);
 </script>
 
 <!-- `data-field` and `data-warmth` are the contract, not this adapter's
-     plumbing: the Astro half finds its canvases by scanning for `[data-field]`
+     plumbing: the Astro half finds its hosts by scanning for `[data-field]`
      and reads the warmth off the attribute, and adapter parity means the two
      emit the same markup or neither is the contract. Svelte binds the node
      directly and passes `warmth` as a prop, so here they are inert — and they
      are also what a Playwright selector and a future non-framework consumer
      would reach for. -->
-<canvas
+<div
     class={['bb-light-field', className].filter(Boolean).join(' ')}
     data-field
     data-warmth={warmth}
     aria-hidden="true"
-    bind:this={canvas}
-></canvas>
+    bind:this={host}
+></div>

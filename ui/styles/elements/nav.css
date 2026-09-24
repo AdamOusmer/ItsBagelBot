@@ -323,13 +323,6 @@
     isolation: isolate;
     overflow: hidden;
     transform: translateY(-100%);
-    /* The clip id is per instance (two panels on one page -- a docs header and
-       an embedded preview -- would otherwise share one <clipPath> and animate
-       together), so the adapters hand it in as a custom property rather than
-       this file naming an id it cannot know. The fallback is the id the single
-       default instance emits, so a panel rendered without the property still
-       clips. */
-    clip-path: var(--menu-clip, url(#bb-mobile-menu-clip));
     will-change: transform;
     visibility: hidden;
     pointer-events: none;
@@ -347,8 +340,16 @@
     overflow: hidden;
   }
 
+  /* The clip id is per instance (two panels on one page -- a docs header and
+     an embedded preview -- would otherwise share one <clipPath> and animate
+     together), so the adapters hand it in as a custom property rather than
+     this file naming an id it cannot know. The fallback is the id the single
+     default instance emits, so a panel rendered without the property still
+     clips. Applied only while visible: an SVG clip-path keeps a panel-sized
+     mask layer alive even on the hidden panel (~11 MB at 390x844@3). */
   .bb-mobile-menu.is-visible {
     visibility: visible;
+    clip-path: var(--menu-clip, url(#bb-mobile-menu-clip));
   }
 
   .bb-mobile-menu.is-open {

@@ -48,12 +48,18 @@
         pointer-events: none;
         /* Above the ring: the dot is the pointer, the ring is decoration. */
         z-index: 9999;
-        /* `difference` is what keeps a tan dot visible on a tan section. A
-           plain tan dot disappears over --bb-tan-pale washes, and no single
-           colour survives both the near-black hero and the cream panels. */
-        mix-blend-mode: difference;
         transition: opacity 200ms, width 150ms, height 150ms, top 150ms, left 150ms, border-radius 150ms;
         will-change: transform, opacity;
+    }
+
+    /* `difference` is what keeps a tan dot visible on a tan section: a plain
+       tan dot disappears over --bb-tan-pale washes, and no single colour
+       survives both the near-black hero and the cream panels. The engine sets
+       .is-inverted only over a light surface, because the blend composites the
+       whole page under the dot as a backdrop (~200-250 MB at 2560x1440@2 in a
+       WKWebView), and on the dark page it is within 10/255 of plain tan. */
+    .bb-cursor.is-inverted {
+        mix-blend-mode: difference;
     }
 
     /* Over text entry the dot becomes a caret-shaped indicator: the native

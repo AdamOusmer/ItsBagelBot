@@ -238,6 +238,7 @@ const t = useTranslations(lang);
        same curve as .header-material so the motes leave with the hero instead
        of drifting over the section beneath it. */
     .starfield {
+        display: var(--hero-decor-display, block);
         position: absolute;
         inset: 0;
         z-index: -1;
@@ -246,7 +247,13 @@ const t = useTranslations(lang);
         will-change: var(--hero-content-will-change, opacity);
     }
 
+    /* The header is sticky inside a <main> that spans the whole page, so it
+       stays pinned behind every section at opacity 0 once scrolled past. At
+       that point scroll.js sets --hero-decor-display to none: the motes, orbs
+       and ring would otherwise keep their layers and animations running,
+       invisibly, all the way down the page. */
     .bg {
+        display: var(--hero-decor-display, block);
         position: absolute;
         inset: 0;
         pointer-events: none;

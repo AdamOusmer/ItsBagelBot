@@ -20,9 +20,11 @@ import { getLangFromUrl, useTranslations, localizePath } from '../../i18n/ui';
 
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
+
+const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
 ---
 
-<section class="qw" id="quiet-work">
+<section class="qw" id="quiet-work" data-motion>
     <SectionHeading eyebrow={t('qw.eyebrow')} title={t('qw.title')} />
 
     <div class="qw__grid">
@@ -52,12 +54,20 @@ const t = useTranslations(lang);
         <!-- Govee: bulb lights up and washes the stage in chat's colour -->
         <Card atmo hover class="qw__card qw__card--wide" data-reveal style="--reveal-i: 1">
             <div class="qw__demo qw__demo--govee" slot="band" aria-hidden="true">
-                <span class="qw-govee__glow"></span>
-                <span class="qw-govee__bulb">
-                    <Icon name="bulb" size={44} strokeWidth={1.6} />
+                <span class="qw-govee__glow bb-stack">
+                    {GOVEE_TONES.map((tone) => <i class={`qw-govee__tone qw-govee__tone--${tone}`}></i>)}
+                </span>
+                <span class="qw-govee__bulb bb-stack">
+                    {GOVEE_TONES.map((tone) => (
+                        <span class={`qw-govee__tone qw-govee__tone--${tone}`}>
+                            <Icon name="bulb" size={44} strokeWidth={1.6} />
+                        </span>
+                    ))}
                 </span>
                 <span class="qw-govee__redeem">
-                    <span class="qw-govee__dot"></span>
+                    <span class="qw-govee__dot bb-stack">
+                        {GOVEE_TONES.map((tone) => <i class={`qw-govee__tone qw-govee__tone--${tone}`}></i>)}
+                    </span>
                     {t('qw.goveeReward')}
                 </span>
             </div>
@@ -101,10 +111,14 @@ const t = useTranslations(lang);
         <!-- Always on: heartbeat -->
         <Card atmo hover class="qw__card" data-reveal style="--reveal-i: 5">
             <div class="qw__demo qw__demo--beat" slot="band" aria-hidden="true">
-                <svg viewBox="0 0 120 32" preserveAspectRatio="none">
-                    <path class="qw-beat__path" d="M0 16 H30 L38 16 L44 4 L52 28 L58 16 H82 L88 10 L94 22 L100 16 H120"
-                          fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" />
-                </svg>
+                <span class="qw-beat">
+                    <span class="qw-beat__wipe bb-wipe">
+                        <svg viewBox="0 0 120 32" preserveAspectRatio="none">
+                            <path class="qw-beat__path" d="M0 16 H30 L38 16 L44 4 L52 28 L58 16 H82 L88 10 L94 22 L100 16 H120"
+                                  fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" />
+                        </svg>
+                    </span>
+                </span>
             </div>
             <h3 class="qw__title">{t('qw.beatTitle')}</h3>
             <p class="qw__desc">{t('qw.beatDesc')}</p>
@@ -268,15 +282,16 @@ const t = useTranslations(lang);
     .qw-song__scrub i {
         display: block;
         height: 100%;
-        width: 0;
+        transform: scaleX(0.06);
+        transform-origin: left;
         border-radius: var(--radius-xs);
         background: linear-gradient(90deg, rgba(82, 183, 136, 0.5), var(--green-glow, #52b788));
         animation: qwSongScrub 9s var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)) infinite;
     }
 
     @keyframes qwSongScrub {
-        0%   { width: 6%; }
-        100% { width: 100%; }
+        0%   { transform: scaleX(0.06); }
+        100% { transform: scaleX(1); }
     }
 
     /* The request arrives from the right, the queue acknowledges it. */
@@ -329,26 +344,30 @@ const t = useTranslations(lang);
         flex-direction: row;
         align-items: center;
         gap: 16px;
-        color: var(--green-glow, #52b788);
-        animation: qwGoveeHue 9s ease-in-out infinite;
     }
 
     /* ambient spill from the bulb across the stage */
     .qw-govee__glow {
         position: absolute;
         inset: 0;
-        background: radial-gradient(circle at 38px 50%, currentColor, transparent 72%);
         opacity: 0.05;
         transform-origin: 38px 50%;
         animation: qwGoveeBloom 9s ease-in-out infinite;
         pointer-events: none;
     }
 
+    .qw-govee__glow i {
+        background: radial-gradient(circle at 38px 50%, currentColor, transparent 72%);
+    }
+
     .qw-govee__bulb {
         flex: none;
-        display: grid;
         place-items: center;
         animation: qwGoveeLit 9s ease-in-out infinite;
+    }
+
+    .qw-govee__bulb .qw-govee__tone:not(.qw-govee__tone--off) {
+        filter: drop-shadow(0 0 5px currentColor) drop-shadow(0 0 16px currentColor);
     }
 
     /* :global: the bulb is Icon's root svg, outside this component's scope. */
@@ -368,20 +387,50 @@ const t = useTranslations(lang);
         flex: none;
         width: 7px;
         height: 7px;
+    }
+
+    .qw-govee__dot i {
         border-radius: 50%;
         background: currentColor;
         box-shadow: 0 0 8px currentColor;
-        color: var(--green-glow, #52b788);
-        animation: qwGoveeHue 9s ease-in-out infinite;
     }
 
-    /* off → redeem lands → warm sunset wash → eases back to dark */
-    @keyframes qwGoveeHue {
-        0%, 28%  { color: #5c665f; }
-        40%, 50% { color: #52b788; }
-        62%, 72% { color: #e0c49a; }
-        82%      { color: #d98a8a; }
-        100%     { color: #5c665f; }
+    /* off → redeem lands → warm sunset wash → eases back to dark. One static
+       copy per tone crossfading on opacity (bb-stack), not an animated color. */
+    .qw-govee__tone {
+        opacity: 0;
+        animation-duration: 9s;
+        animation-timing-function: ease-in-out;
+        animation-iteration-count: infinite;
+    }
+
+    .qw-govee__tone--off { color: #5c665f; opacity: 1; animation-name: qwGoveeOff; }
+    .qw-govee__tone--green { color: #52b788; animation-name: qwGoveeGreen; }
+    .qw-govee__tone--tan { color: #e0c49a; animation-name: qwGoveeTan; }
+    .qw-govee__tone--red { color: #d98a8a; animation-name: qwGoveeRed; }
+
+    @keyframes qwGoveeOff {
+        0%, 28% { opacity: 1; }
+        40%, 82% { opacity: 0; }
+        100% { opacity: 1; }
+    }
+
+    @keyframes qwGoveeGreen {
+        0%, 28% { opacity: 0; }
+        40%, 50% { opacity: 1; }
+        62%, 100% { opacity: 0; }
+    }
+
+    @keyframes qwGoveeTan {
+        0%, 50% { opacity: 0; }
+        62%, 72% { opacity: 1; }
+        82%, 100% { opacity: 0; }
+    }
+
+    @keyframes qwGoveeRed {
+        0%, 72% { opacity: 0; }
+        82% { opacity: 1; }
+        100% { opacity: 0; }
     }
 
     @keyframes qwGoveeBloom {
@@ -391,9 +440,9 @@ const t = useTranslations(lang);
     }
 
     @keyframes qwGoveeLit {
-        0%, 28%  { opacity: 0.5; filter: drop-shadow(0 0 0 transparent) drop-shadow(0 0 0 transparent); }
-        44%, 82% { opacity: 1;   filter: drop-shadow(0 0 5px currentColor) drop-shadow(0 0 16px currentColor); }
-        100%     { opacity: 0.5; filter: drop-shadow(0 0 0 transparent) drop-shadow(0 0 0 transparent); }
+        0%, 28%  { opacity: 0.5; }
+        44%, 82% { opacity: 1; }
+        100%     { opacity: 0.5; }
     }
 
     @keyframes qwGoveeRedeem {
@@ -493,38 +542,56 @@ const t = useTranslations(lang);
 
     .qw__demo--beat { color: var(--green-glow, #52b788); padding: 18px 12px; }
 
-    .qw__demo--beat svg { width: 100%; height: 100%; overflow: visible; }
-
-    .qw-beat__path {
-        stroke-dasharray: 220;
-        stroke-dashoffset: 220;
-        filter: drop-shadow(0 0 6px rgba(82, 183, 136, 0.55));
+    /* The trace draws in with a wipe (bb-wipe) instead of stroke-dashoffset:
+       linear() reaches the right edge at 62% of the loop and holds there while
+       the fade runs, the same beats the dash offset used to hit. The window is
+       padded past the demo so it does not clip the glow. */
+    .qw-beat {
+        display: block;
+        width: 100%;
+        height: 100%;
         animation: qwBeat 3.2s linear infinite;
     }
 
+    .qw-beat__wipe {
+        display: block;
+        height: calc(100% + 24px);
+        margin-block: -12px;
+        padding-block: 12px;
+        animation-duration: 3.2s;
+        animation-timing-function: linear(0, 1 62%, 1);
+        animation-iteration-count: infinite;
+    }
+
+    .qw-beat__wipe svg { display: block; width: 100%; height: 100%; overflow: visible; }
+
+    .qw-beat__path {
+        filter: drop-shadow(0 0 6px rgba(82, 183, 136, 0.55));
+    }
+
     @keyframes qwBeat {
-        0% { stroke-dashoffset: 220; opacity: 1; }
-        62% { stroke-dashoffset: 0; opacity: 1; }
+        0%, 62% { opacity: 1; }
         78% { opacity: 0.25; }
-        100% { stroke-dashoffset: 0; opacity: 0; }
+        100% { opacity: 0; }
     }
 
     @media (prefers-reduced-motion: reduce) {
-        .qw__demo--govee, .qw-govee__glow, .qw-govee__bulb, .qw-govee__dot, .qw-govee__redeem,
+        .qw-govee__glow, .qw-govee__bulb, .qw-govee__tone, .qw-govee__redeem,
         .qw-cmd__in, .qw-cmd__out,
         .qw-song__eq i, .qw-song__scrub i, .qw-song__cmd, .qw-song__ack,
-        .qw-beat__path {
+        .qw-beat {
             animation: none;
         }
         .qw-song__eq i { transform: scaleY(0.7); }
-        .qw-song__scrub i { width: 46%; }
+        .qw-song__scrub i { transform: scaleX(0.46); }
         .qw-song__cmd, .qw-song__ack { opacity: 1; transform: none; }
         .qw-govee__glow { opacity: 0.22; transform: none; }
-        .qw-govee__bulb { opacity: 1; filter: drop-shadow(0 0 5px currentColor) drop-shadow(0 0 16px currentColor); }
+        .qw-govee__bulb { opacity: 1; }
+        .qw-govee__tone { opacity: 0; }
+        .qw-govee__tone--green { opacity: 1; }
         .qw-govee__redeem { opacity: 1; }
         .qw-cmd__in { width: 18ch; border-right: none; }
         .qw-cmd__out { opacity: 1; }
-        .qw-beat__path { stroke-dashoffset: 0; }
         .qw-poll__bar i { transition: none; }
         .qw__demo--poll .qw-poll__bar i { width: var(--w, 50%); }
     }
