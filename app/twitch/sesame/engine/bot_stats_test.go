@@ -137,9 +137,9 @@ func TestProcessWithoutStatsSink(t *testing.T) {
 func TestBotStatsFlushBumpsAndResets(t *testing.T) {
 	bumper := &fakeBumper{}
 	s := newBotStats(bumper)
-	s.count(0, true, 1)
-	s.count(0, true, 1)
-	s.count(0, false, 1)
+	s.count(0, chatDelta(1))
+	s.count(0, chatDelta(1))
+	s.count(0, eventDelta(1))
 	s.Close()
 
 	calls := bumper.calls()
@@ -161,7 +161,7 @@ func TestBotStatsCountAllocFree(t *testing.T) {
 	s := newBotStats(&fakeBumper{})
 	t.Cleanup(s.Close)
 
-	if avg := testing.AllocsPerRun(1000, func() { s.count(123, true, 1) }); avg != 0 {
+	if avg := testing.AllocsPerRun(1000, func() { s.count(123, chatDelta(1)) }); avg != 0 {
 		t.Fatalf("count allocates %.1f allocs/op, must be 0", avg)
 	}
 }
@@ -169,9 +169,9 @@ func TestBotStatsCountAllocFree(t *testing.T) {
 func TestBotStatsFlushBumpsChannelsAndResets(t *testing.T) {
 	bumper := &fakeBumper{}
 	s := newBotStats(bumper)
-	s.count(123, true, 1)
-	s.count(123, false, 1)
-	s.count(456, true, 1)
+	s.count(123, chatDelta(1))
+	s.count(123, eventDelta(1))
+	s.count(456, chatDelta(1))
 	s.Close()
 
 	per := bumper.channelCalls()
@@ -190,9 +190,9 @@ func TestBotStatsChannelCapDropsNewChannels(t *testing.T) {
 	t.Cleanup(s.Close)
 
 	for id := uint64(1); id <= channelStatsMaxKeys; id++ {
-		s.count(id, false, 1)
+		s.count(id, eventDelta(1))
 	}
-	s.count(channelStatsMaxKeys+1, false, 1)
+	s.count(channelStatsMaxKeys+1, eventDelta(1))
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -204,7 +204,7 @@ func TestBotStatsBumpsPassReporterGuard(t *testing.T) {
 	pub := &rawPublisher{}
 	r := NewLoyaltyReporter(pub, zap.NewNop())
 	s := newBotStats(r)
-	s.count(0, true, 1)
+	s.count(0, chatDelta(1))
 	s.Close()
 	r.Close()
 
@@ -220,7 +220,7 @@ func TestBotStatsChannelBumpsPassReporterGuard(t *testing.T) {
 	pub := &rawPublisher{}
 	r := NewLoyaltyReporter(pub, zap.NewNop())
 	s := newBotStats(r)
-	s.count(123, true, 1)
+	s.count(123, chatDelta(1))
 	s.Close()
 	r.Close()
 
@@ -376,7 +376,7 @@ func TestFlagChannelCapDropsNewChannels(t *testing.T) {
 	t.Cleanup(s.Close)
 
 	for id := uint64(1); id <= channelStatsMaxKeys; id++ {
-		s.count(id, false, 1)
+		s.count(id, eventDelta(1))
 	}
 	s.flag(channelStatsMaxKeys+1, "scam", true)
 
@@ -433,7 +433,7 @@ func TestFlagFlushLogsChannelFields(t *testing.T) {
 	core, logs := observer.New(zapcore.DebugLevel)
 	s := newBotStats(&fakeBumper{}, zap.New(core))
 
-	s.count(999, true, 1)
+	s.count(999, chatDelta(1))
 	s.flag(123, "scam", true)
 	s.flag(123, "heuristic", false)
 	s.flag(456, "lex:sexual:x", false)
@@ -458,9 +458,10 @@ func TestFlagFlushLogsChannelFields(t *testing.T) {
 }
 
 func TestBotStatsCountsASquashedCohortAsEveryMessageInIt(t *testing.T) {
-	s := newBotStats(nil)
-	s.count(123, true, 7)
-	s.count(0, false, 1)
+	s := newBotStats(&fakeBumper{})
+	defer s.Close()
+	s.count(123, chatDelta(7))
+	s.count(0, eventDelta(1))
 	if got := s.messages.Load(); got != 7 {
 		t.Fatalf("messages = %d, want 7", got)
 	}

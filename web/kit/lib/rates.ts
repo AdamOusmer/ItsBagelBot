@@ -8,8 +8,8 @@ export const RATE_AVG_SECONDS = 60;
 const MIN_SPAN_MS = 1000;
 
 export function perSecond(count: number | null | undefined, windowSeconds: number): number {
-  if (!count || count <= 0 || windowSeconds <= 0) return 0;
-  return count / windowSeconds;
+  if (!count || count < 0) return 0;
+  return windowSeconds > 0 ? count / windowSeconds : 0;
 }
 
 export interface RateSample {

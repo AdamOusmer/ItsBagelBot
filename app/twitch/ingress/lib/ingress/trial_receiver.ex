@@ -384,18 +384,22 @@ defmodule Ingress.TrialReceiver do
       id when is_binary(id) and is_map_key(state.rows, id) ->
         now = now_ms()
 
-        state
-        |> bump_window(:loads, id, Capacity.load_window_seconds(), now)
-        |> bump_window(:bursts, id, Capacity.burst_window_seconds(), now)
+        bump_windows(state, id, now)
 
       _ ->
         state
     end
   end
 
-  defp bump_window(state, key, id, seconds, now) do
-    counter = Map.get_lazy(Map.fetch!(state, key), id, fn -> LoadCounter.new(seconds) end)
-    put_in(state, [key, id], LoadCounter.increment(counter, now))
+  defp bump_windows(state, id, now) do
+    Enum.reduce(
+      [loads: Capacity.load_window_seconds(), bursts: Capacity.burst_window_seconds()],
+      state,
+      fn {key, seconds}, acc ->
+        counter = Map.get_lazy(Map.fetch!(acc, key), id, fn -> LoadCounter.new(seconds) end)
+        put_in(acc, [key, id], LoadCounter.increment(counter, now))
+      end
+    )
   end
 
   defp handle_trial_notification(meta, payload, state) do

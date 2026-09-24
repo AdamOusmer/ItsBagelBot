@@ -194,16 +194,19 @@ func newBotStats(bumper CounterBumper, log ...*zap.Logger) *botStats {
 	return s
 }
 
-func (s *botStats) count(broadcasterID uint64, isChat bool, n int64) {
+type delta struct{ events, messages int64 }
+
+func chatDelta(n int64) delta  { return delta{events: n, messages: n} }
+func eventDelta(n int64) delta { return delta{events: n} }
+
+func (s *botStats) count(broadcasterID uint64, d delta) {
 	if s == nil {
 		return
 	}
-	s.events.Add(n)
-	if isChat {
-		s.messages.Add(n)
-	}
+	s.events.Add(d.events)
+	s.messages.Add(d.messages)
 	if broadcasterID != 0 {
-		s.countChannel(broadcasterID, isChat, n)
+		s.countChannel(broadcasterID, d)
 	}
 }
 
@@ -224,17 +227,15 @@ func (s *botStats) flag(broadcasterID uint64, rule flagRule, enforced bool) {
 	}
 }
 
-func (s *botStats) countChannel(broadcasterID uint64, isChat bool, n int64) {
+func (s *botStats) countChannel(broadcasterID uint64, d delta) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	tally := s.channelTallyLocked(broadcasterID)
 	if tally == nil {
 		return
 	}
-	tally.events += n
-	if isChat {
-		tally.messages += n
-	}
+	tally.events += d.events
+	tally.messages += d.messages
 }
 
 func (s *botStats) countAnswered(broadcasterID uint64) {
