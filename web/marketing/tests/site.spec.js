@@ -53,6 +53,19 @@ test.describe('ItsBagelBot site', () => {
     }
 
     async function expectEncryptionInitialized(page, previousId = 0) {
+        // At the page top the scene is parked at 1x1 (its canvas is still
+        // transparent there) and sizes its buffers once the page scrolls. Wait
+        // for the renderer to take the canvas before scrolling: a jump made
+        // earlier is undone by the router's scroll restoration on a back
+        // navigation, which parks the scene again.
+        await page.waitForFunction((previousId) => {
+            const canvas = document.querySelector('#enc-canvas');
+            const active = window.__itsbagelbotPreload?.activeEncryption;
+            return active?.id > previousId
+                && active.section === document.querySelector('#enc-section')
+                && canvas?.width !== 300;
+        }, previousId);
+        await jumpDown(page);
         await page.waitForFunction((previousId) => {
             const canvas = document.querySelector('#enc-canvas');
             const active = window.__itsbagelbotPreload?.activeEncryption;
