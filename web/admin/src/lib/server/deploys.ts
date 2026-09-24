@@ -115,11 +115,15 @@ function deployFailure(e: unknown): ActionError {
 
 type Actor = Pick<AdminIdentity, 'id'>;
 
+export type PlanResult = { plan: DeployPlan | null; planError: string | null };
+
+// The plan is streamed: it reads GitHub, the registry and the cluster, and
+// awaiting it here held the whole page (and the sidebar click) for seconds.
 export type DeploysPageData = {
-  plan: DeployPlan | null;
+  planned: Promise<PlanResult>;
   runs: DeployRunSummary[];
   active: DeployRun | null;
-  planError: string | null;
+  runsError: string | null;
 };
 
 type RunsAndActive = { list: DeployRuns; active: DeployRun | null };
@@ -137,19 +141,24 @@ function firstRejection(results: PromiseSettledResult<unknown>[]): string | null
   return failed ? message(failed.reason) : null;
 }
 
-// The plan and the run history are read in parallel and fail apart: a plan
-// that times out on GitHub still renders the history and the active run, with
-// the reason in planError. A failed history read lands in planError too; both
-// come from the same deployer and the page has one place to say it is down.
+async function planResult(api: DeployApi, actor: Actor): Promise<PlanResult> {
+  try {
+    return { plan: await api.plan({ actor_id: actor.id }), planError: null };
+  } catch (e) {
+    return { plan: null, planError: message(e) };
+  }
+}
+
 export async function loadDeploys(actor: Actor): Promise<DeploysPageData> {
   const api = await deployApi();
-  const [plan, runs] = await Promise.allSettled([api.plan({ actor_id: actor.id }), runsAndActive(api, actor)]);
+  const planned = planResult(api, actor);
+  const [runs] = await Promise.allSettled([runsAndActive(api, actor)]);
   const listed = runs.status === 'fulfilled' ? runs.value : NO_RUNS;
   return {
-    plan: plan.status === 'fulfilled' ? plan.value : null,
+    planned,
     runs: listed.list.runs,
     active: listed.active,
-    planError: firstRejection([plan, runs])
+    runsError: firstRejection([runs])
   };
 }
 
