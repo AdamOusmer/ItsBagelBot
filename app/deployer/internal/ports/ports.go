@@ -70,6 +70,7 @@ type Config struct {
 
 	RolloutTimeout        time.Duration
 	ACLTimeout            time.Duration
+	ACLSettle             time.Duration
 	FailedSchedulingAfter time.Duration
 	RestartLimit          int32
 	UpdateBranchLimit     int

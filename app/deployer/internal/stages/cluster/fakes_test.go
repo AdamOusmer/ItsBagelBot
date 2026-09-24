@@ -68,7 +68,6 @@ func (s *fakeSink) rows(id deploy.StageID) map[string]string {
 
 type fakeGitHub struct {
 	ports.GitHub
-	changed []ports.FilePath
 }
 
 func (g *fakeGitHub) Tree(_ context.Context, dir ports.FilePath, _ ports.Ref) (ports.Files, error) {
@@ -77,10 +76,6 @@ func (g *fakeGitHub) Tree(_ context.Context, dir ports.FilePath, _ ports.Ref) (p
 
 func (g *fakeGitHub) File(_ context.Context, path ports.FilePath, _ ports.Ref) ([]byte, error) {
 	return []byte(path), nil
-}
-
-func (g *fakeGitHub) Compare(context.Context, ports.Ref, ports.Ref) (ports.Comparison, error) {
-	return ports.Comparison{Files: g.changed}, nil
 }
 
 type fakeApplier struct {
@@ -157,6 +152,20 @@ type fixedClock struct{}
 
 func (fixedClock) Now() time.Time { return t0 }
 
+type stepClock struct {
+	mu   sync.Mutex
+	now  time.Time
+	step time.Duration
+}
+
+func (c *stepClock) Now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	now := c.now
+	c.now = c.now.Add(c.step)
+	return now
+}
+
 func testConfig() ports.Config {
 	return ports.Config{
 		ImageRepo:       testRepo,
@@ -165,7 +174,8 @@ func testConfig() ports.Config {
 		PriorityClasses: "deploy/k8s/priorityclasses.yaml",
 		StatusRoutes:    "deploy/db/status-routes.yaml",
 		RolloutTimeout:  time.Minute,
-		ACLTimeout:      30 * time.Millisecond,
+		ACLTimeout:      200 * time.Millisecond,
+		ACLSettle:       5 * time.Second,
 		PollEvery:       time.Millisecond,
 	}
 }
@@ -175,6 +185,7 @@ type harness struct {
 	gh      *fakeGitHub
 	applier *fakeApplier
 	watcher *fakeWatcher
+	clock   ports.Clock
 }
 
 func newHarness(kind deploy.RunKind) *harness {
@@ -183,11 +194,12 @@ func newHarness(kind deploy.RunKind) *harness {
 		gh:      &fakeGitHub{},
 		applier: &fakeApplier{builds: map[ports.FilePath]ports.Objects{}},
 		watcher: &fakeWatcher{},
+		clock:   fixedClock{},
 	}
 }
 
 func (h *harness) rc(id deploy.StageID) *stage.RunCtx {
-	deps := stage.Deps{GitHub: h.gh, Applier: h.applier, Watcher: h.watcher, Clock: fixedClock{},
+	deps := stage.Deps{GitHub: h.gh, Applier: h.applier, Watcher: h.watcher, Clock: h.clock,
 		Config: testConfig(), Log: zap.NewNop()}
 	return stage.New(id, deps, h.sink)
 }

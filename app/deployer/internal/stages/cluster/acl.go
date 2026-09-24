@@ -27,7 +27,7 @@ func (acl) Done(ctx context.Context, rc *stage.RunCtx) (bool, error) {
 	if err != nil {
 		return false, nil
 	}
-	return confirmed(servers, *at), nil
+	return quiet(servers, *at, rc.Deps.Clock.Now(), rc.Deps.Config.ACLSettle), nil
 }
 
 func (acl) Run(ctx context.Context, rc *stage.RunCtx) error {
@@ -51,45 +51,10 @@ func (a aclRun) appliedAt(ctx context.Context) (time.Time, error) {
 	if at := run.Outputs.ACLAppliedAt; at != nil {
 		return *at, nil
 	}
-	changed, err := a.changed(ctx, run)
-	if err != nil {
-		return time.Time{}, err
-	}
-	if !changed {
-		return time.Time{}, stage.ErrSkipped
-	}
 	return a.apply(ctx, pinRef(run))
 }
 
-func (a aclRun) changed(ctx context.Context, run deploy.Run) (bool, error) {
-	changed, err := a.diff(ctx, run)
-	if err != nil {
-		return false, err
-	}
-	return changed, a.rc.SetOutputs(ctx, func(o *deploy.Outputs) { o.MessagingChanged = changed })
-}
-
-func (a aclRun) diff(ctx context.Context, run deploy.Run) (bool, error) {
-	live := run.Outputs.LiveSHA
-	if live == "" {
-		return true, nil
-	}
-	cmp, err := a.rc.Deps.GitHub.Compare(ctx, ports.Ref(live), pinRef(run))
-	if err != nil {
-		return false, ports.Failf(deploy.FailGitHub, "compare %s...%s: %v", short(live), pinRef(run), err)
-	}
-	return touches(cmp.Files, a.rc.Deps.Config.MessagingDir), nil
-}
-
-func touches(files []ports.FilePath, dir ports.FilePath) bool {
-	for _, f := range files {
-		if strings.HasPrefix(string(f), string(dir)+"/") {
-			return true
-		}
-	}
-	return false
-}
-
+// Always apply: the live config can drift from git without any commit touching the messaging dir.
 // Take the time before Apply: a reload that lands before Apply returns would never confirm.
 func (a aclRun) apply(ctx context.Context, ref ports.Ref) (time.Time, error) {
 	dir := a.rc.Deps.Config.MessagingDir
@@ -102,10 +67,11 @@ func (a aclRun) apply(ctx context.Context, ref ports.Ref) (time.Time, error) {
 	if err != nil {
 		return time.Time{}, applyErr(string(dir), err)
 	}
+	changed := len(res.Changed) > 0
 	if !reloads(res.Changed) {
-		return time.Time{}, nil
+		return time.Time{}, a.rc.SetOutputs(ctx, func(o *deploy.Outputs) { o.MessagingChanged = changed })
 	}
-	return start, a.rc.SetOutputs(ctx, func(o *deploy.Outputs) { o.ACLAppliedAt = &start })
+	return start, a.rc.SetOutputs(ctx, func(o *deploy.Outputs) { o.MessagingChanged, o.ACLAppliedAt = changed, &start })
 }
 
 func reloads(changed []ports.ObjectRef) bool {
@@ -146,7 +112,7 @@ func (w *reloadWatch) check(ctx context.Context) (bool, error) {
 	}
 	w.servers = servers
 	w.report(ctx)
-	return confirmed(servers, w.at), nil
+	return quiet(servers, w.at, w.rc.Deps.Clock.Now(), w.rc.Deps.Config.ACLSettle), nil
 }
 
 func (w *reloadWatch) report(ctx context.Context) {
@@ -175,6 +141,10 @@ func serverItem(s ports.NATSServer, at time.Time) deploy.Item {
 func (w *reloadWatch) timeout(limit time.Duration) error {
 	f := ports.Failf(deploy.FailTimeout, "%d of %d NATS servers reloaded the config applied at %s within %s",
 		reloaded(w.servers, w.at), len(w.servers), w.at.Format(time.RFC3339), limit)
+	if allReloaded(w.servers, w.at) {
+		f = ports.Failf(deploy.FailTimeout, "NATS servers reloaded but did not stay quiet for %s within %s",
+			w.rc.Deps.Config.ACLSettle, limit)
+	}
 	for _, s := range w.servers {
 		if !s.ConfigLoaded.After(w.at) {
 			f.LogTail = append(f.LogTail, fmt.Sprintf("%s on %s: config loaded %s", s.Pod, s.Node, s.ConfigLoaded.Format(time.RFC3339)))
@@ -196,6 +166,21 @@ func reloaded(servers []ports.NATSServer, at time.Time) int {
 	return n
 }
 
-func confirmed(servers []ports.NATSServer, at time.Time) bool {
+func allReloaded(servers []ports.NATSServer, at time.Time) bool {
 	return len(servers) > 0 && reloaded(servers, at) == len(servers)
+}
+
+// A reload in progress refuses hub-domain JetStream calls, and a ConfigMap swap sends one SIGHUP per file.
+func quiet(servers []ports.NATSServer, at, now time.Time, settle time.Duration) bool {
+	return allReloaded(servers, at) && now.Sub(lastLoad(servers)) >= settle
+}
+
+func lastLoad(servers []ports.NATSServer) time.Time {
+	var last time.Time
+	for _, s := range servers {
+		if s.ConfigLoaded.After(last) {
+			last = s.ConfigLoaded
+		}
+	}
+	return last
 }

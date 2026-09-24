@@ -34,10 +34,11 @@ var (
 		kindPriorityClass: true, kindIngressRoute: true, "Middleware": true, "ScaledObject": true,
 	}
 	managedNamespaces = map[ports.Namespace]bool{nsApp: true, nsDB: true, nsMessaging: true}
+	selfRef           = ports.ObjectRef{Kind: kindDeployment, Namespace: nsOps, Name: self}
 )
 
 func managed(o *unstructured.Unstructured) bool {
-	if o.GetKind() == kindPriorityClass {
+	if o.GetKind() == kindPriorityClass || refOf(o) == selfRef {
 		return true
 	}
 	return managedKinds[o.GetKind()] && managedNamespaces[namespaceOf(o)]

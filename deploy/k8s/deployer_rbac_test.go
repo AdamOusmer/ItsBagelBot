@@ -96,7 +96,7 @@ func TestDeployerRolesMirrorTheApplierAllowlist(t *testing.T) {
 	for _, role := range rbacKinds(t)["Role"] {
 		byNamespace[role.Metadata.Namespace] = role.Rules
 	}
-	want := map[string][]string{"app": allowlist, "db": allowlist, "messaging": allowlist, "ops": nil}
+	want := map[string][]string{"app": allowlist, "db": allowlist, "messaging": allowlist, "ops": {"apps/deployments"}}
 	got := map[string][]string{}
 	for namespace, rules := range byNamespace {
 		got[namespace] = writableResources(rules)
@@ -107,6 +107,27 @@ func TestDeployerRolesMirrorTheApplierAllowlist(t *testing.T) {
 	if !reflect.DeepEqual(byNamespace["db"], byNamespace["app"]) || !reflect.DeepEqual(byNamespace["messaging"], byNamespace["app"]) {
 		t.Fatal("deployer Roles differ between namespaces; keep app, db and messaging identical")
 	}
+}
+
+func TestDeployerPatchesOnlyItselfInOps(t *testing.T) {
+	grants := slices.DeleteFunc(rulesIn(t, "ops"), func(r rbacRule) bool { return !slices.ContainsFunc(r.Verbs, writes) })
+	want := []rbacRule{{APIGroups: []string{"apps"}, Resources: []string{"deployments"}, Verbs: []string{"patch"}, ResourceNames: []string{"deployer"}}}
+	if !reflect.DeepEqual(grants, want) {
+		t.Fatalf("ops write grants = %+v, want %+v", grants, want)
+	}
+}
+
+func writes(verb string) bool { return !slices.Contains([]string{"get", "list", "watch"}, verb) }
+
+func rulesIn(t *testing.T, namespace string) []rbacRule {
+	t.Helper()
+	var out []rbacRule
+	for _, role := range rbacKinds(t)["Role"] {
+		if role.Metadata.Namespace == namespace {
+			out = append(out, role.Rules...)
+		}
+	}
+	return out
 }
 
 var allowlist = sorted(

@@ -29,7 +29,7 @@ func (verify) Run(ctx context.Context, rc *stage.RunCtx) error {
 		return err
 	}
 	units := managedUnits(t.layout.units)
-	urls := probeURLs(slices.Concat(managedOnly(t.objs), t.routes))
+	urls := probeURLs(managedOnly(t.objs), t.routes)
 	v := &verifyRun{rc: rc, total: len(units) + len(urls)}
 	v.seed(ctx, units, urls)
 	if err := v.images(ctx, units); err != nil {
@@ -143,13 +143,19 @@ var (
 	pathRule = regexp.MustCompile("(?:Path|PathPrefix)\\(`([^`]+)`\\)")
 )
 
-func probeURLs(objs ports.Objects) []ports.URL {
-	seen := map[string]bool{}
+// Only the status host is probed: app hosts mask their health paths and webhook hosts refuse strangers.
+func probeURLs(objs, statusRoutes ports.Objects) []ports.URL {
+	hosts := map[string]bool{}
+	for _, t := range probeTargets(statusRoutes) {
+		hosts[t.host] = true
+	}
+	seen := map[ports.URL]bool{}
 	var urls []ports.URL
-	for _, t := range probeTargets(objs) {
-		if !seen[t.host] {
-			seen[t.host] = true
-			urls = append(urls, ports.URL("https://"+t.host+t.path))
+	for _, t := range probeTargets(slices.Concat(objs, statusRoutes)) {
+		url := ports.URL("https://" + t.host + t.path)
+		if hosts[t.host] && !seen[url] {
+			seen[url] = true
+			urls = append(urls, url)
 		}
 	}
 	return urls

@@ -34,9 +34,10 @@ type patch struct {
 }
 
 type cluster struct {
-	client  *dynamicfake.FakeDynamicClient
-	patches []patch
-	failOn  string
+	client      *dynamicfake.FakeDynamicClient
+	patches     []patch
+	failOn      string
+	takeVersion string
 }
 
 func newCluster(t *testing.T, withKEDA bool, live ...runtime.Object) (*cluster, *Applier) {
@@ -77,6 +78,9 @@ func (c *cluster) react(action k8stesting.Action) (bool, runtime.Object, error) 
 	if live, err := c.client.Tracker().Get(pa.GetResource(), pa.GetNamespace(), pa.GetName()); err == nil {
 		acc, _ := meta.Accessor(live)
 		o.SetResourceVersion(acc.GetResourceVersion())
+	}
+	if c.takeVersion != "" {
+		o.SetResourceVersion(c.takeVersion)
 	}
 	return true, o, nil
 }
@@ -141,6 +145,36 @@ func TestApply(t *testing.T) {
 	}
 }
 
+func TestApplyCountsContentChangesOnly(t *testing.T) {
+	auth := func(body string) manifest {
+		return manifest{apiVersion: "v1", kind: "ConfigMap", ns: "messaging", name: "nats-config",
+			data: map[string]any{"auth.conf": body}}
+	}
+	cases := []struct {
+		name  string
+		apply manifest
+		want  []string
+	}{
+		{"an ownership takeover with the same data", auth("same"), []string{}},
+		{"new data", auth("next"), []string{"ConfigMap messaging/nats-config"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			live := auth("same").obj()
+			live.SetResourceVersion("7")
+			c, a := newCluster(t, false, live)
+			c.takeVersion = "8"
+			res, err := a.Apply(context.Background(), objects(tc.apply))
+			if err != nil {
+				t.Fatalf("Apply: %v", err)
+			}
+			if got := refStrings(res.Changed); !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("changed = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestApplyWithoutKEDA(t *testing.T) {
 	c, a := newCluster(t, false)
 	objs := objects(manifest{apiVersion: "apps/v1", kind: "Deployment", ns: "db", name: "users", spec: replicas3})
@@ -183,6 +217,8 @@ func TestAllowlist(t *testing.T) {
 		manifest{apiVersion: "v1", kind: "Secret", ns: "app", name: "gossip-env"},
 		manifest{apiVersion: "rbac.authorization.k8s.io/v1", kind: "Role", ns: "db", name: "deployer"},
 		manifest{apiVersion: "apps/v1", kind: "Deployment", ns: "ops", name: "deployer"},
+		manifest{apiVersion: "apps/v1", kind: "Deployment", ns: "ops", name: "backup"},
+		manifest{apiVersion: "v1", kind: "Service", ns: "ops", name: "deployer"},
 		manifest{apiVersion: "secrets.doppler.com/v1alpha1", kind: "DopplerSecret", ns: "db", name: "users-env"},
 		manifest{apiVersion: "example.com/v1", kind: "Deployment", ns: "app", name: "lookalike"},
 		manifest{apiVersion: "scheduling.k8s.io/v1", kind: "PriorityClass", name: "bagel-edge"},
@@ -202,9 +238,9 @@ func TestAllowlist(t *testing.T) {
 	got := outcome{Refused: errors.Is(err, ports.ErrRefused), LogLines: len(f.LogTail), Actions: len(c.client.Actions()),
 		Code: f.Code, Accepted: refs(ok, nil), Outside: refStrings(out)}
 	want := outcome{
-		Refused: true, Code: deploy.FailApplyRefused, LogLines: 5, Actions: 0,
-		Accepted: []string{"Deployment app/gossip", "PriorityClass bagel-edge"},
-		Outside: []string{"Secret app/gossip-env", "Role db/deployer", "Deployment ops/deployer",
+		Refused: true, Code: deploy.FailApplyRefused, LogLines: 6, Actions: 0,
+		Accepted: []string{"Deployment app/gossip", "Deployment ops/deployer", "PriorityClass bagel-edge"},
+		Outside: []string{"Secret app/gossip-env", "Role db/deployer", "Deployment ops/backup", "Service ops/deployer",
 			"DopplerSecret db/users-env", "Deployment app/lookalike"},
 	}
 	if !reflect.DeepEqual(got, want) {

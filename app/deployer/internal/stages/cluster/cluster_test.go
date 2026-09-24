@@ -7,6 +7,7 @@ import (
 	"context"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -92,6 +93,7 @@ func TestRolloutRun(t *testing.T) {
 		{"Deployment/commands"},
 		{"ConfigMap/users-env", "Deployment/users"},
 		{"Deployment/sesame"},
+		{"Deployment/deployer"},
 		{"IngressRoute/service-status"},
 	}
 	type outcome struct {
@@ -106,10 +108,10 @@ func TestRolloutRun(t *testing.T) {
 		want        outcome
 	}{
 		{
-			name: "rolls one service at a time in order, deployer skipped",
-			want: outcome{Applied: applies, Waited: []string{"commands", "users", "sesame"}, Rows: map[string]string{
+			name: "rolls one service at a time in order, the deployer itself last",
+			want: outcome{Applied: applies, Waited: []string{"commands", "users", "sesame", "deployer"}, Rows: map[string]string{
 				"priority": "succeeded 0/0", "shared": "succeeded 0/0", "commands": "succeeded 1/1",
-				"users": "succeeded 1/1", "sesame": "succeeded 1/1", "deployer": "skipped 0/0",
+				"users": "succeeded 1/1", "sesame": "succeeded 1/1", "deployer": "succeeded 1/1",
 				"status-routes": "succeeded 0/0",
 			}},
 		},
@@ -123,12 +125,21 @@ func TestRolloutRun(t *testing.T) {
 			}},
 		},
 		{
-			name:        "cancel after the last service leaves the status routes unapplied",
+			name:        "cancel before the deployer leaves it on its old image",
 			cancelAfter: 3,
 			want: outcome{Applied: applies[:5], Waited: []string{"commands", "users", "sesame"}, Err: "cancelled", Rows: map[string]string{
 				"priority": "succeeded 0/0", "shared": "succeeded 0/0", "commands": "succeeded 1/1",
 				"users": "succeeded 1/1", "sesame": "succeeded 1/1", "deployer": "cancelled 0/0",
 				"status-routes": "pending 0/0",
+			}},
+		},
+		{
+			name:        "cancel after the deployer leaves the status routes unapplied",
+			cancelAfter: 4,
+			want: outcome{Applied: applies[:6], Waited: []string{"commands", "users", "sesame", "deployer"}, Err: "cancelled", Rows: map[string]string{
+				"priority": "succeeded 0/0", "shared": "succeeded 0/0", "commands": "succeeded 1/1",
+				"users": "succeeded 1/1", "sesame": "succeeded 1/1", "deployer": "succeeded 1/1",
+				"status-routes": "cancelled 0/0",
 			}},
 		},
 	}
@@ -187,7 +198,7 @@ func liveTrain() []ports.LiveImage {
 	for _, s := range []struct {
 		ns   ports.Namespace
 		name deploy.ImageName
-	}{{nsDB, "commands"}, {nsDB, "users"}, {nsApp, "sesame"}} {
+	}{{nsDB, "commands"}, {nsDB, "users"}, {nsApp, "sesame"}, {nsOps, "deployer"}} {
 		ref := ports.WorkloadRef{Kind: kindDeployment, Namespace: s.ns, Name: string(s.name)}
 		live = append(live, ports.LiveImage{Workload: ref, Container: string(s.name), Image: imageOf(s.name)})
 	}
@@ -236,11 +247,12 @@ func TestACL(t *testing.T) {
 		object(ports.ObjectRef{Kind: kindConfigMap, Namespace: nsMessaging, Name: "nats-config"}),
 		object(ports.ObjectRef{Kind: "Certificate", Namespace: nsMessaging, Name: "nats-cert"}),
 	}
-	touched := []ports.FilePath{"deploy/messaging/nats.conf"}
 	fresh := ports.NATSServer{Pod: "nats-0", Node: "node1", ConfigLoaded: t0.Add(time.Second)}
 	stale := ports.NATSServer{Pod: "nats-leaf-x", Node: "node2", ConfigLoaded: t0.Add(-time.Hour)}
+	restless := ports.NATSServer{Pod: "nats-leaf-z", Node: "node3", ConfigLoaded: t0.Add(time.Hour)}
 	type outcome struct {
 		Err       string
+		Message   string
 		Applied   int
 		Changed   bool
 		AppliedAt bool
@@ -248,47 +260,79 @@ func TestACL(t *testing.T) {
 	}
 	cases := []struct {
 		name    string
-		files   []ports.FilePath
 		changed []ports.ObjectRef
 		servers []ports.NATSServer
 		want    outcome
 	}{
 		{
-			name:  "messaging unchanged skips without applying",
-			files: []ports.FilePath{"deploy/k8s/users.yaml"},
-			want:  outcome{Err: "skipped", Rows: map[string]string{}},
+			name: "live config already matching git applies and waits on no reload",
+			want: outcome{Applied: 1, Rows: map[string]string{"reload": "skipped 0/0"}},
 		},
 		{
-			name: "an apply that changes nothing the servers load waits on no reload", files: touched,
+			name:    "an apply that changes nothing the servers load waits on no reload",
 			changed: []ports.ObjectRef{{Kind: "Service"}},
 			want:    outcome{Applied: 1, Changed: true, Rows: map[string]string{"reload": "skipped 0/0"}},
 		},
 		{
-			name: "every server reloaded after the apply", files: touched,
+			name:    "every server reloaded after the apply and stayed quiet",
 			changed: []ports.ObjectRef{{Kind: kindConfigMap}},
 			servers: []ports.NATSServer{fresh, {Pod: "nats-leaf-y", Node: "node2", ConfigLoaded: t0.Add(2 * time.Second)}},
 			want: outcome{Applied: 1, Changed: true, AppliedAt: true,
 				Rows: map[string]string{"nats-0": "succeeded 1/1", "nats-leaf-y": "succeeded 1/1"}},
 		},
 		{
-			name: "a server that never reloads times the stage out", files: touched,
+			name:    "a server that never reloads times the stage out",
 			changed: []ports.ObjectRef{{Kind: kindConfigMap}},
 			servers: []ports.NATSServer{fresh, stale},
-			want: outcome{Err: "timeout", Applied: 1, Changed: true, AppliedAt: true,
+			want: outcome{Err: "timeout", Message: "1 of 2 NATS servers reloaded", Applied: 1, Changed: true, AppliedAt: true,
 				Rows: map[string]string{"nats-0": "succeeded 1/1", "nats-leaf-x": "running 0/1"}},
+		},
+		{
+			name:    "a server still reloading holds the stage until it times out",
+			changed: []ports.ObjectRef{{Kind: kindConfigMap}},
+			servers: []ports.NATSServer{fresh, restless},
+			want: outcome{Err: "timeout", Message: "NATS servers reloaded but did not stay quiet", Applied: 1, Changed: true, AppliedAt: true,
+				Rows: map[string]string{"nats-0": "succeeded 1/1", "nats-leaf-z": "succeeded 1/1"}},
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			h := newHarness(deploy.KindRelease)
+			h.clock = &stepClock{now: t0, step: time.Second}
 			h.applier.builds["deploy/messaging"] = messaging
-			h.gh.changed, h.applier.changed, h.watcher.servers = tc.files, tc.changed, tc.servers
+			h.applier.changed, h.watcher.servers = tc.changed, tc.servers
 			err := acl{}.Run(context.Background(), h.rc(deploy.StageACL))
 			out := h.sink.View().Outputs
 			got := outcome{Err: errCode(err), Applied: len(h.applier.applied), Changed: out.MessagingChanged,
 				AppliedAt: out.ACLAppliedAt != nil, Rows: h.sink.rows(deploy.StageACL)}
+			if f, ok := ports.AsFail(err); ok && strings.HasPrefix(f.Message, tc.want.Message) {
+				got.Message = tc.want.Message
+			}
 			if !reflect.DeepEqual(got, tc.want) {
 				t.Fatalf("acl =\n%+v\nwant\n%+v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestACLDoneWaitsForQuiet(t *testing.T) {
+	cases := []struct {
+		name   string
+		loaded time.Duration
+		want   bool
+	}{
+		{"last reload older than the settle window", -time.Minute, true},
+		{"a reload inside the settle window", -2 * time.Second, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(deploy.KindRelease)
+			at := t0.Add(-time.Hour)
+			_ = h.sink.Update(context.Background(), func(r *deploy.Run) { r.Outputs.ACLAppliedAt = &at })
+			h.watcher.servers = []ports.NATSServer{{Pod: "nats-0", ConfigLoaded: t0.Add(tc.loaded)}}
+			done, err := acl{}.Done(context.Background(), h.rc(deploy.StageACL))
+			if err != nil || done != tc.want {
+				t.Fatalf("Done() = %v, %v; want %v", done, err, tc.want)
 			}
 		})
 	}
@@ -301,7 +345,6 @@ func TestACLAppliesManagedObjectsOnly(t *testing.T) {
 		object(ports.ObjectRef{Kind: "Certificate", Namespace: nsMessaging, Name: "nats-cert"}),
 		object(ports.ObjectRef{Kind: "DopplerSecret", Namespace: nsMessaging, Name: "nats-doppler"}),
 	}
-	h.gh.changed = []ports.FilePath{"deploy/messaging/kustomization.yaml"}
 	_ = acl{}.Run(context.Background(), h.rc(deploy.StageACL))
 	want := [][]string{{"ConfigMap/nats-config"}}
 	if !reflect.DeepEqual(h.applier.applied, want) {
@@ -316,6 +359,7 @@ func verifyBuild() ports.Objects {
 			"(Host(`dashboard.itsbagelbot.com`) || Host(`stats.itsbagelbot.com`)) && PathPrefix(`/auth/`)",
 			"Host(`dashboard.itsbagelbot.com`) || Host(`stats.itsbagelbot.com`)"),
 		ingressRoute(ports.ObjectRef{Namespace: nsApp, Name: "unrouted-host-fallback"}, "HostRegexp(`^.+$`)"),
+		ingressRoute(ports.ObjectRef{Namespace: nsApp, Name: "service-status"}, "Host(`health.itsbagelbot.com`) && Path(`/twitch`)"),
 	)
 }
 
@@ -323,25 +367,23 @@ func TestProbeURLs(t *testing.T) {
 	objs := append(verifyBuild(),
 		ingressRoute(ports.ObjectRef{Namespace: nsDB, Name: "transactions-webhooks"},
 			"Host(`webhooks.itsbagelbot.com`) && (PathPrefix(`/tebex`) || PathPrefix(`/webhooks/tebex`))"),
-		ingressRoute(ports.ObjectRef{Namespace: nsApp, Name: "service-status"},
-			"Host(`health.itsbagelbot.com`) && Path(`/twitch`)", "Host(`health.itsbagelbot.com`) && Path(`/discord`)"),
+		ingressRoute(ports.ObjectRef{Namespace: nsApp, Name: "discord-status"},
+			"Host(`health.itsbagelbot.com`) && Path(`/discord`)", "Host(`health.itsbagelbot.com`) && Path(`/twitch`)"),
 	)
 	want := []ports.URL{
-		"https://dashboard.itsbagelbot.com/status",
-		"https://stats.itsbagelbot.com/status",
-		"https://webhooks.itsbagelbot.com/tebex",
 		"https://health.itsbagelbot.com/twitch",
+		"https://health.itsbagelbot.com/discord",
+		"https://health.itsbagelbot.com/db",
 	}
-	if got := probeURLs(objs); !slices.Equal(got, want) {
+	if got := probeURLs(objs, dbRoutes()); !slices.Equal(got, want) {
 		t.Fatalf("probeURLs = %v, want %v", got, want)
 	}
 }
 
 func TestVerify(t *testing.T) {
 	healthy := map[ports.URL]int{
-		"https://dashboard.itsbagelbot.com/status": 200,
-		"https://stats.itsbagelbot.com/status":     302,
-		"https://health.itsbagelbot.com/db":        200,
+		"https://health.itsbagelbot.com/twitch": 200,
+		"https://health.itsbagelbot.com/db":     302,
 	}
 	type outcome struct {
 		Err     string
@@ -351,7 +393,7 @@ func TestVerify(t *testing.T) {
 	}
 	rows := func(failed ...string) map[string]string {
 		out := map[string]string{}
-		for _, k := range []string{"image:commands", "image:users", "image:sesame"} {
+		for _, k := range []string{"image:commands", "image:users", "image:sesame", "image:deployer"} {
 			out[k] = "succeeded 0/0"
 		}
 		for url := range healthy {
@@ -382,13 +424,12 @@ func TestVerify(t *testing.T) {
 		{
 			name: "every failing host is reported, not just the first",
 			codes: map[ports.URL]int{
-				"https://dashboard.itsbagelbot.com/status": 200,
-				"https://health.itsbagelbot.com/db":        503,
+				"https://health.itsbagelbot.com/db": 503,
 			},
 			want: outcome{Err: "verify_failed", Actions: rollback,
-				Rows: rows("https://stats.itsbagelbot.com/status", "https://health.itsbagelbot.com/db"),
+				Rows: rows("https://health.itsbagelbot.com/twitch", "https://health.itsbagelbot.com/db"),
 				LogTail: []string{
-					"https://stats.itsbagelbot.com/status: connection refused",
+					"https://health.itsbagelbot.com/twitch: connection refused",
 					"https://health.itsbagelbot.com/db: answered 503",
 				}},
 		},
