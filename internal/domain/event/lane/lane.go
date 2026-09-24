@@ -65,6 +65,14 @@ func (e Envelope) BroadcasterName() string {
 	return e.BroadcasterUserLogin
 }
 
+// MessageCount is how many Twitch messages the envelope stands for; a squashed cohort lists each sender.
+func (e *Envelope) MessageCount() int64 {
+	if n := len(e.Senders); n > 0 {
+		return int64(n)
+	}
+	return 1
+}
+
 func (e Envelope) ChatterName() string {
 	if e.ChatterUserName != "" {
 		return e.ChatterUserName

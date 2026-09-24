@@ -7,10 +7,12 @@
 
   let {
     eps,
+    burstEps,
     utilization,
     targetUtilization
   }: {
     eps: number;
+    burstEps?: number;
     utilization: number;
     targetUtilization: number;
   } = $props();
@@ -26,7 +28,9 @@
     <span class="fill {tone}" style="width:{width}%"></span>
   </span>
   <span class="rate {tone}">
-    {t('admin.shards.rowLoad', { eps: rateLabel(eps), pct: pctLabel(utilization) })}
+    {burstEps === undefined
+      ? t('admin.shards.rowLoad', { eps: rateLabel(eps), pct: pctLabel(utilization) })
+      : t('admin.shards.rowLoadBurst', { now: rateLabel(burstEps), eps: rateLabel(eps), pct: pctLabel(utilization) })}
   </span>
 </span>
 

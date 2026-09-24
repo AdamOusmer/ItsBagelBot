@@ -2,13 +2,16 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.Capacity do
+  # web/kit/lib/rates.ts uses the same two windows; change them together.
   @load_window_seconds 60
+  @burst_window_seconds 10
   @default_pod_rated_eps 140_000
   @default_nats_rated_eps 123_000
   @default_websocket_rated_eps 16_000
   @default_target_utilization_pct 75
 
   def load_window_seconds, do: @load_window_seconds
+  def burst_window_seconds, do: @burst_window_seconds
 
   def pod_rated_eps,
     do: Application.get_env(:ingress, :capacity_pod_rated_eps, @default_pod_rated_eps)
@@ -51,6 +54,7 @@ defmodule Ingress.Capacity do
       benchmark: "cached_chat_full_path_in_vm_puback",
       nats_benchmark: "live_direct_hub_puback",
       load_window_seconds: load_window_seconds(),
+      burst_window_seconds: burst_window_seconds(),
       target_utilization_pct: target_utilization_pct(),
       pod_rated_eps: pod_rated_eps(),
       pod_target_eps: pod_target_eps(),

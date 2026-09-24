@@ -46,6 +46,7 @@ defmodule Ingress.AdminRpc do
       conduit_manager: manager_status(),
       shards: shards,
       trial_loads: trials.loads,
+      trial_burst_loads: trials.bursts,
       trial_sockets: trials.sockets
     }
   end

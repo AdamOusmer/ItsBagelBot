@@ -2,12 +2,12 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { IngressCapacity, ShardSnapshot } from '@bagel/kit';
+import { RATE_AVG_SECONDS, RATE_NOW_SECONDS, perSecond } from '@bagel/kit/rates';
 
 const FALLBACK_POD_RATED_EPS = 140_000;
 const FALLBACK_WEBSOCKET_RATED_EPS = 16_000;
 const FALLBACK_NATS_RATED_EPS = 123_000;
 const FALLBACK_TARGET_PCT = 75;
-const FALLBACK_WINDOW_SECONDS = 60;
 
 export function resolveCapacity(snapshot: ShardSnapshot): IngressCapacity {
   if (snapshot.capacity) return snapshot.capacity;
@@ -24,7 +24,8 @@ export function resolveCapacity(snapshot: ShardSnapshot): IngressCapacity {
   return {
     benchmark: 'cached_chat_full_path_in_vm_puback',
     nats_benchmark: 'live_direct_hub_puback',
-    load_window_seconds: FALLBACK_WINDOW_SECONDS,
+    load_window_seconds: RATE_AVG_SECONDS,
+    burst_window_seconds: RATE_NOW_SECONDS,
     target_utilization_pct: FALLBACK_TARGET_PCT,
     pod_rated_eps: FALLBACK_POD_RATED_EPS,
     pod_target_eps: podTarget,
@@ -42,12 +43,7 @@ export function resolveCapacity(snapshot: ShardSnapshot): IngressCapacity {
   };
 }
 
-export function eventsPerSecond(load: number | undefined, windowSeconds: number): number {
-  if (load == null) return 0;
-  if (load <= 0) return 0;
-  if (windowSeconds <= 0) return 0;
-  return load / windowSeconds;
-}
+export const eventsPerSecond = perSecond;
 
 export function utilizationPct(rate: number, ratedEps: number): number {
   if (rate <= 0 || ratedEps <= 0) return 0;

@@ -177,11 +177,12 @@ func (p *Pipeline) Process(msg *bus.Message) error {
 }
 
 func (p *Pipeline) countDecoded(ctx context.Context, env *lane.Envelope, broadcasterID uint64) {
+	n := env.MessageCount()
 	if env.Origin == "trial" {
-		p.stats.count(0, env.Type == chatType)
-		p.countTrial(ctx, env.BroadcasterUserID, "decoded")
+		p.stats.count(0, env.Type == chatType, n)
+		p.addTrial(ctx, env.BroadcasterUserID, "decoded", n)
 	} else {
-		p.stats.count(broadcasterID, env.Type == chatType)
+		p.stats.count(broadcasterID, env.Type == chatType, n)
 	}
 }
 

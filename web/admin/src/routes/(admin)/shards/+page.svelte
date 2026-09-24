@@ -30,6 +30,7 @@
   import FleetRow from '$lib/components/shards/FleetRow.svelte';
   import { podIndex, rateLabel } from '$lib/components/shards/shard-state';
   import { eventsPerSecond, pctLabel, resolveCapacity, utilizationPct } from '$lib/throughput';
+  import { RATE_NOW_SECONDS } from '@bagel/kit/rates';
 
   let { data } = $props();
 
@@ -114,6 +115,10 @@
     return capacity ? eventsPerSecond(load, capacity.load_window_seconds) : 0;
   }
 
+  function burstRate(load?: number): number {
+    return capacity ? eventsPerSecond(load, capacity.burst_window_seconds ?? RATE_NOW_SECONDS) : 0;
+  }
+
   const trialLoads = $derived(snap?.trial_loads ?? {});
   const trialSockets = $derived(snap?.trial_sockets ?? []);
 
@@ -144,6 +149,11 @@
     connecting: 'admin.shards.trialSocketConnecting',
     idle: 'admin.shards.trialSocketIdle'
   };
+  const trialBursts = $derived(snap?.trial_burst_loads ?? {});
+  const aggregateBurst = $derived(
+    shards.reduce((sum, s) => sum + burstRate(s.burst_load), 0) +
+      Object.values(trialBursts).reduce((sum, load) => sum + burstRate(load), 0)
+  );
   const aggregateEps = $derived(
     shards.reduce((sum, s) => sum + evRate(s.load), 0) +
       Object.values(trialLoads).reduce((sum, load) => sum + evRate(load), 0)
@@ -251,7 +261,8 @@
         label={t('admin.shards.tileThroughput')}
         value={rateLabel(aggregateEps)}
         unit={t('admin.shards.eps')}
-        delta={t('admin.shards.tileThroughputDelta', {
+        delta={t('admin.shards.tileThroughputDeltaBurst', {
+          now: rateLabel(aggregateBurst),
           pct: pctLabel(aggregateUtilization)
         })}
       />
@@ -335,6 +346,7 @@
                 {shard}
                 nodes={snap.nodes}
                 eps={evRate(shard.load)}
+                burstEps={burstRate(shard.burst_load)}
                 utilization={utilizationPct(evRate(shard.load), capacity.websocket_rated_eps)}
                 targetUtilization={capacity.target_utilization_pct}
               />
@@ -370,6 +382,7 @@
                     count: String(group.channels.length)
                   })}
                   eps={evRate(group.socket?.load)}
+                  burstEps={burstRate(group.socket?.burst)}
                   utilization={capacity ? utilizationPct(evRate(group.socket?.load), capacity.websocket_rated_eps) : 0}
                   targetUtilization={capacity?.target_utilization_pct ?? 75}
                 />
@@ -388,6 +401,7 @@
                   {#if capacity}
                     <LoadMeter
                       eps={evRate(trialLoads[trial.broadcaster_id])}
+                      burstEps={burstRate(trialBursts[trial.broadcaster_id])}
                       utilization={utilizationPct(evRate(trialLoads[trial.broadcaster_id]), capacity.websocket_rated_eps)}
                       targetUtilization={capacity.target_utilization_pct}
                     />

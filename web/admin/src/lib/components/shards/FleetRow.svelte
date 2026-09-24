@@ -12,6 +12,7 @@
     state,
     meta,
     eps,
+    burstEps,
     utilization,
     targetUtilization,
     marks
@@ -21,6 +22,7 @@
     state: string;
     meta: string;
     eps: number;
+    burstEps?: number;
     utilization: number;
     targetUtilization: number;
     marks?: Snippet;
@@ -36,7 +38,7 @@
     </span>
     <span class="meta">{meta}</span>
   </span>
-  <LoadMeter {eps} {utilization} {targetUtilization} />
+  <LoadMeter {eps} {burstEps} {utilization} {targetUtilization} />
   {#if marks}
     <span class="marks">{@render marks()}</span>
   {/if}

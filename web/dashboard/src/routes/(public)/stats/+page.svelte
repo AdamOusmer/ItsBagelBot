@@ -31,8 +31,8 @@
   let display = $state({
     messages: seed.messages_total,
     events: seed.events_total,
-    msgRate: seed.msg_rate ?? 0,
-    eventRate: seed.event_rate ?? 0
+    msgRate: seed.msg_rate_now ?? seed.msg_rate ?? 0,
+    eventRate: seed.event_rate_now ?? seed.event_rate ?? 0
   });
 
   type Frame = typeof display;
@@ -46,13 +46,13 @@
 
   function targetFrame(now: number): Frame {
     const secs = Math.min(Math.max(0, now - snapAt) / 1000, MAX_PROJECT_S);
-    const msgRate = live.msg_rate ?? 0;
-    const eventRate = live.event_rate ?? 0;
+    const msgAvg = live.msg_rate ?? 0;
+    const eventAvg = live.event_rate ?? 0;
     return {
-      messages: live.messages_total + msgRate * secs,
-      events: live.events_total + eventRate * secs,
-      msgRate,
-      eventRate
+      messages: live.messages_total + msgAvg * secs,
+      events: live.events_total + eventAvg * secs,
+      msgRate: live.msg_rate_now ?? msgAvg,
+      eventRate: live.event_rate_now ?? eventAvg
     };
   }
 
@@ -200,12 +200,14 @@
       label: t('stats.messagesLabel'),
       value: totalFmt.format(Math.round(display.messages)),
       rate: live.msg_rate === null ? null : rateFmt.format(display.msgRate),
+      average: live.msg_rate === null ? null : rateFmt.format(live.msg_rate),
       rateLabel: t('stats.messageRateLabel')
     },
     {
       label: t('stats.eventsLabel'),
       value: totalFmt.format(Math.round(display.events)),
       rate: live.event_rate === null ? null : rateFmt.format(display.eventRate),
+      average: live.event_rate === null ? null : rateFmt.format(live.event_rate),
       rateLabel: t('stats.eventRateLabel')
     }
   ]);
@@ -274,6 +276,9 @@
               <span class="rate-num">{tile.rate}</span><small class="unit">{t('stats.perSecond')}</small>
             {/if}
             <span class="rate-label">{tile.rateLabel} · {t('stats.rightNow')}</span>
+            {#if tile.average !== null}
+              <span class="rate-label">{t('stats.minuteAverage', { rate: tile.average })}</span>
+            {/if}
           </div>
           </Stack>
         </Card>

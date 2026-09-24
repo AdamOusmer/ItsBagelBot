@@ -83,6 +83,7 @@
     "./giveaway": "./lib/giveaway.ts",
     "./format": "./lib/format.ts",
     "./live-poll": "./lib/live-poll.ts",
+    "./rates": "./lib/rates.ts",
     "./social": "./lib/social.ts",
     "./site-links": "./lib/site-links.ts"
   },

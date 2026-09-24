@@ -5,7 +5,7 @@ import { dev } from '$app/environment';
 import { POLICY } from '@bagel/kit/server/cache-keys';
 import { fabric } from './services';
 import { liveTotals } from './live-counters';
-import { rateWindow } from './rate-window';
+import { rateWindows } from '@bagel/kit/rates';
 
 // process.env, not $env/dynamic/private: the dynamic-env proxy deadlocks server.init() at boot.
 const DEMO = dev && process.env.DEMO === '1';
@@ -22,13 +22,23 @@ export interface PublicStats {
   events_total: number;
   msg_rate: number | null;
   event_rate: number | null;
+  msg_rate_now: number | null;
+  event_rate_now: number | null;
   degraded: boolean;
 }
 
-const sampleRates = rateWindow();
+const sampleRates = rateWindows();
 
 function degradedStats(): PublicStats {
-  return { messages_total: 0, events_total: 0, msg_rate: null, event_rate: null, degraded: true };
+  return {
+    messages_total: 0,
+    events_total: 0,
+    msg_rate: null,
+    event_rate: null,
+    msg_rate_now: null,
+    event_rate_now: null,
+    degraded: true
+  };
 }
 
 async function loadStats(): Promise<PublicStats> {
@@ -41,8 +51,10 @@ async function loadStats(): Promise<PublicStats> {
   return {
     messages_total: messages,
     events_total: events,
-    msg_rate: rates.msg,
-    event_rate: rates.event,
+    msg_rate: rates.avg.msg,
+    event_rate: rates.avg.event,
+    msg_rate_now: rates.now.msg,
+    event_rate_now: rates.now.event,
     degraded: false
   };
 }

@@ -35,7 +35,8 @@ defmodule Ingress.ShardSession do
             takeover: nil,
             name_state: :named,
             ws_connect_opts: [],
-            load_counter: Ingress.LoadCounter.new()
+            load_counter: Ingress.LoadCounter.new(),
+            burst_counter: Ingress.LoadCounter.new(Ingress.Capacity.burst_window_seconds())
 
   def start_link(opts) do
     if Keyword.get(opts, :rescue?, false) do
@@ -80,11 +81,12 @@ defmodule Ingress.ShardSession do
 
   @impl true
   def handle_call(:status, _from, state) do
-    {load, updated_counter} =
-      Ingress.LoadCounter.value(state.load_counter, System.monotonic_time(:millisecond))
+    now = System.monotonic_time(:millisecond)
+    {load, load_counter} = Ingress.LoadCounter.value(state.load_counter, now)
+    {burst, burst_counter} = Ingress.LoadCounter.value(state.burst_counter, now)
 
-    state = %{state | load_counter: updated_counter}
-    {:reply, status_map(state, load), state}
+    state = %{state | load_counter: load_counter, burst_counter: burst_counter}
+    {:reply, status_map(state, load, burst), state}
   end
 
   @impl true
@@ -119,7 +121,7 @@ defmodule Ingress.ShardSession do
     {:noreply, reconnect(state)}
   end
 
-  defp status_map(state, load) do
+  defp status_map(state, load, burst) do
     last_frame_at =
       if state.last_frame_system_ms do
         DateTime.from_unix!(state.last_frame_system_ms, :millisecond)
@@ -140,7 +142,8 @@ defmodule Ingress.ShardSession do
       attempts: state.attempts,
       bound_at: state.bound_at,
       last_frame_at: last_frame_at,
-      load: load
+      load: load,
+      burst_load: burst
     }
   end
 
@@ -712,7 +715,12 @@ defmodule Ingress.ShardSession do
 
   defp count_notification(state) do
     now = System.monotonic_time(:millisecond)
-    %{state | load_counter: Ingress.LoadCounter.increment(state.load_counter, now)}
+
+    %{
+      state
+      | load_counter: Ingress.LoadCounter.increment(state.load_counter, now),
+        burst_counter: Ingress.LoadCounter.increment(state.burst_counter, now)
+    }
   end
 
   defp pet_watchdog(state) do
