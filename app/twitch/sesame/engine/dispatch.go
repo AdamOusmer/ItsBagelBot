@@ -24,19 +24,22 @@ func (p *Pipeline) dispatchCommand(ctx context.Context, c *module.Context, views
 	if !ok {
 		return nil
 	}
-	if c.Env.Origin == "trial" && !trialReadOnlyCommand(name) {
+	bc, num, isBaked := p.registry.ResolveCommand(name)
+	if c.Env.Origin == "trial" && !trialCommand(bc, isBaked, name) {
 		return nil
 	}
 	c.Command = name
-	if bc, num, isBaked := p.registry.ResolveCommand(name); isBaked {
-		if p.enabled(bc.Owner, views, c) {
-			return p.runBaked(ctx, c, bc.Cmd, num, args, emit)
-		}
+	if isBaked && p.enabled(bc.Owner, views, c) {
+		return p.runBaked(ctx, c, bc.Cmd, num, args, emit)
 	}
 	if c.Env.Origin == "trial" {
 		return nil
 	}
 	return p.runCustom(ctx, c, name, args, emit)
+}
+
+func trialCommand(bc BoundCommand, isBaked bool, name string) bool {
+	return (isBaked && bc.Owner.Trial) || trialReadOnlyCommand(name)
 }
 
 func trialReadOnlyCommand(name string) bool {

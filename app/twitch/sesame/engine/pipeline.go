@@ -619,6 +619,10 @@ func notice(ctx context.Context, err error) {
 }
 
 func (p *Pipeline) enabled(m module.Module, views map[string]projection.ModuleView, mctx *module.Context) bool {
+	if m.Trial {
+		mctx.Config = nil
+		return mctx.Env.Origin == "trial"
+	}
 	if m.Beta && !mctx.Regress.IsPremium() {
 		return false
 	}

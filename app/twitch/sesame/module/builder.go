@@ -14,6 +14,7 @@ type Builder struct {
 	name   string
 	kind   Kind
 	beta   bool
+	trial  bool
 	events map[string]EventHandler
 	cmds   []*Command
 }
@@ -24,6 +25,11 @@ func NewModule(name string, kind Kind) *Builder {
 
 func (b *Builder) Beta() *Builder {
 	b.beta = true
+	return b
+}
+
+func (b *Builder) Trial() *Builder {
+	b.trial = true
 	return b
 }
 
@@ -63,6 +69,7 @@ func (b *Builder) Build() Module {
 		Name:     b.name,
 		Kind:     b.kind,
 		Beta:     b.beta,
+		Trial:    b.trial,
 		Events:   events,
 		Commands: cmds,
 	}
@@ -76,6 +83,9 @@ func (b *Builder) Validate() error {
 }
 
 func (b *Builder) validateKindName() error {
+	if b.trial && (b.kind != KindCore || b.beta) {
+		return fmt.Errorf("trial module %q must be core and not beta: nothing but the trial origin gates it", b.name)
+	}
 	switch b.kind {
 	case KindCore:
 		if b.beta {

@@ -111,6 +111,9 @@ func TestValidateKindNamePairing(t *testing.T) {
 		{"optin empty bad", func() *Builder { return NewModule("", KindOptIn) }, true},
 		{"core beta bad", func() *Builder { return NewModule("x", KindCore).Beta() }, true},
 		{"optin beta ok", func() *Builder { return NewModule("x", KindOptIn).Beta() }, false},
+		{"core trial ok", func() *Builder { return NewModule("trial", KindCore).Trial() }, false},
+		{"optin trial bad", func() *Builder { return NewModule("x", KindOptIn).Trial() }, true},
+		{"default trial bad", func() *Builder { return NewModule("x", KindDefault).Trial() }, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -187,5 +190,14 @@ func TestDuplicateEventKeepsLast(t *testing.T) {
 	_ = mod.Events["channel.chat.message"](context.Background(), &Context{}, func(*Output) {})
 	if last != 2 {
 		t.Fatalf("On did not keep the last handler: last=%d", last)
+	}
+}
+
+func TestTrialFlagLands(t *testing.T) {
+	if !NewModule("trial", KindCore).Trial().Build().Trial {
+		t.Fatal("Trial() did not mark the built module")
+	}
+	if NewModule("", KindCore).Build().Trial {
+		t.Fatal("a plain module must not be trial")
 	}
 }

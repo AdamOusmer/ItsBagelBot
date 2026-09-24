@@ -72,4 +72,5 @@ type Module struct {
 	Events   map[string]EventHandler
 	Commands []Command
 	Beta     bool
+	Trial    bool
 }
