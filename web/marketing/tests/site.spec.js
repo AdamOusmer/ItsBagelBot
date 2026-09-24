@@ -179,6 +179,10 @@ test.describe('ItsBagelBot site', () => {
 
     test('static gates open in sync with the message', async ({ page }) => {
         await page.goto('/');
+        // The section's loops only exist while it is near the viewport
+        // (@bagel/ui/lib/motion-gate).
+        await page.locator('.gates__lane').scrollIntoViewIfNeeded();
+        await expect(page.locator('#safety-layers')).toHaveAttribute('data-motion', 'on');
 
         const samples = await page.evaluate(() => {
             const lane = document.querySelector('.gates__lane');
