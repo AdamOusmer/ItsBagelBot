@@ -3,6 +3,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { enhance } from '$app/forms';
   import { onMount } from 'svelte';
+  import { visibleEventSource } from '$lib/visible-stream';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
@@ -85,13 +86,13 @@
   } | null>(null);
   onMount(() => {
     if (typeof EventSource === 'undefined' || isDelegate) return;
-    const es = new EventSource('/overview/stream');
-    es.addEventListener('live', (e) => {
-      try {
-        live = JSON.parse((e as MessageEvent).data);
-      } catch {}
+    return visibleEventSource('/overview/stream', (es) => {
+      es.addEventListener('live', (e) => {
+        try {
+          live = JSON.parse((e as MessageEvent).data);
+        } catch {}
+      });
     });
-    return () => es.close();
   });
 
   type PendingAction = 'restart' | 'disconnect' | null;
