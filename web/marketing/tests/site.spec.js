@@ -32,6 +32,35 @@ function releasesNewestFirst() {
         });
 }
 
+// Page-side predicates for the encryption scene, handed to waitForFunction.
+// The first holds once the new scene's renderer has taken the canvas (parked
+// at 1x1 or sized); the second once its buffers cover the display.
+function encryptionTookCanvas(previousId) {
+    const canvas = document.querySelector('#enc-canvas');
+    const active = window.__itsbagelbotPreload?.activeEncryption;
+    return active?.id > previousId
+        && active.section === document.querySelector('#enc-section')
+        && canvas?.width !== 300;
+}
+
+function encryptionSized(previousId) {
+    const canvas = document.querySelector('#enc-canvas');
+    const active = window.__itsbagelbotPreload?.activeEncryption;
+    if (!canvas) return false;
+    if (!(active?.id > previousId)) return false;
+    const section = document.querySelector('#enc-section');
+    const hasDisplaySize = () => canvas.clientWidth > 0 && canvas.clientHeight > 0;
+    const backingCoversDisplay = () =>
+        canvas.width >= canvas.clientWidth && canvas.height >= canvas.clientHeight;
+    const isPlaceholder = () => canvas.width === 300 && canvas.height === 150;
+    return [
+        active.section === section,
+        hasDisplaySize(),
+        backingCoversDisplay(),
+        !isPlaceholder(),
+    ].every(Boolean);
+}
+
 test.describe('ItsBagelBot site', () => {
     async function jumpDown(page) {
         await page.evaluate(() => {
@@ -58,31 +87,9 @@ test.describe('ItsBagelBot site', () => {
         // for the renderer to take the canvas before scrolling: a jump made
         // earlier is undone by the router's scroll restoration on a back
         // navigation, which parks the scene again.
-        await page.waitForFunction((previousId) => {
-            const canvas = document.querySelector('#enc-canvas');
-            const active = window.__itsbagelbotPreload?.activeEncryption;
-            return active?.id > previousId
-                && active.section === document.querySelector('#enc-section')
-                && canvas?.width !== 300;
-        }, previousId);
+        await page.waitForFunction(encryptionTookCanvas, previousId);
         await jumpDown(page);
-        await page.waitForFunction((previousId) => {
-            const canvas = document.querySelector('#enc-canvas');
-            const active = window.__itsbagelbotPreload?.activeEncryption;
-            if (!canvas) return false;
-            if (!(active?.id > previousId)) return false;
-            const section = document.querySelector('#enc-section');
-            const hasDisplaySize = () => canvas.clientWidth > 0 && canvas.clientHeight > 0;
-            const backingCoversDisplay = () =>
-                canvas.width >= canvas.clientWidth && canvas.height >= canvas.clientHeight;
-            const isPlaceholder = () => canvas.width === 300 && canvas.height === 150;
-            return [
-                active.section === section,
-                hasDisplaySize(),
-                backingCoversDisplay(),
-                !isPlaceholder(),
-            ].every(Boolean);
-        }, previousId);
+        await page.waitForFunction(encryptionSized, previousId);
     }
 
     test('home renders hero + Act II sections', async ({ page }) => {

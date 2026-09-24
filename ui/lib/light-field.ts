@@ -126,8 +126,10 @@ export function field(host: HTMLElement, options: FieldOptions = {}): (() => voi
         else clear();
     }, { rootMargin: '150px' });
 
+    const resized = () => host.clientWidth !== width || host.clientHeight !== height;
+
     const resizer = new ResizeObserver(() => {
-        if (visible && (host.clientWidth !== width || host.clientHeight !== height)) build();
+        if (visible && resized()) build();
     });
 
     observer.observe(host);
