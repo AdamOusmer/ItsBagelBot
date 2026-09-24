@@ -5,21 +5,85 @@ defmodule Ingress.TrialReceiver do
   use GenServer
   require Logger
 
-  alias Ingress.{Dispatcher, JSON, Rpc, TrialRpc, Trials, WS}
+  alias Ingress.{
+    Capacity,
+    Dispatcher,
+    JSON,
+    LoadCounter,
+    Rpc,
+    TrialConduit,
+    TrialRpc,
+    Trials,
+    WS
+  }
 
   @tick_ms 5_000
   @reconnect_ms 2_000
   @welcome_ms 15_000
   @handshake_ms 30_000
+  @stagger_ms 700
+  @yield_ticks 2
+  @autoscale_seconds 30
 
-  def start_link(opts \\ []), do: GenServer.start_link(__MODULE__, opts, name: __MODULE__)
+  def child_spec(opts) do
+    slot = Keyword.get(opts, :slot, 0)
+    %{id: {__MODULE__, slot}, start: {__MODULE__, :start_link, [opts]}}
+  end
+
+  def start_link(opts \\ []) do
+    GenServer.start_link(__MODULE__, opts, name: name(Keyword.get(opts, :slot, 0)))
+  end
+
+  def name(0), do: __MODULE__
+  def name(slot), do: Module.concat(__MODULE__, "Slot#{slot}")
+
+  def status(server \\ __MODULE__), do: GenServer.call(server, :status)
+
+  def node_status do
+    Enum.flat_map(TrialConduit.slots(), fn slot ->
+      try do
+        [status(name(slot))]
+      catch
+        :exit, _ -> []
+      end
+    end)
+  end
+
+  def cluster_status(nodes) do
+    sockets =
+      nodes
+      |> :erpc.multicall(__MODULE__, :node_status, [], 1_000)
+      |> Enum.flat_map(fn
+        {:ok, statuses} when is_list(statuses) -> statuses
+        _ -> []
+      end)
+      |> Enum.filter(& &1.owned)
+
+    loads =
+      Enum.reduce(sockets, %{}, fn socket, acc ->
+        Map.merge(acc, socket.loads, fn _id, a, b -> a + b end)
+      end)
+
+    %{
+      loads: loads,
+      sockets:
+        sockets
+        |> Enum.map(&Map.drop(&1, [:owned, :loads]))
+        |> Enum.sort_by(& &1.slot)
+    }
+  end
 
   @impl true
   def init(opts) do
-    send(self(), :tick)
+    slot = Keyword.get(opts, :slot, 0)
+    Process.send_after(self(), :tick, slot * @stagger_ms)
 
     {:ok,
      %{
+       slot: slot,
+       free_ticks: 0,
+       scale_ticks: Ingress.ShardScaler.Policy.reset_ticks(),
+       scaled_at: 0,
        owner: inspect({node(), self()}),
        epoch: nil,
        socket: nil,
@@ -27,6 +91,7 @@ defmodule Ingress.TrialReceiver do
        session_id: nil,
        session_aliases: MapSet.new(),
        rows: %{},
+       loads: %{},
        connected_at: nil,
        pending_at: nil,
        last_frame_at: nil,
@@ -34,6 +99,56 @@ defmodule Ingress.TrialReceiver do
        ws: Keyword.get(opts, :ws_module, WS)
      }}
   end
+
+  @impl true
+  def handle_call(:status, _from, state) do
+    {values, state} = current_loads(state)
+
+    status = %{
+      slot: state.slot,
+      node: node(),
+      owned: state.epoch != nil,
+      state: socket_state(state),
+      channels: length(active_own_rows(state)),
+      load: values |> Map.values() |> Enum.sum(),
+      loads: values
+    }
+
+    {:reply, status, state}
+  end
+
+  defp current_loads(state) do
+    now = now_ms()
+
+    {values, counters} =
+      Enum.reduce(state.loads, {%{}, %{}}, fn {id, counter}, {values, counters} ->
+        {load, counter} = LoadCounter.value(counter, now)
+        {Map.put(values, id, load), Map.put(counters, id, counter)}
+      end)
+
+    {values, %{state | loads: counters}}
+  end
+
+  defp record_loads(%{epoch: nil} = state), do: state
+
+  defp record_loads(state) do
+    {values, state} = current_loads(state)
+
+    for row <- active_own_rows(state) do
+      Trials.record_load(
+        row.broadcaster_id,
+        row.generation,
+        state.slot,
+        Map.get(values, row.broadcaster_id, 0)
+      )
+    end
+
+    state
+  end
+
+  defp socket_state(%{session_id: session}) when is_binary(session), do: "connected"
+  defp socket_state(%{socket: nil}), do: "idle"
+  defp socket_state(_state), do: "connecting"
 
   @impl true
   def handle_info(:tick, state) do
@@ -69,16 +184,41 @@ defmodule Ingress.TrialReceiver do
   end
 
   defp ownership_tick(%{epoch: nil} = state) do
-    case Trials.acquire(state.owner) do
-      {:ok, epoch} -> reconcile(%{state | epoch: epoch})
+    case Trials.owners() do
+      {:ok, owners} -> maybe_acquire(state, owners)
       _ -> state
     end
   end
 
   defp ownership_tick(state) do
-    case Trials.renew(state.owner, state.epoch) do
-      {:ok, 1} -> state |> check_deadlines() |> reconcile()
+    case Trials.renew(state.owner, state.epoch, state.slot) do
+      {:ok, 1} -> state |> check_deadlines() |> reconcile() |> record_loads()
       _ -> lose_lease(state)
+    end
+  end
+
+  defp maybe_acquire(state, owners) do
+    cond do
+      Enum.at(owners, state.slot) ->
+        %{state | free_ticks: 0}
+
+      owns_other_slot?(owners) and state.free_ticks < @yield_ticks ->
+        %{state | free_ticks: state.free_ticks + 1}
+
+      true ->
+        acquire(state)
+    end
+  end
+
+  defp owns_other_slot?(owners) do
+    here = inspect(node())
+    Enum.any?(owners, &(is_binary(&1) and String.contains?(&1, here)))
+  end
+
+  defp acquire(state) do
+    case Trials.acquire(state.owner, state.slot) do
+      {:ok, epoch} -> reconcile(%{state | epoch: epoch, free_ticks: 0})
+      _ -> state
     end
   end
 
@@ -86,7 +226,7 @@ defmodule Ingress.TrialReceiver do
   defp connect(%{socket: socket} = state) when not is_nil(socket), do: state
 
   defp connect(state) do
-    if Enum.any?(state.rows, fn {_id, row} -> row.enabled and row.state != "stopping" end) do
+    if active_own_rows(state) != [] do
       url = Application.fetch_env!(:ingress, :eventsub_url)
 
       case state.ws.connect(url) do
@@ -106,7 +246,7 @@ defmodule Ingress.TrialReceiver do
   defp fresh_connect(state) do
     state.ws.close(state.socket)
     state.ws.close(state.pending)
-    if state.epoch, do: Trials.clear_owner_session(state.owner, state.epoch)
+    if state.epoch, do: Trials.clear_owner_session(state.owner, state.epoch, state.slot)
     Process.send_after(self(), :reconnect, @reconnect_ms)
 
     %{
@@ -208,7 +348,7 @@ defmodule Ingress.TrialReceiver do
 
   defp handle_twitch("notification", meta, payload, %{epoch: epoch} = state, :primary)
        when not is_nil(epoch),
-       do: handle_trial_notification(meta, payload, state)
+       do: handle_trial_notification(meta, payload, count_load(state, payload))
 
   defp handle_twitch("revocation", _meta, payload, state, _which) do
     id = get_in(payload, ["subscription", "condition", "broadcaster_user_id"])
@@ -217,6 +357,19 @@ defmodule Ingress.TrialReceiver do
   end
 
   defp handle_twitch(_type, _meta, _payload, state, _which), do: state
+
+  defp count_load(state, payload) do
+    case get_in(payload, ["event", "broadcaster_user_id"]) do
+      id when is_binary(id) and is_map_key(state.rows, id) ->
+        counter =
+          Map.get_lazy(state.loads, id, fn -> LoadCounter.new(Capacity.load_window_seconds()) end)
+
+        put_in(state, [:loads, id], LoadCounter.increment(counter, now_ms()))
+
+      _ ->
+        state
+    end
+  end
 
   defp handle_trial_notification(meta, payload, state) do
     event = payload["event"] || %{}
@@ -287,7 +440,7 @@ defmodule Ingress.TrialReceiver do
   end
 
   defp accept_pending_welcome(state, new_id) do
-    case Trials.owner_session(state.owner, state.epoch, new_id) do
+    case Trials.owner_session(state.owner, state.epoch, new_id, state.slot) do
       {:ok, 1} ->
         state.ws.close(state.socket)
 
@@ -314,7 +467,7 @@ defmodule Ingress.TrialReceiver do
         keepalive_ms: keepalive * 1_000 + 5_000
     }
 
-    case Trials.owner_session(state.owner, state.epoch, session_id) do
+    case Trials.owner_session(state.owner, state.epoch, session_id, state.slot) do
       {:ok, 1} -> reconcile(state)
       _ -> lose_lease(state)
     end
@@ -322,12 +475,13 @@ defmodule Ingress.TrialReceiver do
 
   defp reconcile(state) do
     case Trials.list() do
-      {:ok, %{trials: rows}} ->
+      {:ok, %{trials: rows, socket_target: target}} ->
         rows = Enum.reject(rows, &(&1.state in ["removed", "promoted"]))
-        rows = maybe_promote(rows)
+        own = rows |> Enum.filter(&(&1.slot == state.slot)) |> maybe_promote()
+        state = coordinate(rows, target, state)
 
-        case Enum.reduce_while(rows, :owned, fn row, _ ->
-               case Trials.renew(state.owner, state.epoch) do
+        case Enum.reduce_while(own, :owned, fn row, _ ->
+               case Trials.renew(state.owner, state.epoch, state.slot) do
                  {:ok, 1} ->
                    reconcile_row(row, state)
                    {:cont, :owned}
@@ -350,13 +504,46 @@ defmodule Ingress.TrialReceiver do
       {:ok, %{trials: rows}} ->
         rows = Enum.reject(rows, &(&1.state in ["removed", "promoted"]))
 
+        by_id = Map.new(rows, &{&1.broadcaster_id, &1})
+
         state
-        |> Map.put(:rows, Map.new(rows, &{&1.broadcaster_id, &1}))
-        |> maybe_close_idle(Enum.filter(rows, &(&1.enabled and &1.state != "stopping")))
+        |> Map.put(:rows, by_id)
+        |> Map.update!(:loads, &Map.take(&1, Map.keys(by_id)))
+        |> then(&maybe_close_idle(&1, active_own_rows(&1)))
         |> connect()
 
       _ ->
         fresh_connect(%{state | rows: %{}})
+    end
+  end
+
+  defp active_own_rows(state) do
+    state.rows
+    |> Map.values()
+    |> Enum.filter(&(&1.slot == state.slot and &1.enabled and &1.state != "stopping"))
+  end
+
+  defp coordinate(rows, target, %{slot: 0} = state) do
+    now = System.system_time(:second)
+    {target, state} = autoscale(rows, target, state, now)
+
+    case TrialConduit.next_move(rows, target, now) do
+      {row, slot} -> Trials.move(row.broadcaster_id, row.generation, slot)
+      nil -> :ok
+    end
+
+    state
+  end
+
+  defp coordinate(_rows, _target, state), do: state
+
+  defp autoscale(rows, target, state, now) do
+    if now - state.scaled_at < @autoscale_seconds or TrialConduit.settling?(rows, now) do
+      {target, state}
+    else
+      {next, ticks} = TrialConduit.scale(rows, target, state.scale_ticks)
+      if next != target, do: Trials.set_socket_target(next)
+      {next, %{state | scale_ticks: ticks, scaled_at: now}}
     end
   end
 
@@ -367,7 +554,7 @@ defmodule Ingress.TrialReceiver do
   defp close_idle(state) do
     state.ws.close(state.socket)
     state.ws.close(state.pending)
-    if state.epoch, do: Trials.clear_owner_session(state.owner, state.epoch)
+    if state.epoch, do: Trials.clear_owner_session(state.owner, state.epoch, state.slot)
 
     %{
       state
@@ -391,7 +578,8 @@ defmodule Ingress.TrialReceiver do
         pending: nil,
         session_id: nil,
         session_aliases: MapSet.new(),
-        rows: %{}
+        rows: %{},
+        loads: %{}
     }
   end
 
@@ -413,6 +601,7 @@ defmodule Ingress.TrialReceiver do
         broadcaster_id: row.broadcaster_id,
         subscription_id: row.subscription_id || "",
         owner_epoch: state.epoch,
+        slot: state.slot,
         trial_generation: row.generation
       })
 
@@ -427,6 +616,7 @@ defmodule Ingress.TrialReceiver do
         broadcaster_id: row.broadcaster_id,
         subscription_id: row.subscription_id,
         owner_epoch: state.epoch,
+        slot: state.slot,
         trial_generation: row.generation
       })
     end
@@ -443,6 +633,7 @@ defmodule Ingress.TrialReceiver do
               broadcaster_id: row.broadcaster_id,
               session_id: state.session_id,
               owner_epoch: state.epoch,
+              slot: state.slot,
               trial_generation: row.generation
             })
 

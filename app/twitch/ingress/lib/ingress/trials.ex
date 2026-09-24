@@ -2,25 +2,47 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.Trials do
+  alias Ingress.TrialConduit
   alias Ingress.TrialValkey, as: VK
+
+  @max_channels 30
 
   @members "trial:desired"
   @revision "trial:revision"
   @generation "trial:generation"
-  @lease "trial:owner"
-  @owner_session "trial:owner_session"
   @history "trial:history"
+  @socket_target "trial:socket_target"
 
   @add_script """
   if redis.call('SISMEMBER', KEYS[1], ARGV[1]) == 1 then return 'duplicate' end
-  if redis.call('SCARD', KEYS[1]) >= 4 then return 'full' end
+  if redis.call('SCARD', KEYS[1]) >= tonumber(ARGV[3]) then return 'full' end
   local generation = redis.call('INCR', KEYS[3])
   redis.call('SADD', KEYS[1], ARGV[1])
   redis.call('ZREM', KEYS[4], ARGV[1])
   redis.call('HSET', 'trial:channel:' .. ARGV[1], 'generation', generation, 'state', 'pending', 'enabled', 1, 'received', 0, 'decoded', 0, 'processed', 0, 'failed', 0, 'retried', 0, 'blocked', 0, 'latency_samples', 0, 'latency_total_ms', 0)
+  redis.call('HSET', 'trial:channel:' .. ARGV[1], 'slot', ARGV[2])
   redis.call('HDEL', 'trial:channel:' .. ARGV[1], 'error', 'stop_reason', 'display_name')
   redis.call('INCR', KEYS[2])
   return tostring(generation)
+  """
+
+  @move_script """
+  if redis.call('SISMEMBER', KEYS[1], ARGV[1]) == 0 then return 0 end
+  local key = 'trial:channel:' .. ARGV[1]
+  if redis.call('HGET', key, 'generation') ~= ARGV[2] then return 0 end
+  if redis.call('HGET', key, 'enabled') == '0' then return 0 end
+  local state = redis.call('HGET', key, 'state')
+  if state == 'stopping' or state == 'disabled' then return 0 end
+  redis.call('HSET', key, 'slot', ARGV[3], 'moved_at', ARGV[4])
+  redis.call('INCR', KEYS[2])
+  return 1
+  """
+
+  @load_script """
+  if redis.call('HGET', KEYS[1], 'generation') ~= ARGV[1] then return 0 end
+  if (redis.call('HGET', KEYS[1], 'slot') or '0') ~= ARGV[2] then return 0 end
+  redis.call('HSET', KEYS[1], 'load', ARGV[3])
+  return 1
   """
 
   @stop_script """
@@ -84,10 +106,25 @@ defmodule Ingress.Trials do
 
   def valid_id?(_), do: false
 
+  def max_channels, do: @max_channels
+
   def add(id) do
     with true <- valid_id?(id),
+         {:ok, %{trials: rows, socket_target: target}} <- list(),
+         slot = TrialConduit.slot_for_new(rows, target),
          {:ok, value} <-
-           VK.command(["EVAL", @add_script, 4, @members, @revision, @generation, @history, id]) do
+           VK.command([
+             "EVAL",
+             @add_script,
+             4,
+             @members,
+             @revision,
+             @generation,
+             @history,
+             id,
+             slot,
+             @max_channels
+           ]) do
       case value do
         "full" -> {:error, "full"}
         "duplicate" -> {:ok, "duplicate"}
@@ -98,6 +135,25 @@ defmodule Ingress.Trials do
       {:error, _} -> {:error, "unavailable"}
     end
   end
+
+  def move(id, generation, slot) do
+    VK.command([
+      "EVAL",
+      @move_script,
+      2,
+      @members,
+      @revision,
+      id,
+      generation,
+      slot,
+      System.system_time(:second)
+    ])
+  end
+
+  def set_socket_target(target), do: VK.command(["SET", @socket_target, target])
+
+  def record_load(id, generation, slot, load),
+    do: VK.command(["EVAL", @load_script, 1, "trial:channel:" <> id, generation, slot, load])
 
   def stop(id) do
     case VK.command(["EVAL", @stop_script, 2, @members, @revision, id]) do
@@ -138,9 +194,16 @@ defmodule Ingress.Trials do
          {:ok, _} <- VK.command(["ZREMRANGEBYSCORE", @history, "-inf", cutoff]),
          {:ok, history_ids} <- VK.command(["ZRANGE", @history, 0, -1]),
          {:ok, revision} <- VK.command(["GET", @revision]),
+         {:ok, target} <- VK.command(["GET", @socket_target]),
          {:ok, rows} <- rows(Enum.uniq(ids ++ history_ids)) do
       {:ok,
-       %{version: String.to_integer(revision || "0"), active_count: length(ids), trials: rows}}
+       %{
+         version: String.to_integer(revision || "0"),
+         active_count: length(ids),
+         max_channels: @max_channels,
+         socket_target: TrialConduit.clamp(String.to_integer(target || "1")),
+         trials: rows
+       }}
     end
   end
 
@@ -157,6 +220,9 @@ defmodule Ingress.Trials do
                 broadcaster_id: id,
                 state: row["state"] || "pending",
                 enabled: row["enabled"] != "0",
+                slot: slot(row["slot"]),
+                load: integer(row["load"]),
+                moved_at: integer(row["moved_at"]),
                 error: row["error"],
                 generation: row["generation"],
                 display_name: row["display_name"],
@@ -183,6 +249,9 @@ defmodule Ingress.Trials do
       error -> error
     end
   end
+
+  defp slot(nil), do: 0
+  defp slot(value), do: String.to_integer(value)
 
   defp integer(nil), do: 0
   defp integer(value), do: String.to_integer(value)
@@ -227,9 +296,14 @@ defmodule Ingress.Trials do
     end
   end
 
-  def acquire(owner) do
+  def owners do
+    VK.command(["MGET" | Enum.map(TrialConduit.slots(), &lease_key/1)])
+  end
+
+  def acquire(owner, slot \\ 0) do
     with {:ok, epoch} <- VK.command(["INCR", "trial:owner_epoch"]),
-         {:ok, result} <- VK.command(["SET", @lease, "#{epoch}:#{owner}", "NX", "PX", 60_000]) do
+         {:ok, result} <-
+           VK.command(["SET", lease_key(slot), "#{epoch}:#{owner}", "NX", "PX", 60_000]) do
       if result == "OK", do: {:ok, epoch}, else: {:error, :owned}
     end
   end
@@ -244,21 +318,21 @@ defmodule Ingress.Trials do
     return 1
   """
 
-  def renew(owner, epoch), do: owner_script(@renew_script, owner, epoch)
+  def renew(owner, epoch, slot \\ 0), do: owner_script(@renew_script, owner, epoch, slot)
 
-  def owner_session(owner, epoch, session_id) when is_binary(session_id) do
-    script = """
+  @owner_session_script """
     if redis.call('GET', KEYS[1]) ~= ARGV[1] then return 0 end
     redis.call('SET', KEYS[2], ARGV[2] .. ':' .. ARGV[3], 'PX', 60000)
     return 1
-    """
+  """
 
+  def owner_session(owner, epoch, session_id, slot \\ 0) when is_binary(session_id) do
     VK.command([
       "EVAL",
-      script,
+      @owner_session_script,
       2,
-      @lease,
-      @owner_session,
+      lease_key(slot),
+      session_key(slot),
       "#{epoch}:#{owner}",
       epoch,
       session_id
@@ -274,10 +348,24 @@ defmodule Ingress.Trials do
     return 1
   """
 
-  def clear_owner_session(owner, epoch),
-    do: owner_script(@clear_owner_session_script, owner, epoch)
+  def clear_owner_session(owner, epoch, slot \\ 0),
+    do: owner_script(@clear_owner_session_script, owner, epoch, slot)
 
-  defp owner_script(script, owner, epoch) do
-    VK.command(["EVAL", script, 2, @lease, @owner_session, "#{epoch}:#{owner}", epoch])
+  defp owner_script(script, owner, epoch, slot) do
+    VK.command([
+      "EVAL",
+      script,
+      2,
+      lease_key(slot),
+      session_key(slot),
+      "#{epoch}:#{owner}",
+      epoch
+    ])
   end
+
+  # Slot 0 keeps the single-socket key names that outgress already reads.
+  defp lease_key(0), do: "trial:owner"
+  defp lease_key(slot), do: "trial:owner:#{slot}"
+  defp session_key(0), do: "trial:owner_session"
+  defp session_key(slot), do: "trial:owner_session:#{slot}"
 end

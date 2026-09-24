@@ -7,6 +7,7 @@ import type { ShardSnapshot } from '@bagel/kit';
 import {
   barWidth,
   eventsPerSecond,
+  pctLabel,
   resolveCapacity,
   utilizationPct,
   utilizationTone
@@ -64,5 +65,14 @@ describe('throughput capacity', () => {
     expect(utilizationTone(59.9, 75)).toBe('green');
     expect(utilizationTone(60, 75)).toBe('warn');
     expect(utilizationTone(75, 75)).toBe('err');
+  });
+});
+
+describe('percent labels', () => {
+  test('small shares stay visible instead of rounding to zero', () => {
+    expect(pctLabel(0)).toBe('0');
+    expect(pctLabel(0.00004)).toBe('<0.01');
+    expect(pctLabel(0.042)).toBe('0.04');
+    expect(pctLabel(12.345)).toBe('12.3');
   });
 });

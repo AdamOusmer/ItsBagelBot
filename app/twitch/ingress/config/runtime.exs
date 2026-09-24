@@ -88,6 +88,11 @@ config :ingress,
     String.to_integer(System.get_env("INGRESS_CAPACITY_WEBSOCKET_RATED_EPS", "16000")),
   capacity_target_utilization_pct:
     String.to_integer(System.get_env("INGRESS_CAPACITY_TARGET_UTILIZATION_PCT", "75")),
+  trial_socket_budget_eps:
+    (case System.get_env("TRIAL_SOCKET_BUDGET_EPS", "") do
+       "" -> nil
+       eps -> String.to_integer(eps)
+     end),
   broadcaster_status_subject:
     System.get_env("NATS_BROADCASTER_STATUS_SUBJECT", "bagel.rpc.broadcaster.status.get"),
   broadcaster_status_timeout_ms:

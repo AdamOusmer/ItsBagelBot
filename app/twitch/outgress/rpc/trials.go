@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -25,6 +26,32 @@ type TrialSubscriptionRequest struct {
 	SubscriptionID  string `json:"subscription_id,omitempty"`
 	OwnerEpoch      int64  `json:"owner_epoch"`
 	TrialGeneration string `json:"trial_generation"`
+	Slot            int    `json:"slot"`
+}
+
+const trialSockets = 3
+
+// Slot 0 keeps the single-socket key names so a mixed ingress rollout stays owned.
+func trialOwnerKey(slot int) string {
+	if slot == 0 {
+		return "trial:owner"
+	}
+	return "trial:owner:" + strconv.Itoa(slot)
+}
+
+func trialSessionKey(slot int) string {
+	if slot == 0 {
+		return "trial:owner_session"
+	}
+	return "trial:owner_session:" + strconv.Itoa(slot)
+}
+
+func trialSlotMatches(fields map[string]string, slot int) bool {
+	assigned := fields["slot"]
+	if assigned == "" {
+		assigned = "0"
+	}
+	return assigned == strconv.Itoa(slot)
 }
 
 type TrialSubscriptionReply struct {
@@ -53,6 +80,7 @@ if string.sub(owner, 1, string.len(ARGV[1]) + 1) ~= ARGV[1] .. ':' then return 0
 if redis.call('GET', KEYS[3]) ~= ARGV[1] .. ':' .. ARGV[4] then return 0 end
 if redis.call('HGET', KEYS[2], 'generation') ~= ARGV[2] then return 0 end
 if redis.call('HGET', KEYS[2], 'enabled') == '0' then return 0 end
+if (redis.call('HGET', KEYS[2], 'slot') or '0') ~= ARGV[5] then return 0 end
 local state = redis.call('HGET', KEYS[2], 'state')
 if state ~= 'pending' and state ~= 'receiving' and state ~= 'failed' then return 0 end
 redis.call('HSET', KEYS[2], 'subscription_id', ARGV[3], 'session_id', ARGV[4], 'owner_epoch', ARGV[1], 'state', 'receiving')
@@ -76,7 +104,7 @@ func (h *trialSubscriptions) owned(ctx context.Context, req TrialSubscriptionReq
 	if !req.valid() {
 		return nil, false
 	}
-	owner, err := h.store.Do(ctx, h.store.B().Get().Key("trial:owner").Build()).ToString()
+	owner, err := h.store.Do(ctx, h.store.B().Get().Key(trialOwnerKey(req.Slot)).Build()).ToString()
 	if err != nil {
 		return nil, false
 	}
@@ -90,7 +118,7 @@ func (h *trialSubscriptions) owned(ctx context.Context, req TrialSubscriptionReq
 	if fields["generation"] != req.TrialGeneration {
 		return nil, false
 	}
-	return fields, true
+	return fields, trialSlotMatches(fields, req.Slot)
 }
 
 func (req TrialSubscriptionRequest) valid() bool {
@@ -103,6 +131,9 @@ func (req TrialSubscriptionRequest) valid() bool {
 	if req.OwnerEpoch <= 0 {
 		return false
 	}
+	if req.Slot < 0 || req.Slot >= trialSockets {
+		return false
+	}
 	return req.TrialGeneration != ""
 }
 
@@ -110,13 +141,17 @@ func (h *trialSubscriptions) currentSession(ctx context.Context, req TrialSubscr
 	if req.SessionID == "" {
 		return false
 	}
-	session, err := h.store.Do(ctx, h.store.B().Get().Key("trial:owner_session").Build()).ToString()
+	session, err := h.store.Do(ctx, h.store.B().Get().Key(trialSessionKey(req.Slot)).Build()).ToString()
 	return err == nil && session == fmt.Sprint(req.OwnerEpoch)+":"+req.SessionID
 }
 
 func (h *trialSubscriptions) create(ctx context.Context, req TrialSubscriptionRequest) TrialSubscriptionReply {
-	if !h.mayCreate(ctx, req) {
+	fields, ok := h.mayCreate(ctx, req)
+	if !ok {
 		return TrialSubscriptionReply{Error: "stale_or_invalid_owner"}
+	}
+	if h.dropPreviousSubscription(ctx, req, fields) != nil {
+		return TrialSubscriptionReply{Error: "twitch_unavailable"}
 	}
 	id, issue := h.createOnTwitch(ctx, req)
 	if issue != "" {
@@ -134,26 +169,36 @@ func (h *trialSubscriptions) create(ctx context.Context, req TrialSubscriptionRe
 	return TrialSubscriptionReply{SubscriptionID: id}
 }
 
-func (h *trialSubscriptions) mayCreate(ctx context.Context, req TrialSubscriptionRequest) bool {
+func (h *trialSubscriptions) mayCreate(ctx context.Context, req TrialSubscriptionRequest) (map[string]string, bool) {
 	fields, owned := h.owned(ctx, req)
 	if !owned {
-		return false
+		return nil, false
 	}
 	if !h.currentSession(ctx, req) {
-		return false
+		return nil, false
 	}
 	if h.botID == "" {
-		return false
+		return nil, false
 	}
 	if fields["enabled"] == "0" {
-		return false
+		return nil, false
 	}
 	switch fields["state"] {
 	case "pending", "receiving", "failed":
-		return true
+		return fields, true
 	default:
-		return false
+		return nil, false
 	}
+}
+
+// Twitch rejects a second subscription with the same condition, so a channel
+// moving to another socket must drop the old one before the new create.
+func (h *trialSubscriptions) dropPreviousSubscription(ctx context.Context, req TrialSubscriptionRequest, fields map[string]string) error {
+	previous := fields["subscription_id"]
+	if previous == "" || fields["session_id"] == req.SessionID {
+		return nil
+	}
+	return h.deleteTwitch(ctx, previous)
 }
 
 func (h *trialSubscriptions) createOnTwitch(ctx context.Context, req TrialSubscriptionRequest) (string, string) {
@@ -218,7 +263,7 @@ func (h *trialSubscriptions) conflictID(ctx context.Context, req TrialSubscripti
 
 func (h *trialSubscriptions) activate(ctx context.Context, req TrialSubscriptionRequest, id string) bool {
 	key := "trial:channel:" + req.BroadcasterID
-	activated, err := h.store.Do(ctx, h.store.B().Eval().Script(activateTrial).Numkeys(3).Key("trial:owner").Key(key).Key("trial:owner_session").Arg(fmt.Sprint(req.OwnerEpoch)).Arg(req.TrialGeneration).Arg(id).Arg(req.SessionID).Build()).AsInt64()
+	activated, err := h.store.Do(ctx, h.store.B().Eval().Script(activateTrial).Numkeys(3).Key(trialOwnerKey(req.Slot)).Key(key).Key(trialSessionKey(req.Slot)).Arg(fmt.Sprint(req.OwnerEpoch)).Arg(req.TrialGeneration).Arg(id).Arg(req.SessionID).Arg(strconv.Itoa(req.Slot)).Build()).AsInt64()
 	return err == nil && activated == 1
 }
 
@@ -318,7 +363,7 @@ func trialDeletionMatches(fields map[string]string, subscriptionID string) bool 
 
 func (h *trialSubscriptions) release(ctx context.Context, req TrialSubscriptionRequest) bool {
 	key := "trial:channel:" + req.BroadcasterID
-	released, err := h.store.Do(ctx, h.store.B().Eval().Script(releaseTrial).Numkeys(2).Key("trial:owner").Key(key).Arg(fmt.Sprint(req.OwnerEpoch)).Arg(req.TrialGeneration).Arg(req.SubscriptionID).Build()).AsInt64()
+	released, err := h.store.Do(ctx, h.store.B().Eval().Script(releaseTrial).Numkeys(2).Key(trialOwnerKey(req.Slot)).Key(key).Arg(fmt.Sprint(req.OwnerEpoch)).Arg(req.TrialGeneration).Arg(req.SubscriptionID).Build()).AsInt64()
 	return err == nil && released == 1
 }
 

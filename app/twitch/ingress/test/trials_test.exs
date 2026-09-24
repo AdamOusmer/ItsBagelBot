@@ -77,19 +77,20 @@ defmodule Ingress.TrialsTest do
     :ok
   end
 
-  test "concurrent admissions reserve no more than four slots and converge on duplicates" do
+  test "concurrent admissions reserve no more than thirty channels and converge on duplicates" do
     outcomes =
-      1..20
+      1..40
       |> Task.async_stream(fn id -> Trials.add(Integer.to_string(id)) end,
-        max_concurrency: 20,
+        max_concurrency: 40,
         timeout: 5_000
       )
       |> Enum.map(fn {:ok, value} -> value end)
 
-    assert Enum.count(outcomes, &match?({:ok, _}, &1)) == 4
-    assert Enum.count(outcomes, &(&1 == {:error, "full"})) == 16
-    {:ok, %{active_count: 4, trials: rows}} = Trials.list()
-    assert length(rows) == 4
+    assert Enum.count(outcomes, &match?({:ok, _}, &1)) == 30
+    assert Enum.count(outcomes, &(&1 == {:error, "full"})) == 10
+    {:ok, %{active_count: 30, max_channels: 30, socket_target: 1, trials: rows}} = Trials.list()
+    assert length(rows) == 30
+    assert Enum.all?(rows, &(&1.slot in 0..2))
 
     id = hd(rows).broadcaster_id
     {:ok, _} = Trials.field(id, "decoded", 3)
@@ -110,15 +111,33 @@ defmodule Ingress.TrialsTest do
     {:ok, "stopping"} = Trials.stop(id)
     {:ok, "stopping"} = Trials.stop(id)
     {:ok, 1} = Trials.finish(id, "removed")
-    {:ok, %{active_count: 3, trials: history}} = Trials.list()
+    {:ok, %{active_count: 29, trials: history}} = Trials.list()
     assert Enum.any?(history, &(&1.broadcaster_id == id && &1.state == "removed"))
   end
 
-  test "lease epoch fences a second owner" do
+  test "lease epoch fences a second owner per socket slot" do
     {:ok, epoch} = Trials.acquire("owner-one")
     assert {:error, :owned} = Trials.acquire("owner-two")
     {:ok, 1} = Trials.renew("owner-one", epoch)
     {:ok, 0} = Trials.renew("owner-two", epoch)
+
+    {:ok, other} = Trials.acquire("owner-two", 2)
+    {:ok, 0} = Trials.renew("owner-two", other, 1)
+    {:ok, 1} = Trials.renew("owner-two", other, 2)
+    assert {:ok, ["#{epoch}:owner-one", nil, "#{other}:owner-two"]} == Trials.owners()
+  end
+
+  test "move reassigns only live enabled channels of the current generation" do
+    {:ok, generation} = Trials.add("42")
+    {:ok, 0} = Trials.move("42", "stale", 2)
+    {:ok, 1} = Trials.move("42", generation, 2)
+    {:ok, %{trials: [%{slot: 2, moved_at: moved_at}]}} = Trials.list()
+    assert moved_at > 0
+    {:ok, 0} = Trials.record_load("42", generation, 0, 120)
+    {:ok, 1} = Trials.record_load("42", generation, 2, 120)
+    {:ok, %{trials: [%{load: 120}]}} = Trials.list()
+    {:ok, "disabled"} = Trials.set_enabled("42", false)
+    {:ok, 0} = Trials.move("42", generation, 1)
   end
 
   test "disabled rows retain their slot and counters while atomic admission rejects stale frames" do
@@ -135,15 +154,15 @@ defmodule Ingress.TrialsTest do
     assert row.state == "disabled"
     assert row.received == 1
 
-    for id <- ["43", "44", "45"], do: assert({:ok, _} = Trials.add(id))
-    assert {:error, "full"} == Trials.add("46")
+    for id <- 43..71, do: assert({:ok, _} = Trials.add(Integer.to_string(id)))
+    assert {:error, "full"} == Trials.add("72")
 
     assert {:ok, "pending"} == Trials.set_enabled("42", true)
     assert :inactive == Trials.admit("42", generation, "message-3")
     {:ok, _} = Trials.field("42", "state", "receiving")
     assert :first == Trials.admit("42", generation, "message-3")
     assert :inactive == Trials.admit("42", "stale-generation", "message-4")
-    assert {:error, "not_found"} == Trials.set_enabled("46", false)
+    assert {:error, "not_found"} == Trials.set_enabled("72", false)
   end
 
   test "rapid re-enable drains the old subscription before permitting a new one" do
@@ -268,6 +287,42 @@ defmodule Ingress.TrialReceiverProtocolTest do
     :sys.get_state(pid)
     assert_receive {:trial_closed, ^primary}, 1_000
     {:ok, nil} = TrialValkey.command(["GET", "trial:owner_session"])
+  end
+
+  test "loads count every notification per trial channel like a shard socket" do
+    {:ok, _} = Trials.add("4242")
+    {:ok, _} = Trials.field("4242", "state", "receiving")
+    pid = start_supervised!({TrialReceiver, [ws_module: Ingress.TrialFakeWS]})
+    assert_receive {:trial_connected, primary, _url}, 1_000
+
+    chat = fn id, chat_id ->
+      frame("notification", %{
+        subscription: %{type: "channel.chat.message"},
+        event: %{broadcaster_user_id: id, message_id: chat_id}
+      })
+    end
+
+    send(pid, {:fake_ws, primary, [chat.("4242", "a"), chat.("4242", "a"), chat.("9999", "b")]})
+
+    assert %{slot: 0, owned: true, channels: 1, load: 2, loads: %{"4242" => 2}} =
+             TrialReceiver.status(pid)
+  end
+
+  test "each socket slot subscribes only the channels assigned to it" do
+    {:ok, _} = Trials.set_socket_target(2)
+    {:ok, _} = Trials.add("4242")
+    {:ok, _} = Trials.add("4343")
+    {:ok, %{trials: rows}} = Trials.list()
+    assert rows |> Enum.map(& &1.slot) |> Enum.sort() == [0, 1]
+
+    zero = start_supervised!({TrialReceiver, [ws_module: Ingress.TrialFakeWS]})
+    assert_receive {:trial_connected, _, _}, 1_000
+    one = start_supervised!({TrialReceiver, [slot: 1, ws_module: Ingress.TrialFakeWS]})
+    for _ <- 1..3, do: send(one, :tick)
+    assert_receive {:trial_connected, _, _}, 1_000
+
+    assert %{slot: 0, owned: true, channels: 1} = TrialReceiver.status(zero)
+    assert %{slot: 1, owned: true, channels: 1} = TrialReceiver.status(one)
   end
 
   test "a disabled channel rejects a frame still present in the receiver snapshot" do
