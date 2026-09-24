@@ -297,10 +297,11 @@ defmodule Ingress.TrialReceiverProtocolTest do
   test "chat is admitted off the socket loop, deduplicated by chat ID" do
     {:ok, generation} = Trials.add("4242")
     {:ok, _} = Trials.field("4242", "state", "receiving")
-    payload = %{"event" => %{"broadcaster_user_id" => "4242"}}
 
-    for chat_id <- ["a", "b", "a"],
-        do: TrialAdmission.submit("4242", generation, chat_id, payload, %{broadcaster_id: "4242"})
+    for chat_id <- ["a", "b", "a"] do
+      payload = %{"event" => %{"broadcaster_user_id" => "4242", "message_id" => chat_id}}
+      TrialAdmission.submit(payload, %{broadcaster_id: "4242"}, generation)
+    end
 
     settle_admission()
     assert {:ok, %{trials: [%{received: 2, failed: 0}]}} = Trials.list()
@@ -308,7 +309,13 @@ defmodule Ingress.TrialReceiverProtocolTest do
 
   test "admission never counts chat for a channel that is not receiving" do
     {:ok, generation} = Trials.add("4242")
-    TrialAdmission.submit("4242", generation, "a", %{}, %{broadcaster_id: "4242"})
+
+    TrialAdmission.submit(
+      %{"event" => %{"message_id" => "a"}},
+      %{broadcaster_id: "4242"},
+      generation
+    )
+
     settle_admission()
     assert {:ok, %{trials: [%{received: 0, failed: 0}]}} = Trials.list()
   end
@@ -376,6 +383,12 @@ defmodule Ingress.TrialAdmissionDropTest do
 
   test "submitting with no admission worker running drops instead of blocking the socket" do
     refute Process.whereis(Ingress.TrialAdmission.name(0))
-    assert :ok == Ingress.TrialAdmission.submit("4242", "1", "a", %{}, %{})
+
+    assert :ok ==
+             Ingress.TrialAdmission.submit(
+               %{"event" => %{"message_id" => "a"}},
+               %{broadcaster_id: "4242"},
+               "1"
+             )
   end
 end

@@ -495,13 +495,7 @@ defmodule Ingress.ShardSession do
     chat_id = get_in(payload, ["event", "message_id"])
 
     if is_binary(chat_id) and chat_id != "" do
-      Ingress.TrialAdmission.submit(
-        admission.broadcaster_id,
-        generation,
-        chat_id,
-        payload,
-        admission
-      )
+      Ingress.TrialAdmission.submit(payload, admission, generation)
     end
 
     :ok

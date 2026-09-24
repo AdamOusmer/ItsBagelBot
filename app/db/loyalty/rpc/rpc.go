@@ -232,19 +232,7 @@ func (l *loyaltyRPC) handleCounterGet(ctx context.Context, req loyaltyrpc.Reques
 }
 
 func (l *loyaltyRPC) handleCounterTrial(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
-	userID, _, ok, reply := parseIDs(req, false)
-	if !ok {
-		return reply
-	}
-	rows, err := l.repo.TrialCounters(ctx, userID)
-	if err != nil {
-		return l.fail("loyalty counter.trial", err)
-	}
-	counters := make([]loyaltyrpc.Counter, 0, len(rows))
-	for _, row := range rows {
-		counters = append(counters, loyaltyrpc.Counter{Name: row.Name, Scope: row.Scope, Value: row.Value})
-	}
-	return loyaltyrpc.Reply{Counters: counters}
+	return l.counterRows(ctx, req, false, "loyalty counter.trial", l.repo.TrialCounters)
 }
 
 func (l *loyaltyRPC) handlePromoteTrial(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
@@ -335,13 +323,17 @@ func (l *loyaltyRPC) handleCounterBoard(ctx context.Context, req loyaltyrpc.Requ
 }
 
 func (l *loyaltyRPC) handleCounterList(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
-	userID, _, ok, reply := parseIDs(req, true)
+	return l.counterRows(ctx, req, true, "loyalty counter.list", l.repo.CountersList)
+}
+
+func (l *loyaltyRPC) counterRows(ctx context.Context, req loyaltyrpc.Request, allowBotNS bool, label string, list func(context.Context, uint64) ([]*ent.Counter, error)) loyaltyrpc.Reply {
+	userID, _, ok, reply := parseIDs(req, allowBotNS)
 	if !ok {
 		return reply
 	}
-	rows, err := l.repo.CountersList(ctx, userID)
+	rows, err := list(ctx, userID)
 	if err != nil {
-		return l.fail("loyalty counter.list", err)
+		return l.fail(label, err)
 	}
 	counters := make([]loyaltyrpc.Counter, 0, len(rows))
 	for _, row := range rows {

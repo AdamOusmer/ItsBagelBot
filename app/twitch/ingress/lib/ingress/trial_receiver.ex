@@ -392,7 +392,7 @@ defmodule Ingress.TrialReceiver do
 
     if receivable_chat?(row, payload, chat_id) do
       state = update_display_name(state, id, row, event)
-      admit_chat(payload, meta, chat_id, row)
+      admit_chat(payload, meta, row)
       state
     else
       state
@@ -430,13 +430,17 @@ defmodule Ingress.TrialReceiver do
     end
   end
 
-  defp admit_chat(payload, meta, chat_id, row) do
-    TrialAdmission.submit(row.broadcaster_id, row.generation, chat_id, payload, %{
-      shard_id: -1,
-      msg_id: meta["message_id"],
-      ts: meta["message_timestamp"],
-      broadcaster_id: row.broadcaster_id
-    })
+  defp admit_chat(payload, meta, row) do
+    TrialAdmission.submit(
+      payload,
+      %{
+        shard_id: -1,
+        msg_id: meta["message_id"],
+        ts: meta["message_timestamp"],
+        broadcaster_id: row.broadcaster_id
+      },
+      row.generation
+    )
   end
 
   defp accept_pending_welcome(state, new_id) do
