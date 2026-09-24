@@ -83,13 +83,7 @@ func (w *Worker) logTrialBlocked(payload *outgress.Message) {
 		}
 		return
 	}
-	w.log.Info("trial output blocked",
-		zap.String("broadcaster_id", payload.BroadcasterID),
-		zap.Uint64("trial_generation", payload.TrialGeneration),
-		zap.String("type", payload.Type),
-		zap.String("endpoint", payload.Endpoint),
-		zap.String("method", payload.Method),
-		zap.ByteString("payload", payload.Payload))
+	w.blocked.Record(payload)
 }
 
 func (w *Worker) sendBotLine(ctx context.Context, broadcasterID, text string) error {

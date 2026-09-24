@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"ItsBagelBot/pkg/kvstate/kvtest"
+
 	"github.com/stretchr/testify/require"
 )
 

@@ -248,7 +248,9 @@ func warmupTwitch(ctx context.Context, tw *twitch.Client, log *zap.Logger) {
 }
 
 func (d *deps) newLaneWorkers(tw *twitch.Client, limiter ratelimit.Manager, registry *channels.Registry, batch worker.BatchStore) (premium, standard, system *worker.Worker, cleanup func()) {
+	blocked := worker.NewBlockedLog(d.log.Named("trial-blocked"))
 	base := worker.Config{
+		Blocked:  blocked,
 		Limiter:  limiter,
 		Registry: registry,
 		Twitch:   tw,
@@ -275,7 +277,10 @@ func (d *deps) newLaneWorkers(tw *twitch.Client, limiter ratelimit.Manager, regi
 	system.SetLiveWriter(worker.NewLiveWriter(d.valkey, d.nc, d.cfg.CacheInvalidatePrefix, d.cfg.LiveTTL, d.log.Named("live")))
 	system.SetStreamInfoStore(projection.NewStore(d.valkey))
 
-	return premium, standard, system, modVerifier.Close
+	return premium, standard, system, func() {
+		modVerifier.Close()
+		blocked.Close()
+	}
 }
 
 func (d *deps) laneSubscribers() (premiumSub, standardSub, systemSub bus.Subscriber, closeAll func()) {
