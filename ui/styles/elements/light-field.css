@@ -37,6 +37,14 @@
         pointer-events: none;
     }
 
+    /* The host's parent must be a stacking context. Otherwise the composited
+       motes at z-index -1 land in the root's negative z-list and WebKit splits
+       a second full-document foreground layer out of the page to paint over
+       them: +75 MB at 390x844@3 on a PageHero page. */
+    :where(:has(> .bb-light-field)) {
+        isolation: isolate;
+    }
+
     /* `plus-lighter` keeps the additive pile-up the canvas got from
        globalCompositeOperation 'lighter': overlapping motes brighten into a
        glow instead of the top one winning. The host's z-index makes it a

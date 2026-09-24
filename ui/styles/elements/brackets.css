@@ -41,8 +41,12 @@
     --ornament-size: 40px;
     --ornament-z: 50;
 
+    /* A bottom strip, not the whole viewport: a fixed box is its own
+       composited layer, and a full-screen one backs two 40px brackets with a
+       viewport of transparent pixels (~11 MB at 390x844@3). */
     position: fixed;
-    inset: 0;
+    inset: auto 0 0;
+    height: calc(max(var(--ornament-bottom), var(--ornament-label-bottom)) + var(--ornament-size));
     z-index: var(--ornament-z);
     pointer-events: none;
   }

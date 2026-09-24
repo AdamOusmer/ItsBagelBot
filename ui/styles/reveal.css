@@ -43,13 +43,11 @@
             opacity var(--bb-reveal-duration, 760ms) var(--bb-ease-out-expo),
             transform var(--bb-reveal-duration, 760ms) var(--bb-ease-out-expo);
         transition-delay: calc(var(--reveal-i, 0) * var(--bb-reveal-step, 80ms));
-        will-change: opacity, transform;
     }
 
     [data-reveal].is-revealed {
         opacity: 1;
         transform: none;
-        will-change: auto;
     }
 
     /* Load reveal: staggered rise-ins keyed by --i. Apply .reveal to any
