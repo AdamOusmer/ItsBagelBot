@@ -336,6 +336,8 @@ spec:
               value: tls://nats-leaf.messaging:4222
             - name: NATS_LEAF_URL
               value: tls://nats-leaf.messaging:4222
+            - name: DEPLOY_NATS_AUTH
+              value: jwt
             - name: DEPLOY_NATS_HUB_URL
               value: tls://nats.messaging:4222
             - name: DEPLOY_NATS_LEAF_URL
