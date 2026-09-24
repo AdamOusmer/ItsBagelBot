@@ -345,6 +345,7 @@ accounts:
                         - data.users.>
                         - data.modules.>
                         - data.commands.>
+                        - data.loyalty.counters
                         - twitch.ingress.event.stream
                         - _INBOX.>
             twitch_ingress_bus:
