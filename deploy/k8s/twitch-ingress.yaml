@@ -100,7 +100,7 @@ spec:
       priorityClassName: bagel-service
       containers:
         - name: ingress
-          image: ghcr.io/adamousmer/itsbagelbot/twitch-ingress:v0.2.2-beta@sha256:c376a7eccb9912c3b4f442531f1c19f77deb9c6a709a42efd55e5a737b58c6fe
+          image: ghcr.io/adamousmer/itsbagelbot/twitch-ingress:v0.2.3-beta@sha256:65b2a48edd9c49ec2a61581fcbe9992428b183f5d283ffa892cfff9757efb431
           imagePullPolicy: IfNotPresent
           envFrom:
             - secretRef:
