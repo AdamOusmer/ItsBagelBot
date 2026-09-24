@@ -27,17 +27,7 @@ afterEach(() => {
 });
 
 describe('feed connection options', () => {
-  test('stays byte-identical to today when no JWT vars are set', () => {
-    process.env.NATS_USER = 'u';
-    process.env.NATS_PASSWORD = 'p';
-
-    const opts = feedOptions();
-    expect(opts.user).toBe('u');
-    expect(opts.pass).toBe('p');
-    expect(opts.authenticator).toBeUndefined();
-  });
-
-  test('adds a JWT authenticator alongside the password when both are set', () => {
+  test('sends only the JWT, even with leftover password vars', () => {
     process.env.NATS_USER = 'u';
     process.env.NATS_PASSWORD = 'p';
     process.env.NATS_JWT = 'bus-jwt';
@@ -45,22 +35,13 @@ describe('feed connection options', () => {
 
     const opts = feedOptions();
     expect(opts.user).toBeUndefined();
-    expect(opts.authenticator).toHaveLength(2);
+    expect(opts.pass).toBeUndefined();
     const authenticator = opts.authenticator as Authenticator[];
-    const [passwordCreds, jwtCreds] = authenticator.map((fn) => fn('nonce')) as [
-      { user: string; pass: string },
-      { jwt: string }
-    ];
-    expect(passwordCreds).toEqual({ user: 'u', pass: 'p' });
-    expect(jwtCreds.jwt).toBe('bus-jwt');
+    expect(authenticator).toHaveLength(1);
+    expect((authenticator[0]('nonce') as { jwt: string }).jwt).toBe('bus-jwt');
   });
 
-  test('JWT only builds a single authenticator with no user/pass fields', () => {
-    process.env.NATS_JWT = 'bus-jwt';
-    process.env.NATS_NKEY_SEED = SEED;
-
-    const opts = feedOptions();
-    expect(opts.user).toBeUndefined();
-    expect(opts.authenticator).toHaveLength(1);
+  test('no JWT vars means no credentials at all', () => {
+    expect(feedOptions().authenticator).toBeUndefined();
   });
 });

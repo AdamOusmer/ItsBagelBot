@@ -65,9 +65,6 @@ spec:
                   fieldPath: spec.nodeName
             - name: GOMEMLIMIT
               value: 192MiB
-          envFrom:
-            - secretRef:
-                name: nats-auth-env
           ports:
             - {containerPort: 4223, name: client}
             - {containerPort: 8223, name: monitor}

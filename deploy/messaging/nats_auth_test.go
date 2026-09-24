@@ -14,13 +14,10 @@ import (
 
 const jetStreamAPI = "$JS.API."
 
-var busUserPattern = regexp.MustCompile(`(?m)^[ \t]*user: "([a-z_]+_bus)"`)
-var jsSubjectPattern = regexp.MustCompile(`"(\$JS[^"]+)"`)
 var streamMutationPattern = regexp.MustCompile(`^\$JS\.API\.STREAM\.(CREATE|UPDATE|DELETE|LEADER\.STEPDOWN)\.`)
 
 func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
-	config := sourceFile{name: "nats-auth.conf"}.read(t)
-	blocks := (authConfig{body: config}).busUserBlocks(t)
+	blocks := busUserBlocks(t)
 
 	consumers := map[string][]string{
 		"users_bus":            {"BAGEL_DATA"},
@@ -74,8 +71,7 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 }
 
 func TestAdminStreamMutationGrantsAreOnlyItsOwnKV(t *testing.T) {
-	config := sourceFile{name: "nats-auth.conf"}.read(t)
-	block, ok := (authConfig{body: config}).busUserBlocks(t)["admin_bus"]
+	block, ok := busUserBlocks(t)["admin_bus"]
 	if !ok {
 		t.Fatal("missing admin_bus authorization block")
 	}
@@ -159,14 +155,6 @@ type streamGrants struct {
 	pullFetch       []string
 }
 
-type authConfig struct {
-	body string
-}
-
-type busUserBlock struct {
-	body string
-}
-
 func (c *streamOwnershipCheck) inspect(t *testing.T, file sourceFile) {
 	t.Helper()
 	body := file.read(t)
@@ -220,14 +208,6 @@ func expectedJetStreamSubjects(grants streamGrants) []string {
 	return sortedKeys(set)
 }
 
-func (b busUserBlock) jetStreamSubjects() []string {
-	set := make(map[string]struct{})
-	for _, match := range jsSubjectPattern.FindAllStringSubmatch(b.body, -1) {
-		set[match[1]] = struct{}{}
-	}
-	return sortedKeys(set)
-}
-
 func sortedKeys(set map[string]struct{}) []string {
 	keys := make([]string, 0, len(set))
 	for key := range set {
@@ -235,20 +215,6 @@ func sortedKeys(set map[string]struct{}) []string {
 	}
 	slices.Sort(keys)
 	return keys
-}
-
-func (c authConfig) busUserBlocks(t *testing.T) map[string]busUserBlock {
-	t.Helper()
-	matches := busUserPattern.FindAllStringSubmatchIndex(c.body, -1)
-	blocks := make(map[string]busUserBlock, len(matches))
-	for i, match := range matches {
-		end := len(c.body)
-		if i+1 < len(matches) {
-			end = matches[i+1][0]
-		}
-		blocks[c.body[match[2]:match[3]]] = busUserBlock{body: c.body[match[0]:end]}
-	}
-	return blocks
 }
 
 func (f sourceFile) read(t *testing.T) string {

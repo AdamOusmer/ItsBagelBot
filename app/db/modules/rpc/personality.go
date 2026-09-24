@@ -12,7 +12,7 @@ import (
 	"ItsBagelBot/pkg/bus"
 )
 
-// Each verb needs its own sesame import line in nats-auth.conf.
+// Each verb needs its own sesame import line in accounts.yaml.
 func SubscribePersonality(w bus.RPCWiring, repo *repository.Personality, prefix string) error {
 	if err := bus.Serve(w, prefix+".feed", feedBump(repo)); err != nil {
 		return err

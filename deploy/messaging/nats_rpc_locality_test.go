@@ -4,16 +4,15 @@
 package messaging
 
 import (
-	"regexp"
+	"slices"
 	"strings"
 	"testing"
+
+	"ItsBagelBot/internal/natsacl"
 )
 
-var serviceSubjectPattern = regexp.MustCompile(`\{ service:(?:.*subject:)?\s*"([^"]+)"`)
-
 func TestExactRPCGrantsIncludeNodeLocalVariant(t *testing.T) {
-	config := sourceFile{name: "nats-auth.conf"}.read(t)
-	counts := serviceGrantCounts(config)
+	counts := serviceGrantCounts(committedACL(t))
 	exact := exactServiceGrants(counts)
 
 	for subject, count := range exact {
@@ -24,19 +23,29 @@ func TestExactRPCGrantsIncludeNodeLocalVariant(t *testing.T) {
 		}
 	}
 	if len(exact) < 10 {
-		t.Fatalf("checked only %d exact RPC grants; parser likely stopped matching the config", len(exact))
+		t.Fatalf("checked only %d exact RPC grants; accounts.yaml likely lost its service grants", len(exact))
 	}
 }
 
-func serviceGrantCounts(config string) map[string]int {
+func serviceGrantCounts(acl *natsacl.ACL) map[string]int {
 	counts := make(map[string]int)
-	for _, line := range strings.Split(config, "\n") {
-		match := serviceSubjectPattern.FindStringSubmatch(line)
-		if len(match) == 2 {
-			counts[match[1]]++
+	for _, spec := range acl.Accounts {
+		for _, subject := range serviceSubjects(spec) {
+			counts[subject]++
 		}
 	}
 	return counts
+}
+
+func serviceSubjects(spec natsacl.AccountSpec) []string {
+	var subjects []string
+	for _, exp := range spec.Exports {
+		subjects = append(subjects, exp.Service)
+	}
+	for _, imp := range spec.Imports {
+		subjects = append(subjects, imp.Service)
+	}
+	return slices.DeleteFunc(subjects, func(s string) bool { return s == "" })
 }
 
 func exactServiceGrants(counts map[string]int) map[string]int {

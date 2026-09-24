@@ -4,7 +4,6 @@
 package messaging
 
 import (
-	"strings"
 	"testing"
 )
 
@@ -39,10 +38,10 @@ func coordinationWrites() map[string]string {
 }
 
 func TestCoordinationBucketPublishIsolation(t *testing.T) {
-	blocks := (authConfig{body: sourceFile{name: "nats-auth.conf"}.read(t)}).busUserBlocks(t)
+	blocks := busUserBlocks(t)
 	for subject, owner := range coordinationWrites() {
 		for user, block := range blocks {
-			allowed := strings.Contains(block.body, `"`+subject+`"`)
+			allowed := block.grants(subject)
 			if allowed != (user == owner) {
 				t.Errorf("%s permission for %s = %v", user, subject, allowed)
 			}

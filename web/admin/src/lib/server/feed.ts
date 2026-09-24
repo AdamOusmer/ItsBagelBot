@@ -27,15 +27,7 @@ export function feedOptions(): ConnectionOptions {
     ignoreAuthErrorAbort: true,
     timeout: 3_000
   };
-  Object.assign(
-    opts,
-    credentialAuth(
-      process.env.NATS_USER,
-      process.env.NATS_PASSWORD,
-      process.env.NATS_JWT,
-      process.env.NATS_NKEY_SEED
-    )
-  );
+  Object.assign(opts, credentialAuth(process.env.NATS_JWT, process.env.NATS_NKEY_SEED));
   if (process.env.NATS_TOKEN) opts.token = process.env.NATS_TOKEN;
   // The hub runs mTLS: a CA-only config never connects and silently reconnect-loops.
   const tls = tlsOptions();

@@ -118,8 +118,6 @@ spec:
               value: nats.messaging.svc.cluster.local
             - name: NATS_LEAF_HOST
               value: nats-leaf.messaging.svc.cluster.local
-            - name: NATS_AUTH_MODE
-              value: jwt
             - name: NATS_HUB_HOST
               value: nats.messaging.svc.cluster.local
             - name: NATS_CA_PEM
