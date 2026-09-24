@@ -4,12 +4,17 @@
 package main
 
 import (
+	"slices"
 	"testing"
 
 	"ItsBagelBot/internal/natsacl"
 
 	"github.com/nats-io/jwt/v2"
 )
+
+func equalStrings(a, b []string) bool {
+	return slices.Equal(a, b)
+}
 
 func deploySysTestACL() *natsacl.ACL {
 	return &natsacl.ACL{Accounts: map[string]natsacl.AccountSpec{

@@ -4,6 +4,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 
@@ -57,9 +58,20 @@ func writeKeysYAML(path string, keys *natsacl.Keys) error {
 	if err != nil {
 		return fmt.Errorf("natscreds: marshal %s: %w", path, err)
 	}
-	return os.WriteFile(path, append(append([]byte{}, keysYAMLHeader...), body...), 0o644)
+	return writeIfChanged(path, append(append([]byte{}, keysYAMLHeader...), body...))
 }
 
 func writeOperatorJWT(path, token string) error {
-	return os.WriteFile(path, []byte(token+"\n"), 0o644)
+	return writeIfChanged(path, []byte(token+"\n"))
+}
+
+// writeIfChanged skips the write when the file already holds exactly this
+// content, so an unchanged run leaves the file's bytes and mtime untouched
+// and git sees no diff.
+func writeIfChanged(path string, content []byte) error {
+	existing, err := os.ReadFile(path)
+	if err == nil && bytes.Equal(existing, content) {
+		return nil
+	}
+	return os.WriteFile(path, content, 0o644)
 }

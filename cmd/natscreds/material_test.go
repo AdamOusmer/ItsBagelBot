@@ -4,12 +4,20 @@
 package main
 
 import (
+	"slices"
 	"testing"
 
 	"ItsBagelBot/internal/natsacl"
 
 	"github.com/nats-io/nkeys"
 )
+
+func assertContains(t *testing.T, lines []string, want string) {
+	t.Helper()
+	if !slices.Contains(lines, want) {
+		t.Fatalf("lines = %v, want to contain %q", lines, want)
+	}
+}
 
 func smallTestACL() *natsacl.ACL {
 	return &natsacl.ACL{Accounts: map[string]natsacl.AccountSpec{

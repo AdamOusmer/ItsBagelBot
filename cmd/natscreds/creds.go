@@ -4,6 +4,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -12,6 +13,11 @@ import (
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
 )
+
+// ErrDuplicateRoleName is returned when a role name appears in more than
+// one account; --rotate and the Doppler key names both assume role names
+// are globally unique, matching today's "role name == old username" rule.
+var ErrDuplicateRoleName = errors.New("natscreds: duplicate role name")
 
 // servicesProjects ports nats-secrets.py's SERVICES: a stem that owns its
 // own Doppler project, named by that project's slug.
@@ -79,6 +85,9 @@ type roleTarget struct {
 // resolveRoleTargets walks every role in acl and, for the ones that map onto
 // a service (the "sys" role does not), returns where its credentials live.
 func resolveRoleTargets(acl *natsacl.ACL) ([]roleTarget, error) {
+	if err := validateUniqueRoleNames(acl); err != nil {
+		return nil, err
+	}
 	var targets []roleTarget
 	for _, account := range sortedAccountNames(acl) {
 		for _, role := range sortedRoleNames(acl.Accounts[account].Roles) {
@@ -92,6 +101,21 @@ func resolveRoleTargets(acl *natsacl.ACL) ([]roleTarget, error) {
 		}
 	}
 	return targets, nil
+}
+
+// validateUniqueRoleNames guards the assumption --rotate and every Doppler
+// key name rely on: a role name never appears under two accounts.
+func validateUniqueRoleNames(acl *natsacl.ACL) error {
+	seenIn := make(map[string]string)
+	for _, account := range sortedAccountNames(acl) {
+		for _, role := range sortedRoleNames(acl.Accounts[account].Roles) {
+			if other, ok := seenIn[role]; ok {
+				return fmt.Errorf("%w: %q in both %q and %q", ErrDuplicateRoleName, role, other, account)
+			}
+			seenIn[role] = account
+		}
+	}
+	return nil
 }
 
 func resolveRoleTarget(ref roleRef) (roleTarget, bool, error) {

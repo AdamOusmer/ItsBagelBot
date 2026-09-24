@@ -83,14 +83,14 @@ func writeOperatorArtifacts(cfg Config, acl *natsacl.ACL, mat *material) error {
 	if err != nil {
 		return err
 	}
-	operatorToken, err := mintOperatorJWT(mat, sysPub)
+	operatorToken, err := resolveOperatorJWT(cfg.OperatorJWTPath, mat, sysPub)
 	if err != nil {
 		return err
 	}
 	if err := writeOperatorJWT(cfg.OperatorJWTPath, operatorToken); err != nil {
 		return err
 	}
-	activations, err := mintActivations(acl, mat)
+	activations, err := mintActivations(acl, mat, loadExistingKeys(cfg.KeysPath))
 	if err != nil {
 		return err
 	}
@@ -99,6 +99,17 @@ func writeOperatorArtifacts(cfg Config, acl *natsacl.ACL, mat *material) error {
 		return err
 	}
 	return writeKeysYAML(cfg.KeysPath, keys)
+}
+
+// loadExistingKeys returns nil, not an error, when there is nothing to
+// reuse yet: a missing or unparseable accounts.keys.yaml just means every
+// activation gets minted fresh.
+func loadExistingKeys(path string) *natsacl.Keys {
+	keys, err := natsacl.LoadKeys(path)
+	if err != nil {
+		return nil
+	}
+	return keys
 }
 
 func mintAllCredentials(store Doppler, acl *natsacl.ACL, mat *material, rotate *rotateScope) ([]string, error) {

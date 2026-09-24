@@ -4,12 +4,48 @@
 package main
 
 import (
+	"errors"
 	"testing"
 
 	"ItsBagelBot/internal/natsacl"
 
 	"github.com/nats-io/jwt/v2"
+	"github.com/nats-io/nkeys"
 )
+
+// assertSeedSignsForSubject proves a minted seed is the private half of a
+// JWT's own subject: sign a nonce with the seed, verify with the subject's
+// public key.
+func assertSeedSignsForSubject(t *testing.T, seed, subject string) {
+	t.Helper()
+	userKP, err := nkeys.FromSeed([]byte(seed))
+	if err != nil {
+		t.Fatal(err)
+	}
+	nonce := []byte("natscreds-test-nonce")
+	sig, err := userKP.Sign(nonce)
+	if err != nil {
+		t.Fatal(err)
+	}
+	subjectKP, err := nkeys.FromPublicKey(subject)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := subjectKP.Verify(nonce, sig); err != nil {
+		t.Fatalf("seed's signature does not verify against the JWT subject: %v", err)
+	}
+}
+
+func TestResolveRoleTargetsRejectsDuplicateRoleNames(t *testing.T) {
+	acl := &natsacl.ACL{Accounts: map[string]natsacl.AccountSpec{
+		"A": {Roles: map[string]natsacl.RoleSpec{"outgress_bus": {}}},
+		"B": {Roles: map[string]natsacl.RoleSpec{"outgress_bus": {}}},
+	}}
+	_, err := resolveRoleTargets(acl)
+	if !errors.Is(err, ErrDuplicateRoleName) {
+		t.Fatalf("err = %v, want %v", err, ErrDuplicateRoleName)
+	}
+}
 
 func TestParseRoleKind(t *testing.T) {
 	tests := []struct {

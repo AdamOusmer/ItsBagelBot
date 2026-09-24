@@ -34,6 +34,15 @@ func testConfig(t *testing.T) Config {
 	}
 }
 
+func mustReadFile(t *testing.T, path string) string {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
+}
+
 func TestFirstRunCreatesEveryKeyAndCredential(t *testing.T) {
 	cfg := testConfig(t)
 	store := newFakeDoppler()
@@ -75,6 +84,40 @@ func TestSecondRunIsNoOp(t *testing.T) {
 	}
 	if store.setCalls != afterFirst {
 		t.Fatalf("second run made %d more Set calls, want 0", store.setCalls-afterFirst)
+	}
+}
+
+func TestSecondRunLeavesPublicFilesByteIdentical(t *testing.T) {
+	assertPublicFilesUnchangedAcross(t, func(cfg *Config) {})
+}
+
+func TestRotateLeavesPublicFilesByteIdentical(t *testing.T) {
+	assertPublicFilesUnchangedAcross(t, func(cfg *Config) { cfg.Rotate = "outgress_bus" })
+}
+
+// assertPublicFilesUnchangedAcross runs once, applies mutate to the config,
+// runs again, and asserts operator.jwt and accounts.keys.yaml came out
+// byte-identical: the second run must not have reissued anything public.
+func assertPublicFilesUnchangedAcross(t *testing.T, mutate func(cfg *Config)) {
+	t.Helper()
+	cfg := testConfig(t)
+	store := newFakeDoppler()
+	var out bytes.Buffer
+	if err := execute(cfg, store, &out); err != nil {
+		t.Fatal(err)
+	}
+	keysBefore := mustReadFile(t, cfg.KeysPath)
+	jwtBefore := mustReadFile(t, cfg.OperatorJWTPath)
+
+	mutate(&cfg)
+	if err := execute(cfg, store, &out); err != nil {
+		t.Fatal(err)
+	}
+	if got := mustReadFile(t, cfg.KeysPath); got != keysBefore {
+		t.Fatal("accounts.keys.yaml changed when nothing public should have")
+	}
+	if got := mustReadFile(t, cfg.OperatorJWTPath); got != jwtBefore {
+		t.Fatal("operator.jwt changed when nothing public should have")
 	}
 }
 
