@@ -552,6 +552,16 @@ const t = useTranslations(lang);
         const mediaQuery = window.matchMedia('(max-width: 900px)');
         const isCompact = mediaQuery.matches;
         const maxPixelRatio = isCompact ? 1.25 : 1.5;
+        // Drawing buffer capped near 3 MP: at 2560x1440@2 the 1.5x
+        // supersample held ~175 MB of WebGL buffers in a WKWebView. Chosen
+        // over full resolution knowing the wireframe lines stair-step slightly
+        // on 5K; the 0.75 floor keeps a 4K@1 screen from going softer than that.
+        const MAX_DRAW_PIXELS = 3e6;
+        const pixelRatioFor = (width: number, height: number) => Math.min(
+            devicePixelRatio,
+            maxPixelRatio,
+            Math.max(0.75, Math.sqrt(MAX_DRAW_PIXELS / Math.max(1, width * height))),
+        );
         const ringSegments = 72;
 
         let geometryData = preloadRegistry.encryptionData;
@@ -569,7 +579,7 @@ const t = useTranslations(lang);
             outputBufferType: HalfFloatType,
         });
         renderer.setClearColor(0x000000, 0);
-        renderer.setPixelRatio(Math.min(devicePixelRatio, maxPixelRatio));
+        renderer.setPixelRatio(pixelRatioFor(canvas.clientWidth, canvas.clientHeight));
         renderer.toneMapping = ACESFilmicToneMapping;
         renderer.toneMappingExposure = 1.0;
         renderer.outputColorSpace = SRGBColorSpace;
@@ -1222,7 +1232,7 @@ const t = useTranslations(lang);
             canvasHeight = h;
             camera.aspect = w / h;
             camera.updateProjectionMatrix();
-            renderer.setPixelRatio(Math.min(devicePixelRatio, maxPixelRatio));
+            renderer.setPixelRatio(pixelRatioFor(w, h));
             renderer.setSize(w, h, false);
             refreshConnectorLayout();
         }
