@@ -12,6 +12,7 @@ defmodule Ingress.NatsDualCredentialsTest do
 
     keys = [
       "NATS_AUTH_MODE",
+      "NATS_RPC_AUTH_MODE",
       "NATS_USER",
       "NATS_PASSWORD",
       "NATS_JWT",
@@ -82,6 +83,37 @@ defmodule Ingress.NatsDualCredentialsTest do
       config = read_runtime()
 
       assert [%{username: "bus-user", password: "bus-pass"}] = config[:ingress][:nats_bus]
+    end
+  end
+
+  describe "per-plane NATS_RPC_AUTH_MODE" do
+    test "defaults both planes to password when neither mode var is set" do
+      config = read_runtime()
+
+      assert [%{username: "bus-user", password: "bus-pass"}] = config[:ingress][:nats_bus]
+      assert [%{username: "bus-user", password: "bus-pass"}] = config[:ingress][:nats]
+    end
+
+    test "switches the RPC plane to jwt while the bus plane stays on password" do
+      System.put_env("NATS_RPC_AUTH_MODE", "jwt")
+      System.put_env("NATS_RPC_JWT", "rpc-jwt")
+      System.put_env("NATS_RPC_NKEY_SEED", "rpc-seed")
+
+      config = read_runtime()
+
+      assert [%{jwt: "rpc-jwt", nkey_seed: "rpc-seed"}] = config[:ingress][:nats]
+      assert [%{username: "bus-user", password: "bus-pass"}] = config[:ingress][:nats_bus]
+    end
+
+    test "inherits the bus mode when NATS_RPC_AUTH_MODE is unset" do
+      System.put_env("NATS_AUTH_MODE", "jwt")
+      System.put_env("NATS_JWT", "bus-jwt")
+      System.put_env("NATS_NKEY_SEED", "bus-seed")
+
+      config = read_runtime()
+
+      assert [%{jwt: "bus-jwt", nkey_seed: "bus-seed"}] = config[:ingress][:nats_bus]
+      assert [%{jwt: "bus-jwt", nkey_seed: "bus-seed"}] = config[:ingress][:nats]
     end
   end
 
