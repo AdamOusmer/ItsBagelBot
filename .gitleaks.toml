@@ -4,8 +4,13 @@ title = "ItsBagelBot gitleaks config"
 useDefault = true
 
 [allowlist]
-description = "Known false positives: link-safety test fixtures use punycode host strings (xn--…) that the generic-api-key heuristic misreads as secrets."
+description = "Known false positives: link-safety test fixtures use punycode host strings (xn--…) that the generic-api-key heuristic misreads as secrets; the NATS operator, account and activation JWTs natscreds writes are signed public claims with no seed."
 regexTarget = "match"
 regexes = [
   '''xn--[a-z0-9-]+''',
+]
+paths = [
+  '''^deploy/messaging/operator\.jwt$''',
+  '''^deploy/messaging/nats-accounts\.conf$''',
+  '''^deploy/messaging/accounts\.keys\.yaml$''',
 ]
