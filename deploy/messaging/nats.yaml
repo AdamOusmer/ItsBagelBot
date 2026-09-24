@@ -105,7 +105,7 @@ spec:
             - {name: pid, mountPath: /var/run/nats}
           resources:
             # Keep nats-server.conf max_mem under this limit: JetStream cannot see the container limit.
-            requests: {cpu: "1000m", memory: 4Gi}
+            requests: {cpu: "1000m", memory: 3Gi}
             limits: {cpu: "5", memory: 8Gi}
           securityContext:
             allowPrivilegeEscalation: false
