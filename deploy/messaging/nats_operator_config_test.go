@@ -19,13 +19,10 @@ var (
 )
 
 func TestHubPinsTheBusAccountByPublicKey(t *testing.T) {
-	keys, err := natsacl.LoadKeys("accounts.keys.yaml")
-	if err != nil {
-		t.Fatal(err)
-	}
+	bus := committedKeys(t).Accounts["BUS"]
 	m := pinnedAccounts.FindStringSubmatch(sourceFile{name: "nats-server.conf"}.read(t))
-	if m == nil || m[1] != keys.Accounts["BUS"] {
-		t.Fatalf("hub cluster pins %v, want BUS public key %s", m, keys.Accounts["BUS"])
+	if m == nil || m[1] != bus {
+		t.Fatalf("hub cluster pins %v, want BUS public key %s", m, bus)
 	}
 }
 
@@ -39,28 +36,45 @@ func TestBothClustersMountTheOperatorTrustFiles(t *testing.T) {
 }
 
 func TestPreloadCoversEveryAccountSignedByTheOperator(t *testing.T) {
+	operator := committedOperator(t)
+	preloaded := committedPreload(t)
+	for name, pub := range committedKeys(t).Accounts {
+		claims := preloaded[pub]
+		if claims == nil || !operator.DidSign(claims) {
+			t.Errorf("account %s (%s) is not preloaded under this operator", name, pub)
+		}
+	}
+}
+
+func committedKeys(t *testing.T) *natsacl.Keys {
+	t.Helper()
 	keys, err := natsacl.LoadKeys("accounts.keys.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
+	return keys
+}
+
+func committedOperator(t *testing.T) *jwt.OperatorClaims {
+	t.Helper()
 	operator, err := jwt.DecodeOperatorClaims(strings.TrimSpace(sourceFile{name: "operator.jwt"}.read(t)))
 	if err != nil {
 		t.Fatal(err)
 	}
-	preloaded := map[string]bool{}
+	return operator
+}
+
+// committedPreload keys each preloaded account by the public key its entry
+// is filed under, refusing an entry whose claims name a different subject.
+func committedPreload(t *testing.T) map[string]*jwt.AccountClaims {
+	t.Helper()
+	preloaded := map[string]*jwt.AccountClaims{}
 	for _, m := range preloadToken.FindAllStringSubmatch(sourceFile{name: "nats-accounts.conf"}.read(t), -1) {
 		claims, err := jwt.DecodeAccountClaims(m[2])
-		if err != nil {
-			t.Fatalf("preload %s: %v", m[1], err)
+		if err != nil || claims.Subject != m[1] {
+			t.Fatalf("preload entry %s does not decode to its own account: %v", m[1], err)
 		}
-		if claims.Subject != m[1] || !operator.DidSign(claims) {
-			t.Fatalf("preload %s: subject %s issued by %s, not this operator", m[1], claims.Subject, claims.Issuer)
-		}
-		preloaded[m[1]] = true
+		preloaded[m[1]] = claims
 	}
-	for name, pub := range keys.Accounts {
-		if !preloaded[pub] {
-			t.Errorf("account %s (%s) missing from nats-accounts.conf", name, pub)
-		}
-	}
+	return preloaded
 }
