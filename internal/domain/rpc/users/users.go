@@ -218,7 +218,7 @@ type CursorSetRequest struct {
 
 type CommandsPageSetRequest struct {
 	BroadcasterUserID string `json:"broadcaster_user_id"`
-	Hidden            bool   `json:"hidden"`
+	Hidden            bool   `json:"commands_page_hidden"`
 }
 
 type CreateDelegationRequest struct {
