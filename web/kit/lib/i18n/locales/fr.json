@@ -788,7 +788,7 @@
       "confirmStart": "Lancer",
       "confirmCancel": "Retour",
       "startFailed": "L’exécution n’a pas démarré.",
-      "planFailed": "Le plan ne s’est pas actualisé : ce que cette exécution redéploie est inconnu. Changez de type pour réessayer.",
+      "planFailed": "Le plan ne s’est pas actualisé : ce que cette exécution redéploie est inconnu. Choisissez de nouveau le type pour réessayer.",
       "planWait": "En attente du plan.",
       "history": "Historique",
       "historyEmpty": "Aucune exécution",
@@ -862,6 +862,87 @@
         "new": "nouveau",
         "pending": "en attente",
         "failing": "en échec"
+      },
+      "flow": {
+        "label": "Étapes de livraison",
+        "stepOf": "Étape {n} sur {total}",
+        "next": "Suivant",
+        "back": "Retour",
+        "rail": {
+          "kind": "Type",
+          "build": "Build",
+          "rollback": "Version",
+          "prs": "Pull requests",
+          "changelog": "Journal",
+          "review": "Vérification"
+        },
+        "title": {
+          "kind": "Que livre-t-on ?",
+          "build": "Version et commit",
+          "rollback": "Choisir la version",
+          "prs": "Fusionner les pull requests d’abord",
+          "changelog": "Rédiger le journal des modifications",
+          "review": "Vérifier et livrer"
+        },
+        "body": {
+          "kind": "Chaque type exécute un ensemble fixe d’étapes dans l’ordre et s’arrête au premier échec.",
+          "build": "Le commit de main à partir duquel ce run construit. Les versions et correctifs écrivent aussi l’étiquette de version.",
+          "rollback": "Le cluster épingle les images de cette version et redéploie chaque service dont l’épinglage change, sans reconstruction.",
+          "prs": "Les pull requests cochées sont fusionnées avant toute construction. Seules les PR dont les vérifications passent ou sont en cours peuvent être cochées.",
+          "changelog": "Publié avec les notes de version. L’anglais est obligatoire. Laissé vide, le français reprend l’anglais.",
+          "review": "Vérifiez ce que fait ce run, puis lancez-le. Rien n’est annulé automatiquement."
+        },
+        "stagesCount": "{n} étapes",
+        "picked": "{n} PR cochées",
+        "pickedOne": "1 PR cochée",
+        "pickedNone": "Aucune PR cochée. Rien n’est fusionné.",
+        "releasesEmpty": "Aucune version antérieure vers laquelle revenir.",
+        "reviewKind": "Type",
+        "reviewPrs": "Fusionne d’abord",
+        "reviewPrsNone": "Rien",
+        "reviewChangelog": "Titre du journal",
+        "eyebrow": "Nouveau déploiement",
+        "close": "Annuler",
+        "pending": "Pas encore atteint"
+      },
+      "run": {
+        "stageOf": "Étape {n} sur {total}",
+        "follow": "Suivre en direct",
+        "about": {
+          "preflight": "Vérifie que le cluster répond, que les manifestes passent le lint, que les vérifications requises passent sur la cible et que chaque charge est stable.",
+          "merge_prs": "Fusionne chaque pull request cochée une fois ses vérifications passées, en mettant d’abord à jour les branches en retard.",
+          "changelog": "Ouvre et fusionne une pull request qui ajoute le fichier de journal de cette version à main.",
+          "tag": "Crée l’étiquette de version sur le commit du journal. Tout ce qui n’est pas sur main est refusé.",
+          "release": "Publie la version GitHub de l’étiquette, avec les points forts du journal comme notes.",
+          "build": "Attend la fin du workflow d’images sur GitHub et suit les jobs de chaque image.",
+          "digests": "Récupère chaque image construite et vérifie ses deux architectures, son commit et sa provenance.",
+          "pin_pr": "Ouvre et fusionne une pull request qui épingle les manifestes de main sur les nouveaux digests.",
+          "acl": "Applique la configuration NATS et attend que chaque serveur NATS l’ait rechargée et soit stable.",
+          "rollout": "Applique la configuration partagée, puis redéploie un service à la fois en attendant ses pods avant le suivant.",
+          "verify": "Vérifie que chaque pod exécute son image épinglée et que les pages de statut répondent. Un écart propose un retour arrière."
+        },
+        "state": {
+          "pending": "Démarre une fois les étapes précédentes terminées.",
+          "running": "En cours.",
+          "waiting": "En pause jusqu’à ce qu’un élément extérieur soit prêt.",
+          "succeeded": "Terminé.",
+          "failed": "Arrêté ici. Rien après ne s’est exécuté.",
+          "skipped": "Inutile pour ce run.",
+          "cancelled": "Annulé avant la fin."
+        },
+        "nowBuilding": "Construction",
+        "nowRolling": "Déploiement",
+        "nowOf": "{n} sur {total}",
+        "nowAllBuilt": "Les {total} images sont construites",
+        "nowAllRolled": "Les {total} services sont déployés",
+        "pods": "{done} pods prêts sur {total}",
+        "jobs": "{done} jobs terminés sur {total}",
+        "openJob": "Ouvrir le job"
+      },
+      "start": {
+        "title": "Lancer un déploiement",
+        "body": "Choisissez un type, vérifiez ce qui part, puis suivez chaque étape.",
+        "cta": "Nouveau déploiement"
       }
     }
   },

@@ -6,7 +6,7 @@
   import { shortSha } from './view';
   import { countKey } from './ship';
 
-  let { commits, since }: { commits: DeployCommit[]; since: string } = $props();
+  let { commits, since, open = false }: { commits: DeployCommit[]; since: string; open?: boolean } = $props();
 
   const { t } = getI18n();
 
@@ -17,7 +17,7 @@
   );
 </script>
 
-<details class="commits">
+<details class="commits" {open}>
   <summary>{summary}</summary>
   {#if commits.length > 0}
     <!-- svelte-ignore a11y_no_noninteractive_tabindex -->

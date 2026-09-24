@@ -26,6 +26,7 @@ import {
   type DeployRun,
   type DeployRunSummary,
   type DeployStage,
+  type PodPhase,
   type RunRequest,
   type StageId,
   type StageState,
@@ -250,8 +251,14 @@ const DEMO_REPO = 'https://github.com/AdamOusmer/ItsBagelBot';
 const DEMO_SHA = '4f1c9e2ab7d05e8c3a6b91f0d2e47c5a8b3f6e19';
 const demoRuns = new Map<DeployRunId, DeployRun>();
 
+const DEMO_JOBS = 2;
+const DEMO_UNITS: Partial<Record<StageId, number>> = {
+  build: DEMO_SERVICES.length * DEMO_JOBS,
+  rollout: DEMO_SERVICES.length * DEMO_NODES.length
+};
+
 function demoStage(id: StageId): DeployStage {
-  return { id, state: 'pending', progress: { done: 0, total: id === 'rollout' ? DEMO_SERVICES.length : 1 } };
+  return { id, state: 'pending', progress: { done: 0, total: DEMO_UNITS[id] ?? 1 } };
 }
 
 function demoRunFrom(req: StartRequest, id: DeployRunId): DeployRun {
@@ -281,30 +288,51 @@ function demoGet(req: RunRequest): DeployRun {
   return run;
 }
 
-function demoItemState(index: number, done: number): StageState {
-  if (index < done) return 'succeeded';
-  return index === done ? 'running' : 'pending';
+function demoUnitsDone(index: number, per: number, done: number): number {
+  return Math.min(Math.max(done - index * per, 0), per);
 }
 
-const DEMO_FRESH_PODS: Partial<Record<StageState, number>> = { succeeded: DEMO_NODES.length, running: 1 };
+function demoItemState(fresh: number, per: number, started: boolean): StageState {
+  if (fresh >= per) return 'succeeded';
+  return started ? 'running' : 'pending';
+}
 
-function demoItem(service: DemoService, index: number, done: number): DeployItem {
-  const state = demoItemState(index, done);
-  const fresh = DEMO_FRESH_PODS[state] ?? 0;
+function demoBuildItem(service: DemoService, index: number, done: number): DeployItem {
+  const fresh = demoUnitsDone(index, DEMO_JOBS, done);
   return {
     key: service,
     label: service,
-    state,
-    progress: { done: fresh, total: DEMO_NODES.length },
-    nodes: DEMO_NODES.map((node, n) => ({ node, pod: `${service}-${n}`, phase: n < fresh ? 'new' : 'old' }))
+    state: demoItemState(fresh, DEMO_JOBS, done >= index * DEMO_JOBS),
+    url: `${DEMO_REPO}/actions`,
+    progress: { done: fresh, total: DEMO_JOBS }
   };
 }
+
+function demoRolloutItem(service: DemoService, index: number, done: number): DeployItem {
+  const per = DEMO_NODES.length;
+  const fresh = demoUnitsDone(index, per, done);
+  const started = done >= index * per;
+  const phase = (n: number): PodPhase => (n < fresh ? 'new' : started && n === fresh ? 'pending' : 'old');
+  return {
+    key: service,
+    label: service,
+    state: demoItemState(fresh, per, started),
+    progress: { done: fresh, total: per },
+    nodes: DEMO_NODES.map((node, n) => ({ node, pod: `${service}-${n}`, phase: phase(n) }))
+  };
+}
+
+const DEMO_ITEMS: Partial<Record<StageId, (svc: DemoService, index: number, done: number) => DeployItem>> = {
+  build: demoBuildItem,
+  rollout: demoRolloutItem
+};
 
 function demoStep(stage: DeployStage): void {
   const done = stage.progress.done + 1;
   stage.progress = { ...stage.progress, done };
   stage.state = done >= stage.progress.total ? 'succeeded' : 'running';
-  if (stage.id === 'rollout') stage.items = DEMO_SERVICES.map((svc, i) => demoItem(svc, i, done));
+  const item = DEMO_ITEMS[stage.id];
+  if (item) stage.items = DEMO_SERVICES.map((svc, i) => item(svc, i, done));
 }
 
 function demoAdvance(run: DeployRun): DeployRun {

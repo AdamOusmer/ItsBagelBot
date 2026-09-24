@@ -91,6 +91,7 @@ export { default as Brackets } from './Brackets.svelte';
 export { default as CardAtmosphere } from './CardAtmosphere.svelte';
 export { default as Cursor } from './Cursor.svelte';
 export { default as LightField } from './LightField.svelte';
+export { default as Sky } from './Sky.svelte';
 export { default as ReadingProgress } from './ReadingProgress.svelte';
 
 export { toast, toasts, dismissToast, type ToastItem } from './toast.svelte';
