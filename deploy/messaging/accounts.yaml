@@ -713,6 +713,10 @@ accounts:
               from: LOYALTY_RPC
             - service: bagel.rpc.loyalty.counter.get.node.*
               from: LOYALTY_RPC
+            - service: bagel.rpc.loyalty.counter.board
+              from: LOYALTY_RPC
+            - service: bagel.rpc.loyalty.counter.board.node.*
+              from: LOYALTY_RPC
         roles:
             projector_rpc: {}
     SYS:
