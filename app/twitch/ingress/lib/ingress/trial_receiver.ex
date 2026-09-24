@@ -192,8 +192,21 @@ defmodule Ingress.TrialReceiver do
 
   defp ownership_tick(state) do
     case Trials.renew(state.owner, state.epoch, state.slot) do
-      {:ok, 1} -> state |> check_deadlines() |> reconcile() |> record_loads()
+      {:ok, 1} -> state |> check_deadlines() |> reconcile() |> record_loads() |> spread()
       _ -> lose_lease(state)
+    end
+  end
+
+  defp spread(%{epoch: nil} = state), do: state
+
+  defp spread(state) do
+    with {:ok, owners} <- Trials.owners(),
+         true <- TrialConduit.yield_slot?(owners, state.slot, node(), [node() | Node.list()]),
+         {:ok, 1} <- Trials.release(state.owner, state.epoch, state.slot) do
+      Logger.info("trial socket #{state.slot} handed to a pod without one")
+      lose_lease(state)
+    else
+      _ -> state
     end
   end
 
