@@ -8,6 +8,7 @@ namespace: cache
 resources:
   - certificates.yaml
   - dopplersecrets.yaml
+  - network-policies.yaml
   - valkey.yaml
 
 configMapGenerator:
