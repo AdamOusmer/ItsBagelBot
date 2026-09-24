@@ -360,30 +360,18 @@ spec:
             - name: APP_ENV
               valueFrom:
                 secretKeyRef: {name: deployer-env, key: APP_ENV}
-            - name: NATS_USER
-              valueFrom:
-                secretKeyRef: {name: deployer-env, key: NATS_USER}
-            - name: NATS_PASSWORD
-              valueFrom:
-                secretKeyRef: {name: deployer-env, key: NATS_PASSWORD}
-            - name: NATS_RPC_USER
-              valueFrom:
-                secretKeyRef: {name: deployer-env, key: NATS_RPC_USER}
-            - name: NATS_RPC_PASSWORD
-              valueFrom:
-                secretKeyRef: {name: deployer-env, key: NATS_RPC_PASSWORD}
             - name: NATS_JWT
               valueFrom:
-                secretKeyRef: {name: deployer-env, key: NATS_JWT, optional: true}
+                secretKeyRef: {name: deployer-env, key: NATS_JWT}
             - name: NATS_NKEY_SEED
               valueFrom:
-                secretKeyRef: {name: deployer-env, key: NATS_NKEY_SEED, optional: true}
+                secretKeyRef: {name: deployer-env, key: NATS_NKEY_SEED}
             - name: NATS_RPC_JWT
               valueFrom:
-                secretKeyRef: {name: deployer-env, key: NATS_RPC_JWT, optional: true}
+                secretKeyRef: {name: deployer-env, key: NATS_RPC_JWT}
             - name: NATS_RPC_NKEY_SEED
               valueFrom:
-                secretKeyRef: {name: deployer-env, key: NATS_RPC_NKEY_SEED, optional: true}
+                secretKeyRef: {name: deployer-env, key: NATS_RPC_NKEY_SEED}
             - name: GITHUB_APP_ID
               valueFrom:
                 secretKeyRef: {name: deployer-env, key: GITHUB_APP_ID}
@@ -401,13 +389,13 @@ spec:
                 secretKeyRef: {name: deployer-env, key: GHCR_TOKEN}
             - name: DEPLOY_NATS_SIGNING_SEED
               valueFrom:
-                secretKeyRef: {name: deployer-env, key: DEPLOY_NATS_SIGNING_SEED, optional: true}
+                secretKeyRef: {name: deployer-env, key: DEPLOY_NATS_SIGNING_SEED}
             - name: DEPLOY_NATS_SYS_JWT
               valueFrom:
-                secretKeyRef: {name: deployer-env, key: DEPLOY_NATS_SYS_JWT, optional: true}
+                secretKeyRef: {name: deployer-env, key: DEPLOY_NATS_SYS_JWT}
             - name: DEPLOY_NATS_SYS_NKEY_SEED
               valueFrom:
-                secretKeyRef: {name: deployer-env, key: DEPLOY_NATS_SYS_NKEY_SEED, optional: true}
+                secretKeyRef: {name: deployer-env, key: DEPLOY_NATS_SYS_NKEY_SEED}
           volumeMounts:
             - {name: nats-client-tls, mountPath: /etc/nats-client/tls, readOnly: true}
           ports:

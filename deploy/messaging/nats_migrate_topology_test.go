@@ -8,7 +8,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -20,9 +19,8 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-// migrateNode is one server's slice of a rehearsal cluster's topology; its
-// ports and store dir stay fixed across a password-mode to operator-mode
-// restart, matching a real in-place cutover.
+// migrateNode is one server's slice of a test cluster's topology; its ports
+// and store dir stay fixed across restarts, matching an in-place restart.
 type migrateNode struct {
 	name        string
 	clientPort  int
@@ -62,8 +60,7 @@ func clusterRoutes(nodes []migrateNode) string {
 	return strings.Join(routes, ", ")
 }
 
-// migrateCluster is a running rehearsal cluster; the same value type serves
-// both the password-mode and the operator-mode incarnation.
+// migrateCluster is a running operator-mode test cluster.
 type migrateCluster struct {
 	nodes   []migrateNode
 	servers []*server.Server
@@ -140,56 +137,6 @@ func jsAPISubject(domain, suffix string) string {
 	return "$JS." + domain + ".API." + suffix
 }
 
-const migratePassword = "rehearsal-password"
-
-func passwordModeConf(n migrateNode, nodes []migrateNode) string {
-	return fmt.Sprintf(`
-server_name: %s
-listen: 127.0.0.1:%d
-cluster {
-  name: rehearsal
-  listen: 127.0.0.1:%d
-  accounts: ["BUS"]
-  routes: [%s]
-}
-jetstream {
-  store_dir: %q
-  domain: hub
-}
-accounts {
-  SYS: {
-    users: [{user: "sys", password: %q}]
-  }
-  BUS: {
-    jetstream: { cluster_traffic: owner }
-    mappings: {
-%s
-    }
-    users: [{user: "bus", password: %q}]
-  }
-}
-system_account: SYS
-`, n.name, n.clientPort, n.clusterPort, clusterRoutes(nodes), n.storeDir,
-		migratePassword, mappingsConfBlock(), migratePassword)
-}
-
-func mappingsConfBlock() string {
-	mappings := domainMappings("hub")
-	keys := make([]string, 0, len(mappings))
-	for k := range mappings {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	lines := make([]string, len(keys))
-	for i, k := range keys {
-		lines[i] = fmt.Sprintf("      %q: %q", k, mappings[k])
-	}
-	return strings.Join(lines, "\n")
-}
-
-// operatorFixture is the operator-mode identity for the rehearsal's own BUS
-// and SYS accounts (distinct from the full production accounts.yaml keyring
-// used by the live ACL check).
 type operatorFixture struct {
 	ring        *aclKeyring
 	operatorJWT string

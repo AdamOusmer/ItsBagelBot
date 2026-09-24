@@ -19,8 +19,6 @@ const CREDENTIAL_ENV_KEYS = [
   'NATS_PASSWORD',
   'NATS_JWT',
   'NATS_NKEY_SEED',
-  'NATS_RPC_USER',
-  'NATS_RPC_PASSWORD',
   'NATS_RPC_JWT',
   'NATS_RPC_NKEY_SEED'
 ];
@@ -41,54 +39,34 @@ afterEach(() => {
 });
 
 describe('credentialAuth', () => {
-  test('password only keeps the plain user/pass shape', () => {
-    expect(credentialAuth('u', 'p', undefined, undefined)).toEqual({ user: 'u', pass: 'p' });
-  });
-
-  test('no credentials at all yields an empty options patch', () => {
-    expect(credentialAuth(undefined, undefined, undefined, undefined)).toEqual({});
-  });
-
-  test('JWT only builds a single JWT authenticator and no user/pass fields', () => {
-    const auth = credentialAuth(undefined, undefined, 'a-jwt', SEED);
-    expect(auth.user).toBeUndefined();
-    expect(auth.pass).toBeUndefined();
+  test('a JWT and seed build a single JWT authenticator', () => {
+    const auth = credentialAuth('a-jwt', SEED);
     expect(auth.authenticator).toHaveLength(1);
     const creds = auth.authenticator![0]('nonce') as { jwt: string; sig: string };
     expect(creds.jwt).toBe('a-jwt');
     expect(creds.sig.length).toBeGreaterThan(0);
   });
 
-  test('both password and JWT combine into one authenticator array', () => {
-    const auth = credentialAuth('u', 'p', 'a-jwt', SEED);
-    expect(auth.user).toBeUndefined();
-    expect(auth.authenticator).toHaveLength(2);
-    const [passwordCreds, jwtCreds] = auth.authenticator!.map((fn) => fn('nonce')) as [
-      { user: string; pass: string },
-      { jwt: string }
-    ];
-    expect(passwordCreds).toEqual({ user: 'u', pass: 'p' });
-    expect(jwtCreds.jwt).toBe('a-jwt');
-  });
-
-  test('one JWT var without the other falls back to the plain shape', () => {
-    expect(credentialAuth('u', 'p', 'a-jwt', undefined)).toEqual({ user: 'u', pass: 'p' });
-    expect(credentialAuth(undefined, undefined, undefined, SEED)).toEqual({});
+  test('either var alone yields an empty options patch', () => {
+    expect(credentialAuth('a-jwt', undefined)).toEqual({});
+    expect(credentialAuth(undefined, SEED)).toEqual({});
   });
 });
 
 describe('options() credential wiring', () => {
-  test('options stay byte-identical to today when no JWT vars are set', () => {
+  test('leftover password vars are never sent', () => {
     process.env.NATS_USER = 'u';
     process.env.NATS_PASSWORD = 'p';
+    process.env.NATS_JWT = 'bus-jwt';
+    process.env.NATS_NKEY_SEED = SEED;
 
     const opts = options('bus');
-    expect(opts.user).toBe('u');
-    expect(opts.pass).toBe('p');
-    expect(opts.authenticator).toBeUndefined();
+    expect(opts.user).toBeUndefined();
+    expect(opts.pass).toBeUndefined();
+    expect(opts.authenticator).toHaveLength(1);
   });
 
-  test('RPC falls back to the bus JWT vars exactly like the password logic', () => {
+  test('RPC falls back to the bus JWT vars', () => {
     process.env.NATS_JWT = 'bus-jwt';
     process.env.NATS_NKEY_SEED = SEED;
 

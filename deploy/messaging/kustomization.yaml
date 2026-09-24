@@ -8,7 +8,6 @@ resources:
   - certificates.yaml
   - nats.yaml
   - nats-leaf.yaml
-  - nats-auth-dopplersecret.yaml
 configMapGenerator:
   - name: nats-config
     files:

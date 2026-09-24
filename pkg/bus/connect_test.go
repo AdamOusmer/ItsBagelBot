@@ -95,18 +95,8 @@ func applyOptions(t *testing.T, opts []nats.Option) nats.Options {
 
 func clearCredentialEnv(t *testing.T) {
 	t.Helper()
-	for _, key := range []string{
-		"NATS_USER", "NATS_PASSWORD", "NATS_JWT", "NATS_NKEY_SEED",
-		"NATS_RPC_USER", "NATS_RPC_PASSWORD", "NATS_RPC_JWT", "NATS_RPC_NKEY_SEED",
-	} {
+	for _, key := range []string{"NATS_JWT", "NATS_NKEY_SEED", "NATS_RPC_JWT", "NATS_RPC_NKEY_SEED"} {
 		t.Setenv(key, "")
-	}
-}
-
-func assertUserPass(t *testing.T, applied nats.Options, wantUser, wantPass string) {
-	t.Helper()
-	if applied.User != wantUser || applied.Password != wantPass {
-		t.Fatalf("got user=%q pass=%q, want %q/%q", applied.User, applied.Password, wantUser, wantPass)
 	}
 }
 
@@ -124,63 +114,34 @@ func assertJWT(t *testing.T, applied nats.Options, wantJWT string) {
 	}
 }
 
-func TestBusOptionsPasswordOnly(t *testing.T) {
+func TestBusOptionsSendOnlyTheJWT(t *testing.T) {
 	clearCredentialEnv(t)
 	t.Setenv("NATS_USER", "bus-user")
 	t.Setenv("NATS_PASSWORD", "bus-pass")
-
-	applied := applyOptions(t, busOptions("test"))
-	assertUserPass(t, applied, "bus-user", "bus-pass")
-	if applied.UserJWT != nil {
-		t.Fatal("UserJWT callback set with no JWT env; options must stay byte-identical to today")
-	}
-}
-
-func TestBusOptionsJWTOnly(t *testing.T) {
-	clearCredentialEnv(t)
 	t.Setenv("NATS_JWT", "bus-jwt")
 	t.Setenv("NATS_NKEY_SEED", "bus-seed")
 
 	applied := applyOptions(t, busOptions("test"))
-	if applied.User != "" {
-		t.Fatalf("got user=%q, want empty when only JWT vars are set", applied.User)
+	if applied.User != "" || applied.Password != "" {
+		t.Fatalf("got user=%q pass=%q, want no password credentials", applied.User, applied.Password)
 	}
 	assertJWT(t, applied, "bus-jwt")
 }
 
-func assertBusCredentialsCarryOver(t *testing.T, build func(clientName) []nats.Option) {
-	t.Helper()
+func TestRPCOptionsFallsBackToBusJWT(t *testing.T) {
 	clearCredentialEnv(t)
-	t.Setenv("NATS_USER", "bus-user")
-	t.Setenv("NATS_PASSWORD", "bus-pass")
 	t.Setenv("NATS_JWT", "bus-jwt")
 	t.Setenv("NATS_NKEY_SEED", "bus-seed")
 
-	applied := applyOptions(t, build("test"))
-	assertUserPass(t, applied, "bus-user", "bus-pass")
-	assertJWT(t, applied, "bus-jwt")
+	assertJWT(t, applyOptions(t, rpcOptions("test")), "bus-jwt")
 }
 
-func TestBusOptionsBothPasswordAndJWT(t *testing.T) {
-	assertBusCredentialsCarryOver(t, busOptions)
-}
-
-func TestRPCOptionsFallsBackToBusCredentials(t *testing.T) {
-	assertBusCredentialsCarryOver(t, rpcOptions)
-}
-
-func TestRPCOptionsPrefersOwnCredentials(t *testing.T) {
+func TestRPCOptionsPrefersOwnJWT(t *testing.T) {
 	clearCredentialEnv(t)
-	t.Setenv("NATS_USER", "bus-user")
-	t.Setenv("NATS_PASSWORD", "bus-pass")
 	t.Setenv("NATS_JWT", "bus-jwt")
 	t.Setenv("NATS_NKEY_SEED", "bus-seed")
-	t.Setenv("NATS_RPC_USER", "rpc-user")
-	t.Setenv("NATS_RPC_PASSWORD", "rpc-pass")
 	t.Setenv("NATS_RPC_JWT", "rpc-jwt")
 	t.Setenv("NATS_RPC_NKEY_SEED", "rpc-seed")
 
-	applied := applyOptions(t, rpcOptions("test"))
-	assertUserPass(t, applied, "rpc-user", "rpc-pass")
-	assertJWT(t, applied, "rpc-jwt")
+	assertJWT(t, applyOptions(t, rpcOptions("test")), "rpc-jwt")
 }

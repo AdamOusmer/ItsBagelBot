@@ -18,11 +18,11 @@ import (
 )
 
 func TestSendingCoordinationQuorumIntegration(t *testing.T) {
-	url := os.Getenv("OUTGRESS_COORDINATION_TEST_URL")
-	if url == "" {
-		t.Skip("set OUTGRESS_COORDINATION_TEST_URL to a local R3 NATS fixture")
+	url, creds := os.Getenv("OUTGRESS_COORDINATION_TEST_URL"), os.Getenv("OUTGRESS_COORDINATION_TEST_CREDS")
+	if url == "" || creds == "" {
+		t.Skip("set OUTGRESS_COORDINATION_TEST_URL and OUTGRESS_COORDINATION_TEST_CREDS (an outgress_bus creds file) for a local R3 NATS fixture")
 	}
-	nc, err := nats.Connect(url, nats.UserInfo("outgress_bus", "test-password"))
+	nc, err := nats.Connect(url, nats.UserCredentials(creds))
 	require.NoError(t, err)
 	defer nc.Close()
 	js, err := jetstream.NewWithDomain(nc, "hub")

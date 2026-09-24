@@ -149,24 +149,8 @@ nats_cacerts =
       nil
   end
 
-# Gnat picks one auth method per CONNECT (first matching clause in negotiate_auth/4 wins
-# even when the settings map carries both key sets), so dual credentials need a switch here
-# instead of sending both like the Go and TypeScript clients do. The leaf (RPC) and hub (bus)
-# cut over on separate schedules, so each plane gets its own mode; RPC falls back to the bus
-# mode exactly like NATS_RPC_USER falls back to NATS_USER.
-nats_bus_auth_mode = System.get_env("NATS_AUTH_MODE", "password")
-nats_rpc_auth_mode = System.get_env("NATS_RPC_AUTH_MODE") || nats_bus_auth_mode
-nats_pair? = fn a, b -> is_binary(a) and is_binary(b) end
-
-nats_auth = fn mode, password_pair, jwt_pair ->
-  {user, pass} = password_pair
-  {jwt, seed} = jwt_pair
-
-  cond do
-    mode == "jwt" and nats_pair?.(jwt, seed) -> %{nkey_seed: seed, jwt: jwt}
-    nats_pair?.(user, pass) -> %{username: user, password: pass}
-    true -> %{}
-  end
+nats_auth = fn jwt, seed ->
+  if is_binary(jwt) and is_binary(seed), do: %{nkey_seed: seed, jwt: jwt}, else: %{}
 end
 
 nats_server = fn host, auth ->
@@ -208,22 +192,15 @@ config :ingress,
     nats_server.(
       nats_leaf_host,
       nats_auth.(
-        nats_rpc_auth_mode,
-        {System.get_env("NATS_RPC_USER") || System.get_env("NATS_USER"),
-         System.get_env("NATS_RPC_PASSWORD") || System.get_env("NATS_PASSWORD")},
-        {System.get_env("NATS_RPC_JWT") || System.get_env("NATS_JWT"),
-         System.get_env("NATS_RPC_NKEY_SEED") || System.get_env("NATS_NKEY_SEED")}
+        System.get_env("NATS_RPC_JWT") || System.get_env("NATS_JWT"),
+        System.get_env("NATS_RPC_NKEY_SEED") || System.get_env("NATS_NKEY_SEED")
       )
     )
   ],
   nats_bus: [
     nats_server.(
       nats_hub_host,
-      nats_auth.(
-        nats_bus_auth_mode,
-        {System.get_env("NATS_USER"), System.get_env("NATS_PASSWORD")},
-        {System.get_env("NATS_JWT"), System.get_env("NATS_NKEY_SEED")}
-      )
+      nats_auth.(System.get_env("NATS_JWT"), System.get_env("NATS_NKEY_SEED"))
     )
   ]
 

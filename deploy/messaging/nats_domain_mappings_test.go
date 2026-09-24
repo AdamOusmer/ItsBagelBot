@@ -8,14 +8,13 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"ItsBagelBot/internal/natsacl"
+
+	"github.com/nats-io/jwt/v2"
 )
 
-var (
-	hubDomainPattern = regexp.MustCompile(`(?m)^\s*domain:\s*(\S+)\s*$`)
-	busBlockPattern  = regexp.MustCompile(`(?s)\n  BUS: \{\n(.*?)\n    users: \[`)
-	mappingsPattern  = regexp.MustCompile(`(?s)mappings: \{\n(.*?)\n    \}`)
-	mappingPattern   = regexp.MustCompile(`"([^"]+)": "([^"]+)"`)
-)
+var hubDomainPattern = regexp.MustCompile(`(?m)^\s*domain:\s*(\S+)\s*$`)
 
 // The server's own table for a JetStream domain (generateJSMappingTable in nats-server).
 func domainMappings(domain string) map[string]string {
@@ -39,19 +38,28 @@ func TestBusAccountDeclaresTheHubDomainMappings(t *testing.T) {
 	if domain == nil {
 		t.Fatal("nats-server.conf declares no JetStream domain")
 	}
-	bus := busBlockPattern.FindStringSubmatch(sourceFile{name: "nats-auth.conf"}.read(t))
-	if bus == nil {
-		t.Fatal("nats-auth.conf has no BUS account header before its users")
-	}
-	block := mappingsPattern.FindStringSubmatch(bus[1])
-	if block == nil {
-		t.Fatal("BUS declares no mappings; a config reload refuses hub-domain JetStream calls until the server re-adds its own")
-	}
 	got := map[string]string{}
-	for _, m := range mappingPattern.FindAllStringSubmatch(block[1], -1) {
-		got[m[1]] = m[2]
+	for subject, targets := range busClaims(t).Mappings {
+		for _, target := range targets {
+			got[string(subject)] = string(target.Subject)
+		}
 	}
 	if want := domainMappings(strings.Trim(domain[1], `"`)); !maps.Equal(got, want) {
-		t.Fatalf("BUS mappings = %v, want the full %s domain table %v", got, domain[1], want)
+		t.Fatalf("BUS mappings = %v, want the full %s domain table %v; without them an account update refuses hub-domain JetStream calls until the server re-adds its own", got, domain[1], want)
 	}
+}
+
+func busClaims(t *testing.T) *jwt.AccountClaims {
+	t.Helper()
+	compiled, err := natsacl.Compile(committedACL(t), committedKeys(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, claims := range compiled {
+		if claims.Name == "BUS" {
+			return claims
+		}
+	}
+	t.Fatal("accounts.yaml has no BUS account")
+	return nil
 }

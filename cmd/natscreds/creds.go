@@ -19,8 +19,8 @@ import (
 // are globally unique, matching today's "role name == old username" rule.
 var ErrDuplicateRoleName = errors.New("natscreds: duplicate role name")
 
-// servicesProjects ports nats-secrets.py's SERVICES: a stem that owns its
-// own Doppler project, named by that project's slug.
+// servicesProjects maps a stem that owns its own Doppler project to that
+// project's slug.
 var servicesProjects = map[string]string{
 	"users":          "users",
 	"commands":       "commands",
@@ -39,16 +39,15 @@ var servicesProjects = map[string]string{
 	"deployer":       "deployer",
 }
 
-// sharedProjects ports SHARED_PROJECTS: stems whose credentials share one
-// Doppler project and so need a per-stem env prefix.
+// sharedProjects holds stems whose credentials share one Doppler project and
+// so need a per-stem env prefix.
 var sharedProjects = map[string]string{
 	"discord_ingress":  "discord-svc",
 	"discord_engine":   "discord-svc",
 	"discord_outgress": "discord-svc",
 }
 
-// noBus ports NO_BUS: stems with no worker-bus role. NO_RPC is empty today,
-// so there is no matching set.
+// noBus holds stems with no worker-bus role; every stem has an RPC role.
 var noBus = map[string]bool{
 	"gossip":        true,
 	"notifications": true,

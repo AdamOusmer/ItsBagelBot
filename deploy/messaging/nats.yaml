@@ -71,9 +71,6 @@ spec:
           args: ["--config", "/etc/nats/nats.conf", "--pid", "/var/run/nats/nats.pid"]
 
 
-          envFrom:
-            - secretRef:
-                name: nats-auth-env
           env:
             - name: GOMAXPROCS
               value: "5"
