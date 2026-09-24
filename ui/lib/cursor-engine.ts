@@ -109,6 +109,9 @@ const TEXT =
     '[type="button"], [type="submit"], [type="reset"], [type="image"], [type="hidden"])';
 const EASE: CursorEase = { hover: 0.3, release: 0.28 };
 
+/** sRGB luma above which a surface counts as light: tan (#c9a87c) is ~0.67, the card (#111110) ~0.07. */
+const LIGHT_LUMA = 0.5;
+
 /** Idle ring: a 36px circle centred on the dot. */
 const IDLE_SIZE = 36;
 /** Breathing room between the morphed ring and the element it stamps onto. */
@@ -196,6 +199,38 @@ function arrived(box: Box, to: Box): boolean {
  * motion — a visitor does not grow a mouse mid-session, and the CSS hides both
  * elements on coarse pointers anyway.
  */
+type Surface = { backgroundColor: string; backgroundImage: string };
+
+/** Every rgb()/rgba() colour in a computed value, as [r, g, b, a] with r/g/b in 0..255. */
+function colors(value: string): number[][] {
+    return [...value.matchAll(/rgba?\(([^)]+)\)/g)].map((match) => {
+        const [r, g, b, a = 1] = match[1].split(/[\s,/]+/).filter(Boolean).map(Number);
+        return [r, g, b, a];
+    });
+}
+
+const opaque = (color: number[]): boolean => color[3] >= 0.5;
+const light = ([r, g, b]: number[]): boolean => (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 > LIGHT_LUMA;
+
+/**
+ * Whether the pointer sits on a light surface, given the computed styles from
+ * the element under it outwards. The first ancestor painting something opaque
+ * decides: a gradient's stops (they cover its colour), else its colour.
+ */
+export function isLightSurface(chain: Iterable<Surface>): boolean {
+    for (const style of chain) {
+        const stops = colors(style.backgroundImage).filter(opaque);
+        if (stops.length) return stops.some(light);
+        const fill = colors(style.backgroundColor).find(opaque);
+        if (fill) return light(fill);
+    }
+    return false;
+}
+
+function* surfaces(start: Element | null): Generator<Surface> {
+    for (let el = start; el; el = el.parentElement) yield getComputedStyle(el);
+}
+
 export function mountCursor(options: CursorOptions): () => void {
     const { dot, ring, selector = SELECTOR, quietAttr = QUIET, ease = EASE } = options;
     if (!finePointer.matches) return () => {};
@@ -270,6 +305,11 @@ export function mountCursor(options: CursorOptions): () => void {
     const onOver = (event: PointerEvent): void => {
         // Nearest of either list, so a button inside a text frame (a search
         // box's clear button) is a button, not text.
+        // `difference` only where it is visible: on the near-black page it
+        // is within 10/255 of plain tan, and while it is on, the whole page
+        // under the dot is composited as a backdrop (~200-250 MB at
+        // 2560x1440@2 in a WKWebView, idle or moving).
+        dot.classList.toggle('is-inverted', isLightSurface(surfaces(event.target as Element | null)));
         const hit = (event.target as Element | null)?.closest(`${selector}, ${TEXT}`);
         const text = !!hit?.matches(TEXT);
         if (text !== overText) {

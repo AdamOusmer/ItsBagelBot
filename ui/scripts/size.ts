@@ -98,8 +98,14 @@ const ENTRIES: {
     // As with light-field, the shared modules are charged to this row in full
     // because the gate builds a synthetic single-entry consumer. On a real page
     // the cursor, the mote field and the smooth scroll share one copy of each.
+    //
+    // RAISED 2026-09-24 to 2120: 1518 -> 1776 B gzip for isLightSurface, which
+    // turns the dot's `difference` blend on only over light surfaces. The
+    // blend composited the whole page under the dot as a backdrop, ~200-250 MB
+    // at 2560x1440@2 in a WKWebView, idle or moving. 1776 + 150 B linux/x64
+    // delta = 1926, +10% -> 2120.
     name: "cursor-engine",
-    budget: 1700,
+    budget: 2120,
     external: [],
     source: `import { mountCursor } from "../../lib/cursor-engine";
              globalThis.x = mountCursor;`,
