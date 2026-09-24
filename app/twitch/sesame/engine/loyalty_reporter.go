@@ -147,7 +147,7 @@ func (r *LoyaltyReporter) BumpChannel(broadcasterID uint64, name string, delta i
 
 func (r *LoyaltyReporter) Bump(target CounterBumpTarget, delta int64) {
 	name, viewer := target.Name, target.Viewer
-	if name == "" || delta == 0 || delta > data.MaxCounter || delta < -data.MaxCounter || (data.SystemCounter(name) && delta < 0) || (target.BroadcasterID == 0) != (target.Scope == data.CounterScopeBot) {
+	if !target.acceptsDelta(counterDelta(delta)) {
 		return
 	}
 	key := counterAgg{
@@ -164,7 +164,7 @@ func (r *LoyaltyReporter) Bump(target CounterBumpTarget, delta int64) {
 		agg = &bumpAgg{}
 		r.bumps[key] = agg
 	}
-	if (delta > 0 && agg.delta > data.MaxCounter-delta) || (delta < 0 && agg.delta < -data.MaxCounter-delta) {
+	if !agg.acceptsDelta(counterDelta(delta)) {
 		r.mu.Unlock()
 		r.log.Error("counter window exceeds signed integer range")
 		return
@@ -182,6 +182,29 @@ func (r *LoyaltyReporter) Bump(target CounterBumpTarget, delta int64) {
 	if overflow {
 		r.nudge()
 	}
+}
+
+// counterDelta is a signed change, including decrements for custom counters.
+type counterDelta int64
+
+func (target CounterBumpTarget) acceptsDelta(delta counterDelta) bool {
+	if target.Name == "" {
+		return false
+	}
+	if delta == 0 || delta < counterDelta(-data.MaxCounter) {
+		return false
+	}
+	if data.SystemCounter(target.Name) && delta < 0 {
+		return false
+	}
+	return (target.BroadcasterID == 0) == (target.Scope == data.CounterScopeBot)
+}
+
+func (agg *bumpAgg) acceptsDelta(delta counterDelta) bool {
+	if delta > 0 {
+		return agg.delta <= data.MaxCounter-int64(delta)
+	}
+	return agg.delta >= -data.MaxCounter-int64(delta)
 }
 
 func (r *LoyaltyReporter) nudge() {

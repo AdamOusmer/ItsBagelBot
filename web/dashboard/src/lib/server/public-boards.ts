@@ -107,7 +107,9 @@ async function loadFeed(): Promise<PublicBoards['feed'] | null> {
     );
     const total = parseCounterValue(reply.total);
     const ranked = parseCounterValue(reply.ranked);
-    if (reply.error || total === null || ranked === null) return null;
+    if (reply.error) return null;
+    if (total === null) return null;
+    if (ranked === null) return null;
     const entries: FeedEntry[] = [];
     for (const row of reply.entries ?? []) {
       const count = parseCounterValue(row.count);

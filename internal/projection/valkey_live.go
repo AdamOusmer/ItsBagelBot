@@ -263,21 +263,28 @@ func (v *Store) GetLiveCounters(ctx context.Context, userID uint64, names []Coun
 	}
 	values := make(map[CounterName]int64, len(names))
 	for i, name := range names {
-		raw, readErr := res[i+1].ToString()
-		if valkey.IsValkeyNil(readErr) {
-			values[name] = 0
-			continue
-		}
-		if readErr != nil {
-			return nil, true, readErr
-		}
-		value, parseErr := strconv.ParseInt(raw, 10, 64)
-		if parseErr != nil || value < 0 {
-			return nil, true, fmt.Errorf("invalid live counter %s: %q", name, raw)
+		value, err := decodeLiveCounter(name, res[i+1])
+		if err != nil {
+			return nil, true, err
 		}
 		values[name] = value
 	}
 	return values, true, nil
+}
+
+func decodeLiveCounter(name CounterName, message valkey.ValkeyMessage) (int64, error) {
+	raw, err := message.ToString()
+	if valkey.IsValkeyNil(err) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	value, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || value < 0 {
+		return 0, fmt.Errorf("invalid live counter %s: %q", name, raw)
+	}
+	return value, nil
 }
 
 func (v *Store) BoardSeeded(ctx context.Context, name CounterName) (bool, error) {

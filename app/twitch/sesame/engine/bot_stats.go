@@ -198,8 +198,8 @@ func newBotStats(bumper CounterBumper, log ...*zap.Logger) *botStats {
 
 type delta struct{ events, messages int64 }
 
-func chatDelta(n int64) delta  { return delta{events: n, messages: n} }
-func eventDelta(n int64) delta { return delta{events: n} }
+func chatDelta(n counterDelta) delta  { return delta{events: int64(n), messages: int64(n)} }
+func eventDelta(n counterDelta) delta { return delta{events: int64(n)} }
 
 func (s *botStats) count(broadcasterID uint64, d delta) {
 	if s == nil {
@@ -236,8 +236,8 @@ func (s *botStats) countChannel(broadcasterID uint64, d delta) {
 	if tally == nil {
 		return
 	}
-	addTally(&tally.events, d.events)
-	addTally(&tally.messages, d.messages)
+	addTally(&tally.events, counterDelta(d.events))
+	addTally(&tally.messages, counterDelta(d.messages))
 }
 
 func (s *botStats) countAnswered(broadcasterID uint64) {
@@ -261,7 +261,7 @@ func (s *botStats) flagChannel(broadcasterID uint64, b flagRuleBucket, enforcedD
 		return
 	}
 	addTally(&tally.flags, 1)
-	addTally(&tally.enforced, enforcedDelta)
+	addTally(&tally.enforced, counterDelta(enforcedDelta))
 	if tally.rules == nil {
 		tally.rules = new([bktCount]int64)
 	}
@@ -287,8 +287,8 @@ func (s *botStats) flush() {
 }
 
 func (s *botStats) flushTotals() {
-	s.bump(counterEventsProcessed, s.events.Swap(0))
-	s.bump(counterMessagesProcessed, s.messages.Swap(0))
+	s.bump(BotBump(counterEventsProcessed), counterDelta(s.events.Swap(0)))
+	s.bump(BotBump(counterMessagesProcessed), counterDelta(s.messages.Swap(0)))
 	s.flushFlags()
 }
 
@@ -319,10 +319,10 @@ func (s *botStats) flushChannels() {
 
 	var flagged []flagChannelEntry
 	for id, tally := range channels {
-		s.bumpChannel(id, counterEventsProcessed, tally.events)
-		s.bumpChannel(id, counterMessagesProcessed, tally.messages)
-		s.bumpChannel(id, counterCommandsAnswered, tally.answered)
-		s.bumpChannel(id, counterModActions, tally.enforced)
+		s.bump(ChannelBump(id, counterEventsProcessed), counterDelta(tally.events))
+		s.bump(ChannelBump(id, counterMessagesProcessed), counterDelta(tally.messages))
+		s.bump(ChannelBump(id, counterCommandsAnswered), counterDelta(tally.answered))
+		s.bump(ChannelBump(id, counterModActions), counterDelta(tally.enforced))
 		if tally.flags > 0 {
 			flagged = append(flagged, flagChannelEntry{id: id, total: tally.flags, enforced: tally.enforced})
 		}
@@ -357,18 +357,15 @@ func (a flagChannelArray) MarshalLogArray(enc zapcore.ArrayEncoder) error {
 	return nil
 }
 
-func (s *botStats) bump(name string, delta int64) {
-	if delta == 0 {
+func (s *botStats) bump(target CounterBumpTarget, change counterDelta) {
+	if change == 0 {
 		return
 	}
-	s.bumper.BumpBot(name, delta)
-}
-
-func (s *botStats) bumpChannel(broadcasterID uint64, name string, delta int64) {
-	if delta == 0 {
+	if target.Scope == data.CounterScopeBot {
+		s.bumper.BumpBot(target.Name, int64(change))
 		return
 	}
-	s.bumper.BumpChannel(broadcasterID, name, delta)
+	s.bumper.BumpChannel(target.BroadcasterID, target.Name, int64(change))
 }
 
 func (s *botStats) Close() {
@@ -379,7 +376,7 @@ func (s *botStats) Close() {
 
 // Counter windows must remain nonnegative and within the signed integer range.
 func addStat(counter *atomic.Int64, delta int64) {
-	if delta <= 0 || delta > data.MaxCounter {
+	if delta <= 0 {
 		return
 	}
 	for {
@@ -394,8 +391,12 @@ func addStat(counter *atomic.Int64, delta int64) {
 }
 
 // Callers hold botStats.mu.
-func addTally(value *int64, delta int64) {
-	if delta > 0 && delta <= data.MaxCounter && *value >= 0 && *value <= data.MaxCounter-delta {
+func addTally(value *int64, change counterDelta) {
+	delta := int64(change)
+	if delta <= 0 {
+		return
+	}
+	if *value >= 0 && *value <= data.MaxCounter-delta {
 		*value += delta
 	}
 }

@@ -15,43 +15,77 @@ function rate(raw: unknown): raw is number | null {
   return raw === null || (typeof raw === 'number' && Number.isFinite(raw) && raw >= 0);
 }
 
+function validRates(stats: Record<string, unknown>): boolean {
+  return ['msg_rate', 'event_rate', 'msg_rate_now', 'event_rate_now']
+    .every((key) => rate(stats[key]));
+}
+
 export function validStats(raw: unknown): PublicStats | null {
   const stats = record(raw);
-  const messages = parseCounterValue(stats?.messages_total);
-  const events = parseCounterValue(stats?.events_total);
-  if (!stats || typeof stats.degraded !== 'boolean' ||
-    messages === null || events === null ||
-    !rate(stats.msg_rate) || !rate(stats.event_rate) ||
-    !rate(stats.msg_rate_now) || !rate(stats.event_rate_now)) return null;
+  if (!stats) return null;
+  if (typeof stats.degraded !== 'boolean') return null;
+  if (!validRates(stats)) return null;
+  const messages = parseCounterValue(stats.messages_total);
+  const events = parseCounterValue(stats.events_total);
+  if (messages === null || events === null) return null;
   return { ...stats, messages_total: messages, events_total: events } as unknown as PublicStats;
+}
+
+function channelRow(raw: unknown): PublicBoards['channels'][number] | null {
+  const row = record(raw);
+  if (!row || typeof row.id !== 'string' || typeof row.name !== 'string') return null;
+  const messages = parseCounterValue(row.messages);
+  const events = parseCounterValue(row.events);
+  if (messages === null || events === null) return null;
+  return { id: row.id, name: row.name, messages, events };
+}
+
+function channelRows(raw: unknown): PublicBoards['channels'] | null {
+  if (!Array.isArray(raw)) return null;
+  const channels: PublicBoards['channels'] = [];
+  for (const rawRow of raw) {
+    const row = channelRow(rawRow);
+    if (!row) return null;
+    channels.push(row);
+  }
+  return channels;
+}
+
+function feedEntry(raw: unknown): PublicBoards['feed']['entries'][number] | null {
+  const row = record(raw);
+  if (!row || typeof row.id !== 'string' || typeof row.name !== 'string') return null;
+  const count = parseCounterValue(row.count);
+  return count === null ? null : { id: row.id, name: row.name, count };
+}
+
+function feedRows(raw: unknown): PublicBoards['feed']['entries'] | null {
+  if (!Array.isArray(raw)) return null;
+  const entries: PublicBoards['feed']['entries'] = [];
+  for (const rawRow of raw) {
+    const row = feedEntry(rawRow);
+    if (!row) return null;
+    entries.push(row);
+  }
+  return entries;
+}
+
+function feedBoard(raw: unknown): PublicBoards['feed'] | null {
+  const feed = record(raw);
+  if (!feed) return null;
+  const total = parseCounterValue(feed.total);
+  const ranked = parseCounterValue(feed.ranked);
+  const entries = feedRows(feed.entries);
+  if (total === null || ranked === null || entries === null) return null;
+  return { total, ranked, entries };
 }
 
 export function validBoards(raw: unknown): PublicBoards | null {
   const boards = record(raw);
-  const feed = record(boards?.feed);
-  const total = parseCounterValue(feed?.total);
-  const ranked = parseCounterValue(feed?.ranked);
-  if (!boards || typeof boards.degraded !== 'boolean' || !Array.isArray(boards.channels) ||
-    !feed || total === null || ranked === null ||
-    !Array.isArray(feed.entries)) return null;
-  const channels: PublicBoards['channels'] = [];
-  for (const rawRow of boards.channels) {
-    const row = record(rawRow);
-    const messages = parseCounterValue(row?.messages);
-    const events = parseCounterValue(row?.events);
-    if (!row || typeof row.id !== 'string' || typeof row.name !== 'string' ||
-      messages === null || events === null) return null;
-    channels.push({ id: row.id, name: row.name, messages, events });
-  }
-  const entries: PublicBoards['feed']['entries'] = [];
-  for (const rawRow of feed.entries) {
-    const row = record(rawRow);
-    const count = parseCounterValue(row?.count);
-    if (!row || typeof row.id !== 'string' || typeof row.name !== 'string' ||
-      count === null) return null;
-    entries.push({ id: row.id, name: row.name, count });
-  }
-  return { channels, feed: { total, ranked, entries }, degraded: boards.degraded };
+  if (!boards || typeof boards.degraded !== 'boolean') return null;
+  const channels = channelRows(boards.channels);
+  const feed = feedBoard(boards.feed);
+  if (!channels || !feed) return null;
+  return { channels, feed, degraded: boards.degraded };
 }
 
 export function exactDisplay(raw: number): number {

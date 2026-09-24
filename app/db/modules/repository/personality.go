@@ -72,60 +72,92 @@ func (p *Personality) FeedBump(ctx context.Context, broadcasterID uint64, name s
 	return db.WithQuery(ctx, func(ctx context.Context) (FeedTotals, error) { return p.feedBump(ctx, broadcasterID, name, eventID) })
 }
 
+type feedRequest struct {
+	broadcasterID uint64
+	name          string
+	eventID       string
+}
+
 func (p *Personality) feedBump(ctx context.Context, broadcasterID uint64, name, eventID string) (FeedTotals, error) {
+	request := feedRequest{broadcasterID: broadcasterID, name: name, eventID: eventID}
 	tx, err := p.client.Tx(ctx)
 	if err != nil {
 		return FeedTotals{}, err
 	}
 	defer func() { _ = tx.Rollback() }()
 	write := &Personality{client: tx.Client()}
-	if eventID != "" {
-		if err := write.client.FeedReceipt.Create().SetID(eventID).Exec(ctx); err != nil {
-			if !ent.IsConstraintError(err) {
-				return FeedTotals{}, err
-			}
-			if rollbackErr := tx.Rollback(); rollbackErr != nil {
-				return FeedTotals{}, rollbackErr
-			}
-			receipt, readErr := p.client.FeedReceipt.Get(ctx, eventID)
-			if readErr != nil {
-				return FeedTotals{}, readErr
-			}
-			return FeedTotals{Total: receipt.Total, Channel: receipt.Channel}, nil
-		}
+	if err := write.reserveFeed(ctx, eventID); err != nil {
+		return p.replayedFeed(ctx, tx, eventID, err)
 	}
-
-	total, err := write.bumpGlobal(ctx)
+	totals, err := write.incrementFeed(ctx, request)
 	if err != nil {
 		return FeedTotals{}, err
-	}
-	var channel int64
-	if broadcasterID != 0 {
-		channel, err = write.bumpChannel(ctx, broadcasterID, name)
-		if err != nil {
-			return FeedTotals{}, err
-		}
-	}
-	if eventID != "" {
-		if err := write.client.FeedReceipt.UpdateOneID(eventID).SetTotal(total).SetChannel(channel).Exec(ctx); err != nil {
-			return FeedTotals{}, err
-		}
 	}
 	if err := tx.Commit(); err != nil {
 		return FeedTotals{}, err
 	}
-	if broadcasterID == 0 {
-		return FeedTotals{Total: total}, nil
+	return p.rankFeed(ctx, broadcasterID, totals), nil
+}
+
+func (p *Personality) reserveFeed(ctx context.Context, eventID string) error {
+	if eventID == "" {
+		return nil
 	}
-	// Ranking is a readout, not part of the feeding. Release the global row's
-	// transaction lock before this potentially large indexed count. If ranking
-	// fails after commit, report the persisted totals with an unknown rank; an
-	// error here could make the caller retry and count the same feeding twice.
-	rank, err := p.rankOf(ctx, channel)
+	return p.client.FeedReceipt.Create().SetID(eventID).Exec(ctx)
+}
+
+func (p *Personality) replayedFeed(ctx context.Context, tx *ent.Tx, eventID string, err error) (FeedTotals, error) {
+	if !ent.IsConstraintError(err) {
+		return FeedTotals{}, err
+	}
+	if err := tx.Rollback(); err != nil {
+		return FeedTotals{}, err
+	}
+	receipt, err := p.client.FeedReceipt.Get(ctx, eventID)
 	if err != nil {
-		return FeedTotals{Total: total, Channel: channel}, nil
+		return FeedTotals{}, err
 	}
-	return FeedTotals{Total: total, Channel: channel, Rank: rank}, nil
+	return FeedTotals{Total: receipt.Total, Channel: receipt.Channel}, nil
+}
+
+func (p *Personality) incrementFeed(ctx context.Context, request feedRequest) (FeedTotals, error) {
+	total, err := p.bumpGlobal(ctx)
+	if err != nil {
+		return FeedTotals{}, err
+	}
+	channel, err := p.bumpFeedChannel(ctx, request)
+	if err != nil {
+		return FeedTotals{}, err
+	}
+	totals := FeedTotals{Total: total, Channel: channel}
+	return totals, p.completeFeedReceipt(ctx, request.eventID, totals)
+}
+
+func (p *Personality) bumpFeedChannel(ctx context.Context, request feedRequest) (int64, error) {
+	if request.broadcasterID == 0 {
+		return 0, nil
+	}
+	return p.bumpChannel(ctx, request.broadcasterID, request.name)
+}
+
+func (p *Personality) completeFeedReceipt(ctx context.Context, eventID string, totals FeedTotals) error {
+	if eventID == "" {
+		return nil
+	}
+	return p.client.FeedReceipt.UpdateOneID(eventID).SetTotal(totals.Total).SetChannel(totals.Channel).Exec(ctx)
+}
+
+func (p *Personality) rankFeed(ctx context.Context, broadcasterID uint64, totals FeedTotals) FeedTotals {
+	if broadcasterID == 0 {
+		return totals
+	}
+	// Rank is a readout after commit. A failed read must not cause the caller to
+	// retry a feeding whose totals have already been persisted.
+	rank, err := p.rankOf(ctx, totals.Channel)
+	if err == nil {
+		totals.Rank = rank
+	}
+	return totals
 }
 
 // FeedBoard returns the channels that fed the bagel most, highest first. A
@@ -200,13 +232,10 @@ func (p *Personality) bumpGlobal(ctx context.Context) (int64, error) {
 		func(ctx context.Context) (int64, error) {
 			row, err := p.client.FeedCounter.UpdateOneID(feedCounterID).
 				Where(feedcounter.CountLT(data.MaxCounter)).AddCount(1).Save(ctx)
-			if ent.IsNotFound(err) {
-				if _, getErr := p.client.FeedCounter.Get(ctx, feedCounterID); getErr == nil {
-					return 0, ErrFeedCountLimit
-				} else if !ent.IsNotFound(getErr) {
-					return 0, getErr
-				}
-			}
+			err = feedUpdateError(err, func() error {
+				_, err := p.client.FeedCounter.Get(ctx, feedCounterID)
+				return err
+			})
 			return countOf(row, err)
 		},
 		func(ctx context.Context) (int64, error) {
@@ -227,13 +256,10 @@ func (p *Personality) bumpChannel(ctx context.Context, broadcasterID uint64, nam
 				update = update.SetName(name)
 			}
 			row, err := update.Save(ctx)
-			if ent.IsNotFound(err) {
-				if _, getErr := p.client.ChannelFeedCounter.Get(ctx, broadcasterID); getErr == nil {
-					return 0, ErrFeedCountLimit
-				} else if !ent.IsNotFound(getErr) {
-					return 0, getErr
-				}
-			}
+			err = feedUpdateError(err, func() error {
+				_, err := p.client.ChannelFeedCounter.Get(ctx, broadcasterID)
+				return err
+			})
 			return channelCountOf(row, err)
 		},
 		func(ctx context.Context) (int64, error) {
@@ -282,18 +308,31 @@ func countOf(row *ent.FeedCounter, err error) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	if row.Count < 0 || row.Count > data.MaxCounter {
-		return 0, ErrFeedCountLimit
-	}
-	return row.Count, nil
+	return validFeedCount(row.Count)
 }
 
 func channelCountOf(row *ent.ChannelFeedCounter, err error) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	if row.Count < 0 || row.Count > data.MaxCounter {
+	return validFeedCount(row.Count)
+}
+
+// An update can miss because the row is absent or because its count is full.
+func feedUpdateError(updateErr error, read func() error) error {
+	if !ent.IsNotFound(updateErr) {
+		return updateErr
+	}
+	err := read()
+	if err == nil {
+		return ErrFeedCountLimit
+	}
+	return err
+}
+
+func validFeedCount(count int64) (int64, error) {
+	if count < 0 || count > data.MaxCounter {
 		return 0, ErrFeedCountLimit
 	}
-	return row.Count, nil
+	return count, nil
 }

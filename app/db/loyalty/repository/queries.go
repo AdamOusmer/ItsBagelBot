@@ -359,36 +359,46 @@ func (r *Loyalty) CounterSet(ctx context.Context, userID uint64, name string, ta
 		return found, err
 	}
 	return true, db.WithExec(ctx, func(ctx context.Context) error {
-		if !entryScoped(row.Scope) {
-			return r.client.Counter.Update().
-				Where(counter.UserIDEQ(userID), counter.NameEQ(row.Name)).
-				SetValue(value).
-				Exec(ctx)
-		}
-		entryViewer, cmd, targeted := entryTarget(row, target.ViewerID, target.Command)
-		if !targeted {
-			_, err := r.client.CounterEntry.Delete().
-				Where(counterentry.UserIDEQ(userID), counterentry.NameEQ(row.Name)).
-				Exec(ctx)
-			return err
-		}
-		login := normalizeLogin(target.ViewerLogin)
-		return r.client.CounterEntry.Create().
-			SetUserID(userID).
-			SetName(row.Name).
-			SetCommand(cmd).
-			SetViewerID(entryViewer).
-			SetViewerLogin(login).
-			SetValue(value).
-			OnConflict(entsql.ConflictColumns(counterentry.FieldUserID, counterentry.FieldName, counterentry.FieldCommand, counterentry.FieldViewerID)).
-			Update(func(u *ent.CounterEntryUpsert) {
-				u.UpdateValue()
-				if login != "" {
-					u.UpdateViewerLogin()
-				}
-			}).
-			Exec(ctx)
+		return r.setCounterValue(ctx, row, target, value)
 	})
+}
+
+func (r *Loyalty) setCounterValue(ctx context.Context, row *ent.Counter, target SetTarget, value int64) error {
+	if !entryScoped(row.Scope) {
+		return r.client.Counter.Update().
+			Where(counter.UserIDEQ(row.UserID), counter.NameEQ(row.Name)).
+			SetValue(value).
+			Exec(ctx)
+	}
+	entryViewer, cmd, targeted := entryTarget(row, target.ViewerID, target.Command)
+	if !targeted {
+		_, err := r.client.CounterEntry.Delete().
+			Where(counterentry.UserIDEQ(row.UserID), counterentry.NameEQ(row.Name)).
+			Exec(ctx)
+		return err
+	}
+	target.ViewerID = entryViewer
+	target.Command = cmd
+	return r.setCounterEntry(ctx, row, target, value)
+}
+
+func (r *Loyalty) setCounterEntry(ctx context.Context, row *ent.Counter, target SetTarget, value int64) error {
+	login := normalizeLogin(target.ViewerLogin)
+	return r.client.CounterEntry.Create().
+		SetUserID(row.UserID).
+		SetName(row.Name).
+		SetCommand(target.Command).
+		SetViewerID(target.ViewerID).
+		SetViewerLogin(login).
+		SetValue(value).
+		OnConflict(entsql.ConflictColumns(counterentry.FieldUserID, counterentry.FieldName, counterentry.FieldCommand, counterentry.FieldViewerID)).
+		Update(func(u *ent.CounterEntryUpsert) {
+			u.UpdateValue()
+			if login != "" {
+				u.UpdateViewerLogin()
+			}
+		}).
+		Exec(ctx)
 }
 
 // Must refuse an untargeted call, or it resets the whole counter.

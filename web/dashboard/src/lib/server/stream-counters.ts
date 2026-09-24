@@ -46,7 +46,9 @@ async function readBaseline(uid: string): Promise<Baseline> {
     const msg = parseCounterValue(messages);
     const ans = parseCounterValue(answered ?? '0');
     const mods = parseCounterValue(modActions ?? '0');
-    if (msg === null || ans === null || mods === null) return MISS_BASELINE;
+    if (msg === null) return MISS_BASELINE;
+    if (ans === null) return MISS_BASELINE;
+    if (mods === null) return MISS_BASELINE;
     return {
       known: true,
       messages: msg,

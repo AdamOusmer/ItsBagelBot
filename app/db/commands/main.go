@@ -69,7 +69,7 @@ func recordUse(repo *repository.Commands, log *zap.Logger) func(*bus.Message) er
 		if batchID == "" {
 			batchID = msg.UUID
 		}
-		return repo.RecordUse(msg.Context(), batchID, dto.UserID, dto.Name, dto.Count)
+		return repo.RecordUse(msg.Context(), batchID, dto)
 	}
 }
 

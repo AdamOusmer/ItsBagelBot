@@ -23,27 +23,35 @@ export interface Rates {
   event: number | null;
 }
 
-function wentBackwards(last: RateSample | undefined, next: RateSample): boolean {
-  return !!last && (next.messages < last.messages || next.events < last.events);
-}
-
-export function rateWindow(windowMs: number): (next: RateSample) => Rates {
-  const samples: RateSample[] = [];
+function sampleWindow<T extends { at: number }>(
+  windowMs: number,
+  backwards: (last: T, next: T) => boolean,
+  calculate: (first: T, next: T, seconds: number) => Rates
+): (next: T) => Rates {
+  const samples: T[] = [];
   let rates: Rates = { msg: null, event: null };
   return (next) => {
-    if (wentBackwards(samples.at(-1), next)) samples.length = 0;
+    const last = samples.at(-1);
+    if (last && backwards(last, next)) samples.length = 0;
     samples.push(next);
     while (samples.length > 1 && next.at - samples[1].at >= windowMs) samples.shift();
     const first = samples[0];
     const spanMs = next.at - first.at;
     if (spanMs < MIN_SPAN_MS) return rates;
-    const secs = spanMs / 1000;
-    rates = {
-      msg: Math.max(next.messages - first.messages, 0) / secs,
-      event: Math.max(next.events - first.events, 0) / secs
-    };
+    rates = calculate(first, next, spanMs / 1000);
     return rates;
   };
+}
+
+export function rateWindow(windowMs: number): (next: RateSample) => Rates {
+  return sampleWindow<RateSample>(
+    windowMs,
+    (last, next) => next.messages < last.messages || next.events < last.events,
+    (first, next, seconds) => ({
+      msg: Math.max(next.messages - first.messages, 0) / seconds,
+      event: Math.max(next.events - first.events, 0) / seconds
+    })
+  );
 }
 
 export function rateWindows(): (next: RateSample) => { now: Rates; avg: Rates } {
@@ -59,23 +67,14 @@ export interface ExactRateSample {
 }
 
 export function exactRateWindow(windowMs: number): (next: ExactRateSample) => Rates {
-  const samples: ExactRateSample[] = [];
-  let rates: Rates = { msg: null, event: null };
-  return (next) => {
-    const last = samples.at(-1);
-    if (last && (next.messages < last.messages || next.events < last.events)) samples.length = 0;
-    samples.push(next);
-    while (samples.length > 1 && next.at - samples[1].at >= windowMs) samples.shift();
-    const first = samples[0];
-    const spanMs = next.at - first.at;
-    if (spanMs < MIN_SPAN_MS) return rates;
-    const secs = spanMs / 1000;
-    rates = {
-      msg: Number(next.messages - first.messages) / secs,
-      event: Number(next.events - first.events) / secs
-    };
-    return rates;
-  };
+  return sampleWindow<ExactRateSample>(
+    windowMs,
+    (last, next) => next.messages < last.messages || next.events < last.events,
+    (first, next, seconds) => ({
+      msg: Number(next.messages - first.messages) / seconds,
+      event: Number(next.events - first.events) / seconds
+    })
+  );
 }
 
 export function exactRateWindows(): (next: ExactRateSample) => { now: Rates; avg: Rates } {

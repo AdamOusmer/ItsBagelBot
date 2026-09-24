@@ -125,18 +125,26 @@ func decodeFeedCounts(result valkey.ValkeyResult) (FeedCounts, error) {
 	if len(values) != 2 {
 		return FeedCounts{}, errors.New("personality: invalid feed script result")
 	}
-	today, err := values[0].AsInt64()
+	today, err := decodeFeedCounter(values[0])
 	if err != nil {
 		return FeedCounts{}, err
 	}
-	total, err := values[1].AsInt64()
+	total, err := decodeFeedCounter(values[1])
 	if err != nil {
 		return FeedCounts{}, err
-	}
-	if today < 0 || total < 0 || today > data.MaxCounter || total > data.MaxCounter {
-		return FeedCounts{}, errors.New("personality: feed counter outside signed integer range")
 	}
 	return FeedCounts{Today: today, Total: total}, nil
+}
+
+func decodeFeedCounter(value valkey.ValkeyMessage) (int64, error) {
+	count, err := value.AsInt64()
+	if err != nil {
+		return 0, err
+	}
+	if count < 0 {
+		return 0, errors.New("personality: feed counter outside signed integer range")
+	}
+	return count, nil
 }
 
 // Mood returns the channel's mood for the current window, seeding it with

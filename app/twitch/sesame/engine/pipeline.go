@@ -184,42 +184,55 @@ func (p *Pipeline) Process(msg *bus.Message) error {
 // A retry reuses the source identity, including when a publish acknowledgement
 // was lost after the broker stored the counter event.
 func (p *Pipeline) countDecoded(ctx context.Context, sourceID string, env *lane.Envelope, broadcasterID uint64) error {
-	n := env.MessageCount()
 	if p.stats != nil {
-		if p.pub == nil || sourceID == "" {
-			return errors.New("decoded counters require publisher and source identity")
-		}
-		if n <= 0 || n > data.MaxCounter {
-			return errors.New("decoded count outside signed integer range")
-		}
-		targets := []uint64{0}
-		if env.Origin != "trial" && broadcasterID != 0 {
-			targets = append(targets, broadcasterID)
-		}
-		for _, target := range targets {
-			scope := data.CounterScopeChannel
-			if target == 0 {
-				scope = data.CounterScopeBot
-			}
-			entries := []data.CounterBumpEntry{{Name: data.CounterEventsProcessed, Scope: scope, Delta: n}}
-			if env.Type == chatType {
-				entries = append(entries, data.CounterBumpEntry{Name: data.CounterMessagesProcessed, Scope: scope, Delta: n})
-			}
-			sum := sha256.Sum256([]byte("decoded:" + sourceID + ":" + strconv.FormatUint(target, 10)))
-			id := "decoded:" + hex.EncodeToString(sum[:])
-			body, err := codec.FastMarshal(data.CounterBumpedDTO{BatchID: id, UserID: target, Bumps: entries})
-			if err != nil {
-				return err
-			}
-			if err = bus.PublishConfirmed(ctx, p.pub, bus.Publication{Subject: data.SubjectLoyaltyCounters, ID: id, Payload: body}); err != nil {
-				return err
-			}
+		if err := p.publishDecodedCounters(ctx, sourceID, env, broadcasterID); err != nil {
+			return err
 		}
 	}
 	if env.Origin == "trial" {
-		p.addTrial(ctx, env.BroadcasterUserID, "decoded", n)
+		p.addTrial(ctx, env.BroadcasterUserID, "decoded", env.MessageCount())
 	}
 	return nil
+}
+
+func (p *Pipeline) publishDecodedCounters(ctx context.Context, sourceID string, env *lane.Envelope, broadcasterID uint64) error {
+	if p.pub == nil || sourceID == "" {
+		return errors.New("decoded counters require publisher and source identity")
+	}
+	if env.MessageCount() <= 0 {
+		return errors.New("decoded count outside signed integer range")
+	}
+	for _, target := range decodedCounterTargets(env, broadcasterID) {
+		batch := decodedCounterBatch(sourceID, target, env)
+		body, err := codec.FastMarshal(batch)
+		if err != nil {
+			return err
+		}
+		if err := bus.PublishConfirmed(ctx, p.pub, bus.Publication{Subject: data.SubjectLoyaltyCounters, ID: batch.BatchID, Payload: body}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func decodedCounterTargets(env *lane.Envelope, broadcasterID uint64) []uint64 {
+	if env.Origin == "trial" || broadcasterID == 0 {
+		return []uint64{0}
+	}
+	return []uint64{0, broadcasterID}
+}
+
+func decodedCounterBatch(sourceID string, target uint64, env *lane.Envelope) data.CounterBumpedDTO {
+	counterScope := data.CounterScopeChannel
+	if target == 0 {
+		counterScope = data.CounterScopeBot
+	}
+	entries := []data.CounterBumpEntry{{Name: data.CounterEventsProcessed, Scope: counterScope, Delta: env.MessageCount()}}
+	if env.Type == chatType {
+		entries = append(entries, data.CounterBumpEntry{Name: data.CounterMessagesProcessed, Scope: counterScope, Delta: env.MessageCount()})
+	}
+	sum := sha256.Sum256([]byte("decoded:" + sourceID + ":" + strconv.FormatUint(target, 10)))
+	return data.CounterBumpedDTO{BatchID: "decoded:" + hex.EncodeToString(sum[:]), UserID: target, Bumps: entries}
 }
 
 func (p *Pipeline) processByOrigin(ctx context.Context, env *lane.Envelope, broadcasterID uint64) error {

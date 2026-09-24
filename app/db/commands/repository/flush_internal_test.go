@@ -86,7 +86,7 @@ func TestRecordUsePreservesProducerBatchIncrements(t *testing.T) {
 		{userID: 1001, name: "deleted"}: 1,
 	}
 	for key, count := range pend {
-		require.NoError(t, r.RecordUse(ctx, "batch-"+key.name, key.userID, key.name, count))
+		require.NoError(t, r.RecordUse(ctx, "batch-"+key.name, data.CommandUsedDTO{UserID: key.userID, Name: key.name, Count: count}))
 	}
 	defer r.Close(ctx)
 
