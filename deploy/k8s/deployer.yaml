@@ -315,7 +315,7 @@ spec:
       priorityClassName: bagel-operator
       containers:
         - name: deployer
-          image: ghcr.io/adamousmer/itsbagelbot/deployer:main-1790199295-f6baffbc2e4d@sha256:760957cd180ac34a761e426c990a9cd9c90cb783a14d369e1d96137018b1b43c
+          image: ghcr.io/adamousmer/itsbagelbot/deployer:main-1790245829-f2d16e3344b1@sha256:9f5805028c41d0776fc8e625e3caeba09ddf384b0e7b6175a5158e6cb73d3424
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_URL
