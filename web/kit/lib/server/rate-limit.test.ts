@@ -1,11 +1,12 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, setSystemTime, test } from 'bun:test';
 import {
   RateLimiter,
   ValkeyRateLimiter,
   clientIp,
+  rateLimitClientForTests,
   rateLimiterReady,
   resetRateLimiterBackendForTests
 } from './rate-limit';
@@ -96,6 +97,23 @@ describe('ValkeyRateLimiter', () => {
     expect((await limiter.check('k')).allowed).toBe(true);
     expect((await limiter.check('k')).allowed).toBe(false);
     limiter.dispose();
+    resetRateLimiterBackendForTests();
+  });
+
+  test('rebuilds a write client that stays out of ready past the window', async () => {
+    resetRateLimiterBackendForTests();
+    registerServerConfig({ valkey: { addr: '127.0.0.1:1' }, cacheInvalidationPrefix: 'test' });
+    const at = (sec: number) => setSystemTime(new Date(Date.UTC(2026, 8, 24, 9, 0, sec)));
+    at(0);
+    await rateLimiterReady();
+    const stuck = rateLimitClientForTests();
+    at(20);
+    await rateLimiterReady();
+    expect(rateLimitClientForTests()).toBe(stuck);
+    at(31);
+    await rateLimiterReady();
+    expect(rateLimitClientForTests()).not.toBe(stuck);
+    setSystemTime();
     resetRateLimiterBackendForTests();
   });
 
