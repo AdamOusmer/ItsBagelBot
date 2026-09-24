@@ -13,9 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"ItsBagelBot/internal/domain/event/data"
-	"ItsBagelBot/pkg/codec"
-
 	"github.com/stretchr/testify/require"
 	valkey "github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
@@ -60,71 +57,47 @@ func seedTrial(t *testing.T, vc valkey.Client, row seededTrial) {
 	require.NoError(t, vc.Do(ctx, vc.B().Zadd().Key("trial:history").ScoreMember().ScoreMember(1, row.id).Build()).Error())
 }
 
-func TestTrialPromotionCarriesCountersOnceIntoTheChannel(t *testing.T) {
+type fakePromoter struct {
+	fail bool
+	got  []uint64
+}
+
+func (f *fakePromoter) PromoteTrial(_ context.Context, id uint64) error {
+	if f.fail {
+		return context.DeadlineExceeded
+	}
+	f.got = append(f.got, id)
+	return nil
+}
+
+func TestTrialPromotionPromotesEachPromotedTrialOnce(t *testing.T) {
 	vc := localValkey(t)
-	seedTrial(t, vc, seededTrial{id: "4242", state: "promoted", fields: map[string]string{"decoded": "120", "answered": "7"}})
-	seedTrial(t, vc, seededTrial{id: "5353", state: "removed", fields: map[string]string{"decoded": "80"}})
-	pub := &rawCapture{}
-	promo := NewTrialPromotion(vc, pub, zap.NewNop())
+	seedTrial(t, vc, seededTrial{id: "4242", state: "promoted"})
+	seedTrial(t, vc, seededTrial{id: "5353", state: "removed"})
+	promoter := &fakePromoter{}
+	promo := NewTrialPromotion(vc, promoter, zap.NewNop())
 
 	promo.Sweep(context.Background())
 	promo.Sweep(context.Background())
 
-	require.Len(t, pub.got, 1)
-	require.Equal(t, data.SubjectLoyaltyCounters, pub.got[0].subject)
-	require.Equal(t, "trial-promote:4242:5", pub.got[0].id)
-	var dto data.CounterBumpedDTO
-	require.NoError(t, codec.Unmarshal(pub.got[0].payload, &dto))
-	require.Equal(t, uint64(4242), dto.UserID)
-	require.ElementsMatch(t, []data.CounterBumpEntry{
-		{Name: counterEventsProcessed, Scope: data.CounterScopeChannel, Delta: 120},
-		{Name: counterMessagesProcessed, Scope: data.CounterScopeChannel, Delta: 120},
-		{Name: counterCommandsAnswered, Scope: data.CounterScopeChannel, Delta: 7},
-	}, dto.Bumps)
+	require.Equal(t, []uint64{4242}, promoter.got)
 	done, err := vc.Do(context.Background(), vc.B().Hget().Key("trial:channel:4242").Field("counters_promoted").Build()).ToString()
 	require.NoError(t, err)
 	require.Equal(t, trialPromotedDone, done)
 }
 
-func TestTrialPromotionRetriesAStaleClaimAfterAFailedPublish(t *testing.T) {
+func TestTrialPromotionRetriesAStaleClaimAfterAFailedCall(t *testing.T) {
 	vc := localValkey(t)
-	seedTrial(t, vc, seededTrial{id: "4242", state: "promoted", fields: map[string]string{"decoded": "3"}})
-	failing := &rawCapture{fail: true}
-	NewTrialPromotion(vc, failing, zap.NewNop()).Sweep(context.Background())
-	require.Empty(t, failing.got)
+	seedTrial(t, vc, seededTrial{id: "4242", state: "promoted"})
+	NewTrialPromotion(vc, &fakePromoter{fail: true}, zap.NewNop()).Sweep(context.Background())
 
-	pub := &rawCapture{}
-	promo := NewTrialPromotion(vc, pub, zap.NewNop())
+	promoter := &fakePromoter{}
+	promo := NewTrialPromotion(vc, promoter, zap.NewNop())
 	promo.Sweep(context.Background())
-	require.Empty(t, pub.got, "a fresh claim is not retried")
+	require.Empty(t, promoter.got, "a fresh claim is not retried")
 
 	stale := strconv.FormatInt(time.Now().Add(-trialClaimTimeout-time.Second).Unix(), 10)
 	require.NoError(t, vc.Do(context.Background(), vc.B().Hset().Key("trial:channel:4242").FieldValue().FieldValue("counters_promoted", stale).Build()).Error())
 	promo.Sweep(context.Background())
-	require.Len(t, pub.got, 1)
+	require.Equal(t, []uint64{4242}, promoter.got)
 }
-
-type rawCaptured struct {
-	subject, id string
-	payload     []byte
-}
-
-type rawCapture struct {
-	fail bool
-	got  []rawCaptured
-}
-
-func (p *rawCapture) PublishOwned(ctx context.Context, subject string, payload []byte) error {
-	return p.PublishOwnedWithID(ctx, subject, "", payload)
-}
-
-func (p *rawCapture) PublishOwnedWithID(_ context.Context, subject, id string, payload []byte) error {
-	if p.fail {
-		return context.DeadlineExceeded
-	}
-	p.got = append(p.got, rawCaptured{subject: subject, id: id, payload: append([]byte(nil), payload...)})
-	return nil
-}
-
-func (p *rawCapture) Flush(context.Context) error { return nil }
-func (p *rawCapture) Close() error                { return nil }

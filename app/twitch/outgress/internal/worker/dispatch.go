@@ -72,7 +72,6 @@ func (w *Worker) rejectTrialOutput(ctx context.Context, payload *outgress.Messag
 		return false
 	}
 	w.logTrialBlocked(payload)
-	w.countTrialBlocked(ctx, payload.BroadcasterID)
 	return true
 }
 
@@ -91,15 +90,6 @@ func (w *Worker) logTrialBlocked(payload *outgress.Message) {
 		zap.String("endpoint", payload.Endpoint),
 		zap.String("method", payload.Method),
 		zap.ByteString("payload", payload.Payload))
-}
-
-func (w *Worker) countTrialBlocked(ctx context.Context, id string) {
-	if w.trialStore == nil || id == "" {
-		return
-	}
-	ctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
-	defer cancel()
-	_ = w.trialStore.Do(ctx, w.trialStore.B().Hincrby().Key("trial:channel:"+id).Field("blocked").Increment(1).Build()).Error()
 }
 
 func (w *Worker) sendBotLine(ctx context.Context, broadcasterID, text string) error {

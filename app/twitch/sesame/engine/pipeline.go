@@ -22,7 +22,6 @@ import (
 	"ItsBagelBot/pkg/codec"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
-	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
 )
 
@@ -42,11 +41,11 @@ type Config struct {
 }
 
 type Pipeline struct {
-	trialStore valkey.Client
-	log        *zap.Logger
-	pub        bus.Publisher
-	proj       projection.Reader
-	registry   *Registry
+	trialCounts CounterBumper
+	log         *zap.Logger
+	pub         bus.Publisher
+	proj        projection.Reader
+	registry    *Registry
 
 	live          IsLiveChecker
 	cooldown      CooldownStore
@@ -91,7 +90,7 @@ type Pipeline struct {
 
 func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 	p := &Pipeline{
-		trialStore:        d.TrialStore,
+		trialCounts:       d.Stats,
 		log:               d.Log,
 		pub:               d.Pub,
 		proj:              d.Proj,
@@ -415,7 +414,7 @@ func (p *Pipeline) publishOutput(ctx context.Context, state *emitState, replayID
 		return err
 	}
 	if state.env != nil && state.env.Origin == "trial" {
-		markTrialOutput(&output, state.env.TrialGeneration)
+		p.addTrial(ctx, state.env.BroadcasterUserID, "blocked", int64(markTrialOutput(&output, state.env.TrialGeneration)))
 	}
 	body, err := codec.Marshal(&output)
 	if err != nil {

@@ -279,9 +279,18 @@ func (r *Loyalty) CountersList(ctx context.Context, userID uint64) ([]*ent.Count
 	return db.WithQuery(ctx, func(ctx context.Context) ([]*ent.Counter, error) {
 		q := r.client.Counter.Query().Where(counter.UserIDEQ(userID))
 		if userID != 0 {
-			q = q.Where(counter.NameNotIn(data.SystemCounterNames()...))
+			q = q.Where(counter.NameNotIn(data.SystemCounterNames()...), counter.Not(counter.NameHasPrefix(data.TrialCounterPrefix)))
 		}
 		return q.Order(counter.ByName()).All(ctx)
+	})
+}
+
+func (r *Loyalty) TrialCounters(ctx context.Context, userID uint64) ([]*ent.Counter, error) {
+	return db.WithQuery(ctx, func(ctx context.Context) ([]*ent.Counter, error) {
+		return r.client.Counter.Query().
+			Where(counter.UserIDEQ(userID), counter.NameHasPrefix(data.TrialCounterPrefix)).
+			Order(counter.ByName()).
+			All(ctx)
 	})
 }
 

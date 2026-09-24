@@ -249,15 +249,14 @@ func warmupTwitch(ctx context.Context, tw *twitch.Client, log *zap.Logger) {
 
 func (d *deps) newLaneWorkers(tw *twitch.Client, limiter ratelimit.Manager, registry *channels.Registry, batch worker.BatchStore) (premium, standard, system *worker.Worker, cleanup func()) {
 	base := worker.Config{
-		TrialStore: d.valkey,
-		Limiter:    limiter,
-		Registry:   registry,
-		Twitch:     tw,
-		BotID:      d.cfg.TwitchBotUserID,
-		Owner:      d.host,
-		Conduit:    conduit.New(d.nc, d.cfg.ConduitSubject, d.cfg.TwitchConduitID, conduitCacheTTL, d.log.Named("conduit")),
-		Batch:      batch,
-		UserIDs:    worker.NewUserIDCache(),
+		Limiter:  limiter,
+		Registry: registry,
+		Twitch:   tw,
+		BotID:    d.cfg.TwitchBotUserID,
+		Owner:    d.host,
+		Conduit:  conduit.New(d.nc, d.cfg.ConduitSubject, d.cfg.TwitchConduitID, conduitCacheTTL, d.log.Named("conduit")),
+		Batch:    batch,
+		UserIDs:  worker.NewUserIDCache(),
 	}
 	build := func(name string, lane worker.Lane) *worker.Worker {
 		cfg := base

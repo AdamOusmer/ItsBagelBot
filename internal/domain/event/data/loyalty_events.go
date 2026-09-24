@@ -3,6 +3,8 @@
 
 package data
 
+import "strings"
+
 const (
 	SubjectLoyaltyEarned   = "data.loyalty.earned"
 	SubjectLoyaltyCounters = "data.loyalty.counters"
@@ -26,6 +28,13 @@ const (
 	CounterModActionsTaken  = "mod_actions"
 )
 
+const (
+	TrialCounterPrefix   = "trial_"
+	CounterTrialDecoded  = TrialCounterPrefix + "decoded"
+	CounterTrialAnswered = TrialCounterPrefix + "answered"
+	CounterTrialPromoted = TrialCounterPrefix + "promoted"
+)
+
 var systemCounterNames = []string{
 	CounterMessagesProcessed,
 	CounterEventsProcessed,
@@ -34,6 +43,9 @@ var systemCounterNames = []string{
 }
 
 func SystemCounter(name string) bool {
+	if strings.HasPrefix(name, TrialCounterPrefix) {
+		return true
+	}
 	for _, n := range systemCounterNames {
 		if n == name {
 			return true

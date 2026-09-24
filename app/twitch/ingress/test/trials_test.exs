@@ -203,13 +203,14 @@ defmodule Ingress.TrialReceiverProtocolTest do
   if is_nil(System.find_executable("valkey-server")),
     do: @moduletag(skip: "valkey-server is not installed")
 
-  alias Ingress.{JSON, TrialReceiver, TrialValkey, Trials}
+  alias Ingress.{JSON, TrialAdmission, TrialReceiver, TrialValkey, Trials}
 
   setup do
     if System.find_executable("valkey-server") do
       fixture = Ingress.TrialValkeyFixture.start()
       Application.put_env(:ingress, :trial_test_pid, self())
       start_supervised!({TrialValkey, []})
+      start_supervised!(TrialAdmission.Pool)
       assert :ok == Ingress.TrialValkeyFixture.await_ready()
 
       on_exit(fn ->
@@ -219,6 +220,10 @@ defmodule Ingress.TrialReceiverProtocolTest do
     end
 
     :ok
+  end
+
+  defp settle_admission do
+    for p <- 0..(TrialAdmission.partitions() - 1), do: :sys.get_state(TrialAdmission.name(p))
   end
 
   defp frame(type, payload) do
@@ -289,6 +294,32 @@ defmodule Ingress.TrialReceiverProtocolTest do
     {:ok, nil} = TrialValkey.command(["GET", "trial:owner_session"])
   end
 
+  test "chat is admitted off the socket loop, deduplicated by chat ID" do
+    {:ok, generation} = Trials.add("4242")
+    {:ok, _} = Trials.field("4242", "state", "receiving")
+
+    for chat_id <- ["a", "b", "a"] do
+      payload = %{"event" => %{"broadcaster_user_id" => "4242", "message_id" => chat_id}}
+      TrialAdmission.submit(payload, %{broadcaster_id: "4242"}, generation)
+    end
+
+    settle_admission()
+    assert {:ok, %{trials: [%{received: 2, failed: 0}]}} = Trials.list()
+  end
+
+  test "admission never counts chat for a channel that is not receiving" do
+    {:ok, generation} = Trials.add("4242")
+
+    TrialAdmission.submit(
+      %{"event" => %{"message_id" => "a"}},
+      %{broadcaster_id: "4242"},
+      generation
+    )
+
+    settle_admission()
+    assert {:ok, %{trials: [%{received: 0, failed: 0}]}} = Trials.list()
+  end
+
   test "loads count every notification per trial channel like a shard socket" do
     {:ok, _} = Trials.add("4242")
     {:ok, _} = Trials.field("4242", "state", "receiving")
@@ -342,6 +373,22 @@ defmodule Ingress.TrialReceiverProtocolTest do
 
     send(pid, {:fake_ws, primary, [frame("notification", payload)]})
     :sys.get_state(pid)
+    settle_admission()
     assert {:ok, %{trials: [%{received: 0, enabled: false}]}} = Trials.list()
+  end
+end
+
+defmodule Ingress.TrialAdmissionDropTest do
+  use ExUnit.Case, async: false
+
+  test "submitting with no admission worker running drops instead of blocking the socket" do
+    refute Process.whereis(Ingress.TrialAdmission.name(0))
+
+    assert :ok ==
+             Ingress.TrialAdmission.submit(
+               %{"event" => %{"message_id" => "a"}},
+               %{broadcaster_id: "4242"},
+               "1"
+             )
   end
 end

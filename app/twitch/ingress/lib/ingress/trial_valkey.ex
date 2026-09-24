@@ -24,6 +24,13 @@ defmodule Ingress.TrialValkey do
     end
   end
 
+  def pipeline(commands) when is_list(commands) do
+    case Process.whereis(__MODULE__) do
+      nil -> {:error, :unavailable}
+      conn -> Redix.pipeline(conn, commands, timeout: @timeout)
+    end
+  end
+
   defp connection_options do
     case System.get_env("VALKEY_ADDR") do
       nil -> {:error, :unconfigured}
