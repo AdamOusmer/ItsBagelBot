@@ -7,6 +7,8 @@ import (
 	"context"
 	"testing"
 
+	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
+
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 )
@@ -32,10 +34,18 @@ func TestIsGoLiveEdge(t *testing.T) {
 type fakeLoyaltyReader struct {
 	values map[string]int64
 	ok     bool
+	rows   []loyaltyrpc.CounterRank
+	reads  int
 }
 
 func (f *fakeLoyaltyReader) get(ctx context.Context, userID, name string) (int64, bool) {
+	f.reads++
 	return f.values[name], f.ok
+}
+
+func (f *fakeLoyaltyReader) board(ctx context.Context, name string, limit int) ([]loyaltyrpc.CounterRank, bool) {
+	f.reads++
+	return f.rows, f.ok
 }
 
 func TestSnapshotCounterBaselineSkipsOnLoyaltyFailure(t *testing.T) {
