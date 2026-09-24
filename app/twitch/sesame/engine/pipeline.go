@@ -267,6 +267,9 @@ func (p *Pipeline) processTrial(ctx context.Context, env *lane.Envelope, broadca
 	} else {
 		p.countTrial(ctx, env.BroadcasterUserID, "processed")
 	}
+	if mctx.Command != "" {
+		p.countTrial(ctx, env.BroadcasterUserID, "answered")
+	}
 	return emission.err
 }
 
