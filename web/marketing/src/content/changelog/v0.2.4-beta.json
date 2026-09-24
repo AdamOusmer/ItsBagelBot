@@ -1,0 +1,30 @@
+{
+  "tag": "beta",
+  "version": "v0.2.4-beta",
+  "date": "2026-09-24",
+  "title": {
+    "en": "ive stats that stay exact, a searchable time zone picker, and a hardened message bus",
+    "fr": "Des stats en direct toujours exactes, un sélecteur de fuseau horaire avec recherche, et un bus de messages renforcé"
+  },
+  "highlights": {
+    "en": [
+      "The stats page now reads live totals and leaderboards from a fast cache fed by every service, so counters update in real time and stay exact, including negative adjustments. Every page measures rates the same way, and hidden or idle tabs pause instead of polling.",
+      "The Local Time module has a searchable time zone picker: type a city, region or UTC offset and pick from the matches instead of scrolling a long list. Your choice saves as the channel's home zone.",
+      "The dashboard rail has a new support menu with a direct link to report a bug or suggest an idea, so feedback reaches us from any page without hunting for a contact form.",
+      "Trial channels now run on their own load-aware connections spread across the fleet. Their replies use templates, their loyalty counts like a full channel's, and busy trial chats are handled off the main socket loop so they never slow anyone else down.",
+      "Twitch ingestion no longer stalls when its app token arrives late at startup, and internal lookups now stay on the same node, removing a source of fleet-wide slowdowns.",
+      "Every service now signs in to the message bus with its own scoped, signed credentials instead of shared passwords, on NATS 2.15. Access rules are checked per service and update live without restarting anything.",
+      "Hiding your public commands page from Settings now saves reliably. Behind the scenes, our internal tools got live views and a steadier release process, so fixes reach you faster."
+    ],
+    "fr": [
+      "La page des statistiques lit désormais les totaux et les classements en direct depuis un cache rapide alimenté par tous les services : les compteurs se mettent à jour en temps réel et restent exacts, même après un ajustement négatif. Toutes les pages mesurent les débits de la même façon, et les onglets masqués ou inactifs se mettent en pause.",
+      "Le module Heure locale propose un sélecteur de fuseau horaire avec recherche : tapez une ville, une région ou un décalage UTC et choisissez parmi les résultats au lieu de parcourir une longue liste. Votre choix devient le fuseau de référence de la chaîne.",
+      "Le rail du tableau de bord a un nouveau menu d'aide avec un lien direct pour signaler un bug ou proposer une idée : vos retours nous parviennent depuis n'importe quelle page, sans chercher de formulaire de contact.",
+      "Les chaînes à l'essai tournent désormais sur leurs propres connexions, réparties selon la charge sur toute la flotte. Leurs réponses utilisent des modèles, leur fidélité compte comme celle d'une chaîne complète, et les chats d'essai très actifs sont traités hors de la boucle principale pour ne ralentir personne.",
+      "L'ingestion Twitch ne se bloque plus quand son jeton d'application arrive en retard au démarrage, et les requêtes internes restent désormais sur le même nœud, ce qui supprime une source de ralentissements sur toute la flotte.",
+      "Chaque service se connecte désormais au bus de messages avec ses propres identifiants signés et limités, au lieu de mots de passe partagés, sur NATS 2.15. Les règles d'accès sont vérifiées par service et se mettent à jour en direct, sans redémarrage.",
+      "Masquer votre page publique des commandes depuis les Réglages s'enregistre désormais de façon fiable. En coulisses, nos outils internes ont gagné des vues en direct et un processus de mise en production plus stable, pour que les correctifs vous arrivent plus vite."
+    ]
+  },
+  "github": "https://github.com/AdamOusmer/ItsBagelBot/releases/tag/v0.2.4-beta"
+}
