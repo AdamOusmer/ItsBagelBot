@@ -6,6 +6,7 @@ import { dev } from '$app/environment';
 import { POLICY } from '@bagel/kit/server/cache-keys';
 import { sharedSnapshot } from '@bagel/kit/server/shared-snapshot';
 import { fabric, SUB, accountState } from './services';
+import { liveBoard } from './live-counters';
 
 const DEMO = dev && process.env.DEMO === '1';
 
@@ -44,16 +45,6 @@ export interface PublicBoards {
   degraded: boolean;
 }
 
-interface CounterRankWire {
-  user_id?: string;
-  value?: number;
-}
-
-interface CounterBoardWire {
-  board?: CounterRankWire[];
-  error?: string;
-}
-
 interface FeedBoardWire {
   entries?: { broadcaster_id?: number | string; name?: string; count?: number }[];
   total?: number;
@@ -63,24 +54,6 @@ interface FeedBoardWire {
 
 function count(raw: unknown): number {
   return Number.isFinite(raw) ? Number(raw) : 0;
-}
-
-async function counterBoard(name: string): Promise<Map<string, number> | null> {
-  try {
-    const reply = await rpc<CounterBoardWire>(
-      `${SUB.loyalty}.counter.board`,
-      { user_id: '0', name, limit: BOARD_FETCH },
-      RPC_TIMEOUT_MS
-    );
-    const ranked = new Map<string, number>();
-    for (const row of reply.board ?? []) {
-      const id = (row.user_id ?? '').trim();
-      if (id) ranked.set(id, count(row.value));
-    }
-    return ranked;
-  } catch {
-    return null;
-  }
 }
 
 async function channelName(id: string): Promise<string> {
@@ -116,7 +89,7 @@ function feedNames(feed: PublicBoards['feed'] | null): Map<string, string> {
 }
 
 async function loadTraffic(known: Map<string, string>): Promise<ChannelTraffic[] | null> {
-  const [messages, events] = await Promise.all([counterBoard(COUNTER_MESSAGES), counterBoard(COUNTER_EVENTS)]);
+  const [messages, events] = await Promise.all([liveBoard(COUNTER_MESSAGES, BOARD_FETCH), liveBoard(COUNTER_EVENTS, BOARD_FETCH)]);
   if (messages === null || events === null) return null;
   return nameTraffic(mergeTraffic(messages, events), known);
 }
