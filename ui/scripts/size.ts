@@ -63,6 +63,10 @@ const ENTRIES: {
     // marketing home page used to ship four private rAF loops and two
     // matchMedia helpers. Watch this row for growth in the field's OWN
     // physics: ~570 B of the 1124 is now shared modules.
+    //
+    // 2026-09-23: 1124 -> 850 B gzip when the motes moved off a per-frame
+    // canvas onto Web Animations and the field stopped importing lib/raf-loop.
+    // Budget left at 1400 rather than tightened in the same change.
     name: "light-field",
     budget: 1400,
     external: [],

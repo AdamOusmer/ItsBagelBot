@@ -123,7 +123,7 @@ test('cursor: the svelte adapter renders nothing when disabled', () => {
  * ui/svelte/LightField.svelte.
  */
 const LIGHT_FIELD_HTML =
-  '<canvas class="bb-light-field" data-field data-warmth="0.7" aria-hidden="true"></canvas>';
+  '<div class="bb-light-field" data-field data-warmth="0.7" aria-hidden="true"></div>';
 
 test('light field: both adapters emit the contract markup', async () => {
   const container = await experimental_AstroContainer.create();
@@ -141,7 +141,7 @@ test('light field: the class and warmth props agree', async () => {
   const astro = normalise(await container.renderToString(AstroLightField, { props }));
 
   expect(svelte).toBe(
-    '<canvas class="bb-light-field bb-light-field--bleed" data-field data-warmth="0.4" aria-hidden="true"></canvas>',
+    '<div class="bb-light-field bb-light-field--bleed" data-field data-warmth="0.4" aria-hidden="true"></div>',
   );
   expect(astro).toBe(svelte);
 });
@@ -663,7 +663,7 @@ import AstroBrackets from '../astro/Brackets.astro';
 import SvelteReadingProgress from '../svelte/ReadingProgress.svelte';
 import AstroReadingProgress from '../astro/ReadingProgress.astro';
 
-const LIGHT_FIELD = '<canvas class="bb-light-field" data-field data-warmth="0.7" aria-hidden="true"></canvas>';
+const LIGHT_FIELD = '<div class="bb-light-field" data-field data-warmth="0.7" aria-hidden="true"></div>';
 
 /** The contract, one row per element. Edit deliberately.
  *
@@ -1483,7 +1483,7 @@ const PRIMITIVES: {
     svelte: SvelteErrorScene,
     astro: AstroErrorScene,
     props: {"status":404,"eyebrow":"Not found","title":"T","description":"D","aside":"A"},
-    html: "<main class=\"bb-error-scene\" aria-labelledby=\"bb-error-title\"><canvas class=\"bb-light-field\" data-field data-warmth=\"0.7\" aria-hidden=\"true\"></canvas><div class=\"bb-error-scene__glow\" aria-hidden=\"true\"></div><div class=\"bb-error-scene__orbits\" aria-hidden=\"true\"><span class=\"bb-error-scene__orbit\"></span><span class=\"bb-error-scene__orbit bb-error-scene__orbit--two\"></span></div><div class=\"bb-error-scene__content\"><p class=\"bb-error-scene__eyebrow\"><span>404</span> · Not found</p><p class=\"bb-error-scene__code\" aria-hidden=\"true\">404</p><h1 class=\"bb-error-scene__title\" id=\"bb-error-title\">T</h1><p class=\"bb-error-scene__desc\">D</p><p class=\"bb-error-scene__aside\">A</p></div></main>",
+    html: "<main class=\"bb-error-scene\" aria-labelledby=\"bb-error-title\"><div class=\"bb-light-field\" data-field data-warmth=\"0.7\" aria-hidden=\"true\"></div><div class=\"bb-error-scene__glow\" aria-hidden=\"true\"></div><div class=\"bb-error-scene__orbits\" aria-hidden=\"true\"><span class=\"bb-error-scene__orbit\"></span><span class=\"bb-error-scene__orbit bb-error-scene__orbit--two\"></span></div><div class=\"bb-error-scene__content\"><p class=\"bb-error-scene__eyebrow\"><span>404</span> · Not found</p><p class=\"bb-error-scene__code\" aria-hidden=\"true\">404</p><h1 class=\"bb-error-scene__title\" id=\"bb-error-title\">T</h1><p class=\"bb-error-scene__desc\">D</p><p class=\"bb-error-scene__aside\">A</p></div></main>",
   },
 ];
 

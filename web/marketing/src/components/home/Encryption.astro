@@ -100,37 +100,41 @@ const t = useTranslations(lang);
         --node-y: 0px;
         --elbow-x: 0px;
         --elbow-y: 0px;
-        --diag-len: 0px;
+        --diag-len: 0;
         --diag-angle: 0rad;
         --diag-progress: 0;
-        --flat-len: 0px;
+        --flat-len: 0;
         --flat-angle: 0rad;
         --flat-progress: 0;
         --node-scale: 0;
     }
 
+    /* Length rides on scaleX over a fixed 100px box, never on `width`. A
+       per-frame width change repaints the glow shadow every frame, and WebKit
+       cycles a pool of fresh backing surfaces for a layer repainted that often:
+       measured 2026-09-23 in a WKWebView at 390x844, device scale 3, the pinned
+       act sat at ~535 MB with width-driven segments and ~350 MB with scaleX. */
     .enc-node-line__segment {
         position: absolute;
         left: 0;
         top: 0;
+        width: 100px;
         height: 1px;
         transform-origin: left center;
         background: linear-gradient(90deg, rgba(167, 243, 208, 0), rgba(240, 236, 228, 0.92));
         box-shadow:
             0 0 8px rgba(167, 243, 208, 0.42),
             0 0 18px rgba(0, 0, 0, 0.65);
-        will-change: transform, width;
+        will-change: transform;
     }
 
     .enc-node-line__segment--diag {
-        width: var(--diag-len);
-        transform: translate3d(var(--node-x), var(--node-y), 0) rotate(var(--diag-angle)) scaleX(var(--diag-progress));
+        transform: translate3d(var(--node-x), var(--node-y), 0) rotate(var(--diag-angle)) scaleX(calc(var(--diag-len) / 100 * var(--diag-progress)));
     }
 
     .enc-node-line__segment--flat {
-        width: var(--flat-len);
         background: linear-gradient(90deg, rgba(240, 236, 228, 0.92), rgba(240, 236, 228, 0.68));
-        transform: translate3d(var(--elbow-x), var(--elbow-y), 0) rotate(var(--flat-angle)) scaleX(var(--flat-progress));
+        transform: translate3d(var(--elbow-x), var(--elbow-y), 0) rotate(var(--flat-angle)) scaleX(calc(var(--flat-len) / 100 * var(--flat-progress)));
     }
 
     .enc-node-line__node {
@@ -923,10 +927,10 @@ const t = useTranslations(lang);
             setConnectorVar(i, '--node-y', `${node.y}px`);
             setConnectorVar(i, '--elbow-x', `${elbowX}px`);
             setConnectorVar(i, '--elbow-y', `${lineY}px`);
-            setConnectorVar(i, '--diag-len', `${diagLen}px`);
+            setConnectorVar(i, '--diag-len', String(diagLen));
             setConnectorVar(i, '--diag-angle', `${Math.atan2(dyLine, dx)}rad`);
             setConnectorVar(i, '--diag-progress', String(diagProgress));
-            setConnectorVar(i, '--flat-len', `${layout.flatLen}px`);
+            setConnectorVar(i, '--flat-len', String(layout.flatLen));
             setConnectorVar(i, '--flat-angle', `${flatAngle}rad`);
             setConnectorVar(i, '--flat-progress', String(flatProgress));
             setConnectorVar(i, '--node-scale', String(Math.min(1, progress * 2)));
