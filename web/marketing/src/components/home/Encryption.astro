@@ -1284,18 +1284,29 @@ const t = useTranslations(lang);
             else disposeGpu();
         };
 
-        const FRAME_MS = 1000 / 48;
         const TUNED_FRAME_MS = 1000 / 60;
-        let frameClock = 0;
+        // Skip whole refreshes only, locked while drawing: a cap that is not a
+        // divisor of the refresh rate (48 fps on 60 or 200 Hz) alternates gap
+        // lengths and judders. floor(Hz / 44) lands every rate at 45-75 fps.
+        const strideFor = (refreshMs: number) => Math.max(1, Math.floor(1000 / refreshMs / 44));
+        let refreshMs = TUNED_FRAME_MS;
+        let lastTick = 0;
+        let tickCount = 0;
+        let stride = 0;
         let lastRender = 0;
 
         renderer.setAnimationLoop((time) => {
             if (disposed) return;
             timer.update(time);
-            if (!drawing || !pageVisible) return;
-            const sinceTick = time - frameClock;
-            if (sinceTick < FRAME_MS) return;
-            frameClock = time - (sinceTick % FRAME_MS);
+            const tick = time - lastTick;
+            lastTick = time;
+            if (tick > 2 && tick < 50) refreshMs += (tick - refreshMs) * 0.05;
+            if (!drawing || !pageVisible) {
+                stride = 0;
+                return;
+            }
+            if (stride === 0) stride = strideFor(refreshMs);
+            if (++tickCount % stride !== 0) return;
             const steps = Math.min(time - lastRender, 100) / TUNED_FRAME_MS;
             lastRender = time;
             curP += (rawP - curP) * easeOver(0.06, steps);
