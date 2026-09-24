@@ -6,6 +6,7 @@ namespace: keda
 resources:
   - keda-2.20.2.yaml
   - availability.yaml
+  - network-policies.yaml
 patches:
   - target: {kind: Deployment, namespace: keda}
     patch: |
