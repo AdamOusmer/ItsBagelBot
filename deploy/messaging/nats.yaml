@@ -64,7 +64,7 @@ spec:
       priorityClassName: bagel-data-plane
       containers:
         - name: nats
-          image: nats:2.14.7-alpine@sha256:4063edae0717ba5f7501bfde75f97fd9b57f5b93597b92c70b6a6fbbf6a74e06
+          image: nats:2.15.0-alpine@sha256:ac8f88a6494bffc2c2a5289a0ca61cb28a9145c11ba5677cf24265d07f46d8d4
 
 
           imagePullPolicy: IfNotPresent
