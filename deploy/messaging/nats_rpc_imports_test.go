@@ -50,6 +50,7 @@ var rpcRequests = map[string][]rpcRequest{
 		{"bagel.rpc.internal.projection.modules.get", "internal/projection/hydration"},
 		{"bagel.rpc.internal.projection.commands.get", "internal/projection/hydration"},
 		{"bagel.rpc.loyalty.counter.get", "app/projector/loyalty.go"},
+		{"bagel.rpc.loyalty.counter.board", "app/projector/loyalty.go"},
 		{"bagel.rpc.health.users", "app/projector/main.go healthSet"},
 		{"bagel.rpc.health.commands", "app/projector/main.go healthSet"},
 		{"bagel.rpc.health.modules", "app/projector/main.go healthSet"},
