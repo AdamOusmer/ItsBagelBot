@@ -5,6 +5,7 @@ package engine
 
 import (
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -205,4 +206,43 @@ func TestStartRefusesMalformedRequests(t *testing.T) {
 			assert.Contains(t, err.Error(), tc.want)
 		})
 	}
+}
+
+type setClock struct{ now time.Time }
+
+func (c *setClock) Now() time.Time { return c.now }
+
+func TestRepeatPlansReuseTheManifestsOfTheSameCommit(t *testing.T) {
+	h := newHarness(t)
+	withCluster(h)
+	plan := func() {
+		_, err := h.eng.Plan(bg, owner, deploy.PlanRequest{})
+		require.NoError(t, err)
+	}
+	plan()
+	plan()
+	h.gh.main = "f00dfeed"
+	plan()
+	assert.Equal(t, int32(2), h.gh.trees.Load(), "one tree fetch per main commit")
+}
+
+func TestRegistryTagListingsExpireAfterTheTTL(t *testing.T) {
+	h := newHarness(t)
+	withCluster(h)
+	calls := &atomic.Int32{}
+	reg := h.eng.d.Stage.Registry.(fakeRegistry)
+	reg.calls = calls
+	h.eng.d.Stage.Registry = reg
+	clock := &setClock{now: time.Unix(1_700_000_000, 0)}
+	h.eng.d.Stage.Clock = clock
+	bump := func() int32 {
+		_, err := h.eng.Plan(bg, owner, deploy.PlanRequest{Kind: deploy.KindBump})
+		require.NoError(t, err)
+		return calls.Load()
+	}
+	first := bump()
+	require.Positive(t, first)
+	cached := bump()
+	clock.now = clock.now.Add(tagsTTL)
+	assert.Equal(t, [2]int32{first, 2 * first}, [2]int32{cached, bump()})
 }

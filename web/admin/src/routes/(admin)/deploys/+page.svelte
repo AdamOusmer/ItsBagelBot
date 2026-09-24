@@ -3,6 +3,7 @@
   // Proprietary. No license granted. See LICENSE.md.
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
+  import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import StatusStrip from '$lib/components/deploys/StatusStrip.svelte';
   import ShipPanel from '$lib/components/deploys/ShipPanel.svelte';
@@ -20,14 +21,25 @@
     {t('admin.deploys.titlePre')}<em>{t('admin.deploys.titleEm')}</em>
   </PageHead>
 
-  <StatusStrip plan={data.plan} active={data.active} {last} />
-
-  {#if data.planError}
-    <AlertBanner>{t('admin.deploys.planError', { error: data.planError })}</AlertBanner>
+  {#if data.runsError}
+    <AlertBanner>{t('admin.deploys.planError', { error: data.runsError })}</AlertBanner>
   {/if}
 
+  {#await data.planned}
+    <SkeletonStack rows={1} height="124px" />
+  {:then planned}
+    <StatusStrip plan={planned.plan} active={data.active} {last} />
+    {#if planned.planError}
+      <AlertBanner>{t('admin.deploys.planError', { error: planned.planError })}</AlertBanner>
+    {/if}
+  {/await}
+
   <div class="stack">
-    <ShipPanel plan={data.plan} active={data.active} />
+    {#await data.planned}
+      <SkeletonStack rows={1} height="420px" />
+    {:then planned}
+      <ShipPanel plan={planned.plan} active={data.active} />
+    {/await}
     <RunHistory runs={data.runs} />
   </div>
 </section>

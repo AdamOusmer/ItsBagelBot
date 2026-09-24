@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -279,6 +280,7 @@ type fakeGitHub struct {
 	prs      []deploy.PRInfo
 	reruns   []int64
 	offMain  deploy.SHA
+	trees    atomic.Int32
 }
 
 func (g *fakeGitHub) WorkflowRun(_ context.Context, id int64) (ports.WorkflowRun, error) {
@@ -298,6 +300,7 @@ func (g *fakeGitHub) BranchHead(context.Context, ports.Branch) (deploy.SHA, erro
 }
 
 func (g *fakeGitHub) Tree(context.Context, ports.FilePath, ports.Ref) (ports.Files, error) {
+	g.trees.Add(1)
 	return ports.Files{}, nil
 }
 
@@ -359,10 +362,14 @@ func (w fakeWatcher) LiveImages(context.Context, []ports.WorkloadRef) ([]ports.L
 
 type fakeRegistry struct {
 	ports.Registry
-	tags map[deploy.ImageName][]deploy.Tag
+	tags  map[deploy.ImageName][]deploy.Tag
+	calls *atomic.Int32
 }
 
 func (r fakeRegistry) Tags(_ context.Context, img deploy.ImageName) ([]deploy.Tag, error) {
+	if r.calls != nil {
+		r.calls.Add(1)
+	}
 	return r.tags[img], nil
 }
 
