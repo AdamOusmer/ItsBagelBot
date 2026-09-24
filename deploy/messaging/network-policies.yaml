@@ -73,3 +73,12 @@ spec:
       ports:
         - port: 8222
         - port: 8223
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: newrelic-prometheus-agent
+      ports:
+        - port: 7777
