@@ -71,7 +71,7 @@
   <input type="hidden" name="login" value={draft.login} />
   <input type="hidden" name="display_name" value={draft.displayName} />
 
-  <Scroller fill padding="18px">
+  <Scroller fill padding="18px" smooth>
     <div class="body">
       {#if creating}
         <Field label={t('admin.staff.fieldUserId')}>

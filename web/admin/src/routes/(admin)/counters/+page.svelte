@@ -271,7 +271,7 @@
             <input type="hidden" name="name" value={draft.name} />
             <input type="hidden" name="value" value={String(draft.value)} />
 
-            <Scroller fill padding="18px">
+            <Scroller fill padding="18px" smooth>
               <div class="body">
                 {#if creating}
                   <Field label={t('admin.counters.fieldName')}>

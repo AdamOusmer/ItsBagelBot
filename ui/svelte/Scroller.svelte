@@ -21,6 +21,7 @@
     maxHeight,
     fill = false,
     padding,
+    smooth = false,
     children,
     class: className = '',
     ...rest
@@ -31,6 +32,8 @@
     fill?: boolean;
     /** Inner padding, kept inside the scroll region so the bar hugs the edge. */
     padding?: string;
+    /** Smooth-scroll this panel with its own Lenis (wheel only; touch stays native). */
+    smooth?: boolean;
     children: Snippet;
   } & HTMLAttributes<HTMLDivElement> = $props();
 
@@ -45,6 +48,28 @@
       .filter(Boolean)
       .join(';') || undefined,
   );
+
+  let element: HTMLDivElement;
+
+  // Imported on demand so lenis stays out of the console's entry chunk, the
+  // same reason kit's initLenis is async.
+  $effect(() => {
+    if (!smooth) return;
+    let destroy: (() => void) | undefined;
+    let unmounted = false;
+    void import('../lib/lenis').then(({ createPaneScroll }) => {
+      if (!unmounted) destroy = createPaneScroll(element)?.destroy;
+    });
+    return () => {
+      unmounted = true;
+      destroy?.();
+    };
+  });
 </script>
 
-<div class={classes} {style} {...rest}>{@render children()}</div>
+<div
+  bind:this={element}
+  class={classes}
+  {style}
+  {...rest}
+>{@render children()}</div>

@@ -62,7 +62,7 @@
   <input type="hidden" name="consumer" value={lane.consumer} />
   <input type="hidden" name="alias" value={draft.alias} />
 
-  <Scroller fill padding="18px">
+  <Scroller fill padding="18px" smooth>
     <div class="body">
       <dl class="facts">
         <div>

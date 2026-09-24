@@ -54,7 +54,7 @@
 </script>
 
 <form class="editor" method="POST" action="?/send" use:enhance={onSubmit}>
-  <Scroller fill padding="18px">
+  <Scroller fill padding="18px" smooth>
     <div class="body">
       <section class="block">
         <h3 class="block-label">{t('admin.notifications.audienceLabel')}</h3>

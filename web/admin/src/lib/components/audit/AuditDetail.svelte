@@ -26,7 +26,7 @@
 </script>
 
 <div class="detail">
-  <Scroller fill padding="18px">
+  <Scroller fill padding="18px" smooth>
     <div class="body">
       <div class="ident">
         <Bolota name={entry.actor_login} size={40} active />

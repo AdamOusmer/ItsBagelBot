@@ -66,7 +66,14 @@ type LenisWindow = { __lenis?: unknown };
 
 (globalThis as { window?: unknown }).window = globalThis as unknown as Window;
 
-const { createSmoothScroll, getSmoothScroll } = await import("../lib/lenis");
+const { createPaneScroll, createSmoothScroll, getSmoothScroll } = await import("../lib/lenis");
+
+type SeenOptions = Record<string, unknown> & {
+  prevent: (node: unknown) => boolean;
+  virtualScroll: (data: unknown) => boolean;
+};
+const seen = () => lastOptions as SeenOptions;
+const wheel = (deltaY: number) => ({ deltaX: 0, deltaY, event: { type: "wheel" } });
 
 beforeEach(() => {
   constructed = 0;
@@ -128,13 +135,9 @@ describe("createSmoothScroll", () => {
 
     // The caller's prevent still wins and the caller's virtualScroll verdict
     // still reaches Lenis; both now go through the gate rather than straight in.
-    const opts = lastOptions as {
-      prevent: (node: unknown) => boolean;
-      virtualScroll: (data: unknown) => boolean;
-    };
-    expect(opts.prevent).not.toBe(prevent);
-    expect(opts.prevent({ id: "docs-sidebar" })).toBe(true);
-    expect(opts.virtualScroll({ deltaX: 0, deltaY: 1, event: { type: "wheel" } })).toBe(false);
+    expect(seen().prevent).not.toBe(prevent);
+    expect(seen().prevent({ id: "docs-sidebar" })).toBe(true);
+    expect(seen().virtualScroll(wheel(1))).toBe(false);
   });
 
   test("a second call returns the LIVE instance and constructs nothing", () => {
@@ -180,5 +183,46 @@ describe("createSmoothScroll", () => {
 
     expect(createSmoothScroll()!.lenis).toBe(first.lenis);
     expect(constructed).toBe(1);
+  });
+});
+
+describe("createPaneScroll", () => {
+  const pane = {} as HTMLElement;
+
+  test("never touches window.__lenis, so the page scroller stays the one overlays stop", () => {
+    const page = createSmoothScroll();
+    const handle = createPaneScroll(pane);
+
+    expect(handle!.lenis).not.toBe(page!.lenis);
+    expect(getSmoothScroll()).toBe(page!.lenis);
+    expect(constructed).toBe(2);
+  });
+
+  test("scrolls the pane itself and declines the wheel while it has nothing to scroll", () => {
+    const limit = createPaneScroll(pane)!.lenis as unknown as { limit: number };
+    const { wrapper, content, naiveDimensions, virtualScroll } = seen();
+    const verdictAt = (max: number) => {
+      limit.limit = max;
+      return virtualScroll(wheel(40));
+    };
+
+    expect([wrapper, content, naiveDimensions]).toEqual([pane, pane, true]);
+    expect([0, 120].map(verdictAt)).toEqual([false, true]);
+  });
+
+  test("destroy unsubscribes and destroys only its own instance", () => {
+    const page = createSmoothScroll();
+    createPaneScroll(pane)!.destroy();
+
+    expect(destroyed).toBe(1);
+    expect(subscriptions).toBe(1);
+    expect(getSmoothScroll()).toBe(page!.lenis);
+  });
+
+  test("returns null under reduced motion, and constructs nothing", () => {
+    reduced = true;
+
+    expect(createPaneScroll(pane)).toBeNull();
+    expect(constructed).toBe(0);
   });
 });
